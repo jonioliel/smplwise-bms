@@ -167,8 +167,13 @@
         "shopping_list"
       ],
       "note": "Monthly releases (first Wednesday-ish) plus weekly patches. We use the WebSocket API (auth, get_states, registries, subscribe_events, auth/current_user, refresh tokens), the REST API (/api/states, /api/services, history), long-lived access tokens, the bridge custom integration (config flow, services, hassio discovery) and entity/area/floor/device registries. The checker parses the 'Backward-incompatible changes' headings of the release notes and the beta notes and matches them against every item's ha_domains.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "2026.10.1 (2026-10-10)",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "2026.10 \u05de\u05e9\u05e0\u05d4 \u05e9\u05dc\u05d5\u05e9\u05d4 \u05d3\u05d1\u05e8\u05d9\u05dd \u05e9\u05e0\u05d5\u05d2\u05e2\u05d9\u05dd \u05d1\u05e0\u05d5: (1) \u05e1\u05e4\u05e7 \u05d4\u05d0\u05d9\u05de\u05d5\u05ea \u05d4\u05e1\u05d9\u05e8 \u05de\u05e6\u05d1 legacy \u05d5\u05e9\u05de\u05d5\u05ea \u05de\u05e9\u05ea\u05de\u05e9 \u05de\u05e0\u05d5\u05e8\u05de\u05dc\u05d9\u05dd \u05ea\u05de\u05d9\u05d3 (\u05d0\u05d5\u05ea\u05d9\u05d5\u05ea \u05e7\u05d8\u05e0\u05d5\u05ea, \u05d1\u05dc\u05d9 \u05e8\u05d5\u05d5\u05d7\u05d9\u05dd \u05d1\u05e7\u05e6\u05d5\u05d5\u05ea); Arx \u05de\u05d6\u05d4\u05d4 \u05dc\u05e4\u05d9 \u05de\u05d6\u05d4\u05d4 \u05de\u05e9\u05ea\u05de\u05e9 \u05d5\u05dc\u05db\u05df \u05dc\u05d0 \u05e0\u05e4\u05d2\u05e2. (2) mqtt.publish \u05d5-mqtt.dump \u05d3\u05d5\u05e8\u05e9\u05d9\u05dd \u05de\u05e0\u05d4\u05dc: '\u05d4\u05e4\u05e2\u05dc \u05e2\u05db\u05e9\u05d9\u05d5' \u05e9\u05dc \u05e1\u05e7\u05e8\u05d9\u05e4\u05d8 \u05e2\u05dd mqtt.publish \u05d9\u05d9\u05db\u05e9\u05dc \u05d0\u05e6\u05dc \u05de\u05e9\u05ea\u05de\u05e9 \u05e9\u05d0\u05d9\u05e0\u05d5 \u05de\u05e0\u05d4\u05dc. (3) \u05ea\u05e0\u05d0\u05d9 \u05de\u05e6\u05d1 \u05e2\u05dd for \u05d9\u05d7\u05d3 \u05e2\u05dd \u05de\u05d0\u05e4\u05d9\u05d9\u05df, \u05e8\u05e9\u05d9\u05de\u05ea \u05de\u05e6\u05d1\u05d9\u05dd \u05d0\u05d5 \u05de\u05e6\u05d1 \u05de\u05d9\u05e9\u05d5\u05ea \u05d0\u05d7\u05e8\u05ea \u05e0\u05db\u05e9\u05dc\u05d9\u05dd \u05d1\u05d0\u05d9\u05de\u05d5\u05ea \u05d4\u05ea\u05e6\u05d5\u05e8\u05d4. \u05ea\u05d9\u05e7\u05d5\u05df 2026.10.1 \u05de\u05d7\u05d6\u05d9\u05e8 TLS \u05dc\u05d0 \u05de\u05d0\u05d5\u05de\u05ea \u05dc\u05de\u05e7\u05d5\u05e8\u05d5\u05ea stream \u05e2\u05dd \u05d0\u05e4\u05e9\u05e8\u05d5\u05ea verify_ssl. \u05d4\u05de\u05e2\u05d1\u05d3\u05d4 \u05d5\u05e9\u05e2\u05e8 WisKey \u05e0\u05e9\u05d0\u05e8\u05d9\u05dd \u05e2\u05dc 2026.9.4 \u05e2\u05d3 \u05d0\u05d9\u05e9\u05d5\u05e8. \u05e4\u05d9\u05e8\u05d5\u05d8: docs/operations/HA_2026_10_COMPATIBILITY_HE.md."
     },
     {
       "id": "ha-supervisor",
@@ -235,8 +240,13 @@
         "denied command"
       ],
       "note": "Add-on runtime: Ingress (ingress, ingress_port, panel_*), hassio_api + homeassistant_api roles, discovery of the bridge, /addons/self/options and /addons/self/restart (settings screen), CR-021 S3 (hassio_role: manager): POST /store/addons/{slug}/update, GET /jobs/info, GET /core/info, POST /core/check, POST /core/restart (the allow-list in services/self_update.py; watch for role-regex changes, the self bypass and /v2 aliases), backup: hot, watchdog, the map: homeassistant_config copy of the bridge. build.yaml is kept only for Supervisors older than 2026.04 (newer ones read the base image from the Dockerfile). HA is moving the name add-ons -> apps (the cloudflared repo is homeassistant-apps/app-cloudflared): watch for config key or API renames.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "2026.10.1 (2026-10-08)",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05d0\u05d9\u05df \u05e9\u05d9\u05e0\u05d5\u05d9 \u05e9\u05d5\u05d1\u05e8 \u05de\u05ea\u05d5\u05e2\u05d3. Ingress: \u05d7\u05dc\u05d5\u05df \u05ea\u05e4\u05d5\u05d2\u05d4 \u05e0\u05e2 \u05dc-session. \u05d4-proxy \u05e9\u05dc WebSocket \u05d3\u05d5\u05d7\u05d4 \u05d0\u05e6\u05d5\u05d5\u05ea \u05e2\u05dd \u05e4\u05e7\u05d5\u05d3\u05d5\u05ea \u05d0\u05e1\u05d5\u05e8\u05d5\u05ea. Network API v2 \u05d5\u05e9\u05de\u05d5\u05ea \u05ea\u05d9\u05e7\u05d9\u05d5\u05ea v2 \u05d0\u05d9\u05e0\u05dd \u05d1\u05e9\u05d9\u05de\u05d5\u05e9 \u05d0\u05e6\u05dc\u05e0\u05d5 (self_update \u05de\u05e9\u05ea\u05de\u05e9 \u05d1-v1). \u05dc\u05d1\u05d3\u05d5\u05e7 \u05d1\u05e2\u05e9\u05df: \u05e2\u05d3\u05db\u05d5\u05df \u05e2\u05e6\u05de\u05d9 \u05d5-Ingress."
     },
     {
       "id": "ha-os",
@@ -288,8 +298,13 @@
         "data disk"
       ],
       "note": "The host under the lab and the customer systems. A new Docker/kernel/network stack can change container networking (go2rtc runs on the host network; WebRTC media takes a direct UDP path), mDNS resolution, time sync (NVR clock drift evidence) and the data disk the add-on database lives on. Seen in the lab: HAOS 18.2.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "18.3",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05d3\u05e3 \u05e0\u05d7\u05d9\u05ea\u05d4 \u05e2\u05dc \u05e4\u05d5\u05e8\u05d8 80 \u05db\u05d1\u05e8\u05d9\u05e8\u05ea \u05de\u05d7\u05d3\u05dc, kernel \u05d5-Docker \u05d7\u05d3\u05e9\u05d9\u05dd, \u05e4\u05e7\u05d5\u05d3\u05ea ha docker reset-storage. \u05d0\u05d9\u05df \u05ea\u05dc\u05d5\u05ea \u05d9\u05e9\u05d9\u05e8\u05d4; \u05dc\u05d4\u05e2\u05dc\u05d5\u05ea \u05d1\u05de\u05e2\u05d1\u05d3\u05d4 \u05d9\u05d7\u05d3 \u05e2\u05dd 2026.10.x \u05d5\u05dc\u05d1\u05d3\u05d5\u05e7 WebRTC UDP \u05d5\u05e1\u05e0\u05db\u05e8\u05d5\u05df \u05e9\u05e2\u05d5\u05df."
     },
     {
       "id": "ha-addon-spec",
@@ -339,7 +354,7 @@
         "rename"
       ],
       "note": "The add-on manifest keys we rely on (ingress, ingress_port, panel_icon/title/admin, hassio_api, hassio_role (manager since CR-021 S3), homeassistant_api, discovery, map, backup, watchdog, options/schema, arch, init: false) and the repository layout (repository.yaml). Developer-blog posts about add-ons, apps, Supervisor, Ingress or hassio are listed here even when they carry no generic breaking keyword.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -423,8 +438,9 @@
         "native_"
       ],
       "note": "Integration-developer posts: anything about custom integrations (our bridge), WebSocket/REST/auth, camera/media_player/alarm entity platforms, frontend card API, services and translations. Generic words are off here (the blog is about integration internals); only the keywords above flag a post.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "impact_he": "2026-10-08: \u05de\u05d0\u05e4\u05d9\u05d9\u05df temperature_unit \u05dc-climate \u05d5\u05dc-water_heater \u05de-2026.11, \u05d4\u05e1\u05e8\u05ea \u05d4\u05e9\u05de\u05d5\u05ea \u05d4\u05d9\u05e9\u05e0\u05d9\u05dd \u05d1-2027.11. 2026-10-06: RestoreStateData.last_states \u05de\u05d5\u05e1\u05e8. \u05d0\u05d9\u05df \u05e9\u05d9\u05de\u05d5\u05e9 \u05d0\u05e6\u05dc\u05e0\u05d5; \u05d4\u05d2\u05e9\u05e8 \u05e8\u05e7 \u05e7\u05d5\u05e8\u05d0 state."
     },
     {
       "id": "ha-frontend",
@@ -471,8 +487,12 @@
         "custom-element"
       ],
       "note": "The smplwise-card Lovelace card (bridge www), the Ingress panel in the HA UI, the WisKey embed host and the Arx remote app which reads HA tokens (hass-tokens.ts). Frontend releases are numerous; only keyword hits are flagged.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": "20260930.3",
+      "latest_seen": {
+        "version": "20260930.3",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "ha-os-base-image",
@@ -513,8 +533,13 @@
         "3.14"
       ],
       "note": "Our image builds FROM this base: Python 3.12 on Alpine 3.22, plus apk packages poppler-utils, jpeg, zlib, libpng, ffmpeg. A new Python or Alpine series (wheels for numpy, Pillow, cryptography, ezdxf are installed with pip on musl) is the risk.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "2026.10.0",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05d1\u05e1\u05d9\u05e1 \u05d4\u05ea\u05d5\u05e1\u05e3 (Python \u05e2\u05dc Alpine) \u05e2\u05d5\u05d3\u05db\u05df: Python, bashio 0.19.0, s6-overlay 3.2.3.2. \u05d0\u05e0\u05d7\u05e0\u05d5 \u05de\u05e6\u05de\u05d9\u05d3\u05d9\u05dd \u05e8\u05e7 \u05ea\u05d2 3.12-alpine3.22; \u05de\u05d5\u05de\u05dc\u05e5 \u05dc\u05d1\u05e0\u05d5\u05ea \u05de\u05d7\u05d3\u05e9 \u05db\u05d3\u05d9 \u05dc\u05e7\u05d1\u05dc \u05d0\u05ea \u05ea\u05d9\u05e7\u05d5\u05e0\u05d9 \u05d4\u05d0\u05d1\u05d8\u05d7\u05d4."
     },
     {
       "id": "hacs",
@@ -555,7 +580,7 @@
         "validation"
       ],
       "note": "Only the bridge custom integration is HACS-shaped (hacs.json); HACS is NOT an add-on installer (AGENTS.md). The add-on itself installs through the Supervisor repository (repository.yaml).",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "2.0.5"
     },
     {
@@ -598,8 +623,12 @@
         "fullscreen"
       ],
       "note": "Experimental only: the WisKey phone embed relay (access.phone_embed, default off) and the push research (CR-012). The product ships its own WebView app (mobile/android-shell). Releases are very frequent, so only keyword hits are flagged.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "2026.10.1",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "go2rtc",
@@ -677,8 +706,13 @@
         "breaking"
       ],
       "note": "External go2rtc adapter: PUT/DELETE /api/streams (smplwise_ namespace only; create/delete can persist config), /api/ws for MSE and WebRTC relay, /api/frame.jpeg for stills. Lab measured: WebRTC decodes the NVR sub profile only, main needs MSE; GOP about 8 s. Never touch foreign streams (the same go2rtc serves the intercom project).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "v1.9.14"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "v1.9.14",
+      "latest_seen": {
+        "version": "v1.9.14 (2026-01-19)",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05d0\u05d9\u05df \u05d2\u05e8\u05e1\u05d4 \u05d7\u05d3\u05e9\u05d4 \u05de\u05d0\u05d6 1.9.14. 1.9.12 \u05db\u05dc\u05dc \u05d4\u05e7\u05e9\u05d7\u05ea \u05d0\u05d1\u05d8\u05d7\u05d4 (\u05d4\u05d2\u05d1\u05dc\u05ea exec/echo, \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05e7\u05d5\u05de\u05d9); \u05dc\u05d5\u05d5\u05d3\u05d0 \u05e9\u05d4\u05ea\u05d5\u05e1\u05e3 \u05e8\u05e5 \u05e2\u05dd \u05d4\u05d2\u05d3\u05e8\u05d5\u05ea \u05d1\u05e8\u05d9\u05e8\u05ea \u05d4\u05de\u05d7\u05d3\u05dc \u05d4\u05de\u05e7\u05e9\u05d9\u05d7\u05d5\u05ea."
     },
     {
       "id": "go2rtc-addon",
@@ -728,7 +762,7 @@
         "go2rtc"
       ],
       "note": "How go2rtc is installed on the lab and customer systems. The add-on version tracks the go2rtc release; the commit feed has no release tags, so it is informational (flag_dated_hits off).",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "1.9.14"
     },
     {
@@ -794,7 +828,8 @@
       },
       "note": "No machine-readable feed. Capability discovery beats endpoint guesses (AGENTS.md): playback RTSP tracks, ContentMgmt search, downloadRequest by file only, alertStream heartbeats, deviceInfo/time. A firmware change can alter any of these. Check the vendor firmware list for the model and ask the owner before any NVR upgrade (never upgrade from here).",
       "last_checked": null,
-      "last_seen_version": null
+      "last_seen_version": null,
+      "impact_he": "\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d9\u05d3\u05e0\u05d9\u05ea \u05dc\u05d0 \u05d1\u05d5\u05e6\u05e2\u05d4 (\u05e4\u05d5\u05e8\u05d8\u05dc \u05d4\u05d9\u05e6\u05e8\u05df \u05d3\u05d5\u05e8\u05e9 \u05db\u05e0\u05d9\u05e1\u05d4); \u05e0\u05e9\u05d0\u05e8 V4.84.101 \u05e2\u05d3 \u05d1\u05d3\u05d9\u05e7\u05d4 \u05d0\u05e0\u05d5\u05e9\u05d9\u05ea."
     },
     {
       "id": "hikvision-door-station-firmware",
@@ -911,7 +946,8 @@
       ],
       "note": "The owner's own integration. We call its WebSocket commands (hikvision_intercom/..., api_contract=1) and embed its panel through the embed API v1 (frontend adapter, rc.19 -> rc.37). Gate A (native integration, identity per operator) is open on branch pilot/wiskey-native-gateA. Releases are rc builds: ANY new release is relevant; read the changelog and the handoff for contract changes.",
       "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_seen_version": null,
+      "impact_he": "\u05d4\u05de\u05d0\u05d2\u05e8 \u05e4\u05e8\u05d8\u05d9 (404 \u05d1\u05d4\u05d6\u05e0\u05d4 \u05d4\u05e6\u05d9\u05d1\u05d5\u05e8\u05d9\u05ea), \u05d4\u05d2\u05e8\u05e1\u05d4 \u05e0\u05e9\u05d0\u05e8\u05ea rc.37. \u05e1\u05d1\u05d9\u05d1\u05ea \u05d4\u05e9\u05e2\u05e8 \u05e9\u05dc WisKey \u05e0\u05e2\u05d5\u05e6\u05d4 \u05dc-HA 2026.9.4; \u05de\u05d5\u05de\u05dc\u05e5 \u05dc\u05d4\u05d5\u05e1\u05d9\u05e3 \u05de\u05ea\u05db\u05d5\u05df 2026.10.x \u05dc\u05e1\u05d1\u05d1 \u05d4\u05d1\u05d0 (\u05e9\u05de\u05d5\u05ea \u05de\u05e9\u05ea\u05de\u05e9 \u05de\u05e0\u05d5\u05e8\u05de\u05dc\u05d9\u05dd, mqtt \u05d3\u05d5\u05e8\u05e9 \u05de\u05e0\u05d4\u05dc)."
     },
     {
       "id": "scheduler-component",
@@ -965,7 +1001,7 @@
         "scheduler"
       ],
       "note": "Arx schedules (CR-014) are a thin layer over this component through the bridge (schedule_service.py): add/edit/remove services, tags, sun offsets, schedule entities. Not a core integration: a breaking release here silently breaks the Schedules screen. Phase 2b (alarm-code relay) is Arx-side.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -1026,8 +1062,13 @@
         "music_assistant"
       ],
       "note": "Used through Home Assistant media_player entities and the music_assistant services (get_library, get_queue, search, play_announcement, play_media, transfer_queue). 0.1.152 plans direct Music Assistant access (phase 2b: full queue/library/search); today it is HA-only (CR-016 decision). The HA integration is a core integration, so HA's backward-incompatible list also matters.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "2.10.6 stable / 2.11.0b4 beta",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "2.11.0b4 \u05de\u05e1\u05de\u05df \u05e9\u05d9\u05e0\u05d5\u05d9 \u05e9\u05d5\u05d1\u05e8 \u05d1\u05e1\u05e4\u05e7 FastMCP \u05d1\u05dc\u05d1\u05d3; \u05dc\u05d0 \u05d1\u05e9\u05d9\u05de\u05d5\u05e9. \u05dc\u05d4\u05de\u05ea\u05d9\u05df \u05dc\u05d2\u05e8\u05e1\u05d4 \u05d9\u05e6\u05d9\u05d1\u05d4 \u05dc\u05e4\u05e0\u05d9 \u05d1\u05d3\u05d9\u05e7\u05ea \u05e0\u05d2\u05e0\u05d9\u05dd."
     },
     {
       "id": "ha-int-cast",
@@ -1399,7 +1440,7 @@
         "samsungtv_smart"
       ],
       "note": "The TV integration actually in use on the inspected system (6 sources, play_media, remote.* entities). We read its entities and call its services through HA; a rename of source/key handling would break the TV remote screens.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "v0.14.5"
     },
     {
@@ -1489,7 +1530,7 @@
         "visonic"
       ],
       "note": "Adapter code and fixtures exist (CR-010: select.visonic_zNN_arm_mode); no live system known.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -1530,7 +1571,7 @@
         "mqtt"
       ],
       "note": "Adapter code and fixtures exist (CR-010: binary_sensor.<zone>_open, switch bypass); object ids depend on the PAI config; no live system known.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "3.7.0"
     },
     {
@@ -1570,7 +1611,7 @@
         "aegis_ajax"
       ],
       "note": "Adapter shape written from the README (platform id guessed as aegis_ajax); no live system known.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -1658,7 +1699,7 @@
         "renamed"
       ],
       "note": "Customer HA is exposed through this add-on; Arx adds a path route (/arx) in a second tunnel and wants the token written through the Supervisor API (provisioning script parked). The repository moved to homeassistant-apps (app-*): the old repo's config.yaml still carries the version number we parse as a second signal.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "v7.0.17"
     },
     {
@@ -1701,8 +1742,13 @@
         "ingress rule"
       ],
       "note": "Not installed by Arx; the add-on bundles it. Relevant: WebSocket pass-through for the video relay and path routing for /arx. Cloudflare also returns 403 to default Python User-Agents on the owners' hostnames (documented in memory); the lab clients send a browser-like UA.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "2026.9.3"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "2026.10.0",
+      "latest_seen": {
+        "version": "2026.10.0",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "2026.10.0 \u05d6\u05de\u05d9\u05df. \u05d4\u05de\u05e0\u05d4\u05e8\u05d4 \u05d4\u05d9\u05d0 \u05e0\u05ea\u05d9\u05d1 \u05d4\u05d2\u05d9\u05e9\u05d4 \u05de\u05e8\u05d7\u05d5\u05e7; \u05dc\u05e2\u05d3\u05db\u05df \u05d3\u05e8\u05da \u05ea\u05d5\u05e1\u05e3 cloudflared (\u05e2\u05d3\u05d9\u05d9\u05df 7.0.17) \u05db\u05e9\u05d4\u05ea\u05d5\u05e1\u05e3 \u05d9\u05ea\u05e2\u05d3\u05db\u05df."
     },
     {
       "id": "cloudflare-platform",
@@ -1753,8 +1799,9 @@
         "limit"
       ],
       "note": "Remote access (CR-008) is Cloudflare in front of each customer HA. Blog posts about tunnels, Access, WebSocket limits, bot protection or free-plan changes are filtered by title; the generic changelog is manual (very large feed).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "impact_he": "\u05d0\u05d9\u05df \u05e9\u05d9\u05e0\u05d5\u05d9 \u05e9\u05d5\u05d1\u05e8. \u05e4\u05e8\u05e1\u05d5\u05de\u05d9 2026-10-02 (Quick Tunnels \u05de\u05d5\u05d2\u05e0\u05d9\u05dd, OHTTP Gateway) \u05dc\u05d0 \u05e8\u05dc\u05d5\u05d5\u05e0\u05d8\u05d9\u05d9\u05dd \u05dc\u05d9\u05d9\u05e6\u05d5\u05e8."
     },
     {
       "id": "web-push-vapid",
@@ -1805,7 +1852,8 @@
       },
       "note": "CR-008 P3: VAPID key pair, per-user subscriptions, RFC 8291 encryption written on cryptography + httpx; allow-listed push hosts include fcm, mozilla autopush, apple, windows. A change in push-service host names or payload rules would silently stop notifications.",
       "last_checked": null,
-      "last_seen_version": null
+      "last_seen_version": null,
+      "impact_he": "\u05dc\u05d0 \u05e0\u05d1\u05d3\u05e7 \u05dc\u05e2\u05d5\u05de\u05e7 \u05d1-2026-10-11; \u05dc\u05d0 \u05e0\u05de\u05e6\u05d0 \u05e9\u05d9\u05e0\u05d5\u05d9."
     },
     {
       "id": "fcm-android-push",
@@ -1849,7 +1897,12 @@
       },
       "note": "Option A of CR-012, undecided by the owner. Tracked so that the decision is made against current FCM policy.",
       "last_checked": null,
-      "last_seen_version": null
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "firebase-messaging 26.0.0 (2026-10-07)",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "firebase-messaging 26.0.0 \u05de\u05e2\u05dc\u05d4 minSdk \u05dc-24 (\u05d4\u05de\u05e2\u05d8\u05e4\u05ea \u05e9\u05dc\u05e0\u05d5 26 \u05d5\u05dc\u05db\u05df \u05ea\u05e7\u05d9\u05df). 25.1.0 \u05d4\u05d5\u05e6\u05d9\u05d0 \u05de\u05e9\u05d9\u05de\u05d5\u05e9 \u05d0\u05ea getToken/deleteToken/onNewToken \u05dc\u05d8\u05d5\u05d1\u05ea \u05e8\u05d9\u05e9\u05d5\u05dd FID: \u05d0\u05dd \u05e0\u05d1\u05d7\u05e8 FCM \u05d1\u05e6\u05d3 \u05d4\u05dc\u05e7\u05d5\u05d7 \u05d9\u05e9 \u05dc\u05d4\u05e9\u05ea\u05de\u05e9 \u05d1\u05de\u05de\u05e9\u05e7 \u05d4\u05d7\u05d3\u05e9. \u05e9\u05e8\u05ea \u05d4-relay \u05e9\u05d5\u05dc\u05d7 \u05d3\u05e8\u05da HTTP v1."
     },
     {
       "id": "unifiedpush",
@@ -1889,7 +1942,7 @@
         "migration"
       ],
       "note": "Option C of CR-012: a distributor app on the phone plus a push server (ntfy recommended). Planned only if the owner picks it.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "3.0.10"
     },
     {
@@ -1940,8 +1993,8 @@
         "cadence_days": 60
       },
       "note": "Called with httpx directly (no SDK): /v1/images/edits multipart, model gpt-image-1.5 (installation may choose another). The SDK feed is a proxy for API changes; model deprecations are on the web page (manual).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": "v3.29.0"
     },
     {
       "id": "ntfy",
@@ -1982,8 +2035,12 @@
         "self-hosted"
       ],
       "note": "Only if the owner chooses UnifiedPush; the site would run its own ntfy server.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "v2.28.0"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "v2.28.0",
+      "latest_seen": {
+        "version": "v2.29.0",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "frigate-nvr",
@@ -2021,8 +2078,13 @@
         "database"
       ],
       "note": "Planned second NVR vendor (owner: Hikvision, Provision, Frigate; shared multi-NVR screens, CR-020 not yet written). Frigate bundles go2rtc, so its releases also move go2rtc. No integration code exists yet.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "v0.18.0",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "0.18.0 \u05db\u05d5\u05dc\u05dc \u05e9\u05d9\u05e0\u05d5\u05d9\u05d9\u05dd \u05e9\u05d5\u05d1\u05e8\u05d9\u05dd (snapshot \u05d3\u05e8\u05da /api/events/.../snapshot.jpg, \u05d5\u05d1\u05e2\u05d9\u05d4 \u05d9\u05d3\u05d5\u05e2\u05d4 \u05d1-go2rtc \u05e2\u05dd \u05d4\u05d0\u05e6\u05ea \u05d7\u05d5\u05de\u05e8\u05d4). \u05d4\u05e4\u05e8\u05d9\u05d8 \u05e2\u05d3\u05d9\u05d9\u05df planned; \u05dc\u05e7\u05e8\u05d5\u05d0 \u05d0\u05ea \u05d4\u05e8\u05e9\u05d9\u05de\u05d4 \u05d4\u05de\u05dc\u05d0\u05d4 \u05dc\u05e4\u05e0\u05d9 F1."
     },
     {
       "id": "provision-isr-nvr",
@@ -2096,7 +2158,7 @@
         "removed"
       ],
       "note": "Owner-approved design reference (MIT) for the bubble skin; also the pop-up layer of the 3D dashboard that inspired sw-plan-3d. We copy no code unless the license is kept; watch its releases for style direction and any license change.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -2133,7 +2195,7 @@
         "removed"
       ],
       "note": "Owner-saved design reference (MIT): Home Assistant 3D floor-plan card with a neon look (Vue + Three.js, HA integration). Study interaction and visual ideas only (glowing lights, animated blinds/doors, house-floor-room navigation, zero frames when idle, restore points). Optional paid furniture packs and Pro add-ons are not in the repo; copy no code or assets without keeping the MIT notice.",
-      "last_checked": "2026-10-04",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -2170,7 +2232,7 @@
         "breaking"
       ],
       "note": "Reference for device control (CR-007) and the glass style (design unification). Never copy code (GPL-3.0); only ideas. Watch for a license change.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -2207,7 +2269,7 @@
         "timeline"
       ],
       "note": "Named in the master spec as a UX reference for the camera card and timeline.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -2245,7 +2307,7 @@
         "android_tv"
       ],
       "note": "Feature checklist for the TV remote screens (CR-015 section 16, deliberately different).",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
     },
     {
@@ -2299,8 +2361,13 @@
         "service worker"
       ],
       "note": "Lab facts: WebRTC decodes only the NVR sub profile, main needs MSE, MSE start 8-12 s (GOP), SourceBuffer quota small in embedded browsers. The player (auto = WebRTC then MSE), the connection test card, the PWA/Web Push and the Android WebView shell all depend on browser media and privacy changes (autoplay, mDNS ICE candidates, local-network access prompts, third-party cookies in the Ingress iframe). Only keyword hits in the Stable Channel posts are flagged.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "2026-09-30"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "2026-09-30",
+      "latest_seen": {
+        "version": "Chrome stable 2026-10-06",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05e2\u05d3\u05db\u05d5\u05e0\u05d9 Chrome \u05de-2026-10-02 \u05d5-2026-10-06 \u05de\u05ea\u05e7\u05e0\u05d9\u05dd \u05e4\u05e8\u05e6\u05d5\u05ea \u05d7\u05de\u05d5\u05e8\u05d5\u05ea \u05d1-WebRTC (use-after-free, buffer overflow). \u05d0\u05e4\u05dc\u05d9\u05e7\u05e6\u05d9\u05d9\u05ea \u05d4-Android \u05d5\u05d4\u05d3\u05e4\u05d3\u05e4\u05df \u05e9\u05dc \u05d4\u05de\u05e4\u05e2\u05d9\u05dc\u05d9\u05dd \u05de\u05e6\u05d9\u05d2\u05d9\u05dd WebRTC: \u05dc\u05d4\u05de\u05dc\u05d9\u05e5 \u05dc\u05dc\u05e7\u05d5\u05d7\u05d5\u05ea \u05dc\u05e2\u05d3\u05db\u05df \u05d0\u05ea Android System WebView \u05d5\u05d0\u05ea Chrome."
     },
     {
       "id": "android-toolchain-gradle",
@@ -2339,8 +2406,13 @@
         "Kotlin"
       ],
       "note": "Gradle wrapper of the shell app. A new major usually needs a matching AGP; update the three together.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "9.8.1",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "Gradle 9 \u05d4\u05d5\u05d0 \u05e9\u05d9\u05e0\u05d5\u05d9 \u05e8\u05d0\u05e9\u05d9; \u05d9\u05d7\u05d3 \u05e2\u05dd AGP 9.4.1 \u05d9\u05e9 \u05dc\u05e9\u05d3\u05e8\u05d2 \u05db\u05e6\u05de\u05d3. \u05dc\u05d0 \u05d3\u05d7\u05d5\u05e3."
     },
     {
       "id": "android-agp",
@@ -2379,8 +2451,12 @@
         "breaking"
       ],
       "note": "Tied to Gradle and compileSdk 36.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "9.4.1",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "androidx-webkit",
@@ -2417,9 +2493,13 @@
         "breaking"
       ],
       "note": "WebView features of the shell (bridge script, message listeners).",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "1.17.1",
-      "last_seen_prerelease": "1.18.0-alpha02"
+      "last_seen_prerelease": "1.18.0-rc01",
+      "latest_seen": {
+        "version": "1.17.1 (rc 1.18.0-rc01)",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "androidx-biometric",
@@ -2457,7 +2537,7 @@
         "breaking"
       ],
       "note": "App lock of the Android shell (CR-011).",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "1.1.0",
       "last_seen_prerelease": "1.4.0-alpha07"
     },
@@ -2493,7 +2573,7 @@
         "breaking"
       ],
       "note": "UI widgets of the shell's native screens.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "1.14.0"
     },
     {
@@ -2576,8 +2656,13 @@
         "3.14"
       ],
       "note": "Only 3.12.x patch releases are fed here (security fixes come with the base image). Python 3.12 reaches end of life in October 2028; the feed does not show that, the python devguide link does.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "v3.12.15"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "v3.12.15",
+      "latest_seen": {
+        "version": "3.12.15",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "3.12.15 \u05d4\u05d5\u05d0 \u05d4\u05e2\u05d3\u05db\u05e0\u05d9; \u05e1\u05d5\u05e3 \u05ea\u05de\u05d9\u05db\u05d4 2028-10-31. \u05d0\u05d9\u05df \u05e4\u05e2\u05d5\u05dc\u05d4."
     },
     {
       "id": "alpine-linux",
@@ -2617,7 +2702,12 @@
       },
       "note": "musl wheels and apk packages (poppler-utils, ffmpeg, jpeg, zlib, libpng). Moves with the HA base image; the release list shows end-of-life dates.",
       "last_checked": null,
-      "last_seen_version": null
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "3.22.6",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "Alpine 3.22 \u05e0\u05ea\u05de\u05da \u05e2\u05d3 2027-05-01; \u05dc-3.21 \u05e1\u05d5\u05e3 \u05ea\u05de\u05d9\u05db\u05d4 2026-11-01; 3.23 \u05d5-3.24 \u05e7\u05d9\u05d9\u05de\u05d9\u05dd. \u05dc\u05ea\u05db\u05e0\u05df \u05de\u05e2\u05d1\u05e8 \u05dc\u05d1\u05e1\u05d9\u05e1 3.23 \u05d1\u05e9\u05d7\u05e8\u05d5\u05e8 2027."
     },
     {
       "id": "ffmpeg",
@@ -2668,7 +2758,7 @@
         "ffmpeg 10"
       ],
       "note": "Export: Hikvision PS file (IMKH header + MPEG-PS, H.264 + G.711u) remuxed with -f mpeg -i ... -c:v copy -c:a aac -ar 8000, concat demuxer and -ss/-to -c copy. Thumbnails/frames use it too. A demuxer or option change would break export and stills.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "n9.0.2"
     },
     {
@@ -2710,8 +2800,12 @@
         "CVE"
       ],
       "note": "PDF pages are rasterized in a separate time-bounded process. Informational feed (tags have no release notes).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": "2026-10-03",
+      "latest_seen": {
+        "version": "26.10.0",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "py-fastapi",
@@ -2756,8 +2850,13 @@
         "openapi"
       ],
       "note": "The web framework of the backend (routers, dependencies, OpenAPI).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "0.142.2"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "0.143.0",
+      "latest_seen": {
+        "version": "0.143.0",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05d9\u05e9 0.143.0 (\u05e0\u05e2\u05d5\u05e5 0.141.1). \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4 \u05d9\u05d3\u05d5\u05e2 (\u05d1\u05d3\u05d9\u05e7\u05ea OSV 2026-10-11). Starlette 1.7.0 \u05de\u05d2\u05d9\u05e2 \u05db\u05ea\u05dc\u05d5\u05ea. \u05dc\u05e9\u05d3\u05e8\u05d2 \u05d1\u05e9\u05d7\u05e8\u05d5\u05e8 \u05e8\u05d2\u05d9\u05dc \u05e2\u05dd \u05d4\u05e1\u05d5\u05d5\u05d9\u05d8\u05d4 \u05d4\u05de\u05dc\u05d0\u05d4."
     },
     {
       "id": "py-uvicorn",
@@ -2798,8 +2897,12 @@
         "httptools"
       ],
       "note": "ASGI server (standard extras: websockets, httptools); workers=1 is a design rule.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "0.54.0"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "0.54.0",
+      "latest_seen": {
+        "version": "0.54.0",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "py-python-multipart",
@@ -2840,7 +2943,7 @@
         "import name"
       ],
       "note": "Form/file uploads (plans, cases, skins); the import name changed once already.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "0.0.32"
     },
     {
@@ -2885,7 +2988,7 @@
         "CVE"
       ],
       "note": "Plan rendering/stylization and image safety limits.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "12.3.0"
     },
     {
@@ -2932,8 +3035,13 @@
         "1.0"
       ],
       "note": "All outbound HTTP (NVR, go2rtc, HA REST, push, OpenAI). Pinned exactly at 0.27.2; a 1.0 line is expected to change APIs.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "0.28.1"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "0.28.1",
+      "latest_seen": {
+        "version": "0.28.1",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05e0\u05e2\u05d5\u05e5 0.27.2 \u05d5\u05dc\u05db\u05df \u05de\u05d0\u05d7\u05d5\u05e8 \u05d2\u05e8\u05e1\u05d4 \u05de\u05d9\u05e0\u05d5\u05e8\u05d9\u05ea; \u05dc\u05d0 \u05d3\u05d7\u05d5\u05e3."
     },
     {
       "id": "py-pydantic",
@@ -2975,8 +3083,13 @@
         "extra"
       ],
       "note": "Request/response models everywhere; extra=forbid closed bodies are a security rule.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "2.13.5"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "2.14.0",
+      "latest_seen": {
+        "version": "2.14.0",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "\u05e7\u05e4\u05d9\u05e6\u05d4 \u05de\u05d9\u05e0\u05d5\u05e8\u05d9\u05ea 2.13.5 \u05dc-2.14.0; \u05dc\u05d1\u05d3\u05d5\u05e7 \u05e1\u05db\u05de\u05d5\u05ea \u05d5-serialization \u05d1\u05e1\u05d5\u05d5\u05d9\u05d8\u05d4 \u05dc\u05e4\u05e0\u05d9 \u05e9\u05d3\u05e8\u05d5\u05d2."
     },
     {
       "id": "py-websockets",
@@ -3019,8 +3132,13 @@
         "proxy"
       ],
       "note": "HA WebSocket client and the go2rtc relay. Constraint >=13,<16: a 16 release needs an explicit review.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "17.1"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "17.2",
+      "latest_seen": {
+        "version": "17.2",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "17.2 \u05de\u05d7\u05d5\u05e5 \u05dc\u05d8\u05d5\u05d5\u05d7 \u05e9\u05d1\u05d3\u05e8\u05d9\u05e9\u05d5\u05ea (<16). \u05dc\u05d4\u05e8\u05d7\u05d9\u05d1 \u05d0\u05ea \u05d4\u05d8\u05d5\u05d5\u05d7 \u05e8\u05e7 \u05dc\u05d0\u05d7\u05e8 \u05d1\u05d3\u05d9\u05e7\u05ea \u05d7\u05d9\u05d1\u05d5\u05e8 \u05d4-WebSocket \u05de\u05d5\u05dc HA."
     },
     {
       "id": "py-tzdata",
@@ -3058,8 +3176,12 @@
         "zone"
       ],
       "note": "IANA zone data for local-time conversion (UTC internally).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "2026.5",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "py-numpy",
@@ -3101,8 +3223,12 @@
         "wheel"
       ],
       "note": "Plan detection (no scipy/opencv on Alpine). Constraint >=2.0,<3.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "2.5.3"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "2.5.4",
+      "latest_seen": {
+        "version": "2.5.4",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "py-cryptography",
@@ -3149,7 +3275,7 @@
         "CVE"
       ],
       "note": "Web Push (RFC 8291), signed URLs and alarm-code sealing. Constraint >=45,<51.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "50.0.2"
     },
     {
@@ -3192,7 +3318,7 @@
         "layout"
       ],
       "note": "DXF plan import (Plan Studio). Constraint >=1.3,<2.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "1.4.4"
     },
     {
@@ -3235,7 +3361,7 @@
         "ssr"
       ],
       "note": "Every UI component (about 155 files) is a Lit element.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "3.3.3"
     },
     {
@@ -3277,7 +3403,7 @@
         "r1"
       ],
       "note": "sw-plan-3d (T087); three releases monthly with breaking changes in migration notes.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "0.186.1"
     },
     {
@@ -3318,8 +3444,13 @@
         "migration"
       ],
       "note": "Build tool. Rollup is replaced by the wasm build via overrides (musl/ARM friendliness): a Vite 7+/rolldown move needs a recheck.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "8.3.4",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "vite 8 \u05d4\u05d5\u05d0 \u05e7\u05e4\u05d9\u05e6\u05d4 \u05e9\u05dc \u05e9\u05ea\u05d9 \u05d2\u05e8\u05e1\u05d0\u05d5\u05ea \u05e8\u05d0\u05e9\u05d9\u05d5\u05ea \u05de-6.4.3. \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4 \u05e2\u05dc 6.4.3. \u05dc\u05d0 \u05dc\u05e9\u05d3\u05e8\u05d2 \u05e2\u05db\u05e9\u05d9\u05d5; \u05dc\u05ea\u05db\u05e0\u05df \u05d1\u05e9\u05d7\u05e8\u05d5\u05e8 \u05d9\u05d9\u05e2\u05d5\u05d3\u05d9. (\u05d4\u05ea\u05dc\u05d5\u05ea source-map-js 1.2.1 \u05d1\u05e0\u05e2\u05d9\u05dc\u05d4 \u05e2\u05dd \u05d9\u05d9\u05e2\u05d5\u05e5 DoS, \u05ea\u05d9\u05e7\u05d5\u05df 1.2.2, \u05d1\u05d6\u05de\u05df \u05d1\u05e0\u05d9\u05d9\u05d4 \u05d1\u05dc\u05d1\u05d3.)"
     },
     {
       "id": "npm-typescript",
@@ -3359,8 +3490,13 @@
         "strict"
       ],
       "note": "Type check in the build (tsc --noEmit).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": null
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "latest_seen": {
+        "version": "7.0.2",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "TypeScript 7 (\u05de\u05d4\u05d3\u05e8 \u05d7\u05d3\u05e9) \u05de\u05d5\u05dc 5.9.3 \u05d0\u05e6\u05dc\u05e0\u05d5. \u05dc\u05d0 \u05d3\u05d7\u05d5\u05e3; \u05dc\u05d1\u05d3\u05d5\u05e7 tsc --noEmit \u05d1\u05e2\u05e0\u05e3 \u05e0\u05e4\u05e8\u05d3."
     },
     {
       "id": "npm-playwright-test",
@@ -3402,8 +3538,13 @@
         "node"
       ],
       "note": "Screenshot and evidence suites; live specs run against real Chrome (channel chrome).",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "1.63.0"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "1.63.0",
+      "latest_seen": {
+        "version": "1.64.0",
+        "read_on": "2026-10-11"
+      },
+      "impact_he": "1.64.0 \u05d6\u05de\u05d9\u05df. \u05d3\u05d5\u05e8\u05e9 \u05d4\u05d5\u05e8\u05d3\u05ea \u05d3\u05e4\u05d3\u05e4\u05e0\u05d9\u05dd \u05de\u05d7\u05d3\u05e9; \u05dc\u05e9\u05d3\u05e8\u05d2 \u05e2\u05dd \u05e1\u05d1\u05d1 \u05d4-UI \u05d4\u05d1\u05d0."
     },
     {
       "id": "npm-types-node",
@@ -3436,8 +3577,12 @@
         "removed"
       ],
       "note": "Typings for Node 24 LTS tooling.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "26.6.4"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "26.6.5",
+      "latest_seen": {
+        "version": "26.6.5",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "npm-gltf-validator",
@@ -3473,7 +3618,7 @@
         "schema"
       ],
       "note": "Validates the generated glTF in the Plan Studio tests.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": "2.0.0-dev.3.10"
     },
     {
@@ -3506,8 +3651,12 @@
         "breaking"
       ],
       "note": "Overridden into rollup via package.json overrides.",
-      "last_checked": "2026-10-01",
-      "last_seen_version": "4.63.6"
+      "last_checked": "2026-10-11",
+      "last_seen_version": "4.64.5",
+      "latest_seen": {
+        "version": "4.64.5",
+        "read_on": "2026-10-11"
+      }
     },
     {
       "id": "legacy-hikvision-nvr-addon",
@@ -3617,8 +3766,381 @@
         "grid"
       ],
       "note": "Owner-given 2026-10-02: self-hosted widget-grid dashboard / photo frame; Polyform Noncommercial licence = NOT reusable in our commercial product, inspiration only.",
-      "last_checked": "2026-10-01",
+      "last_checked": "2026-10-11",
       "last_seen_version": null
+    },
+    {
+      "id": "py-weasyprint",
+      "name": "WeasyPrint (electricity bill PDF engine)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/weasyprint/",
+        "changelog": "https://doc.courtbouillon.org/weasyprint/stable/changelog.html"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "weasyprint"
+        }
+      ],
+      "current": {
+        "version": "70.0",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/requirements.txt",
+        "smplwise_vms/backend/smplwise/services/bill_pdf_engine.py"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "security",
+        "CVE",
+        "pango",
+        "SSRF",
+        "url_fetcher"
+      ],
+      "note": "Bill PDF engine (CR-023). It fetches URLs while rendering, so SSRF controls (url_fetcher) and the pango/harfbuzz system libraries matter.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": "70.0",
+      "impact_he": "70.0 \u05e2\u05d3\u05db\u05e0\u05d9 (\u05e0\u05d1\u05d3\u05e7 2026-10-11). \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4 \u05d1-OSV. \u05d4\u05ea\u05dc\u05d5\u05ea \u05d1-pango \u05d1\u05d0\u05d9\u05de\u05d2' Alpine: \u05dc\u05d1\u05e0\u05d5\u05ea \u05de\u05d7\u05d3\u05e9 \u05e2\u05dd \u05db\u05dc \u05e2\u05d3\u05db\u05d5\u05df \u05d1\u05e1\u05d9\u05e1.",
+      "latest_seen": {
+        "version": "70.0",
+        "read_on": "2026-10-11"
+      }
+    },
+    {
+      "id": "py-fpdf2",
+      "name": "fpdf2 (fallback PDF engine)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/fpdf2/",
+        "changelog": "https://github.com/py-pdf/fpdf2/blob/master/CHANGELOG.md"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "fpdf2"
+        }
+      ],
+      "current": {
+        "version": "2.8.9",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/requirements.txt",
+        "smplwise_vms/backend/smplwise/services/bill_pdf.py"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "security",
+        "CVE"
+      ],
+      "note": "Fallback for WeasyPrint in bill PDFs, with uharfbuzz for Hebrew shaping.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": "2.8.9",
+      "impact_he": "2.8.9 \u05e2\u05d3\u05db\u05e0\u05d9. \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4.",
+      "latest_seen": {
+        "version": "2.8.9",
+        "read_on": "2026-10-11"
+      }
+    },
+    {
+      "id": "py-uharfbuzz",
+      "name": "uharfbuzz (Hebrew text shaping for the PDF fallback)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/uharfbuzz/"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "uharfbuzz"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "requirements.txt range >=0.50,<1",
+        "verify": true,
+        "constraint": ">=0.50,<1"
+      },
+      "dependents": [
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "wheel",
+        "musllinux"
+      ],
+      "note": "Shaping for fpdf2 Hebrew output; needs musllinux wheels on the add-on image.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": "0.56.3",
+      "impact_he": "0.56.3 \u05d6\u05de\u05d9\u05df, \u05d1\u05ea\u05d5\u05da \u05d4\u05d8\u05d5\u05d5\u05d7. \u05d0\u05d9\u05df \u05e4\u05e2\u05d5\u05dc\u05d4.",
+      "latest_seen": {
+        "version": "0.56.3",
+        "read_on": "2026-10-11"
+      }
+    },
+    {
+      "id": "py-starlette",
+      "name": "Starlette (via FastAPI)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/starlette/",
+        "releases": "https://github.com/Kludex/starlette/releases"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "starlette"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "transitive of fastapi==0.141.1; not pinned",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/main.py",
+        "smplwise_vms/backend/smplwise/body_limit.py",
+        "smplwise_vms/backend/smplwise/remote_channel.py"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "security",
+        "CVE",
+        "middleware",
+        "websocket",
+        "multipart"
+      ],
+      "note": "We import it directly (middleware, body limit, remote channel) although it is not pinned: FastAPI decides the version.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": "1.7.0",
+      "impact_he": "1.7.0 \u05d4\u05d5\u05d0 \u05d4\u05e2\u05d3\u05db\u05e0\u05d9 \u05d5\u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4. \u05db\u05d3\u05d0\u05d9 \u05dc\u05d4\u05e6\u05de\u05d9\u05d3 \u05d0\u05ea \u05d4\u05d2\u05e8\u05e1\u05d4 \u05d4\u05de\u05d5\u05ea\u05e7\u05e0\u05ea \u05d1\u05d3\u05e8\u05d9\u05e9\u05d5\u05ea \u05db\u05d9 \u05d9\u05e9 \u05dc\u05e0\u05d5 \u05d9\u05d9\u05d1\u05d5\u05d0 \u05d9\u05e9\u05d9\u05e8.",
+      "latest_seen": {
+        "version": "1.7.0",
+        "read_on": "2026-10-11"
+      }
+    },
+    {
+      "id": "npm-wrangler",
+      "name": "Wrangler (Cloudflare Workers CLI, push relay)",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/wrangler",
+        "releases": "https://github.com/cloudflare/workers-sdk/releases"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "wrangler"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "services/push-relay/package.json ^4.0.0",
+        "verify": true,
+        "constraint": "^4.0.0"
+      },
+      "dependents": [
+        "services/push-relay/package.json",
+        "services/push-relay/wrangler.toml"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "compatibility",
+        "security"
+      ],
+      "note": "Deploys the CR-027 relay Worker. compatibility_date 2026-09-01.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": "4.149.0",
+      "impact_he": "4.149.0 \u05e2\u05d3\u05db\u05e0\u05d9 \u05d5\u05d1\u05ea\u05d5\u05da \u05d4\u05d8\u05d5\u05d5\u05d7. \u05d4\u05ea\u05dc\u05d5\u05ea sharp 0.35.4 (\u05d3\u05e8\u05da miniflare) \u05e2\u05dd \u05d9\u05d9\u05e2\u05d5\u05e5 GHSA-wq5f-xc86-pv6w (librsvg), \u05ea\u05d9\u05e7\u05d5\u05df \u05d1-0.35.5; \u05db\u05dc\u05d9 \u05e4\u05d9\u05ea\u05d5\u05d7 \u05d1\u05dc\u05d1\u05d3.",
+      "latest_seen": {
+        "version": "4.149.0",
+        "read_on": "2026-10-11"
+      }
+    },
+    {
+      "id": "npm-vitest",
+      "name": "Vitest (push relay tests)",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/vitest"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "vitest"
+        }
+      ],
+      "current": {
+        "version": "3.2.7",
+        "source": "services/push-relay/package-lock.json",
+        "verify": false,
+        "constraint": "^3.2.4"
+      },
+      "dependents": [
+        "services/push-relay/package.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "security",
+        "CVE",
+        "advisory"
+      ],
+      "note": "Dev dependency of the relay. Advisories exist for the locked 3.x line.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": "5.0.3",
+      "impact_he": "\u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4 (\u05e4\u05d9\u05ea\u05d5\u05d7 \u05d1\u05dc\u05d1\u05d3): GHSA-82fw-gwwq-j7x9 (\u05e7\u05e8\u05d9\u05d0\u05ea \u05e7\u05d1\u05e6\u05d9\u05dd \u05d3\u05e8\u05da @vitest/mocker, \u05de\u05ea\u05d5\u05e7\u05df \u05d1-4.1.11) \u05d5-tinypool GHSA-5gmw-xhrv-c9v3 / GHSA-85c8-ppgw-ccpr (RCE \u05d3\u05e8\u05da prototype pollution, \u05ea\u05d9\u05e7\u05d5\u05df 2.1.x). \u05dc\u05d0 \u05e0\u05e9\u05dc\u05d7 \u05dc\u05d9\u05d9\u05e6\u05d5\u05e8. \u05d4\u05de\u05dc\u05e6\u05d4: \u05dc\u05e2\u05d1\u05d5\u05e8 \u05dc-vitest 4.1.11 \u05d5\u05de\u05e2\u05dc\u05d4 \u05d1\u05e2\u05e0\u05e3 \u05d4-relay.",
+      "latest_seen": {
+        "version": "5.0.3",
+        "read_on": "2026-10-11"
+      }
+    },
+    {
+      "id": "npm-qrcode-generator",
+      "name": "qrcode-generator (second factor QR)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/qrcode-generator"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "qrcode-generator"
+        }
+      ],
+      "current": {
+        "version": "1.4.4",
+        "source": "frontend/package.json ^1.4.4",
+        "verify": true
+      },
+      "dependents": [
+        "frontend/src/components/sw-second-factor.ts",
+        "frontend/package.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "security"
+      ],
+      "note": "Draws the TOTP enrolment QR in the UI.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": "2.0.4",
+      "impact_he": "2.0.4 \u05e7\u05d9\u05d9\u05dd (\u05e7\u05e4\u05d9\u05e6\u05d4 \u05e8\u05d0\u05e9\u05d9\u05ea \u05de-1.4.4). \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4; \u05dc\u05d1\u05d3\u05d5\u05e7 \u05e4\u05dc\u05d8 \u05d1\u05e2\u05ea \u05e9\u05d3\u05e8\u05d5\u05d2.",
+      "latest_seen": {
+        "version": "2.0.4",
+        "read_on": "2026-10-11"
+      }
+    },
+    {
+      "id": "apns-ios-push",
+      "name": "Apple APNs and App Store requirements (iOS shell, relay)",
+      "kind": "vendor-api",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "upcoming": "https://developer.apple.com/news/upcoming-requirements/",
+        "releases": "https://developer.apple.com/news/releases/",
+        "apns_docs": "https://developer.apple.com/documentation/usernotifications"
+      },
+      "feeds": [],
+      "current": {
+        "applicable": false,
+        "source": "services/push-relay/src/apns.ts uses provider-token (.p8) auth over HTTP/2",
+        "version": null,
+        "verify": false
+      },
+      "dependents": [
+        "services/push-relay/src/apns.ts",
+        "docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md"
+      ],
+      "watch_keywords": [
+        "APNs",
+        "push",
+        "token",
+        "Xcode",
+        "SDK"
+      ],
+      "note": "The relay sends via APNs provider tokens; the iOS shell must meet App Store SDK deadlines.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "impact_he": "\u05d1-2026-10-11 \u05dc\u05d0 \u05e0\u05e8\u05e9\u05dd \u05e9\u05d9\u05e0\u05d5\u05d9 \u05d1-APNs. \u05d3\u05e8\u05d9\u05e9\u05d5\u05ea \u05d7\u05e0\u05d5\u05ea: Xcode 26 \u05d5\u05de\u05e2\u05dc\u05d4 \u05de\u05d0\u05d6 2026-04-28, \u05d9\u05e2\u05d3 iOS 13 \u05d5\u05de\u05e2\u05dc\u05d4 \u05de\u05d0\u05d6 2026-09-09.",
+      "manual": {
+        "how": "Skim Apple Upcoming Requirements and developer news for APNs, Xcode/SDK and minimum iOS changes.",
+        "cadence_days": 60
+      }
+    },
+    {
+      "id": "cloudflare-workers-runtime",
+      "name": "Cloudflare Workers runtime (push relay)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "changelog": "https://developers.cloudflare.com/workers/platform/changelog/",
+        "compat_dates": "https://developers.cloudflare.com/workers/configuration/compatibility-dates/"
+      },
+      "feeds": [],
+      "current": {
+        "applicable": false,
+        "source": "services/push-relay/wrangler.toml compatibility_date 2026-09-01",
+        "version": null,
+        "verify": false
+      },
+      "dependents": [
+        "services/push-relay/wrangler.toml"
+      ],
+      "watch_keywords": [
+        "deprecat",
+        "compatibility",
+        "limits",
+        "removed"
+      ],
+      "note": "The relay is a stateless Worker with a KV namespace.",
+      "last_checked": "2026-10-11",
+      "last_seen_version": null,
+      "impact_he": "\u05d4\u05e8\u05e9\u05d5\u05de\u05d4 \u05d4\u05d0\u05d7\u05e8\u05d5\u05e0\u05d4 (2026-09-28) \u05de\u05e2\u05d3\u05db\u05e0\u05ea \u05e8\u05e7 \u05d0\u05ea V8; \u05d0\u05d9\u05df \u05d4\u05d5\u05e6\u05d0\u05d4 \u05de\u05e9\u05d9\u05de\u05d5\u05e9. \u05dc\u05d1\u05d3\u05d5\u05e7 \u05db\u05dc 60 \u05d9\u05d5\u05dd.",
+      "manual": {
+        "how": "Read the Workers changelog for deprecations, KV or Web Crypto changes and compatibility-date notes.",
+        "cadence_days": 60
+      }
     }
   ]
 }
