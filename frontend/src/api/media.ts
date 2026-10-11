@@ -78,6 +78,12 @@ export interface ProductSettings {
   /** K88 (owner 2026-10-04): where the live plan shows besides the map tab - 'devices' (a plan view in חשמל והתקנים),
    * 'area' (a card on the area page); [] = nowhere new. Default both. */
   'plan.surfaces'?: ('devices' | 'area')[];
+  /** CR-029 S0 (Plan Studio 6): the installation's look dials of the realistic 3D (api/plan-view.ts PlanViewDials without
+   * default_view); read back whole, patched partially. */
+  'plan.view'?: Partial<Omit<import('./plan-view').PlanViewDials, 'default_view'>>;
+  /** CR-029 S2: the site's location for the sun (degrees); read back as a number or null, patched as a string ('' clears). */
+  'site.latitude'?: number | string | null;
+  'site.longitude'?: number | string | null;
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;

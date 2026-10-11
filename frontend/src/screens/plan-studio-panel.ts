@@ -18,6 +18,8 @@ import { pkgT } from '../i18n/plan-package';
 import { curveT } from '../i18n/plan-curves';
 import { cornerRoundable, curvePointAt, curvePoints, maxCornerRadiusM, minRadiusM, segmentRadiusM } from '../map/curve-ops';
 import { glassT, operationLabel, tintLabel } from '../i18n/plan-glass';
+import { renderMaterialField, type MaterialHost } from './plan-studio6-panel';
+import type { ResolvedMaterials, VisualStyle } from '../map/material-resolve';
 import { AUTO_MAX_M, AUTO_MIN_M, GLASS_THICKNESS_M, GLAZING_DEFAULTS, GLAZED_HEIGHT_RANGE, MULLION_RANGE, OPERATIONS, PANEL_WIDTH_RANGE, SILL_RANGE, TINTS, applyAutoDivide, glazingOf, panelCount, patchGlazing, patchOperable, toGlassPatch, toSolidPatch, toggleOperable, type Glazing, type GlassTint, type PanelOperation } from '../map/glass-wall';
 
 /** The structure tool's modes. 'curved' draws a wall through points (curve-fit.ts), 'glass' a glass wall (straight or
@@ -166,6 +168,9 @@ export interface StudioView {
   phone?: boolean;
   /** The entities an operable glass panel can be bound to (the floor's entity anchors that report open / closed). */
   entityChoices?: { id: string; name: string }[];
+  /** CR-029 ST7 UI: the resolved materials (the defaults the material field names) and the swatches' preview style. */
+  materials?: ResolvedMaterials;
+  materialStyle?: VisualStyle;
 }
 
 export interface StudioActions {
@@ -195,6 +200,9 @@ export interface StudioActions {
   roundCorner?(id: string, index: number, radiusM: number): void;
   /** A short message in the editor's info line (a bulk layout that found nothing to do). */
   say?(text: string): void;
+  /** CR-029 ST7 UI: a wall's material (null = back to the default by kind) and the swatches' preview style. */
+  setMaterial?(coll: 'walls' | 'openings', id: string, materialId: string | null): void;
+  setMaterialStyle?(style: VisualStyle): void;
 }
 
 const numberOf = (e: Event): number => parseFloat((e.target as HTMLInputElement).value);
@@ -310,6 +318,9 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
       </select></sw-field>
     </div>
     ${w.kind === 'glass' ? renderGlazing(w, v, a, len) : nothing}
+    ${a.setMaterial && v.materials && w.kind !== 'glass'
+      ? renderMaterialField({ key: `walls:${w.id}`, label: 'חומר הקיר', host: 'wall' as MaterialHost, value: w.material_id ?? null, defaultId: v.materials.walls[w.id] ?? 'plaster_white', style: v.materialStyle ?? 'light' }, { pick: (id) => a.setMaterial!('walls', w.id, id), setStyle: (s) => a.setMaterialStyle?.(s) })
+      : nothing}
     <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
     ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
@@ -924,6 +935,9 @@ export interface ObjectView {
   canManage: boolean;
   /** The Hebrew name of an item's category (the editor passes the library's list). */
   lib_category(item: CatalogItem): string;
+  /** CR-029 ST7 UI: the material the resolver gives the object without an own one, and the swatches' preview style. */
+  materialDefault?: string;
+  materialStyle?: VisualStyle;
 }
 
 export interface ObjectActions {
@@ -936,6 +950,9 @@ export interface ObjectActions {
   /** A copy beside the object, selected and ready to drag (also Ctrl+D and Alt+drag). */
   duplicate?: (id: string) => void;
   selectGroup?: (groupId: string) => void;
+  /** CR-029 ST7 UI: the object's material (null = the catalog item's / the role's default). */
+  setMaterial?: (id: string, materialId: string | null) => void;
+  setMaterialStyle?: (style: VisualStyle) => void;
 }
 
 function paramField(o: GeomObject, name: string, spec: ParamSpec, levels: GeomLevel[], a: ObjectActions) {
@@ -969,6 +986,9 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
     <div class="three">${size('w_m', 'רוחב (מ׳)')}${size('d_m', 'עומק (מ׳)')}${size('h_m', 'גובה (מ׳)')}</div>
     <sw-field label="גובה מהרצפה (מ׳)"><input type="number" min="-50" max="500" step="0.05" data-ltr data-object-z .value=${String(o.z_m)} @change=${(e: Event) => { const x = numberOf(e); if (x >= -50 && x <= 500) a.patch(o.id, { z_m: x }); }} /></sw-field>
     ${v.item ? Object.entries(v.item.params_schema).map(([k, spec]) => paramField(o, k, spec, v.levels, a)) : nothing}
+    ${a.setMaterial && v.materialDefault
+      ? renderMaterialField({ key: `objects:${o.id}`, label: 'חומר', host: 'object', value: o.material_id ?? null, defaultId: v.materialDefault, style: v.materialStyle ?? 'light' }, { pick: (id) => a.setMaterial!(o.id, id), setStyle: (s) => a.setMaterialStyle?.(s) })
+      : nothing}
     ${renderItemTags(o.tags, (tags) => a.patch(o.id, { tags }))}
     ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
     <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
