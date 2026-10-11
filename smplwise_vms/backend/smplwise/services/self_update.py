@@ -352,7 +352,8 @@ def view(conn: sqlite3.Connection) -> dict[str, Any]:
     stale 'available' of an older check disappears the moment the new version runs."""
     installed = __version__
     latest = get_setting(conn, K_LATEST, "") or ""
-    available = get_setting(conn, K_AVAILABLE, "false") == "true" and bool(latest) and latest != installed
+    # SEC246 I5: the same downgrade guard as the check and the apply pre-check (strictly newer only, fail closed)
+    available = get_setting(conn, K_AVAILABLE, "false") == "true" and bool(latest) and is_newer(latest, installed)
     permitted = get_setting(conn, K_PERMITTED, "unknown")
     run = conn.execute("SELECT id, state, step, created_at, finished_at, from_version, to_version, error_code, restart_platform FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned') ORDER BY created_at DESC LIMIT 1").fetchone()
     from . import platform_restart  # S3: the "restart required" row of Settings and the user-menu dot (owner answer 7)

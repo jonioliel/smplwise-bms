@@ -331,6 +331,7 @@ def start_update(conn: sqlite3.Connection, db: Database, settings: Settings, pri
     if replay is not None:
         return replay, False
     if not su.apply_enabled(conn):  # 2.4.4: the administrator switched installing from Arx off - nothing is sent, nothing is stored
+        # SEC246 I5: the refusal is audited once, as `system.update.apply` denied, by the router (routers/system_update._refused)
         raise ApiError(409, SELF_UPDATE_DISABLED, SELF_UPDATE_DISABLED_TEXT)
     sweep_overdue(conn)
     _refuse_active(conn)

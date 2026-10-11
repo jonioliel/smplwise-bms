@@ -61,7 +61,8 @@ def test_ha_side_denial_wins_over_bridge_authority(paired):
     detail = c.get("/api/v1/ha/entities/light.lobby").json()
     assert detail["recent_actions"][0]["status"] == "denied" and detail["recent_actions"][0]["error"] == "ha_unknown_user"
     with app.state.db.connection() as conn:
-        rows = conn.execute("SELECT decision, reason FROM audit_log WHERE action = 'ha.action' ORDER BY rowid").fetchall()
+        # SEC246 L3: every sent command also has its `attempt` row, written before the call; the outcome rows are these
+        rows = conn.execute("SELECT decision, reason FROM audit_log WHERE action = 'ha.action' AND COALESCE(reason, '') <> 'attempt' ORDER BY rowid").fetchall()
     assert [(row[0], row[1]) for row in rows] == [("denied", "ha_unauthorized"), ("denied", "ha_unknown_user")]
 
 

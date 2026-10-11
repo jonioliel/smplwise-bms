@@ -709,6 +709,7 @@ export class DevicesBulkDialog extends LitElement {
   private renderSkipped(p: BulkPreview) {
     return html`${p.skipped.already ? html`<div class="muted" data-bulk-skipped="already">${ltrNum(p.skipped.already)} כבר במצב המבוקש - לא יישלח אליהם.</div>` : nothing}
       ${p.skipped.unavailable ? html`<div class="muted" data-bulk-skipped="unavailable">${ltrNum(p.skipped.unavailable)} לא זמינים - לא יישלח אליהם.</div>` : nothing}
+      ${p.skipped.sensitive_type ? html`<div class="muted" data-bulk-skipped="sensitive_type">${ltrNum(p.skipped.sensitive_type)} ברזים או דודי מים - לא נכללים בהדלקה קבוצתית.</div>` : nothing}
       ${p.excluded.length
         ? html`<div class="muted" data-bulk-excluded>לא נכלל (${ltrNum(p.excluded.length)}):
             <ul class="list">${p.excluded.map((x) => html`<li data-entity=${x.entity_id} data-reason=${x.reason}>${bidi(x.name)} - ${x.reason_label}</li>`)}</ul>
