@@ -187,8 +187,10 @@ PERMISSION_LABELS: dict[str, str] = {
     "nvr.system.reboot": "NVR: הפעלה מחדש",
     "rules.ha_notify": "חוקים: התראה דרך Home Assistant (notify)",
     # access.read is granted broadly in roles.json (viewer and above, not kiosk) on purpose: a product decision mirroring
-    # map.read's own breadth, recorded as a deviation in docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md (T054). It
-    # exposes person names and employee numbers (last access). Installation-scoped only: stations have no site / floor.
+    # map.read's own breadth, recorded as a deviation in docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md (T054). Since
+    # CR-036 it covers the stations of the entry center only (online, ringing, doors, camera stills): no person data - B0
+    # removed the last-access record, and S3 moved the people directory and the entry log onto access.people.read /
+    # access.events.read (below). Station-scoped through services/intercom_authority.py.
     "access.read": "צפייה בבקרת כניסה (WisKey)",
     # access.release (CR-005 §3, phase 3, T054) covers every PHYSICAL WisKey command SMPLWISE offers: door release,
     # call answer / reject / hang up, spoken announcement. Recorded decision 2026-09-27: granted by default ONLY to
@@ -219,6 +221,28 @@ PERMISSION_LABELS: dict[str, str] = {
     # access.release / access.people.manage: default ONLY site_admin and system_admin, sensitive (never implied; a custom
     # role naming it among its sensitive permissions plus a binding is the per-person grant path), installation scope.
     "access.cards.capture": "קריאת כרטיס מקורא בעמדת WisKey (מפעיל את הקורא בדלת; דורש גם ניהול אנשים)",
+    # CR-036 S3 (WisKey native screens; owner answers 2026-10-11): the split of what access.read used to cover, every one
+    # scoped by the access-control station chain (station -> building -> site -> installation, CR-033 D2) and enforced by
+    # the one projection filter (services/intercom_authority.py) on everything the add-on serves from WisKey. Owner answer
+    # 3: an operator sees names only - the employee number, portraits, phone and profile values need access.people.sensitive.
+    # Reads (not sensitive): stations.read = a station's technical details (model, firmware, relays, clock, door programs,
+    # hold-open schedules, whether a public code is set - never its value); events.read = the entry log with person names;
+    # people.read = people (names, station assignments, groups, validity); admin.read = the Settings status page (health,
+    # sync, alerts, the intercom's own action log). Sensitive (never implied; a custom role names them explicitly):
+    # events.export (CSV, audited), people.sensitive, call (answer / reject / hang up and spoken announcements - the
+    # access.release split so answering a ring needs no door rights; the endpoints move onto it in slice S11, default
+    # grants keep today's holders), and the three managers of the write phase (S15/S16) - catalogue entries only until
+    # that phase gates its writes on them.
+    "access.stations.read": "בקרת כניסה: פרטים טכניים של עמדות (דגם, קושחה, ממסרים, שעון, תוכניות דלת, לוחות החזקה, האם מוגדר קוד)",
+    "access.events.read": "בקרת כניסה: יומן כניסות (כולל שמות)",
+    "access.events.export": "בקרת כניסה: ייצוא יומן הכניסות לקובץ",
+    "access.people.read": "בקרת כניסה: צפייה באנשים (שמות, שיוך לעמדות, קבוצות ותוקף)",
+    "access.people.sensitive": "בקרת כניסה: פרטים רגישים של אנשים (מספר עובד, תמונה, טלפון, שדות פרופיל)",
+    "access.call": "בקרת כניסה: מענה לשיחה מעמדה והכרזה קולית",
+    "access.admin.read": "בקרת כניסה: מצב מערכת, סנכרון, התראות ויומן פעולות האינטרקום",
+    "access.schedules.manage": "בקרת כניסה: עריכת לוחות זמנים של דלתות",
+    "access.stations.manage": "בקרת כניסה: עריכת הגדרות עמדה (תוכניות דלת, החזקה פתוחה, קודים ציבוריים)",
+    "access.groups.manage": "בקרת כניסה: עריכת קבוצות ושדות פרופיל",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,

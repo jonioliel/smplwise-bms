@@ -471,3 +471,41 @@ pinned WisKey version so the adapter's catalog pin matches what runs; B0 port (S
 3. **Personal details:** operators see names only; sensitive details (employee number, portraits, contact data) only with the separate `access.people.sensitive` permission. (Answer: B.)
 4. **Switching screens:** screen by screen, after the owner approves the side-by-side check; the iframe stays selectable per screen as rollback. (Answer: A.)
 5. **Two-way audio and live station video:** stay in the iframe in stage 1 (answer A), BUT the owner requires that their native implementation (S18) is scheduled for the earliest possible time right after stage 1: ask WisKey for W10 (stream descriptor and audio hook) now, and start S18 as soon as W10 arrives.
+
+Recorded contradiction (slice S3, not resolved by guessing): answer 3 above is labelled "B" but its text describes option א
+(new separate permissions, names only for an operator). S3 followed the text, which is also the stricter reading.
+
+## Owner answers (2026-10-12) - binding
+
+Source: the owner's answers to the ten questions of the screens gallery (stations / people / events / schedules /
+settings), coordinator table `private/wiskey-foldin/OWNER_ANSWERS_SCREENS_2026-10-12.md`. The owner's rule: **every decision
+is built as a setting an administrator can change; the answer only sets the default.** Where an answer changes an answer of
+2026-10-11, this section wins.
+
+| # | Question | Answer | What it means for the build |
+|---|---|---|---|
+| 1 | Where the "Arx screen / intercom window" switch lives | B | Only in Settings -> בקרת כניסה -> תצוגה; no button in a screen header (slice S12, section 3.8). |
+| 2 | Employee number in the people list | B | The employee number is NOT a sensitive field: everyone who sees names sees it and can search and sort by it. Only photo and phone (and credentials) stay sensitive. Supersedes the employee-number part of answer 3 of 2026-10-11. |
+| 3 | Call hint on the station card ("incoming call" / "in call", no caller name) | A | Shown to everyone who sees the station (`access.read`). |
+| 4 | Event picture (portrait) in the event drawer | written answer | No extra permission: whoever may open the events view (`access.events.read` on the event's station) may see the event picture. Safest default chosen for what the answer leaves open: every portrait view still leaves an audit row (no picture in it) - an administrator setting, default on. |
+| 5 | Sync column for an ordinary operator | A | An operator sees synced / pending / error without the error text; the error details are for site managers (`access.admin.read`, held by site_admin and system_admin). |
+| 6 | Announcement permission | B | No separate announce permission: announcing is part of `access.call`, which stays with the door-opener role (CR-033) as already decided. |
+| 7 | Announcement targets | A | "All stations" and a whole place are allowed for an operator, inside their own scope only. |
+| 8 | Talk button in stage 1 | A | Shown, in the "talk in the classic panel" mode (the iframe; S18 brings native audio). |
+| 9 | WhatsApp from the people screen | B, "both" | Approved templates AND free text; administrators edit the templates. Guard: the free-text box never inserts a PIN or a credential by itself; sending is audited; WisKey's side (W11) is unanswered, so it is built against the fake only. |
+| 10 | Bulk send | A | In stage 1. |
+
+### How slices S3 / S4 apply them (the administrator settings)
+
+| Setting (`GET` / `PATCH /settings`, `system.configure`) | Default | Effect |
+|---|---|---|
+| `access.employee_no_sensitive` | `false` (answer 2) | `true` moves the employee number (rows, search, sort, the events `person` filter) under `access.people.sensitive`, as answered on 2026-10-11. |
+| `access.event_portrait_sensitive` | `false` (answer 4) | `true` makes the event picture need `access.people.sensitive` on the event's station as well. |
+| `access.event_portrait_audit` | `true` (answer 4, safest default) | `false` stops the audit row per event-picture view. |
+| `access.sync_errors_everyone` | `false` (answer 5) | `true` shows sync error texts (a person's per-station error, a station's last error) to everyone who sees the row; otherwise they need `access.admin.read` on the station. |
+
+Unchanged by these answers, and kept as the safest reading because neither day's answers name them: phone, the person's own
+photo (people screen), profile values, responsible person and visit purpose stay under `access.people.sensitive`;
+credentials (cards, PIN flag) stay out of every read view (the person editor, `access.people.manage`, keeps them).
+Answers 1, 6-10 belong to later slices (S6 screens, S11 call / announcement gates, S12 navigation switch, the WhatsApp
+slice); slice S3 records them for those agents in `docs/changes/CR-036-S3-S4-INTERFACE-NOTES.md`.
