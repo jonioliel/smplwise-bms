@@ -928,6 +928,10 @@ export const he = {
     hint: 'PNG, JPG או WebP עד 12 MB; מומלץ 2560×1440 ותמונה רגועה',
     fallback: 'כשחסרה תמונה לאחד המצבים, התמונה השנייה משמשת לשניהם',
   },
+  /** ST7HIST (CR-029 section 14): the 3D of a past instant on the event page. */
+  replay3d: {
+    eventNote: 'מבנה התוכנית הנוכחית; מצבי ההתקנים בזמן האירוע (ללא היסטוריה: לא ידוע).',
+  },
 } as const;
 
 type Path<T> = T extends object ? { [K in keyof T]: `${K & string}.${Path<T[K]>}` | (T[K] extends string ? K & string : never) }[keyof T] : never;

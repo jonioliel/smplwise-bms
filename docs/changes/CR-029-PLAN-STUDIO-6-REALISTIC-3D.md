@@ -617,3 +617,59 @@ phone row above is a viewport size on the workstation GPU, not a phone.
 | **Total** | **88-120** | **84-116** | and a recommendation to move S3's stills (not the lightmap) into release A, where the kiosk needs them |
 
 The Hebrew questions of §12 stand; the prototype note above marks the ones it demonstrates.
+
+---
+
+## 14. The replay screens on the ladder (ST7HIST, branch `pilot/ST7-history-level3`)
+
+The live plan view had the quality ladder (§3.4: auto / schematic / full / realistic lite / realistic, the capability
+probe, the installation default `plan.quality`, the personal override `/me/prefs plan.quality`). The history map
+(`screens/investigate-history-map.ts`) and the event page (`screens/investigate-event-detail.ts`) already mounted the same
+element (`sw-plan-3d`), so they inherited the chips and the probe, but they never built the realistic part of the
+description, drew the sun of the viewer's clock instead of the replayed instant, and replayed device states only in part.
+ST7HIST closes that through the one element and one pure helper:
+
+| Piece | What it does |
+|---|---|
+| `sw-plan-3d` `sunAt` (new property, UTC ms) | A fixed instant for the realistic level's sun: set, the site clock does not tick the sun and the time pill is not shown (the screen owns the time; `data-sun-fixed`). null = the live map's behaviour, unchanged. |
+| `map/replay-3d.ts` (new, pure) | `replayStates`: an entity's state only when the local history knows it at the instant (`state_at.known`), a circuit's switch only when `known`, explicit nulls otherwise, keys sorted (the same bundle in any order gives the same description). `replayInstant` (ISO -> ms). `REPLAY_VIEW` = no walk, no stills. |
+| History map | listens to `realistic-change` and builds with `realistic` + the library's materials only while level 3 draws (levels 1-2 get exactly the description of before); `sunAt` = the cursor's instant; the states through `replayStates` (a circuit's switch was drawn even when the history did not know it - fixed); **every settled cursor reloads the bundle at its instant**, so the states follow the cursor (they stayed those of the opening instant while the cursor stayed inside one plan version). |
+| Event page | the same realistic wiring; `sunAt` = the event's time; the device states of the event's time (the floor's map at that instant, read once per event when the 3D opens), the structure still the current plan (the owner's round-9 rule: the history map has the structure of the instant). The 3D note says so through i18n (`replay3d.eventNote`, he + en). |
+
+Chunks: the 3D chunk still comes only with the 3D toggle; the post-chain chunk (`three-post`) and the CC0 textures come
+only when level 3 is actually drawn - level 1-2 on these screens fetch neither (asserted per project). No new dependency,
+no change to `three-bundle.ts`; `unit-three-chunk.spec.ts` is unchanged.
+
+Determinism: the description is a pure function of the bundle at the instant (sorted state keys) and the sun of the
+instant; an equal description rebuilds into the same scene graph. Recorded fact found on the way: the lamp pool's slot
+order follows the camera's path (which lamp holds pool slot 0 depends on where the camera was when the pool was first
+assigned) - the graph is compared between two cold builds at the same preset; the pixels are unaffected.
+
+**Owner decisions taken by the safest default (open for the owner):**
+
+1. No walk-through on the history map and the event page (the walk opens doors by their present sensors; a replay must
+   not). The "סיור" chip is not offered there.
+2. No stills on the replay screens: a still is a picture of the present structure in present light and cannot replay a
+   past instant, so the ladder there ends at schematic (then the host's own 2D).
+3. No time slider on the replay screens: the history's timeline (or the event's time) is the only clock; the sun follows it.
+4. The event page keeps the current structure (round 9) and now replays the states of the event's time; before, every
+   state there was drawn unknown.
+
+Tests: `tests/unit-replay-3d.spec.ts` (node: the replay rules, the instant, the switches, the realistic part additive and
+deterministic on a replayed description); `tests/evidence-replay-3d.spec.ts` on a mocked backend
+(`tests/replay-3d-mocks.ts`), desktop / tablet / mobile: no 3D chunk in 2D; level 1 / 2 with no post chunk, no texture and
+no realistic part; the installation default and the personal override; `auto` falling back by the probe; level 3 with the
+sun and the states of the instant, the cursor moving both, determinism after a rebuild; the event page replaying the event
+time and never the live values; layout (the 3D inside its box, no sideways scroll). Pixel baselines exist only for the new
+level-3 states (`evidence-replay-3d.spec.ts-snapshots/*-linux.png`: the history at day lite / day realistic / night lite,
+the event card lite), drawn by the Linux runner's SwiftShader (`run_smart.py linux-pixel <branch>
+tests/evidence-replay-3d.spec.ts -g "pixel baseline" --update-snapshots=all`); another platform without its own file
+skips the comparison and says so. A baseline is taken once the camera settled (the orbit damping advances per drawn frame
+and the realistic rung draws few frames per second on SwiftShader: the capture repeats until two pictures are equal). The
+lite and event baselines are byte-stable run to run (tolerance 0.2 % as T087); the realistic rung (GTAO + MSAA x2) still
+moved 0.24-0.27 % of the pixels (711-811 px), edge pixels only, between runs on the tablet project, so its tolerance is 1 %. The level 1-2 baselines (`docs/evidence/T087/visual/`) are untouched - the guard that level 3
+stays additive.
+
+תקציר: מפת ההיסטוריה ודף האירוע מציגים עכשיו את התלת־ממד באותו סולם איכות של המפה החיה (כולל ריאליסטי וריאליסטי קל,
+ברירת המחדל של ההתקנה והבחירה האישית), עם מצבי ההתקנים והשמש של הרגע שנבחר. אין בהם סיור ואין תמונות מוכנות, ואין
+מחוון שעה - ציר הזמן של המסך הוא השעון.
