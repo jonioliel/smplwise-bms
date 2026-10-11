@@ -221,9 +221,12 @@ integrity or audit gaps with a narrow trigger; Informational = hardening, consis
   document; `walk_positions` is bounded (50) with per-item structural checks, a duplicate-id and single-default check, and
   bounds / unknown-level checks. `_find_nonfinite` still catches any non-finite number. `rebase` keeps the server-owned
   version block and recomputes the stored version. The package `geometry_hash` adds `north_deg` / `walk_positions` only when
-  present, so 2.0 / 2.1 hashes are unchanged; `_merge` carries `north_deg` and merges `walk_positions` by id. A non-dict item in
-  any collection is skipped, so a malformed walk position or an unhashable id raises no unhandled error in `_merge` beyond the
-  pre-existing `TypeError` that `validate` reports as a structural issue first.
+  present, so 2.0 / 2.1 hashes are unchanged; `_merge` carries `north_deg` and merges `walk_positions` by id. `_merge` runs
+  before `validate` in merge mode and would raise an unhandled `TypeError` on an unhashable walk-position id, but it only ever
+  runs on a signed package whose `doc` is a previously-stored (already validated) document - `export_package` signs the stored
+  document, and the import refuses an unsigned or tampered package (`package_unsigned` / `package_signature_invalid` /
+  `package_tampered`, the signature over the manifest and the manifest over `doc_hash`) before `_merge` - so an unhashable id
+  cannot reach it without this installation's private key.
 - Material resolver and manifest: `services/plan_studio6.resolve` is pure (no network, no device); `canonical` maps an id or
   alias to a library id or `None`; the library (`catalog/materials.json`) is validated at first use and is byte-identical to the
   frontend copy (`frontend/src/map/materials.json`). `material-resolve.ts` loads the library from a bundled JSON import, not a
