@@ -1233,8 +1233,8 @@ def mem_sampler(stop, every=5):
 
 
 def mem_admits(weight, recent, mem=mem_available_mb, now=None):
-    """A unit of `weight` workers may start while MemAvailable minus what the units started in the last 30 s have not yet taken stays
-    above the floor. True when memory cannot be read (non-Linux)."""
+    """A unit of `weight` workers may start while MemAvailable minus what the still-running units started in the last 30 s have not
+    yet taken (`recent`: [(start time, weight)]) stays above the floor. True when memory cannot be read (non-Linux)."""
     a = mem()
     if a is None:
         return True
@@ -1248,7 +1248,7 @@ def execute_units(units, slots, launch, mem=mem_available_mb):
     ({label: launch result}, {label: (start_s, end_s)}). launch(unit) runs in its own thread; an exception is stored as ('error', text)."""
     pending = sorted(units, key=_order_key)
     cond = threading.Condition()
-    st = {"free": slots, "running": 0, "done": 0, "recent": []}
+    st = {"free": slots, "running": 0, "done": 0, "started": {}}   # started: label -> (start time, weight) of the RUNNING units
     results, timeline = {}, {}
 
     def body(u, w):
@@ -1262,6 +1262,7 @@ def execute_units(units, slots, launch, mem=mem_available_mb):
                 st["free"] += w
                 st["running"] -= 1
                 st["done"] += 1
+                st["started"].pop(u["label"], None)
                 PAR_LIVE["slots"] = slots - st["free"]
                 timeline[u["label"]] = (int(t0 - T0), int(time.time() - T0))
                 cond.notify_all()
@@ -1274,14 +1275,14 @@ def execute_units(units, slots, launch, mem=mem_available_mb):
                 cond.wait(5)
                 continue
             w = slots if u["exclusive"] else min(u["weight"], slots)
-            if st["running"] > 0 and not mem_admits(w, st["recent"], mem):
+            if st["running"] > 0 and not mem_admits(w, list(st["started"].values()), mem):
                 MEMSTAT["admission_waits"] = MEMSTAT.get("admission_waits", 0) + 1
                 cond.wait(5)
                 continue
             pending.remove(u)
             st["free"] -= w
             st["running"] += 1
-            st["recent"] = [(ts, x) for ts, x in st["recent"] if time.time() - ts < 30] + [(time.time(), w)]
+            st["started"][u["label"]] = (time.time(), w)
             PAR_LIVE["slots"] = slots - st["free"]
             th = threading.Thread(target=body, args=(u, w), daemon=True)
             th.start()
@@ -1320,13 +1321,15 @@ def split_coverage(splits, unit_results):
     return out
 
 
-def list_tests(fe, cands, base_url, logd, label):
-    """`playwright test --list` of the split candidates on the branch under test -> {(file, project): [(line, path)]}; {} when it fails
-    (nothing is split then)."""
+def list_tests(fe, cands, base_url, logd, label, grep_invert=None):
+    """`playwright test --list` of the split candidates on the branch under test (with the run's own --grep-invert, so the listing is
+    exactly what the units will run) -> {(file, project): [(line, path)]}; {} when it fails (nothing is split then)."""
     jp = logd / f"list_{label}.json"
     files = sorted({f for _c, f, _p in cands})
     projs = sorted({p for _c, _f, p in cands}, key=lambda p: ALL_PROJECTS.index(p) if p in ALL_PROJECTS else 9)
     cmd = ["npx", "playwright", "test", "--list", "--reporter=json"] + [file_arg(f) for f in files] + [f"--project={p}" for p in projs]
+    if grep_invert:
+        cmd += ["--grep-invert", grep_invert]
     rc, to = run(cmd, fe, logd / f"list_{label}.log", env={"SW_BASE_URL": base_url, "PLAYWRIGHT_JSON_OUTPUT_NAME": str(jp)}, timeout=300)
     rows = list_rows(jp)
     if rc != 0 or to or rows is None or pw_load_errors(jp):
@@ -1395,8 +1398,8 @@ def run_parallel(wt, fe, logd, cls, dead):
             out = {}
             for cat in ("preview", "dev"):
                 cc = [c for c in cands if c[0] == cat]
-                if cc and cat in servers:
-                    out.update(list_tests(fe, cc, servers[cat][0], logd, cat))
+                if cc and cat in servers:   # the preview units run with --grep-invert pixel-stable: so does their listing
+                    out.update(list_tests(fe, cc, servers[cat][0], logd, cat, grep_invert="pixel-stable" if cat == "preview" else None))
             return out
         units, splits, notes = build_plan(cls, costs, lister, fe, PAR_SLOTS, TIER, VISUAL)
         # a unit whose server did not start is not run (its FAIL / visual error is already recorded above, as in the serial gate)
@@ -1498,7 +1501,13 @@ def plan_cli(argv):
     srcs = srcs or [str(d) for d in cost_dirs()]
     costs = load_costs(srcs)
     cls = classify(fe, tier)
-    lister = lambda cands: {(f, p): costs["listing"][(f, p)] for _c, f, p in cands if (f, p) in costs["listing"]}
+    def lister(cands):   # the cost source's tests; a preview listing leaves out what --grep-invert pixel-stable leaves out
+        out = {}
+        for c, f, p in cands:
+            tests = [(l, path) for l, path in costs["listing"].get((f, p), []) if not (c == "preview" and "pixel-stable" in " ".join(path))]
+            if tests:
+                out[(f, p)] = tests
+        return out
     units, splits, notes = build_plan(cls, costs, lister, fe, slots, tier, VISUAL, chunk, split)
     tot = sum(u["cost"] * (min(u["weight"], slots)) for u in units)
     print(f"plan: {len(cls['rest'])} preview files, {len(cls['dev'])} dev files, {len(cls['fixture'])} fixture, {len(cls['pixel'])} pixel; "

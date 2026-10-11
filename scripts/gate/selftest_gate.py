@@ -257,6 +257,16 @@ check("run_pw: the default command line has no --output; a pool unit gets its ow
       not any(a.startswith("--output") for a in lines[0]) and "--workers=3" in lines[0]
       and any(a.startswith("--output=") for a in lines[1]) and "--workers=1" in lines[1] and "tests/a\\.spec\\.ts:7" in lines[1] and "-g" in lines[1], lines)
 
+# list_tests: --list with the units' own --grep-invert (2026-10-11 subset run: the preview listing held the pixel-stable tests the
+# preview units never run -> "No tests found" units and a coverage FAIL)
+os.environ.update(FAKE_PW_MODE="argv", FAKE_ARGV_OUT=str(argv_out))
+argv_out.write_text("")
+lst = g.list_tests(TMP, [("preview", "a.spec.ts", "desktop")], "http://127.0.0.1:1/", logd, "lp", grep_invert="pixel-stable")
+del os.environ["FAKE_PW_MODE"], os.environ["FAKE_ARGV_OUT"]
+la = json.loads(argv_out.read_text().splitlines()[0])
+check("list_tests: --list --reporter=json with the preview's --grep-invert pixel-stable; the listing keys by (file, project)",
+      "--list" in la and la[la.index("--grep-invert") + 1] == "pixel-stable" and len(lst.get(("a.spec.ts", "desktop"), [])) == 5, (la, lst))
+
 # lpt_bins / backend shard plan
 w = {"t1": 900.0, "t2": 800.0, "t3": 300.0, "t4": 200.0, "t5": 100.0, "t6": 100.0}
 bins = g.lpt_bins(w, 3)
@@ -395,7 +405,8 @@ fe = TMP / "fe"
 (fe / "tests" / "b.spec.ts").write_text("import { test } from '@playwright/test';\n")
 ptxt = TMP / "plan_costs.txt"
 ptxt.write_text("TEST layout-x.spec.ts desktop 5 700 g > a [full]\nTEST layout-x.spec.ts desktop 5 650 g > a [lite]\nTEST b.spec.ts desktop 3 40 t\n"
-                "TEST b.spec.ts tablet 3 40 t\nTEST b.spec.ts mobile 3 40 t\n", encoding="utf-8")
+                "TEST b.spec.ts tablet 3 40 t\nTEST b.spec.ts mobile 3 40 t\n"
+                "TEST b.spec.ts desktop 9 700 g > classic is pixel-stable\nTEST b.spec.ts desktop 9 700 g > domus is pixel-stable\n", encoding="utf-8")
 import io, contextlib  # noqa: E401,E402
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
@@ -403,6 +414,8 @@ with contextlib.redirect_stdout(buf):
 out = buf.getvalue()
 check("--plan: prints the split of the heavy dev file into its two title units and a timeline per slot count, rc 0",
       rc == 0 and "split dev layout-x.spec.ts [desktop]: 2 tests" in out and "slots= 4" in out, out)
+check("--plan: a preview file is not split by its pixel-stable tests (the preview units grep them out)",
+      "split preview b.spec.ts" not in out and "not split (no listing or a single test): b.spec.ts [desktop]" in out, out)
 
 print()
 print("SELFTEST " + ("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
