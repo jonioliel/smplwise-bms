@@ -80,9 +80,22 @@ export const applyDoorSuggestions = () => post<{ applied: string[] }>('intercom/
 export const placeStation = (stationId: string, place: { site_id?: string | null; building_id?: string | null }) =>
   put<{ placement: DoorMapStation['placement']; scope_name: string }>(`intercom/stations/${encodeURIComponent(stationId)}/placement`, { ...place, confirmed: true });
 
+export interface DoorLockJob {
+  schedule_id: string;
+  name: string;
+  locks: string[];
+  note: string;
+}
+
 export interface DoorSettings {
   trusted_path: 'off' | 'on';
   trusted_path_available: boolean;
+  /** CR-033 D8: `blocked` (default) refuses new WisKey door steps in the editors, server side. */
+  editor_block: 'blocked' | 'allowed';
+  editor_allowed_available: boolean;
+  /** CR-033 D6: scheduled jobs that lock a WisKey door (they will never work). */
+  lock_jobs: DoorLockJob[];
 }
 
 export const getDoorSettings = () => get<DoorSettings>('doors/settings');
+export const setEditorBlock = (editorBlock: DoorSettings['editor_block']) => put<DoorSettings>('doors/settings', { editor_block: editorBlock, confirmed: true });

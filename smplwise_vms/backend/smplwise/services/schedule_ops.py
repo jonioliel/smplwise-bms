@@ -23,6 +23,7 @@ from ..audit import audit
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
+from . import door_path_guard as guard
 from . import ha_bridge, ha_sync
 from . import schedule_model as model
 from . import schedule_policy as policy
@@ -588,6 +589,7 @@ def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, c
         ev = evaluate(w, draft, None, creating=True)
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, draft, None)  # CR-033 D8
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, conditions=cond_entities(draft))
@@ -645,6 +647,7 @@ def update(w: W, schedule_id: str, draft: dict[str, Any], base_revision: str, cl
         ev = evaluate(w, draft, core, creating=False)
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, draft, core)  # CR-033 D8
         if ev.denials:
             raise ev.denials[0]
         diff = model.diff_summary(core, draft)

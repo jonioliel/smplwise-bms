@@ -31,6 +31,7 @@ from . import automation_text as text
 from . import automation_transport as tr
 from . import automation_view as view
 from . import automations as store
+from . import door_path_guard as guard
 from . import ha_bridge, ha_sync
 
 _RATE: dict[tuple[str, str], list[float]] = {}
@@ -534,6 +535,8 @@ def create(w: W, kind: str, draft: dict[str, Any], enabled: bool, confirm: bool,
 def _raise_judgement(w: W, kind: str, j: Judgement, confirm: bool, *, creating: bool, code_view_needed: bool = False) -> None:
     if j.errors:
         raise problem_error(j.errors)
+    # CR-033 D8: no NEW WisKey door step from the editors while the administrator setting blocks it (server side, typed and code mode)
+    guard.check_automation_item(w.conn, kind, j.facts, j.old_facts, (j.rd or {}).get("draft"), {b["fingerprint"] for b in (j.old_facts or {}).get("locked", [])})
     denials = rights_of(w, kind, j, code_view_needed=code_view_needed)
     if denials:
         raise denials[0]

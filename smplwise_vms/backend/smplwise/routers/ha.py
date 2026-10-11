@@ -25,7 +25,7 @@ from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
-from ..services import bridge_install, device_activity, door_authority, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
+from ..services import bridge_install, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -135,6 +135,8 @@ def list_entities(
         r["schedule_entity"] = dsvc.is_scheduler_entity(r["entity_id"], r.get("platform"))
         r["media_managed"] = r["entity_id"] in media_managed
         r["actions"] = [] if (r["alarm_managed"] or r["schedule_entity"] or r["media_managed"]) else ha_bridge.actions_for(r["domain"])
+        if r["domain"] == "lock" and (r.get("platform") or "") in intercom_doors.WISKEY_PLATFORMS:
+            r["actions"] = [x for x in r["actions"] if x["id"] != "lock.lock"]  # CR-033 D6: a WisKey door has no lock action
         out.append(r)
     domains: dict[str, int] = {}
     areas: list[dict[str, Any]] = []
@@ -171,7 +173,7 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
     if e["actions"] and intercom_doors.is_wiskey_lock(conn, entity_id):
         # CR-033 D3: a WisKey door's open is the one door rule's answer (access.release on its station or door.unlock on it)
         e["wiskey_door"] = True
-        e["actions"] = [{**a, "granted": _wiskey_open_allowed(conn, principal, entity_id)} if a["id"] == "lock.unlock" else a for a in e["actions"]]
+        e["actions"] = [{**a, "granted": _wiskey_open_allowed(conn, principal, entity_id)} if a["id"] == "lock.unlock" else a for a in e["actions"] if a["id"] != "lock.lock"]  # D6: no lock
     e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
@@ -234,6 +236,11 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     settings = settings_of(request)
     db: Database = request.app.state.db
     rid = getattr(request.state, "correlation_id", None)
+    if body.allowed_action_id == "lock.lock" and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D6: WisKey does not support lock - never sent, whoever asks, from a tile, a map card or "lock all"
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="wiskey_lock_unsupported",
+              request_id=rid, details={"action": body.allowed_action_id})
+        raise door_path_guard.lock_unsupported()
     if body.allowed_action_id == "lock.unlock" and intercom_doors.is_wiskey_lock(conn, entity_id):
         # CR-033 D3/D4: a WisKey door is opened only through the one door authority and the door transport - never
         # through the bridge's `execute` / `lock.unlock`, and ha.entity.control is not what decides it
