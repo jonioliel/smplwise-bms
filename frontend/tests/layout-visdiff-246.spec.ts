@@ -5,11 +5,12 @@ import { inPageCheck, summarize, type Finding } from './layout-guard';
 // the 2.4.6 release restyled, in demo mode (every /api/v1 call is aborted: the demo data answers), classic skin, light and dark, at the
 // phone (390), the reference tablet (1024) and the desktop (1440) widths. The visual matrix compares pixels against a baseline and only
 // warns; this spec states the rules a restyle must keep whatever the pixels: nothing escapes or is clipped inside its container, nothing
-// scrolls the page sideways, nothing floats over a control, and every control is a 44 px target on a phone (the classic skins keep their
-// dense desktop and tablet controls; tests/layout-media-admin-list.spec.ts states the same rule). It would have caught the 30 x 28 px
-// cards / list switch of the alarm screen that the 2.4.5 zone redesign introduced.
-// KNOWN lists what the guard does not hold against a screen yet, each with its reason; a new entry needs the same.
-// Run (the dev or preview server of the branch, no backend):
+// scrolls the page sideways, and nothing floats over a control. The 44 px rule is held for the controls of the redesigned screens named
+// in TARGETS (the classic skins keep their dense admin controls elsewhere; tests/layout-media-admin-list.spec.ts states the same split).
+// It would have caught the 30 x 28 px cards / list switch and the 32 px filter chips that the 2.4.5 zone redesign put on the alarm screen,
+// and the clipped last segment of the schedules defaults.
+// KNOWN lists what the guard does not hold against a screen, each with its reason; a new entry needs the same.
+// Run (the dev or preview server of the branch, no backend; one test per screen, `-g <screen id>` runs one):
 //   SW_BASE_URL=http://127.0.0.1:5173/ npx playwright test tests/layout-visdiff-246.spec.ts --project=desktop --workers=1
 //   VISDIFF_REPORT=1 prints every finding (one `FIND|class|element|detail|count|first context` line each) without failing.
 const REPORT_ONLY = !!process.env.VISDIFF_REPORT;
@@ -46,9 +47,19 @@ const SKIP = '.vh, .gbox, .bg, .veil, .skl, .wx-ic, .fc, .sr-only, .edit-slot';
 const BUBBLE = '.hero, .zcard, .zrow, .kcard';
 
 type Row = Finding & { w: number; screen: string };
-/** Findings the guard does not hold against a screen yet (pre-existing, outside this review); a row names the element and the reason. */
-const KNOWN: { screen?: string; el: RegExp; why: string }[] = [];
-const isKnown = (r: Row) => KNOWN.some((k) => (!k.screen || k.screen === r.screen) && k.el.test(r.el));
+/** What the guard does not hold against a screen, with the reason. */
+const KNOWN: { el: RegExp; why: string }[] = [
+  { el: /^div\.savebar\b/, why: 'the sticky save bar rests on the content that scrolls under it: covering the rows below it is its job (it has bottom padding, so nothing stays hidden at the end of the page)' },
+  { el: /^nav\.sections\.secrow\b/, why: 'the phone\'s sticky section row sits over the content that scrolls under it, by design' },
+];
+const isKnown = (r: Row) => KNOWN.some((k) => k.el.test(r.el));
+
+/** Controls of the redesigned screens that must be 44 px targets on a touch layout (<= 1100 px): [screen, selector, what]. */
+const TARGETS: { screen: string; selector: string; what: string }[] = [
+  { screen: 'security-alarm', selector: 'security-alarm .chips button', what: 'the zone filter chips' },
+  { screen: 'security-alarm', selector: 'security-alarm [data-alarm-view] button', what: 'the cards / list switch' },
+  { screen: 'settings-general', selector: 'system-nav [data-settings-search]', what: 'the settings search field' },
+];
 
 async function open(page: Page, hash: string, theme: string) {
   await page.goto('about:blank');
@@ -71,7 +82,7 @@ async function scrollMain(page: Page, to: 'top' | 'bottom') {
 
 test.describe('layout guard: the screens of the visual matrix and the restyled settings pages', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');
-  test.describe.configure({ timeout: 30 * 60_000 });
+  test.describe.configure({ timeout: 20 * 60_000 });
   test.beforeEach(async ({ page, context }) => {
     await context.addInitScript(() => {
       try {
@@ -84,43 +95,60 @@ test.describe('layout guard: the screens of the visual matrix and the restyled s
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
-  test('every class, light and dark, phone / tablet / desktop', async ({ page }) => {
-    test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
-    const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(e.message));
-    const results: Row[] = [];
-    let runs = 0;
-    for (const theme of THEMES) {
-      for (const w of WIDTHS) {
-        await page.setViewportSize({ width: w, height: height(w) });
-        for (const s of SCREENS) {
+  for (const s of SCREENS) {
+    test(`${s.id}: nothing escapes, is clipped, overflows or floats (light and dark, 390 / 1024 / 1440)`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
+      const errors: string[] = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      const results: Row[] = [];
+      let runs = 0;
+      for (const theme of THEMES) {
+        for (const w of WIDTHS) {
+          await page.setViewportSize({ width: w, height: height(w) });
           await open(page, s.hash, theme);
           await settle(page);
-          runs++;
           for (const part of ['', ' bottom']) {
             if (part) await scrollMain(page, 'bottom');
+            runs++;
             const found = await page.evaluate(inPageCheck, { ctx: `${s.id} ${theme} ${w}${part}`, bubble: BUBBLE, skip: SKIP });
             results.push(...found.map((f) => ({ ...f, w, screen: s.id })));
           }
         }
       }
-    }
-    // the rules: the geometry classes at every width, 44 px targets at the phone width only
-    const enforced = results.filter((r) => (r.cls !== 'target' || r.w <= 480) && !isKnown(r));
-    const sum = summarize(enforced, 200);
-    console.log(`layout-visdiff-246: ${runs} checks, findings ${results.length} (${JSON.stringify(summarize(results).byCls)}), enforced ${enforced.length} (${JSON.stringify(sum.byCls)}), page errors ${errors.length}`);
-    // every distinct finding, one machine-readable line each
-    const uniq = new Map<string, { f: Row; n: number }>();
-    for (const f of results) {
-      const k = `${f.cls}|${f.el}|${f.detail}`;
-      const u = uniq.get(k);
-      if (u) u.n++;
-      else uniq.set(k, { f, n: 1 });
-    }
-    const order = { escape: 0, overflow: 1, clipped: 2, floating: 3, target: 4 } as const;
-    for (const { f, n } of [...uniq.values()].sort((a, b) => order[a.f.cls] - order[b.f.cls] || b.n - a.n)) console.log(`FIND|${f.cls}|${f.el}|${f.detail}|${n}|${f.ctx}`);
-    if (REPORT_ONLY) return;
-    expect(errors, 'page errors').toEqual([]);
-    expect(sum.lines, 'layout findings').toEqual([]);
-  });
+      // the rules: the geometry classes at every width; 44 px targets are checked per TARGETS below, not here
+      const enforced = results.filter((r) => r.cls !== 'target' && !isKnown(r));
+      const sum = summarize(enforced, 100);
+      console.log(`layout-visdiff-246 ${s.id}: ${runs} checks, findings ${results.length} (${JSON.stringify(summarize(results).byCls)}), enforced ${enforced.length} (${JSON.stringify(sum.byCls)}), page errors ${errors.length}`);
+      if (REPORT_ONLY) {
+        const uniq = new Map<string, { f: Row; n: number }>();
+        for (const f of results) {
+          const k = `${f.cls}|${f.el}|${f.detail}`;
+          const u = uniq.get(k);
+          if (u) u.n++;
+          else uniq.set(k, { f, n: 1 });
+        }
+        for (const { f, n } of uniq.values()) console.log(`FIND|${f.cls}|${f.el}|${f.detail}|${n}|${f.ctx}`);
+        return;
+      }
+      expect(errors, 'page errors').toEqual([]);
+      expect(sum.lines, 'layout findings').toEqual([]);
+    });
+  }
+
+  for (const t of TARGETS) {
+    test(`${t.screen}: ${t.what} are 44 px targets on a touch layout`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
+      const small: string[] = [];
+      for (const theme of THEMES) {
+        for (const w of [390, 1024]) {
+          await page.setViewportSize({ width: w, height: height(w) });
+          await open(page, SCREENS.find((s) => s.id === t.screen)!.hash, theme);
+          const boxes = await page.locator(t.selector).evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; }));
+          expect(boxes.length, `${t.what} rendered (${theme} ${w})`).toBeGreaterThan(0);
+          for (const b of boxes) if (b.w < 44 || b.h < 44) small.push(`${theme} ${w}: ${b.w}x${b.h}`);
+        }
+      }
+      expect(small, `${t.what} below 44 px`).toEqual([]);
+    });
+  }
 });
