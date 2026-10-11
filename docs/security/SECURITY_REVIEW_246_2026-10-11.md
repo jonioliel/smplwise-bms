@@ -311,19 +311,22 @@ narrow trigger; Informational = hardening, consistency, or no demonstrated impac
 4. L4: keep or audit `update.apply_enabled` across a restore.
 5. L8 (carried over): bridge 0.8.1.
 
-## Fix status (template - to be filled by the fixing task)
+## Fix status
+
+Fixing task SEC246-fixes, branch `pilot/SEC246-fixes` (fix commit 2f338239; owner decisions for L2 / L3 / L4 of 2026-10-11). The PoC file
+`tests/test_security_review_246_poc.py` now holds the regression tests of the fixed behaviour (every PoC in it was inverted).
 
 | ID | Status | Branch / SHA | What changed | PoC inverted |
 |---|---|---|---|---|
-| L1 | Open | | | |
-| L2 | Open (owner decision) | | | |
-| L3 | Open (owner decision) | | | |
-| L4 | Open (owner decision) | | | |
-| I1 | Open | | | |
-| I2 | Open | | | |
-| I3 | Open | | | |
-| I4 | Open | | | |
-| I5 | Open | | | |
+| L1 | Fixed | pilot/SEC246-fixes 2f338239 | `routers/ui_background.reencode`: header-only `Image.open` (PNG / JPEG / WebP only), width x height checked before any decode (JPEG 64 MP, decoded at a reduced scale via `draft`; PNG / WebP 40 MP) -> 422 `too_many_pixels` (also for a `DecompressionBombError`); one decode at a time per process (`_decode_slot`, waits 5 s, then 429 `busy`) | Yes: `test_l1_a_huge_dimension_png_of_a_few_kb_is_refused_before_any_decode` (+ bomb, phone-photo and decode-guard tests) |
+| L2 | Fixed (owner decision 2026-10-11) | pilot/SEC246-fixes 2f338239 | A switch whose FIXED type (`device_type_override`) is `valve` / `water_heater` is left out of `switches_on` (reason `sensitive_type`, counted in `skipped.sensitive_type`, listed in the dialog's details) unless an administrator includes that device: `PUT /devices/entities/{id}/bulk-on` (system.configure, checked before the body, audited `devices.bulk_on_allowed`, a refusal too; 409 `not_sensitive_type` for any other type), Settings › סוגי התקנים checkbox "לכלול בהדלק הכל" (default off). A type change drops the inclusion. Stored as the settings row `devices.bulk_on_allowed` (travels with a backup; an archive without it - every older one - leaves every typed device out). OFF kinds and the single turn-on unchanged (owner) | Yes: `test_l2_turn_all_on_leaves_out_a_switch_the_administrator_typed_valve_or_water_heater` (+ include / audit / RBAC / backup tests) |
+| L3 | Fixed (owner decision 2026-10-11) | pilot/SEC246-fixes 2f338239 | `routers/ha._run_action`: the pending `ha_actions` row and an `ha.action` row (`reason: attempt`, `phase: attempt`) are committed in one write BEFORE the signed call; the write waits at most `PENDING_WAIT_S` = 2 s (`Database.write_aside(wait_s=...)`), else 503 `busy` (`details.sent: false`), nothing sent, a WARNING log line with user / entity / action / request id. The outcome row follows as before (two `ha.action` rows per sent command). LAT1: the idle bound is kept; a write lock held 1.5 s now delays the call until the record is written (by design; `test_lat1_toggle_latency.py` updated, numbers in the task report) | Yes: `test_l3_a_device_command_is_not_sent_when_its_record_cannot_be_written` (+ order test) |
+| L4 | Fixed (owner decision 2026-10-11) | pilot/SEC246-fixes 2f338239 | `update.apply_enabled` joined `SETTINGS_KEEP`: never written to an archive, never restored (also not from an older archive that holds it); every restore writes a `system.update.apply_enabled` audit row (`reason: kept_on_restore`, `kept`, `archive`, `archive_differed`) and answers `update_apply_enabled` | Yes: `test_l4_a_replace_restore_keeps_the_current_self_update_switch_and_audits_it` (+ older-archive test) |
+| I1 | Fixed | pilot/SEC246-fixes 2f338239 | `body_limit.LIMITS` row `ui_background`: `POST settings/background/{slot}` = 12 MiB + 64 KiB (with the L1 guard in place); CR-008 section 9 table updated | Yes: `test_i1_a_background_over_one_mib_is_no_longer_refused_by_the_default_body_limit` (+ limit-row test) |
+| I2 | Fixed | pilot/SEC246-fixes 2f338239 | A restore passes each `ui_backgrounds/*` file through `reencode` and writes the fresh JPEG atomically; a failing file is not written (the slot's old file removed) and listed in `backgrounds_rejected`; the picture response carries `X-Content-Type-Options: nosniff` and a fixed `image/jpeg` | Yes: `test_i2_a_restored_non_picture_is_not_written_and_never_served` (+ re-encode / nosniff test) |
+| I3 | Fixed | pilot/SEC246-fixes 2f338239 | `services/image_guard.py` sets `MAX_IMAGE_PIXELS` once (60 M, plan_render's value); `plan_render`, `floor_images`, `wall_photos` import it and no longer write it; their own ceilings (36 MP, 40 MP) stay explicit checks. Side effect: a wall photo between 80 M and 120 M pixels is now `too_many_pixels` (413) instead of `corrupt_image` (422) | New test `test_i3_no_module_but_image_guard_writes_pillows_process_wide_threshold` |
+| I4 | Fixed | pilot/SEC246-fixes 2f338239 | `write_atomic`: `tempfile.mkstemp` in the slot folder + `os.replace` (and the decode guard serialises same-slot uploads) | New tests `test_i4_*` |
+| I5 | Fixed | pilot/SEC246-fixes 2f338239 | `self_update.view` uses `is_newer`. The 409 `self_update_disabled` refusal was already audited once as `system.update.apply` denied by `routers/system_update._refused` (the review missed that path); a regression test pins it to exactly one row | New tests `test_i5_*` |
 | I6 | Open (verify against HA 2026.10) | | | |
 | I7 | Open | | | |
 | I8 | Open | | | |

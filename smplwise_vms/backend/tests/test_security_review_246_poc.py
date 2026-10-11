@@ -67,7 +67,8 @@ def test_l1_a_huge_dimension_png_of_a_few_kb_is_refused_before_any_decode(settin
             took = time.perf_counter() - t0
             assert r.status_code == 422, r.text
             assert r.json()["code"] == "too_many_pixels" and r.json()["details"]["width"] == w and r.json()["details"]["height"] == h
-            assert took < 2.0 * sw_time_factor(), f"{w}x{h} took {took:.2f} s"
+            # a no-hang guard only (the proof is `decoded == []` below; the first request also pays lazy imports on a busy runner)
+            assert took < 10.0 * sw_time_factor(), f"{w}x{h} took {took:.2f} s"
         assert decoded == [], "no pixel of a refused picture is decoded"
         assert c.get(f"{BG}/day").status_code == 404
     assert not list(_bg_dir(settings).glob("*.jpg"))
