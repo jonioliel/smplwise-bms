@@ -79,6 +79,9 @@ export interface IntercomFeed {
   server_time_ms?: number;
   /** Per station with a camera: whether its still can be had, or which setting is missing. */
   camera_access?: Record<string, IntercomCameraAccess>;
+  /** CR-033 D3: per station, whether this user may open a door there (the one door rule: `access.release` on the
+   * station, or `door.unlock` on its mapped lock). Absent from an older backend: the screen falls back to `access.release`. */
+  door_access?: Record<string, boolean>;
 }
 
 /** Server clock minus this device's clock (ms), learned from each overview reply. Physical commands' `expires_at` is

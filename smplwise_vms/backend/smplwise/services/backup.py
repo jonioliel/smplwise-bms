@@ -41,7 +41,9 @@ PROJECT_TABLES = PROJECT_TABLES + [t for t in FRIGATE_TABLES if t not in PROJECT
 # climate entity) travels the same way - it was missing from the archive, so a restore onto a new installation lost it.
 DEVICE_TYPE_TABLES = ["device_type_override", "device_climate_kind"]
 PROJECT_TABLES = PROJECT_TABLES + [t for t in DEVICE_TYPE_TABLES if t not in PROJECT_TABLES]
-ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
+ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles",
+                 # CR-033: where stations sit (station scope), which relay each WisKey lock is, and the door grant card's own bindings
+                 "intercom_station_placement", "intercom_door_map", "door_grant_bindings"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -66,7 +68,10 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # CR-020 S2C security review finding 4: runtime state of the multi-camera batches (the batch record with who started it and
 # the request id, its heartbeat, the device lock). Never exported, never restored, never deleted by a `replace` restore -
 # a restore in the middle of a batch must not drop the device lock, and an old archive must not bring back a stale one.
-SETTINGS_KEEP_PREFIXES = ("nvr.batch.",)
+# CR-033 section 9: the door settings (`doors.trusted_path`, default `off`) are never exported and never restored - a restore
+# can never loosen them (the installation keeps its own, fail-closed value). Simplification recorded in the wave-1 report: the
+# CR's "apply the stricter one" also never tightens from an archive.
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
 
 
 def _kept_setting(key: Any) -> bool:
