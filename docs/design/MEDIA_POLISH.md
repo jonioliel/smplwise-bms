@@ -41,6 +41,11 @@ the warning text `--sw-warning-text`. The `--dv-*` default palette takes these f
 colours reach the severities, light and dark, and the settings screen's severity segments and push preview follow. Reviewable
 with one block: restore the two literal blocks to return to the mockup's iOS values.
 
+Integration 2.4.6 (`integ/246`): 2.4.5's security-screens polish had already moved the same knobs to the product's state colours,
+reading `--sw-product-*` directly (plus a dark-scheme re-tune of the critical glow and the pinned wash). The merge kept that 2.4.5
+block; with the default palette both resolve to the same colours. The centre's toast keeps this pass's blur and 12 % border on the
+`--sw-r-pill` radius token, and its icon colours are the 2.4.5 `--sw-product-success` / `--sw-product-danger`.
+
 ### 2.3 Keyboard in the centre's menus
 
 `menuArrow()` (`components/notify-logic.ts`, unit-tested): ArrowDown / ArrowUp move between the `role^="menuitem"` buttons and
