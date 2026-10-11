@@ -278,22 +278,24 @@ def _report_stray_holders(gate: WriteGate, waiter: str) -> None:
             log.error("write gate held by %s outside a transaction (a manual COMMIT? use db.commit_now); %s waits", label, waiter)
 
 
-def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
+def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None = None) -> None:
     """Take the write lock: this process's queue first (the gate of the connection's database), then SQLite's lock
-    (BEGIN IMMEDIATE, which still waits busy_timeout for a writer in another process)."""
+    (BEGIN IMMEDIATE, which still waits busy_timeout for a writer in another process). `wait_s` (at most BUSY_TIMEOUT_S)
+    shortens the whole wait for a caller that would rather fail fast than act late (SEC246 L3: a device command's record)."""
     started = time.monotonic()
+    budget = BUSY_TIMEOUT_S if wait_s is None else max(0.0, min(float(wait_s), BUSY_TIMEOUT_S))
     full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])  # the connection's own (BUSY_TIMEOUT_S unless a caller set less)
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
     if gate is not None and id(conn) not in _gate_tokens:
-        token = gate.acquire(BUSY_TIMEOUT_S, on_slow=lambda: _report_stray_holders(gate, label))
+        token = gate.acquire(budget, on_slow=lambda: _report_stray_holders(gate, label))
         if token is None:
             with _stats_lock:
                 LOCK_STATS["gate_timeouts"] += 1
             raise _busy(label, sqlite3.OperationalError("database is locked"))
         _gate_tokens[id(conn)] = (gate, token, conn)
     _beginning.add(id(conn))
-    # one attempt never waits longer than BUSY_TIMEOUT_S in total: SQLite gets what the gate queue left of it
-    remaining_ms = max(1, int((BUSY_TIMEOUT_S - (time.monotonic() - started)) * 1000))
+    # one attempt never waits longer than its budget (BUSY_TIMEOUT_S) in total: SQLite gets what the gate queue left of it
+    remaining_ms = max(1, int((budget - (time.monotonic() - started)) * 1000))
     shortened = remaining_ms < full_ms
     try:
         if shortened:
@@ -485,13 +487,17 @@ class Database:
                 _drop_hold(conn)
 
     @contextmanager
-    def write_aside(self, label: str | None = None) -> Iterator[sqlite3.Connection]:
-        """A short write transaction of its own, for the few rows a read-mode request must still record."""
+    def write_aside(self, label: str | None = None, wait_s: float | None = None) -> Iterator[sqlite3.Connection]:
+        """A short write transaction of its own, for the few rows a read-mode request must still record. `wait_s`: the
+        longest wait for the write lock (default BUSY_TIMEOUT_S), then "database is locked"."""
         label = label or _caller(3)
         conn = self._open()
         _conn_gate[id(conn)] = self.gate
         try:
-            _begin_immediate(conn, label)
+            if wait_s is None:
+                _begin_immediate(conn, label)
+            else:
+                _begin_immediate(conn, label, wait_s)
             yield conn
             _finish(conn, "COMMIT")
         except BaseException:

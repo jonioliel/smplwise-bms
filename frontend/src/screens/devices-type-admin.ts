@@ -8,7 +8,7 @@ import { get, post, put, describeError } from '../api/client';
 import { parseRoute } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import {
-  KIND_HE, KIND_ORDER, NO_TYPE_FILTERS, applyTypeFilters, bulkTargets, chunks, confirmQuestion, rangeIds, resultLine, settingLabel, typeFiltersActive,
+  BULK_ON_SENSITIVE, KIND_HE, KIND_ORDER, NO_TYPE_FILTERS, applyTypeFilters, bulkTargets, chunks, confirmQuestion, rangeIds, resultLine, settingLabel, typeFiltersActive,
   type DeviceTypeRow, type FixedKind, type SourceFilter, type TypeFilters, type TypeSetting,
 } from './device-types-logic';
 import { SkinController } from '../design/skin';
@@ -104,6 +104,13 @@ export class DevicesTypeAdmin extends LitElement {
     .err {
       color: var(--sw-danger);
     }
+    .bulk-on {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-block-start: 4px;
+      min-block-size: 32px;
+    }
     @media (max-width: 599px) {
       table {
         display: none;
@@ -128,7 +135,8 @@ export class DevicesTypeAdmin extends LitElement {
         font-size: var(--sw-fs-xs);
         color: var(--sw-text-3);
       }
-      .card select {
+      .card select,
+      .card .bulk-on {
         grid-column: 2;
         inline-size: 100%;
       }
@@ -208,6 +216,27 @@ export class DevicesTypeAdmin extends LitElement {
     }
   }
 
+  /** SEC246 L2: include one typed valve / water heater in "הדלק הכל" (default off; system.configure, audited by the server). */
+  private async setBulkOn(r: DeviceTypeRow, allowed: boolean) {
+    this.busyId = r.entity_id;
+    try {
+      await put(`devices/entities/${encodeURIComponent(r.entity_id)}/bulk-on`, { allowed });
+      this.result = '';
+    } catch (err) {
+      this.result = describeError(err);
+    } finally {
+      this.busyId = '';
+      await this.load();
+    }
+  }
+
+  private bulkOn(r: DeviceTypeRow) {
+    if (!r.set || !BULK_ON_SENSITIVE.includes(r.set)) return nothing;
+    return html`<label class="bulk-on muted"><input type="checkbox" data-type-bulk-on=${r.entity_id} .checked=${!!r.bulk_on_allowed}
+        ?disabled=${this.busyId === r.entity_id || this.busy}
+        @change=${(e: Event) => void this.setBulkOn(r, (e.target as HTMLInputElement).checked)} />לכלול בהדלק הכל</label>`;
+  }
+
   private typeSelect(r: DeviceTypeRow) {
     return html`<select data-type-select=${r.entity_id} aria-label=${`סוג ${r.name}`} ?disabled=${this.busyId === r.entity_id || this.busy}
       @change=${(e: Event) => void this.chooseOne(r, (e.target as HTMLSelectElement).value as TypeSetting)}>
@@ -258,9 +287,9 @@ export class DevicesTypeAdmin extends LitElement {
       ${list.length
         ? html`<table>
               <thead><tr><th><span class="muted">בחירה</span></th><th>שם</th><th>קומה › אזור</th><th>סוג</th><th>מקור</th></tr></thead>
-              <tbody>${page.map((r) => html`<tr data-entity=${r.entity_id}><td>${box(r)}</td><td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td><td>${place(r)}</td><td>${this.typeSelect(r)}</td><td>${source(r)}</td></tr>`)}</tbody>
+              <tbody>${page.map((r) => html`<tr data-entity=${r.entity_id}><td>${box(r)}</td><td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td><td>${place(r)}</td><td>${this.typeSelect(r)}${this.bulkOn(r)}</td><td>${source(r)}</td></tr>`)}</tbody>
             </table>
-            <div class="cards">${page.map((r) => html`<div class="card" data-entity=${r.entity_id}>${box(r)}<span>${bidi(r.name)}</span><span class="sub">${place(r)} · ${source(r)}</span>${this.typeSelect(r)}</div>`)}</div>`
+            <div class="cards">${page.map((r) => html`<div class="card" data-entity=${r.entity_id}>${box(r)}<span>${bidi(r.name)}</span><span class="sub">${place(r)} · ${source(r)}</span>${this.typeSelect(r)}${this.bulkOn(r)}</div>`)}</div>`
         : html`<sw-state-panel compact state="empty" heading=${rows.length ? 'אין התקנים שמתאימים לסינון' : 'אין מתגים'} data-type-empty></sw-state-panel>`}
       ${list.length > this.shown ? html`<sw-button size="sm" data-type-more @click=${() => (this.shown += PAGE)}>הצג עוד (${ltrNum(list.length - this.shown)})</sw-button>` : nothing}
       ${rows.length

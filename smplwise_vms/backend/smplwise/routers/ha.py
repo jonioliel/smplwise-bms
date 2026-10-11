@@ -182,10 +182,10 @@ def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
 @router.post("/ha/entities/{entity_id}/actions", status_code=202)
 def run_action(entity_id: str, body: ActionBody, request: Request, response: Response, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """LAT1 (2026-10-08): every check runs on the request's READ connection (no SQLite write lock is taken before the
-    command leaves), the signed call is dispatched at once over the kept bridge connection, and the durable record - the
-    pending ha_actions row - is committed IN PARALLEL with the call (two-phase as before: the row exists before the
-    answer is recorded). The answer, the HA context id and the audit row follow in one durable transaction once the
-    bridge answered. Before this the route waited for the write gate (BEGIN IMMEDIATE) and an fsync before the call:
+    command leaves), then the durable record - the pending ha_actions row and the `ha.action` attempt audit row - is committed
+    in one short write (SEC246 L3, owner 2026-10-11: record, then send; at most PENDING_WAIT_S, else 503 busy and nothing is
+    sent), and the signed call is dispatched over the kept bridge connection. The answer, the HA context id and the result
+    audit row follow in one durable transaction once the bridge answered. Before this the route waited for the write gate (BEGIN IMMEDIATE) and an fsync before the call:
     a writer holding the lock for 1.5 s delayed the switch by 1.5 s (tests/test_lat1_toggle_latency.py).
     The per-hop timing is returned in a `Server-Timing` header (browser DevTools -> Network -> the request -> Timing)."""
     timing = ha_actions.HopTimer()
@@ -194,6 +194,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, response: Res
     return out
 
 
+PENDING_WAIT_S = 2.0  # SEC246 L3: the longest wait for the command's record before the command is refused (503 busy, nothing sent)
 _INFLIGHT_LOCK = threading.Lock()
 _INFLIGHT: dict[tuple[str, str], threading.Event] = {}
 _DISPATCH = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="ha-dispatch")
@@ -293,18 +294,27 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     try:
         payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
         timing.mark("checks")
-        # fire first: the command leaves now; the pending record is committed while it is in flight (no lock taken before the call)
-        call = _DISPATCH.submit(timing.timed, "bridge", ha_client.call_bridge_execute, settings, payload)
 
+        # SEC246 L3 (owner 2026-10-11): record, then send. The pending row and the attempt audit row are committed BEFORE the
+        # signed command leaves; when they cannot be recorded within PENDING_WAIT_S the command is NOT sent and the client gets
+        # 503 busy (retryable). All the checks above still ran on the read connection, so only this one short write waits.
         def _pending() -> None:
-            with db.write_aside(label="ha.action pending") as w:
+            with db.write_aside(label="ha.action pending", wait_s=PENDING_WAIT_S) as w:
                 w.execute(insert_sql, row_args)
+                audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="attempt",
+                      request_id=rid, details={"action": body.allowed_action_id, "id": aid, "phase": "attempt", "arguments": body.arguments,
+                                               "sensitive": spec["sensitive"]})
 
         try:
             with timing.hop("pending_row"):
-                retry_locked(_pending, what="ha.action pending row", attempts=3, base_s=0.25)
-        except Exception:  # noqa: BLE001 - the command already left; the final transaction below inserts the row (ON CONFLICT) - logged, never lost silently
-            log.warning("ha.action %s: the pending record waited out the busy database; recorded with the answer", aid)
+                _pending()
+        except Exception as exc:  # noqa: BLE001 - nothing was sent; the server log is the trace of the refused attempt
+            log.warning("ha.action %s NOT sent (the record could not be written: %s): user=%s entity=%s action=%s request=%s",
+                        aid, type(exc).__name__, principal.user_id, entity_id, body.allowed_action_id, rid)
+            raise ApiError(503, "busy", "המערכת עסוקה כרגע והפקודה לא נשלחה. נסו שוב בעוד רגע.", retryable=True,
+                           details={"sent": False, "retry_after_s": 2})
+        # the record is durable: the command leaves now (no lock is held while it is in flight)
+        call = _DISPATCH.submit(timing.timed, "bridge", ha_client.call_bridge_execute, settings, payload)
         try:
             result = call.result()
         except ApiError as exc:

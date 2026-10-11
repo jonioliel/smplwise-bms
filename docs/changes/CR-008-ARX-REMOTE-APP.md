@@ -543,6 +543,7 @@ The two open items the reviewers recorded (round-10 report §6.1) are closed:
 | plan_upload | `POST floors/{id}/plan-assets` | `max_upload_bytes` (40 MiB) + 64 KiB |
 | catalog_image | `POST sites/{id}/image`, `POST buildings/{id}/image` | 12 MiB + 64 KiB |
 | skins_control_image | `POST floors/{id}/skins/control-image` | 8 MiB + 64 KiB |
+| ui_background | `POST settings/background/{slot}` | 12 MiB + 64 KiB (SEC246 I1; the route checks the pixel budget before decoding and decodes one picture at a time) |
 | backup_upload | `POST backups/upload` | 200 MiB + 64 KiB |
 | evidence_bundle | `POST cases/bundles/verify`, `POST cases/bundles/import` | ceiling of `cases.import_max_mb` (4096 MiB) + 64 KiB; the routes stop at the configured value while streaming |
 | geometry_document / detection_accept | `PUT plan-versions/{id}/geometry`, `POST plan-versions/{id}/detect/accept` | 16 MiB |

@@ -112,4 +112,10 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
         raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
     audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": body.scope, "tables": result["tables"], "files": result["files"],
                    **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {})})
+    switch = result.get("update_apply_enabled") or {}
+    # SEC246 L4: the self-update switch is never taken from an archive; its own audit row records what was kept and what the archive held
+    audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
+          request_id=_rid(request), reason="kept_on_restore",
+          details={"via": "restore", "backup": name, "mode": body.mode, "to": switch.get("kept"), "kept": switch.get("kept"),
+                   "archive": switch.get("archive"), "archive_differed": bool(switch.get("differed"))})
     return {"name": name, **result}

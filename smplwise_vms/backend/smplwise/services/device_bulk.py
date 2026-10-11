@@ -135,6 +135,8 @@ KINDS: dict[str, tuple[tuple[str, str], ...]] = {
 CLIMATE_SPLIT_KINDS = frozenset({"climate_off", "heating_off"})
 # kinds that turn something ON: an entity is sent when it is off (the reverse of _needs' "off" rule)
 ON_KINDS = frozenset({"switches_on", "lights_on", "screens_on"})
+# SEC246 L2 (owner 2026-10-11): the kinds that leave out a switch the administrator typed as a valve / water heater (and did not include)
+SENSITIVE_ON_KINDS = frozenset({"switches_on"})
 # kinds whose targets carry a request argument (validated the same way as the single-entity action, ha_bridge.ACTIONS)
 KINDS_WITH_POSITION = frozenset({"covers_position"})
 # CR-007 slice 4 review (MEDIUM 4): the area's own "כל התריסים" group control - open all / stop all / position all -
@@ -237,6 +239,10 @@ class SwitchPolicy:
         from . import alarm as alarm_svc
 
         self.alarm_managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: a zone's bypass control, never in bulk
+        from . import device_types
+
+        # SEC246 L2 (owner 2026-10-11): fixed valves / water heaters an administrator has not included - out of `switches_on` only
+        self.sensitive_on = device_types.bulk_on_excluded(conn)
 
     def switch_reason(self, entity_id: str) -> tuple[bool, str]:
         """(included, reason) for a switch, first hit wins (CR-019 section 4.1; the scheduler / media-managed switches never
@@ -276,6 +282,8 @@ EXCLUDED_LABELS = {
     "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
     # CR-019 section 7.4 (the same words for the "on" kinds)
     "switch_protected": "מתג מוגן - לא נכלל בפעולה קבוצתית",
+    # SEC246 L2: an ON kind only (switches_on)
+    "sensitive_type": "ברז או דוד מים - לא נכלל בהדלקה קבוצתית (אפשר לכלול אותו בהגדרות › סוגי התקנים)",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
     # CR-015 (decision 8a): what the devices area's screens kinds leave out of a player list
     "not_a_screen": "לא מוגדר כמסך",
@@ -401,7 +409,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
     targets: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
     never: dict[str, int] = {}
-    already = unavailable = not_confirmed = 0
+    already = unavailable = not_confirmed = sensitive_type = 0
     for e in in_scope:
         domain = e["domain"]
         if not held(e["entity_id"]):
@@ -440,6 +448,9 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
                 targets.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "action_id": actions[domain], "state": e.get("state"), "area_id": e.get("area_id"), "area_name": e.get("area_name"), "args": {}})
             continue
         reason = policy.excluded_reason(e)
+        if not reason and kind in SENSITIVE_ON_KINDS and domain == "switch" and e["entity_id"] in policy.sensitive_on:
+            reason = "sensitive_type"  # SEC246 L2: counted and listed, whatever its state
+            sensitive_type += 1
         if reason:
             excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": reason, "reason_label": excluded_label(reason, kind)})
             continue
@@ -480,7 +491,8 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         "targets": targets,
         "by_domain": by_domain,
         "domain_labels": {d: ("חימום" if (d == "climate" and kind == "heating_off") else DOMAIN_LABELS.get(d, d)) for d in set(by_domain) | set(never)},
-        "skipped": {"already": already, "unavailable": unavailable, **({"not_confirmed": not_confirmed} if not_confirmed else {})},
+        "skipped": {"already": already, "unavailable": unavailable, **({"not_confirmed": not_confirmed} if not_confirmed else {}),
+                    **({"sensitive_type": sensitive_type} if sensitive_type else {})},
         "excluded": excluded,
         "never_included": never,
         "digest": digest([t["entity_id"] for t in targets], kind, position),

@@ -225,10 +225,7 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
         assert hop in st, st
 
 
-def test_dispatch_does_not_wait_for_the_write_lock(lat_app):
-    """A writer holding SQLite's single write lock for 1.5 s (a long transaction elsewhere) must not delay the call to
-    Home Assistant: before LAT1 the route took the write lock first (BEGIN IMMEDIATE), so the dispatch waited it out."""
-    app, c, fake = lat_app
+def _hold_write_lock(app, seconds: float):
     held = threading.Event()
     release = threading.Event()
 
@@ -236,11 +233,26 @@ def test_dispatch_does_not_wait_for_the_write_lock(lat_app):
         with app.state.db.connection(label="lat1 holder") as conn:
             conn.execute("UPDATE settings SET value = value WHERE key = 'permission_revision'")
             held.set()
-            release.wait(1.5)
+            release.wait(seconds)
 
     t = threading.Thread(target=holder, daemon=True)
     t.start()
     assert held.wait(5)
+    return t, release
+
+
+def test_the_command_is_recorded_before_it_leaves_and_waits_for_a_short_write_lock(lat_app):
+    """SEC246 L3 (owner 2026-10-11): record, then send. LAT1 made the call independent of SQLite's write lock (fire first); the
+    owner chose a durable record first. A writer holding the lock for 1.5 s (inside the record budget, routers/ha.PENDING_WAIT_S)
+    therefore delays the call until the lock is free - the record (the pending ha_actions row and the `attempt` audit row) is
+    committed before the command leaves - and the call then goes out at once. The pre-SEC246 bound (dispatch < 400 ms under a held
+    lock) no longer applies by design; the idle path keeps its LAT1 bound (test_toggle_reaches_ha_and_pushes_back_without_waiting)."""
+    from smplwise.routers import ha as ha_router
+
+    app, c, fake = lat_app
+    hold_s = 1.5
+    assert hold_s < ha_router.PENDING_WAIT_S
+    t, release = _hold_write_lock(app, hold_s)
     t0 = time.perf_counter()
     result: dict = {}
 
@@ -252,20 +264,44 @@ def test_dispatch_does_not_wait_for_the_write_lock(lat_app):
     p.start()
     arrived, payload = fake.arrivals.get(timeout=20)
     dispatch_ms = (arrived - t0) * 1000
-    release.set()
+    with app.state.db.connection(mode="read") as conn:  # the record was durable before the call arrived
+        assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE id = ?", (payload["request_id"],)).fetchone()[0] == 1
     p.join(timeout=30)
     t.join(timeout=5)
-    print(f"\nLAT1 write lock held 1.5 s: dispatch {dispatch_ms:.1f} ms, response {(result['t'] - t0) * 1000:.1f} ms")
-    assert dispatch_ms < 400 * sw_time_factor(), f"the call waited {dispatch_ms:.0f} ms for the write lock"
+    print(f"\nSEC246 L3 write lock held {hold_s} s: dispatch {dispatch_ms:.1f} ms, response {(result['t'] - t0) * 1000:.1f} ms")
+    assert dispatch_ms >= (hold_s * 1000) * 0.8, f"the call left after {dispatch_ms:.0f} ms, before the record could be written"
+    assert dispatch_ms < (hold_s * 1000 + 400) * sw_time_factor(), f"the call waited {dispatch_ms:.0f} ms after the lock was free"
     r = result["r"]
     assert r.status_code == 202, r.text
     a = r.json()
-    # the record and the audit row are still written (after the lock was free), and they describe this very call
     assert a["status"] == "pending" and payload["request_id"] == a["id"]
     with app.state.db.connection(mode="read") as conn:
-        assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE id = ?", (a["id"],)).fetchone()[0] == 1
-        rows = conn.execute("SELECT decision, details_json FROM audit_log WHERE action = 'ha.action' AND resource_id = ?", (ENTITY,)).fetchall()
-    assert any(json.loads(r["details_json"] or "{}").get("id") == a["id"] and r["decision"] == "allowed" for r in rows)
+        rows = conn.execute("SELECT decision, reason, details_json FROM audit_log WHERE action = 'ha.action' AND resource_id = ?", (ENTITY,)).fetchall()
+    mine = [r for r in rows if json.loads(r["details_json"] or "{}").get("id") == a["id"]]
+    assert [x["reason"] for x in mine][:1] == ["attempt"] and len(mine) == 2, [tuple(x) for x in mine]
+
+
+def test_a_command_whose_record_cannot_be_written_in_time_is_never_sent(lat_app):
+    """SEC246 L3: a write lock held past the record budget -> 503 busy (retryable), nothing reaches Home Assistant, no record."""
+    from smplwise.routers import ha as ha_router
+
+    app, c, fake = lat_app
+    t, release = _hold_write_lock(app, ha_router.PENDING_WAIT_S + 2.0)
+    try:
+        t0 = time.perf_counter()
+        body = _body(0, "switch.turn_on")
+        r = c.post(f"/api/v1/ha/entities/{ENTITY}/actions", json=body)
+        took_ms = (time.perf_counter() - t0) * 1000
+    finally:
+        release.set()
+        t.join(timeout=10)
+    print(f"\nSEC246 L3 record budget exceeded: 503 after {took_ms:.0f} ms")
+    assert r.status_code == 503 and r.json()["code"] == "busy" and r.json()["retryable"] is True, r.text
+    assert r.json()["details"]["sent"] is False
+    time.sleep(0.2)
+    assert fake.arrivals.empty(), "a command left although it could not be recorded"
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE client_request_id = ?", (body["client_request_id"],)).fetchone()[0] == 0
 
 
 def test_a_duplicate_click_is_sent_once_even_without_the_write_lock(lat_app):

@@ -81,7 +81,7 @@ def validate(data: bytes) -> tuple[str, int, int]:
     try:
         from PIL import Image
 
-        Image.MAX_IMAGE_PIXELS = max(Image.MAX_IMAGE_PIXELS or 0, MAX_PIXELS * 2)
+        from . import image_guard  # noqa: F401 - SEC246 I3: the process-wide bomb threshold is set once there (60 M > MAX_PIXELS)
         with Image.open(io.BytesIO(data)) as im:
             w, h = im.size
             if w * h > MAX_PIXELS:

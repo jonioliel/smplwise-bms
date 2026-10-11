@@ -610,6 +610,29 @@ def set_device_type(entity_id: str, request: Request, principal: Principal = Dep
     return {"entity_id": entity_id, "changed": changed, "kind": row["kind"] if row else None, "auto": row["auto"] if row else None, "set": row["set"] if row else None}
 
 
+class BulkOnBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    allowed: bool
+
+
+@router.put("/devices/entities/{entity_id}/bulk-on")
+def set_bulk_on(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """SEC246 L2 (owner 2026-10-11): include one device the administrator typed as a valve / water heater in the bulk "turn everything on"
+    (`switches_on`), or leave it out again (the default). system.configure, checked before the body; JSON only; audited
+    (`devices.bulk_on_allowed`; a refusal too). Only a device whose FIXED type is valve / water heater (409 `not_sensitive_type` otherwise)."""
+    body = _json_body(request, raw, BulkOnBody)
+    rid = getattr(request.state, "correlation_id", None)
+    if device_types.domain_of(conn, entity_id) is None:
+        raise ApiError(404, "not_found", DEVICE_TYPE_REFUSALS["not_found"])
+    kind = device_types.overrides(conn).get(entity_id)
+    if kind not in device_types.BULK_ON_SENSITIVE:
+        audit(conn, actor=principal, action="devices.bulk_on_allowed", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="not_sensitive_type",
+              request_id=rid, details={"allowed": body.allowed, "kind": kind})
+        raise ApiError(409, "not_sensitive_type", "ההגדרה זמינה רק להתקן שסוגו נקבע ידנית כברז או כדוד מים.")
+    changed = device_types.set_bulk_on(conn, principal, entity_id, body.allowed, request_id=rid)
+    return {"entity_id": entity_id, "changed": changed, "bulk_on_allowed": entity_id in device_types.bulk_on_allowed(conn), "kind": kind}
+
+
 @router.post("/devices/device-types")
 def set_device_types(request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Fix one type on many switch-wired devices at once (or return them all to automatic) - the Settings list's group change.
