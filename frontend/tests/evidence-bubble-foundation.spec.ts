@@ -70,33 +70,39 @@ test.describe('bubble foundation', () => {
     });
   });
 
-  test('evidence shots: the demo page and the settings section, light and dark', async ({ page }, info) => {
-    test.skip(info.project.name === 'tablet', 'the tablet width is shot from the desktop project');
-    test.setTimeout(240_000); // up to 2 widths x 2 schemes x 5 page loads on the Vite dev server, each with its settle waits and a shot
-    const widths = info.project.name === 'mobile' ? [390] : [1440, 820];
-    for (const w of widths) {
-      await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
-      for (const scheme of ['light', 'dark'] as const) {
-        await open(page, '/styleguide/bubble', `&scheme=${scheme}`);
-        await expect(page.locator('html')).toHaveAttribute('data-skin', 'bubble');
-        await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
-        await shot(page, `demo-${w}-${scheme}`);
-        await demo(page).locator('[data-open-area]').click();
-        await page.waitForTimeout(700);
-        await shot(page, `demo-sheet-area-${w}-${scheme}`);
-        await page.keyboard.press('Escape');
-        if (scheme === 'light') {
-          await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:row,surface:gradient,radius:soft`);
-          await shot(page, `demo-row-gradient-soft-${w}-${scheme}`);
-          await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:compact,surface:glass,touch:32`);
-          await shot(page, `demo-compact-glass-${w}-${scheme}`);
+  // This test only produces the evidence screenshots (its assertions are the theme attributes). The headless Chromium of the shared runner
+  // sometimes dies under load on the 1440 px page - 'Page crashed' / 'Unable to capture screenshot' - which says nothing about the app,
+  // so a crashed attempt is repeated (reported as flaky, not hidden). Every behaviour test of this file keeps retries: 0.
+  test.describe('evidence shots', () => {
+    test.describe.configure({ retries: 2 });
+    test('evidence shots: the demo page and the settings section, light and dark', async ({ page }, info) => {
+      test.skip(info.project.name === 'tablet', 'the tablet width is shot from the desktop project');
+      test.setTimeout(240_000); // up to 2 widths x 2 schemes x 5 page loads on the Vite dev server, each with its settle waits and a shot
+      const widths = info.project.name === 'mobile' ? [390] : [1440, 820];
+      for (const w of widths) {
+        await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
+        for (const scheme of ['light', 'dark'] as const) {
+          await open(page, '/styleguide/bubble', `&scheme=${scheme}`);
+          await expect(page.locator('html')).toHaveAttribute('data-skin', 'bubble');
+          await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
+          await shot(page, `demo-${w}-${scheme}`);
+          await demo(page).locator('[data-open-area]').click();
+          await page.waitForTimeout(700);
+          await shot(page, `demo-sheet-area-${w}-${scheme}`);
+          await page.keyboard.press('Escape');
+          if (scheme === 'light') {
+            await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:row,surface:gradient,radius:soft`);
+            await shot(page, `demo-row-gradient-soft-${w}-${scheme}`);
+            await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:compact,surface:glass,touch:32`);
+            await shot(page, `demo-compact-glass-${w}-${scheme}`);
+          }
+          await open(page, '/system/diagnostics', `&scheme=${scheme}`);
+          await lookCard(page).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(300);
+          await shot(page, `settings-look-${w}-${scheme}`);
         }
-        await open(page, '/system/diagnostics', `&scheme=${scheme}`);
-        await lookCard(page).evaluate((el) => el.scrollIntoView({ block: 'start' }));
-        await page.waitForTimeout(300);
-        await shot(page, `settings-look-${w}-${scheme}`);
       }
-    }
+    });
   });
 
   test('the sheet: focus moves in, Tab wraps, Esc closes, focus returns; the backdrop closes; the inline kind never covers the tree', async ({ page }, info) => {
