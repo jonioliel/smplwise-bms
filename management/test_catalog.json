@@ -5020,22 +5020,24 @@
     "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 1",
     "kind": "integration/e2e",
     "preconditions": [
-      "Build tied to a recorded commit",
-      "Task dependencies accepted",
-      "Pinned local test environment and approved fixtures"
+      "Build tied to a recorded commit (integ/247 or later with CR-029 S0-S4 and S3 merged)",
+      "Static preview of the UI (npm run build; vite preview) - the style guide's demo floor, no backend, no device",
+      "Owner rows: a floor with a published structure on the owner's installation, a desktop browser"
     ],
     "procedure": [
-      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
-      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
-      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+      "npx playwright test tests/unit-plan-3d-realistic.spec.ts tests/unit-plan3d-real.spec.ts tests/unit-plan3d-sun.spec.ts tests/unit-plan3d-assets.spec.ts tests/unit-walk-controller.spec.ts tests/unit-plan-3d-walk.spec.ts tests/unit-material-resolve.spec.ts tests/evidence-plan-studio-6.spec.ts --project=<desktop|tablet|mobile> --workers=1 (or run_smart.py spec <branch> ... on the runner, sharded)",
+      "Expect: level 3 additive and deterministic (same graph after a rebuild, same pixels twice), the sun deterministic by hour, the walk equal to the node model (walls, doors open / closed / stale / locked, stairs, Esc), the 1,000-object floor equal after a rebuild at levels 1, 2 and 3",
+      "Owner: PLAN_STUDIO_PHASE6_CHECKLIST_HE.md rows 1-3 (realistic look, time of day, the walk on the real floor) - pass / fail per row"
     ],
     "expected": "רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "2026-10-12 partial, not acceptance (branch pilot/ST7-s7-perf): Runner (Ubuntu, SwiftShader, 2026-10-12, @ bdc364c9 / 43ebc7e2, same specs): the 3D set (unit-plan-3d*, unit-plan3d-assets / real / sun, unit-walk-controller, unit-material-resolve, unit-still-bake, unit-floor-map-3d, unit-anchor-3d, unit-three-chunk) plus evidence-plan-studio-6, 2 shards per project on the vite dev server: desktop 97 passed / 4 skipped / 2 failed, tablet 97 / 4 / 2, mobile 97 / 4 / 2; the 2 failures per project are unit-plan-3d.spec.ts's lazy-chunk assertions, which need the built UI (no assets/three-*.js under the dev server) - the preview job (npm run build + vite preview) ran unit-plan-3d.spec.ts on all three projects: 12 passed. Skips: the 256 px swap fixme, the 2 opt-in perf tests (not opted in), unit-three-chunk's dist test (no dist on the dev server). evidence-plan-studio-6 functional part: 4 passed per project; the dpr_cap defect reproduced on mobile (cap 2 set at cap 1 while realistic draws -> ratio stays 1, expected 2)."
+    ],
     "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "notes": "S7 prep: the automated part exists and runs; the quiet-window measurement and the owner's real-device rows are NOT_RUN. Gaps: docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23."
   },
   {
     "id": "AT178",
@@ -5048,22 +5050,24 @@
     "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 2",
     "kind": "integration/e2e",
     "preconditions": [
-      "Build tied to a recorded commit",
-      "Task dependencies accepted",
-      "Pinned local test environment and approved fixtures"
+      "Build tied to a recorded commit; production build (npm run build) for the measurement",
+      "Quiet window on a machine with a GPU (the workstation; the runner has none known): no gate / nightly / other agents, CPU busy <= 25 %, AC power",
+      "Owner rows: the owner's real phone on the floor with the most objects"
     ],
     "procedure": [
-      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
-      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
-      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+      "Always: npx playwright test tests/evidence-plan-studio-6.spec.ts --project=<desktop|tablet|mobile> --workers=1 - the default stays schematic, auto falls realistic -> lite -> full -> schematic, texture budget, lever switches",
+      "Quiet window: $env:SW_PERF_GATE='1'; npx playwright test tests/evidence-plan-studio-6.spec.ts --project=mobile --workers=1 -g \"opt-in\" (runbook docs/design/studio6/PLAN_STUDIO_PHASE6_PERF_RUNBOOK.md); the record must say evidence_grade true and load_after quiet; R178 median >= 30 fps at iso and persp",
+      "Owner: PLAN_STUDIO_PHASE6_CHECKLIST_HE.md row 4 on the real phone (no 'slow device' hint at realistic lite) and rows 5 / 8 (heat, battery); the proxy alone never closes AT178"
     ],
     "expected": "ביצועים: לפחות 30fps בטלפון בסצנה של 1,000 עצמים; ברירת המחדל נשארת סכמטית.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "2026-10-12 partial, not acceptance (branch pilot/ST7-s7-perf): Runner (Ubuntu, SwiftShader, 2026-10-12, @ bdc364c9 / 43ebc7e2, same specs): the 3D set (unit-plan-3d*, unit-plan3d-assets / real / sun, unit-walk-controller, unit-material-resolve, unit-still-bake, unit-floor-map-3d, unit-anchor-3d, unit-three-chunk) plus evidence-plan-studio-6, 2 shards per project on the vite dev server: desktop 97 passed / 4 skipped / 2 failed, tablet 97 / 4 / 2, mobile 97 / 4 / 2; the 2 failures per project are unit-plan-3d.spec.ts's lazy-chunk assertions, which need the built UI (no assets/three-*.js under the dev server) - the preview job (npm run build + vite preview) ran unit-plan-3d.spec.ts on all three projects: 12 passed. Skips: the 256 px swap fixme, the 2 opt-in perf tests (not opted in), unit-three-chunk's dist test (no dist on the dev server). evidence-plan-studio-6 functional part: 4 passed per project; the dpr_cap defect reproduced on mobile (cap 2 set at cap 1 while realistic draws -> ratio stays 1, expected 2)."
+    ],
     "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "notes": "S7 prep: the automated part exists and runs; the quiet-window measurement and the owner's real-device rows are NOT_RUN. Gaps: docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23."
   },
   {
     "id": "AT179",
