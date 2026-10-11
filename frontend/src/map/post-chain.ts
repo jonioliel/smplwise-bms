@@ -22,6 +22,8 @@ export class PostChain {
   private readonly gtao: GTAOPass | null;
   private readonly bloom: UnrealBloomPass;
   readonly msaa: boolean;
+  /** The pass names in order (constructor names do not survive the minifier). */
+  readonly passes: string[] = [];
 
   constructor(renderer: WebGLRenderer, scene: Scene, camera: Camera, readonly rung: PostRung, width: number, height: number, style: StyleId) {
     const dpr = renderer.getPixelRatio();
@@ -33,6 +35,7 @@ export class PostChain {
     this.render = new RenderPass(scene, camera);
     this.render.clearAlpha = 0;
     this.composer.addPass(this.render);
+    this.passes.push(this.msaa ? 'render-msaa2' : 'render');
     const s = LOOK_STYLES[style];
     if (rung === 'realistic') {
       const gtao = new GTAOPass(scene, camera, width, height);
@@ -41,17 +44,17 @@ export class PostChain {
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 6 });
       gtao.blendIntensity = s.post.aoBlend;
       this.composer.addPass(gtao);
+      this.passes.push('gtao');
       this.gtao = gtao;
     } else this.gtao = null;
     this.bloom = new UnrealBloomPass(new Vector2(width, height), s.post.bloomStrengthDay, s.post.bloomRadius, s.post.bloomThresholdDay);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
-    if (!this.msaa) this.composer.addPass(new SMAAPass());
-  }
-
-  /** The passes in order (tests, the perf report). */
-  get passes(): string[] {
-    return this.composer.passes.map((p) => p.constructor.name);
+    this.passes.push('bloom', 'output');
+    if (!this.msaa) {
+      this.composer.addPass(new SMAAPass());
+      this.passes.push('smaa');
+    }
   }
 
   setCamera(camera: Camera): void {

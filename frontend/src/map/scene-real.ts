@@ -480,6 +480,14 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
       out.stats.meshes++;
       continue;
     }
+    // the structure's details (skirting, frames, casings, sills, mullions) have a size per wall: merged with the
+    // structure per material (one draw); the families of objects repeat: instanced per (shape, size, material)
+    if (r.userData.kind === 'wall' || r.userData.kind === 'opening') {
+      const geo = partGeometry(r.shape, r.size, r.radius ?? 0, r.taper ?? 1, 1);
+      bucket(r.level_id, r.material, 'std', 'wall').push(geo, matrixOf(r.position, r.rotation), pick);
+      geo.dispose();
+      continue;
+    }
     const key = `${r.level_id}|${r.shape}|${sizeKey(r.size)}|${r.radius ?? 0}|${r.taper ?? 1}|${r.material}|${r.shadow ? 1 : 0}`;
     let g = instGroups.get(key);
     if (!g) instGroups.set(key, (g = { shape: r.shape, size: r.size, radius: r.radius ?? 0, taper: r.taper ?? 1, material: r.material, variant: 'std', level: r.level_id, shadow: r.shadow, items: [] }));

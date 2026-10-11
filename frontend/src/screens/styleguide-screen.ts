@@ -55,6 +55,15 @@ export class StyleguideScreen extends LitElement {
     }
   }
 
+  /** CR-029 S1: the demo floor's description with its realistic part while the element draws level 3. */
+  private demoRealistic = false;
+  private onRealistic(on: boolean): void {
+    if (on === this.demoRealistic || !this.demo3d.desc) return;
+    this.demoRealistic = on;
+    const input = demoSceneInput('f0');
+    if (input) this.demo3d = { ...this.demo3d, desc: buildScene({ ...input, realistic: on }) };
+  }
+
   static styles = css`
     :host {
       display: block;
@@ -237,7 +246,8 @@ export class StyleguideScreen extends LitElement {
         ${this.demo3d.desc
           ? html`<sw-plan-3d style="block-size:360px;border:1px solid var(--sw-border);border-radius:var(--sw-r-md)" .description=${this.demo3d.desc} .selectedId=${this.demo3d.selected} .labels=${demoSceneLabels('f0')}
                 .cameras=${[{ id: 'cam-1', label: 'כניסה ראשית' }, { id: 'cam-2', label: 'לובי' }]} exportName="demo-floor"
-                @part-select=${(e: CustomEvent<PartSelectDetail>) => (this.demo3d = { ...this.demo3d, selected: e.detail.id })}></sw-plan-3d>
+                @part-select=${(e: CustomEvent<PartSelectDetail>) => (this.demo3d = { ...this.demo3d, selected: e.detail.id })}
+                @realistic-change=${(e: CustomEvent<{ on: boolean }>) => this.onRealistic(e.detail.on)}></sw-plan-3d>
               <div style="font-size:var(--sw-fs-xs);color:var(--sw-text-2)">נבחר: <span class="ltr" data-3d-demo-selected>${this.demo3d.selected ?? ''}</span></div>`
           : html`<div><sw-button icon="cube" data-3d-demo-load ?disabled=${!webglAvailable() || this.demo3d.loading} @click=${() => this.load3d()}>${this.demo3d.loading ? 'טוען…' : 'טען תצוגת 3D'}</sw-button>
               ${webglAvailable() ? nothing : html`<span data-3d-unavailable style="margin-inline-start:8px">${WEBGL_UNAVAILABLE_HE}</span>`}

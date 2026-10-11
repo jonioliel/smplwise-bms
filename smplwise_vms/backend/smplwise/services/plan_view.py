@@ -36,17 +36,17 @@ CHOICES: dict[str, tuple[Any, ...]] = {
     "quality": ("auto", "realistic", "lite", "full", "schematic"),  # the fallback ladder (auto) or one fixed rung
     "kiosk_idle_s": (0, 10, 30, 120, 600),       # seconds of no change before the kiosk swaps to the still; 0 = never
 }
-FLAGS = ("section_cut", "show_temps", "motion")
+FLAGS = ("section_cut", "show_temps", "motion", "walk_guard")  # walk_guard: the walk drops a rung under 24 fps (a session flag)
 RANGES: dict[str, tuple[float, float, float]] = {"eye_m": (1.2, 2.0, 0.05), "dpr_cap": (1.0, 2.0, 0.25)}
 DEFAULT: dict[str, Any] = {
     "style": "auto", "default_view": "schematic", "furniture": "models", "textures": "files", "wall_display": "live",
     "time_source": "clock", "mouse_mode": "drag", "quality": "auto", "kiosk_idle_s": 30, "eye_m": 1.65, "dpr_cap": 1.25,
-    "section_cut": True, "show_temps": False, "motion": True,
+    "section_cut": True, "show_temps": False, "motion": True, "walk_guard": True,
 }
 # the installation never makes realistic the default for everyone (owner Q11 א): default_view stays a person's choice
 SITE_DIALS: tuple[str, ...] = tuple(k for k in DEFAULT if k != "default_view")
 # what a person may set for themselves; the content (furniture, textures) and the display dials stay per installation
-USER_DIALS: tuple[str, ...] = ("style", "default_view", "time_source", "mouse_mode", "quality", "eye_m", "dpr_cap", "section_cut", "show_temps", "motion")
+USER_DIALS: tuple[str, ...] = ("style", "default_view", "time_source", "mouse_mode", "quality", "eye_m", "dpr_cap", "section_cut", "show_temps", "motion", "walk_guard")
 
 
 def _dial(key: str, value: Any) -> Any:
