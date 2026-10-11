@@ -1704,6 +1704,69 @@ def test_bulk_lights_and_screens_on_and_the_only_narrowing(bulk_app):
     assert r2.status_code == 409 and r2.json()["code"] == "target_changed"
     assert c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", only=[f"light.x{i}" for i in range(501)])).status_code == 422
 
+
+def test_area_section_turn_all_on_mirrors_turn_all_off(bulk_app):
+    """ALLON (owner 2026-10-10, "like there is turn-all-off there must be turn-all-on"): the area section's "הדלק הכל" is
+    switches_on / lights_on at scope "area" - the same preview -> confirmed run as "כבה הכל": a protected switch (a boiler,
+    a valve) is excluded with its reason exactly as from the off kind, an unavailable one is skipped and counted, a switch
+    already on is counted as already, the run re-resolves on the server (a protection added after the preview is
+    target_changed, nothing sent), one attempt audit row with the entity ids and the actor, devices.control_bulk only, and
+    the words of the refusal / note fit a kind that turns something ON."""
+    app, s, c, fake = bulk_app
+    extra = [
+        {"entity_id": "switch.lobby_boiler", "state": "off", "attributes": {"friendly_name": "Lobby boiler"}},
+        {"entity_id": "switch.lobby_valve", "state": "off", "attributes": {"friendly_name": "Lobby valve"}},
+        {"entity_id": "switch.lobby_fountain", "state": "off", "attributes": {"friendly_name": "Fountain"}},
+        {"entity_id": "switch.lobby_dead", "state": "unavailable", "attributes": {"friendly_name": "Dead relay"}},
+    ]
+    assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
+    reg = ENTITY_REGISTRY + [_reg(e["entity_id"], "lobby") for e in extra]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    _judge(app)
+    for eid in ("switch.lobby_boiler", "switch.lobby_valve"):
+        assert _protect(c, eid).status_code == 200
+
+    def preview(kind: str) -> dict:
+        r = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": kind})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    on, off = preview("switches_on"), preview("switches_off")
+    assert [t["entity_id"] for t in on["targets"]] == ["switch.lobby_fountain"] and on["targets"][0]["action_id"] == "switch.turn_on"
+    # the protected switches are left out of "on" exactly as out of "off", with the same words
+    assert {(x["entity_id"], x["reason"]) for x in on["excluded"]} == {(x["entity_id"], x["reason"]) for x in off["excluded"]} == {("switch.lobby_boiler", "switch_protected"), ("switch.lobby_valve", "switch_protected")}
+    assert {x["reason_label"] for x in on["excluded"]} == {"מתג מוגן - לא נכלל בפעולה קבוצתית"}
+    assert on["skipped"] == {"already": 1, "unavailable": 1}  # the sign is on; the dead relay is unavailable
+    assert on["count"] == 1 and on["kind_label"] == "הדלקת מתגים"
+    # a protection added after the preview: the run re-resolves on the server and refuses the changed set - nothing sent
+    assert _protect(c, "switch.lobby_fountain").status_code == 200
+    r = c.post("/api/v1/devices/actions", json=_bulk(kind="switches_on", preview_digest=on["digest"]))
+    assert r.status_code == 409 and r.json()["code"] == "target_changed" and not fake.calls
+    # now nothing is left to turn on: the refusal says so in words true for "on"
+    r = c.post("/api/v1/devices/actions", json=_bulk(kind="switches_on"))
+    assert r.status_code == 409 and r.json()["code"] == "nothing_to_do" and "כבוי" in r.json()["user_message"] and not fake.calls
+    assert _protect(c, "switch.lobby_fountain", False).status_code == 200
+    on = preview("switches_on")
+    r = c.post("/api/v1/devices/actions", json=_bulk(kind="switches_on", preview_digest=on["digest"]))
+    assert r.status_code == 202, r.text
+    assert "דולק" in r.json()["note"]
+    done = _finish(c, r.json()["id"])
+    assert done["all_confirmed"] is True and "דולק" in done["note"]
+    assert [(p["service"], p["data"]["entity_id"]) for p in fake.calls] == [("turn_on", "switch.lobby_fountain")]
+    attempt = _audit_rows(app, phase="attempt", kind="switches_on")
+    assert len(attempt) == 1 and attempt[0]["details"]["entity_ids"] == ["switch.lobby_fountain"] and attempt[0]["actor_user_id"]
+    assert set(attempt[0]["details"]["excluded"]) == {"switch.lobby_boiler", "switch.lobby_valve"}
+    # lights: the lobby spot is off -> "הדלק הכל" of the lighting section turns exactly it on
+    lo = preview("lights_on")
+    assert [t["entity_id"] for t in lo["targets"]] == ["light.lobby_spot"] and lo["never_included"] == {}
+    # the same permission as "כבה הכל": an operator (devices.control only) is refused, audited
+    bind(c, s, "op", "operator", "installation", "*")
+    for kind in ("switches_on", "lights_on"):
+        assert c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": kind}, headers=as_user("op")).status_code == 403
+        assert c.post("/api/v1/devices/actions", json=_bulk(kind=kind), headers=as_user("op")).status_code == 403
+    assert len(fake.calls) == 1
+
+
 def test_items_carry_the_bulk_facts_and_the_alarm_managed_seam(bulk_app):
     """Re-review M1: each items row says whether a bulk action would reach it (the bulk resolve's own SwitchPolicy) and
     the switches list says whether this caller may change switch protection (CR-019 renames: bulk_protected,

@@ -120,7 +120,8 @@ test.describe('the area screen redesign', () => {
     await expect(area(page).locator('[data-security-strip]')).toHaveCount(0); // and no security devices, no strip
     // bulk buttons per section (a devices.control_bulk holder): lights and switches, blinds open / close, climate; none for sensors
     await open(page);
-    for (const [card, kinds] of [['lighting', ['lights_off']], ['switches', ['switches_off']], ['covers', ['covers_open', 'covers_close']], ['climate', ['climate_off']]] as const) {
+    // ALLON (owner 2026-10-10): lighting and switches pair "הדלק הכל" (first: the right side in RTL) with "כבה הכל"
+    for (const [card, kinds] of [['lighting', ['lights_on', 'lights_off']], ['switches', ['switches_on', 'switches_off']], ['covers', ['covers_open', 'covers_close']], ['climate', ['climate_off']]] as const) {
       const box = area(page).locator(`sw-card[data-card="${card}"] [data-section-bulk]`);
       await expect(box).toBeVisible();
       expect(await box.locator('[data-section-bulk-kind]').evaluateAll((els) => els.map((e) => e.getAttribute('data-section-bulk-kind')))).toEqual(kinds);
@@ -167,6 +168,69 @@ test.describe('the area screen redesign', () => {
       await ctx.close();
     } finally {
       await request.delete(`/api/v1/access/bindings/${binding}`).catch(() => {});
+    }
+  });
+
+  test('"הדלק הכל" (ALLON): paired with "כבה הכל", asks once with the count, sends nothing before its confirm, keyboard reachable; gone when nothing could be turned on (all on, or the off ones protected)', async ({ page, request }, testInfo) => {
+    test.setTimeout(120_000);
+    await seed(request);
+    const allon = process.env.SW_ALLON_SHOTS ?? '';
+    const snap = async (name: string) => {
+      if (allon) await page.screenshot({ path: path.join(allon, `${name}-${testInfo.project.name}.png`) });
+    };
+    try {
+      await open(page);
+      const a = area(page);
+      let sent = 0;
+      page.on('request', (r) => {
+        if (r.method() === 'POST' && /\/devices\/actions$/.test(r.url())) sent += 1;
+      });
+      const sw = a.locator('sw-card[data-card="switches"]');
+      const on = sw.locator('[data-section-bulk-kind="switches_on"]');
+      const off = sw.locator('[data-section-bulk-kind="switches_off"]');
+      await expect(on).toBeVisible({ timeout: 30000 });
+      await on.scrollIntoViewIfNeeded();
+      await expect(on).toContainText('הדלק הכל');
+      await expect(on).toHaveAttribute('icon', 'bolt');
+      // the pair: the same size, side by side, "on" on the right (RTL reads it first)
+      const bo = (await on.boundingBox())!;
+      const bf = (await off.boundingBox())!;
+      expect(Math.abs(bo.height - bf.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(bo.y - bf.y)).toBeLessThanOrEqual(2);
+      expect(bo.x).toBeGreaterThan(bf.x);
+      await snap('area-switches-pair');
+      // keyboard: focus the button and press Enter -> the confirmation (the question with the count), nothing sent
+      await on.locator('button').focus();
+      await expect(on.locator('button')).toBeFocused();
+      await page.keyboard.press('Enter');
+      const dlg = a.locator('devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
+      await expect(dlg.locator('[data-bulk-what]')).toBeVisible({ timeout: 15000 });
+      await expect(dlg.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '3'); // the three switches that are off
+      await expect(dlg.locator('[data-bulk-question]')).toHaveText(/^להדליק \u200E?3 מתגים\?$/);
+      await snap('area-switches-confirm');
+      await page.keyboard.press('Escape');
+      await expect(a.locator('devices-bulk-dialog sw-dialog[open]')).toHaveCount(0);
+      // lighting: four lights are off
+      await a.locator('sw-card[data-card="lighting"] [data-section-bulk-kind="lights_on"]').click();
+      await expect(dlg.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '4', { timeout: 15000 });
+      await expect(dlg.locator('[data-bulk-question]')).toHaveText(/^להדליק \u200E?4 גופי תאורה\?$/);
+      await page.keyboard.press('Escape');
+      expect(sent, 'only the dialog\'s own confirm sends').toBe(0);
+      // the off switches protected (a boiler / valve): nothing could be turned on -> no "הדלק הכל"; "כבה הכל" stays
+      for (const i of [4, 5, 6]) expect((await request.put(`/api/v1/devices/entities/switch.ar2_s${i}/bulk-protected`, { data: { protected: true } })).status()).toBe(200);
+      await open(page);
+      await expect(area(page).locator('sw-card[data-card="switches"] [data-section-bulk-kind="switches_off"]')).toBeVisible({ timeout: 30000 });
+      await expect(area(page).locator('sw-card[data-card="switches"] [data-section-bulk-kind="switches_on"]')).toHaveCount(0);
+      for (const i of [4, 5, 6]) expect((await request.put(`/api/v1/devices/entities/switch.ar2_s${i}/bulk-protected`, { data: { protected: false } })).status()).toBe(200);
+      // every light on: no "הדלק הכל" in the lighting section
+      expect((await request.post('/api/v1/ha/dev/states', { data: { states: [7, 8, 9, 10].map((i) => ({ entity_id: `light.ar2_l${i}`, state: 'on', attributes: { brightness: 200 } })) } })).status()).toBe(200);
+      await open(page);
+      await expect(area(page).locator('sw-card[data-card="lighting"] [data-section-bulk-kind="lights_off"]')).toBeVisible({ timeout: 30000 });
+      await expect(area(page).locator('sw-card[data-card="lighting"] [data-section-bulk-kind="lights_on"]')).toHaveCount(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    } finally {
+      for (const i of [4, 5, 6]) await request.put(`/api/v1/devices/entities/switch.ar2_s${i}/bulk-protected`, { data: { protected: false } }).catch(() => {});
+      await request.post('/api/v1/ha/dev/states', { data: { states: ST } }).catch(() => {});
     }
   });
 
@@ -314,9 +378,11 @@ test.describe('the area screen redesign', () => {
         await page.reload();
         await expect(area(page).locator('sw-card[heading="תאורת יציע"] .tile')).toHaveCount(10, { timeout: 30000 });
         // the look: icon only (no text), text only (no icon), and the default (both) on the others
-        const iconOnly = area(page).locator('sw-card[data-card="lighting"] [data-section-bulk-kind]');
+        const iconOnly = area(page).locator('sw-card[data-card="lighting"] [data-section-bulk-kind="lights_off"]');
         await expect(iconOnly).toHaveAttribute('icononly', '');
-        const textOnly = area(page).locator('sw-card[data-card="switches"] [data-section-bulk-kind]');
+        await expect(area(page).locator('sw-card[data-card="lighting"] [data-section-bulk-kind="lights_on"]')).toHaveAttribute('icononly', ''); // ALLON: the pair shares the look
+        const textOnly = area(page).locator('sw-card[data-card="switches"] [data-section-bulk-kind="switches_off"]');
+        await expect(area(page).locator('sw-card[data-card="switches"] [data-section-bulk-kind="switches_on"]')).toContainText('הדלק הכל');
         await expect(textOnly).not.toHaveAttribute('icononly', '');
         await expect(textOnly).not.toHaveAttribute('icon', /.+/);
         await expect(textOnly).toContainText('כבה הכל');

@@ -20,7 +20,7 @@ import { ApiError, describeError } from '../api/client';
 import { fmtTime, subscribeHa, type HaSyncState } from '../api/ha';
 import { productSettings } from '../api/prefs';
 import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow } from '../api/devices';
-import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, type AreaDesign, type BulkLook } from './devices-area-design';
+import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, sectionBulkActions, type AreaDesign, type BulkLook } from './devices-area-design';
 import type { BulkKind } from '../api/device-bulk';
 import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
 import './devices-bulk';
@@ -1170,7 +1170,7 @@ export class DevicesArea extends LitElement {
     const it = this.lay.item(key);
     const folded = this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors');
     const actions = SECTION_BULK[c.id] && this.bulkAllowed && c.count && !this.lay.arranging(key)
-      ? html`<span class="sec-bulk" data-section-bulk=${c.id} data-bulk-look=${this.lay.bulkLookOf(key)}>${SECTION_BULK[c.id]!.map((a) => html`<button type="button" class="sb" aria-label=${`${a.label} · ${c.label}`} title=${a.label} data-section-bulk-kind=${a.kind} @click=${() => this.openCoverGroupBulk(a.kind)}><sw-icon .name=${a.icon} size=${18}></sw-icon></button>`)}</span>`
+      ? html`<span class="sec-bulk" data-section-bulk=${c.id} data-bulk-look=${this.lay.bulkLookOf(key)}>${sectionBulkActions(c.id, c.entities).map((a) => html`<button type="button" class="sb" aria-label=${`${a.label} · ${c.label}`} title=${a.label} data-section-bulk-kind=${a.kind} @click=${() => this.openCoverGroupBulk(a.kind)}><sw-icon .name=${a.icon} size=${18}></sw-icon></button>`)}</span>`
       : nothing;
     return html`${renderBubbleSep({ id: c.id, icon: it?.icon ?? sectionIcon(c.id), label: titleOf(it, c.label), count: c.count ? `${ltrNum(c.count)}` : '', fold: this.phone && !this.lay.editing ? { open: !folded, toggle: () => this.fold(key, !folded) } : null, actions })}
       ${folded ? nothing : body}`;
@@ -1240,8 +1240,8 @@ export class DevicesArea extends LitElement {
    * and what it sends; the section's `bulk_look` (edit mode) decides icon / text / both. Every press opens the bulk flow's
    * confirmation dialog - nothing is sent from here. A holder of devices.control_bulk only (`can_bulk` of the area). */
   private renderSectionBulk(c: DeviceCard, key: string) {
-    const actions = SECTION_BULK[c.id];
-    if (!actions || !this.bulkAllowed || !c.count || this.lay.arranging(key)) return nothing;
+    if (!SECTION_BULK[c.id] || !this.bulkAllowed || !c.count || this.lay.arranging(key)) return nothing;
+    const actions = sectionBulkActions(c.id, c.entities); // ALLON: "הדלק הכל" only while something there could be turned on
     const look: BulkLook = this.lay.bulkLookOf(key);
     return html`<span slot="actions" class="sec-bulk" data-section-bulk=${c.id} data-bulk-look=${look}>${actions.map((a) =>
       look === 'icon'

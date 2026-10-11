@@ -988,7 +988,7 @@ def load(conn: Any, bulk_id: str) -> dict[str, Any]:
         "status": b["status"], "requested_at": b["requested_at"], "not_after": b["not_after"], "sent_at": b["sent_at"], "done_at": b["done_at"],
         "principal_user_id": b["principal_user_id"], "principal_username": b["principal_username"], "origin": b["origin"],
         "done": done, "all_confirmed": done and counts["total"] > 0 and counts["confirmed"] == counts["total"], "counts": counts, "items": items,
-        "note": "הצלחה נקבעת רק לפי מה שדווח לכל התקן; התקן שלא דיווח אינו נחשב כבוי.",
+        "note": f"הצלחה נקבעת רק לפי מה שדווח לכל התקן; התקן שלא דיווח אינו נחשב {'דולק' if b['kind'] in ON_KINDS else 'כבוי'}.",
     }
 
 
