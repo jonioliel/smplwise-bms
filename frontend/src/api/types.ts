@@ -292,6 +292,8 @@ export interface FloorMap {
   circuit_states?: Record<string, CircuitState>;
   /** K88: the floor's own images (urls relative to the API root) and their alignment; null when none. */
   floor_images?: { off: string | null; on: string | null; corners: [number, number][]; opacity?: number } | null;
+  /** CR-029 S3: the CURRENT stills / masks / lightmaps per level (urls relative to the API root); null when the floor has none. */
+  bakes?: import('../map/still-bake').BundleBakes | null;
   anchors: Anchor[];
   zones?: SpatialZone[];
   needs_alignment: boolean;

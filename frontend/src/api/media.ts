@@ -78,6 +78,10 @@ export interface ProductSettings {
   /** K88 (owner 2026-10-04): where the live plan shows besides the map tab - 'devices' (a plan view in חשמל והתקנים),
    * 'area' (a card on the area page); [] = nowhere new. Default both. */
   'plan.surfaces'?: ('devices' | 'area')[];
+  /** CR-029 S0: the installation's look dials of the realistic 3D (services/plan_view.py); a PATCH sends a partial object. */
+  'plan.view'?: Partial<Omit<import('./plan-view').PlanViewDials, 'default_view'>>;
+  /** CR-029 S3: what "prepare stills and lighting" bakes and the storage caps (services/plan_bakes.py); a PATCH sends a partial object. */
+  'plan.bakes'?: Partial<import('../map/still-bake').BakeSetting>;
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;

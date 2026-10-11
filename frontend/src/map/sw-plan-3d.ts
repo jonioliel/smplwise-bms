@@ -23,6 +23,9 @@ import { DEFAULT_SITE, TIME_BAND_HE, hourLabel, siteInstant, siteLocal, timeBand
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
 export { QUALITY_KEY } from '../api/plan-quality';
+/** CR-029 S3: the still renderer rides in this lazy chunk (it needs SceneView; a second importer of scene-three would split it
+ * out of the chunk - unit-three-chunk.spec.ts). The floor map's bake tool imports it from here. */
+export { SceneStillRenderer, encodePng } from './still-render-scene';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
 const FALLBACK_HE = 'עבר לרמה סכמטית — קצב הפריימים היה נמוך';
@@ -68,6 +71,11 @@ export interface StripLevel {
 /** CR-029 S4: the walk asks the host for a description with the walk world (`on`), or tells it the walk ended. */
 export interface WalkChangeDetail {
   on: boolean;
+}
+/** CR-029 S3: the live ladder is exhausted on this device (no WebGL, or level 1 under the frame budget with a current still
+ * set): the host may swap to the pre-rendered stills (quality-ladder.ts viewMode). */
+export interface StillsFallbackDetail {
+  reason: 'webgl' | 'fps';
 }
 /** CR-029 S4: a stair to another floor was walked to its top - "continue to that floor" (a document load, not a walk). */
 export interface FloorRequestDetail {
@@ -167,6 +175,9 @@ export class SwPlan3d extends LitElement {
   @property({ type: Boolean, reflect: true, attribute: 'data-measure' }) continuous = false;
   /** CR-029 S4: the host can build a description with the walk world (it listens to `walk-change`): the "סיור" button shows. */
   @property({ type: Boolean }) walkable = false;
+  /** CR-029 S3: the shown level has a current still set - after the session fallback to level 1, level 1 is measured once more
+   * and a miss fires `stills-fallback` (without stills the ladder ends at level 1, exactly as before). */
+  @property({ type: Boolean }) stillsAvailable = false;
   /** The walk: off, asked of the host (waiting for a description with `walk`), or on. */
   @state() private walkState: 'off' | 'requested' | 'on' = 'off';
   /** The walk's numbers for the walk bar (x, z, heading, level), refreshed at most ~8 times a second. */
@@ -902,6 +913,7 @@ export class SwPlan3d extends LitElement {
     } catch (err) {
       console.warn('sw-plan-3d: WebGL failed to start', err);
       this.error = WEBGL_UNAVAILABLE_HE;
+      this.dispatchEvent(new CustomEvent<StillsFallbackDetail>('stills-fallback', { detail: { reason: 'webgl' }, bubbles: true, composed: true }));
       return;
     }
     this.view.setContinuous(this.continuous);
@@ -992,7 +1004,7 @@ export class SwPlan3d extends LitElement {
     this.toggleAttribute('data-estimated', desc.estimated);
     if (!this.presetApplied) this.frame();
     this.view?.setSelected(this.selectedId);
-    if (probes(this.rung) && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
+    if ((probes(this.rung) || this.measuresLevel1()) && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
   }
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
@@ -1041,7 +1053,7 @@ export class SwPlan3d extends LitElement {
     this.probed = false;
     this.notifyRealistic();
     this.applySun();
-    if (probes(r) && this.applied) this.startProbe();
+    if ((probes(r) || this.measuresLevel1()) && this.applied) this.startProbe();
     else this.endProbe(false);
     this.requestUpdate();
   }
@@ -1210,10 +1222,15 @@ export class SwPlan3d extends LitElement {
   }
 
   /** A sustained low rate (quality-mode.ts FpsWatch, with its hysteresis band): `auto` lowers one rung for the session (the
-   * note says so); a chosen rung stays and only offers the one-tap hint to the rung below (quality-ladder.probeVerdict). */
+   * note says so); a chosen rung stays and only offers the one-tap hint to the rung below (quality-ladder.probeVerdict).
+   * Below schematic the S3 stills take over (stills-fallback). */
   private onLowFps(): void {
     const down = nextDown(this.rung);
-    if (!down) return;
+    if (!down) {
+      // CR-029 S3: schematic missed the budget again after the fallback, with a still set ready: the host may swap to stills
+      if (this.measuresLevel1()) this.dispatchEvent(new CustomEvent<StillsFallbackDetail>('stills-fallback', { detail: { reason: 'fps' }, bubbles: true, composed: true }));
+      return;
+    }
     if (this.mode === 'auto') {
       this.fallbackRung = down;
       writeStore('session', FALLBACK_KEY, storedMode(down));
@@ -1226,8 +1243,14 @@ export class SwPlan3d extends LitElement {
         this.endProbe(false);
         this.probePending = true;
       }
-    } else if (this.probePending && probes(this.rung) && this.view) this.startProbe();
+    } else if (this.probePending && (probes(this.rung) || this.measuresLevel1()) && this.view) this.startProbe();
   };
+
+  /** CR-029 S3: schematic is measured once more only after the `auto` fallback reached it and only when a still set could
+   * take over (a miss fires `stills-fallback`; without stills the ladder ends at schematic, exactly as before). */
+  private measuresLevel1(): boolean {
+    return this.fallback && this.stillsAvailable && this.rung === 'schematic';
+  }
 
   /** Frame the current description with the screen's preset; a camera preset whose camera is not in this description
    * (another floor's camera) frames the isometric overview instead of leaving the previous floor's view. */

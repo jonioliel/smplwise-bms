@@ -410,9 +410,12 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
     from ..services.skins import store as skins_store
 
     controls = skins_store.delete_floor(settings_of(request), conn, floor_id)  # CR-006 2a: the floor's control images go with it
+    from ..services import plan_bakes
+
+    bakes = plan_bakes.delete_floor(settings_of(request), conn, floor_id)  # CR-029 S3: the floor's stills, masks and lightmaps go with it
     default_cleared = get_setting(conn, "map.default_floor") == floor_id  # owner 2026-09-30: the map's default floor must not point at a deleted floor
     if default_cleared:
         set_setting(conn, "map.default_floor", "")
         audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"map.default_floor": "", "reason": "floor_deleted", "floor_id": floor_id})
-    audit(conn, actor=principal, action="floor.delete", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"anchors_tombstoned": anchors, "force": force, "skin_controls_deleted": controls, "map_default_floor_cleared": default_cleared})
+    audit(conn, actor=principal, action="floor.delete", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"anchors_tombstoned": anchors, "force": force, "skin_controls_deleted": controls, "bakes_deleted": bakes, "map_default_floor_cleared": default_cleared})

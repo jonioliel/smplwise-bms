@@ -16,7 +16,7 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import ui_background
-from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_view, tabs_mode, timeline_colors
+from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -144,6 +144,9 @@ DEFAULTS: dict[str, str] = {
     # the view then uses the fallback 32.0 / 34.8 (central Israel) and says so. Read-only for the view; never sent anywhere.
     "site.latitude": "",
     "site.longitude": "",
+    # CR-029 S3: what the "prepare stills and lighting" step bakes per floor (presets, styles, time bands, the lightmap, the still's
+    # size) and the storage caps per floor / installation (services/plan_bakes.py SETTING_*). A JSON object read back as an object.
+    "plan.bakes": json.dumps(plan_bakes.SETTING_DEFAULT, separators=(",", ":")),
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
@@ -370,6 +373,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
             out[key] = float(out[key]) if out[key] not in ("", None) else None
         except (TypeError, ValueError):
             out[key] = None
+    out["plan.bakes"] = plan_bakes.stored_setting(out["plan.bakes"])
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     out["multimedia.favourites"] = _stored_favourites(conn)
@@ -604,6 +608,7 @@ class SettingsPatch(BaseModel):
     site_latitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.latitude")  # CR-029 S2: "" clears
     site_longitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.longitude")
     plan_view: dict[str, Any] | None = Field(default=None, alias="plan.view")  # CR-029 S0: a partial update of the dials, validated in full by services/plan_view.py
+    plan_bakes: dict[str, Any] | None = Field(default=None, alias="plan.bakes")  # CR-029 S3: a partial update, validated in full by services/plan_bakes.py
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
     ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")
@@ -812,6 +817,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     for key, limit in (("site.latitude", 90.0), ("site.longitude", 180.0)):  # CR-029 S2: degrees inside their range
         if key in changes and changes[key] != "" and abs(float(changes[key])) > limit:
             raise ApiError(422, "validation", "מיקום האתר: קו רוחב בין -90 ל-90, קו אורך בין -180 ל-180.", details={key: changes[key]})
+    if "plan.bakes" in changes:
+        try:  # a partial update over the stored value (the defaults when nothing was saved)
+            changes["plan.bakes"] = plan_bakes.normalize_setting(changes["plan.bakes"], plan_bakes.stored_setting(get_setting(conn, "plan.bakes", DEFAULTS["plan.bakes"])))
+        except ValueError as exc:
+            raise ApiError(422, "validation", "הגדרות התמונות המוכנות: ערך לא תקין.", details={"plan.bakes": str(exc)})
     if "schedules.classes" in changes:
         bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
         if bad:
@@ -901,7 +911,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if "schedules.classes" in changes:
         set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
