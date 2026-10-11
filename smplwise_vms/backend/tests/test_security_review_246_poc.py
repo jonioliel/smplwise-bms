@@ -151,3 +151,26 @@ def test_poc_l3_a_device_command_leaves_even_when_nothing_can_be_recorded(bulk_a
         assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE client_request_id = ?", (crid,)).fetchone()[0] == 0
         rows = [json.loads(x[0] or "{}") for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'ha.action'").fetchall()]
     assert not rows, "no audit row for a command that reached Home Assistant"
+
+
+# ---------------------------------------------------------------------------------------------- L4: restore re-enables self-update
+
+def test_poc_l4_a_replace_restore_of_an_earlier_archive_silently_switches_self_update_back_on(settings):
+    """`update.apply_enabled` is an ordinary settings row (not in SETTINGS_KEEP, no keep-when-absent rule): restoring an archive
+    written while the switch was on - or any archive from before 2.4.4 - turns installing from Arx back on, with no
+    `system.update.apply_enabled` audit row (the PATCH path writes one)."""
+    from smplwise.services import self_update as su
+
+    app = create_app(settings)
+    with TestClient(app) as c:
+        name = c.post("/api/v1/backups", json={"note": "switch on"}).json()["name"]
+        assert c.patch("/api/v1/settings", json={"update.apply_enabled": "false"}).status_code == 200
+        with app.state.db.connection(mode="read") as conn:
+            assert su.apply_enabled(conn) is False
+            before = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.update.apply_enabled'").fetchone()[0]
+        res = c.post(f"/api/v1/backups/{name}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+        assert res.status_code == 200, res.text
+        with app.state.db.connection(mode="read") as conn:
+            assert su.apply_enabled(conn) is True
+            after = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.update.apply_enabled'").fetchone()[0]
+    assert before == 1 and after == before
