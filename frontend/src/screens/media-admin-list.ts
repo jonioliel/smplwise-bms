@@ -16,7 +16,7 @@ import '../components/sw-toggle';
 import type { DropdownItem } from '../components/sw-dropdown';
 import type { AdminDevice } from '../api/media-admin';
 import {
-  BREAKPOINT_MD, bpOfWidth, COL_KEYS, COL_LABEL, DEFAULT_VIEW, NO_INTEGRATION, TYPE_LABEL, buildView, colVisible, floorSplitClass, gridColumns, hasColPrefs, hideClass, isFiltered, optionsOf, setColPref,
+  BREAKPOINT_MD, bpOfWidth, CQ_CARDS, COL_KEYS, COL_LABEL, DEFAULT_VIEW, NO_INTEGRATION, TYPE_LABEL, buildView, colVisible, floorSplitClass, gridColumns, hasColPrefs, hideClass, isFiltered, optionsOf, setColPref,
   type Bp, type ColKey,
   type AvailFilter, type ApprovalFilter, type Group, type GroupKey, type ListView, type LiveAvail, type RowFacts, type SortKey,
 } from './media-admin-list-logic';
@@ -53,7 +53,12 @@ export class MediaAdminToolbar extends LitElement {
     if (typeof ResizeObserver === 'function' && typeof CSS !== 'undefined' && CSS.supports?.('container-type: inline-size')) {
       this.ro = new ResizeObserver((entries) => {
         const w = entries[0]?.contentRect.width ?? 0;
-        if (w > 0) this.bp = bpOfWidth(w);
+        if (w <= 0) return;
+        this.bp = bpOfWidth(w);
+        // the cards ignore every column choice, so the columns control hides with them (as on the phone)
+        const cards = w < CQ_CARDS;
+        this.toggleAttribute('data-cards', cards);
+        if (cards) this.colsOpen = false;
       });
       this.ro.observe(this);
     } else {
@@ -209,6 +214,9 @@ export class MediaAdminToolbar extends LitElement {
       .colswrap {
         display: none;
       }
+    }
+    :host([data-cards]) .colswrap {
+      display: none;
     }
     .ints {
       display: flex;
@@ -513,7 +521,7 @@ export const mediaAdminListCss = css`
   }
   /* the user's column choices (columns control in the toolbar): hw = hidden in the wide layout, hm = hidden in the tablet
      layout; the cards ignore both */
-  @container mm-tbl (min-width: 1232px) {
+  @container mm-tbl (min-width: 1228px) {
     .hw {
       display: none !important;
     }
@@ -521,7 +529,7 @@ export const mediaAdminListCss = css`
       display: none;
     }
   }
-  @container mm-tbl (min-width: 868px) and (max-width: 1231.98px) {
+  @container mm-tbl (min-width: 864px) and (max-width: 1227.98px) {
     .hm {
       display: none !important;
     }
@@ -731,7 +739,7 @@ export const mediaAdminListCss = css`
     cursor: pointer;
   }
   /* the tablet column set below the wide width (the cards below override the grid) */
-  @container mm-tbl (max-width: 1231.98px) {
+  @container mm-tbl (max-width: 1227.98px) {
     .thead,
     .tr {
       --cols: var(--cols-m);
@@ -750,7 +758,7 @@ export const mediaAdminListCss = css`
       --hit: 44px;
     }
   }
-  @container mm-tbl (max-width: 867.98px) {
+  @container mm-tbl (max-width: 863.98px) {
     ${cardRules}
   }
   @supports not (container-type: inline-size) {
