@@ -968,6 +968,12 @@ def load_costs(sources):
             for jp in sorted(src.glob("pw_*.json")):
                 if "_retry_" in jp.name:
                     continue
+                if jp.name.startswith("pw_pixel"):
+                    # the pixel-stable tests are not part of a file's preview/dev cost or listing (the preview units grep them out;
+                    # a pixel-only file must never weigh enough to become a unit of its own that runs nothing); only their seconds
+                    for r in list_rows(jp) or []:
+                        acc["t"].setdefault((r["file"], r["project"], r["line"], " > ".join(r["path"])), r["secs"])
+                    continue
                 for r in list_rows(jp) or []:
                     k = (r["file"], r["project"])
                     fp[k] = fp.get(k, 0.0) + r["secs"]
@@ -976,7 +982,7 @@ def load_costs(sources):
         elif src.is_file():
             for line in src.read_text(encoding="utf-8-sig", errors="replace").splitlines():
                 p = line.split(" ", 5)
-                if p[0] == "FILE" and len(p) >= 6:
+                if p[0] == "FILE" and len(p) >= 6 and not p[1].startswith("pw_pixel"):
                     k = (p[2], p[3])
                     fp[k] = fp.get(k, 0.0) + float(p[4])
                 elif p[0] == "TEST" and len(p) >= 6:

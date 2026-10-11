@@ -406,10 +406,15 @@ gd.mkdir()
     {"title": "t8", "file": "b.spec.ts", "line": 4, "tests": [{"projectName": "mobile", "results": [{"duration": 12000}]}]}]}]}))
 (gd / "pw_dev_desktop_retry_desktop.json").write_text(json.dumps({"suites": [{"title": "b", "specs": [
     {"title": "t8", "file": "b.spec.ts", "line": 4, "tests": [{"projectName": "mobile", "results": [{"duration": 500000}]}]}]}]}))
+(gd / "pw_pixel_0.json").write_text(json.dumps({"suites": [{"title": "pix.spec.ts", "specs": [
+    {"title": "classic is pixel-stable", "file": "pix.spec.ts", "line": 4, "tests": [{"projectName": "desktop", "results": [{"duration": 400000}]}]}]}]}))
 cc = g.load_costs([txt, gd])
 check("costs: the txt's file+project time wins over the older dir; the dir adds b.spec.ts; the retry report is ignored; listing from TEST lines",
       cc["fp"][("a.spec.ts", "desktop")] == 50.0 and cc["fp"][("b.spec.ts", "mobile")] == 12.0
       and cc["listing"][("a.spec.ts", "desktop")] == [(7, ["d", "t1"]), (9, ["d", "t2"])], cc)
+check("costs: a pixel report adds only test seconds (the pixel unit's estimate), never a file's preview cost or listing",
+      ("pix.spec.ts", "desktop") not in cc["fp"] and ("pix.spec.ts", "desktop") not in cc["listing"]
+      and cc["t"].get(("pix.spec.ts", "desktop", 4, "classic is pixel-stable")) == 400.0, cc)
 
 # --compare: the validation run's acceptance check (same tests ran and skipped per category as the serial reference)
 ref = {"counts": {"preview": {"pass": 10, "fail": 0, "flaky": 1, "known": 0, "skipped": 4}, "baseline": {"fail": 1}}, "wall_seconds": 5508, "verdict": "pass"}
