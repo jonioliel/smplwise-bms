@@ -11,6 +11,7 @@
  * The wire value of both layers is the settings' string: "auto" | "2" | "1".
  */
 import type { QualityLevel } from './scene-three';
+import type { QualityMode as LadderMode } from './quality-ladder';
 
 export type QualityMode = 'auto' | 'full' | 'schematic';
 export type QualityWire = 'auto' | '1' | '2';
@@ -35,6 +36,29 @@ export function modeFromWire(v: unknown): QualityMode | null {
 
 export function modeToWire(m: QualityMode): QualityWire {
   return m === 'full' ? '2' : m === 'schematic' ? '1' : 'auto';
+}
+
+/**
+ * The personal mode (/me/prefs `plan.quality` and this browser's cache) also names the realistic rungs of Plan Studio 6
+ * (map/quality-ladder.ts): the installation's wire ("auto" | "2" | "1") plus "realistic" and "lite". The installation's
+ * default (`plan.quality` setting) keeps the three values above (integration 2.4.7: the sticky choice of the hotfix kept
+ * for every rung of the ladder).
+ */
+export type OwnWire = QualityWire | 'realistic' | 'lite';
+/** The order the personal settings row lists them in. */
+export const OWN_MODES: readonly LadderMode[] = ['auto', 'full', 'schematic', 'lite', 'realistic'];
+
+/** A personal wire value as a ladder mode ("3" reads as realistic); anything else is null = not set. */
+export function ownModeFromWire(v: unknown): LadderMode | null {
+  const m = modeFromWire(v);
+  if (m) return m;
+  if (v === 'realistic' || v === '3' || v === 3) return 'realistic';
+  if (v === 'lite') return 'lite';
+  return null;
+}
+
+export function ownModeToWire(m: LadderMode): OwnWire {
+  return m === 'realistic' || m === 'lite' ? m : modeToWire(m);
 }
 
 /** The user's own choice, else the installation's default, else auto. */

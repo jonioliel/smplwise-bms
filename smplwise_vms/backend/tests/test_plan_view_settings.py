@@ -18,7 +18,7 @@ from smplwise.services import plan_view as pv
 
 OWNER_DEFAULTS = {"style": "auto", "default_view": "schematic", "furniture": "models", "textures": "files", "wall_display": "live", "time_source": "clock",
                   "mouse_mode": "drag", "quality": "auto", "kiosk_idle_s": 30, "eye_m": 1.65, "dpr_cap": 1.25, "section_cut": True, "show_temps": False,
-                  "motion": True}
+                  "motion": True, "walk_guard": True}
 
 
 def test_defaults_are_the_owner_answers():
@@ -140,3 +140,19 @@ def test_the_frontend_lists_and_defaults_agree():
 def test_the_own_dials_are_backed_up_and_survive_an_older_archive():
     assert "plan_view_prefs" in backup_svc.PROJECT_TABLES and "plan_view_prefs" in backup_svc.KEEP_WHEN_ABSENT
     assert "plan_view_prefs" not in backup_svc.ACCESS_TABLES
+
+
+def test_site_location_for_the_sun_is_optional_validated_and_read_as_numbers(settings):
+    """CR-029 S2: site.latitude / site.longitude (degrees) feed the realistic 3D's sun; "" = not set (the view says it uses the
+    fallback); out-of-range or non-numeric values are refused; the read gives numbers or None."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["site.latitude"] is None and s["site.longitude"] is None
+        assert c.patch("/api/v1/settings", json={"site.latitude": "32.0853", "site.longitude": "34.7818"}).status_code == 200
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["site.latitude"] == 32.0853 and s["site.longitude"] == 34.7818
+        for bad in ({"site.latitude": "91"}, {"site.longitude": "-180.5"}, {"site.latitude": "north"}, {"site.longitude": "1e3"}):
+            assert c.patch("/api/v1/settings", json=bad).status_code == 422, bad
+        assert c.patch("/api/v1/settings", json={"site.latitude": ""}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"]["site.latitude"] is None

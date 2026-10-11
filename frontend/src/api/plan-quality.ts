@@ -5,14 +5,16 @@
  */
 import { isApi } from './session';
 import { getMyPrefs, putMyPrefs } from './me-prefs';
-import { modeFromWire, modeToWire, type QualityMode } from '../map/quality-mode';
+import { ownModeFromWire, ownModeToWire } from '../map/quality-mode';
+import type { QualityMode } from '../map/quality-ladder';
 
-/** The browser's cache of the personal choice ("auto" | "2" | "1"; the older per-browser "1" / "2" read the same). */
+/** The browser's cache of the personal choice ("auto" | "2" | "1" | "realistic" | "lite"; the older per-browser "1" / "2" read the
+ * same). */
 export const QUALITY_KEY = 'sw.plan3d.quality';
 
 export function cachedOwnMode(): QualityMode | null {
   try {
-    return modeFromWire(localStorage.getItem(QUALITY_KEY));
+    return ownModeFromWire(localStorage.getItem(QUALITY_KEY));
   } catch {
     return null;
   }
@@ -21,7 +23,7 @@ export function cachedOwnMode(): QualityMode | null {
 function cache(mode: QualityMode | null): void {
   try {
     if (mode === null) localStorage.removeItem(QUALITY_KEY);
-    else localStorage.setItem(QUALITY_KEY, modeToWire(mode));
+    else localStorage.setItem(QUALITY_KEY, ownModeToWire(mode));
   } catch {
     /* private mode: the choice lives for this page only */
   }
@@ -32,7 +34,7 @@ function cache(mode: QualityMode | null): void {
 export async function loadOwnMode(): Promise<QualityMode | null | undefined> {
   if (!isApi()) return undefined;
   try {
-    const own = modeFromWire((await getMyPrefs()).prefs['plan.quality']);
+    const own = ownModeFromWire((await getMyPrefs()).prefs['plan.quality']);
     if (own !== null) cache(own);
     return own;
   } catch {
@@ -46,7 +48,7 @@ export async function saveOwnMode(mode: QualityMode | null): Promise<void> {
   cache(mode);
   if (!isApi()) return;
   try {
-    await putMyPrefs({ 'plan.quality': mode === null ? null : modeToWire(mode) });
+    await putMyPrefs({ 'plan.quality': mode === null ? null : ownModeToWire(mode) });
   } catch (err) {
     console.warn('plan-quality: the personal 3D mode was not saved on the server', err);
   }

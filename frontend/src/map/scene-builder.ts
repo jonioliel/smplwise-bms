@@ -18,6 +18,8 @@ import type { MeshPart } from '../api/plan-catalog';
 import { temperatureText, type RoomStateLayer } from './room-state';
 import { plateHoles, sharedUpperLevel, sharedVolumes, tribuneEntrances, tribuneLayout, volumeHeights, type SharedVolume, type TribuneEntrance } from './shared-space';
 import { buildWalkWorld, type WalkWorld } from './walk-world';
+import { buildReal, type RealWorld } from './scene-real-builder';
+import type { CatalogMaterialLookup } from './material-resolve';
 
 export type { MeshPart };
 export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
@@ -123,6 +125,12 @@ export interface SceneInput {
    * every level whatever `level` says) and the leaves of the doors the walk passes without a sensor stand open, so the
    * body never walks through a drawn leaf. Absent / false: the description is exactly what it was (levels 1-2 baselines). */
   walk?: boolean;
+  /** Plan Studio 6 S1 (CR-029 section 3.1): the realistic level is drawn. The description then carries `real` (scene-real-builder.ts:
+   * materials, bevels, detail families, room floors, section caps, models, lamps, shutters, daylight). Absent / false: the
+   * description is exactly what it was (levels 1-2 baselines). */
+  realistic?: boolean;
+  /** The material resolver's view of the library (api/plan-catalog lookupMaterialsOf); absent = by the 3D lookup's role. */
+  materialsCatalog?: CatalogMaterialLookup | null;
 }
 export interface SceneDescription {
   version: 'scene-1';
@@ -137,6 +145,8 @@ export interface SceneDescription {
   stats: { parts: number; instanced: number; groups: number; walls: number; objects: number; cameras: number; entities: number };
   /** Only with SceneInput.walk (CR-029 S4): the walk world. */
   walk?: WalkWorld;
+  /** Only with SceneInput.realistic (CR-029 S1): the realistic level's data. */
+  real?: RealWorld;
 }
 export interface IsoFace {
   points: [number, number][];
@@ -1084,6 +1094,11 @@ export function buildScene(input: SceneInput): SceneDescription {
   b.connectors(prims);
   b.anchors();
   const desc = b.finish();
+  if (input.realistic) {
+    const cat = input.catalog;
+    const materials: CatalogMaterialLookup = input.materialsCatalog ?? ((id) => { const c = cat?.(id); return c ? { role: c.role } : undefined; });
+    desc.real = buildReal({ input, parts: desc.parts, prims, m: (px) => b.m(px), level: (id) => b.level(id), shown: (id) => b.shown(id), wallHeight: (w, lv) => b.wallHeight(w, lv) }, materials);
+  }
   if (input.walk) {
     const cat = input.catalog;
     desc.walk = buildWalkWorld(input, cat ? (id) => { const c = cat(id); return c ? { role: c.role, walkable: c.walkable } : undefined; } : null);

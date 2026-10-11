@@ -140,6 +140,10 @@ DEFAULTS: dict[str, str] = {
     # live / stills, kiosk idle seconds, time source, mouse look, quality rung, eye height, DPR cap, section cut, temperatures, motion).
     # A person's own override (/plan-view/prefs) wins per dial; the default view stays schematic for everyone (owner 2026-10-09).
     "plan.view": json.dumps({k: plan_view.DEFAULT[k] for k in plan_view.SITE_DIALS}, separators=(",", ":")),
+    # CR-029 S2 (Plan Studio 6): the site's location for the sun of the realistic 3D (degrees, east / north positive); "" = not set,
+    # the view then uses the fallback 32.0 / 34.8 (central Israel) and says so. Read-only for the view; never sent anywhere.
+    "site.latitude": "",
+    "site.longitude": "",
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
@@ -361,6 +365,11 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"], get_setting(conn, CLASSES_REV_KEY))
     out["plan.surfaces"] = stored_plan_surfaces(out["plan.surfaces"])
     out["plan.view"] = plan_view.stored_site(out["plan.view"])
+    for key in ("site.latitude", "site.longitude"):  # CR-029 S2: a number, or None when not set (or unreadable)
+        try:
+            out[key] = float(out[key]) if out[key] not in ("", None) else None
+        except (TypeError, ValueError):
+            out[key] = None
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     out["multimedia.favourites"] = _stored_favourites(conn)
@@ -592,6 +601,8 @@ class SettingsPatch(BaseModel):
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
+    site_latitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.latitude")  # CR-029 S2: "" clears
+    site_longitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.longitude")
     plan_view: dict[str, Any] | None = Field(default=None, alias="plan.view")  # CR-029 S0: a partial update of the dials, validated in full by services/plan_view.py
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
@@ -798,6 +809,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["plan.view"] = plan_view.normalize_site(changes["plan.view"], plan_view.stored_site(get_setting(conn, "plan.view", DEFAULTS["plan.view"])))
         except ValueError as exc:
             raise ApiError(422, "validation", "הגדרות התלת־ממד הריאליסטי: ערך לא תקין.", details={"plan.view": str(exc)})
+    for key, limit in (("site.latitude", 90.0), ("site.longitude", 180.0)):  # CR-029 S2: degrees inside their range
+        if key in changes and changes[key] != "" and abs(float(changes[key])) > limit:
+            raise ApiError(422, "validation", "מיקום האתר: קו רוחב בין -90 ל-90, קו אורך בין -180 ל-180.", details={key: changes[key]})
     if "schedules.classes" in changes:
         bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
         if bad:

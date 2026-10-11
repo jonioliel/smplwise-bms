@@ -132,11 +132,11 @@ def test_plan_quality_is_a_personal_view_mode_auto_1_or_2_per_user_and_null_foll
     c.get("/api/v1/me")
     body = c.get("/api/v1/me/prefs").json()
     assert body["prefs"]["plan.quality"] is None and "plan.quality" not in body["stored"]
-    for ok in ("auto", "1", "2"):
+    for ok in ("auto", "1", "2", "realistic", "lite"):  # 2.4.7: the realistic rungs of Plan Studio 6 are sticky personal choices too
         r = c.put("/api/v1/me/prefs", json={"plan.quality": ok})
         assert r.status_code == 200 and r.json()["prefs"]["plan.quality"] == ok and "plan.quality" in r.json()["stored"]
     assert c.put("/api/v1/me/prefs", json={"plan.quality": "1"}).json()["prefs"]["plan.quality"] == "1"
-    for bad in ("3", "full", "AUTO", "", 2, True, ["2"]):  # the wire value is the settings' string, like plan.quality there
+    for bad in ("3", "full", "AUTO", "", 2, True, ["2"], "Realistic", "schematic", "stills"):  # the wire value is the settings' string, like plan.quality there
         assert c.put("/api/v1/me/prefs", json={"plan.quality": bad}).status_code == 422, bad
     assert c.get("/api/v1/me/prefs").json()["prefs"]["plan.quality"] == "1"  # a refused write changed nothing
     # per user, and a viewer (no system.configure, no screen.personalize) keeps their own

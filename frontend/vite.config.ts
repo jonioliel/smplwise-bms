@@ -38,7 +38,9 @@ export default defineConfig({
       output: {
         entryFileNames: (chunk) => (chunk.name === 'arx-sw' ? 'arx-sw.js' : 'assets/[name]-[hash].js'),
         // Plan Studio 3D (T087): three.js in a chunk of its own, fetched only by the dynamic import of sw-plan-3d.
-        manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined),
+        // Plan Studio 6 (CR-029 S1): the realistic level's post chain (composer, GTAO, bloom, SMAA, output + their shaders)
+        // in a lazy chunk of its own, fetched by post-chain.ts only when level 3 draws (the three chunk stays <= 200 KB gzip).
+        manualChunks: (id) => (/\/node_modules\/three\/examples\/jsm\/(postprocessing|shaders|math)\//.test(id) ? 'three-post' : id.includes('/node_modules/three/') ? 'three' : undefined),
       },
     },
   },

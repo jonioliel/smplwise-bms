@@ -10,27 +10,37 @@ import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
 import { PILL_CAP } from './scene-frame';
-import { FpsWatch, QUALITY_MODE_HINT, QUALITY_MODE_LABEL, levelFor, lowFpsAction, modeFromWire, recoverFps, resolveMode, type QualityMode } from './quality-mode';
+import { FpsWatch, recoverFps } from './quality-mode';
 import { cachedOwnMode, loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { WalkSession } from './walk-session';
 import { drawMinimap, type MinimapFrame } from './walk-minimap';
 import { DOOR_STATE_HE, type WalkStart, type WalkWorld } from './walk-world';
 import type { WalkEvent } from './walk-controller';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
+import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
+import { styleFor } from './look-style';
+import { DEFAULT_SITE, TIME_BAND_HE, hourLabel, siteInstant, siteLocal, timeBand } from './sun';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
 export { QUALITY_KEY } from '../api/plan-quality';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
 const FALLBACK_HE = 'עבר לרמה סכמטית — קצב הפריימים היה נמוך';
-/** A chosen full mode on a slow device: a hint and a one-tap switch, never a forced downgrade (owner bug 2026-10-10). */
-const LOW_FPS_HE = 'קצב הפריימים נמוך';
-const LOW_FPS_SWITCH_HE = 'מעבר לסכמטי';
+/** The automatic ladder lowered the rung (only in the `auto` mode). */
+const fallbackHe = (r: Rung): string => (r === 'schematic' ? FALLBACK_HE : `עבר ל${RUNG_HE[r]} — קצב הפריימים היה נמוך`);
+/** CR-029 S1: the host builds the description with the realistic part (it listens to `realistic-change`). */
+export interface RealisticChangeDetail {
+  on: boolean;
+}
+/** The site clock ticks the sun once a minute in the `clock` time source. */
+const CLOCK_TICK_MS = 60_000;
 const TOAST_MS = 4000;
 /** An automatic fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
 export const FALLBACK_KEY = 'sw.plan3d.fallback';
 /** K88: the viewer's night-mode choice for this browser. */
 export const NIGHT_KEY = 'sw.plan3d.night';
+/** The walk guard's session flag (CR-029 section 3.4): separate from the auto mode's fallback (coordinator 2026-10-11). */
+export const WALK_GUARD_KEY = 'sw.plan3d.walkguard';
 export const DEFAULT_MIN_FPS = 30;
 export { PILL_CAP } from './scene-frame';
 /** The pill's bottom edge sits this far above its point, so the object under it stays clickable from straight above. */
@@ -114,6 +124,8 @@ const writeStore = (store: 'local' | 'session', key: string, value: string | nul
     /* private mode: the choice lives for this page only */
   }
 };
+/** How a mode is stored per browser: the level digits for schematic / full (the stored values of before), names otherwise. */
+const storedMode = (m: QualityMode): string => (m === 'schematic' ? '1' : m === 'full' ? '2' : m);
 
 /**
  * The schematic 3D view of a floor (T087, design 10.3; CR-006 slice 1a): a SceneView on a canvas, the presets (top /
@@ -189,14 +201,26 @@ export class SwPlan3d extends LitElement {
   /** An export failed: a toast that clears itself; the view stays. */
   @state() private toast = '';
   /** The viewer's own mode (the browser's cache at once, the server's /me/prefs value when it answers; null = the
-   * installation default applies). */
+   * person's / installation's `plan.view.quality` dial). A chosen rung sticks: the probe never lowers it (owner
+   * 2026-10-10), it only offers the hint. */
   @state() private chosen: QualityMode | null = cachedOwnMode();
-  /** The installation default read from the settings (null until answered; schematic when they cannot be read). */
-  @state() private installDefault: QualityMode | null = null;
-  /** `auto` missed the frame budget on this device: level 1 draws and the note says so. Ignored in a manual mode. */
-  @state() private fallback = readStore('session', FALLBACK_KEY) === '1';
-  /** A manual `full` missed the frame budget: the hint with its one-tap switch shows (until a choice or a close). */
-  @state() private lowFps = false;
+  /** The installation's mode (plan.quality: auto | 2 | 1). */
+  @state() private installMode: QualityMode | null = null;
+  /** The `auto` mode's session fallback: the rung the probe lowered it to (null = none). */
+  @state() private fallbackRung: Rung | null = asMode(readStore('session', FALLBACK_KEY)) as Rung | null;
+  /** A chosen rung is slow on this device: the one-tap "switch to simpler" hint (never an automatic change). */
+  @state() private perfHint: Rung | null = null;
+  /** The walk guard's session flag (plan.view walk_guard): the rung the walk draws at after it ran under 24 fps. */
+  @state() private walkDrop: Rung | null = asMode(readStore('session', WALK_GUARD_KEY)) as Rung | null;
+  /** The person's look dials arrived (the mode default, the style, the furniture, ...). */
+  @state() private dialsReady = false;
+  /** CR-029 S2: the time of day - the site clock, or the slider (hour of the local day, 0..24) on a local date. */
+  @state() private timeManual: { hour: number; ymd: [number, number, number] } | null = null;
+  @state() private timeOpen = false;
+  @state() private sunShown: { hour: number; band: string; elevation: number } | null = null;
+  private site = { latitude: DEFAULT_SITE.latitude as number, longitude: DEFAULT_SITE.longitude as number, zone: 'Asia/Jerusalem', known: false };
+  private clockTimer = 0;
+  private themeObserver?: MutationObserver;
   /** K88 3D round 2: night mode (dark sky, a moon instead of the sun, the lit rooms glow) - the viewer's choice, stored. */
   @state() private night = readStore('local', NIGHT_KEY) === '1';
   private toastTimer = 0;
@@ -251,6 +275,114 @@ export class SwPlan3d extends LitElement {
     :host([data-night]) .strip {
       background: color-mix(in srgb, #0f1729 80%, transparent);
       color: #dfe7f5;
+    }
+    /* CR-029 S1 / S2, level 3: the sky behind the canvas follows the sun and the style (the element sets the stops), the
+       canvas carries the style's grade and the vignette (LOOK_SPEC section 1, G2) */
+    :host([data-quality='3']) {
+      background: linear-gradient(180deg, var(--sky-top, #cfdff2) 0%, var(--sky-hor, #eef3f9) 62%, var(--sky-bot, #d4d8dd) 100%);
+    }
+    :host([data-quality='3']) .stage canvas {
+      filter: contrast(1.06) saturate(1.05);
+    }
+    :host([data-quality='3'][data-style='dark']) .stage canvas {
+      filter: contrast(1.08);
+    }
+    .vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 45%, rgba(20, 24, 32, 0.32) 100%);
+    }
+    :host([data-style='dark']) .vignette {
+      background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.4) 100%);
+    }
+    .timepill {
+      position: absolute;
+      inset-block-start: 12px;
+      inset-inline-end: 12px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--sw-surface) 78%, transparent);
+      border: 1px solid color-mix(in srgb, var(--sw-surface) 60%, transparent);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
+      direction: rtl;
+    }
+    .timepill button {
+      font: inherit;
+      border: 0;
+      background: transparent;
+      color: var(--sw-text);
+      border-radius: 999px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .timepill .tp .hh {
+      font-size: 14px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      display: inline-block;
+    }
+    .timepill .now {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    .timepop {
+      position: absolute;
+      inset-block-start: 52px;
+      inset-inline-end: 12px;
+      z-index: var(--sw-z-map-ui);
+      display: grid;
+      gap: 6px;
+      inline-size: min(280px, calc(100% - 24px));
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--sw-surface) 86%, transparent);
+      border: 1px solid var(--sw-border);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
+      direction: rtl;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .timepop input[type='range'] {
+      inline-size: 100%;
+      direction: ltr;
+    }
+    .timepop .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .timepop input[type='date'] {
+      font: inherit;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 8px;
+      padding: 2px 6px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+    }
+    .timepop .muted {
+      color: var(--sw-text-3);
+    }
+    .pill.hint {
+      inset-block-start: 56px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .pill.hint .x {
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      cursor: pointer;
+      font: inherit;
     }
     .stage {
       position: absolute;
@@ -445,27 +577,14 @@ export class SwPlan3d extends LitElement {
     .note.fb {
       inset-block-end: 40px;
     }
-    /* the low-frame-rate hint of a chosen full mode: a one-tap switch and a close, never in the way of the view */
-    .note.hint {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .note.hint button {
-      font: inherit;
-      color: var(--sw-accent);
-      background: none;
-      border: 0;
-      padding: 0 2px;
-      cursor: pointer;
-    }
-    .note.hint button.x {
-      color: var(--sw-text-2);
-    }
-    .note.hint button:focus-visible {
-      outline: 2px solid var(--sw-focus);
-      outline-offset: 1px;
-      border-radius: var(--sw-r-sm);
+    /* the bar wraps when it carries every mode chip: the notes stand above it, never over a chip */
+    @media (min-width: 641px) {
+      :host .note {
+        inset-block-end: calc(18px + var(--bar-h, 0px));
+      }
+      :host .note.fb {
+        inset-block-end: calc(46px + var(--bar-h, 0px));
+      }
     }
     .spinner {
       position: absolute;
@@ -678,6 +797,10 @@ export class SwPlan3d extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     document.removeEventListener('visibilitychange', this.onVisibility);
+    window.clearInterval(this.clockTimer);
+    this.themeObserver?.disconnect();
+    this.themeObserver = undefined;
+    this.realisticNotified = null;
     this.ro?.disconnect();
     this.barRo?.disconnect();
     cancelAnimationFrame(this.thumbPass);
@@ -695,14 +818,37 @@ export class SwPlan3d extends LitElement {
     window.clearTimeout(this.toastTimer);
   }
 
-  /** The mode that applies: the viewer's own, else the installation default (host or settings), else auto. */
+  /** The mode in force: this browser's choice, else the person's / installation's dial (auto or a fixed rung). */
   get mode(): QualityMode {
-    return resolveMode(this.chosen, modeFromWire(this.qualityDefault) ?? this.installDefault);
+    // this browser / the person's choice <- the plan.view dial when fixed <- the installation's plan.quality mode (auto / 2 / 1,
+    // pilot/PLANMODE-sticky-quality) <- auto
+    const dial = this.dialsReady && this.viewDials.quality !== 'auto' ? this.viewDials.quality : null;
+    const host = asMode(this.qualityDefault);
+    return this.chosen ?? dial ?? host ?? this.installMode ?? 'auto';
   }
 
-  /** The level that draws: the mode's - and 1 after a fallback, in `auto` only (a chosen mode is never downgraded). */
+  /** Where `auto` starts: realistic when the person's default view is realistic, else the installation's plan.quality. */
+  private get autoStartRung(): Rung {
+    // auto = full, dropping on a sustained low rate (the hotfix's rule); realistic when the person's default view is realistic
+    return autoStart(this.viewDials.default_view, 2);
+  }
+
+  /** The rung that draws (quality-ladder.drawnRung): a chosen rung as it is; `auto` from its start, or its fallback. */
+  get rung(): Rung {
+    const r = drawnRung(this.mode, this.autoStartRung, this.fallbackRung);
+    // the walk's own guard (dial walk_guard, a session flag apart from the auto fallback): lower only while walking
+    const w = this.walkDrop;
+    return this.walkState === 'on' && w && RUNGS.indexOf(w) > RUNGS.indexOf(r) ? w : r;
+  }
+
+  /** The level that draws (1 schematic, 2 full, 3 realistic / lite). */
   get quality(): QualityLevel {
-    return levelFor(this.mode, this.fallback);
+    return rungLevel(this.rung);
+  }
+
+  /** The `auto` mode fell back this session (the note says so). */
+  private get fallback(): boolean {
+    return this.mode === 'auto' && this.fallbackRung !== null && this.rung === this.fallbackRung;
   }
 
   private init(): void {
@@ -715,12 +861,23 @@ export class SwPlan3d extends LitElement {
     }
     // the installation default when neither the viewer nor the host chose: one build at the right level, no rebuild
     // when the settings land (the cached settings answer at once; a first fetch takes the round trip)
-    if (this.chosen === null && modeFromWire(this.qualityDefault) === null && this.installDefault === null && !this.settingsAsked) {
+    if (!this.settingsAsked) {
       this.settingsAsked = true;
-      // settings without the key (the static demo), unavailable, or not answered within SETTINGS_WAIT_MS: schematic until
-      // the viewer chooses (a real backend always answers with its default, auto)
-      void withTimeout(productSettings().then((s) => modeFromWire(s['plan.quality']) ?? 'schematic'), SETTINGS_WAIT_MS, 'schematic' as QualityMode)
-        .then((m) => { this.installDefault = m; })
+      // the installation's level, the site (latitude / longitude / zone for the sun, CR-029 S2) and the person's look
+      // dials, read once before the first build; unavailable or not answered within SETTINGS_WAIT_MS: the defaults
+      const settings = withTimeout(productSettings().then((s) => s as unknown as Record<string, unknown>), SETTINGS_WAIT_MS, {} as Record<string, unknown>).catch(() => ({}) as Record<string, unknown>);
+      const dials = withTimeout(planViewPrefs().then((p) => p.effective), SETTINGS_WAIT_MS, { ...DEFAULT_VIEW }).catch(() => ({ ...DEFAULT_VIEW }));
+      void Promise.all([settings, dials])
+        .then(([s, d]) => {
+          // the installation's mode; a settings answer without the key (the static demo) = schematic (the hotfix's rule)
+          this.installMode = asMode(s['plan.quality']) ?? 'schematic';
+          const lat = Number(s['site.latitude']);
+          const lon = Number(s['site.longitude']);
+          const known = s['site.latitude'] !== null && s['site.latitude'] !== undefined && Number.isFinite(lat) && Number.isFinite(lon);
+          this.site = { latitude: known ? lat : DEFAULT_SITE.latitude, longitude: known ? lon : DEFAULT_SITE.longitude, zone: typeof s['time.zone'] === 'string' && s['time.zone'] ? (s['time.zone'] as string) : 'Asia/Jerusalem', known };
+          this.viewDials = d;
+          this.dialsReady = true;
+        })
         .finally(() => { if (this.isConnected && !this.view) this.init(); });
       return;
     }
@@ -736,8 +893,10 @@ export class SwPlan3d extends LitElement {
           this.onProbeFrame(frames);
         },
         onDraw: () => this.layoutOverlays(),
+        onAsset: () => this.setAttribute('data-real-pending', String(this.view?.realPending ?? 0)),
         quality: this.quality,
         night: this.night,
+        real: this.realSettings(),
       });
       this.toggleAttribute('data-night', this.night);
     } catch (err) {
@@ -746,13 +905,11 @@ export class SwPlan3d extends LitElement {
       return;
     }
     this.view.setContinuous(this.continuous);
-    // the person's walk dials (eye height, mouse look, motion): the defaults until they load, never an error
-    void planViewPrefs().then((p) => {
-      this.viewDials = p.effective;
-      this.walk?.ctrl.setEyeHeight(p.effective.eye_m);
-      this.walk?.setMouseMode(p.effective.mouse_mode);
-      this.walk?.kick();
-    });
+    this.view.setRealSettings({ dprCap: this.viewDials.dpr_cap, motion: this.viewDials.motion });
+    this.applySun();
+    this.startClock();
+    this.watchTheme();
+    this.notifyRealistic();
     this.ro = new ResizeObserver(() => this.view?.resize());
     this.ro.observe(this);
     this.presetApplied = false;
@@ -835,21 +992,113 @@ export class SwPlan3d extends LitElement {
     this.toggleAttribute('data-estimated', desc.estimated);
     if (!this.presetApplied) this.frame();
     this.view?.setSelected(this.selectedId);
-    if (this.quality === 2 && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
+    if (probes(this.rung) && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
   }
 
-  /** The view follows the effective level; a switch to level 2 starts the probe, a switch away ends it. */
+  /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
+  private realSettings() {
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut };
+  }
+
+  private uiTheme(): 'light' | 'dark' {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  /** The UI theme changed: the `auto` style follows it (a re-tint, no rebuild). */
+  private watchTheme(): void {
+    if (this.themeObserver || typeof MutationObserver === 'undefined') return;
+    this.themeObserver = new MutationObserver(() => {
+      this.view?.setRealSettings({ style: this.realSettings().style });
+      this.applySun();
+      this.requestUpdate();
+    });
+    this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  private realisticNotified: boolean | null = null;
+  /** Tell the host whether the description should carry the realistic part (level 3 draws). */
+  private notifyRealistic(): void {
+    const on = this.quality === 3;
+    if (on === this.realisticNotified) return;
+    this.realisticNotified = on;
+    this.dispatchEvent(new CustomEvent<RealisticChangeDetail>('realistic-change', { detail: { on }, bubbles: true, composed: true }));
+  }
+
+  /** The view follows the drawn rung; a rung above schematic starts the probe, schematic ends it. */
   private applyQuality(): void {
     const q = this.quality;
+    const r = this.rung;
     this.setAttribute('data-quality', String(q));
+    this.setAttribute('data-rung', r);
     this.setAttribute('data-quality-mode', this.mode);
-    if (!this.view || this.view.getQuality() === q) return;
+    if (!this.view) return;
+    const realRung = r === 'realistic' ? 'realistic' : 'lite';
+    const same = this.view.getQuality() === q && (q !== 3 || this.view.getRealSettings().rung === realRung);
+    this.view.setRealSettings({ rung: realRung });
+    if (same) return;
     this.view.setQuality(q);
     this.thumbs.clear(); // the strip follows the materials of the level
     this.probed = false;
-    if (q === 2 && this.applied) this.startProbe();
+    this.notifyRealistic();
+    this.applySun();
+    if (probes(r) && this.applied) this.startProbe();
     else this.endProbe(false);
     this.requestUpdate();
+  }
+
+  // ---- the time of day (CR-029 S2): the site clock, or the slider; the sun follows
+
+  /** The instant the sun is drawn for: the site clock now, or the slider's local hour on its local date. */
+  private sunInstant(): number {
+    const t = this.timeManual;
+    if (!t) return Date.now();
+    return siteInstant(t.ymd[0], t.ymd[1], t.ymd[2], t.hour, this.site.zone);
+  }
+
+  private applySun(): void {
+    const view = this.view;
+    if (!view) return;
+    const utcMs = this.sunInstant();
+    view.setSun({ utcMs, latitude: this.site.latitude, longitude: this.site.longitude });
+    const st = view.sunState();
+    if (this.quality === 3 && st) {
+      const l = siteLocal(utcMs, this.site.zone);
+      this.sunShown = { hour: l.hour + l.minute / 60, band: timeBand(st.elevation), elevation: Math.round(st.elevation) };
+      const [top, hor, bot] = view.skyBackdrop();
+      this.style.setProperty('--sky-top', top);
+      this.style.setProperty('--sky-hor', hor);
+      this.style.setProperty('--sky-bot', bot);
+      this.setAttribute('data-sun-elevation', String(Math.round(st.elevation)));
+      this.setAttribute('data-style', view.getRealSettings().style);
+    } else this.sunShown = null;
+  }
+
+  private startClock(): void {
+    window.clearInterval(this.clockTimer);
+    if (this.viewDials.time_source === 'manual' && !this.timeManual) this.setTimeHour(siteLocal(Date.now(), this.site.zone).hour);
+    this.clockTimer = window.setInterval(() => { if (!this.timeManual && this.quality === 3) this.applySun(); }, CLOCK_TICK_MS);
+  }
+
+  /** The slider: a local hour (0..24) on the shown date (today by the site clock unless a date was picked). */
+  setTimeHour(hour: number): void {
+    const today = siteLocal(Date.now(), this.site.zone);
+    const ymd = this.timeManual?.ymd ?? ([today.year, today.month, today.day] as [number, number, number]);
+    this.timeManual = { hour: Math.max(0, Math.min(24, hour)), ymd };
+    this.applySun();
+  }
+
+  private setTimeDate(v: string): void {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    if (!m) return;
+    const hour = this.timeManual?.hour ?? this.sunShown?.hour ?? 12;
+    this.timeManual = { hour, ymd: [Number(m[1]), Number(m[2]), Number(m[3])] };
+    this.applySun();
+  }
+
+  /** "עכשיו": back to the site clock. */
+  timeNow(): void {
+    this.timeManual = null;
+    this.applySun();
   }
 
   /** K88: night mode on / off for this browser (stored); the strip's thumbnails follow. */
@@ -867,24 +1116,29 @@ export class SwPlan3d extends LitElement {
     return this.night;
   }
 
-  /** The viewer's own mode (the chips; the settings row writes the same /me/prefs key): remembered in this browser and on
-   * the server, kept across reloads. A manual mode is never downgraded; `full` after an automatic fallback measures
-   * afresh; `auto` on a device already measured slow (the hint showed) drops at once. */
-  setMode(mode: QualityMode): void {
-    const measuredSlow = this.lowFps;
-    this.chosen = mode;
-    this.lowFps = false;
-    void saveOwnMode(mode);
-    if (mode === 'auto' && measuredSlow) this.fallBack();
-    else if (mode === 'full' && this.fallback) {
-      this.fallback = false;
-      writeStore('session', FALLBACK_KEY, null);
-    }
+  /** The viewer's choice (the chips; legacy levels 1 / 2 = schematic / full). */
+  setQuality(q: QualityLevel): void {
+    this.setMode(levelRung(q));
   }
 
-  /** Level 1 / 2 as the schematic / full mode (the older API: tests and hosts that pick a level). */
-  setQuality(q: QualityLevel): void {
-    this.setMode(q === 2 ? 'full' : 'schematic');
+  /** The viewer's own mode (a chip, or the hint's one tap; the settings row writes the same /me/prefs key): remembered in
+   * this browser and on the server (api/plan-quality.ts), kept across reloads. A new choice clears the session's fallback,
+   * the walk guard and the hint and measures afresh; a chosen rung is never lowered automatically (owner 2026-10-10).
+   * `auto` on a device already measured slow (the hint showed) starts at the hint's rung at once. */
+  setMode(m: QualityMode): void {
+    const measuredSlow = this.perfHint;
+    this.chosen = m;
+    void saveOwnMode(m);
+    this.fallbackRung = null;
+    this.perfHint = null;
+    this.walkDrop = null;
+    writeStore('session', FALLBACK_KEY, null);
+    writeStore('session', WALK_GUARD_KEY, null);
+    this.probed = false;
+    if (m === 'auto' && measuredSlow) {
+      this.fallbackRung = measuredSlow;
+      writeStore('session', FALLBACK_KEY, storedMode(measuredSlow));
+    }
   }
 
   // ---- the frame budget probe: continuous frames for PROBE_MS; a sustained low rate decides (quality-mode.ts FpsWatch)
@@ -955,11 +1209,15 @@ export class SwPlan3d extends LitElement {
     }
   }
 
-  /** A sustained low rate at level 2: `auto` drops to level 1 (the note says so); a chosen `full` stays and shows the hint. */
+  /** A sustained low rate (quality-mode.ts FpsWatch, with its hysteresis band): `auto` lowers one rung for the session (the
+   * note says so); a chosen rung stays and only offers the one-tap hint to the rung below (quality-ladder.probeVerdict). */
   private onLowFps(): void {
-    const action = lowFpsAction(this.mode);
-    if (action === 'downgrade') this.fallBack();
-    else if (action === 'hint') this.lowFps = true;
+    const down = nextDown(this.rung);
+    if (!down) return;
+    if (this.mode === 'auto') {
+      this.fallbackRung = down;
+      writeStore('session', FALLBACK_KEY, storedMode(down));
+    } else this.perfHint = down;
   }
 
   private onVisibility = (): void => {
@@ -968,13 +1226,8 @@ export class SwPlan3d extends LitElement {
         this.endProbe(false);
         this.probePending = true;
       }
-    } else if (this.probePending && this.quality === 2 && this.view) this.startProbe();
+    } else if (this.probePending && probes(this.rung) && this.view) this.startProbe();
   };
-
-  private fallBack(): void {
-    this.fallback = true;
-    writeStore('session', FALLBACK_KEY, '1');
-  }
 
   /** Frame the current description with the screen's preset; a camera preset whose camera is not in this description
    * (another floor's camera) frames the isometric overview instead of leaving the previous floor's view. */
@@ -1135,7 +1388,11 @@ export class SwPlan3d extends LitElement {
       } else if (e.type === 'cross-floor') this.crossFloor = e.floor;
       else if (e.type === 'blocked') this.walkMessage(`הדלת ${DOOR_STATE_HE[e.door.state]}`, 'warn');
       else if (e.type === 'edge') this.walkMessage('קצה התוכנית', 'info');
-      else if (e.type === 'room' && e.room?.name) this.walkMessage(e.room.name, 'info');
+      else if (e.type === 'room') {
+        // LOOK_SPEC section 3: the room's daylight factor drives the walk's interior fill (level 3)
+        this.view?.setInterior(e.room ? this.description?.real?.rooms[e.room.id]?.daylight ?? null : null);
+        if (e.room?.name) this.walkMessage(e.room.name, 'info');
+      }
     }
   }
 
@@ -1151,13 +1408,17 @@ export class SwPlan3d extends LitElement {
     if (hit) this.emitSelect(hit);
   }
 
-  /** The walk ran under 24 fps: level 2 drops to level 1 in place, for the session (never to stills). */
+  /** The walk ran under its floor (24 fps, section 3.4): with the walk guard (plan.view walk_guard, on by default) the walk
+   * draws one rung lower for the session - its own flag, never the auto fallback, never stills; guard off: the hint only. */
   private onWalkLowFps(): void {
-    if (this.quality !== 2) return;
-    this.fallBack();
-    this.walkMessage('הסיור עבר לרמה סכמטית — קצב הפריימים היה נמוך', 'info');
+    const down = nextDown(this.rung);
+    if (!down) return;
+    if (this.viewDials.walk_guard) {
+      this.walkDrop = down;
+      writeStore('session', WALK_GUARD_KEY, storedMode(down));
+      this.walkMessage(`הסיור עבר ל${RUNG_HE[down]} — קצב הפריימים היה נמוך`, 'info');
+    } else this.perfHint = down;
   }
-
   /** A click on the view: in the walk a device opens its card and the floor is a walk there (tap-to-walk); in pointer lock
    * the click acts on the crosshair. Outside the walk: the existing selection. */
   private onViewSelect(hit: SceneHit | null, x?: number, y?: number): void {
@@ -1368,11 +1629,32 @@ export class SwPlan3d extends LitElement {
     </div>`;
   }
 
+  /** The time pill (LOOK_SPEC section 7): the band's glyph and the site's local time, "עכשיו" while the slider is in
+   * use, a click opens the slider and the date. */
+  private renderTime() {
+    const s = this.sunShown;
+    if (!s || this.walkState === 'on') return nothing;
+    const glyph = s.band === 'day' ? '☀' : s.band === 'night' ? '☾' : '◐';
+    const today = siteLocal(Date.now(), this.site.zone);
+    const ymd = this.timeManual?.ymd ?? [today.year, today.month, today.day];
+    const date = `${ymd[0]}-${String(ymd[1]).padStart(2, '0')}-${String(ymd[2]).padStart(2, '0')}`;
+    return html`<div class="timepill" role="group" aria-label="שעה ביום" data-3d-time data-band=${s.band}>
+        <button type="button" class="tp" aria-expanded=${this.timeOpen ? 'true' : 'false'} data-3d-time-toggle @click=${() => (this.timeOpen = !this.timeOpen)}><span aria-hidden="true">${glyph}</span> <span class="hh" data-3d-time-label>${hourLabel(s.hour)}</span></button>
+        ${this.timeManual ? html`<button type="button" class="now" data-3d-time-now @click=${() => this.timeNow()}>עכשיו</button>` : nothing}
+      </div>
+      ${this.timeOpen
+        ? html`<div class="timepop" data-3d-time-pop>
+            <input type="range" min="0" max="24" step="0.25" aria-label="שעה ביום" data-3d-time-slider .value=${String(s.hour)} @input=${(e: Event) => this.setTimeHour(Number((e.target as HTMLInputElement).value))} />
+            <div class="row"><input type="date" aria-label="תאריך" data-3d-time-date .value=${date} @change=${(e: Event) => this.setTimeDate((e.target as HTMLInputElement).value)} /><span>${TIME_BAND_HE[s.band as keyof typeof TIME_BAND_HE]} · שמש ${s.elevation}°</span></div>
+            ${this.site.known ? nothing : html`<div class="muted" data-3d-site-default>מיקום האתר לא הוגדר: מרכז הארץ</div>`}
+          </div>`
+        : nothing}`;
+  }
+
   render() {
     const preset = typeof this.preset === 'string' ? this.preset : 'camera';
     const cameraId = typeof this.preset === 'string' ? '' : this.preset.camera.replace(/^cam:/, '');
     const q = this.quality;
-    const mode = this.mode;
     return html`
       <div class="stage"></div>
       ${!this.ready && !this.error ? html`<div class="spinner" data-3d-spinner>טוען תלת-ממד…</div>` : nothing}
@@ -1397,20 +1679,26 @@ export class SwPlan3d extends LitElement {
             </select>`
           : nothing}
         <span class="sep" aria-hidden="true"></span>
-        <sw-chip data-quality-1 title=${QUALITY_MODE_HINT.schematic} ?selected=${mode === 'schematic'} @click=${() => this.setMode('schematic')}>${QUALITY_MODE_LABEL.schematic}</sw-chip>
-        <sw-chip data-quality-2 title=${QUALITY_MODE_HINT.full} ?selected=${mode === 'full'} @click=${() => this.setMode('full')}>${QUALITY_MODE_LABEL.full}</sw-chip>
-        <sw-chip data-quality-auto title=${QUALITY_MODE_HINT.auto} ?selected=${mode === 'auto'} @click=${() => this.setMode('auto')}>${QUALITY_MODE_LABEL.auto}</sw-chip>
-        <sw-chip data-night-toggle title="מצב לילה: שמיים כהים, אור ירח, החדרים הדלוקים זוהרים" ?selected=${this.night} aria-pressed=${this.night} @click=${() => this.setNight(!this.night)}>לילה</sw-chip>
+        <sw-chip data-quality-auto title="אוטומטי: מתחיל ברמת ברירת המחדל ויורד רמה כשהמכשיר איטי" ?selected=${this.mode === 'auto'} @click=${() => this.setMode('auto')}>אוטומטי</sw-chip>
+        <sw-chip data-quality-1 title="רמה סכמטית: חומרים שטוחים, בלי צללים" ?selected=${this.mode !== 'auto' && q === 1} @click=${() => this.setQuality(1)}>סכמטי</sw-chip>
+        <sw-chip data-quality-2 title="רמה מלאה: צללים רכים, חומרים, חיתוך קירות" ?selected=${this.mode !== 'auto' && q === 2} @click=${() => this.setQuality(2)}>מלא</sw-chip>
+        <sw-chip data-quality-3-lite title="ריאליסטי קל: חומרים אמיתיים, שמש ושמיים, בלי האפקטים הכבדים" ?selected=${this.mode === 'lite'} @click=${() => this.setMode('lite')}>ריאליסטי קל</sw-chip>
+        <sw-chip data-quality-3 title="ריאליסטי: חומרים אמיתיים, שמש לפי שעה, הצללה עדינה וזכוכית" ?selected=${this.mode === 'realistic'} @click=${() => this.setMode('realistic')}>ריאליסטי</sw-chip>
+        ${q < 3 ? html`<sw-chip data-night-toggle title="מצב לילה: שמיים כהים, אור ירח, החדרים הדלוקים זוהרים" ?selected=${this.night} aria-pressed=${this.night} @click=${() => this.setNight(!this.night)}>לילה</sw-chip>` : nothing}
         ${this.walkable
           ? html`<sw-chip data-walk-btn title="סיור בגובה עין: W A S D או החצים להליכה, Shift לריצה, גרירה להסתכלות, לחיצה על הרצפה להליכה לשם, Esc ליציאה" ?selected=${this.walkState !== 'off'} @click=${() => this.requestWalk()}>${this.walkState === 'requested' ? 'טוען סיור…' : 'סיור'}</sw-chip>`
           : nothing}
         <sw-button size="sm" variant="ghost" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
-      ${this.fallback && mode === 'auto' ? html`<div class="note fb" role="status" data-3d-fallback>${FALLBACK_HE}</div>` : nothing}
-      ${this.lowFps && mode === 'full' && q === 2
-        ? html`<div class="note fb hint" role="status" data-3d-low-fps>${LOW_FPS_HE}<button type="button" data-3d-low-fps-switch @click=${() => this.setMode('schematic')}>${LOW_FPS_SWITCH_HE}</button><button type="button" class="x" aria-label="סגירה" data-3d-low-fps-close @click=${() => (this.lowFps = false)}>×</button></div>`
+      ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${fallbackHe(this.rung)}</div>` : nothing}
+      ${this.perfHint
+        ? html`<div class="pill hint" role="status" data-3d-low-fps=${this.perfHint}>התצוגה איטית במכשיר הזה
+            <sw-button size="sm" variant="ghost" data-3d-low-fps-switch @click=${() => this.setMode(this.perfHint!)}>מעבר ל${RUNG_HE[this.perfHint]}</sw-button>
+            <button type="button" class="x" aria-label="סגירה" data-3d-low-fps-close @click=${() => (this.perfHint = null)}>×</button></div>`
         : nothing}
+      ${q === 3 ? this.renderTime() : nothing}
+      ${q === 3 ? html`<div class="vignette" aria-hidden="true"></div>` : nothing}
       ${this.toast ? html`<div class="toast" role="status" data-3d-toast>${this.toast}</div>` : nothing}
       ${this.hover ? html`<div class="tip" data-3d-tip data-3d-tip-kind=${this.hover.kind} style=${`left:${this.hover.x}px;top:${this.hover.y}px`}>${this.hover.label}</div>` : nothing}
     `;

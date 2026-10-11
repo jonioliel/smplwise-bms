@@ -37,11 +37,12 @@ import { buildPrimitives, circuitToken, type AnchorPosition, type CatalogLookup,
 import { panelStateId } from '../map/glass-wall';
 import { defaultLevelId } from '../map/studio-ops';
 import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, temperatureText, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
-import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
+import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
+import type { CatalogMaterialLookup } from '../map/material-resolve';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import { modeFromWire, type QualityMode } from '../map/quality-mode';
-import type { FloorRequestDetail, LevelSelectDetail, PartSelectDetail, WalkChangeDetail } from '../map/sw-plan-3d';
+import type { FloorRequestDetail, LevelSelectDetail, PartSelectDetail, RealisticChangeDetail, WalkChangeDetail } from '../map/sw-plan-3d';
 import { boundItemOf } from '../map/part-select';
 import { sharedChip, zonesWithChips } from '../map/shared-space';
 import '../components/sw-share-members';
@@ -159,6 +160,9 @@ export class ExploreFloorMap extends LitElement {
   @state() private preset3d: ScenePreset = 'iso';
   /** CR-029 S4: the eye-level walk asked for the walk world (the element's `walk-change`); the scene is then built with it. */
   @state() private walk3d = false;
+  /** CR-029 S1: the 3D draws the realistic level - the description carries its realistic part (realistic-change). */
+  @state() private real3d = false;
+  private materials3d: CatalogMaterialLookup | null = null;
   /** The installation's 3D quality default (plan.quality), handed to the element so it builds once at the right level. */
   @state() private quality3d: QualityMode | null = null;
   @state() private catalog3d: Catalog3DLookup | null = null;
@@ -1424,6 +1428,7 @@ export class ExploreFloorMap extends LitElement {
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
           this.catalog3d = lookup3dOf(lib);
+          this.materials3d = lookupMaterialsOf(lib);
           this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
@@ -1705,7 +1710,7 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!b || !this.hasScene) return null;
     const structureAll = this.sceneStructureKeys(b);
-    const structure = [...structureAll, this.levelFilter, this.walk3d]; // the walk world rides on the shown description only (never the strip's)
+    const structure = [...structureAll, this.levelFilter, this.walk3d, this.real3d]; // the walk world and the realistic part ride on the shown description only (never the strip's)
     const layer = this.roomStateLayer;
     const states = this.sceneStatesKey(b, layer);
     const memo = this.sceneMemo;
@@ -1740,7 +1745,7 @@ export class ExploreFloorMap extends LitElement {
     }
     if (!base) return null;
     const layers = { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') };
-    const desc = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer, walk: this.walk3d });
+    const desc = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer, walk: this.walk3d, realistic: this.real3d, materialsCatalog: this.materials3d });
     // the strip draws every level from a description keyed on the structure only (without the level filter and without
     // the state layer): a live state push or a level switch keeps the memo's object, so the element's thumbnail cache
     // (keyed on it) is not redrawn - the state dots are drawn over the cached pictures (CR-006 1b)
@@ -1869,6 +1874,7 @@ export class ExploreFloorMap extends LitElement {
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
       @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}
       .walkable=${true} @walk-change=${(e: CustomEvent<WalkChangeDetail>) => this.onWalkChange(e.detail.on)}
+      @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) { this.real3d = e.detail.on; this.sceneDue = true; } }}
       @floor-request=${(e: CustomEvent<FloorRequestDetail>) => { if (e.detail.floorId !== this.floorId && this.floors.some((f) => f.id === e.detail.floorId)) navigate(`/explore/floors/${e.detail.floorId}`); }}></sw-plan-3d>`;
   }
 
