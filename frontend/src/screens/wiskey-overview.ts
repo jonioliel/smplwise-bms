@@ -290,14 +290,6 @@ export class WiskeyOverview extends LitElement {
     return isApi() && can('access.release');
   }
 
-  /** CR-033 D3: the open button follows the one door rule per station (`door_access`, from the server: `access.release`
-   * on the station or `door.unlock` on its mapped lock); the release route decides again. Calls and announcements stay
-   * behind `access.release` itself. */
-  private canOpen(s: IntercomStation): boolean {
-    const access = this.feed?.door_access;
-    return isApi() && (access ? !!access[s.id] : can('access.release'));
-  }
-
   private setResult(stationId: string, tone: Tone, text: string) {
     this.results = { ...this.results, [stationId]: { tone, text } };
   }
@@ -471,7 +463,7 @@ export class WiskeyOverview extends LitElement {
   private renderPage(feed: IntercomFeed, demo: boolean) {
     const ov = feed.overview;
     this.cameraAccess = feed.camera_access ?? {};
-    const sub = `${t('wk4_entry_intro')}${this.canAct() || Object.values(this.feed?.door_access ?? {}).some(Boolean) ? '' : ' · צפייה בלבד'}${demo ? ' · נתוני הדגמה' : ''}`;
+    const sub = `${t('wk4_entry_intro')}${this.canAct() ? '' : ' · צפייה בלבד'}${demo ? ' · נתוני הדגמה' : ''}`;
     return html`<sw-page heading="WisKey · ${t('wk4_entry_center')}" subheading=${sub} wide>
       ${this.renderFeedBadge(feed, demo)}
       ${ov && feed.state !== 'ready' ? this.renderStaleNote(feed) : nothing}
@@ -642,7 +634,7 @@ export class WiskeyOverview extends LitElement {
         <span>סנכרון: ${t(s.sync_state)}</span>
         ${s.online && s.call_state !== 'ringing' ? html`<span>שיחה: ${t(s.call_state)}</span>` : nothing}
       </div>
-      ${this.canAct() || this.canOpen(s) ? this.renderActions(s) : nothing}
+      ${this.canAct() ? this.renderActions(s) : nothing}
       ${this.renderLastAccess(s)}
     </article>`;
   }
@@ -682,7 +674,7 @@ export class WiskeyOverview extends LitElement {
     const tts = this.ttsStatus[s.id];
     const ttsTone: Tone = tts?.state === 'closed' ? 'warn' : 'ok';
     return html`<div class="actions" data-wiskey-actions=${s.id}>
-      ${(ringing || inCall) && this.canAct()
+      ${ringing || inCall
         ? html`<div class="row call" role="group" aria-label="שליטה בשיחה" data-wiskey-call>
             ${(ringing ? (['answer', 'reject'] as const) : (['hangUp'] as const)).map((command) => {
               const armed = this.armed?.id === s.id && this.armed.command === command && this.armed.callState === s.call_state;
@@ -700,7 +692,7 @@ export class WiskeyOverview extends LitElement {
           </div>`
         : nothing}
       <div class="row">
-        ${(this.canOpen(s) ? locks : []).map((l) => {
+        ${locks.map((l) => {
           const name = lockLabel(s, l);
           const key = `${s.id}/${l.physical_index}`;
           const held = this.isHeld(key);
@@ -714,7 +706,7 @@ export class WiskeyOverview extends LitElement {
             >${held ? 'ממתין לבירור…' : name ? `שחרור ${name}` : 'שחרור דלת'}</sw-button
           >`;
         })}
-        ${s.online && this.canAct() ? html`<sw-button size="sm" variant="ghost" icon="volume" data-wiskey-speak ?disabled=${!live} @click=${() => this.openSpeak(s)}>הכרזה</sw-button>` : nothing}
+        ${s.online ? html`<sw-button size="sm" variant="ghost" icon="volume" data-wiskey-speak ?disabled=${!live} @click=${() => this.openSpeak(s)}>הכרזה</sw-button>` : nothing}
       </div>
       ${result ? html`<div class="result ${result.tone}" role="status" data-wiskey-result>${result.text}</div>` : nothing}
       ${tts ? html`<div class="result ${ttsTone}" role="status" data-wiskey-tts-status=${tts.state}>${ttsText(tts)}</div>` : nothing}

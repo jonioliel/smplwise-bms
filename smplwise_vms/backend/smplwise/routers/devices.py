@@ -315,18 +315,10 @@ def items(
     if kind == "locks":
         wide, floors = ha_scope.visible_floors(conn, principal, "door.unlock")
         placed = ha_scope.placements(conn) if floors and not wide else {}
-        from ..services import intercom_doors
-        from .ha import _wiskey_open_allowed
-
-        wiskey = intercom_doors.wiskey_lock_ids(conn)
         for f in body["floors"]:
             for a in f["areas"]:
                 for r in a["items"]:
                     r["can_unlock"] = bool(r["can_control"]) and not r.get("alarm_managed") and ha_scope.entity_visible(wide, floors, placed, r["entity_id"])
-                    if r["entity_id"] in wiskey:
-                        # CR-033 D3: a WisKey door follows the one door rule (no ha.entity.control needed); display only
-                        r["wiskey_door"] = True
-                        r["can_unlock"] = not r.get("alarm_managed") and _wiskey_open_allowed(conn, principal, r["entity_id"])
     body["sync"] = ha_sync.STATE.as_dict()
     return body
 

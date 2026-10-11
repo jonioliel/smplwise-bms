@@ -1335,8 +1335,7 @@ def release(c: TestClient, station: str = "entry-a", user: str = "sam", **fields
 def test_access_release_permission_catalogue():
     """`access.release` is its own, sensitive permission: only site_admin and system_admin hold it by default (the
     decision recorded at routers/access.py PERMISSION_LABELS), it is never implied, and the design catalogue agrees."""
-    # CR-033 D3: door_opener (access.read + access.release) is the one-switch door grant; it is never anyone's base role
-    assert {r for r, perms in ROLES.items() if "access.release" in perms} == {"site_admin", "system_admin", "door_opener"}
+    assert {r for r, perms in ROLES.items() if "access.release" in perms} == {"site_admin", "system_admin"}
     for role in ("viewer", "kiosk", "operator", "editor"):
         assert "access.release" not in ROLES[role], role
     assert "access.release" in SENSITIVE and "door.unlock" in SENSITIVE

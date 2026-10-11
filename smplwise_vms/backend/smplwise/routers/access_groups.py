@@ -308,7 +308,7 @@ def set_members(group_id: str, request: Request, principal: Principal = Depends(
 class GroupBindingBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role_id: str = Field(min_length=1, max_length=60)
-    scope_type: str = Field(pattern="^(installation|site|building|floor|camera|access_control_station)$")
+    scope_type: str = Field(pattern="^(installation|site|building|floor|camera)$")
     scope_id: str = Field(min_length=1, max_length=200)
     effect: str = Field(default="allow", pattern="^(allow|deny)$")
     expires_at: str | None = None
@@ -346,7 +346,7 @@ class ImpactBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     op: Literal["bind", "unbind", "members"]
     role_id: str | None = Field(default=None, max_length=60)
-    scope_type: str | None = Field(default=None, pattern="^(installation|site|building|floor|camera|access_control_station)$")
+    scope_type: str | None = Field(default=None, pattern="^(installation|site|building|floor|camera)$")
     scope_id: str | None = Field(default=None, max_length=200)
     effect: str = Field(default="allow", pattern="^(allow|deny)$")
     binding_id: str | None = Field(default=None, max_length=200)

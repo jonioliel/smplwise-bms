@@ -20,7 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, Principal, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
+from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, Principal, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
 from ..services import ha_client, revocation
 from ..services import playback as pb
 from ..services.timeutil import parse_utc
@@ -391,10 +391,6 @@ def _scope_exists(conn: sqlite3.Connection, scope_type: str, scope_id: str) -> b
         return scope_id == "*"
     if scope_type == "camera":  # T055: a registered camera (cameras are never soft-deleted)
         return conn.execute("SELECT 1 FROM cameras WHERE id = ?", (scope_id,)).fetchone() is not None
-    if scope_type == STATION:  # CR-033 D2: a station the WisKey copy lists, or one already placed or mapped
-        from ..services import intercom_doors
-
-        return intercom_doors.station_known(conn, scope_id)
     table = SCOPE_TABLES.get(scope_type)
     if not table:
         return False
@@ -510,9 +506,6 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
         # T055 ruling R3: no "administrator of one camera" - an ALLOW at camera scope carries viewing / operating roles
         # only; a full administrator may still DENY any role (system_admin, site_admin) on one camera (review M2)
         raise ApiError(422, "scope_not_allowed_for_role", "תפקיד שכולל שיוך תפקידים אינו מוקצה ברמת מצלמה.", details={"role_id": role_id})
-    if op == "bind" and effect == "allow" and scope[0] == STATION and "rbac.assign" in role_permissions(conn, role_id):
-        # CR-033 D2, as the camera rule: no "administrator of one station" - an ALLOW at station scope carries operating roles only
-        raise ApiError(422, "scope_not_allowed_for_role", "תפקיד שכולל שיוך תפקידים אינו מוקצה ברמת עמדת אינטרקום.", details={"role_id": role_id})
     if full_authority(conn, principal):
         return
     if scope[0] == "camera" and not scope_in_reach(conn, principal, scope):
@@ -564,12 +557,6 @@ def assign_scopes(conn: sqlite3.Connection, principal: Principal) -> list[dict[s
     for c in conn.execute("SELECT id FROM cameras ORDER BY sort_order, channel").fetchall():
         if reach.allows(c["id"]) and (full or scope_in_reach(conn, principal, ("camera", c["id"]))):
             out.append({"type": "camera", "id": c["id"], "name": scope_name(conn, "camera", c["id"])})
-    # CR-033 D2: the WisKey stations the actor may bind at station scope (names from the WisKey copy, never ids on screen)
-    from ..services import intercom_doors
-
-    for station_id in intercom_doors.known_station_ids(conn):
-        if authorize(conn, principal, "rbac.assign", (STATION, station_id)).allowed:
-            out.append({"type": STATION, "id": station_id, "name": scope_name(conn, STATION, station_id)})
     return out
 
 
@@ -773,7 +760,7 @@ class BindingBody(BaseModel):
     subject_kind: str = Field(pattern="^(user|group)$")
     subject_id: str = Field(min_length=1, max_length=200)
     role_id: str = Field(min_length=1, max_length=60)
-    scope_type: str = Field(pattern="^(installation|site|building|floor|camera|access_control_station)$")
+    scope_type: str = Field(pattern="^(installation|site|building|floor|camera)$")
     scope_id: str = Field(min_length=1, max_length=200)
     effect: str = Field(default="allow", pattern="^(allow|deny)$")
     expires_at: str | None = None
@@ -902,7 +889,7 @@ def revoke_binding(binding_id: str, request: Request, principal: Principal = Dep
 
 class PreviewBody(BaseModel):
     user_id: str = Field(min_length=1, max_length=200)
-    scope_type: str = Field(default="installation", pattern="^(installation|site|building|floor|camera|access_control_station)$")
+    scope_type: str = Field(default="installation", pattern="^(installation|site|building|floor|camera)$")
     scope_id: str = Field(default="*", min_length=1, max_length=200)
 
 

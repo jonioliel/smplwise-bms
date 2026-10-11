@@ -1137,13 +1137,6 @@ class IntercomSync:
         with self._cache_lock:
             return self._cache is not None
 
-    def stations(self) -> list[dict[str, Any]]:
-        """Every station of the served copy (empty without one) - the door map and the station scope read names and
-        relays from here (CR-033 D1/D2), never from the device."""
-        with self._cache_lock:
-            cached = self._cache
-        return list((cached or {}).get("stations", []))
-
     def tts_status(self, station_id: str) -> dict[str, Any] | None:
         return self._tts_status.get(station_id)
 
