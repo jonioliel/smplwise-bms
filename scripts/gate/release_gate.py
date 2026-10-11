@@ -18,7 +18,7 @@ PARALLEL MODE (opt-in: --parallel or GATE_PARALLEL=1; without it the gate runs e
   * the preview, dev-server, fixture, pixel and visual work runs as ONE pool of `--workers=1` Playwright processes ("units") under a
     total Chromium cap (GATE_PAR_SLOTS, default 10) on their own servers (dist preview, Vite dev server, fixture backend + preview:
     separate free ports, the fixture's own data dir), longest expected unit first, with a memory admission check (a unit starts only
-    while MemAvailable stays above GATE_PAR_MEM_FLOOR_MB=3072 plus GATE_PAR_MB_PER_SLOT=700 per starting worker);
+    while MemAvailable stays above GATE_PAR_MEM_FLOOR_MB=3072 plus GATE_PAR_MB_PER_SLOT=800 per starting worker);
   * units are packed per (category, project) from the earlier gates' per-file/per-project seconds (GATE_PAR_CHUNK_SECS=300 per unit);
     a file+project above GATE_PAR_SPLIT_SECS (600) whose spec has no serial mode / beforeAll / afterAll is split by test line (and by
     test title for parametrised siblings) from a `playwright test --list` of the branch, and a coverage check proves every listed test
@@ -28,6 +28,7 @@ PARALLEL MODE (opt-in: --parallel or GATE_PARALLEL=1; without it the gate runs e
   * backend: GATE_BACKEND_SHARDS shards (parallel default 6), balanced by the earlier gates' junit times (backend_s*.xml);
   * `release_gate.py --plan [--costs <gate logs dir | durations txt>] [--frontend <dir>]` prints the unit plan and a simulated timeline
     without running anything. GATE_ONLY_SPECS / GATE_ONLY_BACKEND (regex) run a SUBSET (marked as such; never a release verdict).
+    `release_gate.py --compare <reference .json> <new .json>` checks that every category ran and skipped the same number of tests.
 """
 import concurrent.futures as cf, glob, json, os, re, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
 from pathlib import Path
@@ -82,7 +83,7 @@ PAR_CHUNK_SECS = float(os.environ.get("GATE_PAR_CHUNK_SECS", "300"))    # target
 PAR_SPLIT_SECS = float(os.environ.get("GATE_PAR_SPLIT_SECS", "600"))    # a file+project above this is split by test line / title
 PAR_SPLIT_TITLES = _on(os.environ.get("GATE_PAR_SPLIT_TITLES", "1"))   # parametrised siblings on one line become one unit each
 PAR_MEM_FLOOR_MB = int(os.environ.get("GATE_PAR_MEM_FLOOR_MB", "3072"))
-PAR_MB_PER_SLOT = int(os.environ.get("GATE_PAR_MB_PER_SLOT", "700"))
+PAR_MB_PER_SLOT = int(os.environ.get("GATE_PAR_MB_PER_SLOT", "800"))    # 2026-10-11 subset: MemAvailable fell ~770 MB per busy slot
 PAR_VISUAL_SLOTS = int(os.environ.get("GATE_PAR_VISUAL_SLOTS", "8"))    # visual.mjs runs Playwright's default workers (cores / 2)
 PAR_NO_SPLIT = {x.strip() for x in os.environ.get("GATE_PAR_NO_SPLIT", "").split(",") if x.strip()}
 BACKEND_SHARDS = int(os.environ.get("GATE_BACKEND_SHARDS") or 0)       # 0 = the mode's default (3 serial, 6 parallel)
@@ -1474,6 +1475,23 @@ def server_of(u):
     return {"fixture": "fixture", "pixel": "preview", "visual": "visual"}.get(u["kind"], u["cat"])
 
 
+def compare_counts(ref, new):
+    """Per category: tests that ran (pass + flaky + known + fail) and skipped, reference vs new gate .json. Returns (equal, lines)."""
+    lines, equal = [], True
+    for cat in sorted(set(ref.get("counts", {})) | set(new.get("counts", {}))):
+        if cat == "baseline":
+            continue
+        a, b = ref.get("counts", {}).get(cat, {}), new.get("counts", {}).get(cat, {})
+        ra = sum(a.get(k, 0) for k in ("pass", "flaky", "known", "fail"))
+        rb = sum(b.get(k, 0) for k in ("pass", "flaky", "known", "fail"))
+        same = (ra, a.get("skipped", 0)) == (rb, b.get("skipped", 0))
+        equal &= same
+        lines.append(f"{'OK  ' if same else 'DIFF'} {cat:14s} ran {ra:5d} -> {rb:5d}   skipped {a.get('skipped', 0):5d} -> {b.get('skipped', 0):5d}   "
+                     f"fail {a.get('fail', 0)} -> {b.get('fail', 0)}   flaky {a.get('flaky', 0)} -> {b.get('flaky', 0)}")
+    lines.append(f"wall {ref.get('wall_seconds')} s -> {new.get('wall_seconds')} s; verdict {ref.get('verdict')} -> {new.get('verdict')}")
+    return equal, lines
+
+
 def plan_cli(argv):
     """--plan: print the unit plan and a simulated timeline (nothing runs). Options: --costs <dir|txt>[,...] (repeatable), --frontend <dir>,
     --slots N, --tier S|M|L, --chunk S, --split S, --json <file>, --no-visual."""
@@ -1741,6 +1759,10 @@ def main_cli(argv):
     if "--plan" in args:
         args.remove("--plan")
         return plan_cli(args)
+    if args[:1] == ["--compare"] and len(args) == 3:   # --compare <reference gate .json> <new gate .json>: 0 = same tests ran / skipped
+        equal, lines = compare_counts(json.loads(Path(args[1]).read_text()), json.loads(Path(args[2]).read_text()))
+        print("\n".join(lines))
+        return 0 if equal else 1
     while args:
         a = args.pop(0)
         if a == "--parallel":

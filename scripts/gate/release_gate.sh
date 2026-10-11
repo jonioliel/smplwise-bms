@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Release gate for SmplWise Arx: the whole tier-L check on the test machine, one command, one verdict.
-#   release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual-block|--no-visual]
-#     (default tier L; the branch must be pushed: the machine sees origin only)
+#   release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual-block|--no-visual] [--parallel]
+#     (default tier L; the branch must be pushed: the machine sees origin only; --parallel / GATE_PARALLEL=1: opt-in pool scheduler,
+#      see release_gate.py's docstring and docs/release/TEST_POLICY.md "Parallel release gate"; without it nothing changes)
 #     S  tsc + build + the unit-* specs + release_check
 #     M  S + the whole backend suite + every Playwright spec on the dist preview (no dev-server / fixture / pixel groups)
 #     L  everything (backend in 3 shards, preview, dev-server specs, fixture specs, pixel baselines, release_check)
@@ -36,7 +37,7 @@
 # see scripts/gate/INSTALL_ON_RUNNER.md. The self-test is scripts/gate/selftest_gate.py.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,36p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,37p "$0"; exit 0;; esac
 DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 [ -f "$DIR/release_gate.py" ] || { echo "release_gate.py must sit next to release_gate.sh ($DIR)"; exit 2; }
 mkdir -p "$HOME/smplwise-results" "$HOME/work"

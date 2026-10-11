@@ -53,6 +53,13 @@ if mode == "param_fail":      # a test() in a loop: two siblings share file:line
     a, b = spec(7, "unexpected"), spec(7)
     a["title"], b["title"] = "classic is pixel-stable", "bubble is pixel-stable"
     write(report([a, b])); sys.exit(1)
+if mode == "flaky_once":      # t2 fails in the first run and passes in every later one (the retry alone)
+    st = os.environ["FAKE_STATE"]
+    if not os.path.exists(st):
+        open(st, "w").write("1"); write(report([spec(1), spec(2, "unexpected")])); sys.exit(1)
+    write(report([spec(2)])); sys.exit(0)
+if mode == "fail_always":     # t2 fails every time
+    write(report([spec(1), spec(2, "unexpected")])); sys.exit(1)
 if mode == "argv":            # records its command line, then behaves like "ok"
     open(os.environ["FAKE_ARGV_OUT"], "a").write(json.dumps(sys.argv[1:]) + "\n")
     write(report([spec(i) for i in range(1, 6)])); sys.exit(0)
@@ -363,16 +370,22 @@ check("execute: a launcher that raises is recorded as an error (settled as a fai
 reset()
 logd = TMP / "logs_pool"
 logd.mkdir()
-modes = {"p_ok1": "ok", "p_ok2": "ok", "p_crash": "load_crash", "p_rc": "rc1_no_failure"}
-res, _ = g.execute_units([U(k, 1) for k in modes], 3,
-                         lambda u: g.run_pw(TMP, ["a.spec.ts"], ["desktop"], "http://127.0.0.1:1/", logd, u["label"], env={"FAKE_PW_MODE": modes[u["label"]]},
+envs = {"p_ok1": {"FAKE_PW_MODE": "ok"}, "p_ok2": {"FAKE_PW_MODE": "ok"}, "p_crash": {"FAKE_PW_MODE": "load_crash"},
+        "p_rc": {"FAKE_PW_MODE": "rc1_no_failure"}, "p_flaky": {"FAKE_PW_MODE": "flaky_once", "FAKE_STATE": str(TMP / "flaky_state")},
+        "p_fail": {"FAKE_PW_MODE": "fail_always"}}
+res, _ = g.execute_units([U(k, 1) for k in envs], 3,
+                         lambda u: g.run_pw(TMP, ["a.spec.ts"], ["desktop"], "http://127.0.0.1:1/", logd, u["label"], env=envs[u["label"]],
                                             workers=1, timeout=60, output=str(logd / "pwout" / u["label"])), mem=lambda: None)
-for lab in sorted(res):
+for lab in sorted(res):   # as run_parallel: settle (and its retries alone) only after the whole pool has finished
     rows, rc, to = res[lab]
-    g.settle("preview", rows, rc, to, TMP, logd, "http://127.0.0.1:1/", {"FAKE_PW_MODE": modes[lab]}, lab)
-check("pool + settle: 10 passes counted, the load crash and the rc=1-without-failure each FAIL the gate (guards unchanged under the pool)",
-      g.COUNTS["preview"]["pass"] >= 10 and g.compute_verdict([]) == "fail"
-      and any("p_crash: load error" in i["id"] for i in g.ITEMS) and any("p_rc: exit code" in i["id"] for i in g.ITEMS), (g.COUNTS, [i["id"] for i in g.ITEMS]))
+    g.settle("preview", rows, rc, to, TMP, logd, "http://127.0.0.1:1/", envs[lab], lab)
+c = g.COUNTS["preview"]
+check("pool + settle: passes counted; the load crash and the rc=1-without-failure FAIL; a test that failed in its unit and passed alone is "
+      "FLAKY; one that failed again alone is FAIL (the serial gate's classification, unit by unit)",
+      c["pass"] == 14 and c["flaky"] == 1 and c["fail"] == 4 and g.compute_verdict([]) == "fail"
+      and any("p_crash: load error" in i["id"] for i in g.ITEMS) and any("p_rc: exit code" in i["id"] for i in g.ITEMS)
+      and any(i["status"] == "FLAKY" and "passed alone" in i["reason"] for i in g.ITEMS)
+      and any(i["status"] == "FAIL" and "failed again alone" in i["reason"] for i in g.ITEMS), (c, [(i["id"], i["status"], i["reason"]) for i in g.ITEMS]))
 
 # split coverage
 spl = {("dev", "heavy.spec.ts", "desktop"): [(10, "g > a"), (10, "g > b"), (40, "g > c")]}
@@ -397,6 +410,13 @@ cc = g.load_costs([txt, gd])
 check("costs: the txt's file+project time wins over the older dir; the dir adds b.spec.ts; the retry report is ignored; listing from TEST lines",
       cc["fp"][("a.spec.ts", "desktop")] == 50.0 and cc["fp"][("b.spec.ts", "mobile")] == 12.0
       and cc["listing"][("a.spec.ts", "desktop")] == [(7, ["d", "t1"]), (9, ["d", "t2"])], cc)
+
+# --compare: the validation run's acceptance check (same tests ran and skipped per category as the serial reference)
+ref = {"counts": {"preview": {"pass": 10, "fail": 0, "flaky": 1, "known": 0, "skipped": 4}, "baseline": {"fail": 1}}, "wall_seconds": 5508, "verdict": "pass"}
+same = {"counts": {"preview": {"pass": 11, "fail": 0, "flaky": 0, "known": 0, "skipped": 4}}, "wall_seconds": 3000, "verdict": "pass"}
+less = {"counts": {"preview": {"pass": 9, "fail": 0, "flaky": 0, "known": 0, "skipped": 4}}, "wall_seconds": 3000, "verdict": "pass"}
+check("compare: a flaky that became a pass is the same count; a test that did not run is a DIFF",
+      g.compare_counts(ref, same)[0] is True and g.compare_counts(ref, less)[0] is False, g.compare_counts(ref, less)[1])
 
 # --plan on a toy frontend: classifies, splits, prints a timeline, runs nothing
 fe = TMP / "fe"

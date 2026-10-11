@@ -31,8 +31,14 @@ Expected last line: `SELFTEST PASSED`.
 ## Usage
 
 ```
-~/release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"]
+~/release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--parallel]
 ```
+
+* `--parallel` (or `GATE_PARALLEL=1`): the opt-in pool scheduler (one Chromium pool for preview, dev, fixture, pixel and visual;
+  6 backend shards). Knobs, semantics, the expected timeline and the validation run: `docs/release/TEST_POLICY.md`, section
+  "Parallel release gate". `python3 ~/release_gate.py --plan --costs ~/smplwise-results/gate_<branch>_<sha>.logs` prints its plan
+  without running anything. In parallel mode the logs directory also holds `par_plan.json`, `list_*.json` (the split listing),
+  `backend_s<k>.xml` (junit, the next run's shard weights) and `pwout/<unit>/` (each unit's Playwright output directory).
 
 * A Playwright or pytest process that crashed at load time, ran zero tests, hit the timeout, or exited non-zero without a failed
   test is a FAIL (category line in the report: `<label>: load error` / `zero tests` / `exit code` / `timeout`).
