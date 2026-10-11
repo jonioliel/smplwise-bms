@@ -228,6 +228,23 @@ import time as _time  # noqa: E402
 check("parallel: off by default (no GATE_PARALLEL), backend shards at the mode default, no subset",
       g.PARALLEL is False and g.BACKEND_SHARDS == 0 and g.subset_note() == "", (g.PARALLEL, g.BACKEND_SHARDS, g.subset_note()))
 
+# gate_status.json written from several threads at once (heartbeat, tsc and build side by side): never a FileNotFoundError on the .tmp
+errs = []
+
+
+def _hammer():
+    for _ in range(100):
+        try:
+            g.status("running", "selftest")
+        except Exception as e:  # noqa: BLE001
+            errs.append(repr(e))
+
+
+ths = [_th.Thread(target=_hammer) for _ in range(8)]
+[t.start() for t in ths]
+[t.join() for t in ths]
+check("status: 8 threads x 100 writes of gate_status.json raise nothing (the 2026-10-11 subset run died on the .tmp race)", not errs, errs[:2])
+
 # run_pw: --output only when asked (the serial gate's command line is unchanged)
 argv_out = TMP / "argv.txt"
 logd = TMP / "logs_argv"

@@ -102,10 +102,14 @@ def now():
     return time.strftime("%Y-%m-%dT%H:%M:%S%z")
 
 
+_WRITE_LOCK = threading.Lock()   # the heartbeat thread and (parallel mode) the tsc / build threads write gate_status.json too
+
+
 def write_json(p, d):
-    tmp = Path(str(p) + ".tmp")
-    tmp.write_text(json.dumps(d, indent=1, ensure_ascii=False))
-    os.replace(tmp, p)
+    with _WRITE_LOCK:
+        tmp = Path(str(p) + ".tmp")
+        tmp.write_text(json.dumps(d, indent=1, ensure_ascii=False))
+        os.replace(tmp, p)
 
 
 def status(state, summary=None, finished=None):
