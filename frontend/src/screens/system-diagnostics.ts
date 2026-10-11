@@ -846,6 +846,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-wall-display ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setView({ wall_display: (e.target as HTMLSelectElement).value as 'live' | 'stills' })}>
             <option value="live" ?selected=${this.viewValue('wall_display', 'live') !== 'stills'}>תלת־ממד חי</option><option value="stills" ?selected=${this.viewValue('wall_display', 'live') === 'stills'}>תמונות מוכנות</option>
           </select></sw-field></div>
+        <div class="row" data-set-kiosk-idle-row><span class="lbl">מסך קיר — מעבר לתמונה מוכנה<span class="muted">אחרי הזמן הזה בלי נגיעה ובלי שינוי בתוכנית, מסך קיר עובר לתמונה המוכנה ומפסיק לצייר פריימים; נגיעה או שינוי מחזירים את התלת־ממד. כל מסך קיר יכול לקבוע זאת בעצמו (הגדרות › מסכי קיר)</span></span>
+          <sw-field class="ctl"><select data-set-kiosk-idle ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setView({ kiosk_idle_s: Number((e.target as HTMLSelectElement).value) as 0 | 10 | 30 | 120 | 600 })}>
+            ${([[0, 'לעולם לא'], [10, '10 שניות'], [30, '30 שניות'], [120, '2 דקות'], [600, '10 דקות']] as const).map(([v, l]) => html`<option value=${v} ?selected=${this.viewValue('kiosk_idle_s', 30) === v}>${l}</option>`)}
+          </select></sw-field></div>
         <div class="row"><span class="lbl">תמונות מוכנות — סגנונות ושעות<span class="muted">מה „הכן תמונות ותאורה” מצייר לכל קומה: יותר סגנונות ושעות = יותר תמונות ואחסון</span></span>
           <sw-field class="ctl"><select data-set-bake-styles ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ styles: (e.target as HTMLSelectElement).value.split(',') as ('light' | 'dark')[] })}>
             ${[['light,dark', 'שני הסגנונות'], ['light', 'אדריכלי בהיר'], ['dark', 'תאום דיגיטלי כהה']].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('styles', ['light', 'dark']).join(',') === v}>${l}</option>`)}
