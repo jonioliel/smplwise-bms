@@ -316,8 +316,19 @@ async function shoot(el: Locator, page: Page, info: TestInfo, name: string): Pro
   await el.evaluate((n) => { (n as unknown as Probe).minFps = 0; });
   await el.locator('[data-preset-iso]').click();
   await expect(el).toHaveAttribute('data-preset', 'iso');
-  await page.waitForTimeout(800); // the damping and a door leaf's 350 ms swing
-  const url = await el.evaluate((n) => (n as unknown as Probe).capture());
+  await page.waitForTimeout(800); // a door leaf's 350 ms swing
+  // the orbit damping advances per drawn frame (a slow realistic frame on SwiftShader leaves the camera a sub-pixel short):
+  // draw until two frames in a row give the same picture - the camera has settled, whatever the frame rate
+  const url = await el.evaluate((n) => {
+    const e = n as unknown as Probe;
+    let last = e.capture();
+    for (let i = 0; i < 60; i++) {
+      const next = e.capture();
+      if (next === last) break;
+      last = next;
+    }
+    return last;
+  });
   expect(url?.startsWith('data:image/png;base64,')).toBe(true);
   const renderer = await el.evaluate((n) => (n as unknown as Probe).view.rendererInfo().renderer);
   info.annotations.push({ type: 'renderer', description: `${name}: ${renderer}` });
