@@ -19,7 +19,6 @@ row and `ui.tabs` untouched, every `data-*` hook the specs read kept, no setting
   green sentence for "saved" here and a `color:` inline style there.
 - The page title said "הגדרות המערכת · אזור זמן, מדיניות אחסון..." on every sub-tab.
 - Deleting a backup used `window.confirm`.
-- The schedules list's "today" strip wrapped into five rows above the first card on a phone.
 
 ## 2. Decisions
 
@@ -75,8 +74,9 @@ now and whenever it changes; Hebrew and English strings, backend and frontend te
 
 ### 2.7 Operator screens
 
-The schedules and automations screens (glass language, CR-014 / CR-017) were already at the level asked for; the one
-change is the schedules "today" strip, which is one scrolling line on a phone. The schedule editor, the week / table views,
+The schedules and automations screens (glass language, CR-014 / CR-017) were already at the level asked for and are
+unchanged (a scrolling "today" strip on the phone was tried and withdrawn: the layout guard `layout-schedules-parity` reads a
+horizontally scrolling strip as content escaping its box). The schedule editor, the week / table views,
 the automation builder and the drawers are unchanged (their states, empty boxes and banners already exist). The notifications
 settings page (its own glass design with a section navigation) is unchanged beyond the phone search row.
 

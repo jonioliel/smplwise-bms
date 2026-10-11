@@ -710,14 +710,6 @@ export class DevicesSchedules extends LitElement {
       }
     }
     @media (max-width: 767px) {
-      /* SET-polish: "today" is one scrolling line on a phone (it wrapped into five rows above the first card) */
-      .upnext {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        scrollbar-width: none;
-        padding-inline: 14px;
-        gap: 14px;
-      }
       /* the phone: the view switch moves under the search row (the title row keeps the automations screen's height, so the
          segment strip stays in place when switching between the two screens) */
       .dh-row {
