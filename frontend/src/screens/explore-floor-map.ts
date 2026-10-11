@@ -2544,7 +2544,9 @@ export class ExploreFloorMap extends LitElement {
   }
 
   /** K88 3D round 2: the building's floors beside the 3D view with state dots (lit · presence · open); a tap switches
-   * the floor and keeps the 3D view. The other floors' bundles load lazily, once per 3D opening. */
+   * the floor and keeps the 3D view. The other floors' bundles load lazily, once per 3D opening. It replaces the 2D quick
+   * floor buttons (`.floorbtns`), which are not rendered while the 3D is on screen: both stand in the same corner, and
+   * the buttons under the strip's translucent card showed through as a second, smaller set (owner report 2026-10-11). */
   private renderFloorStrip() {
     const floors = this.buildingFloors;
     if (this.bundle?.source !== 'api' || floors.length < 2) return nothing;
@@ -2750,7 +2752,7 @@ export class ExploreFloorMap extends LitElement {
       ${this.threeState === 'error' ? html`<div class="banner" data-3d-load-error><sw-state-panel compact state="error" heading="תלת-ממד לא נטען" hint=${this.threeError}></sw-state-panel></div>` : nothing}
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
       ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => (this.levelFilter = id))}</div>` : nothing}
-      ${b.source === 'api' && this.buildingFloors.length > 1
+      ${b.source === 'api' && this.buildingFloors.length > 1 && !this.shows3d
         ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
             ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}
           </div>`
