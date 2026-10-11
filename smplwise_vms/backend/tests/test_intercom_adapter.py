@@ -446,6 +446,54 @@ def test_conflicts_alerts_and_wiskey_audit(ac):
     assert get(c, "/status/audit", "sam").status_code == 403
 
 
+# ---------------------------------------------------------------- the S4 self-review's regressions
+
+def _without_correlation(r: Any) -> dict[str, Any]:
+    payload = r.json()
+    payload.pop("correlation_id", None)
+    return {"status": r.status_code, **payload}
+
+
+def test_not_found_is_the_same_answer_whether_absent_or_off_the_callers_chain(ac):
+    """Finding 1: WisKey's own not-found (the feed's error, with WisKey's code in `details`) and the filter's "not yours" were
+    distinguishable by message and details - an existence oracle for ids the caller may not see. Now byte-identical."""
+    _fake, c, _s = ac
+    pairs = [
+        (API + "/people/u2", API + "/people/u404"),  # u2 exists but only on entry-b
+        (API + "/people/u2/photo", API + "/people/u404/photo"),
+        (API + "/events/ev-8", API + "/events/ev-404"),  # ev-8 exists on entry-b
+        ("/api/v1/intercom/people/u2", "/api/v1/intercom/people/u404"),
+    ]
+    for hidden, absent in pairs:
+        a = _without_correlation(c.get(hidden, headers=as_user("sara")))
+        b = _without_correlation(c.get(absent, headers=as_user("sara")))
+        assert a == b and a["status"] == 404 and a["details"] == {}, (hidden, a, b)
+        assert "WisKey" not in a["user_message"]
+
+
+def test_a_row_dropped_on_the_unrestricted_path_is_never_counted(ac, monkeypatch):
+    """Finding 2: on the pass-through path WisKey's totals and cursor were forwarded on the assumption that an unrestricted
+    caller sees every row. When the filter drops one anyway (fail closed: here every decision about entry-c errs), the
+    request is answered the counted way instead - no total counts the dropped row, no WisKey cursor can name it."""
+    _fake, c, _s = ac
+    from smplwise import rbac
+
+    real = rbac.authorize
+
+    def flaky(conn: Any, principal: Any, permission: str, target: tuple[str, str]) -> Any:
+        if target == (ia.STATION_SCOPE, "entry-c"):
+            raise RuntimeError("database is gone")
+        return real(conn, principal, permission, target)
+
+    monkeypatch.setattr(rbac, "authorize", flaky)
+    people = body(c, "/people", "otto")["people"]
+    assert [p["id"] for p in people["records"]] == ["u1", "u2", "u3", "u5"] and people["total"] == 4 and people["total_all"] is None, "u4 is on entry-c only"
+    events = body(c, "/events", "otto", limit=2)["events"]
+    assert [e["id"] for e in events["records"]] == ["ev-8", "ev-7"]
+    assert events["next"] is None or events["next"].startswith("c."), "never WisKey's raw cursor on a filtered page"
+    assert "entry-c" not in json.dumps(events)
+
+
 # ---------------------------------------------------------------- feature flags
 
 def test_a_command_wiskey_does_not_list_hides_the_feature_without_a_call(ac):

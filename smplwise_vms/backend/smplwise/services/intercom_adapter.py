@@ -1184,6 +1184,25 @@ def _not_found(code: str, message: str) -> ApiError:
     return ApiError(404, code, message)
 
 
+# One answer per refusal kind, whoever produced it: WisKey saying "no such person / event / station" (the feed's
+# REQUEST_ERRORS, which carry WisKey's code in `details`) and the projection filter saying "not yours" must be byte-
+# identical, or comparing the two bodies tells a caller that an id they may not see exists (S4 self-review finding).
+UNIFORM: dict[str, tuple[int, str]] = {
+    PERSON_NOT_FOUND[0]: (404, PERSON_NOT_FOUND[1]),
+    EVENT_NOT_FOUND[0]: (404, EVENT_NOT_FOUND[1]),
+    STATION_NOT_FOUND[0]: (404, STATION_NOT_FOUND[1]),
+    "intercom_invalid_request": (422, "בקרת הכניסה דחתה את פרמטרי הבקשה."),
+}
+
+
+def uniform(exc: ApiError) -> ApiError:
+    """The adapter's one form of a not-found / invalid-request answer: same status, code and message, no details."""
+    if exc.code in UNIFORM:
+        status, message = UNIFORM[exc.code]
+        return ApiError(status, exc.code, message)
+    return exc
+
+
 def _unsupported(reply: dict[str, Any]) -> ApiError:
     return ApiError(409, "intercom_unsupported", "התכונה אינה זמינה בבקרת הכניסה המותקנת.", details={"reason": reply.get("last_error")})
 
@@ -1216,6 +1235,13 @@ class IntercomAdapter:
     # -- plumbing
     def _read(self, settings: Settings, who: str, key: str, send: Callable[[intercom_client.Call], Awaitable[Any]], project: Callable[[Any], Any],
               *, command: str, timeout: float | None = None, slot_wait: float = 0.0) -> dict[str, Any]:
+        try:
+            return self._read_raw(settings, who, key, send, project, command=command, timeout=timeout, slot_wait=slot_wait)
+        except ApiError as exc:
+            raise uniform(exc) from None
+
+    def _read_raw(self, settings: Settings, who: str, key: str, send: Callable[[intercom_client.Call], Awaitable[Any]], project: Callable[[Any], Any],
+                  *, command: str, timeout: float | None = None, slot_wait: float = 0.0) -> dict[str, Any]:
         channel = CHANNEL_OF[command]
         if channel == "technical":
             if not self._technical.acquire(blocking=False):
@@ -1445,7 +1471,12 @@ class IntercomAdapter:
                                command="users/query")
             if reply.get("people") is not None:
                 page = reply["people"]
-                page["records"] = [v for p in page["records"] if (v := ia.view_person(auth, p, legacy=legacy)) is not None]
+                views = [v for p in page["records"] if (v := ia.view_person(auth, p, legacy=legacy)) is not None]
+                if len(views) != len(page["records"]):
+                    # an unrestricted caller should see every row; one was dropped anyway (fail closed): WisKey's totals would
+                    # count it, so this request is answered the restricted way - scanned and counted over what is shown
+                    return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, True, legacy), filters, legacy)
+                page["records"] = views
             return self._people_out(reply, filters, legacy)
         return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, restricted, legacy), filters, legacy)
 
@@ -1596,7 +1627,12 @@ class IntercomAdapter:
                                project_event_page, command="events/list")
             if reply.get("events") is not None:
                 page = reply["events"]
-                page["records"] = [v for e in page["records"] if (v := self._event_view(auth, e, legacy)) is not None]
+                views = [v for e in page["records"] if (v := self._event_view(auth, e, legacy)) is not None]
+                if len(views) != len(page["records"]):
+                    # a row was dropped although the caller should see every one (fail closed): WisKey's own cursor may name
+                    # it, so this request is answered the filtered way - scanned, with an opaque cursor of Arx's own
+                    return self._scan_events(settings, auth, wf, local_person, limit, position, legacy)
+                page["records"] = views
                 page["stations"] = {sid: st for sid, st in page["stations"].items() if auth.station(ia.EVENTS_READ, sid)}
                 if not legacy:
                     page.update(complete=True, incomplete_reason=None)
