@@ -317,7 +317,12 @@ test('the thumbnail strip: one isometric per listed level, cached and bounded by
   const thumbs = el.locator('[data-3d-thumb]');
   await expect(thumbs).toHaveCount(3);
   await expect(thumbs.first()).toHaveAttribute('data-3d-thumb', 'L2'); // highest first, like the level chips
-  const srcs = await thumbs.locator('img').evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).src));
+  const srcsOf = () => thumbs.locator('img').evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).src));
+  // The buttons are drawn first with an empty picture; the pictures come from the scheduled pass of the next animation frame
+  // (scheduleThumbs), which on a busy machine is not there yet when the buttons are: wait for all three, then read them.
+  await expect.poll(async () => (await srcsOf()).filter((s) => s.startsWith('data:image/png;base64,')).length).toBe(3);
+  const srcs = await srcsOf();
+  expect(srcs).toHaveLength(3);
   expect(srcs.every((s) => s.startsWith('data:image/png;base64,'))).toBe(true);
   expect(srcs[2].length).toBeGreaterThan(srcs[0].length); // L0 holds the demo rooms; L2 is an empty plate-less level
   expect(await el.evaluate((n) => (n as unknown as Probe).thumbnailCount)).toBe(3);

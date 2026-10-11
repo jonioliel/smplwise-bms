@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { screenshotRetrying } from './shot-retry';
 
 // UI round 1 (2026-09-30), the tabs: הגדרות › כללי › לשוניות (`ui.tabs`: show / hide / reorder every navigation section's
 // tabs, installation-wide), the map's default floor (`map.default_floor`) and the device catalogue that left the map for
@@ -102,7 +103,13 @@ async function open(page: Page, hash: string) {
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
-  await page.waitForTimeout(700);
+  // The shell draws its rows from the built-in tabs at once and re-draws them when the product settings (ui.tabs among them)
+  // arrive. A fixed sleep guessed that arrival; on a busy machine the settings answer came later and the rows still showed
+  // the built-in tabs ("תיקים" in the investigation row). `data-shell-ready` is set once the session is known and the settings
+  // are applied (sw-app.updated), so the reads after open() see the final rows.
+  await page.waitForSelector('sw-app[data-shell-ready]');
+  // and let the first frames out: a picture taken before the compositor has produced one fails with "Unable to capture screenshot"
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 }
 
 const hashOf = (page: Page) => page.evaluate(() => location.hash);
@@ -112,7 +119,7 @@ const rail = (page: Page, info: { project: { name: string } }) => page.locator(`
 const rowTabs = (page: Page) => page.locator('sw-app .subnav sw-tabs a').allTextContents();
 async function shot(page: Page, name: string) {
   fs.mkdirSync(EVIDENCE, { recursive: true });
-  await page.screenshot({ path: path.join(EVIDENCE, `${name}.png`) });
+  await screenshotRetrying(page, { path: path.join(EVIDENCE, `${name}.png`) });
 }
 
 test.describe('tabs configuration, the map default floor and the device catalogue (mocked backend)', () => {

@@ -541,6 +541,10 @@ test.describe('multimedia screens (mocked backend)', () => {
     expect(st.calls.some((c) => c.method === 'DELETE')).toBe(false);
     await page$(page).locator('[data-mm-reset]').click();
     await page$(page).locator('[data-mm-confirm-yes]').click();
+    // The editor itself lists all eight screens (hidden ones dimmed), so "eight cards" is true before AND after the reset: the
+    // reset is over when the edit bar is gone (the page leaves the editor once the DELETE was answered). Counting the cards
+    // first let the DELETE below be read before the request had reached the handler.
+    await expect(page$(page).locator('[data-mm-editbar]')).toHaveCount(0);
     await expect(cards(page)).toHaveCount(8);
     expect(st.calls.filter((c) => c.method === 'DELETE' && c.path === 'multimedia/layout')).toHaveLength(1);
   });
@@ -603,7 +607,12 @@ test.describe('multimedia screens (mocked backend)', () => {
     await page$(page).locator('[data-mm-reset]').click();
     await expect(page$(page).locator('[data-mm-confirm="reset"]')).toHaveAttribute('heading', 'להחזיר את המסך שלי לברירת המחדל?');
     await page$(page).locator('[data-mm-confirm-yes]').click();
+    // The editor lists all eight screens too (the hidden gym dimmed), so the count of eight proves nothing about the reset: it
+    // holds before the request is even sent. The reset is over when the edit bar is gone (the page leaves the editor once
+    // /me/prefs answered); only then is the second write on record.
+    await expect(page$(page).locator('[data-mm-editbar]')).toHaveCount(0);
     await expect(cards(page)).toHaveCount(8);
+    expect(prefsPuts()).toHaveLength(2);
     expect((prefsPuts().at(-1)!.body as Record<string, unknown>)['multimedia.personal']).toBeNull();
     expect(st.calls.some((c) => c.method === 'DELETE')).toBe(false);
   });
