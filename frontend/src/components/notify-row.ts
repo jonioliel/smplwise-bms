@@ -5,7 +5,7 @@ import { foldLabel, isUnread, relativeTime, rowActions, type Notification } from
 import { mediaGlassControls } from '../styles/media-glass';
 import { nIcon } from './notify-icons';
 import { notifyControls } from './notify-css';
-import { iconOf, openLabel, placeText, rowTag } from './notify-logic';
+import { iconOf, menuArrow, openLabel, placeText, rowTag } from './notify-logic';
 
 export type RowAction = 'read' | 'snooze' | 'snooze_morning' | 'ack' | 'open';
 
@@ -256,14 +256,18 @@ export class NotifyRow extends LitElement {
     if (!e.composedPath().includes(this)) this.setMenu(false);
   };
   private onKey = (e: KeyboardEvent) => {
-    if (this.menu && e.key === 'Escape') {
+    if (!this.menu) return;
+    if (e.key === 'Escape') {
       e.stopPropagation();
       this.setMenu(false);
-    }
+      this.renderRoot.querySelector<HTMLElement>('[data-row-more]')?.focus();
+    } else if (menuArrow(e, this.renderRoot.querySelector('[data-row-menu]'))) e.preventDefault();
   };
   private setMenu(on: boolean): void {
     this.menu = on;
     this.toggleAttribute('data-menu-open', on);
+    // keyboard: an opened menu takes the focus on its first item (Arrow keys move, Escape returns to the button)
+    if (on) void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('[data-row-menu] [role^="menuitem"]')?.focus({ preventScroll: true }));
   }
   connectedCallback() {
     super.connectedCallback();

@@ -336,23 +336,23 @@ export const mediaPageStyles = css`
       inline-size: max-content;
       max-inline-size: calc(100% - 24px);
       inset-block-end: 26px;
-      background: rgba(28, 28, 30, 0.88);
+      background: var(--sw-toast-bg);
       -webkit-backdrop-filter: var(--sw-perf-blur, blur(20px));
       backdrop-filter: var(--sw-perf-blur, blur(20px));
-      color: #fff;
+      color: var(--sw-toast-text);
       padding: 11px 20px 11px 16px;
       border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid color-mix(in srgb, var(--sw-toast-text) 12%, transparent);
       font-size: var(--sw-fs-base);
       font-weight: 500;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+      box-shadow: var(--sw-shadow-3);
       display: flex;
       gap: 9px;
       align-items: center;
       animation: mm-pop var(--mm-motion) var(--mm-ease);
     }
     .toast .ic {
-      color: #30d158;
+      color: var(--sw-success);
       font-size: var(--sw-fs-lg);
     }
     @media (pointer: coarse), (max-width: 767px) {

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { astToTokens, coefficients, detectPreset, evaluate, factorLabel, meterIdsOf, parseTokens, presetTokens, sentence, textToTokens, tokensToText, type Tok } from '../src/electricity/elec-formula';
 import { baseNumber, billNumber, nextPeriods, periodContaining } from '../src/electricity/elec-format';
-import { chartBars, hasComparison } from '../src/electricity/elec-chart-data';
+import { BAR_MAX, barPath, chartBars, hasComparison, labelledBars } from '../src/electricity/elec-chart-data';
 import { mockBackend, mockHistoryWire } from '../src/api/electricity-billing-mock';
 import { ERROR_TEXT, PDF_RETRYABLE, buildHistory, eventText, type BillHistory } from '../src/api/electricity-billing';
 import { ENERGY_PERMISSIONS, ENERGY_PERMISSION_LABELS, energyPermissionLabel } from '../src/electricity/access';
@@ -117,6 +117,21 @@ test.describe('consumption chart data (owner round 3)', () => {
     const bars = chartBars(H({ previous: [P('2025-09', '700'), P('2025-10', '710')], same_period_last_year: ly }));
     expect(bars.filter((b) => b.kind === 'ly')).toHaveLength(0);
     expect(bars.find((b) => b.lyMark)?.kwh).toBe(700);
+  });
+  // MEDIA-polish (data-viz rules): values only where they carry the story; the bar is a rounded-top path, square at the baseline, at most 24 px
+  test('visible values: the current period, the highest period and last year only; a gap never gets one', () => {
+    const ly = { from: '2025-09-01', to: '2025-09-30', kwh: '690', status: 'measured' as const, source: 'readings' as const };
+    const bars = chartBars(H({ previous: [P('2026-06', '610'), P('2026-07', '845'), P('2026-08', null, 'missing')], same_period_last_year: ly }));
+    const labelled = labelledBars(bars);
+    expect([...labelled].sort()).toEqual(['cur', 'ly', 'p2026-07-28'].sort());
+    expect(labelled.has('p2026-06-28')).toBe(false);
+    expect(labelled.has('p2026-08-28')).toBe(false);
+    expect(labelledBars([])).toEqual(new Set());
+  });
+  test('the bar path rounds the data end only and never more than half its width; the thickness cap is 24 px', () => {
+    expect(barPath(10, 20, 24, 100)).toBe('M10,120 V24 Q10,20 14,20 H30 Q34,20 34,24 V120 Z');
+    expect(barPath(0, 0, 4, 1)).toBe('M0,1 V1 Q0,0 1,0 H3 Q4,0 4,1 V1 Z'); // a 1 px bar: the radius shrinks to its height
+    expect(BAR_MAX).toBe(24);
   });
 });
 

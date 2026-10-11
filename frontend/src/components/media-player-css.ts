@@ -152,7 +152,7 @@ export const playerBase = css`
     inline-size: 26px;
     block-size: 26px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--sw-toggle-thumb);
     margin-block-start: -9px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   }
@@ -161,7 +161,7 @@ export const playerBase = css`
     block-size: 26px;
     border: 0;
     border-radius: 50%;
-    background: #fff;
+    background: var(--sw-toggle-thumb);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
   }
   .rng.sm::-webkit-slider-runnable-track {
@@ -306,7 +306,7 @@ export const playerStyles = css`
   }
   .hpw.on {
     background: var(--mr-accent);
-    color: #fff;
+    color: var(--sw-text-inverse);
     box-shadow: 0 6px 18px var(--mr-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
   .hpw .ic {
@@ -679,7 +679,7 @@ export const playerStyles = css`
   }
   .uq .row.cur .ix {
     background: var(--mr-accent);
-    color: #fff;
+    color: var(--sw-text-inverse);
   }
   .uq .ix .ic {
     font-size: var(--sw-fs-base);
@@ -814,7 +814,7 @@ export const playerStyles = css`
     block-size: 18px;
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, 0.4);
-    border-block-start-color: #fff;
+    border-block-start-color: var(--sw-on-video);
     animation: mr-spin 800ms linear infinite;
     z-index: 3;
     background: none;
@@ -897,7 +897,7 @@ export const playerStyles = css`
     border: 2px solid var(--mr-border-strong);
     display: grid;
     place-items: center;
-    color: #fff;
+    color: var(--sw-text-inverse);
     transition: background var(--mr-motion), border-color var(--mr-motion);
   }
   .ckrow .ck .ic {

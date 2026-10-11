@@ -8,7 +8,7 @@ import {
 import { mediaGlassStyles } from '../styles/media-glass';
 import { nIcon } from './notify-icons';
 import { notifyControls, notifyKnobs } from './notify-css';
-import { filterCounts, sourceOptions, subtitleText, visibleRows } from './notify-logic';
+import { filterCounts, menuArrow, sourceOptions, subtitleText, visibleRows } from './notify-logic';
 import { applyNotifyGlass, notifyStore, type NotifyState } from './notify-store';
 import './notify-row';
 import './notify-detail';
@@ -435,10 +435,12 @@ export class NotifyCenter extends LitElement {
         max-inline-size: calc(100% - 24px);
         inset-block-end: 78px;
         background: var(--sw-toast-bg);
+        -webkit-backdrop-filter: var(--sw-perf-blur, blur(20px));
+        backdrop-filter: var(--sw-perf-blur, blur(20px));
         color: var(--sw-toast-text);
         padding: 11px 20px 11px 16px;
         border-radius: var(--sw-r-pill);
-        border: 1px solid var(--sw-border-strong);
+        border: 1px solid color-mix(in srgb, var(--sw-toast-text) 12%, transparent);
         font-size: var(--sw-fs-base);
         font-weight: 500;
         box-shadow: var(--sw-shadow-3);
@@ -559,18 +561,28 @@ export class NotifyCenter extends LitElement {
   }
 
   private onKey = (e: KeyboardEvent) => {
-    if (!this.open || e.key !== 'Escape') return;
+    if (!this.open) return;
+    if (this.srcMenu && menuArrow(e, this.renderRoot.querySelector('[data-source-menu]'))) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key !== 'Escape') return;
     e.stopPropagation();
     if (this.door.phase === 'confirm' || this.door.phase === 'step_up') this.door = reduceDoorOpen(this.door, { type: 'cancel' });
     else if (this.door.phase === 'done' || this.door.phase === 'failed') this.door = reduceDoorOpen(this.door, { type: 'dismiss' });
     else if (this.door.phase === 'sending') return; // a command is on its way: nothing closes it
-    else if (this.srcMenu) this.srcMenu = false;
+    else if (this.srcMenu) this.toggleSourceMenu();
     else if (this.detailId) this.detailId = null;
     else this.close();
   };
 
   private close() {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
+  }
+  /** The source menu: opened, it takes the focus on its first item (arrow keys move, Escape closes it and returns to the button). */
+  private toggleSourceMenu() {
+    this.srcMenu = !this.srcMenu;
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(this.srcMenu ? '[data-source-menu] [role^="menuitem"]' : '[data-source-filter]')?.focus({ preventScroll: true }));
   }
   private go(href: string) {
     this.dispatchEvent(new CustomEvent('navigate', { detail: { href }, bubbles: true, composed: true }));
@@ -681,7 +693,7 @@ export class NotifyCenter extends LitElement {
     const seg = (f: InboxFilter, label: string, n?: number) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => (this.filter = f)}>${label}${n !== undefined && n > 0 ? html`<small class="n">${n}</small>` : nothing}</button>`;
     return html`<div class="nfilt" data-center-filters>
       <div class="seg" role="group" aria-label="סינון">${seg('all', 'הכל')}${seg('unread', 'לא נקראו', c.unread)}${seg('critical', 'קריטי', c.critical)}</div>
-      <div class="srcbtn"><button type="button" class=${classMap({ rc: true, on: this.category !== null })} data-source-filter aria-haspopup="menu" aria-expanded=${String(this.srcMenu)} @click=${() => (this.srcMenu = !this.srcMenu)}>${nIcon('filter')}${this.category ? CATEGORY_LABEL[this.category] : 'מקור'}${nIcon('chevronDown')}</button>
+      <div class="srcbtn"><button type="button" class=${classMap({ rc: true, on: this.category !== null })} data-source-filter aria-haspopup="menu" aria-expanded=${String(this.srcMenu)} @click=${() => this.toggleSourceMenu()}>${nIcon('filter')}${this.category ? CATEGORY_LABEL[this.category] : 'מקור'}${nIcon('chevronDown')}</button>
         ${this.srcMenu ? html`<div class="pop" role="menu" data-source-menu>
           <button type="button" role="menuitemradio" aria-checked=${String(this.category === null)} data-source-opt="all" @click=${() => { this.category = null; this.srcMenu = false; }}>${nIcon('list')}כל המקורות<span class="cnt n">${s.rows.length}</span></button>
           ${opts.map((o) => html`<button type="button" role="menuitemradio" aria-checked=${String(this.category === o.category)} data-source-opt=${o.category} @click=${() => { this.category = o.category; this.srcMenu = false; }}>${nIcon(o.icon)}${o.label}<span class="cnt n">${o.count}</span></button>`)}

@@ -11,6 +11,29 @@ import {
   type PushAction, type Severity, type SourceInfo, type SubjectKind, type Weekday,
 } from '../api/notifications';
 
+// ------------------------------------------------------------------------------------------------ keyboard
+
+/**
+ * MEDIA-polish: arrow keys inside an open menu (`role="menu"`): ArrowDown / ArrowUp move the focus between the items and wrap, Home / End
+ * jump. Returns true when the key was handled (the caller prevents the default scroll). Items are the `role^="menuitem"` buttons of `menu`.
+ */
+export function menuArrow(e: Pick<KeyboardEvent, 'key'>, menu: ParentNode | null, active: Element | null = (menu as unknown as { ownerDocument?: Document })?.ownerDocument?.activeElement ?? null): boolean {
+  if (!menu) return false;
+  const items = Array.from(menu.querySelectorAll<HTMLElement>('[role^="menuitem"]'));
+  if (!items.length) return false;
+  const root = (menu as Node).getRootNode?.() as (ShadowRoot | Document | undefined);
+  const focused = (root && 'activeElement' in root ? root.activeElement : active) ?? active;
+  const i = items.findIndex((el) => el === focused);
+  let next = -1;
+  if (e.key === 'ArrowDown') next = i < 0 ? 0 : (i + 1) % items.length;
+  else if (e.key === 'ArrowUp') next = i < 0 ? items.length - 1 : (i - 1 + items.length) % items.length;
+  else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = items.length - 1;
+  if (next < 0) return false;
+  items[next].focus({ preventScroll: true }); // the filter row scrolls sideways: a focus must not drag it along
+  return true;
+}
+
 // ------------------------------------------------------------------------------------------------ rows
 
 /** The place a row names: the area, else what the subject is ("מערכת", "חשבון", "תזמונים") - every row has one short place word. */

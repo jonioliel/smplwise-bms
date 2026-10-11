@@ -11,7 +11,8 @@ import { css } from 'lit';
 export const notifyKnobs = css`
   /* SEC polish (2026-10-10): the knobs read the product's state tokens (--sw-product-*: the resolved product colours, never the
      --dv-* bridge, so no cycle inside the glass host) - one amber, one red, one blue on every screen, light and dark, every skin.
-     The scheme block below only re-tunes the washes that need more presence on a dark glass. */
+     The scheme block below only re-tunes the washes that need more presence on a dark glass.
+     MEDIA-polish (2026-10-10) aimed at the same result through the --dv-* knobs; the 2.4.6 integration keeps this (2.4.5) block. */
   :host([data-devices-style='glass']) {
     --nt-sev-info: var(--sw-text-3);
     --nt-sev-alert: var(--sw-product-warning);

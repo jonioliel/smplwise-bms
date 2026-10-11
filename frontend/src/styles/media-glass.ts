@@ -202,7 +202,7 @@ export const mediaGlassControls = css`
     -webkit-backdrop-filter: var(--dv-surface-blur);
     backdrop-filter: var(--dv-surface-blur);
     color: var(--dv-text);
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
@@ -219,21 +219,21 @@ export const mediaGlassControls = css`
     transform: scale(0.97);
   }
   .btn .ic {
-    font-size: 16px;
+    font-size: var(--sw-fs-lg);
   }
   .btn.sm {
     min-block-size: 34px;
     padding-inline: 13px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     gap: 6px;
   }
   .btn.sm .ic {
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
   }
   .btn.primary {
     background: var(--dv-accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--sw-text-inverse);
     box-shadow: 0 6px 16px var(--mm-accent-glow);
   }
   .btn.primary:hover {
@@ -252,7 +252,7 @@ export const mediaGlassControls = css`
   .btn.danger {
     background: var(--dv-danger);
     border-color: transparent;
-    color: #fff;
+    color: var(--sw-text-inverse);
     box-shadow: none;
   }
   .btn[disabled] {
@@ -274,7 +274,7 @@ export const mediaGlassControls = css`
     background: transparent;
     border-radius: var(--dv-radius-control);
     padding: 6px 16px;
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     color: var(--dv-text);
     min-block-size: 32px;
@@ -292,7 +292,7 @@ export const mediaGlassControls = css`
     box-shadow: var(--dv-shadow-control);
   }
   .seg button small {
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     color: var(--dv-text-2);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -305,7 +305,7 @@ export const mediaGlassControls = css`
   .seg.sm button {
     padding: 4px 12px;
     min-block-size: 30px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
   }
   /* switch */
   .tog {
@@ -327,7 +327,7 @@ export const mediaGlassControls = css`
     inline-size: 24px;
     block-size: 24px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--sw-toggle-thumb);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.28);
     transition: inset-inline-start var(--mm-motion) var(--mm-ease);
   }
@@ -353,7 +353,7 @@ export const mediaGlassControls = css`
     transition: transform 120ms var(--mm-ease), box-shadow var(--mm-motion), color var(--mm-motion);
   }
   .rb .ic {
-    font-size: 18px;
+    font-size: var(--sw-fs-xl);
   }
   .rb:active {
     transform: scale(0.92);
@@ -382,12 +382,12 @@ export const mediaGlassControls = css`
     transition: transform 120ms var(--mm-ease), background var(--mm-motion), box-shadow var(--mm-motion);
   }
   .pw .ic {
-    font-size: 19px;
+    font-size: var(--sw-fs-2xl);
     stroke-width: 2;
   }
   .pw.on {
     background: var(--dv-accent);
-    color: #fff;
+    color: var(--sw-text-inverse);
     box-shadow: 0 6px 18px var(--mm-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
   .pw:active {
@@ -461,13 +461,13 @@ export const mediaGlassControls = css`
     pointer-events: none;
   }
   .vrock button .ic {
-    font-size: 16px;
+    font-size: var(--sw-fs-lg);
   }
   .vrock .vv {
     min-inline-size: 30px;
     text-align: center;
     font-weight: 700;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-variant-numeric: tabular-nums;
   }
   .vrock.muted .vv {
@@ -485,7 +485,7 @@ export const mediaGlassControls = css`
     background: var(--dv-accent-soft);
     color: var(--dv-accent-text);
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     flex: none;
     transition: background var(--mm-motion), transform 120ms;
   }
@@ -496,7 +496,7 @@ export const mediaGlassControls = css`
     transform: scale(0.96);
   }
   .rbtn .ic {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
   }
   .chipx {
     display: inline-flex;
@@ -507,7 +507,7 @@ export const mediaGlassControls = css`
     border-radius: var(--dv-radius-control);
     background: var(--dv-surface-2);
     border: 1px solid var(--dv-border);
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     font-weight: 500;
     color: var(--dv-text-2);
     white-space: nowrap;
@@ -523,8 +523,8 @@ export const mediaGlassControls = css`
     -webkit-backdrop-filter: var(--sw-perf-blur, blur(12px));
     backdrop-filter: var(--sw-perf-blur, blur(12px));
     border: 1px solid rgba(255, 255, 255, 0.16);
-    color: #fff;
-    font-size: 11.5px;
+    color: var(--sw-on-video);
+    font-size: var(--sw-fs-xs);
     font-weight: 600;
     white-space: nowrap;
   }
@@ -532,11 +532,11 @@ export const mediaGlassControls = css`
     inline-size: 7px;
     block-size: 7px;
     border-radius: 50%;
-    background: #30d158;
-    box-shadow: 0 0 8px #30d158;
+    background: var(--dv-success);
+    box-shadow: 0 0 8px var(--dv-success);
   }
   .pilld .ic {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
   }
   /* popover menu (floor menu, source menu) */
   @keyframes mm-pop {
@@ -572,7 +572,7 @@ export const mediaGlassControls = css`
     border-radius: 12px;
     padding: 9px 10px;
     text-align: start;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 500;
     min-block-size: 44px;
   }
@@ -580,7 +580,7 @@ export const mediaGlassControls = css`
     background: var(--dv-surface-3);
   }
   .pop button .ic {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
     color: var(--dv-text-2);
   }
   .pop button[aria-checked='true'] {
@@ -596,7 +596,7 @@ export const mediaGlassControls = css`
   }
   .pop .cnt {
     margin-inline-start: auto;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
     font-variant-numeric: tabular-nums;
   }
@@ -641,7 +641,7 @@ export const mediaGlassControls = css`
     margin-block-end: 4px;
   }
   .statebox b {
-    font-size: 18px;
+    font-size: var(--sw-fs-xl);
     font-weight: 600;
   }
   .errbar {
@@ -656,12 +656,12 @@ export const mediaGlassControls = css`
     backdrop-filter: var(--dv-surface-blur);
     border: 1px solid color-mix(in srgb, var(--dv-danger) 30%, transparent);
     color: var(--dv-text);
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 500;
   }
   .errbar > .ic {
     color: var(--dv-danger);
-    font-size: 18px;
+    font-size: var(--sw-fs-xl);
   }
   .errbar .btn {
     margin-inline-start: auto;
@@ -688,7 +688,7 @@ export const mediaGlassControls = css`
   }
   .editbar .t .ic {
     color: var(--dv-accent-text);
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
   }
   /* the now-showing "poster": a gradient of our own hue and a neutral glyph (never a logo, never a brand colour) */
   .art {
@@ -747,7 +747,7 @@ export const mediaGlassControls = css`
     background: radial-gradient(circle at 70% 30%, #2b3656, #0b0f19 70%);
   }
   .art.saver::before {
-    background: radial-gradient(1px 1px at 20% 30%, #fff, transparent), radial-gradient(1px 1px at 60% 20%, #fff, transparent), radial-gradient(1.5px 1.5px at 80% 70%, #fff, transparent), radial-gradient(1px 1px at 35% 75%, #fff, transparent);
+    background: radial-gradient(1px 1px at 20% 30%, var(--sw-on-video), transparent), radial-gradient(1px 1px at 60% 20%, var(--sw-on-video), transparent), radial-gradient(1.5px 1.5px at 80% 70%, var(--sw-on-video), transparent), radial-gradient(1px 1px at 35% 75%, var(--sw-on-video), transparent);
     opacity: 0.6;
   }
   @media (prefers-reduced-motion: reduce) {

@@ -205,7 +205,7 @@ export class MediaScreenCard extends LitElement {
       display: block;
       block-size: 100%;
       inline-size: var(--p, 0%);
-      background: #fff;
+      background: var(--sw-on-video);
       border-radius: 3px;
     }
     .shot .ctr {
@@ -245,7 +245,7 @@ export class MediaScreenCard extends LitElement {
       block-size: 30px;
       border-radius: 50%;
       border: 3px solid rgba(255, 255, 255, 0.35);
-      border-top-color: #fff;
+      border-top-color: var(--sw-on-video);
       animation: mm-spin 0.8s linear infinite;
     }
     .shot[disabled] {

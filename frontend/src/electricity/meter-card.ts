@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
@@ -21,7 +21,9 @@ type Range = 'hours' | 'days' | 'months';
 const RANGE_LABEL: Record<Range, string> = { hours: '24 שעות', days: '30 ימים', months: '12 חודשים' };
 const REASON_LABEL: Record<string, string> = { install: 'התקנה', reset: 'איפוס', replace: 'החלפת מונה', source_change: 'שינוי מקור' };
 
-/** A bar chart of kWh: the oldest bar at the start side (right in RTL), values on the bars when there are few of them. */
+/** A bar chart of kWh: the oldest bar at the start side (right in RTL). Data-viz rules (MEDIA-polish): thin bars (at most 24 px), the
+ * latest period in the accent and the rest in the soft tint, a value only on the latest and the highest bar (every value is in the
+ * bar's own title and in the readings table). */
 export function barChart(data: { label: string; value: number }[], ariaLabel: string) {
   const W = 640;
   const H = 170;
@@ -29,16 +31,19 @@ export function barChart(data: { label: string; value: number }[], ariaLabel: st
   if (!data.length) return html`<div class="mut">אין נתונים לתקופה</div>`;
   const max = Math.max(...data.map((d) => d.value), 1) * 1.15;
   const bw = (W - pad * 2) / data.length;
+  const barW = Math.min(bw * 0.64, 24);
   const labelEvery = Math.ceil(data.length / 12);
+  const hi = data.reduce((m, d, i) => (d.value > data[m].value ? i : m), 0);
+  // the children come from the `svg` template tag: an `html` child inside an <svg> is an HTML-namespace element and never paints (the chart was blank)
   return html`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label=${ariaLabel} data-chart>
-    <line x1=${pad} x2=${W - pad} y1=${H - 22} y2=${H - 22} class="grid" />
+    ${svg`<line x1=${pad} x2=${W - pad} y1=${H - 22} y2=${H - 22} class="grid" />`}
     ${data.map((d, i) => {
-      const bh = (d.value / max) * (H - 44);
-      const x = W - pad - (i + 1) * bw + bw * 0.18;
+      const bh = Math.max(d.value > 0 ? 2 : 0, (d.value / max) * (H - 44));
+      const x = W - pad - (i + 1) * bw + (bw - barW) / 2;
       const last = i === data.length - 1;
-      return html`<rect class=${last ? 'bar hi' : 'bar'} x=${x} y=${H - 22 - bh} width=${bw * 0.64} height=${bh} rx="3" />
-        ${i % labelEvery === 0 || last ? html`<text x=${x + bw * 0.32} y=${H - 6} text-anchor="middle">${d.label}</text>` : nothing}
-        ${data.length <= 14 ? html`<text x=${x + bw * 0.32} y=${H - 26 - bh} text-anchor="middle" class="val">${Math.round(d.value)}</text>` : nothing}`;
+      return svg`<rect class=${last ? 'bar hi' : 'bar'} x=${x} y=${H - 22 - bh} width=${barW} height=${bh} rx="3"><title>${d.label}: ${fmtKwh(d.value)}</title></rect>
+        ${i % labelEvery === 0 || last ? svg`<text x=${x + barW / 2} y=${H - 6} text-anchor="middle">${d.label}</text>` : nothing}
+        ${last || i === hi ? svg`<text x=${x + barW / 2} y=${H - 27 - bh} text-anchor="middle" class="val">${Math.round(d.value)}</text>` : nothing}`;
     })}
   </svg>`;
 }
@@ -116,11 +121,10 @@ export class ElecMeterCard extends LitElement {
         stroke: var(--sw-border-strong);
       }
       svg.chart .bar {
-        fill: var(--sw-accent);
-        opacity: 0.45;
+        fill: color-mix(in srgb, var(--sw-accent) 38%, var(--sw-surface-3));
       }
       svg.chart .bar.hi {
-        opacity: 1;
+        fill: var(--sw-accent);
       }
       svg.chart text {
         fill: var(--sw-text-3);
