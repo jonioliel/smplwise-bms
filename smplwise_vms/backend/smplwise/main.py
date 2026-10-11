@@ -495,6 +495,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import bill_pdf
 
             threading.Thread(target=bill_pdf.self_check, name="bill-pdf-selfcheck", daemon=True).start()
+        from .services import wiskey_background_feed
+
+        wiskey_background_feed.FEED.start(settings)  # B0 (D-004/D-006): the split background session; runs only with wiskey_background_token
         from .services import bridge_install, thumbnails
 
         if not ha_only:
@@ -574,6 +577,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import generator_runtime
 
         generator_runtime.RUNNER.shutdown()
+        from .services import wiskey_background_feed as _wbf
+
+        _wbf.FEED.shutdown()
         from .services import push as push_svc
 
         from starlette.concurrency import run_in_threadpool as _in_thread

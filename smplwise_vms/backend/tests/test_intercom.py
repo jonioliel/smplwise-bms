@@ -22,7 +22,7 @@ from starlette.websockets import WebSocketDisconnect
 from smplwise.main import create_app
 from smplwise.rbac import ROLES
 from smplwise.routers.access import PERMISSION_LABELS
-from smplwise.services import intercom_sync
+from smplwise.services import intercom_sync, wiskey_background
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -510,20 +510,21 @@ def test_overview_round_trip_and_live_refresh(feed):
         body = c.get("/api/v1/intercom/overview").json()
         assert body["state"] == "ready" and body["fresh"] is True and body["configured"] is True and body["fetched_at"]
         ov = body["overview"]
-        assert ov["version"] == "4.2.0" and ov["api_version"] == 1 and ov["user_count"] == 1
+        assert ov["version"] == "4.2.0" and ov["api_version"] == 1 and "user_count" not in ov, "B0 (D-006): no directory size either"
         assert ov["default_zone"] == {"kind": "iana", "name": "Asia/Jerusalem"}
         gate, side = ov["stations"]
         assert gate == {
             "id": "entry-a", "name": "Main gate", "online": True, "call_state": "ringing", "sync_state": "synced", "lock_enabled": True,
             "lock_count": 1, "locks": [{"physical_index": 1, "name": "Gate"}],  # WisKey's api_id stays behind
             "has_camera": True, "camera_entity": "camera.main_gate", "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00",
-            "pending_user_count": 0, "managed_user_count": 12, "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
-            "last_access": {"timestamp": "2026-09-27T07:59:00+03:00", "time_source": "device", "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1},
-        }
-        assert side["online"] is False and side["call_state"] == "unavailable" and side["last_access"] is None and side["zone"] is None and side["has_camera"] is False and side["camera_entity"] is None and side["pending_user_count"] == 2
+            "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
+        }, "B0 (D-006): no last_access, no people counts"
+        assert side["online"] is False and side["call_state"] == "unavailable" and side["zone"] is None and side["has_camera"] is False and side["camera_entity"] is None
         text = json.dumps(body)
-        for private in ("192.0.2.10", "+972500000000", "****1234", "DS-KV6113", "users", "entities", "host", "lock.main_gate", "binary_sensor.", "sensor.main_gate"):
+        for private in ("192.0.2.10", "+972500000000", "****1234", "DS-KV6113", "users", "entities", "host", "lock.main_gate", "binary_sensor.", "sensor.main_gate",
+                        "Dana", "1001", "person_name", "employee_no", "last_access", "access_granted"):
             assert private not in text, f"{private} must not leave the feed"
+        assert wiskey_background.find_person_fields(body) == []
 
         pushed = []
         while not q.empty():

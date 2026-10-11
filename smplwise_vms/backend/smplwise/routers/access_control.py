@@ -49,7 +49,7 @@ from ..db import Database, commit_now, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import go2rtc as g2
-from ..services import intercom_client, intercom_sync, wiskey_camera
+from ..services import intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
@@ -107,7 +107,8 @@ def _instant(name: str, value: str | None) -> str | None:
 
 @router.get("/intercom/overview")
 def overview(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """The entry center: stations with online / ringing / sync state and the last access record, plus the feed's own
+    """The entry center: stations with online / ringing / sync state (no last-access record and no people counts since
+    B0: D-006, a person's name reaches a screen only through the activity log), plus the feed's own
     state (`ha_not_configured`, `connecting`, `ha_unavailable`, `not_installed`, `forbidden`, `error`, `ready`).
     `overview` is null whenever there is nothing honest to show; `fresh` is false for a copy from before a disconnect.
     `camera_access` says, per station with a camera, whether its still can be had (`ready`) or why not (`no_media`,
@@ -116,6 +117,33 @@ def overview(request: Request, principal: Principal = Depends(current_principal)
     settings = settings_of(request)
     body = intercom_sync.SYNC.snapshot(settings)
     body["camera_access"] = wiskey_camera.camera_access(conn, settings, body["overview"])
+    return body
+
+
+@router.get("/intercom/background")
+def background(request: Request, principal: Principal = Depends(_reader)) -> dict[str, Any]:
+    """The background (read) channel (B0, D-006): the closed station-health projection `{schema_version, generated_at,
+    permission_revision, stations: [{id, name, online, last_seen}]}` and nothing else - no last access, no person, no
+    counts, no operational detail. `identity` says whose session produced it: `background` (the dedicated account, the
+    channel split from the service session) or `service` (no background account configured yet: the same four fields cut
+    down from the service feed's copy, `split: false`). `projection` is null whenever there is nothing honest to show."""
+    return wiskey_background_feed.channel_view(settings_of(request))
+
+
+@router.get("/intercom/diagnostics")
+def diagnostics(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """What WisKey sees Arx as (B0, ported as CR-036 S1; `system.configure`): WisKey's `authorization/session` for the service
+    identity (the add-on's own Home Assistant user, which also carries the existing writes) and for the background identity (its
+    own session once the owner configured `wiskey_background_token`; until then it says it shares the service identity), plus
+    each channel's command allow-list. Permission facts only - areas, station scope, field levels, security state, whether
+    `subscribe` is live - with `findings` derived from them. Read-only; nothing is changed in WisKey and no person field is
+    involved. Each run sends a command to WisKey on the administrator's request, so it leaves one audit row (identity states
+    and finding codes only)."""
+    body = wiskey_diagnostics.collect(settings_of(request), who=principal.user_id)
+    audit(conn, actor=principal, action="intercom.diagnostics.read", decision="allowed", resource_type="intercom", resource_id="diagnostics",
+          request_id=getattr(request.state, "correlation_id", None),
+          details={"service": body["service"]["authorization_state"], "background": body["background"]["authorization_state"],
+                   "split": bool(body["background"].get("split")), "findings": [f["code"] for f in body["findings"]]})
     return body
 
 
