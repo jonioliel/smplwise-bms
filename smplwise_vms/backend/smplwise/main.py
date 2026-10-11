@@ -333,6 +333,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(search.router, prefix=api, tags=["search"])
     app.include_router(backup.router, prefix=api, tags=["backup"])
     app.include_router(system_update.router, prefix=api, tags=["system-update"])  # CR-021 S1: self-update check and settings (system.update)
+    from .routers import wiskey_import as wiskey_import_router
+
+    app.include_router(wiskey_import_router.router, prefix=api, tags=["wiskey"])  # CR-035: WisKey importer stage 1 (system administrators, switch off by default)
     app.include_router(frames.router, prefix=api, tags=["recordings"])
     app.include_router(cases.router, prefix=api, tags=["cases"])
     app.include_router(storage.router, prefix=api, tags=["storage"])
