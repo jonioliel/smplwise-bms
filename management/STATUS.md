@@ -1,30 +1,39 @@
 # Project status — generated view
 
-Generated: 2026-10-11T18:19:02.180482+00:00
+Generated: 2026-10-11T20:21:42.837086+00:00
 
-Tasks: 118 | Requirements: 231 | Tests: 247 | Screens: 32
+Tasks: 189 | Requirements: 302 | Tests: 318 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 104
-- BLOCKED: 2
-- DONE: 2
-- IN_PROGRESS: 6
+- BACKLOG: 134
+- BLOCKED: 11
+- DONE: 19
+- IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 2
+- REVIEW: 16
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 39
-- V2: 14
+- V1: 96
+- V2: 28
 - V3: 2
 
 ## Blockers
 - T003: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
 - T004: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
+- WXH0: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH1: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH2: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH3: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH4: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH5: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH6: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH7: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXAV: Waiting for W10 (stream descriptor and audio hook) from the WisKey side; the owner asks to start S18 right after stage 1 as soon as W10 arrives.
 
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
@@ -147,3 +156,74 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T116](tasks/T116.md) | V1 | BACKLOG | מקליטי Frigate (CR-029, NN5): צפייה וניגון (F1) ושליטה מוגנת (F2), כבוי כברירת מחדל | — |
 | [T117](tasks/T117.md) | V1 | BACKLOG | הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן | — |
 | [T118](tasks/T118.md) | V1 | BACKLOG | הצעת הורדה לאפליקציית Android במסך הכניסה מרחוק (כבויה כברירת מחדל) | — |
+| [WXD0](tasks/WXD0.md) | V1 | REVIEW | WisKey CR-033: Trusted-bridge fakes and vector oracle | — |
+| [WXD1](tasks/WXD1.md) | V1 | BACKLOG | WisKey CR-033: WisKey door map (explicit, single relay, manual) | WXD0 |
+| [WXD2](tasks/WXD2.md) | V1 | REVIEW | WisKey CR-033: Access control station scope and placement | — |
+| [WXD3](tasks/WXD3.md) | V1 | BACKLOG | WisKey CR-033: One door authority rule, door opener role, grant card | WXD1, WXD2 |
+| [WXD4](tasks/WXD4.md) | V1 | BACKLOG | WisKey CR-033: trusted_door transport (interim + signed), audit fields, "sent" | WXD0, WXD3 |
+| [WXD5A](tasks/WXD5A.md) | V1 | BACKLOG | WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting) | WXD4 |
+| [WXD5B](tasks/WXD5B.md) | V1 | BACKLOG | WisKey CR-033: Bridge door_open / door_open_status | WXH1, WXD4 |
+| [WXD6](tasks/WXD6.md) | V1 | BACKLOG | WisKey CR-033: WisKey locks without lock.lock / lock-all | WXD1 |
+| [WXD7](tasks/WXD7.md) | V1 | BACKLOG | WisKey CR-033: Read-only door-path inventory and report | WXD1 |
+| [WXD7R](tasks/WXD7R.md) | V1 | BACKLOG | WisKey CR-033: Owner-approved inventory read on the installation | WXD7 |
+| [WXD8](tasks/WXD8.md) | V1 | BACKLOG | WisKey CR-033: Editor block setting (default blocked) | WXD7 |
+| [WXD9](tasks/WXD9.md) | V1 | BACKLOG | WisKey CR-033: Run guard for Arx-started runs (R-17) | WXD4, WXD7 |
+| [WXD10A](tasks/WXD10A.md) | V1 | BACKLOG | WisKey CR-033: Arx event door jobs (M1), disable-and-list | WXD9, WXD7R |
+| [WXD10B](tasks/WXD10B.md) | V1 | BACKLOG | WisKey CR-033: Hold-open program hand-over (M3) | WXD9, WXD7R |
+| [WXD11](tasks/WXD11.md) | V1 | BACKLOG | WisKey CR-033: Door-path gate T1..T26 on fakes | WXD0, WXD1, WXD2, WXD3, WXD4, WXD5A, WXD5B, WXD6, WXD7, WXD7R, WXD8, WXD9, WXD10A, WXD10B |
+| [WXG0](tasks/WXG0.md) | V1 | BACKLOG | WisKey CR-034: Merge WX3 gate tool to main | — |
+| [WXG1](tasks/WXG1.md) | V1 | BACKLOG | WisKey CR-034: Gate: impact block, exit 5, gate:allow | WXG0 |
+| [WXH0](tasks/WXH0.md) | V1 | BLOCKED | WisKey CR-034: Rotation fakes | — |
+| [WXH1](tasks/WXH1.md) | V1 | BLOCKED | WisKey CR-034: Bridge multi-key verifier and rotate service | WXH0 |
+| [WXH2](tasks/WXH2.md) | V1 | BLOCKED | WisKey CR-034: Arx key set and rotation state machine | WXH0 |
+| [WXH3](tasks/WXH3.md) | V1 | BLOCKED | WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice | WXH2 |
+| [WXH4](tasks/WXH4.md) | V1 | BLOCKED | WisKey CR-034: Fresh-key re-pair with verification, emergency revocation | WXH2, WXH3 |
+| [WXH5](tasks/WXH5.md) | V1 | BLOCKED | WisKey CR-034: Maintenance screen and watchdog | WXH2, WXH4 |
+| [WXH6](tasks/WXH6.md) | V1 | BLOCKED | WisKey CR-034: Anchor eligibility and capability status hand-over | WXH1, WXH4 |
+| [WXH7](tasks/WXH7.md) | V1 | BLOCKED | WisKey CR-034: Rotation gate on fakes | WXH1, WXH2, WXH3, WXH4, WXH5, WXH6 |
+| [ST7S0](tasks/ST7S0.md) | V2 | REVIEW | Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings | — |
+| [ST7S4](tasks/ST7S4.md) | V2 | BACKLOG | Plan Studio 6 S4: eye-level walk-through core | ST7S0 |
+| [ST7S1](tasks/ST7S1.md) | V2 | BACKLOG | Plan Studio 6 S1: material library and level-3 rendering | ST7S0 |
+| [ST7S2](tasks/ST7S2.md) | V2 | BACKLOG | Plan Studio 6 S2: sun, sky, time of day, lamps | ST7S1 |
+| [ST7S5](tasks/ST7S5.md) | V2 | BACKLOG | Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk) | ST7S4 |
+| [ST7S3](tasks/ST7S3.md) | V2 | BACKLOG | Plan Studio 6 S3: lighting bake, stills and storage | ST7S1, ST7S2 |
+| [ST7S7](tasks/ST7S7.md) | V2 | BACKLOG | Plan Studio 6 S7: performance gate, determinism and release | ST7S0, ST7S1, ST7S2, ST7S3, ST7S4, ST7S5 |
+| [FIX1](tasks/FIX1.md) | V1 | DONE | Test fixes: glass wall specs and nightly default | — |
+| [HA2610](tasks/HA2610.md) | V1 | DONE | Home Assistant 2026.10 compatibility: document, tests and implementation | — |
+| [SEC243](tasks/SEC243.md) | V1 | DONE | Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6 | — |
+| [WALLP](tasks/WALLP.md) | V1 | DONE | Glass wall / screen and curved wall drawing tool through points | — |
+| [LAT1](tasks/LAT1.md) | V1 | DONE | Instant switch on / off (no wait time) | — |
+| [CR21S4](tasks/CR21S4.md) | V1 | DONE | Self-update: downgrade protection and installer notes (CR-021 S4) | — |
+| [DU1](tasks/DU1.md) | V1 | DONE | Design unification: one design language, token lint | — |
+| [FRGPOL](tasks/FRGPOL.md) | V1 | DONE | Frigate review screen polish: review, zone editor, clip viewer | — |
+| [ACTPOL](tasks/ACTPOL.md) | V1 | DONE | Activity window polish: cards and list, tones, filters | — |
+| [DEVTYPE](tasks/DEVTYPE.md) | V1 | DONE | Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal | — |
+| [BRAND](tasks/BRAND.md) | V1 | DONE | Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix | — |
+| [CRY](tasks/CRY.md) | V1 | DONE | Crystal skin with a day / night background | — |
+| [HOMEPOL](tasks/HOMEPOL.md) | V1 | DONE | Home and area screens polish; floor and area pickers side by side | — |
+| [SECPOL](tasks/SECPOL.md) | V1 | DONE | Security screens polish: alarm, cameras, events, notifications, recorders | — |
+| [ALLON](tasks/ALLON.md) | V1 | DONE | Turn all on next to turn all off (lights and switches, floor / area menu) | — |
+| [PLANMODE](tasks/PLANMODE.md) | V1 | DONE | 3D view mode: a manual choice sticks, default in Settings | — |
+| [SEC244](tasks/SEC244.md) | V1 | DONE | Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references | — |
+| [NIGHTSP](tasks/NIGHTSP.md) | V1 | REVIEW | Nightly speed-up: the nightly runs the release gate engine (60-65 min) | — |
+| [SETPOL](tasks/SETPOL.md) | V1 | REVIEW | Settings polish: navigation column with search, shared style, switch colour as accent | — |
+| [MEDPOL](tasks/MEDPOL.md) | V1 | REVIEW | Multimedia, notification centre and electricity charts polish (incl. meter column bug) | — |
+| [KIOPOL](tasks/KIOPOL.md) | V1 | REVIEW | Wall, kiosk and PWA polish: distance legibility, burn-in, touch | — |
+| [FLAKY](tasks/FLAKY.md) | V1 | REVIEW | Stabilise flaky backend and frontend tests (15 of 16) | — |
+| [FLOORSTRIP](tasks/FLOORSTRIP.md) | V1 | REVIEW | One floor switcher in the 3D view (duplicate floor strip fix) | — |
+| [BILLSTART](tasks/BILLSTART.md) | V1 | IN_PROGRESS | Electricity bill start-reading bug | — |
+| [ST7L](tasks/ST7L.md) | V2 | REVIEW | Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets | — |
+| [ST7INT](tasks/ST7INT.md) | V2 | BACKLOG | Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release | ST7S0, ST7S4, ST7S1, ST7S2, ST7S3 |
+| [ST7SITE](tasks/ST7SITE.md) | V2 | BACKLOG | Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude) | — |
+| [ST7UI](tasks/ST7UI.md) | V2 | BACKLOG | Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen | — |
+| [ST7HIST](tasks/ST7HIST.md) | V2 | BACKLOG | Plan Studio 6: level 3 also in the history map and the event page | — |
+| [WXCR](tasks/WXCR.md) | V1 | REVIEW | WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan | — |
+| [WXIMP](tasks/WXIMP.md) | V1 | REVIEW | WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only) | — |
+| [WXNS](tasks/WXNS.md) | V1 | REVIEW | WisKey native screens plan (CR-036): 49 screens and actions | — |
+| [WXN01](tasks/WXN01.md) | V1 | REVIEW | WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard | — |
+| [WXN34](tasks/WXN34.md) | V1 | BACKLOG | WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel | WXN01, WXD2, WXD3 |
+| [WXN5](tasks/WXN5.md) | V1 | BACKLOG | WisKey native screens S5: design of the station, people, schedule and status screens | WXN01 |
+| [WXN6](tasks/WXN6.md) | V1 | BACKLOG | WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups | WXN34, WXN5 |
+| [WXN11](tasks/WXN11.md) | V1 | BACKLOG | WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification | WXN6 |
+| [WXW](tasks/WXW.md) | V2 | BACKLOG | WisKey new writes (including doors), allowed now by the owner decision | WXN11 |
+| [WXAV](tasks/WXAV.md) | V2 | BLOCKED | WisKey local live video and two-way audio (S18) | — |

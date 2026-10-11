@@ -4718,5 +4718,1141 @@
     "test_ids": [
       "AT232"
     ]
+  },
+  {
+    "id": "R233",
+    "title": "WisKey CR-033: Trusted-bridge fakes and vector oracle",
+    "statement": "Trusted-bridge fakes and vector oracle (CR-033, plan slice WXD0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT249"
+    ]
+  },
+  {
+    "id": "R234",
+    "title": "WisKey CR-033: WisKey door map (explicit, single relay, manual)",
+    "statement": "WisKey door map (explicit, single relay, manual) (CR-033, plan slice WXD1), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT250"
+    ]
+  },
+  {
+    "id": "R235",
+    "title": "WisKey CR-033: Access control station scope and placement",
+    "statement": "Access control station scope and placement (CR-033, plan slice WXD2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT251"
+    ]
+  },
+  {
+    "id": "R236",
+    "title": "WisKey CR-033: One door authority rule, door opener role, grant card",
+    "statement": "One door authority rule, door opener role, grant card (CR-033, plan slice WXD3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT252"
+    ]
+  },
+  {
+    "id": "R237",
+    "title": "WisKey CR-033: trusted_door transport (interim + signed), audit fields, \"sent\"",
+    "statement": "trusted_door transport (interim + signed), audit fields, \"sent\" (CR-033, plan slice WXD4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT253"
+    ]
+  },
+  {
+    "id": "R238",
+    "title": "WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting)",
+    "statement": "Bridge 0.8.1 execute block for WisKey doors (admin setting) (CR-033, plan slice WXD5A), built and tested on fakes and fixtures only; entry gate: release order: WXD4 must be released first. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD5A"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT254"
+    ]
+  },
+  {
+    "id": "R239",
+    "title": "WisKey CR-033: Bridge door_open / door_open_status",
+    "statement": "Bridge door_open / door_open_status (CR-033, plan slice WXD5B), built and tested on fakes and fixtures only; entry gate: WisKey consumer side confirmed; also needs WXH1 (deferred, see notes). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD5B"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT255"
+    ]
+  },
+  {
+    "id": "R240",
+    "title": "WisKey CR-033: WisKey locks without lock.lock / lock-all",
+    "statement": "WisKey locks without lock.lock / lock-all (CR-033, plan slice WXD6), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD6"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT256"
+    ]
+  },
+  {
+    "id": "R241",
+    "title": "WisKey CR-033: Read-only door-path inventory and report",
+    "statement": "Read-only door-path inventory and report (CR-033, plan slice WXD7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT257"
+    ]
+  },
+  {
+    "id": "R242",
+    "title": "WisKey CR-033: Owner-approved inventory read on the installation",
+    "statement": "Owner-approved inventory read on the installation (CR-033, plan slice WXD7R), built and tested on fakes and fixtures only; entry gate: owner approval (read of the Arx database only). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD7R"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT258"
+    ]
+  },
+  {
+    "id": "R243",
+    "title": "WisKey CR-033: Editor block setting (default blocked)",
+    "statement": "Editor block setting (default blocked) (CR-033, plan slice WXD8), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD8"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT259"
+    ]
+  },
+  {
+    "id": "R244",
+    "title": "WisKey CR-033: Run guard for Arx-started runs (R-17)",
+    "statement": "Run guard for Arx-started runs (R-17) (CR-033, plan slice WXD9), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD9"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT260"
+    ]
+  },
+  {
+    "id": "R245",
+    "title": "WisKey CR-033: Arx event door jobs (M1), disable-and-list",
+    "statement": "Arx event door jobs (M1), disable-and-list (CR-033, plan slice WXD10A), built and tested on fakes and fixtures only; entry gate: inventory result (only if it finds event-driven items). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD10A"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT261"
+    ]
+  },
+  {
+    "id": "R246",
+    "title": "WisKey CR-033: Hold-open program hand-over (M3)",
+    "statement": "Hold-open program hand-over (M3) (CR-033, plan slice WXD10B), built and tested on fakes and fixtures only; entry gate: WisKey offers program creation for an Arx operator. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD10B"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT262"
+    ]
+  },
+  {
+    "id": "R247",
+    "title": "WisKey CR-033: Door-path gate T1..T26 on fakes",
+    "statement": "Door-path gate T1..T26 on fakes (CR-033, plan slice WXD11), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXD11"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT263"
+    ]
+  },
+  {
+    "id": "R248",
+    "title": "WisKey CR-034: Merge WX3 gate tool to main",
+    "statement": "Merge WX3 gate tool to main (CR-034, plan slice WXG0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXG0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT264"
+    ]
+  },
+  {
+    "id": "R249",
+    "title": "WisKey CR-034: Gate: impact block, exit 5, gate:allow",
+    "statement": "Gate: impact block, exit 5, gate:allow (CR-034, plan slice WXG1), built and tested on fakes and fixtures only; entry gate: WisKey authors the impact block for installation candidates. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXG1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT265"
+    ]
+  },
+  {
+    "id": "R250",
+    "title": "WisKey CR-034: Rotation fakes",
+    "statement": "Rotation fakes (CR-034, plan slice WXH0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT266"
+    ]
+  },
+  {
+    "id": "R251",
+    "title": "WisKey CR-034: Bridge multi-key verifier and rotate service",
+    "statement": "Bridge multi-key verifier and rotate service (CR-034, plan slice WXH1), built and tested on fakes and fixtures only; entry gate: WisKey answers to question 31 before merge. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT267"
+    ]
+  },
+  {
+    "id": "R252",
+    "title": "WisKey CR-034: Arx key set and rotation state machine",
+    "statement": "Arx key set and rotation state machine (CR-034, plan slice WXH2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT268"
+    ]
+  },
+  {
+    "id": "R253",
+    "title": "WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice",
+    "statement": "bridge.key.rotate, owner contacts, emergency notice (CR-034, plan slice WXH3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT269"
+    ]
+  },
+  {
+    "id": "R254",
+    "title": "WisKey CR-034: Fresh-key re-pair with verification, emergency revocation",
+    "statement": "Fresh-key re-pair with verification, emergency revocation (CR-034, plan slice WXH4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT270"
+    ]
+  },
+  {
+    "id": "R255",
+    "title": "WisKey CR-034: Maintenance screen and watchdog",
+    "statement": "Maintenance screen and watchdog (CR-034, plan slice WXH5), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH5"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT271"
+    ]
+  },
+  {
+    "id": "R256",
+    "title": "WisKey CR-034: Anchor eligibility and capability status hand-over",
+    "statement": "Anchor eligibility and capability status hand-over (CR-034, plan slice WXH6), built and tested on fakes and fixtures only; entry gate: WisKey high-water mechanism. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH6"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT272"
+    ]
+  },
+  {
+    "id": "R257",
+    "title": "WisKey CR-034: Rotation gate on fakes",
+    "statement": "Rotation gate on fakes (CR-034, plan slice WXH7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "task_ids": [
+      "WXH7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT273"
+    ]
+  },
+  {
+    "id": "R258",
+    "title": "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings",
+    "statement": "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings: Studio 6 material, ceiling, tint, light, north and walk-position fields; material resolver; installation look settings with a per-person override (migration 0074). Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "task_ids": [
+      "ST7S0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT274"
+    ]
+  },
+  {
+    "id": "R259",
+    "title": "Plan Studio 6 S4: eye-level walk-through core",
+    "statement": "Plan Studio 6 S4: eye-level walk-through core: Walk world, controller with collision/doors/stairs, A* and minimap frame, SceneView walk mode and walk UI in sw-plan-3d. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "task_ids": [
+      "ST7S4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT275"
+    ]
+  },
+  {
+    "id": "R260",
+    "title": "Plan Studio 6 S1: material library and level-3 rendering",
+    "statement": "Plan Studio 6 S1: material library and level-3 rendering: CC0 PBR material sets, box-mapped UVs, level 3 in SceneView with the memory cap and lite rung. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "task_ids": [
+      "ST7S1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT276"
+    ]
+  },
+  {
+    "id": "R261",
+    "title": "Plan Studio 6 S2: sun, sky, time of day, lamps",
+    "statement": "Plan Studio 6 S2: sun, sky, time of day, lamps: Solar position, sky lookup, time-of-day slider, emissive lamps in a fixed light pool, door/cover animation. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "task_ids": [
+      "ST7S2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT277"
+    ]
+  },
+  {
+    "id": "R262",
+    "title": "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk)",
+    "statement": "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk): Joystick, tap-to-walk, pinch FOV, minimap, saved positions and route, idle still, pointer-lock opt-in. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "task_ids": [
+      "ST7S5"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT278"
+    ]
+  },
+  {
+    "id": "R263",
+    "title": "Plan Studio 6 S3: lighting bake, stills and storage",
+    "statement": "Plan Studio 6 S3: lighting bake, stills and storage: In-browser lightmap baker, per-room blend mask, pre-rendered stills with masks, plan_bakes storage. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "task_ids": [
+      "ST7S3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT279"
+    ]
+  },
+  {
+    "id": "R264",
+    "title": "Plan Studio 6 S7: performance gate, determinism and release",
+    "statement": "Plan Studio 6 S7: performance gate, determinism and release: R178 gate (level 3, 1,000 objects, 390 px, 30 fps) with the lever table, baselines, CHANGELOG, owner checklist, registry rows. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "task_ids": [
+      "ST7S7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT280"
+    ]
+  },
+  {
+    "id": "R265",
+    "title": "Test fixes: glass wall specs and nightly default",
+    "statement": "Test fixes: glass wall specs and nightly default: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "task_ids": [
+      "FIX1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT281"
+    ]
+  },
+  {
+    "id": "R266",
+    "title": "Home Assistant 2026.10 compatibility: document, tests and implementation",
+    "statement": "Home Assistant 2026.10 compatibility: document, tests and implementation: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "task_ids": [
+      "HA2610"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT282"
+    ]
+  },
+  {
+    "id": "R267",
+    "title": "Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6",
+    "statement": "Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "task_ids": [
+      "SEC243"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT283"
+    ]
+  },
+  {
+    "id": "R268",
+    "title": "Glass wall / screen and curved wall drawing tool through points",
+    "statement": "Glass wall / screen and curved wall drawing tool through points: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "task_ids": [
+      "WALLP"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT284"
+    ]
+  },
+  {
+    "id": "R269",
+    "title": "Instant switch on / off (no wait time)",
+    "statement": "Instant switch on / off (no wait time): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "task_ids": [
+      "LAT1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT285"
+    ]
+  },
+  {
+    "id": "R270",
+    "title": "Self-update: downgrade protection and installer notes (CR-021 S4)",
+    "statement": "Self-update: downgrade protection and installer notes (CR-021 S4): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "task_ids": [
+      "CR21S4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT286"
+    ]
+  },
+  {
+    "id": "R271",
+    "title": "Design unification: one design language, token lint",
+    "statement": "Design unification: one design language, token lint: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "task_ids": [
+      "DU1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT287"
+    ]
+  },
+  {
+    "id": "R272",
+    "title": "Frigate review screen polish: review, zone editor, clip viewer",
+    "statement": "Frigate review screen polish: review, zone editor, clip viewer: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "task_ids": [
+      "FRGPOL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT288"
+    ]
+  },
+  {
+    "id": "R273",
+    "title": "Activity window polish: cards and list, tones, filters",
+    "statement": "Activity window polish: cards and list, tones, filters: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "task_ids": [
+      "ACTPOL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT289"
+    ]
+  },
+  {
+    "id": "R274",
+    "title": "Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal",
+    "statement": "Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "task_ids": [
+      "DEVTYPE"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT290"
+    ]
+  },
+  {
+    "id": "R275",
+    "title": "Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix",
+    "statement": "Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "task_ids": [
+      "BRAND"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT291"
+    ]
+  },
+  {
+    "id": "R276",
+    "title": "Crystal skin with a day / night background",
+    "statement": "Crystal skin with a day / night background: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "task_ids": [
+      "CRY"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT292"
+    ]
+  },
+  {
+    "id": "R277",
+    "title": "Home and area screens polish; floor and area pickers side by side",
+    "statement": "Home and area screens polish; floor and area pickers side by side: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "task_ids": [
+      "HOMEPOL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT293"
+    ]
+  },
+  {
+    "id": "R278",
+    "title": "Security screens polish: alarm, cameras, events, notifications, recorders",
+    "statement": "Security screens polish: alarm, cameras, events, notifications, recorders: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "task_ids": [
+      "SECPOL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT294"
+    ]
+  },
+  {
+    "id": "R279",
+    "title": "Turn all on next to turn all off (lights and switches, floor / area menu)",
+    "statement": "Turn all on next to turn all off (lights and switches, floor / area menu): merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "task_ids": [
+      "ALLON"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT295"
+    ]
+  },
+  {
+    "id": "R280",
+    "title": "3D view mode: a manual choice sticks, default in Settings",
+    "statement": "3D view mode: a manual choice sticks, default in Settings: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "task_ids": [
+      "PLANMODE"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT296"
+    ]
+  },
+  {
+    "id": "R281",
+    "title": "Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references",
+    "statement": "Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "task_ids": [
+      "SEC244"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT297"
+    ]
+  },
+  {
+    "id": "R282",
+    "title": "Nightly speed-up: the nightly runs the release gate engine (60-65 min)",
+    "statement": "Nightly speed-up: the nightly runs the release gate engine (60-65 min): built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "NIGHTSP"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT298"
+    ]
+  },
+  {
+    "id": "R283",
+    "title": "Settings polish: navigation column with search, shared style, switch colour as accent",
+    "statement": "Settings polish: navigation column with search, shared style, switch colour as accent: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "SETPOL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT299"
+    ]
+  },
+  {
+    "id": "R284",
+    "title": "Multimedia, notification centre and electricity charts polish (incl. meter column bug)",
+    "statement": "Multimedia, notification centre and electricity charts polish (incl. meter column bug): built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "MEDPOL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT300"
+    ]
+  },
+  {
+    "id": "R285",
+    "title": "Wall, kiosk and PWA polish: distance legibility, burn-in, touch",
+    "statement": "Wall, kiosk and PWA polish: distance legibility, burn-in, touch: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "KIOPOL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT301"
+    ]
+  },
+  {
+    "id": "R286",
+    "title": "Stabilise flaky backend and frontend tests (15 of 16)",
+    "statement": "Stabilise flaky backend and frontend tests (15 of 16): built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "FLAKY"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT302"
+    ]
+  },
+  {
+    "id": "R287",
+    "title": "One floor switcher in the 3D view (duplicate floor strip fix)",
+    "statement": "One floor switcher in the 3D view (duplicate floor strip fix): built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "FLOORSTRIP"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT303"
+    ]
+  },
+  {
+    "id": "R288",
+    "title": "Electricity bill start-reading bug",
+    "statement": "Electricity bill start-reading bug: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "BILLSTART"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT304"
+    ]
+  },
+  {
+    "id": "R289",
+    "title": "Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets",
+    "statement": "Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "ST7L"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT305"
+    ]
+  },
+  {
+    "id": "R290",
+    "title": "Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release",
+    "statement": "Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "ST7INT"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT306"
+    ]
+  },
+  {
+    "id": "R291",
+    "title": "Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude)",
+    "statement": "Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude): built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "ST7SITE"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT307"
+    ]
+  },
+  {
+    "id": "R292",
+    "title": "Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen",
+    "statement": "Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "ST7UI"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT308"
+    ]
+  },
+  {
+    "id": "R293",
+    "title": "Plan Studio 6: level 3 also in the history map and the event page",
+    "statement": "Plan Studio 6: level 3 also in the history map and the event page: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "ST7HIST"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT309"
+    ]
+  },
+  {
+    "id": "R294",
+    "title": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan",
+    "statement": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXCR"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT310"
+    ]
+  },
+  {
+    "id": "R295",
+    "title": "WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only)",
+    "statement": "WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only): built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXIMP"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT311"
+    ]
+  },
+  {
+    "id": "R296",
+    "title": "WisKey native screens plan (CR-036): 49 screens and actions",
+    "statement": "WisKey native screens plan (CR-036): 49 screens and actions: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXNS"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT312"
+    ]
+  },
+  {
+    "id": "R297",
+    "title": "WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard",
+    "statement": "WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXN01"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT313"
+    ]
+  },
+  {
+    "id": "R298",
+    "title": "WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel",
+    "statement": "WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXN34"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT314"
+    ]
+  },
+  {
+    "id": "R299",
+    "title": "WisKey native screens S5: design of the station, people, schedule and status screens",
+    "statement": "WisKey native screens S5: design of the station, people, schedule and status screens: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXN5"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT315"
+    ]
+  },
+  {
+    "id": "R300",
+    "title": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups",
+    "statement": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXN6"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT316"
+    ]
+  },
+  {
+    "id": "R301",
+    "title": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification",
+    "statement": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXN11"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT317"
+    ]
+  },
+  {
+    "id": "R302",
+    "title": "WisKey new writes (including doors), allowed now by the owner decision",
+    "statement": "WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXW"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT318"
+    ]
+  },
+  {
+    "id": "R303",
+    "title": "WisKey local live video and two-way audio (S18)",
+    "statement": "WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXAV"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT319"
+    ]
   }
 ]
