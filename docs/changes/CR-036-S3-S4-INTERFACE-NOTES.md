@@ -170,8 +170,11 @@ Notes per screen slice:
 | `technical` | stations/technical_program_list, technical_hold_get, technical_codes_get, health/history | non-READ in the catalog, view-level grants, reviewed side-effect free; `api_contract: 1`; one in flight |
 
 Not carried by any channel: `stations/technical_relays` (stations: manage, takes `expected` / `locks`), `overview/summary`,
-`stations/list`, `stations/get` (the feed's overview copy already has the stations). A new read = a typed function in the
-adapter + `CHANNEL_OF` + the channel list + `ADAPTER_CALLS` in tests/test_wiskey_contract.py + a fake fixture.
+`stations/list`, `stations/get` (the feed's overview copy already has the stations, so CR-036 2.2's `summary()` /
+`stations()` / `station(id)` read that copy), `sync/diagnostics` (not needed by the 3.6 status cards). CR-036 2.2's
+`session()` stays the B0 diagnostics' (`GET /intercom/diagnostics`, `system.configure`, service channel). A new read = a
+typed function in the adapter + `CHANNEL_OF` + the channel list + `ADAPTER_CALLS` in tests/test_wiskey_contract.py + a fake
+fixture.
 
 Source review of the response shapes (WisKey rc.37 reference copy in `private-evidence/wiskey-native-rc37`, read only,
 never run), the handlers: websocket.py `_dispatch_inner` (791-1686) with technical_api.py 20-119 (programs, hold, codes;
