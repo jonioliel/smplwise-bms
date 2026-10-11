@@ -88,6 +88,7 @@ export class SwWalkHud extends LitElement {
       border-radius: 50%;
       border: 2px solid var(--sw-on-video-2);
       background: color-mix(in srgb, var(--sw-video-scrim) 30%, transparent);
+      box-shadow: 0 0 0 1px var(--sw-video-scrim); /* a dark edge: the white ring alone vanishes on a white wall */
       box-sizing: border-box;
       pointer-events: none;
     }

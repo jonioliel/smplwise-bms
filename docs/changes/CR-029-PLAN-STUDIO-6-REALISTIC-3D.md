@@ -623,6 +623,14 @@ section 8 list for a finger.
 | Minimap with touch | a `click` handler | pointer events with `touch-action: none` (a drag scrubs; the point is held inside the level's extent); opaque background in every skin | `sw-plan-3d.ts` |
 | Saved positions + a short route playback | the "stand at" select and keys 1-9 | the saved positions are chips in the sheet; the **route** plays them in document order, 4 s each (a 150 ms dim between stops, none with `motion` off), the last one shows for its dwell and the route ends; any input stops it | `walk-route.ts`, `walk-session.ts` |
 
+Modules: pure (node-tested) `walk-stick.ts`, `walk-look.ts`, `walk-touch.ts`, `walk-path.ts`, `walk-tap.ts`, `walk-route.ts`; with the DOM
+`walk-hud.ts` (the `sw-walk-hud` element) and `walk-touch-ui.ts` (the glue between the session, the HUD, the minimap and the host).
+Hooks in existing files, kept thin because other slices edit them: `walk-session.ts` (the touch branch and the route),
+`walk-controller.ts` (A* moved out; `setWorld` returns events, `cancelPath`, the stuck test), `sw-plan-3d.ts` (about +60 / -95 lines
+against the base, nearly all of it the S4 bar's markup and CSS that the HUD replaces), `scene-three.ts` (`pickAt`, one additive
+method), `i18n/he.ts` (a `walk` section: the HUD's strings go through the catalogue). No code from `three` is imported by any new
+module, so the `three` chunk is unchanged (`unit-three-chunk`).
+
 ### 14.2 Decisions (owner-level, the safest default taken; recorded in the commit messages)
 
 1. **On touch a tap never operates a device.** The plan view's click on a lamp of a circuit runs the circuit's action

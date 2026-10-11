@@ -36,7 +36,7 @@ type Walker = HTMLElement & {
   toScreen(p: [number, number, number]): { x: number; y: number } | null;
   view: { camera: { fov: number } };
 };
-type Win = { __sel: { id: string; kind: string }[]; __trail: [number, number][]; __trailTimer: number };
+type Win = { __sel: { id: string; kind: string }[]; __trail: string[] };
 
 // 10 m x 8 m (walk-fixtures.ts). The saved positions: the entrance (3, 4.96), the living room (7, 5.6), the office (7, 2).
 const positions = [
@@ -329,30 +329,23 @@ test.describe('the walk bar and the bottom sheet', () => {
     // the route: the saved positions in order, 0.5 s each here (4 s by default), then it ends by itself
     const route = el.locator('[data-walk-route]');
     await expect(route).toHaveText('מסלול');
+    // every jump of the walk (a stop of the route is a `place`) is recorded as it happens: no sampling, no timing to miss
     await el.evaluate((n) => {
       const w = window as unknown as Win;
       w.__trail = [];
-      w.__trailTimer = window.setInterval(() => {
-        const p = (n as unknown as Walker).walkController?.pose();
-        if (p) w.__trail.push([p.x, p.z]);
-      }, 20);
+      const c = (n as unknown as Walker).walkController as unknown as { place(s: { id: string }): unknown };
+      const place = c.place.bind(c);
+      c.place = (s) => {
+        w.__trail.push(s.id);
+        return place(s);
+      };
     });
     await route.click();
     await expect(route).toHaveText('עצירה');
     await expect(route).toHaveText('מסלול', { timeout: 8000 }); // over by itself: three stops x 0.5 s
-    const trail = await page.evaluate(() => {
-      const w = window as unknown as Win;
-      window.clearInterval(w.__trailTimer);
-      return w.__trail;
-    });
-    // the trail as the stops it passed through, in order (it began at the living room: the place chosen above)
-    const stops: [string, number, number][] = [['entrance', 3, 4.96], ['living', 7, 5.6], ['office', 7, 2]];
-    const seen: string[] = [];
-    for (const p of trail) {
-      const at = stops.find((q) => Math.hypot(p[0] - q[1], p[1] - q[2]) < 0.45)?.[0];
-      if (at && seen[seen.length - 1] !== at) seen.push(at);
-    }
-    expect(seen.slice(-3), `the route showed the three saved positions in order: ${seen.join(' > ')}`).toEqual(['entrance', 'living', 'office']);
+    const trail = await page.evaluate(() => (window as unknown as Win).__trail);
+    expect(trail, 'the route showed the three saved positions in order').toEqual(['pos:p1', 'pos:p2', 'pos:p3']);
+    expect(Math.hypot((await pose(el)).x - 7, (await pose(el)).z - 2)).toBeLessThan(0.45); // and stayed at the last one
     // a finger on the view stops a route under way
     await route.click();
     await expect(route).toHaveText('עצירה');
