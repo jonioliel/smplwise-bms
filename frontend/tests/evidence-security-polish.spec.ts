@@ -170,6 +170,9 @@ test.describe('security screens polish - evidence', () => {
     await page.locator('security-alarm [data-bypass="binary_sensor.demo_zone_2"]').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('security-alarm input[data-code]')).toBeVisible();
+    // The dialog moves keyboard focus into its first field one animation frame after it opens (sw-dialog.updated): the field is
+    // visible before it holds focus, and keys typed in between went to the button behind it. Type once focus has arrived.
+    await expect(page.locator('security-alarm input[data-code]')).toBeFocused();
     await page.keyboard.type('12');
     await expect(page.locator('security-alarm input[data-code]')).toHaveValue('12');
     await page.keyboard.press('Tab');
