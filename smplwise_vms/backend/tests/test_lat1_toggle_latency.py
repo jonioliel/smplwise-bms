@@ -36,6 +36,7 @@ ENTITY = "switch.lat1_relay"
 SERVICE_ACK_S = 0.035  # the lab floor (lead, 2026-10-08): service ack ~35 ms ...
 STATE_EVENT_S = 0.057  # ... and the device's state_changed ~57 ms after the call
 NOISE_HZ = 40.0  # other entities' states per second while the owner taps
+RECORD_MS = 40  # SEC246 L3: the allowance for the command's record (committed before the call) in the idle bounds - see the idle test
 
 STATES = [{"entity_id": ENTITY, "state": "off", "attributes": {"friendly_name": "LAT1 relay"}, "last_changed": "2026-10-08T08:00:00+00:00", "last_updated": "2026-10-08T08:00:00+00:00"}] + [
     {"entity_id": f"sensor.noise_{i}", "state": "0", "attributes": {"friendly_name": f"noise {i}"}, "last_changed": "2026-10-08T08:00:00+00:00", "last_updated": "2026-10-08T08:00:00+00:00"} for i in range(20)
@@ -225,9 +226,19 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
     f = sw_load_factor()
     dispatch = statistics.median(r["dispatch"] for r in rows)
     push = statistics.median(r["push"] for r in rows)
-    # the fake HA's own share of the push is 57 ms; everything else is Arx. Generous bounds: a behavioural check, not a benchmark
-    assert dispatch < 60 * f, _table("idle", rows)
-    assert push < (STATE_EVENT_S * 1000 + 80) * f, _table("idle", rows)
+    # the fake HA's own share of the push is 57 ms; everything else is Arx. Generous bounds: a behavioural check, not a benchmark.
+    # SEC246 L3 (owner-approved, 2026-10-11): every command is recorded BEFORE it is sent - the pending ha_actions row and the
+    # attempt audit row, one transaction, one COMMIT fsync (synchronous=FULL) - so dispatch, and the push that follows it, carry
+    # that commit. The record jumps the write queue (its wait is ~2 ms) and the call leaves from the request thread; what is left
+    # is the fsync. Measured on the runner (20 toggles per run, base / record-first alternating, same load, 2026-10-11):
+    #   dispatch median  base 14.3 / 10.5 / 15.6 ms (p90 42.4 / 13.5 / 30.5)   record-first 69.2 / 27.3 / 53.7 ms (p90 93.8 / 38.1 / 73.8)
+    #   push median      base 210.5 / 87.5 / 128.2 ms                           record-first 199.3 / 102.8 / 136.9 ms
+    #   the record (pending_row) median 50.3 / 18.9 / 42.2 ms, of it the commit (pending_commit) 3.2 / 17.2 / 21.3 and the queue
+    #   wait (pending_wait) 12.8 / 1.7 / 2.2; earlier record-first runs under a heavier runner load: dispatch median 73.7 / 66.2.
+    # Hence RECORD_MS on top of both LAT1 idle bounds (the smallest round allowance that passes the worst observed median, 73.7 ms,
+    # with about 25 % to spare), under the same load-factor rule. The held-lock and busy cases have their own tests below.
+    assert dispatch < (60 + RECORD_MS) * f, f"f={f:.2f}\n" + _table("idle", rows)
+    assert push < (STATE_EVENT_S * 1000 + 80 + RECORD_MS) * f, f"f={f:.2f}\n" + _table("idle", rows)
     # one keep-alive connection is reused for the bridge calls (no new TCP + HTTP setup per toggle)
     assert fake.connections <= 2, f"{fake.connections} connections for {len(rows)} toggles"
     # the owner's own view of the hops: DevTools -> Network -> the POST -> Timing (Server-Timing), and the answer's timing_ms
