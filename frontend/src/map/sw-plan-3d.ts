@@ -960,6 +960,7 @@ export class SwPlan3d extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>): void {
+    if (changed.has('sunAt')) this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
     if (!this.view) return;
     const reframe = changed.has('frameKey') && changed.get('frameKey') !== undefined;
     if (reframe) this.presetApplied = false;
@@ -976,10 +977,7 @@ export class SwPlan3d extends LitElement {
     // the first update lists every initial property, `continuous` included: it must not stop a probe init() just
     // started (the probe restores the property's value when it ends)
     if (changed.has('continuous') && !this.probe) this.view.setContinuous(this.continuous);
-    if (changed.has('sunAt')) {
-      this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
-      this.applySun(); // the instant moved (the history cursor): the sun follows, no rebuild
-    }
+    if (changed.has('sunAt')) this.applySun(); // the instant moved (the history cursor): the sun follows, no rebuild
     this.applyQuality(); // the choice, the installation default or a fallback changed: a no-op when the view already draws the level
     this.layoutOverlays(); // the label elements may be new (a state push): place them at once
   }
