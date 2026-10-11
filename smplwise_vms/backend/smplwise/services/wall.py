@@ -74,6 +74,16 @@ class Grid(BaseModel):
     rows: int = Field(ge=1, le=3)
 
 
+class Plan(BaseModel):
+    """CR-029 S5-B: how THIS screen draws the plan of its map band (`show_map`), independent of what the signed-in user prefers.
+    "follow" hands the dial to the next layer - this browser's own pin, then the installation (`plan.view`: wall_display,
+    quality, kiosk_idle_s; services/plan_view.py). Presentation only: nothing here grants or limits access."""
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["follow", "live", "stills"] = "follow"  # live 3D, or the baked stills (zero WebGL frames)
+    quality: Literal["follow", "auto", "realistic", "lite", "full", "schematic"] = "follow"  # the live view's rung; fixed = never lowered by the probe
+    idle_s: Literal["follow", 0, 10, 30, 120, 600] = "follow"  # seconds of no touch and no change before the still replaces the live view; 0 = never
+
+
 class WallConfig(BaseModel):
     """Section 4. The camera ORDER lives here; who may watch is the user's bindings."""
     model_config = ConfigDict(extra="forbid")
@@ -86,6 +96,7 @@ class WallConfig(BaseModel):
     strip: list[Literal["clock", "date", "weather", "alarm", "health"]] = Field(default_factory=lambda: ["clock", "date", "health"], max_length=8)
     state_entities: list[str] = Field(default_factory=list, max_length=MAX_STATE_ENTITIES)
     show_map: bool = False
+    plan: Plan = Field(default_factory=Plan)  # the map band's own plan mode / quality / idle time (CR-029 S5-B)
     theme: Literal["follow", "dark", "light"] = "dark"
     alerts: Alerts = Field(default_factory=Alerts)
     frame: Frame = Field(default_factory=Frame)
