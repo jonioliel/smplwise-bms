@@ -1616,6 +1616,9 @@ export class SwApp extends LitElement {
   }
 
   protected updated() {
+    // The first load is over: the session is known and, with a backend, the product settings (ui.tabs, the start screen, the
+    // hidden areas) are applied. Nothing in the UI reads this; specs wait for it instead of sleeping.
+    this.toggleAttribute('data-shell-ready', this.session.mode !== 'loading' && (this.session.mode !== 'api' || this.startResolved));
     this.syncSearchOutside();
     this.applyNavSize();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or

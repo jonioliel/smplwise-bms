@@ -102,7 +102,11 @@ async function open(page: Page, hash: string) {
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
-  await page.waitForTimeout(700);
+  // The shell draws its rows from the built-in tabs at once and re-draws them when the product settings (ui.tabs among them)
+  // arrive. A fixed sleep guessed that arrival; on a busy machine the settings answer came later and the rows still showed
+  // the built-in tabs ("תיקים" in the investigation row). `data-shell-ready` is set once the session is known and the settings
+  // are applied (sw-app.updated), so the reads after open() see the final rows.
+  await page.waitForSelector('sw-app[data-shell-ready]');
 }
 
 const hashOf = (page: Page) => page.evaluate(() => location.hash);
