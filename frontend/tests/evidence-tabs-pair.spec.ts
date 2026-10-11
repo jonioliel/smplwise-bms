@@ -4,8 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // 0.1.153 (owner requirement): in the dropdown form the page chrome's TWO levels are two compact chips side by side in ONE row (the
-// mockup's tab-pair): security = sections + pages, multimedia = the area's pages + the room filter, home = the area's pages + the areas
-// of the floor. Measured at 390 / 360 / 320 px in demo mode through shell/tabs-mode.ts. Needs the Vite DEV server (imports /src/...):
+// mockup's tab-pair): security = sections + pages, multimedia = the area's pages + the room filter; home (since the HOME polish of
+// 2026-10-10) = the floor picker + the area picker in the screen's breadcrumb row. Measured at 390 / 360 / 320 px in demo mode through shell/tabs-mode.ts. Needs the Vite DEV server (imports /src/...):
 //   $env:SW_API_PORT='59999'; npx vite --host 127.0.0.1 --port 5196   then
 //   $env:SW_BASE_URL='http://127.0.0.1:5196/'; npx playwright test evidence-tabs-pair --project=desktop --workers=1
 const SHOTS = process.env.SW_SHOTS ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/tabs-dropdown');
@@ -167,29 +167,77 @@ for (const w of [390, 360, 320]) {
       expect(await page.locator('multimedia-screens').evaluate((el) => !!el.shadowRoot!.querySelector('[data-rooms-in-shell]'))).toBe(true);
     });
 
-    test('home: the area page chip + the areas of the floor in one row', async ({ page }) => {
+    // HOME polish (owner 2026-10-10, docs/design/HOME_POLISH.md): the home's two levels are no longer a pair of chips in the shell; they are the
+    // floor picker and the area picker side by side in the screen's breadcrumb row, in every tabs mode. The same one-row guarantee, measured on them.
+    test('home: the floor picker + the area picker (the areas of the floor) in one row', async ({ page }) => {
       await openShell(page, '/devices/building', w);
       await setMode(page, 'dropdown');
       await page.evaluate(async () => {
         if (!customElements.get('devices-area-nav')) await import(/* @vite-ignore */ ['/src', 'screens', 'devices-area-nav.ts'].join('/'));
+        const st = document.createElement('div'); // the page's content column: full width with the 16 px phone gutter
+        st.id = 'stage';
+        st.style.cssText = 'position:fixed;inset:0;z-index:10;background:var(--sw-bg,#fff);padding:16px';
         const el = document.createElement('devices-area-nav') as HTMLElement & { areaId: string; areaName: string; floorName: string; areas: unknown };
         el.id = 'nav';
         el.areaId = 'a1';
         el.areaName = 'אזור 1';
         el.floorName = 'קומה 1';
         el.areas = Array.from({ length: 5 }, (_, i) => ({ area_id: `a${i + 1}`, name: `אזור ${i + 1}`, counts: { entities: i + 2 } }));
-        el.style.display = 'none';
-        document.body.appendChild(el);
+        st.appendChild(el);
+        document.body.appendChild(st);
       });
       await page.waitForTimeout(500);
-      const p = await pair(page);
-      expect(p).not.toBeNull();
-      assertPair(p!);
+      // the shell carries no chip for the home's areas any more (the picker is the one place)
+      expect(await page.locator('sw-app').evaluate((app) => app.shadowRoot!.querySelectorAll('[data-pair-chip]').length)).toBe(0);
+      const facts = () =>
+        page.locator('#nav').evaluate((nav) => {
+          const root = nav.shadowRoot!;
+          const box = (sel: string) => {
+            const el = root.querySelector<HTMLElement>(sel)!;
+            const r = el.getBoundingClientRect();
+            return { l: r.left, r: r.right, t: r.top, b: r.bottom, h: r.height, overflowing: [...el.querySelectorAll('*')].some((k) => { const q = k.getBoundingClientRect(); return q.width > 0 && (q.right > r.right + 1 || q.left < r.left - 1); }) };
+          };
+          const picks = root.querySelector<HTMLElement>('[data-nav-picks]')!;
+          const n = root.querySelector<HTMLElement>('nav')!;
+          return {
+            floor: box('[data-crumb=floor]'),
+            area: box('[data-crumb=area]'),
+            picks: { scroll: picks.scrollWidth, client: picks.clientWidth },
+            nav: { scroll: n.scrollWidth, client: n.clientWidth },
+            vw: document.documentElement.clientWidth,
+            vh: window.innerHeight,
+          };
+        });
+      const f = await facts();
+      const [a, b] = [f.floor, f.area];
+      expect(Math.abs(a.t - b.t)).toBeLessThan(2); // the same row
+      expect(Math.abs(a.b - b.b)).toBeLessThan(2);
+      expect(b.r).toBeLessThanOrEqual(a.l + 1); // RTL: the floor (the primary level) on the right, the area beside it; no overlap
+      for (const c of [a, b]) {
+        expect(c.h).toBeGreaterThanOrEqual(44); // a phone's touch target
+        expect(c.h).toBeLessThanOrEqual(64);
+        expect(c.l).toBeGreaterThanOrEqual(0);
+        expect(c.r).toBeLessThanOrEqual(f.vw);
+        expect(c.overflowing).toBe(false); // the text is ellipsised inside, never spilling out of the picker
+      }
+      expect(Math.abs(a.r - a.l - (b.r - b.l))).toBeLessThan(2); // equal widths (each half the row)
+      expect(f.picks.scroll).toBeLessThanOrEqual(f.picks.client + 1); // no horizontal overflow of the row
+      expect(f.nav.scroll).toBeLessThanOrEqual(f.nav.client + 1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
       if (w === 390) await shot(page, 'pair-home-390-light');
-      const dd = await openChip(page, 1, 'click');
-      const b = await popBox(dd);
-      expect(b.pop.t).toBeGreaterThanOrEqual(b.chip.b);
-      expect(b.pop.r).toBeLessThanOrEqual(b.vw);
+      // the area list opens under its picker (a bottom sheet on a phone), inside the screen, and the keyboard works
+      await page.locator('#nav').evaluate((nav) => nav.shadowRoot!.querySelector<HTMLElement>('[data-crumb=area]')!.focus());
+      await page.keyboard.press('ArrowDown');
+      const pop = await page.locator('#nav').evaluate((nav) => {
+        const m = nav.shadowRoot!.querySelector<HTMLElement>('[data-nav-menu=area]')!.getBoundingClientRect();
+        return { l: m.left, r: m.right, t: m.top, b: m.bottom, options: nav.shadowRoot!.querySelectorAll('[data-nav-menu=area] [data-nav-option]').length, focused: (nav.shadowRoot!.activeElement as HTMLElement | null)?.dataset.navOption ?? null };
+      });
+      expect(pop.options).toBe(5);
+      expect(pop.focused).toBe('a1'); // ArrowDown opens on the current area
+      expect(pop.t).toBeGreaterThanOrEqual(b.b);
+      expect(pop.l).toBeGreaterThanOrEqual(0);
+      expect(pop.r).toBeLessThanOrEqual(f.vw);
+      expect(Math.round(pop.b)).toBeLessThanOrEqual(f.vh);
       await page.keyboard.press('End');
       await page.keyboard.press('Enter');
       expect(await page.evaluate(() => location.hash)).toBe('#/devices/areas/a5');
