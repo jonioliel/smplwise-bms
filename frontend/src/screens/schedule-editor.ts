@@ -208,6 +208,9 @@ export class ScheduleEditor extends LitElement {
   private baseRevision = '';
   private previewToken = 0;
   private previewTimer = 0;
+  /** The draft `preview` was computed for. The server's findings are its word on THAT draft only: once the person edits, they
+   * are history (they must neither flash back as errors nor block "שמירה") until the next preview answers. */
+  private previewFor: ScheduleDraft | null = null;
   private stopSub: (() => void) | null = null;
   private clockTimer = 0;
   private mq: MediaQueryList | null = null;
@@ -862,10 +865,16 @@ export class ScheduleEditor extends LitElement {
       const o = validateDraft({ ...this.currentDraft(), weekdays: tokensOf(this.override.days), slots: plainSlots(this.override.slots) }, { creating: false, meta: this.meta, sun: this.sunNow, original: this.baseline, lockedConditions: this.schedule?.conditions.items ?? [] });
       errors = [...errors, ...o.errors.map(withPath).filter((e) => e.path.startsWith('slots')).map((e) => ({ ...e, path: `override.${e.path}` }))];
     }
-    // the server's own findings (preview) join, without repeating what is already said
-    for (const e of (this.preview?.errors ?? []).map(withPath)) if (!errors.some((x) => x.path === e.path && x.message === e.message)) errors = [...errors, e];
-    for (const w of (this.preview?.warnings ?? []).map(withPath)) if (!warnings.some((x) => x.path === w.path && x.message === w.message)) warnings.push(w);
+    // the server's own findings (preview) join, without repeating what is already said - while they still describe this draft
+    const said = this.previewOfThisDraft;
+    for (const e of (said?.errors ?? []).map(withPath)) if (!errors.some((x) => x.path === e.path && x.message === e.message)) errors = [...errors, e];
+    for (const w of (said?.warnings ?? []).map(withPath)) if (!warnings.some((x) => x.path === w.path && x.message === w.message)) warnings.push(w);
     return { errors, warnings };
+  }
+
+  /** The preview, but only while the draft on screen is the one it answered for (an edit made it history). */
+  private get previewOfThisDraft(): PreviewResult | null {
+    return this.preview && this.previewFor && sameDraft(this.previewFor, this.currentDraft()) ? this.preview : null;
   }
 
   private errorsByUid(): Record<string, Problem[]> {
@@ -894,7 +903,9 @@ export class ScheduleEditor extends LitElement {
     this.conflict = null;
     this.gone = false;
     this.savedOk = false;
+    this.previewToken += 1; // an answer still in flight belongs to what was open before
     this.preview = null;
+    this.previewFor = null;
     this.stash = null;
     const id = this.scheduleId;
     const key = this.loadedKey;
@@ -1051,6 +1062,7 @@ export class ScheduleEditor extends LitElement {
     this.ebuCache = null;
     this.saveError = '';
     this.savedOk = false;
+    this.previewToken += 1; // a preview still in flight answers for the draft before this edit: it must not land on the new one
     this.schedulePreview();
   }
 
@@ -1287,19 +1299,27 @@ export class ScheduleEditor extends LitElement {
   private async runPreview() {
     if (this.loading || this.readOnly && !this.creating) {
       this.preview = null;
+      this.previewFor = null;
       return;
     }
     const draft = this.currentDraft();
     if (!draft.slots.length) {
       this.preview = null;
+      this.previewFor = null;
       return;
     }
     const token = ++this.previewToken;
     try {
       const p = await previewSchedule(draft, this.creating ? null : this.scheduleId, 6);
-      if (token === this.previewToken) this.preview = p;
+      if (token === this.previewToken) {
+        this.previewFor = draft;
+        this.preview = p;
+      }
     } catch {
-      if (token === this.previewToken) this.preview = null;
+      if (token === this.previewToken) {
+        this.preview = null;
+        this.previewFor = null;
+      }
     }
   }
 
@@ -1346,6 +1366,7 @@ export class ScheduleEditor extends LitElement {
     this.saveError = '';
     try {
       const p = await previewSchedule(draft, this.creating ? null : this.scheduleId, 6);
+      this.previewFor = draft;
       this.preview = p;
       if (!p.valid) {
         this.showErrors = true;
@@ -1405,6 +1426,7 @@ export class ScheduleEditor extends LitElement {
       }
       if (e.code === 'validation' || e.code === 'slots_overlap') {
         const errs = (details.errors as Problem[] | undefined) ?? [];
+        this.previewFor = this.currentDraft(); // the server just judged this draft
         this.preview = { ...(this.preview ?? { valid: false, warnings: [], upcoming: [], conditional: false, sensitive: false, lowering: false, requires: { sensitive_permission: false, confirm_lowering: false, alarm_code: false } }), valid: false, errors: errs.length ? errs : [{ path: '', code: e.code, message: e.message }] };
         this.showErrors = true;
         this.lowering = null;

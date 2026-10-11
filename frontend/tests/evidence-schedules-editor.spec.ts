@@ -738,6 +738,31 @@ test.describe('create flow', () => {
     await expect(editor(page).locator('[data-note]')).toContainText('נוצר');
   });
 
+  test('the server preview asked before an edit never lands on the edited draft: its old error does not flash back and "שמירה" is not swallowed', async ({ page }) => {
+    // The preview is debounced (450 ms after the last edit) and answers after a round trip. A preview asked for a slot WITHOUT an
+    // action answers "לכל משבצת נדרשת פעולה"; if that answer arrives after the person has added a device, it used to be merged into
+    // the validation of the new draft: the banner flipped back to the error and a click on "שמירה" in that moment only re-showed it
+    // (the gate saw "[data-save-error] not found"). The page's clock is paused, so the interleaving is exact, not a matter of load.
+    await page.clock.install();
+    await mount(page, '', { template: 'blank' });
+    await editor(page).locator('[data-editor-name]').fill('בדיקה');
+    await page.clock.pauseAt(new Date(Date.now() + 2000)); // from here only runFor moves the page's time
+    await editor(page).locator('[data-add-slot]').click(); // a slot without an action: the debounce for its preview starts (450 ms)
+    await editor(page).locator('[data-open-picker]').click();
+    await page.clock.runFor(150); // the picker's catalogue answers
+    const picker = editor(page).locator('schedule-entity-picker');
+    await picker.locator('[data-picker-item="light.lobby"] input').check();
+    await page.clock.runFor(320); // 470 ms after the slot: the debounce fired, the preview of the actionless draft is on its way
+    await picker.locator('[data-picker-ok]').click(); // the edit: the slot gets the device's action
+    await page.clock.runFor(100); // the old answer (an error for the actionless draft) arrives now
+    await expect(editor(page).locator('[data-validation-status]')).toContainText('תקין');
+    await expect(editor(page).locator('[data-validation-status]')).not.toContainText('לכל משבצת נדרשת פעולה');
+    await editor(page).locator('[data-editor-save]').click();
+    await page.clock.runFor(100); // the save's own preview
+    await page.clock.runFor(300); // the create
+    await expect(editor(page).locator('[data-note]')).toContainText('נוצר');
+  });
+
   test('the create dialog on a phone (390)', async ({ page }) => {
     await mount(page, '', { tag: 'schedule-create-dialog', width: 390, height: 844 });
     const dlg = page.locator('schedule-create-dialog');
