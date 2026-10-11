@@ -88,6 +88,8 @@ export interface Mock {
   patched: Record<string, unknown>[];
   ws: { send: (m: string) => void } | null;
   maps: number;
+  /** The floor map of the floor opens in 3D by itself (settings map.default_view) and the site tree lists the floor. */
+  floorMap?: boolean;
 }
 export const newMock = (over: Partial<Mock> = {}): Mock => ({ plan: { mode: 'follow', quality: 'follow', idle_s: 'follow' }, floor: 'f1', dials: {}, skin: 'classic', scheme: 'dark', theme: 'dark', circuit: 'on', version: 1, admin: false, patched: [], ws: null, maps: 0, ...over });
 
@@ -120,7 +122,7 @@ export async function install(page: Page, st: Mock) {
       });
     }
     if (p === 'me/prefs') return json({ prefs: {}, stored: [], updated_at: null });
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.skin': st.skin, 'ui.scheme': st.scheme, 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false', 'ui.tabs': {}, 'media.transport_default': 'mse', 'plan.quality': 'auto' }, can_edit: st.admin });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.skin': st.skin, 'ui.scheme': st.scheme, 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false', 'ui.tabs': {}, 'media.transport_default': 'mse', 'plan.quality': 'auto', ...(st.floorMap ? { 'map.default_view': '3d' } : {}) }, can_edit: st.admin });
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-10-05T00:00:00Z', version: 'test' });
     if (p.startsWith('rules/alerts')) return json({ alerts: [], unacked: 0 });
     if (p === 'wall/config') {
@@ -136,7 +138,11 @@ export async function install(page: Page, st: Mock) {
     }
     if (p === 'wall/photo-sets') return json({ sets: [], limits: { max_files: 200, max_bytes: 8388608, formats: [] } });
     if (p === 'cameras') return json({ cameras: CAMS.map((c, i) => ({ ...c, recorder_id: 'r', channel: i + 1, name_source: c.name, alias: null, enabled: true, sort_order: i })), recorder: null, can_sync: false });
-    if (p.startsWith('sites')) return json({ sites: [] });
+    if (p.startsWith('sites')) {
+      if (!st.floorMap) return json({ sites: [] });
+      const floor = { id: 'f1', building_id: 'b1', name: 'קומה 1', level: 1, sort_order: 0, ha_area_id: null, has_plan: true, published_version_id: 'pv1', plan_width_px: input.width, plan_height_px: input.height, draft_version_id: null, anchor_count: 0, camera_count: 0 };
+      return json({ sites: [{ id: 's1', name: 'אתר', address: '', timezone: 'Asia/Jerusalem', sort_order: 0, updated_at: '', buildings: [{ id: 'b1', site_id: 's1', name: 'בניין', sort_order: 0, updated_at: '', floors: [floor] }] }], can_create_site: false });
+    }
     if (p.startsWith('media/live/')) return json({ code: 'media_unavailable', user_message: 'אין מדיה' }, 503);
     if (p === 'plan-view/prefs') {
       const { default_view: _d, ...site } = { ...DEFAULT_VIEW, ...st.dials };
@@ -149,7 +155,7 @@ export async function install(page: Page, st: Mock) {
         building: { id: 'b1', site_id: 's1', name: 'בניין', sort_order: 0, updated_at: '' }, site: { id: 's1', name: 'אתר', address: '', timezone: 'Asia/Jerusalem', sort_order: 0, updated_at: '' },
         plan: { id: 'pv1', floor_id: 'f1', asset_id: 'a1', page: 1, rotation: 0, crop: null, width_px: input.width, height_px: input.height, scale_m_per_px: 1 / 60, status: 'published', revision: 1, notes: '', created_at: '', published_at: '2026-10-01T00:00:00Z', image_url: 'plan-assets/a1/image' },
         geometry: { id: 'g1', doc_hash: 'h1', status: 'published', revision: 1, published_at: '2026-10-01T00:00:00Z' }, catalog_revision: 'rev1', levels: doc.levels,
-        circuit_states: { c1: { entity_id: 'switch.c1', name: null, color_token: null, member_ids: ['dl0'], power_w: 40, state: st.circuit, known: true, fresh: true } },
+        circuit_states: { c1: { entity_id: 'switch.c1', name: null, color_token: null, member_ids: ['dl0'], power_w: 40, state: st.circuit, known: true, fresh: true, available: true, can_control: false, actions: [] } },
         bakes: bakesWire(), anchors: [], zones, needs_alignment: false, permissions: { edit: false, publish: false, import: false, structure: false }, cameras: [],
       });
     }
