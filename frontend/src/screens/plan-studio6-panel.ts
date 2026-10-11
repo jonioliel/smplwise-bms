@@ -446,7 +446,7 @@ export const studio6Styles = css`
   }
   .dial .n {
     fill: var(--sw-danger-text);
-    font-size: 11px;
+    font-size: var(--sw-fs-xs); /* 11px, from the type scale (unit-token-lint; integration 2.4.7) */
     font-weight: 700;
   }
   .dial .sun circle {
