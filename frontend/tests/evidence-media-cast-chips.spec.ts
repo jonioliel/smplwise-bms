@@ -13,7 +13,11 @@ const sys = (page: Page) => page.locator('sw-app system-multimedia');
 const row = (page: Page, key: string) => sys(page).locator(`[data-mm-admin-device="${key}"]`);
 const chip = (page: Page, key: string) => row(page, key).locator(`[data-mm-cast="${key}"] sw-badge`);
 const phone = (page: Page) => (page.viewportSize()?.width ?? 1440) <= 860;
-const tablet = (page: Page) => { const w = page.viewportSize()?.width ?? 1440; return w > 860 && w <= 1280; };
+/** 2.4.6: whether a list shows the TABLET columns (where the cast column is folded by default). The table picks its layout by
+ * its own width (a container query; the settings navigation column narrows it): tablet columns from 864 px, wide from 1228 px,
+ * cards below 864 px (the cards show the cast cell and hide the columns control). */
+const tablet = (page: Page, scope: 'screens' | 'players') =>
+  sys(page).locator(`[data-mm-table="${scope}"]`).evaluate((el) => { const w = el.getBoundingClientRect().width; return w >= 864 && w < 1228; });
 
 async function open(page: Page) {
   await page.addInitScript(() => {
@@ -48,7 +52,7 @@ test.describe('settings › מולטימדיה: the cast marking (demo mode, rea
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await open(page);
-    if (tablet(page)) await showCastColumn(page);
+    if (await tablet(page, 'screens')) await showCastColumn(page);
     await expect(chip(page, 'md-living')).toHaveAttribute('label', 'Google Cast');
     await expect(chip(page, 'md-living')).toHaveAttribute('kind', 'live');
     await expect(chip(page, 'md-parents')).toHaveAttribute('label', 'Google Cast');
@@ -72,7 +76,7 @@ test.describe('settings › מולטימדיה: the cast marking (demo mode, rea
     const players = sys(page).locator('[data-mm-players]');
     await expect(players).toBeVisible();
     const pl = (key: string) => players.locator(`[data-mm-admin-device="${key}"] [data-mm-cast="${key}"] sw-badge`);
-    if (tablet(page)) {
+    if (await tablet(page, 'players')) {
       await players.locator('[data-mm-toolbar="players"] [data-mm-cols]').click();
       await players.locator('[data-mm-toolbar="players"] [data-mm-col="cast"]').check();
       await page.keyboard.press('Escape');
