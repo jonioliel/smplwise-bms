@@ -13,6 +13,21 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     (default origin/main) selects the touched screens: runs `visual.mjs run --touched` on the dist preview against the committed
     linux baselines; the matrix spec then leaves the pixel group;
   * the final report lists every category with its counts, its baseline and the ratio.
+
+PARALLEL MODE (opt-in: --parallel or GATE_PARALLEL=1; without it the gate runs exactly as before):
+  * the preview, dev-server, fixture, pixel and visual work runs as ONE pool of `--workers=1` Playwright processes ("units") under a
+    total Chromium cap (GATE_PAR_SLOTS, default 10) on their own servers (dist preview, Vite dev server, fixture backend + preview:
+    separate free ports, the fixture's own data dir), longest expected unit first, with a memory admission check (a unit starts only
+    while MemAvailable stays above GATE_PAR_MEM_FLOOR_MB=3072 plus GATE_PAR_MB_PER_SLOT=700 per starting worker);
+  * units are packed per (category, project) from the earlier gates' per-file/per-project seconds (GATE_PAR_CHUNK_SECS=300 per unit);
+    a file+project above GATE_PAR_SPLIT_SECS (600) whose spec has no serial mode / beforeAll / afterAll is split by test line (and by
+    test title for parametrised siblings) from a `playwright test --list` of the branch, and a coverage check proves every listed test
+    of a split file reported exactly once;
+  * every failure is still retried ALONE (workers=1) after ALL units finished; FAIL / FLAKY / KNOWN, the zero-test / load-error /
+    exit-code guards, the budget and the baselines are unchanged. Pixel baselines run alone at the end (the slot pool is empty);
+  * backend: GATE_BACKEND_SHARDS shards (parallel default 6), balanced by the earlier gates' junit times (backend_s*.xml);
+  * `release_gate.py --plan [--costs <gate logs dir | durations txt>] [--frontend <dir>]` prints the unit plan and a simulated timeline
+    without running anything. GATE_ONLY_SPECS / GATE_ONLY_BACKEND (regex) run a SUBSET (marked as such; never a release verdict).
 """
 import concurrent.futures as cf, glob, json, os, re, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
 from pathlib import Path
@@ -56,6 +71,24 @@ try:
     FIXTURE_SPECS = {n for g in _fx.values() for n, s in g["specs"].items() if s.get("gate")} or FIXTURE_SPECS
 except (OSError, ValueError, KeyError):
     pass
+def _on(v):
+    return (v or "").strip().lower() not in ("", "0", "off", "no", "false")
+
+
+# ---- parallel mode knobs (only read when PARALLEL is on; see the docstring and docs/release/TEST_POLICY.md)
+PARALLEL = _on(os.environ.get("GATE_PARALLEL"))
+PAR_SLOTS = int(os.environ.get("GATE_PAR_SLOTS", "10"))                 # total concurrent Chromium workers (one per unit)
+PAR_CHUNK_SECS = float(os.environ.get("GATE_PAR_CHUNK_SECS", "300"))    # target seconds of one packed unit
+PAR_SPLIT_SECS = float(os.environ.get("GATE_PAR_SPLIT_SECS", "600"))    # a file+project above this is split by test line / title
+PAR_SPLIT_TITLES = _on(os.environ.get("GATE_PAR_SPLIT_TITLES", "1"))   # parametrised siblings on one line become one unit each
+PAR_MEM_FLOOR_MB = int(os.environ.get("GATE_PAR_MEM_FLOOR_MB", "3072"))
+PAR_MB_PER_SLOT = int(os.environ.get("GATE_PAR_MB_PER_SLOT", "700"))
+PAR_VISUAL_SLOTS = int(os.environ.get("GATE_PAR_VISUAL_SLOTS", "8"))    # visual.mjs runs Playwright's default workers (cores / 2)
+PAR_NO_SPLIT = {x.strip() for x in os.environ.get("GATE_PAR_NO_SPLIT", "").split(",") if x.strip()}
+BACKEND_SHARDS = int(os.environ.get("GATE_BACKEND_SHARDS") or 0)       # 0 = the mode's default (3 serial, 6 parallel)
+COSTS_FROM = os.environ.get("GATE_COSTS_FROM", "")                     # extra cost sources: gate .logs dirs or durations .txt
+ONLY_SPECS = os.environ.get("GATE_ONLY_SPECS", "")                     # SUBSET runs (validation only): regex on spec file names
+ONLY_BACKEND = os.environ.get("GATE_ONLY_BACKEND", "")                 # SUBSET runs: regex on backend test file names
 STATUS = RES / "gate_status.json"
 STARTED = time.strftime("%Y-%m-%dT%H:%M:%S%z")
 GROUPS = []          # process groups started here (only these are ever killed)
@@ -282,19 +315,28 @@ def need_modules(wt, log):
 
 
 # ---------------------------------------------------------------- backend
-def backend_start(wt, logd, nshards=3):
+def backend_start(wt, logd, nshards=3, costs=None, junit=False):
+    """costs/junit: parallel mode only (shards balanced by the earlier gates' junit seconds; each shard writes backend_s<k>.xml)."""
     bd = wt / "smplwise_vms" / "backend"
     files = sorted(glob.glob(str(bd / "tests" / "test_*.py")), key=lambda f: -os.path.getsize(f))
-    shards = [[] for _ in range(nshards)]
-    load = [0] * nshards
-    for f in files:
-        k = load.index(min(load))
-        shards[k].append("tests/" + os.path.basename(f))
-        load[k] += os.path.getsize(f)
+    if ONLY_BACKEND:
+        files = [f for f in files if re.search(ONLY_BACKEND, os.path.basename(f))]
+    if costs is not None:
+        shards = backend_shard_plan({"tests/" + os.path.basename(f): os.path.getsize(f) for f in files}, costs, nshards)
+    else:
+        shards = [[] for _ in range(nshards)]
+        load = [0] * nshards
+        for f in files:
+            k = load.index(min(load))
+            shards[k].append("tests/" + os.path.basename(f))
+            load[k] += os.path.getsize(f)
     procs = []
     for k, fl in enumerate(shards, 1):
+        if not fl:
+            continue
         log = logd / f"backend_s{k}.log"
-        p = spawn([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / f"tmp_b{k}")] + fl, bd, log)
+        jx = ["--junitxml", str(logd / f"backend_s{k}.xml")] if junit else []
+        p = spawn([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / f"tmp_b{k}")] + jx + fl, bd, log)
         procs.append((k, p, log))
     return procs, len(files)
 
@@ -386,6 +428,8 @@ def classify(fe, tier):
     for f in sorted((fe / "tests").glob("*.spec.ts")):
         if tier == "S" and not f.name.startswith("unit-"):
             continue
+        if ONLY_SPECS and not re.search(ONLY_SPECS, f.name):
+            continue
         text = f.read_text(errors="replace")
         header = "\n".join(text.splitlines()[:70])
         flags = list(dict.fromkeys(re.findall(r"--project=(desktop|tablet|mobile)", header)))
@@ -459,7 +503,7 @@ def file_arg(name, line=None):
     return "tests/" + name.replace(".", "\\.") + (f":{line}" if line else "$")
 
 
-def run_pw(fe, specs, projects, base_url, logd, label, env=None, workers=None, grep=None, grep_invert=None, line_args=None, timeout=None):
+def run_pw(fe, specs, projects, base_url, logd, label, env=None, workers=None, grep=None, grep_invert=None, line_args=None, timeout=None, output=None):
     jp = logd / f"pw_{label}.json"
     if jp.exists():
         jp.unlink()
@@ -467,6 +511,8 @@ def run_pw(fe, specs, projects, base_url, logd, label, env=None, workers=None, g
     e.update(env or {})
     cmd = ["npx", "playwright", "test"] + (line_args if line_args is not None else [file_arg(s) for s in specs])
     cmd += [f"--project={p}" for p in projects] + [f"--workers={workers or PW_WORKERS}", "--reporter=list,json"]
+    if output:   # parallel mode: every process has its own output dir (Playwright empties it at start; a shared test-results/ would
+        cmd += [f"--output={output}"]   # lose a running process's attachments when the next process starts)
     if grep:
         cmd += ["-g", grep]
     if grep_invert:
@@ -757,6 +803,8 @@ def write_reports(sha, verdict, extra):
         md += [f"> **אזהרה:** {len(TIMEDEP)} בדיקות תלויות-שעה (שעות שקט) נכשלו בגלל שעת ההרצה ולכן סומנו KNOWN ולא נבדקו באמת. להריץ את השער שוב בשעות היום לפני שחרור.", ""]
     if ALLOW_DROP:
         md += [f"> **אזהרה:** בדיקת ירידת הספירה נוטרלה ב-`--allow-count-drop`: {ALLOW_DROP}", ""]
+    if extra.get("subset"):
+        md += [f"> **הרצה חלקית (SUBSET, {extra['subset']}): לא פסק דין של שחרור.**", ""]
     md += ["## ספירה לפי קטגוריה", "", f"| קטגוריה | עבר | נכשל | FLAKY | KNOWN | דולג | בסיס (שחרור קודם) | יחס (סף {DROP_THRESHOLD:.0%}) |", "|---|---|---|---|---|---|---|---|"]
     zero = {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}
     for k in list(COUNTS) + [c for c in BASELINE_ROWS if c not in COUNTS]:
@@ -767,6 +815,22 @@ def write_reports(sha, verdict, extra):
     for w in extra.get("baseline_warnings", []):
         md += ["", f"> אזהרה: {w}"]
     md += ["", "## שלבים", ""] + [f"- {p['name']}: {p['seconds']} שניות" for p in PHASES]
+    if extra.get("parallel"):
+        pi = extra["parallel"]
+        m = pi.get("memory") or {}
+        md += ["", "## מצב מקבילי (GATE_PARALLEL)", "",
+               f"- slots {pi.get('slots')} | units {pi.get('units')} | backend shards {pi.get('backend_shards', '-')} | simulated pool {pi.get('simulated_s', '-')} s"
+               f" | chunk {pi.get('chunk_secs')} s | split above {pi.get('split_secs')} s",
+               "- span per category (seconds from the gate start): " + (", ".join(f"{c} {a}-{b}" for c, (a, b) in sorted((pi.get("spans") or {}).items())) or "-"),
+               "- split files: " + (", ".join(pi.get("split") or []) or "-"),
+               "- longest units (s): " + (", ".join(f"{lab} {s}" for s, lab in pi.get("longest") or []) or "-")]
+        if m:
+            md.append(f"- memory: MemAvailable {m.get('start_mb')} MB at the pool start, minimum {m.get('min_mb')} MB at +{m.get('min_at_s')} s "
+                      f"({m.get('slots_at_min')} slots in use); peak slots {m.get('peak_slots')}; admission waits {m.get('admission_waits', 0)}; "
+                      f"peak PSS of the gate's processes {m.get('peak_rss_mb')} MB ({m.get('peak_mem_procs', '-')} processes, {m.get('peak_mem_slots', '-')} "
+                      f"slots busy, about {m.get('mb_per_slot_seen', '-')} MB per busy slot incl. servers and backend shards); floor {pi.get('mem_floor_mb')} MB; "
+                      f"peak load average (1 min) {m.get('peak_load1', '-')}; MB by command at the peak: {m.get('peak_by_command', '-')}")
+        md += [f"- {n}" for n in pi.get("notes") or []]
     for st, title in (("FAIL", "נכשלו"), ("WAIVED", "ויתור מפורש"),("FLAKY", "FLAKY (נכשל ועבר בהרצה חוזרת בודדת)"), ("KNOWN", "KNOWN (ברשימת הבעיות המוכרות)"), ("SKIPPED", "דולגו")):
         lst = [i for i in ITEMS if i["status"].startswith(st)]
         md += ["", f"## {title}: {len(lst)}", ""]
@@ -792,6 +856,665 @@ def write_reports(sha, verdict, extra):
 
 def compute_verdict(hard_fail):
     return "pass" if sum(v["fail"] for v in COUNTS.values()) == 0 and not hard_fail else "fail"
+
+
+# ================================================================ parallel mode (opt-in: --parallel / GATE_PARALLEL=1)
+PAR_INFO = {}        # plan, timeline, spans: the report's "parallel" section
+MEMSTAT = {}         # memory samples (Linux /proc/meminfo); empty when not sampled
+PAR_LIVE = {"slots": 0}
+UNIT_OVERHEAD = 5.0  # seconds a Playwright process costs before its first test (start, config, browser), for the plan
+ITEM_OVERHEAD = 0.25 # seconds a (file, project) adds to a unit even when its tests skip (2.4.6: the 3-worker preview run spent ~0.2 s per item outside its tests)
+NO_SPLIT_RE = re.compile(r"""mode:\s*['"]serial['"]|describe\.serial|\.beforeAll\(|\.afterAll\(""")
+
+
+def subset_note():
+    sel = [f"GATE_ONLY_SPECS={ONLY_SPECS}"] if ONLY_SPECS else []
+    sel += [f"GATE_ONLY_BACKEND={ONLY_BACKEND}"] if ONLY_BACKEND else []
+    return ", ".join(sel)
+
+
+def js_re_escape(s):
+    """Escape for a JavaScript RegExp (no 'u' flag) that Python's re reads the same way."""
+    return re.sub(r"([\\^$.*+?()\[\]{}|/])", r"\\\1", s)
+
+
+def title_grep(path):
+    """A Playwright -g value for ONE test: Playwright 1.63 greps "<root> <project> <file> <describe> <its tags> ... <title> <tags>" joined by
+    spaces (Suite._collectGrepTitlePath); the slash form gives a case-sensitive RegExp without the 'g' state. Anchored on the describe
+    path + title at the end, tags allowed after every part."""
+    return "/(^| )" + "(?: @\\S+)* ".join(js_re_escape(p) for p in path) + "(?: @\\S+)*$/"
+
+
+def grep_safe(paths):
+    """True when every sibling's title_grep matches itself and none of the others (else they stay one line unit)."""
+    rx = [re.compile(title_grep(p)[1:-1]) for p in paths]
+    for i, r in enumerate(rx):
+        for j, p in enumerate(paths):
+            hit = bool(r.search("tests/x.spec.ts " + " ".join(p)))
+            if hit != (i == j):
+                return False
+    return True
+
+
+def lpt_bins(weights, n):
+    """Longest-processing-time-first: heaviest item onto the lightest bin (ties: lower index). Returns n lists of names."""
+    bins = [[0.0, i, []] for i in range(max(1, n))]
+    for name in sorted(weights, key=lambda x: (-weights[x], x)):
+        b = min(bins, key=lambda b: (b[0], b[1]))
+        b[0] += weights[name]
+        b[2].append(name)
+    return [b[2] for b in bins]
+
+
+def backend_shard_plan(sizes, costs, n):
+    """sizes {tests/test_x.py: bytes}; costs {tests/test_x.py: seconds from earlier junit XML}. A file without a time weighs its size
+    times the median seconds-per-byte of the timed files (size alone when nothing is timed). Returns n shard lists (LPT)."""
+    ratios = sorted(costs[f] / sizes[f] for f in sizes if f in costs and sizes[f] > 0)
+    rate = ratios[len(ratios) // 2] if ratios else None
+    w = {f: (costs[f] if f in costs else (sizes[f] * rate if rate is not None else float(sizes[f]))) for f in sizes}
+    return lpt_bins(w, n)
+
+
+def list_rows(json_path):
+    """[{file, line, project, path}] (path = describe titles + test title) from a Playwright JSON report or `--list` report; None if unreadable."""
+    try:
+        d = json.loads(Path(json_path).read_text())
+    except Exception:
+        return None
+    rows = []
+
+    def walk(suite, path):
+        t = path + ([suite["title"]] if suite.get("title") and not suite["title"].endswith((".ts", ".js")) else [])
+        for sp in suite.get("specs", []):
+            for tst in sp.get("tests", []):
+                rows.append({"file": os.path.basename(sp.get("file", "")), "line": sp.get("line"), "project": tst.get("projectName"),
+                             "path": [x for x in t + [sp.get("title", "")] if x],
+                             "secs": sum((r.get("duration") or 0) for r in tst.get("results", [])) / 1000.0})
+        for s in suite.get("suites", []):
+            walk(s, t)
+
+    for s in d.get("suites", []):
+        walk(s, [])
+    return rows
+
+
+def _add_source(acc, fp, tests):
+    """Merge one gate's numbers; a (file, project) the newer source already has keeps the newer numbers."""
+    have = set(acc["fp"])
+    for k, v in fp.items():
+        if k not in have:
+            acc["fp"][k] = v
+    for (f, p, line, title), v in tests.items():
+        if (f, p) not in have:
+            acc["t"][(f, p, line, title)] = acc["t"].get((f, p, line, title), 0.0) + v
+            acc["listing"].setdefault((f, p), []).append((line, title.split(" > ")))
+
+
+def load_costs(sources):
+    """sources: gate .logs dirs (pw_*.json, retry reports excluded) or durations .txt files with lines
+         FILE <report> <file> <project> <seconds> <tests>       (per file and project)
+         TEST <file> <project> <line> <seconds> <title path joined by ' > '>
+       newest first. Returns {"fp": {(file, project): s}, "t": {(file, project, line, title): s}, "listing": {(file, project): [(line, path)]}}."""
+    acc = {"fp": {}, "t": {}, "listing": {}}
+    for src in sources:
+        src = Path(src)
+        fp, tests = {}, {}
+        if src.is_dir():
+            for jp in sorted(src.glob("pw_*.json")):
+                if "_retry_" in jp.name:
+                    continue
+                for r in list_rows(jp) or []:
+                    k = (r["file"], r["project"])
+                    fp[k] = fp.get(k, 0.0) + r["secs"]
+                    tk = (r["file"], r["project"], r["line"], " > ".join(r["path"]))
+                    tests[tk] = tests.get(tk, 0.0) + r["secs"]
+        elif src.is_file():
+            for line in src.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+                p = line.split(" ", 5)
+                if p[0] == "FILE" and len(p) >= 6:
+                    k = (p[2], p[3])
+                    fp[k] = fp.get(k, 0.0) + float(p[4])
+                elif p[0] == "TEST" and len(p) >= 6:
+                    tk = (p[1], p[2], int(p[3]), p[5].strip())
+                    tests[tk] = tests.get(tk, 0.0) + float(p[4])
+            if tests and not fp:
+                for (f, pj, _l, _t), v in tests.items():
+                    fp[(f, pj)] = fp.get((f, pj), 0.0) + v
+        _add_source(acc, fp, tests)
+    return acc
+
+
+def junit_costs(dirs):
+    """Seconds per backend test file (tests/test_x.py) from earlier gates' backend_s*.xml; newest dir first wins."""
+    import xml.etree.ElementTree as ET
+    out = {}
+    for d in dirs:
+        per = {}
+        for x in sorted(Path(d).glob("backend_s*.xml")):
+            try:
+                root = ET.parse(str(x)).getroot()
+            except Exception:
+                continue
+            for tc in root.iter("testcase"):
+                mod = next((s for s in (tc.get("classname") or "").split(".") if s.startswith("test_")), None)
+                if mod:
+                    per[f"tests/{mod}.py"] = per.get(f"tests/{mod}.py", 0.0) + float(tc.get("time") or 0)
+        for k, v in per.items():
+            out.setdefault(k, v)
+    return out
+
+
+def cost_dirs():
+    """GATE_COSTS_FROM entries first, then the last 10 gate .logs dirs (newest first, this run's own excluded)."""
+    mine = f"gate_{TAG}_{STATE['sha']}.logs"
+    extra = [Path(os.path.expanduser(x.strip())) for x in COSTS_FROM.split(",") if x.strip()]
+    try:
+        dirs = sorted((d for d in RES.glob("gate_*.logs") if d.is_dir() and d.name != mine), key=lambda d: d.stat().st_mtime, reverse=True)[:10]
+    except OSError:
+        dirs = []
+    return extra + dirs
+
+
+def par_items(cat, table, fp):
+    """One item per (spec file, project) of a classify() table, weighted by the earlier seconds (unknown: the median of the known ones)."""
+    known = sorted(fp[(n, p)] for n in table for p in table[n]["projects"] if (n, p) in fp)
+    dflt = known[len(known) // 2] if known else 60.0
+    out = []
+    for name in sorted(table):
+        for proj in table[name]["projects"]:
+            c = fp.get((name, proj))
+            out.append({"cat": cat, "file": name, "project": proj, "cost": dflt if c is None else c, "known": c is not None, "line": None, "grep": None})
+    return out
+
+
+def split_items(items, listing, tcosts, split_secs, can_split, titles=True):
+    """Split each item above split_secs whose spec may be split, from the CURRENT listing [(line, path)] of its (file, project): one item
+    per test line, or per test when parametrised siblings share a line and their title greps are unambiguous. Returns (items, splits)
+    where splits {(cat, file, project): sorted [(line, 'a > b')]} is what the coverage check expects to see reported exactly once."""
+    out, splits = [], {}
+    for it in items:
+        tests = listing.get((it["file"], it["project"])) if it["cost"] >= split_secs and can_split(it["file"]) else None
+        if not tests or len(tests) < 2:
+            out.append(it)
+            continue
+        bylines = {}
+        for line, path in tests:
+            bylines.setdefault(line, []).append(path)
+        n = len(tests)
+
+        def tc(line, path):
+            v = tcosts.get((it["file"], it["project"], line, " > ".join(path)))
+            return v if v is not None else it["cost"] / n
+        subs = []
+        for line in sorted(bylines):
+            paths = bylines[line]
+            base = {"cat": it["cat"], "file": it["file"], "project": it["project"], "known": it["known"], "line": line}
+            if titles and len(paths) > 1 and grep_safe(paths):
+                subs += [dict(base, grep=title_grep(p), cost=tc(line, p)) for p in paths]
+            else:
+                subs.append(dict(base, grep=None, cost=sum(tc(line, p) for p in paths)))
+        if len(subs) < 2:
+            out.append(it)
+            continue
+        splits[(it["cat"], it["file"], it["project"])] = sorted((line, " > ".join(p)) for line, p in tests)
+        out += subs
+    return out, splits
+
+
+def pack_units(items, chunk_secs):
+    """Pack items into Playwright processes (one project each, workers=1): an item of chunk_secs or more, or one with a title grep, is a
+    unit of its own; the rest go first-fit-decreasing into units of at most chunk_secs (ITEM_OVERHEAD per item counted)."""
+    groups = {}
+    for it in items:
+        groups.setdefault((it["cat"], it["project"]), []).append(it)
+    order = lambda k: (k[0], ALL_PROJECTS.index(k[1]) if k[1] in ALL_PROJECTS else 9, k[1])
+    units = []
+    for cat, proj in sorted(groups, key=order):
+        bins = []                # [load, solo, items]
+        for it in sorted(groups[(cat, proj)], key=lambda i: (-i["cost"], i["file"], i["line"] or 0, i["grep"] or "")):
+            c = it["cost"] + ITEM_OVERHEAD
+            if it["grep"] or c >= chunk_secs:
+                bins.append([c, True, [it]])
+                continue
+            b = next((b for b in bins if not b[1] and b[0] + c <= chunk_secs), None)
+            if b is None:
+                bins.append([c, False, [it]])
+            else:
+                b[0] += c
+                b[2].append(it)
+        for k, (load, _solo, its) in enumerate(bins):
+            units.append({"kind": "pw", "cat": cat, "project": proj, "label": f"{cat}_{proj}_u{k:03d}", "weight": 1, "prio": 1, "exclusive": False,
+                          "cost": round(load, 1), "args": [file_arg(i["file"], i["line"]) for i in its], "grep": its[0]["grep"],
+                          "keys": sorted({(cat, i["file"], proj) for i in its}), "files": sorted({i["file"] for i in its})})
+    return units
+
+
+def _order_key(u):
+    return (u["prio"], -u["cost"], u["label"])
+
+
+def pick_next(pending, free, running, slots):
+    """The dispatch rule shared by the executor and the simulator: in (prio, longest first) order, the first unit that fits the free
+    slots; an exclusive unit waits until nothing of the pool runs (it is only ever followed by other exclusive units)."""
+    for u in pending:
+        if u["exclusive"]:
+            return u if running == 0 else None
+        if min(u["weight"], slots) <= free:
+            return u
+    return None
+
+
+def simulate(units, slots, overhead=UNIT_OVERHEAD):
+    """Simulated pool run: returns (makespan seconds, {label: (start, end)})."""
+    import heapq
+    pending = sorted(units, key=_order_key)
+    t, free, running, span = 0.0, slots, [], {}
+    while pending or running:
+        while pending:
+            u = pick_next(pending, free, len(running), slots)
+            if u is None:
+                break
+            pending.remove(u)
+            w = slots if u["exclusive"] else min(u["weight"], slots)
+            free -= w
+            heapq.heappush(running, (t + u["cost"] + overhead, u["label"], w))
+            span[u["label"]] = (t, t + u["cost"] + overhead)
+        if not running:
+            break
+        t, _lab, w = heapq.heappop(running)
+        free += w
+    return t, span
+
+
+def build_plan(cls, costs, lister, fe, slots, tier, visual, chunk_secs=None, split_secs=None):
+    """The whole Playwright work of a run as units. lister(cands) -> {(file, project): [(line, path)]} for the split candidates (the gate
+    runs `playwright test --list`; --plan reads the cost source). Returns (units, splits, notes)."""
+    chunk_secs = chunk_secs or PAR_CHUNK_SECS
+    split_secs = split_secs or PAR_SPLIT_SECS
+    notes = []
+    items = par_items("preview", cls["rest"], costs["fp"]) + par_items("dev", cls["dev"], costs["fp"])
+
+    def can_split(name):
+        if name in PAR_NO_SPLIT:
+            return False
+        try:
+            return not NO_SPLIT_RE.search((fe / "tests" / name).read_text(errors="replace"))
+        except OSError:
+            return False
+    cands = [(i["cat"], i["file"], i["project"]) for i in items if i["cost"] >= split_secs and can_split(i["file"])]
+    listing = lister(cands) if cands else {}
+    items, splits = split_items(items, listing, costs["t"], split_secs, can_split, titles=PAR_SPLIT_TITLES)
+    for c in cands:
+        if c not in splits:
+            notes.append(f"not split (no listing or a single test): {c[1]} [{c[2]}]")
+    units = pack_units(items, chunk_secs)
+    for (projs, w1), names in group_by_run(cls["fixture"]).items():
+        c = sum(costs["fp"].get((n, p), 60.0) for n in names for p in projs)
+        units.append({"kind": "fixture", "cat": "fixture", "label": f"fixture_{'-'.join(projs)}", "weight": 1, "prio": 1, "exclusive": False,
+                      "cost": round(c, 1), "names": names, "projects": list(projs), "keys": []})
+    if tier == "L":
+        for k, name in enumerate(cls["pixel"]):
+            snap = fe / "tests" / f"{name}-snapshots"
+            has = snap.is_dir() and any(snap.glob("*-linux.png"))
+            c = sum(v for (f, _p, _l, t), v in costs["t"].items() if f == name and "pixel-stable" in t) or 30.0
+            units.append({"kind": "pixel", "cat": "pixel", "label": f"pixel_{k}", "weight": slots, "prio": 9, "exclusive": True, "cost": round(c, 1),
+                          "name": name, "has_baseline": has, "keys": []})
+    if visual:
+        block = visual == "block"
+        units.append({"kind": "visual", "cat": "visual", "label": "visual", "weight": slots if block else min(PAR_VISUAL_SLOTS, slots),
+                      "prio": 9 if block else 0, "exclusive": block, "cost": 90.0, "keys": []})
+    return units, splits, notes
+
+
+def mem_available_mb():
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        return None
+    return None
+
+
+def group_pss_mb():
+    """Memory (MB) of every process in this gate's process groups: the PSS sum (shared pages split between their users) from
+    /proc/<pid>/smaps_rollup, the RSS where that cannot be read. Returns (MB, processes, {command name: MB})."""
+    groups, tot, n, by = set(GROUPS), 0, 0, {}
+    page = os.sysconf("SC_PAGE_SIZE") if hasattr(os, "sysconf") else 4096
+    for st in glob.glob("/proc/[0-9]*/stat"):
+        try:
+            raw = open(st).read()
+            name, f = raw.split("(", 1)[1].rsplit(")", 1)[0], raw.rsplit(")", 1)[1].split()
+            if int(f[2]) not in groups:
+                continue
+            n += 1
+            try:
+                with open(st[:-4] + "smaps_rollup") as sm:
+                    b = next(int(x.split()[1]) * 1024 for x in sm if x.startswith("Pss:"))
+            except (OSError, StopIteration, ValueError):
+                b = int(f[21]) * page
+            tot += b
+            by[name] = by.get(name, 0) + b
+        except (OSError, IndexError, ValueError):
+            continue
+    return tot // (1024 * 1024), n, {k: v // (1024 * 1024) for k, v in sorted(by.items(), key=lambda kv: -kv[1])[:8]}
+
+
+def mem_sampler(stop, every=5):
+    a = mem_available_mb()
+    if a is None:
+        return
+    MEMSTAT.update(start_mb=a, min_mb=a, min_at_s=int(time.time() - T0), slots_at_min=0, samples=0, peak_rss_mb=0, peak_slots=0,
+                   admission_waits=MEMSTAT.get("admission_waits", 0))
+    n = 0
+    while not stop.wait(every):
+        a = mem_available_mb()
+        if a is None:
+            return
+        n += 1
+        MEMSTAT["samples"] = n
+        MEMSTAT["peak_slots"] = max(MEMSTAT["peak_slots"], PAR_LIVE["slots"])
+        try:
+            MEMSTAT["peak_load1"] = round(max(MEMSTAT.get("peak_load1", 0.0), os.getloadavg()[0]), 1)
+        except OSError:
+            pass
+        if a < MEMSTAT["min_mb"]:
+            MEMSTAT.update(min_mb=a, min_at_s=int(time.time() - T0), slots_at_min=PAR_LIVE["slots"])
+        if n % 3 == 0:
+            mb, procs, by = group_pss_mb()
+            if mb > MEMSTAT["peak_rss_mb"]:
+                MEMSTAT.update(peak_rss_mb=mb, peak_mem_procs=procs, peak_mem_slots=PAR_LIVE["slots"], peak_by_command=by,
+                               mb_per_slot_seen=round(mb / PAR_LIVE["slots"]) if PAR_LIVE["slots"] else None)
+
+
+def mem_admits(weight, recent, mem=mem_available_mb, now=None):
+    """A unit of `weight` workers may start while MemAvailable minus what the units started in the last 30 s have not yet taken stays
+    above the floor. True when memory cannot be read (non-Linux)."""
+    a = mem()
+    if a is None:
+        return True
+    now = now or time.time()
+    reserved = sum(w * PAR_MB_PER_SLOT for ts, w in recent if now - ts < 30)
+    return a - reserved - weight * PAR_MB_PER_SLOT >= PAR_MEM_FLOOR_MB
+
+
+def execute_units(units, slots, launch, mem=mem_available_mb):
+    """Run the units on a pool of `slots` workers (pick_next order; memory admission while anything of the pool runs). Returns
+    ({label: launch result}, {label: (start_s, end_s)}). launch(unit) runs in its own thread; an exception is stored as ('error', text)."""
+    pending = sorted(units, key=_order_key)
+    cond = threading.Condition()
+    st = {"free": slots, "running": 0, "done": 0, "recent": []}
+    results, timeline = {}, {}
+
+    def body(u, w):
+        t0 = time.time()
+        try:
+            results[u["label"]] = launch(u)
+        except Exception as e:  # noqa: BLE001 - a crashed launcher must not hang the pool; settle reports it as a failure
+            results[u["label"]] = ("error", f"{type(e).__name__}: {e}"[:200])
+        finally:
+            with cond:
+                st["free"] += w
+                st["running"] -= 1
+                st["done"] += 1
+                PAR_LIVE["slots"] = slots - st["free"]
+                timeline[u["label"]] = (int(t0 - T0), int(time.time() - T0))
+                cond.notify_all()
+
+    threads = []
+    with cond:
+        while pending:
+            u = pick_next(pending, st["free"], st["running"], slots)
+            if u is None:
+                cond.wait(5)
+                continue
+            w = slots if u["exclusive"] else min(u["weight"], slots)
+            if st["running"] > 0 and not mem_admits(w, st["recent"], mem):
+                MEMSTAT["admission_waits"] = MEMSTAT.get("admission_waits", 0) + 1
+                cond.wait(5)
+                continue
+            pending.remove(u)
+            st["free"] -= w
+            st["running"] += 1
+            st["recent"] = [(ts, x) for ts, x in st["recent"] if time.time() - ts < 30] + [(time.time(), w)]
+            PAR_LIVE["slots"] = slots - st["free"]
+            th = threading.Thread(target=body, args=(u, w), daemon=True)
+            th.start()
+            threads.append(th)
+            try:
+                status("running", f"parallel Playwright: {st['done']}/{len(units)} units done, {st['running']} running, {slots - st['free']}/{slots} slots")
+            except Exception:
+                pass
+    for th in threads:
+        th.join()
+    return results, timeline
+
+
+def split_coverage(splits, unit_results):
+    """unit_results [(unit, rows|None)]. Every test the listing showed for a split (file, project) must be reported exactly once across
+    its units. Returns [(key, reason)]; a key with a unit that produced no report is skipped (that unit already fails)."""
+    got, blind = {}, set()
+    for u, rows in unit_results:
+        if rows is None:
+            blind.update(tuple(k) for k in u.get("keys", []))
+            continue
+        for r in rows:
+            k = (u["cat"], r["file"], r["project"])
+            if k in splits:
+                got.setdefault(k, []).append((r["line"], r["title"]))
+    out = []
+    for k, exp in splits.items():
+        if k in blind:
+            continue
+        g = sorted(got.get(k, []))
+        if g != exp:
+            from collections import Counter
+            miss, dup = Counter(exp) - Counter(g), Counter(g) - Counter(exp)
+            out.append((k, f"split coverage: {sum(miss.values())} listed test(s) not reported, {sum(dup.values())} reported more than once"
+                           + (f"; first missing: line {next(iter(miss))[0]}" if miss else "") + (f"; first extra: line {next(iter(dup))[0]}" if dup else "")))
+    return out
+
+
+def list_tests(fe, cands, base_url, logd, label):
+    """`playwright test --list` of the split candidates on the branch under test -> {(file, project): [(line, path)]}; {} when it fails
+    (nothing is split then)."""
+    jp = logd / f"list_{label}.json"
+    files = sorted({f for _c, f, _p in cands})
+    projs = sorted({p for _c, _f, p in cands}, key=lambda p: ALL_PROJECTS.index(p) if p in ALL_PROJECTS else 9)
+    cmd = ["npx", "playwright", "test", "--list", "--reporter=json"] + [file_arg(f) for f in files] + [f"--project={p}" for p in projs]
+    rc, to = run(cmd, fe, logd / f"list_{label}.log", env={"SW_BASE_URL": base_url, "PLAYWRIGHT_JSON_OUTPUT_NAME": str(jp)}, timeout=300)
+    rows = list_rows(jp)
+    if rc != 0 or to or rows is None or pw_load_errors(jp):
+        return {}
+    want = {(f, p) for _c, f, p in cands}
+    out = {}
+    for r in rows:
+        if (r["file"], r["project"]) in want:
+            out.setdefault((r["file"], r["project"]), []).append((r["line"], r["path"]))
+    return out
+
+
+def run_parallel(wt, fe, logd, cls, dead):
+    """Preview, dev-server, fixture, pixel and visual work as one pool (see the module docstring). Leaves COUNTS/ITEMS like the serial
+    stages do; every failure is retried alone after the whole pool has finished."""
+    servers, procs = {}, []
+    PAR_INFO.update(slots=PAR_SLOTS, chunk_secs=PAR_CHUNK_SECS, split_secs=PAR_SPLIT_SECS, mem_floor_mb=PAR_MEM_FLOOR_MB, mb_per_slot=PAR_MB_PER_SLOT)
+    with Phase("playwright-parallel", "Playwright: one pool for preview, dev server, fixture, pixel and visual"):
+        def start_preview():
+            port = free_port()
+            vp, ok = start_vite(fe, "preview", port, logd, dead)
+            return "preview", vp, ok, f"http://127.0.0.1:{port}/", {}
+
+        def start_dev():
+            port = free_port()
+            vp, ok = start_vite(fe, "dev", port, logd, dead)
+            return "dev", vp, ok, f"http://127.0.0.1:{port}/", {}
+
+        def start_fixture():
+            api = free_port(pair=True)
+            data = Path(tempfile.mkdtemp(prefix="gate_data_", dir=str(logd)))
+            fx = spawn([PY, "frontend/tests/fixtures/devices_fake_ha.py"], wt, logd / "fixture_devices.log",
+                       env={"SW_PORT": str(api), "SW_DATA_DIR": str(data), "SW_DEV_USER": "joni", "SW_BOOTSTRAP_ADMIN": "joni"})
+            procs.append(fx)
+            up = wait_http(f"http://127.0.0.1:{api}/healthz", 90)
+            port = free_port()
+            vp, ok = (None, False)
+            if up:
+                vp, ok = start_vite(fe, "preview", port, logd, api)
+            if not (up and ok):
+                count("fixture", "fail"); item("fixture", "fake backend / preview", "FAIL", f"did not start (fixture backend up={up} preview up={ok}); see fixture_devices.log")
+            return "fixture", vp, up and ok, f"http://127.0.0.1:{port}/", {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_API_PORT": str(api)}
+
+        def start_visual():
+            port = free_port()
+            vp, ok = start_vite(fe, "preview", port, logd, dead)
+            if not ok:
+                VISUAL_INFO.update(mode=VISUAL, error="vite preview did not start for the visual step")
+            return "visual", vp, ok, f"http://127.0.0.1:{port}/", {}
+
+        starters = ([start_preview] if (cls["rest"] or (TIER == "L" and cls["pixel"])) else []) + ([start_dev] if cls["dev"] else []) \
+            + ([start_fixture] if cls["fixture"] else []) + ([start_visual] if VISUAL else [])
+        with cf.ThreadPoolExecutor(max_workers=max(1, len(starters))) as ex:
+            for kind, vp, ok, url, env in ex.map(lambda f: f(), starters):
+                if vp:
+                    procs.append(vp)
+                if ok:
+                    servers[kind] = (url, env)
+        if cls["rest"] and "preview" not in servers:
+            item("preview", "vite preview", "FAIL", "did not start"); count("preview", "fail")
+        if cls["dev"] and "dev" not in servers:
+            item("dev", "vite dev server", "FAIL", "did not start"); count("dev", "fail")
+        costs = load_costs(cost_dirs())
+
+        def lister(cands):
+            out = {}
+            for cat in ("preview", "dev"):
+                cc = [c for c in cands if c[0] == cat]
+                if cc and cat in servers:
+                    out.update(list_tests(fe, cc, servers[cat][0], logd, cat))
+            return out
+        units, splits, notes = build_plan(cls, costs, lister, fe, PAR_SLOTS, TIER, VISUAL)
+        # a unit whose server did not start is not run (its FAIL / visual error is already recorded above, as in the serial gate)
+        units = [u for u in units if server_of(u) in servers]
+        sim, _ = simulate(units, PAR_SLOTS)
+        PAR_INFO.update(units=len(units), simulated_s=int(sim), notes=notes, split=sorted(f"{f} [{p}]" for _c, f, p in splits),
+                        known_cost_sources=len(cost_dirs()))
+        write_json(logd / "par_plan.json", {"units": units, "splits": {"|".join(k): v for k, v in splits.items()}, "simulated_s": sim, "notes": notes})
+        # pixel files without a linux baseline are reported exactly like the serial gate (no run)
+        runnable = []
+        for u in units:
+            if u["kind"] == "pixel" and not u["has_baseline"]:
+                snap = f"{u['name']}-snapshots"
+                count("pixel", "skipped"); item("pixel", u["name"], "SKIPPED_NO_BASELINE", "no *-linux.png baseline in " + snap)
+            else:
+                runnable.append(u)
+
+        def launch(u):
+            if u["kind"] == "visual":
+                status("running", f"visual matrix ({VISUAL})")
+                run_visual(wt, fe, servers["visual"][0], logd)
+                return None
+            if u["kind"] == "fixture":
+                url, env = servers["fixture"]
+                return run_pw(fe, u["names"], u["projects"], url, logd, u["label"], env=env, workers=1, timeout=left(), output=str(logd / "pwout" / u["label"]))
+            if u["kind"] == "pixel":
+                return run_pw(fe, [u["name"]], ["desktop", "mobile"], servers["preview"][0], logd, u["label"], workers=1, grep="pixel-stable",
+                              timeout=left(), output=str(logd / "pwout" / u["label"]))
+            url, _env = servers[u["cat"]]
+            return run_pw(fe, None, [u["project"]], url, logd, u["label"], workers=1, grep=u["grep"],
+                          grep_invert="pixel-stable" if u["cat"] == "preview" else None, line_args=u["args"], timeout=left(),
+                          output=str(logd / "pwout" / u["label"]))
+
+        stop = threading.Event()
+        threading.Thread(target=mem_sampler, args=(stop,), daemon=True).start()
+        try:
+            results, timeline = execute_units(runnable, PAR_SLOTS, launch)
+        finally:
+            stop.set()
+        spans = {}
+        for u in runnable:
+            if u["label"] in timeline:
+                a, b = timeline[u["label"]]
+                s = spans.setdefault(u["cat"], [a, b])
+                s[0], s[1] = min(s[0], a), max(s[1], b)
+        PAR_INFO.update(spans=spans, longest=sorted(((b - a), lab) for lab, (a, b) in timeline.items())[-5:][::-1])
+    with Phase("settle-retries", "Playwright: known / retry alone / flaky / fail"):
+        pairs = []
+        for u in runnable:
+            if u["kind"] == "visual":
+                continue
+            r = results.get(u["label"])
+            rows, rc, to = (None, 1, False) if (r is None or r[0] == "error") else r
+            pairs.append((u, rows))
+        for key, why in split_coverage(splits, pairs):
+            count(key[0], "fail"); item(key[0], f"{key[1]} [{key[2]}]", "FAIL", why)
+        for u in runnable:
+            if u["kind"] == "visual":
+                continue
+            r = results.get(u["label"])
+            if r is not None and r[0] == "error":
+                count(u["cat"], "fail"); item(u["cat"], f"{u['label']}: launcher", "FAIL", r[1])
+                continue
+            rows, rc, to = r if r is not None else (None, 1, False)
+            url, env = servers[server_of(u)]
+            settle(u["cat"], rows, rc, to, fe, logd, url, env, u["label"])
+    for p in procs:
+        reap(p)
+
+
+def server_of(u):
+    return {"fixture": "fixture", "pixel": "preview", "visual": "visual"}.get(u["kind"], u["cat"])
+
+
+def plan_cli(argv):
+    """--plan: print the unit plan and a simulated timeline (nothing runs). Options: --costs <dir|txt>[,...] (repeatable), --frontend <dir>,
+    --slots N, --tier S|M|L, --chunk S, --split S, --json <file>, --no-visual."""
+    global VISUAL
+    srcs, fe, slots, tier, chunk, split, out = [], HERE.parent.parent / "frontend", PAR_SLOTS, "L", PAR_CHUNK_SECS, PAR_SPLIT_SECS, None
+    args = list(argv)
+    while args:
+        a = args.pop(0)
+        if a == "--costs":
+            srcs += [x for x in (args.pop(0) if args else "").split(",") if x]
+        elif a == "--frontend":
+            fe = Path(args.pop(0))
+        elif a == "--slots":
+            slots = int(args.pop(0))
+        elif a == "--tier":
+            tier = args.pop(0)
+        elif a == "--chunk":
+            chunk = float(args.pop(0))
+        elif a == "--split":
+            split = float(args.pop(0))
+        elif a == "--json":
+            out = args.pop(0)
+        elif a == "--no-visual":
+            VISUAL = ""
+    srcs = srcs or [str(d) for d in cost_dirs()]
+    costs = load_costs(srcs)
+    cls = classify(fe, tier)
+    lister = lambda cands: {(f, p): costs["listing"][(f, p)] for _c, f, p in cands if (f, p) in costs["listing"]}
+    units, splits, notes = build_plan(cls, costs, lister, fe, slots, tier, VISUAL, chunk, split)
+    tot = sum(u["cost"] * (min(u["weight"], slots)) for u in units)
+    print(f"plan: {len(cls['rest'])} preview files, {len(cls['dev'])} dev files, {len(cls['fixture'])} fixture, {len(cls['pixel'])} pixel; "
+          f"{len(units)} units; {tot:.0f} worker-seconds of tests; cost sources: {len(srcs)} ({len(costs['fp'])} file+project times)")
+    for k in sorted(splits):
+        print(f"  split {k[0]} {k[1]} [{k[2]}]: {len(splits[k])} tests -> " + ", ".join(f"{u['label']}({u['cost']:.0f}s)" for u in units if u.get('cat') == k[0] and k[1] in u.get('files', []) and u.get('project') == k[2]))
+    for n in notes:
+        print("  note: " + n)
+    print("  longest units: " + ", ".join(f"{u['label']}={u['cost']:.0f}s" for u in sorted(units, key=lambda u: -u["cost"])[:8]))
+    for s in sorted({max(2, slots - 4), slots - 2, slots, slots + 2, slots + 4}):
+        ms, span = simulate(units, s)
+        cats = {}
+        for u in units:
+            a, b = span[u["label"]]
+            c = cats.setdefault(u["cat"], [a, b])
+            c[0], c[1] = min(c[0], a), max(c[1], b)
+        print(f"  slots={s:2d}: Playwright pool {ms:6.0f} s ({ms / 60:5.1f} min); " + ", ".join(f"{c} {v[0] / 60:.0f}-{v[1] / 60:.0f} min" for c, v in sorted(cats.items())))
+    if out:
+        write_json(Path(out), {"units": units, "splits": {"|".join(k): v for k, v in splits.items()}, "notes": notes})
+    return 0
 
 
 def main():
@@ -824,18 +1547,38 @@ def main():
             if not need_modules(wt, logd / "npm.log"):
                 hard_fail.append("npm ci failed")
         if TIER in ("M", "L"):
-            with Phase("backend-start", "backend: 3 shards started"):
-                procs, nbackend = backend_start(wt, logd)
-        with Phase("tsc", "tsc --noEmit"):
-            rc, to = run(["npx", "tsc", "--noEmit"], fe, logd / "tsc.log", timeout=900)
-            count("tsc", "pass" if rc == 0 else "fail")
-            if rc != 0:
-                item("tsc", "tsc --noEmit", "FAIL", f"rc={rc} (see tsc.log)")
-        with Phase("build", "vite build"):
-            rc, to = run(["npx", "vite", "build"], fe, logd / "build.log", timeout=900)
-            count("build", "pass" if rc == 0 else "fail")
-            if rc != 0:
-                item("build", "vite build", "FAIL", f"rc={rc} (see build.log)")
+            if PARALLEL:
+                nsh = BACKEND_SHARDS or 6
+                with Phase("backend-start", f"backend: {nsh} shards started (balanced by the earlier junit times)"):
+                    procs, nbackend = backend_start(wt, logd, nsh, costs=junit_costs(cost_dirs()), junit=True)
+                    PAR_INFO["backend_shards"] = nsh
+            elif BACKEND_SHARDS:
+                with Phase("backend-start", f"backend: {BACKEND_SHARDS} shards started"):
+                    procs, nbackend = backend_start(wt, logd, BACKEND_SHARDS)
+            else:
+                with Phase("backend-start", "backend: 3 shards started"):
+                    procs, nbackend = backend_start(wt, logd)
+
+        def do_tsc():
+            with Phase("tsc", "tsc --noEmit"):
+                rc, to = run(["npx", "tsc", "--noEmit"], fe, logd / "tsc.log", timeout=900)
+                count("tsc", "pass" if rc == 0 else "fail")
+                if rc != 0:
+                    item("tsc", "tsc --noEmit", "FAIL", f"rc={rc} (see tsc.log)")
+
+        def do_build():
+            with Phase("build", "vite build"):
+                rc, to = run(["npx", "vite", "build"], fe, logd / "build.log", timeout=900)
+                count("build", "pass" if rc == 0 else "fail")
+                if rc != 0:
+                    item("build", "vite build", "FAIL", f"rc={rc} (see build.log)")
+        if PARALLEL:   # tsc and the build only read the sources (the build writes dist/): side by side
+            with cf.ThreadPoolExecutor(max_workers=2) as ex:
+                for fu in [ex.submit(do_tsc), ex.submit(do_build)]:
+                    fu.result()
+        else:
+            do_tsc()
+            do_build()
         # 0.1.162 gate: release_check (seconds, reads the tree only) runs right after the build, before any Playwright run -
         # at the end it was starved by the budget (rc=124 without running) and it saw the docs the evidence specs rewrite
         with Phase("release_check", "release_check.py"):
@@ -856,7 +1599,9 @@ def main():
             "fixture needed but not in the gate routine (self-skip in the preview run)": ", ".join(f"{k}->{v}" for k, v in cls["fixture_other"].items()) or "-",
         }
         dead = free_port()   # nothing listens here: the app falls back to demo mode, as the specs' headers require
-        if COUNTS.get("build", {}).get("pass", 0) == 1:
+        if COUNTS.get("build", {}).get("pass", 0) == 1 and PARALLEL:
+            run_parallel(wt, fe, logd, cls, dead)
+        elif COUNTS.get("build", {}).get("pass", 0) == 1:
             if cls["rest"] or cls["pixel"]:
                 with Phase("playwright-preview", "Playwright on the dist preview"):
                     port = free_port()
@@ -941,6 +1686,10 @@ def main():
     baseline, bsrc = load_baseline(wt)
     extra["baseline_file"] = bsrc or "(none found)"
     extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
+    if PARALLEL:
+        extra["parallel"] = dict(PAR_INFO, memory=dict(MEMSTAT))
+    if subset_note():
+        extra["subset"] = subset_note()
     verdict = compute_verdict(hard_fail)
     for h in hard_fail:
         item("gate", h, "FAIL", "")
@@ -956,6 +1705,10 @@ def main():
         summary += f" | WARNING: {len(TIMEDEP)} time-of-day (quiet hours) tests not really verified, re-run in daytime"
     if hard_fail:
         summary += " | " + "; ".join(hard_fail)[:160]
+    if "subset" in extra:
+        summary = f"SUBSET RUN ({extra['subset']}), not a release verdict: " + summary
+    if "parallel" in extra:
+        summary += f" | parallel mode, {PAR_SLOTS} slots"
     fin, base = write_reports(sha, verdict, extra)
     HB_STOP.set()
     STATE["phase"] = "done"
@@ -970,11 +1723,16 @@ def on_term(sig, frm):
 
 
 def main_cli(argv):
-    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE
+    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, PARALLEL
     args = list(argv)
+    if "--plan" in args:
+        args.remove("--plan")
+        return plan_cli(args)
     while args:
         a = args.pop(0)
-        if a == "--tier":
+        if a == "--parallel":
+            PARALLEL = True
+        elif a == "--tier":
             TIER = args.pop(0) if args else "L"
         elif a == "--allow-count-drop":
             ALLOW_DROP = (args.pop(0) if args else "").strip()
@@ -995,7 +1753,8 @@ def main_cli(argv):
         else:
             BR = a
     if not BR:
-        print('usage: release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]')
+        print('usage: release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>] [--parallel]\n'
+              '       release_gate.py --plan [--costs <gate .logs dir | durations txt>] [--frontend <dir>] [--slots N] [--no-visual]')
         return 2
     if TIER not in ("S", "M", "L"):
         print("tier must be S, M or L")
