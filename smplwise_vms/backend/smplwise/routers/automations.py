@@ -185,7 +185,9 @@ def _ctx(request: Request, conn: sqlite3.Connection, principal: Principal, *, sy
 
 def _writer(request: Request, conn: sqlite3.Connection, principal: Principal) -> ops.W:
     _bind(request)
-    return ops.W(conn, principal, settings_of(request), _rid(request))
+    w = ops.W(conn, principal, settings_of(request), _rid(request))
+    w.request = request  # CR-033 D9: a converted run opens its doors through the one door path
+    return w
 
 
 def _reply(result: tuple[int, dict[str, Any]]) -> JSONResponse:

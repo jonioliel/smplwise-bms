@@ -466,7 +466,7 @@ export class SystemSetup extends LitElement {
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
               </sw-card>
               ${this.renderWiskeyCard()}
-              ${can('system.configure') ? html`<sw-door-setup data-door-setup></sw-door-setup>` : nothing}
+              ${can('system.configure') ? html`<sw-door-setup data-door-setup></sw-door-setup><sw-door-inventory data-door-inventory></sw-door-inventory>` : nothing}
               <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
                 ${this.row('ישויות בקטלוג', h.home_assistant.entities)}

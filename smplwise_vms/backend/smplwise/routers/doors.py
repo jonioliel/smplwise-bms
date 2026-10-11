@@ -13,6 +13,8 @@
   audited `settings.changed`; it cannot be switched on while no bridge offers the signed door_open.
 - Door status (D4): `POST /doors/requests/{request_id}/status` - the read-only `door_open_status` of an open whose outcome
   is unknown, by the person who sent it (or a system administrator). Signed mode only.
+- Door-path inventory (D7, decision 15): `GET /intercom/door-path-inventory` - READ ONLY, system administrator: every
+  saved item that opens a WisKey door (services/door_path.py), by name only. No call, no write, no conversion.
 
 Every switch carries an explicit `confirmed: true` from the client's confirmation step (never supplied by the server)."""
 from __future__ import annotations
@@ -26,11 +28,11 @@ from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, Field, StrictBool, StrictInt
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, Principal, authorize, require, role_permissions, scope_name
-from ..services import door_authority, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
+from ..services import door_authority, door_path, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
 from . import access as acc
 
 router = APIRouter()
@@ -373,3 +375,16 @@ def door_status(request: Request, request_id: str = Path(min_length=36, max_leng
         answer = trusted_door.call_bridge(settings_of(request), "door_open_status", signed.text)
     outcome, code = trusted_door.classify(answer, signed.request_id)
     return {"door_request_id": request_id, "outcome": outcome, "code": code, "text": trusted_door.OUTCOME_TEXT.get(outcome, "")}
+
+
+# ---------------------------------------------------------------- the read-only door-path inventory (D7)
+
+@router.get("/intercom/door-path-inventory")
+def door_path_inventory(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """"פריטים שפותחים דלתות": the automations, scripts, scenes, schedules and home-screen launcher buttons whose steps open
+    a WisKey door (directly or through a group, an area, a device or a nested script / scene / automation, resolved
+    statically), or may open one (a step that cannot be resolved), with origin, author, approver, state, last run, what an
+    Arx-started run does now and a conversion suggestion. Read-only over Arx's own database: nothing is converted,
+    disabled or sent. Names only - no entity ids, station ids or addresses."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    return door_path.inventory(conn, dev_mode=bool(settings_of(request).dev_user))

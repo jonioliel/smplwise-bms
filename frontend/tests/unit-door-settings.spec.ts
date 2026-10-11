@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
-import type { DoorGrantSubject, DoorMap, DoorMapLock } from '../src/api/doors';
+import type { DoorGrantSubject, DoorMap, DoorMapLock, DoorPathInventory, DoorPathItem } from '../src/api/doors';
 import {
-  builtinAnswer, filterSubjects, grantQuestion, mappingState, otherGrants, parsePlacement, parseRelay, placementOptions, placementValue, relayOptions, roleQuestion,
+  builtinAnswer, doorsText, filterInventory, filterSubjects, grantQuestion, guardTone, inventorySummary, itemMeta, lastRunText, mappingState, otherGrants, parsePlacement, parseRelay,
+  peopleLine, placementOptions, placementValue, relayOptions, roleQuestion,
 } from '../src/screens/system-doors-logic';
 
 // CR-033 wave 1: the pure helpers behind the "פתיחת דלתות" grant card and the station placement / door map cards. Node only;
@@ -65,4 +66,43 @@ test('mapping state: mapped, invalid, suggested, unmapped', () => {
   expect(mappingState(lock({ mapping: { ...mapping, valid: false, problem: 'relay_gone' } })).tone).toBe('stale');
   expect(mappingState(lock({ suggestion: { station_id: 'ST-A', relay: 1 } })).text).toBe('הצעה לשיוך מוכנה');
   expect(mappingState(lock({})).text).toContain('לא משויך');
+});
+
+// CR-033 D7: the read-only door-path inventory card ("פריטים שפותחים דלתות")
+
+const ITEM: DoorPathItem = {
+  kind: 'automation', kind_text: 'אוטומציה', key: 'automation:a1', name: 'פתיחה בבוקר', origin: 'arx_authored', origin_text: 'נוצר ב-Arx', state: 'enabled', autonomous: true,
+  author: 'cara', created_by: 'cara', approver: 'ana', approved_at: '2026-10-10T06:00:00Z', approver_status: 'approved', approver_text: 'מאושר', last_run: null, door_steps: 1, lock_steps: 0,
+  doors: ['כניסה ראשית · ממסר 1'], resolvable: true, unresolved: [], run_guard: 'refused_not_converted', run_guard_text: 'הרצה מ-Arx נחסמת', suggestion: 'arx_event_job',
+  suggestion_text: 'משימת דלת של Arx (בהמשך)', disable_required: false, revision: 'r1',
+};
+
+const INV = (items: DoorPathItem[], present = true): DoorPathInventory => ({
+  wiskey_present: present, generated_at: '2026-10-11T00:00:00Z', items,
+  counts: { items: items.length, door_steps: items.reduce((n, i) => n + i.door_steps, 0), unresolvable: items.filter((i) => i.run_guard === 'refused_unresolvable').length, arx_authored: 0, external: 0,
+    disable_required: items.filter((i) => i.disable_required).length },
+});
+
+test('inventory filters, summary and lines read in Hebrew and by name only', () => {
+  const review: DoorPathItem = { ...ITEM, key: 'automation:a2', run_guard: 'refused_unresolvable', resolvable: false, doors: [], unresolved: ['היעד מחושב בזמן ריצה'], disable_required: true,
+    approver: null, approver_status: 'none', approver_text: 'אין מאשר' };
+  const plain: DoorPathItem = { ...ITEM, key: 'scene:s1', run_guard: 'unchanged', door_steps: 0, lock_steps: 1, doors: [] };
+  const items = [ITEM, review, plain];
+  expect(filterInventory(items, 'all')).toHaveLength(3);
+  expect(filterInventory(items, 'blocked').map((i) => i.key)).toEqual(['automation:a1', 'automation:a2']);
+  expect(filterInventory(items, 'disable').map((i) => i.key)).toEqual(['automation:a2']);
+  expect(filterInventory(items, 'review').map((i) => i.key)).toEqual(['automation:a2']);
+  expect(inventorySummary(INV(items))).toBe('3 פריטים · 2 שלבי פתיחה · 1 לבדיקה ידנית · 1 דורשים השבתה');
+  expect(inventorySummary(INV([]))).toBe('אין פריטים שפותחים דלתות');
+  expect(inventorySummary(INV([], false))).toBe('אין דלתות אינטרקום בהתקנה');
+  expect(itemMeta(ITEM)).toBe('אוטומציה · נוצר ב-Arx · פעיל');
+  expect(peopleLine(ITEM)).toBe('נכתב בידי cara · אושר בידי ana');
+  expect(peopleLine(review)).toBe('נכתב בידי cara · אין מאשר');
+  expect(lastRunText(ITEM, (s) => s)).toBe('לא הורץ');
+  expect(lastRunText({ ...ITEM, last_run: { at: '2026-10-10T06:00:00Z', result: 'ok' } }, () => 'אתמול')).toBe('הרצה אחרונה: אתמול');
+  expect(doorsText(ITEM)).toBe('כניסה ראשית · ממסר 1');
+  expect(doorsText({ ...review, door_steps: 2 })).toBe('2 שלבי פתיחה');
+  expect(doorsText(plain)).toBe('1 שלבי נעילה');
+  expect([guardTone(ITEM), guardTone(review), guardTone(plain)]).toEqual(['unknown', 'stale', 'neutral']);
+  expect(JSON.stringify(items.map((i) => [itemMeta(i), peopleLine(i), doorsText(i)]))).not.toMatch(/lock\.|script\.|01J/);
 });

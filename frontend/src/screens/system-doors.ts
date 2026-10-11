@@ -7,13 +7,16 @@ import '../components/sw-badge';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import '../components/sw-chip';
 import { describeError } from '../api/client';
+import { fmtWhen } from '../api/access';
 import {
-  applyDoorSuggestions, clearDoorMapping, getDoorGrants, getDoorMap, placeStation, setDoorMapping, switchDoorRole, switchDoorSubject,
-  type DoorGrantRole, type DoorGrantSubject, type DoorGrants, type DoorMap, type DoorMapLock,
+  applyDoorSuggestions, clearDoorMapping, getDoorGrants, getDoorMap, getDoorPathInventory, placeStation, setDoorMapping, switchDoorRole, switchDoorSubject,
+  type DoorGrantRole, type DoorGrantSubject, type DoorGrants, type DoorMap, type DoorMapLock, type DoorPathInventory, type DoorPathItem,
 } from '../api/doors';
 import {
-  builtinAnswer, filterSubjects, grantQuestion, mappingState, otherGrants, parsePlacement, parseRelay, placementOptions, placementValue, relayOptions, roleQuestion,
+  builtinAnswer, doorsText, filterInventory, filterSubjects, grantQuestion, guardTone, INVENTORY_FILTERS, inventorySummary, itemMeta, lastRunText, mappingState, otherGrants, parsePlacement,
+  parseRelay, peopleLine, placementOptions, placementValue, relayOptions, roleQuestion, type InventoryFilter,
 } from './system-doors-logic';
 
 const cardCss = css`
@@ -267,5 +270,98 @@ export class SwDoorSetup extends LitElement {
         ${suggested ? html`<div class="tools"><sw-button size="sm" data-door-map-apply ?disabled=${this.busy} @click=${() => this.run(() => applyDoorSuggestions())}>אישור ${suggested} הצעות חד-משמעיות</sw-button></div>` : nothing}
         ${m.locks.length ? m.locks.map((l) => this.lockRow(m, l)) : html`<sw-state-panel state="empty" heading="אין מנעולי אינטרקום"></sw-state-panel>`}
       </sw-card>`;
+  }
+}
+
+/**
+ * Settings › הגדרת מערכת › WisKey: "פריטים שפותחים דלתות" (CR-033 D7, owner decision 15). A READ-ONLY report of every saved
+ * item - automation, script, scene, schedule, home-screen launcher button - whose steps open an intercom door, with where it
+ * came from, who wrote and who approved it, its state and last run, what a run started from Arx does now, and a
+ * conversion suggestion. Nothing is converted, disabled or sent from here. System administrator only; names only.
+ */
+@customElement('sw-door-inventory')
+export class SwDoorInventory extends LitElement {
+  @state() private inv: DoorPathInventory | null = null;
+  @state() private error = '';
+  @state() private busy = false;
+  @state() private filter: InventoryFilter = 'all';
+
+  static styles = [
+    cardCss,
+    css`
+      .chips {
+        display: flex;
+        gap: var(--sw-s-1);
+        flex-wrap: wrap;
+      }
+      .item .who {
+        flex: 1 1 260px;
+      }
+      .facts {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        align-items: flex-start;
+        flex: 1 1 220px;
+        min-inline-size: 0;
+      }
+      .warn {
+        color: var(--sw-warning-text, var(--sw-text-2));
+        font-size: var(--sw-fs-sm);
+      }
+    `,
+  ];
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    void this.load();
+  }
+
+  private async load() {
+    this.busy = true;
+    try {
+      this.inv = await getDoorPathInventory();
+      this.error = '';
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private itemRow(i: DoorPathItem) {
+    return html`<div class="row item" data-door-item=${i.key}>
+      <div class="who">
+        <span class="name">${i.name}</span>
+        <span class="sub">${itemMeta(i)}</span>
+        <span class="sub">${peopleLine(i)} · ${lastRunText(i, fmtWhen)}</span>
+      </div>
+      <div class="facts">
+        <sw-badge kind=${guardTone(i)} label=${i.run_guard_text}></sw-badge>
+        <span class="sub">דלתות: ${doorsText(i)}</span>
+        <span class="sub">הצעה: ${i.suggestion_text}</span>
+        ${i.unresolved.length ? html`<span class="warn">${i.unresolved.join(' · ')}</span>` : nothing}
+        ${i.disable_required ? html`<span class="warn" data-door-item-disable>דורש השבתה - פועל לבד ואין לו מאשר תקף</span>` : nothing}
+      </div>
+    </div>`;
+  }
+
+  render() {
+    if (this.error && !this.inv) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (!this.inv) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    const inv = this.inv;
+    const shown = filterInventory(inv.items, this.filter);
+    return html`<sw-card heading="פריטים שפותחים דלתות" subheading=${`דוח לקריאה בלבד · ${inventorySummary(inv)}`} data-door-inventory-card style="margin-block-start: var(--sw-s-3)">
+      ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
+      <div class="tools">
+        <div class="chips" role="group" aria-label="סינון">
+          ${INVENTORY_FILTERS.map((f) => html`<sw-chip data-door-inventory-filter=${f.id} ?selected=${this.filter === f.id} @click=${() => (this.filter = f.id)}>${f.label}</sw-chip>`)}
+        </div>
+        <sw-button size="sm" variant="ghost" data-door-inventory-refresh ?disabled=${this.busy} @click=${() => this.load()}>רענון</sw-button>
+      </div>
+      ${shown.length
+        ? shown.map((i) => this.itemRow(i))
+        : html`<sw-state-panel state="empty" heading=${inv.items.length ? 'אין פריטים בסינון הזה' : inventorySummary(inv)}></sw-state-panel>`}
+    </sw-card>`;
   }
 }

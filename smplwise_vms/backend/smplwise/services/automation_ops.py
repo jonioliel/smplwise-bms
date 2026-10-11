@@ -31,7 +31,7 @@ from . import automation_text as text
 from . import automation_transport as tr
 from . import automation_view as view
 from . import automations as store
-from . import ha_bridge, ha_sync
+from . import door_run_guard, ha_bridge, ha_sync
 
 _RATE: dict[tuple[str, str], list[float]] = {}
 _LAST: dict[str, float] = {}
@@ -114,6 +114,7 @@ class W:
         self.conn, self.principal, self.settings, self.request_id = conn, principal, settings, request_id
         self.ctx = scope.Ctx(conn, principal)
         self.details: dict[str, Any] = {}
+        self.request: Any = None  # the HTTP request (routers/automations._writer): a converted run opens its doors through the door path
 
     # -- audit
 
@@ -956,6 +957,7 @@ def run_automation(w: W, item_id: str, skip_condition: bool, confirm: bool, clie
         w.runtime_ready()
         if row.config_id is None:
             raise ApiError(422, "not_editable", "פריט זה מוגדר בקובץ תצורה או במכשיר ואינו ניתן לעריכה כאן.")
+        plan = _door_plan(w, "automation", item_id, confirm)  # CR-033 D9: before the item's own rights, so a door item is refused as such
         reasons = scope.run_reasons(w.ctx, "automation", facts, entity_id=row.entity_id, source=row.source)
         if reasons:
             raise reason_error(reasons[0])
@@ -976,7 +978,7 @@ def run_automation(w: W, item_id: str, skip_condition: bool, confirm: bool, clie
         store_finish(w.conn, op_id, "ok", item_id=item_id)
         run_id = _note_started(w, "automation", item_id)
         w.audit("automation.run", "allowed", "automation", item_id, op_id=op_id, skip_condition=bool(skip_condition))
-        return 202, {"run_id": run_id, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה; התוצאה תופיע בהרצות."}
+        return 202, _with_doors(w, plan, op_id, {"run_id": run_id, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה; התוצאה תופיע בהרצות."})
 
 
 def _note_started(w: W, kind: str, item_id: str) -> str:
@@ -1031,6 +1033,7 @@ def run_script(w: W, item_id: str, fields: dict[str, Any], confirm: bool, client
             return replay(w, prev, "run", "run", "script", item_id)
         w.rate()
         w.runtime_ready()
+        plan = _door_plan(w, "script", item_id, confirm)  # CR-033 D9: before the item's own rights, so a door item is refused as such
         reasons = scope.run_reasons(w.ctx, "script", facts, entity_id=row.entity_id, source=row.source)
         if reasons:
             raise reason_error(reasons[0])
@@ -1052,7 +1055,7 @@ def run_script(w: W, item_id: str, fields: dict[str, Any], confirm: bool, client
         store_finish(w.conn, op_id, "ok", item_id=item_id)
         run_id = _note_started(w, "script", item_id)
         w.audit("automation.run", "allowed", "script", item_id, op_id=op_id)
-        return 202, {"run_id": run_id, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה; התוצאה תופיע בהרצות."}
+        return 202, _with_doors(w, plan, op_id, {"run_id": run_id, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה; התוצאה תופיע בהרצות."})
 
 
 def stop_script(w: W, item_id: str, client_request_id: str) -> tuple[int, dict[str, Any]]:
@@ -1088,6 +1091,7 @@ def apply_scene(w: W, item_id: str, confirm: bool, client_request_id: str) -> tu
             return replay(w, prev, "apply", "apply", "scene", item_id)
         w.rate()
         w.runtime_ready()
+        plan = _door_plan(w, "scene", item_id, confirm)  # CR-033 D9: before the item's own rights, so a door item is refused as such
         reasons = scope.run_reasons(w.ctx, "scene", facts, entity_id=row.entity_id, source=row.source)
         if reasons:
             raise reason_error(reasons[0])
@@ -1109,7 +1113,32 @@ def apply_scene(w: W, item_id: str, confirm: bool, client_request_id: str) -> tu
             raise
         store_finish(w.conn, op_id, "ok", item_id=item_id)
         w.audit("automation.run", "allowed", "scene", item_id, op_id=op_id, applied=True)
-        return 202, {"run_id": None, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה."}
+        return 202, _with_doors(w, plan, op_id, {"run_id": None, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה."})
+
+
+def _door_plan(w: W, kind: str, item_id: str, confirm: bool) -> "door_run_guard.RunPlan | None":
+    """CR-033 D9 (R-17): an Arx-started run of an item with a WisKey door step. Refused (409, audited by the caller's
+    `audited`) when a door step was not converted or cannot be resolved; for a converted item every door is judged by the
+    one door authority with the real operator now, before the run, and one confirmation covers the run and its doors."""
+    plan = door_run_guard.judge_item(w.conn, kind, item_id)
+    if plan is None:
+        return None
+    if w.request is None:
+        raise ApiError(503, "door_path_unavailable", "פתיחת הדלתות של הפריט אינה זמינה כרגע.")
+    door_run_guard.authorize_plan(w.conn, w.principal, plan, dev_mode=bool(getattr(w.settings, "dev_user", None)))
+    if plan.doors and confirm is not True:
+        raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
+    return plan
+
+
+def _with_doors(w: W, plan: "door_run_guard.RunPlan | None", op_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """After the item ran (without door steps) in the infrastructure: open each of a converted item's doors through the one
+    door path, each with its own request id and audit pair; the reply lists every door's outcome ("sent", never "opened")."""
+    if plan is None or not plan.doors:
+        return body
+    body["doors"] = door_run_guard.open_plan_doors(w.request, w.conn, w.principal, plan, origin=f"{plan.kind}:{plan.item_id}", op_id=op_id,
+                                                   dev_mode=bool(getattr(w.settings, "dev_user", None)))
+    return body
 
 
 # ================================================================ meta (Arx only)

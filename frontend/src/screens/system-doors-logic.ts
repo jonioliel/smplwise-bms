@@ -2,7 +2,7 @@
  * Pure helpers of the WisKey door Settings cards (CR-033 wave 1, system-doors.ts) - no DOM, unit-tested in Node
  * (tests/unit-door-settings.spec.ts). Hebrew copy lives here so the cards and the spec read the same words.
  */
-import type { DoorGrantRole, DoorGrantSubject, DoorMap, DoorMapLock } from '../api/doors';
+import type { DoorGrantRole, DoorGrantSubject, DoorMap, DoorMapLock, DoorPathInventory, DoorPathItem } from '../api/doors';
 
 /** The built-in roles' read-only answer in the "תפקידים" section (owner default: no built-in role changes by a switch). */
 export function builtinAnswer(role: DoorGrantRole): string {
@@ -78,4 +78,68 @@ export function mappingState(lock: DoorMapLock): { tone: 'live' | 'stale' | 'unk
   if (lock.mapping) return { tone: 'stale', text: 'השיוך אינו תקף כרגע - יש לשייך מחדש' };
   if (lock.suggestion) return { tone: 'unknown', text: 'הצעה לשיוך מוכנה' };
   return { tone: 'unknown', text: 'לא משויך - הדלת לא תיפתח מ-Arx' };
+}
+
+// ---------------------------------------------------------------- the read-only door-path inventory (CR-033 D7)
+
+export type InventoryFilter = 'all' | 'blocked' | 'disable' | 'review';
+
+export const INVENTORY_FILTERS: { id: InventoryFilter; label: string }[] = [
+  { id: 'all', label: 'הכול' },
+  { id: 'blocked', label: 'הרצה נחסמת' },
+  { id: 'disable', label: 'דורש השבתה' },
+  { id: 'review', label: 'לבדיקה ידנית' },
+];
+
+/** The items a filter chip shows. */
+export function filterInventory(items: DoorPathItem[], filter: InventoryFilter): DoorPathItem[] {
+  if (filter === 'blocked') return items.filter((i) => i.run_guard !== 'unchanged');
+  if (filter === 'disable') return items.filter((i) => i.disable_required);
+  if (filter === 'review') return items.filter((i) => i.run_guard === 'refused_unresolvable');
+  return items;
+}
+
+/** The card's one-line summary. */
+export function inventorySummary(inv: DoorPathInventory): string {
+  if (!inv.wiskey_present) return 'אין דלתות אינטרקום בהתקנה';
+  const c = inv.counts;
+  if (!c.items) return 'אין פריטים שפותחים דלתות';
+  const parts = [`${c.items} פריטים`, `${c.door_steps} שלבי פתיחה`];
+  if (c.unresolvable) parts.push(`${c.unresolvable} לבדיקה ידנית`);
+  if (c.disable_required) parts.push(`${c.disable_required} דורשים השבתה`);
+  return parts.join(' · ');
+}
+
+const STATE_TEXT: Record<DoorPathItem['state'], string> = { enabled: 'פעיל', disabled: 'מושבת', ready: 'זמין', gone: 'נמחק', unknown: 'מצב לא ידוע' };
+
+/** The line under an item's name: its kind, where it came from and its state. */
+export function itemMeta(item: DoorPathItem): string {
+  return [item.kind_text, item.origin_text, STATE_TEXT[item.state]].join(' · ');
+}
+
+/** Who wrote it and who approved the live version. */
+export function peopleLine(item: DoorPathItem): string {
+  const author = item.author ? `נכתב בידי ${item.author}` : 'כותב לא ידוע';
+  const approver = item.approver ? `אושר בידי ${item.approver}${item.approver_status === 'approved' ? '' : ` (${item.approver_text})`}` : item.approver_text;
+  return `${author} · ${approver}`;
+}
+
+/** The last run, given a formatter for the instant (the screen passes its locale formatter). */
+export function lastRunText(item: DoorPathItem, fmt: (iso: string) => string): string {
+  return item.last_run ? `הרצה אחרונה: ${fmt(item.last_run.at)}` : 'לא הורץ';
+}
+
+/** The doors an item opens, by name (or how many steps when no door is known). */
+export function doorsText(item: DoorPathItem): string {
+  if (item.doors.length) return item.doors.join(', ');
+  if (item.door_steps) return `${item.door_steps} שלבי פתיחה`;
+  if (item.lock_steps) return `${item.lock_steps} שלבי נעילה`;
+  return 'לא ניתן לזהות';
+}
+
+/** The badge tone of an item's run guard. */
+export function guardTone(item: DoorPathItem): 'stale' | 'unknown' | 'neutral' {
+  if (item.run_guard === 'refused_unresolvable') return 'stale';
+  if (item.run_guard === 'refused_not_converted') return 'unknown';
+  return 'neutral';
 }
