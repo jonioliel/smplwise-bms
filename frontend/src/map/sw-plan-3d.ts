@@ -570,6 +570,15 @@ export class SwPlan3d extends LitElement {
     .note.fb {
       inset-block-end: 40px;
     }
+    /* the bar wraps when it carries every mode chip: the notes stand above it, never over a chip */
+    @media (min-width: 641px) {
+      :host .note {
+        inset-block-end: calc(18px + var(--bar-h, 0px));
+      }
+      :host .note.fb {
+        inset-block-end: calc(46px + var(--bar-h, 0px));
+      }
+    }
     .spinner {
       position: absolute;
       inset: 0;
