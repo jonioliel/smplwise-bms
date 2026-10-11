@@ -151,4 +151,43 @@ test.describe('layout guard: the screens of the visual matrix and the restyled s
       expect(small, `${t.what} below 44 px`).toEqual([]);
     });
   }
+
+  test('settings-general: the skin cards share one row wherever the card is wide (no lone card on a second line)', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
+    for (const w of [1024, 1440]) {
+      await page.setViewportSize({ width: w, height: height(w) });
+      await open(page, '/system/diagnostics', 'light');
+      const tops = await page.locator('[data-skin-option]').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+      expect(tops.length, `the skin cards rendered (${w})`).toBeGreaterThanOrEqual(5);
+      expect(new Set(tops).size, `skin card tops at ${w}: ${tops.join(',')}`).toBe(1);
+    }
+  });
+
+  test('settings-general: the settings navigation labels keep 4.5:1 against the page (light and dark)', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
+    await page.setViewportSize({ width: 1440, height: height(1440) });
+    for (const theme of THEMES) {
+      await open(page, '/system/diagnostics', theme);
+      const r = await page.evaluate(() => {
+        const nav = document.querySelector('sw-app')?.shadowRoot?.querySelector('system-nav')?.shadowRoot;
+        const label = nav?.querySelector('.grp > b');
+        if (!nav || !label) return null;
+        const rgb = (c: string) => (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+        const lum = ([r, g, b]: number[]) => {
+          const f = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+        };
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--sw-bg)';
+        nav.appendChild(probe);
+        const bg = rgb(getComputedStyle(probe).color);
+        probe.remove();
+        const fg = rgb(getComputedStyle(label).color);
+        const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+        return { ratio: (a + 0.05) / (b + 0.05), fg, bg };
+      });
+      expect(r, `the navigation column rendered (${theme})`).not.toBeNull();
+      expect(r!.ratio, `label ${JSON.stringify(r!.fg)} on ${JSON.stringify(r!.bg)} (${theme})`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });
