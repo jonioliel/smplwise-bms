@@ -151,6 +151,9 @@ const rules = `
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); letter-spacing: 0.02em; }
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
 :host(sw-page) h1 { font-weight: var(--sw-h1-weight); }
+/* domus 10 - the settings navigation column: pill links, the current one lifted like a tab */
+:host(system-nav) a { border-radius: var(--sw-r-pill); }
+:host(system-nav) a[aria-current='page'] { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb); }
 `;
 
 export const domus: Skin = { id: 'domus', name: 'hi-tech Domus', nameHe: 'הייטק Domus', noteHe: 'זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות', tokens, rules };

@@ -875,6 +875,8 @@ export const he = {
     save: 'שמור',
     saved: 'הצבעים נשמרו',
     preset_default: 'כחול המערכת (ברירת מחדל)',
+    preset_accent: 'כמו צבע ההדגשה',
+    accentFollowHint: 'המתג עוקב אחרי צבע ההדגשה, גם כשהוא משתנה',
     preset_ios_green: 'ירוק iOS',
     preset_ios_blue: 'כחול iOS',
     preset_teal: 'טורקיז',

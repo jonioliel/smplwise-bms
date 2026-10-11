@@ -19,6 +19,7 @@ import {
 import { CODE_VIEW_ROLES, ROLE_ROWS, delegationLabel, moveTemplate, templateRows, toggleCodeRole, toggleHidden, whenText, type TplRef } from './automations-logic';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsStyles } from '../styles/settings';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -65,47 +66,21 @@ export class SystemAutomations extends LitElement {
   @state() private now: Date = new Date();
   private noteTimer = 0;
 
-  static styles = [css`
-    :host {
-      display: block;
-    }
+  static styles = [settingsStyles, css`
     .cols {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 14px;
+      gap: var(--sw-s-3);
       align-items: start;
     }
     .col {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: var(--sw-s-3);
       min-inline-size: 0;
     }
     .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
       flex-wrap: wrap;
-    }
-    .row:last-child {
-      border-block-end: 0;
-    }
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-inline-size: 0;
-      flex: 1 1 220px;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-    }
-    .muted {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-regular);
     }
     .tag {
       display: inline-flex;
@@ -185,29 +160,6 @@ export class SystemAutomations extends LitElement {
     .rc:disabled {
       opacity: 0.6;
       cursor: default;
-    }
-    .seg {
-      display: inline-flex;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      overflow: hidden;
-    }
-    .seg button {
-      border: 0;
-      background: var(--sw-surface);
-      padding: 0 14px;
-      min-block-size: 36px;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-      color: var(--sw-text-2);
-    }
-    .seg button + button {
-      border-inline-start: 1px solid var(--sw-border);
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
     }
     .stepper {
       display: inline-flex;
@@ -303,26 +255,9 @@ export class SystemAutomations extends LitElement {
       font-size: var(--sw-fs-sm);
       text-decoration: none;
     }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .err {
-      color: var(--sw-danger);
-      font-size: var(--sw-fs-sm);
-    }
-    .bar {
-      position: sticky;
-      inset-block-end: 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-block-start: 14px;
-      padding: 10px 14px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-2);
+    .savebar {
+      margin-block-start: var(--sw-s-3);
+      max-inline-size: none;
     }
     @media (max-width: 1023px) {
       .cols {
@@ -567,19 +502,19 @@ export class SystemAutomations extends LitElement {
   }
 
   render() {
-    if (this.phase === 'loading') return html`<sw-page heading="הגדרות › אוטומציות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.phase === 'error') return html`<sw-page heading="הגדרות › אוטומציות"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
-    if (this.phase === 'forbidden') return html`<sw-page heading="הגדרות › אוטומציות"><sw-state-panel state="forbidden" heading="אין הרשאה" data-automations-settings-forbidden></sw-state-panel></sw-page>`;
-    return html`<sw-page heading="הגדרות › אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
+    if (this.phase === 'loading') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.phase === 'error') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="forbidden" heading="אין הרשאה" data-automations-settings-forbidden></sw-state-panel></sw-page>`;
+    return html`<sw-page crumbs="הגדרות" heading="אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
       <div class="cols">
         <div class="col">${this.who()}${this.codeView()}${this.retention()}${this.display()}${this.platform()}</div>
         <div class="col">${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}</div>
       </div>
       ${this.dirty || this.note || this.error
-        ? html`<div class="bar" data-settings-bar>
-            ${this.error ? html`<span class="err" role="alert" data-settings-error>${this.error}</span>` : this.note ? html`<span class="ok" role="status" data-settings-saved>${this.note}</span>` : html`<span class="muted">יש שינויים שלא נשמרו.</span>`}
-            <span style="flex:1"></span>
-            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => { this.draft = clone(this.saved); this.error = ''; }}>ביטול</sw-button><sw-button variant="primary" data-settings-save ?disabled=${this.busy} @click=${() => void this.save()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
+        ? html`<div class="savebar" data-settings-bar>
+            ${this.error ? html`<span class="msg err" role="alert" data-settings-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : this.note ? html`<span class="msg ok" role="status" data-settings-saved><sw-icon name="check" size=${13}></sw-icon>${this.note}</span>` : html`<span class="dirty">יש שינויים שלא נשמרו.</span>`}
+            <span class="grow"></span>
+            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => { this.draft = clone(this.saved); this.error = ''; }}>ביטול</sw-button><sw-button variant="primary" icon="check" data-settings-save ?disabled=${this.busy} @click=${() => void this.save()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
           </div>`
         : nothing}
       <automation-drawer .trash=${true} .open=${this.trashOpen} .status=${this.status} .now=${this.now} @drawer-close=${() => { this.trashOpen = false; void this.load(); }}></automation-drawer>

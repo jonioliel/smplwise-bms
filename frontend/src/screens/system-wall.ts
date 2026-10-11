@@ -407,10 +407,10 @@ export class SystemWall extends LitElement {
 
   protected render() {
     if (this.error && !this.profiles) {
-      return html`<sw-page heading="מסכי קיר"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+      return html`<sw-page crumbs="הגדרות" heading="מסכי קיר"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const n = this.profiles?.length ?? 0;
-    return html`<sw-page heading="מסכי קיר">
+    return html`<sw-page crumbs="הגדרות" heading="מסכי קיר">
       <div class="toolbar">
         <sw-button variant="primary" icon="plus" data-wall-add-open ?disabled=${n >= this.max} @click=${() => void this.openAdd()}>הוספת משתמש מסך</sw-button>
         <sw-button data-wall-photos-manage @click=${() => (this.managingPhotos = true)}>תמונות למסכי קיר</sw-button>

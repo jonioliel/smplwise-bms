@@ -67,6 +67,8 @@ export const en = {
     save: 'Save',
     saved: 'Colours saved',
     preset_default: 'System blue (default)',
+    preset_accent: 'Same as the accent',
+    accentFollowHint: 'The switch follows the accent colour, also when it changes',
     preset_ios_green: 'iOS green',
     preset_ios_blue: 'iOS blue',
     preset_teal: 'Teal',

@@ -154,6 +154,9 @@ const rules = `
 /* tesla 10 - tables: ruled rows, small-caps headings */
 :host(sw-table) th { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--sw-fs-xs); }
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-2); }
+/* tesla 11 - the settings navigation column: a rule at its edge, the current link marked by a bar instead of a fill */
+:host(system-nav) { border-inline-end: 1px solid var(--sw-border); }
+:host(system-nav) a[aria-current='page'] { background: transparent; box-shadow: inset 3px 0 0 var(--sw-accent); border-radius: 0; }
 `;
 
 export const tesla: Skin = { id: 'tesla', name: 'Tesla clean hi-tech', nameHe: 'הייטק נקי (Tesla)', noteHe: 'משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד', tokens, rules };

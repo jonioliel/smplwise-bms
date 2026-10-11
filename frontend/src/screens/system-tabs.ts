@@ -15,6 +15,7 @@ import { can, isApi } from '../api/session';
 import { LOCKED_TABS, TAB_SECTIONS, TAB_STYLE_DEFAULTS, applyTabsConfig, normalizeTabStyles, normalizeTabsConfig, type TabSectionDef } from '../shell/nav';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsStyles } from '../styles/settings';
 
 /** The names of the bar styles (הגדרות › לשוניות › סגנון סרגל). */
 const STYLE_LABEL: Record<TabStyle, string> = { pill: 'כמוסבה', underline: 'פס תחתון', 'underline-compact': 'פס תחתון קומפקטי' };
@@ -50,16 +51,7 @@ export class SystemTabsConfig extends LitElement {
   @state() private announce = '';
   @state() private dragging: { section: string; id: string } | null = null;
 
-  static styles = [css`
-    :host {
-      display: block;
-    }
-    .sections {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-inline-size: 760px;
-    }
+  static styles = [settingsStyles, css`
     .intro {
       margin: 0;
       color: var(--sw-text-3);
@@ -217,30 +209,6 @@ export class SystemTabsConfig extends LitElement {
       opacity: 0.5;
       cursor: default;
       text-decoration: none;
-    }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-    }
-    .ok {
-      color: var(--sw-success-text);
-    }
-    .err {
-      color: var(--sw-danger);
-    }
-    .sr {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
-    .savebar {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
     }
   `, bubbleChrome];
 
@@ -535,11 +503,12 @@ export class SystemTabsConfig extends LitElement {
       ${this.renderStyleDefaults()}
       ${TAB_SECTIONS.map((def) => this.renderSection(def))}
       <div class="savebar">
-        <sw-button variant="primary" icon="check" data-tabs-save ?disabled=${!this.canEdit || !this.dirty || this.busy || !api} @click=${() => void this.save()}>שמור</sw-button>
+        ${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
+        ${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
+        ${!api ? html`<span class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>` : !this.canEdit ? html`<span class="muted">נדרשת הרשאת מנהל מערכת.</span>` : !this.message && !this.error ? html`<span class="dirty">${this.dirty ? 'יש שינויים שלא נשמרו.' : 'הכול שמור.'}</span>` : nothing}
+        <span class="grow"></span>
         <sw-button variant="ghost" data-tabs-discard ?disabled=${!this.dirty || this.busy} @click=${() => this.discard()}>בטל שינויים</sw-button>
-        ${this.message ? html`<span class="ok" role="status">${this.message}</span>` : nothing}
-        ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
-        ${!api ? html`<span class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>` : !this.canEdit ? html`<span class="muted">נדרשת הרשאת מנהל מערכת.</span>` : nothing}
+        <sw-button variant="primary" icon="check" data-tabs-save ?disabled=${!this.canEdit || !this.dirty || this.busy || !api} @click=${() => void this.save()}>שמור</sw-button>
       </div>
       <span class="sr" role="status" aria-live="polite" data-tabs-announce>${this.announce}</span>
     </div>`;

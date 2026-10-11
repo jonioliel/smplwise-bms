@@ -3,12 +3,14 @@ import { customElement, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import '../components/sw-card';
 import '../components/sw-button';
+import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
-import { BRAND_DEFAULT, BRAND_PRESETS, SYSTEM_BLUE, brandColors, brandHex, contrastOnWhite, normalizeBrand, setBrandColors } from '../design/brand';
+import { BRAND_ACCENT, BRAND_DEFAULT, BRAND_PRESETS, SYSTEM_BLUE, brandColors, brandHex, contrastOnWhite, normalizeBrand, setBrandColors } from '../design/brand';
 import { t, type I18nKey } from '../i18n/he';
+import { settingsStyles } from '../styles/settings';
 
 type Which = 'accent' | 'toggle';
 const CHOICES = [BRAND_DEFAULT, ...Object.keys(BRAND_PRESETS)];
@@ -28,26 +30,10 @@ export class SystemBrandColors extends LitElement {
   @state() private message = '';
   @state() private error = '';
 
-  static styles = css`
-    :host {
-      display: block;
-    }
+  static styles = [settingsStyles, css`
     .row {
       display: grid;
       gap: 8px;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-weight: var(--sw-fw-medium);
-    }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-regular);
     }
     .swatches {
       display: flex;
@@ -78,6 +64,11 @@ export class SystemBrandColors extends LitElement {
       cursor: default;
       opacity: 0.7;
     }
+    /* "same as the accent": a swatch painted with the live accent, marked by a link glyph */
+    .sw.follow {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+    }
     .custom {
       display: inline-flex;
       align-items: center;
@@ -101,24 +92,9 @@ export class SystemBrandColors extends LitElement {
     }
     .warn {
       color: var(--sw-warning-text);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-xs);
     }
-    .foot {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding-block-start: 12px;
-    }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
-  `;
+  `];
 
   connectedCallback() {
     super.connectedCallback();
@@ -127,7 +103,7 @@ export class SystemBrandColors extends LitElement {
     void getSettings()
       .then((r) => {
         this.canEdit = r.can_edit;
-        const v = { accent: normalizeBrand(r.settings['ui.accent']), toggle: normalizeBrand(r.settings['ui.toggle_on']) };
+        const v = { accent: normalizeBrand(r.settings['ui.accent']), toggle: normalizeBrand(r.settings['ui.toggle_on'], 'toggle') };
         this.saved = v;
         this.draft = { ...v };
       })
@@ -139,7 +115,7 @@ export class SystemBrandColors extends LitElement {
   }
 
   private pick(which: Which, value: string) {
-    this.draft = { ...this.draft, [which]: normalizeBrand(value) };
+    this.draft = { ...this.draft, [which]: normalizeBrand(value, which) };
   }
 
   private async save() {
@@ -149,7 +125,7 @@ export class SystemBrandColors extends LitElement {
       if (isApi()) {
         const r = await patchSettings({ 'ui.accent': this.draft.accent, 'ui.toggle_on': this.draft.toggle });
         invalidateSettings();
-        this.saved = { accent: normalizeBrand(r.settings['ui.accent']), toggle: normalizeBrand(r.settings['ui.toggle_on']) };
+        this.saved = { accent: normalizeBrand(r.settings['ui.accent']), toggle: normalizeBrand(r.settings['ui.toggle_on'], 'toggle') };
       } else {
         this.saved = { ...this.draft };
       }
@@ -168,12 +144,15 @@ export class SystemBrandColors extends LitElement {
     const value = this.draft[which];
     const hex = brandHex(value) ?? SYSTEM_BLUE;
     const isCustom = value.startsWith('#');
+    const follow = which === 'toggle' && value === BRAND_ACCENT;
     const label: I18nKey = which === 'accent' ? 'brandColors.accentLabel' : 'brandColors.toggleLabel';
     const hint: I18nKey = which === 'accent' ? 'brandColors.accentHint' : 'brandColors.toggleHint';
     const low = which === 'accent' && contrastOnWhite(hex) < 3;
     return html`<div class="row" data-brand-row=${which}>
       <span class="lbl">${t(label)}<span class="muted">${t(hint)}</span></span>
       <div class="swatches" role="group" aria-label=${t(label)}>
+        ${which === 'toggle' ? html`<button type="button" class="sw follow" data-brand-option=${BRAND_ACCENT} title=${t('brandColors.preset_accent')} aria-label=${t('brandColors.preset_accent')} aria-pressed=${follow ? 'true' : 'false'}
+            ?disabled=${!this.canEdit} @click=${() => this.pick(which, BRAND_ACCENT)}><sw-icon name="link" size=${18}></sw-icon></button>` : nothing}
         ${CHOICES.map((id) => {
           const name = t(`brandColors.preset_${id}` as I18nKey);
           return html`<button type="button" class="sw" data-brand-option=${id} title=${name} aria-label=${name} aria-pressed=${value === id ? 'true' : 'false'}
@@ -185,6 +164,7 @@ export class SystemBrandColors extends LitElement {
           ${t('brandColors.custom')}
         </label>
       </div>
+      ${follow ? html`<span class="hint" data-brand-follow>${t('brandColors.accentFollowHint')}</span>` : nothing}
       ${low ? html`<span class="warn" role="status" data-brand-low-contrast>${t('brandColors.lowContrast')}</span>` : nothing}
     </div>`;
   }
@@ -195,8 +175,8 @@ export class SystemBrandColors extends LitElement {
       ${this.renderRow('toggle')}
       <div class="foot">
         <sw-button variant="primary" size="sm" icon="check" data-brand-save ?disabled=${!this.canEdit || !this.dirty || this.busy} @click=${() => void this.save()}>${t('brandColors.save')}</sw-button>
-        ${this.message ? html`<span class="ok" role="status" data-brand-message>${this.message}</span>` : nothing}
-        ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
+        ${this.message ? html`<span class="msg ok" role="status" data-brand-message><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
+        ${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
       </div>
     </sw-card>`;
   }

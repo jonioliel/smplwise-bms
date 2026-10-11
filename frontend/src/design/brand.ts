@@ -11,6 +11,8 @@
  */
 
 export const BRAND_DEFAULT = 'default';
+/** The switch-on colour only (SET-polish, owner 2026-10-11): follows the accent, now and whenever the accent changes. */
+export const BRAND_ACCENT = 'accent';
 /** id -> #rrggbb; keep in step with PRESETS in smplwise_vms/backend/smplwise/services/brand_colors.py. */
 export const BRAND_PRESETS: Readonly<Record<string, string>> = {
   ios_green: '#34c759',
@@ -32,18 +34,19 @@ export interface BrandColors {
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const CACHE_KEY = 'sw.ui.brand'; // the installation's last known choice: applied at once on the next load (no flash of the default)
 
-/** A stored value in canonical form; anything unknown reads as "default". */
-export function normalizeBrand(v: unknown): string {
+/** A stored value in canonical form; anything unknown reads as "default". `which` = 'toggle' also admits "accent". */
+export function normalizeBrand(v: unknown, which: 'accent' | 'toggle' = 'accent'): string {
   if (typeof v !== 'string') return BRAND_DEFAULT;
   const s = v.trim();
   if (s === BRAND_DEFAULT || Object.prototype.hasOwnProperty.call(BRAND_PRESETS, s)) return s;
+  if (s === BRAND_ACCENT && which === 'toggle') return s;
   return HEX.test(s) ? s.toLowerCase() : BRAND_DEFAULT;
 }
 
-/** The hex of a value, or null for "default" (the skin's own colour). */
+/** The hex of a value, or null for "default" (the skin's own colour) and for "accent" (whatever the accent resolves to). */
 export function brandHex(v: unknown): string | null {
-  const s = normalizeBrand(v);
-  if (s === BRAND_DEFAULT) return null;
+  const s = normalizeBrand(v, 'toggle');
+  if (s === BRAND_DEFAULT || s === BRAND_ACCENT) return null;
   return BRAND_PRESETS[s] ?? s;
 }
 
@@ -76,15 +79,18 @@ export function brandTokens(c: BrandColors, theme: 'light' | 'dark'): Record<str
       out['--sw-focus'] = `color-mix(in srgb, ${a} 72%, #ffffff)`;
     }
   }
-  const t = brandHex(c.toggle);
-  if (t) out['--sw-toggle-on'] = t;
+  if (normalizeBrand(c.toggle, 'toggle') === BRAND_ACCENT) out['--sw-toggle-on'] = 'var(--sw-accent)'; // the skin's accent or the one chosen above
+  else {
+    const t = brandHex(c.toggle);
+    if (t) out['--sw-toggle-on'] = t;
+  }
   return out;
 }
 
 function read(): BrandColors {
   try {
     const c = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null') as Partial<BrandColors> | null;
-    return { accent: normalizeBrand(c?.accent), toggle: normalizeBrand(c?.toggle) };
+    return { accent: normalizeBrand(c?.accent), toggle: normalizeBrand(c?.toggle, 'toggle') };
   } catch {
     return { accent: BRAND_DEFAULT, toggle: BRAND_DEFAULT };
   }
@@ -102,7 +108,7 @@ export const brandColors = (): BrandColors => ({ ...current });
 
 /** The installation's `ui.accent` / `ui.toggle_on` as the product settings carry them (unknown values read as "default"). */
 export function setBrandColors(accent: unknown, toggle: unknown): void {
-  const next = { accent: normalizeBrand(accent), toggle: normalizeBrand(toggle) };
+  const next = { accent: normalizeBrand(accent), toggle: normalizeBrand(toggle, 'toggle') };
   if (next.accent === current.accent && next.toggle === current.toggle) return;
   current = next;
   try {

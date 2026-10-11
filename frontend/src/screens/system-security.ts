@@ -15,6 +15,7 @@ import { SECURITY_CAMERAS_HREF, SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAl
 import { TabsModeController } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsStyles } from '../styles/settings';
 
 /** GET /api/v1/health - the connection facts, for every signed-in user (the same read הגדרות › חיבורים starts from). */
 interface RawHealth {
@@ -55,10 +56,7 @@ export class SystemSecurity extends LitElement {
   private tabsMode = new TabsModeController(this, 'settings'); // 0.1.153: tabs / hybrid / dropdown
   private giveUp = 0;
 
-  static styles = [css`
-    :host {
-      display: block;
-    }
+  static styles = [settingsStyles, css`
     .tabs {
       padding: 14px var(--sw-page-pad) 0;
     }
@@ -68,32 +66,8 @@ export class SystemSecurity extends LitElement {
     .rows {
       display: grid;
     }
-    .row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 0;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
-    .row:last-child {
-      border-block-end: 0;
-    }
-    .ok {
-      color: var(--sw-success-text);
-    }
     .warn {
       color: var(--sw-warning-text);
-    }
-    .err {
-      color: var(--sw-danger);
-    }
-    .actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-block-start: 10px;
     }
   `, bubbleChrome];
 
@@ -146,7 +120,7 @@ export class SystemSecurity extends LitElement {
         queueMicrotask(() => this.redirectTo(first));
         return html`<sw-state-panel state="loading"></sw-state-panel>`;
       }
-      return html`<sw-page heading="אבטחה"><sw-state-panel state="forbidden" data-security-settings-forbidden></sw-state-panel></sw-page>`;
+      return html`<sw-page crumbs="הגדרות" heading="אבטחה"><sw-state-panel state="forbidden" data-security-settings-forbidden></sw-state-panel></sw-page>`;
     }
     // the page being viewed stays in the row even when the presence answer would hide it (a saved link); the row follows
     // the order and visibility the admin set (ui.tabs, "system.security") through `offered`
@@ -158,7 +132,7 @@ export class SystemSecurity extends LitElement {
       ${this.sub === 'alarm'
         ? html`<security-alarm .panelId=${this.panelId}></security-alarm>`
         : this.sub === 'manage'
-          ? html`<sw-page heading="ניהול אזעקה" subheading="לוחות, קוד הלוח, שיוך חיישנים לעקיפה ומדיניות מרחוק"><system-alarm-settings ?canEdit=${this.api && canNav('system.configure', true)}></system-alarm-settings></sw-page>`
+          ? html`<sw-page crumbs="הגדרות | אבטחה" heading="ניהול אזעקה" subheading="לוחות, קוד הלוח, שיוך חיישנים לעקיפה ומדיניות מרחוק"><system-alarm-settings ?canEdit=${this.api && canNav('system.configure', true)}></system-alarm-settings></sw-page>`
           : this.sub === 'cameras'
             ? html`<system-security-cameras></system-security-cameras>`
             : html`<system-security-nvr></system-security-nvr>`}`;
@@ -191,9 +165,9 @@ export class SystemSecurityNvr extends LitElement {
   }
 
   render() {
-    if (!isApi()) return html`<sw-page heading="NVR"><sw-state-panel state="empty" heading="המצב מוצג מול שרת אמיתי" hint="במצב הדגמה אין NVR לקרוא."></sw-state-panel></sw-page>`;
-    if (this.error && !this.h) return html`<sw-page heading="NVR"><sw-state-panel state="error" heading="מצב ה־NVR לא נטען" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
-    if (!this.h) return html`<sw-page heading="NVR"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!isApi()) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="empty" heading="המצב מוצג מול שרת אמיתי" hint="במצב הדגמה אין NVR לקרוא."></sw-state-panel></sw-page>`;
+    if (this.error && !this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="error" heading="מצב ה־NVR לא נטען" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (!this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const h = this.h;
     const off = nvrLess() || h.mode === 'ha_only';
     const links = [
@@ -201,7 +175,7 @@ export class SystemSecurityNvr extends LitElement {
       { href: SECURITY_CAMERAS_HREF, label: 'הגדרות מצלמות', show: !off && tabAllowed(SECURITY_CAMERAS_HREF, canNav) },
       { href: '#/investigate/health', label: 'בריאות מצלמות', show: !off && tabAllowed('#/investigate/health', canNav) },
     ].filter((l) => l.show);
-    return html`<sw-page heading="NVR" subheading=${off ? 'ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}>
+    return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR" subheading=${off ? 'ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}>
       <sw-card heading="מצב" data-security-nvr>
         <div class="rows">
           <div class="row"><span>NVR</span><span class=${off ? '' : h.nvr_configured ? 'ok' : 'err'}>${off ? 'מצב ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}</span></div>

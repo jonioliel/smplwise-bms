@@ -70,3 +70,21 @@ def test_brand_and_glass_scheme_travel_with_the_project_backup(settings):
         assert res.status_code == 200, res.text
         s = c.get("/api/v1/settings").json()["settings"]
         assert (s["ui.accent"], s["ui.toggle_on"], s["devices.glass_scheme"]) == ("orange", "#123456", "dark")
+
+
+def test_toggle_follows_accent_only_for_the_switch(settings):
+    """SET-polish (owner 2026-10-11): `ui.toggle_on` may be "accent" (the switch follows the accent); `ui.accent` may not."""
+    assert brand_colors.normalize("accent", "ui.toggle_on") == "accent"
+    assert brand_colors.normalize(" accent ", "ui.toggle_on") == "accent"
+    with pytest.raises(ValueError):
+        brand_colors.normalize("accent", "ui.accent")
+    with pytest.raises(ValueError):
+        brand_colors.normalize("accent")
+    assert brand_colors.stored("accent", "ui.toggle_on") == "accent" and brand_colors.stored("accent", "ui.accent") == "default"
+    app = create_app(settings)
+    with TestClient(app) as c:
+        r = c.patch("/api/v1/settings", json={"ui.toggle_on": "accent"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["ui.toggle_on"] == "accent"
+        assert c.patch("/api/v1/settings", json={"ui.accent": "accent"}).status_code == 422
+        assert c.get("/api/v1/settings").json()["settings"]["ui.toggle_on"] == "accent"

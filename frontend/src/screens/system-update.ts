@@ -483,18 +483,18 @@ export class SystemUpdate extends LitElement {
 
   render() {
     if (this.notHolder()) {
-      return html`<sw-page heading="עדכונים"><sw-state-panel state="forbidden" data-update-forbidden></sw-state-panel></sw-page>`;
+      return html`<sw-page crumbs="הגדרות" heading="עדכונים"><sw-state-panel state="forbidden" data-update-forbidden></sw-state-panel></sw-page>`;
     }
     const d = this.data;
     if (!d) {
-      return html`<sw-page heading="עדכונים">
+      return html`<sw-page crumbs="הגדרות" heading="עדכונים">
         ${this.loadError
           ? html`<sw-state-panel state="error" heading="לא ניתן לטעון את מצב העדכונים" hint=${this.loadError} actionLabel="נסו שוב" data-update-load-error @action=${() => void this.load()}></sw-state-panel>`
           : html`<sw-state-panel state="loading" data-update-loading></sw-state-panel>`}
       </sw-page>`;
     }
     if (this.runId) {
-      return html`<sw-page heading="עדכונים">
+      return html`<sw-page crumbs="הגדרות" heading="עדכונים">
         <div class="col" data-system-update data-update-run-page>
           <sw-update-run .runId=${this.runId} .initial=${this.runHint} @run-dismiss=${() => this.endRun()}></sw-update-run>
         </div>
@@ -503,7 +503,7 @@ export class SystemUpdate extends LitElement {
     const interval = d.interval_hours ?? 6;
     const notPermitted = this.failure?.kind === 'not_permitted' || (!this.failure && d.check_result === 'not_permitted');
     const last = d.checked_at ? `${this.when(d.checked_at)} · ${resultLabel(d.check_result, d.update_available)}` : 'טרם בוצעה בדיקה';
-    return html`<sw-page heading="עדכונים">
+    return html`<sw-page crumbs="הגדרות" heading="עדכונים">
       <div class="col" data-system-update>
         <sw-card heading="גרסה">
           <div class="rows">
