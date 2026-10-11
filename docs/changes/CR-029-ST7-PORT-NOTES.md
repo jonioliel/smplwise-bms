@@ -46,3 +46,38 @@ e9a77c59) and the owner's decisions of 2026-10-09. Contradictions are recorded h
 - S2: sun / sky / time of day / lamp pool / door animation. S3: stills, masks, lightmap, `plan_bakes` (migration 0075 is
   free for it). S5: joystick polish, saved positions editing in the walk, route, kiosk idle, pointer lock on the real
   Ingress page. S7: perf gate R178, AT177 / AT178 evidence, registry.
+
+## S1 / S2 (branch `pilot/ST7-port-s1-s2`, from `pilot/ST7-port-s0-s4` 0298e10d)
+
+### Contradictions recorded (S1 / S2)
+
+| # | What disagrees | Decision in the port | Why |
+|---|---|---|---|
+| P10 | The brief: "solar position from site latitude / longitude (existing site settings)"; no such setting exists (CR-029 section 5.2 proposed reading HA `/api/config`, which the backend does not read) | new installation settings `site.latitude` / `site.longitude` (strings in the settings table, "" = not set, validated -90..90 / -180..180, read back as numbers or null); not set = 32.0 / 34.8 with a note in the time popover | no HA config read path to reuse; a plain setting is auditable and backed up with the settings |
+| P11 | LOOK_SPEC 13.2 maps the kit onto the prototype's ids (`sofa.3seat`, `bed.double`, `cabinet.tv`, `plant.pot`, ...); the product catalog 2026.10.1 has other ids and no residential beds / TV cabinet / pot plant | `map/plan3d-assets.ts` MODEL_MAP re-keyed on catalog ids (sofa.2/3, chair.basic/folding/office, table.dining/desk, cabinet.low, shelf.unit, fridge.domestic/kitchen, toilet.standard, sink.bathroom, bathtub, kitchenette.counter tiled every 0.6 m); the 19 approved files ship (unmapped ones wait for catalog items); `lampRoundFloor.glb` is not shipped (lamps stay procedural, LICENSES.md calls it unmapped) | the owner approved the file list, not the ids |
+| P12 | LOOK_SPEC / prototype use three's GLTFLoader and BufferGeometryUtils | `map/mesh-utils.ts` readGlb (triangles, node transforms, material names) and creaseNormals | GLTFLoader pulls animation / skinning classes into the capped `three` chunk |
+| P13 | LOOK_SPEC 6 / 8: door leaves open 85 deg | 80 deg (the description's DOOR_OPEN_DEG, shared with levels 1-2) | one deterministic description; changing it would move the level-2 baselines |
+| P14 | This branch's ladder (5 modes) vs `pilot/PLANMODE-sticky-quality` (auto / full / schematic, `plan.quality` auto/2/1 + /me/prefs) | superset with the same wire values ("auto", "1", "2"; new "lite", "realistic"), the same browser key, the same attributes (`data-quality-mode`, `data-3d-low-fps*`), the same rule (a chosen mode sticks, only auto falls), a missing `plan.quality` = schematic. Precedence: browser choice <- `plan.view.quality` when fixed <- `plan.quality` <- auto. Not yet wired: the hotfix's /me/prefs `plan.quality` and its FpsWatch hysteresis (2.5 s probe here) - the integration merge takes the hotfix's persistence and keeps this ladder's rungs | the hotfix ships first; the merge needs one design |
+| P15 | CR-029 3.4: the walk drops a level under 24 fps (the generic fallback) | a separate session flag (`sw.plan3d.walkguard`) under the new dial `plan.view.walk_guard` (on by default; off = a hint only) | coordinator 2026-10-11 |
+| P16 | ST7 build plan L8 MSAA x4 on desktop | MSAA x2 on both level-3 rungs, SMAA only without WebGL2 | LOOK_SPEC round 2 (x4 rendered blank with instancing on ANGLE/D3D11) |
+
+### What S1 / S2 deliver
+
+- Assets: `frontend/public/plan3d/` (72 files, 3.42 MB: 21 colour maps, 16 sets x normal + rough_ao, 19 models) with
+  `MANIFEST.json` (`scripts/plan3d_manifest.py`, `--check`); `unit-plan3d-assets.spec.ts` checks files, hashes, licences.
+- Description: `scene-real-builder.ts` (`SceneInput.realistic`): materials per base part (resolver), bevel radii, the
+  detail families (skirting, door frames / casings / handles, window frames / sills / mullions / transom, sofa, chair,
+  table, desk, cabinet / kitchen run, bed, round table / stool, tree / bush, lamp bodies with bulbs), room floors, section
+  caps, model rows, lamps, shutters (covers), room daylight. Levels 1-2 byte-identical (`unit-plan3d-real.spec.ts`).
+- View: `scene-real.ts` + level 3 in `scene-three.ts` (see the module notes), `post-chain.ts` in its own chunk.
+- Element: rung chips, ladder, hint, time pill (clock / slider / date / now), sky backdrop, grade, vignette, style by theme,
+  walk interior fill and fog; hosts: the floor map and the style guide request the realistic part (`realistic-change`).
+
+### Not in S1 / S2 (by slice)
+
+- Settings screens: `plan.view` dials (style, furniture, textures, section cut, walk guard, ...) and the site location are
+  API-only (as S0 left them); the history map and the event page do not request the realistic part (level 3 there draws
+  the level-2 structure under the level-3 light).
+- S3: stills, masks, the kiosk still swap, lightmap, `plan_bakes` (0075). S5: joystick / kiosk polish, the realistic walk
+  on a phone. S7: the R178 gate on the runner (390 px, 4x CPU throttle) with real fps, AT177 / AT178, registry rows,
+  real-device rows (NOT_RUN).

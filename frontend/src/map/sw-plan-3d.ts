@@ -1369,8 +1369,8 @@ export class SwPlan3d extends LitElement {
     if (hit) this.emitSelect(hit);
   }
 
-  /** The walk ran under its floor (24 fps, section 3.4): in `auto` one rung down in place, for the session (never to
-   * stills: a still cannot be walked); a chosen rung stays and the hint offers the simpler one. */
+  /** The walk ran under its floor (24 fps, section 3.4): with the walk guard (plan.view walk_guard, on by default) the walk
+   * draws one rung lower for the session - its own flag, never the auto fallback, never stills; guard off: the hint only. */
   private onWalkLowFps(): void {
     const down = nextDown(this.rung);
     if (!down) return;
