@@ -692,6 +692,10 @@ export class SwPlan3d extends LitElement {
       gap: 8px;
       align-items: center;
     }
+    /* the one button of the stair's prompt is a finger's target on a phone (S5-A): 44 px whatever the control scale says */
+    .pill.cross-floor sw-button {
+      --sw-ctl-h-lg: 44px;
+    }
     :host([data-walk]) .bar,
     :host([data-walk]) .strip {
       display: none;
@@ -1504,7 +1508,7 @@ export class SwPlan3d extends LitElement {
       ${this.walkNote ? html`<span class="pill walknote" role="status" data-tone=${this.walkNote.tone} data-walk-note>${this.walkNote.text}</span>` : nothing}
       ${this.crossFloor
         ? html`<span class="pill cross-floor" role="status" data-walk-cross=${this.crossFloor.id}>המדרגות ממשיכות ל${this.crossFloor.name ?? 'קומה אחרת'}
-            <sw-button size="sm" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>המשך לקומה</sw-button></span>`
+            <sw-button size="lg" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>המשך לקומה</sw-button></span>`
         : nothing}
       <sw-walk-hud .starts=${this.description?.walk?.starts ?? NO_STARTS} .shown=${this.walkShown}
         @hud-exit=${() => this.stopWalk(true)} @hud-goto=${(e: CustomEvent<WalkHudGoto>) => this.ui.goto(e)} @hud-field=${(e: CustomEvent<WalkHudField>) => this.ui.field(e)} @hud-route=${(e: CustomEvent<WalkHudRoute>) => this.ui.routeToggle(e)}></sw-walk-hud>`;

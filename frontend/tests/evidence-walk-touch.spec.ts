@@ -55,6 +55,10 @@ const cabDoc = (): GeometryDoc =>
 const scene = (d: GeometryDoc): SceneDescription => buildScene({ ...walkInput(d, { 'binary_sensor.d1': 'on' }, [camera]), catalog, walk: true });
 const descLow = scene(lowDoc());
 const descCab = scene(cabDoc());
+/** The west room's stair (x 2 .. 4.5, z 6.4) leads on to another floor: at its top the walk offers "continue to that floor". */
+const descStair = scene(
+  walkDoc({ objects: [], connectors: [{ id: 'xf', kind: 'stairs', level_from: 'L0', level_to: 'X0', floor_ids: ['f2'], far: { floor_id: 'f2', floor_name: 'קומה 2', level_name: null, direction: 'up', datum_m: 3, level_elevation_m: 0 }, polyline: [[0.2, 0.8], [0.45, 0.8]], width_m: 1.0, label: null, object_id: null, source: 'manual' }] }),
+);
 
 async function open(page: Page, d: SceneDescription, skin = 'classic'): Promise<Locator> {
   await page.goto(`/?skin=${skin}&scheme=light#/styleguide`);
@@ -305,6 +309,19 @@ test.describe('the walk bar and the bottom sheet', () => {
         expect(mine, mine.map((x) => `[${x.cls}] ${x.el} ${x.detail}`).join('\n')).toEqual([]);
       }
     }
+  });
+
+  test('the stair prompt button is a finger target too', async ({ page }, info) => {
+    test.setTimeout(120_000);
+    const el = await open(page, descStair);
+    await walkAt(el, 3.9, 6.4, 90); // on the stair, facing its top
+    await page.keyboard.down('KeyW');
+    await expect(el.locator('[data-walk-cross]')).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.up('KeyW');
+    const b = await el.locator('[data-walk-cross-go]').boundingBox();
+    expect(b, `the prompt button on ${info.project.name}`).not.toBeNull();
+    expect(b!.height).toBeGreaterThanOrEqual(43.5);
+    expect(b!.width).toBeGreaterThanOrEqual(43.5);
   });
 
   test('the sheet opens upward to the places and the numeric fields; a place goes there; the route plays and a touch stops it', async ({ page }, info) => {
