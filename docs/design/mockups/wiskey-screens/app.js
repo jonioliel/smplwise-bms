@@ -9,7 +9,7 @@
 'use strict';
 
 /* ------------------------------------------------------------------ state */
-const S = { s: 'stations', d: 'desktop', t: 'light', k: 'classic', v: 'cards', st: 'ready', id: 'admin', dr: '0', dlg: 'none', pop: '0', f: '0', sub: 'status', sent: '0' };
+const S = { s: 'stations', d: 'desktop', t: 'light', k: 'classic', v: 'cards', st: 'ready', id: 'admin', dr: '0', dlg: 'none', pop: '0', f: '0', sub: 'status', sent: '0', talk: 'unavail', ann: 'none', callv: 'none', wa: 'idle', sel: '0' };
 const DEFAULTS = { ...S };
 function readHash() {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -26,8 +26,8 @@ const PH = () => S.d === 'phone';
 const TB = () => S.d === 'tablet';
 /* identity -> Arx permissions of CR-036 section 2.3 (D). The viewer holds access.read only. */
 const PERM = {
-  admin: ['access.read', 'access.stations.read', 'access.events.read', 'access.events.export', 'access.people.read', 'access.people.sensitive', 'access.people.manage', 'access.admin.read', 'door_authority', 'access.call', 'settings'],
-  operator: ['access.read', 'access.stations.read', 'access.events.read', 'access.people.read', 'door_authority', 'access.call'],
+  admin: ['access.read', 'access.stations.read', 'access.events.read', 'access.events.export', 'access.people.read', 'access.people.sensitive', 'access.people.manage', 'access.people.message', 'access.admin.read', 'door_authority', 'access.call', 'access.announce', 'settings'],
+  operator: ['access.read', 'access.stations.read', 'access.events.read', 'access.people.read', 'door_authority', 'access.call', 'access.announce'],
   viewer: ['access.read'],
 };
 const can = (p) => PERM[S.id].includes(p);
@@ -60,6 +60,9 @@ const I = {
   mic: 'M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3', cam: 'M3 7h4l2-2h6l2 2h4v12H3zM12 10a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z',
   columns: 'M4 5h16v14H4zM10 5v14M15 5v14', ring: 'M18 8a6 6 0 0 0-12 0v5l-2 2h16l-2-2zM10 19a2 2 0 0 0 4 0', ban: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8',
   volume: 'M4 10v4h3l4 3V7l-4 3zM15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12',
+  micoff: 'M12 3a3 3 0 0 1 3 3v3M9 9v3a3 3 0 0 0 5 2.2M5 11a7 7 0 0 0 10.5 6M19 11a7 7 0 0 1-1 3.6M12 18v3M3 3l18 18',
+  end: 'M3 14c5-5 13-5 18 0l-2 3-4-2v-3c-2-.7-4-.7-6 0v3l-4 2z', wa: 'M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3zM9 8.5c.3-.5 1-.5 1.3 0l.7 1.5c.1.3 0 .6-.2.8l-.5.6c.8 1.4 1.8 2.4 3.2 3.2l.6-.5c.2-.2.5-.3.8-.2l1.5.7c.5.3.5 1 0 1.3-.7.7-1.5 1-2.3.8-3-.8-5.4-3.2-6.2-6.2-.2-.8.1-1.6.8-2.3z',
+  checkbox: 'M4 4h16v16H4zM8 12l3 3 5-6', send: 'M21 3L10 14M21 3l-7 18-4-7-7-4z',
 };
 const ic = (n, sw = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${I[n]}"/></svg>`;
 const FD = (sel) => (S.f === '1' && sel ? ' focus-demo' : '');
@@ -218,44 +221,98 @@ function tree(kind = 'stations', selected = 'all') {
 /* phone: the tree becomes a chip that opens a sheet with the same tree (not drawn here) */
 const treeChip = () => `<button class="chip">${ic('pin')}הכול${ic('down')}</button>`;
 
-/* ------------------------------------------------------------------ 1. stations and doors */
+/* ------------------------------------------------------------------ 1. stations and doors (round 2) */
+/* A station still: the existing station-stills concept (one frame of the station's stream through go2rtc, re-read every
+   60 s, wiskey_camera.py). The mockup draws an invented entrance scene per station - no real frame, no lab image. */
+function scene(s, i) {
+  const hue = [212, 196, 28, 160, 230, 265][i % 6];
+  const dusk = S.t === 'dark';
+  const sky = dusk ? `hsl(${hue} 30% 16%)` : `hsl(${hue} 45% 78%)`;
+  const sky2 = dusk ? `hsl(${hue} 25% 9%)` : `hsl(${hue} 35% 62%)`;
+  const wall = dusk ? `hsl(${hue} 10% 22%)` : `hsl(${hue} 12% 58%)`;
+  const wall2 = dusk ? `hsl(${hue} 10% 15%)` : `hsl(${hue} 12% 46%)`;
+  const floor = dusk ? '#141821' : '#7b8494';
+  const door = dusk ? `hsl(${hue} 18% 28%)` : `hsl(${hue} 22% 36%)`;
+  const glass = dusk ? 'rgba(255,220,150,.55)' : 'rgba(255,255,255,.55)';
+  const person = i === 0 ? `<g transform="translate(118 44)"><circle cx="0" cy="0" r="5" fill="${dusk ? '#c9d2e3' : '#2b3446'}"/><path d="M-7 8c0-5 14-5 14 0v16h-14z" fill="${dusk ? '#aeb8cb' : '#3a4457'}"/></g>` : '';
+  const car = i === 2 ? `<g transform="translate(40 50)"><rect x="0" y="0" width="52" height="16" rx="4" fill="${dusk ? '#394458' : '#2d3748'}"/><rect x="10" y="-8" width="30" height="10" rx="3" fill="${dusk ? '#4a5670' : '#3f4a5e'}"/><circle cx="12" cy="17" r="4" fill="#111"/><circle cx="40" cy="17" r="4" fill="#111"/></g>` : '';
+  const noise = `<rect width="160" height="70" fill="url(#g${i})" opacity=".35"/>`;
+  return `<svg class="scene" viewBox="0 0 160 70" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><linearGradient id="s${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky}"/><stop offset="1" stop-color="${sky2}"/></linearGradient>
+    <linearGradient id="g${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></linearGradient></defs>
+    <rect width="160" height="70" fill="url(#s${i})"/>
+    <rect x="0" y="12" width="60" height="46" fill="${wall}"/><rect x="100" y="12" width="60" height="46" fill="${wall2}"/>
+    <rect x="60" y="8" width="40" height="50" fill="${door}"/><rect x="66" y="14" width="12" height="36" fill="${glass}"/><rect x="82" y="14" width="12" height="36" fill="${glass}"/>
+    <rect x="0" y="56" width="160" height="14" fill="${floor}"/>
+    ${car}${person}${noise}
+    ${dusk ? `<circle cx="80" cy="6" r="9" fill="rgba(255,230,170,.35)"/>` : ''}
+  </svg>`;
+}
+const DUR = { gate: '00:00', lab: '01:42' };
+const TALK = { idle: ['דיבור', 'לחיצה ארוכה כדי לדבר'], req: ['מבקש הרשאת מיקרופון…', ''], live: ['מדבר', 'שחרור כדי להפסיק'], muted: ['מושתק', 'לחיצה כדי לבטל השתקה'], unavail: ['דיבור בלוח הקלאסי', 'פותח את העמדה בחלון האינטרקום'] };
+/* the talk control: push-to-talk. Until the audio hook (W10) lands, the control is in the `unavail` state and opens the station in
+   the classic panel; it is rendered only with access.call. */
+function talkControl(size = '') {
+  if (!can('access.call')) return '';
+  const st = S.talk;
+  const [label, hint] = TALK[st];
+  const icon = st === 'muted' ? 'micoff' : st === 'unavail' ? 'window' : 'mic';
+  return `<button class="talk ${st} ${size}${FD(true)}" aria-pressed="${st === 'live'}" aria-label="${label}" title="${hint}" onclick="set({talk: S.talk==='idle'?'req':S.talk==='req'?'live':S.talk==='live'?'muted':S.talk==='muted'?'idle':'unavail'})">
+    <span class="ring"></span>${ic(icon, 2)}<span class="lbl">${size === 'sm' && st === 'unavail' ? 'לוח קלאסי' : label}</span>${st === 'live' ? '<span class="eq"><i></i><i></i><i></i><i></i></span>' : ''}</button>`;
+}
+function callControls(s, where = 'card') {
+  if (!can('access.call')) return CALL[s.call] ? `<div class="callrow"><span class="pill ${CALL[s.call][1]}">${CALL[s.call][0]}</span></div>` : '';
+  if (s.call === 'ringing') return `<div class="callrow ringing"><span class="cs">${ic('ring')}שיחה נכנסת<span class="dur">${DUR[s.id] || '00:08'}</span></span>
+      <button class="btn sm ok" onclick="set({sent:'0'})">${ic('phone')}מענה</button><button class="btn sm danger">${ic('x')}דחייה</button></div>`;
+  if (s.call === 'in_call') return `<div class="callrow incall"><span class="cs">${ic('phone')}בשיחה<span class="dur">${DUR[s.id] || '00:31'}</span></span>
+      ${where === 'card' ? talkControl('sm') : ''}<button class="btn sm danger">${ic('end')}סיום</button></div>`;
+  return '';
+}
 function doorButtons(s, size = 'sm', focusFirst = false) {
   if (!can('door_authority') || !s.doors.length) return '';
   return s.doors.map((d, i) => `<button class="btn ${size}${FD(focusFirst && i === 0 && s.id === 'lobby')}" ${s.online ? '' : 'disabled'} onclick="set({dlg:'release'})">${ic('unlock')}פתח${s.doors.length > 1 ? ` · ${d.name}` : ''}</button>`).join('');
 }
-function stationCard(s) {
+/* per-door hold state (read-only, from the door programs; see the schedules screen) */
+const HOLD = { 'lobby/1': 'פתוח קבוע עד 09:00', 'gate/1': '', 'lab/1': '', 'mgmt/1': 'נעול עד 06:00', 'store/1': '', 'lobby/2': '' };
+function stationCard(s, i) {
   const call = CALL[s.call];
-  const tech = can('access.stations.read') ? `<div class="tech"><span>${SYNC[s.sync][0]}</span>${s.pending ? `<span>${s.pending} ממתינים</span>` : ''}<span class="hide-p"><code>${s.model}</code></span></div>` : '';
-  const still = s.camera ? `<div class="still${S.t === 'dark' ? ' dark' : ''}">${ic('cam')}<span class="tag">${s.online ? 'תמונה אחרונה' : 'אין תמונה'}</span>${call ? `<span class="ring">${ic(call[2])}${call[0]}</span>` : ''}</div>` : `<div class="still">${ic('ban')}<span class="tag">ללא מצלמה</span></div>`;
-  return `<article class="wk-card${s.online ? '' : ' dim'}" tabindex="0" onclick="set({dr:'1'})">${still}<div class="cb">
-    <div class="hd"><span class="name">${s.name}</span><span class="sp"></span><span class="pill ${s.online ? 'live' : 'off'}">${s.online ? 'מחובר' : 'לא מחובר'}</span></div>
-    <div class="meta"><span>${place(s)}</span><span>נראה <b>${s.seen}</b></span>${s.doors.length ? `<span>${s.doors.length === 1 ? 'דלת אחת' : `${s.doors.length} דלתות`}</span>` : '<span>ללא דלת</span>'}</div>
-    <div class="doors" onclick="event.stopPropagation()">${doorButtons(s, 'sm', true)}</div>${tech}</div></article>`;
+  const tech = can('access.stations.read') ? `<div class="tech"><span class="pill ${SYNC[s.sync][1]} plain">${SYNC[s.sync][0]}</span>${s.pending ? `<span>${s.pending} ממתינים</span>` : ''}<span class="sp"></span><span class="hide-p"><code>${s.model}</code></span></div>` : '';
+  const still = s.camera
+    ? `<div class="still${s.online ? '' : ' off'}">${scene(s, i)}<span class="stamp">${s.online ? '08:14:07' : s.seen}</span>${call ? `<span class="ring-badge ${s.call}">${ic(call[2])}${call[0]}</span>` : ''}
+        <div class="scrim"><span class="name">${s.name}</span><span class="place">${place(s)}</span></div></div>`
+    : `<div class="still nocam"><span class="nc">${ic('cam')}ללא מצלמה</span><div class="scrim"><span class="name">${s.name}</span><span class="place">${place(s)}</span></div></div>`;
+  const hold = s.doors.map((d) => HOLD[`${s.id}/${d.i}`]).filter(Boolean);
+  return `<article class="wk-card st${s.online ? '' : ' dim'}${s.call === 'ringing' ? ' ringing' : ''}" tabindex="0" onclick="set({dr:'1'})">${still}<div class="cb">
+    <div class="hd"><span class="pill ${s.online ? 'live' : 'off'}">${s.online ? 'מחובר' : 'לא מחובר'}</span><span class="meta"><span>נראה <b>${s.seen}</b></span>${hold.length ? `<span class="hold">${ic('clock')}${hold[0]}</span>` : ''}</span></div>
+    <div onclick="event.stopPropagation()">${callControls(s)}</div>
+    <div class="doors" onclick="event.stopPropagation()">${doorButtons(s, 'sm', true)}${can('access.announce') && s.online ? `<button class="btn sm icon" title="הכרזה" aria-label="הכרזה" onclick="set({dlg:'announce',ann:'idle'})">${ic('volume')}</button>` : ''}</div>${tech}</div></article>`;
 }
-function stationRow(s) {
+function stationRow(s, i) {
   const call = CALL[s.call];
-  return `<a class="row${FD(s.id === 'lobby')}" href="#" onclick="set({dr:'1'});return false"><span class="st${s.online ? '' : ' off'}"></span>
-    <div class="main"><span class="t">${s.name}</span><span class="s">${place(s)}${can('access.stations.read') ? ` · ${SYNC[s.sync][0]}` : ''}</span></div>
-    ${call ? `<span class="pill ${call[1]}">${call[0]}</span>` : ''}<span class="side hide-p">נראה ${s.seen}</span>
-    <div class="acts" onclick="event.stopPropagation()">${doorButtons(s)}</div>${ic('chev')}</a>`;
+  return `<a class="row st${FD(s.id === 'lobby')}" href="#" onclick="set({dr:'1'});return false"><span class="thumb${s.online ? '' : ' off'}">${s.camera ? scene(s, i) : ic('cam')}</span>
+    <div class="main"><span class="t">${s.name}<span class="pill ${s.online ? 'live' : 'off'} mini"></span></span><span class="s">${place(s)}${can('access.stations.read') ? ` · ${SYNC[s.sync][0]}` : ''}</span></div>
+    ${call ? `<span class="pill ${call[1]}">${call[0]}${DUR[s.id] ? ` · ${DUR[s.id]}` : ''}</span>` : ''}<span class="side hide-p">נראה ${s.seen}</span>
+    <div class="acts" onclick="event.stopPropagation()">${s.call === 'ringing' && can('access.call') ? `<button class="btn sm ok">${ic('phone')}מענה</button>` : ''}${doorButtons(s)}</div>${ic('chev')}</a>`;
 }
 function stationTable(list) {
   const tech = can('access.stations.read');
   return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>תחנה</th><th>מיקום</th><th>מצב</th><th>נראה לאחרונה</th><th>שיחה</th><th>דלתות</th>${tech ? '<th>סנכרון</th><th>דגם · קושחה</th>' : ''}<th></th></tr></thead><tbody>
-    ${list.map((s) => `<tr onclick="set({dr:'1'})"><td><b>${s.name}</b></td><td>${place(s)}</td><td><span class="pill ${s.online ? 'live' : 'off'}">${s.online ? 'מחובר' : 'לא מחובר'}</span></td><td class="num">${s.seen}</td><td>${CALL[s.call] ? `<span class="pill ${CALL[s.call][1]}">${CALL[s.call][0]}</span>` : '<span class="muted">—</span>'}</td><td>${s.doors.map((d) => d.name).join(', ') || '<span class="muted">—</span>'}</td>${tech ? `<td><span class="pill ${SYNC[s.sync][1]} plain">${SYNC[s.sync][0]}</span></td><td><code class="ltr">${s.model} · ${s.fw}</code></td>` : ''}<td onclick="event.stopPropagation()">${doorButtons(s)}</td></tr>`).join('')}
+    ${list.map((s) => `<tr onclick="set({dr:'1'})"><td><b>${s.name}</b></td><td>${place(s)}</td><td><span class="pill ${s.online ? 'live' : 'off'}">${s.online ? 'מחובר' : 'לא מחובר'}</span></td><td class="num">${s.seen}</td><td>${CALL[s.call] ? `<span class="pill ${CALL[s.call][1]}">${CALL[s.call][0]}${DUR[s.id] ? ` · ${DUR[s.id]}` : ''}</span>` : '<span class="muted">—</span>'}</td><td>${s.doors.map((d) => d.name).join(', ') || '<span class="muted">—</span>'}</td>${tech ? `<td><span class="pill ${SYNC[s.sync][1]} plain">${SYNC[s.sync][0]}</span></td><td><code class="ltr">${s.model} · ${s.fw}</code></td>` : ''}<td onclick="event.stopPropagation()">${s.call === 'ringing' && can('access.call') ? `<button class="btn sm ok">${ic('phone')}מענה</button>` : ''}${doorButtons(s)}</td></tr>`).join('')}
   </tbody></table></div>`;
 }
 function stationsScreen() {
-  const actions = `<span class="search">${ic('search')}חיפוש תחנה</span>`;
+  const actions = `<span class="search">${ic('search')}חיפוש תחנה</span>${can('access.announce') ? `<button class="btn" onclick="set({dlg:'announce',ann:'idle'})">${ic('volume')}<span class="hide-p">הכרזה</span></button>` : ''}`;
   let body;
   if (S.st === 'loading') body = S.v === 'cards' ? skCards() : skRows();
   else if (S.st === 'empty') body = panel('empty', 'אין תחנות במיקום הזה', '');
   else if (S.st === 'error') body = panel('error', 'לא ניתן לטעון את התחנות', 'הניסיון חוזר אוטומטית', `<button class="btn">${ic('refresh')}נסה שוב</button>`);
   else {
     const list = visibleStations();
-    body = S.v === 'cards' ? `<div class="grid">${list.map(stationCard).join('')}</div>` : S.v === 'table' && !PH() ? stationTable(list) : `<div class="rows">${list.map(stationRow).join('')}</div>`;
+    const ringing = list.filter((s) => s.call === 'ringing' || s.call === 'in_call').length;
+    const strip = ringing && S.v === 'cards' && can('access.call') ? `<div class="attn"><span class="dot"></span><span>${ringing === 1 ? 'שיחה אחת פעילה' : `${ringing} שיחות פעילות`}</span><span class="sp"></span><button class="btn sm ghost" onclick="set({v:'list'})">${ic('list')}הצג כרשימה</button></div>` : '';
+    body = strip + (S.v === 'cards' ? `<div class="grid st">${list.map(stationCard).join('')}</div>` : S.v === 'table' && !PH() ? stationTable(list) : `<div class="rows">${list.map(stationRow).join('')}</div>`);
   }
-  const chips = PH() ? `<div class="chips">${treeChip()}<button class="chip on">הכול</button><button class="chip">מחוברות</button><button class="chip">דורשות תשומת לב</button></div>` : `<div class="chips"><button class="chip on">הכול</button><button class="chip">מחוברות</button><button class="chip">דורשות תשומת לב</button><button class="chip">בשיחה</button></div>`;
+  const chips = `<div class="chips">${PH() ? treeChip() : ''}<button class="chip on">הכול</button><button class="chip">מחוברות</button><button class="chip">דורשות תשומת לב</button><button class="chip">${ic('phone')}בשיחה</button></div>`;
   const main = `${chips}${body}`;
   return head('תחנות ודלתות', S.st === 'scoped' && S.id !== 'admin' ? `${visibleStations().length} תחנות בתחום שלך` : `${STATIONS.length} תחנות · ${STATIONS.reduce((n, s) => n + s.doors.length, 0)} דלתות`, actions) + `<div class="wk-split">${tree('stations')}<div>${main}</div></div>`;
 }
@@ -265,20 +322,28 @@ function stationDrawer() {
     /* a direct link to a station outside the operator's scope: a calm placeholder, never partial data */
     return `<div class="scrim" onclick="set({dr:'0'})"></div><aside class="drawer" role="dialog" aria-label="תחנה"><div class="dh"><h2>תחנה</h2><button class="btn ghost icon" onclick="set({dr:'0'})">${ic('x')}</button></div><div class="db">${panel('scoped', 'התחנה אינה בתחום שלך', '')}</div></aside>`;
   }
-  const s = STATIONS[1];
+  const s = S.callv === 'in' ? STATIONS[3] : S.callv === 'ring' ? STATIONS[0] : STATIONS[1];
+  const i = STATIONS.indexOf(s);
   const tech = can('access.stations.read');
   const result = S.sent === '1' ? `<div class="result ok">${ic('check')}פתיחה נשלחה · העמדה אישרה קבלה</div>` : '';
-  return `<div class="scrim" onclick="set({dr:'0',sent:'0'})"></div><aside class="drawer" role="dialog" aria-labelledby="dr-t">
-    <div class="dh"><h2 id="dr-t">${s.name}</h2><span class="pill live">מחובר</span><button class="btn ghost icon" aria-label="סגור" onclick="set({dr:'0',sent:'0'})">${ic('x')}</button></div>
+  const callSect = can('access.call') ? `<section class="sect call"><h3>${ic('phone')}שיחה</h3>
+      ${s.call === 'ringing' ? `<div class="callrow ringing big"><span class="cs">${ic('ring')}שיחה נכנסת<span class="dur">00:08</span></span><button class="btn ok">${ic('phone')}מענה</button><button class="btn danger">${ic('x')}דחייה</button></div>`
+        : s.call === 'in_call' ? `<div class="callrow incall big"><span class="cs">${ic('phone')}בשיחה<span class="dur">${DUR[s.id]}</span></span><button class="btn danger">${ic('end')}סיום</button></div>${talkControl('lg')}`
+        : `<div class="callrow"><span class="cs muted">אין שיחה</span><button class="btn sm" disabled>${ic('phone')}חיוג לעמדה</button></div>`}
+    </section>` : (CALL[s.call] ? `<section class="sect"><h3>${ic('phone')}שיחה</h3><span class="pill ${CALL[s.call][1]}">${CALL[s.call][0]}</span></section>` : '');
+  return `<div class="scrim" onclick="set({dr:'0',sent:'0'})"></div><aside class="drawer${s.call === 'ringing' ? ' ringing' : ''}" role="dialog" aria-labelledby="dr-t">
+    <div class="dh"><h2 id="dr-t">${s.name}</h2><span class="pill ${s.online ? 'live' : 'off'}">${s.online ? 'מחובר' : 'לא מחובר'}</span><button class="btn ghost icon" aria-label="סגור" onclick="set({dr:'0',sent:'0'})">${ic('x')}</button></div>
     <div class="db">
-      <div class="still${S.t === 'dark' ? ' dark' : ''}" style="aspect-ratio:16/8;border-radius:var(--sw-r-sm);display:grid;place-items:center;background:linear-gradient(135deg,var(--sw-surface-3),var(--sw-surface-2));color:var(--sw-text-3);font-size:var(--sw-fs-xs)">${ic('cam')}</div>
+      <div class="live">${s.camera ? scene(s, i) : ''}<span class="stamp">תמונה אחרונה · 08:14:07</span>
+        <div class="live-ov"><span class="t">${ic('play')}שידור חי בלוח הקלאסי</span><button class="btn sm">${ic('window')}פתיחה בחלון האינטרקום</button></div></div>
       <div class="meta" style="display:flex;gap:12px;color:var(--sw-text-3);font-size:var(--sw-fs-sm)"><span>${place(s)}</span><span>נראה ${s.seen}</span></div>
       ${result}
+      ${callSect}
       <section class="sect"><h3>${ic('door')}דלתות</h3>
-        ${s.doors.map((d) => `<div style="display:flex;align-items:center;gap:10px"><span style="flex:1">${d.name}</span>${can('door_authority') ? `<button class="btn sm" onclick="set({dlg:'release'})">${ic('unlock')}פתח</button>` : ''}</div>`).join('')}
+        ${s.doors.map((d) => `<div class="doorrow"><span class="dn">${d.name}</span><span class="ds">${HOLD[`${s.id}/${d.i}`] ? `${ic('clock')}${HOLD[`${s.id}/${d.i}`]}` : 'סגורה'}</span>${can('door_authority') ? `<button class="btn sm" ${s.online ? '' : 'disabled'} onclick="set({dlg:'release'})">${ic('unlock')}פתח</button>` : ''}</div>`).join('') || '<span style="color:var(--sw-text-3)">אין דלת משויכת</span>'}
       </section>
-      <section class="sect"><h3>${ic('phone')}שיחה</h3><div style="display:flex;align-items:center;gap:10px"><span style="flex:1;color:var(--sw-text-3)">אין שיחה</span>${can('access.call') ? `<button class="btn sm" disabled>${ic('volume')}הכרזה</button>` : ''}</div></section>
-      ${tech ? `<section class="sect"><h3>${ic('sync')}טכני</h3><dl class="kv"><dt>סנכרון</dt><dd>${SYNC[s.sync][0]} · 08:11</dd><dt>דגם</dt><dd><code class="ltr">${s.model}</code></dd><dt>קושחה</dt><dd><code class="ltr">${s.fw}</code></dd><dt>ממסרים</dt><dd>2 · ממופים</dd><dt>שגיאה אחרונה</dt><dd class="muted" style="color:var(--sw-text-3)">אין</dd></dl></section>` : ''}
+      ${can('access.announce') ? `<section class="sect"><h3>${ic('volume')}הכרזה</h3><div class="callrow"><span class="cs muted">${S.ann === 'sent' ? 'הכרזה אחרונה נשלחה 08:02' : 'ברמקול העמדה'}</span><button class="btn sm" ${s.online ? '' : 'disabled'} onclick="set({dlg:'announce',ann:'idle'})">${ic('volume')}הכרזה</button></div></section>` : ''}
+      ${tech ? `<section class="sect"><h3>${ic('sync')}טכני</h3><dl class="kv"><dt>סנכרון</dt><dd>${SYNC[s.sync][0]} · 08:11</dd><dt>דגם</dt><dd><code class="ltr">${s.model}</code></dd><dt>קושחה</dt><dd><code class="ltr">${s.fw}</code></dd><dt>ממסרים</dt><dd>${s.doors.length} · ממופים</dd><dt>שגיאה אחרונה</dt><dd style="color:var(--sw-text-3)">${s.err ? `<code class="ltr">${s.err}</code>` : 'אין'}</dd></dl></section>` : ''}
     </div>
     <div class="df">${tech ? `<button class="btn" onclick="set({s:'schedules',dr:'0'})">${ic('cal')}לוחות זמנים</button>` : ''}<button class="btn" onclick="set({s:'events',dr:'0'})">${ic('log')}פעילות התחנה</button></div>
   </aside>`;
@@ -291,6 +356,28 @@ function releaseDialog() {
   </div></div>`;
 }
 const sentToast = () => (S.sent === '1' && S.dr !== '1' ? `<div class="toast" role="status">${ic('check')}פתיחה נשלחה</div>` : '');
+/* the announcement (TTS) panel: text, quick phrases, targets (one station / a place / all), preview, result. Builds on the existing
+   native flow (intercom/tts/engines + POST intercom/stations/{id}/tts, wiskey-overview.ts renderSpeak); many targets = one request per
+   station (new, section 3.1 of the ADR). Result wording: "נשלחה", never "הושמעה". */
+const PHRASES = ['נא להמתין, מישהו בדרך אליך', 'הדלת נפתחת, נא להיכנס', 'המשרד סגור, נא לחזור בשעות הפעילות', 'נא לעמוד מול המצלמה'];
+function announceDialog() {
+  if (S.dlg !== 'announce' || !can('access.announce')) return '';
+  const st = S.ann;
+  const text = PHRASES[0];
+  const result = st === 'sent' ? `<div class="result ok">${ic('check')}ההכרזה נשלחה ל־3 עמדות · ההשמעה בעמדה לא מאומתת</div>`
+    : st === 'rate' ? `<div class="result warn">${ic('clock')}העמדה עדיין משמיעה את ההכרזה הקודמת · אפשר לשלוח שוב בעוד 12 שניות</div>`
+    : st === 'noengine' ? `<div class="result warn">${ic('info')}אין מנוע הקראה זמין</div>` : '';
+  const busy = st === 'rate' || st === 'noengine';
+  return `<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="an-t"><div class="box wide">
+    <h2 id="an-t">הכרזה</h2>
+    <div class="fld"><label>לאן</label><div class="chips tight"><button class="chip on">${ic('door')}לובי</button><button class="chip">שער ראשי</button><button class="chip">${ic('pin')}קומת קרקע (3)</button><button class="chip">כל העמדות (5)</button></div></div>
+    <div class="fld"><label>ההודעה</label><div class="ta" role="textbox" aria-multiline="true" tabindex="0">${text}</div><span class="cnt">${text.length}/500</span></div>
+    <div class="fld"><label>ביטויים מהירים</label><div class="chips tight">${PHRASES.map((p, i) => `<button class="chip${i === 0 ? ' on' : ''}">${p}</button>`).join('')}</div></div>
+    <div class="prev">${ic('volume')}<span>עברית · קול ברירת המחדל · כ־3 שניות</span><span class="sp"></span><button class="btn ghost sm">${ic('play')}האזנה</button></div>
+    ${result}
+    <div class="acts"><button class="btn primary" ${busy ? 'disabled' : ''} onclick="set({ann:'sent'})">${ic('volume')}${st === 'sent' ? 'שליחה נוספת' : 'שלח הכרזה'}</button><button class="btn" onclick="set({dlg:'none',ann:'none'})">${st === 'sent' ? 'סגירה' : 'ביטול'}</button></div>
+  </div></div>`;
+}
 
 /* ------------------------------------------------------------------ 2. people (names only; sensitive block gated) */
 function personCard(p) {
@@ -298,16 +385,65 @@ function personCard(p) {
     <div class="col"><span class="name">${p.name}</span><span class="meta">${p.groups.join(' · ')} · ${p.stations.filter(inScope).length} תחנות</span><span class="meta">${p.valid}</span></div>
     <span class="pill ${PSTATE[p.state][1]}">${PSTATE[p.state][0]}</span></div></article>`;
 }
+/* WhatsApp: the action exists only with BOTH access.people.sensitive and access.people.message (omit, never grey). A person
+   without a phone or without consent still shows the action in the drawer; the composer then explains why it cannot send. */
+const canWa = () => can('access.people.sensitive') && can('access.people.message');
+const waBtn = (p, size = 'sm') => (canWa() && p.phone ? `<button class="btn ${size} icon" title="שלח הודעת וואטסאפ" aria-label="שלח הודעת וואטסאפ" onclick="event.stopPropagation();set({dlg:'wa',wa:'idle'})">${ic('wa')}</button>` : '');
+const SELECTED = ['p1', 'p2', 'p5'];
+const selBox = (p) => (S.sel === '1' ? `<span class="cbx${SELECTED.includes(p.id) ? ' on' : ''}" role="checkbox" aria-checked="${SELECTED.includes(p.id)}" tabindex="0" onclick="event.stopPropagation()">${SELECTED.includes(p.id) ? ic('check', 2.4) : ''}</span>` : '');
 function personRow(p) {
-  return `<a class="row${FD(p.id === 'p1')}" href="#" onclick="set({dr:'1'});return false"><span class="av" style="width:36px;height:36px">${initials(p.name)}</span>
+  return `<a class="row${FD(p.id === 'p1')}${S.sel === '1' && SELECTED.includes(p.id) ? ' sel' : ''}" href="#" onclick="set({dr:'1'});return false">${selBox(p)}<span class="av" style="width:36px;height:36px">${initials(p.name)}</span>
     <div class="main"><span class="t">${p.name}</span><span class="s">${p.groups.join(' · ')}</span></div>
-    <span class="side hide-p">${p.stations.filter(inScope).length} תחנות</span><span class="side hide-p">${p.valid}</span><span class="pill ${PSTATE[p.state][1]}">${PSTATE[p.state][0]}</span>${ic('chev')}</a>`;
+    <span class="side hide-p">${p.stations.filter(inScope).length} תחנות</span><span class="side hide-p">${p.valid}</span><span class="pill ${PSTATE[p.state][1]}">${PSTATE[p.state][0]}</span><div class="acts">${waBtn(p)}</div>${ic('chev')}</a>`;
 }
 function peopleTable(list) {
   const sens = can('access.people.sensitive');
-  return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>שם</th>${sens ? '<th>מס׳ עובד</th>' : ''}<th>קבוצות</th><th>תחנות</th><th>אמצעים</th><th>תוקף</th><th>מצב</th><th><button class="btn ghost icon sm" title="עמודות">${ic('columns')}</button></th></tr></thead><tbody>
-    ${list.map((p) => `<tr onclick="set({dr:'1'})"><td><b>${p.name}</b></td>${sens ? `<td class="num"><code>${p.emp}</code></td>` : ''}<td>${p.groups.join(', ')}</td><td class="num">${p.stations.filter(inScope).length}</td><td>${p.creds.map((c) => CRED[c][0]).join(', ')}</td><td>${p.valid}</td><td><span class="pill ${PSTATE[p.state][1]}">${PSTATE[p.state][0]}</span></td><td></td></tr>`).join('')}
+  return `<div class="tbl-wrap"><table class="tbl"><thead><tr>${S.sel === '1' ? '<th></th>' : ''}<th>שם</th>${sens ? '<th>מס׳ עובד</th>' : ''}<th>קבוצות</th><th>תחנות</th><th>אמצעים</th><th>תוקף</th><th>מצב</th><th><button class="btn ghost icon sm" title="עמודות">${ic('columns')}</button></th></tr></thead><tbody>
+    ${list.map((p) => `<tr onclick="set({dr:'1'})" class="${S.sel === '1' && SELECTED.includes(p.id) ? 'sel' : ''}">${S.sel === '1' ? `<td>${selBox(p)}</td>` : ''}<td><b>${p.name}</b></td>${sens ? `<td class="num"><code>${p.emp}</code></td>` : ''}<td>${p.groups.join(', ')}</td><td class="num">${p.stations.filter(inScope).length}</td><td>${p.creds.map((c) => CRED[c][0]).join(', ')}</td><td>${p.valid}</td><td><span class="pill ${PSTATE[p.state][1]}">${PSTATE[p.state][0]}</span></td><td>${waBtn(p)}</td></tr>`).join('')}
   </tbody></table></div>`;
+}
+/* bulk bar (secondary design): select several people, one template, preview count, one confirmation */
+function bulkBar(list) {
+  if (S.sel !== '1') return '';
+  const n = SELECTED.filter((id) => list.some((p) => p.id === id)).length;
+  return `<div class="bulk" role="toolbar" aria-label="פעולות על הנבחרים"><span class="cbx on" role="checkbox" aria-checked="mixed">${ic('check', 2.4)}</span><span class="n">${n} נבחרו</span><span class="sp"></span>
+    ${canWa() ? `<button class="btn sm" onclick="set({dlg:'wabulk',wa:'idle'})">${ic('wa')}וואטסאפ לנבחרים</button>` : ''}${can('access.people.manage') ? `<button class="btn sm">${ic('tag')}קבוצה</button>` : ''}<button class="btn sm ghost" onclick="set({sel:'0'})">${ic('x')}</button></div>`;
+}
+const WA_TEMPLATES = ['תזכורת: תוקף הכרטיס שלך מסתיים בקרוב. נא לפנות למשרד.', 'שלום, כרטיס הכניסה החדש שלך מוכן לאיסוף.', 'הכניסה לחניון סגורה היום בין 12:00 ל־14:00.'];
+const maskPhone = (ph) => ph.replace(/\d(?=\d{2}$)/g, '•').replace(/^(\d{3})/, '$1');
+/* the composer: recipient by name; the phone masked until the sensitive section is revealed; state machine per S.wa */
+function waDialog() {
+  if (S.dlg !== 'wa' || !canWa()) return '';
+  const p = PEOPLE[0]; const st = S.wa; const text = WA_TEMPLATES[0];
+  const blocked = st === 'nophone' || st === 'noconsent' || st === 'noconn';
+  const why = { nophone: 'אין מספר טלפון בכרטיס האדם', noconsent: 'האדם ביקש לא לקבל הודעות', noconn: 'שירות ההודעות אינו מחובר' }[st];
+  const result = st === 'sending' ? `<div class="result wait">${ic('refresh')}שולח…</div>`
+    : st === 'sent' ? `<div class="result ok">${ic('check')}נשלח · 08:21 · אין אישור מסירה</div>`
+    : st === 'failed' ? `<div class="result err">${ic('alert')}לא נשלח · המספר אינו רשום בוואטסאפ</div>`
+    : st === 'rate' ? `<div class="result warn">${ic('clock')}הגעת למכסת ההודעות לשעה · אפשר לשלוח שוב בעוד 14 דק׳</div>`
+    : blocked ? `<div class="result warn">${ic('ban')}אי אפשר לשלוח · ${why}</div>` : '';
+  const phone = st === 'nophone' ? '—' : `<span class="ltr">${S.f === '1' ? p.phone : maskPhone(p.phone)}</span> <button class="btn ghost sm" onclick="set({f:S.f==='1'?'0':'1'})">${ic('eye')}</button>`;
+  return `<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="wa-t"><div class="box wide">
+    <h2 id="wa-t">${ic('wa')}הודעת וואטסאפ</h2>
+    <div class="to"><span class="av">${initials(p.name)}</span><div class="col"><b>${p.name}</b><span class="muted">${phone}${st === 'noconsent' ? ' · <span class="pill warn plain">ביקש לא לקבל</span>' : ' · <span class="pill ok plain">הסכמה</span>'}</span></div></div>
+    <div class="fld"><label>תבנית</label><div class="chips tight">${WA_TEMPLATES.map((t, i) => `<button class="chip${i === 0 ? ' on' : ''}">${t.slice(0, 26)}…</button>`).join('')}<button class="chip">חופשי</button></div></div>
+    <div class="fld"><label>ההודעה</label><div class="ta" role="textbox" aria-multiline="true" tabindex="0" ${blocked ? 'aria-disabled="true"' : ''}>${text}</div><span class="cnt">${text.length}/1000</span></div>
+    ${result}
+    <div class="acts"><button class="btn primary" ${blocked || st === 'sending' || st === 'rate' ? 'disabled' : ''} onclick="set({wa:'sending'})">${ic('send')}${st === 'sent' ? 'שליחה נוספת' : 'שלח'}</button><button class="btn" onclick="set({dlg:'none',wa:'idle'})">${st === 'sent' ? 'סגירה' : 'ביטול'}</button></div>
+  </div></div>`;
+}
+function waBulkDialog() {
+  if (S.dlg !== 'wabulk' || !canWa()) return '';
+  const st = S.wa; const text = WA_TEMPLATES[0];
+  const result = st === 'sent' ? `<div class="result ok">${ic('check')}נשלח ל־2 · 1 לא נשלח (אין טלפון)</div>` : st === 'sending' ? `<div class="result wait">${ic('refresh')}שולח 2 מתוך 3…</div>` : '';
+  return `<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="wb-t"><div class="box wide">
+    <h2 id="wb-t">${ic('wa')}הודעת וואטסאפ ל־3 אנשים</h2>
+    <div class="fld"><label>תבנית אחת לכולם</label><div class="chips tight">${WA_TEMPLATES.map((t, i) => `<button class="chip${i === 0 ? ' on' : ''}">${t.slice(0, 26)}…</button>`).join('')}</div></div>
+    <div class="fld"><label>ההודעה</label><div class="ta" role="textbox" aria-multiline="true" tabindex="0">${text}</div><span class="cnt">${text.length}/1000</span></div>
+    <div class="prev">${ic('users')}<span>יישלח ל־2 · לא יישלח ל־1: אלי פרץ (אין טלפון)</span></div>
+    ${result}
+    <div class="acts"><button class="btn primary" ${st === 'sending' ? 'disabled' : ''} onclick="set({wa:'sending'})">${ic('send')}${st === 'sent' ? 'סגירה' : 'שלח ל־2'}</button><button class="btn" onclick="set({dlg:'none',wa:'idle',sel:'0'})">ביטול</button></div>
+  </div></div>`;
 }
 function peopleScreen() {
   if (!can('access.people.read')) return head('אנשים', '', '', false) + FORBIDDEN;
@@ -318,8 +454,8 @@ function peopleScreen() {
   if (S.st === 'loading') body = skRows();
   else if (S.st === 'empty') body = panel('empty', 'לא נמצאו אנשים', 'נסו מסנן אחר');
   else if (S.st === 'error') body = panel('error', 'לא ניתן לטעון את רשימת האנשים', '', `<button class="btn">${ic('refresh')}נסה שוב</button>`);
-  else body = S.v === 'cards' ? `<div class="grid">${list.map(personCard).join('')}</div>` : S.v === 'table' && !PH() ? peopleTable(list) : `<div class="rows">${list.map(personRow).join('')}</div><div class="more"><button class="btn">עוד 40</button></div>`;
-  return head('אנשים', `${S.st === 'scoped' && S.id !== 'admin' ? list.length : 48} אנשים`, actions) + chips + body;
+  else body = bulkBar(list) + (S.v === 'cards' ? `<div class="grid">${list.map(personCard).join('')}</div>` : S.v === 'table' && !PH() ? peopleTable(list) : `<div class="rows">${list.map(personRow).join('')}</div><div class="more"><button class="btn">עוד 40</button></div>`);
+  return head('אנשים', `${S.st === 'scoped' && S.id !== 'admin' ? list.length : 48} אנשים`, actions + (S.v !== 'cards' && S.st === 'ready' ? `<button class="btn icon" title="בחירה מרובה" aria-pressed="${S.sel === '1'}" onclick="set({sel:S.sel==='1'?'0':'1'})">${ic('checkbox')}</button>` : '')) + chips + body;
 }
 function personDrawer() {
   if (S.dr !== '1') return '';
@@ -336,8 +472,13 @@ function personDrawer() {
       <section class="sect"><h3>${ic('door')}גישה לתחנות</h3>
         ${p.stations.filter(inScope).map((id) => { const s = stationOf(id); return `<div style="display:flex;align-items:center;gap:10px"><span class="st" style="width:8px;height:8px;border-radius:50%;background:var(--sw-${s.online ? 'live' : 'offline'})"></span><span style="flex:1">${s.name}</span><span class="pill ${SYNC[s.sync][1]} plain">${SYNC[s.sync][0]}</span></div>`; }).join('')}
       </section>
+      ${canWa() ? `<section class="sect"><h3>${ic('wa')}הודעות</h3>
+        <div class="hist"><span class="ltr num">08:21</span><span>תזכורת תוקף · נשלח ע״י מיכל אברהם · היום</span><span class="pill ok plain">נשלח</span></div>
+        <div class="hist"><span class="ltr num">02.10</span><span>כרטיס מוכן לאיסוף · נשלח ע״י רונית גל</span><span class="pill ok plain">נשלח</span></div>
+        <div class="hist"><span class="ltr num">28.09</span><span>תזכורת תוקף · נשלח ע״י מיכל אברהם</span><span class="pill err plain">לא נשלח</span></div>
+      </section>` : ''}
     </div>
-    ${can('access.people.manage') ? `<div class="df"><button class="btn">${ic('card')}הקצאת כרטיס</button><button class="btn primary">עריכה</button></div>` : ''}
+    ${can('access.people.manage') || canWa() ? `<div class="df">${canWa() ? `<button class="btn${FD(true)}" onclick="set({dlg:'wa',wa:'idle'})">${ic('wa')}שלח הודעת וואטסאפ</button>` : ''}${can('access.people.manage') ? `<button class="btn">${ic('card')}הקצאת כרטיס</button><button class="btn primary">עריכה</button>` : ''}</div>` : ''}
   </aside>`;
 }
 
@@ -516,12 +657,16 @@ const OPT = {
   st: [['ready', 'מוכן'], ['loading', 'טוען'], ['empty', 'ריק'], ['error', 'שגיאה'], ['scoped', 'תחום חלקי'], ['stale', 'לא עדכני']],
   id: [['admin', 'מנהל אתר'], ['operator', 'מפעיל'], ['viewer', 'צופה']],
   dr: [['0', 'סגור'], ['1', 'פתוח']],
-  dlg: [['none', '—'], ['release', 'פתיחה'], ['export', 'ייצוא'], ['switch', 'החלפת תצוגה']],
+  dlg: [['none', '—'], ['release', 'פתיחה'], ['export', 'ייצוא'], ['switch', 'החלפת תצוגה'], ['announce', 'הכרזה'], ['wa', 'וואטסאפ'], ['wabulk', 'וואטסאפ מרובה']],
+  callv: [['none', 'לובי'], ['ring', 'שער: מצלצל'], ['in', 'מעבדה: בשיחה']],
+  talk: [['unavail', 'בלוח הקלאסי'], ['idle', 'מוכן'], ['req', 'מבקש הרשאה'], ['live', 'מדבר'], ['muted', 'מושתק']],
+  ann: [['idle', 'עריכה'], ['sent', 'נשלחה'], ['rate', 'ממתין'], ['noengine', 'אין מנוע']],
+  wa: [['idle', 'עריכה'], ['sending', 'שולח'], ['sent', 'נשלח'], ['failed', 'נכשל'], ['rate', 'מוגבל'], ['nophone', 'אין טלפון'], ['noconsent', 'אין הסכמה'], ['noconn', 'לא מחובר']],
 };
-const LBL = { s: 'מסך', d: 'רוחב', t: 'ערכה', k: 'סקין', v: 'תצוגה', st: 'מצב', id: 'זהות', dr: 'פרטים', dlg: 'דיאלוג' };
+const LBL = { s: 'מסך', d: 'רוחב', t: 'ערכה', k: 'סקין', v: 'תצוגה', st: 'מצב', id: 'זהות', dr: 'פרטים', dlg: 'דיאלוג', callv: 'מגירת תחנה', talk: 'דיבור', ann: 'הכרזה', wa: 'וואטסאפ' };
 function bar() {
   const grp = (k) => `<span class="g-grp"><span class="g-l">${LBL[k]}</span>${OPT[k].map(([v, l]) => `<button aria-pressed="${S[k] === v}" onclick="set({${k}:'${v}'})">${l}</button>`).join('')}</span>`;
-  return `<b>Arx · מסכי בקרת הכניסה</b>${Object.keys(OPT).map(grp).join('')}<span class="g-grp"><span class="g-l">עוד</span><button aria-pressed="${S.pop === '1'}" onclick="set({pop:S.pop==='1'?'0':'1'})">תפריט תצוגה</button><button aria-pressed="${S.f === '1'}" onclick="set({f:S.f==='1'?'0':'1'})">פוקוס מקלדת</button><button aria-pressed="${S.sent === '1'}" onclick="set({sent:S.sent==='1'?'0':'1'})">אחרי פתיחה</button></span>`;
+  return `<b>Arx · מסכי בקרת הכניסה</b>${Object.keys(OPT).map(grp).join('')}<span class="g-grp"><span class="g-l">עוד</span><button aria-pressed="${S.sel === '1'}" onclick="set({sel:S.sel==='1'?'0':'1'})">בחירה מרובה</button><button aria-pressed="${S.pop === '1'}" onclick="set({pop:S.pop==='1'?'0':'1'})">תפריט תצוגה</button><button aria-pressed="${S.f === '1'}" onclick="set({f:S.f==='1'?'0':'1'})">פוקוס מקלדת</button><button aria-pressed="${S.sent === '1'}" onclick="set({sent:S.sent==='1'?'0':'1'})">אחרי פתיחה</button></span>`;
 }
 function render() {
   writeHash();
@@ -529,8 +674,8 @@ function render() {
   document.getElementById('bar').innerHTML = bar();
   let body = '', overlays = '';
   if (S.st === 'forbidden') body = head(TITLES[S.s], '', '', false) + FORBIDDEN;
-  else if (S.s === 'stations') { body = stationsScreen(); overlays = stationDrawer() + releaseDialog() + sentToast(); }
-  else if (S.s === 'people') { body = peopleScreen(); overlays = can('access.people.read') ? personDrawer() : ''; }
+  else if (S.s === 'stations') { body = stationsScreen(); overlays = stationDrawer() + releaseDialog() + announceDialog() + sentToast(); }
+  else if (S.s === 'people') { body = peopleScreen(); overlays = can('access.people.read') ? personDrawer() + waDialog() + waBulkDialog() : ''; }
   else if (S.s === 'events') { body = eventsScreen(); overlays = can('access.events.read') ? eventDrawer() + exportDialog() : ''; }
   else if (S.s === 'schedules') body = schedulesScreen();
   else body = settingsScreen();

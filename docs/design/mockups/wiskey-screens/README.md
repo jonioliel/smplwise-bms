@@ -27,6 +27,12 @@ partial data; fields the operator may not see are absent, never greyed.
 
 Screenshots: `docs/design/evidence/wiskey-screens/` (Playwright over the static gallery, `<screen>[-variant]-<skin>-<scheme>-<width>.png`).
 
+Round 2 (2026-10-11, owner feedback): the stations screen was redesigned - invented entrance scenes stand in for the station
+stills (`scene()` in app.js; the product uses the real go2rtc still), name on a scrim, call state with durations and answer /
+decline / end, a push-to-talk control with five states (`talk=`; stage 1 ships only "דיבור בלוח הקלאסי" until the audio hook W10),
+an announcement (TTS) composer (`dlg=announce&ann=`), per-door hold state, the drawer's "שידור חי בלוח הקלאסי" slot. The people
+screen gained a WhatsApp composer (`dlg=wa&wa=`), a messages history, and a bulk send (`sel=1`, `dlg=wabulk`).
+
 ASSUMPTIONS (marked W? in the ADR): the shapes of `stations/technical_relays`, `technical_program_list`, `technical_hold_get`,
 `schedules/*`, `health/get`, `sync/status`, `fleet/alerts`, `audit/list` are not delivered (CR-036 ask W2); the schedules and
 status screens are drawn from the static catalog's field names and the WisKey panel's own screens, and must be re-checked against
