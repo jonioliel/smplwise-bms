@@ -12,6 +12,7 @@ import { viewMode } from '../map/quality-ladder';
 import { planChangeKey } from '../map/plan-change-key';
 import { readWallPins, resolveWallPlan, type WallPlanSetting } from '../map/wall-plan-mode';
 import { skinOf, themeScope } from '../map/theme-scope';
+import { resolveSite, type ResolvedSite } from '../map/sun';
 import { webglAvailable } from '../map/webgl';
 import { hasStills, renderStills, stillsLevel } from '../screens/floor-stills';
 import { wallCircuitStates, wallLevel, wallRoomStates, wallScene } from './wall-plan-scene';
@@ -40,6 +41,8 @@ export class SwWallPlan extends LitElement {
   @state() private catalog3d: Catalog3DLookup | null = null;
   @state() private materials: CatalogMaterialLookup | null = null;
   @state() private dials: PlanViewDials = { ...DEFAULT_VIEW };
+  /** Where the sun stands (the home's location, map/sun.ts resolveSite): the idle still's time band follows it. */
+  @state() private site: ResolvedSite = resolveSite(null);
   @state() private threeReady = false;
   /** The live ladder ran out on this device (the element's `stills-fallback`): the still set takes over for good. */
   @state() private exhausted = false;
@@ -102,6 +105,7 @@ export class SwWallPlan extends LitElement {
       const [b, prefs] = await Promise.all([loadMap(id), planViewPrefs()]);
       if (seq !== this.seq) return;
       this.dials = prefs.effective;
+      this.site = resolveSite(prefs.location);
       const [geometry, lib] = await Promise.all([geometryFor(b), loadLibrary(b.catalogRevision).catch(() => null)]);
       if (seq !== this.seq) return;
       this.geometry = geometry;
@@ -165,7 +169,7 @@ export class SwWallPlan extends LitElement {
     const lvl = stillsLevel(b, level);
     const dials = forced ? { ...this.dials, style: forced } : this.dials;
     if (mode === 'stills' || (mode === 'live' && !this.threeReady && stills)) {
-      return html`<div class="fill" style=${scope} data-wall-plan="stills">${renderStills(b, lvl, layer, dials, new Date(), { autoBand: true })}</div>`;
+      return html`<div class="fill" style=${scope} data-wall-plan="stills">${renderStills(b, lvl, layer, dials, new Date(), { autoBand: true, site: this.site })}</div>`;
     }
     if (mode !== 'live' || !this.threeReady) return nothing;
     const desc = this.scene(b, level, layer);
@@ -176,7 +180,7 @@ export class SwWallPlan extends LitElement {
         .qualityForce=${plan.quality} .idleS=${plan.idleS} .changeKey=${key} .themeForce=${forced}
         @realistic-change=${(e: CustomEvent<{ on: boolean }>) => { if (this.real !== e.detail.on) this.real = e.detail.on; }}
         @stills-fallback=${() => { this.exhausted = true; }}>
-        ${stills ? renderStills(b, lvl, layer, dials, new Date(), { slot: 'idle-still', autoBand: true }) : nothing}
+        ${stills ? renderStills(b, lvl, layer, dials, new Date(), { slot: 'idle-still', autoBand: true, site: this.site }) : nothing}
       </sw-plan-3d>
     </div>`;
   }

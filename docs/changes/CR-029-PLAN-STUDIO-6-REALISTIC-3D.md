@@ -99,7 +99,8 @@ A third quality level of `SceneView`. Everything the viewer sees is drawn live f
 - Sky and sun: a sun direction from (hour, day of year, latitude, plan north) - a 60-line solar-position function, unit
   tested; sky colours and the hemisphere light from the sun elevation (a small lookup, not an atmosphere shader - the
   `three/addons/objects/Sky` shader is ~9 KB gzip and would be acceptable, but it costs a full-screen pass per frame on a
-  phone; decision in §9). The time comes from the site's clock (`time.zone`) with a slider override for planning.
+  phone; decision in §9). The time comes from the site's clock (`time.zone`) with a slider override for planning. The
+  latitude / longitude / zone come from the HA core config (owner decision 2026-10-11, §5.2.1).
 - Lamps: the lit lamp's glow (exists) plus an emissive material on the lamp body and a `PointLight` from the pool, in the
   colour temperature of the catalog item; above `MAX_GLOW_LIGHTS` (8) the nearest to the camera get the lights, the rest
   the emissive only (deterministic by distance bucket, as the cutaway is by azimuth bin).
@@ -292,7 +293,7 @@ note, as the 3D does today).
 | `material_id` | wall, opening, object, `rooms[]` (floor), `levels[]` (default floor / ceiling) | string (library id) | resolved by rule: wall kind → `plaster_white` (interior), `plaster_exterior`; room floor → `floor_oak` for `residential`-tagged rooms else `floor_concrete`; door → `door_wood`; window → `glass`; object → the catalog item's `material_id` | the look; the resolver is a pure function (`material-resolve.ts`), so the same document gives the same materials |
 | `ceiling` | `rooms[]` | `boolean` | `true` | a hall with a visible roof structure, an outdoor room (no ceiling, sky visible from the walk) |
 | `north_deg` | document (`transform.north_deg`) | number 0-360 | `0` (plan up = north) | sun direction; set in the editor with a compass widget on the calibration card |
-| `site.latitude / longitude` | **not in the document** - read from the HA config (`/api/config` already read for `time.zone`), fallback 32.0 / 34.8 (Israel) with a note | | | sun elevation by date; read-only, never written |
+| `site.latitude / longitude` | **not in the document** - read from the HA core config (owner decision 2026-10-11, §5.2.1), fallback 32.0 / 34.8 (Israel) with a note | | | sun elevation by date; read-only, never written |
 | `light` | object (lamp items) | `{ kind: 'ceiling' \| 'wall' \| 'spot' \| 'strip' \| 'floor', color_k: number, lumens: number, beam_deg?: number }` | from the catalog item (`lighting` category gets defaults: 3000 K, 800 lm, ceiling) | emission colour, intensity, a spot's cone |
 | `glazing` | window openings | `'clear' \| 'frosted' \| 'tinted'` | `clear` | material |
 | `walk_positions[]` | document | `{ id, name, x, y, level_id, heading_deg, is_default }` (0..1 plan space like everything else) | `[]` | §4.4 |
@@ -303,6 +304,37 @@ Validator rules (backend `plan_geometry` validator + frontend mirror): `material
 in [0, 360); `walk_positions` ids unique, positions in [0, 1], at most 50; `light.color_k` in [1800, 6500], `lumens` in
 [1, 20000]. The geometry hash (`doc_hash`) covers the new fields, so a material change invalidates a bake (geometry key)
 - deliberate: a bake with the old floor material is wrong.
+
+#### 5.2.1 The site location for the sun (owner decision 2026-10-11, branch `pilot/ST7-site-location`)
+
+The S2 port first read `site.latitude` / `site.longitude` from two typed settings. **Owner decision 2026-10-11: the
+location comes from the Home Assistant configuration** (core config `latitude`, `longitude`, `elevation`, `time_zone`), not
+from a manually typed setting. As built:
+
+- **Source of truth** - `services/site_location.py`. The HA sync session already asks `get_config` on every connect; the
+  same reply now also gives the location (no new access path, no extra request). Inside a long session it is read again
+  only every 6 hours (`REFRESH_S`). The last value read is kept in the settings table under the internal key
+  `site.ha_location` (not part of GET / PATCH /settings; never exported in a backup or restored from one - re-read on the
+  next connect). HA's own "never set" value 0 / 0, out-of-range numbers and unknown zones are ignored (the last known value
+  stays).
+- **Resolution order** - `manual` only when an administrator explicitly chose it (`site.location_source` = `manual`) AND
+  both `site.latitude` / `site.longitude` are set; else `ha` (the last known home location, also while HA is unreachable or
+  after an add-on restart with HA down); else `default` (32.0 / 34.8 and the site clock `time.zone`, the view shows its
+  note). The time zone is the home's whenever known (the override is about the position), else `time.zone`. The plan's
+  north stays per floor (`transform.north_deg`).
+- **Exposed read-only** in the existing payload of GET / PUT `/plan-view/prefs` (map.read, unchanged) as `location`:
+  `{latitude, longitude, elevation_m, time_zone, source: ha | manual | default, mode: home | manual, home}` (`home` = the
+  home's own value with `fetched_at`, for the settings screen). The 3D view (`sw-plan-3d`) and the stills' time band
+  (`floor-stills`) use it through `map/sun.ts resolveSite`; anything missing or unreadable is the fallback.
+- **Settings** - הגדרות › וידאו ומדיה › "מיקום האתר לשמש בתלת־ממד": "לפי מיקום הבית (ברירת מחדל)" | "ידני"; the manual
+  latitude / longitude appear only with "ידני". system.configure, audited as settings.update (unchanged). The typed values
+  of an installation that set them before this decision stay stored but are not used until "ידני" is chosen.
+- **Privacy (SEC247 review I3)** - the exact position stays server-side; everything served in `location` is rounded to
+  2 decimals (~1 km; the sun moves < 0.05 deg for that, unit-plan3d-sun.spec.ts checks the six reference points). The
+  general settings listing (GET /settings of any reader, the `media` block of GET /cameras) no longer carries
+  `site.latitude` / `site.longitude`; they are read back only to system.configure holders (the Settings rows are shown to
+  them only). Only the numbers and the zone are kept - no name, no URL, no token.
+- No new migration, no new permission, no new route.
 
 ### 5.3 Assets stored per floor (server, CR-027 store pattern)
 

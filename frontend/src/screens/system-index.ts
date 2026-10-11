@@ -39,7 +39,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     entries: [
       { tab: 'general', label: 'כללי', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand קריסטל crystal רקע תמונת background מצב תצוגה התצוגה סכמטי מלא אוטומטי 3D' },
       { tab: 'general', label: 'לשוניות', href: `${GEN}?tab=tabs`, sub: true, keywords: 'סדר הסתרה סרגל פס תחתון כמוסה dropdown' },
-      { tab: 'general', label: 'וידאו ומדיה', href: `${GEN}?tab=media`, sub: true, keywords: 'webrtc mse תעבורה קיר מצלמות קיוסק מסך פתיחה זרמים go2rtc ייצוא שמירה ימים ציר זמן צבעים סקינים AI תלת־ממד 3D מצב תצוגה ריאליסטי realistic תמונות מוכנות stills מסך קיר תצוגת התוכנית מפת תאורה מעבר לתמונה מוכנה חוסר פעילות idle' },
+      { tab: 'general', label: 'וידאו ומדיה', href: `${GEN}?tab=media`, sub: true, keywords: 'webrtc mse תעבורה קיר מצלמות קיוסק מסך פתיחה זרמים go2rtc ייצוא שמירה ימים ציר זמן צבעים סקינים AI תלת־ממד 3D מצב תצוגה ריאליסטי realistic תמונות מוכנות stills מסך קיר תצוגת התוכנית מפת תאורה מיקום האתר שמש מיקום הבית ידני קו רוחב קו אורך מעבר לתמונה מוכנה חוסר פעילות idle' },
       { tab: 'general', label: 'מפה', href: `${GEN}?tab=map`, sub: true, keywords: 'קומת ברירת מחדל 2D 3D מפלסים תוכנית תצוגה ריאליסטית realistic סגנון אדריכלי בהיר תאום דיגיטלי כהה שמש שעה מיקום האתר קו רוחב קו אורך רהיטים טקסטורות חתך סיור גובה עין ההעדפה שלי' },
       { tab: 'general', label: 'חשמל והתקנים', href: `${GEN}?tab=devices`, sub: true, keywords: 'זכוכית glass אריחים כרטיסים חיישנים מיזוג מתגים מוגנים מסך ראשי צבעוניות זכוכית' },
       { tab: 'general', label: 'סוגי התקנים', href: `${GEN}?tab=devices&section=device-types`, sub: true, keywords: 'דוד ברז מתג סוג סמל כרטיס פעילות device types' },

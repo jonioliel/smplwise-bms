@@ -46,7 +46,8 @@ export interface StillsView {
   site?: { latitude: number; longitude: number } | null;
 }
 
-/** The still view of a floor level with the live room states (lit rooms through their masks, open doors, presence). */
+/** The still view of a floor level with the live room states (lit rooms through their masks, open doors, presence). The time band
+ * follows the sun at the site (`view.site`, map/sun.ts resolveSite; the fallback location when not given). */
 export function renderStills(b: MapBundle, level: string, layer: RoomStateLayer | null, dials: PlanViewDials, now: Date = new Date(), view: StillsView = {}) {
   const rooms: Record<string, { lit: boolean; presence: boolean }> = {};
   for (const [id, r] of Object.entries(layer?.rooms ?? {})) rooms[id] = { lit: r.lit === true, presence: r.presence === true || r.presenceFade > 0 };

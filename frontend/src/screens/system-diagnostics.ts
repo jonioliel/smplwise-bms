@@ -59,6 +59,7 @@ import { syncDisconnectedText } from '../api/ha-sync-status';
 import { OWN_MODES, QUALITY_MODES, QUALITY_MODE_HINT, QUALITY_MODE_LABEL, modeFromWire, modeToWire, ownModeFromWire, type QualityWire } from '../map/quality-mode';
 import { RUNG_HE, type QualityMode } from '../map/quality-ladder';
 import { loadOwnMode, saveOwnMode } from '../api/plan-quality';
+import { planViewPrefs, type SiteLocation } from '../api/plan-view';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -119,6 +120,8 @@ export class SystemDiagnostics extends LitElement {
   @state() private canEdit = false;
   /** The viewer's own 3D mode (null = the installation default; undefined = not read / no backend). */
   @state() private ownQuality: QualityMode | null | undefined = undefined;
+  /** CR-029 S2: the location the sun uses (GET /plan-view/prefs `location`); null = not read / no backend. */
+  @state() private siteLoc: SiteLocation | null = null;
   @state() private nvrChannels: number | null = null;
   @state() private floorTree: Site[] = [];
   @state() private draft: Partial<ProductSettings> = {};
@@ -482,6 +485,34 @@ export class SystemDiagnostics extends LitElement {
     void loadTree().then((t) => (this.floorTree = t.sites)).catch(() => undefined);
     // the viewer's own 3D mode (/me/prefs plan.quality): unreadable = the row stays disabled
     void loadOwnMode().then((m) => (this.ownQuality = m));
+    void this.loadSiteLocation();
+  }
+
+  /** CR-029 S2 (owner 2026-10-11): the location the sun uses and the home's own value, for the site-location rows. */
+  private async loadSiteLocation() {
+    this.siteLoc = (await planViewPrefs(true).catch(() => null))?.location ?? null;
+  }
+
+  /** The site-location rows (Plan Studio 6 sun): the home's location by default, an explicit manual override on request.
+   * Shown to system.configure holders only (SEC247 I3: the server sends the override values to them only). */
+  private renderSiteLocation(api: boolean) {
+    const ro = !api || !this.canEdit;
+    const mode = this.value('site.location_source') === 'manual' ? 'manual' : 'home';
+    const home = this.siteLoc?.home ?? null;
+    const homeLine = home
+      ? `מיקום הבית בהגדרות Home Assistant: ${home.latitude.toFixed(2)}, ${home.longitude.toFixed(2)}${home.time_zone ? ` · ${home.time_zone}` : ''}`
+      : 'מיקום הבית עדיין לא נקרא מ־Home Assistant; עד אז השמש מחושבת למרכז הארץ';
+    const coord = (key: 'site.latitude' | 'site.longitude', attr: string, label: string) => html`<sw-field class="ctl"><input type="text" inputmode="decimal" data-ltr
+        aria-label=${label} placeholder=${label} data-set-site=${attr} ?disabled=${ro} .value=${String(this.value(key) ?? '')}
+        @change=${(e: Event) => this.set(key, (e.target as HTMLInputElement).value.trim())} /></sw-field>`;
+    return html`<div class="row" data-set-site-location-row><span class="lbl">מיקום האתר לשמש בתלת־ממד<span class="muted">${homeLine}</span></span>
+        <sw-field class="ctl"><select data-set-site-location ?disabled=${ro} @change=${(e: Event) => this.set('site.location_source', (e.target as HTMLSelectElement).value === 'manual' ? 'manual' : 'home')}>
+          <option value="home" ?selected=${mode === 'home'}>לפי מיקום הבית (ברירת מחדל)</option><option value="manual" ?selected=${mode === 'manual'}>ידני</option>
+        </select></sw-field></div>
+      ${mode === 'manual'
+        ? html`<div class="row" data-set-site-manual-row><span class="lbl">מיקום ידני<span class="muted">קו רוחב וקו אורך במעלות (צפון ומזרח חיוביים); בלי שניהם — מיקום הבית</span></span>
+            ${coord('site.latitude', 'lat', 'קו רוחב')}${coord('site.longitude', 'lon', 'קו אורך')}</div>`
+        : nothing}`;
   }
 
   /** מצב התצוגה שלי: the viewer's own 3D mode ('' = back to the installation default), the same key the 3D toolbar writes. */
@@ -680,6 +711,7 @@ export class SystemDiagnostics extends LitElement {
       applyWiskeyHidden(r.settings as unknown as Record<string, unknown>); // ditto for a direct URL landing on "not available"
       applySnapshotHidden(r.settings as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview tab follows
       setGlassScheme(r.settings['devices.glass_scheme']); // 2.4.4: every open glass surface follows at once
+      void this.loadSiteLocation(); // CR-029 S2: the sun's location may have changed source
       this.message = 'ההגדרות נשמרו';
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -879,6 +911,7 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-bake-total-cap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ total_cap_mb: Number((e.target as HTMLSelectElement).value) })}>
             ${[128, 256, 512, 1024, 2048].map((v) => html`<option value=${v} ?selected=${this.bakeValue('total_cap_mb', 512) === v}>${v >= 1024 ? `${v / 1024} GB` : `${v} MB`} בסך הכול</option>`)}
           </select></sw-field></div>
+        ${api && this.canEdit ? this.renderSiteLocation(api) : nothing}
         ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>

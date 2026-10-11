@@ -27,7 +27,7 @@ from typing import Any
 from ..config import Settings
 from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
-from . import ha_client
+from . import ha_client, site_location
 
 log = logging.getLogger("smplwise.ha")
 
@@ -607,6 +607,16 @@ def _note_connect_gap(db: Database) -> None:
     device_activity.note_connect(db, last)
 
 
+def _note_location(db: Database, cfg: Any) -> None:
+    """CR-029 S2: keep the site location of a core config reply (services/site_location.py). Never fails the session: a
+    reply without a position or a busy database keeps the last known value."""
+    try:
+        with db.connection() as conn:
+            site_location.note_ha_config(conn, cfg)
+    except Exception:  # noqa: BLE001
+        log.warning("site location not stored", exc_info=False)
+
+
 def count_entities(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT COUNT(*) FROM ha_entities WHERE removed_at IS NULL AND disabled = 0").fetchone()[0]
 
@@ -801,6 +811,9 @@ class HaSync:
             nonlocal refresher_task, debouncer
             cfg = await call("get_config")
             STATE.ha_version = (cfg.get("result") or {}).get("version")
+            # CR-029 S2 (owner 2026-10-11): the site location for the sun comes from this same core config reply
+            await loop.run_in_executor(None, _note_location, db, cfg.get("result"))
+            location_read_at = time.monotonic()
 
             def fire(reasons: set[str]) -> None:
                 task = asyncio.create_task(self._refresh_and_notify(call, ",".join(sorted(reasons)), force_notice="state_removed" in reasons))
@@ -835,9 +848,17 @@ class HaSync:
 
             # periodic registry refresh inside the session: the safety net under the registry events
             async def refresher() -> None:
+                nonlocal location_read_at
                 while not stop_evt.is_set():
                     await asyncio.sleep(REGISTRY_REFRESH_S)
                     await self._refresh_and_notify(call, "periodic")
+                    if time.monotonic() - location_read_at >= site_location.REFRESH_S:  # rarely: a home does not move
+                        location_read_at = time.monotonic()
+                        try:
+                            again = await call("get_config")
+                            await loop.run_in_executor(None, _note_location, db, again.get("result"))
+                        except Exception as exc:  # noqa: BLE001 - the last known location stays
+                            log.warning("site location refresh failed: %s", type(exc).__name__)
                     await self._schedules_pull("periodic")  # CR-014: the third refresh layer (§6.2)
                     await self._automations_pull("periodic")  # CR-017: the full pull of every 10 minutes (§12)
 

@@ -217,26 +217,65 @@ def test_python_pins_match_requirements_txt(registry):
     assert checked >= 5
 
 
-def test_npm_pins_match_package_lock(registry):
-    lock = json.loads((ROOT / "frontend/package-lock.json").read_text(encoding="utf-8"))["packages"]
-    checked = 0
+def _npm_pin_problems(registry, root=ROOT) -> tuple[list[str], int]:
+    """Every npm item with a version must match the lock it was read from: the package-lock.json its `current.source` names
+    (the push relay Worker in services/push-relay has its own lock), else the frontend's. Returns (problems, items checked)."""
+    locks: dict[str, dict] = {}
+    problems, checked = [], 0
     for it in registry["items"]:
         npm = [f for f in it["feeds"] if f["type"] == "npm"]
         if not npm or it["current"]["version"] is None:
             continue
-        entry = lock.get("node_modules/" + npm[0]["package"])
-        assert entry, f"{it['id']}: {npm[0]['package']} is not in package-lock.json"
-        assert entry["version"] == it["current"]["version"], it["id"]
+        src = (it["current"].get("source") or "").split()
+        rel = src[0] if src and src[0].endswith("package-lock.json") else "frontend/package-lock.json"
+        if rel not in locks:
+            locks[rel] = json.loads((root / rel).read_text(encoding="utf-8"))["packages"]
+        entry = locks[rel].get("node_modules/" + npm[0]["package"])
+        if not entry:
+            problems.append(f"{it['id']}: {npm[0]['package']} is not in {rel}")
+        elif entry["version"] != it["current"]["version"]:
+            problems.append(f"{it['id']}: registry says {it['current']['version']}, {rel} has {entry['version']}")
         checked += 1
+    return problems, checked
+
+
+def test_npm_pins_match_package_lock(registry):
+    problems, checked = _npm_pin_problems(registry)
+    assert problems == []
     assert checked >= 5
+
+
+def test_npm_pin_check_still_catches_a_wrong_or_missing_package(registry):
+    """2.4.7 integration: the check follows `current.source` to another lock, and still fails on a wrong version or a package
+    that is in no lock."""
+    reg = copy.deepcopy(registry)
+    by = {it["id"]: it for it in reg["items"]}
+    by["npm-vitest"]["current"]["version"] = "0.0.1"                      # wrong version in its own lock (services/push-relay)
+    by["npm-lit"]["feeds"][0]["package"] = "no-such-package-in-any-lock"  # missing from the frontend lock
+    problems, _ = _npm_pin_problems(reg)
+    assert any("npm-vitest" in p and "services/push-relay/package-lock.json" in p for p in problems), problems
+    assert any("npm-lit" in p and "frontend/package-lock.json" in p for p in problems), problems
+
+
+IP_LIKE = re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
 
 
 def test_registry_has_no_lab_private_values(registry):
     text = json.dumps(registry)
-    assert not re.search(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", text.replace("1.14.0", "")), "an IP-like value is in the registry"
+    assert not IP_LIKE.search(text.replace("1.14.0", "")), "an IP-like value is in the registry"
     assert not re.search(r"(?i)\b([0-9a-f]{2}:){5}[0-9a-f]{2}\b", text), "a MAC-like value is in the registry"
     for pattern in (r"(?i)password", r"secrets/", r"\bLLAT\b", r"Bearer ", r"eyJ[A-Za-z0-9_-]{20,}", r"(?i)serial"):
         assert not re.search(pattern, text), pattern
+
+
+def test_the_ip_check_still_catches_a_real_address_in_the_registry(registry):
+    """2.4.7 integration: a four-part version is written as its release tag (s6-overlay "v3.2.3.2"); a real address anywhere in
+    the registry text is still caught."""
+    for addr in ("192.168.1.20", "10.0.0.5", "172.16.4.2"):
+        reg = copy.deepcopy(registry)
+        reg["items"][0]["impact_he"] = f"{reg['items'][0].get('impact_he', '')} {addr}"
+        assert IP_LIKE.search(json.dumps(reg).replace("1.14.0", "")), addr
+    assert not IP_LIKE.search(json.dumps({"x": "s6-overlay v3.2.3.2"}))
 
 
 @pytest.mark.parametrize("mutate,expect", [

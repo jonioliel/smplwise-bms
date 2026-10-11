@@ -65,7 +65,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # SEC246 L4 (owner 2026-10-11): the self-update switch is the installation's current policy. A restore never takes it
                  # from an archive (an archive written while it was on - or before 2.4.4 - must not switch installing from Arx back on);
                  # the restore answer and its own `system.update.apply_enabled` audit row say what was kept and what the archive held.
-                 "update.apply_enabled"}
+                 "update.apply_enabled",
+                 "site.ha_location"}  # CR-029 S2: the home's location as last read (services/site_location.py) - re-read on connect, never carried
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:

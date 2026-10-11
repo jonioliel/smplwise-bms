@@ -47,12 +47,33 @@ export const DEFAULT_VIEW: PlanViewDials = {
   style: 'auto', default_view: 'schematic', furniture: 'models', textures: 'files', wall_display: 'live', time_source: 'clock', mouse_mode: 'drag', quality: 'auto',
   kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: false, motion: true, walk_guard: true,
 };
+/** The home's location as the server last read it from the home's configuration (services/site_location.py). */
+export interface HomeLocation {
+  latitude: number;
+  longitude: number;
+  elevation_m: number | null;
+  time_zone: string | null;
+  fetched_at: string | null;
+}
+/** Where the sun stands (read-only; owner 2026-10-11): `source` ha = the home's location, manual = the override an
+ * administrator chose in Settings (`site.location_source`), default = the fallback 32.0 / 34.8. map/sun.ts resolveSite. */
+export interface SiteLocation {
+  latitude: number;
+  longitude: number;
+  elevation_m: number | null;
+  time_zone: string;
+  source: 'ha' | 'manual' | 'default';
+  mode: 'home' | 'manual';
+  home: HomeLocation | null;
+}
 export interface PlanViewPrefs {
   site: Omit<PlanViewDials, 'default_view'>;
   own: Partial<Pick<PlanViewDials, PersonalDial>>;
   effective: PlanViewDials;
   personal_dials: PersonalDial[];
   can_edit_site: boolean;
+  /** Absent from an older server: the view then uses the fallback. */
+  location?: SiteLocation;
 }
 
 /** The Hebrew names the settings screen and the 3D view show (one place, so both agree). */
