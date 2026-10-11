@@ -10,13 +10,15 @@ import type { BakeKind, BakeSetting, BakeSlot, BundleBakes } from '../map/still-
 export interface BakeRow extends BakeSlot {
   id: string;
   slot: string;
-  bake_key: string;
+  /** Security review 2.4.7 L1: null for a reader from whom a camera may be withheld when the row is of an older structure. */
+  bake_key: string | null;
   recipe: string;
   mime: string;
   width: number;
   height: number;
-  bytes: number;
-  sha256: string;
+  /** A mask: the size / sha256 of the copy this reader is handed (M1, their camera scope); null when it cannot be served. */
+  bytes: number | null;
+  sha256: string | null;
   meta: Record<string, unknown>;
   created_at: string;
   stale: boolean;
@@ -27,7 +29,8 @@ export interface BakeRow extends BakeSlot {
 export interface BakeJob {
   id: string;
   status: 'requested' | 'claimed' | 'done' | 'failed' | 'cancelled';
-  bake_key: string;
+  /** As the floor's bake_key for the current structure; null (a scoped reader) for a request of an older one. */
+  bake_key: string | null;
   scope: { levels: string[]; presets: string[]; styles: string[]; bands: string[]; lightmap: boolean };
   requested_by: string | null;
   requested_at: string;
