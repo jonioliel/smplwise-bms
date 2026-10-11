@@ -56,11 +56,14 @@ const WALK: [string, string, Outcome, Outcome, Outcome, Outcome][] = [
 ];
 const COL: Record<Combo, number> = { A: 2, B: 3, C: 4, D: 5 };
 
-/** The text of the page including shadow roots (innerText stops at the first one). */
-async function deepText(page: Page, selector = 'sw-app'): Promise<string> {
-  return page.evaluate((sel) => {
+/** The text of the page including shadow roots (innerText stops at the first one). `skipTags` leaves out whole subtrees
+ * (by tag name) - only the settings navigation column, whose list names the settings pages (settings screens are exempt
+ * from the no-infrastructure-branding rule). */
+async function deepText(page: Page, selector = 'sw-app', skipTags: string[] = []): Promise<string> {
+  return page.evaluate(([sel, skip]) => {
     const out: string[] = [];
     const walk = (n: Node) => {
+      if (n instanceof Element && skip.includes(n.localName)) return;
       if (n.nodeType === Node.TEXT_NODE) out.push(n.textContent ?? '');
       if (n instanceof Element) {
         for (const a of ['heading', 'subheading', 'hint', 'label', 'actionLabel', 'title', 'aria-label']) out.push(n.getAttribute(a) ?? '');
@@ -71,7 +74,7 @@ async function deepText(page: Page, selector = 'sw-app'): Promise<string> {
     const root = document.querySelector(sel);
     if (root) walk(root);
     return out.join(' ');
-  }, selector);
+  }, [selector, skipTags] as const);
 }
 
 const BRAND = /Home Assistant|Ingress|Companion|\bHA\b|הום אסיסטנט/;
@@ -123,7 +126,10 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
           await expect(panel, `${combo} ${hash}`).toHaveCount(1, { timeout: 15_000 });
           await expect(panel).toHaveAttribute('data-capability-panel', outcome);
           if (tag) await expect(page.locator(`sw-app ${tag}`), `${combo} ${hash} must not mount ${tag}`).toHaveCount(0);
-          const words = await deepText(page);
+          // 2.4.6: a settings route (/system/...) carries the settings navigation column, which lists every settings page
+          // ("גשר Home Assistant" included); settings screens are exempt from the branding rule, so that one subtree is left
+          // out - the neutral panel and the rest of the shell are still read in full
+          const words = await deepText(page, 'sw-app', ['system-nav']);
           expect(words, `${combo} ${hash}: no infrastructure branding`).not.toMatch(BRAND);
           if (outcome === 'no_media') expect(words).toContain('שרת מדיה');
           if (outcome === 'no_nvr') expect(words).toContain('ללא NVR');
