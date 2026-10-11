@@ -128,6 +128,7 @@ export class SystemPlanView extends LitElement {
     }
     .range output {
       min-inline-size: 64px;
+      padding-inline: 16px; /* clear of the pill's rounded corner in the bubble skin */
       text-align: center;
       font-variant-numeric: tabular-nums;
       font-weight: var(--sw-fw-semibold);

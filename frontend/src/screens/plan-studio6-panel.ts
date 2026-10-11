@@ -161,7 +161,7 @@ export function renderNorthCard(v: NorthView, a: NorthActions): TemplateResult {
         <sw-field label="כיוון הצפון (°)" hint="כמה מעלות הצפון סוטה מלמעלה בתוכנית, עם כיוון השעון"><input type="number" min="0" max="359.9" step="0.5" inputmode="decimal" data-ltr data-north-deg .value=${v.northDeg === null ? '' : String(deg)} ?disabled=${v.disabled}
           @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); if (!raw) return a.set(null); const x = parseFloat(raw); if (Number.isFinite(x)) a.set(x); }} /></sw-field>
         <div class="note" data-north-sun-note>${up ? `השמש עכשיו ב${windName(sun.azimuth)}, ${Math.round(sun.elevation)}° מעל האופק` : 'השמש מתחת לאופק עכשיו'}${v.site.known ? '' : ' · מיקום האתר לא הוגדר: מרכז הארץ (הגדרות › מפה)'}</div>
-        <div class="btns"><sw-button size="sm" variant="ghost" data-north-reset ?disabled=${v.disabled || v.northDeg === null} @click=${() => a.set(null)}>למעלה = צפון</sw-button></div>
+        <div class="btns"><button type="button" class="tbtn ghost" data-north-reset ?disabled=${v.disabled || v.northDeg === null} @click=${() => a.set(null)}>למעלה = צפון</button></div>
       </div>
     </div>
     <div class="note">גרור את המחוג, או השתמש בחצים (Shift = 15°). הצפון קובע את מסלול השמש בתצוגה הריאליסטית ובתמונות המוכנות.</div>
@@ -247,13 +247,55 @@ export function renderWalkCard(v: WalkCardView, a: WalkCardActions): TemplateRes
         </ol>`
       : html`<div class="note" data-walk-empty>עדיין אין עמדות שמורות. עמדה היא מקום וכיוון מבט שהסיור יכול לקפוץ אליהם (מקשים 1-9 בסיור).</div>`}
     <div class="btns">
-      <sw-button size="sm" variant=${v.armed === 'new' ? 'primary' : 'secondary'} icon="plus" data-walk-add ?disabled=${v.disabled || full} title=${full ? `עד ${MAX_WALK_POSITIONS} עמדות` : 'לחיצה על התוכנית מציבה את העמדה'} @click=${() => a.arm(v.armed === 'new' ? null : 'new')}>${v.armed === 'new' ? 'בטל הצבה' : 'עמדה חדשה'}</sw-button>
+      <button type="button" class=${v.armed === 'new' ? 'tbtn primary' : 'tbtn'} data-walk-add ?disabled=${v.disabled || full} title=${full ? `עד ${MAX_WALK_POSITIONS} עמדות` : 'לחיצה על התוכנית מציבה את העמדה'} @click=${() => a.arm(v.armed === 'new' ? null : 'new')}><sw-icon name="plus" size=${16}></sw-icon>${v.armed === 'new' ? 'בטל הצבה' : 'עמדה חדשה'}</button>
     </div>
   </sw-card>`;
 }
 
 /** The classes of the three cards; the editor adds them to its styles (tokens only: no literal colours). */
 export const studio6Styles = css`
+  /* a text button sized by the desktop touch dial (the shared sw-button's sm / md sizes stay 26-30 px) */
+  .tbtn {
+    all: unset;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop, 44px);
+    padding: 0 14px;
+    border-radius: var(--sw-r-pill);
+    border: 1px solid var(--sw-border-strong);
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-medium);
+    cursor: pointer;
+  }
+  .tbtn.ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--sw-text-2);
+  }
+  .tbtn.primary {
+    border-color: var(--sw-accent);
+    background: var(--sw-accent);
+    color: var(--sw-text-inverse);
+  }
+  .tbtn:hover:not([disabled]) {
+    background: var(--sw-surface-3);
+  }
+  .tbtn.primary:hover:not([disabled]) {
+    background: var(--sw-accent-hover);
+  }
+  .tbtn:focus-visible {
+    outline: 2px solid var(--sw-focus);
+    outline-offset: 1px;
+  }
+  .tbtn[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
   .matf {
     display: flex;
     flex-direction: column;
