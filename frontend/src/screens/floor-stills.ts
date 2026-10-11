@@ -75,7 +75,7 @@ export async function runFloorBake(ctx: BakeContext): Promise<string> {
       }
       return d;
     };
-    const [{ runBake }, scene] = await Promise.all([import('../map/bake-runner'), import('../map/still-render-scene')]);
+    const [{ runBake }, scene] = await Promise.all([import('../map/bake-runner'), import('../map/sw-plan-3d')]);
     const renderer = webglAvailable() ? new scene.SceneStillRenderer() : null;
     const outcome = await runBake({
       bakeKey: info.bake_key, levels: req.job.scope.levels, setting: { ...info.setting, presets: req.job.scope.presets as never, styles: req.job.scope.styles as never,

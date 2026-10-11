@@ -16,6 +16,9 @@ import { DOOR_STATE_HE, type WalkStart, type WalkWorld } from './walk-world';
 import type { WalkEvent } from './walk-controller';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
+/** CR-029 S3: the still renderer rides in this lazy chunk (it needs SceneView; a second importer of scene-three would split it
+ * out of the chunk - unit-three-chunk.spec.ts). The floor map's bake tool imports it from here. */
+export { SceneStillRenderer, encodePng } from './still-render-scene';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
 const FALLBACK_HE = 'עבר לרמה סכמטית — קצב הפריימים היה נמוך';
