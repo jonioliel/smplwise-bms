@@ -31,9 +31,7 @@ async function open(page: Page, hash: string, query = '') {
     await page.waitForSelector('sw-app', { timeout: 20_000 });
   } catch (e) {
     const st = await page.evaluate(() => ({ defined: !!customElements.get('sw-app'), html: document.documentElement.outerHTML.length, hidden: document.hidden, vis: document.visibilityState, rs: document.readyState })).catch((x) => String(x));
-    throw new Error(`DBG sw-app never visible: ${JSON.stringify(st)}
-${dbg.slice(0, 25).join('
-')}`);
+    throw new Error(`DBG sw-app never visible: ${JSON.stringify(st)} | ${dbg.slice(0, 25).join(' ;; ')}`);
   } finally {
     page.off('console', onC); page.off('pageerror', onE); page.off('requestfailed', onF); page.off('response', onR);
   }
