@@ -202,7 +202,9 @@ def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, fl
     hash of that redacted document, so the package verifies and re-imports on its own terms."""
     from . import plan_anchor_scope as anchor_scope
 
-    doc, _ = anchor_scope.redact(doc, anchor_scope.visibility(conn, actor, version["floor_id"]))
+    visible = anchor_scope.visibility(conn, actor, version["floor_id"])
+    withheld = anchor_scope.withheld_places(doc, visible)  # security review 2.4.2 L3: named in the signed manifest
+    doc, _ = anchor_scope.redact(doc, visible)
     files: list[dict[str, Any]] = []
     buf = io.BytesIO()
     plan_bytes = pg.canonical_json(doc).encode("utf-8")
@@ -256,6 +258,11 @@ def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, fl
             "entities": {"rooms": len(rooms), "anchors": len(anchors), "custom_items": [c["id"] for c in customs]},
             "files": files, "signature": signing.SIG_NAME,
         }
+        if withheld:
+            # L3: the references this exporter was not shown are null in plan.json; the import gives them back from the
+            # target's current draft for the same places instead of unbinding them (plan_anchor_scope.restore_withheld)
+            manifest["document"]["redacted"] = True
+            manifest["document"]["withheld"] = withheld
         if dxf_info is not None:
             manifest["dxf"] = dxf_info
         add("report.html", _report(manifest, rooms, anchors, customs).encode("utf-8"), "report")
@@ -554,6 +561,11 @@ def plan(conn: sqlite3.Connection, version: sqlite3.Row, pkg: Package, mode: str
         raise PackageError(422, "validation", "מצב ייבוא לא מוכר.", {"modes": list(MODES)})
     current, draft = store.working_doc(conn, version)
     incoming = pg.rebase(pkg.doc, version, store._asset(conn, version))
+    mdoc = pkg.manifest.get("document") if isinstance(pkg.manifest.get("document"), dict) else {}
+    redacted_pkg = mdoc.get("redacted") is True
+    # security review 2.4.2 L3: a package whose exporter was not shown some references gives them back from the current
+    # draft (any importer), never unbinds them silently
+    incoming, restored = anchor_scope.restore_withheld(incoming, current, mdoc.get("withheld")) if redacted_pkg else (incoming, 0)
     visible = anchor_scope.visibility(conn, principal, version["floor_id"])
     incoming, hidden_dropped = anchor_scope.carry_hidden(incoming, current, visible, anchor_scope.exists_here(conn, version["floor_id"]), strict=False)
     drawing_ok = _same_drawing(pkg.doc, current)
@@ -619,16 +631,22 @@ def plan(conn: sqlite3.Connection, version: sqlite3.Row, pkg: Package, mode: str
     zone_names = {(z["name"] or "").strip() for z in zones}
     rooms_missing = [zipsafe._s(r.get("name"), 120) or zipsafe._s(r.get("id"), 64) for r in pkg.rooms
                      if r.get("id") not in zone_ids and str(r.get("name") or "").strip() not in zone_names]
-    result_hash = store.doc_hash(prepared)
+    # security review 2.4.2 L1: the hashes this importer is handed are those of the documents as redacted for them (the
+    # import compares `expect_hash` against the same value), never the stored ones
+    result_hash = anchor_scope.served_hash(store.doc_hash(prepared), lambda: prepared, visible)
+    shown_prepared = anchor_scope.redact(prepared, visible)[0]
+    removed = anchor_scope.removed_hidden(prepared, current, visible)
     return {
-        "mode": mode, "doc": prepared, "result_hash": result_hash, "result_geometry_hash": geometry_hash(prepared),
-        "base_revision": draft["revision"] if draft is not None else 0, "current_hash": store.doc_hash(current),
+        "mode": mode, "doc": prepared, "result_hash": result_hash, "result_geometry_hash": geometry_hash(shown_prepared),
+        "base_revision": draft["revision"] if draft is not None else 0, "current_hash": anchor_scope.served_hash(store.doc_hash(current), lambda: current, visible),
         "diff": pg.diff(current, prepared), "counts": pg.counts(prepared), "current_counts": pg.counts(current),
         "same_drawing": drawing_ok, "same_version": (pkg.manifest.get("plan") or {}).get("plan_version_id") == version["id"],
         "issues": issues[:200], "issue_count": len(issues),
         "entities": {"anchors_missing": anchors_missing, "anchors_unplaced": anchors_unplaced, "switches_missing": switches_missing,
                      "items_missing": items_missing, "items_added": [a["id"] for a in to_add], "items_differ": items_differ, "rooms_missing": rooms_missing},
-        "warnings": list(pkg.warnings) + ([] if drawing_ok else ["other_drawing"]) + (["anchor_hidden"] if hidden_dropped else []),
+        "warnings": list(pkg.warnings) + ([] if drawing_ok else ["other_drawing"]) + (["anchor_hidden"] if hidden_dropped else [])
+        + (["package_redacted"] if redacted_pkg else []) + (["anchor_hidden_removed"] if removed else []),
+        "withheld_restored": restored, "hidden_removed": len(removed),
         "_to_add": to_add,
     }
 

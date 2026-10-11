@@ -99,6 +99,34 @@ def _shown_r(conn: sqlite3.Connection, principal: Principal | None, floor_id: st
     return anchor_scope.redact(shown, anchor_scope.visibility(conn, principal, floor_id))
 
 
+def _visible(conn: sqlite3.Connection, principal: Principal | None, floor_id: str) -> anchor_scope.Visible | None:
+    return anchor_scope.visibility(conn, principal, floor_id)
+
+
+def _hash_out(conn: sqlite3.Connection, principal: Principal | None, floor_id: str, row: sqlite3.Row, visible: Any = False) -> Any:
+    """Security review 2.4.2 L1: the doc_hash of a stored row as this reader is handed it (plan_anchor_scope.served_hash)."""
+    vis = _visible(conn, principal, floor_id) if visible is False else visible
+    return anchor_scope.served_hash(row["doc_hash"], lambda: store.load_doc(row), vis)
+
+
+def _row_out(conn: sqlite3.Connection, principal: Principal | None, floor_id: str, row: sqlite3.Row, visible: Any = False) -> dict[str, Any]:
+    """store.row_api with the doc_hash this reader is handed (L1)."""
+    return {**store.row_api(row), "doc_hash": _hash_out(conn, principal, floor_id, row, visible)}
+
+
+def _removed_hidden_warnings(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row, written: dict[str, Any], stored: dict[str, Any] | None,
+                             request_id: str | None = None) -> list[dict[str, Any]]:
+    """Security review 2.4.2 L3: the save removed items (or glass panels) bound to an anchor the writer may not see - the
+    removal stands (the structure is the floor's), the answer warns and it is audited."""
+    removed = anchor_scope.removed_hidden(written, stored, _visible(conn, principal, v["floor_id"]))
+    if not removed:
+        return []
+    audit(conn, actor=principal, action="geometry.anchor_hidden_removed", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=request_id,
+          details={"version_id": v["id"], "items": removed[:50], "count": len(removed)})
+    return [{"code": "anchor_hidden_removed", "severity": "warning", "structural": False, "id": r.split(":", 1)[1], "path": r.split(":", 1)[0],
+             "message": "הוסר פריט שמקושר לעוגן שאין לך הרשאה לראות; הקישור שלו נמחק."} for r in removed[:50]]
+
+
 def _carry_hidden(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row, incoming: dict[str, Any], stored: dict[str, Any] | None) -> dict[str, Any]:
     """PLNS: a writer's document keeps the references they were not shown; a new one to a hidden anchor is a 422."""
     try:
@@ -140,8 +168,9 @@ def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | 
     ctx = ctx or _far_ctx(conn, principal, published)
     shown = shown if shown is not None else _shown(conn, principal, version["floor_id"], doc, ctx, "published" if published else "draft")
     published_now = store.published_row(conn, version["id"])
-    geometry = store.row_api(row) if row is not None else {
-        "id": None, "plan_version_id": version["id"], "floor_id": version["floor_id"], "status": "new", "revision": 0, "doc_hash": store.doc_hash(doc),
+    geometry = _row_out(conn, principal, version["floor_id"], row) if row is not None else {
+        "id": None, "plan_version_id": version["id"], "floor_id": version["floor_id"], "status": "new", "revision": 0,
+        "doc_hash": anchor_scope.served_hash(store.doc_hash(doc), lambda: doc, _visible(conn, principal, version["floor_id"])),
         "created_at": None, "updated_at": None, "published_at": None, "published_by": None, "archived_at": None,
     }
     # CR-009: two real outlines check the placement - the lower one must fall inside the upper one
@@ -151,7 +180,7 @@ def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | 
     out = {"geometry": geometry, "doc": shown,
             "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc)
             + store.link_issues(conn, version["floor_id"], doc, ctx) + misaligned,
-            "published_hash": published_now["doc_hash"] if published_now is not None else None}
+            "published_hash": _hash_out(conn, principal, version["floor_id"], published_now) if published_now is not None else None}
     if not published and principal is not None and any(e.get("role") == "mirror" for e in shown.get("shared_spaces") or []) and _is_editor_version(conn, version):
         # the editor's publish button: the shared room's changes waiting on the home floor count as something to publish
         out["shared_pending"] = shared_spaces.shared_pending(conn, version["floor_id"], can_write=_can_publish_home(conn, principal),
@@ -246,7 +275,8 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     # validated and stored as always, the shared ones are routed to the home floor's draft (map.edit here is decision 1's
     # grant: either floor edits the room). Every refusal comes before the first write (an API error still commits).
     own, shared_items, echoed, deleted = shared_spaces.split(body.doc)
-    own = _carry_hidden(conn, principal, v, own, _stored_doc(conn, v))  # PLNS: before any write
+    stored_before = _stored_doc(conn, v)
+    own = _carry_hidden(conn, principal, v, own, stored_before)  # PLNS: before any write
     structural = [i for i in pg.validate(own) if i["structural"]]
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המסמך אינו תקין; השינוי לא נשמר.", details={"issues": structural[:50]})
@@ -288,6 +318,9 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     for fid in synced:  # the stairs model reached the twin on the other floor's draft (review M3)
         audit(conn, actor=principal, action="geometry.connector.twin_sync", decision="allowed", resource_type="floor", resource_id=fid, details={"version_id": v["id"], "from_floor_id": v["floor_id"]})
     body_out = _payload(conn, v, row, store.load_doc(row), principal)
+    removed = _removed_hidden_warnings(conn, principal, v, own, stored_before)
+    if removed:
+        body_out["issues"] = body_out["issues"] + removed
     if skipped:  # review M-a: the stairs there stay as they were; the editor says so (names only of floors the person may read)
         body_out["twins_skipped"] = [{"floor_id": fid, "name": (r["name"] if r is not None and floor_reach(conn, principal, fid) is not None else "קומה אחרת")}
                                      for fid in skipped for r in [conn.execute("SELECT name FROM floors WHERE id = ?", (fid,)).fetchone()]]
@@ -318,6 +351,9 @@ def publish_geometry(version_id: str, request: Request, body: GeomPublishIn | No
     except shared_spaces.SharedEditError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     result = store.publish(conn, v, principal.user_id)
+    pub_row = store.published_row(conn, v["id"])
+    if result.get("published") is not None and pub_row is not None and result["published"].get("id") == pub_row["id"]:
+        result["published"] = _row_out(conn, principal, v["floor_id"], pub_row)  # L1: the hash this publisher is handed
     if not result["unchanged"]:
         audit(conn, actor=principal, action="geometry.publish", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
               details={"version_id": v["id"], "geometry_id": result["published"]["id"], "changes": result["diff"]["total"],
@@ -365,7 +401,8 @@ def geometry_diff(version_id: str, principal: Principal = Depends(current_princi
 def geometry_versions(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.edit", _floor(v))
-    return {"versions": [dict(store.row_api(r), counts=pg.counts(store.load_doc(r))) for r in store.history(conn, v["id"])]}
+    vis = _visible(conn, principal, v["floor_id"])
+    return {"versions": [dict(_row_out(conn, principal, v["floor_id"], r, vis), counts=pg.counts(store.load_doc(r))) for r in store.history(conn, v["id"])]}
 
 
 @router.get("/plan-versions/{version_id}/geometry/timeline")
@@ -373,7 +410,8 @@ def geometry_timeline(version_id: str, principal: Principal = Depends(current_pr
     """When each published structure of the version was in force - the historical map picks the one of its instant."""
     v = get_version(conn, version_id)
     require_floor_read(conn, principal, v["floor_id"])
-    return {"timeline": [{"id": r["id"], "doc_hash": r["doc_hash"], "published_at": r["published_at"], "archived_at": r["archived_at"]}
+    vis = _visible(conn, principal, v["floor_id"])  # L1: the hash each row's `?at=` read hands this reader, never the stored one
+    return {"timeline": [{"id": r["id"], "doc_hash": _hash_out(conn, principal, v["floor_id"], r, vis), "published_at": r["published_at"], "archived_at": r["archived_at"]}
                          for r in reversed(store.history(conn, v["id"]))]}
 
 
@@ -391,7 +429,7 @@ def rollback_geometry(version_id: str, body: GeometryRollbackIn, request: Reques
     row = store.rollback(conn, v, body.geometry_id, principal.user_id)
     audit(conn, actor=principal, action="geometry.rollback", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "restored_from": body.geometry_id, "geometry_id": row["id"]})
-    return {"published": store.row_api(row)}
+    return {"published": _row_out(conn, principal, v["floor_id"], row)}
 
 
 class CopyFromIn(BaseModel):
