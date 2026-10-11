@@ -2,6 +2,7 @@ import { test, expect, type Page, type Locator } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { screenshotRetrying } from './shot-retry';
 
 // CR-014 S4: the schedule editor in DEMO mode (no backend: run the preview with SW_API_PORT pointing at a port nothing
 // listens on), against the typed client's in-memory store (persona through localStorage `sw.demo.schedules`). The editor is
@@ -11,7 +12,7 @@ const SHOTS = fileURLToPath(new URL('../../docs/evidence/CR014-s4', import.meta.
 fs.mkdirSync(SHOTS, { recursive: true });
 
 async function shot(page: Page, name: string) {
-  await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+  await screenshotRetrying(page, { path: path.join(SHOTS, `${name}.png`) });
 }
 
 interface MountOptions {
