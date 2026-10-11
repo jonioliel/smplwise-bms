@@ -197,8 +197,12 @@ export class SwPlan3d extends LitElement {
   /** CR-029 S5-B: a mode the host forces (a wall screen's own setting, CR-030): wins over the viewer's choice, the dials and
    * the installation default. null = the usual precedence. */
   @property({ attribute: false }) qualityForce: QualityMode | null = null;
-  /** CR-029 S5-B: the wall display's bare view - no bar, strip, time pill, hints or tooltips. */
+  /** CR-029 S5-B: the wall display's bare view - no bar, strip, time pill, hints or tooltips, and nothing to operate (the canvas takes
+   * no pointer: a touch on the plan is a touch on the wall). */
   @property({ type: Boolean, reflect: true }) kiosk = false;
+  /** CR-029 S5-B: the look the host forces (a wall's own theme, CR-030): the realistic level's style and sky follow it instead of the
+   * viewer's dial and the page's scheme. null = as usual. */
+  @property({ attribute: false }) themeForce: 'light' | 'dark' | null = null;
   /** The walk: off, asked of the host (waiting for a description with `walk`), or on. */
   @state() private walkState: 'off' | 'requested' | 'on' = 'off';
   /** The walk's numbers for the walk bar (x, z, heading, level), refreshed at most ~8 times a second. */
@@ -820,6 +824,13 @@ export class SwPlan3d extends LitElement {
     :host([kiosk]) .tip {
       display: none;
     }
+    :host([kiosk]) .stage,
+    :host([kiosk]) .overlay {
+      pointer-events: none;
+    }
+    :host([kiosk]) .spinner:not(.err) {
+      display: none;
+    }
     /* the idle still: the host's baked picture over the stopped view; it takes the wake touch, fades in and out, and is
        always laid out (hidden, not removed) so its picture is loaded before the view idles */
     .idle-still {
@@ -1082,11 +1093,11 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut };
   }
 
   private uiTheme(): 'light' | 'dark' {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    return this.themeForce ?? (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
   }
 
   /** The UI theme changed: the `auto` style follows it (a re-tint, no rebuild). */
@@ -1326,6 +1337,10 @@ export class SwPlan3d extends LitElement {
   /** The props that drive the kiosk changed: the idle time, the plan-change signature, the walk (a hold: it draws on purpose). */
   private syncKiosk(changed: PropertyValues<this>): void {
     if (changed.has('idleS')) this.setupIdle();
+    if (changed.has('themeForce') && changed.get('themeForce') !== undefined && this.view) {
+      this.view.setRealSettings({ style: this.realSettings().style }); // the page's theme observer does the same when the scheme flips
+      this.applySun();
+    }
     if (changed.has('changeKey') && changed.get('changeKey') !== undefined) this.kioskIdle?.change();
     if ((changed as Map<string, unknown>).has('walkState')) this.kioskIdle?.hold('walk', this.walkState !== 'off');
   }
