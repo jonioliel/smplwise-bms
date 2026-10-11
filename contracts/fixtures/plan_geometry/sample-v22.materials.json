@@ -1,0 +1,70 @@
+{
+ "levels": {
+  "L0": {
+   "ceiling": "plaster_ceiling",
+   "floor": "concrete"
+  },
+  "L1": {
+   "ceiling": "plaster_ceiling",
+   "floor": "floor_sport"
+  }
+ },
+ "library_version": "2026.10.1",
+ "lights": {
+  "o3": {
+   "color_k": 2700,
+   "kind": "pendant",
+   "lumens": 950
+  }
+ },
+ "objects": {
+  "o1": "leather",
+  "o2": "wood_light",
+  "o3": "metal_dark",
+  "o4": "concrete",
+  "o5": "metal_light"
+ },
+ "openings": {
+  "oa": "door_metal",
+  "ob": "glass_frosted",
+  "oc": "door_wood",
+  "od": "door_wood",
+  "oe": null,
+  "of": "door_wood"
+ },
+ "rooms": {
+  "r-hall": {
+   "ceiling": "plaster_ceiling",
+   "floor": "floor_sport",
+   "has_ceiling": false
+  },
+  "r-office": {
+   "ceiling": "plaster_ceiling",
+   "floor": "carpet",
+   "has_ceiling": true
+  },
+  "r-store": {
+   "ceiling": "plaster_white",
+   "floor": "tiles_grey",
+   "has_ceiling": true
+  },
+  "r-wc": {
+   "ceiling": "plaster_ceiling",
+   "floor": "tiles_grey",
+   "has_ceiling": true
+  }
+ },
+ "walls": {
+  "wa": "plaster_exterior",
+  "wb": "brick_painted",
+  "wc": "plaster_white",
+  "wd": "plaster_white"
+ },
+ "warnings": [
+  {
+   "id": "wc",
+   "material_id": "no_such_material",
+   "path": "walls.material_id"
+  }
+ ]
+}

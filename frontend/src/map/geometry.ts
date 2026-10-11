@@ -29,6 +29,9 @@ export interface GeomLevel {
   ceiling_height_m: number;
   is_default: boolean;
   external_ids?: ExternalIds;
+  /** Document 2.2 (CR-029 S0): the level's default floor / ceiling material (map/material-resolve.ts). */
+  floor_material_id?: string;
+  ceiling_material_id?: string;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
 }
@@ -53,6 +56,8 @@ export interface GeomWall {
   hollow?: boolean;
   /** A window wall's glazing (kind 'glass', document 2.1; map/glass-wall.ts). Absent = the defaults. */
   glazing?: Glazing;
+  /** Document 2.2 (CR-029 S0): the wall's material id (map/material-resolve.ts); absent = by kind. */
+  material_id?: string;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
 }
@@ -70,6 +75,9 @@ export interface GeomOpening {
   confidence: number;
   source: GeomSource;
   external_ids?: ExternalIds;
+  /** Document 2.2 (CR-029 S0): the leaf / frame material and a window's glass (absent = door_wood / clear glass). */
+  material_id?: string;
+  tint?: import('./glass-wall').GlassTint;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
 }
@@ -114,6 +122,9 @@ export interface GeomObject {
   external_ids?: ExternalIds;
   /** Free-text tags, as a wall's (T085). */
   tags?: string[];
+  /** Document 2.2 (CR-029 S0): the object's material (absent = its catalog item's) and a lamp's emission. */
+  material_id?: string;
+  light?: import('./studio6-fields').LampLight;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
   /** CR-009 (re-review N3): explicit content of the shared space with this home zone id - needed for an item outside the
@@ -208,8 +219,9 @@ export interface Calibration {
   reason: string | null;
 }
 export interface GeometryDoc {
-  /** '2.1' when a wall is curved (bulges) or the document has a window wall (map/glass-wall.ts withDocVersion); else '2.0'. The server stamps it on every save. */
-  schema_version: '2.0' | '2.1';
+  /** '2.2' when a Plan Studio 6 field is present (map/studio6-fields.ts), else '2.1' when a wall is curved (bulges) or the
+   * document has a window wall (map/glass-wall.ts withDocVersion); else '2.0'. The server stamps it on every save. */
+  schema_version: '2.0' | '2.1' | '2.2';
   plan_version_id: string;
   floor_id: string;
   source: { sha256: string; file_name: string; mime: string; page: number };
@@ -218,7 +230,8 @@ export interface GeometryDoc {
   levels: GeomLevel[];
   walls: GeomWall[];
   openings: GeomOpening[];
-  rooms: { id: string; level_id?: string | null; ceiling_height_m?: number | null; tags?: string[] }[];
+  /** Document 2.2 adds the floor / ceiling material and `ceiling: false` (no ceiling: a hall's roof, an outdoor room). */
+  rooms: { id: string; level_id?: string | null; ceiling_height_m?: number | null; tags?: string[]; floor_material_id?: string; ceiling_material_id?: string; ceiling?: boolean }[];
   objects: GeomObject[];
   circuits: GeomCircuit[];
   connectors: GeomConnector[];
@@ -229,6 +242,10 @@ export interface GeometryDoc {
   meta: { generator: string; tokens_version: string; detector_version: string | null };
   /** The floor's height, floor to floor (T085, owner 2026-09-29): absent = DEFAULT_FLOOR_HEIGHT_M. */
   floor_height_m?: number;
+  /** Document 2.2 (CR-029 S0): north's bearing on the plan, clockwise from plan up (absent = 0). Top level: the server owns transform. */
+  north_deg?: number;
+  /** Document 2.2: the saved eye-level walk viewpoints (absent = none). */
+  walk_positions?: import('./studio6-fields').WalkPosition[];
   /** CR-009: the rooms this floor shares with other floors, computed by the server on every read and never stored
    * (map/shared-space.ts). A room another floor owns arrives as items of this document, each marked `shared`. */
   shared_spaces?: import('./shared-space').SharedSpaceEntry[];

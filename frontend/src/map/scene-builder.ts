@@ -17,6 +17,7 @@ import { anchor3d } from './anchor-3d';
 import type { MeshPart } from '../api/plan-catalog';
 import { temperatureText, type RoomStateLayer } from './room-state';
 import { plateHoles, sharedUpperLevel, sharedVolumes, tribuneEntrances, tribuneLayout, volumeHeights, type SharedVolume, type TribuneEntrance } from './shared-space';
+import { buildWalkWorld, type WalkWorld } from './walk-world';
 
 export type { MeshPart };
 export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
@@ -92,6 +93,8 @@ export interface Catalog3D {
   color_token: string;
   role: string;
   mesh: MeshPart[] | null;
+  /** Catalog 2026.10.1 (CR-029 S4): the walk passes over the item (absent = only circulation items). */
+  walkable?: boolean;
 }
 export type Catalog3DLookup = (itemId: string) => Catalog3D | undefined;
 export interface SceneInput {
@@ -116,6 +119,10 @@ export interface SceneInput {
    * parts of the description like the door leaves and the glows - the same layer gives the same parts. Absent / null:
    * no state parts (the thumbnails' all-levels scene, the history map). */
   roomStates?: RoomStateLayer | null;
+  /** Plan Studio 6 S4 (CR-029 section 4): the eye-level walk is on. The description then carries `walk` (walk-world.ts,
+   * every level whatever `level` says) and the leaves of the doors the walk passes without a sensor stand open, so the
+   * body never walks through a drawn leaf. Absent / false: the description is exactly what it was (levels 1-2 baselines). */
+  walk?: boolean;
 }
 export interface SceneDescription {
   version: 'scene-1';
@@ -128,6 +135,8 @@ export interface SceneDescription {
   parts: ScenePart[];
   groups: Record<string, number>;
   stats: { parts: number; instanced: number; groups: number; walls: number; objects: number; cameras: number; entities: number };
+  /** Only with SceneInput.walk (CR-029 S4): the walk world. */
+  walk?: WalkWorld;
 }
 export interface IsoFace {
   points: [number, number][];
@@ -803,7 +812,9 @@ class Builder {
         const lintel = wallH - o.height_m;
         if (lintel > 0.01) this.box(`lintel:${o.id}`, 'lintel', ud, [cx, base + o.height_m + lintel / 2, cz], [len, lintel, t], yaw, color, lv.id);
         const ref = o.anchor_ref;
-        const open = !!ref && ref.resource_type === 'ha_entity' && isOpenState(this.input.entityStates[ref.resource_id]);
+        const sensed = !!ref && ref.resource_type === 'ha_entity';
+        // the walk (CR-029 S4, owner Q4): a door without a sensor is walkable, so in the walk its leaf stands open
+        const open = (sensed && isOpenState(this.input.entityStates[ref.resource_id])) || (!sensed && !!this.input.walk);
         this.leaves(o, g0, g1, len, open, base, lv.id, ud);
       } else {
         if (o.sill_m > 0.01) this.box(`sill:${o.id}`, 'sill', ud, [cx, base + o.sill_m / 2, cz], [len, o.sill_m, t], yaw, color, lv.id);
@@ -1072,7 +1083,12 @@ export function buildScene(input: SceneInput): SceneDescription {
   b.objects(prims);
   b.connectors(prims);
   b.anchors();
-  return b.finish();
+  const desc = b.finish();
+  if (input.walk) {
+    const cat = input.catalog;
+    desc.walk = buildWalkWorld(input, cat ? (id) => { const c = cat(id); return c ? { role: c.role, walkable: c.walkable } : undefined; } : null);
+  }
+  return desc;
 }
 
 // ---------------------------------------------------------------- the building page (SC03)

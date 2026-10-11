@@ -41,12 +41,15 @@ PROJECT_TABLES = PROJECT_TABLES + [t for t in FRIGATE_TABLES if t not in PROJECT
 # climate entity) travels the same way - it was missing from the archive, so a restore onto a new installation lost it.
 DEVICE_TYPE_TABLES = ["device_type_override", "device_climate_kind"]
 PROJECT_TABLES = PROJECT_TABLES + [t for t in DEVICE_TYPE_TABLES if t not in PROJECT_TABLES]
+# CR-029 S0 (Plan Studio 6): each person's own look override of the realistic 3D (plan_view_prefs, migration 0074); the
+# installation's dials are the `plan.view` setting (already in `settings`). An archive written before the table keeps them.
+PROJECT_TABLES = PROJECT_TABLES + ["plan_view_prefs"]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
 # policy is NOT kept (an older archive without it leaves every class OFF - the default - never a class that happened to be on).
-KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES}) | _energy_backup.KEEP_WHEN_ABSENT
+KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")

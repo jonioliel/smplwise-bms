@@ -12,6 +12,7 @@
  */
 import type { AnchorRef, GeometryDoc, GeomWall, Pt } from './geometry';
 import { isCurved, sample, wallLengthPx, wallPx } from './wall-path';
+import { STUDIO6_SCHEMA_VERSION, usesStudio6 } from './studio6-fields';
 
 export const GLASS_KIND = 'glass' as const;
 export const GLAZING_SCHEMA_VERSION = '2.1' as const;
@@ -80,11 +81,14 @@ export function usesGlazing(doc: Pick<GeometryDoc, 'walls'>): boolean {
   return doc.walls.some((w) => w.kind === GLASS_KIND || (w.glazing !== undefined && w.glazing !== null));
 }
 
-/** The document with the schema version it is stored with (the server stamps the same on every save): 2.1 for a window
- * wall or a curved wall (bulges; plan_geometry.document_version), else 2.0. */
+/** The document with the schema version it is stored with (the server stamps the same on every save): 2.2 when a Plan
+ * Studio 6 field is present (map/studio6-fields.ts), else 2.1 for a window wall or a curved wall (bulges;
+ * plan_geometry.document_version), else 2.0. */
 export function withDocVersion<D extends Pick<GeometryDoc, 'walls' | 'schema_version'>>(doc: D): D {
-  if (usesGlazing(doc) || doc.walls.some((w) => isCurved(w))) return doc.schema_version === GLAZING_SCHEMA_VERSION ? doc : { ...doc, schema_version: GLAZING_SCHEMA_VERSION };
-  return doc.schema_version === GLAZING_SCHEMA_VERSION ? { ...doc, schema_version: BASE_SCHEMA_VERSION } : doc; // any other value is left as it is
+  const want = usesStudio6(doc) ? STUDIO6_SCHEMA_VERSION : usesGlazing(doc) || doc.walls.some((w) => isCurved(w)) ? GLAZING_SCHEMA_VERSION : BASE_SCHEMA_VERSION;
+  if (doc.schema_version === want) return doc;
+  // only the versions this code writes move; any other value is left as it is
+  return doc.schema_version === BASE_SCHEMA_VERSION || doc.schema_version === GLAZING_SCHEMA_VERSION || doc.schema_version === STUDIO6_SCHEMA_VERSION ? { ...doc, schema_version: want } : doc;
 }
 
 /** The wall's glazing with the defaults filled in for what is absent or of the wrong type (as plan_glass.glazing_of). */

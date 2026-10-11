@@ -64,10 +64,10 @@ def test_a_glass_wall_validates_and_the_version_is_stamped_only_when_used():
     bare = _glass_wall()
     del bare["glazing"]
     assert pg.validate(_doc(bare)) == [] and pg.document_version(_doc(bare)) == "2.1"
-    # both versions are read; anything else is refused
-    for v in ("2.0", "2.1"):
+    # every known version is read (2.2 = Plan Studio 6, CR-029 S0); anything else is refused
+    for v in ("2.0", "2.1", "2.2"):
         assert not any(i["structural"] for i in pg.validate(dict(d, schema_version=v)))
-    assert any(i["code"] == "schema_version" and i["structural"] for i in pg.validate(dict(d, schema_version="2.2")))
+    assert any(i["code"] == "schema_version" and i["structural"] for i in pg.validate(dict(d, schema_version="2.3")))
 
 
 @pytest.mark.parametrize("field,value", [("glazing", "nope"), ("glazing.panel_width_m", "1"), ("glazing.panel_count", 1.5), ("glazing.mullion_m", True),

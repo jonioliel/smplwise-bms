@@ -211,7 +211,7 @@ def test_bulges_are_validated():
     _wall(bad, "ca-arc")["polyline"] = [[0.2, 0.05], [0.5, 0.05]]
     assert any(i["code"] == "bounds" and i["id"] == "ca-arc" for i in pg.validate(bad)), "an arc that leaves the plan"
     bad = copy.deepcopy(doc)
-    bad["schema_version"] = "2.2"
+    bad["schema_version"] = "2.3"  # 2.2 is Plan Studio 6 (CR-029 S0); the next unknown one is refused
     assert any(i["code"] == "schema_version" and i["structural"] for i in pg.validate(bad))
 
 

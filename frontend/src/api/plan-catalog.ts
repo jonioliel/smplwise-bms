@@ -41,6 +41,11 @@ export interface CatalogItem {
   /** Composite items only (T087); null / absent for every other shape. */
   mesh?: MeshPart[] | null;
   ifc: { class: string; predefined_type: string };
+  /** Catalog 2026.10.1 (CR-029 S0): the item's material (catalog/materials.json id), a lamp's emission and whether the walk
+   * passes over it (a stair, a tribune, a mat). A custom item inherits them from its base. */
+  material_id?: string;
+  light?: import('../map/studio6-fields').LampLight;
+  walkable?: boolean;
   custom: boolean;
   based_on: string | null;
   created_by?: string | null;
@@ -105,7 +110,14 @@ export function lookupOf(lib: CatalogLibrary): CatalogLookup {
 /** What the scene builder needs from the library for one item (T087): the shape, the colour, the role and the parts
  * of a composite. */
 export function lookup3dOf(lib: CatalogLibrary): Catalog3DLookup {
-  const m = new Map(lib.items.map((i) => [i.id, { shape: i.shape, color_token: i.color_token, role: i.role, mesh: i.shape === 'composite' && Array.isArray(i.mesh) ? i.mesh : null }]));
+  // the walk (CR-029 S4) reads `walkable`; it is carried only when the item says it, so every other lookup answer is unchanged
+  const m = new Map(lib.items.map((i) => [i.id, { shape: i.shape, color_token: i.color_token, role: i.role, mesh: i.shape === 'composite' && Array.isArray(i.mesh) ? i.mesh : null, ...(typeof i.walkable === 'boolean' ? { walkable: i.walkable } : {}) }]));
+  return (id) => m.get(id);
+}
+
+/** What the material resolver (map/material-resolve.ts, CR-029 S0) needs per item: the role, its material, a lamp's light. */
+export function lookupMaterialsOf(lib: CatalogLibrary): import('../map/material-resolve').CatalogMaterialLookup {
+  const m = new Map(lib.items.map((i) => [i.id, { role: i.role, material_id: i.material_id, light: i.light }]));
   return (id) => m.get(id);
 }
 

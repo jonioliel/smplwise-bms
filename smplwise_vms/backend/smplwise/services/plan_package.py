@@ -38,6 +38,7 @@ from . import bundle as zipsafe
 from . import geometry_store as store
 from . import plan_catalog
 from . import plan_geometry as pg
+from . import plan_studio6
 from . import signing
 
 SCHEMA = "smplwise-plan-package/1"
@@ -65,6 +66,9 @@ MAX_DXF_BYTES = 24 * 1024 * 1024
 DATA_NAMES = ("plan.json", "rooms.json", "anchors.json", "catalog.json", "report.html", DXF_NAME)
 ASSET_RE = re.compile(r"^assets/(background|source)\.[a-z0-9]{1,8}$")
 GEOMETRY_KEYS = (*pg.COLLECTIONS, "floor_height_m")
+# document 2.2 (CR-029 S0): the plan's north and the saved walk positions join the hash only when present, so the hash of
+# every 2.0 / 2.1 document stays what it was
+VIEW_KEYS = plan_studio6.DOC_FIELDS
 MODES = ("replace", "merge")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -91,7 +95,9 @@ def _now() -> str:
 def geometry_hash(doc: dict[str, Any]) -> str:
     """The hash of what was drawn - the collections and the floor height - without the version block (plan version id,
     source, size, calibration), so the same structure compares equal across versions and installations."""
-    return _sha(pg.canonical_json({k: doc.get(k) for k in GEOMETRY_KEYS}).encode("utf-8"))
+    keys = {k: doc.get(k) for k in GEOMETRY_KEYS}
+    keys.update({k: doc[k] for k in VIEW_KEYS if doc.get(k) is not None})
+    return _sha(pg.canonical_json(keys).encode("utf-8"))
 
 
 def _ext(name: str, fallback: str) -> str:
@@ -535,6 +541,22 @@ def _merge(current: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
         out[coll] = mine
     if out.get("floor_height_m") is None and incoming.get("floor_height_m") is not None:
         out["floor_height_m"] = incoming["floor_height_m"]
+    if out.get("north_deg") is None and incoming.get("north_deg") is not None:  # document 2.2: as the floor height
+        out["north_deg"] = incoming["north_deg"]
+    if isinstance(incoming.get("walk_positions"), list):  # saved walk positions merge by id like a collection
+        mine = [p for p in out.get("walk_positions") or [] if isinstance(p, dict)]
+        index = {p.get("id"): n for n, p in enumerate(mine)}
+        for p in incoming["walk_positions"]:
+            if not isinstance(p, dict):
+                continue
+            n = index.get(p.get("id"))
+            if n is None:
+                index[p.get("id")] = len(mine)
+                mine.append(copy.deepcopy(p))
+            else:
+                mine[n] = copy.deepcopy(p)
+        if mine:
+            out["walk_positions"] = mine
     return out
 
 

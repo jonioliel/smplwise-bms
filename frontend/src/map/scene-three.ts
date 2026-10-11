@@ -23,6 +23,18 @@ import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, clampThumb, cutBox, c
 
 export type ScenePreset = 'top' | 'iso' | 'persp' | { camera: string };
 export type QualityLevel = 1 | 2;
+/** The eye of the walk (CR-029 S4): metres on the description's axes, the map's bearing (clockwise from plan up) and the
+ * pitch (positive looks up). */
+export interface WalkCameraPose {
+  x: number;
+  y: number;
+  z: number;
+  heading_deg: number;
+  pitch_deg: number;
+}
+/** LOOK_SPEC section 8: the walk entry flies down from the orbit pose. */
+export const WALK_ENTRY_MS = 650;
+export const WALK_NEAR_M = 0.06;
 export interface SceneHit {
   id: string;
   kind: string;
@@ -31,7 +43,8 @@ export interface SceneHit {
 export interface SceneViewOptions {
   mount: HTMLElement;
   color: (token: string) => string;
-  onSelect: (hit: SceneHit | null) => void;
+  /** A click (no drag); the client point lets the walk turn a click on the floor into a walk there (CR-029 S4). */
+  onSelect: (hit: SceneHit | null, clientX?: number, clientY?: number) => void;
   onHover: (hit: SceneHit | null, x: number, y: number) => void;
   onFrame: (frames: number, fps: number) => void;
   /** After every drawn frame (the element lays out its DOM chips on the projected points). */
@@ -319,6 +332,9 @@ export class SceneView {
   private lastReport = 0;
   private pressed: { x: number; y: number; id: number } | null = null;
   private lastHover: string | null = null;
+  /** The eye-level walk (CR-029 S4): the orbit preset to return to, and the entry flight while it runs. Orbit controls are
+   * off, the cutaway is off (walls full height) and the perspective camera is the eye. */
+  private walking: { prevPreset: ScenePreset; fov: number; fly: { from: Vector3; fromQ: Quaternion; to: Vector3; toQ: Quaternion; t0: number; ms: number } | null } | null = null;
 
   constructor(private readonly opts: SceneViewOptions) {
     this.quality = opts.quality ?? 1;
@@ -848,6 +864,12 @@ export class SceneView {
     const d = this.desc;
     const e = this.extent;
     if (!d || !e) return false;
+    if (this.walking) {
+      // the walk owns the camera: the preset is where leaving the walk returns to
+      if (typeof preset !== 'string' && !d.parts.some((p) => p.id === preset.camera && p.kind === 'camera')) return false;
+      this.walking.prevPreset = preset;
+      return true;
+    }
     const cx = (e.x0 + e.x1) / 2;
     const cz = (e.z0 + e.z1) / 2;
     const W = e.x1 - e.x0;
@@ -895,6 +917,96 @@ export class SceneView {
     return true;
   }
 
+  // ---- the eye-level walk (CR-029 S4): the element drives a WalkController and hands the eye pose in
+
+  /** The perspective camera's orientation for a walk pose: yaw about y by -heading (forward = (sin h, -cos h)), then the
+   * pitch about x (Euler YXZ - the description's camera convention, ruling R-P4-T4-1). */
+  private walkQuaternion(p: WalkCameraPose): Quaternion {
+    return new Quaternion().setFromEuler(new Euler(rad(p.pitch_deg), -rad(p.heading_deg), 0, 'YXZ'));
+  }
+
+  /** Enter the walk at `pose`: orbit controls off, the cutaway off, the perspective camera at the eye with `fov` degrees,
+   * flying down from the current view over `ms` (0 = at once: the motion setting off). */
+  enterWalk(pose: WalkCameraPose, fov: number, ms = WALK_ENTRY_MS): void {
+    const from = this.active.position.clone();
+    const fromQ = this.active.quaternion.clone();
+    if (!this.walking) this.walking = { prevPreset: this.preset, fov, fly: null };
+    this.walking.fov = fov;
+    this.useCamera(this.persp);
+    this.controls.enabled = false;
+    this.persp.fov = fov;
+    this.persp.near = WALK_NEAR_M;
+    this.persp.updateProjectionMatrix();
+    const to = new Vector3(pose.x, pose.y, pose.z);
+    const toQ = this.walkQuaternion(pose);
+    this.walking.fly = ms > 0 ? { from, fromQ, to, toQ, t0: performance.now(), ms } : null;
+    if (!this.walking.fly) {
+      this.persp.position.copy(to);
+      this.persp.quaternion.copy(toQ);
+    }
+    this.updateCutaway();
+    this.invalidate();
+  }
+
+  /** The eye moved (a step, a look): the camera follows at once (a running entry flight retargets). */
+  setWalkPose(pose: WalkCameraPose): void {
+    if (!this.walking) return;
+    const fly = this.walking.fly;
+    if (fly) {
+      fly.to.set(pose.x, pose.y, pose.z);
+      fly.toQ.copy(this.walkQuaternion(pose));
+    } else {
+      this.persp.position.set(pose.x, pose.y, pose.z);
+      this.persp.quaternion.copy(this.walkQuaternion(pose));
+    }
+    this.invalidate();
+  }
+
+  setWalkFov(fov: number): void {
+    if (!this.walking) return;
+    this.walking.fov = fov;
+    this.persp.fov = fov;
+    this.persp.updateProjectionMatrix();
+    this.invalidate();
+  }
+
+  /** Leave the walk: the orbit controls, the camera and the preset the walk started from (or the one set meanwhile). */
+  exitWalk(): void {
+    const w = this.walking;
+    if (!w) return;
+    this.walking = null;
+    this.controls.enabled = true;
+    this.persp.fov = 50;
+    this.persp.near = 0.05;
+    this.persp.updateProjectionMatrix();
+    this.cutAzimuth = Number.NaN; // the cutaway is decided afresh for the restored view
+    if (!this.setPreset(w.prevPreset)) this.setPreset('iso');
+  }
+
+  get isWalking(): boolean {
+    return this.walking !== null;
+  }
+
+  /** The point of the horizontal plane at height `y` under a client point (tap-to-walk), or null when the ray misses it. */
+  floorPoint(clientX: number, clientY: number, y: number): [number, number] | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    this.active.updateMatrixWorld();
+    this.raycaster.setFromCamera(new Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), this.active);
+    const { origin, direction } = this.raycaster.ray;
+    if (Math.abs(direction.y) < 1e-6) return null;
+    const t = (y - origin.y) / direction.y;
+    if (!(t > 0) || t > 500) return null;
+    return [origin.x + direction.x * t, origin.z + direction.z * t];
+  }
+
+  /** What the eye looks at (the centre of the view) within `maxDistance` metres: the device under the crosshair, for Enter
+   * (section 4.2) and the crosshair hint (LOOK_SPEC section 9: within 3.5 m). */
+  pickCentre(maxDistance = Infinity): SceneHit | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return this.pick(rect.left + rect.width / 2, rect.top + rect.height / 2, maxDistance);
+  }
+
   /** Host pixels of a scene point (null behind the camera). */
   projectPoint(p: Vec3): { x: number; y: number } | null {
     this.active.updateMatrixWorld();
@@ -911,7 +1023,7 @@ export class SceneView {
    * null (nothing cut) at level 1, from a camera preset, or from a camera that dropped below the top of the scene. */
   private wantedCutAzimuth(): number | null {
     const e = this.extent;
-    if (this.quality !== 2 || !e || typeof this.preset !== 'string') return null;
+    if (this.walking || this.quality !== 2 || !e || typeof this.preset !== 'string') return null; // the walk sees walls full height (section 4.6)
     const cam = this.active.position;
     if (cam.y <= e.y1) return null;
     const cx = (e.x0 + e.x1) / 2;
@@ -1008,12 +1120,13 @@ export class SceneView {
 
   // ---- picking
 
-  private pick(clientX: number, clientY: number): SceneHit | null {
+  private pick(clientX: number, clientY: number, maxDistance = Infinity): SceneHit | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
     this.raycaster.setFromCamera(new Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), this.active);
     const targets = [...this.lookup.keys()].filter((o) => o.visible); // the raycaster does not skip hidden objects
     for (const hit of this.raycaster.intersectObjects(targets, false)) {
+      if (hit.distance > maxDistance) return null;
       const parts = this.lookup.get(hit.object);
       if (!parts) continue;
       const part = parts[hit.instanceId ?? 0];
@@ -1037,7 +1150,7 @@ export class SceneView {
     if (!p || e.pointerId !== p.id) return;
     this.pressed = null;
     if (e.button !== 0 || Math.hypot(e.clientX - p.x, e.clientY - p.y) > CLICK_SLOP_PX) return; // a drag orbits, it never selects
-    this.opts.onSelect(this.pick(e.clientX, e.clientY));
+    this.opts.onSelect(this.pick(e.clientX, e.clientY), e.clientX, e.clientY);
   };
 
   /** The browser took the pointer (a scroll, a system gesture): no click follows. */
@@ -1090,9 +1203,10 @@ export class SceneView {
   private frame = () => {
     this.raf = 0;
     if (this.disposed) return;
-    const moving = this.controls.update(); // true while damping still moves the camera
+    // the walk owns the camera (orbit controls off; update() would turn it to the orbit target): only the entry flight moves it here
+    const moving = this.walking ? this.stepFly() : this.controls.update(); // true while damping still moves the camera
     if (this.hideSmall) {
-      const show = this.active === this.ortho ? this.ortho.top / (this.ortho.zoom || 1) < HIDE_SMALL_DISTANCE_M / 2 : this.persp.position.distanceTo(this.controls.target) < HIDE_SMALL_DISTANCE_M;
+      const show = this.walking ? true : this.active === this.ortho ? this.ortho.top / (this.ortho.zoom || 1) < HIDE_SMALL_DISTANCE_M / 2 : this.persp.position.distanceTo(this.controls.target) < HIDE_SMALL_DISTANCE_M;
       for (const g of this.smallGroups) g.visible = show;
     }
     this.updateCutaway();
@@ -1120,6 +1234,18 @@ export class SceneView {
     }
   };
 
+  /** One step of the walk-entry flight (ease-in-out quad on the position, slerp on the orientation); true while it runs. */
+  private stepFly(): boolean {
+    const fly = this.walking?.fly;
+    if (!fly) return false;
+    const t = Math.min(1, (performance.now() - fly.t0) / fly.ms);
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    this.persp.position.lerpVectors(fly.from, fly.to, e);
+    this.persp.quaternion.slerpQuaternions(fly.fromQ, fly.toQ, e);
+    if (t >= 1 && this.walking) this.walking.fly = null;
+    return t < 1;
+  }
+
   /** Draw the main frame now instead of at the next animation frame (after a thumbnail pass used the canvas corner:
    * the picture on screen is whole again before the browser paints). A pending frame is folded into this one. */
   redrawNow(): void {
@@ -1131,7 +1257,7 @@ export class SceneView {
 
   /** The view as drawn now, as a PNG data URL (a frame is rendered first, so the buffer is current). */
   capture(): string {
-    this.controls.update();
+    if (!this.walking) this.controls.update();
     this.updateCutaway();
     this.renderer.render(this.scene, this.active);
     return this.renderer.domElement.toDataURL('image/png');
