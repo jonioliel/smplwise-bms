@@ -149,6 +149,7 @@ def test_site_location_for_the_sun_is_optional_validated_and_read_as_numbers(set
     with TestClient(app) as c:
         s = c.get("/api/v1/settings").json()["settings"]
         assert s["site.latitude"] is None and s["site.longitude"] is None
+        assert s["site.location_source"] == "home"  # owner 2026-10-11: the home's location unless an override is chosen (test_site_location.py)
         assert c.patch("/api/v1/settings", json={"site.latitude": "32.0853", "site.longitude": "34.7818"}).status_code == 200
         s = c.get("/api/v1/settings").json()["settings"]
         assert s["site.latitude"] == 32.0853 and s["site.longitude"] == 34.7818

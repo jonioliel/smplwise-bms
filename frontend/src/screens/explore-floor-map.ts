@@ -47,6 +47,7 @@ import { BAKE_BUTTON_HE, BAKE_TITLE_HE, autoBakeWanted, bakeStatus, hasStills, r
 import { isWallDisplay, viewMode, wallDisplayMode } from '../map/quality-ladder';
 import { STILL_RECIPE_Q2 } from '../map/still-bake';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
+import { resolveSite, type ResolvedSite } from '../map/sun';
 import { boundItemOf } from '../map/part-select';
 import { sharedChip, zonesWithChips } from '../map/shared-space';
 import '../components/sw-share-members';
@@ -1419,7 +1420,7 @@ export class ExploreFloorMap extends LitElement {
           this.liveTransport = effectiveTransport(s);
         })
         .then(() => planViewPrefs())
-        .then((p) => { if (p) this.viewDials = p.effective; })
+        .then((p) => { if (p) { this.viewDials = p.effective; this.stillsSite = resolveSite(p.location); } })
         .catch(() => (this.liveTransport = effectiveTransport(null))); // settings unavailable: keep every level shown
       const seq = ++this.geomSeq;
       this.geometry = null;
@@ -1888,7 +1889,7 @@ export class ExploreFloorMap extends LitElement {
     const hash = typeof location !== 'undefined' ? location.hash : '';
     const mode = viewMode({ webgl: webglAvailable(), wallDisplay: isWallDisplay(hash.includes('?') ? hash.slice(hash.indexOf('?')) : ''),
       wallMode: wallDisplayMode(this.viewDials.wall_display), idle: false, exhausted: this.stillsFallback, hasStills: stills, want3d: true });
-    if (mode === 'stills') return renderStills(b, level, this.roomStateLayer, this.viewDials);
+    if (mode === 'stills') return renderStills(b, level, this.roomStateLayer, this.viewDials, new Date(), this.stillsSite);
     const s = this.scene3d();
     if (!s) return nothing;
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
@@ -2417,6 +2418,8 @@ export class ExploreFloorMap extends LitElement {
   private bakeCancel = false;
   /** CR-029 S0 / S3: the person's effective look dials (wall display live / stills, style). */
   @state() private viewDials: PlanViewDials = DEFAULT_VIEW;
+  /** CR-029 S2: the site the stills' time band follows (the home's location, an override or the fallback). */
+  private stillsSite: ResolvedSite = resolveSite(null);
 
   private async saveRename(a: Anchor) {
     const r = this.renaming;

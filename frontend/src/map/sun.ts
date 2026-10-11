@@ -9,8 +9,10 @@
  * angle, zenith with the NOAA refraction correction) - within ~0.1 deg of the NOAA calculator for the years around now
  * (unit-sun.spec.ts pins six published reference values to +-0.5 deg).
  *
- * The site clock: the slider shows local hours of the site's IANA zone (`time.zone`); siteInstant turns a local date and
- * hour into the UTC instant through Intl (no fixed offsets - the AGENTS rule), siteLocal does the reverse.
+ * The site clock: the slider shows local hours of the site's IANA zone (the home's zone, else `time.zone`); siteInstant
+ * turns a local date and hour into the UTC instant through Intl (no fixed offsets - the AGENTS rule), siteLocal does the
+ * reverse. The site itself (owner 2026-10-11): the home's location from its configuration, an explicit override, or the
+ * fallback - resolved by the server (services/site_location.py), read here by resolveSite.
  */
 const RAD = Math.PI / 180;
 const DEG = 180 / Math.PI;
@@ -26,6 +28,44 @@ export interface SunPosition {
 
 /** Fallback site location when the installation has none (CR-029 section 5.2: Israel, with a note). */
 export const DEFAULT_SITE = { latitude: 32.0, longitude: 34.8 } as const;
+/** The site clock's fallback zone (the backend's `time.zone` default; services/site_location.DEFAULT_ZONE). */
+export const DEFAULT_ZONE = 'Asia/Jerusalem';
+
+/** Where the location the sun uses came from (owner 2026-10-11): the home's own configuration, an explicit override typed
+ * in Settings, or the fallback above. */
+export type SiteSource = 'ha' | 'manual' | 'default';
+export interface ResolvedSite {
+  latitude: number;
+  longitude: number;
+  zone: string;
+  source: SiteSource;
+  /** False only for the fallback - the time pill then says the site location is not known. */
+  known: boolean;
+}
+
+const validZone = (z: unknown): z is string => {
+  if (typeof z !== 'string' || !z || z.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: z });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** The site the sun uses, from the server's resolved `location` (GET /plan-view/prefs; the server applies the order
+ * manual override -> the home's location -> the fallback). Anything missing or unreadable answers the fallback, never an
+ * error; the zone falls back to `fallbackZone` (the site clock), then to DEFAULT_ZONE. */
+export function resolveSite(location: unknown, fallbackZone?: unknown): ResolvedSite {
+  const l = (location && typeof location === 'object' ? location : {}) as Record<string, unknown>;
+  const lat = l.latitude;
+  const lon = l.longitude;
+  const source: SiteSource | null = l.source === 'ha' || l.source === 'manual' ? l.source : null;
+  const ok = typeof lat === 'number' && typeof lon === 'number' && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+  const zone = validZone(l.time_zone) ? l.time_zone : validZone(fallbackZone) ? fallbackZone : DEFAULT_ZONE;
+  if (ok && source) return { latitude: lat, longitude: lon, zone, source, known: true };
+  return { latitude: DEFAULT_SITE.latitude, longitude: DEFAULT_SITE.longitude, zone, source: 'default', known: false };
+}
 
 /** The NOAA solar position for an instant (ms since the epoch, UTC), a latitude / longitude (deg, east positive) and the
  * plan's north (deg: the bearing of the plan's up, clockwise from true north). */

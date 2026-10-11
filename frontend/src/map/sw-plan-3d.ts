@@ -23,7 +23,7 @@ import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-vie
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
 import { t } from '../i18n/he';
-import { DEFAULT_SITE, TIME_BAND_HE, hourLabel, siteInstant, siteLocal, timeBand } from './sun';
+import { TIME_BAND_HE, hourLabel, resolveSite, siteInstant, siteLocal, timeBand, type ResolvedSite } from './sun';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
 export { QUALITY_KEY } from '../api/plan-quality';
@@ -237,7 +237,8 @@ export class SwPlan3d extends LitElement {
   @state() private timeManual: { hour: number; ymd: [number, number, number] } | null = null;
   @state() private timeOpen = false;
   @state() private sunShown: { hour: number; band: string; elevation: number } | null = null;
-  private site = { latitude: DEFAULT_SITE.latitude as number, longitude: DEFAULT_SITE.longitude as number, zone: 'Asia/Jerusalem', known: false };
+  /** The site the sun uses (map/sun.ts resolveSite); the fallback until the server answered. Tests read `source`. */
+  site: ResolvedSite = resolveSite(null);
   private clockTimer = 0;
   private themeObserver?: MutationObserver;
   /** K88 3D round 2: night mode (dark sky, a moon instead of the sun, the lit rooms glow) - the viewer's choice, stored. */
@@ -851,18 +852,18 @@ export class SwPlan3d extends LitElement {
     // when the settings land (the cached settings answer at once; a first fetch takes the round trip)
     if (!this.settingsAsked) {
       this.settingsAsked = true;
-      // the installation's level, the site (latitude / longitude / zone for the sun, CR-029 S2) and the person's look
-      // dials, read once before the first build; unavailable or not answered within SETTINGS_WAIT_MS: the defaults
+      // the installation's level, the person's look dials and the site (latitude / longitude / zone for the sun, CR-029
+      // S2: the home's location, an explicit override or the fallback - resolved by the server, owner 2026-10-11), read
+      // once before the first build; unavailable or not answered within SETTINGS_WAIT_MS: the defaults
       const settings = withTimeout(productSettings().then((s) => s as unknown as Record<string, unknown>), SETTINGS_WAIT_MS, {} as Record<string, unknown>).catch(() => ({}) as Record<string, unknown>);
-      const dials = withTimeout(planViewPrefs().then((p) => p.effective), SETTINGS_WAIT_MS, { ...DEFAULT_VIEW }).catch(() => ({ ...DEFAULT_VIEW }));
-      void Promise.all([settings, dials])
-        .then(([s, d]) => {
+      const prefs = withTimeout(planViewPrefs().then((p) => ({ dials: p.effective, location: p.location as unknown })), SETTINGS_WAIT_MS, { dials: { ...DEFAULT_VIEW }, location: undefined as unknown })
+        .catch(() => ({ dials: { ...DEFAULT_VIEW }, location: undefined as unknown }));
+      void Promise.all([settings, prefs])
+        .then(([s, p]) => {
           // the installation's mode; a settings answer without the key (the static demo) = schematic (the hotfix's rule)
           this.installMode = asMode(s['plan.quality']) ?? 'schematic';
-          const lat = Number(s['site.latitude']);
-          const lon = Number(s['site.longitude']);
-          const known = s['site.latitude'] !== null && s['site.latitude'] !== undefined && Number.isFinite(lat) && Number.isFinite(lon);
-          this.site = { latitude: known ? lat : DEFAULT_SITE.latitude, longitude: known ? lon : DEFAULT_SITE.longitude, zone: typeof s['time.zone'] === 'string' && s['time.zone'] ? (s['time.zone'] as string) : 'Asia/Jerusalem', known };
+          this.site = resolveSite(p.location, s['time.zone']);
+          const d = p.dials;
           this.viewDials = d;
           this.dialsReady = true;
         })
@@ -1064,6 +1065,13 @@ export class SwPlan3d extends LitElement {
       this.setAttribute('data-sun-elevation', String(Math.round(st.elevation)));
       this.setAttribute('data-style', view.getRealSettings().style);
     } else this.sunShown = null;
+  }
+
+  /** Apply a site location (the server's `location`, map/sun.ts resolveSite) and redraw the sun; the north stays the floor's. */
+  setSite(location: unknown): void {
+    this.site = resolveSite(location, this.site.zone);
+    this.applySun();
+    this.requestUpdate();
   }
 
   private startClock(): void {

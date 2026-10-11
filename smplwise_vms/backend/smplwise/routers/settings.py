@@ -140,8 +140,11 @@ DEFAULTS: dict[str, str] = {
     # live / stills, kiosk idle seconds, time source, mouse look, quality rung, eye height, DPR cap, section cut, temperatures, motion).
     # A person's own override (/plan-view/prefs) wins per dial; the default view stays schematic for everyone (owner 2026-10-09).
     "plan.view": json.dumps({k: plan_view.DEFAULT[k] for k in plan_view.SITE_DIALS}, separators=(",", ":")),
-    # CR-029 S2 (Plan Studio 6): the site's location for the sun of the realistic 3D (degrees, east / north positive); "" = not set,
-    # the view then uses the fallback 32.0 / 34.8 (central Israel) and says so. Read-only for the view; never sent anywhere.
+    # CR-029 S2 (Plan Studio 6; owner 2026-10-11): where the sun of the realistic 3D stands. "home" (default) = the home's own
+    # location (the core config the HA sync reads, services/site_location.py); "manual" = the two values below, an explicit
+    # override only. Without either the view uses the fallback 32.0 / 34.8 (central Israel) and says so. Never sent anywhere.
+    "site.location_source": "home",
+    # the manual override (degrees, east / north positive); "" = not set. Used only while site.location_source = "manual".
     "site.latitude": "",
     "site.longitude": "",
     # CR-029 S3: what the "prepare stills and lighting" step bakes per floor (presets, styles, time bands, the lightmap, the still's
@@ -336,7 +339,13 @@ DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
 
 
-def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
+PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
+
+
+def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[str, Any]:
+    """Every setting with its stored value read back. `private` keeps PRIVATE_KEYS in the answer - only for a caller that
+    holds system.configure (the settings screen); every other listing (GET /settings of a viewer, GET /cameras `media`,
+    internal readers) leaves the site position out. The sun reads its location from /plan-view/prefs (map.read), rounded."""
     out: dict[str, Any] = {}
     for key, default in DEFAULTS.items():
         value = get_setting(conn, key, default) or default
@@ -373,6 +382,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
             out[key] = float(out[key]) if out[key] not in ("", None) else None
         except (TypeError, ValueError):
             out[key] = None
+        if not private:
+            del out[key]
     out["plan.bakes"] = plan_bakes.stored_setting(out["plan.bakes"])
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
@@ -605,6 +616,7 @@ class SettingsPatch(BaseModel):
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
+    site_location_source: str | None = Field(default=None, pattern="^(home|manual)$", alias="site.location_source")  # CR-029 S2 (owner 2026-10-11)
     site_latitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.latitude")  # CR-029 S2: "" clears
     site_longitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.longitude")
     plan_view: dict[str, Any] | None = Field(default=None, alias="plan.view")  # CR-029 S0: a partial update of the dials, validated in full by services/plan_view.py
@@ -722,7 +734,8 @@ def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
 
 @router.get("/settings")
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    return {"settings": read_settings(conn), "can_edit": authorize(conn, principal, "system.configure", INSTALLATION).allowed, **_capacity_info(conn)}
+    can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
+    return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, **_capacity_info(conn)}
 
 
 @router.patch("/settings")
@@ -934,4 +947,4 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
               request_id=getattr(request.state, "correlation_id", None), details={"to": update_switch == "true"})
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
-    return {"settings": read_settings(conn), "can_edit": True, **_capacity_info(conn)}
+    return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}
