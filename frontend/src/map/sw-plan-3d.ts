@@ -846,7 +846,8 @@ export class SwPlan3d extends LitElement {
       const dials = withTimeout(planViewPrefs().then((p) => p.effective), SETTINGS_WAIT_MS, { ...DEFAULT_VIEW }).catch(() => ({ ...DEFAULT_VIEW }));
       void Promise.all([settings, dials])
         .then(([s, d]) => {
-          this.installMode = asMode(s['plan.quality']);
+          // the installation's mode; a settings answer without the key (the static demo) = schematic (the hotfix's rule)
+          this.installMode = asMode(s['plan.quality']) ?? 'schematic';
           const lat = Number(s['site.latitude']);
           const lon = Number(s['site.longitude']);
           const known = s['site.latitude'] !== null && s['site.latitude'] !== undefined && Number.isFinite(lat) && Number.isFinite(lon);
@@ -1006,7 +1007,7 @@ export class SwPlan3d extends LitElement {
     const r = this.rung;
     this.setAttribute('data-quality', String(q));
     this.setAttribute('data-rung', r);
-    this.setAttribute('data-mode', this.mode);
+    this.setAttribute('data-quality-mode', this.mode);
     if (!this.view) return;
     const realRung = r === 'realistic' ? 'realistic' : 'lite';
     const same = this.view.getQuality() === q && (q !== 3 || this.view.getRealSettings().rung === realRung);
@@ -1653,9 +1654,9 @@ export class SwPlan3d extends LitElement {
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
       ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${fallbackHe(this.rung)}</div>` : nothing}
       ${this.perfHint
-        ? html`<div class="pill hint" role="status" data-3d-hint=${this.perfHint}>התצוגה איטית במכשיר הזה
-            <sw-button size="sm" variant="ghost" data-3d-hint-switch @click=${() => this.setMode(this.perfHint!)}>מעבר ל${RUNG_HE[this.perfHint]}</sw-button>
-            <button type="button" class="x" aria-label="סגירה" data-3d-hint-close @click=${() => (this.perfHint = null)}>×</button></div>`
+        ? html`<div class="pill hint" role="status" data-3d-low-fps=${this.perfHint}>התצוגה איטית במכשיר הזה
+            <sw-button size="sm" variant="ghost" data-3d-low-fps-switch @click=${() => this.setMode(this.perfHint!)}>מעבר ל${RUNG_HE[this.perfHint]}</sw-button>
+            <button type="button" class="x" aria-label="סגירה" data-3d-low-fps-close @click=${() => (this.perfHint = null)}>×</button></div>`
         : nothing}
       ${q === 3 ? this.renderTime() : nothing}
       ${q === 3 ? html`<div class="vignette" aria-hidden="true"></div>` : nothing}
