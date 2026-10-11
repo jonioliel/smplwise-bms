@@ -339,7 +339,13 @@ DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
 
 
-def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
+PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
+
+
+def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[str, Any]:
+    """Every setting with its stored value read back. `private` keeps PRIVATE_KEYS in the answer - only for a caller that
+    holds system.configure (the settings screen); every other listing (GET /settings of a viewer, GET /cameras `media`,
+    internal readers) leaves the site position out. The sun reads its location from /plan-view/prefs (map.read), rounded."""
     out: dict[str, Any] = {}
     for key, default in DEFAULTS.items():
         value = get_setting(conn, key, default) or default
@@ -376,6 +382,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
             out[key] = float(out[key]) if out[key] not in ("", None) else None
         except (TypeError, ValueError):
             out[key] = None
+        if not private:
+            del out[key]
     out["plan.bakes"] = plan_bakes.stored_setting(out["plan.bakes"])
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
@@ -726,7 +734,8 @@ def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
 
 @router.get("/settings")
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    return {"settings": read_settings(conn), "can_edit": authorize(conn, principal, "system.configure", INSTALLATION).allowed, **_capacity_info(conn)}
+    can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
+    return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, **_capacity_info(conn)}
 
 
 @router.patch("/settings")
@@ -938,4 +947,4 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
               request_id=getattr(request.state, "correlation_id", None), details={"to": update_switch == "true"})
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
-    return {"settings": read_settings(conn), "can_edit": True, **_capacity_info(conn)}
+    return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}

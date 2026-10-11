@@ -52,6 +52,22 @@ test('the solar position matches an independent algorithm within 0.5 deg at six 
   }
 });
 
+test('the served site position (2 decimals, SEC247 I3) keeps the sun within tolerance at the six reference points', () => {
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  for (const c of CASES) {
+    for (const [lat, lon] of [[c.lat + 0.004321, c.lon - 0.004876], [c.lat - 0.003, c.lon + 0.0049]] as [number, number][]) {
+      const t = Date.parse(c.at);
+      const exact = sunPosition(t, lat, lon);
+      const served = sunPosition(t, round2(lat), round2(lon));
+      const ref = psa(t, lat, lon);
+      expect(Math.abs(served.elevation - exact.elevation), `${c.name}: rounding moves the elevation`).toBeLessThan(0.05);
+      expect(Math.abs(((served.azimuth - exact.azimuth + 540) % 360) - 180), `${c.name}: rounding moves the azimuth`).toBeLessThan(0.1);
+      expect(Math.abs(served.elevation - (ref.elevation + refraction(ref.elevation))), `${c.name}: elevation vs the reference`).toBeLessThan(0.5);
+      expect(Math.abs(((served.azimuth - ref.azimuth + 540) % 360) - 180), `${c.name}: azimuth vs the reference`).toBeLessThan(0.5);
+    }
+  }
+});
+
 test('physical sanity: the noon sun stands south of a northern site, at 90 - latitude + declination', () => {
   // Tel Aviv, 2026-06-21: solar noon ~09:38 UTC (34.78 E, equation of time ~ -1.8 min), declination ~ +23.44
   let best = { el: -90, az: 0 };

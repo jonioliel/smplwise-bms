@@ -13,10 +13,11 @@ Source of truth, in order:
 The time zone is the home's zone whenever it is known (also with a manual latitude / longitude: the override is about the
 position), else the `time.zone` setting. The north angle stays per floor (the geometry document), never here.
 
-Privacy: latitude / longitude are kept and served at 2 decimals (~1 km) - plenty for the sun (well under 0.1 deg of solar
-position), and the exact address of the home never leaves Home Assistant. Only these numbers and the zone are kept: no
-name, no URL, no token. The cache is local state: never exported in a backup, never restored from one (backup.SETTINGS_KEEP);
-the next connect reads it again.
+Privacy (SEC247 review I3): the exact value stays server-side; what leaves - the `location` of GET / PUT /plan-view/prefs,
+for map.read holders only - is rounded to 2 decimals (~1 km), plenty for the sun (well under 0.1 deg of solar position).
+The manual override fields are in GET /settings only for system.configure (routers/settings.PRIVATE_KEYS). Only the numbers
+and the zone are kept: no name, no URL, no token. The cache is local state: never exported in a backup, never restored from
+one (backup.SETTINGS_KEEP); the next connect reads it again.
 """
 from __future__ import annotations
 
@@ -60,16 +61,21 @@ def _zone(value: Any) -> str | None:
 
 
 def from_ha_config(cfg: Any) -> dict[str, Any] | None:
-    """The location part of a core config (`get_config` result / GET /api/config body), validated and rounded; None when it
-    has no usable position. 0 / 0 is Home Assistant's own "never set" value (the core default), not a place."""
+    """The location part of a core config (`get_config` result / GET /api/config body), validated, at full precision (kept
+    server-side only; `served` rounds what leaves); None when it has no usable position. 0 / 0 is Home Assistant's own
+    "never set" value (the core default), not a place."""
     if not isinstance(cfg, dict):
         return None
     lat, lon = _num(cfg.get("latitude"), 90.0), _num(cfg.get("longitude"), 180.0)
     if lat is None or lon is None or (lat == 0.0 and lon == 0.0):
         return None
     elev = _num(cfg.get("elevation"), 9000.0)
-    return {"latitude": round(lat, PRECISION), "longitude": round(lon, PRECISION), "elevation_m": None if elev is None else int(round(elev)),
-            "time_zone": _zone(cfg.get("time_zone"))}
+    return {"latitude": lat, "longitude": lon, "elevation_m": None if elev is None else int(round(elev)), "time_zone": _zone(cfg.get("time_zone"))}
+
+
+def served(value: float) -> float:
+    """A coordinate as it leaves the server: 2 decimals (~1 km). The sun moves well under 0.1 deg for that (SEC247 I3)."""
+    return round(value, PRECISION)
 
 
 def note_ha_config(conn: sqlite3.Connection, cfg: Any, now: str | None = None) -> bool:
@@ -131,5 +137,6 @@ def resolve(conn: sqlite3.Connection) -> dict[str, Any]:
         lat, lon, source = home["latitude"], home["longitude"], "ha"
     else:
         lat, lon, source = DEFAULT["latitude"], DEFAULT["longitude"], "default"
-    return {"latitude": lat, "longitude": lon, "elevation_m": (home or {}).get("elevation_m"), "time_zone": zone, "source": source,
-            "mode": chosen, "home": home}
+    shown_home = {**home, "latitude": served(home["latitude"]), "longitude": served(home["longitude"])} if home else None
+    return {"latitude": served(lat), "longitude": served(lon), "elevation_m": (home or {}).get("elevation_m"), "time_zone": zone, "source": source,
+            "mode": chosen, "home": shown_home}

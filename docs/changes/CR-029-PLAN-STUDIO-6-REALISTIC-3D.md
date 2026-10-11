@@ -303,8 +303,11 @@ from a manually typed setting. As built:
 - **Settings** - הגדרות › וידאו ומדיה › "מיקום האתר לשמש בתלת־ממד": "לפי מיקום הבית (ברירת מחדל)" | "ידני"; the manual
   latitude / longitude appear only with "ידני". system.configure, audited as settings.update (unchanged). The typed values
   of an installation that set them before this decision stay stored but are not used until "ידני" is chosen.
-- **Privacy** - latitude / longitude are kept and served at 2 decimals (~1 km; far below what the sun needs); only the
-  numbers and the zone are kept - no name, no URL, no token.
+- **Privacy (SEC247 review I3)** - the exact position stays server-side; everything served in `location` is rounded to
+  2 decimals (~1 km; the sun moves < 0.05 deg for that, unit-plan3d-sun.spec.ts checks the six reference points). The
+  general settings listing (GET /settings of any reader, the `media` block of GET /cameras) no longer carries
+  `site.latitude` / `site.longitude`; they are read back only to system.configure holders (the Settings rows are shown to
+  them only). Only the numbers and the zone are kept - no name, no URL, no token.
 - No new migration, no new permission, no new route.
 
 ### 5.3 Assets stored per floor (server, CR-027 store pattern)

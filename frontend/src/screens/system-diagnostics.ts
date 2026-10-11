@@ -492,7 +492,8 @@ export class SystemDiagnostics extends LitElement {
     this.siteLoc = (await planViewPrefs(true).catch(() => null))?.location ?? null;
   }
 
-  /** The site-location rows (Plan Studio 6 sun): the home's location by default, an explicit manual override on request. */
+  /** The site-location rows (Plan Studio 6 sun): the home's location by default, an explicit manual override on request.
+   * Shown to system.configure holders only (SEC247 I3: the server sends the override values to them only). */
   private renderSiteLocation(api: boolean) {
     const ro = !api || !this.canEdit;
     const mode = this.value('site.location_source') === 'manual' ? 'manual' : 'home';
@@ -905,7 +906,7 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-bake-total-cap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ total_cap_mb: Number((e.target as HTMLSelectElement).value) })}>
             ${[128, 256, 512, 1024, 2048].map((v) => html`<option value=${v} ?selected=${this.bakeValue('total_cap_mb', 512) === v}>${v >= 1024 ? `${v / 1024} GB` : `${v} MB`} בסך הכול</option>`)}
           </select></sw-field></div>
-        ${this.renderSiteLocation(api)}
+        ${api && this.canEdit ? this.renderSiteLocation(api) : nothing}
         ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
