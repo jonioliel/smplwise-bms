@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { demoRooms } from '../src/fixtures/demo';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import type { MapBundle } from '../src/api/maps';
+import type { CircuitState } from '../src/api/types';
 import type { GeomCircuit, GeometryDoc } from '../src/map/geometry';
 import { DEFAULT_SKIN, SKIN_IDS } from '../src/design/skins';
 import { TOKENS } from '../src/design/tokens';
@@ -18,7 +19,7 @@ const rooms = demoRooms('f0');
 const zones = rooms.map((r, i) => ({ id: `z${i}`, name: `חדר ${i}`, polygon: [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }], level_id: 'L0' }));
 const circuit = (id: string, members: string[]): GeomCircuit => ({ id, name: id, switch_entity_id: `switch.${id}`, member_ids: members, color_token: 'light', power_w: 40 });
 const doc = (circuits: GeomCircuit[]): GeometryDoc => ({ ...input.doc, circuits });
-const cs = (state: string | null, fresh = true) => ({ entity_id: 'switch.x', name: null, color_token: null, member_ids: [], power_w: null, state, known: state !== null, fresh });
+const cs = (state: string | null, fresh = true): CircuitState => ({ entity_id: 'switch.x', name: null, color_token: null, member_ids: [], power_w: null, state, known: state !== null, fresh, available: state !== null, can_control: false, actions: [] });
 
 function bundle(circuitStates: MapBundle['circuitStates'], levels: MapBundle['levels'] = input.doc.levels): MapBundle {
   return { source: 'api', floorId: 'f0', width: input.width, height: input.height, zones, levels, circuitStates, scaleMPerPx: null, planVersionId: 'v1' } as unknown as MapBundle;
