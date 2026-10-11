@@ -170,7 +170,7 @@ What was run (counts are tests that passed; nothing here is claimed beyond that)
 | Chromium against a dev server, on the final tree | `unit-plan-3d-kiosk` 7, `evidence-pointer-lock` 4, `evidence-wall-plan` 19, `evidence-floor-wall-idle` 4, `unit-settings-index` 5 | 39 passed |
 | Chromium against a dev server | `layout-wall-plan` (drawer section x five skins x light / dark x five widths; the band on four portrait tablets x five skins; the live bare view) | 35 passed, no findings (run before the last merge) |
 | runner, `tsc` | the final tree | ok |
-| runner, `preview`, desktop + tablet + mobile | 31 spec files: this slice's, the wall and kiosk specs, the 3D / walk / route / replay specs, token lint, design tokens, plan skins, settings index, the 2.4.6 layout guard (`unit-three-chunk` caps included) | 510 passed, 204 skipped by project filters, 0 failed (tree after the first merge with `integ/247`) |
+| runner, `preview`, desktop + tablet + mobile | 32 spec files: this slice's, the wall and kiosk specs, the 3D / walk / route / replay specs, token lint, design tokens, plan skins, settings index, the 2.4.6 layout guard (`unit-three-chunk` caps included) | 510 passed, 204 skipped by project filters, 0 failed (tree after the first merge with `integ/247`) |
 | runner, backend | `test_wall.py` (+2: the `plan` block, and its lists agree with the `plan.view` dials) | passed (before the second merge) |
 | runner, linux pixel | `pixel-wall-plan` 11 baselines: generated, compared in the same checkout and from a fresh checkout | 11 / 11 (before the first merge) |
 
