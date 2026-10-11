@@ -19,11 +19,14 @@ async function setup(page: Page) {
     { entity_id: 'switch.relay3', name: 'Relay 3', auto: 'switch', set: null, area: 'אמבטיה' },
   ];
   const calls: { method: string; path: string; body: unknown }[] = [];
+  const included = new Set<string>(); // SEC246 L2: typed valves / water heaters included in "הדלק הכל"
+  const sensitive = (k: Kind | null) => k === 'valve' || k === 'water_heater';
   const listing = () => ({
     kinds: ALL,
     devices: devs.map((d) => ({
       entity_id: d.entity_id, name: d.name, domain: 'switch', device_class: null, area_id: d.area, area_name: d.area, floor_id: 'g', floor_name: 'קרקע', state: 'off', available: true,
       kind: d.set ?? d.auto, auto: d.auto, set: d.set, options: ALL, set_by: d.set ? 'admin' : null, set_at: d.set ? '2026-10-09T08:00:00Z' : null,
+      bulk_on_allowed: sensitive(d.set) && included.has(d.entity_id),
     })),
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -54,7 +57,17 @@ async function setup(page: Page) {
       calls.push({ method, path: p, body });
       const d = devs.find((x) => x.entity_id === decodeURIComponent(one[1]))!;
       d.set = body.kind === 'auto' ? null : body.kind;
+      included.delete(d.entity_id); // a new type starts left out again (as the server)
       return json(route, { entity_id: d.entity_id, changed: true, kind: d.set ?? d.auto, auto: d.auto, set: d.set });
+    }
+    const on = p.match(/^devices\/entities\/(.+)\/bulk-on$/);
+    if (on && method === 'PUT') {
+      const body = req.postDataJSON() as { allowed: boolean };
+      calls.push({ method, path: p, body });
+      const id = decodeURIComponent(on[1]);
+      if (body.allowed) included.add(id);
+      else included.delete(id);
+      return json(route, { entity_id: id, changed: true, bulk_on_allowed: body.allowed, kind: devs.find((x) => x.entity_id === id)!.set });
     }
     return notFound(route);
   });
@@ -103,4 +116,29 @@ test('settings > devices: the device-type list - per-row choice overrides the na
   await expect(card).not.toContainText(/Home Assistant|\bHA\b/);
   // SW_SHOTS=1: the review screenshots (docs/design/evidence/devtype), nothing otherwise
   if (process.env.SW_SHOTS) await card.screenshot({ path: `../docs/design/evidence/devtype/device-types-${test.info().project.name}.png` });
+});
+
+test('settings > devices: a fixed valve / water heater can be included in "הדלק הכל" per device (SEC246 L2)', async ({ page }) => {
+  const { calls } = await setup(page);
+  await page.goto('/?design=a#/system/diagnostics?tab=devices');
+  const card = page.locator('sw-app system-diagnostics devices-type-admin');
+  await expect(card.locator('[data-device-types]')).toBeVisible();
+  const visible = (sel: string) => card.locator(sel).locator('visible=true').first();
+
+  // automatic types (even a name that reads as a tap) never show the switch: only the administrator's fixed type counts
+  await expect(card.locator('input[data-type-bulk-on]')).toHaveCount(0);
+  await visible('select[data-type-select="switch.tap"]').selectOption('valve');
+  await expect.poll(() => calls.length).toBe(1);
+  const box = visible('input[data-type-bulk-on="switch.tap"]');
+  await expect(box).not.toBeChecked();
+  await expect(card.locator('[data-entity="switch.tap"] label.bulk-on').locator('visible=true')).toContainText('לכלול בהדלק הכל');
+  await box.check();
+  await expect.poll(() => calls.length).toBe(2);
+  expect(calls[1]).toEqual({ method: 'PUT', path: 'devices/entities/switch.tap/bulk-on', body: { allowed: true } });
+  await expect(visible('input[data-type-bulk-on="switch.tap"]')).toBeChecked();
+  // a plain type has no such switch
+  await visible('select[data-type-select="switch.relay3"]').selectOption('light');
+  await expect.poll(() => calls.length).toBe(3);
+  await expect(card.locator('input[data-type-bulk-on="switch.relay3"]')).toHaveCount(0);
+  await expect(card).not.toContainText(/Home Assistant|\bHA\b/);
 });
