@@ -30,7 +30,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, Principal, authorize, require, role_permissions, scope_name
-from ..services import door_authority, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
+from ..services import door_authority, door_path_guard, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
 from . import access as acc
 
 router = APIRouter()
@@ -312,33 +312,55 @@ def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Pri
 
 # ---------------------------------------------------------------- the trusted path flag and the status read (D4)
 
+def _settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    return {"trusted_path": trusted_door.mode(conn), "trusted_path_available": trusted_door.trusted_path_available(conn),
+            "editor_block": door_path_guard.editor_mode(conn), "editor_allowed_available": door_path_guard.ALLOWED_SELECTABLE,
+            "lock_jobs": door_path_guard.wiskey_lock_jobs(conn)}
+
+
 @router.get("/doors/settings")
 def door_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
-    return {"trusted_path": trusted_door.mode(conn), "trusted_path_available": trusted_door.trusted_path_available(conn)}
+    return _settings_view(conn)
 
 
 class DoorSettingsBody(BaseModel):
-    trusted_path: Literal["off", "on"]
+    trusted_path: Literal["off", "on"] | None = None
+    editor_block: Literal["blocked", "allowed"] | None = None
     confirmed: Any = None
 
 
 @router.put("/doors/settings")
 def set_door_settings(body: DoorSettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """`doors.trusted_path`: `off` (default; the interim transport) or `on` (the signed door_open only). Switching on is an
-    owner-approved step and is refused while no bridge offering door_open is known (fail closed)."""
+    owner-approved step and is refused while no bridge offering door_open is known (fail closed).
+    `doors.editor_block` (CR-033 D8): `blocked` (default) or `allowed`; `allowed` is refused until new door steps can be stored
+    as Arx door steps (D10a). Either key may be sent alone."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     _confirmed(body.confirmed)
-    before = trusted_door.mode(conn)
-    if body.trusted_path == "on" and not trusted_door.trusted_path_available(conn):
-        audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
-              reason="trusted_path_unavailable", details={"key": trusted_door.FLAG_KEY, "requested": "on"})
-        raise ApiError(409, "trusted_path_unavailable", "נתיב פתיחה מאובטח עדיין אינו זמין בגשר.")
-    if body.trusted_path != before:
-        set_setting(conn, trusted_door.FLAG_KEY, body.trusted_path)
-        audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
-              details={"key": trusted_door.FLAG_KEY, "before": before, "after": body.trusted_path})
-    return {"trusted_path": trusted_door.mode(conn), "trusted_path_available": trusted_door.trusted_path_available(conn)}
+    if body.trusted_path is None and body.editor_block is None:
+        raise ApiError(422, "validation", "לא נשלחה הגדרה לשינוי.")
+    if body.trusted_path is not None:
+        before = trusted_door.mode(conn)
+        if body.trusted_path == "on" and not trusted_door.trusted_path_available(conn):
+            audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
+                  reason="trusted_path_unavailable", details={"key": trusted_door.FLAG_KEY, "requested": "on"})
+            raise ApiError(409, "trusted_path_unavailable", "נתיב פתיחה מאובטח עדיין אינו זמין בגשר.")
+        if body.trusted_path != before:
+            set_setting(conn, trusted_door.FLAG_KEY, body.trusted_path)
+            audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+                  details={"key": trusted_door.FLAG_KEY, "before": before, "after": body.trusted_path})
+    if body.editor_block is not None:
+        before = door_path_guard.editor_mode(conn)
+        if body.editor_block == "allowed" and not door_path_guard.ALLOWED_SELECTABLE:
+            audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
+                  reason="editor_allowed_unavailable", details={"key": door_path_guard.EDITOR_KEY, "requested": "allowed"})
+            raise ApiError(409, "editor_allowed_unavailable", "יתאפשר לאחר השלמת הסבת הפריטים.")
+        if body.editor_block != before:
+            set_setting(conn, door_path_guard.EDITOR_KEY, body.editor_block)
+            audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+                  details={"key": door_path_guard.EDITOR_KEY, "before": before, "after": body.editor_block})
+    return _settings_view(conn)
 
 
 @router.post("/doors/requests/{request_id}/status")

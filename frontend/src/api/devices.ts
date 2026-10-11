@@ -177,6 +177,8 @@ export interface DeviceRow {
   still_url?: string | null;
   armed?: boolean;
   locked?: boolean;
+  /** CR-033 D6: a WisKey door - it cannot be locked from Arx, so "lock all" skips it. */
+  wiskey_door?: boolean;
   // media
   media_title?: string | null;
   source?: string | null;

@@ -9,12 +9,13 @@ import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import {
-  applyDoorSuggestions, clearDoorMapping, getDoorGrants, getDoorMap, placeStation, setDoorMapping, switchDoorRole, switchDoorSubject,
-  type DoorGrantRole, type DoorGrantSubject, type DoorGrants, type DoorMap, type DoorMapLock,
+  applyDoorSuggestions, clearDoorMapping, getDoorGrants, getDoorMap, getDoorSettings, placeStation, setDoorMapping, setEditorBlock, switchDoorRole, switchDoorSubject,
+  type DoorGrantRole, type DoorGrantSubject, type DoorGrants, type DoorMap, type DoorMapLock, type DoorSettings,
 } from '../api/doors';
 import {
   builtinAnswer, filterSubjects, grantQuestion, mappingState, otherGrants, parsePlacement, parseRelay, placementOptions, placementValue, relayOptions, roleQuestion,
 } from './system-doors-logic';
+import { editorBlockHint, editorBlockLabel, editorBlockQuestion, lockJobLine } from './door-path-logic';
 
 const cardCss = css`
   :host {
@@ -196,6 +197,8 @@ export class SwDoorSetup extends LitElement {
   @state() private error = '';
   @state() private busy = false;
   @state() private picks: Record<string, string> = {};
+  @state() private settings: DoorSettings | null = null;
+  @state() private confirmEditor: DoorSettings['editor_block'] | null = null;
 
   static styles = [cardCss];
 
@@ -207,6 +210,7 @@ export class SwDoorSetup extends LitElement {
   private async load() {
     try {
       this.map = await getDoorMap();
+      this.settings = await getDoorSettings();
       this.error = '';
     } catch (err) {
       this.error = describeError(err);
@@ -245,6 +249,28 @@ export class SwDoorSetup extends LitElement {
     </div>`;
   }
 
+  /** CR-033 D8 + D6: the editor block (default blocked) and the scheduled lock jobs that will never work. */
+  private editorCard(st: DoorSettings) {
+    const next: DoorSettings['editor_block'] = st.editor_block === 'blocked' ? 'allowed' : 'blocked';
+    return html`<sw-card heading="פריטים שפותחים דלתות" subheading="עורכי האוטומציות, הסקריפטים, הסצנות והתזמונים · הבדיקה נעשית בשרת בעת שמירה" data-door-editor-card style="margin-block-start: var(--sw-s-3)">
+      <div class="row" data-door-editor-block>
+        <div class="who"><span class="name">${editorBlockLabel(st.editor_block)}</span><span class="sub">${editorBlockHint(st)}</span></div>
+        <sw-button size="sm" data-door-editor-switch ?disabled=${this.busy || (next === 'allowed' && !st.editor_allowed_available)} @click=${() => { this.confirmEditor = next; }}>${next === 'allowed' ? 'לאפשר' : 'לחסום'}</sw-button>
+      </div>
+      <h3>תזמוני נעילה שלא יעבדו</h3>
+      ${st.lock_jobs.length
+        ? st.lock_jobs.map((j) => html`<div class="row" data-door-lock-job=${j.schedule_id}><span class="name">${lockJobLine(j)}</span></div>`)
+        : html`<sw-state-panel state="empty" heading="אין תזמוני נעילה על דלתות אינטרקום"></sw-state-panel>`}
+      ${this.confirmEditor
+        ? html`<sw-dialog open heading="פריטים שפותחים דלתות" data-door-editor-confirm @close=${() => { this.confirmEditor = null; }}>
+            <p>${editorBlockQuestion(this.confirmEditor)}</p>
+            <sw-button slot="footer" variant="ghost" @click=${() => { this.confirmEditor = null; }}>ביטול</sw-button>
+            <sw-button slot="footer" variant="primary" data-door-editor-ok ?disabled=${this.busy} @click=${() => { const v = this.confirmEditor; this.confirmEditor = null; if (v) void this.run(() => setEditorBlock(v)); }}>אישור</sw-button>
+          </sw-dialog>`
+        : nothing}
+    </sw-card>`;
+  }
+
   render() {
     if (this.error && !this.map) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!this.map) return html`<sw-state-panel state="loading"></sw-state-panel>`;
@@ -266,6 +292,7 @@ export class SwDoorSetup extends LitElement {
       <sw-card heading="שיוך דלתות" subheading="לכל מנעול אינטרקום: התחנה והממסר שהוא פותח · שיוך מפורש בלבד, לא לפי שם" data-door-map-card style="margin-block-start: var(--sw-s-3)">
         ${suggested ? html`<div class="tools"><sw-button size="sm" data-door-map-apply ?disabled=${this.busy} @click=${() => this.run(() => applyDoorSuggestions())}>אישור ${suggested} הצעות חד-משמעיות</sw-button></div>` : nothing}
         ${m.locks.length ? m.locks.map((l) => this.lockRow(m, l)) : html`<sw-state-panel state="empty" heading="אין מנעולי אינטרקום"></sw-state-panel>`}
-      </sw-card>`;
+      </sw-card>
+      ${this.settings ? this.editorCard(this.settings) : nothing}`;
   }
 }

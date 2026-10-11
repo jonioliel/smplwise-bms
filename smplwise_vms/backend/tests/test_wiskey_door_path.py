@@ -464,7 +464,8 @@ def signed(world, monkeypatch):
 
 def test_d4_trusted_path_cannot_be_switched_on_in_this_release(world):
     c = world["c"]
-    assert c.get(f"{API}/doors/settings").json() == {"trusted_path": "off", "trusted_path_available": False}
+    got = c.get(f"{API}/doors/settings").json()
+    assert (got["trusted_path"], got["trusted_path_available"]) == ("off", False)
     r = c.put(f"{API}/doors/settings", json={"trusted_path": "on", "confirmed": True})
     assert r.status_code == 409 and r.json()["code"] == "trusted_path_unavailable"
     assert c.put(f"{API}/doors/settings", json={"trusted_path": "off"}).json()["code"] == "confirmation_required"
