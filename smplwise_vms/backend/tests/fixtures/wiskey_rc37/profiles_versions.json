@@ -1,0 +1,30 @@
+{
+ "records": [
+  {
+   "revision": 7,
+   "saved_at": "2026-09-20T10:00:00+00:00",
+   "actor": "ha-user-0001",
+   "action": "profiles/settings_update",
+   "origin": "saved",
+   "field_changes": 1,
+   "group_changes": 2
+  },
+  {
+   "revision": 1,
+   "saved_at": null,
+   "actor": "",
+   "action": "baseline",
+   "origin": "baseline",
+   "field_changes": 0,
+   "group_changes": 0
+  }
+ ],
+ "total": 2,
+ "offset": 0,
+ "next_offset": null,
+ "previous_offset": null,
+ "current_revision": 7,
+ "retained_from_revision": 1,
+ "read_only": true,
+ "history_complete": false
+}

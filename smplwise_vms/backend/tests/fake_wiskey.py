@@ -83,6 +83,24 @@ FIXTURE_FOR = {
     "users/pin_generate": "users_pin_generate.json",
     "users/delete": "users_delete.json",
     "cards/reader_capabilities": "cards_reader_capabilities.json",
+    # CR-036 S4: the stage-1 reads of the adapter (shapes from the S4 review of the rc.37 source; values synthetic)
+    "events/export": "events_export.json",
+    "profiles/settings_get": "profiles_settings_get.json",
+    "profiles/versions": "profiles_versions.json",
+    "schedules/list": "schedules_list.json",
+    "schedules/plan_list": "schedules_plan_list.json",
+    "schedules/operations_list": "schedules_operations_list.json",
+    "conflicts/list": "conflicts_list.json",
+    "fleet/alerts": "fleet_alerts.json",
+    "audit/list": "audit_list.json",
+}
+# CR-036 S4: per-station reads - an unknown station is WisKey's own code for that handler
+PER_STATION = {
+    "health/get": ("health_get.json", "station_not_found"),
+    "health/history": ("health_history.json", "station_not_found"),
+    "stations/technical_program_list": ("stations_technical_program_list.json", "station_unloaded"),
+    "stations/technical_hold_get": ("stations_technical_hold_get.json", "station_unloaded"),
+    "stations/technical_codes_get": ("stations_technical_codes_get.json", "station_unloaded"),
 }
 DRIFT_ENUMS = {"call_state": "teleporting", "sync_state": "quantum", "result": "maybe", "authentication": "retina"}
 CLOSE = object()
@@ -156,6 +174,12 @@ class FakeWiskey:
         self.slow_commands: set[str] | None = None
         self.drift = False
         self.errors_once: dict[str, str] = {}
+        # CR-036 S4: the commands `overview.api.commands` lists - every catalog command for an administrator identity, the
+        # fixture's list for any other; `unlist` removes some (a WisKey that lacks a command: the feature is hidden)
+        self.unlisted: set[str] = set()
+        # CR-036 S4: the identity-matrix data (`use_directory`): several people and events across the three stations
+        self.directory: list[dict[str, Any]] | None = None
+        self.event_rows: list[dict[str, Any]] | None = None
         # what happened
         self.received: list[dict[str, Any]] = []
         self.answered: list[tuple[str, str]] = []  # (command or HA type, "ok" | error code)
@@ -168,6 +192,18 @@ class FakeWiskey:
 
     def set_forbidden(self, commands: bool | Iterable[str] = True) -> "FakeWiskey":
         self.forbidden = commands if isinstance(commands, bool) else set(commands)
+        return self
+
+    def unlist(self, *commands: str) -> "FakeWiskey":
+        self.unlisted |= set(commands)
+        return self
+
+    def use_directory(self) -> "FakeWiskey":
+        """Five people across entry-a / entry-b / entry-c (one with none) and seven events across the stations, newest first:
+        `users/query`, `users/get`, `users/photo_get`, `events/list` and `events/detail` answer from them (paging, the
+        `station` / `rights` / `state` filters, the `before` cursor, the `person` match on name or employee number)."""
+        self.directory = fixture("people_directory.json")
+        self.event_rows = fixture("events_directory.json")
         return self
 
     # ------------------------------------------------------------ the responder
@@ -270,17 +306,42 @@ class FakeWiskey:
         if command == "subscribe":
             return [ok(msg)]
         if command == "users/query":
+            if self.directory is not None:
+                return [ok(msg, self._drifted(self._people_page(msg), rows="records"))]
             page = fixture("users_query.json")
             if self.stale_revision:
                 page["stale"] = True
             return [ok(msg, self._drifted(page, rows="records"))]
         if command == "events/list":
+            if self.event_rows is not None:
+                return self._events_page(msg)
             return [ok(msg, self._drifted(fixture("events_list.json"), rows="records"))]
         if command == "users/get":
-            person = fixture("users_get.json")
-            if msg.get("user_id") != person["id"]:
+            person = self._person(msg.get("user_id"))
+            if person is None:
                 return [fail(msg, "user_not_found")]
             return [ok(msg, self._drifted(person))]
+        if command == "users/photo_get":
+            person = self._person(msg.get("user_id"))
+            if person is None:
+                return [fail(msg, "user_not_found")]
+            return [ok(msg, fixture("users_photo_get.json") if person.get("photo_configured") else {"photo": None})]
+        if command == "events/detail":
+            return self._event_detail(msg)
+        if command == "sync/status":
+            body = self._overview(auth)
+            body["users"] = copy.deepcopy(self.directory) if self.directory is not None else [fixture("users_get.json")]
+            body["user_count"] = len(body["users"])
+            body.update(fixture("sync_arrays.json"))
+            return [ok(msg, body)]
+        if command in PER_STATION:
+            name, missing = PER_STATION[command]
+            station = next((s for s in self.overview["stations"] if s["id"] == msg.get("station_id")), None)
+            if station is None:
+                return [fail(msg, missing)]
+            if command == "stations/technical_hold_get" and msg.get("door") not in [lock["physical_index"] for lock in station.get("integrated_locks") or []]:
+                return [fail(msg, "operation_unsupported")]
+            return [ok(msg, self._drifted(fixture(name)))]
         if command == "tts/start":
             return [ok(msg)]  # the subscription id is the frame id (audio_tts.py); events are pushed by the test if needed
         name = FIXTURE_FOR.get(command)
@@ -292,8 +353,89 @@ class FakeWiskey:
             return [ok(msg, person)]  # WisKey answers the person's public record
         return [ok(msg, {})]
 
+    # ------------------------------------------------------------ CR-036 S4: the directory answers
+    def _person(self, user_id: Any) -> dict[str, Any] | None:
+        if self.directory is not None:
+            found = next((p for p in self.directory if p["id"] == user_id), None)
+            return copy.deepcopy(found) if found is not None else None
+        person = fixture("users_get.json")
+        return person if user_id == person["id"] else None
+
+    def _people_page(self, msg: dict[str, Any]) -> dict[str, Any]:
+        """`users/query` over the directory, as WisKey pages it (its `station` / `rights` / `state` filters, name or employee
+        sort, offset clamped to the last page, a snapshot of the ids and revisions). The text is always empty from Arx."""
+        filters = msg.get("filters") or {}
+        people = [p for p in copy.deepcopy(self.directory or []) if not p.get("archived_at")]
+        everyone = len(people)
+        if filters.get("station"):
+            people = [p for p in people if filters["station"] in p["assignments"]]
+        if filters.get("rights") == "assigned":
+            people = [p for p in people if any(a["enabled"] for a in p["assignments"].values())]
+        elif filters.get("rights") == "unassigned":
+            people = [p for p in people if not p["assignments"]]
+        if filters.get("state") == "active":
+            people = [p for p in people if p["active"]]
+        elif filters.get("state") == "inactive":
+            people = [p for p in people if not p["active"]]
+        sort = filters.get("sort") or "employee"
+        people.sort(key=(lambda p: p["employee_no"]) if sort == "employee" else (lambda p: p["display_name"].casefold()), reverse=sort == "name_desc")
+        offset, limit = int(msg.get("offset") or 0), int(msg.get("limit") or 50)
+        total = len(people)
+        if offset >= total:
+            offset = ((total - 1) // limit) * limit if total else 0
+        end = offset + limit
+        snapshot = "snap-" + "-".join(f"{p['id']}.{p['revision']}" for p in sorted(people, key=lambda p: p["id"]))[:58]
+        return {"records": people[offset:end], "total": total, "total_all": everyone, "profile_facets": {"department": ["Engineering"]},
+                "offset": offset, "limit": limit, "next_offset": end if end < total else None, "previous_offset": max(0, offset - limit) if offset else None,
+                "snapshot": snapshot, "stale": bool(self.stale_revision or (msg.get("snapshot") and msg["snapshot"] != snapshot))}
+
+    def _events_page(self, msg: dict[str, Any]) -> list[Any]:
+        """`events/list` over the directory events, newest first: the `station_id`, `result` and `person` filters (a name or
+        an employee number - W?: WisKey's exact match rule is not verified, a substring here), `limit`, and `before` (the id
+        to continue after; an unknown one is refused, as a pruned cursor)."""
+        filters = msg.get("filters") or {}
+        rows = copy.deepcopy(self.event_rows or [])
+        if filters.get("before") is not None:
+            ids = [r["id"] for r in rows]
+            if filters["before"] not in ids:
+                return [fail(msg, "invalid_fields")]
+            rows = rows[ids.index(filters["before"]) + 1:]
+        if filters.get("station_id"):
+            rows = [r for r in rows if r["station_id"] == filters["station_id"]]
+        if filters.get("result"):
+            rows = [r for r in rows if r["result"] == filters["result"]]
+        if filters.get("person"):
+            needle = str(filters["person"]).casefold()
+            rows = [r for r in rows if needle in (r.get("person_name") or "").casefold() or needle in (r.get("employee_no") or "").casefold()]
+        if filters.get("start"):
+            rows = [r for r in rows if r["timestamp"] >= filters["start"]]
+        if filters.get("end"):
+            rows = [r for r in rows if r["timestamp"] < filters["end"]]
+        limit = int(filters.get("limit") or 100)
+        page = rows[:limit]
+        stations = {sid: {"stream": "connected", "history": "recovered", "reconnects": 0, "telemetry": {"seen": 1}} for sid in {r["station_id"] for r in self.event_rows or []}}
+        body = {"records": page, "next": page[-1]["id"] if len(rows) > limit else None, "retention_days": 30, "capacity": 5000,
+                "membership_basis": None, "storage_failed": False, "stations": stations}
+        return [ok(msg, self._drifted(body, rows="records"))]
+
+    def _event_detail(self, msg: dict[str, Any]) -> list[Any]:
+        detail = fixture("events_detail.json")
+        rows = self.event_rows if self.event_rows is not None else [detail["record"]]
+        row = next((r for r in rows if r["id"] == msg.get("event_id")), None)
+        if row is None:
+            return [fail(msg, "event_not_found")]
+        detail["record"] = {k: v for k, v in copy.deepcopy(row).items() if k not in ("evidence", "portrait", "person_link")}
+        return [ok(msg, detail)]
+
+    def _listed(self, auth: dict[str, Any], fixture_list: list[str]) -> list[str]:
+        base = set(self.commands) if auth.get("is_admin") is True else set(fixture_list)
+        return sorted(base - self.unlisted)
+
     def _overview(self, auth: dict[str, Any]) -> dict[str, Any]:
         raw = copy.deepcopy(self.overview)
+        api = raw.get("api") if isinstance(raw.get("api"), dict) else None
+        if api is not None:
+            api["commands"] = self._listed(auth, api.get("commands") or [])
         for station in raw["stations"]:
             if station["id"] in self.offline:
                 station.update(online=False, call_state="unavailable", sync_state="offline")
@@ -429,7 +571,7 @@ class FakeWiskeySocket:
 def all_error_codes(fake: FakeWiskey) -> set[str]:
     """Every error code this fake can answer (for the test that each one is in the catalog or is Home Assistant's own)."""
     return {"unknown_command", "invalid_format", "request_too_large", "unauthorized", "station_not_found", "station_offline",
-            "revision_conflict", "user_not_found"} | set(fake.errors_once.values())
+            "revision_conflict", "user_not_found", "event_not_found", "station_unloaded", "operation_unsupported", "invalid_fields"} | set(fake.errors_once.values())
 
 
 Responder = Callable[[dict[str, Any]], list[Any]]

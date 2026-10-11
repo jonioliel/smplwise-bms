@@ -6,10 +6,11 @@ never reads or writes `.storage/hikvision_intercom.*`. Command shapes and error 
 docs/integrations/wiskey/WISKEY_SOURCE_EXTRACTION.md (§0.3 envelope, types.ts `Overview`).
 
 This module knows nothing about threads, polling or subscribers (services/intercom_sync.py owns those), so a later
-phase adds commands here without touching the connection machinery. Phase 1a: `overview`; phase 1b adds the read-only
-`events/list`, `users/query` and `users/get` (WISKEY_SOURCE_EXTRACTION.md §X.1; WisKey's own areas `events:view` /
-`users:view`). All of them are READ commands, so no `api_contract` field is sent (§0.4). `users/query` is never given
-a search text (see `users_query`).
+phase adds commands here without touching the connection machinery. Phase 1a: `overview`; phase 1b added the read-only
+`users/get` (the person editor still reads a person here, on the service channel; WISKEY_SOURCE_EXTRACTION.md §X.1). It is
+a READ command, so no `api_contract` field is sent (§0.4). Since CR-036 S4 every other read the screens use (`events/list`,
+`users/query` among them) is services/intercom_adapter.py's, on the read channel - this module carries the service
+channel's commands only (tests/test_wiskey_channels.py pins that).
 
 Physical actions (CR-005 phase 3, owner-approved per capability): `stations/test_unlock` (door release), `media/signal`
 (answer / reject / hang up) and `tts/engines` + `tts/start` (spoken announcement). The first two are panel `COMMANDS`
@@ -97,44 +98,6 @@ async def subscribe(call: Call) -> int:
     frame = await call(command_type("subscribe"))
     _result(frame, "subscribe")
     return int(frame["id"])
-
-
-# the events/list filters SMPLWISE ever sends. WisKey also accepts `current_profile` ({field_id: value}); it is left out
-# on purpose, here and not only in the router: matching events by a profile value (an ID number, say) would let a reader
-# probe values the people endpoints never show (CR-005 phase 1b review, S1).
-EVENT_FILTER_KEYS = ("station_id", "person", "result", "authentication", "door", "start", "end", "limit", "before", "current_group")
-
-
-async def events_list(call: Call, filters: dict[str, Any]) -> dict[str, Any]:
-    """`hikvision_intercom/events/list {filters}` - one page of WisKey's bounded event cache (5 000 records / 30 days),
-    newest first. Filter keys (EventManager.query, all optional): `station_id`, `person`, `result`, `authentication`,
-    `door` (1|2), `start` / `end` (aware ISO), `limit` (1-200, WisKey's default 100), `before` (the previous page's
-    `next` cursor), `current_group`. Only EVENT_FILTER_KEYS are ever sent - any other key a caller passes (including
-    WisKey's `current_profile`) is dropped here - and None values are dropped because WisKey type-checks every key that
-    is present. Returns `{records, next, retention_days, capacity, membership_basis, storage_failed, stations}`."""
-    body = {k: filters[k] for k in EVENT_FILTER_KEYS if filters.get(k) is not None}
-    result = _result(await call(command_type("events/list"), filters=body), "events/list")
-    if not isinstance(result, dict):
-        raise IntercomError("invalid_response", "events/list")
-    return result
-
-
-async def users_query(call: Call, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
-    """`hikvision_intercom/users/query` - one page of WisKey's people directory (capability `user_directory_query`,
-    WisKey 1.6.0+). The command schema requires five fields: `query`, `filters` (keys within `group`, `profile`,
-    `station`, `rights`, `state`, `credential`, `sort`), `offset` (0-10 000 000, clamped to the last page), `limit`
-    (1-200) and `snapshot` (the previous page's value, "" for none). Returns `{records: [Person], total, total_all,
-    offset, limit, next_offset, previous_offset, snapshot, stale}`; the records are WisKey's full public `Person`, PII
-    included - the caller projects them.
-
-    `query` is ALWAYS sent empty, by construction (there is no parameter for it): WisKey matches its search text against
-    phone digits and card last-4 as well as name and employee number, with no way to scope the fields, so forwarding a
-    caller's text would let them test "does anyone have phone / card X" through the match count (owner decision D1,
-    CR-005 phase 1b review). Text search is done by SMPLWISE over its own projection instead (intercom_sync)."""
-    result = _result(await call(command_type("users/query"), query="", filters=filters, offset=offset, limit=limit, snapshot=snapshot or ""), "users/query")
-    if not isinstance(result, dict):
-        raise IntercomError("invalid_response", "users/query")
-    return result
 
 
 async def users_get(call: Call, user_id: str) -> dict[str, Any]:

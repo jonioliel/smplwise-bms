@@ -19,3 +19,17 @@ constants in `tests/test_intercom.py` (the generator lived in the S0 session's s
 Not verified against a real WisKey (W? in CR-036): nested shapes of `users/query`, `events/list`, the capture session, the
 separate handlers' area requirements, and every command the stage-1 adapter (S4) will add. Those need WisKey's ask W2
 (full request and response schemas) before a fixture claims parity.
+
+## CR-036 slice S4 fixtures
+
+`people_directory.json`, `events_directory.json` (the identity matrix: five people across `entry-a` / `entry-b` / `entry-c`,
+one with no station; seven events across the stations), `users_photo_get.json` (a generated 16x16 grey JPEG in WisKey's
+data-URL form), `events_detail.json`, `events_export.json` (WisKey's CSV, with a formula-looking cell), `profiles_*.json`,
+`schedules_*.json`, `stations_technical_*.json`, `health_*.json`, `sync_arrays.json`, `conflicts_list.json`,
+`fleet_alerts.json`, `audit_list.json`. Values synthetic (names, numbers, the actor ids `ha-user-000N`, the device firmware
+labels). Shapes: the S4 review of the WisKey rc.37 source kept in `private-evidence/wiskey-native-rc37` (read only, never
+run; the handler file and line of each shape are listed in `docs/changes/CR-036-S3-S4-INTERFACE-NOTES.md`), not the static
+catalog (which has no response shapes). They deliberately carry what Arx must drop (card masks, the PIN flag, people
+counts, the `user_ref` pseudonym of `health/get`, the privileged-password presence of `technical_codes_get`, template
+profile values, actor ids) so the tests prove it never reaches a response. The generator was a scratchpad script of the S4
+session (not part of the product); edit the JSON by hand. Still W? until W2: every nested shape here.

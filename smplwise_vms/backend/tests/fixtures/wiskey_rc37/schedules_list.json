@@ -1,0 +1,40 @@
+[
+ {
+  "id": "sch-1",
+  "revision": 2,
+  "updated_at": "2026-09-10T00:00:00+00:00",
+  "name": "Office hours",
+  "weekly": {
+   "Monday": [
+    {
+     "start": "07:00",
+     "end": "19:00"
+    }
+   ],
+   "Tuesday": [
+    {
+     "start": "07:00",
+     "end": "19:00"
+    }
+   ],
+   "Wednesday": [],
+   "Thursday": [],
+   "Friday": [],
+   "Saturday": [],
+   "Sunday": [
+    {
+     "start": "07:00",
+     "end": "24:00"
+    }
+   ]
+  },
+  "holidays": [
+   {
+    "name": "Holiday",
+    "start": "2026-10-02",
+    "end": "2026-10-03",
+    "periods": []
+   }
+  ]
+ }
+]

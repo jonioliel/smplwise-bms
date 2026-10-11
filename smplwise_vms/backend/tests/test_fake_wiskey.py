@@ -83,6 +83,35 @@ def test_every_typed_client_function_gets_an_answer_from_the_admin_identity():
         assert fake.answered[-1] == (command, "ok"), (command, fake.answered[-1])
 
 
+def test_every_adapter_read_gets_an_answer_from_the_admin_identity():
+    """CR-036 S4: the adapter's typed reads, one by one, against the fake's catalog checks and its S4 fixtures."""
+    from test_wiskey_contract import ADAPTER_CALLS
+
+    fake = FakeWiskey().use_directory()
+    fake.overview["stations"].append({**fake.overview["stations"][0], "id": "s1"})  # the contract test's station id
+
+    async def call(msg_type: str, **kw: Any) -> dict[str, Any]:
+        return fake.respond({"id": 1, "type": msg_type, **kw})[0]
+
+    for command, invoke in ADAPTER_CALLS.items():
+        try:
+            asyncio.run(invoke(call))
+        except intercom_client.IntercomError as exc:
+            if (command, exc.code) not in (("users/get", "user_not_found"), ("users/photo_get", "user_not_found"), ("events/detail", "event_not_found")):
+                pytest.fail(f"{command}: refused with {exc}")
+        assert fake.answered[-1][0] == command and fake.answered[-1][1] in ("ok", "user_not_found", "event_not_found"), (command, fake.answered[-1])
+
+
+def test_the_admin_overview_lists_every_catalog_command_and_unlist_removes_one():
+    fake = FakeWiskey()
+    commands = fake.respond(frame("overview"))[0]["result"]["api"]["commands"]
+    assert set(commands) == set(fake.commands)
+    fake.unlist("users/photo_get")
+    assert "users/photo_get" not in fake.respond(frame("overview"))[0]["result"]["api"]["commands"]
+    bg = FakeWiskey("background").respond(frame("overview"))[0]["result"]["api"]["commands"]
+    assert set(bg) < set(fake.commands), "a restricted identity keeps the fixture's shorter list"
+
+
 def test_authorization_follows_the_catalog_area_grants():
     commands = FakeWiskey().commands
     bg = FakeWiskey("background")
@@ -222,6 +251,7 @@ def test_schema_drift_never_reaches_the_entry_center_or_the_background_projectio
     text = json.dumps(body, ensure_ascii=False)
     assert "x_unknown" not in text and "teleporting" not in text and not any(m in text for m in PERSON_MARKERS)
     assert {st["call_state"] for st in body["overview"]["stations"]} == {"unknown"}, "an unknown enum value is unknown"
+    assert {st["sync_state"] for st in body["overview"]["stations"]} == {"unknown"} and "quantum" not in text, "the sync state too (CR-036 S4 regression)"
     assert all(st["last_seen"] is None for st in body["overview"]["stations"]), "a dropped field is absent, not invented"
     bg = c.get("/api/v1/intercom/background", headers=as_user("vera")).json()
     wiskey_background.assert_closed(bg["projection"])

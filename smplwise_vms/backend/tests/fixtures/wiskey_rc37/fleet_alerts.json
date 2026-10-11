@@ -1,0 +1,71 @@
+{
+ "revision": 4,
+ "generated_at": "2026-09-27T09:00:00+00:00",
+ "items": [
+  {
+   "id": "entry-b/offline",
+   "station_id": "entry-b",
+   "station_name": "Side door",
+   "kind": "offline",
+   "severity": "error",
+   "observed_since": "2026-09-27T06:00:00+00:00",
+   "observed_seconds": 10800,
+   "online": false,
+   "sync_state": "offline",
+   "suppressed": false,
+   "suppression": null
+  },
+  {
+   "id": "entry-c/sync_error",
+   "station_id": "entry-c",
+   "station_name": "Loading dock",
+   "kind": "sync_error",
+   "severity": "warning",
+   "observed_since": null,
+   "observed_seconds": null,
+   "online": true,
+   "sync_state": "error",
+   "suppressed": true,
+   "suppression": {
+    "station_id": "entry-c",
+    "kind": "sync_error",
+    "reason": "investigating",
+    "until": "2026-09-28T00:00:00+00:00",
+    "created_at": "2026-09-27T08:00:00+00:00",
+    "actor": "ha-user-0001"
+   }
+  },
+  {
+   "id": "entry-a/clock_drift",
+   "station_id": "entry-a",
+   "station_name": "Main gate",
+   "kind": "clock_drift",
+   "severity": "warning",
+   "observed_since": null,
+   "observed_seconds": null,
+   "online": true,
+   "sync_state": "synced",
+   "suppressed": false,
+   "suppression": null
+  }
+ ],
+ "total": 3,
+ "offset": 0,
+ "next_offset": null,
+ "active_count": 2,
+ "suppressed_count": 1,
+ "suppressions": [],
+ "thresholds_seconds": {
+  "offline": 600,
+  "sync_stalled": 900,
+  "event_gap": 600
+ },
+ "station_thresholds_seconds": {
+  "entry-c": {
+   "offline": 300,
+   "sync_stalled": 900,
+   "event_gap": 600
+  }
+ },
+ "evidence_scope": "observed_health_not_physical_acceptance"
+}

@@ -1,0 +1,41 @@
+{
+ "draft": {
+  "station_id": "entry-a",
+  "door": 1,
+  "revision": 1,
+  "policy": {
+   "timezone": "Asia/Jerusalem",
+   "schedule": {
+    "name": "Morning",
+    "weekly": {
+     "Monday": [
+      {
+       "start": "07:00",
+       "end": "19:00"
+      }
+     ],
+     "Tuesday": [
+      {
+       "start": "07:00",
+       "end": "19:00"
+      }
+     ],
+     "Wednesday": [],
+     "Thursday": [],
+     "Friday": [],
+     "Saturday": [],
+     "Sunday": [
+      {
+       "start": "07:00",
+       "end": "24:00"
+      }
+     ]
+    },
+    "holidays": []
+   }
+  }
+ },
+ "active": false,
+ "blocker": "schedule_writes_unverified",
+ "timezone": "Asia/Jerusalem"
+}

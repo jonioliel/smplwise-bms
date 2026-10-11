@@ -1,0 +1,40 @@
+{
+ "status": {
+  "states": {
+   "engineeringConfigured": true,
+   "setupAlarmConfigured": false,
+   "householderUnlockConfigured": true,
+   "antiHijackingConfigured": true,
+   "sendCardConfigured": null,
+   "public1Configured": true,
+   "public2Configured": false,
+   "public3Configured": null,
+   "public4Configured": false,
+   "public5Configured": false,
+   "public6Configured": false,
+   "public7Configured": false,
+   "public8Configured": false,
+   "public9Configured": false,
+   "public10Configured": false,
+   "public11Configured": false,
+   "public12Configured": false,
+   "public13Configured": false,
+   "public14Configured": false,
+   "public15Configured": false,
+   "public16Configured": false
+  },
+  "public_pin_state": "configured",
+  "checked_at": "2026-09-27T07:10:00+00:00"
+ },
+ "capabilities": {
+  "advertised": true,
+  "slots": [
+   1,
+   2,
+   3
+  ],
+  "min": 4,
+  "max": 8,
+  "locks": true
+ }
+}

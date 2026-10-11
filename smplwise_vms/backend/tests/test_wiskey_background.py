@@ -263,7 +263,9 @@ def test_the_activity_log_projection_still_carries_the_event_fields():
     the only thing that lost the names."""
     event = {"id": "e1", "station_id": "entry-a", "timestamp": "2026-09-27T07:59:00+03:00", "received_at": "2026-09-27T05:00:00Z", "time_source": "device",
              "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1}
-    page = intercom_sync.project_event_page({"records": [event], "next": None})
+    from smplwise.services import intercom_adapter  # CR-036 S4: the events read moved to the adapter
+
+    page = intercom_adapter.project_event_page({"records": [event], "next": None})
     assert page["records"][0]["person_name"] == "Dana" and page["records"][0]["employee_no"] == "1001"
 
 

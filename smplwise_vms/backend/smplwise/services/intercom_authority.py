@@ -395,6 +395,115 @@ def view_event(auth: Authority, event: dict[str, Any], *, detail: bool = False) 
     return out
 
 
+def view_groups(auth: Authority, groups: dict[str, Any]) -> dict[str, Any]:
+    """The groups as this principal may see them (WisKey's own restricted projection, SCOPES): unrestricted for people - all;
+    otherwise only groups whose every station is visible (`access.people.read`), and never a group that grants no station.
+    The custom field definitions go to a holder of `access.people.sensitive` (they label profile values) or of the Settings
+    status (`access.admin.read`, unrestricted)."""
+    everything = auth.unrestricted(PEOPLE_READ)
+    out = []
+    for g in groups.get("groups") or []:
+        ids = g.get("station_ids")
+        if everything:
+            out.append(_copy(g))
+        elif isinstance(ids, list) and ids and all(auth.station(PEOPLE_READ, s) for s in ids):
+            out.append(_copy(g))
+    fields = _copy(groups.get("fields")) if (auth.anywhere(PEOPLE_SENSITIVE) or auth.unrestricted(ADMIN_READ)) else None
+    return {"revision": groups.get("revision"), "photo_enabled": groups.get("photo_enabled"), "groups": out, "fields": fields}
+
+
+def status_station(auth: Authority, station_id: Any) -> bool:
+    """A station on the Settings status page: the entry center's `access.read` AND `access.admin.read` on it."""
+    return auth.station(READ, station_id) and auth.station(ADMIN_READ, station_id)
+
+
+SYNC_COUNT_KEYS = ("pending_users", "managed_users", "revocations_pending", "card_removals_pending", "pin_removals_pending", "deletions_pending")
+
+
+def view_sync_status(auth: Authority, status: dict[str, Any]) -> dict[str, Any]:
+    """Per-station sync counts for the stations the principal sees on the status page, and totals over exactly those
+    (count-leak guard: never WisKey's own totals). Error texts under the sync-error rule."""
+    rows = []
+    for s in status.get("stations") or []:
+        sid = s.get("station_id")
+        if not status_station(auth, sid):
+            continue
+        row = {k: _copy(s.get(k)) for k in ("station_id", "name", "sync_state", "reconciled_at", "operations", *SYNC_COUNT_KEYS)}
+        row["last_error"] = s.get("last_error") if auth.sync_errors(sid) else None
+        rows.append(row)
+    totals: dict[str, Any] = {k: sum(r[k] or 0 for r in rows) for k in SYNC_COUNT_KEYS}
+    totals["operations"] = {state: sum((r["operations"] or {}).get(state, 0) for r in rows) for state in ("pending", "failed", "verified", "settled")}
+    return {"stations": rows, "totals": totals}
+
+
+def view_alerts(auth: Authority, alerts: dict[str, Any], *, offset: int, limit: int) -> dict[str, Any]:
+    """Fleet alerts of the stations the principal sees on the status page, paged and counted over exactly those."""
+    items = [_copy(i) for i in alerts.get("items") or [] if status_station(auth, i.get("station_id"))]
+    page = items[offset:offset + limit]
+    per_station = alerts.get("station_thresholds_seconds") or {}
+    return {
+        "items": page,
+        "total": len(items),
+        "active_count": sum(1 for i in items if not i.get("suppressed")),
+        "suppressed_count": sum(1 for i in items if i.get("suppressed")),
+        "offset": offset,
+        "limit": limit,
+        "next_offset": offset + limit if offset + limit < len(items) else None,
+        "complete": bool(alerts.get("fetched_all")),
+        "thresholds_seconds": _copy(alerts.get("thresholds_seconds")),
+        "station_thresholds_seconds": {sid: _copy(v) for sid, v in per_station.items() if status_station(auth, sid)},
+        "generated_at": alerts.get("generated_at"),
+    }
+
+
+def _person_block(auth: Authority, person: Any, station_ids: list[str]) -> dict[str, Any] | None:
+    """The person a status / audit row concerns, as this principal may see them on those stations: None when not visible."""
+    if not isinstance(person, dict):
+        return None
+    level = auth.person_level(station_ids)
+    if level == NONE:
+        return None
+    return {"id": person.get("id"), "display_name": person.get("display_name"), "employee_no": person.get("employee_no") if auth.employee_no_for(level) else None}
+
+
+def view_conflicts(auth: Authority, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sync conflicts of the stations on the status page; the person on each row as the people rules allow on that station."""
+    out = []
+    for r in rows:
+        sid = r.get("station_id")
+        if not status_station(auth, sid):
+            continue
+        out.append({
+            "kind": r.get("kind"), "station_id": sid, "sync_state": r.get("sync_state"),
+            "last_error": r.get("last_error") if auth.sync_errors(sid) else None,
+            "person": _person_block(auth, r.get("person"), [sid]),
+        })
+    return out
+
+
+def view_audit_page(auth: Authority, page: dict[str, Any]) -> dict[str, Any]:
+    """The intercom's own action log (Settings; the route requires `access.admin.read` unrestricted): each record's person as
+    the people rules allow on the stations it touched; the stations listed only when the principal sees them."""
+    records = []
+    for r in page.get("records") or []:
+        stations = [s for s in r.get("stations") or [] if isinstance(s, str)]
+        records.append({
+            **{k: _copy(r.get(k)) for k in ("sequence", "time", "action", "actor_name", "fields", "revision_before", "revision_after", "reason_code")},
+            "stations": [s for s in stations if auth.station(READ, s)],
+            "person": _person_block(auth, r.get("person"), stations),
+        })
+    return {"records": records, "next_cursor": page.get("next_cursor"), "total": page.get("total"), "retention_days": page.get("retention_days")}
+
+
+def require_unrestricted(auth: Authority, permission: str, request_id: str | None = None) -> None:
+    """For WisKey's installation-wide views (its audit, conflicts, schedule library, policy versions - WisKey itself serves
+    them to unrestricted operators only): a principal restricted to some stations is refused with an audited 403."""
+    if auth.unrestricted(permission):
+        return
+    audit(auth.conn, actor=auth.principal, action=permission, decision="denied", resource_type="installation", resource_id="*", reason="station_scoped", request_id=request_id)
+    raise forbidden(permission=permission, target_type="installation", target_id="*", reason="station_scoped")
+
+
 def _copy(value: Any) -> Any:
     """A detached copy of a JSON value (views never hand out an object the adapter's cache still holds)."""
     if isinstance(value, dict):

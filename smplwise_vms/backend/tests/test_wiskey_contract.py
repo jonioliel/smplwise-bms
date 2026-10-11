@@ -159,8 +159,6 @@ class Recorder:
 CLIENT_CALLS: dict[str, Any] = {
     "overview": lambda c: intercom_client.overview(c),
     "authorization/session": lambda c: intercom_client.authorization_session(c),
-    "events/list": lambda c: intercom_client.events_list(c, {"station_id": "s1", "limit": 20, "start": "2026-09-27T08:00:00Z"}),
-    "users/query": lambda c: intercom_client.users_query(c, {"sort": "name"}, 0, 50, ""),
     "users/get": lambda c: intercom_client.users_get(c, "u1"),
     "stations/test_unlock": lambda c: intercom_client.release_door(c, "s1", 1),
     "media/signal": lambda c: intercom_client.media_signal(c, "s1", "answer"),
@@ -247,3 +245,68 @@ def test_the_commands_arx_uses_are_in_the_pinned_set_and_the_read_ones_are_not_p
         assert COMMANDS[command]["permission"]["read_command_for_security_guard_and_api_contract"] is False
     for command in ("overview", "events/list", "users/query", "users/get"):
         assert COMMANDS[command]["permission"]["read_command_for_security_guard_and_api_contract"] is True
+
+
+# ---------------------------------------------------------------- the adapter's reads against the catalog (CR-036 S4)
+
+from smplwise.services import intercom_adapter as adapter  # noqa: E402
+
+# one representative call of every typed read of the adapter; the frame it sends is what the catalog judges
+ADAPTER_CALLS: dict[str, Any] = {
+    "users/query": lambda c: adapter.users_query(c, {"sort": "name", "station": "s1", "credential": "pin", "profile": {"x": "y"}}, 0, 50, ""),
+    "users/get": lambda c: adapter.users_get(c, "u1"),
+    "users/photo_get": lambda c: adapter.users_photo_get(c, "u1"),
+    "events/list": lambda c: adapter.events_list(c, {"station_id": "s1", "limit": 20, "start": "2026-09-27T08:00:00Z", "current_profile": {"id": "1"}, "surprise": 1}),
+    "events/detail": lambda c: adapter.events_detail(c, "ev-1"),
+    "events/export": lambda c: adapter.events_export(c, {"station_id": "s1", "limit": 5, "before": "ev-1", "current_profile": {"id": "1"}}),
+    "profiles/settings_get": lambda c: adapter.profiles_settings(c),
+    "profiles/versions": lambda c: adapter.profiles_versions(c, 0, 20),
+    "schedules/list": lambda c: adapter.schedules_list(c),
+    "schedules/plan_list": lambda c: adapter.schedules_plans(c),
+    "schedules/operations_list": lambda c: adapter.schedules_operations(c),
+    "health/get": lambda c: adapter.health_get(c, "s1"),
+    "health/history": lambda c: adapter.health_history(c, "s1"),
+    "sync/status": lambda c: adapter.sync_status(c),
+    "conflicts/list": lambda c: adapter.conflicts_list(c),
+    "fleet/alerts": lambda c: adapter.fleet_alerts(c, "", False),
+    "audit/list": lambda c: adapter.audit_list(c, {"station_id": "s1", "limit": 50, "actor": "x"}),
+    "stations/technical_program_list": lambda c: adapter.program_list(c, "s1"),
+    "stations/technical_hold_get": lambda c: adapter.hold_get(c, "s1", 1),
+    "stations/technical_codes_get": lambda c: adapter.codes_get(c, "s1"),
+}
+
+
+def adapter_frame(command: str) -> dict[str, Any]:
+    recorder = Recorder()
+    asyncio.run(ADAPTER_CALLS[command](recorder))
+    assert len(recorder.frames) == 1, "one typed read, one frame"
+    return recorder.frames[0]
+
+
+def test_every_adapter_command_has_a_representative_call():
+    assert set(ADAPTER_CALLS) == set(adapter.CHANNEL_OF)
+
+
+@pytest.mark.parametrize("command", sorted(adapter.CHANNEL_OF))
+def test_the_frame_the_adapter_sends_fits_the_pinned_request_schema(command: str):
+    entry = COMMANDS[command]
+    schema = entry["request"]
+    frame = adapter_frame(command)
+    assert frame["type"] == PREFIX + command
+    extra = set(frame) - set(schema["properties"])
+    assert not extra, f"keys the schema does not list: {sorted(extra)}"
+    assert not set(schema["required"]) - set(frame), "a required key is missing"
+    for key, value in frame.items():
+        assert conforms(value, schema["properties"][key]), f"{key}={value!r}"
+    read = entry["permission"]["read_command_for_security_guard_and_api_contract"]
+    assert (frame.get("api_contract") == intercom_client.API_CONTRACT) == (not read), "api_contract exactly on the non-READ (technical) reads"
+    assert read == (adapter.CHANNEL_OF[command] == "read"), "READ commands ride the read channel, the others the technical one"
+
+
+def test_the_adapter_never_hands_wiskey_an_oracle_filter():
+    """The filters WisKey would match on fields the caller may not see are dropped in the typed reads themselves."""
+    assert adapter_frame("users/query")["query"] == "" and set(adapter_frame("users/query")["filters"]) == {"sort", "station"}
+    assert "current_profile" not in adapter_frame("events/list")["filters"] and "surprise" not in adapter_frame("events/list")["filters"]
+    assert set(adapter_frame("events/export")["filters"]) == {"station_id"}, "no limit / before / current_profile on the export"
+    assert "actor" not in adapter_frame("audit/list")["filters"]
+    assert adapter_frame("fleet/alerts") == {"id": 1, "type": PREFIX + "fleet/alerts", "offset": 0, "limit": 200, "station_id": "", "kind": "", "include_suppressed": False}

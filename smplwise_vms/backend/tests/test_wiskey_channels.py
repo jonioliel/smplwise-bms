@@ -61,12 +61,38 @@ def test_every_command_the_client_can_send_is_on_the_service_channel():
     assert literals and literals <= ch.SERVICE, sorted(literals - ch.SERVICE)
 
 
-def test_the_read_channel_is_not_in_use_yet():
-    """Slice S4 builds the read channel's session; until then nothing may open one (the list only pins the rule)."""
+def test_the_adapter_channels_are_exactly_what_the_adapter_sends():
+    """CR-036 S4: the read and technical lists hold exactly the adapter's commands (CHANNEL_OF), nothing unused, nothing
+    missing; the adapter's source names no command outside CHANNEL_OF; and only the service session builds their guards."""
+    from smplwise.services import intercom_adapter
+
+    assert ch.READ == {c for c, channel in intercom_adapter.CHANNEL_OF.items() if channel == "read"}
+    assert ch.TECHNICAL == {c for c, channel in intercom_adapter.CHANNEL_OF.items() if channel == "technical"}
+    source = Path(intercom_adapter.__file__).read_text(encoding="utf-8")
+    literals = set(re.findall(r'_ask\(call, "([a-z_/]+)"', source))
+    assert literals == set(intercom_adapter.CHANNEL_OF), sorted(literals ^ set(intercom_adapter.CHANNEL_OF))
+    assert ch.ADAPTER_CHANNELS == ("read", "technical") and ch.describe()["read"]["in_use"] is True
     backend = Path(intercom_client.__file__).resolve().parents[1]
-    users = [p.name for p in backend.rglob("*.py") if re.search(r'guard\([^)]*"read"\)', p.read_text(encoding="utf-8"))]
-    assert users == []
-    assert ch.describe()["read"]["in_use"] is False
+    builders = [p.name for p in backend.rglob("*.py") if "ADAPTER_CHANNELS" in p.read_text(encoding="utf-8") and p.name != "wiskey_channels.py"]
+    assert builders == ["intercom_sync.py"]
+
+
+def test_the_technical_channel_holds_only_reviewed_view_level_reads():
+    """The four non-READ reads: in the catalog, NOT READ (so `api_contract` and WisKey's re-auth guard apply), granted at
+    VIEW level only (a manage-level command - e.g. stations/technical_relays - is never on it), none a declared write."""
+    assert ch.TECHNICAL == {"stations/technical_program_list", "stations/technical_hold_get", "stations/technical_codes_get", "health/history"}
+    for command in ch.TECHNICAL:
+        assert command in COMMANDS and not is_read(command), command
+        assert all(level == "view" for _area, level in COMMANDS[command]["permission"]["alternative_area_grants"]), command
+        assert command not in ch.SERVICE_WRITES and command not in ch.READ
+    assert "stations/technical_relays" not in set().union(*ch.ALLOWLISTS.values())
+    assert ch.HA_FRAMES["read"] == frozenset() and ch.HA_FRAMES["technical"] == frozenset()
+
+
+def test_the_phase1b_reads_left_the_service_channel():
+    """S4 moved `events/list` and `users/query` to the read channel; `users/get` stays for the person editor (a write flow)."""
+    assert "events/list" not in ch.SERVICE and "users/query" not in ch.SERVICE
+    assert "users/get" in ch.SERVICE_READS and "users/get" in ch.READ
 
 
 # ---------------------------------------------------------------- the guard
@@ -97,6 +123,15 @@ def test_the_background_guard_refuses_before_writing_a_frame(command: str):
     assert isinstance(exc, intercom_client.IntercomError) and exc.code == ch.NOT_ALLOWED and rec.frames == []
 
 
+@pytest.mark.parametrize("channel", ["read", "technical"])
+def test_the_adapter_guards_refuse_every_write(channel: str):
+    """No write - the service channel's writes, nor any command the catalog does not list as a read of this channel - can
+    leave through the adapter's guards, even if a programming error asked for it."""
+    for command in sorted(ch.SERVICE_WRITES | {"stations/technical_relays", "stations/technical_codes_write", "profiles/settings_apply", "overview"}):
+        rec, exc = send(channel, ch.PREFIX + command, station_id="entry-a")
+        assert isinstance(exc, intercom_client.IntercomError) and exc.code == ch.NOT_ALLOWED and rec.frames == [], (channel, command)
+
+
 def test_the_guards_let_their_own_lists_through_and_nothing_else():
     for channel, commands in ch.ALLOWLISTS.items():
         for command in commands:
@@ -121,6 +156,7 @@ def test_both_live_sessions_carry_their_guard(wiskey):
     wbf.FEED.start(s2)
     wait_for(lambda: wbf.FEED.status["state"] == "ready" and intercom_sync.STATE.state == "ready")
     assert getattr(intercom_sync.SYNC._call, "channel", None) == "service"
+    assert {name: getattr(c, "channel", None) for name, c in intercom_sync.SYNC._channel_calls.items()} == {"read": "read", "technical": "technical"}
     assert getattr(wbf.FEED._call, "channel", None) == "background"
     # a write forced onto the background session is refused at the guard, and the fake never sees it
     code, _ = wbf.FEED.command("authorization/session", lambda call: intercom_client.release_door(call, "entry-a", 1))

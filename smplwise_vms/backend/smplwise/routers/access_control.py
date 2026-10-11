@@ -49,7 +49,8 @@ from ..db import Database, commit_now, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import go2rtc as g2
-from ..services import intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
+from ..services import intercom_adapter, intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
+from ..services import intercom_authority as ia
 from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
@@ -81,6 +82,22 @@ def _reader_ro(principal: Principal = Depends(current_principal_ro), conn: sqlit
     request; a refusal's audit row is still written (rbac.require -> audit's write-aside)."""
     require(conn, principal, READ, INSTALLATION)
     return principal
+
+
+def _gate(permission: str):
+    """CR-036 S3: a station-scoped read's permission somewhere a station can be (intercom_authority.require_anywhere), as a
+    dependency on the request's READ connection - checked before any parameter is validated, refused with an audited 403;
+    the rows are then filtered per station by the same Authority."""
+
+    def dep(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> ia.Authority:
+        return ia.require_anywhere(conn, principal, permission, getattr(request.state, "correlation_id", None))
+
+    return dep
+
+
+def _visible_stations(auth: ia.Authority, stations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """CR-036 S3: only the stations on the caller's chain (`access.read`) - omitted, never greyed."""
+    return [s for s in stations if auth.station(READ, s.get("id"))]
 
 
 def _credentials_admin(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -116,18 +133,24 @@ def overview(request: Request, principal: Principal = Depends(current_principal)
     require(conn, principal, READ, INSTALLATION)
     settings = settings_of(request)
     body = intercom_sync.SYNC.snapshot(settings)
+    if body["overview"] is not None:  # CR-036 S3: a station denied on its chain is omitted (CR-033 station scope)
+        body["overview"] = {**body["overview"], "stations": _visible_stations(ia.Authority(conn, principal), body["overview"]["stations"])}
     body["camera_access"] = wiskey_camera.camera_access(conn, settings, body["overview"])
     return body
 
 
 @router.get("/intercom/background")
-def background(request: Request, principal: Principal = Depends(_reader)) -> dict[str, Any]:
+def background(request: Request, principal: Principal = Depends(_reader), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The background (read) channel (B0, D-006): the closed station-health projection `{schema_version, generated_at,
     permission_revision, stations: [{id, name, online, last_seen}]}` and nothing else - no last access, no person, no
     counts, no operational detail. `identity` says whose session produced it: `background` (the dedicated account, the
     channel split from the service session) or `service` (no background account configured yet: the same four fields cut
-    down from the service feed's copy, `split: false`). `projection` is null whenever there is nothing honest to show."""
-    return wiskey_background_feed.channel_view(settings_of(request))
+    down from the service feed's copy, `split: false`). `projection` is null whenever there is nothing honest to show.
+    CR-036 S3: only the stations on the caller's chain."""
+    view = wiskey_background_feed.channel_view(settings_of(request))
+    if view.get("projection") is not None:
+        view["projection"] = {**view["projection"], "stations": _visible_stations(ia.Authority(conn, principal), view["projection"]["stations"])}
+    return view
 
 
 @router.get("/intercom/diagnostics")
@@ -150,7 +173,7 @@ def diagnostics(request: Request, principal: Principal = Depends(_credentials_ad
 @router.get("/intercom/events")
 def events(
     request: Request,
-    principal: Principal = Depends(_reader),
+    auth: ia.Authority = Depends(_gate(ia.EVENTS_READ)),
     station_id: str | None = Query(None, min_length=1, max_length=128),
     person: str | None = Query(None, min_length=1, max_length=128),
     result: Literal["granted", "denied", "unknown"] | None = Query(None),
@@ -168,13 +191,19 @@ def events(
     `current_profile` filter is deliberately not offered: matching events by a profile value (an ID number, say) would
     let a reader probe values the people endpoints never show. Reply: `{state, configured, last_error, fetched_at,
     events, sync}`, `events` null unless `state` is `ready`. WisKey has no event push: refetch on the
-    `intercom_refresh` notice, like WisKey's own panel."""
+    `intercom_refresh` notice, like WisKey's own panel.
+
+    CR-036 S3/S4: `access.events.read` (was `access.read`), the rows of the caller's stations only (the projection
+    filter; `next` is then an opaque cursor), `current_group` needs `access.people.read`; read by the adapter
+    (services/intercom_adapter.py) on the read channel. The native screens' own endpoint is GET /access-control/events."""
     start, end = _instant("start", start), _instant("end", end)
     if start and end and datetime.fromisoformat(start.replace("Z", "+00:00")) >= datetime.fromisoformat(end.replace("Z", "+00:00")):
         raise ApiError(422, "validation", "start חייב להיות לפני end.")
-    filters = {"station_id": station_id, "person": person, "result": result, "authentication": authentication, "door": door, "start": start, "end": end, "limit": limit, "before": before, "current_group": current_group}
+    if current_group is not None:
+        ia.require_anywhere(auth.conn, auth.principal, ia.PEOPLE_READ, getattr(request.state, "correlation_id", None))
+    filters = {"station_id": station_id, "person": person, "result": result, "authentication": authentication, "door": door, "start": start, "end": end, "current_group": current_group}
     try:
-        return intercom_sync.SYNC.command(settings_of(request), "events", lambda call: intercom_client.events_list(call, filters), intercom_sync.project_event_page, who=principal.user_id)
+        return intercom_adapter.ADAPTER.events(settings_of(request), auth, filters, limit=limit, before=before, legacy=True)
     except ApiError as exc:
         if exc.code == "intercom_invalid_request" and before is not None:
             # every other field was validated above, so a refused paged request is WisKey's pruned cursor
@@ -185,7 +214,7 @@ def events(
 @router.get("/intercom/people")
 def people(
     request: Request,
-    principal: Principal = Depends(_reader),
+    auth: ia.Authority = Depends(_gate(ia.PEOPLE_READ)),
     query: str = Query("", max_length=160),
     offset: int = Query(0, ge=0, le=10_000_000),
     limit: int = Query(50, ge=1, le=MAX_PAGE),
@@ -202,17 +231,21 @@ def people(
     when the scan stopped early (`incomplete_reason` `scan_limit` / `rate_limited`: narrow the search). Pass the
     previous page's `people.snapshot` back; `people.stale` then says the directory changed underneath the paging. The
     `credential` and `profile` filters are deliberately not offered. Reply: `{state, configured, last_error,
-    fetched_at, people, sync}`."""
-    filters: dict[str, Any] = {k: v for k, v in {"station": station, "group": group, "rights": rights, "state": state}.items() if v is not None}
-    filters["sort"] = sort
-    return intercom_sync.SYNC.people(settings_of(request), principal.user_id, query, filters, offset, limit, snapshot)
+    fetched_at, people, sync}`.
+
+    CR-036 S3/S4: `access.people.read` (was `access.read`); the people the caller may see only (through an assignment
+    on a station of theirs), counted over them (`total_all` null unless the caller sees everyone); the employee number
+    and the employee-number order where the caller sees it; read by the adapter on the read channel. The native screens'
+    own endpoint is GET /access-control/people."""
+    filters: dict[str, Any] = {"station": station, "group": group, "rights": rights, "state": state, "sort": sort}
+    return intercom_adapter.ADAPTER.people(settings_of(request), auth, query=query, filters=filters, offset=offset, limit=limit, snapshot=snapshot, legacy=True)
 
 
 @router.get("/intercom/people/{user_id}")
-def person(request: Request, principal: Principal = Depends(_reader), user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
-    """One person (WisKey `users/get`), same projection as a directory row; an unknown id is a 404
-    `intercom_person_not_found`. Reply: `{state, configured, last_error, fetched_at, person, sync}`."""
-    return intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id), intercom_sync.project_person, who=principal.user_id)
+def person(request: Request, auth: ia.Authority = Depends(_gate(ia.PEOPLE_READ)), user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
+    """One person (WisKey `users/get`), same projection as a directory row; an unknown id - or one the caller may not see
+    (CR-036 S3) - is a 404 `intercom_person_not_found`. Reply: `{state, configured, last_error, fetched_at, person, sync}`."""
+    return intercom_adapter.ADAPTER.person(settings_of(request), auth, user_id, legacy=True)
 
 
 # ---------------------------------------------------------------- station camera stills (access.read), through go2rtc
@@ -248,7 +281,7 @@ def camera_snapshot(
             raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת, ולכן אין נתוני WisKey ואין תמונת מצלמה.")
         raise ApiError(503, "intercom_unavailable", "נתוני WisKey אינם זמינים כרגע, ולכן אין תמונת מצלמה.", retryable=True, details={"state": state})
     station = next((s for s in overview.get("stations", []) if s["id"] == station_id), None)
-    if station is None:
+    if station is None or not ia.Authority(conn, principal).station(READ, station_id):  # CR-036 S3: off the chain = not found
         raise ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey.")
     if not station.get("camera_entity"):
         raise ApiError(404, "intercom_no_camera", f"לעמדה {station['name']} אין מצלמה ב־WisKey.")
