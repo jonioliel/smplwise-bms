@@ -117,11 +117,16 @@ test('the app build keeps three out of the entry and in one lazy chunk under 200
   const assets = path.join(FRONTEND, 'dist', 'assets');
   test.skip(!fs.existsSync(assets), 'run npm run build first (frontend/dist is missing)');
   const files = fs.readdirSync(assets);
-  const three = files.filter((f) => /^three-[\w-]+\.js$/.test(f));
+  // integration 2.4.7: the realistic level's post chain (CR-029 S1) is its own lazy `three-post-*` chunk (vite.config.ts
+  // CHUNKS); it matched the old `three-*` filter, so the dist check counts it apart, as the realistic probe test below does
+  const three = files.filter((f) => /^three-[\w-]+\.js$/.test(f) && !f.startsWith('three-post-'));
   expect(three, 'exactly one three chunk in dist').toHaveLength(1);
   const gz = gzipBytes(path.join(assets, three[0]));
   console.log(`dist three chunk: ${three[0]} ${gz} bytes gzip`);
   expect(gz).toBeLessThanOrEqual(LIMIT_GZIP);
+  const post = files.filter((f) => /^three-post-[\w-]+\.js$/.test(f));
+  expect(post.length, 'at most one three-post chunk in dist').toBeLessThanOrEqual(1);
+  if (post.length) console.log(`dist three-post chunk: ${post[0]} ${gzipBytes(path.join(assets, post[0]))} bytes gzip`);
   const entry = files.filter((f) => /^index-[\w-]+\.js$/.test(f));
   expect(entry).toHaveLength(1);
   const entrySrc = fs.readFileSync(path.join(assets, entry[0]), 'utf8');
