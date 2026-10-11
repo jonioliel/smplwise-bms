@@ -494,6 +494,47 @@ def test_a_row_dropped_on_the_unrestricted_path_is_never_counted(ac, monkeypatch
     assert "entry-c" not in json.dumps(events)
 
 
+def test_the_reads_never_hold_the_write_lock_while_wiskey_answers():
+    """Finding 3: the phase-1b reads took the request's WRITE connection (BEGIN IMMEDIATE: SQLite's one write lock) and held it
+    across the WisKey round trip (a people search scans up to ten pages). Every adapter-backed read - the typed endpoints and
+    the three legacy ones - now resolves on the read connection only."""
+    from fastapi.routing import APIRoute
+
+    from smplwise.auth import get_conn, get_read_conn
+    from smplwise.routers import access_control, access_control_reads
+
+    def calls(dep: Any) -> list[Any]:
+        out = []
+        for sub in dep.dependencies:
+            out.extend(calls(sub))
+            out.append(sub.call)
+        return out
+
+    legacy = {("GET", "/intercom/events"), ("GET", "/intercom/people"), ("GET", "/intercom/people/{user_id}")}
+    routes = [r for r in access_control_reads.router.routes if isinstance(r, APIRoute)]
+    routes += [r for r in access_control.router.routes if isinstance(r, APIRoute) and any((m, r.path) in legacy for m in r.methods)]
+    assert len(routes) == 25 + 3
+    for route in routes:
+        deps = calls(route.dependant)
+        assert get_read_conn in deps and get_conn not in deps, route.path
+
+
+def test_a_failing_adapter_projection_never_takes_the_entry_center_down(ac, monkeypatch):
+    """Finding 4: S4 hooked the adapter's projections into the feed's overview store; one raising there would end the feed's
+    session. It is contained: the entry center keeps working, technical details and features are withheld (fail closed)."""
+    fake, c, _s = ac
+
+    def broken(_raw: Any) -> Any:
+        raise TypeError("an answer nobody expected")
+
+    monkeypatch.setattr(intercom_adapter, "project_station_technical", broken)
+    fake.push("refresh")
+    wait_for(lambda: body(c, "/stations", "root")["stations"][0]["technical"] is None)
+    assert intercom_sync.STATE.state == "ready" and intercom_sync.STATE.reconnects == 0
+    assert body(c, "/features", "root")["features"]["people"] == {"available": False, "reason": "commands_unknown"}
+    assert c.get("/api/v1/intercom/overview", headers=as_user("root")).json()["state"] == "ready"
+
+
 # ---------------------------------------------------------------- feature flags
 
 def test_a_command_wiskey_does_not_list_hides_the_feature_without_a_call(ac):

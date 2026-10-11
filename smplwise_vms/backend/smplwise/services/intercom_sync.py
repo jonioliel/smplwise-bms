@@ -1170,12 +1170,16 @@ class IntercomSync:
             for s in raw.get("stations") or []
             if isinstance(s, dict) and isinstance(s.get("host"), str) and s["host"]
         }
-        technical = {
-            str(s.get("id")): intercom_adapter.project_station_technical(s)
-            for s in raw.get("stations") or []
-            if isinstance(s, dict) and isinstance(s.get("id"), str) and s["id"]
-        }
-        api = intercom_adapter.project_api(raw.get("api"))
+        try:
+            technical = {
+                str(s.get("id")): intercom_adapter.project_station_technical(s)
+                for s in raw.get("stations") or []
+                if isinstance(s, dict) and isinstance(s.get("id"), str) and s["id"]
+            }
+            api = intercom_adapter.project_api(raw.get("api"))
+        except Exception as exc:  # noqa: BLE001 - the adapter's extras must never take the entry center down: fail closed
+            log.warning("WisKey feed: the adapter's station / api projection failed (%s); technical details and features withheld", type(exc).__name__)
+            technical, api = {}, None
         with self._cache_lock:
             changed = projected != self._cache
             before = list((self._cache or {}).get("stations") or [])

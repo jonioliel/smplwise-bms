@@ -294,7 +294,10 @@ def view_station(auth: Authority, station: dict[str, Any]) -> dict[str, Any] | N
     if level == NONE:
         return None
     out = {k: _copy(station.get(k)) for k in STATION_BASIC_KEYS}
-    tech = station.get("technical") if isinstance(station.get("technical"), dict) else {}
+    tech = station.get("technical")
+    if not isinstance(tech, dict):  # not known (the feed withheld it): unknown stays null, never a dict of empty fields
+        out["technical"] = out["errors"] = None
+        return out
     out["technical"] = {k: _copy(tech.get(k)) for k in STATION_TECHNICAL_KEYS} if level == TECHNICAL else None
     out["errors"] = {k: _copy(tech.get(k)) for k in STATION_ERROR_KEYS} if auth.sync_errors(sid) else None
     return out
