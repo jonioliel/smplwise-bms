@@ -294,6 +294,12 @@ export class SwWalkHud extends LitElement {
       flex-wrap: wrap;
       gap: var(--sw-s-2);
     }
+    /* a long position name (up to 40 characters) stays inside the sheet */
+    .sheet .places .btn {
+      max-inline-size: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .sheet .fields {
       gap: var(--sw-s-3);
     }
