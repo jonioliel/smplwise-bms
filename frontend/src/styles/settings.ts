@@ -241,10 +241,6 @@ export const settingsStyles = css`
   }
   .seg {
     display: inline-flex;
-    /* VISDIFF-246: the track never gives up width to its row: overflow hidden lets a flex item shrink below its buttons, which
-       clipped the last segment ("30 דק׳") of the schedules defaults in the page's 300 px side column at tablet widths */
-    flex: none;
-    max-inline-size: 100%;
     border: 1px solid var(--sw-border-strong);
     border-radius: var(--sw-r-sm);
     overflow: hidden;

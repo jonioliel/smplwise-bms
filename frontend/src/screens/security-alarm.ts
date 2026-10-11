@@ -683,17 +683,6 @@ export class SecurityAlarm extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-    /* VISDIFF-246: the filter chips and the cards / list switch are 44 px touch targets on a phone and a tablet (the chips were
-       32 px and the switch 30 x 28 px in every layout) */
-    @media (max-width: 1100px) {
-      .chips button {
-        min-block-size: 44px;
-      }
-      .vt button {
-        inline-size: 44px;
-        block-size: 44px;
-      }
-    }
     details.unpaired {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
