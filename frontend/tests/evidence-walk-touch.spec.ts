@@ -30,6 +30,9 @@ type Walker = HTMLElement & {
   walkable: boolean;
   minFps: number;
   routeDwellMs: number;
+  playRoute(): boolean;
+  stopRoute(): void;
+  routePlaying: boolean;
   startWalk(start?: unknown): void;
   walking: boolean;
   walkController: { pose(): { x: number; z: number; heading_deg: number; pitch_deg: number; level: string }; path: unknown[] | null; heading: number } | null;
@@ -346,6 +349,13 @@ test.describe('the walk bar and the bottom sheet', () => {
     const trail = await page.evaluate(() => (window as unknown as Win).__trail);
     expect(trail, 'the route showed the three saved positions in order').toEqual(['pos:p1', 'pos:p2', 'pos:p3']);
     expect(Math.hypot((await pose(el)).x - 7, (await pose(el)).z - 2)).toBeLessThan(0.45); // and stayed at the last one
+    // the same route through the element's own methods (the kiosk's idle route uses them): started, reported, stopped
+    expect(await el.evaluate((n) => (n as unknown as Walker).playRoute())).toBe(true);
+    expect(await el.evaluate((n) => (n as unknown as Walker).routePlaying)).toBe(true);
+    await expect(route).toHaveText('עצירה');
+    await el.evaluate((n) => (n as unknown as Walker).stopRoute());
+    expect(await el.evaluate((n) => (n as unknown as Walker).routePlaying)).toBe(false);
+    await expect(route).toHaveText('מסלול');
     // a finger on the view stops a route under way
     await route.click();
     await expect(route).toHaveText('עצירה');

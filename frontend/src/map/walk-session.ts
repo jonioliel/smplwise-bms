@@ -89,6 +89,7 @@ export class WalkSession {
   private readonly ease: LookEase | null;
   private touchStick: { forward: number; strafe: number; run: boolean } | null = null;
   private longTimer = 0;
+  private longDue: number | null = null;
   private route: RoutePlayer | null = null;
   private routeTimer = 0;
   private fadeTimer = 0;
@@ -296,6 +297,7 @@ export class WalkSession {
   /** Every finger is gone (the window blurred, the tab went away): no stick stays pushed. */
   private endTouches(): void {
     window.clearTimeout(this.longTimer);
+    this.longDue = null;
     this.apply(this.touch.reset());
     this.touchStick = null;
     this.host.onStick?.(null);
@@ -452,12 +454,16 @@ export class WalkSession {
     }
   }
 
-  /** One timeout for the long press that is next due (re-armed after every finger event). */
+  /** One timeout for the long press that is next due; a finger event that leaves the deadline as it was (every move of a
+   * dragging finger) touches no timer. */
   private armLong(): void {
-    window.clearTimeout(this.longTimer);
     const due = this.touch.nextDeadline();
+    if (due === this.longDue) return;
+    window.clearTimeout(this.longTimer);
+    this.longDue = due;
     if (due === null || this.disposed) return;
     this.longTimer = window.setTimeout(() => {
+      this.longDue = null;
       this.apply(this.touch.tick(performance.now()));
       this.armLong();
     }, Math.max(0, due - performance.now()) + 1);

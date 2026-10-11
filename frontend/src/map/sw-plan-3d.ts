@@ -1276,6 +1276,20 @@ export class SwPlan3d extends LitElement {
     },
   });
 
+  /** CR-029 S5-A: play the saved positions as a route, `routeDwellMs` each (the walk bar's play button does the same; the kiosk's
+   * idle route calls it). False without a walk or without two saved positions. A touch, a key or a click stops it. */
+  playRoute(): boolean {
+    return this.walk?.playRoute() ?? false;
+  }
+
+  stopRoute(): void {
+    this.walk?.cancelRoute();
+  }
+
+  get routePlaying(): boolean {
+    return this.walk?.routePlaying ?? false;
+  }
+
   /** "סיור": walk now when the description already carries the walk world, else ask the host for one (`walk-change`). */
   requestWalk(): void {
     if (this.walkState !== 'off' || !this.view) return;
