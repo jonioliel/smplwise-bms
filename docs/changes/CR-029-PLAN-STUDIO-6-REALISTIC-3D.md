@@ -174,6 +174,28 @@ Chunk: the `three` chunk stays ≤ 200 KB gzip (today 154.6 KB). Level 3 adds: `
 controller (~6 KB, own code), the material resolver (~3 KB) - under the cap without the path-tracer. Textures, lightmaps
 and stills are **assets**, never bundle code.
 
+### 3.5 Kiosk thermal note (S7, 2026-10-12)
+
+A wall tablet shows the plan 24/7, usually on charge, often in a closed frame. Heat comes from GPU work per second, not
+from the level as such: a still or an idle 3D view costs nothing; continuous orbiting, the walk and the realistic rung
+on a large canvas cost the most. What the build does today (integ/247), and what it does not:
+
+| Mechanism | State | Effect on heat |
+|---|---|---|
+| On-demand frames (no frame while nothing changes; a state push = one frame; the shadow maps re-render only on a change, `shadowMap.autoUpdate = false` at level 3) | built | an idle live view draws 0 frames |
+| `visibilitychange`: a hidden tab draws nothing and the probe waits | built | a screen-off tablet is idle |
+| Wall-display dial `plan.view.wall_display` = `stills` (the S3 stills + room masks, lit rooms tinted live) | built | no WebGL at all on the wall |
+| Idle timer → still (`plan.view.kiosk_idle_s`, the host's `viewMode({ idle })`) | **not wired** (`explore-floor-map.ts` passes `idle: false`; S5) | a live wall view keeps its WebGL context, though idle frames are already 0 |
+| One-shot reload after three `webglcontextlost` in an hour | **not built** (S5); a restored context redraws once | a driver that drops the context under heat leaves a blank view until a reload |
+| The lite rung pins DPR 1; the realistic rung caps DPR at `plan.view.dpr_cap` (1.25) | built (a cap changed while the realistic rung draws applies only at the next rung change - S7 finding) | fragment work bounded on high-DPI tablets |
+
+Operating rule until S5: a display that runs all day uses `wall_display = stills`; live 3D on a wall tablet is for a
+supervised screen. Owner advice (checklist `PLAN_STUDIO_PHASE6_CHECKLIST_HE.md` rows 5 and 8): enable the tablet's
+battery protection / 80 % charge limit where it has one, mount with ventilation and out of direct sun, and treat a back too
+hot to hold, a battery that falls while charging, self-dimming or self-reloading as a signal to switch to stills and report
+the model. No tablet or phone has been measured for heat or battery (NOT_RUN): the checklist rows are the first data.
+S5 owns the idle swap and the reload rule; S7 adds no product behaviour.
+
 ---
 
 ## 4. The eye-level walk-through
