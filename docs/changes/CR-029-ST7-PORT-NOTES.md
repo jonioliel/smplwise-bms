@@ -81,3 +81,22 @@ e9a77c59) and the owner's decisions of 2026-10-09. Contradictions are recorded h
 - S3: stills, masks, the kiosk still swap, lightmap, `plan_bakes` (0075). S5: joystick / kiosk polish, the realistic walk
   on a phone. S7: the R178 gate on the runner (390 px, 4x CPU throttle) with real fps, AT177 / AT178, registry rows,
   real-device rows (NOT_RUN).
+## S7 prep (branch `pilot/ST7-s7-perf`, from `origin/integ/247` a8b6a21d)
+
+The performance and determinism gate without the real measurement: `frontend/tests/evidence-plan-studio-6.spec.ts`
+(functional part always, measurement opt-in and load-aware), the owner checklist
+`docs/design/studio6/PLAN_STUDIO_PHASE6_CHECKLIST_HE.md`, the quiet-window runbook
+`docs/design/studio6/PLAN_STUDIO_PHASE6_PERF_RUNBOOK.md`, the kiosk thermal note (CR-029 section 3.5), the registry rows
+(T089 evidence, AT177 / AT178 procedure). No product behaviour changed.
+
+### Contradictions and gaps recorded (S7)
+
+| # | What disagrees | State | Consequence |
+|---|---|---|---|
+| P17 | CR-029 3.4: "the GPU texture budget is counted and capped at 48 MB phone / 128 MB elsewhere; over it the library serves its 256 px variants" | not built: `RealMaterials` counts no bytes; `public/plan3d/` ships the 512 px set only | the spec asserts the budget as it stands (all library textures <= 512 px, decoded total under the cap on the 1,000-object floor) and lists the swap as `test.fixme` |
+| P18 | CR-029 3.4 phone row "normal maps off above 1,000 parts" and the S7 lever "normal maps" | no product dial; nothing drops normal maps by part count | the lever table switches normal maps through the measurement harness (stripped from every material, restored after) |
+| P19 | CR-029 3.1 "a second small shadow map for the strongest lamp at level 3 on desktop" | not built (LOOK_SPEC: lamp shadows off by default); no pool lamp ever casts | the functional part asserts no casting lamp; the lever table measures the cost through the harness (strongest pool lamp, 512 px cube) |
+| P20 | The S7 brief: "the lever table (... DPR)" on the phone rung | the lite rung pins DPR 1 (LOOK_SPEC); `dpr_cap` applies to the realistic rung only | the DPR rows are measured on the realistic rung (cap 1 / 1.25 / 1.5 / 2) |
+| P21 | Defect (not fixed here, not a one-line change): `SceneView.setRealSettings({ dprCap })` stores the cap but only `applyQuality` sets the pixel ratio | reproduced on the mobile project (base ratio 2): a cap of 2 set while the realistic rung draws at cap 1 leaves the ratio at 1 until the next rung or level change | `sw-plan-3d` passes the person's `dpr_cap` dial after the view is constructed, so a mount that starts at the realistic rung draws at the default 1.25 whatever the dial says until the rung changes. Fix: re-apply the pixel ratio (and resize the post chain) in `setRealSettings` when the cap changes at level 3 |
+| P22 | CR-029 9: "R178 is asserted on the runner's Chrome at 390 px with 4x CPU throttling" | Playwright's bundled headless Chromium draws with SwiftShader on the workstation (measured) and the runner has no known GPU | the gate opts into the prototype's ANGLE switches (`--use-angle=d3d11` on Windows) and refuses a software renderer; the quiet-window run is on the workstation, not the runner |
+| P23 | AT178 "at least 30 fps on a phone" | the workstation at 390 px with a throttled CPU is a proxy | AT178 needs the owner's real-phone row (checklist row 4) as well; the proxy alone never closes it |
