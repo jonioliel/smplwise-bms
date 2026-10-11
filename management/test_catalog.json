@@ -7612,5 +7612,1009 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT281",
+    "requirement_ids": [
+      "R265"
+    ],
+    "task_ids": [
+      "FIX1"
+    ],
+    "title": "Test fixes: glass wall specs and nightly default",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Test fixes: glass wall specs and nightly default: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "cc7ed6a0",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at cc7ed6a0; it is not an item-specific test run."
+  },
+  {
+    "id": "AT282",
+    "requirement_ids": [
+      "R266"
+    ],
+    "task_ids": [
+      "HA2610"
+    ],
+    "title": "Home Assistant 2026.10 compatibility: document, tests and implementation",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Home Assistant 2026.10 compatibility: document, tests and implementation: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "3c74b69c",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at 3c74b69c; it is not an item-specific test run."
+  },
+  {
+    "id": "AT283",
+    "requirement_ids": [
+      "R267"
+    ],
+    "task_ids": [
+      "SEC243"
+    ],
+    "title": "Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "bfa628bd",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at bfa628bd; it is not an item-specific test run."
+  },
+  {
+    "id": "AT284",
+    "requirement_ids": [
+      "R268"
+    ],
+    "task_ids": [
+      "WALLP"
+    ],
+    "title": "Glass wall / screen and curved wall drawing tool through points",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Glass wall / screen and curved wall drawing tool through points: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "d41195af",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at d41195af; it is not an item-specific test run."
+  },
+  {
+    "id": "AT285",
+    "requirement_ids": [
+      "R269"
+    ],
+    "task_ids": [
+      "LAT1"
+    ],
+    "title": "Instant switch on / off (no wait time)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Instant switch on / off (no wait time): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "f41e4bac",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at f41e4bac; it is not an item-specific test run."
+  },
+  {
+    "id": "AT286",
+    "requirement_ids": [
+      "R270"
+    ],
+    "task_ids": [
+      "CR21S4"
+    ],
+    "title": "Self-update: downgrade protection and installer notes (CR-021 S4)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Self-update: downgrade protection and installer notes (CR-021 S4): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "bd4e4bbe",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at bd4e4bbe; it is not an item-specific test run."
+  },
+  {
+    "id": "AT287",
+    "requirement_ids": [
+      "R271"
+    ],
+    "task_ids": [
+      "DU1"
+    ],
+    "title": "Design unification: one design language, token lint",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Design unification: one design language, token lint: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "c151ae20",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at c151ae20; it is not an item-specific test run."
+  },
+  {
+    "id": "AT288",
+    "requirement_ids": [
+      "R272"
+    ],
+    "task_ids": [
+      "FRGPOL"
+    ],
+    "title": "Frigate review screen polish: review, zone editor, clip viewer",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Frigate review screen polish: review, zone editor, clip viewer: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "52f34ff7",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at 52f34ff7; it is not an item-specific test run."
+  },
+  {
+    "id": "AT289",
+    "requirement_ids": [
+      "R273"
+    ],
+    "task_ids": [
+      "ACTPOL"
+    ],
+    "title": "Activity window polish: cards and list, tones, filters",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Activity window polish: cards and list, tones, filters: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "373ab590",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at 373ab590; it is not an item-specific test run."
+  },
+  {
+    "id": "AT290",
+    "requirement_ids": [
+      "R274"
+    ],
+    "task_ids": [
+      "DEVTYPE"
+    ],
+    "title": "Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "bdf3de22",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at bdf3de22; it is not an item-specific test run."
+  },
+  {
+    "id": "AT291",
+    "requirement_ids": [
+      "R275"
+    ],
+    "task_ids": [
+      "BRAND"
+    ],
+    "title": "Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "b4d4aed2",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at b4d4aed2; it is not an item-specific test run."
+  },
+  {
+    "id": "AT292",
+    "requirement_ids": [
+      "R276"
+    ],
+    "task_ids": [
+      "CRY"
+    ],
+    "title": "Crystal skin with a day / night background",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Crystal skin with a day / night background: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "7cbb5530",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 7cbb5530; it is not an item-specific test run."
+  },
+  {
+    "id": "AT293",
+    "requirement_ids": [
+      "R277"
+    ],
+    "task_ids": [
+      "HOMEPOL"
+    ],
+    "title": "Home and area screens polish; floor and area pickers side by side",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Home and area screens polish; floor and area pickers side by side: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "0eea3bef",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 0eea3bef; it is not an item-specific test run."
+  },
+  {
+    "id": "AT294",
+    "requirement_ids": [
+      "R278"
+    ],
+    "task_ids": [
+      "SECPOL"
+    ],
+    "title": "Security screens polish: alarm, cameras, events, notifications, recorders",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Security screens polish: alarm, cameras, events, notifications, recorders: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "7fc5c089",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 7fc5c089; it is not an item-specific test run."
+  },
+  {
+    "id": "AT295",
+    "requirement_ids": [
+      "R279"
+    ],
+    "task_ids": [
+      "ALLON"
+    ],
+    "title": "Turn all on next to turn all off (lights and switches, floor / area menu)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Turn all on next to turn all off (lights and switches, floor / area menu): merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "7b4d9015",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 7b4d9015; it is not an item-specific test run."
+  },
+  {
+    "id": "AT296",
+    "requirement_ids": [
+      "R280"
+    ],
+    "task_ids": [
+      "PLANMODE"
+    ],
+    "title": "3D view mode: a manual choice sticks, default in Settings",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "3D view mode: a manual choice sticks, default in Settings: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "2691f8f5",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 2691f8f5; it is not an item-specific test run."
+  },
+  {
+    "id": "AT297",
+    "requirement_ids": [
+      "R281"
+    ],
+    "task_ids": [
+      "SEC244"
+    ],
+    "title": "Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "593b9199",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 593b9199; it is not an item-specific test run."
+  },
+  {
+    "id": "AT298",
+    "requirement_ids": [
+      "R282"
+    ],
+    "task_ids": [
+      "NIGHTSP"
+    ],
+    "title": "Nightly speed-up: the nightly runs the release gate engine (60-65 min)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Nightly speed-up: the nightly runs the release gate engine (60-65 min): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: no nightly result is recorded in the repository."
+  },
+  {
+    "id": "AT299",
+    "requirement_ids": [
+      "R283"
+    ],
+    "task_ids": [
+      "SETPOL"
+    ],
+    "title": "Settings polish: navigation column with search, shared style, switch colour as accent",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Settings polish: navigation column with search, shared style, switch colour as accent: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT300",
+    "requirement_ids": [
+      "R284"
+    ],
+    "task_ids": [
+      "MEDPOL"
+    ],
+    "title": "Multimedia, notification centre and electricity charts polish (incl. meter column bug)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Multimedia, notification centre and electricity charts polish (incl. meter column bug): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT301",
+    "requirement_ids": [
+      "R285"
+    ],
+    "task_ids": [
+      "KIOPOL"
+    ],
+    "title": "Wall, kiosk and PWA polish: distance legibility, burn-in, touch",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Wall, kiosk and PWA polish: distance legibility, burn-in, touch: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT302",
+    "requirement_ids": [
+      "R286"
+    ],
+    "task_ids": [
+      "FLAKY"
+    ],
+    "title": "Stabilise flaky backend and frontend tests (15 of 16)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Stabilise flaky backend and frontend tests (15 of 16): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT303",
+    "requirement_ids": [
+      "R287"
+    ],
+    "task_ids": [
+      "FLOORSTRIP"
+    ],
+    "title": "One floor switcher in the 3D view (duplicate floor strip fix)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "One floor switcher in the 3D view (duplicate floor strip fix): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT304",
+    "requirement_ids": [
+      "R288"
+    ],
+    "task_ids": [
+      "BILLSTART"
+    ],
+    "title": "Electricity bill start-reading bug",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Electricity bill start-reading bug: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT305",
+    "requirement_ids": [
+      "R289"
+    ],
+    "task_ids": [
+      "ST7L"
+    ],
+    "title": "Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: design review record only."
+  },
+  {
+    "id": "AT306",
+    "requirement_ids": [
+      "R290"
+    ],
+    "task_ids": [
+      "ST7INT"
+    ],
+    "title": "Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not integrated."
+  },
+  {
+    "id": "AT307",
+    "requirement_ids": [
+      "R291"
+    ],
+    "task_ids": [
+      "ST7SITE"
+    ],
+    "title": "Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT308",
+    "requirement_ids": [
+      "R292"
+    ],
+    "task_ids": [
+      "ST7UI"
+    ],
+    "title": "Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT309",
+    "requirement_ids": [
+      "R293"
+    ],
+    "task_ids": [
+      "ST7HIST"
+    ],
+    "title": "Plan Studio 6: level 3 also in the history map and the event page",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: level 3 also in the history map and the event page: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT310",
+    "requirement_ids": [
+      "R294"
+    ],
+    "task_ids": [
+      "WXCR"
+    ],
+    "title": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: documentation review only."
+  },
+  {
+    "id": "AT311",
+    "requirement_ids": [
+      "R295"
+    ],
+    "task_ids": [
+      "WXIMP"
+    ],
+    "title": "WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: fixture tests not run by the registry maintainer."
+  },
+  {
+    "id": "AT312",
+    "requirement_ids": [
+      "R296"
+    ],
+    "task_ids": [
+      "WXNS"
+    ],
+    "title": "WisKey native screens plan (CR-036): 49 screens and actions",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens plan (CR-036): 49 screens and actions: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: documentation review only."
+  },
+  {
+    "id": "AT313",
+    "requirement_ids": [
+      "R297"
+    ],
+    "task_ids": [
+      "WXN01"
+    ],
+    "title": "WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT314",
+    "requirement_ids": [
+      "R298"
+    ],
+    "task_ids": [
+      "WXN34"
+    ],
+    "title": "WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT315",
+    "requirement_ids": [
+      "R299"
+    ],
+    "task_ids": [
+      "WXN5"
+    ],
+    "title": "WisKey native screens S5: design of the station, people, schedule and status screens",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S5: design of the station, people, schedule and status screens: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT316",
+    "requirement_ids": [
+      "R300"
+    ],
+    "task_ids": [
+      "WXN6"
+    ],
+    "title": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT317",
+    "requirement_ids": [
+      "R301"
+    ],
+    "task_ids": [
+      "WXN11"
+    ],
+    "title": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT318",
+    "requirement_ids": [
+      "R302"
+    ],
+    "task_ids": [
+      "WXW"
+    ],
+    "title": "WisKey new writes (including doors), allowed now by the owner decision",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT319",
+    "requirement_ids": [
+      "R303"
+    ],
+    "task_ids": [
+      "WXAV"
+    ],
+    "title": "WisKey local live video and two-way audio (S18)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
   }
 ]

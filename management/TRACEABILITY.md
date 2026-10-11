@@ -267,3 +267,42 @@ Generated from canonical registries; NOT_RUN does not mean passing.
 | R262 | V2 | ST7S5 | AT278 | Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk): Joystick, tap-to-walk, pinch FOV, minimap, saved positions and route, idle still, pointer-lock opt-in. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged. |
 | R263 | V2 | ST7S3 | AT279 | Plan Studio 6 S3: lighting bake, stills and storage: In-browser lightmap baker, per-room blend mask, pre-rendered stills with masks, plan_bakes storage. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged. |
 | R264 | V2 | ST7S7 | AT280 | Plan Studio 6 S7: performance gate, determinism and release: R178 gate (level 3, 1,000 objects, 390 px, 30 fps) with the lever table, baselines, CHANGELOG, owner checklist, registry rows. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged. |
+| R265 | V1 | FIX1 | AT281 | Test fixes: glass wall specs and nightly default: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result. |
+| R266 | V1 | HA2610 | AT282 | Home Assistant 2026.10 compatibility: document, tests and implementation: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result. |
+| R267 | V1 | SEC243 | AT283 | Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result. |
+| R268 | V1 | WALLP | AT284 | Glass wall / screen and curved wall drawing tool through points: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result. |
+| R269 | V1 | LAT1 | AT285 | Instant switch on / off (no wait time): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result. |
+| R270 | V1 | CR21S4 | AT286 | Self-update: downgrade protection and installer notes (CR-021 S4): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result. |
+| R271 | V1 | DU1 | AT287 | Design unification: one design language, token lint: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result. |
+| R272 | V1 | FRGPOL | AT288 | Frigate review screen polish: review, zone editor, clip viewer: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result. |
+| R273 | V1 | ACTPOL | AT289 | Activity window polish: cards and list, tones, filters: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result. |
+| R274 | V1 | DEVTYPE | AT290 | Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result. |
+| R275 | V1 | BRAND | AT291 | Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result. |
+| R276 | V1 | CRY | AT292 | Crystal skin with a day / night background: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result. |
+| R277 | V1 | HOMEPOL | AT293 | Home and area screens polish; floor and area pickers side by side: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result. |
+| R278 | V1 | SECPOL | AT294 | Security screens polish: alarm, cameras, events, notifications, recorders: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result. |
+| R279 | V1 | ALLON | AT295 | Turn all on next to turn all off (lights and switches, floor / area menu): merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result. |
+| R280 | V1 | PLANMODE | AT296 | 3D view mode: a manual choice sticks, default in Settings: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result. |
+| R281 | V1 | SEC244 | AT297 | Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result. |
+| R282 | V1 | NIGHTSP | AT298 | Nightly speed-up: the nightly runs the release gate engine (60-65 min): built and verified on fakes and fixtures; no live device action. |
+| R283 | V1 | SETPOL | AT299 | Settings polish: navigation column with search, shared style, switch colour as accent: built and verified on fakes and fixtures; no live device action. |
+| R284 | V1 | MEDPOL | AT300 | Multimedia, notification centre and electricity charts polish (incl. meter column bug): built and verified on fakes and fixtures; no live device action. |
+| R285 | V1 | KIOPOL | AT301 | Wall, kiosk and PWA polish: distance legibility, burn-in, touch: built and verified on fakes and fixtures; no live device action. |
+| R286 | V1 | FLAKY | AT302 | Stabilise flaky backend and frontend tests (15 of 16): built and verified on fakes and fixtures; no live device action. |
+| R287 | V1 | FLOORSTRIP | AT303 | One floor switcher in the 3D view (duplicate floor strip fix): built and verified on fakes and fixtures; no live device action. |
+| R288 | V1 | BILLSTART | AT304 | Electricity bill start-reading bug: built and verified on fakes and fixtures; no live device action. |
+| R289 | V2 | ST7L | AT305 | Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets: built and verified on fakes and fixtures; no live device action. |
+| R290 | V2 | ST7INT | AT306 | Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release: built and verified on fakes and fixtures; no live device action. |
+| R291 | V2 | ST7SITE | AT307 | Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude): built and verified on fakes and fixtures; no live device action. |
+| R292 | V2 | ST7UI | AT308 | Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen: built and verified on fakes and fixtures; no live device action. |
+| R293 | V2 | ST7HIST | AT309 | Plan Studio 6: level 3 also in the history map and the event page: built and verified on fakes and fixtures; no live device action. |
+| R294 | V1 | WXCR | AT310 | WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan: built and verified on fakes and fixtures; no live device action. |
+| R295 | V1 | WXIMP | AT311 | WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only): built and verified on fakes and fixtures; no live device action. |
+| R296 | V1 | WXNS | AT312 | WisKey native screens plan (CR-036): 49 screens and actions: built and verified on fakes and fixtures; no live device action. |
+| R297 | V1 | WXN01 | AT313 | WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard: built and verified on fakes and fixtures; no live device action. |
+| R298 | V1 | WXN34 | AT314 | WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel: built and verified on fakes and fixtures; no live device action. |
+| R299 | V1 | WXN5 | AT315 | WisKey native screens S5: design of the station, people, schedule and status screens: built and verified on fakes and fixtures; no live device action. |
+| R300 | V1 | WXN6 | AT316 | WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action. |
+| R301 | V1 | WXN11 | AT317 | WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action. |
+| R302 | V2 | WXW | AT318 | WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action. |
+| R303 | V2 | WXAV | AT319 | WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action. |
