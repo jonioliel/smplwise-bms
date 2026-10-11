@@ -41,7 +41,7 @@ import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import type { FloorRequestDetail, LevelSelectDetail, PartSelectDetail, WalkChangeDetail } from '../map/sw-plan-3d';
-import { BAKE_BUTTON_HE, BAKE_TITLE_HE, bakeStatus, hasStills, renderStills, runFloorBake, stillsLevel } from './floor-stills';
+import { BAKE_BUTTON_HE, BAKE_TITLE_HE, autoBakeWanted, bakeStatus, hasStills, renderStills, runFloorBake, stillsLevel } from './floor-stills';
 import { isWallDisplay, viewMode, wallDisplayMode } from '../map/quality-ladder';
 import { STILL_RECIPE_Q2 } from '../map/still-bake';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
@@ -1422,6 +1422,7 @@ export class ExploreFloorMap extends LitElement {
       void geometryFor(this.bundle).then((g) => {
         if (seq === this.geomSeq) {
           this.geometry = g; // live HA updates replace the bundle object: compare loads, not objects
+          void this.maybeAutoBake();
           if (this.focusObject) void this.applyFocus();
         }
       });
@@ -2703,6 +2704,18 @@ export class ExploreFloorMap extends LitElement {
 
   /** CR-029 S3: draw the floor's stills, masks and lightmap in this browser and store them (an editor tool next to the control
    * images; floor-stills.runFloorBake). The map is reloaded afterwards so the bundle lists the new set. */
+  /** CR-029 S3, owner 2026-10-11: with `plan.bakes.bake_trigger = auto` an editor opening a floor whose stills are missing or
+   * outdated starts the bake in this browser by itself - once per floor per page, only with WebGL, never in demo mode. */
+  private autoBaked = new Set<string>();
+  private async maybeAutoBake(): Promise<void> {
+    const b = this.bundle;
+    if (!b || b.source !== 'api' || !b.permissions.edit || !this.geometry || this.bakeBusy || this.autoBaked.has(b.floorId) || !webglAvailable()) return;
+    const s = await productSettings().catch(() => null);
+    if (s?.['plan.bakes']?.bake_trigger !== 'auto' || !autoBakeWanted(b, STILL_RECIPE_Q2)) return;
+    this.autoBaked.add(b.floorId);
+    await this.runBake();
+  }
+
   private async runBake(): Promise<void> {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !this.geometry || this.bakeBusy) return;

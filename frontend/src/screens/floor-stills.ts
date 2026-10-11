@@ -112,6 +112,11 @@ export function bakeStatus(b: MapBundle | null, recipe: string): string | null {
   return 'יש גרסה משופרת של התמונות המוכנות.';
 }
 
+/** Whether an automatic bake should start: the floor's set is missing, incomplete, stale or of an older recipe. */
+export function autoBakeWanted(b: MapBundle | null, recipe: string): boolean {
+  return needsBake(b?.bakes ?? null, recipe) !== null;
+}
+
 export const BAKE_BUTTON_HE = 'הכן תמונות ותאורה';
 export const BAKE_TITLE_HE = 'מצייר בדפדפן הזה את התמונות המוכנות של הקומה (לכל סגנון ושעה) ואת מפת התאורה, ושומר אותן במתקן — למכשירים חלשים, למסך קיר ולאפליקציה';
 export { nothing };

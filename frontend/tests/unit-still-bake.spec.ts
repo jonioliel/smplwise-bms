@@ -6,7 +6,7 @@ import { demoRooms } from '../src/fixtures/demo';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription, type ScenePart, type SceneZone } from '../src/map/scene-builder';
 import { controlSceneInput } from '../src/map/skin-control';
-import { BANDS, DEFAULT_BAKE_SETTING, bandAt, bandScene, buildMask, convexHull, expectedSlots, isoCamera, isoProject, needsBake, recipeRank, slotName, stillDescription,
+import { BANDS, DEFAULT_BAKE_SETTING, VIEW_PRESETS, bandAt, bandScene, buildMask, convexHull, expectedSlots, isoCamera, isoProject, needsBake, recipeRank, slotName, stillDescription,
   stillPalette, sunElevationDeg, type BundleBakes, type StillRenderer } from '../src/map/still-bake';
 import { LADDER, ladderNext, viewMode, type ViewInputs } from '../src/map/quality-ladder';
 import { AO_REACH_M, bakeLightmap, hemisphere, lightmapPlan, lightmapUv, roomAt, roomBlendWeights, roomsOf } from '../src/map/lightmap-bake';
@@ -32,7 +32,12 @@ test.describe('slots and settings agree with the backend', () => {
     const m = /SETTING_DEFAULT: dict\[str, Any\] = (\{[\s\S]*?\n\})/.exec(py);
     expect(m).toBeTruthy();
     const json = m![1].replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false').replace(/,\s*\}/g, '}');
-    expect(JSON.parse(json)).toEqual(DEFAULT_BAKE_SETTING);
+    const { presets, ...writable } = DEFAULT_BAKE_SETTING; // presets is derived from bake_views on both sides
+    expect(JSON.parse(json)).toEqual(writable);
+    expect(presets).toEqual(VIEW_PRESETS[DEFAULT_BAKE_SETTING.bake_views]);
+    expect(/VIEW_PRESETS: dict\[str, list\[str\]\] = \{"iso": \["iso"\], "iso_top": \["iso", "top"\]\}/.test(py)).toBe(true);
+    expect(DEFAULT_BAKE_SETTING.bake_trigger).toBe('manual'); // owner 2026-10-11: manual by default
+    expect(expectedSlots(['L0'], { ...DEFAULT_BAKE_SETTING, presets: VIEW_PRESETS.iso_top }).filter((x) => x.kind === 'mask').map(slotName)).toEqual(['mask/L0/iso', 'mask/L0/top']);
     const names = expectedSlots(['L0'], DEFAULT_BAKE_SETTING).map(slotName);
     expect(names.length).toBe(14);
     expect(names.slice(0, 3)).toEqual(['mask/L0/iso', 'still/L0/iso/light/day/off', 'still/L0/iso/light/day/on']);

@@ -68,12 +68,18 @@ SETTING_CHOICES: dict[str, tuple[Any, ...]] = {
     "size": SIZES,                                   # the still's pixel size (the masks share it)
     "floor_cap_mb": (16, 32, 64, 128, 256),          # storage per floor (stills + masks + lightmaps)
     "total_cap_mb": (128, 256, 512, 1024, 2048),     # storage of every floor together
+    # owner 2026-10-11 Q1: the bake starts when an editor presses the button (manual, default) or by itself when an editor opens
+    # a floor whose stills are missing or outdated (auto - that editor's browser does the work)
+    "bake_trigger": ("manual", "auto"),
+    # owner 2026-10-11 Q2: the views baked per level - the iso view only (default) or the iso and the top view
+    "bake_views": ("iso", "iso_top"),
 }
-SETTING_LISTS: dict[str, tuple[str, ...]] = {"presets": PRESETS, "styles": STYLES, "bands": BANDS}
+VIEW_PRESETS: dict[str, list[str]] = {"iso": ["iso"], "iso_top": ["iso", "top"]}
+SETTING_LISTS: dict[str, tuple[str, ...]] = {"styles": STYLES, "bands": BANDS}
 SETTING_FLAGS = ("lightmap",)
 SETTING_DEFAULT: dict[str, Any] = {
-    "presets": ["iso"], "styles": ["light", "dark"], "bands": ["day", "sunset", "night"], "lightmap": True,
-    "size": "1600x1000", "floor_cap_mb": 64, "total_cap_mb": 512,
+    "styles": ["light", "dark"], "bands": ["day", "sunset", "night"], "lightmap": True,
+    "size": "1600x1000", "floor_cap_mb": 64, "total_cap_mb": 512, "bake_trigger": "manual", "bake_views": "iso",
 }
 
 
@@ -117,6 +123,12 @@ def normalize_setting(value: Any, base: dict[str, Any] | None = None) -> dict[st
         if k not in SETTING_DEFAULT:
             raise ValueError(f"plan.bakes: {k} is not a bake setting")
         out[k] = _setting_value(k, v)
+    return _with_presets(out)
+
+
+def _with_presets(out: dict[str, Any]) -> dict[str, Any]:
+    """`presets` is read-only: derived from `bake_views` (what expected_slots and the client iterate)."""
+    out["presets"] = list(VIEW_PRESETS[out["bake_views"]])
     return out
 
 
@@ -134,7 +146,7 @@ def stored_setting(raw: Any) -> dict[str, Any]:
                     out[k] = _setting_value(k, value[k])
                 except ValueError:
                     pass
-    return out
+    return _with_presets(out)
 
 
 def read_setting(conn: sqlite3.Connection) -> dict[str, Any]:

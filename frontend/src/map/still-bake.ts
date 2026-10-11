@@ -50,8 +50,15 @@ export interface BakeSlot {
   band: StillBand | '';
   variant: StillVariant | '';
 }
+export type BakeTrigger = 'manual' | 'auto';
+export type BakeViews = 'iso' | 'iso_top';
 export interface BakeSetting {
+  /** Read-only: derived from `bake_views` by the backend (services/plan_bakes.VIEW_PRESETS). */
   presets: StillPreset[];
+  /** Owner 2026-10-11: manual = the editor presses "הכן תמונות ותאורה"; auto = it starts when an editor opens the floor. */
+  bake_trigger: BakeTrigger;
+  /** Owner 2026-10-11: the iso view only (default) or the iso and the top view. */
+  bake_views: BakeViews;
   styles: StillStyle[];
   bands: StillBand[];
   lightmap: boolean;
@@ -62,7 +69,9 @@ export interface BakeSetting {
 /** services/plan_bakes.SETTING_DEFAULT (unit-still-bake.spec.ts compares them). */
 export const DEFAULT_BAKE_SETTING: BakeSetting = {
   presets: ['iso'], styles: ['light', 'dark'], bands: ['day', 'sunset', 'night'], lightmap: true, size: '1600x1000', floor_cap_mb: 64, total_cap_mb: 512,
+  bake_trigger: 'manual', bake_views: 'iso',
 };
+export const VIEW_PRESETS: Record<BakeViews, StillPreset[]> = { iso: ['iso'], iso_top: ['iso', 'top'] };
 export const BAKE_SIZES = ['1280x800', '1600x1000', '1920x1200'] as const;
 
 /** "still/L0/iso/light/day/off", "mask/L0/iso", "lightmap/L0" - services/plan_bakes.slot_id. */

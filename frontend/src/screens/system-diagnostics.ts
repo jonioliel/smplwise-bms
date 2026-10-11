@@ -839,6 +839,13 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-bake-bands ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ bands: (e.target as HTMLSelectElement).value.split(',') as ('day' | 'sunset' | 'night')[] })}>
             ${[['day,sunset,night', 'יום, שקיעה ולילה'], ['day,night', 'יום ולילה'], ['day', 'יום בלבד']].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('bands', ['day', 'sunset', 'night']).join(',') === v}>${l}</option>`)}
           </select></sw-field></div>
+        <div class="row"><span class="lbl">תמונות מוכנות — הפעלה ומבטים<span class="muted">ידני: העורך לוחץ „הכן תמונות ותאורה”. אוטומטי: ההכנה מתחילה לבד כשעורך פותח קומה שתמונותיה חסרות או אינן מעודכנות (בדפדפן שלו)</span></span>
+          <sw-field class="ctl"><select data-set-bake-trigger ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ bake_trigger: (e.target as HTMLSelectElement).value as 'manual' | 'auto' })}>
+            <option value="manual" ?selected=${this.bakeValue('bake_trigger', 'manual') !== 'auto'}>ידני — בלחיצה</option><option value="auto" ?selected=${this.bakeValue('bake_trigger', 'manual') === 'auto'}>אוטומטי — בפתיחת קומה</option>
+          </select></sw-field>
+          <sw-field class="ctl"><select data-set-bake-views ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ bake_views: (e.target as HTMLSelectElement).value as 'iso' | 'iso_top' })}>
+            <option value="iso" ?selected=${this.bakeValue('bake_views', 'iso') !== 'iso_top'}>מבט איזומטרי בלבד</option><option value="iso_top" ?selected=${this.bakeValue('bake_views', 'iso') === 'iso_top'}>איזומטרי ומבט מלמעלה</option>
+          </select></sw-field></div>
         <div class="row"><span class="lbl">תמונות מוכנות — גודל ומפת תאורה<span class="muted">מפת התאורה מוסיפה הצללה רכה ואור מנורות לתצוגה הריאליסטית</span></span>
           <sw-field class="ctl"><select data-set-bake-size ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ size: (e.target as HTMLSelectElement).value })}>
             ${['1280x800', '1600x1000', '1920x1200'].map((v) => html`<option value=${v} ?selected=${this.bakeValue('size', '1600x1000') === v}>${v.replace('x', '×')}</option>`)}

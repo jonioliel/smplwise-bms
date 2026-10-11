@@ -173,3 +173,15 @@ route; both are read-only `map.read`.
 | Visual matrix `map-floor`, `settings-diagnostics` (light / dark x 3 projects) | runner | 12 / 12 pixel-stable (levels 1-2 baselines unchanged); artefacts private-evidence/visual-out/pilot-ST7-port-s3-stills-39f21da3 |
 | Full dist-preview suite | runner | NOT_RUN to the end (terminated by the session pause; not repeated to save the shared runner) |
 | Real GPU / phone / wall tablet bake timing, owner review of the still pictures | - | NOT_RUN |
+
+## 12. Owner answers 2026-10-11 (implemented)
+
+1. Start of a bake: `plan.bakes.bake_trigger` = `manual` (default; the editor presses "הכן תמונות ותאורה" / "Prepare stills and lighting") or
+   `auto` ("starts by itself when an editor opens a floor whose stills are missing or outdated" - in that editor's browser, once per
+   floor per page, only with WebGL). Settings row "תמונות מוכנות — הפעלה ומבטים" (ידני — בלחיצה / אוטומטי — בפתיחת קומה).
+2. Views: `plan.bakes.bake_views` = `iso` (default, "iso view only" / "מבט איזומטרי בלבד") or `iso_top` ("iso and top view" /
+   "איזומטרי ומבט מלמעלה"). `presets` is now read-only, derived from it on both sides.
+3. Sunset at level 2 = the day picture with the warm grade: accepted for the first release.
+
+Both keys live in the `plan.bakes` installation setting: PATCH /settings (system.configure), audited as `settings.update`, in every
+backup through the `settings` table; tests in `test_plan_bakes.py` and `unit-still-bake.spec.ts`.

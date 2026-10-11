@@ -72,20 +72,32 @@ class Up:
 # ---------- the setting ----------
 
 def test_setting_defaults_partial_updates_and_refusals(settings):
-    assert pb.SETTING_DEFAULT == {"presets": ["iso"], "styles": ["light", "dark"], "bands": ["day", "sunset", "night"], "lightmap": True, "size": "1600x1000",
-                                  "floor_cap_mb": 64, "total_cap_mb": 512}
+    assert pb.SETTING_DEFAULT == {"styles": ["light", "dark"], "bands": ["day", "sunset", "night"], "lightmap": True, "size": "1600x1000",
+                                  "floor_cap_mb": 64, "total_cap_mb": 512, "bake_trigger": "manual", "bake_views": "iso"}
     base = pb.stored_setting(None)
+    assert base["presets"] == ["iso"]  # derived from bake_views (owner 2026-10-11: iso only by default)
+    assert pb.normalize_setting({"bake_views": "iso_top"}, base)["presets"] == ["iso", "top"]
+    assert pb.normalize_setting({"bake_trigger": "auto"}, base)["bake_trigger"] == "auto"
     assert pb.normalize_setting({"bands": ["night", "day"], "floor_cap_mb": "128"}, base) == {**base, "bands": ["day", "night"], "floor_cap_mb": 128}
-    for bad in ({"presets": []}, {"presets": ["side"]}, {"styles": "light"}, {"lightmap": "yes"}, {"size": "4000x4000"}, {"floor_cap_mb": 3}, {"x": 1}, []):
+    for bad in ({"presets": ["iso"]}, {"bake_views": "top"}, {"bake_trigger": "always"}, {"bake_trigger": True}, {"styles": "light"}, {"lightmap": "yes"}, {"size": "4000x4000"}, {"floor_cap_mb": 3}, {"x": 1}, []):
         with pytest.raises(ValueError):
             pb.normalize_setting(bad, base)  # type: ignore[arg-type]
     assert pb.stored_setting('{"size": "1x1", "lightmap": false}') == {**base, "lightmap": False}
     app = create_app(settings)
     with TestClient(app) as c:
         assert c.get("/api/v1/settings").json()["settings"]["plan.bakes"] == base
-        r = c.patch("/api/v1/settings", json={"plan.bakes": {"presets": ["iso", "top"], "lightmap": False}})
+        r = c.patch("/api/v1/settings", json={"plan.bakes": {"bake_views": "iso_top", "bake_trigger": "auto", "lightmap": False}})
         assert r.status_code == 200, r.text
-        assert r.json()["settings"]["plan.bakes"]["presets"] == ["iso", "top"] and r.json()["settings"]["plan.bakes"]["lightmap"] is False
+        got = r.json()["settings"]["plan.bakes"]
+        assert got["presets"] == ["iso", "top"] and got["bake_views"] == "iso_top" and got["bake_trigger"] == "auto" and got["lightmap"] is False
+        with app.state.db.connection() as conn:
+            rows = [json.loads(x[0] or "{}") for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed'")]
+        assert any(d.get("plan.bakes", {}).get("bake_trigger") == "auto" for d in rows)  # audited
+        assert "settings" in backup_svc.PROJECT_TABLES  # the setting travels with every backup
+        # a top view adds a mask and twelve stills per level (both styles x three bands x off / on)
+        info = c.get("/api/v1/settings").json()["settings"]["plan.bakes"]
+        assert len(pb.expected_slots(["L0"], info)) == 2 * (1 + 2 * 3 * 2)  # the lightmap was turned off above
+        assert c.patch("/api/v1/settings", json={"plan.bakes": {"bake_trigger": "sometimes"}}).status_code == 422
         assert c.patch("/api/v1/settings", json={"plan.bakes": {"bands": ["noon"]}}).status_code == 422
         bind(c, settings, "dana", "viewer", "installation", "*")
         assert c.patch("/api/v1/settings", headers=as_user("dana"), json={"plan.bakes": {"lightmap": True}}).status_code == 403
