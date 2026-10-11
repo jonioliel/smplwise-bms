@@ -12,9 +12,8 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from ..errors import ApiError
+from . import image_guard  # noqa: F401 - SEC246 I3: Pillow's bomb threshold is set once there (60 M, the value this module always set)
 from .child_env import minimal_env
-
-Image.MAX_IMAGE_PIXELS = 60_000_000
 
 SUPPORTED = {"application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg", "image/vnd.dxf": ".dxf"}
 

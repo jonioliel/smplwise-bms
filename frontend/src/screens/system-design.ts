@@ -89,6 +89,16 @@ export class SystemDesign extends LitElement {
       gap: 12px;
       align-items: start;
     }
+    /* VISDIFF-246: five skins in a row that held four left the fifth alone on a second line (a 25 % card and a hole beside it):
+       where the card is wide enough all five sit in one row */
+    .skinrow {
+      container-type: inline-size;
+    }
+    @container (min-width: 740px) {
+      .skins {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
     .skin {
       all: unset;
       align-self: start;
@@ -466,7 +476,7 @@ export class SystemDesign extends LitElement {
     const preview = themeOf(this.draftScheme);
     const cur = installationDesign();
     return html`<sw-card heading="מראה המערכת" subheading="סגנון וצבעוניות - בהיר, כהה או לפי המכשיר" data-design-card>
-      <div class="row col">
+      <div class="row col skinrow">
         <span class="lbl">סגנון<span class="muted">אותו מבנה בכל הסגנונות; ההבדל הוא בחומרים, בצורות ובצבעים</span></span>
         <div class="skins" role="group" aria-label="סגנון">
           ${SKIN_IDS.map(

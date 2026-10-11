@@ -27,7 +27,15 @@ export interface DeviceTypeRow {
   options: FixedKind[];
   set_by: string | null;
   set_at: string | null;
+  /**
+   * SEC246 L2 (owner 2026-10-11): a device the administrator typed as a valve or a water heater stays out of "הדלק הכל" unless this is on
+   * (per device, default off). Absent on an older server.
+   */
+  bulk_on_allowed?: boolean;
 }
+
+/** SEC246 L2: the fixed types that "הדלק הכל" leaves out by default (the server's device_types.BULK_ON_SENSITIVE). */
+export const BULK_ON_SENSITIVE: readonly FixedKind[] = ['valve', 'water_heater'];
 
 export const KIND_ORDER: readonly FixedKind[] = ['switch', 'outlet', 'light', 'fan', 'heater', 'water_heater', 'valve'];
 export const KIND_HE: Record<FixedKind, string> = {

@@ -111,7 +111,7 @@ def add_photo(settings: Settings, set_id: str, data: bytes) -> dict[str, Any]:
         raise PhotoError("payload_too_large", "התמונה גדולה מדי (עד 8MB).", 413)
     if len(_photos(d)) >= MAX_FILES:
         raise PhotoError("photo_set_full", "התיקייה מלאה (עד 200 תמונות).", 409, {"max": MAX_FILES})
-    Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+    from . import image_guard  # noqa: F401 - SEC246 I3: the process-wide bomb threshold is set once there; MAX_PIXELS is checked below
     try:
         with Image.open(io.BytesIO(data)) as probe:
             if probe.format not in FORMATS:

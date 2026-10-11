@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { ADMIN_PERMS, RUN_ID, freshMock, mockBackend, openUpdate, runView, withUpdate, type UpdateMock } from './update-run-mocks';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-021 S3: the layout guard (tests/layout-guard.ts) over the update and restart screens, with the mocked backend, in every skin
 // (classic, domus, tesla, bubble) x light / dark x widths 320..1440: the page with and without an update, the blocked state, the
@@ -10,7 +11,7 @@ import { ADMIN_PERMS, RUN_ID, freshMock, mockBackend, openUpdate, runView, withU
 //   LAYOUT_QUICK=1 sweeps four widths (the loop's setting); the full sweep runs once at the end.
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 800, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const SCHEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const BUBBLE = '.step, .row, .outcome, .chk, .wait';

@@ -460,7 +460,7 @@ def account_status(aid: str, request: Request, principal: Principal = Depends(_v
     out["kwh_so_far"] = snap["totals"]["kwh"]
     out["meters"] = [{"meter_id": m["meter_id"], "name": m["name"], "kwh": m["consumption_kwh"], "last_report_at": m["last_report_at"],
                       "reporting": m["reported_to_end"] or (m["last_report_at"] is not None and m["last_report_at"] >= eb._iso(eb.now_utc() - eb.stale_after(conn)))} for m in snap["meters"]]
-    out["notes"] = [n for n in snap["notes"] if n["code"] != "meter_not_reporting"]
+    out["notes"] = [n for n in snap["notes"] if n["code"] not in ("meter_not_reporting", "opening_first_reading", "reading_difference")]
     if _has(conn, principal, BILLS):
         out["amount_so_far"] = snap["totals"]["total"]
     return out

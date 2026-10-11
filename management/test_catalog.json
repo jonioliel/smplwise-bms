@@ -5020,22 +5020,24 @@
     "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 1",
     "kind": "integration/e2e",
     "preconditions": [
-      "Build tied to a recorded commit",
-      "Task dependencies accepted",
-      "Pinned local test environment and approved fixtures"
+      "Build tied to a recorded commit (integ/247 or later with CR-029 S0-S4 and S3 merged)",
+      "Static preview of the UI (npm run build; vite preview) - the style guide's demo floor, no backend, no device",
+      "Owner rows: a floor with a published structure on the owner's installation, a desktop browser"
     ],
     "procedure": [
-      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
-      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
-      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+      "npx playwright test tests/unit-plan-3d-realistic.spec.ts tests/unit-plan3d-real.spec.ts tests/unit-plan3d-sun.spec.ts tests/unit-plan3d-assets.spec.ts tests/unit-walk-controller.spec.ts tests/unit-plan-3d-walk.spec.ts tests/unit-material-resolve.spec.ts tests/evidence-plan-studio-6.spec.ts --project=<desktop|tablet|mobile> --workers=1 (or run_smart.py spec <branch> ... on the runner, sharded)",
+      "Expect: level 3 additive and deterministic (same graph after a rebuild, same pixels twice), the sun deterministic by hour, the walk equal to the node model (walls, doors open / closed / stale / locked, stairs, Esc), the 1,000-object floor equal after a rebuild at levels 1, 2 and 3",
+      "Owner: PLAN_STUDIO_PHASE6_CHECKLIST_HE.md rows 1-3 (realistic look, time of day, the walk on the real floor) - pass / fail per row"
     ],
     "expected": "רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "2026-10-12 partial, not acceptance (branch pilot/ST7-s7-perf): Runner (Ubuntu, SwiftShader, 2026-10-12, @ bdc364c9 / 43ebc7e2, same specs): the 3D set (unit-plan-3d*, unit-plan3d-assets / real / sun, unit-walk-controller, unit-material-resolve, unit-still-bake, unit-floor-map-3d, unit-anchor-3d, unit-three-chunk) plus evidence-plan-studio-6, 2 shards per project on the vite dev server: desktop 97 passed / 4 skipped / 2 failed, tablet 97 / 4 / 2, mobile 97 / 4 / 2; the 2 failures per project are unit-plan-3d.spec.ts's lazy-chunk assertions, which need the built UI (no assets/three-*.js under the dev server) - the preview job (npm run build + vite preview) ran unit-plan-3d.spec.ts on all three projects: 12 passed. Skips: the 256 px swap fixme, the 2 opt-in perf tests (not opted in), unit-three-chunk's dist test (no dist on the dev server). evidence-plan-studio-6 functional part: 4 passed per project; the dpr_cap defect reproduced on mobile (cap 2 set at cap 1 while realistic draws -> ratio stays 1, expected 2)."
+    ],
     "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "notes": "S7 prep: the automated part exists and runs; the quiet-window measurement and the owner's real-device rows are NOT_RUN. Gaps: docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23."
   },
   {
     "id": "AT178",
@@ -5048,22 +5050,24 @@
     "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 2",
     "kind": "integration/e2e",
     "preconditions": [
-      "Build tied to a recorded commit",
-      "Task dependencies accepted",
-      "Pinned local test environment and approved fixtures"
+      "Build tied to a recorded commit; production build (npm run build) for the measurement",
+      "Quiet window on a machine with a GPU (the workstation; the runner has none known): no gate / nightly / other agents, CPU busy <= 25 %, AC power",
+      "Owner rows: the owner's real phone on the floor with the most objects"
     ],
     "procedure": [
-      "הכן fixture/ציוד לפי הדרישה ורשום initial state.",
-      "הרץ את התרחיש ואת נתיב השגיאה הרלוונטי בתנאים מבוקרים.",
-      "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
+      "Always: npx playwright test tests/evidence-plan-studio-6.spec.ts --project=<desktop|tablet|mobile> --workers=1 - the default stays schematic, auto falls realistic -> lite -> full -> schematic, texture budget, lever switches",
+      "Quiet window: $env:SW_PERF_GATE='1'; npx playwright test tests/evidence-plan-studio-6.spec.ts --project=mobile --workers=1 -g \"opt-in\" (runbook docs/design/studio6/PLAN_STUDIO_PHASE6_PERF_RUNBOOK.md); the record must say evidence_grade true and load_after quiet; R178 median >= 30 fps at iso and persp",
+      "Owner: PLAN_STUDIO_PHASE6_CHECKLIST_HE.md row 4 on the real phone (no 'slow device' hint at realistic lite) and rows 5 / 8 (heat, battery); the proxy alone never closes AT178"
     ],
     "expected": "ביצועים: לפחות 30fps בטלפון בסצנה של 1,000 עצמים; ברירת המחדל נשארת סכמטית.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "2026-10-12 partial, not acceptance (branch pilot/ST7-s7-perf): Runner (Ubuntu, SwiftShader, 2026-10-12, @ bdc364c9 / 43ebc7e2, same specs): the 3D set (unit-plan-3d*, unit-plan3d-assets / real / sun, unit-walk-controller, unit-material-resolve, unit-still-bake, unit-floor-map-3d, unit-anchor-3d, unit-three-chunk) plus evidence-plan-studio-6, 2 shards per project on the vite dev server: desktop 97 passed / 4 skipped / 2 failed, tablet 97 / 4 / 2, mobile 97 / 4 / 2; the 2 failures per project are unit-plan-3d.spec.ts's lazy-chunk assertions, which need the built UI (no assets/three-*.js under the dev server) - the preview job (npm run build + vite preview) ran unit-plan-3d.spec.ts on all three projects: 12 passed. Skips: the 256 px swap fixme, the 2 opt-in perf tests (not opted in), unit-three-chunk's dist test (no dist on the dev server). evidence-plan-studio-6 functional part: 4 passed per project; the dpr_cap defect reproduced on mobile (cap 2 set at cap 1 while realistic draws -> ratio stays 1, expected 2)."
+    ],
     "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "notes": "S7 prep: the automated part exists and runs; the quiet-window measurement and the owner's real-device rows are NOT_RUN. Gaps: docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23."
   },
   {
     "id": "AT179",
@@ -6844,5 +6848,1777 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Registered 2026-10-07 by TASKS-SYNC-4. No signed APK exists and none is staged in 2.2.1 / 2.3.0; fixture file only. NOT_RUN on a phone."
+  },
+  {
+    "id": "AT249",
+    "requirement_ids": [
+      "R233"
+    ],
+    "task_ids": [
+      "WXD0"
+    ],
+    "title": "WisKey CR-033: Trusted-bridge fakes and vector oracle",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Trusted-bridge fakes and vector oracle (CR-033, plan slice WXD0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT250",
+    "requirement_ids": [
+      "R234"
+    ],
+    "task_ids": [
+      "WXD1"
+    ],
+    "title": "WisKey CR-033: WisKey door map (explicit, single relay, manual)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey door map (explicit, single relay, manual) (CR-033, plan slice WXD1), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT251",
+    "requirement_ids": [
+      "R235"
+    ],
+    "task_ids": [
+      "WXD2"
+    ],
+    "title": "WisKey CR-033: Access control station scope and placement",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Access control station scope and placement (CR-033, plan slice WXD2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT252",
+    "requirement_ids": [
+      "R236"
+    ],
+    "task_ids": [
+      "WXD3"
+    ],
+    "title": "WisKey CR-033: One door authority rule, door opener role, grant card",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "One door authority rule, door opener role, grant card (CR-033, plan slice WXD3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT253",
+    "requirement_ids": [
+      "R237"
+    ],
+    "task_ids": [
+      "WXD4"
+    ],
+    "title": "WisKey CR-033: trusted_door transport (interim + signed), audit fields, \"sent\"",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "trusted_door transport (interim + signed), audit fields, \"sent\" (CR-033, plan slice WXD4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT254",
+    "requirement_ids": [
+      "R238"
+    ],
+    "task_ids": [
+      "WXD5A"
+    ],
+    "title": "WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Bridge 0.8.1 execute block for WisKey doors (admin setting) (CR-033, plan slice WXD5A), built and tested on fakes and fixtures only; entry gate: release order: WXD4 must be released first. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT255",
+    "requirement_ids": [
+      "R239"
+    ],
+    "task_ids": [
+      "WXD5B"
+    ],
+    "title": "WisKey CR-033: Bridge door_open / door_open_status",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Bridge door_open / door_open_status (CR-033, plan slice WXD5B), built and tested on fakes and fixtures only; entry gate: WisKey consumer side confirmed; also needs WXH1 (deferred, see notes). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT256",
+    "requirement_ids": [
+      "R240"
+    ],
+    "task_ids": [
+      "WXD6"
+    ],
+    "title": "WisKey CR-033: WisKey locks without lock.lock / lock-all",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey locks without lock.lock / lock-all (CR-033, plan slice WXD6), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT257",
+    "requirement_ids": [
+      "R241"
+    ],
+    "task_ids": [
+      "WXD7"
+    ],
+    "title": "WisKey CR-033: Read-only door-path inventory and report",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Read-only door-path inventory and report (CR-033, plan slice WXD7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT258",
+    "requirement_ids": [
+      "R242"
+    ],
+    "task_ids": [
+      "WXD7R"
+    ],
+    "title": "WisKey CR-033: Owner-approved inventory read on the installation",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Owner-approved inventory read on the installation (CR-033, plan slice WXD7R), built and tested on fakes and fixtures only; entry gate: owner approval (read of the Arx database only). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT259",
+    "requirement_ids": [
+      "R243"
+    ],
+    "task_ids": [
+      "WXD8"
+    ],
+    "title": "WisKey CR-033: Editor block setting (default blocked)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Editor block setting (default blocked) (CR-033, plan slice WXD8), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT260",
+    "requirement_ids": [
+      "R244"
+    ],
+    "task_ids": [
+      "WXD9"
+    ],
+    "title": "WisKey CR-033: Run guard for Arx-started runs (R-17)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Run guard for Arx-started runs (R-17) (CR-033, plan slice WXD9), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT261",
+    "requirement_ids": [
+      "R245"
+    ],
+    "task_ids": [
+      "WXD10A"
+    ],
+    "title": "WisKey CR-033: Arx event door jobs (M1), disable-and-list",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Arx event door jobs (M1), disable-and-list (CR-033, plan slice WXD10A), built and tested on fakes and fixtures only; entry gate: inventory result (only if it finds event-driven items). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT262",
+    "requirement_ids": [
+      "R246"
+    ],
+    "task_ids": [
+      "WXD10B"
+    ],
+    "title": "WisKey CR-033: Hold-open program hand-over (M3)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Hold-open program hand-over (M3) (CR-033, plan slice WXD10B), built and tested on fakes and fixtures only; entry gate: WisKey offers program creation for an Arx operator. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT263",
+    "requirement_ids": [
+      "R247"
+    ],
+    "task_ids": [
+      "WXD11"
+    ],
+    "title": "WisKey CR-033: Door-path gate T1..T26 on fakes",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Door-path gate T1..T26 on fakes (CR-033, plan slice WXD11), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT264",
+    "requirement_ids": [
+      "R248"
+    ],
+    "task_ids": [
+      "WXG0"
+    ],
+    "title": "WisKey CR-034: Merge WX3 gate tool to main",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Merge WX3 gate tool to main (CR-034, plan slice WXG0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT265",
+    "requirement_ids": [
+      "R249"
+    ],
+    "task_ids": [
+      "WXG1"
+    ],
+    "title": "WisKey CR-034: Gate: impact block, exit 5, gate:allow",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Gate: impact block, exit 5, gate:allow (CR-034, plan slice WXG1), built and tested on fakes and fixtures only; entry gate: WisKey authors the impact block for installation candidates. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT266",
+    "requirement_ids": [
+      "R250"
+    ],
+    "task_ids": [
+      "WXH0"
+    ],
+    "title": "WisKey CR-034: Rotation fakes",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Rotation fakes (CR-034, plan slice WXH0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT267",
+    "requirement_ids": [
+      "R251"
+    ],
+    "task_ids": [
+      "WXH1"
+    ],
+    "title": "WisKey CR-034: Bridge multi-key verifier and rotate service",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Bridge multi-key verifier and rotate service (CR-034, plan slice WXH1), built and tested on fakes and fixtures only; entry gate: WisKey answers to question 31 before merge. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT268",
+    "requirement_ids": [
+      "R252"
+    ],
+    "task_ids": [
+      "WXH2"
+    ],
+    "title": "WisKey CR-034: Arx key set and rotation state machine",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Arx key set and rotation state machine (CR-034, plan slice WXH2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT269",
+    "requirement_ids": [
+      "R253"
+    ],
+    "task_ids": [
+      "WXH3"
+    ],
+    "title": "WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "bridge.key.rotate, owner contacts, emergency notice (CR-034, plan slice WXH3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT270",
+    "requirement_ids": [
+      "R254"
+    ],
+    "task_ids": [
+      "WXH4"
+    ],
+    "title": "WisKey CR-034: Fresh-key re-pair with verification, emergency revocation",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Fresh-key re-pair with verification, emergency revocation (CR-034, plan slice WXH4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT271",
+    "requirement_ids": [
+      "R255"
+    ],
+    "task_ids": [
+      "WXH5"
+    ],
+    "title": "WisKey CR-034: Maintenance screen and watchdog",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Maintenance screen and watchdog (CR-034, plan slice WXH5), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT272",
+    "requirement_ids": [
+      "R256"
+    ],
+    "task_ids": [
+      "WXH6"
+    ],
+    "title": "WisKey CR-034: Anchor eligibility and capability status hand-over",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Anchor eligibility and capability status hand-over (CR-034, plan slice WXH6), built and tested on fakes and fixtures only; entry gate: WisKey high-water mechanism. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT273",
+    "requirement_ids": [
+      "R257"
+    ],
+    "task_ids": [
+      "WXH7"
+    ],
+    "title": "WisKey CR-034: Rotation gate on fakes",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Rotation gate on fakes (CR-034, plan slice WXH7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT274",
+    "requirement_ids": [
+      "R258"
+    ],
+    "task_ids": [
+      "ST7S0"
+    ],
+    "title": "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings: Studio 6 material, ceiling, tint, light, north and walk-position fields; material resolver; installation look settings with a per-person override (migration 0074). Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT275",
+    "requirement_ids": [
+      "R259"
+    ],
+    "task_ids": [
+      "ST7S4"
+    ],
+    "title": "Plan Studio 6 S4: eye-level walk-through core",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S4: eye-level walk-through core: Walk world, controller with collision/doors/stairs, A* and minimap frame, SceneView walk mode and walk UI in sw-plan-3d. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT276",
+    "requirement_ids": [
+      "R260"
+    ],
+    "task_ids": [
+      "ST7S1"
+    ],
+    "title": "Plan Studio 6 S1: material library and level-3 rendering",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S1: material library and level-3 rendering: CC0 PBR material sets, box-mapped UVs, level 3 in SceneView with the memory cap and lite rung. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT277",
+    "requirement_ids": [
+      "R261"
+    ],
+    "task_ids": [
+      "ST7S2"
+    ],
+    "title": "Plan Studio 6 S2: sun, sky, time of day, lamps",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S2: sun, sky, time of day, lamps: Solar position, sky lookup, time-of-day slider, emissive lamps in a fixed light pool, door/cover animation. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT278",
+    "requirement_ids": [
+      "R262"
+    ],
+    "task_ids": [
+      "ST7S5"
+    ],
+    "title": "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk): Joystick, tap-to-walk, pinch FOV, minimap, saved positions and route, idle still, pointer-lock opt-in. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT279",
+    "requirement_ids": [
+      "R263"
+    ],
+    "task_ids": [
+      "ST7S3"
+    ],
+    "title": "Plan Studio 6 S3: lighting bake, stills and storage",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S3: lighting bake, stills and storage: In-browser lightmap baker, per-room blend mask, pre-rendered stills with masks, plan_bakes storage. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT280",
+    "requirement_ids": [
+      "R264"
+    ],
+    "task_ids": [
+      "ST7S7"
+    ],
+    "title": "Plan Studio 6 S7: performance gate, determinism and release",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S7: performance gate, determinism and release: R178 gate (level 3, 1,000 objects, 390 px, 30 fps) with the lever table, baselines, CHANGELOG, owner checklist, registry rows. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT281",
+    "requirement_ids": [
+      "R265"
+    ],
+    "task_ids": [
+      "FIX1"
+    ],
+    "title": "Test fixes: glass wall specs and nightly default",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Test fixes: glass wall specs and nightly default: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "cc7ed6a0",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at cc7ed6a0; it is not an item-specific test run."
+  },
+  {
+    "id": "AT282",
+    "requirement_ids": [
+      "R266"
+    ],
+    "task_ids": [
+      "HA2610"
+    ],
+    "title": "Home Assistant 2026.10 compatibility: document, tests and implementation",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Home Assistant 2026.10 compatibility: document, tests and implementation: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "3c74b69c",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at 3c74b69c; it is not an item-specific test run."
+  },
+  {
+    "id": "AT283",
+    "requirement_ids": [
+      "R267"
+    ],
+    "task_ids": [
+      "SEC243"
+    ],
+    "title": "Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Security fixes 2.4.3: curved wall caps (M1), hidden camera position, L2, L4-L6: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "bfa628bd",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at bfa628bd; it is not an item-specific test run."
+  },
+  {
+    "id": "AT284",
+    "requirement_ids": [
+      "R268"
+    ],
+    "task_ids": [
+      "WALLP"
+    ],
+    "title": "Glass wall / screen and curved wall drawing tool through points",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Glass wall / screen and curved wall drawing tool through points: merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "d41195af",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at d41195af; it is not an item-specific test run."
+  },
+  {
+    "id": "AT285",
+    "requirement_ids": [
+      "R269"
+    ],
+    "task_ids": [
+      "LAT1"
+    ],
+    "title": "Instant switch on / off (no wait time)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Instant switch on / off (no wait time): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "f41e4bac",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at f41e4bac; it is not an item-specific test run."
+  },
+  {
+    "id": "AT286",
+    "requirement_ids": [
+      "R270"
+    ],
+    "task_ids": [
+      "CR21S4"
+    ],
+    "title": "Self-update: downgrade protection and installer notes (CR-021 S4)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Self-update: downgrade protection and installer notes (CR-021 S4): merged into 2.4.3 and the tier-L release gate of 2.4.3 passes with no red result.",
+    "status": "PASS",
+    "commit": "bd4e4bbe",
+    "environment": "Linux test machine, release gate tier L, integ/243 @ 37bd93e3 (2.4.3), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.3-INTEGRATION-NOTES.md",
+      "docs/release/2.4.3-RELEASE-NOTES.md",
+      "release commit e7201c92"
+    ],
+    "executed_at": "2026-10-10T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.3 tier-L gate of the integration branch that contains this item at bd4e4bbe; it is not an item-specific test run."
+  },
+  {
+    "id": "AT287",
+    "requirement_ids": [
+      "R271"
+    ],
+    "task_ids": [
+      "DU1"
+    ],
+    "title": "Design unification: one design language, token lint",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Design unification: one design language, token lint: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "c151ae20",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at c151ae20; it is not an item-specific test run."
+  },
+  {
+    "id": "AT288",
+    "requirement_ids": [
+      "R272"
+    ],
+    "task_ids": [
+      "FRGPOL"
+    ],
+    "title": "Frigate review screen polish: review, zone editor, clip viewer",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Frigate review screen polish: review, zone editor, clip viewer: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "52f34ff7",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at 52f34ff7; it is not an item-specific test run."
+  },
+  {
+    "id": "AT289",
+    "requirement_ids": [
+      "R273"
+    ],
+    "task_ids": [
+      "ACTPOL"
+    ],
+    "title": "Activity window polish: cards and list, tones, filters",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Activity window polish: cards and list, tones, filters: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "373ab590",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at 373ab590; it is not an item-specific test run."
+  },
+  {
+    "id": "AT290",
+    "requirement_ids": [
+      "R274"
+    ],
+    "task_ids": [
+      "DEVTYPE"
+    ],
+    "title": "Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Manual device type from Settings (switch/outlet/light/boiler/tap) and 2FA note removal: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "bdf3de22",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at bdf3de22; it is not an item-specific test run."
+  },
+  {
+    "id": "AT291",
+    "requirement_ids": [
+      "R275"
+    ],
+    "task_ids": [
+      "BRAND"
+    ],
+    "title": "Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Brand colours, glass screens light/dark scheme, self-update switch, climate-kind backup fix: merged into 2.4.4 and the tier-L release gate of 2.4.4 passes with no red result.",
+    "status": "PASS",
+    "commit": "b4d4aed2",
+    "environment": "Linux test machine, release gate tier L, integ/244 @ 5e5882a0 (2.4.4), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.4-INTEGRATION-NOTES.md",
+      "docs/release/2.4.4-RELEASE-NOTES.md",
+      "release commit 3e804087"
+    ],
+    "executed_at": "2026-10-11T08:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.4 tier-L gate of the integration branch that contains this item at b4d4aed2; it is not an item-specific test run."
+  },
+  {
+    "id": "AT292",
+    "requirement_ids": [
+      "R276"
+    ],
+    "task_ids": [
+      "CRY"
+    ],
+    "title": "Crystal skin with a day / night background",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Crystal skin with a day / night background: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "7cbb5530",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 7cbb5530; it is not an item-specific test run."
+  },
+  {
+    "id": "AT293",
+    "requirement_ids": [
+      "R277"
+    ],
+    "task_ids": [
+      "HOMEPOL"
+    ],
+    "title": "Home and area screens polish; floor and area pickers side by side",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Home and area screens polish; floor and area pickers side by side: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "0eea3bef",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 0eea3bef; it is not an item-specific test run."
+  },
+  {
+    "id": "AT294",
+    "requirement_ids": [
+      "R278"
+    ],
+    "task_ids": [
+      "SECPOL"
+    ],
+    "title": "Security screens polish: alarm, cameras, events, notifications, recorders",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Security screens polish: alarm, cameras, events, notifications, recorders: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "7fc5c089",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 7fc5c089; it is not an item-specific test run."
+  },
+  {
+    "id": "AT295",
+    "requirement_ids": [
+      "R279"
+    ],
+    "task_ids": [
+      "ALLON"
+    ],
+    "title": "Turn all on next to turn all off (lights and switches, floor / area menu)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Turn all on next to turn all off (lights and switches, floor / area menu): merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "7b4d9015",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 7b4d9015; it is not an item-specific test run."
+  },
+  {
+    "id": "AT296",
+    "requirement_ids": [
+      "R280"
+    ],
+    "task_ids": [
+      "PLANMODE"
+    ],
+    "title": "3D view mode: a manual choice sticks, default in Settings",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "3D view mode: a manual choice sticks, default in Settings: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "2691f8f5",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 2691f8f5; it is not an item-specific test run."
+  },
+  {
+    "id": "AT297",
+    "requirement_ids": [
+      "R281"
+    ],
+    "task_ids": [
+      "SEC244"
+    ],
+    "title": "Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Tier-L release gate of the version that shipped the item."
+    ],
+    "expected": "Security lows of the 2.4.2 review: L1 restricted-reader hash, L3 hidden references: merged into 2.4.5 and the tier-L release gate of 2.4.5 passes with no red result.",
+    "status": "PASS",
+    "commit": "593b9199",
+    "environment": "Linux test machine, release gate tier L, integ/245 @ f4a16963 (2.4.5), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.4.5-INTEGRATION-NOTES.md",
+      "docs/release/2.4.5-RELEASE-NOTES.md",
+      "release commit 02a175f3"
+    ],
+    "executed_at": "2026-10-11T12:00:00Z",
+    "notes": "Registered 2026-10-11 (REGISTRY-sync-1011). PASS rests on the 2.4.5 tier-L gate of the integration branch that contains this item at 593b9199; it is not an item-specific test run."
+  },
+  {
+    "id": "AT298",
+    "requirement_ids": [
+      "R282"
+    ],
+    "task_ids": [
+      "NIGHTSP"
+    ],
+    "title": "Nightly speed-up: the nightly runs the release gate engine (60-65 min)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Nightly speed-up: the nightly runs the release gate engine (60-65 min): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: no nightly result is recorded in the repository."
+  },
+  {
+    "id": "AT299",
+    "requirement_ids": [
+      "R283"
+    ],
+    "task_ids": [
+      "SETPOL"
+    ],
+    "title": "Settings polish: navigation column with search, shared style, switch colour as accent",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Settings polish: navigation column with search, shared style, switch colour as accent: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT300",
+    "requirement_ids": [
+      "R284"
+    ],
+    "task_ids": [
+      "MEDPOL"
+    ],
+    "title": "Multimedia, notification centre and electricity charts polish (incl. meter column bug)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Multimedia, notification centre and electricity charts polish (incl. meter column bug): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT301",
+    "requirement_ids": [
+      "R285"
+    ],
+    "task_ids": [
+      "KIOPOL"
+    ],
+    "title": "Wall, kiosk and PWA polish: distance legibility, burn-in, touch",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Wall, kiosk and PWA polish: distance legibility, burn-in, touch: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT302",
+    "requirement_ids": [
+      "R286"
+    ],
+    "task_ids": [
+      "FLAKY"
+    ],
+    "title": "Stabilise flaky backend and frontend tests (15 of 16)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Stabilise flaky backend and frontend tests (15 of 16): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT303",
+    "requirement_ids": [
+      "R287"
+    ],
+    "task_ids": [
+      "FLOORSTRIP"
+    ],
+    "title": "One floor switcher in the 3D view (duplicate floor strip fix)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "One floor switcher in the 3D view (duplicate floor strip fix): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+  },
+  {
+    "id": "AT304",
+    "requirement_ids": [
+      "R288"
+    ],
+    "task_ids": [
+      "BILLSTART"
+    ],
+    "title": "Electricity bill start-reading bug",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Electricity bill start-reading bug: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT305",
+    "requirement_ids": [
+      "R289"
+    ],
+    "task_ids": [
+      "ST7L"
+    ],
+    "title": "Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: design review record only."
+  },
+  {
+    "id": "AT306",
+    "requirement_ids": [
+      "R290"
+    ],
+    "task_ids": [
+      "ST7INT"
+    ],
+    "title": "Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not integrated."
+  },
+  {
+    "id": "AT307",
+    "requirement_ids": [
+      "R291"
+    ],
+    "task_ids": [
+      "ST7SITE"
+    ],
+    "title": "Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT308",
+    "requirement_ids": [
+      "R292"
+    ],
+    "task_ids": [
+      "ST7UI"
+    ],
+    "title": "Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT309",
+    "requirement_ids": [
+      "R293"
+    ],
+    "task_ids": [
+      "ST7HIST"
+    ],
+    "title": "Plan Studio 6: level 3 also in the history map and the event page",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6: level 3 also in the history map and the event page: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: not built."
+  },
+  {
+    "id": "AT310",
+    "requirement_ids": [
+      "R294"
+    ],
+    "task_ids": [
+      "WXCR"
+    ],
+    "title": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: documentation review only."
+  },
+  {
+    "id": "AT311",
+    "requirement_ids": [
+      "R295"
+    ],
+    "task_ids": [
+      "WXIMP"
+    ],
+    "title": "WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: fixture tests not run by the registry maintainer."
+  },
+  {
+    "id": "AT312",
+    "requirement_ids": [
+      "R296"
+    ],
+    "task_ids": [
+      "WXNS"
+    ],
+    "title": "WisKey native screens plan (CR-036): 49 screens and actions",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens plan (CR-036): 49 screens and actions: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN: documentation review only."
+  },
+  {
+    "id": "AT313",
+    "requirement_ids": [
+      "R297"
+    ],
+    "task_ids": [
+      "WXN01"
+    ],
+    "title": "WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT314",
+    "requirement_ids": [
+      "R298"
+    ],
+    "task_ids": [
+      "WXN34"
+    ],
+    "title": "WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT315",
+    "requirement_ids": [
+      "R299"
+    ],
+    "task_ids": [
+      "WXN5"
+    ],
+    "title": "WisKey native screens S5: design of the station, people, schedule and status screens",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S5: design of the station, people, schedule and status screens: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT316",
+    "requirement_ids": [
+      "R300"
+    ],
+    "task_ids": [
+      "WXN6"
+    ],
+    "title": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT317",
+    "requirement_ids": [
+      "R301"
+    ],
+    "task_ids": [
+      "WXN11"
+    ],
+    "title": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT318",
+    "requirement_ids": [
+      "R302"
+    ],
+    "task_ids": [
+      "WXW"
+    ],
+    "title": "WisKey new writes (including doors), allowed now by the owner decision",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
+  },
+  {
+    "id": "AT319",
+    "requirement_ids": [
+      "R303"
+    ],
+    "task_ids": [
+      "WXAV"
+    ],
+    "title": "WisKey local live video and two-way audio (S18)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the tests named in the change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "NOT_RUN."
   }
 ]

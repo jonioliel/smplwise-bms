@@ -25,10 +25,13 @@ import { cameraState, entityName, loadMap, type MapBundle } from '../api/maps';
 import { entityMarkerKind } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
-import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
+import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
+import type { CatalogMaterialLookup } from '../map/material-resolve';
 import type { ScenePreset } from '../map/scene-three';
-import type { PartSelectDetail } from '../map/sw-plan-3d';
+import type { PartSelectDetail, RealisticChangeDetail } from '../map/sw-plan-3d';
+import { REPLAY_VIEW, replayInstant, replayStates, type ReplayStates } from '../map/replay-3d';
+import { t } from '../i18n/he';
 import { boundItemOf } from '../map/part-select';
 import { zonesWithChips } from '../map/shared-space';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
@@ -90,6 +93,12 @@ export class InvestigateEventDetail extends LitElement {
   @state() private selected3d: string | null = null;
   /** The "from camera" preset, one object per toggle: the element re-applies a preset only when the property changes. */
   @state() private eventPreset: ScenePreset = 'iso';
+  /** ST7HIST: the element draws the realistic level (its `realistic-change`): the description carries the realistic part. */
+  @state() private real3d = false;
+  private materials3d: CatalogMaterialLookup | null = null;
+  /** ST7HIST: the device states at the event's time (the floor's map at that instant, read once per event when the 3D opens);
+   * null until it answers or when it failed - every state is then drawn as unknown, as before. */
+  @state() private replay: (ReplayStates & { eventId: string }) | null = null;
   private itemNames = new Map<string, string>();
   /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
   private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
@@ -380,6 +389,7 @@ export class InvestigateEventDetail extends LitElement {
       const ev = await getEvent(this.eventId);
       this.ev = ev;
       this.view3d = false; // another event: its map card opens in 2D, the 3D then starts from its own camera
+      this.replay = null;
       this.tz = ev.timezone || this.tz;
       if (ev.location?.has_plan) void this.loadMap(ev.location.floor_id);
       else this.bundle = null;
@@ -494,6 +504,7 @@ export class InvestigateEventDetail extends LitElement {
         void loadLibrary(b.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
           this.catalog3d = lookup3dOf(lib);
+          this.materials3d = lookupMaterialsOf(lib);
           this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
@@ -645,31 +656,37 @@ export class InvestigateEventDetail extends LitElement {
   }
 
   /** The scene of the event's floor, built only while the 3D is on and memoised on a signature of what the builder reads.
-   * The map card shows the current plan (not the plan at the event time), so it carries no states of the instant: an HA
-   * state is drawn only when the bundle has it for the instant (state_at), else as unknown with the doors closed, and the
-   * circuits stay off. Never today's live value on an event of the past. Read several times per render: while nothing it
-   * reads changed (by identity - the page replaces its bundle, structure and library, never mutates them) it answers the
-   * memo without building the anchor list or its key (0.1.89 list, item 3). */
+   * The map card shows the current plan (not the plan at the event time - the owner's round-9 rule; the history map has the
+   * structure of the instant). ST7HIST: the device states are those of the event's time (`replay`: the floor's map at that
+   * instant, known states only - map/replay-3d.ts); until it answers, or when it failed, every state is unknown with the
+   * doors closed and the circuits off. Never today's live value on an event of the past. Read several times per render:
+   * while nothing it reads changed (by identity - the page replaces its bundle, structure, library and replay, never mutates
+   * them) it answers the memo without building the anchor list or its key (0.1.89 list, item 3). */
   private get sceneDescription(): SceneDescription | null {
     const b = this.bundle;
     const g = this.geometry;
     if (!this.view3d || !b || b.source !== 'api' || !g) return null;
-    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames];
+    const replay = this.replay && this.replay.eventId === this.ev?.id ? this.replay : null;
+    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames, replay, this.real3d, this.materials3d];
     if (this.sceneMemo && sameRefs(this.sceneMemo.refs, refs)) return this.sceneMemo.desc;
-    const stateAt = (a: MapBundle['anchors'][number]) => (a.entity?.state_at?.known ? a.entity.state_at.state : null);
+    const stateOf = (a: MapBundle['anchors'][number]) => (a.resource_type === 'ha_entity' ? replay?.entityStates[a.resource_id] ?? null : null);
     const anchors: SceneAnchor[] = b.anchors.map((a) => ({
       id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
-      polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: stateAt(a),
+      polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: stateOf(a),
       online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
     }));
-    const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, stateAt(a)]));
+    // explicit nulls for every placed entity the replay does not know (the current anchors; the replay's own keys are the instant's)
+    const entityStates = Object.fromEntries([...new Set(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => a.resource_id))].sort().map((id) => [id, replay?.entityStates[id] ?? null]));
+    const circuitStates = replay?.circuitStates ?? {};
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, zones]), g, this.catalog3d, this.level, this.itemNames];
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d, this.level, this.itemNames, this.real3d, this.materials3d];
     if (this.sceneMemo && sameRefs(this.sceneMemo.keys, keys)) {
       this.sceneMemo = { ...this.sceneMemo, refs };
       return this.sceneMemo.desc;
     }
-    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates: {}, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true });
+    // the realistic part only while the element draws level 3 (its `realistic-change`): levels 1-2 get exactly the description of before
+    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true,
+      ...(this.real3d ? { realistic: true, materialsCatalog: this.materials3d } : {}) });
     const labels: Record<string, string> = {};
     for (const a of b.anchors) labels[a.id] = entityName(a);
     for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
@@ -715,7 +732,23 @@ export class InvestigateEventDetail extends LitElement {
     const anchorId = this.ev?.location?.anchor_id ?? null;
     this.selected3d = anchorId;
     this.eventPreset = anchorId ? { camera: `cam:${anchorId}` } : 'iso';
+    if (this.ev && this.replay?.eventId !== this.ev.id) void this.loadReplay(this.ev);
     this.view3d = true;
+  }
+
+  /** ST7HIST: the device states at the event's time - the floor's map at that instant (its anchors' `state_at`, its circuits'
+   * switches), known states only (map/replay-3d.ts). Read once per event, only when the 3D opens; a failure keeps every
+   * state unknown. */
+  private async loadReplay(ev: EventDetail): Promise<void> {
+    const floorId = ev.location?.floor_id;
+    const at = replayInstant(ev.occurred_at);
+    if (!floorId || at === null) return;
+    try {
+      const past = await loadMap(floorId, false, new Date(at).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      if (this.ev?.id === ev.id) this.replay = { eventId: ev.id, ...replayStates(past.anchors, past.circuitStates) };
+    } catch {
+      /* the states stay unknown */
+    }
   }
 
   render() {
@@ -775,6 +808,8 @@ export class InvestigateEventDetail extends LitElement {
                     ${this.shows3d && this.sceneDescription
                       ? html`<sw-plan-3d data-event-3d .description=${this.sceneDescription} .selectedId=${this.selected3d} .preset=${this.eventPreset} .frameKey=${ev.id} .labels=${this.sceneMemo?.labels ?? {}}
                           .cameras=${this.bundle.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${loc.floor_name}-${ev.id}`}
+                          .sunAt=${replayInstant(ev.occurred_at)} .walkable=${REPLAY_VIEW.walkable} .stillsAvailable=${REPLAY_VIEW.stillsAvailable}
+                          @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) this.real3d = e.detail.on; }}
                           @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
                       : nothing}
                     <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .hideImage=${!this.planImage} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${zonesWithChips(this.bundle.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
@@ -782,7 +817,7 @@ export class InvestigateEventDetail extends LitElement {
                   </div>
                   ${webglAvailable() ? nothing : html`<div class="note" data-event-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</div>`}
                   ${this.threeState === 'error' ? html`<div class="note err" data-3d-load-error>תלת-ממד לא נטען.</div>` : nothing}
-                  ${this.view3d ? html`<div class="note" data-event-3d-note>מבנה התוכנית הנוכחית; מצבי הישויות בזמן האירוע אינם ידועים כאן ומוצגים כלא ידועים.</div>` : nothing}
+                  ${this.view3d ? html`<div class="note" data-event-3d-note>${t('replay3d.eventNote')}</div>` : nothing}
                   <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
                     <sw-button size="sm" icon="map" data-history-map @click=${() => navigate(`/investigate/floors/${loc.floor_id}`, { t: ev.occurred_at, camera: ev.camera_id ?? '' })}>המשך חקירה במפה</sw-button>
                     <sw-button size="sm" variant="ghost" icon="live" @click=${() => navigate(`/explore/floors/${loc.floor_id}`)}>מפה חיה</sw-button>

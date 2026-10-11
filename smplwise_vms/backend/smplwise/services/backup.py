@@ -61,7 +61,13 @@ KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
                  "multimedia.ma_direct",  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
                  "nvr.legacy_import_done",  # CR-022 section 7: a restore never re-arms the one-time import of the add-on options
-                 "system.addon_restart_at"}  # CR-022 review F6: the restart guard is local state, never restored
+                 "system.addon_restart_at",  # CR-022 review F6: the restart guard is local state, never restored
+                 # SEC246 L4 (owner 2026-10-11): the self-update switch is the installation's current policy. A restore never takes it
+                 # from an archive (an archive written while it was on - or before 2.4.4 - must not switch installing from Arx back on);
+                 # the restore answer and its own `system.update.apply_enabled` audit row say what was kept and what the archive held.
+                 "update.apply_enabled"}
+UPDATE_SWITCH_KEY = "update.apply_enabled"
+BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
 # never written to an archive, never read from one, and a `replace` restore leaves the row alone (it is not in PROJECT_TABLES).
 # Its key file lives in keys/, which never enters an archive (`_rel`).
@@ -367,6 +373,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             if member in names:
                 data[t] = json.loads(z.read(member).decode("utf-8"))
         keep = _actor_rows(conn, actor_user_id) if scope == "project+access" else {}
+        update_switch = _update_switch(conn, data)
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
         if mode == "replace":
             for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
@@ -391,6 +398,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             if rows:
                 _insert_rows(conn, t, rows, replace=False)
         roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
+        backgrounds_rejected: list[dict[str, str]] = []  # SEC246 I2
         files = 0
         files_skipped = 0
         # review F1: only the files the archive's own (kept) rows reference, each inside the restorable set
@@ -407,6 +415,24 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             if base not in dest.resolve().parents:  # re-review 2a: never write outside the data dir, whatever the name
                 continue
             dest.parent.mkdir(parents=True, exist_ok=True)
+            if rel.startswith(BACKGROUND_ROOT):
+                # SEC246 I2: an archive is unsigned - a background picture gets the upload's content guarantee again (pixel budget,
+                # re-encoded as a fresh JPEG); one that fails it is not written and the slot's old file is removed
+                from ..errors import ApiError
+                from ..routers import ui_background
+
+                with z.open(member) as src:
+                    raw = src.read(ui_background.IMAGE_MAX_BYTES + 1)
+                try:
+                    clean = ui_background.reencode(raw)
+                except ApiError as exc:
+                    dest.unlink(missing_ok=True)
+                    backgrounds_rejected.append({"file": rel, "code": exc.code})
+                    files_skipped += 1
+                    continue
+                ui_background.write_atomic(dest, clean)
+                files += 1
+                continue
             with z.open(member) as src, open(dest, "wb") as dst:
                 dst.write(src.read())
             files += 1
@@ -430,7 +456,21 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     if files_skipped:
         log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
-            "kept_current": kept_current, "roles_pruned": roles_pruned, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+            "kept_current": kept_current, "roles_pruned": roles_pruned, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
+            "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected}
+
+
+def _update_switch(conn: sqlite3.Connection, data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """SEC246 L4: the self-update switch a restore keeps (the current value, never the archive's) and what the archive held
+    (None when the archive has no row - every archive written since this rule, and every one from before 2.4.4)."""
+    from .self_update import apply_enabled
+
+    kept = apply_enabled(conn)
+    archived: bool | None = None
+    for row in data.get("settings", []):
+        if row.get("key") == UPDATE_SWITCH_KEY:
+            archived = (row.get("value") or "true") != "false"
+    return {"kept": kept, "archive": archived, "differed": archived is not None and archived != kept}
 
 
 def _prune_role_permissions(conn: sqlite3.Connection) -> list[dict[str, Any]]:

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { SKIN_IDS } from '../src/design/skins';
 
 // Unreleased (owner request 2026-10-04): the `capsule` dropdown style and the SIZE dial (dd-size: sm / md / lg).
 //  - the items API: `icon`, `count` and a `divider` item; the other styles ignore icon and divider;
@@ -9,7 +10,7 @@ import { test, expect, type Page } from '@playwright/test';
 //  - the resolver (user group > user global > installation group > installation global > md) and the Settings card against a mocked backend.
 // Needs the Vite DEV server (imports /src/...); run on the Ubuntu runner:  ~/run_remote.sh spec <branch> tests/dropdown-capsule.spec.ts
 const MODE_URL = '/src/shell/tabs-mode.ts';
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const SIZES = ['sm', 'md', 'lg'] as const;
 const ADMIN = ['alarm.view', 'audit.read', 'devices.read', 'devices.control', 'entity.state.read', 'events.read', 'map.read', 'media.browse', 'media.control', 'media.read', 'rbac.assign', 'schedule.view', 'schedule.manage', 'sources.configure', 'system.configure', 'video.live', 'video.playback', 'access.read', 'automation.manage', 'script.run'];
 const ITEMS = [

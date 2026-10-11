@@ -18,9 +18,13 @@ import { PointerLockGate } from './pointer-lock-gate';
 import { drawMinimap, type MinimapFrame } from './walk-minimap';
 import { DOOR_STATE_HE, type WalkStart, type WalkWorld } from './walk-world';
 import type { WalkEvent } from './walk-controller';
+import './walk-hud';
+import type { SwWalkHud, WalkHudField, WalkHudGoto, WalkHudRoute } from './walk-hud';
+import { WalkTouchUi } from './walk-touch-ui';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
+import { t } from '../i18n/he';
 import { DEFAULT_SITE, TIME_BAND_HE, hourLabel, siteInstant, siteLocal, timeBand } from './sun';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
@@ -96,7 +100,7 @@ export const WALK_FOV = { desktop: 62, touch: 70, portrait: 76 } as const;
 /** The crosshair turns to a device within this distance (LOOK_SPEC section 9). */
 export const WALK_ACT_M = 3.5;
 const WALK_TOAST_MS = 2600;
-const START_KIND_HE: Record<string, string> = { saved: 'עמדות שמורות', door: 'כניסה', room: 'חדרים', camera: 'מצלמות', centre: 'מרכז' };
+const NO_STARTS: WalkStart[] = [];
 
 /** A download name without whitespace or path characters (Hebrew letters stay): "plan-3d-אולם 3D" -> "plan-3d-אולם-3D". */
 function safeFileName(name: string): string {
@@ -203,6 +207,10 @@ export class SwPlan3d extends LitElement {
   /** CR-029 S5-B: the look the host forces (a wall's own theme, CR-030): the realistic level's style and sky follow it instead of the
    * viewer's dial and the page's scheme. null = as usual. */
   @property({ attribute: false }) themeForce: 'light' | 'dark' | null = null;
+  /** ST7HIST: a fixed instant (UTC ms) the realistic level's sun is drawn for - the history map's cursor, the event's time.
+   * Set: the site clock does not tick the sun and the time pill is not shown (the screen owns the time; a slider here would
+   * contradict the replayed states). null = the site clock / the slider, as on the live map. */
+  @property({ attribute: false }) sunAt: number | null = null;
   /** The walk: off, asked of the host (waiting for a description with `walk`), or on. */
   @state() private walkState: 'off' | 'requested' | 'on' = 'off';
   /** The walk's numbers for the walk bar (x, z, heading, level), refreshed at most ~8 times a second. */
@@ -693,53 +701,7 @@ export class SwPlan3d extends LitElement {
       box-shadow: var(--sw-shadow-1);
       cursor: pointer;
       z-index: var(--sw-z-map-ui);
-    }
-    .walkbar {
-      position: absolute;
-      inset-block-end: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: var(--sw-z-map-ui);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--sw-surface) 82%, transparent);
-      border: 1px solid var(--sw-border);
-      box-shadow: var(--sw-shadow-1);
-      backdrop-filter: blur(14px);
-      direction: rtl;
-      max-inline-size: calc(100% - 24px);
-      overflow-x: auto;
-    }
-    .walkbar label {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    .walkbar input {
-      inline-size: 58px;
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
-      padding: 3px 6px;
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      direction: ltr;
-    }
-    .walkbar select {
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      border: 1px solid var(--sw-border-strong);
-      border-radius: 999px;
-      padding: 4px 8px;
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      max-inline-size: 170px;
+      touch-action: none;
     }
     .pill {
       position: absolute;
@@ -768,17 +730,32 @@ export class SwPlan3d extends LitElement {
       gap: 8px;
       align-items: center;
     }
+    /* the one button of the stair's prompt is a finger's target on a phone (S5-A): 44 px whatever the control scale says */
+    .pill.cross-floor sw-button {
+      --sw-ctl-h-lg: 44px;
+    }
     :host([data-walk]) .bar,
     :host([data-walk]) .strip {
       display: none;
     }
+    /* S5-A: a finger has no crosshair and no "Enter" hint; the stage is not selectable and a long press is the walk's, not a menu */
+    :host([data-walk-touch]) .cross,
+    :host([data-walk-touch]) .pill.aim {
+      display: none;
+    }
+    :host([data-walk]) .stage {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
     @media (max-width: 640px) {
-      .walkbar .num {
-        display: none;
-      }
       .minimap {
         inline-size: 112px;
         block-size: 112px;
+      }
+      /* above the bottom sheet's row */
+      .pill.walknote {
+        inset-block-end: 84px;
       }
     }
     @media (max-width: 640px) {
@@ -1039,6 +1016,7 @@ export class SwPlan3d extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>): void {
+    if (changed.has('sunAt')) this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
     this.syncKiosk(changed);
     if (!this.view) return;
     const reframe = changed.has('frameKey') && changed.get('frameKey') !== undefined;
@@ -1056,6 +1034,7 @@ export class SwPlan3d extends LitElement {
     // the first update lists every initial property, `continuous` included: it must not stop a probe init() just
     // started (the probe restores the property's value when it ends)
     if (changed.has('continuous') && !this.probe) this.view.setContinuous(this.continuous);
+    if (changed.has('sunAt')) this.applySun(); // the instant moved (the history cursor): the sun follows, no rebuild
     this.applyQuality(); // the choice, the installation default or a fallback changed: a no-op when the view already draws the level
     this.layoutOverlays(); // the label elements may be new (a state push): place them at once
   }
@@ -1144,8 +1123,10 @@ export class SwPlan3d extends LitElement {
 
   // ---- the time of day (CR-029 S2): the site clock, or the slider; the sun follows
 
-  /** The instant the sun is drawn for: the site clock now, or the slider's local hour on its local date. */
+  /** The instant the sun is drawn for: the host's fixed instant (ST7HIST), else the site clock now, or the slider's local
+   * hour on its local date. */
   private sunInstant(): number {
+    if (this.sunAt !== null && Number.isFinite(this.sunAt)) return this.sunAt;
     const t = this.timeManual;
     if (!t) return Date.now();
     return siteInstant(t.ymd[0], t.ymd[1], t.ymd[2], t.hour, this.site.zone);
@@ -1172,7 +1153,7 @@ export class SwPlan3d extends LitElement {
   private startClock(): void {
     window.clearInterval(this.clockTimer);
     if (this.viewDials.time_source === 'manual' && !this.timeManual) this.setTimeHour(siteLocal(Date.now(), this.site.zone).hour);
-    this.clockTimer = window.setInterval(() => { if (!this.timeManual && this.quality === 3) this.applySun(); }, CLOCK_TICK_MS);
+    this.clockTimer = window.setInterval(() => { if (!this.timeManual && this.sunAt === null && this.quality === 3) this.applySun(); }, CLOCK_TICK_MS);
   }
 
   /** The slider: a local hour (0..24) on the shown date (today by the site clock unless a date was picked). */
@@ -1450,6 +1431,37 @@ export class SwPlan3d extends LitElement {
 
   // ---- the eye-level walk (CR-029 S4): a WalkSession drives the eye; the description carries the walk world
 
+  /** CR-029 S5-A: how long each stop of the saved positions' route shows (ms; 0 = the default, 4 s). */
+  @property({ type: Number }) routeDwellMs = 0;
+  /** CR-029 S5-A: the touch walk's glue (walk-touch-ui.ts): taps, long presses, the route, the minimap under a finger. */
+  private ui = new WalkTouchUi({
+    view: () => this.view,
+    walk: () => this.walk,
+    hud: () => this.renderRoot.querySelector<SwWalkHud>('sw-walk-hud'),
+    world: () => this.description?.walk ?? null,
+    minimap: () => this.minimapFrame,
+    select: (hit) => this.emitSelect(hit),
+    message: (text, tone) => this.walkMessage(text, tone),
+    touching: (on) => {
+      this.toggleAttribute('data-walk-touch', on);
+      if (on) this.walkAim = null;
+    },
+  });
+
+  /** CR-029 S5-A: play the saved positions as a route, `routeDwellMs` each (the walk bar's play button does the same; the kiosk's
+   * idle route calls it). False without a walk or without two saved positions. A touch, a key or a click stops it. */
+  playRoute(): boolean {
+    return this.walk?.playRoute() ?? false;
+  }
+
+  stopRoute(): void {
+    this.walk?.cancelRoute();
+  }
+
+  get routePlaying(): boolean {
+    return this.walk?.routePlaying ?? false;
+  }
+
   /** "סיור": walk now when the description already carries the walk world, else ask the host for one (`walk-change`). */
   requestWalk(): void {
     if (this.walkState !== 'off' || !this.view) return;
@@ -1499,6 +1511,7 @@ export class SwPlan3d extends LitElement {
     }
     this.walk?.dispose();
     const first = start ?? world.starts.find((s) => s.id === world.defaultStart) ?? world.starts[0] ?? null;
+    const fov = this.walkFov();
     this.walk = new WalkSession(world, {
       canvas: view.renderer.domElement,
       onPose: () => this.onWalkPose(),
@@ -1506,8 +1519,9 @@ export class SwPlan3d extends LitElement {
       onExit: () => this.stopWalk(true),
       onAct: () => this.walkAct(),
       onLowFps: () => this.onWalkLowFps(),
-    }, { eye_m: this.viewDials.eye_m, mouseMode: this.viewDials.mouse_mode, start: first });
-    view.enterWalk(this.walkCameraPose(), this.walkFov(), this.viewDials.motion ? WALK_ENTRY_MS : 0);
+      ...this.ui.hooks(),
+    }, { eye_m: this.viewDials.eye_m, mouseMode: this.viewDials.mouse_mode, start: first, fov, ease: this.viewDials.motion, fadeMs: this.viewDials.motion ? undefined : 0, routeDwellMs: this.routeDwellMs || undefined });
+    view.enterWalk(this.walkCameraPose(), fov, this.viewDials.motion ? WALK_ENTRY_MS : 0);
     this.endProbe(false); // the walk keeps its own frame floor (section 3.4)
     this.walkState = 'on';
     this.crossFloor = null;
@@ -1527,6 +1541,7 @@ export class SwPlan3d extends LitElement {
     this.walkAim = null;
     this.crossFloor = null;
     this.minimapFrame = null;
+    this.ui.reset();
     this.removeAttribute('data-walk');
     this.removeAttribute('data-walk-pos');
     this.removeAttribute('data-walk-level');
@@ -1545,13 +1560,14 @@ export class SwPlan3d extends LitElement {
     const p = w.ctrl.pose();
     view.setWalkPose(p);
     this.drawWalkMinimap();
+    this.ui.updateTarget();
     this.setAttribute('data-walk-pos', `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.heading_deg.toFixed(1)}`);
     const now = performance.now();
     if (force || now - this.walkShownAt > 120) {
       this.walkShownAt = now;
       this.walkShown = { x: p.x, z: p.z, heading: Math.round(p.heading_deg), level: p.level };
     }
-    if (force || now - this.walkAimAt > 150) {
+    if ((force || now - this.walkAimAt > 150) && !this.ui.touch) {
       this.walkAimAt = now;
       requestAnimationFrame(() => {
         if (!this.walk || !this.view) return;
@@ -1571,6 +1587,7 @@ export class SwPlan3d extends LitElement {
       } else if (e.type === 'cross-floor') this.crossFloor = e.floor;
       else if (e.type === 'blocked') this.walkMessage(`הדלת ${DOOR_STATE_HE[e.door.state]}`, 'warn');
       else if (e.type === 'edge') this.walkMessage('קצה התוכנית', 'info');
+      else if (e.type === 'path-blocked') this.walkMessage(t('walk.noWay'), 'warn');
       else if (e.type === 'room') {
         // LOOK_SPEC section 3: the room's daylight factor drives the walk's interior fill (level 3)
         this.view?.setInterior(e.room ? this.description?.real?.rooms[e.room.id]?.daylight ?? null : null);
@@ -1642,63 +1659,27 @@ export class SwPlan3d extends LitElement {
     const tok = (t: string, fallback: string): string => css.getPropertyValue(`--sw-${t}`).trim() || fallback;
     const accent = tok('accent', '#2767ed');
     this.minimapFrame = drawMinimap(ctx, world, w.ctrl.pose(), w.ctrl.path, size, {
-      bg: tok('surface', '#ffffff'), wall: tok('map-structure', '#56617a'), low: tok('map-wall', '#9aa3b5'), window: tok('map-glass', '#7fb2ff'),
+      bg: tok('surface-solid', '#ffffff'), wall: tok('map-structure', '#56617a'), low: tok('map-wall', '#9aa3b5'), window: tok('map-glass', '#7fb2ff'),
       doorOpen: tok('live', '#22c55e'), doorClosed: tok('danger', '#ef4444'), object: tok('text-3', '#9aa3b5'), stair: tok('text-2', '#6b7f99'),
       room: withAlpha(accent, 0.07), path: tok('live', '#22c55e'), me: accent, meRing: withAlpha(accent, 0.25),
     });
   }
 
-  private onMinimapClick(e: MouseEvent): void {
-    const f = this.minimapFrame;
-    const w = this.walk;
-    if (!f || !w) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const [x, z] = f.toM(e.clientX - rect.left, e.clientY - rect.top);
-    w.goTo({ id: 'minimap', kind: 'centre', label: '', level: w.ctrl.level, x, z, heading_deg: w.ctrl.heading, pitch_deg: w.ctrl.pitch, eye_m: null });
-  }
-
-  /** The numeric walk fields (x, y in metres on the plan's axes, the heading in degrees): a keyboard alternative to every move. */
-  private onWalkField(key: 'x' | 'z' | 'heading', e: Event): void {
-    const w = this.walk;
-    const v = Number((e.target as HTMLInputElement).value);
-    if (!w || !Number.isFinite(v)) return;
-    const c = w.ctrl;
-    w.goTo({ id: 'field', kind: 'centre', label: '', level: c.level, x: key === 'x' ? v : c.x, z: key === 'z' ? v : c.z, heading_deg: key === 'heading' ? v : c.heading, pitch_deg: c.pitch, eye_m: null });
-  }
-
-  private onWalkStart(e: Event): void {
-    const sel = e.target as HTMLSelectElement;
-    const s = this.description?.walk?.starts.find((q) => q.id === sel.value);
-    sel.value = '';
-    if (s) this.walk?.goTo(s);
-  }
-
   private renderWalk() {
     if (this.walkState !== 'on' || !this.walk) return nothing;
-    const starts = this.description?.walk?.starts ?? [];
-    const kinds = ['saved', 'door', 'room', 'camera', 'centre'].filter((k) => starts.some((s) => s.kind === k));
-    const s = this.walkShown;
     return html`
-      <canvas class="minimap" data-walk-minimap role="img" aria-label="מפה קטנה של המפלס; לחיצה מעבירה לנקודה" @click=${(e: MouseEvent) => this.onMinimapClick(e)}></canvas>
+      <canvas class="minimap" data-walk-minimap role="img" aria-label="מפה קטנה של המפלס; לחיצה מעבירה לנקודה"
+        @pointerdown=${(e: PointerEvent) => this.ui.minimapDown(e)} @pointermove=${(e: PointerEvent) => this.ui.minimapMove(e)}
+        @pointerup=${(e: PointerEvent) => this.ui.minimapUp(e)} @pointercancel=${(e: PointerEvent) => this.ui.minimapUp(e)}></canvas>
       <span class="cross" ?data-aim=${!!this.walkAim} aria-hidden="true"></span>
       ${this.walkAim ? html`<span class="pill aim" data-walk-aim>${this.labelOf(this.walkAim)} · Enter</span>` : nothing}
       ${this.walkNote ? html`<span class="pill walknote" role="status" data-tone=${this.walkNote.tone} data-walk-note>${this.walkNote.text}</span>` : nothing}
       ${this.crossFloor
         ? html`<span class="pill cross-floor" role="status" data-walk-cross=${this.crossFloor.id}>המדרגות ממשיכות ל${this.crossFloor.name ?? 'קומה אחרת'}
-            <sw-button size="sm" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>המשך לקומה</sw-button></span>`
+            <sw-button size="lg" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>המשך לקומה</sw-button></span>`
         : nothing}
-      <div class="walkbar" role="group" aria-label="סיור בגובה עין" data-walk-bar>
-        <sw-button size="sm" variant="ghost" data-walk-exit @click=${() => this.stopWalk(true)}>יציאה</sw-button>
-        <select data-walk-start aria-label="עמוד ב…" @change=${(e: Event) => this.onWalkStart(e)}>
-          <option value="">עמוד ב…</option>
-          ${kinds.map((k) => html`<optgroup label=${START_KIND_HE[k]}>${starts.filter((q) => q.kind === k).map((q) => html`<option value=${q.id}>${q.label || START_KIND_HE[k]}</option>`)}</optgroup>`)}
-        </select>
-        ${s
-          ? html`<label class="num">x <input type="number" step="0.1" inputmode="decimal" data-walk-x aria-label="x במטרים" .value=${s.x.toFixed(2)} @change=${(e: Event) => this.onWalkField('x', e)} /></label>
-              <label class="num">y <input type="number" step="0.1" inputmode="decimal" data-walk-y aria-label="y במטרים" .value=${s.z.toFixed(2)} @change=${(e: Event) => this.onWalkField('z', e)} /></label>
-              <label class="num">כיוון <input type="number" step="5" inputmode="numeric" data-walk-heading aria-label="כיוון במעלות" .value=${String(s.heading)} @change=${(e: Event) => this.onWalkField('heading', e)} /></label>`
-          : nothing}
-      </div>`;
+      <sw-walk-hud .starts=${this.description?.walk?.starts ?? NO_STARTS} .shown=${this.walkShown}
+        @hud-exit=${() => this.stopWalk(true)} @hud-goto=${(e: CustomEvent<WalkHudGoto>) => this.ui.goto(e)} @hud-field=${(e: CustomEvent<WalkHudField>) => this.ui.field(e)} @hud-route=${(e: CustomEvent<WalkHudRoute>) => this.ui.routeToggle(e)}></sw-walk-hud>`;
   }
 
   // ---- the thumbnail strip: one small isometric per listed level, cached for the description it came from
@@ -1816,7 +1797,7 @@ export class SwPlan3d extends LitElement {
    * use, a click opens the slider and the date. */
   private renderTime() {
     const s = this.sunShown;
-    if (!s || this.walkState === 'on') return nothing;
+    if (!s || this.walkState === 'on' || this.sunAt !== null) return nothing; // a fixed instant: the screen shows the time
     const glyph = s.band === 'day' ? '☀' : s.band === 'night' ? '☾' : '◐';
     const today = siteLocal(Date.now(), this.site.zone);
     const ymd = this.timeManual?.ymd ?? [today.year, today.month, today.day];

@@ -518,6 +518,8 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
 | plan_upload | `POST floors/{id}/plan-assets` | `max_upload_bytes` (40 MiB) + 64 KiB |
 | catalog_image | `POST sites/{id}/image`, `POST buildings/{id}/image` | 12 MiB + 64 KiB |
 | skins_control_image | `POST floors/{id}/skins/control-image` | 8 MiB + 64 KiB |
+| ui_background | `POST settings/background/{slot}` | 12 MiB + 64 KiB (SEC246 I1; הנתיב בודק את תקציב הפיקסלים לפני הפענוח ומפענח תמונה אחת בכל פעם) |
+| plan_bake | `POST floors/{id}/bakes` | 4 MiB + 64 KiB (CR-029 S3, 2.4.7: סוג ההכנה הגדול ביותר, מפת תאורה; לכל סוג מגבלה משלו בשירות: תמונה 2 MiB, מסכה 256 KiB) |
 | backup_upload | `POST backups/upload` | 200 MiB + 64 KiB |
 | evidence_bundle | `POST cases/bundles/verify`, `POST cases/bundles/import` | התקרה של `cases.import_max_mb` (4096 MiB) + 64 KiB; הנתיבים עצמם עוצרים בערך המוגדר תוך כדי הזרמה |
 | geometry_document / detection_accept | `PUT plan-versions/{id}/geometry`, `POST plan-versions/{id}/detect/accept` | 16 MiB |
@@ -529,6 +531,18 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
 עדיין אין נתיב להעלאת תמונת אדם של WisKey (שלב A3; `extra="forbid"` דוחה מפתח `photo`), ולכן נתיבי האנשים נופלים
 תחת ברירת המחדל של 1 MiB. הבקשה הראשונה של לקוח bearer חייבת להישאר מתחת ל-64 KiB (הטוקן שלו הופך ל-session bearer
 מוכר באותה בקשה). ראיות: `tests/test_body_limit.py`.
+
+### השלמות SEC246 (11.10.2026, ענף `pilot/SEC246-fixes`, לא שוחרר)
+
+- להעלאת תמונת הרקע יש שורת מגבלת גוף משלה (`ui_background` בטבלה למעלה, SEC246 I1), יחד עם תקציב פיקסלים שנבדק לפני כל
+  פענוח ופענוח אחד בכל פעם (SEC246 L1).
+- פקודות להתקנים - מהאפליקציה, מדפדפן דרך `/arx` או דרך Ingress באותה מידה - נרשמות לפני שהן נשלחות (SEC246 L3, החלטת
+  הבעלים 11.10.2026): שורת `ha_actions` הממתינה ושורת יומן `ha.action` של הניסיון נשמרות (fsync אחד) לפני הקריאה החתומה;
+  כשזה לא מתאפשר תוך 2 שניות הפקודה לא נשלחת (503 `busy`, אפשר לנסות שוב). הרישום עוקף את תור הכתיבה והקריאה יוצאת
+  מתהליכון הבקשה; העלות שנשארת היא ה־fsync של השמירה. גבולות ההשהיה במנוחה של LAT1 (`tests/test_lat1_toggle_latency.py`)
+  הוגדלו ב־40 ms בשביל זה (חציון השליחה 60 -> 100 ms, הדחיפה 137 -> 177 ms, אותו כלל מקדם עומס); נמדד על שרת הריצה, בסיס
+  מול רישום תחילה, 3 הרצות של 20 החלפות כל אחת: חציון השליחה 14.3 / 10.5 / 15.6 ms מול 69.2 / 27.3 / 53.7 ms. ה־`Server-Timing`
+  של כל פקודה מראה `pending_wait` ו־`pending_commit`.
 
 ### אפליקציית Android עם תצוגה משלה נבנתה (29.09.2026, ענף `pilot/CR008-android-shell`, לא שוחרר)
 

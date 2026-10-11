@@ -39,6 +39,8 @@ const SCREENS: { name: string; route: string; screen: string; state?: string; ct
   { name: 'bill-sent', route: `${EL}/bills/b102`, screen: 'bill' },
   { name: 'bill-paid', route: `${EL}/bills/b103`, screen: 'bill' },
   { name: 'bill-draft', route: `${EL}/bills/b101`, screen: 'bill' },
+  // BILL-start-reading: a meter that began reporting inside the period (its first reading) and one without an opening reading ("לא נקלט")
+  { name: 'bill-draft-opening', route: `${EL}/bills/b101`, screen: 'bill', ctl: { opening: true } },
   { name: 'bill-void', route: `${EL}/bills/b105`, screen: 'bill' },
   { name: 'bill-revision', route: `${EL}/bills/b106`, screen: 'bill' },
   { name: 'customers-list', route: `${EL}/customers`, screen: 'customers' },

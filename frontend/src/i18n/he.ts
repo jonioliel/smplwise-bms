@@ -39,6 +39,24 @@ export const he = {
     listView: 'תצוגת רשימה',
     stalePlan: 'התוכנית מוצגת כרקע בלבד',
   },
+  // CR-029 S5-A (2026-10-12): the controls of the eye-level walk (map/walk-hud.ts)
+  walk: {
+    bar: 'סיור בגובה עין',
+    exit: 'יציאה',
+    standAt: 'עמוד ב…',
+    route: 'מסלול',
+    routeStop: 'עצירה',
+    xMetres: 'x במטרים',
+    yMetres: 'y במטרים',
+    headingDeg: 'כיוון במעלות',
+    heading: 'כיוון',
+    noWay: 'אין דרך פתוחה לשם',
+    kindSaved: 'עמדות שמורות',
+    kindDoor: 'כניסה',
+    kindRoom: 'חדרים',
+    kindCamera: 'מצלמות',
+    kindCentre: 'מרכז',
+  },
   states: {
     loading: 'טוען…',
     empty: 'אין נתונים להצגה',
@@ -927,6 +945,10 @@ export const he = {
     demoOnly: 'העלאת תמונות זמינה רק מול השרת',
     hint: 'PNG, JPG או WebP עד 12 MB; מומלץ 2560×1440 ותמונה רגועה',
     fallback: 'כשחסרה תמונה לאחד המצבים, התמונה השנייה משמשת לשניהם',
+  },
+  /** ST7HIST (CR-029 section 14): the 3D of a past instant on the event page. */
+  replay3d: {
+    eventNote: 'מבנה התוכנית הנוכחית; מצבי ההתקנים בזמן האירוע (ללא היסטוריה: לא ידוע).',
   },
 } as const;
 

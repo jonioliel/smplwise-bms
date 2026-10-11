@@ -42,6 +42,7 @@ import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לש�
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
 import './system-design'; // design foundation: הגדרות › כללי › מראה המערכת (skin, light / dark)
 import './system-look'; // Bubble foundation: הגדרות › כללי › מראה (the look dials)
+import './system-plan-view'; // CR-029 ST7 UI: הגדרות › מפה › תצוגה ריאליסטית (plan.view, the person's own dials, the site location)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
 import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
@@ -962,6 +963,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
+      <system-plan-view data-section="plan-view"></system-plan-view>
       ${api && this.canEdit ? html`<plan-area-links-admin data-section="area-links"></plan-area-links-admin>` : nothing}
     </div>`;
   }

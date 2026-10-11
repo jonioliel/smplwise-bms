@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { setLook } from './bubble-chrome-screens';
+import { SKIN_IDS } from '../src/design/skins';
 
 // 0.1.162: the layout guard (tests/layout-guard.ts) over the settings lists of screens and speakers / players (הגדרות › מולטימדיה): the compact
 // table, the grouped list, an open form and the open connections - in demo mode (every /api/v1 call is aborted: the demo devices answer).
@@ -74,7 +75,7 @@ test.describe('layout guard: the settings lists of screens and speakers', () => 
     test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
     await run(page, 'bubble', BUBBLE_WIDTHS, () => ['escape', 'overflow', 'floating', 'clipped', 'target']);
   });
-  for (const skin of ['classic', 'domus', 'tesla']) test(`${skin} skin: the geometry classes (44 px targets at the phone width)`, async ({ page }) => {
+  for (const skin of SKIN_IDS) test(`${skin} skin: the geometry classes (44 px targets at the phone width)`, async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
     await run(page, skin, OTHER_WIDTHS, (w) => (w <= 480 ? ['escape', 'overflow', 'floating', 'clipped', 'target'] : ['escape', 'overflow', 'floating', 'clipped']));
   });

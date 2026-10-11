@@ -2,13 +2,14 @@ import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { EL, open, type Ctl } from './electricity-ui';
 import { wizardTo } from './electricity-wizard-helpers';
+import { SKIN_IDS } from '../src/design/skins';
 
 // The layout guard (tests/layout-guard.ts, the Bubble foundation's) over the electricity accounts / bills / customers / billing-settings screens, in all four
 // skins x light and dark x widths 320..1440, with the wizard steps and the dialogs open. FAILS on escape / overflow / floating / clipped / target
 // findings and on page errors. Needs the Vite DEV server. LAYOUT_QUICK=1 sweeps four widths (the working loop); the full run is the gate.
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const THEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 

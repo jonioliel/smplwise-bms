@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { mock } from './playback-stall-mock';
+import { SKIN_IDS } from '../src/design/skins';
 
 // 2.0.1 (owner approval 2026-10-05): the layout guard (tests/layout-guard.ts) over the synchronized-playback screen's camera picker -
 // closed with four picks, open at the limit (disabled options, the foot with the count / "נקה" / "סיום") - in all four skins x light
@@ -12,9 +13,9 @@ import { mock } from './playback-stall-mock';
 // 390 / 1440 screenshots (the before / after evidence).
 //   npm run build; SW_BASE_URL=http://127.0.0.1:5291/ npx playwright test tests/layout-sync-dropdown.spec.ts --project=desktop
 const WIDTHS = process.env.LAYOUT_FULL ? [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440] : [320, 390, 1440];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const THEMES = ['light', 'dark'] as const;
-const STYLE_OF: Record<(typeof SKINS)[number], string> = { classic: 'field', domus: 'pill', tesla: 'prefix', bubble: 'capsule' };
+const STYLE_OF: Record<(typeof SKINS)[number], string> = { classic: 'field', domus: 'pill', tesla: 'prefix', bubble: 'capsule', crystal: 'tonal' };
 const SHOTS = process.env.SW_SHOTS ?? '';
 const MORE = [{ name: 'מחסן' }, { name: 'לובי' }, { name: 'מעלית' }, { name: 'גג' }, { name: 'חצר אחורית' }, { name: 'מסדרון' }, { name: 'שער' }];
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);

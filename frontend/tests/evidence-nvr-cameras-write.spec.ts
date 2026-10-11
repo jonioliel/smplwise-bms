@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ADMIN, install, newMock, type Mock } from './nvr-cameras-write-mock';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-020 S2 phase B evidence: הגדרות › אבטחה › מצלמות with the write controls - the SVC switch, the ONE confirmation, the undo toast, the
 // editor drawer and every failure line. API mode against a STATEFUL mocked backend (tests/nvr-cameras-write-mock.ts), so each outcome
@@ -384,7 +385,7 @@ test.describe('CR-020 S2b cameras write (mocked backend)', () => {
     expect(errors).toEqual([]);
   });
 
-  for (const skin of ['classic', 'domus', 'tesla', 'bubble']) {
+  for (const skin of SKIN_IDS) {
     test(`the editor (${skin} skin): after the codec change the confirmation is on top of the drawer and takes the press`, async ({ page }) => {
       const drawer = await ownerStream(page, `&skin=${skin}`);
       await drawer.locator('[data-field="codec"] select').selectOption('H.264');

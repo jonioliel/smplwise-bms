@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installBv1Mock, bv1Config, BV1_NOW, BV1_PERMS } from './bv1-mocks';
+import { SKIN_IDS } from '../src/design/skins';
 
 // BV1 (2026-10-05): the layout guard (tests/layout-guard.ts) over the home screen with the new widgets - the clock and weather TILES,
 // the agenda and the launcher grid - in the FOUR skins (classic, domus, tesla, bubble) x light / dark x 10 widths (320 .. 1440);
@@ -12,7 +13,7 @@ import { installBv1Mock, bv1Config, BV1_NOW, BV1_PERMS } from './bv1-mocks';
 const LOOK_URL = '/src/design/look.ts';
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 800, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const THEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 

@@ -11,7 +11,7 @@ import { FIXTURE_NOW } from '../electricity/fixtures';
 export type ReadingUnit = 'kWh' | 'Wh' | 'MWh';
 /** allocation: the reading closed or re-split a reporting gap; record: kept for comparison only. */
 export type ReadingEffect = 'allocation' | 'record';
-export type EffectReason = 'open_gap' | 'closed_gap' | 'reported' | 'outside_counter' | 'no_counter_data' | 'counter_events' | 'implausible' | 'billed';
+export type EffectReason = 'open_gap' | 'closed_gap' | 'head_gap' | 'reported' | 'outside_counter' | 'no_counter_data' | 'counter_events' | 'implausible' | 'billed';
 
 export interface ManualReading {
   /** null in a dry-run answer (nothing saved yet). */
@@ -120,6 +120,7 @@ const UNIT_WH: Record<ReadingUnit, number> = { kWh: 1000, Wh: 1, MWh: 1_000_000 
 const TEXT: Record<EffectReason, string> = {
   open_gap: 'הקריאה השלימה את הפער מאז הדיווח האחרון. הצריכה עד הקריאה חולקה לפי זמן.',
   closed_gap: 'הקריאה חילקה מחדש את הצריכה בפער הדיווח. הסכום הכולל לא השתנה.',
+  head_gap: 'הקריאה נקבעה כקריאת פתיחה לפני הקריאה הראשונה של המונה. הצריכה עד הקריאה הראשונה חולקה לפי זמן.',
   reported: 'המונה דיווח בזמן הזה. הקריאה נשמרה להשוואה בלבד.',
   outside_counter: 'הקריאה שונה מערך המונה במערכת. היא נשמרה להשוואה; לתיקון קבוע אפשר להגדיר כיול.',
   no_counter_data: 'אין במערכת קריאות סביב הזמן הזה. הקריאה נשמרה להשוואה בלבד.',
@@ -257,6 +258,7 @@ export function isoToLocalInput(d: Date): string {
 export const EFFECT_LABEL: Record<EffectReason, string> = {
   open_gap: 'השלימה פער',
   closed_gap: 'חילקה פער',
+  head_gap: 'קריאת פתיחה',
   reported: 'להשוואה',
   outside_counter: 'להשוואה',
   no_counter_data: 'להשוואה',

@@ -39,8 +39,8 @@ EQUIVALENT_STATES: dict[str, frozenset[str]] = {
 
 class HopTimer:
     """LAT1: the per-hop times of one device command, for the `Server-Timing` header, the answer's `timing_ms` and the log
-    line. `clock` is the seam (perf_counter); hops may be timed from another thread (the bridge call runs in parallel
-    with the pending record), so each hop is stored under its own name."""
+    line. `clock` is the seam (perf_counter); hops may be timed from another thread, so each hop is stored under its own
+    name (thread-safe). Since SEC246 L3 the pending record is committed before the bridge call, in the request's thread."""
 
     clock = staticmethod(time.perf_counter)
 
@@ -68,6 +68,10 @@ class HopTimer:
     def timed(self, name: str, fn: Callable[..., Any], *args: Any, **kw: Any) -> Any:
         with self.hop(name):
             return fn(*args, **kw)
+
+    def span(self, name: str, start: float) -> None:
+        """A hop from `start` (a value of `clock()`) to now - the parts of one `hop` (SEC246 L3: the record's wait and commit)."""
+        self._put(name, (self.clock() - start) * 1000)
 
     def as_dict(self) -> dict[str, float]:
         with self._lock:

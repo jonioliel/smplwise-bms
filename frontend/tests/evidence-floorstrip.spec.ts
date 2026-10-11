@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SKIN_IDS } from '../src/design/skins';
 
 // Owner report 2026-10-11: on the floor map with the 3D on screen, the floor switcher showed twice - the large floor strip
 // (short name, floor name, state dots) and, under its translucent card in the same corner, the 2D quick floor buttons as a
@@ -14,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'docs', 'design', 'evidence', 'floorstrip');
 const TAG = process.env.SW_FLOORSTRIP_TAG || 'after';
 const MAP = 'explore-floor-map';
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'];
+const SKINS = SKIN_IDS;
 const SCHEMES = ['light', 'dark'];
 const FLOORS = [
   { name: 'קרקע', level: 0 },

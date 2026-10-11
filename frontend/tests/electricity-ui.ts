@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type TestInfo } from '@playwright/test';
+import type { SkinId } from '../src/design/skins';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,9 +20,11 @@ export interface Ctl {
   latency?: number;
   /** EL5: account a4 bills on a time-of-use tariff */
   tou?: boolean;
+  /** BILL-start-reading: the draft's meters lack a plain opening reading */
+  opening?: boolean;
 }
 export interface Opts {
-  skin?: 'classic' | 'domus' | 'tesla' | 'bubble';
+  skin?: SkinId;
   scheme?: 'light' | 'dark';
   ctl?: Ctl;
 }

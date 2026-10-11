@@ -543,6 +543,8 @@ The two open items the reviewers recorded (round-10 report §6.1) are closed:
 | plan_upload | `POST floors/{id}/plan-assets` | `max_upload_bytes` (40 MiB) + 64 KiB |
 | catalog_image | `POST sites/{id}/image`, `POST buildings/{id}/image` | 12 MiB + 64 KiB |
 | skins_control_image | `POST floors/{id}/skins/control-image` | 8 MiB + 64 KiB |
+| ui_background | `POST settings/background/{slot}` | 12 MiB + 64 KiB (SEC246 I1; the route checks the pixel budget before decoding and decodes one picture at a time) |
+| plan_bake | `POST floors/{id}/bakes` | 4 MiB + 64 KiB (CR-029 S3, 2.4.7: the largest bake kind, a lighting map; each kind keeps its own cap in the service: still 2 MiB, mask 256 KiB) |
 | backup_upload | `POST backups/upload` | 200 MiB + 64 KiB |
 | evidence_bundle | `POST cases/bundles/verify`, `POST cases/bundles/import` | ceiling of `cases.import_max_mb` (4096 MiB) + 64 KiB; the routes stop at the configured value while streaming |
 | geometry_document / detection_accept | `PUT plan-versions/{id}/geometry`, `POST plan-versions/{id}/detect/accept` | 16 MiB |
@@ -554,6 +556,19 @@ The two open items the reviewers recorded (round-10 report §6.1) are closed:
 There is no WisKey person-photo upload route yet (slice A3; `extra="forbid"` refuses a `photo` key), so the people routes
 fall under the 1 MiB default. A bearer client's first request must stay under 64 KiB (its token becomes a known bearer
 session on that request). Evidence: `tests/test_body_limit.py`.
+
+### SEC246 follow-ups (2026-10-11, branch `pilot/SEC246-fixes`, not released)
+
+- The background picture upload has its own body-limit row (`ui_background` in the table above, SEC246 I1), together with a
+  pixel budget checked before any decode and one decode at a time (SEC246 L1).
+- Device commands - from the app, a browser over `/arx` or Ingress alike - are recorded before they are sent (SEC246 L3,
+  owner decision 2026-10-11): the pending `ha_actions` row and an `ha.action` attempt audit row are committed (one fsync)
+  before the signed call; when that cannot happen within 2 s the command is not sent (503 `busy`, retryable). The record
+  jumps the write queue and the call leaves from the request thread; the remaining cost is the commit's fsync. The LAT1
+  idle bounds (`tests/test_lat1_toggle_latency.py`) were raised by 40 ms for it (dispatch median 60 -> 100 ms, push
+  137 -> 177 ms, same load-factor rule); measured on the runner, base vs record-first, 3 runs of 20 toggles each: dispatch
+  median 14.3 / 10.5 / 15.6 ms vs 69.2 / 27.3 / 53.7 ms. Each command's `Server-Timing` shows `pending_wait` and
+  `pending_commit`.
 
 ### Android app with its own WebView built (2026-09-29, branch `pilot/CR008-android-shell`, not released)
 

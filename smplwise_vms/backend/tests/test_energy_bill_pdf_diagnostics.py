@@ -69,7 +69,9 @@ def test_a_meter_without_readings_gives_null_readings_and_the_model_accepts_them
     assert snap["lines"], "a fixed tariff keeps one line even without consumption"
     model = BillSnapshot.from_billing_snapshot(snap)  # used to raise "meters.start.reading_kwh: a number is required"
     assert model.meters[0].start_reading is None and model.meters[0].end_reading is None
-    assert reading(None) == "-"
+    assert reading(None) == "לא נקלט"  # BILL-start-reading: said in words, never a bare "-" (nor 0.00 on the screen)
+    # a meter with no reading at all has its "not reporting" note; it does not get an "opening not captured" note on top
+    assert not [n for n in snap["notes"] if n["code"] == "opening_unknown"]
 
 
 def test_the_pdf_route_passes_that_draft_to_the_renderer(world):

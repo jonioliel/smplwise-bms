@@ -53,8 +53,9 @@ MANUAL_MIN_GAP_S = 1800  # a manual reading changes the series only inside a rep
 
 @dataclass(frozen=True)
 class ManualPlan:
-    """EL6: what a manual reading does. effect 'allocation' (reason open_gap | closed_gap) or 'record' (reason reported |
-    outside_counter | no_counter_data | counter_events | implausible | billed). prev / next: the counter readings (ts, wh) around it."""
+    """EL6: what a manual reading does. effect 'allocation' (reason open_gap | closed_gap | head_gap) or 'record' (reason reported |
+    outside_counter | no_counter_data | counter_events | implausible | billed). prev / next: the counter readings (ts, wh) around it
+    (head_gap: prev None - the reading lies before the first reading of the counter life, BILL-start-reading)."""
 
     effect: str
     reason: str
@@ -292,6 +293,8 @@ class EnergyStore:
                 return ManualPlan("record", "implausible", (t0, v0))
             return ManualPlan("allocation", "open_gap", (t0, v0), None)
         prev, nxt = self._neighbours(conn, mid, ts, epoch_lo, epoch_hi)
+        if prev is None and nxt is not None:
+            return self._plan_head(ts, raw_wh, (int(nxt["ts"]), int(nxt["value_wh"])), max_kw=max_kw, billed_until=billed_until)
         if prev is None or nxt is None:
             return ManualPlan("record", "no_counter_data")
         p, n = (int(prev["ts"]), int(prev["value_wh"])), (int(nxt["ts"]), int(nxt["value_wh"]))
@@ -304,6 +307,22 @@ class EnergyStore:
         if billed_until is not None and p[0] < billed_until:
             return ManualPlan("record", "billed", p, n)
         return ManualPlan("allocation", "closed_gap", p, n)
+
+    @staticmethod
+    def _plan_head(ts: int, raw_wh: int, n: tuple[int, int], *, max_kw: float, billed_until: int | None) -> ManualPlan:
+        """BILL-start-reading: a reading BEFORE the first reading of the counter life (typically the physical meter at the start of a
+        billing period, the meter having been added to the system later that day). The energy first - typed is spread over
+        [ts, first] like an open gap, so the opening reading of the bill is real and end - start = consumption. Never below the first
+        counter value, never above the meter's power cap, never inside a billed range."""
+        if n[0] - ts < MANUAL_MIN_GAP_S:
+            return ManualPlan("record", "reported", None, n)
+        if raw_wh > n[1]:
+            return ManualPlan("record", "outside_counter", None, n)
+        if n[1] - raw_wh > ec.cap_wh(max_kw, ts, n[0]):
+            return ManualPlan("record", "implausible", None, n)
+        if billed_until is not None and ts < billed_until:
+            return ManualPlan("record", "billed", None, n)
+        return ManualPlan("allocation", "head_gap", None, n)
 
     def _shift(self, conn: sqlite3.Connection, mid: int, deltas: dict[int, list[int]], tz: ZoneInfo, quality: int) -> None:
         """Add {bucket: [wh, covered_s]} to the quarter-hour buckets and the daily totals (negative values subtract; covered
@@ -355,6 +374,13 @@ class EnergyStore:
         with self.db.connection(label="energy.manual_reading", durable=True) as conn:
             mid = self._mid(conn, ext_id, create=False)
             plan = self._plan_manual(conn, mid, ts, raw_wh, max_kw=max_kw, epoch_lo=epoch_lo, epoch_hi=epoch_hi, billed_until=billed_until)
+            if plan.effect == "allocation" and plan.reason == "head_gap" and mid is not None and plan.next is not None:
+                t1, v1 = plan.next
+                head: dict[int, list[int]] = {}
+                self._split(ts, t1, v1 - raw_wh, 1, head, covered=True)
+                self._shift(conn, mid, head, tz, ec.Q_MANUAL)
+                conn.execute("INSERT INTO readings(meter_id, ts, value_wh, flags) VALUES (?, ?, ?, ?)", (mid, ts, raw_wh, ec.F_MANUAL_READING))
+                return plan  # the cursor (the counter's latest reading) is untouched: the reading is before all of it
             if plan.effect != "allocation" or mid is None or plan.prev is None:
                 return plan
             (t0, v0), deltas = plan.prev, {}
@@ -384,10 +410,19 @@ class EnergyStore:
             if row is None or not int(row["flags"]) & ec.F_MANUAL_READING or int(row["value_wh"]) != raw_wh:
                 return "missing"
             prev, nxt = self._neighbours(conn, mid, ts, epoch_lo, epoch_hi)
+            deltas: dict[int, list[int]] = {}
+            if prev is None and nxt is not None:  # a head-gap reading (before the counter's first reading): take its energy back out
+                t1, v1 = int(nxt["ts"]), int(nxt["value_wh"])
+                if v1 < raw_wh:
+                    return "counter_changed"
+                self._split(ts, t1, v1 - raw_wh, -1, deltas, covered=True)
+                self._shift(conn, mid, deltas, tz, ec.Q_MEASURED)
+                self._drop_empty(conn, mid, deltas, tz)
+                conn.execute("DELETE FROM readings WHERE meter_id = ? AND ts = ?", (mid, ts))
+                return None
             if prev is None:
                 return "counter_changed"
             t0, v0 = int(prev["ts"]), int(prev["value_wh"])
-            deltas: dict[int, list[int]] = {}
             if nxt is None:
                 cur = self._cursor(conn, mid)
                 if cur is None or cur["last_ts"] != ts or cur["held_ts"] is not None:
@@ -404,13 +439,19 @@ class EnergyStore:
                 self._split(ts, t1, v1 - raw_wh, -1, deltas, covered=False)
                 self._split(t0, t1, v1 - v0, 1, deltas, covered=False)
             self._shift(conn, mid, deltas, tz, ec.Q_MEASURED)
-            if deltas:  # an open gap taken back leaves empty rows: remove them, as if the reading had never been typed
-                lo_b, hi_b = min(deltas), max(deltas) + BUCKET_S
-                conn.execute("DELETE FROM intervals WHERE meter_id = ? AND bucket >= ? AND bucket < ? AND wh = 0 AND covered_s = 0", (mid, lo_b, hi_b))
-                conn.execute("DELETE FROM daily WHERE meter_id = ? AND date >= ? AND date <= ? AND wh = 0 AND covered_s = 0",
-                             (mid, local_date(lo_b, tz).isoformat(), local_date(hi_b, tz).isoformat()))
+            self._drop_empty(conn, mid, deltas, tz)
             conn.execute("DELETE FROM readings WHERE meter_id = ? AND ts = ?", (mid, ts))
             return None
+
+    @staticmethod
+    def _drop_empty(conn: sqlite3.Connection, mid: int, deltas: dict[int, list[int]], tz: ZoneInfo) -> None:
+        """An open (or head) gap taken back leaves empty rows: remove them, as if the reading had never been typed."""
+        if not deltas:
+            return
+        lo_b, hi_b = min(deltas), max(deltas) + BUCKET_S
+        conn.execute("DELETE FROM intervals WHERE meter_id = ? AND bucket >= ? AND bucket < ? AND wh = 0 AND covered_s = 0", (mid, lo_b, hi_b))
+        conn.execute("DELETE FROM daily WHERE meter_id = ? AND date >= ? AND date <= ? AND wh = 0 AND covered_s = 0",
+                     (mid, local_date(lo_b, tz).isoformat(), local_date(hi_b, tz).isoformat()))
 
     # ------------------------------------------------------------------ reading
 

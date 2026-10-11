@@ -36,6 +36,7 @@ ENTITY = "switch.lat1_relay"
 SERVICE_ACK_S = 0.035  # the lab floor (lead, 2026-10-08): service ack ~35 ms ...
 STATE_EVENT_S = 0.057  # ... and the device's state_changed ~57 ms after the call
 NOISE_HZ = 40.0  # other entities' states per second while the owner taps
+RECORD_MS = 40  # SEC246 L3: the allowance for the command's record (committed before the call) in the idle bounds - see the idle test
 
 STATES = [{"entity_id": ENTITY, "state": "off", "attributes": {"friendly_name": "LAT1 relay"}, "last_changed": "2026-10-08T08:00:00+00:00", "last_updated": "2026-10-08T08:00:00+00:00"}] + [
     {"entity_id": f"sensor.noise_{i}", "state": "0", "attributes": {"friendly_name": f"noise {i}"}, "last_changed": "2026-10-08T08:00:00+00:00", "last_updated": "2026-10-08T08:00:00+00:00"} for i in range(20)
@@ -197,6 +198,17 @@ def _table(title: str, rows: list[dict[str, float]]) -> str:
         out.append(f"  {k:9s} median {statistics.median(v):7.1f}  p90 {sorted(v)[int(len(v) * 0.9) - 1]:7.1f}  max {max(v):7.1f}")
     if rows and rows[-1].get("server_timing"):
         out.append(f"  Server-Timing (last): {rows[-1]['server_timing']}")
+        # SEC246 L3: where the time goes, per hop over every toggle (the record's queue wait and its commit are their own hops)
+        hops: dict[str, list[float]] = {}
+        for r in rows:
+            for part in (r.get("server_timing") or "").split(","):
+                name, _, dur = part.strip().partition(";dur=")
+                try:
+                    hops.setdefault(name, []).append(float(dur))
+                except ValueError:
+                    pass
+        out.append("  Server-Timing medians / p90: " + ", ".join(
+            f"{k} {statistics.median(v):.1f}/{sorted(v)[max(0, int(len(v) * 0.9) - 1)]:.1f}" for k, v in hops.items() if v))
     return "\n".join(out)
 
 
@@ -214,21 +226,28 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
     f = sw_load_factor()
     dispatch = statistics.median(r["dispatch"] for r in rows)
     push = statistics.median(r["push"] for r in rows)
-    # the fake HA's own share of the push is 57 ms; everything else is Arx. Generous bounds: a behavioural check, not a benchmark
-    assert dispatch < 60 * f, _table("idle", rows)
-    assert push < (STATE_EVENT_S * 1000 + 80) * f, _table("idle", rows)
+    # the fake HA's own share of the push is 57 ms; everything else is Arx. Generous bounds: a behavioural check, not a benchmark.
+    # SEC246 L3 (owner-approved, 2026-10-11): every command is recorded BEFORE it is sent - the pending ha_actions row and the
+    # attempt audit row, one transaction, one COMMIT fsync (synchronous=FULL) - so dispatch, and the push that follows it, carry
+    # that commit. The record jumps the write queue (its wait is ~2 ms) and the call leaves from the request thread; what is left
+    # is the fsync. Measured on the runner (20 toggles per run, base / record-first alternating, same load, 2026-10-11):
+    #   dispatch median  base 14.3 / 10.5 / 15.6 ms (p90 42.4 / 13.5 / 30.5)   record-first 69.2 / 27.3 / 53.7 ms (p90 93.8 / 38.1 / 73.8)
+    #   push median      base 210.5 / 87.5 / 128.2 ms                           record-first 199.3 / 102.8 / 136.9 ms
+    #   the record (pending_row) median 50.3 / 18.9 / 42.2 ms, of it the commit (pending_commit) 3.2 / 17.2 / 21.3 and the queue
+    #   wait (pending_wait) 12.8 / 1.7 / 2.2; earlier record-first runs under a heavier runner load: dispatch median 73.7 / 66.2.
+    # Hence RECORD_MS on top of both LAT1 idle bounds (the smallest round allowance that passes the worst observed median, 73.7 ms,
+    # with about 25 % to spare), under the same load-factor rule. The held-lock and busy cases have their own tests below.
+    assert dispatch < (60 + RECORD_MS) * f, f"f={f:.2f}\n" + _table("idle", rows)
+    assert push < (STATE_EVENT_S * 1000 + 80 + RECORD_MS) * f, f"f={f:.2f}\n" + _table("idle", rows)
     # one keep-alive connection is reused for the bridge calls (no new TCP + HTTP setup per toggle)
     assert fake.connections <= 2, f"{fake.connections} connections for {len(rows)} toggles"
     # the owner's own view of the hops: DevTools -> Network -> the POST -> Timing (Server-Timing), and the answer's timing_ms
     st = rows[-1]["server_timing"]
-    for hop in ("checks;dur=", "bridge;dur=", "pending_row;dur=", "record;dur=", "total;dur="):
+    for hop in ("checks;dur=", "bridge;dur=", "pending_row;dur=", "pending_wait;dur=", "pending_commit;dur=", "record;dur=", "total;dur="):
         assert hop in st, st
 
 
-def test_dispatch_does_not_wait_for_the_write_lock(lat_app):
-    """A writer holding SQLite's single write lock for 1.5 s (a long transaction elsewhere) must not delay the call to
-    Home Assistant: before LAT1 the route took the write lock first (BEGIN IMMEDIATE), so the dispatch waited it out."""
-    app, c, fake = lat_app
+def _hold_write_lock(app, seconds: float):
     held = threading.Event()
     release = threading.Event()
 
@@ -236,11 +255,26 @@ def test_dispatch_does_not_wait_for_the_write_lock(lat_app):
         with app.state.db.connection(label="lat1 holder") as conn:
             conn.execute("UPDATE settings SET value = value WHERE key = 'permission_revision'")
             held.set()
-            release.wait(1.5)
+            release.wait(seconds)
 
     t = threading.Thread(target=holder, daemon=True)
     t.start()
     assert held.wait(5)
+    return t, release
+
+
+def test_the_command_is_recorded_before_it_leaves_and_waits_for_a_short_write_lock(lat_app):
+    """SEC246 L3 (owner 2026-10-11): record, then send. LAT1 made the call independent of SQLite's write lock (fire first); the
+    owner chose a durable record first. A writer holding the lock for 1.5 s (inside the record budget, routers/ha.PENDING_WAIT_S)
+    therefore delays the call until the lock is free - the record (the pending ha_actions row and the `attempt` audit row) is
+    committed before the command leaves - and the call then goes out at once. The pre-SEC246 bound (dispatch < 400 ms under a held
+    lock) no longer applies by design; the idle path keeps its LAT1 bound (test_toggle_reaches_ha_and_pushes_back_without_waiting)."""
+    from smplwise.routers import ha as ha_router
+
+    app, c, fake = lat_app
+    hold_s = 1.5
+    assert hold_s < ha_router.PENDING_WAIT_S
+    t, release = _hold_write_lock(app, hold_s)
     t0 = time.perf_counter()
     result: dict = {}
 
@@ -252,20 +286,44 @@ def test_dispatch_does_not_wait_for_the_write_lock(lat_app):
     p.start()
     arrived, payload = fake.arrivals.get(timeout=20)
     dispatch_ms = (arrived - t0) * 1000
-    release.set()
+    with app.state.db.connection(mode="read") as conn:  # the record was durable before the call arrived
+        assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE id = ?", (payload["request_id"],)).fetchone()[0] == 1
     p.join(timeout=30)
     t.join(timeout=5)
-    print(f"\nLAT1 write lock held 1.5 s: dispatch {dispatch_ms:.1f} ms, response {(result['t'] - t0) * 1000:.1f} ms")
-    assert dispatch_ms < 400 * sw_time_factor(), f"the call waited {dispatch_ms:.0f} ms for the write lock"
+    print(f"\nSEC246 L3 write lock held {hold_s} s: dispatch {dispatch_ms:.1f} ms, response {(result['t'] - t0) * 1000:.1f} ms")
+    assert dispatch_ms >= (hold_s * 1000) * 0.8, f"the call left after {dispatch_ms:.0f} ms, before the record could be written"
+    assert dispatch_ms < (hold_s * 1000 + 400) * sw_time_factor(), f"the call waited {dispatch_ms:.0f} ms after the lock was free"
     r = result["r"]
     assert r.status_code == 202, r.text
     a = r.json()
-    # the record and the audit row are still written (after the lock was free), and they describe this very call
     assert a["status"] == "pending" and payload["request_id"] == a["id"]
     with app.state.db.connection(mode="read") as conn:
-        assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE id = ?", (a["id"],)).fetchone()[0] == 1
-        rows = conn.execute("SELECT decision, details_json FROM audit_log WHERE action = 'ha.action' AND resource_id = ?", (ENTITY,)).fetchall()
-    assert any(json.loads(r["details_json"] or "{}").get("id") == a["id"] and r["decision"] == "allowed" for r in rows)
+        rows = conn.execute("SELECT decision, reason, details_json FROM audit_log WHERE action = 'ha.action' AND resource_id = ?", (ENTITY,)).fetchall()
+    mine = [r for r in rows if json.loads(r["details_json"] or "{}").get("id") == a["id"]]
+    assert [x["reason"] for x in mine][:1] == ["attempt"] and len(mine) == 2, [tuple(x) for x in mine]
+
+
+def test_a_command_whose_record_cannot_be_written_in_time_is_never_sent(lat_app):
+    """SEC246 L3: a write lock held past the record budget -> 503 busy (retryable), nothing reaches Home Assistant, no record."""
+    from smplwise.routers import ha as ha_router
+
+    app, c, fake = lat_app
+    t, release = _hold_write_lock(app, ha_router.PENDING_WAIT_S + 2.0)
+    try:
+        t0 = time.perf_counter()
+        body = _body(0, "switch.turn_on")
+        r = c.post(f"/api/v1/ha/entities/{ENTITY}/actions", json=body)
+        took_ms = (time.perf_counter() - t0) * 1000
+    finally:
+        release.set()
+        t.join(timeout=10)
+    print(f"\nSEC246 L3 record budget exceeded: 503 after {took_ms:.0f} ms")
+    assert r.status_code == 503 and r.json()["code"] == "busy" and r.json()["retryable"] is True, r.text
+    assert r.json()["details"]["sent"] is False
+    time.sleep(0.2)
+    assert fake.arrivals.empty(), "a command left although it could not be recorded"
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE client_request_id = ?", (body["client_request_id"],)).fetchone()[0] == 0
 
 
 def test_a_duplicate_click_is_sent_once_even_without_the_write_lock(lat_app):

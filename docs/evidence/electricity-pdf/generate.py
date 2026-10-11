@@ -59,6 +59,9 @@ samples = {
         {"from": "2025-09-01", "to": "2025-09-30", "kwh": "702.10", "status": "partial", "source": "readings"}), {}),
     "bill-3-pages": (S.big(120), {"logo": S.logo_png()}),
     "bill-fallback-engine": (S.missing_report(), {"engine": "fpdf2"}),
+    # BILL-start-reading: an opening that is the meter's first reading, and one that was not captured ("לא נקלט")
+    "bill-opening-reading": (S.opening(), {"logo": S.logo_png()}),
+    "bill-opening-reading-fallback-engine": (S.opening(), {"engine": "fpdf2"}),
     # EL8: a customer name outside the bundled Heebo subsets (Hebrew + Latin). On a machine with system fonts these
     # characters come from them; in the add-on image (no system font) they show as missing-glyph boxes: decision open.
     "bill-name-outside-heebo": (_foreign_name(S.base()), {}),

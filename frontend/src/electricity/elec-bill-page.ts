@@ -8,14 +8,15 @@
  */
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { ERROR_TEXT, PDF_RETRYABLE, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type BillSnapshot, type SentHow } from '../api/electricity-billing';
+import { ERROR_TEXT, PDF_RETRYABLE, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type BillSnapshot, type SentHow, type SnapshotMeter } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
-import { baseNumber, f2, fmtDate, fmtDateTime, fmtRange, isIsoDate } from './elec-format';
+import { baseNumber, f2, fmtDate, fmtDateTime, fmtRange, isIsoDate, openingSource, readingText } from './elec-format';
+import { addManualReading, parseReading } from '../api/electricity-readings';
 import { go, href, route } from './elec-routes';
 
-type Dlg = '' | 'issue' | 'void' | 'correct' | 'sent' | 'paid' | 'delete';
+type Dlg = '' | 'issue' | 'void' | 'correct' | 'sent' | 'paid' | 'delete' | 'opening';
 const HOW: Record<SentHow, string> = { email: 'דוא״ל', hand: 'מסירה ידנית', other: 'אחר' };
 
 @customElement('elec-bill-page')
@@ -34,6 +35,9 @@ export class ElecBillPage extends ElecBase {
   @state() private date = '';
   @state() private how: SentHow = 'email';
   @state() private text = '';
+  /** BILL-start-reading: the meter whose opening reading is being typed, and the server's answer when it was kept for comparison only */
+  @state() private openingMeter: SnapshotMeter | null = null;
+  @state() private openingInfo = '';
   /** EL5: the daily time-of-use table is open */
   @state() private daily = false;
   private loaded = '';
@@ -154,6 +158,7 @@ export class ElecBillPage extends ElecBase {
         ${b.issue_date ? html`<dt>הונפק</dt><dd>${n(fmtDate(b.issue_date))}</dd>` : nothing}${b.due_date ? html`<dt>לתשלום עד</dt><dd>${n(fmtDate(b.due_date))}</dd>` : nothing}
         ${b.sent ? html`<dt>נשלח</dt><dd><span class="num" data-sent-at>${fmtDate(b.sent.at)}</span> · ${HOW[b.sent.how]}</dd>` : nothing}${b.paid ? html`<dt>שולם</dt><dd><span class="num" data-paid-at>${fmtDate(b.paid.at)}</span>${b.paid.reference ? html` · ${n(b.paid.reference)}` : nothing}</dd>` : nothing}
         <dt>מקור</dt><dd>${b.origin === 'auto' ? 'נוצר אוטומטית' : 'נוצר ידנית'}</dd></dl></div>
+      ${this.openingCard(b)}
       ${this.touCard(s)}
       <div class="card"><div class="hd"><b class="h3">יומן</b></div><div class="list" data-bill-log>${this.events.map((e) => html`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="num mut" style="min-inline-size:112px">${fmtDateTime(e.at)}</span><span>${e.text}</span></div>`)}</div></div>`;
     return html`<div class="page" data-elec="bill" data-state="ready" data-bill-state=${b.state} data-bill-id=${b.id}>
@@ -170,6 +175,46 @@ export class ElecBillPage extends ElecBase {
       ${this.daily && s.tou ? this.dailyTable(s.tou) : nothing}
       ${this.dialogs(b)}
     </div>`;
+  }
+
+  /** BILL-start-reading: a draft whose meter has no opening reading at the period start (it started reporting later, or never): an
+   *  administrator (energy.manage) may type what the physical meter showed then. It is saved as an audited manual reading of the meter
+   *  at the period's first instant and the draft is computed again. */
+  private openingCard(b: Bill) {
+    const start = b.snapshot.period.start_utc;
+    const open = b.snapshot.meters.filter((m) => m.start.kind === 'first_reading' || m.start.kind === 'none');
+    if (b.state !== 'draft' || !start || !open.length || !energyAccess().manage) return nothing;
+    return html`<div class="card" data-card="opening"><div class="hd"><b class="h3">קריאת פתיחה</b></div>
+      <div class="list">${open.map((m) => html`<div class="row" data-opening-meter=${m.meter_id} style="flex-wrap:nowrap"><div class="grow"><div class="b">${m.name}</div><div class="mut">${m.start.reading_kwh === null ? readingText(null) : html`${n(readingText(m.start.reading_kwh))} · ${openingSource(m.start.kind)}`}</div></div>
+        <button type="button" class="btn sm" data-opening-enter @click=${() => this.openOpening(m)}>הזנה</button></div>`)}</div></div>`;
+  }
+  private openOpening(m: SnapshotMeter) {
+    this.open('opening');
+    this.openingMeter = m;
+    this.openingInfo = '';
+  }
+  private async saveOpening() {
+    const b = this.bill as Bill;
+    const m = this.openingMeter;
+    const value = parseReading(this.text);
+    const at = b.snapshot.period.start_utc;
+    if (!m || value === null || !at || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await addManualReading(m.meter_id, { read_at: at, value, unit: 'kWh', note: this.reason.trim() || undefined });
+      if (r.reading.effect !== 'allocation') {
+        this.openingInfo = r.reading.message; // kept for comparison only: the bill does not change, say why
+        return;
+      }
+      this.bill = await elec().recalcBill(b);
+      this.close();
+      await this.refreshEvents();
+    } catch (e) {
+      this.error = elecErrorText(e);
+    } finally {
+      this.busy = false;
+    }
   }
 
   /** EL5: a time-of-use bill - kWh and amount per band over the period, and the daily table on request. */
@@ -243,6 +288,14 @@ export class ElecBillPage extends ElecBase {
           <div class="fld"><label for="pr">אסמכתה (לא חובה)</label><input id="pr" class="ltr" data-reference placeholder="לא חובה" .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLInputElement).value)} /></div>
         </div>${err}
         <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markPaid(b.id, { at: this.date, reference: this.text.trim(), row_version: b.row_version }))}>שמירה</button>${cancel()}
+      </elec-dialog>
+      <elec-dialog heading=${`קריאת פתיחה - ${this.openingMeter?.name ?? ''}`} ?open=${this.dlg === 'opening'} data-dialog="opening" @close=${() => this.close()}>
+        <div>מה הראה המונה ב-${n(fmtDate(b.period.from))} בשעה 00:00. הצריכה מאז ועד הקריאה הראשונה שנקלטה תתווסף לחיוב.</div>
+        <div class="form">
+          <div class="fld"><label for="ov">קריאה (קוט״ש)</label><input id="ov" class="ltr ${this.text && parseReading(this.text) === null ? 'err' : ''}" inputmode="decimal" data-opening-value .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLInputElement).value)} /></div>
+          <div class="fld"><label for="on">הערה (לא חובה)</label><input id="on" data-opening-note placeholder="לא חובה" .value=${this.reason} @input=${(e: Event) => (this.reason = (e.target as HTMLInputElement).value)} /></div>
+        </div>${this.openingInfo ? alertBox('warn', this.openingInfo) : nothing}${err}
+        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || parseReading(this.text) === null} @click=${() => void this.saveOpening()}>שמירה וחישוב מחדש</button>${cancel()}
       </elec-dialog>
       <elec-dialog heading="מחיקת טיוטה" ?open=${this.dlg === 'delete'} data-dialog="delete" @close=${() => this.close()}>
         <div>הטיוטה תימחק. אפשר ליצור אחרת מעמוד החשבון.</div>${err}

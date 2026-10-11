@@ -21,7 +21,7 @@ headers, and its 413 carries the remote security headers) and outside everything
 The limits (LIMITS below; docs/changes/CR-008-ARX-REMOTE-APP.md §9 has the table):
 - every route: 1 MiB (JSON bodies of the API are far below it);
 - the upload routes: their own cap + 64 KiB of multipart framing - plan files (`max_upload_bytes`), site / building
-  images (catalog.IMAGE_MAX_BYTES), the skins control image (skins store CONTROL_MAX_BYTES), the backup upload (backup
+  images (catalog.IMAGE_MAX_BYTES), the settings background pictures (ui_background.IMAGE_MAX_BYTES), the skins control image (skins store CONTROL_MAX_BYTES), the backup upload (backup
   MAX_UPLOAD), the plan package preview / import (plan_package.MAX_PACKAGE_BYTES); evidence bundles (verify / import): the ceiling of the `cases.import_max_mb` setting - those two routes
   stream the body themselves after authorising the caller and stop at the configured value while it streams;
 - large JSON documents: the Plan Studio geometry document and a detection acceptance 16 MiB, a catalog import 8 MiB;
@@ -124,6 +124,14 @@ def _plan_package(_s: Settings) -> int:
     return plan_package.MAX_PACKAGE_BYTES + MULTIPART_SLACK
 
 
+def _ui_background(_s: Settings) -> int:
+    """SEC246 I1: the background picture upload (12 MB, routers/ui_background.IMAGE_MAX_BYTES). Allowed only together with the
+    L1 pixel budget and the one-decode-at-a-time guard of that route."""
+    from .routers import ui_background
+
+    return ui_background.IMAGE_MAX_BYTES + MULTIPART_SLACK
+
+
 def _const(n: int) -> Callable[[Settings], int]:
     return lambda _s: n
 
@@ -136,6 +144,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(rf"/api/v1/floors/{_ID}/skins/control-image"), _control_image, "skins_control_image"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/floors/{_ID}/images"), _floor_image, "floor_image"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/floors/{_ID}/bakes"), _plan_bake, "plan_bake"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/settings/background/{_ID}"), _ui_background, "ui_background"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),

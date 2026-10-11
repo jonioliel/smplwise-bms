@@ -38,10 +38,16 @@ import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as 
 import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
 import { cap } from '../api/session';
-import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
+import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupMaterialsOf, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, MAX_STAIR_STEPS, sampledWall, wallLengthPx, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
 import { addCurveWall, MAX_CURVE_POINTS, bendSegment, curvePointAt, curvePreview, insertCurvePoint, moveCurvePoint, removeCurvePoint, roundCorner, setSegmentRadius, straightenSegment } from '../map/curve-ops';
 import { curveThrough } from '../map/studio-ops';
+import { moveWalkPosition, removeWalkPosition, setItemMaterial, setNorth, setSurface, upsertWalkPosition, type WalkPosition } from '../map/studio6-fields';
+import { resolveMaterials, type ResolvedMaterials, type VisualStyle } from '../map/material-resolve';
+import { DEFAULT_SITE } from '../map/sun';
+import { withDocVersion } from '../map/glass-wall';
+import { resolvedTheme } from '../design/apply';
+import { newPositionName, positionArrow, renderMaterialField, renderNorthCard, renderWalkCard, studio6Styles } from './plan-studio6-panel';
 import { DRAW_MODES, GLASS_DRAW_DEFAULTS, type GlassDraw } from './plan-studio-panel';
 import { glassT } from '../i18n/plan-glass';
 import { curveT } from '../i18n/plan-curves';
@@ -67,7 +73,7 @@ interface ZoneCandidate {
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
 const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
 
-type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'connectors' | 'circuits' | 'calibrate' | 'measure' | 'detect' | 'layers';
+type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'connectors' | 'circuits' | 'calibrate' | 'walk' | 'measure' | 'detect' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
@@ -81,13 +87,14 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'connectors', icon: 'stairs', label: 'מפלסים ומחברים', ready: true },
   { id: 'circuits', icon: 'bolt', label: 'מעגלי תאורה', ready: true },
   { id: 'calibrate', icon: 'scale', label: 'כיול קנה מידה', ready: true },
+  { id: 'walk', icon: 'route', label: 'עמדות סיור', ready: true }, // CR-029 ST7 UI: the saved eye-level viewpoints
   { id: 'measure', icon: 'ruler', label: 'מדידת מרחק ושטח', ready: true },
   { id: 'detect', icon: 'sparkle', label: 'זיהוי אוטומטי של קירות ופתחים', ready: true },
   { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
 ];
 
 /** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
-const STUDIO_TOOLS: Tool[] = ['structure', 'library', 'connectors', 'circuits', 'calibrate', 'measure', 'detect'];
+const STUDIO_TOOLS: Tool[] = ['structure', 'library', 'connectors', 'circuits', 'calibrate', 'walk', 'measure', 'detect'];
 interface CalibState {
   a: Pt | null;
   b: Pt | null;
@@ -277,6 +284,15 @@ export class ExplorePlanEditor extends LitElement {
   /** The level shown in the editor (null = every level): filters walls, labels, objects and pins; new items take it. */
   @state() private levelFilter: string | null = null;
   @state() private levelDialog: LevelDialogView | null = null;
+  // ---- Plan Studio 6 (CR-029 ST7 UI) ----
+  /** The visual style the material swatches preview (the UI theme to start with; a toggle in the field). */
+  @state() private matStyle: VisualStyle = resolvedTheme();
+  /** The walk positions tool: the position the next plan click places ('new' = a new one), and the highlighted row. */
+  @state() private walkArmed: string | 'new' | null = null;
+  @state() private walkFocus: string | null = null;
+  /** The site for the north card's sun preview (settings site.latitude / site.longitude; the defaults with known=false). */
+  @state() private site: { latitude: number; longitude: number; known: boolean } = { ...DEFAULT_SITE, known: false };
+  private matMemo: { doc: GeometryDoc; lib: CatalogLibrary | null; out: ResolvedMaterials } | null = null;
   // ---- connectors (T085) ----
   @state() private connMode: ConnectorKind | null = null;
   @state() private connStart: Pt | null = null;
@@ -867,7 +883,7 @@ export class ExplorePlanEditor extends LitElement {
         order: 2;
       }
     }
-  `, studioPanelStyles, packageDialogStyles];
+  `, studioPanelStyles, packageDialogStyles, studio6Styles];
 
   connectedCallback() {
     super.connectedCallback();
@@ -932,6 +948,10 @@ export class ExplorePlanEditor extends LitElement {
         .then((s) => {
           this.sharedLevels = s['map.shared_levels'] !== 'hide'; // CR-009: the shared room's home levels in the level bar
           this.showEstimates = s['plan.estimates'] !== 'false'; // undefined until the backend serves the setting (Task 13): estimates shown
+          const lat = Number(s['site.latitude']);
+          const lon = Number(s['site.longitude']);
+          const known = s['site.latitude'] !== null && s['site.latitude'] !== undefined && Number.isFinite(lat) && Number.isFinite(lon);
+          this.site = known ? { latitude: lat, longitude: lon, known } : { ...DEFAULT_SITE, known: false };
           if (isNewFloor && this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
         })
         .catch(() => {}); // settings unavailable: keep the default (estimates shown, every level)
@@ -1478,6 +1498,7 @@ export class ExplorePlanEditor extends LitElement {
         this.hover = null;
       } else if (this.tool === 'measure' && this.measurePts.length) this.measurePts = [];
       else if (this.tool === 'calibrate' && this.calib.a) this.calib = { ...EMPTY_CALIB };
+      else if (this.tool === 'walk' && this.walkArmed) this.walkArmed = null;
       else if (this.drawing) this.drawing = null;
       else if (this.placing) this.placing = null;
       else if (this.candidates) this.candidates = null;
@@ -1951,6 +1972,10 @@ export class ExplorePlanEditor extends LitElement {
     }
     if (tool !== 'measure') this.measurePts = [];
     if (tool !== 'calibrate') this.calib = { ...EMPTY_CALIB };
+    if (tool !== 'walk') {
+      this.walkArmed = null;
+      this.walkFocus = null;
+    }
     if (tool !== 'detect') {
       this.candSel = null; // the candidate set stays (not drawn) until the tool returns, a new run, confirm or discard
       this.detectAsk = null;
@@ -2624,6 +2649,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'detect') return false; // its clicks are candidate clicks, handled by the canvas hits
     if (this.tool === 'library') return !!this.placingItem;
     if (this.tool === 'connectors') return !!this.connMode;
+    if (this.tool === 'walk') return !!this.walkArmed; // a click places (or moves) the armed position
     // a click on a lamp toggles it (members mode); with a lamp type armed, a click places a new lamp into the circuit
     if (this.tool === 'circuits') return !!this.circuitPlacing && !!this.circuitSel;
     return this.tool !== 'structure' || (this.studioMode !== 'select' && this.studioMode !== 'curve');
@@ -2759,6 +2785,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'library' || this.tool === 'circuits') this.hover = this.gridPoint(p); // where a click places the item (T085)
     else if (this.tool === 'connectors') this.hover = this.snap(p, null, true);
     else if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
+    else if (this.tool === 'walk') this.hover = p;
     else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
     else if (this.straightDrawing) this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
     else if (this.curveDrawing) this.hover = this.snapCurve(p, this.curveDraft ?? [], shift);
@@ -2799,6 +2826,10 @@ export class ExplorePlanEditor extends LitElement {
       this.studio.commit(r.doc);
       this.lastEdit = 'structure';
       this.geomSel = { id: r.id, kind: 'connector' };
+      return;
+    }
+    if (this.tool === 'walk') {
+      this.placeWalkPosition(doc, p);
       return;
     }
     if (this.tool === 'calibrate') {
@@ -4635,8 +4666,12 @@ export class ExplorePlanEditor extends LitElement {
           .filter((x) => x.resource_type === 'ha_entity' && /^(binary_sensor|cover|lock)\./.test(x.resource_id))
           .map((x) => ({ id: x.resource_id, name: x.label || x.entity?.name || x.resource_id }))
           .sort((p, q) => (p.name < q.name ? -1 : p.name > q.name ? 1 : 0)),
+        materials: this.resolvedMaterials(this.geomPreview ?? doc),
+        materialStyle: this.matStyle,
       },
       {
+        setMaterial: (coll, id, materialId) => this.edit((d) => withDocVersion(setItemMaterial(d, coll, id, materialId))),
+        setMaterialStyle: (st) => (this.matStyle = st),
         setMode: (m) => {
           if ((DRAW_MODES.includes(m) || m === 'curve') && this.phone.matches) {
             this.info = 'ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים';
@@ -4741,8 +4776,11 @@ export class ExplorePlanEditor extends LitElement {
     return html`${group ? renderGroupInspector(group, itemOf(lib, String((group.params as { item_id?: string }).item_id ?? '')), { select: (oid) => (this.geomSel = { id: oid, kind: 'object' }), askDelete: (gid) => (this.groupDelete = gid) }) : nothing}${sel
       ? renderObjectInspector(
           { o: sel, item: itemOf(lib, sel.item_id), levels: doc.levels, doc, estimated, showEstimates: this.showEstimates, anchorName: anchorOf(sel), phone: this.phone.matches, canManage,
-            lib_category: (item) => lib.categories.find((c) => c.id === item.category)?.he ?? item.category },
+            lib_category: (item) => lib.categories.find((c) => c.id === item.category)?.he ?? item.category,
+            materialDefault: this.resolvedMaterials(doc).objects[sel.id] ?? 'plastic', materialStyle: this.matStyle },
           {
+            setMaterial: (id, materialId) => this.edit((d) => withDocVersion(setItemMaterial(d, 'objects', id, materialId))),
+            setMaterialStyle: (st) => (this.matStyle = st),
             patch: (id, patch) => {
               this.edit((d) => patchObject(d, id, patch));
               if (patch.level_id !== undefined) this.followLevel(id, patch.level_id);
@@ -4788,6 +4826,13 @@ export class ExplorePlanEditor extends LitElement {
     const { scale, estimated } = effectiveScale(doc);
     const len = (a: Pt, c: Pt) => fmtMetres(distanceM(a, c, bundle.width, bundle.height, scale), estimated, this.showEstimates);
     if (this.tool === 'connectors' && this.connStart && this.hover) return [{ a: this.connStart, b: this.hover, label: this.connMode ? CONNECTOR_LABEL[this.connMode] : '', tone: 'muted' }];
+    if (this.tool === 'walk') {
+      // every saved position as a short arrow in its heading (the highlighted one in the accent), the armed click as a ghost
+      const lv = this.activeLevel;
+      const out: RulerOverlay[] = (doc.walk_positions ?? []).filter((p) => !lv || p.level_id === lv).map((p) => ({ ...positionArrow(p, bundle.width, bundle.height), label: p.name, tone: this.walkFocus === p.id ? 'accent' : 'muted' }));
+      if (this.walkArmed && this.hover) out.push({ ...positionArrow({ x: this.hover[0], y: this.hover[1], heading_deg: 0 }, bundle.width, bundle.height), label: '', tone: 'accent' });
+      return out;
+    }
     if (this.tool === 'calibrate') {
       const { a, b: end, metres } = this.calib;
       const tip = end ?? this.hover;
@@ -4987,7 +5032,7 @@ export class ExplorePlanEditor extends LitElement {
     const c = this.calib;
     const pixels = c.a && c.b ? Math.hypot((c.b[0] - c.a[0]) * bundle.width, (c.b[1] - c.a[1]) * bundle.height) : null;
     const px = (p: { a: Pt; b: Pt }) => Math.hypot((p.b[0] - p.a[0]) * bundle.width, (p.b[1] - p.a[1]) * bundle.height);
-    return renderCalibPanel(
+    return html`${renderCalibPanel(
       { a: c.a, b: c.b, metres: c.metres, pixels, scale, estimated, showEstimates: this.showEstimates, result: c.result, warning: c.warning, busy: this.busy, pairs: c.pairs.map((p) => ({ metres: p.metres, pixels: px(p) })) },
       (value) => {
         this.calib = { ...this.calib, metres: value };
@@ -4999,6 +5044,77 @@ export class ExplorePlanEditor extends LitElement {
       () => this.addCalibPair(),
       (i) => {
         this.calib = { ...this.calib, pairs: this.calib.pairs.filter((_, k) => k !== i) };
+      },
+    )}${renderNorthCard({ northDeg: doc.north_deg ?? null, site: this.site, nowMs: Date.now(), disabled: !bundle.permissions.structure }, { set: (deg) => this.edit((d) => withDocVersion(setNorth(d, deg))) })}`;
+  }
+
+  // ---- Plan Studio 6 (CR-029 ST7 UI): materials, the saved walk positions ----
+
+  /** The resolved materials of the document (the defaults the material fields name), memoised per document and library. */
+  private resolvedMaterials(doc: GeometryDoc): ResolvedMaterials {
+    const lib = this.library;
+    if (this.matMemo && this.matMemo.doc === doc && this.matMemo.lib === lib) return this.matMemo.out;
+    const out = resolveMaterials(doc, lib ? lookupMaterialsOf(lib) : undefined);
+    this.matMemo = { doc, lib, out };
+    return out;
+  }
+
+  /** The room's floor material field in the zone inspector: the zone's id is the room's id in the structure document
+   * (the plan package and the 3D builder join the two by id), so the field creates the room row when the document has none yet. */
+  private renderRoomMaterial(z: SpatialZone) {
+    const doc = this.studio.doc;
+    const b = this.bundle;
+    if (!doc || !b?.permissions.structure || b.source !== 'api') return nothing;
+    const room = doc.rooms.find((r) => r.id === z.id);
+    const resolved = this.resolvedMaterials(doc);
+    const level = z.level_id ?? defaultLevelId(doc);
+    const defaultId = resolved.rooms[z.id]?.floor ?? resolved.levels[level]?.floor ?? 'concrete';
+    return renderMaterialField(
+      { key: `rooms:${z.id}`, label: 'חומר הרצפה', host: 'floor', value: room?.floor_material_id ?? null, defaultId, style: this.matStyle },
+      {
+        pick: (id) => this.edit((d) => withDocVersion(setSurface(d.rooms.some((r) => r.id === z.id) ? d : { ...d, rooms: [...d.rooms, { id: z.id, level_id: z.level_id ?? null }] }, 'rooms', z.id, 'floor_material_id', id))),
+        setStyle: (st) => (this.matStyle = st),
+      },
+    );
+  }
+
+  /** The armed walk position lands where the plan was clicked (a new one on the shown level, facing plan-up). */
+  private placeWalkPosition(doc: GeometryDoc, p: Pt) {
+    const armed = this.walkArmed;
+    if (!armed) return;
+    const list = doc.walk_positions ?? [];
+    const existing = armed === 'new' ? null : list.find((q) => q.id === armed);
+    const pos: WalkPosition = existing
+      ? { ...existing, x: round(p[0]), y: round(p[1]) }
+      : { id: newId(), name: newPositionName(list), x: round(p[0]), y: round(p[1]), level_id: this.activeLevel ?? defaultLevelId(doc), heading_deg: 0 };
+    this.edit((d) => withDocVersion(upsertWalkPosition(d, pos)));
+    this.walkArmed = null;
+    this.walkFocus = pos.id;
+    this.hover = null;
+  }
+
+  private renderWalkTool(b: MapBundle) {
+    const doc = this.studio.doc;
+    if (!doc) return html`<sw-card heading="עמדות סיור"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: העמדות נשמרות מול השרת.' : this.error || 'טוען את טיוטת המבנה…'}</div></sw-card>`;
+    const { scale, estimated } = effectiveScale(doc);
+    const patch = (id: string, fn: (p: WalkPosition) => WalkPosition) => this.edit((d) => { const p = (d.walk_positions ?? []).find((q) => q.id === id); return p ? withDocVersion(upsertWalkPosition(d, fn(p))) : d; });
+    return renderWalkCard(
+      { positions: doc.walk_positions ?? [], levels: doc.levels, W: b.width, H: b.height, scale, estimated: estimated && this.showEstimates, armed: this.walkArmed, focused: this.walkFocus, disabled: !b.permissions.structure },
+      {
+        arm: (id) => { this.walkArmed = id; this.hover = null; },
+        rename: (id, name) => { if (name.trim()) patch(id, (p) => ({ ...p, name })); },
+        setLevel: (id, lv) => patch(id, (p) => ({ ...p, level_id: lv })),
+        setHeading: (id, deg) => patch(id, (p) => ({ ...p, heading_deg: deg })),
+        setDefault: (id) => patch(id, (p) => ({ ...p, is_default: !p.is_default })),
+        move: (id, delta) => this.edit((d) => withDocVersion(moveWalkPosition(d, id, delta))),
+        remove: (id) => { this.edit((d) => withDocVersion(removeWalkPosition(d, id))); if (this.walkFocus === id) this.walkFocus = null; if (this.walkArmed === id) this.walkArmed = null; },
+        goTo: (id) => {
+          const p = (this.studio.doc?.walk_positions ?? []).find((q) => q.id === id);
+          if (!p) return;
+          if (this.activeLevel !== null && this.activeLevel !== p.level_id) this.levelFilter = p.level_id;
+          this.walkFocus = id;
+          this.canvas?.centerOn(p.x, p.y);
+        },
       },
     );
   }
@@ -5127,6 +5243,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'connectors') return this.renderConnectorTool(b);
     if (this.tool === 'circuits') return this.renderCircuitTool(b);
     if (this.tool === 'calibrate') return this.renderCalibrate(b);
+    if (this.tool === 'walk') return this.renderWalkTool(b);
     if (this.tool === 'measure') return this.renderMeasure(b);
     if (this.tool === 'detect') return this.renderDetectTool(b);
     if (this.tool === 'camera') {
@@ -5197,6 +5314,7 @@ export class ExplorePlanEditor extends LitElement {
         <sw-field label="צבע"><input type="color" data-ltr .value=${z.color} @change=${(e: Event) => this.patchZone(z, { color: (e.target as HTMLInputElement).value })} /></sw-field>
       </div>
       <sw-field label="מיקום שם החדר"><select data-zone-label-pos @change=${(e: Event) => this.patchZone(z, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(z.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
+      ${this.renderRoomMaterial(z)}
       ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
       ${this.areas.length
         ? html`<sw-field label="אזור בעץ ההתקנים" hint=${z.area_id && !this.areas.some((a) => a.area_id === z.area_id) ? 'האזור המקושר כבר לא קיים' : '"הצג על המפה" מהעץ ומדף האזור מגיע לחדר הזה; לחיצה על החדר במפה פותחת את האזור'}>

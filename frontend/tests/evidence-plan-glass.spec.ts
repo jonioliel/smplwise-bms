@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Locator, type Page } from '@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SKIN_IDS } from '../src/design/skins';
 
 // Window walls (glass curtain walls, document 2.1) against a running backend: draw one with the kind choice, convert a
 // wall to glass and back in one click, edit the glazing (panel width, an opening panel, the bulk equal division) with
@@ -84,7 +85,7 @@ test.describe.serial('window walls (glass curtain walls)', () => {
   test('evidence: the 2D map draws window walls apart from solid walls in every skin and both themes', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop evidence');
     test.setTimeout(180_000);
-    for (const skin of ['classic', 'tesla', 'domus', 'bubble']) {
+    for (const skin of SKIN_IDS) {
       for (const scheme of ['light', 'dark']) {
         await page.goto('about:blank');
         await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}#/explore/floors/${ids.floor}`);

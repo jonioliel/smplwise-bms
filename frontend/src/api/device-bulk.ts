@@ -71,7 +71,8 @@ export interface BulkPreview {
   targets: BulkTarget[];
   by_domain: Record<string, number>;
   domain_labels: Record<string, string>;
-  skipped: { already: number; unavailable: number };
+  /** sensitive_type (SEC246 L2): typed valves / water heaters left out of "הדלק הכל" (also listed in `excluded`). */
+  skipped: { already: number; unavailable: number; sensitive_type?: number };
   excluded: { entity_id: string; name: string; domain: string; reason: string; reason_label: string }[];
   never_included: Record<string, number>;
   digest: string;
