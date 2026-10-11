@@ -63,10 +63,10 @@ const MASK = {
   doors: [], cameras: [],
 };
 const bakesWire = () => {
-  const still = (id: string) => ({ url: `floors/f1/bakes/${id}/file`, width: STILL_W, height: STILL_H, recipe: 'still-q2.1' });
+  const still = (id: string) => ({ url: `api/v1/floors/f1/bakes/${id}/file?v=${id}`, width: STILL_W, height: STILL_H, recipe: 'still-q2.1' }); // the wire form of services/plan_bakes.py
   return {
     bake_key: 'k1', complete: true, stale_count: 0, recipes: ['still-q2.1'],
-    levels: { L0: { stills: { 'iso/light/day/off': still('ld0'), 'iso/light/day/on': still('ld1'), 'iso/dark/day/off': still('dd0'), 'iso/dark/day/on': still('dd1') }, masks: { iso: { url: 'floors/f1/bakes/mask/file' } }, lightmap: null } },
+    levels: { L0: { stills: { 'iso/light/day/off': still('ld0'), 'iso/light/day/on': still('ld1'), 'iso/dark/day/off': still('dd0'), 'iso/dark/day/on': still('dd1') }, masks: { iso: { url: 'api/v1/floors/f1/bakes/mask/file?v=mask' } }, lightmap: null } },
   };
 };
 
@@ -207,7 +207,7 @@ test.describe('the plan in the map band of a portrait wall (mocked backend)', ()
     await open(page, st);
     await expect(stills(page).locator('[data-lit-room="z0"]')).toHaveCount(1);
     st.circuit = 'off';
-    await page.evaluate(() => (document.querySelector('sw-wall')!.shadowRoot!.querySelector('sw-wall-plan') as unknown as { refresh(): Promise<void> }).refresh());
+    await band(page).locator('sw-wall-plan').evaluate((n) => (n as unknown as { refresh(): Promise<void> }).refresh()); // the 30 s timer's job, asked now
     await expect(stills(page).locator('[data-lit-room]')).toHaveCount(0);
   });
 
