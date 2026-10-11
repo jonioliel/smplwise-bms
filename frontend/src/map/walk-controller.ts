@@ -4,7 +4,9 @@
  * passable, tall objects, the sides of stairs); on a stair / ramp band only the band's sides count and the ground follows
  * the band; leaving a band at its far mouth switches the level (an event: the view fires `level-select`), a stair to
  * another floor stops at its cap and emits the "continue to the floor" event instead. Tap-to-walk is an A* on a 0.25 m
- * grid of the level (open doors are open cells: their gaps are not in the segment list), then string-pulled.
+ * grid of the level (walk-path.ts: open doors are open cells, their gaps are not in the segment list), then string-pulled;
+ * the auto-walk is cancelled when a new world blocks one of its legs (a door that closed) and when the body stops making
+ * progress (S5-A: a tap on a phone has no key to take over with).
  *
  * Determinism (design rule 4): the same world, the same start and the same sequence of (dt, input) give the same poses -
  * a frame is cut into fixed sub-steps of at most SUB_DT, so the collision never tunnels through a wall at a low frame rate
@@ -12,7 +14,9 @@
  * up, the camera anchors' convention); forward is (sin h, -cos h) on the description's axes (x east, z south).
  */
 import { bearingOf, type WalkBand, type WalkDoor, type WalkRamp, type WalkRoom, type WalkSeg, type WalkStart, type WalkWorld } from './walk-world';
+import { closestOnSeg as closest, findPath, levelSegments, lineFree as lineFreeOn, pointInPoly as inPoly } from './walk-path';
 
+export { GRID_M } from './walk-path';
 export const BODY_R = 0.28;
 export const WALK_SPEED = 1.4;
 export const RUN_SPEED = 2.8;
@@ -20,7 +24,6 @@ export const TURN_DEG_S = 120;
 export const AUTO_TURN_DEG_S = 220;
 export const MAX_DT = 0.1;
 export const SUB_DT = 1 / 60;
-export const GRID_M = 0.25;
 export const PITCH_LIMIT_DEG = 70;
 export const EYE_RANGE: readonly [number, number] = [1.2, 2.0];
 export const DEFAULT_EYE_M = 1.65;
@@ -30,7 +33,9 @@ export const MOUTH_M = 0.02;
 export const CROSS_PROMPT_M = 0.45;
 /** The soft edge of the plan: the body stays this far inside the level's extent. */
 export const EDGE_M = 0.3;
-const MAX_ASTAR_CELLS = 400_000;
+/** An auto-walk whose body moved less than STUCK_MOVE_M within STUCK_S seconds is cancelled (a closed door in the way, a wall). */
+export const STUCK_S = 1.2;
+export const STUCK_MOVE_M = 0.1;
 
 export interface WalkInput {
   /** -1..1: backward .. forward. */
@@ -48,7 +53,9 @@ export type WalkEvent =
   | { type: 'blocked'; door: WalkDoor }
   | { type: 'edge' }
   | { type: 'room'; room: WalkRoom | null }
-  | { type: 'arrived' };
+  | { type: 'arrived' }
+  /** The auto-walk was cancelled because no open way is left (a new world closed a leg, or the body stopped making progress). */
+  | { type: 'path-blocked' };
 export interface WalkPose {
   x: number;
   /** The eye's height in the scene (ground + eye). */
@@ -77,75 +84,6 @@ const wrap360 = (d: number): number => ((d % 360) + 360) % 360;
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 const r4 = (v: number): number => Math.round(v * 1e4) / 1e4 + 0;
 
-/** The distance from p to the segment ab and the closest point on it. */
-function closest(px: number, pz: number, s: WalkSeg): { d: number; cx: number; cz: number } {
-  const ex = s.b[0] - s.a[0];
-  const ez = s.b[1] - s.a[1];
-  const l2 = ex * ex + ez * ez;
-  const u = l2 > 0 ? clamp(((px - s.a[0]) * ex + (pz - s.a[1]) * ez) / l2, 0, 1) : 0;
-  const cx = s.a[0] + u * ex;
-  const cz = s.a[1] + u * ez;
-  return { d: Math.hypot(px - cx, pz - cz), cx, cz };
-}
-
-function inPoly(x: number, z: number, poly: [number, number][]): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [xi, zi] = poly[i];
-    const [xj, zj] = poly[j];
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-/** A small binary heap of [f, cell] (ties by cell index: deterministic). */
-class Heap {
-  private f: number[] = [];
-  private k: number[] = [];
-  get size(): number {
-    return this.k.length;
-  }
-  private less(i: number, j: number): boolean {
-    return this.f[i] < this.f[j] || (this.f[i] === this.f[j] && this.k[i] < this.k[j]);
-  }
-  private swap(i: number, j: number): void {
-    [this.f[i], this.f[j]] = [this.f[j], this.f[i]];
-    [this.k[i], this.k[j]] = [this.k[j], this.k[i]];
-  }
-  push(f: number, k: number): void {
-    this.f.push(f);
-    this.k.push(k);
-    let i = this.k.length - 1;
-    while (i > 0) {
-      const p = (i - 1) >> 1;
-      if (!this.less(i, p)) break;
-      this.swap(i, p);
-      i = p;
-    }
-  }
-  pop(): number {
-    const top = this.k[0];
-    const lf = this.f.pop()!;
-    const lk = this.k.pop()!;
-    if (this.k.length) {
-      this.f[0] = lf;
-      this.k[0] = lk;
-      let i = 0;
-      for (;;) {
-        const l = 2 * i + 1;
-        const r = l + 1;
-        let m = i;
-        if (l < this.k.length && this.less(l, m)) m = l;
-        if (r < this.k.length && this.less(r, m)) m = r;
-        if (m === i) break;
-        this.swap(i, m);
-        i = m;
-      }
-    }
-    return top;
-  }
-}
-
 export class WalkController {
   world!: WalkWorld;
   x = 0;
@@ -166,6 +104,9 @@ export class WalkController {
   private crossShown: string | null = null;
   private edge = false;
   private blockedDoor: string | null = null;
+  /** The simulated seconds walked so far, and where / when the auto-walk last made progress (the stuck test). */
+  private clock = 0;
+  private progress: { x: number; z: number; at: number } | null = null;
 
   constructor(world: WalkWorld, opts: { eye_m?: number } = {}) {
     this.setEyeHeight(opts.eye_m ?? DEFAULT_EYE_M, true);
@@ -175,12 +116,31 @@ export class WalkController {
     else this.level = world.levels[0]?.id ?? '';
   }
 
-  /** A new world for the same floor (a door opened, a level filter changed the description): the pose stays. */
-  setWorld(world: WalkWorld): void {
+  /** A new world for the same floor (a door opened, a level filter changed the description): the pose stays. An auto-walk
+   * whose remaining legs the new world blocks (a door that closed meanwhile) is cancelled: `path-blocked`. */
+  setWorld(world: WalkWorld): WalkEvent[] {
     this.world = world;
     this.levels = new Map(world.levels.map((l) => [l.id, l]));
     this.doors = new Map(world.doors.map((d) => [d.id, d]));
     if (this.level && !this.levels.has(this.level)) this.level = world.levels[0]?.id ?? '';
+    if (this.path?.length) {
+      const segs = levelSegments(world, this.level);
+      let from: [number, number] = [this.x, this.z];
+      for (const w of this.path) {
+        if (!lineFreeOn(from, w, segs, BODY_R)) {
+          this.cancelPath();
+          return [{ type: 'path-blocked' }];
+        }
+        from = w;
+      }
+    }
+    return [];
+  }
+
+  /** Stop the auto-walk where the body stands (a tap while walking, a key, a stick). */
+  cancelPath(): void {
+    this.path = null;
+    this.progress = null;
   }
 
   setEyeHeight(m: number, now = false): void {
@@ -195,7 +155,7 @@ export class WalkController {
     this.level = this.levels.has(s.level) ? s.level : this.level || this.world.levels[0]?.id || '';
     this.heading = wrap360(s.heading_deg);
     this.pitch = clamp(s.pitch_deg, -PITCH_LIMIT_DEG, PITCH_LIMIT_DEG);
-    this.path = null;
+    this.cancelPath();
     this.crossShown = null;
     this.eyeHold = s.eye_m;
     if (s.eye_m !== null) this.eye = s.eye_m; // a teleport (with the view's fade): the eye is at the camera at once
@@ -299,20 +259,29 @@ export class WalkController {
   }
 
   private sub(dt: number, input: WalkInput, events: WalkEvent[]): void {
+    this.clock += dt;
     if (input.turn) this.heading = wrap360(this.heading + clamp(input.turn, -1, 1) * TURN_DEG_S * dt);
     let fwd = clamp(input.forward, -1, 1);
     let strafe = clamp(input.strafe, -1, 1);
     let run = input.run;
-    if (fwd || strafe) this.path = null; // a key takes over from the auto-walk
+    if (fwd || strafe) this.cancelPath(); // a key (or the stick) takes over from the auto-walk
     else if (this.path && this.path.length) {
       const [tx, tz] = this.path[0];
       const d = Math.hypot(tx - this.x, tz - this.z);
       if (d < 0.15) {
         this.path.shift();
         if (!this.path.length) {
-          this.path = null;
+          this.cancelPath();
           events.push({ type: 'arrived' });
         }
+        return;
+      }
+      // stuck: the body did not move STUCK_MOVE_M in STUCK_S seconds (a door that closed in the way, a wall) - give up
+      const pr = this.progress;
+      if (!pr || Math.hypot(this.x - pr.x, this.z - pr.z) >= STUCK_MOVE_M) this.progress = { x: this.x, z: this.z, at: this.clock };
+      else if (this.clock - pr.at > STUCK_S) {
+        this.cancelPath();
+        events.push({ type: 'path-blocked' });
         return;
       }
       const diff = wrap180(bearingOf(tx - this.x, tz - this.z) - this.heading);
@@ -412,116 +381,17 @@ export class WalkController {
 
   /** Whether a straight walk from a to b keeps the body (slightly slimmer) clear of every segment. */
   lineFree(a: [number, number], b: [number, number], segs: WalkSeg[]): boolean {
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (len < 1e-6) return true;
-    const n = Math.max(2, Math.ceil(len / 0.1));
-    for (let i = 0; i <= n; i++) {
-      const x = a[0] + ((b[0] - a[0]) * i) / n;
-      const z = a[1] + ((b[1] - a[1]) * i) / n;
-      for (const s of segs) if (closest(x, z, s).d < BODY_R * 0.8 + s.r) return false;
-    }
-    return true;
+    return lineFreeOn(a, b, segs, BODY_R);
   }
 
-  /** Tap-to-walk: an A* path on a GRID_M grid of the current level to (tx, tz), string-pulled; the path is set and
-   * returned (null = unreachable, or the level too large for the grid). A blocked target takes the nearest free cell. */
+  /** Tap-to-walk: an A* path on a GRID_M grid of the current level to (tx, tz), string-pulled (walk-path.ts); the path is set
+   * and returned (null = unreachable, or the level too large for the grid - the walk then stays as it was). A blocked target
+   * takes the nearest free cell. */
   pathTo(tx: number, tz: number): [number, number][] | null {
-    const L = this.levels.get(this.level);
-    if (!L) return null;
-    const ex = L.extent;
-    const cols = Math.max(1, Math.ceil((ex.maxX - ex.minX) / GRID_M));
-    const rows = Math.max(1, Math.ceil((ex.maxZ - ex.minZ) / GRID_M));
-    if (cols * rows > MAX_ASTAR_CELLS) return null;
-    const segs = this.segmentsFor(this.level, false);
-    const blocked = new Uint8Array(cols * rows);
-    const rad = BODY_R * 0.85;
-    // rasterise each capsule into the cells of its bounding box only (never cells x segments)
-    for (const s of segs) {
-      const rr = rad + s.r;
-      const i0 = Math.max(0, Math.floor((Math.min(s.a[0], s.b[0]) - rr - ex.minX) / GRID_M));
-      const i1 = Math.min(cols - 1, Math.floor((Math.max(s.a[0], s.b[0]) + rr - ex.minX) / GRID_M));
-      const j0 = Math.max(0, Math.floor((Math.min(s.a[1], s.b[1]) - rr - ex.minZ) / GRID_M));
-      const j1 = Math.min(rows - 1, Math.floor((Math.max(s.a[1], s.b[1]) + rr - ex.minZ) / GRID_M));
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-        const k = j * cols + i;
-        if (blocked[k]) continue;
-        if (closest(ex.minX + (i + 0.5) * GRID_M, ex.minZ + (j + 0.5) * GRID_M, s).d < rr) blocked[k] = 1;
-      }
-    }
-    const cell = (x: number, z: number): [number, number] => [clamp(Math.floor((x - ex.minX) / GRID_M), 0, cols - 1), clamp(Math.floor((z - ex.minZ) / GRID_M), 0, rows - 1)];
-    const [si, sj] = cell(this.x, this.z);
-    let [ti, tj] = cell(tx, tz);
-    let goalX = tx;
-    let goalZ = tz;
-    if (blocked[tj * cols + ti]) {
-      let best: { i: number; j: number; d: number } | null = null;
-      for (let dj = -4; dj <= 4; dj++) for (let di = -4; di <= 4; di++) {
-        const i = ti + di;
-        const j = tj + dj;
-        if (i < 0 || j < 0 || i >= cols || j >= rows || blocked[j * cols + i]) continue;
-        const d = di * di + dj * dj;
-        if (!best || d < best.d) best = { i, j, d };
-      }
-      if (!best) return null;
-      ti = best.i;
-      tj = best.j;
-      goalX = ex.minX + (ti + 0.5) * GRID_M;
-      goalZ = ex.minZ + (tj + 0.5) * GRID_M;
-    }
-    const start = sj * cols + si;
-    const goal = tj * cols + ti;
-    const g = new Float64Array(cols * rows).fill(Infinity);
-    const from = new Int32Array(cols * rows).fill(-1);
-    const closed = new Uint8Array(cols * rows);
-    const h = (i: number, j: number): number => Math.hypot(i - ti, j - tj);
-    const open = new Heap();
-    g[start] = 0;
-    open.push(h(si, sj), start);
-    const steps: [number, number, number][] = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
-    while (open.size) {
-      const cur = open.pop();
-      if (closed[cur]) continue;
-      if (cur === goal) break;
-      closed[cur] = 1;
-      const ci = cur % cols;
-      const cj = (cur - ci) / cols;
-      for (const [di, dj, cost] of steps) {
-        const ni = ci + di;
-        const nj = cj + dj;
-        if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
-        const nk = nj * cols + ni;
-        if (blocked[nk] || closed[nk]) continue;
-        if (di && dj && (blocked[cj * cols + ni] || blocked[nj * cols + ci])) continue; // no corner cutting
-        const ng = g[cur] + cost;
-        if (ng < g[nk] - 1e-12) {
-          g[nk] = ng;
-          from[nk] = cur;
-          open.push(ng + h(ni, nj), nk);
-        }
-      }
-    }
-    if (goal !== start && from[goal] < 0) return null;
-    const pts: [number, number][] = [];
-    for (let k = goal; k >= 0 && k !== start; k = from[k]) pts.push([ex.minX + ((k % cols) + 0.5) * GRID_M, ex.minZ + (Math.floor(k / cols) + 0.5) * GRID_M]);
-    pts.reverse();
-    pts.push([goalX, goalZ]);
-    // string-pull: from where we stand, jump to the farthest waypoint a straight walk reaches
-    const out: [number, number][] = [];
-    let cur: [number, number] = [this.x, this.z];
-    let idx = 0;
-    while (idx < pts.length) {
-      let far = idx;
-      for (let j = pts.length - 1; j > idx; j--) {
-        if (this.lineFree(cur, pts[j], segs)) {
-          far = j;
-          break;
-        }
-      }
-      out.push([r4(pts[far][0]), r4(pts[far][1])]);
-      cur = pts[far];
-      idx = far + 1;
-    }
+    const out = findPath(this.world, this.level, [this.x, this.z], [tx, tz], BODY_R);
+    if (!out) return null;
     this.path = out;
+    this.progress = null;
     return out;
   }
 }

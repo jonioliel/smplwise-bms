@@ -402,6 +402,9 @@ review time. The order is the recommended one (§10).
 | S8 (optional) | CC0 glTF models for ~20 items, `shape: 'model'`, instancing per model | 12-16 | manifest / licence tests, instancing count, baselines of levels 1-2 unchanged |
 | **Total (S0-S7)** | | **88-120 h** | |
 
+S5 is built in two halves: **S5-A, touch** (joystick, look, pinch, tap-to-walk, long press, the phone's bottom sheet, the minimap
+under a finger, the saved positions as a route - section 14) and S5-B (the kiosk idle still, the wall display, the pointer-lock check).
+
 Visual regression: as CR-006 1c - pixel baselines drawn and compared on SwiftShader only (`renderer-<project>.json`),
 `SW_REQUIRE_VISUAL=1` lanes, ≤ 0.2 % differing pixels at 2/255; level 3 baselines are new files, the level 1-2 baselines
 must not change (the strongest guard that the new level is additive). Textures are deterministic on SwiftShader
@@ -673,3 +676,61 @@ stays additive.
 תקציר: מפת ההיסטוריה ודף האירוע מציגים עכשיו את התלת־ממד באותו סולם איכות של המפה החיה (כולל ריאליסטי וריאליסטי קל,
 ברירת המחדל של ההתקנה והבחירה האישית), עם מצבי ההתקנים והשמש של הרגע שנבחר. אין בהם סיור ואין תמונות מוכנות, ואין
 מחוון שעה - ציר הזמן של המסך הוא השעון.
+
+## 15. S5-A - the touch half of the walk (branch `pilot/ST7-s5-touch`, from `integ/247` a8b6a21d, 2026-10-12)
+
+S5 ("Walk UX") is built in two halves by two branches: **S5-A, touch** (this section) and S5-B (the kiosk idle still, the wall
+display, "no frames when idle" as a wall mode, the opt-in pointer lock on the real Ingress page), which lives in separate modules
+and is not touched here. S4 had already built the controller's A*, the minimap and the first touch input (an invisible stick,
+a right-half look, a click turned into a walk); S5-A keeps all of it working and adds what section 4.2 and the S5 row of
+section 8 list for a finger.
+
+### 14.1 What section 4.2 / 8 lists and where it is now
+
+| CR-029 | Before S5-A (S4) | S5-A | Where |
+|---|---|---|---|
+| Left-half virtual joystick, "appears under the thumb, 56 px" | invisible stick, fixed 8 px dead zone, no picture | a floating ring + knob under the thumb (drawn from the first move past the dead zone), 56 px ring = full speed, **run past 84 px** (the touch spelling of Shift), a 10 degree axis snap (no crab step), a physical left half (never mirrored by RTL) | `walk-stick.ts`, `walk-touch.ts`, `walk-hud.ts` |
+| Right-half look drag | direct, fixed sensitivity | the same drag, sensitivity scaled by the field of view, and the section 4.1 **120 ms ease on touch turns** (95 percent in the settle time, frame-rate independent, off with the `motion` setting) | `walk-look.ts`, `walk-session.ts` |
+| Two fingers = FOV 50-80 degrees | none | a pinch on one half (or fingers < 110 px apart): apart zooms in, together out, on the tangent of the half angle, clamped 50-80; a pinch never walks or looks | `walk-look.ts`, `walk-touch.ts`, `SceneView.setWalkFov` |
+| Tap a floor point = walk there; a tap mid-way cancels | a click on the floor walked there (a click on a device selected it); a click mid-way started a new walk | the walk goes to the **foot of what was tapped** (a wall, a chair: the ray's point, then the nearest free cell); a tap while walking **stops** the walk; a destination ring marks the way | `walk-tap.ts`, `walk-hud.ts`, `SceneView.pickAt` |
+| A* on a 0.25 m grid, open doors as edges, closed / locked doors and windows blocking | in the controller; rebuilt per tap; the inside of a deep object was a free island | moved verbatim to `walk-path.ts`; **the blocked grid is built once per (world, level)** and rebuilt when the description's world changes; object footprints are filled (a tap on a cabinet snaps to its foot); the auto-walk **gives up** when a new world closes one of its legs (a door that closed) and when the body stops making progress (1.2 s, 0.1 m) | `walk-path.ts`, `walk-controller.ts` |
+| Long-press a device = its popover | none | 500 ms without moving (once, a lone finger) hands the device under the finger to the host as `part-select`, exactly as a click does: the host's own action path (permission, confirmation, stale guard) decides | `walk-touch.ts`, `walk-tap.ts`, `sw-plan-3d.ts` |
+| Walk bar: a bottom sheet on phones, clean on desktop | one floating bar, the numeric fields hidden under 640 px | `sw-walk-hud`: the floating bar above 640 px (same controls, now 44 px high under 1100 px and on a coarse pointer, otherwise the desktop touch dial); on a phone a **bottom sheet**: one row (exit, "stand at...", the route) that opens upward to the places by kind and the numeric x / y / heading fields (the keyboard alternative to every move); no hint, no paragraph | `walk-hud.ts` |
+| Minimap with touch | a `click` handler | pointer events with `touch-action: none` (a drag scrubs; the point is held inside the level's extent); opaque background in every skin | `sw-plan-3d.ts` |
+| Saved positions + a short route playback | the "stand at" select and keys 1-9 | the saved positions are chips in the sheet; the **route** plays them in document order, 4 s each (a 150 ms dim between stops, none with `motion` off), the last one shows for its dwell and the route ends; any input stops it. The element exposes `playRoute()` / `stopRoute()` / `routePlaying` (and `routeDwellMs`): the entry the kiosk's "route when idle" (S5-B) calls | `walk-route.ts`, `walk-session.ts`, `sw-plan-3d.ts` |
+
+Modules: pure (node-tested) `walk-stick.ts`, `walk-look.ts`, `walk-touch.ts`, `walk-path.ts`, `walk-tap.ts`, `walk-route.ts`; with the DOM
+`walk-hud.ts` (the `sw-walk-hud` element) and `walk-touch-ui.ts` (the glue between the session, the HUD, the minimap and the host).
+Hooks in existing files, kept thin because other slices edit them: `walk-session.ts` (the touch branch and the route),
+`walk-controller.ts` (A* moved out; `setWorld` returns events, `cancelPath`, the stuck test), `sw-plan-3d.ts` (about +60 / -95 lines
+against the base, nearly all of it the S4 bar's markup and CSS that the HUD replaces), `scene-three.ts` (`pickAt`, one additive
+method), `i18n/he.ts` (a `walk` section: the HUD's strings go through the catalogue). No code from `three` is imported by any new
+module, so the `three` chunk is unchanged (`unit-three-chunk`).
+
+### 14.2 Decisions (owner-level, the safest default taken; recorded in the commit messages)
+
+1. **On touch a tap never operates a device.** The plan view's click on a lamp of a circuit runs the circuit's action
+   (`explore-floor-map.onPartSelect`); a finger covers a lot of the screen and a walk across a room would toggle lights. Only a
+   long press hands a device to the host. The mouse click is unchanged (section 4.2: "click a device = the existing popover").
+2. **A tap while walking stops the walk and starts nothing** (section 4.2 "a tap mid-way cancels"); the next tap walks. The
+   mouse click keeps S4's behaviour (a click retargets).
+3. **The joystick's "56 px dead zone" is the ring's radius** (full speed), as S4 read it; the dead zone proper is 8 px.
+4. **Run on touch** (drag past 84 px) is an addition: the keyboard has Shift and a phone has no key.
+5. **Saved positions are not edited from the walk.** Editing is `map.edit` on the plan (the editor's "עמדות סיור" tool,
+   branch `pilot/ST7-ui`); the walk only uses them. Nothing here writes a document.
+
+### 14.3 Not in S5-A
+
+Saving a position from inside the walk (needs the plan-editor draft / publish path); the kiosk's idle still, "route when the
+screen is idle", the wall display and the pointer-lock check on the real Ingress page (S5-B); a real phone, tablet or wall
+tablet (every number here is a headless browser with emulated touch: NOT_RUN on a device); a per-browser FOV memory (the
+pinch lasts for the walk).
+
+### 14.4 Tests
+
+Node: `unit-walk-stick` (joystick and look maths, the ease, the pinch), `unit-walk-touch` (the gesture machine on scripted
+fingers and a scripted clock, and a determinism replay through the controller), `unit-walk-path` (A* through an open door and
+never a closed, locked, stale one or a window; the cache; a tap and a long press; the auto-walk giving up; the route on a
+scripted clock), `unit-walk-controller` (S4, unchanged). Browser (real touch events, `Input.dispatchTouchEvent`):
+`evidence-walk-touch` (mobile project for the gestures; the bar / sheet and its 44 px targets on every project and in the five
+skins), `unit-plan-3d-walk` (S4, all projects). Pixel baselines (new states only, Linux): `pixel-walk-touch`.
