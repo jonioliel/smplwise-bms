@@ -461,3 +461,13 @@ pinned WisKey version so the adapter's catalog pin matches what runs; B0 port (S
 5. **Talking to a station (two-way audio) and live station video:**
    א. Stay in the intercom window in the first stage. **(המלצה)**
    ב. Include them in the first stage (needs work from the intercom team and measurements on site).
+
+---
+
+## Owner answers (2026-10-11) - binding
+
+1. **Stage 1 screens:** the daily screens (stations and doors, people, events) plus the status page and the groups view in Settings. Visits and guests and the rest stay for later. (Answer: A, the recommended option.)
+2. **New writes before WisKey delivers the trusted caller (W1):** ALLOWED NOW for everything, including writes that touch doors (answer B, not the recommended C). Consequences recorded by the coordinator: (a) these writes run through Arx's service identity, so WisKey's own per-operator grants and audit do not apply; Arx RBAC plus Arx's audit (actor, request id, body hash) are the only controls, as decided on 2026-10-03; (b) each write class still needs its schemas (W2) and a fake-based test before it ships, and EVERY live test of a write on a real system needs the owner's separate, task-specific approval (device-write rule); (c) writes that open, close or program doors keep the confirmation and the Arx permission checks of CR-033 once that work is merged; (d) slices S15 and S16 are merged into one write phase that starts right after S4, instead of waiting for W1.
+3. **Personal details:** operators see names only; sensitive details (employee number, portraits, contact data) only with the separate `access.people.sensitive` permission. (Answer: B.)
+4. **Switching screens:** screen by screen, after the owner approves the side-by-side check; the iframe stays selectable per screen as rollback. (Answer: A.)
+5. **Two-way audio and live station video:** stay in the iframe in stage 1 (answer A), BUT the owner requires that their native implementation (S18) is scheduled for the earliest possible time right after stage 1: ask WisKey for W10 (stream descriptor and audio hook) now, and start S18 as soon as W10 arrives.
