@@ -13,8 +13,13 @@ requests. Nothing here talks to a network or a device.
   every path read, written or deleted passes `confine` (the skins / floor-images rule).
 - **Bounded work** - decoding an upload runs behind DECODE_SLOTS (2 at a time, a third waits DECODE_WAIT_S then is refused as
   busy); the routes call `validate_file` from the thread pool, never on the event loop.
-- **Caps** - per file by kind, per floor and per installation by the `plan.bakes` setting; over a cap the stale rows go first
-  (oldest first, installation-wide); current rows are never evicted silently (BakeError storage_full).
+- **Caps** - per file by kind, per floor and per installation by the `plan.bakes` setting; over a cap stale rows go, oldest
+  first - the uploading floor's own first, other floors' only as the last resort for the installation cap (security review
+  2.4.7 I2, `_evict`); current rows are never evicted silently (BakeError storage_full).
+- **Readers** (security review 2.4.7 M1 / L1) - a reader from whom a camera can be withheld gets each mask without the camera
+  entries their camera scope denies (`mask_view`, derived on every read, so masks stored before the fix are covered too),
+  and the bake / geometry keys and doc_hash built over the structure as redacted for them (`served_bake_key`); the stored
+  key stays the server's own (rows, jobs, stale checks).
 - **Jobs** - a regenerate request is a job row an editor session claims (10-minute lease) and finishes; one open job per floor.
 """
 from __future__ import annotations
@@ -30,8 +35,9 @@ import sqlite3
 import struct
 import threading
 import zlib
+from collections import OrderedDict
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from ..config import Settings
 from ..db import ID_RE, new_id, now_iso
@@ -200,16 +206,57 @@ def _unlink(settings: Settings, rel: str) -> bool:
 
 # ---------- the bake key and the floor's levels ----------
 
+def _key_of(geometry_key: str, catalog_revision: Any) -> str:
+    blob = json.dumps({"v": 1, "geometry": geometry_key, "catalog": catalog_revision}, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
 def bake_key(conn: sqlite3.Connection, floor_id: str) -> tuple[str, str] | None:
-    """(bake key, skins geometry key) of the floor's published structure, rooms and catalog; None without a published structure."""
+    """(bake key, skins geometry key) of the floor's published structure, rooms and catalog; None without a published structure.
+    The STORED key: what rows and jobs are stored under and the server's own stale checks compare. What a reader is handed
+    is `served_bake_key` (security review 2.4.7 L1)."""
     from . import plan_catalog
     from .skins import store as skins_store
 
     gk = skins_store.geometry_key(conn, floor_id)
     if gk is None:
         return None
-    blob = json.dumps({"v": 1, "geometry": gk[0], "catalog": plan_catalog.revision(conn)}, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest(), gk[0]
+    return _key_of(gk[0], plan_catalog.revision(conn)), gk[0]
+
+
+class ServedKey(NamedTuple):
+    bake_key: str       # the bake key this reader is handed (and must send back with an upload)
+    geometry_key: str   # the skins geometry key this reader is handed
+    doc_hash: str       # the structure's doc_hash this reader is handed (the one the geometry read and the bundle give them)
+    real: str           # the stored bake key (never handed to a reader from whom something is withheld)
+
+
+def served_bake_key(conn: sqlite3.Connection, floor_id: str, visible: Any) -> ServedKey | None:
+    """Security review 2.4.7 L1 (the 2.4.2 L1 rule, as skins_store.served_geometry_key): the keys of the floor's bakes as this
+    reader (`visible` = plan_anchor_scope.visibility) is handed them. For a reader from whom a reference of the published
+    structure is withheld, the geometry key and doc_hash are built over the document as redacted for them and the bake key over
+    that geometry key, so none of them confirms a guessed camera id against the stored hash; for everyone else they are the
+    stored ones. None without a published structure."""
+    from . import plan_catalog
+    from .skins import store as skins_store
+
+    gk = skins_store.served_geometry_key(conn, floor_id, visible)
+    if gk is None:
+        return None
+    served_gk, served_doc, real_gk = gk
+    rev = plan_catalog.revision(conn)
+    real = _key_of(real_gk, rev)
+    return ServedKey(real if served_gk == real_gk else _key_of(served_gk, rev), served_gk, served_doc, real)
+
+
+def shown_key(stored: str | None, sk: ServedKey | None, visible: Any) -> str | None:
+    """A stored row's or job's bake key as this reader is handed it: as stored when nothing can be withheld from them, the
+    served key for the current one, else (a stale key of an older structure, which the served keys do not cover) None."""
+    if visible is None:
+        return stored
+    if sk is not None and stored == sk.real:
+        return sk.bake_key
+    return None
 
 
 def floor_levels(conn: sqlite3.Connection, floor_id: str) -> list[str]:
@@ -398,16 +445,16 @@ def validate_mask(data: bytes, preset: str) -> tuple[int, int, dict[str, Any]]:
     if not (isinstance(rooms, list) and len(rooms) <= MASK_MAX_ROOMS and isinstance(doors, list) and len(doors) <= MASK_MAX_DOORS
             and isinstance(cams, list) and len(cams) <= MASK_MAX_CAMERAS):
         raise BakeError("corrupt_mask", "רשימות המסכות אינן תקינות.")
-    plain = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+    plain = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")  # fullmatch: a `$` would let a trailing newline through (SEC247)
     for r in rooms:
-        if not (isinstance(r, dict) and set(r) <= {"id", "floor", "top", "centre"} and isinstance(r.get("id"), str) and plain.match(r["id"])
+        if not (isinstance(r, dict) and set(r) <= {"id", "floor", "top", "centre"} and isinstance(r.get("id"), str) and plain.fullmatch(r["id"])
                 and _points(r.get("floor"), w, h, MASK_MAX_POINTS) and _points(r.get("top"), w, h, MASK_MAX_POINTS) and _points([r.get("centre")], w, h, 1)):
             raise BakeError("corrupt_mask", "מסכת חדר אינה תקינה.")
     for d in doors:
-        if not (isinstance(d, dict) and set(d) <= {"id", "points"} and isinstance(d.get("id"), str) and plain.match(d["id"]) and _points(d.get("points"), w, h, 16)):
+        if not (isinstance(d, dict) and set(d) <= {"id", "points"} and isinstance(d.get("id"), str) and plain.fullmatch(d["id"]) and _points(d.get("points"), w, h, 16)):
             raise BakeError("corrupt_mask", "סימון דלת אינו תקין.")
     for c in cams:
-        if not (isinstance(c, dict) and set(c) <= {"id", "p"} and isinstance(c.get("id"), str) and plain.match(c["id"]) and _points([c.get("p")], w, h, 1)):
+        if not (isinstance(c, dict) and set(c) <= {"id", "p"} and isinstance(c.get("id"), str) and plain.fullmatch(c["id"]) and _points([c.get("p")], w, h, 1)):
             raise BakeError("corrupt_mask", "סימון מצלמה אינו תקין.")
     return w, h, doc
 
@@ -507,8 +554,15 @@ def _current_keys(conn: sqlite3.Connection) -> dict[str, str | None]:
 
 
 def _evict(settings: Settings, conn: sqlite3.Connection, need_floor: int, need_total: int, floor_id: str, setting: dict[str, Any]) -> list[str]:
-    """Free room for an upload: stale rows first (oldest first), on this floor for the floor cap, anywhere for the total cap.
-    Returns the evicted slot names; BakeError storage_full when only current rows would have to go."""
+    """Free room for an upload: stale rows only, never a current one (BakeError storage_full when only current rows would
+    have to go). Returns the evicted "<floor id>:<slot>" names (the upload's audit row carries them).
+
+    Order (security review 2.4.7 I2): the uploading floor's own stale rows go first, oldest first - for the floor cap, and then
+    for the installation cap too. Only when the installation cap still cannot be met from this floor are stale rows of OTHER
+    floors evicted, oldest first, as a last resort: a stale row is never served (the bundle lists current rows only) and is
+    drawn again on that floor's next bake, so the cost is a re-bake there - but it is a write outside the uploader's floor,
+    hence last and named in the audit row. Refusing instead would let stale leftovers of a floor nobody bakes any more block
+    every other floor's bake until an administrator deletes them by hand."""
     mb = 1024 * 1024
     floor_cap, total_cap = setting["floor_cap_mb"] * mb, setting["total_cap_mb"] * mb
     keys = _current_keys(conn)
@@ -521,12 +575,18 @@ def _evict(settings: Settings, conn: sqlite3.Connection, need_floor: int, need_t
         _unlink(settings, r["path"])
         evicted.append(f"{r['floor_id']}:{slot_id(dict(r))}")
 
-    for r in [r for r in stale if r["floor_id"] == floor_id]:
+    own = [r for r in stale if r["floor_id"] == floor_id]
+    others = [r for r in stale if r["floor_id"] != floor_id]
+    for r in list(own):
         if usage(conn, floor_id) + need_floor <= floor_cap:
             break
         drop(r)
-        stale.remove(r)
-    for r in list(stale):
+        own.remove(r)
+    for r in own:  # the installation cap: this floor's remaining stale rows first ...
+        if usage(conn) + need_total <= total_cap:
+            break
+        drop(r)
+    for r in others:  # ... other floors' stale rows only as the last resort (I2)
         if usage(conn) + need_total <= total_cap:
             break
         drop(r)
@@ -580,6 +640,137 @@ def file_of(settings: Settings, conn: sqlite3.Connection, floor_id: str, bake_id
     if not r:
         return None
     return confine_stored(settings, r["path"]), r["mime"], r["sha256"]
+
+
+def row_of(conn: sqlite3.Connection, floor_id: str, bake_id: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM plan_bakes WHERE id = ? AND floor_id = ?", (bake_id, floor_id)).fetchone()
+
+
+# ---------- security review 2.4.7 M1: a room mask as a reader is handed it (their camera scope) ----------
+#
+# A mask lists the camera bodies of the editor's live scene (map/still-bake.ts buildMask: `cameras[{id, p}]`, the id being the
+# camera's anchor id), projected onto the still. The stored file stays as the editor's browser drew it (the editor's bake /
+# upload flow and every mask stored before this fix are unchanged); what a reader gets is derived on every read: for a reader
+# whose camera scope can withhold something (plan_anchor_scope.visibility is not None) every camera entry they may not see is
+# left out - the 2.4.2 M2 / SEC244 rule of the geometry read, the exports and the floor bundle. An entry resolves through
+# its anchor (map_anchors.id -> the camera) or, failing that, as a camera id; one that resolves to neither (an anchor removed
+# since, anything unknown) is left out too (fail closed). The listing (`describe`), the floor bundle and the file route hand
+# such a reader the sha256, size, ETag and `?v=` of the copy they get, never of the stored file.
+
+_MASK_CACHE_MAX = 256
+_MASK_IDS: "OrderedDict[str, tuple[str, ...]]" = OrderedDict()                       # stored sha256 -> camera entry ids
+_MASK_SERVED: "OrderedDict[tuple[str, frozenset[str]], tuple[str, int]]" = OrderedDict()  # (stored sha, withheld ids) -> (sha, bytes)
+_MASK_LOCK = threading.Lock()
+WITHHELD_V = "0" * 16  # the `?v=` of a mask a scoped reader cannot be handed (its file is gone): the route answers 404
+
+
+def _mcache_get(cache: OrderedDict, key: Any) -> Any:
+    with _MASK_LOCK:
+        hit = cache.get(key)
+        if hit is not None:
+            cache.move_to_end(key)
+        return hit
+
+
+def _mcache_put(cache: OrderedDict, key: Any, value: Any) -> None:
+    with _MASK_LOCK:
+        cache[key] = value
+        cache.move_to_end(key)
+        while len(cache) > _MASK_CACHE_MAX:
+            cache.popitem(last=False)
+
+
+def _read_mask(settings: Settings, rel: str) -> dict[str, Any] | None:
+    try:
+        doc = json.loads(confine_stored(settings, rel).read_bytes().decode("utf-8"))
+    except (BakeStoreError, OSError, UnicodeDecodeError, ValueError):
+        return None
+    return doc if isinstance(doc, dict) and isinstance(doc.get("cameras"), list) else None
+
+
+def hidden_mask_cameras(conn: sqlite3.Connection, ids: list[str] | tuple[str, ...], visible: Any) -> frozenset[str]:
+    """The mask camera entry ids this reader may not see (empty when `visible` is None: nothing is withheld from them)."""
+    if visible is None or not ids:
+        return frozenset()
+    uniq = sorted(set(ids))
+    anchors: dict[str, tuple[str, Any]] = {}
+    cams: set[str] = set()
+    for i in range(0, len(uniq), 400):
+        chunk = uniq[i:i + 400]
+        marks = ",".join("?" * len(chunk))
+        for r in conn.execute(f"SELECT id, resource_type, resource_id FROM map_anchors WHERE id IN ({marks})", chunk).fetchall():
+            anchors[r["id"]] = (r["resource_type"], r["resource_id"])
+        cams |= {r["id"] for r in conn.execute(f"SELECT id FROM cameras WHERE id IN ({marks})", chunk).fetchall()}
+    hidden = set()
+    for cid in uniq:
+        if cid in anchors:
+            rtype, rid = anchors[cid]
+            ok = rtype == "camera" and bool(visible("camera", rid))
+        else:
+            ok = cid in cams and bool(visible("camera", cid))
+        if not ok:
+            hidden.add(cid)
+    return frozenset(hidden)
+
+
+def _filtered_mask(doc: dict[str, Any], hidden: frozenset[str]) -> bytes:
+    out = dict(doc, cameras=[c for c in doc["cameras"] if isinstance(c, dict) and isinstance(c.get("id"), str) and c["id"] not in hidden])
+    return json.dumps(out, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+class MaskView(NamedTuple):
+    sha256: str
+    size: int
+    filtered: bool          # False = the reader gets the stored file as it is
+    content: bytes | None   # the filtered document (only when filtered and asked for with body=True)
+
+
+def mask_view(settings: Settings | None, conn: sqlite3.Connection, row: sqlite3.Row | dict[str, Any], visible: Any,
+              *, body: bool = False) -> MaskView | None:
+    """A stored mask as this reader is handed it: the stored file's sha256 / size when nothing of it is withheld from them,
+    else the filtered document's own (and, with body=True, its content). None = a reader from whom something may be withheld
+    but whose mask cannot be read (a missing file): nothing is served to them."""
+    if visible is None:
+        return MaskView(row["sha256"], int(row["bytes"]), False, None)
+    if settings is None:
+        return None
+    stored = row["sha256"]
+    doc = None
+    ids = _mcache_get(_MASK_IDS, stored)
+    if ids is None:
+        doc = _read_mask(settings, row["path"])
+        if doc is None:
+            return None
+        ids = tuple(sorted({c["id"] for c in doc["cameras"] if isinstance(c, dict) and isinstance(c.get("id"), str)}))
+        _mcache_put(_MASK_IDS, stored, ids)
+    hidden = hidden_mask_cameras(conn, ids, visible)
+    if not hidden:
+        return MaskView(stored, int(row["bytes"]), False, None)
+    hit = _mcache_get(_MASK_SERVED, (stored, hidden))
+    if hit is not None and not body:
+        return MaskView(hit[0], hit[1], True, None)
+    if doc is None:
+        doc = _read_mask(settings, row["path"])
+        if doc is None:
+            return None
+    data = _filtered_mask(doc, hidden)
+    sha = hashlib.sha256(data).hexdigest()
+    _mcache_put(_MASK_SERVED, (stored, hidden), (sha, len(data)))
+    return MaskView(sha, len(data), True, data if body else None)
+
+
+def shown_row(a: dict[str, Any], r: sqlite3.Row, settings: Settings | None, conn: sqlite3.Connection, sk: ServedKey | None, visible: Any) -> dict[str, Any]:
+    """A row_api() answer as this reader is handed it: the bake key through shown_key (L1) and, for a mask, the sha256, size and
+    `?v=` of the copy they get (M1). Unchanged for a reader from whom nothing can be withheld."""
+    if visible is None:
+        return a
+    out = dict(a, bake_key=shown_key(a["bake_key"], sk, visible))
+    if a["kind"] == "mask":
+        mv = mask_view(settings, conn, r, visible)
+        v = mv.sha256[:16] if mv is not None else WITHHELD_V
+        out.update(sha256=mv.sha256 if mv is not None else None, bytes=mv.size if mv is not None else None,
+                   url=f"api/v1/floors/{r['floor_id']}/bakes/{r['id']}/file?v={v}")
+    return out
 
 
 def remove_one(settings: Settings, conn: sqlite3.Connection, floor_id: str, bake_id: str) -> dict[str, Any] | None:
@@ -647,32 +838,38 @@ def sweep_orphans(settings: Settings, conn: sqlite3.Connection) -> int:
 
 # ---------- what a floor has, and what the map bundle carries ----------
 
-def describe(conn: sqlite3.Connection, floor_id: str) -> dict[str, Any]:
-    key = bake_key(conn, floor_id)
-    current = key[0] if key else None
+def describe(conn: sqlite3.Connection, floor_id: str, *, settings: Settings | None = None, visible: Any = None) -> dict[str, Any]:
+    """What GET /floors/{id}/bakes answers, as this reader (`visible` = plan_anchor_scope.visibility; None = nothing is withheld
+    from them) is handed it: the bake key, geometry key and doc_hash are the served ones (security review 2.4.7 L1) and a
+    mask row describes the copy they get (M1; `settings` locates the files)."""
+    sk = served_bake_key(conn, floor_id, visible)
+    current = sk.real if sk else None
     setting = read_setting(conn)
     levels = floor_levels(conn, floor_id)
-    rows = [row_api(r, current) for r in rows_of(conn, floor_id)]
+    raw = rows_of(conn, floor_id)
+    rows = [row_api(r, current) for r in raw]
     have = {r["slot"] for r in rows if not r["stale"]}
     expected = expected_slots(levels, setting)
     missing = [slot_id(s) for s in expected if slot_id(s) not in have]
-    from .skins import store as skins_store
-
-    gk = skins_store.geometry_key(conn, floor_id)
-    return {"floor_id": floor_id, "bake_key": current, "geometry_key": key[1] if key else None, "doc_hash": gk[1] if gk else None, "levels": levels, "setting": setting,
-            "size": list(still_size(setting)), "bakes": rows, "expected": [slot_id(s) for s in expected], "missing": missing,
+    job = job_api(open_job(conn, floor_id))
+    if job is not None:
+        job["bake_key"] = shown_key(job["bake_key"], sk, visible)
+    return {"floor_id": floor_id, "bake_key": sk.bake_key if sk else None, "geometry_key": sk.geometry_key if sk else None, "doc_hash": sk.doc_hash if sk else None,
+            "levels": levels, "setting": setting, "size": list(still_size(setting)),
+            "bakes": [shown_row(a, r, settings, conn, sk, visible) for a, r in zip(rows, raw)], "expected": [slot_id(s) for s in expected], "missing": missing,
             "complete": bool(current) and not missing, "stale_count": sum(1 for r in rows if r["stale"]),
             "usage": {"floor_bytes": usage(conn, floor_id), "total_bytes": usage(conn), "floor_cap_bytes": setting["floor_cap_mb"] * 1024 * 1024,
                       "total_cap_bytes": setting["total_cap_mb"] * 1024 * 1024},
-            "job": job_api(open_job(conn, floor_id))}
+            "job": job}
 
 
-def bundle_part(conn: sqlite3.Connection, floor_id: str) -> dict[str, Any] | None:
-    """The map bundle's view: only CURRENT rows, grouped per level. None when the floor has no bake row at all."""
+def bundle_part(conn: sqlite3.Connection, floor_id: str, *, settings: Settings | None = None, visible: Any = None) -> dict[str, Any] | None:
+    """The map bundle's view: only CURRENT rows, grouped per level. None when the floor has no bake row at all. As this reader
+    is handed it (see describe): the served bake key (L1), a mask's `?v=` of the copy they get (M1)."""
     if not conn.execute("SELECT 1 FROM plan_bakes WHERE floor_id = ? LIMIT 1", (floor_id,)).fetchone():
         return None
-    key = bake_key(conn, floor_id)
-    current = key[0] if key else None
+    sk = served_bake_key(conn, floor_id, visible)
+    current = sk.real if sk else None
     levels: dict[str, Any] = {}
     stale = 0
     recipes: set[str] = set()
@@ -686,7 +883,7 @@ def bundle_part(conn: sqlite3.Connection, floor_id: str) -> dict[str, Any] | Non
         if a["kind"] == "still":
             lv["stills"][f"{a['preset']}/{a['style']}/{a['band']}/{a['variant']}"] = {"url": a["url"], "width": a["width"], "height": a["height"], "recipe": a["recipe"]}
         elif a["kind"] == "mask":
-            lv["masks"][a["preset"]] = {"url": a["url"]}
+            lv["masks"][a["preset"]] = {"url": shown_row(a, r, settings, conn, sk, visible)["url"]}
         else:
             lv["lightmap"] = {"url": a["url"], "width": a["width"], "height": a["height"], "meta": a["meta"], "recipe": a["recipe"]}
     expected = expected_slots(floor_levels(conn, floor_id), read_setting(conn))
@@ -696,7 +893,7 @@ def bundle_part(conn: sqlite3.Connection, floor_id: str) -> dict[str, Any] | Non
         and (s["kind"] != "mask" or s["preset"] in levels.get(s["level_id"], {}).get("masks", {}))
         and (s["kind"] != "lightmap" or levels.get(s["level_id"], {}).get("lightmap") is not None)
         for s in expected)
-    return {"bake_key": current, "complete": complete, "stale_count": stale, "recipes": sorted(recipes), "levels": levels}
+    return {"bake_key": sk.bake_key if sk else None, "complete": complete, "stale_count": stale, "recipes": sorted(recipes), "levels": levels}
 
 
 # ---------- jobs ----------

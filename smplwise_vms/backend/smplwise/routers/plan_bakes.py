@@ -16,6 +16,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError, not_found
 from ..rbac import Principal, require
+from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_bakes as pb
 from .catalog import get_floor
 
@@ -43,32 +44,55 @@ def _key_or_409(conn: sqlite3.Connection, floor_id: str) -> tuple[str, str]:
     return k
 
 
+def _served(conn: sqlite3.Connection, principal: Principal, floor_id: str) -> tuple[Any, pb.ServedKey | None]:
+    """(what this reader may see of the floor's anchors, the keys as they are handed to them) - security review 2.4.7 L1."""
+    visible = anchor_scope.visibility(conn, principal, floor_id)
+    return visible, pb.served_bake_key(conn, floor_id, visible)
+
+
+def _job_out(job: dict[str, Any], sk: pb.ServedKey | None, visible: Any) -> dict[str, Any]:
+    return dict(job, bake_key=pb.shown_key(job["bake_key"], sk, visible))
+
+
 @router.get("/floors/{floor_id}/bakes")
-def list_bakes(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def list_bakes(floor_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The floor's stills, masks and lightmaps (current and stale), the slots the settings expect, what is missing, the open
-    regenerate request and the storage use."""
+    regenerate request and the storage use - as this reader is handed them (security review 2.4.7 M1 / L1: the served keys,
+    each mask as their camera scope lets them see it)."""
     get_floor(conn, floor_id)
     require(conn, principal, P_READ, ("floor", floor_id))
-    return pb.describe(conn, floor_id)
+    return pb.describe(conn, floor_id, settings=settings_of(request), visible=anchor_scope.visibility(conn, principal, floor_id))
 
 
 @router.get("/floors/{floor_id}/bakes/{bake_id}/file")
 def bake_file(floor_id: str, bake_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
-    """One stored file (a still, a mask document or a lightmap); ETag = its sha256, so a viewer revalidates for free."""
+    """One stored file (a still, a mask document or a lightmap); ETag = the sha256 of what is served, so a viewer revalidates
+    for free. A mask is served through the reader's camera scope (security review 2.4.7 M1): a reader from whom a camera can be
+    withheld gets it without the camera entries they may not see - a mask stored before the fix included - and the ETag of
+    that copy."""
     settings = settings_of(request)
     get_floor(conn, floor_id)
     require(conn, principal, P_READ, ("floor", floor_id))
+    r = pb.row_of(conn, floor_id, bake_id)
     try:
-        found = pb.file_of(settings, conn, floor_id, bake_id)
+        path = pb.confine_stored(settings, r["path"]) if r is not None else None
     except pb.BakeStoreError:
-        found = None
-    if found is None or not found[0].exists():
+        path = None
+    if r is None or path is None or not path.exists():
         raise not_found("הקובץ המוכן לא נמצא.")
-    path, mime, sha = found
+    mime, sha, content = r["mime"], r["sha256"], None
+    if r["kind"] == "mask":
+        mv = pb.mask_view(settings, conn, r, anchor_scope.visibility(conn, principal, floor_id), body=True)
+        if mv is None:
+            raise not_found("הקובץ המוכן לא נמצא.")
+        if mv.filtered:
+            sha, content = mv.sha256, mv.content
     etag = f'"{sha}"'
     headers = {"ETag": etag, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
+    if content is not None:
+        return Response(content=content, media_type=mime, headers=headers)
     return FileResponse(path, media_type=mime, headers=headers)
 
 
@@ -77,7 +101,8 @@ async def upload_bake(floor_id: str, request: Request, kind: str = Form(...), le
                       band: str = Form(""), variant: str = Form(""), bake_key: str = Form(...), recipe: str = Form(...), meta: str = Form(""),
                       file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Store one rendered file into its slot (replacing the slot's previous file). The key must be the floor's current bake key
-    (409 geometry_changed otherwise: the structure changed while the browser was rendering)."""
+    as this editor was handed it (409 geometry_changed otherwise: the structure changed while the browser was rendering); the
+    row is stored under the real key (security review 2.4.7 L1, as the skins control-image upload)."""
     settings = settings_of(request)
     get_floor(conn, floor_id)
     require(conn, principal, P_EDIT, ("floor", floor_id))
@@ -88,15 +113,18 @@ async def upload_bake(floor_id: str, request: Request, kind: str = Form(...), le
             raise pb.BakeError("validation", "מזהה המתכון אינו תקין.")
     except pb.BakeError as exc:
         _raise(exc)
-    current, _ = _key_or_409(conn, floor_id)
-    if bake_key != current:
-        raise ApiError(409, "geometry_changed", "המבנה, החדרים או הקטלוג של הקומה השתנו מאז ההכנה; הכינו שוב.", details={"bake_key": current})
+    visible, sk = _served(conn, principal, floor_id)
+    if sk is None:
+        raise ApiError(409, "no_structure", "לקומה אין מבנה מפורסם; תמונות מוכנות נוצרות מהמבנה המפורסם בלבד.")
+    if bake_key != sk.bake_key:
+        raise ApiError(409, "geometry_changed", "המבנה, החדרים או הקטלוג של הקומה השתנו מאז ההכנה; הכינו שוב.", details={"bake_key": sk.bake_key})
     if slot["level_id"] not in pb.floor_levels(conn, floor_id):
         raise ApiError(422, "bad_slot", "המפלס אינו קיים במבנה המפורסם של הקומה.")
     data = await file.read(pb.MAX_UPLOAD + 1)
     try:
         mime, w, h, _doc = await run_in_threadpool(pb.validate_file, kind, slot["preset"], data)
-        row, identical, evicted = pb.store(settings, conn, floor_id, slot, bake_key, recipe, meta_obj, data, mime, w, h, principal.user_id)
+        row, identical, evicted = pb.store(settings, conn, floor_id, slot, sk.real, recipe, meta_obj, data, mime, w, h, principal.user_id)
+        row = dict(row, bake_key=pb.shown_key(row["bake_key"], sk, visible))
     except pb.BakeStoreError:
         raise ApiError(409, "floor_id_unsafe", "מזהה הקומה אינו מתאים לשמירת קבצים; לא נשמר דבר.")
     except pb.BakeError as exc:
@@ -130,7 +158,8 @@ def regenerate(floor_id: str, body: RegenerateIn, request: Request, principal: P
         _raise(exc)
     audit(conn, actor=principal, action="plan.bake.regenerate", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"job_id": job["id"], "created": created, "bake_key": key, "scope": scope})
-    return {"job": job, "created": created, "expected": pb.expected_slots_for_scope(job["scope"])}
+    visible, sk = _served(conn, principal, floor_id)
+    return {"job": _job_out(job, sk, visible), "created": created, "expected": pb.expected_slots_for_scope(job["scope"])}
 
 
 class FinishIn(BaseModel):
@@ -151,7 +180,8 @@ def claim(floor_id: str, job_id: str, request: Request, principal: Principal = D
         _raise(exc)
     audit(conn, actor=principal, action="plan.bake.job", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"job_id": job_id, "step": "claim", "lease_until": job["lease_until"]})
-    return {"job": job, "expected": pb.expected_slots_for_scope(job["scope"])}
+    visible, sk = _served(conn, principal, floor_id)
+    return {"job": _job_out(job, sk, visible), "expected": pb.expected_slots_for_scope(job["scope"])}
 
 
 @router.post("/floors/{floor_id}/bakes/jobs/{job_id}/finish")
@@ -166,7 +196,8 @@ def finish(floor_id: str, job_id: str, body: FinishIn, request: Request, princip
         _raise(exc)
     audit(conn, actor=principal, action="plan.bake.job", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
           details={"job_id": job_id, "step": body.status, "error": job["error"]})
-    return {"job": job}
+    visible, sk = _served(conn, principal, floor_id)
+    return {"job": _job_out(job, sk, visible)}
 
 
 @router.delete("/floors/{floor_id}/bakes", status_code=204)

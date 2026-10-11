@@ -10,11 +10,11 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
-from ..services import floor_images, plan_bakes
+from ..services import floor_images, plan_anchor_scope, plan_bakes
 from ..services.access import camera_reach_for_placement, camera_scope, floor_reach, require_camera_placement, require_floor_read
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
@@ -131,7 +131,7 @@ def _editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | No
 
 
 @router.get("/floors/{floor_id}/map")
-def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), draft: bool = False, at: str | None = None) -> dict[str, Any]:
+def floor_map(floor_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), draft: bool = False, at: str | None = None) -> dict[str, Any]:
     """Everything the map needs in one call. `draft=true` (editors) prefers the latest draft background; `at=<UTC>`
     returns the version that was published at that instant and the anchors effective then (historical map, T038)."""
     f = get_floor(conn, floor_id)
@@ -181,8 +181,6 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     if geometry is not None and geometry_row is not None:
         # security review 2.4.2 L1: the hash the geometry read hands this reader (a withheld reference changes it), never
         # the stored one - the map keys its cached structure by it and asks the geometry read on a miss
-        from ..services import plan_anchor_scope
-
         _row = geometry_row
         geometry = {**geometry, "doc_hash": plan_anchor_scope.served_hash(_row["doc_hash"], lambda: geometry_store.load_doc(_row),
                                                                           plan_anchor_scope.visibility(conn, principal, floor_id))}
@@ -314,7 +312,10 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "ha_sync": ha_sync.STATE.as_dict(),
         "zones": [] if camera_only else _marked_zones(conn, floor_id, can_name) + mirrored_zones,
         "floor_images": None if camera_only else floor_images.bundle_part(conn, floor_id),  # K88: the floor's own picture(s) and alignment
-        "bakes": None if camera_only else plan_bakes.bundle_part(conn, floor_id),  # CR-029 S3: the current stills / masks / lightmaps per level
+        # CR-029 S3: the current stills / masks / lightmaps per level - security review 2.4.7 M1 / L1: the served bake key and
+        # each mask's `?v=` of the copy this reader's camera scope lets them have
+        "bakes": None if camera_only else plan_bakes.bundle_part(conn, floor_id, settings=settings_of(request),
+                                                                visible=plan_anchor_scope.visibility(conn, principal, floor_id)),
         "reach": reach,
         "needs_alignment": needs_alignment(conn, version, anchors),
         "at": at_iso,

@@ -290,6 +290,28 @@ entries next to the SEC246 edits) - small, mechanical conflicts.
 
 ## Fix status
 
-Open - findings reported for owner / integrator decision. No product code was changed on this branch; the PoC file
-`tests/test_security_review_247_poc.py` asserts the current (open) behaviour of M1, L1 and I1, so each test flips to a failure
-once the matching fix lands (invert it into a regression test then).
+Review branch: open findings, no product code changed (`pilot/SEC247-review`, a0d748ad). Fixes: task SEC247-fixes, branch
+`pilot/SEC247-fixes` (on top of the review branch). The PoC file `tests/test_security_review_247_poc.py` was inverted into
+regression tests of the fixed behaviour, with a test for every new rule.
+
+| ID | Status | Fix | Regression tests (`tests/test_security_review_247_poc.py`) |
+|---|---|---|---|
+| M1 | Fixed | Option (a), served through the camera scope, derived on every read. `services/plan_bakes.mask_view` / `hidden_mask_cameras`: for a reader whose `plan_anchor_scope.visibility` is not None, every `cameras[]` entry whose id resolves (anchor id -> its camera, else a camera id) to a camera their scope denies - or resolves to nothing - is left out; `GET .../bakes/{id}/file` serves that copy with its own ETag, and `describe` (`GET .../bakes`) and `bundle_part` (the floor map bundle) hand them that copy's sha256 / size / `?v=`, never the stored file's. The stored file is unchanged, so the editor's bake / upload flow is untouched and every mask stored before the fix is redacted on read (no migration). A reader from whom nothing can be withheld gets the stored file byte for byte. A scoped reader's mask whose file is gone is a 404 and is listed without any hash (`?v=0000000000000000`). Option (b) (no cameras in the stored mask) was not chosen: `sw-plan-stills` draws the camera markers from the mask's projected positions and has no 3D projection of its own. | `test_f1_a_room_mask_is_served_through_the_readers_camera_scope`, `test_f1_an_unrestricted_viewer_gets_the_stored_mask_and_a_scoped_one_with_nothing_hidden_too`, `test_f1_a_mask_stored_before_the_fix_is_sanitised_on_read` |
+| L1 | Fixed | `services/plan_bakes.served_bake_key` builds the geometry key and doc_hash from SEC244's `skins_store.served_geometry_key` and the bake key over that geometry key; `describe`, `bundle_part` and the upload / regenerate / claim / finish answers hand those (`shown_key`: a stale row's or job's stored key is null for a scoped reader). An upload is compared with the key the editor was handed and stored under the real key (as the skins control-image upload); jobs, rows and the stale checks keep the stored key. Unchanged for a reader from whom nothing is withheld. The bakes `doc_hash` now equals the bundle's geometry ref for a scoped editor, so the editor's "map shows a draft" guard no longer blocks a scoped editor from baking. | `test_f2_the_bakes_endpoint_hands_a_scoped_reader_the_served_keys`, `test_f2_a_stale_rows_stored_key_is_not_handed_to_a_scoped_reader`, `test_f2_a_scoped_editor_bakes_with_the_key_they_were_handed` |
+| I1 | Fixed | `services/plan_studio6.check_doc_fields` (structural, refused at save): a walk position with a key outside `WALK_KEYS` (`unknown_field`), or a name longer than 40 as written (`name`). The value rule still refuses a blank name. | `test_ia_a_walk_position_with_extra_keys_or_a_padded_name_is_refused`, `test_ia_walk_position_edge_cases`, `test_ia_a_blank_name_stays_a_value_error`, `test_ia_the_save_route_refuses_and_accepts_as_the_contract_says` |
+| I2 | Fixed | `services/plan_bakes._evict`: the uploading floor's stale rows go first for both caps; other floors' stale rows only as the last resort for the installation cap (documented in the docstring; the evicted `floor:slot` names stay in the upload's audit row). Current rows are still never evicted (`storage_full`). Refusing instead of the last-resort eviction was not chosen: stale leftovers of a floor nobody bakes would block every other floor until an administrator deletes them. | `test_i2_eviction_takes_the_uploading_floors_stale_rows_first_and_others_only_as_last_resort` |
+| I3 | Not in this fix scope | Left to the agent changing the site-location source. | - |
+| I4 | Fixed | Walk-position id: the plain-id charset `[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}`, matched in full (structural `id`). Material id: an unknown id outside that charset is dropped by `normalize` on save (it drew the default anyway; an unknown id never becomes an error, so an older library still opens a newer document). The mask id check in `validate_mask` now uses `fullmatch` too (a `$` let a trailing newline through). | `test_ia_walk_position_edge_cases`, `test_i4_an_unknown_material_id_outside_the_plain_charset_is_dropped_on_save_and_never_an_error`, `test_i4_a_document_whose_only_22_field_was_an_unsafe_material_falls_back_to_its_old_version`, `test_a_mask_id_with_a_trailing_newline_is_refused` |
+| I5 | Not in this fix scope | - | - |
+
+Documents 2.0 / 2.1 are untouched by the I1 / I4 rules (the fields exist only in a 2.2 document): their normalisation is
+deep-equal, their hashes unchanged, no new issue (`test_documents_20_and_21_are_untouched_by_the_new_rules`; the existing
+`test_plan_studio6.py` version / hash tests stay green). The contract (`contracts/schemas/plan_geometry.v2.schema.json`) now
+says `additionalProperties: false` and the id pattern for `walk_position`, and the pattern for `material_id`.
+
+Residual found while fixing (not fixed here, owner decision): the STILLS and the LIGHTMAP of a floor are rendered from the
+editor's live scene, which draws an object bound to a camera anchor at its stored pose - the camera's position (the 2.4.2 M2
+pose) - and a lamp bound to one lights the lightmap there. A scoped reader therefore sees, in the picture, a body at a place
+the geometry read serves at WITHHELD_POSITION. No camera body, id or label is in a still (`stillDescription` drops camera parts
+and text). Recommendation: `stillDescription` / the lightmap bake leave out (or place at the withheld position) every object
+whose `anchor_ref` is a camera; that is a frontend renderer change needing a visual check on a GPU.

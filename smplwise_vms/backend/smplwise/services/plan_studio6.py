@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -47,6 +48,12 @@ BEAM_DEG = (1, 180)
 MAX_WALK_POSITIONS = 50
 MAX_NAME = 40
 MAX_ID = 64
+# security review 2.4.7 I1 / I4: a saved walk position is exactly the contract's object (walk_position, no other key), its
+# name is bounded on the RAW string, and its id - like a material id that is kept - uses the plain-id charset of the bake
+# masks (plan_bakes MASK_ID), so a consumer that builds a string from one never meets a wider charset than elsewhere.
+# Every one of these fields exists only in a document 2.2 (uses_studio6), so 2.0 / 2.1 documents are untouched.
+WALK_KEYS = frozenset({"id", "name", "x", "y", "level_id", "heading_deg", "is_default"})
+PLAIN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")  # always fullmatch (a `$` would let a trailing newline through)
 ITEM_FIELDS = {
     "walls": ("material_id",),
     "openings": ("material_id",),
@@ -209,6 +216,16 @@ def check_doc_fields(doc: Mapping[str, Any], issue: Callable[..., None]) -> None
               and isinstance(p.get("level_id"), str) and _num(p.get("heading_deg")) and (p.get("is_default") is None or isinstance(p["is_default"], bool)))
         if not ok:
             issue("type", f"walk_positions[{i}] בסוג לא נכון.", path=f"walk_positions[{i}]", structural=True)
+            continue
+        # security review 2.4.7 I1 / I4: refused at save (never stored): a key the contract does not name, a name longer
+        # than MAX_NAME as written (the raw string, not the trimmed one), an id outside the plain-id charset
+        extra = sorted(str(k) for k in p if k not in WALK_KEYS)
+        if extra:
+            issue("unknown_field", f"walk_positions[{i}]: שדה לא מוכר ({', '.join(extra[:5])[:120]}).", path=f"walk_positions[{i}]", structural=True)
+        if len(p["name"]) > MAX_NAME:
+            issue("name", f"שם עמדת סיור 1 עד {MAX_NAME} תווים.", path=f"walk_positions[{i}].name", structural=True)
+        if not PLAIN_ID.fullmatch(p["id"]):
+            issue("id", "מזהה עמדת סיור: אותיות לטיניות, ספרות ו־_ . : - בלבד.", path=f"walk_positions[{i}].id", structural=True)
 
 
 def check(doc: Mapping[str, Any], levels: set[str], items: Mapping[str, Mapping[str, Any]], issue: Callable[..., None]) -> None:
@@ -249,7 +266,7 @@ def check(doc: Mapping[str, Any], levels: set[str], items: Mapping[str, Mapping[
         if pid in seen:
             issue("duplicate_id", f"עמדת הסיור {pid} מופיעה פעמיים.", item=pid, path="walk_positions")
         seen.add(pid)
-        if not 1 <= len(p["name"].strip()) <= MAX_NAME:
+        if not p["name"].strip() or len(p["name"]) > MAX_NAME:  # I1: blank, or too long as written (not only trimmed)
             issue("name", f"שם עמדת סיור 1 עד {MAX_NAME} תווים.", item=pid, path="walk_positions")
         if not (0 <= p["x"] <= 1 and 0 <= p["y"] <= 1):
             issue("bounds", "עמדת הסיור מחוץ לתוכנית.", item=pid, path="walk_positions")
@@ -261,17 +278,22 @@ def check(doc: Mapping[str, Any], levels: set[str], items: Mapping[str, Mapping[
 
 
 def normalize(doc: dict[str, Any]) -> None:
-    """In place, on every save: material aliases become their library ids, an empty walk_positions list goes (absent and
-    empty are the same - the document stays 2.0 / 2.1), headings fold into [0, 360). Malformed values are left for
-    validate() to report."""
+    """In place, on every save: material aliases become their library ids, an unknown material id outside the plain-id
+    charset goes (security review 2.4.7 I4), an empty walk_positions list goes (absent and empty are the same - the
+    document stays 2.0 / 2.1), headings fold into [0, 360). Malformed values are left for validate() to report."""
     for coll, keys in ITEM_FIELDS.items():
         for it in doc.get(coll) if isinstance(doc.get(coll), list) else []:
             if not isinstance(it, dict):
                 continue
             for key in keys:
-                c = canonical(it.get(key))
-                if c is not None and c != it.get(key):
+                v = it.get(key)
+                c = canonical(v)
+                if c is not None and c != v:
                     it[key] = c
+                elif c is None and isinstance(v, str) and 1 <= len(v) <= MAX_ID and not PLAIN_ID.fullmatch(v):
+                    # security review 2.4.7 I4: an unknown id outside the plain-id charset is not kept (no library - this one
+                    # or a newer one - names a material so); it drew the default anyway, so the picture does not change
+                    del it[key]
     wp = doc.get("walk_positions")
     if isinstance(wp, list) and not wp:
         del doc["walk_positions"]
