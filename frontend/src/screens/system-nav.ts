@@ -206,6 +206,39 @@ export class SystemNav extends LitElement {
     :host([compact]) nav {
       display: none;
     }
+    /* a tablet gets the search row too (the shell stacks the column above the page up to 1100 px, the reference tablet width included) */
+    @media (max-width: 1100px) {
+      :host {
+        position: static;
+        inline-size: auto;
+        max-block-size: none;
+        overflow: visible;
+        padding: 12px var(--sw-page-pad) 0;
+        gap: 0;
+      }
+      :host([compact]) {
+        padding: 10px 12px 0;
+      }
+      nav {
+        display: none;
+      }
+      .results,
+      .none {
+        margin-block-start: 6px;
+        padding: 6px;
+        border: 1px solid var(--sw-border);
+        border-radius: var(--sw-r-md);
+        background: var(--sw-surface-solid);
+        box-shadow: var(--sw-shadow-2);
+      }
+      .search {
+        max-inline-size: 420px;
+        margin-inline-start: auto;
+      }
+      :host([compact]) .search {
+        max-inline-size: none;
+      }
+    }
   `;
 
   connectedCallback() {

@@ -1,7 +1,7 @@
 // Settings / schedules / automations evidence shots (pilot/SET-polish, 2026-10-10).
 // Demo mode, no backend. A vite preview must serve dist/ (default http://127.0.0.1:4815/).
 //   node scripts/settings-shots.mjs <outDir> [--set=quick|full] [--base=http://127.0.0.1:4815/]
-// quick: classic light (1440 + 390), classic dark 1440, domus light 1440. full: + tesla / bubble light + dark at 1440, tablet 1024 classic.
+// quick: classic light (1440 + 390), classic dark 1440, domus light 1440. skins: domus dark, tesla, bubble, tablet 1024 (use --only for a few routes). full: both.
 import { chromium } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,7 +58,16 @@ const FULL = [
   { skin: 'bubble', scheme: 'dark', width: 390 },
 ];
 
-const matrix = set === 'full' ? FULL : QUICK;
+/** The other skins on four key screens (kept small: the evidence folder is committed). */
+const SKINS = [
+  { skin: 'domus', scheme: 'dark', width: 1440 },
+  { skin: 'tesla', scheme: 'light', width: 1440 },
+  { skin: 'tesla', scheme: 'dark', width: 1440 },
+  { skin: 'bubble', scheme: 'light', width: 1440 },
+  { skin: 'bubble', scheme: 'dark', width: 390 },
+  { skin: 'classic', scheme: 'light', width: 1024 },
+];
+const matrix = set === 'full' ? FULL : set === 'skins' ? SKINS : QUICK;
 fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch();

@@ -313,7 +313,7 @@ export class SwApp extends LitElement {
       min-block-size: 0;
     }
     /* SET-polish: the settings pages carry their own navigation column (screens/system-nav.ts) at the start side on a wide
-       screen; on a phone it is the search row above the page */
+       screen; up to 1100 px (the reference tablet width included, and the phone) it is the search row above the page */
     main > .screen[data-settings] {
       flex-direction: row;
       align-items: stretch;
@@ -324,7 +324,7 @@ export class SwApp extends LitElement {
     main > .screen[data-settings] > :not(system-nav) {
       min-inline-size: 0;
     }
-    @media (max-width: 767px) {
+    @media (max-width: 1100px) {
       main > .screen[data-settings] {
         flex-direction: column;
       }
