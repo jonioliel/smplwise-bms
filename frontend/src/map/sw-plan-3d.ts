@@ -877,7 +877,7 @@ export class SwPlan3d extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.pauseGate.set('hidden', document.hidden); // a view mounted in a background tab draws nothing until the tab is shown
+    if (this.pauseGate.set('hidden', document.hidden)) this.toggleAttribute('data-paused', this.pauseGate.paused); // a view mounted in a background tab draws nothing until the tab is shown
     if (this.hasUpdated && !this.view) this.init(); // moved in the DOM: the canvas was disposed on the way out
     document.addEventListener('visibilitychange', this.onVisibility);
     this.lockStop ??= this.lockGate.attach();

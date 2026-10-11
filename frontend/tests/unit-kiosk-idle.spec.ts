@@ -281,8 +281,8 @@ test.describe('pause reasons', () => {
     expect(g.paused).toBe(true);
     expect(g.set('idle', false)).toBe(true);
     expect(g.paused).toBe(false);
-    expect(g.set('host', false)).toBe(false); // a reason that was never set
-    expect(g.set('host', true)).toBe(true);
+    expect(g.set('idle', false)).toBe(false); // a reason that is not set
+    expect(g.set('idle', true)).toBe(true);
     expect(g.paused).toBe(true);
   });
 });

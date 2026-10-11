@@ -13,7 +13,7 @@
  * - A tab or screen coming back (`setVisible(true)`) counts as a person: a woken tablet starts live and idles again after `idleS`.
  * - `idleS` 0 means never (a desk); changing it while idle wakes the view so the new rule starts clean.
  *
- * `PauseGate` is the other half: the reasons the frame loop is stopped (a hidden tab, the idle phase, the host) in one place, so
+ * `PauseGate` is the other half: the reasons the frame loop is stopped (a hidden tab, the idle phase) in one place, so
  * "paused" is the union of the reasons and clearing one never un-pauses another.
  */
 export type IdlePhase = 'active' | 'idle';
@@ -183,9 +183,10 @@ export class KioskIdle {
   }
 }
 
-export type PauseReason = 'hidden' | 'idle' | 'host';
+export type PauseReason = 'hidden' | 'idle';
 
-/** Why the frame loop is stopped. Paused = at least one reason; clearing a reason that is not set changes nothing. */
+/** Why the frame loop is stopped: a hidden tab, or the kiosk's idle phase. Paused = at least one reason; clearing a reason that is not
+ * set changes nothing. */
 export class PauseGate {
   private readonly reasons = new Set<PauseReason>();
 
