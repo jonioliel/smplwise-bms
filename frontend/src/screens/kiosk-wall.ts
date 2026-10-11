@@ -269,11 +269,6 @@ export class KioskWall extends LitElement {
       color: var(--sw-text);
       background: var(--sw-surface);
     }
-    header select.layout:focus-visible,
-    header a.exit:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-on-video);
-      outline-offset: var(--sw-focus-offset);
-    }
     header a.exit {
       display: inline-flex;
       align-items: center;
@@ -293,13 +288,37 @@ export class KioskWall extends LitElement {
     }
     .grid {
       flex: 1;
+      min-block-size: 0;
       display: grid;
       grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+      grid-auto-rows: minmax(0, 1fr);
       gap: 10px;
     }
+    /* a cell centres its 16:9 picture (container units): a page of three rows fits the tablet's height with the counters under
+       it instead of pushing them off the screen; where the units are missing the picture fills the cell's width as before */
+    .cell {
+      display: grid;
+      place-items: center;
+      min-block-size: 0;
+      min-inline-size: 0;
+      container-type: size;
+    }
     .grid sw-camera-tile {
+      inline-size: 100%;
+      inline-size: min(100%, calc(100cqh * 16 / 9));
       border-radius: var(--sw-r-md);
       animation: k-in 0.6s var(--sw-ease) both;
+    }
+    /* a portrait tablet cannot fill its height with 16:9 pictures: the rows pack from the top and the counters follow them */
+    @media (orientation: portrait) and (min-width: 768px) {
+      .grid {
+        flex: none;
+        align-content: start;
+        grid-auto-rows: max-content;
+      }
+      .cell {
+        container-type: normal;
+      }
     }
     .stats {
       display: grid;
@@ -413,6 +432,9 @@ export class KioskWall extends LitElement {
         flex: none;
         align-content: start;
         grid-auto-rows: max-content;
+      }
+      .cell {
+        container-type: normal;
       }
       .stats {
         display: flex;
@@ -577,8 +599,8 @@ export class KioskWall extends LitElement {
       ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected><span class="mark"><sw-icon name="warning" size=${28}></sw-icon></span><b>אין קשר לשרת Arx</b><span>הזרמים אינם חיים · מנסה להתחבר מחדש</span></div>` : nothing}
       <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>
         ${api
-          ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && c.live_kind !== 'still' && i < cap && i < this.started} .stillRefresh=${c.live_kind === 'still' && c.status !== 'offline' ? c.still_refresh_s ?? 10 : 0} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
-          : demo.map((c) => html`<sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile>`)}
+          ? real.map((c, i) => html`<div class="cell"><sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && c.live_kind !== 'still' && i < cap && i < this.started} .stillRefresh=${c.live_kind === 'still' && c.status !== 'offline' ? c.still_refresh_s ?? 10 : 0} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile></div>`)
+          : demo.map((c) => html`<div class="cell"><sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile></div>`)}
       </div>
       <div class="stats">
         <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>${api ? `${online}/${real.length}` : '7/9'}</b><span>מצלמות מחוברות</span></div></div>

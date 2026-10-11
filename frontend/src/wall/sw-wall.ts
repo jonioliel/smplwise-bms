@@ -421,7 +421,7 @@ export class SwWall extends LitElement {
       text-align: center;
       gap: calc(12px * var(--s, 1));
       padding: calc(32px * var(--s, 1));
-      animation: fade-in 0.6s var(--sw-ease) both;
+      animation: fade-in 0.25s var(--sw-ease) both;
     }
     .center h1 {
       margin: 0;
