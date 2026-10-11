@@ -20,8 +20,23 @@ const rootVar = (page: Page, v: string) => page.evaluate((n) => getComputedStyle
 async function open(page: Page, hash: string, query = '') {
   await page.clock.setFixedTime(new Date('2026-10-02T13:00:00Z'));
   await page.goto('about:blank');
+  const dbg: string[] = [];
+  const onC = (m: import('@playwright/test').ConsoleMessage) => { if (m.type() === 'error' || m.type() === 'warning') dbg.push(`console.${m.type()}: ${m.text().slice(0, 300)}`); };
+  const onE = (e: Error) => dbg.push(`pageerror: ${e.message.slice(0, 300)}`);
+  const onF = (r: import('@playwright/test').Request) => dbg.push(`requestfailed: ${r.url().slice(0, 160)} ${r.failure()?.errorText}`);
+  const onR = (r: import('@playwright/test').Response) => { if (r.status() >= 400) dbg.push(`http ${r.status()}: ${r.url().slice(0, 160)}`); };
+  page.on('console', onC); page.on('pageerror', onE); page.on('requestfailed', onF); page.on('response', onR);
   await page.goto(`/?design=a&skin=bubble${query}#${hash}`);
-  await page.waitForSelector('sw-app');
+  try {
+    await page.waitForSelector('sw-app', { timeout: 20_000 });
+  } catch (e) {
+    const st = await page.evaluate(() => ({ defined: !!customElements.get('sw-app'), html: document.documentElement.outerHTML.length, hidden: document.hidden, vis: document.visibilityState, rs: document.readyState })).catch((x) => String(x));
+    throw new Error(`DBG sw-app never visible: ${JSON.stringify(st)}
+${dbg.slice(0, 25).join('
+')}`);
+  } finally {
+    page.off('console', onC); page.off('pageerror', onE); page.off('requestfailed', onF); page.off('response', onR);
+  }
   await page.waitForTimeout(600);
   await page.evaluate(() => document.fonts.ready);
 }
