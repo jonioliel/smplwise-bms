@@ -43,7 +43,7 @@ export function stillsStyle(style: PlanViewDials['style']): StillStyle {
 export interface StillsView {
   slot?: string;
   autoBand?: boolean;
-  site?: { lat: number; lon: number } | null;
+  site?: { latitude: number; longitude: number } | null;
 }
 
 /** The still view of a floor level with the live room states (lit rooms through their masks, open doors, presence). */
@@ -51,7 +51,7 @@ export function renderStills(b: MapBundle, level: string, layer: RoomStateLayer 
   const rooms: Record<string, { lit: boolean; presence: boolean }> = {};
   for (const [id, r] of Object.entries(layer?.rooms ?? {})) rooms[id] = { lit: r.lit === true, presence: r.presence === true || r.presenceFade > 0 };
   return html`<sw-plan-stills data-floor-stills slot=${ifDefined(view.slot)} .bakes=${b.bakes ?? null} .level=${level} .styleId=${stillsStyle(dials.style)}
-    .band=${bandAt(now, view.site?.lat, view.site?.lon)} .autoBand=${!!view.autoBand} .site=${view.site ?? null}
+    .band=${bandAt(now, view.site?.latitude, view.site?.longitude)} .autoBand=${!!view.autoBand} .site=${view.site ?? null}
     .rooms=${rooms} .openOpenings=${layer?.openOpenings ?? []}></sw-plan-stills>`;
 }
 

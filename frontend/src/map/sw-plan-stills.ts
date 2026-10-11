@@ -44,9 +44,9 @@ export class SwPlanStills extends LitElement {
   @property() band: StillBand = 'day';
   /** CR-029 S5-B: follow the time of day by itself - the band is read from the clock when the view connects and once a minute
    * after, so a wall that idles on its still all evening changes from the day picture to the sunset and night ones (an idle
-   * kiosk gets no host re-render to do it). `site` is the installation's position (default: the S3 fallback). */
+   * kiosk gets no host re-render to do it). `site` is the installation's position, the shape sun.ts and the host's site state use (default: the S3 fallback). */
   @property({ type: Boolean }) autoBand = false;
-  @property({ attribute: false }) site: { lat: number; lon: number } | null = null;
+  @property({ attribute: false }) site: { latitude: number; longitude: number } | null = null;
   /** Room id -> state (room-state.ts RoomStateLayer.rooms). */
   @property({ attribute: false }) rooms: Record<string, StillsRoomState> = {};
   /** Ids of the openings that are open now (room-state.ts openOpenings). */
@@ -87,7 +87,7 @@ export class SwPlanStills extends LitElement {
   }
 
   private readBand(): void {
-    const next = bandAt(new Date(), this.site?.lat, this.site?.lon);
+    const next = bandAt(new Date(), this.site?.latitude, this.site?.longitude);
     if (next !== this.band) this.band = next;
   }
 

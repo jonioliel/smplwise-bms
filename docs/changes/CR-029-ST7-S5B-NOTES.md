@@ -1,12 +1,11 @@
 # CR-029 / ST7 product port - slice S5-B: kiosk and wall display
 
-**Branch:** `pilot/ST7-s5-kiosk` (from `integ/247` a8b6a21d). **Binds to:** CR-029 sections 3.3, 3.4 (the kiosk row of the performance
+**Branch:** `pilot/ST7-s5-kiosk` (cut from `integ/247` a8b6a21d, then merged with `integ/247` 51a25c1e, which already carries S5-A). **Binds to:** CR-029 sections 3.3, 3.4 (the kiosk row of the performance
 table), 4.5 (pointer lock), 4.6, 7 and the S5 row of section 8; CR-030 sections 4, 4.1, 4.2 and 8 (the wall's per-screen configuration,
 the map band, burn-in, Settings); the S3 notes (`CR-029-ST7-S3-NOTES.md`: stills, the wall display flag, "the kiosk idle swap timer and the
 wall tablet's own override UI are S5") and the S0 notes P7 ("per-display dials ... may be overridden in that browser only (S5)").
-The other half of S5 - touch joystick, tap-to-walk, the minimap, saved positions and the route tour - is built on a separate branch
-(`pilot/ST7-s5-touch`) in `sw-plan-3d.ts` / `walk-*.ts`; this slice touches none of `walk-controller.ts`, `walk-minimap.ts`,
-`walk-session.ts` or a touch handler.
+The other half of S5 - touch joystick, tap-to-walk, the minimap, saved positions and the route playback - is S5-A (CR-029 section 15, merged into
+`integ/247` as 48ec6591); this slice touches none of `walk-controller.ts`, `walk-minimap.ts`, `walk-session.ts` or a touch handler.
 
 ## 1. What S5-B covers
 
@@ -59,7 +58,7 @@ The other half of S5 - touch joystick, tap-to-walk, the minimap, saved positions
 frame. Gated that way: state pushes, resizes, textures and models arriving, the sun / sky minute tick, the theme observer, continuous mode, a
 thumbnail pass (skipped while paused; the resume re-renders the strip, which asks again) and `redrawNow`. Not gated: an explicit capture or
 export. The frame-budget probe is ended when the view pauses and runs again on resume (a paused view measures 0 fps and would otherwise lower
-the rung). The reasons are a set (`PauseGate`: `hidden`, `idle`, `host`): clearing one never un-pauses another.
+the rung). The reasons are a set (`PauseGate`: `hidden`, `idle`): clearing one never un-pauses the other.
 
 Browsers already stop `requestAnimationFrame` in a background tab; the explicit pause matters where they do not (some Android WebViews and
 kiosk browsers keep it running with the screen off) and for the walk's own loop and the continuous probe.
@@ -148,7 +147,11 @@ hidden tab does not ask); a new publish reloads the structure. A profile with no
 
 ## 7. Not in S5-B (owner-visible)
 
-- The touch half: joystick polish, tap-to-walk, pinch FOV, the minimap, saved positions and the route tour (`pilot/ST7-s5-touch`).
+- The touch half (S5-A, CR-029 section 15, already in `integ/247`): joystick, tap-to-walk, pinch FOV, the minimap, saved positions and the route.
+- "Route when the screen is idle" (CR-029 section 4.2, optional; S5-A's note lists it under S5-B): not built. An idle tour draws frames on purpose -
+  the opposite of the idle still this slice was asked for - and a wall's map band holds no walk world. The entry exists (`playRoute()` /
+  `stopRoute()` on `sw-plan-3d`); a walk or a playing route already holds the idle machine awake, so the two cannot fight. If the owner wants it,
+  it is one more value of the screen's plan block (`idle_action`: still / route) and a host that asks for the walk world.
 - Real-device evidence (NOT_RUN): a wall tablet's temperature, battery and real wake time; the pointer-lock behaviour on the real Ingress page.
 - The wall plan shows no doors, presence or temperatures and no cameras (a wall user holds no entity states; a wall-scoped state read is a CR-030
   follow-up); a wall with camera-scope bindings only has no floor, so no map; the band follows the wall's theme but not the skin's glass
