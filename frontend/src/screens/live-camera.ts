@@ -474,8 +474,10 @@ export class LiveCamera extends LitElement {
     .video.off {
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
-      box-shadow: none;
-      border: 1px solid var(--sw-border);
+      box-shadow: inset 0 0 0 1px var(--sw-border-strong);
+    }
+    .video.off .center sw-icon {
+      color: var(--sw-offline);
     }
     .shade {
       position: absolute;
@@ -502,7 +504,7 @@ export class LiveCamera extends LitElement {
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
       direction: ltr;
-      color: rgba(255, 255, 255, 0.92);
+      color: var(--sw-on-video);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
     .quality {
@@ -510,7 +512,7 @@ export class LiveCamera extends LitElement {
       inset-inline-end: 12px;
       inset-block-end: 10px;
       font-size: var(--sw-fs-xs);
-      color: rgba(255, 255, 255, 0.92);
+      color: var(--sw-on-video);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       direction: ltr;
       z-index: 2;
@@ -580,8 +582,33 @@ export class LiveCamera extends LitElement {
       color: var(--sw-text);
     }
     .round button:disabled {
-      opacity: 0.45;
+      opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
+    }
+    .round button,
+    .zoom button,
+    .joy button {
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+    }
+    .round button:active,
+    .zoom button:active,
+    .joy button:active {
+      transform: scale(0.94);
+    }
+    .round button:focus-visible,
+    .zoom button:focus-visible,
+    .joy button:focus-visible,
+    .round .transport button:focus-visible,
+    summary:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .round button:active,
+      .zoom button:active,
+      .joy button:active {
+        transform: none;
+      }
     }
     .round .q {
       inline-size: auto;
@@ -595,7 +622,7 @@ export class LiveCamera extends LitElement {
     .round .q.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: var(--sw-on-video);
+      color: var(--sw-text-inverse);
     }
     .transport {
       display: inline-flex;

@@ -9,35 +9,28 @@ import { css } from 'lit';
  */
 
 export const notifyKnobs = css`
+  /* SEC polish (2026-10-10): the knobs read the product's state tokens (--sw-product-*: the resolved product colours, never the
+     --dv-* bridge, so no cycle inside the glass host) - one amber, one red, one blue on every screen, light and dark, every skin.
+     The scheme block below only re-tunes the washes that need more presence on a dark glass. */
   :host([data-devices-style='glass']) {
-    --nt-sev-info: #8e8e93;
-    --nt-sev-alert: #ff9f0a;
-    --nt-sev-critical: #d70015;
-    --nt-sev-info-soft: rgba(142, 142, 147, 0.16);
-    --nt-sev-alert-soft: rgba(255, 159, 10, 0.16);
-    --nt-sev-critical-soft: rgba(255, 59, 48, 0.14);
-    --nt-critical-glow: rgba(215, 0, 21, 0.22);
-    --nt-unread-dot: #007aff;
+    --nt-sev-info: var(--sw-text-3);
+    --nt-sev-alert: var(--sw-product-warning);
+    --nt-sev-critical: var(--sw-product-danger);
+    --nt-sev-info-soft: var(--sw-unknown-soft);
+    --nt-sev-alert-soft: var(--sw-product-warning-soft);
+    --nt-sev-critical-soft: var(--sw-product-danger-soft);
+    --nt-critical-glow: color-mix(in srgb, var(--sw-product-danger) 22%, transparent);
+    --nt-unread-dot: var(--sw-product-accent);
     --nt-row-min: 72px;
-    --nt-pin-bg: linear-gradient(180deg, rgba(255, 59, 48, 0.08), rgba(255, 59, 48, 0.02));
-    --nt-timeline-line: rgba(60, 60, 67, 0.18);
-    --nt-matrix-head: rgba(120, 120, 128, 0.08);
-    --nt-warn-text: #9a5b00;
+    --nt-pin-bg: linear-gradient(180deg, color-mix(in srgb, var(--sw-product-danger) 8%, transparent), color-mix(in srgb, var(--sw-product-danger) 2%, transparent));
+    --nt-timeline-line: var(--sw-border-strong);
+    --nt-matrix-head: var(--sw-surface-3);
+    --nt-warn-text: var(--sw-warning-text);
     --nt-sheet-w: 480px;
   }
   :host([data-devices-style='glass'][data-devices-scheme='dark']) {
-    --nt-sev-info: #98989d;
-    --nt-sev-alert: #ffb340;
-    --nt-sev-critical: #ff453a;
-    --nt-sev-info-soft: rgba(152, 152, 157, 0.2);
-    --nt-sev-alert-soft: rgba(255, 179, 64, 0.2);
-    --nt-sev-critical-soft: rgba(255, 69, 58, 0.22);
-    --nt-critical-glow: rgba(255, 69, 58, 0.3);
-    --nt-unread-dot: #0a84ff;
-    --nt-pin-bg: linear-gradient(180deg, rgba(255, 69, 58, 0.14), rgba(255, 69, 58, 0.03));
-    --nt-timeline-line: rgba(255, 255, 255, 0.2);
-    --nt-matrix-head: rgba(255, 255, 255, 0.05);
-    --nt-warn-text: #ffb340;
+    --nt-critical-glow: color-mix(in srgb, var(--sw-product-danger) 30%, transparent);
+    --nt-pin-bg: linear-gradient(180deg, color-mix(in srgb, var(--sw-product-danger) 14%, transparent), color-mix(in srgb, var(--sw-product-danger) 3%, transparent));
   }
 `;
 
@@ -75,13 +68,26 @@ export const notifyControls = css`
     background: var(--dv-warning-soft);
     color: var(--nt-warn-text);
   }
+  /* the door release: an amber control that reads as "a physical action" next to the quiet ones; its confirmation stays the center's */
   .btn.door {
     background: var(--dv-warning-soft);
     border-color: color-mix(in srgb, var(--dv-warning) 40%, transparent);
     color: var(--dv-text);
+    font-weight: 600;
+  }
+  .btn.door:hover {
+    border-color: color-mix(in srgb, var(--dv-warning) 70%, transparent);
   }
   .btn.door .ic {
     color: var(--dv-warning);
+  }
+  .btn:focus-visible,
+  .rc:focus-visible,
+  .chk:focus-visible,
+  .days button:focus-visible,
+  .stp button:focus-visible {
+    outline: 2px solid var(--dv-focus);
+    outline-offset: 2px;
   }
   .btn {
     min-block-size: 44px;
@@ -221,7 +227,7 @@ export const notifyControls = css`
   .days button[aria-pressed='true'] {
     background: var(--dv-accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--sw-text-inverse);
   }
   .chk {
     inline-size: 32px;
@@ -231,7 +237,7 @@ export const notifyControls = css`
     background: var(--dv-surface-2);
     display: grid;
     place-items: center;
-    color: #fff;
+    color: var(--sw-text-inverse);
     padding: 0;
     flex: none;
     position: relative;

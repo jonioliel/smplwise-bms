@@ -30,6 +30,16 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 type Filter = 'all' | 'open' | 'bypassed' | 'faults';
+/** SEC polish: the zones as cards (the default) or as one dense list per area; kept per browser. */
+type ZoneView = 'cards' | 'list';
+const ZONE_VIEW_KEY = 'sw.alarm.zones.view';
+function storedZoneView(): ZoneView {
+  try {
+    return localStorage.getItem(ZONE_VIEW_KEY) === 'list' ? 'list' : 'cards';
+  } catch {
+    return 'cards';
+  }
+}
 
 /** What the keypad / confirmation is about to send. */
 interface Pending {
@@ -74,6 +84,11 @@ export class SecurityAlarm extends LitElement {
   @state() private error = '';
   @state() private loading = true;
   @state() private filter: Filter = 'all';
+  @state() private zoneView: ZoneView = storedZoneView();
+  /** The panel state the hero last showed: a change plays the state-in motion once (reduced motion: none). */
+  @state() private stateFlash = false;
+  private lastHeroState: string | null | undefined;
+  private flashTimer = 0;
   @state() private pending: Pending | null = null;
   @state() private code = '';
   @state() private codeError = '';
@@ -98,7 +113,9 @@ export class SecurityAlarm extends LitElement {
       --al-fault: var(--sw-danger);
       --al-bypass: var(--sw-purple);
       --al-motion: var(--sw-accent);
+      --al-armed: var(--sw-accent);
     }
+    /* ---- the panel switcher (two or more partitions) ---- */
     .switcher {
       display: flex;
       gap: 6px;
@@ -116,7 +133,12 @@ export class SecurityAlarm extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      min-block-size: 36px;
+      min-block-size: var(--sw-ctl-h-lg);
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+    }
+    .switcher button:hover {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
     }
     .switcher button[aria-pressed='true'] {
       background: var(--sw-accent-soft);
@@ -134,7 +156,9 @@ export class SecurityAlarm extends LitElement {
     .dot.disarmed {
       background: var(--al-ok);
     }
-    .dot.armed,
+    .dot.armed {
+      background: var(--al-armed);
+    }
     .dot.partial {
       background: var(--al-bypass);
     }
@@ -144,18 +168,22 @@ export class SecurityAlarm extends LitElement {
     .dot.triggered {
       background: var(--al-fault);
     }
+    /* ---- the state card: one tone (bar, shield ring, a faint wash) says what is armed; the label is the biggest text on the screen ---- */
     .hero {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 16px 20px;
       align-items: center;
-      padding: 20px;
+      padding: 20px 22px;
       border-radius: var(--sw-r-lg);
-      background: var(--sw-surface);
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--tone, var(--sw-offline)) 4%, var(--sw-surface));
+      -webkit-backdrop-filter: var(--sw-glass-blur);
+      backdrop-filter: var(--sw-glass-blur);
       border: 1px solid var(--sw-border);
-      box-shadow: var(--sw-shadow-2);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       position: relative;
       overflow: hidden;
+      transition: background var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-state) var(--sw-ease);
     }
     .hero::before {
       content: '';
@@ -164,12 +192,13 @@ export class SecurityAlarm extends LitElement {
       inset-inline-start: 0;
       inline-size: 6px;
       background: var(--tone, var(--sw-offline));
+      transition: background var(--sw-t-state) var(--sw-ease);
     }
     .hero[data-tone='disarmed'] {
       --tone: var(--al-ok);
     }
     .hero[data-tone='armed'] {
-      --tone: #6d28d9;
+      --tone: var(--al-armed);
     }
     .hero[data-tone='partial'] {
       --tone: var(--al-bypass);
@@ -179,16 +208,33 @@ export class SecurityAlarm extends LitElement {
     }
     .hero[data-tone='triggered'] {
       --tone: var(--al-fault);
-      background: color-mix(in srgb, var(--al-fault) 8%, var(--sw-surface));
+      background: color-mix(in srgb, var(--al-fault) 10%, var(--sw-surface));
+      border-color: color-mix(in srgb, var(--al-fault) 50%, var(--sw-border));
       animation: pulse 1.2s ease-in-out infinite;
+    }
+    .hero[data-tone='offline'] {
+      --tone: var(--sw-offline);
     }
     @keyframes pulse {
       50% {
         box-shadow: 0 0 0 4px color-mix(in srgb, var(--al-fault) 35%, transparent);
       }
     }
+    /* the arrival of a new state: the shield and the label settle in (once, never looping) */
+    @keyframes state-in {
+      from {
+        opacity: 0.4;
+        transform: translateY(4px) scale(0.96);
+      }
+    }
+    .hero.changed .shield,
+    .hero.changed .state-label {
+      animation: state-in var(--sw-t-med) var(--sw-ease) both;
+    }
     @media (prefers-reduced-motion: reduce) {
-      .hero[data-tone='triggered'] {
+      .hero[data-tone='triggered'],
+      .hero.changed .shield,
+      .hero.changed .state-label {
         animation: none;
       }
     }
@@ -199,20 +245,30 @@ export class SecurityAlarm extends LitElement {
       min-inline-size: 0;
     }
     .shield {
-      inline-size: 56px;
-      block-size: 56px;
+      inline-size: 60px;
+      block-size: 60px;
       border-radius: var(--sw-r-lg);
       display: grid;
       place-items: center;
       background: color-mix(in srgb, var(--tone, var(--sw-offline)) 14%, var(--sw-surface));
       color: var(--tone, var(--sw-offline));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone, var(--sw-offline)) 35%, transparent);
       flex: none;
+      transition: background var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease);
+    }
+    .hero[data-tone='triggered'] .shield {
+      background: var(--al-fault);
+      color: var(--sw-text-inverse);
     }
     .state-label {
       font-size: clamp(22px, 5vw, 30px);
       font-weight: var(--sw-fw-bold);
       color: var(--sw-heading, var(--sw-text));
       line-height: 1.15;
+      letter-spacing: var(--sw-h1-tracking);
+    }
+    .hero[data-tone='triggered'] .state-label {
+      color: var(--sw-danger-text);
     }
     .meta {
       color: var(--sw-text-3);
@@ -232,7 +288,7 @@ export class SecurityAlarm extends LitElement {
       grid-column: 1 / -1;
       display: flex;
       align-items: flex-start;
-      gap: 8px;
+      gap: 10px;
       padding: 10px 12px;
       border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
@@ -243,21 +299,50 @@ export class SecurityAlarm extends LitElement {
       background: var(--sw-warning-soft);
       color: var(--sw-warning-text);
     }
+    .ready sw-icon {
+      flex: none;
+      margin-block-start: 1px;
+    }
     .ready ul {
       margin: 4px 0 0;
       padding-inline-start: 18px;
     }
     .sent {
       grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
+    .sent::before {
+      content: '';
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-stale);
+      flex: none;
+    }
+    .sent[data-alarm-sent='confirmed']::before {
+      background: var(--sw-success);
+    }
+    .sent[data-alarm-sent='failed']::before,
+    .sent[data-alarm-sent='denied']::before,
+    .sent[data-alarm-sent='unknown']::before {
+      background: var(--sw-danger);
+    }
+    /* ---- the zones: filter chips, a card / list switch, the count ---- */
     .toolbar {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
       justify-content: space-between;
+    }
+    .toolbar .end {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     .chips {
       display: flex;
@@ -274,27 +359,106 @@ export class SecurityAlarm extends LitElement {
       cursor: pointer;
       color: var(--sw-text-2);
       min-block-size: 32px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+    }
+    .chips button:hover {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
     }
     .chips button[aria-pressed='true'] {
-      background: var(--sw-text);
-      color: var(--sw-surface);
-      border-color: var(--sw-text);
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .chips button .n {
+      font-size: var(--sw-fs-2xs);
+      font-weight: var(--sw-fw-semibold);
+      min-inline-size: 18px;
+      block-size: 18px;
+      padding-inline: 5px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      display: inline-grid;
+      place-items: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .chips button[data-filter='open'] .n:not(:empty) {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
+    }
+    .chips button[data-filter='faults'] .n:not(:empty) {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .chips button[data-filter='bypassed'] .n:not(:empty) {
+      background: color-mix(in srgb, var(--al-bypass) 14%, var(--sw-surface));
+      color: var(--al-bypass);
+    }
+    .vt {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: var(--sw-r-sm);
+      padding: 2px;
+    }
+    .vt button {
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      inline-size: 30px;
+      block-size: 28px;
+      border-radius: var(--sw-r-xs);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      padding: 0;
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+    }
+    .vt button[aria-pressed='true'] {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
     }
     .counts {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-3);
+      font-variant-numeric: tabular-nums;
     }
     h3 {
       margin: 6px 0 8px;
       font-size: var(--sw-fs-md);
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-semibold);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3 .n {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      font-weight: var(--sw-fw-regular);
+    }
+    /* the areas pack side by side on a wide screen (an area with one sensor no longer owns a whole row); each keeps its own cards grid */
+    .areas {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+      gap: 4px 16px;
+      align-items: start;
+    }
+    .areas.list {
+      grid-template-columns: minmax(0, 1fr);
     }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
       gap: 10px;
     }
+    /* a zone card: icon, name, state; the tone shows as the icon square, the state word and a faint wash - never a colour alone */
     .zone {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -302,18 +466,27 @@ export class SecurityAlarm extends LitElement {
       align-items: center;
       padding: 12px;
       border-radius: var(--sw-r-lg);
-      background: var(--sw-surface);
+      background: var(--sw-glass-sheen), var(--sw-surface);
+      -webkit-backdrop-filter: var(--sw-glass-blur);
+      backdrop-filter: var(--sw-glass-blur);
       border: 1px solid var(--sw-border);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      position: relative;
+      transition: background var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
     .zone[data-tone='open'] {
       border-color: color-mix(in srgb, var(--al-open) 55%, var(--sw-border));
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--al-open) 6%, var(--sw-surface));
     }
     .zone[data-tone='fault'] {
       border-color: color-mix(in srgb, var(--al-fault) 55%, var(--sw-border));
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--al-fault) 6%, var(--sw-surface));
     }
     .zone[data-tone='bypassed'] {
-      background: color-mix(in srgb, var(--al-bypass) 6%, var(--sw-surface));
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--al-bypass) 6%, var(--sw-surface));
+    }
+    .zone[data-tone='motion'] {
+      border-color: color-mix(in srgb, var(--al-motion) 45%, var(--sw-border));
     }
     .zicon {
       inline-size: 36px;
@@ -323,6 +496,11 @@ export class SecurityAlarm extends LitElement {
       place-items: center;
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
+      transition: background var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease);
+    }
+    .zone[data-tone='ok'] .zicon {
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
     }
     .zone[data-tone='open'] .zicon {
       background: var(--sw-warning-soft);
@@ -346,6 +524,7 @@ export class SecurityAlarm extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: var(--sw-text);
     }
     .zsub {
       font-size: var(--sw-fs-xs);
@@ -354,25 +533,36 @@ export class SecurityAlarm extends LitElement {
       flex-wrap: wrap;
       gap: 4px 8px;
       grid-column: 2 / 3;
+      align-items: center;
     }
     .zstate {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
+      transition: color var(--sw-t-state) var(--sw-ease);
     }
-    .zone[data-tone='open'] .zstate {
+    .zone[data-tone='open'] .zstate,
+    .zrow[data-tone='open'] .zstate {
       color: var(--sw-warning-text);
     }
-    .zone[data-tone='fault'] .zstate {
-      color: var(--al-fault);
+    .zone[data-tone='fault'] .zstate,
+    .zrow[data-tone='fault'] .zstate {
+      color: var(--sw-danger-text);
     }
-    .zone[data-tone='bypassed'] .zstate {
+    .zone[data-tone='bypassed'] .zstate,
+    .zrow[data-tone='bypassed'] .zstate {
       color: var(--al-bypass);
     }
-    .zone[data-tone='ok'] .zstate {
+    .zone[data-tone='ok'] .zstate,
+    .zrow[data-tone='ok'] .zstate {
       color: var(--sw-success-text);
     }
+    .zone[data-tone='motion'] .zstate,
+    .zrow[data-tone='motion'] .zstate {
+      color: var(--sw-accent-text);
+    }
     .flag {
-      color: var(--al-fault);
+      color: var(--sw-danger-text);
+      font-weight: var(--sw-fw-medium);
     }
     .bypass {
       grid-row: 1 / span 2;
@@ -384,15 +574,84 @@ export class SecurityAlarm extends LitElement {
       font-size: var(--sw-fs-2xs);
       color: var(--sw-text-3);
     }
+    /* the list view: one dense row per zone, the same icon / name / state / bypass switch, hairlines between the rows */
+    .zlist {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-glass-sheen), var(--sw-surface);
+      -webkit-backdrop-filter: var(--sw-glass-blur);
+      backdrop-filter: var(--sw-glass-blur);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      overflow: hidden;
+    }
+    .zrow {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      gap: 0 10px;
+      align-items: center;
+      padding: 7px 12px;
+      min-block-size: 46px;
+      border-block-end: 1px solid var(--sw-border);
+      position: relative;
+      transition: background var(--sw-t-fast) var(--sw-ease);
+    }
+    .zrow:last-child {
+      border-block-end: 0;
+    }
+    .zrow:hover {
+      background: var(--sw-hover-wash);
+    }
+    .zrow .zicon {
+      inline-size: 28px;
+      block-size: 28px;
+      border-radius: var(--sw-r-sm);
+    }
+    .zrow .zname {
+      font-size: var(--sw-fs-sm);
+    }
+    .zrow .zsub {
+      grid-column: 2;
+    }
+    .zrow .zstate {
+      font-size: var(--sw-fs-sm);
+      min-inline-size: 48px;
+      text-align: end;
+    }
+    .zrow .bypass {
+      grid-row: auto;
+      grid-column: 4;
+      flex-direction: row;
+      gap: 6px;
+    }
+    .zrow::before {
+      content: '';
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: 3px;
+      background: transparent;
+    }
+    .zrow[data-tone='open']::before {
+      background: var(--al-open);
+    }
+    .zrow[data-tone='fault']::before {
+      background: var(--al-fault);
+    }
+    .zrow[data-tone='bypassed']::before {
+      background: var(--al-bypass);
+    }
     button.tgl {
       inline-size: 46px;
       block-size: 28px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       border: 0;
       background: var(--sw-border-strong);
       position: relative;
       cursor: pointer;
       padding: 0;
+      transition: background var(--sw-t-fast) var(--sw-ease);
     }
     button.tgl::after {
       content: '';
@@ -402,9 +661,9 @@ export class SecurityAlarm extends LitElement {
       inline-size: 22px;
       block-size: 22px;
       border-radius: 50%;
-      background: #fff;
-      box-shadow: var(--sw-shadow-1);
-      transition: transform var(--sw-t-fast) var(--sw-ease);
+      background: var(--sw-toggle-thumb);
+      box-shadow: var(--sw-shadow-thumb);
+      transition: transform var(--sw-t-fast) var(--sw-ease-thumb);
     }
     button.tgl[aria-checked='true'] {
       background: var(--al-bypass);
@@ -413,15 +672,16 @@ export class SecurityAlarm extends LitElement {
       transform: translateX(-18px);
     }
     button.tgl:disabled {
-      opacity: 0.45;
+      opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
     }
     button.tgl:focus-visible,
     .keys button:focus-visible,
     .switcher button:focus-visible,
-    .chips button:focus-visible {
+    .chips button:focus-visible,
+    .vt button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 2px;
+      outline-offset: var(--sw-focus-offset);
     }
     details.unpaired {
       font-size: var(--sw-fs-sm);
@@ -430,9 +690,16 @@ export class SecurityAlarm extends LitElement {
       border-radius: var(--sw-r-md);
       padding: 8px 12px;
     }
+    details.unpaired summary {
+      cursor: pointer;
+      min-block-size: 28px;
+      display: flex;
+      align-items: center;
+    }
     details.unpaired li {
       margin-block: 2px;
     }
+    /* ---- the keypad: its own material (big digits, a masked field, large keys), both schemes ---- */
     .keypad {
       display: flex;
       flex-direction: column;
@@ -450,6 +717,11 @@ export class SecurityAlarm extends LitElement {
       direction: ltr;
       background: var(--sw-surface-2);
       color: var(--sw-text);
+      min-block-size: 52px;
+    }
+    .keypad input:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
     }
     .keys {
       display: grid;
@@ -467,13 +739,28 @@ export class SecurityAlarm extends LitElement {
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+    }
+    .keys button:hover {
+      background: var(--sw-surface-2);
     }
     .keys button:active {
       background: var(--sw-accent-soft);
+      transform: scale(0.96);
+    }
+    .keys button[data-key='clear'],
+    .keys button[data-key='back'] {
+      font-size: var(--sw-fs-xl);
+      color: var(--sw-text-2);
+      background: var(--sw-surface-2);
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
     .hint {
       color: var(--sw-text-3);
@@ -483,6 +770,10 @@ export class SecurityAlarm extends LitElement {
       display: grid;
       gap: 8px;
     }
+    .pinform label {
+      display: grid;
+      gap: 4px;
+    }
     .pinform input {
       font: inherit;
       padding: 8px 10px;
@@ -491,6 +782,13 @@ export class SecurityAlarm extends LitElement {
       direction: ltr;
       text-align: center;
       letter-spacing: 0.3em;
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+      min-block-size: var(--sw-ctl-h-lg);
+    }
+    .pinform input:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
     }
     .toast {
       position: fixed;
@@ -504,6 +802,7 @@ export class SecurityAlarm extends LitElement {
       font-size: var(--sw-fs-sm);
       z-index: var(--sw-z-toast);
       max-inline-size: calc(100vw - 32px);
+      box-shadow: var(--sw-shadow-3);
     }
     @media (max-width: 767px) {
       .hero {
@@ -520,6 +819,28 @@ export class SecurityAlarm extends LitElement {
       .grid {
         grid-template-columns: minmax(0, 1fr);
       }
+      .toolbar .end {
+        inline-size: 100%;
+        justify-content: space-between;
+      }
+      .zrow .zstate {
+        min-inline-size: 0;
+      }
+    }
+    /* the bubble skin: the list and its rows are flat layers, the view switch a pill track */
+    :host([data-skin='bubble']) .zlist {
+      border-color: transparent;
+      background: var(--sw-surface);
+      box-shadow: none;
+    }
+    :host([data-skin='bubble']) .vt {
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-2);
+    }
+    :host([data-skin='bubble']) .vt button {
+      border-radius: var(--sw-r-pill);
+      min-inline-size: var(--sw-touch-desktop);
+      min-block-size: var(--sw-touch-desktop);
     }
   `, bubbleChrome];
 
@@ -546,6 +867,7 @@ export class SecurityAlarm extends LitElement {
     window.clearInterval(this.pollTimer);
     window.clearTimeout(this.refetchTimer);
     window.clearTimeout(this.toastTimer);
+    window.clearTimeout(this.flashTimer);
     this.clearCode();
   }
 
@@ -553,6 +875,26 @@ export class SecurityAlarm extends LitElement {
     if (changed.has('panelId') && !this.panelId) {
       const p = parseRoute().params.get('panel');
       if (p) this.panelId = p;
+    }
+    // the hero's state changed (a command landed, a push arrived): play the state-in motion once (presentation only)
+    const st = this.panel ? `${this.panel.entity_id}:${this.panel.state ?? ''}:${this.panel.available}` : undefined;
+    if (st !== this.lastHeroState) {
+      const first = this.lastHeroState === undefined;
+      this.lastHeroState = st;
+      if (!first && st !== undefined) {
+        this.stateFlash = true;
+        window.clearTimeout(this.flashTimer);
+        this.flashTimer = window.setTimeout(() => (this.stateFlash = false), 700);
+      }
+    }
+  }
+
+  private setZoneView(v: ZoneView) {
+    this.zoneView = v;
+    try {
+      localStorage.setItem(ZONE_VIEW_KEY, v);
+    } catch {
+      /* private mode: the choice lasts until the page closes */
     }
   }
 
@@ -752,9 +1094,9 @@ export class SecurityAlarm extends LitElement {
     const zonesById = new Map(p.zones.map((z) => [z.entity_id, z]));
     const name = (id: string) => zonesById.get(id)?.name ?? id;
     const sent = this.sent && this.sent.entity === p.entity_id ? this.sent : null;
-    return html`<section class="hero" data-tone=${st.tone} data-alarm-state=${p.state ?? 'unknown'} data-alarm-panel=${p.entity_id}>
+    return html`<section class="hero ${this.stateFlash ? 'changed' : ''}" data-tone=${st.tone} data-alarm-state=${p.state ?? 'unknown'} data-alarm-panel=${p.entity_id}>
       <div class="state-row">
-        <span class="shield"><sw-icon name=${disarmed ? 'unlock' : 'shield'} size=${28}></sw-icon></span>
+        <span class="shield" aria-hidden="true"><sw-icon name=${st.tone === 'triggered' ? 'warning' : disarmed ? 'unlock' : 'shield'} size=${30}></sw-icon></span>
         <div>
           <div class="state-label" role="status" aria-live="polite">${st.label}</div>
           <div class="meta">${p.name}${p.changed_by ? ` · שונה על ידי ${p.changed_by}` : ''}${p.last_changed ? ` · ${when(p.last_changed)}` : ''}</div>
@@ -813,30 +1155,61 @@ export class SecurityAlarm extends LitElement {
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k)!.push(z);
     }
+    const n: Record<Filter, number> = {
+      all: p.zones.length,
+      open: p.zones.filter((z) => z.open && !z.bypassed).length,
+      bypassed: p.zones.filter((z) => z.bypassed).length,
+      faults: p.zones.filter((z) => z.fault || z.tamper).length,
+    };
+    const list = this.zoneView === 'list';
     return html`<div class="toolbar">
-        <div class="chips" role="group" aria-label="סינון חיישנים">${FILTERS.map((f) => html`<button type="button" aria-pressed=${this.filter === f.id} data-filter=${f.id} @click=${() => (this.filter = f.id)}>${f.label}</button>`)}</div>
-        <span class="counts">${zones.length} מתוך ${p.zones.length} חיישנים</span>
+        <div class="chips" role="group" aria-label="סינון חיישנים">${FILTERS.map((f) => html`<button type="button" aria-pressed=${this.filter === f.id} data-filter=${f.id} @click=${() => (this.filter = f.id)}>${f.label}${f.id !== 'all' && n[f.id] ? html`<span class="n">${n[f.id]}</span>` : nothing}</button>`)}</div>
+        <div class="end">
+          <span class="counts">${zones.length} מתוך ${p.zones.length} חיישנים</span>
+          <div class="vt" role="group" aria-label="תצוגת חיישנים" data-alarm-view>
+            <button type="button" aria-pressed=${!list} aria-label="כרטיסים" title="כרטיסים" data-alarm-view-cards @click=${() => this.setZoneView('cards')}><sw-icon name="grid" size=${15}></sw-icon></button>
+            <button type="button" aria-pressed=${list} aria-label="רשימה" title="רשימה" data-alarm-view-list @click=${() => this.setZoneView('list')}><sw-icon name="list" size=${15}></sw-icon></button>
+          </div>
+        </div>
       </div>
       ${!p.zones.length
         ? html`<sw-state-panel compact state="empty" heading="אין חיישנים ללוח הזה" hint="החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות › אבטחה › ניהול אזעקה."></sw-state-panel>`
         : !zones.length
-          ? html`<div class="hint" data-alarm-filter-empty>אין חיישנים שמתאימים לסינון.</div>`
-          : [...groups.entries()].map(([area, list]) => html`<section data-area=${area}><h3>${area}</h3><div class="grid">${list.map((z) => this.renderZone(p, z))}</div></section>`)}`;
+          ? html`<sw-state-panel compact state="empty" heading="אין חיישנים שמתאימים לסינון" data-alarm-filter-empty actionLabel="הצג הכל" @action=${() => (this.filter = 'all')}></sw-state-panel>`
+          : html`<div class="areas ${list ? 'list' : ''}">${[...groups.entries()].map(([area, zs]) => html`<section data-area=${area}><h3>${area}<span class="n">${zs.length}</span></h3>${list
+              ? html`<div class="zlist" data-alarm-zones="list">${zs.map((z) => this.renderZone(p, z, true))}</div>`
+              : html`<div class="grid" data-alarm-zones="cards">${zs.map((z) => this.renderZone(p, z, false))}</div>`}</section>`)}</div>`}`;
   }
 
-  private renderZone(p: AlarmPanel, z: AlarmZone) {
+  private renderZone(p: AlarmPanel, z: AlarmZone, row = false) {
     const st = zoneState(z);
     const icon = z.kind === 'motion' ? 'activity' : z.kind === 'fault' ? 'warning' : z.kind === 'opening' ? 'door' : 'sensor';
     const b = z.bypass;
     const canToggle = !!b && b.available && (z.bypassed ? p.can.restore : p.can.bypass);
+    const toggle = b
+      ? html`<div class="bypass"><button type="button" class="tgl" role="switch" aria-checked=${z.bypassed ? 'true' : 'false'} aria-label=${`עקיפת ${z.name}`} data-bypass=${z.entity_id}
+            ?disabled=${!canToggle || this.busy} title=${canToggle ? '' : 'אין הרשאה או שהמתג אינו זמין'}
+            @click=${() => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true })}></button>עקיפה</div>`
+      : html`<span></span>`;
+    if (row) {
+      return html`<article class="zrow" data-tone=${st.tone} data-zone=${z.entity_id}>
+        <span class="zicon" aria-hidden="true"><sw-icon name=${icon} size=${15}></sw-icon></span>
+        <div class="zname" title=${z.name}>${z.zone_number !== null ? html`<span class="hint">${z.zone_number} · </span>` : nothing}${z.name}</div>
+        <span class="zstate" data-zone-state>${st.label}</span>
+        ${toggle}
+        <div class="zsub">
+          ${z.last_changed ? html`<span>${when(z.last_changed)}</span>` : nothing}
+          ${z.tamper ? html`<span class="flag">חבלה</span>` : nothing}
+          ${z.battery_low ? html`<span class="flag">סוללה חלשה</span>` : z.battery_level !== null ? html`<span>סוללה ${z.battery_level}%</span>` : nothing}
+          ${z.alarmed ? html`<span class="flag">גרם לאזעקה</span>` : nothing}
+          ${z.shared ? html`<span title="החיישן משותף לכל המחיצות של המערכת">משותף</span>` : nothing}
+        </div>
+      </article>`;
+    }
     return html`<article class="zone" data-tone=${st.tone} data-zone=${z.entity_id}>
-      <span class="zicon"><sw-icon name=${icon} size=${18}></sw-icon></span>
+      <span class="zicon" aria-hidden="true"><sw-icon name=${icon} size=${18}></sw-icon></span>
       <div class="zname" title=${z.name}>${z.zone_number !== null ? html`<span class="hint">${z.zone_number} · </span>` : nothing}${z.name}</div>
-      ${b
-        ? html`<div class="bypass"><button type="button" class="tgl" role="switch" aria-checked=${z.bypassed ? 'true' : 'false'} aria-label=${`עקיפת ${z.name}`} data-bypass=${z.entity_id}
-              ?disabled=${!canToggle || this.busy} title=${canToggle ? '' : 'אין הרשאה או שהמתג אינו זמין'}
-              @click=${() => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true })}></button>עקיפה</div>`
-        : html`<span></span>`}
+      ${toggle}
       <div class="zsub">
         <span class="zstate" data-zone-state>${st.label}</span>
         ${z.last_changed ? html`<span>${when(z.last_changed)}</span>` : nothing}
@@ -870,10 +1243,10 @@ export class SecurityAlarm extends LitElement {
             <input data-code type="password" inputmode="numeric" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" name="sw-alarm-code-nofill" aria-label="קוד"
               maxlength="32" .value=${this.code} @input=${(e: Event) => { this.code = (e.target as HTMLInputElement).value; this.codeError = ''; }} />
             <div class="keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'].map((k) => html`<button type="button" data-key=${k} aria-label=${k === 'back' ? 'מחיקה' : k === 'clear' ? 'ניקוי' : k} @click=${() => this.key(k)}>${k === 'back' ? '⌫' : k === 'clear' ? 'C' : k}</button>`)}</div>
-            ${this.codeError ? html`<div class="err" role="alert" data-code-error>${this.codeError}</div>` : nothing}
+            ${this.codeError ? html`<div class="err" role="alert" data-code-error><sw-icon name="warning" size=${14}></sw-icon>${this.codeError}</div>` : nothing}
           </form>`
         : this.codeError
-          ? html`<div class="err" role="alert">${this.codeError}</div>`
+          ? html`<div class="err" role="alert"><sw-icon name="warning" size=${14}></sw-icon>${this.codeError}</div>`
           : nothing}
       <sw-button slot="footer" variant="ghost" @click=${() => this.closeDialog()}>ביטול</sw-button>
       <sw-button slot="footer" variant=${p.action === 'disarm' || p.action === 'bypass_on' ? 'danger' : 'primary'} data-alarm-confirm ?disabled=${this.busy} @click=${() => this.submitCode()}>${p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? 'עקוף' : 'החזר להגנה'}</sw-button>
