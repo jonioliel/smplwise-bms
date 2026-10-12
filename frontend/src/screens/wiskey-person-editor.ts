@@ -1110,9 +1110,17 @@ export class WiskeyPersonEditor extends LitElement {
     }
     .dates input,
     .periods input,
-    fieldset select {
+    [data-wiskey-editor-section='category'] select,
+    [data-wiskey-editor-section='timing'] select {
       font: inherit;
-      min-block-size: 44px;
+    }
+    @media (max-width: 1100px) {
+      [data-wiskey-editor-section='category'] input,
+      [data-wiskey-editor-section='category'] select,
+      [data-wiskey-editor-section='timing'] input:not([type='checkbox']),
+      [data-wiskey-editor-section='timing'] select {
+        min-block-size: 44px;
+      }
     }
     .card-row {
       border: 1px dashed var(--sw-border);
