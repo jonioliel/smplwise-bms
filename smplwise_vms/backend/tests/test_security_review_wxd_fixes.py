@@ -319,10 +319,14 @@ def test_m1_schedule_guard_follows_a_called_script_and_keeps_existing_calls(sche
 
 # ================================================================ M2 - `door.unlock` follows wherever an editor places the lock
 
-def test_poc_m2_a_floor_editor_extends_floor_door_unlock_to_any_wiskey_door_by_placing_it(door_world):
+def _place(c: TestClient, floor_id: str, entity_id: str, user: str | None = None) -> Any:
+    return c.post(f"{API}/floors/{floor_id}/anchors", json={"resource_type": "ha_entity", "resource_id": entity_id, "x": 0.5, "y": 0.5}, headers=as_user(user) if user else {})
+
+
+def test_m2_a_floor_editor_cannot_extend_floor_door_unlock_by_placing_a_wiskey_door(door_world):
     """`ed` edits floor 2 (built-in editor role) and holds a floor-2 custom role with door.unlock (meant for floor 2's own locks).
-    The entrance's WisKey lock is not on floor 2: ed cannot open it. ed places the lock entity on floor 2 (placement.edit there
-    is all the anchor route asks for an HA entity) and from then on opens the entrance from the WisKey screen and the tile."""
+    The entrance's WisKey lock is not on floor 2: ed cannot open it - and (FIXED) cannot place it there either: placing a
+    door's lock entity needs door.unlock for it on its CURRENT chain (the T055 B1 rule of cameras). Nothing is sent."""
     c, db, feed = door_world["c"], door_world["db"], door_world["feed"]
     ids = seed_tree(c)
     _publish_plan(c, ids["floor2"])
@@ -330,18 +334,46 @@ def test_poc_m2_a_floor_editor_extends_floor_door_unlock_to_any_wiskey_door_by_p
     opener = _custom_role(c, "פותח מנעולי קומה 2", ["map.read"], ["door.unlock"])
     assert _bind_api(c, "ed", "editor", "floor", ids["floor2"]).status_code == 201
     assert _bind_api(c, "ed", opener, "floor", ids["floor2"]).status_code == 201
-    before = _release(c, ENTRY, "ed")
-    assert before.status_code == 403, before.text
+    assert _release(c, ENTRY, "ed").status_code == 403
+    placed = _place(c, ids["floor2"], "lock.entrance", "ed")
+    assert placed.status_code == 403 and placed.json()["details"]["reason"] == "door_unlock_required", placed.text
+    with db.connection(mode="read") as conn:
+        assert not door_authority.check(conn, _principal("ed"), ENTRY, 1, dev_mode=True).allowed
+        row = conn.execute("SELECT decision, reason FROM audit_log WHERE action = 'anchor.create' ORDER BY id DESC LIMIT 1").fetchone()
+        assert (row["decision"], row["reason"]) == ("denied", "door_unlock_required")
+    assert _release(c, ENTRY, "ed").status_code == 403
+    assert _tile(c, "lock.entrance", "ed").status_code == 403
     assert feed.sent == []
-    placed = c.post(f"{API}/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "lock.entrance", "x": 0.5, "y": 0.5}, headers=as_user("ed"))
-    assert placed.status_code == 201, placed.text  # CURRENT: no reach check on the entity being placed (cameras have one, T055 B1)
+    # an ordinary lock is placed as before
+    assert _place(c, ids["floor2"], "lock.office", "ed").status_code == 201
+
+
+def test_m2_who_may_place_and_remove_a_wiskey_door(door_world):
+    """The role administrator may place it (they could grant door.unlock anyway), and so may an installation-wide door.unlock
+    holder with placement.edit on the floor; once it is placed on floor 2 by them, floor 2's door.unlock opens it (the CR's
+    entity chain, unchanged) and only someone who holds door.unlock for it may take it off again (a deny can sit there)."""
+    c, db = door_world["c"], door_world["db"]
+    ids = seed_tree(c)
+    _publish_plan(c, ids["floor2"])
+    _publish_plan(c, ids["floor3"])
+    _map_all(c)
+    opener = _custom_role(c, "פותח מנעולים", ["map.read"], ["door.unlock"])
+    assert _bind_api(c, "ed", "editor", "floor", ids["floor2"]).status_code == 201
+    assert _bind_api(c, "ed", opener, "floor", ids["floor2"]).status_code == 201
+    assert _bind_api(c, "gal", "editor", "floor", ids["floor3"]).status_code == 201
+    assert _bind_api(c, "gal", opener, "installation", "*").status_code == 201
+    assert _bind_api(c, "noa", "editor", "floor", ids["floor2"]).status_code == 201  # no door permission at all
+    assert _place(c, ids["floor3"], "lock.entrance", "gal").status_code == 201, "installation door.unlock + placement.edit on floor 3"
+    admin = _place(c, ids["floor2"], "lock.entrance")
+    assert admin.status_code == 201, admin.text
     with db.connection(mode="read") as conn:
         d = door_authority.check(conn, _principal("ed"), ENTRY, 1, dev_mode=True)
-    assert d.allowed and d.granted_by == "door.unlock" and (d.scope_type, d.scope_id) == ("floor", ids["floor2"])
-    after = _release(c, ENTRY, "ed")
-    assert after.status_code == 200, after.text
-    assert _tile(c, "lock.entrance", "ed").status_code == 202
-    assert len(feed.sent) == 2 and all(f["frames"][0]["station_id"] == ENTRY for f in feed.sent)
+        assert d.allowed and (d.scope_type, d.scope_id) == ("floor", ids["floor2"]), "placed by an authorised person: floor 2's door.unlock opens it"
+        row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'anchor.create' AND decision = 'allowed' ORDER BY id DESC LIMIT 1").fetchone()
+        assert json.loads(row["details_json"]).get("door") is True
+    gone = c.delete(f"{API}/map-anchors/{admin.json()['id']}", headers=as_user("noa"))
+    assert gone.status_code == 403, gone.text
+    assert c.delete(f"{API}/map-anchors/{admin.json()['id']}", headers=as_user("ed")).status_code == 204, "ed holds door.unlock for it on floor 2"
 
 
 # ================================================================ M3 - template entities other than locks / buttons are "not a door"

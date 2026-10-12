@@ -10,7 +10,8 @@ so no screen can diverge from another ("no second authority in Arx"). Order:
    chain, or `door.unlock` anywhere on the lock entity's chain, refuses the request - "either permission" can never be
    used to slip past a deny the administrator wrote for the other one.
 3. Allowed with `access.release` on the station's chain (the station -> its building -> its site -> installation), or with
-   `door.unlock` on the lock entity's own chain (installation, or a floor it is placed on - the existing entity scope).
+   `door.unlock` on the lock entity's own chain (installation, or a floor it has its own anchor on - the existing entity
+   scope without a shared room's mirrors; who may place or remove that anchor is `placement_allowed`, SEC-WXD M2).
 4. `ha.entity.control` is NOT required for a WisKey door (it stays required for every other lock).
 
 Kiosk and viewer principals hold neither permission, so they are refused by step 3 and nothing is ever sent for them.
@@ -54,12 +55,14 @@ def _from(decision: Decision, permission: str) -> DoorDecision:
 
 
 def _entity_targets(conn: sqlite3.Connection, entity_id: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """The scope targets of a lock entity (installation, then each floor it is placed on) and the floors of a shared room
-    it is a member of (a deny there wins, as in ha_scope.control_decision)."""
+    """The scope targets of a lock entity that may ALLOW door.unlock (installation, then each floor it has its own anchor
+    on) and those that may only DENY (the floors a shared room mirrors it to, and every floor of such a room: a deny there
+    wins, as in ha_scope.control_decision). SEC-WXD M2: a shared room widens nobody's door.unlock to another floor (the
+    alarm's rule, ha_scope.own_placements); the anchors themselves are guarded by `placement_allowed`."""
     placed = ha_scope.placements(conn).get(entity_id, [])
-    targets = [INSTALLATION] + [("floor", p["floor_id"]) for p in placed]
-    shared = [("floor", f) for p in placed for f in p.get("share_floors") or ()]
-    return targets, shared
+    targets = [INSTALLATION] + [("floor", p["floor_id"]) for p in placed if not p.get("shared_from")]
+    deny_only = [("floor", p["floor_id"]) for p in placed if p.get("shared_from")] + [("floor", f) for p in placed for f in p.get("share_floors") or ()]
+    return targets, deny_only
 
 
 def _unlock_decisions(conn: sqlite3.Connection, principal: Principal, entity_ids: list[str]) -> tuple[Decision | None, Decision | None]:
@@ -103,6 +106,23 @@ def check(conn: sqlite3.Connection, principal: Principal, station_id: str, relay
     if unlock is not None:
         return _from(unlock, UNLOCK)
     return DoorDecision(False, release.reason if release.reason == "user_inactive" else "no_binding")
+
+
+def is_door_entity(conn: sqlite3.Connection, entity_id: str) -> bool:
+    """A WisKey lock entity, or any entity the door map links to a relay."""
+    return intercom_doors.is_wiskey_lock(conn, entity_id) or intercom_doors.map_row(conn, entity_id) is not None
+
+
+def placement_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> bool:
+    """SEC-WXD M2 (the T055 B1 rule for cameras, applied to WisKey doors): placing a door's lock entity on a floor - or
+    taking it off one, which can lift a deny that sat there - widens or changes who holds `door.unlock` for that door, so
+    only someone who already holds `door.unlock` for it on its CURRENT chain (installation, or a floor it has its own
+    anchor on; an unplaced one: installation only), with no deny on any of its floors, may do it. A role administrator
+    (`rbac.roles.manage` at the installation) may too: they can grant door.unlock directly anyway."""
+    if authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed:
+        return True
+    allow, deny = _unlock_decisions(conn, principal, [entity_id])
+    return allow is not None and deny is None
 
 
 def may_open_some_door(conn: sqlite3.Connection, principal: Principal, station_id: str, *, dev_mode: bool = False) -> DoorDecision:
