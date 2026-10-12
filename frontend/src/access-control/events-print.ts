@@ -19,12 +19,10 @@ export interface PrintInput {
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ESC[c]);
 
-/** The printable HTML document (a string; the caller prints it). Every value is escaped. */
-export function printDocument(p: PrintInput): string {
-  const dir = p.lang === 'he' ? 'rtl' : 'ltr';
-  const head = p.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
-  const body = p.rows.map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('');
-  return `<!doctype html><html lang="${p.lang}" dir="${dir}"><head><meta charset="utf-8"><title>${escapeHtml(p.title)}</title><style>
+/** The printed page's look. It is NOT an inline style element: the frame's srcdoc document inherits the app's Content Security
+ * Policy, and the strict remote policy (style-src-elem 'self', CR-008 P2) refuses inline style elements - the printed list
+ * would come out unstyled. printHtml adopts it as a constructed stylesheet instead, which CSP does not govern (as Lit's own). */
+export const PRINT_CSS = `
 @page { margin: 14mm; }
 body { font: 12px/1.45 "Heebo", "Segoe UI", Arial, sans-serif; color: #111; margin: 0; }
 h1 { font-size: 18px; margin: 0 0 2px; }
@@ -35,7 +33,28 @@ th { background: #eee; }
 tr { break-inside: avoid; }
 td.t { white-space: nowrap; }
 footer { margin-top: 10px; color: #555; font-size: 11px; }
-</style></head><body><h1>${escapeHtml(p.title)}</h1><p class="sub">${escapeHtml(p.subtitle)}</p><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table><footer>${escapeHtml(p.footer)}</footer></body></html>`;
+`;
+
+/** The printable HTML document (a string; the caller prints it). Every value is escaped. No style element (see PRINT_CSS). */
+export function printDocument(p: PrintInput): string {
+  const dir = p.lang === 'he' ? 'rtl' : 'ltr';
+  const head = p.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
+  const body = p.rows.map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('');
+  return `<!doctype html><html lang="${p.lang}" dir="${dir}"><head><meta charset="utf-8"><title>${escapeHtml(p.title)}</title></head><body><h1>${escapeHtml(p.title)}</h1><p class="sub">${escapeHtml(p.subtitle)}</p><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table><footer>${escapeHtml(p.footer)}</footer></body></html>`;
+}
+
+/** Give the frame's document the print look as a constructed stylesheet (no-op where the browser cannot adopt one: the
+ * list then prints plain, still complete). */
+function adoptPrintCss(win: Window | null): void {
+  try {
+    const w = win as (Window & { CSSStyleSheet: typeof CSSStyleSheet }) | null;
+    if (!w || !('adoptedStyleSheets' in w.document)) return;
+    const sheet = new w.CSSStyleSheet();
+    sheet.replaceSync(PRINT_CSS);
+    w.document.adoptedStyleSheets = [sheet];
+  } catch {
+    /* an older browser: plain print */
+  }
 }
 
 /** Print the document through a hidden frame (the browser's print dialog). The frame is removed afterwards. Returns false
@@ -50,6 +69,7 @@ export function printHtml(html: string): boolean {
   const done = () => window.setTimeout(() => frame.remove(), 1500);
   frame.addEventListener('load', () => {
     try {
+      adoptPrintCss(frame.contentWindow);
       frame.contentWindow?.focus();
       frame.contentWindow?.print();
     } finally {

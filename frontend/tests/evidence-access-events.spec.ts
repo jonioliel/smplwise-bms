@@ -368,7 +368,7 @@ test.describe('the entry log: behaviour', () => {
     await boot(page);
     await page.evaluate(() => {
       // a headless run has nobody to answer a print dialog: the frame's own print() is counted instead of opened
-      const w = window as unknown as { __printed?: number };
+      const w = window as unknown as { __printed?: number; __adopted?: number };
       const original = HTMLIFrameElement.prototype.addEventListener;
       HTMLIFrameElement.prototype.addEventListener = function (this: HTMLIFrameElement, type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
         if (type === 'load' && this.hasAttribute('data-sw-print')) {
@@ -377,7 +377,8 @@ test.describe('the entry log: behaviour', () => {
             'load',
             (e: Event) => {
               const frame = this.contentWindow as (Window & { print: () => void }) | null;
-              if (frame) frame.print = () => void (w.__printed = (w.__printed ?? 0) + 1);
+              // count the print, and the stylesheets the frame's document has adopted at that moment (no inline style element: CSP)
+              if (frame) frame.print = () => void ((w.__printed = (w.__printed ?? 0) + 1), (w.__adopted = frame.document.adoptedStyleSheets.length));
               (typeof listener === 'function' ? listener : listener.handleEvent.bind(listener))(e);
             },
             options,
@@ -394,6 +395,8 @@ test.describe('the entry log: behaviour', () => {
     expect(html).toContain('דנה כהן');
     expect((html.match(/<tr>/g) ?? []).length).toBe(101); // the header row and the 100 rows shown
     expect(html).not.toMatch(/WisKey/);
+    expect(html).not.toMatch(/<style[\s>]/); // the strict remote CSP refuses inline style elements in the inherited frame
+    expect(await page.evaluate(() => (window as unknown as { __adopted?: number }).__adopted)).toBe(1); // the print look, adopted
     await expect(page.locator('iframe[data-sw-print]')).toHaveCount(0, { timeout: 5_000 }); // the frame removes itself
   });
 

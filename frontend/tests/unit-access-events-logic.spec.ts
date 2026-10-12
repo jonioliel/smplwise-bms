@@ -26,7 +26,7 @@ import {
   wireFilters,
   type EventFilterState,
 } from '../src/access-control/events-logic';
-import { printDocument, escapeHtml } from '../src/access-control/events-print';
+import { printDocument, escapeHtml, PRINT_CSS } from '../src/access-control/events-print';
 import { eventsQueryString, featureOffered, type AccessEvent, type AccessEventsPage } from '../src/api/access-events';
 import type { DisplayZone } from '../src/api/intercom';
 
@@ -346,6 +346,11 @@ test.describe('the printable document', () => {
     expect(doc).toContain('<td>Dana &lt;b&gt;&amp;&quot;x&quot;</td>');
     expect(doc).not.toContain('<b>');
     expect(doc).toContain('<h1>פעילות</h1>');
+    // the strict remote CSP (style-src-elem 'self') refuses inline style elements, and a srcdoc frame inherits it: the look is adopted
+    // as a constructed stylesheet by printHtml (integ-248), never written into the document
+    expect(doc).not.toMatch(/<style[\s>]/);
+    expect(PRINT_CSS).toContain('@page');
+    expect(PRINT_CSS).toContain('border-collapse');
   });
 
   test('an English document is left to right', () => {

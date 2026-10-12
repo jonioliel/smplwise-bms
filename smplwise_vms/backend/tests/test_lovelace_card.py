@@ -127,12 +127,16 @@ def test_built_ui_references_its_assets_relatively_and_ships_the_three_chunk():
     assert 'src="./assets/index-' in index and 'href="./assets/index-' in index
     assert '"/assets/' not in index
     assets = WWW / "assets"
-    three = sorted(p for p in assets.glob("three-*.js") if not p.name.endswith(".map"))
+    # Studio 6 S1 (2.4.7) split the post-processing chain into its own lazy chunk, three-post-*.js: it is not the three chunk
+    # (the glob defect unit-three-chunk had and 2.4.7 fixed in d11d05b7; this test met it once www carried the 2.4.7 build)
+    three = sorted(p for p in assets.glob("three-*.js") if not p.name.endswith(".map") and not p.name.startswith("three-post-"))
+    post = sorted(p for p in assets.glob("three-post-*.js") if not p.name.endswith(".map"))
     view = sorted(p for p in assets.glob("sw-plan-3d-*.js") if not p.name.endswith(".map"))
     assert len(three) == 1 and len(view) == 1, "one three chunk and one 3D view chunk in the built UI (run npm run build:addon)"
     entry = next(p for p in assets.glob("index-*.js") if not p.name.endswith(".map")).read_text(encoding="utf-8")
     assert "WebGLRenderer" not in entry
     assert f'"./{three[0].name}"' not in entry, "the entry never imports the three chunk statically"
+    assert all(f'"./{p.name}"' not in entry for p in post), "nor the post-processing chunk"
     view_src = view[0].read_text(encoding="utf-8")
     assert f'from"./{three[0].name}"' in view_src
     assert '"/assets/' not in view_src and '"/assets/' not in entry
