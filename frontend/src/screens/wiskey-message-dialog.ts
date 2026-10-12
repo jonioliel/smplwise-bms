@@ -7,11 +7,15 @@ import '../components/sw-icon';
 import { pt } from '../i18n/access-people';
 import {
   bulkPlan,
+  bulkSummary,
   composerView,
+  newBulkId,
+  orderRows,
   renderTemplate,
   runBulk,
   usableTemplates,
   type BulkOutcome,
+  type BulkRow,
   type ComposerPhase,
   type MessageDraft,
   type MessageTemplate,
@@ -34,8 +38,15 @@ const REASON_KEY = {
   free_text_off: 'msg.reason.free_text_off',
   credential: 'msg.credential_blocked',
   too_long: 'msg.too_long',
-  empty: 'msg.no_template',
-  rate: 'msg.reason.unknown',
+  empty: 'msg.reason.empty',
+  rate: 'msg.reason.rate',
+  forbidden: 'msg.reason.forbidden',
+  gone: 'msg.reason.gone',
+  template_changed: 'msg.reason.template_changed',
+  disabled: 'msg.reason.disabled',
+  duplicate: 'msg.reason.duplicate',
+  refused: 'msg.reason.refused',
+  stopped: 'msg.reason.stopped',
   unknown: 'msg.reason.unknown',
 } as const satisfies Record<SendFailure, Parameters<typeof pt>[0]>;
 export const reasonText = (r: SendFailure): string => pt(REASON_KEY[r]);
@@ -46,14 +57,16 @@ const clock = (iso: string): string => {
 };
 
 /**
- * The message dialog of the people screen (CR-036 S7): WhatsApp to one person or to a selection. Everything it does goes through a
- * `MessagingTransport` handed to it - in this build only the FAKES of api/messaging-fake.ts (no real send path exists; the
- * WisKey side, ask W11, is not delivered). Rules in access-control/messaging-logic.ts: approved templates and free text (a setting),
- * never a credential, hidden-phone mode, consent, the quota, an uncertain outcome is said as such, "sent" is never "delivered".
+ * The message dialog of the people screen (CR-036 S7, real since slice WA): WhatsApp to one person or to a selection, through the
+ * `MessagingTransport` the screen hands it - the typed routes of the server (api/access-messaging.ts), or in the static preview a fake
+ * that never leaves the page (api/messaging-fake.ts). The rules are in access-control/messaging-logic.ts: approved templates and free
+ * text (an administrator setting), never a credential, hidden-phone mode, consent, the allowance, an uncertain outcome is said as such and
+ * never retried, "sent" is never "delivered". The server enforces every one of them again.
  *
  * A sender who may not see the number (hidden-phone mode) still sends: the recipient card then says "מספר מוסתר". A person without a
- * phone or who asked not to be messaged dims the text box and says why in one amber line. Bulk: one template or text for all, a
- * preview that names who will not get it, sequential sends, a failure never stops the rest.
+ * phone or who asked not to be messaged dims the text box and says why in one amber line. Bulk: one template or text for all, a preview
+ * that names who will not get it, ONE confirmation, sequential sends at the server's pace (a stop button ends the run after the message in
+ * flight), a failure never stops the rest, and a per-recipient result table at the end.
  */
 @customElement('wiskey-message-dialog')
 export class WiskeyMessageDialog extends LitElement {
@@ -61,6 +74,8 @@ export class WiskeyMessageDialog extends LitElement {
   @property({ attribute: false }) transport: MessagingTransport | null = null;
   /** The people the message is for (one = the single composer). Names are Arx's own. */
   @property({ attribute: false }) people: { id: string; name: string }[] = [];
+  /** Test seam: the pause between the sends of a bulk run (defaults to the server's `pace_ms`). */
+  @property({ attribute: false }) sleep: ((ms: number) => Promise<void>) | undefined;
 
   @state() private loaded: Loaded = 'loading';
   @state() private config: MessagingConfig | null = null;
@@ -72,7 +87,10 @@ export class WiskeyMessageDialog extends LitElement {
   @state() private sentAt = '';
   @state() private progress: [number, number] | null = null;
   @state() private outcome: BulkOutcome | null = null;
+  @state() private confirming = false;
+  @state() private stopping = false;
   private generation = 0;
+  private stopRequested = false;
 
   static styles = css`
     :host {
@@ -113,6 +131,7 @@ export class WiskeyMessageDialog extends LitElement {
       font-weight: var(--sw-fw-medium);
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
+      white-space: nowrap;
     }
     .pill.ok {
       background: var(--sw-success-soft);
@@ -121,6 +140,10 @@ export class WiskeyMessageDialog extends LitElement {
     .pill.warn {
       background: var(--sw-stale-soft);
       color: var(--sw-stale-text);
+    }
+    .pill.err {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
     }
     .field {
       display: flex;
@@ -157,6 +180,10 @@ export class WiskeyMessageDialog extends LitElement {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
       color: var(--sw-text-inverse);
+    }
+    .chip:disabled {
+      opacity: var(--sw-disabled-opacity);
+      cursor: default;
     }
     .chip:focus-visible,
     textarea:focus-visible {
@@ -234,6 +261,46 @@ export class WiskeyMessageDialog extends LitElement {
     sw-button {
       min-block-size: 44px;
     }
+    /* the per-recipient result table of a bulk run */
+    .results {
+      inline-size: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: var(--sw-fs-sm);
+    }
+    .results caption {
+      caption-side: top;
+      text-align: start;
+      padding-block-end: 6px;
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    .results th {
+      text-align: start;
+      padding: 6px 8px;
+      border-block-end: 1px solid var(--sw-border-strong);
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+    }
+    .results td {
+      padding: 8px;
+      border-block-end: 1px solid var(--sw-border);
+      vertical-align: middle;
+      overflow-wrap: anywhere;
+    }
+    .results tr:last-child td {
+      border-block-end: 0;
+    }
+    .results .c-name {
+      inline-size: 36%;
+    }
+    .results .c-outcome {
+      inline-size: 26%;
+    }
+    .results .c-detail {
+      color: var(--sw-text-2);
+    }
   `;
 
   protected willUpdate(changed: PropertyValues<this>) {
@@ -256,18 +323,21 @@ export class WiskeyMessageDialog extends LitElement {
     this.progress = null;
     this.outcome = null;
     this.sentAt = '';
+    this.confirming = false;
+    this.stopping = false;
+    this.stopRequested = false;
     const transport = this.transport;
     if (!transport) {
       this.loaded = 'unavailable';
       return;
     }
     try {
-      const [config, recipients] = await Promise.all([transport.config(), transport.recipients(this.people.map((p) => p.id))]);
+      const [config, recipients] = await Promise.all([transport.config(), transport.recipients(this.people.map((p) => p.id)).catch(() => [] as RecipientInfo[])]);
       if (generation !== this.generation) return;
       this.config = { ...config, templates: usableTemplates(config.templates) };
-      // the names are Arx's own (the list already shows them); a recipient the server did not answer for is a person without a phone
-      this.recipients = this.people.map((p) => recipients.find((r) => r.person_id === p.id) ?? { person_id: p.id, name: p.name, phone_masked: null, has_phone: false, consent: 'unknown' });
-      this.recipients = this.recipients.map((r, i) => ({ ...r, name: this.people[i].name }));
+      // the names are Arx's own (the list already shows them); a person the server did not look up (past the first few, or one it
+      // could not answer for) is "not known yet": decided as the message goes, never assumed to have no phone
+      this.recipients = this.people.map((p) => ({ ...(recipients.find((r) => r.person_id === p.id) ?? { person_id: p.id, phone_masked: null, has_phone: null, consent: 'unknown' as const }), name: p.name }));
       this.loaded = 'ready';
     } catch {
       if (generation !== this.generation) return;
@@ -286,6 +356,7 @@ export class WiskeyMessageDialog extends LitElement {
     this.phase = 'idle';
     this.failure = undefined;
     this.outcome = null;
+    this.confirming = false;
     if (!template) {
       this.draft = { template_id: null, text: this.draft.template_id === null ? this.draft.text : '' };
       return;
@@ -297,38 +368,69 @@ export class WiskeyMessageDialog extends LitElement {
   private edit(text: string) {
     this.phase = this.phase === 'sent' ? 'idle' : this.phase;
     this.failure = undefined;
+    this.confirming = false;
     this.draft = { template_id: null, text };
   }
 
   private async send() {
     const transport = this.transport;
-    if (!transport || !this.config) return;
+    if (!transport || !this.config || this.phase === 'sending') return;
+    // the keyboard shortcut must not get around what the button's state says: nothing goes out that the dialog calls un-sendable
+    const ready = this.bulk
+      ? bulkPlan(this.recipients, this.config, this.draft).canSend
+      : composerView({ config: this.config, recipient: this.recipients[0] ?? null, draft: this.draft, phase: this.phase, failure: this.failure, retryAfterS: this.retryAfterS }).canSend;
+    if (!ready) return;
+    if (this.bulk && !this.confirming) {
+      // ONE confirmation before a run: sending to many is not something to undo
+      this.confirming = true;
+      return;
+    }
     const generation = this.generation;
+    const ctx = { templates_revision: this.config.templates_revision };
     this.phase = 'sending';
     this.failure = undefined;
     if (!this.bulk) {
-      const result = await transport.send(this.people[0].id, this.draft);
+      const result = await transport.send(this.people[0].id, this.draft, ctx);
       if (generation !== this.generation) return;
       if (result.ok) {
         this.phase = 'sent';
         this.sentAt = result.sent_at;
-        await this.refreshConfig();
+        if (result.quota !== undefined) this.config = { ...this.config, quota: result.quota };
+        else await this.refreshConfig();
       } else {
         this.phase = 'failed';
         this.failure = result.reason;
         this.retryAfterS = result.retry_after_s;
-        if (result.reason === 'rate') await this.refreshConfig();
+        if (result.reason === 'rate' || result.reason === 'template_changed' || result.reason === 'disabled') {
+          await this.refreshConfig();
+          if (result.reason === 'template_changed') this.draft = { template_id: null, text: '' };
+        }
       }
       return;
     }
     const plan = bulkPlan(this.recipients, this.config, this.draft);
+    this.confirming = false;
     this.progress = [0, plan.send.length];
-    const outcome = await runBulk(plan, this.draft, (id, d) => transport.send(id, d), (done, total) => (this.progress = [done, total]));
+    this.stopRequested = false;
+    this.stopping = false;
+    const bulkId = newBulkId();
+    const outcome = await runBulk(plan, this.draft, (id, d) => transport.send(id, d, { ...ctx, bulk: { id: bulkId, total: plan.send.length } }), {
+      onProgress: (done, total) => (this.progress = [done, total]),
+      paceMs: this.config.pace_ms,
+      sleep: this.sleep,
+      shouldStop: () => this.stopRequested,
+    });
     if (generation !== this.generation) return;
     this.outcome = outcome;
     this.progress = null;
+    this.stopping = false;
     this.phase = 'sent';
     await this.refreshConfig();
+  }
+
+  private stop() {
+    this.stopRequested = true;
+    this.stopping = true;
   }
 
   private async refreshConfig() {
@@ -336,15 +438,11 @@ export class WiskeyMessageDialog extends LitElement {
       const config = await this.transport?.config();
       if (config) this.config = { ...config, templates: usableTemplates(config.templates) };
     } catch {
-      /* the quota line keeps its last value */
+      /* the allowance line keeps its last value */
     }
   }
 
   // ------------------------------------------------------------------ render
-
-  private reasonLine(reason: SendFailure): string {
-    return reasonText(reason);
-  }
 
   private renderLine(view: ReturnType<typeof composerView>) {
     const l = view.line;
@@ -354,8 +452,8 @@ export class WiskeyMessageDialog extends LitElement {
     if (l.kind === 'sending') text = pt('msg.sending');
     else if (l.kind === 'sent') text = pt('msg.sent', { time: clock(this.sentAt) });
     else if (l.kind === 'rate') text = pt('msg.rate', { minutes: l.minutes ?? 1 });
-    else if (l.kind === 'cant') text = pt('msg.cant', { reason: this.reasonLine(l.reason!) });
-    else text = pt('msg.failed', { reason: this.reasonLine(l.reason!) });
+    else if (l.kind === 'cant') text = pt('msg.cant', { reason: reasonText(l.reason!) });
+    else text = l.reason === 'uncertain' ? pt('msg.uncertain') : pt('msg.failed', { reason: reasonText(l.reason!) });
     return html`<div class="line ${l.tone}" role=${l.tone === 'err' ? 'alert' : 'status'} data-msg-line=${l.kind} data-msg-tone=${l.tone}><sw-icon name=${icon} size=${16}></sw-icon><span>${text}</span></div>`;
   }
 
@@ -371,7 +469,7 @@ export class WiskeyMessageDialog extends LitElement {
 
   private renderText(config: MessagingConfig, disabled: boolean) {
     const shown = this.bulk && this.draft.template_id ? this.draft.text.replaceAll('{name}', '[שם]') : this.draft.text;
-    const readOnly = this.draft.template_id !== null && !config.free_text;
+    const readOnly = this.draft.template_id !== null && !config.free_text; // with free text allowed, editing a template's text makes it a free text
     return html`<div class="field">
       <label for="msg-text">${pt('msg.text')}</label>
       <textarea id="msg-text" data-msg-text maxlength=${config.text_max} .value=${shown} ?disabled=${disabled} ?readonly=${readOnly}
@@ -392,6 +490,7 @@ export class WiskeyMessageDialog extends LitElement {
     const phone = r?.has_phone === false ? '—' : r?.phone_masked ? html`<span class="ltr" data-msg-phone>${r.phone_masked}</span>` : html`<span data-msg-phone="hidden">${pt('msg.phone_hidden')}</span>`;
     const consent = r?.consent === 'declined' ? html`<span class="pill warn" data-msg-consent="declined">${pt('msg.consent_declined')}</span>` : r?.consent === 'granted' ? html`<span class="pill ok" data-msg-consent="granted">${pt('msg.consent_granted')}</span>` : html`<span class="pill" data-msg-consent="unknown">${pt('msg.consent_unknown')}</span>`;
     const sending = this.phase === 'sending';
+    const sendLabel = this.phase === 'sent' ? pt('msg.send_again') : this.phase === 'failed' && this.failure === 'uncertain' ? pt('msg.send_anyway') : pt('msg.send');
     return html`
       <div class="to" data-msg-recipient>
         <sw-avatar name=${r?.name ?? ''} size=${40} aria-hidden="true"></sw-avatar>
@@ -401,41 +500,71 @@ export class WiskeyMessageDialog extends LitElement {
       ${this.renderText(config, view.textDisabled || sending)}
       ${this.renderLine(view)}
       <div slot="footer" style="display:contents">
-        <sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!view.canSend || sending} @click=${() => void this.send()}>${this.phase === 'sent' ? pt('msg.send_again') : pt('msg.send')}</sw-button>
+        <sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!view.canSend || sending} @click=${() => void this.send()}>${sendLabel}</sw-button>
         <sw-button data-msg-cancel @click=${() => this.close()} ?disabled=${sending}>${this.phase === 'sent' ? pt('msg.close') : pt('msg.cancel')}</sw-button>
       </div>`;
+  }
+
+  /** The result table: every person of the run in the order the sender picked them - sent, not sent (and why), or unknown. */
+  private renderResults(rows: BulkRow[]) {
+    const nameOf = (id: string) => this.people.find((p) => p.id === id)?.name ?? id;
+    return html`<table class="results" data-msg-results>
+      <caption>${pt('msg.results')}</caption>
+      <thead><tr><th scope="col" class="c-name">${pt('msg.result_name')}</th><th scope="col" class="c-outcome">${pt('msg.result_outcome')}</th><th scope="col" class="c-detail">${pt('msg.result_detail')}</th></tr></thead>
+      <tbody>
+        ${rows.map((r) => {
+          const tone = r.status === 'sent' ? 'ok' : r.status === 'unknown' ? 'warn' : 'err';
+          const label = r.status === 'sent' ? pt('msg.result_sent') : r.status === 'unknown' ? pt('msg.result_unknown') : pt('msg.result_failed');
+          const detail = r.status === 'sent' ? clock(r.at ?? '') : r.status === 'unknown' ? pt('msg.uncertain') : reasonText(r.reason ?? 'unknown');
+          return html`<tr data-msg-result=${r.id} data-msg-outcome=${r.status}><td class="c-name">${nameOf(r.id)}</td><td class="c-outcome"><span class="pill ${tone}">${label}</span></td><td class="c-detail">${detail}</td></tr>`;
+        })}
+      </tbody>
+    </table>`;
   }
 
   private renderBulk(config: MessagingConfig) {
     const plan = bulkPlan(this.recipients, config, this.draft);
     const sending = this.phase === 'sending';
-    const names = plan.skip.slice(0, 3).map((s) => `${s.recipient.name} (${this.reasonLine(s.reason)})`).join(', ') + (plan.skip.length > 3 ? '…' : '');
+    const names = plan.skip.slice(0, 3).map((s) => `${s.recipient.name} (${reasonText(s.reason)})`).join(', ') + (plan.skip.length > 3 ? '…' : '');
     const previewText = pt('msg.preview_bulk', { send: plan.send.length, skip: plan.skip.length ? pt('msg.preview_skip', { n: plan.skip.length, names }) : '' });
     const done = this.outcome;
     let line: ReturnType<typeof html> | typeof nothing = nothing;
-    if (sending && this.progress) line = html`<div class="line wait" role="status" data-msg-line="sending"><sw-icon name="refresh" size=${16}></sw-icon><span>${pt('msg.sending_n', { done: this.progress[0], total: this.progress[1] })}</span></div>`;
-    else if (done) {
-      const failed = done.failed.length ? pt('msg.bulk_failed', { n: done.failed.length }) : '';
-      const tone = done.failed.length ? 'warn' : 'ok';
-      line = html`<div class="line ${tone}" role="status" data-msg-line="bulk-done" data-msg-tone=${tone}><sw-icon name="check" size=${16}></sw-icon><span>${pt('msg.bulk_done', { sent: done.sent.length, failed })}${done.failed.length ? html` · ${this.reasonLine(done.failed[0].reason === 'rate' ? 'unknown' : done.failed[0].reason)}` : nothing}</span></div>`;
-    } else if (plan.tooMany) line = html`<div class="line err" role="alert" data-msg-line="too-many"><sw-icon name="warning" size=${16}></sw-icon><span>${pt('msg.bulk_too_many', { max: config.bulk_max })}</span></div>`;
-    else if (plan.overQuota !== null) line = html`<div class="line warn" role="status" data-msg-line="over-quota"><sw-icon name="clock" size=${16}></sw-icon><span>${pt('msg.bulk_over_quota', { n: plan.overQuota })}</span></div>`;
-    else {
+    if (sending && this.progress) {
+      line = html`<div class="line wait" role="status" data-msg-line="sending"><sw-icon name="refresh" size=${16}></sw-icon><span>${this.stopping ? pt('msg.stopping') : pt('msg.sending_n', { done: this.progress[0], total: this.progress[1] })}</span></div>`;
+    } else if (done) {
+      const s = bulkSummary(done);
+      const tone = s.failed || s.unknown ? 'warn' : 'ok';
+      line = html`<div class="line ${tone}" role="status" data-msg-line="bulk-done" data-msg-tone=${tone}><sw-icon name="check" size=${16}></sw-icon><span>${pt('msg.bulk_done', { sent: s.sent, failed: (s.failed ? pt('msg.bulk_failed', { n: s.failed }) : '') + (s.unknown ? pt('msg.bulk_unknown', { n: s.unknown }) : '') })}</span></div>`;
+    } else if (this.confirming) {
+      line = html`<div class="line warn" role="alert" data-msg-line="confirm"><sw-icon name="warning" size=${16}></sw-icon><span>${pt('msg.confirm_bulk', { n: plan.send.length })}</span></div>`;
+    } else if (plan.tooMany) {
+      line = html`<div class="line err" role="alert" data-msg-line="too-many"><sw-icon name="warning" size=${16}></sw-icon><span>${pt('msg.bulk_too_many', { max: config.bulk_max })}</span></div>`;
+    } else if (plan.overQuota !== null) {
+      line = html`<div class="line warn" role="status" data-msg-line="over-quota"><sw-icon name="clock" size=${16}></sw-icon><span>${pt('msg.bulk_over_quota', { n: plan.overQuota })}</span></div>`;
+    } else {
       const problem = composerView({ config, recipient: this.recipients[0] ?? null, draft: this.draft, phase: 'idle' }).line;
-      if (problem?.kind === 'cant' && problem.reason && ['credential', 'too_long', 'free_text_off'].includes(problem.reason)) line = html`<div class="line err" role="alert" data-msg-line="cant"><sw-icon name="warning" size=${16}></sw-icon><span>${pt('msg.cant', { reason: this.reasonLine(problem.reason) })}</span></div>`;
-      else if (!config.enabled) line = html`<div class="line warn" role="status" data-msg-line="cant"><sw-icon name="clock" size=${16}></sw-icon><span>${pt('msg.cant', { reason: this.reasonLine('no_service') })}</span></div>`;
+      if (problem?.kind === 'cant' && problem.reason && ['credential', 'too_long', 'free_text_off'].includes(problem.reason)) {
+        line = html`<div class="line err" role="alert" data-msg-line="cant"><sw-icon name="warning" size=${16}></sw-icon><span>${pt('msg.cant', { reason: reasonText(problem.reason) })}</span></div>`;
+      } else if (!config.enabled) {
+        line = html`<div class="line warn" role="status" data-msg-line="cant"><sw-icon name="clock" size=${16}></sw-icon><span>${pt('msg.cant', { reason: reasonText('no_service') })}</span></div>`;
+      }
     }
+    const footer = done
+      ? html`<sw-button variant="primary" data-msg-cancel @click=${() => this.close()}>${pt('msg.close')}</sw-button>`
+      : sending
+        ? html`<sw-button data-msg-stop icon="close" ?disabled=${this.stopping} @click=${() => this.stop()}>${pt('msg.stop')}</sw-button>`
+        : this.confirming
+          ? html`<sw-button variant="primary" icon="mail" data-msg-confirm @click=${() => void this.send()}>${pt('msg.confirm_send')}</sw-button>
+              <sw-button data-msg-back @click=${() => (this.confirming = false)}>${pt('msg.back')}</sw-button>`
+          : html`<sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!plan.canSend} @click=${() => void this.send()}>${pt('msg.send_n', { n: plan.send.length })}</sw-button>
+              <sw-button data-msg-cancel @click=${() => this.close()}>${pt('msg.cancel')}</sw-button>`;
     return html`
-      ${this.renderTemplates(config, sending)}
-      ${this.renderText(config, sending || !config.enabled)}
-      <div class="prev" data-msg-preview><sw-icon name="users" size=${16}></sw-icon><span>${previewText}</span></div>
+      ${done ? nothing : this.renderTemplates(config, sending || this.confirming)}
+      ${done ? nothing : this.renderText(config, sending || this.confirming || !config.enabled)}
+      ${done ? nothing : html`<div class="prev" data-msg-preview><sw-icon name="users" size=${16}></sw-icon><span>${previewText}</span></div>`}
       ${line}
-      <div slot="footer" style="display:contents">
-        ${done
-          ? html`<sw-button variant="primary" data-msg-cancel @click=${() => this.close()}>${pt('msg.close')}</sw-button>`
-          : html`<sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!plan.canSend || sending} @click=${() => void this.send()}>${pt('msg.send_n', { n: plan.send.length })}</sw-button>
-              <sw-button data-msg-cancel @click=${() => this.close()} ?disabled=${sending}>${pt('msg.cancel')}</sw-button>`}
-      </div>`;
+      ${done ? this.renderResults(orderRows(this.people.map((p) => p.id), done.rows)) : nothing}
+      <div slot="footer" style="display:contents">${footer}</div>`;
   }
 
   render() {
@@ -444,7 +573,7 @@ export class WiskeyMessageDialog extends LitElement {
       ${this.loaded === 'loading' ? html`<div class="line wait" role="status" data-msg-line="loading"><sw-icon name="refresh" size=${16}></sw-icon><span>${pt('state.detail_loading')}</span></div>` : nothing}
       ${this.loaded === 'unavailable' || !this.config
         ? this.loaded === 'unavailable'
-          ? html`<div class="line warn" role="status" data-msg-line="cant"><sw-icon name="clock" size=${16}></sw-icon><span>${pt('msg.cant', { reason: pt('msg.reason.no_service') })}</span></div>
+          ? html`<div class="line warn" role="status" data-msg-line="cant"><sw-icon name="clock" size=${16}></sw-icon><span>${pt('msg.cant', { reason: reasonText('no_service') })}</span></div>
               <div slot="footer" style="display:contents"><sw-button data-msg-cancel @click=${() => this.close()}>${pt('msg.close')}</sw-button></div>`
           : nothing
         : this.bulk
@@ -459,4 +588,3 @@ declare global {
     'wiskey-message-dialog': WiskeyMessageDialog;
   }
 }
-

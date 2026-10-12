@@ -28,7 +28,8 @@ import {
   type AcProfileField,
   type AcStationLite,
 } from '../api/access-people';
-import { createFakeDemoTransport, createFakeDraftTransport } from '../api/messaging-fake';
+import { createFakeDemoTransport } from '../api/messaging-fake';
+import { createHttpTransport } from '../api/access-messaging';
 import { accessControlAccess, type AccessControlAccess } from '../access-control/access';
 import {
   CREDENTIALS,
@@ -128,8 +129,8 @@ const DEMO_ROWS: AcPerson[] = [
  * station, state, rights, credential kind, profile field), sort, text search that includes the employee number, "load more" paging
  * that carries WisKey's snapshot (a changed directory is said, never hidden), three views (cards, list, table with a column
  * chooser), a person's page in a drawer (details with the validity and timing views, access per station with its sync state,
- * groups, the sensitive section, the audited photo), a selection with a bulk bar, and the message dialog (fakes only: see
- * api/messaging-fake.ts).
+ * groups, the sensitive section, the audited photo, the message history), a selection with a bulk bar, and the message dialog (the typed
+ * routes of api/access-messaging.ts; the static preview uses the page-only fake of api/messaging-fake.ts).
  *
  * WHO SEES WHAT is the server's (services/intercom_authority.py): this screen only shapes itself from the answer. It needs
  * `access.people.read` (the new permission, at any scope a station can be) - a viewer holding only `access.read` sees the "not
@@ -181,6 +182,7 @@ export class WiskeyPeople extends LitElement {
   @state() private transport: MessagingTransport | null = null;
   @state() private msgConfig: MessagingConfig | null = null;
   @state() private message: { people: { id: string; name: string }[]; inDrawer: boolean } | null = null;
+  @state() private messagesRev = 0; // bumped after a message was sent: the open person's history is read again
 
   private rowsKey = ''; // the query and filters the shown rows answer: "the last known" is only ever the answer to THIS request
   private generation = 0;
@@ -275,16 +277,9 @@ export class WiskeyPeople extends LitElement {
     const [features, stations, groups] = await Promise.allSettled([getAcFeatures(), getAcStations(), getAcGroups()]);
     if (features.status === 'fulfilled') {
       this.features = features.value.features ?? {};
-      this.transport = this.features.messaging?.available === true ? createFakeDraftTransport() : null;
       this.photoOn = this.features.person_photo?.available !== false;
-      if (this.transport) {
-        try {
-          this.msgConfig = await this.transport.config();
-        } catch {
-          this.msgConfig = null;
-        }
-      }
     }
+    await this.loadMessaging();
     if (stations.status === 'fulfilled' && stations.value.stations) {
       this.stations = stations.value.stations;
       this.zone = (stations.value as { default_zone?: DisplayZone | null }).default_zone ?? UTC_ZONE;
@@ -294,6 +289,22 @@ export class WiskeyPeople extends LitElement {
       this.groups = groups.value.groups.groups;
       this.fields = groups.value.groups.fields;
       this.photoOn = this.photoOn && groups.value.groups.photo_enabled !== false;
+    }
+  }
+
+  /** The message dialog is offered when the caller holds `access.people.message` somewhere AND an administrator switched messaging on
+   * (Settings > access control > messages, off until then): the server's configuration says so (`feature`), nothing else does. */
+  private async loadMessaging() {
+    this.transport = null;
+    this.msgConfig = null;
+    if (!this.access.message) return;
+    const transport = createHttpTransport();
+    try {
+      const config = await transport.config();
+      this.msgConfig = config;
+      this.transport = config.feature ? transport : null;
+    } catch {
+      /* the actions are simply not offered */
     }
   }
 
@@ -555,10 +566,10 @@ export class WiskeyPeople extends LitElement {
     if (this.openId) this.drawerOpen = true;
   }
 
-  // ------------------------------------------------------------------ messaging (fakes only)
+  // ------------------------------------------------------------------ messaging (CR-036 WA)
 
   private get canMessage(): boolean {
-    return !!this.transport && this.msgConfig?.can_send === true;
+    return !!this.transport && this.msgConfig?.feature === true && this.msgConfig.can_send === true;
   }
 
   private openMessage(ids: string[], inDrawer: boolean) {
@@ -876,7 +887,7 @@ export class WiskeyPeople extends LitElement {
     const canEdit = this.canManage && !!p && p.editable !== false;
     return html`<wiskey-person-drawer .open=${this.drawerOpen} .person=${p} .loading=${this.detailLoading} .error=${this.detailError}
         .stationNames=${stationNames} .groupLabels=${groupLabels} .groupStations=${groupStations} .fields=${this.fields} .zone=${this.zone} .photoEnabled=${this.photoOn}
-        .canEdit=${canEdit} .canMessage=${this.canMessage && !!p && p.phone_set !== false}
+        .canEdit=${canEdit} .canMessage=${this.canMessage && !!p && p.phone_set !== false} .messagesTab=${this.canMessage} .transport=${this.transport} .messagesRev=${this.messagesRev}
         @close=${() => this.closePerson()} @edit=${(e: CustomEvent<{ id: string }>) => this.openEditor({ id: e.detail.id })} @message=${(e: CustomEvent<{ id: string }>) => this.openMessage([e.detail.id], true)}>
         ${this.message?.inDrawer ? this.renderMessage() : nothing}
       </wiskey-person-drawer>`;
@@ -884,7 +895,7 @@ export class WiskeyPeople extends LitElement {
 
   private renderMessage(): TemplateResult {
     const m = this.message!;
-    return html`<wiskey-message-dialog open .transport=${this.transport} .people=${m.people} @close=${(e: CustomEvent<{ sent?: boolean }>) => { e.stopPropagation(); this.closeMessage(); if (e.detail?.sent) this.selected = new Set(); }}></wiskey-message-dialog>`;
+    return html`<wiskey-message-dialog open .transport=${this.transport} .people=${m.people} @close=${(e: CustomEvent<{ sent?: boolean }>) => { e.stopPropagation(); this.closeMessage(); if (e.detail?.sent) { this.selected = new Set(); this.messagesRev += 1; } }}></wiskey-message-dialog>`;
   }
 
   // No `:host { display: contents }` here: the shell makes the screen element a flex item that is held to the height of the main

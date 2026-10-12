@@ -8,7 +8,7 @@ import { PEOPLE_KEYS, knownSyncError, pt, syncErrorText } from '../src/i18n/acce
 // itself to an operator), and no string names the platform or an internal code (docs/design/UI_COPY_RULES.md): the area is "בקרת
 // כניסה", the classic panel "חלון האינטרקום", the platform is never named on an operator screen.
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src');
-const FILES = ['screens/wiskey-people.ts', 'screens/wiskey-person-drawer.ts', 'screens/wiskey-message-dialog.ts'];
+const FILES = ['screens/wiskey-people.ts', 'screens/wiskey-person-drawer.ts', 'screens/wiskey-message-dialog.ts', 'screens/wiskey-person-messages.ts'];
 
 test('every key the people screens ask for exists', () => {
   const known = new Set<string>(PEOPLE_KEYS);

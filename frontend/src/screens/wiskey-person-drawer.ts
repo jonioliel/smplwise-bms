@@ -6,14 +6,16 @@ import '../components/sw-button';
 import '../components/sw-drawer';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import './wiskey-person-messages';
 import { fetchPersonPhoto, type AcPerson, type AcProfileField } from '../api/access-people';
 import type { DisplayZone } from '../api/intercom';
 import type { StateKind } from '../components/sw-badge';
 import { knownSyncError, pt, syncErrorText } from '../i18n/access-people';
+import type { MessagingTransport } from '../access-control/messaging-logic';
 import { credentialKinds, enabledStations, formatDay, initials, personSections, personSyncStatus, stateOf, timingView, validityState, type SyncStatus } from '../access-control/people-logic';
 import { UTC_ZONE } from './wiskey-format';
 
-export type DrawerTab = 'details' | 'access' | 'groups';
+export type DrawerTab = 'details' | 'access' | 'groups' | 'messages';
 
 /** A sync status as a badge: the operator sees the word (answer 5 of 2026-10-12), the error text only when the server sent it. */
 export function syncKind(status: SyncStatus): { kind: StateKind; label: string } {
@@ -59,7 +61,8 @@ export function validityText(p: Pick<AcPerson, 'valid_from' | 'valid_until'>, zo
  * the sender presses "הצג תמונה" - each fetch is one audited view, so the drawer opening never costs one.
  *
  * Footer slots: "שלח הודעה" (when the screen offers messaging) and "עריכה" (the existing person editor, which also holds the PIN
- * and card flows - unchanged). Events: `close`, `edit` {id}, `message` {id}.
+ * and card flows - unchanged). Events: `close`, `edit` {id}, `message` {id}. When the screen offers messaging the page gains a fourth
+ * tab, "הודעות": the person's message history and the "asked not to be messaged" switch (wiskey-person-messages.ts).
  */
 @customElement('wiskey-person-drawer')
 export class WiskeyPersonDrawer extends LitElement {
@@ -76,6 +79,12 @@ export class WiskeyPersonDrawer extends LitElement {
   @property({ attribute: false }) zone: DisplayZone = UTC_ZONE;
   @property({ type: Boolean }) canEdit = false;
   @property({ type: Boolean }) canMessage = false;
+  /** The message client (CR-036 WA) - the "הודעות" tab needs it; bumped `messagesRev` re-reads the history after a send. */
+  @property({ attribute: false }) transport: MessagingTransport | null = null;
+  /** The screen offers messaging to this caller: the "הודעות" tab is there (whether or not this person has a phone - the history and the
+   * opt-out switch matter either way). */
+  @property({ type: Boolean }) messagesTab = false;
+  @property({ type: Number }) messagesRev = 0;
   /** The photo is offered at all (the feature exists and the installation's photo switch is on). */
   @property({ type: Boolean }) photoEnabled = true;
 
@@ -394,7 +403,9 @@ export class WiskeyPersonDrawer extends LitElement {
     const full = !!p && !this.loading && !this.error;
     const heading = p?.display_name ?? '';
     const subheading = p && p.employee_no !== null ? `${pt('drawer.employee')} ${p.employee_no}` : '';
-    const tabs: [DrawerTab, string][] = [['details', pt('drawer.tab_details')], ['access', pt('drawer.tab_access')], ['groups', pt('drawer.tab_groups')]];
+    const showMessages = this.messagesTab && !!this.transport;
+    const tabs: [DrawerTab, string][] = [['details', pt('drawer.tab_details')], ['access', pt('drawer.tab_access')], ['groups', pt('drawer.tab_groups')], ...(showMessages ? [['messages', pt('drawer.tab_messages')] as [DrawerTab, string]] : [])];
+    const tab: DrawerTab = this.tab === 'messages' && !showMessages ? 'details' : this.tab;
     const sb = p ? stateBadge(p) : null;
     const sync = p ? syncKind(personSyncStatus(p)) : null;
     return html`<sw-drawer modal ?open=${this.open} heading=${heading} subheading=${subheading} data-person-drawer @close=${(e: Event) => e.target === e.currentTarget && this.fire('close')}>
@@ -411,10 +422,10 @@ export class WiskeyPersonDrawer extends LitElement {
               ? html`<sw-state-panel compact data-person-error=${this.error} state=${this.error === 'gone' ? 'empty' : 'error'} heading=${this.error === 'gone' ? pt('state.detail_gone') : pt('state.detail_error')}></sw-state-panel>`
               : nothing}
             <div class="tabs" role="tablist" aria-label=${pt('drawer.tabs')}>
-              ${tabs.map(([id, label]) => html`<button type="button" role="tab" id="tab-${id}" aria-selected=${this.tab === id} aria-controls="panel-${id}" data-person-tab=${id} @click=${() => (this.tab = id)}>${label}</button>`)}
+              ${tabs.map(([id, label]) => html`<button type="button" role="tab" id="tab-${id}" aria-selected=${tab === id} aria-controls="panel-${id}" data-person-tab=${id} @click=${() => (this.tab = id)}>${label}</button>`)}
             </div>
-            <div role="tabpanel" id="panel-${this.tab}" aria-labelledby="tab-${this.tab}" style="display:flex;flex-direction:column;gap:12px">
-              ${this.tab === 'details' ? this.renderDetails(p, full) : this.tab === 'access' ? this.renderAccess(p) : this.renderGroups(p)}
+            <div role="tabpanel" id="panel-${tab}" aria-labelledby="tab-${tab}" style="display:flex;flex-direction:column;gap:12px">
+              ${tab === 'details' ? this.renderDetails(p, full) : tab === 'access' ? this.renderAccess(p) : tab === 'groups' ? this.renderGroups(p) : html`<wiskey-person-messages .transport=${this.transport} .personId=${p.id} .zone=${this.zone} .rev=${this.messagesRev}></wiskey-person-messages>`}
             </div>`
         : nothing}
       ${p && (this.canMessage || this.canEdit)
