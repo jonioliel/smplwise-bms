@@ -128,7 +128,7 @@ export class SystemWiskeyDiagnostics extends LitElement {
     }
     .chip {
       padding: 2px 8px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-surface-3);
       font-size: var(--sw-fs-xs);
     }
