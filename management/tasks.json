@@ -9359,5 +9359,317 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "WKS9",
+    "title": "WisKey native screens S9: read-only door schedules screen (access.ui.schedules)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey native screens S9: read-only door schedules screen (access.ui.schedules): built on fakes / mocked backends and fixtures on branch pilot/WISKEY-native-s9-schedules; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R300"
+    ],
+    "test_ids": [
+      "AT316"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WISKEY-native-s9-schedules)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/WISKEY-native-s9-schedules @ e980f203 (from 10620d30 (integ/248; registry base b26c1b7d)); notes: docs/changes/CR-036-S9-NOTES.md. Screen <wiskey-schedules> at #/wiskey/schedules: per-door hold-open week grid, table view, schedule library and deployment proposals, view only; shown only when the setting access.ui.schedules is smplwise (default wiskey, so nothing changes until an administrator switches it). No migration, no new route, no write path; adapter projection change only (project_schedule_plans keeps draft_id / draft_revision). Planned for a release after 2.4.8. Built and tested against fakes and mocked backends only; nothing contacted a WisKey, Home Assistant, station, NVR or device. Workstation results in the notes: backend test_ui_settings + adapter 16, test_access_control_wire 23; unit-access-schedules-logic 19; nav specs 6 + 7; evidence 25 (desktop / tablet / mobile, dev server); layout guard 10, 0 findings. NOT_RUN: live behaviour (slice S14); Linux pixel baselines of pixel-access-schedules.spec.ts are NOT generated (runner job); no preview-build or runner run recorded; the schedule shapes are W? until WisKey W2. Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "e980f203",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WKS11",
+    "title": "WisKey native screens S11: person and card writes on the station chain (archive, on/off, cards, photo, PIN, capture)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey native screens S11: person and card writes on the station chain (archive, on/off, cards, photo, PIN, capture): built on fakes / mocked backends and fixtures on branch pilot/WISKEY-s11-writes; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R302"
+    ],
+    "test_ids": [
+      "AT318"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WISKEY-s11-writes)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/WISKEY-s11-writes @ ae3fa325 (from 10620d30 (integ/248; registry base b26c1b7d)); notes: docs/changes/CR-036-S11-NOTES.md. Write side of the native people screen: services/intercom_writes.py, routers/access_control_writes.py, re-gated editor routes in access_control.py, 14 write endpoints under /intercom/people and /intercom/card-capture, new permission access.pin.generate (sensitive; interactive session only), station-chain gate with a revision (TOCTOU) bound, uniform 404, attempt + outcome audit rows without values, each write sent once and never retried (unknown outcome = 504). Frontend: actions dialog, editor fields (category, responsible person, purpose, timing, photo, PIN, capture), pending states. Shown only with access.ui.people = smplwise (default off). No migration. Built and tested against fakes and mocked backends only; nothing contacted a WisKey, Home Assistant, station, NVR or device. Workstation results in the notes: test_intercom_writes_s11 41, test_access_writes_wire 3, contract + channels + authority 109, test_intercom affected subset 73; unit people-writes 15 + 4 and 112 related; evidence 26/26 desktop + 20/20 mobile and tablet; layout sweep 1/1 (44 runs); pixel flows 14/14. NOT_RUN: the runner jobs (queued at hand-off, no result in the notes); Linux pixel baselines (the new spec has none; S7 drawer baselines change because of the new button); any live write (needs the owner's task-specific approval, slice S14). Gaps: calls / TTS not re-gated, native timing shown not edited. Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "ae3fa325",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WKS12",
+    "title": "WisKey native screens S12: stage-1 gap analysis, parity report, action-log filters, S13 suite manifest",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey native screens S12: stage-1 gap analysis, parity report, action-log filters, S13 suite manifest: built on fakes / mocked backends and fixtures on branch pilot/WISKEY-s12-gaps; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R301"
+    ],
+    "test_ids": [
+      "AT317"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WISKEY-s12-gaps)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/WISKEY-s12-gaps @ c58f15b8 (from 10620d30 (integ/248; registry base b26c1b7d)); notes: docs/changes/CR-036-S12-GAPS.md (+ docs/security/SECURITY_REVIEW_S12_2026-10-12.md). Gap analysis of the 49-row inventory (CR-036-S12-GAPS.md); GET /access-control/parity (counts and keyed digests per screen, native view vs a direct unfiltered read) and scripts/wiskey_parity_report.py (three-identity matrix on the fake); action-log period and person filters; stations-screen display controls in Settings; the station's entry-log link; RTL fix of the drawer's weekly hours; services/intercom_parity.py; S13 suite manifest frontend/tests/suites/wiskey-native-stage1.json (the AT317 procedure lines pointing at it are edited on the S12 branch itself and are not repeated here). Read-only, no migration. Built and tested against fakes and mocked backends only; nothing contacted a WisKey, Home Assistant, station, NVR or device. The notes record no result counts. NOT_RUN: live-fixture coverage of the status page, event detail and groups (frontend/tests/fixtures/wiskey_fake_ha.py serves 3 of 25 reads; S13 item); Linux pixel baselines of pixel-access-s12.spec.ts; the side-by-side check against a real WisKey (S14, owner); runner and preview-build runs. The S9 (WKS9) and S11 (WKS11) specs are not in the manifest yet (its after_merge_of block lists them). Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "c58f15b8",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WKS18",
+    "title": "WisKey native screens S18: live video and push-to-talk in the station drawer (access.station_media)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey native screens S18: live video and push-to-talk in the station drawer (access.station_media): built on fakes / mocked backends and fixtures on branch pilot/WISKEY-media-s18; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R303"
+    ],
+    "test_ids": [
+      "AT319"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WISKEY-media-s18)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/WISKEY-media-s18 @ bc87c448 (from 10620d30 (integ/248; registry base b26c1b7d)); notes: docs/changes/CR-036-S18-MEDIA.md. Station media adapter (services/intercom_media.py: descriptor contract, per-station viewer limit, talk sessions with expiry), routers/intercom_media.py (media read, live socket, talk start / socket / stop), setting access.station_media off / video / video_talk (default off), components wk-station-live and wk-talk-button, G.711 talk session, drawer hook in the stations screen; the descriptor / audio-hook contract text for WisKey (W10) is section 3 of the notes. No migration. Built against a FAKE descriptor: WisKey's answer to W10 is still open, so the real provider is not written. Built and tested against fakes and mocked backends only; nothing contacted a WisKey, Home Assistant, station, NVR or device. NOT_RUN: every live behaviour (WebRTC / MSE start, station RTSP limit, microphone on a phone over Ingress, echo; slice S14 lab); Linux pixel baselines of pixel-wiskey-station-media.spec.ts (the specs skip without them); the Settings control of the setting (S12 file, hand-off 1); the notes record no result counts; runner and preview-build runs. The earlier row WXAV stays BLOCKED on W10. Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "bc87c448",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WKWA",
+    "title": "WisKey native screens WA: WhatsApp messages from the people screen, single and bulk",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey native screens WA: WhatsApp messages from the people screen, single and bulk: built on fakes / mocked backends and fixtures on branch pilot/WISKEY-whatsapp; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R304"
+    ],
+    "test_ids": [
+      "AT320"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WISKEY-whatsapp)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/WISKEY-whatsapp @ 21399bc7 (from 10620d30 (integ/248; registry base b26c1b7d)); notes: docs/changes/CR-036-WA-NOTES.md. Messaging from the native people screen: migration 0076_intercom_messages.sql (intercom_messages without text or numbers, intercom_message_optout), routers/access_control_messaging.py (7 routes), services/intercom_messaging.py + intercom_messaging_adapter.py, Settings messaging page, templates, quota, the 'never an auto-inserted PIN' credential rule, fake tests/fake_wiskey_messaging.py. The migration was renumbered 0079 -> 0076 to keep the sequence contiguous. Built and tested against fakes and mocked backends only; nothing contacted a WisKey, Home Assistant, station, NVR or device. Results in the notes: runner at e907c58e - the four evidence specs 182 passed (244 skipped by design), the full backend suite 6864 passed / 4 skipped / 1 failed (release_check 'migrations contiguous', fixed by the renumbering), the migration-sensitive / messaging files re-run at the renumbered commit 277 passed; workstation node units 128 passed, evidence 31 + 25 + 85 + 28, pixel flows 26 + 22 (screenshot compare skipped on Windows). NOT_RUN: every Linux pixel baseline (pixel-wiskey-messaging has none; S7 msg-single / msg-sent and S10 status baselines need a refresh); a second FULL backend run after the renumbering; contracts/API_INVENTORY.md not regenerated (7 routes added); anything live: a real WisKey, a real WhatsApp account or phone (slice S14, after W11). Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "21399bc7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXDINT",
+    "title": "WisKey CR-033: door path integrated on the 2.4.8 line (wave 1 + D6-D9 + review fixes + D5a/D5b/D10a/D11 on fakes)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey CR-033: door path integrated on the 2.4.8 line (wave 1 + D6-D9 + review fixes + D5a/D5b/D10a/D11 on fakes): built on fakes / mocked backends and fixtures on branch pilot/WXD-integration; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R305"
+    ],
+    "test_ids": [
+      "AT321"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WXD-integration)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/WXD-integration @ 5777be0e (from 10620d30 (integ/248; registry base b26c1b7d)); notes: docs/changes/CR-033-INTEGRATION-NOTES.md (+ docs/security/SECURITY_REVIEW_WXD_DOORPATH_2026-10-12.md). Integration of the CR-033 door path onto integ/248: merge of pilot/SEC-WXD-fixes @ 9d7fd40e (wave 1 D0-D4, D6-D9, second-pass review fixes M1-M3 L1-L6) plus D5a / D5b prep on fakes (the add-on never sends execute for a WisKey door; signed actor names and status read hardened, review I7 / I8), D10a enable guard (enabling an automation or schedule never re-arms an autonomous WisKey door opener, review I5), D11 gate T1..T26 on fakes, an ha_actions fix (T8), migrations 0077_access_control_station_scope.sql and 0078_intercom_door_map.sql (0076 deliberately left unassigned; the WA branch takes it), 12 new routes, role door_opener. doors.trusted_path stays off; after install an administrator must apply the door-assignment suggestions in Settings. Built and tested against fakes and mocked backends only; nothing contacted a WisKey, Home Assistant, station, NVR or device. Result in the notes: merged-tree local run 848 passed, 1 failed (release_check 'migrations contiguous', expected while 0076 is unassigned; merging pilot/WISKEY-whatsapp, which adds 0076_intercom_messages.sql, closes it). NOT_RUN / OPEN: T13 (the D10a conversion itself), T19 fake HA with context.user_id / parent_id and concurrent runs, T24 bridge side; every live door, bridge, key or station action; the owner open questions of notes section 7; contracts/API_INVENTORY.md regeneration; runner and preview runs. The existing rows WXD0-WXD11 are unchanged by this registry sync. Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "5777be0e",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7DPR",
+    "title": "Plan Studio 6: dpr_cap is the pixel ratio of the first realistic frame and moves at once (fix of the 2.4.7 known limit)",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6: dpr_cap is the pixel ratio of the first realistic frame and moves at once (fix of the 2.4.7 known limit): built on fakes / mocked backends and fixtures on branch pilot/ST7-dpr-cap; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R177"
+    ],
+    "test_ids": [
+      "AT177"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-dpr-cap)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/ST7-dpr-cap @ 8b674621 (from 10620d30 (integ/248; registry base b26c1b7d)); notes: docs/changes/CR-029-ST7-PORT-NOTES.md P21 (+ CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 3.5). Fix of the 2.4.7 known limit (PORT-NOTES P21): a view mounted at the realistic rung ignored the person's dpr_cap until the next rung change. Now quality-ladder.pixelRatioFor is one pure rule, SceneViewOptions.dprCap carries the dial with construction, applyPixelRatio() runs on first build, rung / level change and cap change, PostChain.setPixelRatio() follows the canvas in place; levels 1-2 and the lite rung do not read the dial. No backend change, no migration. Built and tested against fakes and mocked backends only; nothing contacted a WisKey, Home Assistant, station, NVR or device. Evidence: tests/evidence-plan-3d-dpr-cap.spec.ts was checked red against the 2.4.7 sources (first frame ratio 1.25 with cap 1) and green with the fix, desktop, including the live floor map on the replay mock; tests/unit-plan-3d-pixel-ratio.spec.ts is the pure-rule unit spec. NOT_RUN: the tablet / mobile projects and a runner (SwiftShader) re-run of the 3D set at this head; pixel baselines are unchanged by design and were not re-compared on the runner; the R178 quiet-window measurement and the owner's real-device rows (checklist PLAN_STUDIO_PHASE6_CHECKLIST_HE.md) stay NOT_RUN; AT177 / AT178 stay NOT_RUN. Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "8b674621",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GATE248",
+    "title": "Release gate: baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "qa",
+    "requires_hardware": false,
+    "acceptance": [
+      "Release gate: baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed: built on fakes / mocked backends and fixtures on branch pilot/GATE-dur-248; no live device action; acceptance test NOT_RUN."
+    ],
+    "requirement_ids": [
+      "R306"
+    ],
+    "test_ids": [
+      "AT322"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/GATE-dur-248)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-12 (REG-249): built on branch pilot/GATE-dur-248 @ 6cb4ecb0 (from 10620d30 (integ/248; registry base b26c1b7d)); notes: the commit message of 6cb4ecb0 and scripts/gate/INSTALL_ON_RUNNER.md (no separate notes file). scripts/gate/gate_baselines.json refreshed with the tier-L passed counts of the 2.4.8 gate on integ/248 @ 10620d30 (preview 7960, pixel 108, dev 766, backend 6738; the repo copy was still the 2.0.0 one); new scripts/gate/gate_durations.json (seconds per spec file, 267 files, from the same gate's pw_*.json), used by release_gate.py prior_costs() only for files no gate on the runner has timed (lowest priority, optional); 4 new cases in scripts/gate/selftest_gate.py (seed fills, gate time wins, missing seed harmless, committed files load); INSTALL_ON_RUNNER.md file table and refresh procedure. Tooling only; no product code. Recorded by the author: selftest 37 OK on the runner. NOT_RUN here: the selftest and a gate run on the registry branch (REG-249 started no runner job); a gate run that actually uses the seed to order specs. Status REVIEW, not DONE: the acceptance test stays NOT_RUN until a gate or lab run is recorded against the merged commit."
+    ],
+    "owner": null,
+    "commit": "6cb4ecb0",
+    "actual_cost_usd": null
   }
 ]

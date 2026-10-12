@@ -3820,7 +3820,8 @@
     "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין",
     "statement": "רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות.",
     "task_ids": [
-      "T089"
+      "T089",
+      "ST7DPR"
     ],
     "chapters": [
       10,
@@ -5796,7 +5797,8 @@
     "title": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups",
     "statement": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action.",
     "task_ids": [
-      "WXN6"
+      "WXN6",
+      "WKS9"
     ],
     "chapters": [],
     "screens": [],
@@ -5812,7 +5814,8 @@
     "title": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification",
     "statement": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action.",
     "task_ids": [
-      "WXN11"
+      "WXN11",
+      "WKS12"
     ],
     "chapters": [],
     "screens": [],
@@ -5828,7 +5831,8 @@
     "title": "WisKey new writes (including doors), allowed now by the owner decision",
     "statement": "WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action.",
     "task_ids": [
-      "WXW"
+      "WXW",
+      "WKS11"
     ],
     "chapters": [],
     "screens": [],
@@ -5844,7 +5848,8 @@
     "title": "WisKey local live video and two-way audio (S18)",
     "statement": "WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action.",
     "task_ids": [
-      "WXAV"
+      "WXAV",
+      "WKS18"
     ],
     "chapters": [],
     "screens": [],
@@ -5853,6 +5858,54 @@
     "status": "PLANNED",
     "test_ids": [
       "AT319"
+    ]
+  },
+  {
+    "id": "R304",
+    "title": "WisKey native screens WA: WhatsApp messages from the people screen (single and bulk), consent, templates, quota",
+    "statement": "WisKey native screens WA: WhatsApp messages from the people screen (single and bulk), consent, templates, quota: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WKWA"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT320"
+    ]
+  },
+  {
+    "id": "R305",
+    "title": "WisKey CR-033: door path integrated on the 2.4.8 line with its review fixes and the fake-based gate",
+    "statement": "WisKey CR-033: door path integrated on the 2.4.8 line with its review fixes and the fake-based gate: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "WXDINT"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT321"
+    ]
+  },
+  {
+    "id": "R306",
+    "title": "Release gate: tier-L baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed",
+    "statement": "Release gate: tier-L baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed: built and verified on fakes and fixtures; no live device action.",
+    "task_ids": [
+      "GATE248"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT322"
     ]
   }
 ]
