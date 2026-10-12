@@ -491,6 +491,8 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
             row["armed"] = row["state"] not in ("disarmed", "unavailable", "unknown", None)
         if kind == "lock":
             row["locked"] = row["state"] == "locked"
+            # CR-033 D6: a WisKey door cannot be locked from Arx - "lock all" skips it and says so
+            row["wiskey_door"] = (e.get("platform") or "") in ("hikvision_intercom", "smplwise_intercom")
     elif card == "media":
         row["media_title"] = a.get("media_title") if isinstance(a.get("media_title"), str) else None
         row["source"] = a.get("source") if isinstance(a.get("source"), str) else None

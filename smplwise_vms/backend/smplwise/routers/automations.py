@@ -185,7 +185,9 @@ def _ctx(request: Request, conn: sqlite3.Connection, principal: Principal, *, sy
 
 def _writer(request: Request, conn: sqlite3.Connection, principal: Principal) -> ops.W:
     _bind(request)
-    return ops.W(conn, principal, settings_of(request), _rid(request))
+    w = ops.W(conn, principal, settings_of(request), _rid(request))
+    w.request = request  # CR-033 D9: a converted run opens its doors through the one door path
+    return w
 
 
 def _reply(result: tuple[int, dict[str, Any]]) -> JSONResponse:
@@ -355,6 +357,9 @@ def capture_scene(request: Request, principal: Principal = Depends(_scene_manage
             info = ctx.entity(e)
             if info is None or not ctx.access.can_read_state(e):
                 raise ApiError(422, "validation", f"ערך לא תקין — entity_ids: ההתקן {e} לא נמצא.", details={"path": e})
+        from ..services import door_path_guard
+
+        door_path_guard.check_capture(w.conn, ids)  # CR-033 D8: no WisKey door as a scene member while the editor block is on
         members, skipped = view.capture(ctx, ids)
         taken = [m["entity_id"] for m in members]  # rights are asked of what is captured; a skipped entity (an alarm panel, a sensor ...) needs none
         steps = [{"path": "members", "action": "lock.unlock", "entity_id": e, "role": "device", "sens": "lock"} for e in taken if e.startswith("lock.")]

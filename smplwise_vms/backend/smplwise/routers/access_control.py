@@ -45,9 +45,10 @@ from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
-from ..db import Database, commit_now, now_iso, unlocked
-from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..db import Database, commit_now, get_setting, now_iso, unlocked
+from ..errors import ApiError, forbidden
+from ..rbac import INSTALLATION, STATION, Principal, authorize, note_grant, require
+from ..services import door_authority, ha_bridge, trusted_door
 from ..services import go2rtc as g2
 from ..services import intercom_adapter, intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from ..services import intercom_authority as ia
@@ -136,6 +137,10 @@ def overview(request: Request, principal: Principal = Depends(current_principal)
     if body["overview"] is not None:  # CR-036 S3: a station denied on its chain is omitted (CR-033 station scope)
         body["overview"] = {**body["overview"], "stations": _visible_stations(ia.Authority(conn, principal), body["overview"]["stations"])}
     body["camera_access"] = wiskey_camera.camera_access(conn, settings, body["overview"])
+    # CR-033 D3: per station, whether this caller may open a door there (the one door rule) - the screen offers the open
+    # button only then; the release route decides again
+    stations = [s["id"] for s in (body["overview"] or {}).get("stations", [])]
+    body["door_access"] = door_authority.door_access_map(conn, principal, stations, dev_mode=bool(settings.dev_user))
     return body
 
 
@@ -552,6 +557,19 @@ def _releaser(principal: Principal = Depends(current_principal), conn: sqlite3.C
 _releaser_ro = read_gate(lambda conn, principal: require(conn, principal, RELEASE, INSTALLATION))
 
 
+def _door_gate_ro(request: Request, station_id: str = Path(), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """CR-033 D3: the door release's permission gate, before the body is read (the read_gate pattern). The one door rule
+    (services/door_authority.py) at station level: `access.release` on the station's chain, or `door.unlock` on a lock
+    entity the door map links to this station, and no deny of either. The precise relay is judged again once the body
+    names it. A refusal is audited as `access.release` denied, exactly like the installation-only check it replaces."""
+    sid = station_id[:MAX_STATION_ID]
+    decision = door_authority.may_open_some_door(conn, principal, sid, dev_mode=bool(settings_of(request).dev_user))
+    if not decision.allowed:
+        audit(conn, actor=principal, action=RELEASE, decision="denied", resource_type=STATION, resource_id=sid, reason=decision.reason)
+        raise forbidden(permission=RELEASE, target_type=STATION, target_id=sid, reason=decision.reason)
+    return principal
+
+
 class _Action:
     """One physical request's (or people write's) audit context: who, which endpoint, which station (or person), and
     what is known so far."""
@@ -711,22 +729,9 @@ def _perform(
     return reply
 
 
-@router.post("/intercom/stations/{station_id}/release")
-def release(request: Request, station_id: str, principal: Principal = Depends(_releaser_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Release a station's door relay once (WisKey `stations/test_unlock`). Body: `{lock?, confirmed, client_request_id,
-    expires_at}`; `confirmed: true` is sent only by the UI's confirmation dialog. The reply's `release.accepted` means
-    WisKey ACCEPTED the command; it does not mean the door moved (the device's own relay time applies, and WisKey
-    reports no physical confirmation). Refused before sending, each refusal audited: a malformed body, an expired or
-    duplicate command, an unknown station (404), a station without an integrated lock, offline, a relay it does not
-    have, a missing confirmation, or a release of the same relay not yet resolved (409 `intercom_release_in_progress`:
-    until WisKey's answer arrives, and UNKNOWN_HOLD_S longer when the outcome was unknown). Anything that then does
-    not complete is an error whose `details.outcome` says whether the command was not sent, refused, or has an unknown
-    outcome (IntercomSync.action). Reply: `{state, configured, last_error, fetched_at, release, sync, note, command_id}`."""
-    act = _Action(request, conn, principal, "intercom.release", station_id)
-    body: ReleaseBody = _parse(act, ReleaseBody, raw)
-    not_after = _envelope(act, body)
-    station = _station(act, require_online=False)
-    lock = body.lock
+def _relay_of(act: _Action, station: dict[str, Any] | None, lock: int | None) -> int:
+    """The relay a release names, checked against the served copy: refused (audited, nothing sent) when the station has no
+    active integrated lock, more than one relay and none named, a relay it does not have, or is offline."""
     if station is not None:
         if not station["lock_enabled"] or not station["locks"]:
             raise act.refuse(ApiError(409, "intercom_no_lock", f"לעמדה {station['name']} אין מנעול משולב פעיל ב־WisKey."))
@@ -741,24 +746,223 @@ def release(request: Request, station_id: str, principal: Principal = Depends(_r
             raise act.refuse(ApiError(409, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת כרגע, ולכן הפקודה לא נשלחה."))
     if lock is None:
         lock = 1  # no copy to check against: WisKey's own default relay (panel.ts unlock(station, physical = 1))
+    return lock
+
+
+@router.post("/intercom/stations/{station_id}/release")
+def release(request: Request, station_id: str, principal: Principal = Depends(_door_gate_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Release a station's door relay once. Body: `{lock?, confirmed, client_request_id, expires_at, origin?}`; `confirmed:
+    true` is sent only by the UI's confirmation dialog. Permission (CR-033 D3): the one door rule (services/door_authority.py)
+    - `access.release` on the station's chain or `door.unlock` on the mapped lock entity, deny of either wins - at the gate
+    and again for the named relay. Transport (CR-033 D4): services/trusted_door.py - today's `stations/test_unlock` while
+    `doors.trusted_path` is off, the signed `door_open` once it is on; never `execute`. The reply's `release.accepted`
+    means the command was ACCEPTED ("sent"); it does not mean the door moved. Refused before sending, each refusal
+    audited: a malformed body, an expired or duplicate command, an unknown station (404), a station without an integrated
+    lock, offline, a relay it does not have, no permission for that relay, a missing confirmation, or a release of the same
+    relay not yet resolved (409 `intercom_release_in_progress`). Anything that then does not complete is an error whose
+    `details.outcome` says whether the command was not sent, refused, or has an unknown outcome. Reply: `{state,
+    configured, last_error, fetched_at, release, sync, note, command_id, door_request_id}`."""
+    act = _Action(request, conn, principal, "intercom.release", station_id)
+    body: ReleaseBody = _parse(act, ReleaseBody, raw)
+    not_after = _envelope(act, body)
+    station = _station(act, require_online=False)
+    lock = _relay_of(act, station, body.lock)
     act.details["lock"] = lock
+    entry_point = "wiskey_screen"
     if isinstance(body.origin, str) and ORIGIN_RE.fullmatch(body.origin):
-        act.details["origin"] = body.origin  # CR-018: started from a notification's deep link (audit only)
+        act.details["origin"] = body.origin  # CR-018: started from a notification's deep link (audit only, never authority)
+        entry_point = "notification"
+    decision = door_authority.check(conn, principal, station_id, lock, dev_mode=bool(settings_of(request).dev_user))
+    if not decision.allowed:
+        raise act.refuse(ApiError(403, "forbidden", "אין הרשאה לפתוח דלת זו", details={"reason": decision.reason}))
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "שחרור דלת דורש אישור מפורש."))
+    reply = open_door(act, station_id, lock, entry_point, not_after, decision)
+    reply["note"] = "WisKey קיבל את הפקודה. זה אינו אישור שהדלת נפתחה בפועל."
+    return reply
+
+
+# ---------------------------------------------------------------- the one door path (CR-033 D4)
+#
+# Every Arx-started opening of a WisKey door ends here, after the route's own checks and the one door authority: the WisKey
+# screen and its notification deep link (release above) and the devices tile / map card (`open_from_tile`, called by
+# routers/ha.py for a WisKey lock's lock.unlock). The transport is chosen by `doors.trusted_path` (services/trusted_door.py).
+
+def _door_details(act: _Action, station_id: str, lock: int, entry_point: str, decision: door_authority.DoorDecision, mode: str) -> str:
+    request_id = trusted_door.new_request_id()
+    act.details.update(transport=trusted_door.TRANSPORT, mode="signed" if mode == "on" else "interim", entry_point=entry_point, door_request_id=request_id,
+                       station=station_id, relay=lock, **decision.audit_fields())
+    note_grant(decision.as_rbac(), RELEASE if decision.granted_by == RELEASE else "door.unlock")
+    return request_id
+
+
+def open_door(act: _Action, station_id: str, lock: int, entry_point: str, not_after: datetime, decision: door_authority.DoorDecision,
+              before_attempt: Callable[[sqlite3.Connection], None] | None = None) -> dict[str, Any]:
+    """Send one WisKey door opening that every check already allowed: the relay guard, the attempt row (committed before
+    sending), the transport, the outcome row. Never retried, never queued. `before_attempt(conn)` writes the caller's own
+    pending record in the same transaction as the attempt row (the tile's ha_actions row)."""
+    mode = trusted_door.mode(act.conn)
+    if not intercom_sync.SYNC.has_copy() and (mode == "on" or intercom_sync.STATE.state == "ready"):
+        # SEC-WXD L5: without a WisKey copy the station, the relay and its online state cannot be checked (a relay re-wired
+        # or removed in WisKey would be opened as mapped) - refused, nothing is sent. The signed transport does not use the
+        # feed, so it is refused here always; the interim one needs the feed, which refuses on its own (with the feed's
+        # state) unless the feed is up and the copy is not there yet
+        raise act.refuse(ApiError(503, "intercom_unavailable", "הפקודה לא נשלחה: אין כרגע נתונים עדכניים ממערכת האינטרקום."))
+    request_id = _door_details(act, station_id, lock, entry_point, decision, mode)
     entry = RELAYS.acquire((station_id, lock))
     if entry is None:
         wait = RELAYS.remaining((station_id, lock))
-        raise act.refuse(ApiError(409, "intercom_release_in_progress", f"שחרור קודם של הדלת הזו עדיין לא הוכרע (ממתין לתשובה, או שתוצאתו לא ידועה). המתינו עד {int(wait) + 1} שניות ובדקו במצלמה לפני שמנסים שוב.", details={"retry_after_s": round(wait, 1)}))
+        raise act.refuse(ApiError(409, "intercom_release_in_progress", f"פקודה קודמת עדיין בטיפול. המתינו עד {int(wait) + 1} שניות ובדקו במצלמה לפני שמנסים שוב.", details={"retry_after_s": round(wait, 1)}))
+    if before_attempt is not None:
+        try:
+            before_attempt(act.conn)
+        except BaseException:
+            RELAYS.settle(entry)
+            raise
     try:
-        reply = _perform(act, "release", lambda call: intercom_client.release_door(call, station_id, lock), intercom_sync.project_release, not_after,
-                         on_settled=lambda: RELAYS.settle(entry), on_unknown=lambda: RELAYS.mark_unknown(entry))
+        if mode == "on":
+            reply = _perform_signed(act, station_id, lock, request_id, not_after, on_settled=lambda: RELAYS.settle(entry), on_unknown=lambda: RELAYS.mark_unknown(entry))
+        else:
+            reply = _perform(act, "release", lambda call: intercom_client.release_door(call, station_id, lock), intercom_sync.project_release, not_after,
+                             on_settled=lambda: RELAYS.settle(entry), on_unknown=lambda: RELAYS.mark_unknown(entry))
     except ApiError as exc:
         if exc.details.get("outcome") == "unknown":
             exc.details["retry_after_s"] = round(RELAYS.remaining((station_id, lock)), 1)  # the UI holds the button this long
+        if mode == "on":
+            exc.details["door_request_id"] = request_id  # the status read asks about it (the interim transport has none)
         raise
-    reply["note"] = "WisKey קיבל את הפקודה. זה אינו אישור שהדלת נפתחה בפועל."
+    reply["door_request_id"] = request_id
     return reply
+
+
+# the add-on's own call to the bridge failed before anything could reach it: nothing was sent
+_NOT_SENT_CODES = {"ha_not_configured", "service_not_found", "ha_forbidden", "bridge_not_paired"}
+_NOT_SENT_ERRORS = {"ConnectError", "ConnectTimeout"}
+
+
+def _perform_signed(act: _Action, station_id: str, lock: int, request_id: str, not_after: datetime, on_settled: Callable[[], None], on_unknown: Callable[[], None]) -> dict[str, Any]:
+    """The signed transport (mode `on`): sign `door_open` with the real principal as actor, commit the attempt row (with
+    `body_sha256`), call `smplwise_bridge.door_open` once, map WisKey's closed answer, record the outcome. An answer
+    after a possible delivery is never `refused`; an unknown outcome is resolved only by `door_open_status`."""
+    settled = False
+
+    def settle() -> None:
+        nonlocal settled
+        if not settled:
+            settled = True
+            on_settled()
+
+    try:
+        secret = ha_bridge.signing_key(act.conn)
+        if not secret or not get_setting(act.conn, "bridge.paired_at"):
+            raise act.refuse(ApiError(503, "bridge_not_paired", "אין חיבור לתשתית המערכת"))
+        if datetime.now(timezone.utc) >= not_after:
+            raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שנשלחה."))
+        p = act.principal
+        signed = trusted_door.sign_message(secret, "door_open", p.user_id, p.display_name or p.username or p.user_id, station_id, {"relay": lock}, request_id)
+        act.details["body_sha256"] = signed.body_sha256  # computed after signing, recorded only in the audit
+        act.attempt()
+    except BaseException:
+        settle()
+        raise
+    try:
+        try:
+            answer = trusted_door.call_bridge(settings_of(act.request), "door_open", signed.text)
+        except ApiError as exc:
+            not_sent = exc.code in _NOT_SENT_CODES or (exc.code == "ha_unavailable" and exc.details.get("error") in _NOT_SENT_ERRORS)
+            outcome = "not_sent" if not_sent else "unknown"
+            if outcome == "unknown":
+                on_unknown()
+            act.outcome(outcome, exc.code, {"error": exc.code, "code": exc.code})
+            if not_sent:
+                raise ApiError(503, exc.code, "אין חיבור לתשתית המערכת", details={"outcome": "not_sent"}) from None
+            raise ApiError(504, "door_outcome_unknown", trusted_door.OUTCOME_TEXT["unknown"], details={"outcome": "unknown"}) from None
+        except BaseException as exc:
+            on_unknown()
+            act.outcome("unknown", type(exc).__name__, {"error": type(exc).__name__})
+            raise
+    finally:
+        settle()
+        act.conn.execute("BEGIN")  # deferred, lock-free: nothing more is written on the request connection
+    outcome, code = trusted_door.classify(answer, request_id)
+    if outcome == "sent":
+        act.outcome("ok", None, {"result": {"accepted": True}, "code": code})
+        return {"release": {"accepted": True}, "command_id": act.details["command_id"]}
+    if outcome == "refused":
+        act.outcome("refused", code, {"code": code})
+        raise ApiError(409, "door_refused", trusted_door.refusal_text(code), details={"outcome": "refused"})
+    on_unknown()
+    act.outcome("unknown", code, {"code": code})
+    raise ApiError(504, "door_outcome_unknown", trusted_door.OUTCOME_TEXT["unknown"], details={"outcome": "unknown"})
+
+
+def open_from_tile(request: Request, principal: Principal, entity_id: str, action_id: str, client_request_id: str, expires_at: str, confirmation_grant: str | None) -> dict[str, Any]:
+    """A1/A2/A4 (CR-033 5.2): `lock.unlock` of a WisKey lock entity from a devices tile, the tiles panel's dialog or a map /
+    home card - the same route (`POST /ha/entities/{id}/actions`) and the same response shape as before, but judged by the
+    one door authority (no `ha.entity.control` needed for a WisKey door) and sent through `open_door`, never through the
+    bridge's `execute`. The `ha_actions` row is written with `via = trusted_door` and no expected state, so the screens
+    show "sent" and never "opened" (decision 22); an unknown outcome is `unknown`, a refusal `failed`."""
+    from ..services import ha_actions, intercom_doors
+
+    db: Database = request.app.state.db
+    settings = settings_of(request)
+    with db.connection(label="door.open tile") as conn:
+        existing = conn.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", (principal.user_id, client_request_id)).fetchone()
+        if existing:
+            return ha_actions.action_row(conn, existing["id"])  # idempotent: a duplicate click never sends twice
+        act = _Action(request, conn, principal, "intercom.release", entity_id, resource_type="ha_entity")
+        act.details.update(client_request_id=client_request_id[:80], expires_at=expires_at[:40], entity_id=entity_id)
+        try:
+            expires = parse_utc(expires_at)
+        except ValueError:
+            raise act.refuse(ApiError(422, "validation", "expires_at חייב להיות UTC (Z).")) from None
+        now = datetime.now(timezone.utc)
+        if expires <= now:
+            raise act.refuse(ApiError(409, "expired", "הבקשה פגה; נסה שוב."))
+        not_after = min(expires, now + timedelta(seconds=SEND_WITHIN_S))
+        try:
+            target = intercom_doors.resolve(conn, entity_id)
+        except ApiError as exc:
+            raise act.refuse(exc) from None
+        station = intercom_sync.SYNC.station(target.station_id)
+        if station is None and intercom_sync.SYNC.has_copy():
+            raise act.refuse(intercom_doors.unmapped(entity_id))
+        if station is not None:
+            act.details["station_name"] = station["name"]
+        lock = _relay_of(act, station, target.relay)
+        act.details["lock"] = lock
+        decision = door_authority.check(conn, principal, target.station_id, lock, entity_id=entity_id, dev_mode=bool(settings.dev_user))
+        if not decision.allowed:
+            raise act.refuse(ApiError(403, "forbidden", "אין הרשאה לפתוח דלת זו", details={"reason": decision.reason, "action": action_id}))
+        if confirmation_grant != "confirmed":
+            raise act.refuse(ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": action_id}))
+        aid = uuid.uuid4().hex[:12]
+
+        def pending_row(w: sqlite3.Connection) -> None:
+            w.execute(
+                "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (aid, entity_id, action_id, "{}", principal.user_id, principal.username, client_request_id, "pending", now_iso(), None, trusted_door.TRANSPORT),
+            )
+
+        def record(status: str, error: str | None) -> None:
+            try:
+                with db.write_aside(label="door.open tile answer") as w:
+                    w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ?, confirmed_at = CASE WHEN ? = 'confirmed' THEN ? ELSE confirmed_at END WHERE id = ?",
+                              (status, error, now_iso(), status, now_iso(), aid))
+            except Exception:  # noqa: BLE001 - the door's own audit rows are the record; the tile row stays pending and turns unknown on its own
+                log.exception("door.open tile: the answer of %s could not be recorded", aid)
+
+        try:
+            open_door(act, target.station_id, lock, "devices_tile", not_after, decision, before_attempt=pending_row)
+        except ApiError as exc:
+            outcome = exc.details.get("outcome")
+            record("unknown" if outcome == "unknown" else "failed", exc.code)
+            raise
+        record("confirmed", None)  # confirmation "none": the screens say "sent", never "opened"
+    with db.connection(mode="read", label="door.open tile row") as r:
+        out = ha_actions.action_row(r, aid)
+    out["note"] = "נשלח. זה אינו אישור שהדלת נפתחה בפועל."
+    return out
 
 
 @router.post("/intercom/stations/{station_id}/call")

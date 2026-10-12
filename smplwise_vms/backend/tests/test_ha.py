@@ -206,7 +206,7 @@ def test_actions_through_bridge(ha_app, monkeypatch):
     # unlock needs its own grant on top of control (T079); the administrator gets it only through a custom role
     r = c.post("/api/v1/ha/entities/lock.front/actions", json=body(allowed_action_id="lock.unlock", arguments={}, client_request_id="req-3", confirmation_grant="confirmed"))
     assert r.status_code == 403 and r.json()["code"] == "grant_required" and r.json()["details"]["grant"] == "door.unlock"
-    opener = c.post("/api/v1/access/roles", json={"name": "פותח דלתות", "permissions": ["map.read"], "sensitive": ["door.unlock"]}).json()
+    opener = c.post("/api/v1/access/roles", json={"name": "פותח מנעולים", "permissions": ["map.read"], "sensitive": ["door.unlock"]}).json()
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-joni", "role_id": opener["id"], "scope_type": "installation", "scope_id": "*"}).status_code == 201
     # sensitive action needs an explicit confirmation; HA's own permission answer is honoured (denied)
     r = c.post("/api/v1/ha/entities/lock.front/actions", json=body(allowed_action_id="lock.unlock", arguments={}, client_request_id="req-3b"))

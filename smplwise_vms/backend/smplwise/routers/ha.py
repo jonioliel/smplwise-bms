@@ -24,7 +24,7 @@ from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
-from ..services import bridge_install, device_activity, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, media_store
+from ..services import bridge_install, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -46,6 +46,17 @@ def _grant_label(permission: str) -> str:
     from .access import PERMISSION_LABELS  # the one Hebrew label catalogue (lazy: routers stay independent)
 
     return PERMISSION_LABELS.get(permission, permission)
+
+
+def _wiskey_open_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> bool:
+    """Whether the open button of a WisKey lock entity is offered to this caller: the door map resolves it and the one door
+    rule allows it (the action route checks both again). Display only, never authority."""
+    try:
+        target = intercom_doors.resolve(conn, entity_id)
+    except ApiError:
+        return False
+    # display only: a developer identity counts as identified here (it never exists in the add-on; the route decides for real)
+    return door_authority.check(conn, principal, target.station_id, target.relay, entity_id=entity_id, dev_mode=True).allowed
 
 
 def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
@@ -123,6 +134,8 @@ def list_entities(
         r["schedule_entity"] = dsvc.is_scheduler_entity(r["entity_id"], r.get("platform"))
         r["media_managed"] = r["entity_id"] in media_managed
         r["actions"] = [] if (r["alarm_managed"] or r["schedule_entity"] or r["media_managed"]) else ha_bridge.actions_for(r["domain"])
+        if r["domain"] == "lock" and (r.get("platform") or "") in intercom_doors.WISKEY_PLATFORMS:
+            r["actions"] = [x for x in r["actions"] if x["id"] != "lock.lock"]  # CR-033 D6: a WisKey door has no lock action
         out.append(r)
     domains: dict[str, int] = {}
     areas: list[dict[str, Any]] = []
@@ -156,6 +169,10 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
     e["schedule_entity"] = dsvc.is_scheduler_entity(entity_id, e.get("platform"))  # CR-014: read-only here
     e["media_managed"] = media_store.is_managed(conn, entity_id)  # CR-015: read-only here, operated from "מולטימדיה"
     e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"] or e["media_managed"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
+    if e["actions"] and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D3: a WisKey door's open is the one door rule's answer (access.release on its station or door.unlock on it)
+        e["wiskey_door"] = True
+        e["actions"] = [{**a, "granted": _wiskey_open_allowed(conn, principal, entity_id)} if a["id"] == "lock.unlock" else a for a in e["actions"] if a["id"] != "lock.lock"]  # D6: no lock
     e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
@@ -221,6 +238,25 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     settings = settings_of(request)
     db: Database = request.app.state.db
     rid = getattr(request.state, "correlation_id", None)
+    if body.allowed_action_id in ("lock.lock", "lock.unlock") and intercom_doors.is_wiskey_lock(conn, entity_id):
+        _door_gate(conn, principal, request, entity_id, body.allowed_action_id)  # SEC-WXD L2: the permission first, a uniform 403
+    if body.allowed_action_id == "lock.lock" and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D6: WisKey does not support lock - never sent, whoever asks, from a tile, a map card or "lock all"
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="wiskey_lock_unsupported",
+              request_id=rid, details={"action": body.allowed_action_id})
+        raise door_path_guard.lock_unsupported()
+    if body.allowed_action_id == "lock.unlock" and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D3/D4: a WisKey door is opened only through the one door authority and the door transport - never
+        # through the bridge's `execute` / `lock.unlock`, and ha.entity.control is not what decides it
+        e = _entity(conn, entity_id)
+        if e["removed_at"] or e["disabled"]:
+            raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
+        ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
+        from .access_control import open_from_tile
+
+        out = open_from_tile(request, principal, entity_id, body.allowed_action_id, body.client_request_id, body.expires_at, body.confirmation_grant)
+        timing.mark("door")
+        return out
     if not ha_scope.control_allowed(conn, principal, entity_id):
         # devices.control (CR-007 slice 2) reaches this same route, but only for the everyday domains
         # (ha_scope.DEVICES_CONTROL_DOMAINS: never a lock, the alarm panel, a siren, a script, a scene or a button).
@@ -233,6 +269,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     _refuse_alarm_managed(conn, principal, request, entity_id, body.allowed_action_id)
     _refuse_scheduler_switch(conn, principal, request, entity_id, body.allowed_action_id)
     _refuse_media_managed(conn, principal, request, entity_id, body.allowed_action_id)
+    _refuse_door_chain(conn, principal, request, entity_id, body.allowed_action_id)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
@@ -358,6 +395,29 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     return out
 
 
+def _door_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """SEC-WXD L2: a WisKey lock's lock / unlock is decided by the one door rule at station level (the station the door map
+    links the entity to, else the one its registry entry names) BEFORE anything about the door is answered - whether it is
+    mapped, its station's name and whether that is online. A caller without control of the entity gets exactly the
+    audited 403 an ordinary lock gives; one with control but no door permission the door rule's own 403."""
+    from ..services import door_authority
+
+    row = intercom_doors.map_row(conn, entity_id)
+    if row is not None:
+        station = row["config_entry_id"]
+    else:
+        reg = conn.execute("SELECT config_entry_id FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+        station = (reg["config_entry_id"] if reg else None) or ""
+    decision = door_authority.check(conn, principal, station, None, entity_id=entity_id, dev_mode=bool(settings_of(request).dev_user))
+    if decision.allowed:
+        return
+    if not ha_scope.control_allowed(conn, principal, entity_id):
+        require(conn, principal, "ha.entity.control", INSTALLATION)  # the same audited 403 as for any lock
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=decision.reason,
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(403, "forbidden", "אין הרשאה לפתוח דלת זו", details={"reason": decision.reason, "action": action_id})
+
+
 def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
     """CR-010 security review B1 / M1: an alarm panel and every control the alarm section owns (a zone's bypass switch or
     select, an unpaired bypass-like control, an override target - services/alarm.managed_controls) are operated ONLY
@@ -383,6 +443,21 @@ def _refuse_scheduler_switch(conn: sqlite3.Connection, principal: Principal, req
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_schedules_screen",
           request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
     raise ApiError(409, "use_schedules_screen", "התזמון מנוהל במסך התזמונים.", details={"action": action_id, "route": "/devices/schedules"})
+
+
+def _refuse_door_chain(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-033 D9 (rule R-17): a script, a scene, a button or a non-WisKey lock (a lock group, a template lock) pressed on a
+    tile or a map card that reaches a WisKey door - or may reach one, as far as the static resolver can tell - is refused
+    here, audited, before anything is sent: no inner `lock.unlock` reaches a WisKey lock on an Arx-started path. A WisKey
+    lock's own unlock never gets here (the door path above)."""
+    from ..services import door_run_guard
+
+    try:
+        door_run_guard.judge_entity_action(conn, entity_id, action_id)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+              request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+        raise
 
 
 def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
