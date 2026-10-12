@@ -57,7 +57,7 @@ Also asked by CR-036 for stage 1 and not a numbered row:
 |---|---|---|---|
 | Per-screen switch, Settings only | 3.8, S12; owner answer 1 of 2026-10-12 | built (`access.ui.overview / events / people / stations`, S9 adds `schedules`) in Settings -> General -> "מתגי מסכי כניסה"; no header button anywhere (checked: no screen writes `access.ui.*`) | a guard test that no screen header gets a switch: **built by S12** (G2) |
 | Stations-screen display settings | S6 settings (`access.call_hint`, `access.talk_button`, `access.announce_scope`, `access.announce_phrases`) | PATCH `/settings` only (integration decision 3 of 2026-10-12: accepted until this slice) | real controls: **built by S12** (G3) |
-| Parity report (side by side) | 6.2 | not built | **built by S12** (G4): `GET /access-control/parity` + Settings segment "בדיקת התאמה" + `scripts/wiskey_parity_report.py` on the fake |
+| Parity report (side by side) | 6.2 | not built | **built by S12** (G4): `GET /access-control/parity` + the card "השוואה למסכי האינטרקום" next to the switch + `scripts/wiskey_parity_report.py` on the fake |
 | Fake-based full suite | S13, section 5 | the screens' specs exist per slice; the committed live fixture `frontend/tests/fixtures/wiskey_fake_ha.py` lists only `events/list`, `users/get`, `users/query`, so the status page, the event detail / picture / export and the groups never ran end to end against the real backend | **S13 prep by S12** (G7): one suite manifest for every new screen + the parity three-identity matrix on the fake; the live fixture gap stays listed (section 5) |
 | No platform names on operator screens | 2.6 | the area's rail label still reads "WisKey" (`shell/nav.ts` RAIL); other native screens' fallback panels still name WisKey in places (S6 gap 8) | not changed here: the rail label is in every pixel baseline that shows the rail - open question 2 of the final report |
 
@@ -72,6 +72,34 @@ Also asked by CR-036 for stage 1 and not a numbered row:
 | G5 | Stations drawer: "the entry log of this station" link (`#/wiskey/events?station=<id>`), offered only while the entry log is the native screen and the caller holds `access.events.read` | 29, 8 | read-only navigation |
 | G6 | Fix: the stations drawer's weekly hours are left-to-right isolates (they printed "17:00–08:00" in RTL - S9 gap 3) | 31 | bug fix |
 | G7 | S13 prep: `frontend/tests/suites/wiskey-native-stage1.json` (every backend test and spec of the native screens, the commands to run them on the runner) + the AT317 procedure pointing at it; security review note of this branch | S13 | tests / docs |
+
+### 2.1 Decisions taken while building (safest reading, recorded)
+
+1. **Where the switch and the new cards live.** Owner answer 1 (2026-10-12) puts the switch "in Settings > access control > display";
+   the same day the owner renamed the General sub-tab that holds it to "מתגי מסכי כניסה" (integration decision 2). Read together: the
+   switch STAYS in Settings › כללי › מתגי מסכי כניסה (never in a screen header - a unit guard now fails otherwise), and the new display
+   card and the parity card join it there. Not moved into the "בקרת כניסה" Settings tab: that would contradict the fresh rename, and every
+   pixel baseline of that tab's segment strip (S10, 40 images) would change. CR-036 2.6's "בקרת כניסה -> תצוגה" is superseded by the rename
+   (open question for the owner in the final report).
+2. **The parity card is a button, not a poll** (15-30 WisKey reads per report on the shared read lane). One report at a time.
+3. **Another user's view** (`as_user`) needs `system.configure`: it is the three-identity check of CR-036 6.2 step 2 without signing in
+   as each identity. Counts only.
+4. **The classic link** is offered only for the embedded panel's own tabs (overview, events, people, devices); the schedules screen
+   (S9) has no counterpart tab there.
+5. **The station's entry-log link** is offered only while the entry log is the native screen (the embedded panel ignores the filter).
+
+### 2.2 Interface for the next slices
+
+- `GET /api/v1/access-control/parity?as_user=&hours=` (1..168, default 24): `{state, configured, last_error, fetched_at, parity: {window_hours,
+  window {start, end}, subject {user_id, display_name, self}, screens [{screen, feature, permission, route, source {count, complete,
+  digest} | null, expected_count, native | null, outcome, rule, reason}], summary {<outcome>: n}}, sync}`. Screens: stations, people,
+  events, groups, schedules, alerts (`services/intercom_parity.SCREENS`). A new native screen adds one method + one row there.
+- `frontend/tests/access-parity-mocks.ts` + `fixtures/access_parity_wire.json` (shape pinned by `backend/tests/test_access_parity_wire.py`).
+- S9, when merged: its `access.ui.schedules` row joins `ACCESS_SCREENS` (its own commit); the parity card's checklist and the
+  schedules row's "Arx" link then appear by themselves (they follow `WISKEY_SCREENS`).
+- Pixel baselines this branch changes (the runner regenerates them; NOT generated here): `pixel-access-status` `status-classic-audit`
+  (the period filter and the person buttons), `pixel-wiskey-stations` images that show the drawer's weekly hours (the RTL fix) - and the
+  new `pixel-access-s12` set (none exist yet).
 
 ## 3. "Later" halves and rows pulled into stage 1 by the owner decision (owners, not built here)
 

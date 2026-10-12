@@ -29,6 +29,7 @@ import logging
 import os
 import sqlite3
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
@@ -42,6 +43,11 @@ from . import intercom_sync
 log = logging.getLogger("smplwise.intercom")
 
 MAX_PAGES = 5  # per side and screen: people and events stop here (1 000 rows at WisKey's 200-row page) and say "partial"
+# Arx's own read lane allows a burst of 10 reads per user then 1 a second (intercom_sync USER_BURST / USER_RATE), WisKey's limiter its own:
+# a screen whose read came back "rate_limited" / "busy" is read again after a pause (reads only - CR-036 2.5), within one deadline.
+TRANSIENT = frozenset({"rate_limited", "busy"})
+RETRY_PAUSE_S = 2.0
+DEADLINE_S = 50.0
 NATIVE_PAGE = 200
 _KEY = os.urandom(32)
 _RUNNING = threading.Lock()
@@ -117,6 +123,7 @@ class Report:
         now = _now()
         self.start = (now - timedelta(hours=hours)).isoformat()
         self.end = now.isoformat()
+        self.deadline = time.monotonic() + DEADLINE_S
 
     # -- the raw (unfiltered) reads: the adapter's own frames and closed projections, on its read channel
     def _raw(self, key: str, send: Callable[..., Any], project: Callable[[Any], Any], command: str) -> Any:
@@ -176,6 +183,8 @@ class Report:
                 ids.extend(r["id"] for r in page["records"])
                 total = page["total"] if total is None else total
                 snapshot = page.get("snapshot") or snapshot
+                if page.get("incomplete_reason") in TRANSIENT:
+                    raise _Unavailable(page["incomplete_reason"])  # the scan was cut by a rate limit: read the screen again, not "partial"
                 if page["next_offset"] is None:
                     complete = bool(page.get("complete", True))
                     break
@@ -193,6 +202,8 @@ class Report:
             for _page in range(MAX_PAGES):
                 reply = adapter.ADAPTER.events(self.settings, self.subject, {"start": self.start, "end": self.end}, limit=NATIVE_PAGE, before=before)
                 page = _ready(reply, "events")
+                if page.get("incomplete_reason") in TRANSIENT:
+                    raise _Unavailable(page["incomplete_reason"])
                 ids.extend(r["id"] for r in page["records"])
                 if page["next"] is None:
                     complete = bool(page.get("complete", True))
@@ -269,15 +280,22 @@ class Report:
             if available is False:
                 return {"screen": screen, "feature": feature, "permission": permission, "route": route, "source": None, "expected_count": None, "native": None,
                         "outcome": "unsupported", "rule": None, "reason": reason}
-        try:
-            return getattr(self, screen)()
-        except _Unavailable as exc:
-            reason = exc.reason
-        except ApiError as exc:
-            reason = exc.code
-        except Exception as exc:  # noqa: BLE001 - a screen that cannot be compared is reported, never guessed
-            log.warning("parity: %s could not be compared (%s)", screen, type(exc).__name__)
-            reason = "error"
+        reason: str | None = None
+        while True:
+            try:
+                return getattr(self, screen)()
+            except _Unavailable as exc:
+                reason = exc.reason
+            except ApiError as exc:
+                details = exc.details if isinstance(exc.details, dict) else {}
+                reason = details.get("last_error") if exc.code == "intercom_unavailable" and details.get("last_error") in TRANSIENT else exc.code
+            except Exception as exc:  # noqa: BLE001 - a screen that cannot be compared is reported, never guessed
+                log.warning("parity: %s could not be compared (%s)", screen, type(exc).__name__)
+                reason = "error"
+                break
+            if reason not in TRANSIENT or time.monotonic() + RETRY_PAUSE_S > self.deadline:
+                break
+            time.sleep(RETRY_PAUSE_S)
         return {"screen": screen, "feature": feature, "permission": permission, "route": route, "source": None, "expected_count": None, "native": None,
                 "outcome": "unavailable", "rule": None, "reason": reason if isinstance(reason, str) and adapter.CODE.fullmatch(reason) else "error"}
 

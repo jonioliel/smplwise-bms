@@ -71,6 +71,23 @@ def test_an_operator_on_one_station_is_filtered_by_the_station_scope(pc):
     assert all(r["outcome"] != "mismatch" for r in by.values())
 
 
+def test_another_users_report_writes_nothing_in_their_name(pc):
+    """Self-review: the subject's native views run through the adapter with the subject's Authority - no refusal or view row may
+    be written as if the subject had acted (a station-scoped subject would trip `require_unrestricted` on the installation-wide
+    reads if the report called them)."""
+    _fake, c, s = pc
+    from smplwise.db import Database
+
+    def rows_of(actor: str) -> int:
+        with Database(s.db_path).connection() as conn:
+            return conn.execute("SELECT COUNT(*) FROM audit_log WHERE actor_user_id = ?", (actor,)).fetchone()[0]
+
+    before = {u: rows_of(u) for u in ("dev-sara", "dev-sam", "dev-vera")}
+    for user in ("dev-sara", "dev-sam", "dev-vera"):
+        report(c, "root", as_user=user)
+    assert {u: rows_of(u) for u in before} == before
+
+
 def test_a_viewer_gets_the_stations_only(pc):
     _fake, c, _s = pc
     by = rows(report(c, "root", as_user="dev-vera"))
@@ -149,6 +166,48 @@ def test_one_report_at_a_time(pc):
         assert r.status_code == 409 and r.json()["code"] == "intercom_parity_busy"
     finally:
         intercom_parity._RUNNING.release()
+
+
+def settled(c: Any, **params: Any) -> dict[str, dict[str, Any]]:
+    """One report, asked again while WisKey's own limiter (the fake models it: one bucket for the service identity) says wait - several
+    reports in a row exceed its burst; a report is an administrator's button, not a load test."""
+    import time
+
+    by: dict[str, dict[str, Any]] = {}
+    for _ in range(60):
+        by = rows(report(c, "root", **params))
+        if not any(r["outcome"] == "unavailable" and r["reason"] in ("rate_limited", "busy") for r in by.values()):
+            return by
+        time.sleep(0.5)
+    return by
+
+
+def test_the_three_identity_report_on_the_fake(pc, tmp_path):
+    """CR-036 6.2 step 2 on the fake: the matrix scripts/wiskey_parity_report.py prints (SW_PARITY_REPORT names the file to write;
+    otherwise a temporary one). Counts and outcomes only - never a name."""
+    import os
+
+    _fake, c, _s = pc
+    identities = [("system administrator", None), ("operator on one station", "dev-sara"), ("site administrator with one station denied", "dev-sam"), ("viewer", "dev-vera")]
+    lines = ["# Parity matrix on the fake WisKey (CR-036 6.2)", "", "| Identity | " + " | ".join(intercom_parity.SCREENS) + " |",
+             "|---|" + "---|" * len(intercom_parity.SCREENS)]
+    matrix: dict[str, dict[str, str]] = {}
+    for label, user in identities:
+        by = settled(c, **({"as_user": user} if user else {}))
+        matrix[label] = {s: by[s]["outcome"] for s in by}
+        cells = [f"{r['outcome']} ({(r['native'] or {}).get('count', '-')}/{(r['source'] or {}).get('count', '-')}){' ' + r['reason'] if r['reason'] else ''}" for r in by.values()]
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    text = "\n".join(lines) + "\n\nCell: outcome (native count / unfiltered count). Generated from tests/test_intercom_parity.py.\n"
+    out = os.environ.get("SW_PARITY_REPORT") or str(tmp_path / "parity.md")
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    for marker in NAMES:
+        assert marker not in text, marker
+    assert all(o == "match" for o in matrix["system administrator"].values())
+    seen = {o for m in matrix.values() for o in m.values()}
+    assert "mismatch" not in seen and "unavailable" not in seen and "partial" not in seen, matrix  # the screen retries ride out the read limit
+    assert matrix["site administrator with one station denied"]["stations"] == "filtered"
+    assert matrix["viewer"]["people"] == "not_permitted"
 
 
 def test_wiskey_not_answering_is_reported_per_screen_not_guessed(pc):

@@ -8563,7 +8563,9 @@
       "Build tied to a recorded commit"
     ],
     "procedure": [
-      "Run the tests named in the change request on fakes / fixtures; no live device."
+      "Run the tests named in the change request on fakes / fixtures; no live device.",
+      "S13 fake-based suite of every native screen (S0-S12): frontend/tests/suites/wiskey-native-stage1.json - backend tests, unit / evidence / layout / pixel specs and the runner commands (written by S12; S11 adds its own).",
+      "Parity matrix on the fake (CR-036 6.2 step 2): python scripts/wiskey_parity_report.py."
     ],
     "expected": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action.",
     "status": "NOT_RUN",

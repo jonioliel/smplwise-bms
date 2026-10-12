@@ -1,0 +1,86 @@
+{
+  "_comment": "CR-036 S13 prep (written by slice S12): the fake-based suite of every native access-control screen of stage 1 - the WisKey native screens S0-S12. Nothing in it contacts a WisKey, Home Assistant, station or device: the backend tests run against smplwise_vms/backend/tests/fake_wiskey.py, the browser specs against mocked backends (frontend/tests/access-control-mocks.ts, access-parity-mocks.ts, wiskey-stations-mocks.ts, wiskey-people-mock.ts). Test catalogue entry: AT317. Paths are relative to the repository root. The runner commands follow private/runner/run_smart_README_HE.md (the branch must be pushed; jobs queue behind a running gate - wait, never kill).",
+  "version": 1,
+  "backend": {
+    "cwd": "smplwise_vms/backend",
+    "tests": [
+      "tests/test_fake_wiskey.py",
+      "tests/test_fake_wiskey_whatsapp.py",
+      "tests/test_wiskey_contract.py",
+      "tests/test_wiskey_channels.py",
+      "tests/test_wiskey_background.py",
+      "tests/test_wiskey_diagnostics.py",
+      "tests/test_wiskey_golden_vectors.py",
+      "tests/test_wiskey_v3_addendum.py",
+      "tests/test_intercom.py",
+      "tests/test_intercom_adapter.py",
+      "tests/test_intercom_authority.py",
+      "tests/test_intercom_people_s7.py",
+      "tests/test_intercom_parity.py",
+      "tests/test_access_control_wire.py",
+      "tests/test_access_parity_wire.py",
+      "tests/test_ui_settings.py",
+      "tests/test_rbac_matrix.py"
+    ],
+    "runner": "python private/runner/run_smart.py backend <branch> <the tests above, as parallel shards>"
+  },
+  "frontend": {
+    "unit": [
+      "tests/unit-access-events-feed.spec.ts",
+      "tests/unit-access-events-logic.spec.ts",
+      "tests/unit-access-status-feed.spec.ts",
+      "tests/unit-access-status-logic.spec.ts",
+      "tests/unit-access-parity-logic.spec.ts",
+      "tests/unit-messaging-logic.spec.ts",
+      "tests/unit-people-logic.spec.ts",
+      "tests/unit-people-nav.spec.ts",
+      "tests/unit-people-strings.spec.ts",
+      "tests/unit-wiskey-native-tabs.spec.ts",
+      "tests/unit-wiskey-stations-nav.spec.ts",
+      "tests/unit-wiskey-stations.spec.ts",
+      "tests/unit-settings-index.spec.ts",
+      "tests/unit-token-lint.spec.ts"
+    ],
+    "evidence": [
+      "tests/evidence-wiskey-stations.spec.ts",
+      "tests/evidence-wiskey-stations-skins.spec.ts",
+      "tests/evidence-wiskey-people-native.spec.ts",
+      "tests/evidence-access-events.spec.ts",
+      "tests/evidence-access-status.spec.ts",
+      "tests/evidence-access-s12.spec.ts"
+    ],
+    "layout": [
+      "tests/layout-wiskey-stations.spec.ts",
+      "tests/layout-wiskey-people.spec.ts",
+      "tests/layout-access-events.spec.ts",
+      "tests/layout-access-status.spec.ts",
+      "tests/layout-access-s12.spec.ts"
+    ],
+    "pixel": [
+      "tests/pixel-wiskey-stations.spec.ts",
+      "tests/pixel-wiskey-people.spec.ts",
+      "tests/pixel-access-events.spec.ts",
+      "tests/pixel-access-status.spec.ts",
+      "tests/pixel-access-s12.spec.ts"
+    ],
+    "runner": {
+      "tsc": "python private/runner/run_smart.py tsc <branch>",
+      "spec": "python private/runner/run_smart.py spec <branch> <unit + evidence + layout files> --workers=1 (dev server) and preview <branch> <the same> (built dist)",
+      "pixel": "python private/runner/run_smart.py linux-pixel <branch> <pixel files> --project=desktop --project=mobile [--update-snapshots, then look at every image, commit, run again without it]"
+    }
+  },
+  "after_merge_of": {
+    "pilot/WISKEY-native-s9-schedules": [
+      "tests/unit-access-schedules-logic.spec.ts",
+      "tests/unit-wiskey-schedules-nav.spec.ts",
+      "tests/evidence-access-schedules.spec.ts",
+      "tests/layout-access-schedules.spec.ts",
+      "tests/pixel-access-schedules.spec.ts"
+    ],
+    "pilot/WISKEY-native-s11-writes": "its own backend tests and specs (the write gates) - add them here when it lands"
+  },
+  "not_in_this_suite": {
+    "live_fixture": "tests/evidence-wiskey-events.spec.ts and the old embedded-panel specs (evidence-wiskey-people / -editor / -capture / -credentials) need SW_LIVE=1 and frontend/tests/fixtures/wiskey_fake_ha.py, which serves only events/list, users/get, users/query of the 25 typed reads - the status page, event detail / picture / export, groups and schedules have never run end to end against the real backend (NOT_RUN; extending the fixture is an S13 item)",
+    "live_device": "anything against a real WisKey, Home Assistant or station: slice S14 with the owner"
+  }
+}
