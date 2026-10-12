@@ -138,6 +138,8 @@ export interface ProductSettings {
   'access.talk_button'?: 'classic' | 'hidden';
   'access.announce_scope'?: 'scope' | 'station';
   'access.announce_phrases'?: string;
+  /** CR-036 S18: the station drawer's own live video and push-to-talk - off (default) | video | video_talk. */
+  'access.station_media'?: 'off' | 'video' | 'video_talk';
   /** 'true' hides the whole WisKey area from the navigation for everyone, regardless of role (T054 follow-up); the
    * access.ui.* choices above apply only while this is false. */
   'ui.hide_wiskey'?: string;

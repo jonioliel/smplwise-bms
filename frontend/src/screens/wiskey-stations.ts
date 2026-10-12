@@ -12,10 +12,14 @@ import '../components/sw-place-tree';
 import '../components/sw-view-switch';
 import '../components/wk-action-button';
 import '../components/wk-announce-dialog';
+import '../components/wk-station-live';
+import '../components/wk-talk-button';
 import type { StateKind } from '../components/sw-badge';
 import { ApiError, describeError } from '../api/client';
 import { getDevicesTree, getEntityRows } from '../api/devices';
-import { releaseIntercomDoor, signalIntercomCall, subscribeIntercom, type IntercomCallCommand } from '../api/intercom';
+import { intercomSnapshotUrl, releaseIntercomDoor, signalIntercomCall, subscribeIntercom, type IntercomCallCommand } from '../api/intercom';
+import { getStationMedia, parseMediaMode, type StationMedia, type StationMediaMode } from '../api/station-media';
+import { smt } from '../i18n/wiskey-station-media';
 import {
   getAccessFeatures,
   getAccessStations,
@@ -34,6 +38,7 @@ import { stationsCss } from './wiskey-stations-css';
 import { wkIcon } from './wiskey-stations-icons';
 import {
   CallClock,
+  classicPanelHref,
   NO_RIGHTS,
   POLICY_DEFAULTS,
   POLL_MS,
@@ -142,6 +147,10 @@ export class WiskeyStations extends LitElement {
   @state() private poster = Date.now();
   @state() private failed: Record<string, number> = {};
   @state() private table: TableTier = tableTierOf(typeof window === 'undefined' ? 1440 : window.innerWidth);
+  /** CR-036 S18: the station drawer's own live video and talk (`access.station_media`, off by default) and the read per station. */
+  @state() private mediaMode: StationMediaMode = 'off';
+  @state() private media: Record<string, StationMedia | null> = {};
+  private mediaAt: Record<string, number> = {};
 
   private clock = new CallClock();
   private actions = new StationActions({
@@ -222,6 +231,7 @@ export class WiskeyStations extends LitElement {
 
   protected updated(changed: PropertyValues) {
     if (changed.has('selected') || changed.has('detailOpen')) this.maybeLoadDetail();
+    if (changed.has('selected') || changed.has('mediaMode')) this.maybeLoadMedia();
   }
 
   private setPolling(on: boolean) {
@@ -305,12 +315,15 @@ export class WiskeyStations extends LitElement {
     this.actions.dropStaleArm();
     void this.readPolicy();
     void this.ensurePlaces(r.stations ?? []);
+    this.maybeLoadMedia();
     this.schedule();
   }
 
   private async readPolicy() {
     try {
-      this.policy = parsePolicy((await productSettings()) as unknown as Record<string, unknown>);
+      const settings = (await productSettings()) as unknown as Record<string, unknown>;
+      this.policy = parsePolicy(settings);
+      this.mediaMode = parseMediaMode(settings);
     } catch {
       /* the defaults (the owner's answers) stay */
     }
@@ -388,6 +401,61 @@ export class WiskeyStations extends LitElement {
     } else set({ codes: { state: 'unsupported', data: null } });
   }
 
+  // ------------------------------------------------------------------ CR-036 S18: the drawer's live video and talk
+
+  /** Read what the open station's drawer may offer, when the setting is on (never while it is off: the screen then makes exactly
+   * the requests it made before). Read again at most every DETAIL_TTL_MS while the drawer stays open. */
+  private maybeLoadMedia() {
+    const id = this.selected;
+    if (!id || this.mediaMode === 'off' || this.demo()) return;
+    if (this.media[id] !== undefined && Date.now() - (this.mediaAt[id] ?? 0) < DETAIL_TTL_MS) return;
+    this.mediaAt = { ...this.mediaAt, [id]: Date.now() };
+    void getStationMedia(id)
+      .then((m) => (this.media = { ...this.media, [id]: m }))
+      .catch(() => (this.media = { ...this.media, [id]: null })); // the still and the classic panel, as before
+  }
+
+  /** The station's still as the live view's poster (only where the drawer would show one). */
+  private posterOf(s: AccessStation): string {
+    if (!s.camera_entity || this.demo() || !cap('go2rtc') || this.failed[s.id] === this.poster) return '';
+    return intercomSnapshotUrl(s.id, this.poster);
+  }
+
+  /** The drawer's own live area: the live player and the talk control, when the read offers video the caller may watch or talk;
+   * null (the still and the classic panel) otherwise. */
+  private liveArea(s: AccessStation, v: ViewCtx) {
+    if (this.mediaMode === 'off') return null;
+    const m = this.media[s.id];
+    if (!m || m.state !== 'ready') return null;
+    const video = !!m.video?.allowed && Object.keys(m.video.paths).length > 0;
+    if (!video && !m.talk?.available) return null;
+    const classic = v.rights.talk && !m.talk?.available;
+    return html`<wk-station-live
+      data-wk-live-native
+      .stationId=${s.id}
+      .stationName=${s.name}
+      .media=${video ? m : { ...m, video: null }}
+      .poster=${this.posterOf(s)}
+      .live=${v.live && s.online}
+      .classicHref=${classic ? classicPanelHref() : ''}
+      .classicLabel=${v.text.talk.classic}
+    ></wk-station-live>`;
+  }
+
+  /** Where the classic-panel talk link would be. In a card or a row: "talk" opens the drawer (its push-to-talk) once the setting
+   * allows talk and the caller may call somewhere; in the drawer: nothing when the live area holds the talk control. */
+  private talkControl(s: AccessStation, large: boolean, v: ViewCtx) {
+    if (this.mediaMode !== 'video_talk') return undefined;
+    if (!large) {
+      if (!canAnywhere('access.call') || !s.online) return undefined;
+      return html`<wk-action-button icon="mic" data-wk-talk="drawer" label=${smt().talk.openDrawer} @click=${(e: Event) => {
+        e.stopPropagation();
+        this.open(s.id);
+      }}>${smt().talk.openDrawer}</wk-action-button>`;
+    }
+    return this.liveArea(s, v) ? nothing : undefined;
+  }
+
   // ------------------------------------------------------------------ selection and navigation
 
   private open(id: string) {
@@ -436,7 +504,7 @@ export class WiskeyStations extends LitElement {
 
   private ctx(): ViewCtx {
     const features: Record<string, boolean | null> = this.features;
-    return {
+    const ctx: ViewCtx = {
       text: ws(),
       now: this.now,
       defaultZone: this.feed?.default_zone ?? null,
@@ -467,6 +535,11 @@ export class WiskeyStations extends LitElement {
         if (this.selected) void this.loadDetail(this.selected);
       },
     };
+    if (this.mediaMode !== 'off') {
+      ctx.liveArea = (s) => this.liveArea(s, ctx);
+      ctx.talkControl = (s, large) => this.talkControl(s, large, ctx);
+    }
+    return ctx;
   }
 
   // ------------------------------------------------------------------ render
