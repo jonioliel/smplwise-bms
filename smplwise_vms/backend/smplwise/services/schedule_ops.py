@@ -870,6 +870,7 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         ev = evaluate(w, nd, None, creating=True)
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, nd, None)  # CR-033 D8 / SEC-WXD M1: the new schedule is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, moved_days=moving)
@@ -999,6 +1000,7 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
         ev = evaluate(w, nd, None, creating=True, inherited_days=list(core["weekdays"]))
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, nd, None)  # CR-033 D8 / SEC-WXD M1: a copy is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering)
@@ -1093,6 +1095,7 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         ev = evaluate(w, draft, None, creating=True, inherited_days=list(core["weekdays"]))
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, draft, None)  # CR-033 D8 / SEC-WXD M1: a restored schedule is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, conditions=cond_entities(draft), trashed_schedule_id=t["schedule_id"])

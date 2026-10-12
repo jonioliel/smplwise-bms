@@ -1,11 +1,12 @@
-"""SEC-WXD (2026-10-12): proofs of concept for the second-pass security review of the CR-033 WisKey door path, slices D0-D9
-as combined on `pilot/SEC-WXD-review` (docs/security/SECURITY_REVIEW_WXD_DOORPATH_2026-10-12.md).
+"""SEC-WXD (2026-10-12): regression tests for the findings of the second-pass security review of the CR-033 WisKey door path,
+slices D0-D9 (docs/security/SECURITY_REVIEW_WXD_DOORPATH_2026-10-12.md, section "Fix status").
 
 Fakes only: no Home Assistant, no bridge, no WisKey, no door, no key. The pairing secret is the published golden-vector TEST
 constant; station ids are synthetic opaque strings.
 
-Every test asserts the CURRENT (unfixed) behaviour of one finding, so it passes while the finding is open and fails on purpose
-once a fix lands. Invert it into a regression test then (or drop it). The test names carry the finding id of the report."""
+The file started as the review's proofs of concept (each asserted the unfixed behaviour, `test_poc_*`); every fixed finding's
+proof was inverted into a regression test (`test_<finding>_*`) that fails on the unfixed code and passes on the fix. A
+`test_poc_*` that remains documents behaviour that was deliberately NOT changed (the reason is in the fix-status section)."""
 from __future__ import annotations
 
 import copy
@@ -142,9 +143,9 @@ def _lock_group(app: Any, fake: Any) -> None:
     seed_mirror(app.state.db, fake)
 
 
-def test_poc_m1_typed_builder_saves_a_new_door_step_through_a_lock_group(autos_app):
-    """`lock.unlock` on a lock group over the WisKey lock is saved while `doors.editor_block` is `blocked` (the default); the
-    same step on the WisKey lock itself is refused. The D7/D9 resolver does see a door step in what was saved."""
+def test_m1_typed_builder_refuses_a_new_door_step_through_a_lock_group(autos_app):
+    """`lock.unlock` on a lock group over the WisKey lock is refused while `doors.editor_block` is `blocked` (the default),
+    exactly like the same step on the WisKey lock itself (FIXED: the D8 block judges with the shared D7 / D9 resolver)."""
     app, s, c, fake, tr = autos_app
     _opener(c)
     _lock_group(app, fake)
@@ -152,14 +153,19 @@ def test_poc_m1_typed_builder_saves_a_new_door_step_through_a_lock_group(autos_a
     direct = create_item(c, "automation", draft_of("ישיר", actions=[svc_block("lock.unlock", ["lock.front_door"])]))
     assert direct.status_code == 422 and direct.json()["code"] == "wiskey_door_step_blocked", direct.text
     via_group = create_item(c, "automation", draft_of("דרך קבוצה", actions=[svc_block("lock.unlock", ["lock.all_doors"])]))
-    assert via_group.status_code == 201, via_group.text  # CURRENT: the editor block does not look through the group
-    automations.MIRROR.pull(None, "test")
-    with app.state.db.connection(mode="read") as conn:
-        res, row = door_path.Resolver(conn).resolve_item("automation", via_group.json()["item"]["id"])
-    assert row is not None and res.has_door, "the shared resolver (D7 / D9) counts it as a WisKey door step"
+    assert via_group.status_code == 422 and via_group.json()["code"] == "wiskey_door_step_blocked", via_group.text
 
 
-def test_poc_m1_code_mode_saves_a_new_door_step_through_a_lock_group(autos_app):
+def test_m1_scene_capture_refuses_a_lock_group_over_a_wiskey_lock(autos_app):
+    app, s, c, fake, tr = autos_app
+    _opener(c)
+    _lock_group(app, fake)
+    _wiskey(app, "lock.front_door", fake=fake)
+    r = c.post(f"{API}/automations/scene/capture", json={"entity_ids": ["lock.all_doors"]})
+    assert r.status_code == 422 and r.json()["code"] == "wiskey_door_step_blocked", r.text
+
+
+def test_m1_code_mode_refuses_a_new_door_step_through_a_lock_group_or_a_device_action(autos_app):
     app, s, c, fake, tr = autos_app
     _opener(c)
     _lock_group(app, fake)
@@ -178,19 +184,19 @@ def test_poc_m1_code_mode_saves_a_new_door_step_through_a_lock_group(autos_app):
     refused = code({"action": "lock.unlock", "target": {"entity_id": "lock.front_door"}})
     assert refused.status_code == 422 and refused.json()["code"] == "wiskey_door_step_blocked"
     through_group = code({"action": "lock.unlock", "target": {"entity_id": "lock.all_doors"}})
-    assert through_group.status_code == 200, through_group.text  # CURRENT: saved
-    # a device action on the WisKey lock itself: no service name, so the code-mode text check never fires
+    assert through_group.status_code == 422 and through_group.json()["code"] == "wiskey_door_step_blocked", through_group.text
+    # a device action on the WisKey lock itself (no service name): the resolver sees the door
     device_action = code({"device_id": "dev-front", "domain": "lock", "entity_id": "lock.front_door", "type": "unlock"})
-    assert device_action.status_code == 200, device_action.text  # CURRENT: saved
+    assert device_action.status_code == 422 and device_action.json()["code"] == "wiskey_door_step_blocked", device_action.text
     automations.MIRROR.pull(None, "test")
     with app.state.db.connection(mode="read") as conn:
         res, _ = door_path.Resolver(conn).resolve_item("automation", item["id"])
-    assert len(res.door_steps) >= 1 and any(s.entity_id == "lock.front_door" for s in res.door_steps), "the resolver sees the device action's door"
+    assert not res.has_door, "nothing that opens the door was stored"
 
 
-def test_poc_m1_typed_builder_saves_a_call_of_a_script_that_opens_the_door(autos_app):
-    """A new `script.turn_on` step whose script unlocks the WisKey lock is saved under the block; the D9 run guard refuses to
-    run the very item the D8 guard let through (one resolver for D7 / D9, another for D8)."""
+def test_m1_typed_builder_refuses_a_call_of_a_script_that_opens_the_door(autos_app):
+    """A new `script.turn_on` step whose script unlocks the WisKey lock is refused under the block (FIXED: D8 and D9 judge
+    with the same resolver)."""
     app, s, c, fake, tr = autos_app
     _opener(c)
     cfg = {"alias": "פתיחת שער", "sequence": [{"action": "lock.unlock", "target": {"entity_id": "lock.front_door"}}]}
@@ -200,21 +206,22 @@ def test_poc_m1_typed_builder_saves_a_call_of_a_script_that_opens_the_door(autos
     automations.MIRROR.pull(None, "test")
     _wiskey(app, "lock.front_door", fake=fake)
     r = create_item(c, "automation", draft_of("מפעיל שער", actions=[svc_block("script.turn_on", ["script.door_script"])]))
-    assert r.status_code == 201, r.text  # CURRENT: saved under doors.editor_block = blocked
+    assert r.status_code == 422 and r.json()["code"] == "wiskey_door_step_blocked", r.text
+    assert r.json()["details"]["entities"] == ["lock.front_door"]
+    # a script call that reaches no door still saves
+    plain = {"alias": "אור", "sequence": [{"action": "light.turn_on", "target": {"entity_id": "light.office"}}]}
+    fake.scripts["light_script"] = plain
+    fake._seed_script_entity("light_script", plain)
+    seed_mirror(app.state.db, fake)
     automations.MIRROR.pull(None, "test")
-    with app.state.db.connection(mode="read") as conn:
-        with pytest.raises(ApiError) as exc:
-            door_run_guard.judge_item(conn, "automation", r.json()["item"]["id"])
-    # (unmapped lock in this world, so "unresolvable"; with a door map row it is "not converted" - refused either way)
-    assert exc.value.code in ("door_step_not_converted", "door_steps_unresolvable")
+    ok = create_item(c, "automation", draft_of("מפעיל אור", actions=[svc_block("script.turn_on", ["script.light_script"])]))
+    assert ok.status_code == 201, ok.text
 
 
-def test_poc_m1_an_author_without_door_unlock_adds_a_door_opening_through_a_script(autos_app):
-    """The same path needs no door permission at all: the CR-017 rights judge the item's OWN typed steps for sensitive grants
-    and only ask control of the called script's targets. `author` (automation.manage + ha.entity.control, no door.unlock)
-    cannot add `lock.unlock` on an ordinary lock, but saves an automation (triggered by a motion sensor, so Home Assistant fires
-    it on its own) that calls the script which unlocks the WisKey door. `author` is an HA non-administrator writing under
-    the infrastructure's delegated-authoring switch (the CR-017 path for non-administrators)."""
+def test_m1_an_author_without_door_unlock_cannot_add_a_door_opening_through_a_script(autos_app):
+    """The called-script variant needed no door permission at all (the CR-017 rights judge the item's OWN typed steps). Under
+    the editor block it is refused for everyone, this author included (FIXED). The CR-017 rule itself (a called script's
+    lock steps do not ask door.unlock, for every lock) is a separate pre-existing gap - see the review's fix-status section."""
     from automations_fixture import directory, grant
 
     app, s, c, fake, tr = autos_app
@@ -231,12 +238,12 @@ def test_poc_m1_an_author_without_door_unlock_adds_a_door_opening_through_a_scri
     plain = create_item(c, "automation", draft_of("מנעול רגיל", actions=[svc_block("lock.unlock", ["lock.side_door"])]), headers=author)
     assert plain.status_code == 403 and "door.unlock" in plain.text, plain.text  # door.unlock is required for a lock step of the item itself
     r = create_item(c, "automation", draft_of("שער בתנועה", actions=[svc_block("script.turn_on", ["script.door_script"])]), headers=author)
-    assert r.status_code == 201, r.text  # CURRENT: saved - no door permission, editor block on
+    assert r.status_code == 422 and r.json()["code"] == "wiskey_door_step_blocked", r.text
 
 
-def test_poc_m1_scene_member_flipped_from_locked_to_unlocked_is_not_a_new_step(autos_app):
+def test_m1_scene_member_flipped_from_locked_to_unlocked_is_a_new_step(autos_app):
     """An existing scene that captured the WisKey lock as `locked` (harmless: WisKey refuses lock) is edited to `unlocked` - a
-    new door opening - and saved under the block."""
+    new door opening - and refused under the block (FIXED); the scene stays editable otherwise."""
     app, s, c, fake, tr = autos_app
     _opener(c)
     r = create_item(c, "scene", {"name": "ערב", "icon": None, "members": [{"entity_id": "lock.front_door", "state": "locked", "attributes": {}}]})
@@ -249,20 +256,23 @@ def test_poc_m1_scene_member_flipped_from_locked_to_unlocked_is_not_a_new_step(a
         if m["entity_id"] == "lock.front_door":
             m["state"] = "unlocked"
     up = put_item(c, "scene", sid, draft, d["revision"])
-    assert up.status_code == 200, up.text  # CURRENT: saved - the guard only asks whether the lock was a member before
+    assert up.status_code == 422 and up.json()["code"] == "wiskey_door_step_blocked", up.text
+    renamed = copy.deepcopy(d["draft"])
+    renamed["name"] = "ערב מאוחר"
+    assert put_item(c, "scene", sid, renamed, d["revision"]).status_code == 200, "an edit that adds no door opening is saved"
     automations.MIRROR.pull(None, "test")
     with app.state.db.connection(mode="read") as conn:
         res, _ = door_path.Resolver(conn).resolve_item("scene", sid)
-    assert res.door_steps, "the stored scene now opens the WisKey door"
+    assert not res.door_steps, "the stored scene does not open the WisKey door"
 
 
-def test_poc_m1_schedule_copy_creates_a_new_door_step_the_editor_refuses(sched_app):
+def test_m1_schedule_copy_split_and_restore_are_creates_for_the_editor_block(sched_app):
     app, s, c, fake, tr = sched_app
     rid_ = _custom_role(c, "פותח " + uuid.uuid4().hex[:6], ["map.read"], ["door.unlock"])
     assert c.post(f"{API}/access/bindings", json={"subject_kind": "user", "subject_id": "dev-joni", "role_id": rid_, "scope_type": "installation", "scope_id": "*"}).status_code == 201
 
     def create(name: str) -> Any:
-        return post_json(c, "/schedules", {"draft": sched_draft(name, [slot("08:00:00", None, act("lock.unlock", "lock.front_door"))]), "enabled": True,
+        return post_json(c, "/schedules", {"draft": sched_draft(name, [slot("08:00:00", None, act("lock.unlock", "lock.front_door"))], weekdays=["mon", "tue"]), "enabled": True,
                                            "client_request_id": sched_rid(), "confirm_lowering": True})
 
     first = create("פתיחה בבוקר")
@@ -273,12 +283,38 @@ def test_poc_m1_schedule_copy_creates_a_new_door_step_the_editor_refuses(sched_a
     refused = create("עוד פתיחה")
     assert refused.status_code == 422 and refused.json()["code"] == "wiskey_door_step_blocked", refused.text
     copied = post_json(c, f"/schedules/{sid}/copy", {"name": "עותק של פתיחה", "client_request_id": sched_rid(), "confirm_lowering": True})
-    assert copied.status_code == 201, copied.text  # CURRENT: a NEW schedule with the WisKey door step, under the block
-    new_id_ = copied.json()["schedule"]["id"]
-    assert new_id_ != sid
+    assert copied.status_code == 422 and copied.json()["code"] == "wiskey_door_step_blocked", copied.text
+    rev = first.json()["schedule"]["revision"]
+    split = post_json(c, f"/schedules/{sid}/split", {"base_revision": rev, "days": ["mon"], "confirm": True, "client_request_id": sched_rid(), "confirm_lowering": True})
+    assert split.status_code == 422 and split.json()["code"] == "wiskey_door_step_blocked", split.text
     with app.state.db.connection(mode="read") as conn:
-        item = json.loads(conn.execute("SELECT item_json FROM schedule_cache WHERE schedule_id = ?", (new_id_,)).fetchone()[0])
-        assert door_path.Resolver(conn).resolve_schedule_slots(item).door_steps, "the copy opens the WisKey door"
+        assert conn.execute("SELECT COUNT(*) FROM schedule_cache WHERE schedule_id != ? AND item_json LIKE ?", (sid, "%lock.front_door%")).fetchone()[0] == 0, "no second door schedule"
+    deleted = post_json(c, f"/schedules/{sid}/delete", {"base_revision": rev, "confirm": True, "client_request_id": sched_rid()})
+    assert deleted.status_code == 200, deleted.text
+    restored = post_json(c, f"/schedules/trash/{deleted.json()['trash_id']}/restore", {"client_request_id": sched_rid(), "confirm_lowering": True})
+    assert restored.status_code == 422 and restored.json()["code"] == "wiskey_door_step_blocked", restored.text
+
+
+def test_m1_schedule_guard_follows_a_called_script_and_keeps_existing_calls(sched_app):
+    """Unit level: a schedule action that runs a script which unlocks the WisKey lock is a new door step (refused); the
+    same call already in the stored schedule stays; a call of a script that opens no door is never refused."""
+    from smplwise.services import door_path_guard as guard
+
+    app, s, c, fake, tr = sched_app
+    _script_item(app.state.db, "door_script", [{"action": "lock.unlock", "target": {"entity_id": "lock.front_door"}}])
+    _script_item(app.state.db, "light_script", [{"action": "light.turn_on", "target": {"entity_id": "light.office"}}])
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET platform = 'hikvision_intercom' WHERE entity_id = 'lock.front_door'")
+    door = {"service": "script.turn_on", "entity_id": "script.door_script", "data": {}}
+    light = {"service": "script.turn_on", "entity_id": "script.light_script", "data": {}}
+    with app.state.db.connection(mode="read") as conn:
+        with pytest.raises(ApiError) as exc:
+            guard.check_schedule(conn, {"slots": [{"actions": [door]}]}, None)
+        assert exc.value.code == "wiskey_door_step_blocked" and exc.value.details["entities"] == ["lock.front_door"]
+        guard.check_schedule(conn, {"slots": [{"actions": [door, light]}]}, {"slots": [{"actions": [door]}]})
+        guard.check_schedule(conn, {"slots": [{"actions": [light]}]}, None)
+        with pytest.raises(ApiError):
+            guard.check_schedule(conn, {"slots": [{"actions": [door]}, {"actions": [door]}]}, {"slots": [{"actions": [door]}]})
 
 
 # ================================================================ M2 - `door.unlock` follows wherever an editor places the lock

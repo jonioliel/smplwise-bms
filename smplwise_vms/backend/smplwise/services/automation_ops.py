@@ -333,6 +333,7 @@ class Judgement:
         self.errors: list[dict[str, str]] = []
         self.denials: list[ApiError] = []
         self.rd: dict[str, Any] | None = None
+        self.stored: dict[str, Any] | None = None  # the stored config the new content replaces (None: a new item)
 
 
 def _mctx(w: W, names_scoped: bool = False) -> model.ModelContext:
@@ -364,6 +365,7 @@ def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str,
     grants. Nothing is raised: the caller chooses (a write raises, a preview reports). A draft from a client is never trusted: its locked blocks are the stored
     item's by fingerprint or they are refused (`locked_block_changed`), its typed blocks keep only raws the stored item has."""
     j = Judgement()
+    j.stored = stored
     mctx = _mctx(w, names_scoped)
     stored_rd = drafts.read(kind, stored, mctx) if stored is not None else None
     stored_draft = stored_rd["draft"] if stored_rd is not None else None
@@ -538,6 +540,9 @@ def _raise_judgement(w: W, kind: str, j: Judgement, confirm: bool, *, creating: 
         raise problem_error(j.errors)
     # CR-033 D8: no NEW WisKey door step from the editors while the administrator setting blocks it (server side, typed and code mode)
     guard.check_automation_item(w.conn, kind, j.facts, j.old_facts, (j.rd or {}).get("draft"), {b["fingerprint"] for b in (j.old_facts or {}).get("locked", [])})
+    # SEC-WXD M1: the same block by the shared D7 / D9 resolver (lock groups, device actions, called scripts / scenes,
+    # scene member states) over the content that will be written
+    guard.check_config(w.conn, kind, j.config, j.stored)
     denials = rights_of(w, kind, j, code_view_needed=code_view_needed)
     if denials:
         raise denials[0]

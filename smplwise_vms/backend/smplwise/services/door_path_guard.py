@@ -20,7 +20,7 @@ from typing import Any
 
 from ..db import get_setting
 from ..errors import ApiError
-from . import intercom_doors
+from . import door_path, intercom_doors
 
 EDITOR_KEY = "doors.editor_block"
 EDITOR_VALUES = ("blocked", "allowed")
@@ -118,7 +118,10 @@ def check_automation_item(conn: sqlite3.Connection, kind: str, new_facts: dict[s
         key = (s.get("action") or "", eid)
         seen[key] += 1
         if kind == "scene":
-            is_new = ("lock.lock", eid) not in old and ("lock.unlock", eid) not in old
+            # a member is new when the lock was not a member before, or when it now opens and did not (SEC-WXD M1: a
+            # member flipped from locked to unlocked is a new door opening)
+            was_member = ("lock.lock", eid) in old or ("lock.unlock", eid) in old
+            is_new = not was_member or (key[0] in OPEN_SERVICES and seen[key] > old[key])
         else:
             # a step is new when the item now holds more of this (action, lock) than it did: a copy of an existing one counts
             is_new = key[0] in OPEN_SERVICES and seen[key] > old[key]
@@ -140,18 +143,108 @@ def check_automation_item(conn: sqlite3.Connection, kind: str, new_facts: dict[s
 
 
 def check_capture(conn: sqlite3.Connection, entity_ids: list[str]) -> None:
-    """Scene capture: a WisKey (or unresolvable) lock is never taken as a scene member while the block is on."""
+    """Scene capture: a WisKey (or unresolvable) lock is never taken as a scene member while the block is on - nor a lock
+    group or template lock that may open one (SEC-WXD M1: expanded by the shared resolver)."""
     if editor_mode(conn) == "allowed":
         return
     bad = [e for e in entity_ids if e.startswith("lock.") and _blocked_target(conn, e)]
+    r = door_path.Resolver(conn)
+    if r.present():
+        for e in entity_ids:
+            if not e.startswith("lock.") or e in bad:
+                continue
+            res = door_path.Resolution()
+            r._lock(e, "lock.unlock", "capture", (), 0, res, frozenset(), explicit=True)
+            if res.has_door:
+                bad.append(e)
     if bad:
         raise refusal(bad)
 
 
+# ---------------------------------------------------------------- D8 by the shared resolver (SEC-WXD M1)
+#
+# The typed / code-mode matchers above judge the item's OWN lock steps by entity id. The resolver of D7 / D9 also follows
+# lock groups, device actions, called scripts / automations / scenes, scene member states and templates. A save is refused
+# when the new content holds MORE of some door (lock entity, station, relay) or of some reason a door cannot be resolved than
+# the stored content did: what was there may stay, be moved or be removed, never be added to. Applied only where a WisKey
+# door exists at all (without one nothing can be a WisKey door; the matchers above still refuse unknown lock targets).
+
+def _door_counts(res: door_path.Resolution) -> Counter[tuple[Any, ...]]:
+    c: Counter[tuple[Any, ...]] = Counter()
+    for s in res.door_steps:
+        c[("door", s.entity_id or "", s.station_id or "", s.relay)] += 1
+    for u in res.unresolved:
+        c[("unresolved", u.reason)] += 1
+    return c
+
+
+def _added(new: door_path.Resolution, old: door_path.Resolution | None) -> list[str]:
+    """The entries the new content adds: door lock entity ids, or "?" for a door that cannot be resolved."""
+    n, o = _door_counts(new), _door_counts(old) if old is not None else Counter()
+    out: list[str] = []
+    for key, count in n.items():
+        if count > o[key]:
+            label = key[1] if key[0] == "door" and key[1] else "?"
+            if label not in out:
+                out.append(label)
+    return out
+
+
+def check_config(conn: sqlite3.Connection, kind: str, new_config: dict[str, Any] | None, old_config: dict[str, Any] | None, entity_id: str | None = None) -> None:
+    """Automations / scripts / scenes (typed builder, code mode, copy, restore): refuse a save whose content adds a door step
+    or a step whose door cannot be resolved, as the D7 / D9 resolver sees it."""
+    if editor_mode(conn) == "allowed" or not isinstance(new_config, dict):
+        return
+    r = door_path.Resolver(conn)
+    if not r.present():
+        return
+    seen = frozenset({entity_id}) if entity_id else frozenset()
+    new = r.resolve_config(kind, new_config, (), 0, None, seen)
+    if not new.has_door:
+        return
+    old = r.resolve_config(kind, old_config, (), 0, None, seen) if isinstance(old_config, dict) else None
+    added = _added(new, old)
+    if added:
+        raise refusal([e for e in added if e != "?"])
+
+
+def check_schedule_payload(conn: sqlite3.Connection, new_item: dict[str, Any] | None, old_item: dict[str, Any] | None) -> None:
+    """Schedules (create, update, split, copy, trash restore): the same rule over the component's `timeslots`."""
+    if editor_mode(conn) == "allowed" or not isinstance(new_item, dict):
+        return
+    r = door_path.Resolver(conn)
+    if not r.present():
+        return
+    new = r.resolve_schedule_slots(new_item)
+    if not new.has_door:
+        return
+    old = r.resolve_schedule_slots(old_item) if isinstance(old_item, dict) else None
+    added = _added(new, old)
+    if added:
+        raise refusal([e for e in added if e != "?"])
+
+
+def _slots_item(d: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A schedule draft or core (`slots[].actions[]` = {service, entity_id, data}) in the component's form the resolver reads
+    (`timeslots[].actions[]` = {service, entity_id, service_data})."""
+    if not isinstance(d, dict):
+        return None
+    timeslots = []
+    for slot in d.get("slots") or []:
+        actions = []
+        for a in (slot.get("actions") if isinstance(slot, dict) else None) or []:
+            if isinstance(a, dict):
+                actions.append({"service": a.get("service"), "entity_id": a.get("entity_id"), "service_data": a.get("data") if a.get("data") is not None else a.get("service_data")})
+        timeslots.append({"actions": actions})
+    return {"timeslots": timeslots}
+
+
 def check_schedule(conn: sqlite3.Connection, draft: dict[str, Any], old_core: dict[str, Any] | None) -> None:
-    """The schedule editor: a NEW action that opens a WisKey (or unresolvable) lock is refused; existing ones stay."""
+    """The schedule editor (create, update, split, copy, trash restore): a NEW action that opens a WisKey (or unresolvable)
+    lock is refused; existing ones stay. The shared resolver judges indirect targets (scripts, groups) too (SEC-WXD M1)."""
     if editor_mode(conn) == "allowed":
         return
+    check_schedule_payload(conn, _slots_item(draft), _slots_item(old_core))
     old = Counter((a.get("service") or "", a.get("entity_id") or "") for slot in (old_core or {}).get("slots", []) for a in slot.get("actions", []))
     seen: Counter[tuple[str, str]] = Counter()
     bad: list[str] = []
