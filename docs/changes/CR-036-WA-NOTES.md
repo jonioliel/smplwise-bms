@@ -121,7 +121,7 @@ runner` at `e907c58e` (the commit before the migration renumbering below), nothi
 | Suite | Where | Result |
 |-------|-------|--------|
 | Backend: `tests/test_intercom_messaging.py` (126, new) + 21 adjacent files - authority 27, channels 31, fake WisKey 21 + 7, intercom 179, adapter 33, S7 people 15, access-control wire 16, WisKey contract 46, background 18, diagnostics 14, RBAC 7 + 2 + 14, access 4, custom roles 3, me-permissions 1, migrations 4, media 37 + 23, notify core 27 | local | **655 passed**, 0 failed (at `9c39519d`) |
-| Backend, the full suite (two shards) | runner | 6864 passed, 4 skipped, **1 failed**: `test_release_check.py::test_repository_is_release_consistent` - "migrations contiguous" (this branch's 0079 left a gap after 0075). Fixed by the renumbering to 0076 below; the six migration-sensitive files (release check, migrations, media x 2, notify core, messaging: 219 tests) re-ran locally green |
+| Backend, the full suite (two shards) | runner | 6864 passed, 4 skipped, **1 failed**: `test_release_check.py::test_repository_is_release_consistent` - "migrations contiguous" (this branch's 0079 left a gap after 0075). Fixed by the renumbering to 0076 below; the migration-sensitive files re-ran green - locally (release check, migrations, media x 2, notify core, messaging: 219 tests) and on the runner at `115d544e` (the same plus authority and channels: **277 passed**) |
 | `tsc --noEmit` | local + runner | clean |
 | Node unit specs, 11 files (messaging logic 26, templates 10, strings 4, people logic / nav / strings, token lint, Settings index, status logic / feed, native tabs) | local | **128 passed** |
 | Layout guard `layout-wiskey-messaging.spec.ts` - the person's tab, the dialog (single, bulk, confirmation, running, result table), the Settings page; five skins x light / dark x 11 widths (320..1440) | local + runner | 10 tests, 990 width checks, **0 findings** on both |
@@ -148,7 +148,7 @@ Evidence screenshots (desktop, plus the Settings page at tablet and phone): `doc
 - Every Linux pixel baseline: `pixel-wiskey-messaging.spec.ts` has none yet (generate on the runner with `--update-snapshots`); S7's
   `msg-single`, `msg-sent` (the drawer behind the dialog has a fourth tab now; the dialog itself changed too) and probably `msg-quota` /
   `msg-bulk` need a refresh, and S10's `status-*` baselines for the administrator persona show a fifth segment.
-- A second full backend run on the runner after the renumbering (only the migration-sensitive files re-ran).
+- A second FULL backend run on the runner after the renumbering (only the 8 migration-sensitive / messaging files re-ran there).
 - Anything live: a real WisKey, a real WhatsApp account or phone (slice S14, after W11 is answered). `contracts/API_INVENTORY.md` is a release-prep
   artifact and was not regenerated: seven routes were added (the table above).
 
