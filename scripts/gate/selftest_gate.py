@@ -236,6 +236,25 @@ g._COSTS, g.COSTS_DIR, g.STATE["sha"] = None, str(other), "zzz"
 check("costs: GATE_COSTS_DIR's gate logs feed the balance", g.prior_costs().get("far.spec.ts") == 7.0, g._COSTS)
 g._COSTS, g.COSTS_DIR = None, ""
 
+# ---- gate_durations.json: a committed seed that fills only the files no earlier gate timed (lowest priority)
+seeds = TMP / "seed_here"
+seeds.mkdir()
+(seeds / "gate_durations.json").write_text(json.dumps({"seconds": {"far.spec.ts": 99.0, "seed-only.spec.ts": 12.5, "bad.spec.ts": "x", "zero.spec.ts": 0}}))
+g._COSTS, g.COSTS_DIR, g.STATE["sha"], here0 = None, str(other), "zzz", g.HERE
+g.HERE = seeds
+c = g.prior_costs()
+check("costs: the seed fills a file no gate timed, a gate's own time wins, junk entries are ignored",
+      c.get("seed-only.spec.ts") == 12.5 and c.get("far.spec.ts") == 7.0 and "bad.spec.ts" not in c and "zero.spec.ts" not in c, c)
+g._COSTS, g.HERE = None, TMP / "no_seed_here"
+check("costs: a missing seed file changes nothing", "seed-only.spec.ts" not in g.prior_costs() and g._COSTS.get("far.spec.ts") == 7.0, g._COSTS)
+g._COSTS, g.COSTS_DIR, g.HERE = None, "", here0
+real = json.loads((here0 / "gate_durations.json").read_text(encoding="utf-8")) if (here0 / "gate_durations.json").exists() else {}
+check("the committed gate_durations.json loads, all values are positive numbers", bool(real.get("seconds")) and all(isinstance(v, (int, float)) and v > 0 for v in real["seconds"].values()), len(real.get("seconds", {})))
+rb = json.loads((here0 / "gate_baselines.json").read_text(encoding="utf-8"))
+check("the committed gate_baselines.json loads and has the eight tier-L categories",
+      set(rb["tiers"]["L"]) == {"tsc", "build", "preview", "pixel", "dev", "fixture", "backend", "release_check"}, rb["tiers"])
+g._COSTS = None
+
 print()
 print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)

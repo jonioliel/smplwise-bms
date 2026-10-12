@@ -7,6 +7,7 @@ Files (keep them together in one directory, the runner convention is `~/`):
 | `release_gate.sh` | entry point: locks (gate + nightly), total timeout, hands over to the Python engine |
 | `release_gate.py` | the engine: worktree, backend shards, Playwright groups, retries, verdict, reports, false-green guards |
 | `gate_baselines.json` | per-category passed counts of the previous accepted release (used when the branch under test has none of its own in `scripts/gate/`) |
+| `gate_durations.json` | seconds per Playwright spec file from the last accepted gate: a committed seed that `release_gate.py` uses only for files no `gate_*.logs/pw_*.json` on the runner has timed (balances the `--workers=1` chunks); optional, the engine runs without it |
 | `selftest_gate.py` | self-test with a fake suite; proves the gate fails on a crash and on zero tests |
 | `runner_cleanup.sh` | disk housekeeping by the retention rules below (dry run by default) |
 
@@ -16,7 +17,7 @@ Never while a gate is running (`~/smplwise-results/gate_status.json` must show a
 
 ```
 ssh runner 'cp ~/release_gate.sh ~/release_gate.sh.bak-$(date +%Y%m%d)'      # back up the old one first
-scp scripts/gate/release_gate.sh scripts/gate/release_gate.py scripts/gate/gate_baselines.json runner:~/
+scp scripts/gate/release_gate.sh scripts/gate/release_gate.py scripts/gate/gate_baselines.json scripts/gate/gate_durations.json runner:~/
 ssh runner 'chmod +x ~/release_gate.sh && python3 - < /dev/null'
 ```
 
@@ -38,7 +39,7 @@ parallel groups finish the same suite in about 60 min.
 
 ```
 ssh runner 'mkdir -p ~/nightly-gate && cp ~/nightly_tests.sh ~/nightly_tests.sh.bak-$(date +%Y%m%d)'
-scp scripts/gate/release_gate.py scripts/gate/gate_baselines.json runner:~/nightly-gate/
+scp scripts/gate/release_gate.py scripts/gate/gate_baselines.json scripts/gate/gate_durations.json runner:~/nightly-gate/
 scp scripts/gate/nightly_tests.sh runner:~/ && ssh runner 'chmod +x ~/nightly_tests.sh && ~/nightly_tests.sh --dry-run'
 ```
 
@@ -67,7 +68,11 @@ the engine's `GATE_SKIP_BACKEND=1` / `GATE_SKIP_DEV=1` (a skipped category is le
 ## After each release
 
 When the release gate is green, refresh `scripts/gate/gate_baselines.json` from `baseline_candidate` of that gate's `.json`,
-commit it, and copy it to the runner. The baseline is a tracked file on purpose: its history is the record of the suite size.
+commit it, and copy it to the runner. Refresh `gate_durations.json` from the same gate's `gate_<branch>_<sha>.logs/pw_*.json`
+(skip the `_retry_` files; per spec file sum `results[].duration` over all tests, in seconds, rounded to 0.1; drop files that sum to 0).
+The engine already reads the last 10 gates' `pw_*.json` on the runner, so the seed only matters for a new runner, a cleaned logs
+directory, or specs added since those gates. The `gate_baselines.json` numbers are passed COUNTS, not times; there is no per-stage
+time baseline (the stage seconds are in each report's `phases`). The baseline is a tracked file on purpose: its history is the record of the suite size.
 
 The gate reads the `gate_baselines.json` of the branch under test first (`scripts/gate/` in its worktree) and falls back to
 `~/gate_baselines.json` only when the branch has none. Every branch cut from `main` carries one, so the refreshed file takes effect
@@ -82,6 +87,7 @@ Refresh log (newest first):
 
 | Date | From gate | preview | dev | backend | pixel | fixture | Note |
 |---|---|---|---|---|---|---|---|
+| 2026-10-12 | integ/248 @ 10620d30 (2.4.8, pass) | 7960 | 766 | 6738 | 108 | 15 | pixel = 107 + 1 flaky, dev = 765 + 1 flaky; adds `gate_durations.json` (267 spec files, about 7.5 h of summed test time over all projects). The 2.4.6 gate (6452 / 636 / 6307 / 16 / 15) was never refreshed; the repo file was still the 2.0.0 one |
 | 2026-10-05 | integ/200 @ f9576923 (2.0.0, pass) | 4928 | 582 | 5129 | 16 | 15 | BL1; the runner copy was still the 0.1.157 one (3917 / 218 / 3934 / 8 / 15) and was replaced too |
 | 2026-10-05 | integ/0163 @ 1cd6aa72 (0.1.163, pass) | 4848 | 582 | 5099 | 16 | 15 | repo file only |
 

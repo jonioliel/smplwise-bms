@@ -38,6 +38,7 @@ VISUAL_INFO = {}          # filled by run_visual(); written to the report as a w
 ALLOW_DROP = ""           # --allow-count-drop "<reason>": waives the baseline check; the waiver is written into the report
 DROP_THRESHOLD = float(os.environ.get("GATE_DROP_THRESHOLD", "0.70"))
 BASELINE_NAME = "gate_baselines.json"
+DURATIONS_NAME = "gate_durations.json"   # tracked seed of seconds per spec file (lowest priority in prior_costs())
 BASELINE_ROWS = {}        # category -> {baseline, actual, ratio, state}, filled by check_baselines()
 HERE = Path(__file__).resolve().parent
 HOME = Path(os.environ.get("GATE_HOME") or Path.home())
@@ -588,7 +589,8 @@ _COSTS = None
 def prior_costs():
     """Seconds per spec file from the earlier gates' Playwright reports (summed over tests and projects, the retry reports
     excluded; per file the newest gate that ran it wins, the last 10 gates are read): the weights the `--workers=1` chunks are
-    balanced by. {} when there is no earlier gate."""
+    balanced by. Files no gate has timed fall back to gate_durations.json next to this script (a committed seed, refreshed after
+    each release). {} when there is neither."""
     global _COSTS
     if _COSTS is not None:
         return _COSTS
@@ -618,6 +620,12 @@ def prior_costs():
                 walk(s)
         for f, v in costs.items():
             _COSTS.setdefault(f, v)
+    try:        # the tracked seed (gate_durations.json next to this script): only for files no earlier gate on this runner has timed
+        for f, v in (json.loads((HERE / DURATIONS_NAME).read_text(encoding="utf-8")).get("seconds") or {}).items():
+            if isinstance(v, (int, float)) and v > 0:
+                _COSTS.setdefault(f, float(v))
+    except Exception:
+        pass
     return _COSTS
 
 
