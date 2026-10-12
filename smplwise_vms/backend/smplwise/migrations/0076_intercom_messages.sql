@@ -1,7 +1,7 @@
 -- CR-036 WA (the people screen's WhatsApp messages; docs/changes/CR-036-WA-NOTES.md): the record of the messages Arx handed to the
 -- messaging service, and the list of people who asked not to receive any. Additive only (rollback = run the previous version; the
--- tables are ignored by it). Number 0079: 0077 / 0078 are the door path's (CR-033), 0076 is a gap; RENUMBER AT MERGE to the next
--- free number if another slice took 0079 first.
+-- tables are ignored by it). Number 0076: the next free number on this line (scripts/release_check.py requires a contiguous sequence);
+-- the door path (CR-033) brings 0077 / 0078 and follows it. RENUMBER AT MERGE if another slice took 0076 first.
 --
 -- NEVER stored here: the message text (a free text may be typed by a person who should not be typing credentials, and a template's
 -- body is in the settings), a phone number, a PIN or card, WisKey's one-use token. A message is recorded as: who sent it, to which

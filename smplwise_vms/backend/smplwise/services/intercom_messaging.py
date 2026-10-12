@@ -16,7 +16,7 @@ What lives here:
   {organization} only, never anything that reads like a credential, no control characters, bounded sizes.
 - the CREDENTIAL GUARD (a best-effort guard on what a sender TYPES; nothing in Arx knows a PIN, so nothing can insert one): a `{pin}`-style
   placeholder, or a credential word followed within a few characters by a run of 4-8 digits ("code 4821", "קוד הגישה 123456").
-- the RECORD (`intercom_messages`, migration 0079): who sent which template (or "free") to which person, how many characters, and what
+- the RECORD (`intercom_messages`, migration 0076): who sent which template (or "free") to which person, how many characters, and what
   happened - NEVER the text, a phone number, a PIN or WisKey's token. The row is written BEFORE anything is sent (no record, no message),
   carries the browser's `client_request_id` (a repeat is refused), and doubles as the rate counter and the person's message history.
   A message that provably never left Arx ("not sent") deletes its row again: the history lists what was handed on.

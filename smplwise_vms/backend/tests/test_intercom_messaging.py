@@ -887,7 +887,7 @@ def test_the_migration_creates_the_record_and_the_opt_out_tables(mc):
     assert {"id", "at", "actor_user_id", "person_id", "kind", "template_id", "chars", "bulk_id", "client_request_id", "outcome", "reason"} <= cols
     assert not {"text", "message", "body", "phone", "token", "pin"} & cols, "no column could hold a message, a number or a credential"
     assert {r["name"] for r in rows(s, "PRAGMA table_info(intercom_message_optout)")} == {"person_id", "at", "by_user_id", "by_name"}
-    assert 79 in {r["version"] for r in rows(s, "SELECT version FROM schema_migrations")}
+    assert 76 in {r["version"] for r in rows(s, "SELECT version FROM schema_migrations")}
 
 
 # ---------------------------------------------------------------- the mock of the Playwright specs cannot drift from the routes

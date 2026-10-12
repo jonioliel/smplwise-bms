@@ -18,14 +18,14 @@ W11's answer replaces one module. Live behaviour is NOT_RUN until slice S14.
 | Settings + templates | Settings > access control > **הודעות** (`#/system/access-control/messaging`, `system.configure`) | the master switch (OFF), free-text on/off, bulk limit (50), messages per hour (60, installation-wide), the organization's name (`{organization}`), the messaging account when WisKey has several, and the approved TEMPLATES (add / edit / delete, placeholders `{name}` and `{organization}` only) |
 | The dialog | the people screen (row action, the person's page, the selection bar) | one person or a selection; template chips + free text; ONE confirmation for a bulk run; progress with a stop button; a per-recipient result table; the hourly allowance; every refusal said in words |
 | The person's tab | the person's page, 4th tab **הודעות** | the message history (who, which template or "free", when, the outcome) and the "asked not to be messaged" switch |
-| The record | migration `0079_intercom_messages.sql` | `intercom_messages` (never the text, never a number) and `intercom_message_optout` |
+| The record | migration `0076_intercom_messages.sql` | `intercom_messages` (never the text, never a number) and `intercom_message_optout` |
 | The adapter | `services/intercom_messaging_adapter.py` | the contract Arx needs from the messaging provider + the rc.37 realization (see below) |
 
 ## Routes (`routers/access_control_messaging.py`, all under `/api/v1`)
 
 | Route | Gate | What |
 |-------|------|------|
-| `GET /access-control/messaging` | `access.people.message` anywhere | the dialog's configuration for this caller: feature on/off, the service state, the templates (credential-looking ones filtered), limits, the allowance, `pace_ms`, the templates revision |
+| `GET /access-control/messaging` | `access.people.message` anywhere | the dialog's configuration for this caller: feature on/off, the service state, the templates (`{organization}` filled in, `{name}` left for the person; none served while the feature is off), limits, the allowance, `pace_ms`, the templates revision |
 | `POST /access-control/messaging/recipients` | the same | the preview of a selection (at most 6 lookups, each spends one read token of the sender; the rest are decided as each message goes): who can be messaged and who cannot, and why |
 | `GET /access-control/people/{id}/messages` | + the person | the person's history (50 newest) + opt-out + consent |
 | `POST /access-control/people/{id}/messages` | + the person | send ONE message (a bulk run is the browser calling this once per person, under one `bulk_id`) |
@@ -114,41 +114,48 @@ plus the person's `phone` / `whatsapp_consent`, `errors_once`, `slow`, `unlist`.
 
 ## Tests - what ran, where, at which commit
 
-All of it on the Windows workstation, one process at a time (Playwright `--workers=1`), against the fake WisKey and the mocked backends; nothing
-touched a real WisKey, phone, NVR or Home Assistant. Commit `9c39519d` and the spec / evidence / notes commit after it.
+Everything ran against the fake WisKey and the mocked backends; nothing touched a real WisKey, phone, NVR or Home Assistant. Local runs: the
+Windows workstation, one process at a time (Playwright `--workers=1`). Runner runs: the shared Ubuntu runner through `run_smart.py ... --machine
+runner` at `e907c58e` (the commit before the migration renumbering below), nothing killed, no exclusive lock.
 
-| Suite | Result |
-|-------|--------|
-| Backend (`smplwise_vms/backend`, venv Python 3.12): `tests/test_intercom_messaging.py` (126, new) + 21 adjacent files - authority 27, channels 31, fake WisKey 21 + 7, intercom 179, adapter 33, S7 people 15, access-control wire 16, WisKey contract 46, background 18, diagnostics 14, RBAC 7 + 2 + 14, access 4, custom roles 3, me-permissions 1, migrations 4, media 37 + 23, notify core 27 | **655 passed**, 0 failed |
-| `tsc --noEmit` | clean |
-| Node unit specs, 11 files (messaging logic 26, templates 10, strings 4, people logic / nav / strings, token lint, Settings index, status logic / feed, native tabs) | **128 passed** |
-| Layout guard `layout-wiskey-messaging.spec.ts` - the person's tab, the dialog (single, bulk, confirmation, running, result table), the Settings page; five skins x light / dark x 11 widths (320..1440) | 10 tests, 990 width checks, **0 findings** |
-| Layout guard, quick mode (4 widths, classic + bubble): the S10 Settings page (a system administrator now has five segments) and the S7 people screen | 2 + 2 passed |
-| Evidence `evidence-wiskey-messaging.spec.ts`, three projects | **31 passed**, 62 skipped by design (the behaviour runs on desktop) |
-| Evidence `evidence-wiskey-messaging-settings.spec.ts`, three projects | **25 passed**, 44 skipped by design |
-| Evidence `evidence-wiskey-people-native.spec.ts` (S7; its dialog tests follow the real routes now), three projects | 85 passed, 92 skipped by design |
-| Evidence `evidence-access-status.spec.ts` (S10; five segments) | 28 passed, 1 skipped |
-| Pixel `pixel-wiskey-messaging.spec.ts` (desktop + phone) and S7's `pixel-wiskey-people.spec.ts` | 26 + 22 passed - the flows ran; the screenshot compare is skipped on Windows (the baselines are Linux-only; this slice generated none) |
+| Suite | Where | Result |
+|-------|-------|--------|
+| Backend: `tests/test_intercom_messaging.py` (126, new) + 21 adjacent files - authority 27, channels 31, fake WisKey 21 + 7, intercom 179, adapter 33, S7 people 15, access-control wire 16, WisKey contract 46, background 18, diagnostics 14, RBAC 7 + 2 + 14, access 4, custom roles 3, me-permissions 1, migrations 4, media 37 + 23, notify core 27 | local | **655 passed**, 0 failed (at `9c39519d`) |
+| Backend, the full suite (two shards) | runner | 6864 passed, 4 skipped, **1 failed**: `test_release_check.py::test_repository_is_release_consistent` - "migrations contiguous" (this branch's 0079 left a gap after 0075). Fixed by the renumbering to 0076 below; the six migration-sensitive files (release check, migrations, media x 2, notify core, messaging: 219 tests) re-ran locally green |
+| `tsc --noEmit` | local + runner | clean |
+| Node unit specs, 11 files (messaging logic 26, templates 10, strings 4, people logic / nav / strings, token lint, Settings index, status logic / feed, native tabs) | local | **128 passed** |
+| Layout guard `layout-wiskey-messaging.spec.ts` - the person's tab, the dialog (single, bulk, confirmation, running, result table), the Settings page; five skins x light / dark x 11 widths (320..1440) | local + runner | 10 tests, 990 width checks, **0 findings** on both |
+| Layout guard of the S10 Settings page, all skins / widths (a system administrator now has five segments) and the S7 people screen | runner (full), local (quick) | 10 + 2 passed (runner); 2 + 2 passed (local quick) |
+| Evidence `evidence-wiskey-messaging.spec.ts`, `-messaging-settings`, `evidence-wiskey-people-native` (S7; its dialog tests follow the real routes now), `evidence-access-status` (S10; five segments), three projects | runner | 182 passed, 244 skipped by design (the behaviour runs on desktop) |
+| The same four evidence specs | local | 31 + 25 + 85 + 28 passed (62 + 44 + 92 + 1 skipped by design) |
+| Pixel `pixel-wiskey-messaging.spec.ts` (desktop + phone) and S7's `pixel-wiskey-people.spec.ts` | local | 26 + 22 passed - the flows ran; the screenshot compare is skipped on Windows (the baselines are Linux-only; this slice generated none) |
 
 The mocks cannot drift from the server: `tests/fixtures/messaging_wire.json` holds the reply shapes of the message and settings routes and
 `test_intercom_messaging.py::test_the_mock_replies_have_the_shape_of_the_real_routes` drives the real routes against it.
 
 Evidence screenshots (desktop, plus the Settings page at tablet and phone): `docs/design/evidence/CR-036-WA/`.
 
+### What the runs found and fixed
+
+- The result table's layout check measured the wrong container at 768 px (a finding in all ten skin / scheme combinations): the check is fixed,
+  the table itself was always inside the dialog.
+- The bulk "stop" evidence test raced a timer under load: it holds the first message in flight now.
+- A template with `{organization}` reached the dialog unfilled (a sender who edited it sent the literal braces): the server fills it.
+- The migration number: see "Shared files" below (0079 -> 0076).
+
 ### NOT_RUN
 
-- The runner's Linux pass of the new and touched specs, and every Linux pixel baseline: `pixel-wiskey-messaging.spec.ts` has none yet (generate on
-  the runner with `--update-snapshots`); S7's `msg-single`, `msg-sent` (the drawer behind the dialog has a fourth tab now; the dialog itself
-  changed too) and probably `msg-quota` / `msg-bulk` need a refresh, and S10's `status-*` baselines for the administrator persona show a fifth segment.
-- The full backend suite (655 targeted tests ran), the full-width layout sweeps of the S7 and S10 pages (quick mode only), the tablet / phone
-  projects of the layout spec (one project runs the whole sweep).
+- Every Linux pixel baseline: `pixel-wiskey-messaging.spec.ts` has none yet (generate on the runner with `--update-snapshots`); S7's
+  `msg-single`, `msg-sent` (the drawer behind the dialog has a fourth tab now; the dialog itself changed too) and probably `msg-quota` /
+  `msg-bulk` need a refresh, and S10's `status-*` baselines for the administrator persona show a fifth segment.
+- A second full backend run on the runner after the renumbering (only the migration-sensitive files re-ran).
 - Anything live: a real WisKey, a real WhatsApp account or phone (slice S14, after W11 is answered). `contracts/API_INVENTORY.md` is a release-prep
   artifact and was not regenerated: seven routes were added (the table above).
 
 ## Shared files this slice touches, and merging with the parallel slices
 
 Own files (new): `routers/access_control_messaging.py`, `services/intercom_messaging.py`, `services/intercom_messaging_adapter.py`,
-`migrations/0079_intercom_messages.sql`, `tests/fake_wiskey_messaging.py`, `tests/test_intercom_messaging.py`; frontend
+`migrations/0076_intercom_messages.sql`, `tests/fake_wiskey_messaging.py`, `tests/test_intercom_messaging.py`; frontend
 `api/access-messaging.ts`, `access-control/messaging-templates.ts`, `i18n/access-messaging.ts`, `screens/system-access-messaging.ts`,
 `screens/wiskey-person-messages.ts` and the specs / fixtures named above.
 
@@ -168,8 +175,11 @@ addition; the resolution is to keep both sides:
 - `pilot/WISKEY-s12-gaps`: no conflict.
 - `pilot/WISKEY-media-s18`: `main.py` (two `include_router` blocks).
 - `pilot/WXD-integration` (the door path): `main.py` (two `include_router` blocks) and the four pinned migration lists - the union is
-  `[..., 75, 77, 78, 79]`. **0079 is deliberate**: the WXD line already carries 0077 (station scope) and 0078 (door map) and leaves 0076
-  unassigned, so this slice's migration sorts after them whichever lands first; renumber only if another slice takes 0079.
+  `[..., 75, 76, 77, 78]`. **0076 is deliberate**: `scripts/release_check.py` (so `test_release_check.py::test_repository_is_release_consistent`)
+  requires a contiguous migration sequence; this slice takes the next free number on its base, and the door path's 0077 (station scope) and
+  0078 (door map) follow it with no gap - that line alone leaves 0076 unassigned and is not contiguous until something fills it. Renumber
+  only if another slice takes 0076 first. (The first version of this branch used 0079, following the S3 / S4 interface notes' "next free
+  number after CR-033's 0078"; the full backend run on the runner caught the gap.)
 - `pilot/WISKEY-s11-writes`: `frontend/src/access-control/access.ts` (the demo flag object: `message: true` + S11's `capture: true, pin: true`),
   `main.py` (two blocks), `services/intercom_authority.py` (`SENSITIVE_PERMISSIONS` gains `PEOPLE_MESSAGE` and S11's `PIN_GENERATE`),
   `screens/wiskey-people.ts` (state fields `messagesRev` + S11's `acting` / `result` / `pendingDelete`; the drawer's property list gets both
