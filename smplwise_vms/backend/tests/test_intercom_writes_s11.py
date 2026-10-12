@@ -357,6 +357,9 @@ def test_the_photo_is_validated_like_wiskey_and_never_recorded(wx):
     assert len(sent(fake, "users/update")) == 1
     r = c.put(API + "/people/u6/photo", json=env(photo=None, revision=rev(fake, "u6")), headers=as_user("mia"))
     assert r.status_code == 200 and r.json()["person"]["photo_configured"] is False
+    fake.errors_once["users/update"] = "photo_disabled"  # the installation's photo switch was turned off meanwhile: refused, by name
+    r = c.put(API + "/people/u6/photo", json=env(photo=PHOTO, revision=rev(fake, "u6")), headers=as_user("mia"))
+    assert r.status_code == 409 and r.json()["code"] == "intercom_photo_disabled" and r.json()["details"]["outcome"] == "refused", r.text
     text = json.dumps([r["details"] for r in rows(s)])
     assert PHOTO[30:60] not in text and "base64" not in text and "size" not in text
 

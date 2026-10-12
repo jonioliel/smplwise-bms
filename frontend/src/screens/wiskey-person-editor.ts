@@ -9,7 +9,7 @@ import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
-import { can, isApi } from '../api/session';
+import { canAnywhere, isApi } from '../api/session';
 import {
   actionOutcome,
   createIntercomPerson,
@@ -27,6 +27,29 @@ import {
 import { syncBadge } from './wiskey-people';
 import './wiskey-card-capture';
 import { localInput, resolveLocalInput, t, UTC_ZONE } from './wiskey-format';
+import {
+  MAX_DATES,
+  MAX_PERIODS,
+  WEEK_ORDER,
+  categoryProblem,
+  stateOfReply,
+  timingFormOf,
+  timingPatch,
+  timingProblem,
+  type Category,
+  type TimingForm,
+} from '../access-control/people-writes-logic';
+import { wt, type WritesKey } from '../i18n/access-writes';
+
+/** The browser's own check of an IANA zone name (the server checks it again with the zone database). */
+function validZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** A card row of the draft: a saved card (by `id`, its number masked by WisKey) or a new one typed here. */
 interface CardRow {
@@ -59,6 +82,12 @@ interface Draft {
   /** WisKey `permission_overrides`: the personal allow / deny per station; a station a group grants and the user
    * leaves alone has none. Every toggle here sets one (WisKey `setPersonalPermission`). */
   overrides: Record<string, 'allow' | 'deny'>;
+  /** CR-036 S11: the access category; a visitor / contractor needs a responsible person (and an end date). */
+  category: Category;
+  responsible: string;
+  purpose: string;
+  /** CR-036 S11: when the person may enter (the proposal or the system-enforced policy; a device-enforced one is shown only). */
+  timing: TimingForm;
 }
 
 type Busy = '' | 'save' | 'sync' | 'delete' | 'pin';
@@ -130,6 +159,11 @@ export class WiskeyPersonEditor extends LitElement {
   @state() private confirmClose = false;
   @state() private capturing = false;
   @state() private notice = '';
+  /** CR-036 S11: the caller's field level on this person (the server's `level`; a new person: the permission anywhere). Below the
+   * sensitive level the phone, the PIN, the cards and the responsible person / purpose are not shown and never sent. */
+  @state() private sensitive = true;
+  /** The person's cards were sent (null = not shown at the caller's level): only then are cards part of a save. */
+  private cardsKnown = true;
   private baseline = '';
   private generation = 0;
 
@@ -168,7 +202,7 @@ export class WiskeyPersonEditor extends LitElement {
       const [ctx, person] = await Promise.all([getIntercomEditorContext(), this.isNew ? null : getIntercomPersonForEdit(this.userId)]);
       if (generation !== this.generation) return;
       if (ctx.context) this.ctx = ctx.context;
-      else this.ctxNote = ctx.state === 'unsupported' ? 'גרסת WisKey המותקנת אינה מכירה את הפקודות הנדרשות.' : `נתוני התחנות לא נטענו (${ctx.last_error ?? ctx.state}).`;
+      else this.ctxNote = ctx.state === 'unsupported' ? 'בקרת הכניסה המותקנת אינה מכירה את הפקודות הנדרשות.' : `נתוני התחנות לא נטענו (${ctx.last_error ?? ctx.state}).`;
       if (!this.isNew) {
         if (!person?.person) {
           this.loadError = `הרשומה לא נטענה (${person?.last_error ?? person?.state ?? 'error'}).`;
@@ -180,7 +214,8 @@ export class WiskeyPersonEditor extends LitElement {
       }
     } catch (err) {
       if (generation !== this.generation) return;
-      this.loadError = err instanceof ApiError && err.code === 'intercom_person_not_found' ? 'האדם הזה לא נמצא עוד ב־WisKey (ייתכן שנמחק).' : describeError(err);
+      this.loadError = err instanceof ApiError && err.code === 'intercom_person_not_found' ? 'האדם הזה לא נמצא (ייתכן שנמחק).'
+        : err instanceof ApiError && err.code === 'intercom_person_scope' ? wt('err.scope') : describeError(err);
     } finally {
       if (generation === this.generation) this.loading = false;
     }
@@ -195,22 +230,33 @@ export class WiskeyPersonEditor extends LitElement {
     this.error = '';
     this.errorCode = '';
     this.outcome = '';
+    const zoneName = this.zone.kind === 'iana' ? this.zone.name : 'UTC';
     if (user) {
+      this.sensitive = user.level !== 'names'; // the server's level (absent from an older server: everything it sent is shown)
+      this.cardsKnown = user.cards !== null;
+      const category = user.access_category === 'visitor' || user.access_category === 'contractor' ? user.access_category : 'staff';
       this.draft = {
-        employee_no: user.employee_no,
+        employee_no: user.employee_no ?? '',
         display_name: user.display_name,
-        phone: user.phone,
+        phone: user.phone ?? '',
         active: user.active,
         confirm_pin: '',
-        cards: user.cards.map((c) => ({ key: c.id, id: c.id, masked_number: c.masked_number, card_no: '', label: c.label, enabled: c.enabled })),
+        cards: (user.cards ?? []).map((c) => ({ key: c.id, id: c.id, masked_number: c.masked_number, card_no: '', label: c.label, enabled: c.enabled })),
         assignments: Object.fromEntries(user.stations.map((s) => [s.station_id, { enabled: s.enabled, allowed_locks: [...s.doors], sync_state: s.sync_state }])),
         overrides: { ...user.permission_overrides },
+        category,
+        responsible: user.responsible_person ?? '',
+        purpose: user.access_purpose ?? '',
+        timing: timingFormOf(user, zoneName),
       };
       this.timed = !!user.valid_from;
       this.validityFrom = localInput(user.valid_from, this.zone);
       this.validityUntil = localInput(user.valid_until, this.zone);
     } else {
-      this.draft = { employee_no: randomEmployeeNo(), display_name: '', phone: '', active: true, confirm_pin: '', cards: [], assignments: {}, overrides: {} };
+      this.sensitive = !isApi() || canAnywhere('access.people.sensitive');
+      this.cardsKnown = true;
+      this.draft = { employee_no: randomEmployeeNo(), display_name: '', phone: '', active: true, confirm_pin: '', cards: [], assignments: {}, overrides: {},
+                     category: 'staff', responsible: '', purpose: '', timing: timingFormOf(null, zoneName) };
       this.timed = false;
       this.validityFrom = '';
       this.validityUntil = '';
@@ -335,9 +381,18 @@ export class WiskeyPersonEditor extends LitElement {
       this.setError(t('field_required'), 'err', 'field_required');
       return;
     }
+    const zoneName = this.zone.kind === 'iana' ? this.zone.name : 'UTC';
+    const timingIssue = timingProblem(draft.timing, validZone);
+    if (timingIssue) {
+      this.setError(wt(timingIssue), 'err', timingIssue);
+      return;
+    }
+    const categoryIssue = this.sensitive ? categoryProblem(draft.category, draft.responsible, !!validity) : null;
+    if (categoryIssue) {
+      this.setError(wt(categoryIssue), 'err', categoryIssue);
+      return;
+    }
     const data: IntercomPersonDraft = {
-      employee_no: draft.employee_no,
-      phone: draft.phone ?? '',
       display_name: draft.display_name,
       active: draft.active,
       valid_from: validity ? validity.from : null,
@@ -351,17 +406,28 @@ export class WiskeyPersonEditor extends LitElement {
           .filter(([, a]) => a.enabled)
           .map(([id, a]) => [id, [...a.allowed_locks].sort()]),
       ),
-      cards: draft.cards.map<IntercomCardDraft>((c) => (c.id ? { id: c.id, label: c.label, enabled: c.enabled } : { card_no: c.card_no, label: c.label, enabled: c.enabled })),
+      ...timingPatch(draft.timing, this.original, zoneName),
     };
+    // CR-036 S11: a field the caller was not shown is never sent (it would overwrite a value they cannot see, and the server
+    // refuses a sensitive field below the sensitive level): the employee number when hidden, the phone, cards, PIN, the
+    // responsible person and purpose below the sensitive level
+    if (this.isNew || this.original?.employee_no !== null) data.employee_no = draft.employee_no;
+    if (this.isNew || draft.category !== (this.original?.access_category ?? 'staff')) data.access_category = draft.category;
+    if (this.sensitive) {
+      data.phone = draft.phone ?? '';
+      if (this.isNew || draft.responsible !== (this.original?.responsible_person ?? '')) data.responsible_person = draft.responsible;
+      if (this.isNew || draft.purpose !== (this.original?.access_purpose ?? '')) data.access_purpose = draft.purpose;
+      if (this.cardsKnown) data.cards = draft.cards.map<IntercomCardDraft>((c) => (c.id ? { id: c.id, label: c.label, enabled: c.enabled } : { card_no: c.card_no, label: c.label, enabled: c.enabled }));
+      if (draft.pin !== undefined) data.pin = draft.pin;
+    }
     if (typeof this.ctx?.profile_policy?.revision === 'number') data.access_policy_revision = this.ctx.profile_policy.revision;
-    if (draft.pin !== undefined) data.pin = draft.pin;
     this.busy = syncNow ? 'sync' : 'save';
     try {
       const r = this.isNew ? await createIntercomPerson(data, syncNow) : await updateIntercomPerson(this.userId, this.original?.revision ?? 0, data, syncNow);
       if (!r.person) throw new Error('empty reply');
-      // the PIN and any typed card number leave memory with the draft: the saved record carries only WisKey's masked form
+      // the PIN and any typed card number leave memory with the draft: the saved record carries only the masked form
       this.draft = null;
-      this.dispatchEvent(new CustomEvent('editor-saved', { detail: { person: r.person, notice: syncNow ? 'saved_sync' : 'saved', note: r.note }, bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('editor-saved', { detail: { person: r.person, notice: syncNow ? 'saved_sync' : 'saved', note: r.note, pending: stateOfReply(r) === 'pending' }, bubbles: true, composed: true }));
     } catch (err) {
       this.showFailure(err);
     } finally {
@@ -375,14 +441,19 @@ export class WiskeyPersonEditor extends LitElement {
     const outcome = actionOutcome(err);
     const code = err instanceof ApiError ? err.code : 'error';
     if (outcome === 'unknown') {
-      const text = err instanceof ApiError && err.body?.details?.outcome === 'unknown' ? err.message : `לא התקבלה תשובה ברורה מהשרת (${describeError(err)}).`;
-      this.setError(`לא ידוע אם השינוי נשמר ב־WisKey: ${text}`, 'warn', code, 'unknown');
+      this.setError(wt('res.unknown'), 'warn', code, 'unknown');
       return;
     }
+    const known: Record<string, WritesKey> = {
+      intercom_person_scope: 'err.scope', intercom_field_level: 'err.field', intercom_approval_required: 'err.approval', intercom_person_archived: 'err.archived',
+      intercom_responsible_required: 'err.guest', intercom_pin_interactive_only: 'err.pin_interactive', intercom_busy: 'err.busy', intercom_rate_limited: 'err.busy',
+      intercom_unavailable: 'err.unavailable', intercom_duplicate_command: 'err.duplicate', expired: 'err.expired',
+    };
     if (code === 'intercom_pin_conflict') this.setError(t('pin_conflict'), 'err', code, outcome);
     else if (code === 'intercom_revision_conflict') this.setError(t('revision_conflict'), 'err', code, outcome);
     else if (code === 'intercom_card_conflict') this.setError(t('card_conflict'), 'err', code, outcome);
     else if (code === 'intercom_employee_conflict') this.setError(t('employee_conflict'), 'err', code, outcome);
+    else if (known[code]) this.setError(wt(known[code]), 'err', code, outcome);
     else this.setError(describeError(err), 'err', code, outcome);
   }
 
@@ -416,7 +487,8 @@ export class WiskeyPersonEditor extends LitElement {
       const r = await deleteIntercomPerson(user.id, user.revision ?? 0);
       this.confirmDelete = false;
       this.draft = null;
-      this.dispatchEvent(new CustomEvent('editor-deleted', { detail: { id: user.id, notice: 'deleted', note: r.note }, bubbles: true, composed: true }));
+      // an UNKNOWN_EFFECT command: sent, PENDING until the person is gone from the read model (the page checks)
+      this.dispatchEvent(new CustomEvent('editor-deleted', { detail: { id: user.id, notice: 'deleted', note: r.note, pending: stateOfReply(r) === 'pending' }, bubbles: true, composed: true }));
     } catch (err) {
       this.confirmDelete = false;
       this.showFailure(err);
@@ -499,7 +571,7 @@ export class WiskeyPersonEditor extends LitElement {
       ${this.capturing && this.original && this.ctx
         ? html`<wiskey-card-capture
             .person=${this.original}
-            .stations=${this.ctx.stations}
+            .stations=${this.captureStations()}
             @capture-close=${() => (this.capturing = false)}
             @capture-saved=${(e: CustomEvent<{ person: IntercomEditorPerson; note: string }>) => this.captured(e.detail.person, e.detail.note)}
             @capture-reload=${() => { this.capturing = false; void this.reload(); }}
@@ -535,17 +607,21 @@ export class WiskeyPersonEditor extends LitElement {
                   <input required pattern="[A-Za-z0-9_-]{1,32}" maxlength="32" data-ltr data-wiskey-editor-employee .value=${live(d.employee_no)} ?disabled=${!!this.original?.identity_locked} @input=${(e: Event) => this.patch('employee_no', (e.target as HTMLInputElement).value)} />
                 </sw-field>
               </div>
-              <sw-field label=${t('phone')}>
-                <input type="tel" autocomplete="tel" maxlength="32" data-ltr placeholder="05X-xxx-xxxx" data-wiskey-editor-phone .value=${live(d.phone)} @input=${(e: Event) => this.patch('phone', mobileDisplay((e.target as HTMLInputElement).value))} />
-              </sw-field>
-              <label class="check"><input type="checkbox" data-wiskey-editor-active .checked=${live(d.active)} @change=${(e: Event) => this.patch('active', (e.target as HTMLInputElement).checked)} />${t('active')}</label>
+              ${this.sensitive
+                ? html`<sw-field label=${t('phone')}>
+                    <input type="tel" autocomplete="tel" maxlength="32" data-ltr placeholder="05X-xxx-xxxx" data-wiskey-editor-phone .value=${live(d.phone)} @input=${(e: Event) => this.patch('phone', mobileDisplay((e.target as HTMLInputElement).value))} />
+                  </sw-field>`
+                : nothing}
+              <label class="check"><input type="checkbox" data-wiskey-editor-active .checked=${live(d.active)} ?disabled=${!!this.original?.archived} @change=${(e: Event) => this.patch('active', (e.target as HTMLInputElement).checked)} />${t('active')}</label>
             </fieldset>
+            ${this.renderCategory()}
             ${this.isNew ? nothing : this.renderActions()}
             ${this.renderValidity()}
-            ${this.renderPin(blocked)}
+            ${this.renderTiming()}
+            ${this.sensitive ? this.renderPin(blocked) : nothing}
           </div>
           <div class="column">
-            ${this.renderCards()}
+            ${this.sensitive && this.cardsKnown ? this.renderCards() : nothing}
             ${ctx ? this.renderAssignments(ctx) : html`<fieldset data-wiskey-editor-section="assignments"><legend>${t('assignments')}</legend><p class="muted">${this.ctxNote || 'רשימת התחנות לא נטענה, ולכן אי אפשר לערוך הרשאות לתחנות כאן.'}</p></fieldset>`}
           </div>
         </div>
@@ -557,18 +633,99 @@ export class WiskeyPersonEditor extends LitElement {
     const ctx = this.ctx;
     const notes = [];
     if (ctx && (ctx.writes_listed === false || ctx.users_manage === false)) {
-      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">WisKey אינו מציע את פקודות ניהול האנשים למשתמש המערכת של Arx (נדרש אזור users ברמת manage ב־WisKey). שמירה תידחה על ידי WisKey ולא תשנה דבר.</div>`);
+      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">חשבון המערכת אינו מורשה לנהל אנשים בבקרת הכניסה. שמירה תידחה.</div>`);
     } else if (ctx && ctx.writes_listed === null) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">WisKey לא ציין אילו פקודות זמינות למשתמש של Arx; אם חסרה לו הרשאת ניהול אנשים (users:manage) השמירה תידחה - ותוצג כאן כדחייה.</div>`);
+      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">לא ידוע אם חשבון המערכת מורשה לנהל אנשים; דחייה תוצג כאן.</div>`);
     }
     if (this.ctxNote) notes.push(html`<div class="note warn" role="status" data-wiskey-editor-note="context">${this.ctxNote}</div>`);
-    if (this.original?.has_timing) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="timing">לאדם הזה מוגדר ב־WisKey לוח זמנים שבועי / לפי תאריכים או אכיפת זמנים. העורך הזה עדיין אינו עורך אותם (השלב הבא), ושמירה מכאן משאירה אותם כפי שהם.</div>`);
-    }
     if (ctx?.profile_policy && (ctx.profile_policy.fields || ctx.profile_policy.groups)) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">ל־WisKey מוגדרים שדות פרופיל וקבוצות (${ctx.profile_policy.fields} שדות, ${ctx.profile_policy.groups} קבוצות). עריכתם ותמונות יגיעו בשלבים הבאים; עד אז הם נערכים ב־WisKey עצמו. תחנה שההרשאה אליה מגיעה דרך קבוצה מוצגת כאן מסומנת; ביטול הסימון יוצר חריגה אישית (חסימה) שגוברת על הקבוצה, כמו ב־WisKey.</div>`);
+      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">שדות פרופיל וקבוצות נערכים בחלון האינטרקום. ביטול סימון של תחנה שמגיעה מקבוצה חוסם אותה לאדם הזה.</div>`);
     }
     return notes;
+  }
+
+  // ------------------------------------------------------------------ CR-036 S11: the access category, the timing
+
+  private renderCategory() {
+    const d = this.draft!;
+    const guest = d.category !== 'staff';
+    return html`<fieldset data-wiskey-editor-section="category">
+      <legend><sw-icon name="users" size=${16}></sw-icon>${wt('cat.label')}</legend>
+      <sw-field label=${wt('cat.label')}>
+        <select data-wiskey-editor-category .value=${live(d.category)} @change=${(e: Event) => this.patch('category', (e.target as HTMLSelectElement).value as Category)}>
+          ${(['staff', 'visitor', 'contractor'] as const).map((c) => html`<option value=${c} ?selected=${c === d.category}>${wt(`cat.${c}` as WritesKey)}</option>`)}
+        </select>
+      </sw-field>
+      ${guest && this.sensitive
+        ? html`<div class="grid2">
+            <sw-field label=${wt('cat.responsible')}>
+              <input maxlength="64" data-wiskey-editor-responsible .value=${live(d.responsible)} @input=${(e: Event) => this.patch('responsible', (e.target as HTMLInputElement).value)} />
+            </sw-field>
+            <sw-field label=${wt('cat.purpose')}>
+              <input maxlength="128" data-wiskey-editor-purpose .value=${live(d.purpose)} @input=${(e: Event) => this.patch('purpose', (e.target as HTMLInputElement).value)} />
+            </sw-field>
+          </div>`
+        : nothing}
+    </fieldset>`;
+  }
+
+  private setTiming(change: Partial<TimingForm>) {
+    if (!this.draft) return;
+    this.patch('timing', { ...this.draft.timing, ...change });
+  }
+
+  private renderTiming() {
+    const f = this.draft!.timing;
+    const locked = f.enforce === 'native';
+    return html`<fieldset data-wiskey-editor-section="timing" data-wiskey-editor-timing-mode=${f.mode}>
+      <legend><sw-icon name="clock" size=${16}></sw-icon>${wt('timing.heading')}</legend>
+      ${locked
+        ? html`<p class="muted" data-wiskey-editor-timing-native>${wt('timing.native_locked')}</p>`
+        : html`<div class="grid2">
+            <sw-field label=${wt('timing.mode')}>
+              <select data-wiskey-editor-timing-select .value=${live(f.mode)} @change=${(e: Event) => this.setTiming({ mode: (e.target as HTMLSelectElement).value as TimingForm['mode'] })}>
+                <option value="none" ?selected=${f.mode === 'none'}>${wt('timing.none')}</option>
+                <option value="weekly" ?selected=${f.mode === 'weekly'}>${wt('timing.weekly')}</option>
+                <option value="dates" ?selected=${f.mode === 'dates'}>${wt('timing.dates')}</option>
+              </select>
+            </sw-field>
+            ${f.mode === 'none'
+              ? nothing
+              : html`<sw-field label=${wt('timing.enforce')}>
+                  <select data-wiskey-editor-timing-enforce .value=${live(f.enforce)} @change=${(e: Event) => this.setTiming({ enforce: (e.target as HTMLSelectElement).value as TimingForm['enforce'] })}>
+                    <option value="draft" ?selected=${f.enforce === 'draft'}>${wt('timing.enforce_draft')}</option>
+                    <option value="ha" ?selected=${f.enforce === 'ha'}>${wt('timing.enforce_ha')}</option>
+                  </select>
+                </sw-field>`}
+          </div>
+          ${f.mode === 'weekly'
+            ? html`<div class="days" role="group" aria-label=${wt('timing.days')} data-wiskey-editor-timing-days>
+                ${WEEK_ORDER.map((day) => html`<label class="check day"><input type="checkbox" data-timing-day=${day} .checked=${live(f.days.includes(day))}
+                  @change=${(e: Event) => this.setTiming({ days: (e.target as HTMLInputElement).checked ? [...f.days, day] : f.days.filter((x) => x !== day) })} />${wt(`day.${day}` as WritesKey)}</label>`)}
+              </div>`
+            : nothing}
+          ${f.mode === 'dates'
+            ? html`<div class="dates" role="group" aria-label=${wt('timing.dates_label')} data-wiskey-editor-timing-dates>
+                ${f.dates.map((value, i) => html`<div class="row"><input type="date" data-timing-date=${i} min="2000-01-01" max="2037-12-31" .value=${live(value)}
+                    @change=${(e: Event) => this.setTiming({ dates: f.dates.map((x, j) => (j === i ? (e.target as HTMLInputElement).value : x)) })} />
+                  <sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${t('remove')} @click=${() => this.setTiming({ dates: f.dates.filter((_x, j) => j !== i) })}></sw-button></div>`)}
+                <sw-button size="sm" icon="plus" data-timing-add-date ?disabled=${f.dates.length >= MAX_DATES} @click=${() => this.setTiming({ dates: [...f.dates, ''] })}>${wt('timing.add_date')}</sw-button>
+              </div>`
+            : nothing}
+          ${f.mode === 'none'
+            ? nothing
+            : html`<div class="periods" role="group" aria-label=${wt('timing.periods')} data-wiskey-editor-timing-periods>
+                ${f.periods.map((p, i) => html`<div class="row period" data-timing-period=${i}>
+                  <sw-field label=${wt('timing.from')}><input type="time" data-timing-start .value=${live(p.start)}
+                    @change=${(e: Event) => this.setTiming({ periods: f.periods.map((x, j) => (j === i ? { ...x, start: (e.target as HTMLInputElement).value } : x)) })} /></sw-field>
+                  <sw-field label=${wt('timing.to')}><input type="time" data-timing-end .value=${live(p.end === '24:00' ? '23:59' : p.end)}
+                    @change=${(e: Event) => this.setTiming({ periods: f.periods.map((x, j) => (j === i ? { ...x, end: (e.target as HTMLInputElement).value } : x)) })} /></sw-field>
+                  ${f.periods.length > 1 ? html`<sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${t('remove')} @click=${() => this.setTiming({ periods: f.periods.filter((_x, j) => j !== i) })}></sw-button>` : nothing}
+                </div>`)}
+                <sw-button size="sm" icon="plus" data-timing-add-period ?disabled=${f.periods.length >= MAX_PERIODS} @click=${() => this.setTiming({ periods: [...f.periods, { start: '08:00', end: '17:00' }] })}>${wt('timing.add_period')}</sw-button>
+                <sw-field label=${wt('timing.zone')}><input data-ltr data-timing-zone maxlength="128" .value=${live(f.timezone)} @input=${(e: Event) => this.setTiming({ timezone: (e.target as HTMLInputElement).value.trim() })} /></sw-field>
+              </div>`}`}
+    </fieldset>`;
   }
 
   private renderActions() {
@@ -601,7 +758,6 @@ export class WiskeyPersonEditor extends LitElement {
             </div>
             <p class="muted">${t('clock_ha_zone')}: <bdi>${this.zone.name}</bdi>. ${t('validity_hint')}</p>`
         : html`<p class="muted">${t('permanent')}</p>`}
-      <p class="muted">לוח זמנים שבועי / לפי תאריכים ואכיפה בעמדה יגיעו בשלב הבא; כאן נקבע תוקף קבוע או טווח תאריכים בלבד.</p>
     </fieldset>`;
   }
 
@@ -635,13 +791,15 @@ export class WiskeyPersonEditor extends LitElement {
         ${this.pinCopy === 'manual' ? html`<p class="danger" data-wiskey-editor-pin-copy-failed>העתקה אוטומטית אינה זמינה בדפדפן הזה (למשל בחיבור שאינו מאובטח). סמנו את הקוד והעתיקו ידנית, ואז לחצו "הסתר".</p>` : nothing}
       </div>
       <div class="row">
-        <sw-button size="sm" data-wiskey-editor-pin-generate ?disabled=${blocked || removing || !!this.busy} @click=${() => void this.generatePin()}>${this.busy === 'pin' ? t('wait') : t('generate_unique_pin')}</sw-button>
+        ${this.ctx?.pin_generate === false
+          ? nothing
+          : html`<sw-button size="sm" data-wiskey-editor-pin-generate ?disabled=${blocked || removing || !!this.busy} @click=${() => void this.generatePin()}>${this.busy === 'pin' ? t('wait') : t('generate_unique_pin')}</sw-button>`}
         ${removing
           ? html`<sw-badge kind="stale" label=${t('remove_pin')}></sw-badge>
               <sw-button size="sm" variant="ghost" data-wiskey-editor-pin-keep @click=${() => { this.draft = { ...d, pin: undefined, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('keep_pin')}</sw-button>`
           : html`<sw-button size="sm" variant="danger" data-wiskey-editor-pin-remove ?disabled=${blocked || !configured} @click=${() => { this.draft = { ...d, pin: null, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('remove_pin')}</sw-button>`}
       </div>
-      <p class="muted">${t('pin_physical')} אין בדיקת זמינות בזמן ההקלדה: קוד תפוס יידחה על ידי WisKey בשמירה.</p>
+      <p class="muted">${t('pin_physical')} קוד תפוס יידחה בשמירה.</p>
     </fieldset>`;
   }
 
@@ -673,19 +831,22 @@ export class WiskeyPersonEditor extends LitElement {
         <sw-button size="sm" icon="plus" data-wiskey-editor-card-add @click=${() => this.patch('cards', [...d.cards, { key: rowKey(), card_no: '', label: '', enabled: true }])}>${t('add_card')}</sw-button>
       </div>
       ${this.renderCapture()}
-      <p class="muted">מספר כרטיס שמור מוצג ממוסך, כפי ש־WisKey מחזיר אותו; המספר המלא אינו זמין לאחר השמירה.</p>
+      <p class="muted">מספר כרטיס שמור מוצג ממוסך; המספר המלא אינו זמין לאחר השמירה.</p>
     </fieldset>`;
   }
 
   /** WisKey's "Read card from station" block (panel.ts:4109-4120): for a saved person only, and - WisKey's
    * `editorAction` - only while the draft is unmodified (the capture is approved against the loaded revision). Needs
    * `access.cards.capture` in addition to people management; without it the block says so instead of offering it. */
+  private captureStations() {
+    const allowed = this.ctx?.capture_stations;
+    return (this.ctx?.stations ?? []).filter((s) => allowed === undefined || allowed.includes(s.id));
+  }
+
   private renderCapture() {
     if (!isApi()) return nothing;
-    if (!can('access.cards.capture')) {
-      return html`<p class="muted" data-wiskey-editor-capture-denied>קריאת כרטיס מקורא בעמדה דורשת הרשאה נפרדת (access.cards.capture), שאינה מוקצית לך.</p>`;
-    }
-    const usable = (this.ctx?.stations ?? []).some((s) => s.lock_enabled && s.online);
+    if (!canAnywhere('access.cards.capture')) return nothing; // a separate permission: absent, never greyed
+    const usable = this.captureStations().some((s) => s.lock_enabled && s.online);
     return html`<div class="capture" data-wiskey-editor-capture>
       <sw-button size="sm" icon="wifi" data-wiskey-editor-capture-open ?disabled=${!!this.busy || this.isNew || !this.ctx || !usable} @click=${() => this.openCapture()}>${t('capture_card')}</sw-button>
       <p class="muted">${t(this.isNew ? 'capture_save_user_first' : 'capture_from_editor_hint')}${!this.isNew && this.ctx && !usable ? ' אין כרגע אינטרקום מחובר עם מנעול מנוהל.' : ''}</p>
@@ -705,10 +866,20 @@ export class WiskeyPersonEditor extends LitElement {
 
   /** The approved card is in WisKey: the saved record (with the new card, masked) replaces the draft, which was
    * unmodified when the capture started. */
-  private captured(person: IntercomEditorPerson, note: string) {
+  private captured(person: IntercomEditorPerson, _note: string) {
     this.capturing = false;
+    // CR-036 S11: the confirm is an UNKNOWN_EFFECT command - sent; the person read again is what says the card is there
+    const before = this.original?.cards?.length ?? 0;
     this.edit(person);
-    this.notice = `${t('capture_state_confirmed')} ${note ?? ''}`.trim();
+    this.notice = wt('res.pending');
+    if (!this.userId) return;
+    void getIntercomPersonForEdit(this.userId)
+      .then((r) => {
+        if (!r.person || !this.isConnected) return;
+        this.edit(r.person);
+        this.notice = (r.person.cards?.length ?? 0) > before ? t('capture_state_confirmed') : wt('res.still_pending');
+      })
+      .catch(() => undefined);
   }
 
   private editCard(key: string, change: Partial<CardRow>) {
@@ -774,7 +945,6 @@ export class WiskeyPersonEditor extends LitElement {
     const count = Object.keys(this.draft?.assignments ?? {}).length;
     return html`<sw-dialog open heading=${t('delete')} subheading=${user.display_name} data-wiskey-editor-delete-dialog @close=${() => (this.confirmDelete = false)}>
       <p>${t('confirm_delete').replace('{count}', String(count))}</p>
-      <p class="muted">האדם ייעלם מרשימת WisKey מיד; ההסרה מכל תחנה מתוזמנת על ידי WisKey ומאושרת תחנה־תחנה (תחנות שממתינות להסרת אמצעי זיהוי קודמים נכללות גם הן). הפעולה נרשמת ביומן הביקורת של Arx בשמך.</p>
       <div slot="footer">
         <sw-button variant="ghost" @click=${() => (this.confirmDelete = false)}>${t('cancel')}</sw-button>
         <sw-button variant="danger" icon="trash" data-wiskey-editor-delete-confirm ?disabled=${!!this.busy} @click=${() => void this.doDelete()}>${this.busy === 'delete' ? t('wait') : t('delete')}</sw-button>
@@ -919,6 +1089,30 @@ export class WiskeyPersonEditor extends LitElement {
       gap: 4px;
       padding-block-start: 6px;
       border-block-start: 1px solid var(--sw-border);
+    }
+    .days {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+    .day {
+      min-block-size: 44px;
+    }
+    .dates,
+    .periods {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-start;
+    }
+    .period {
+      align-items: flex-end;
+    }
+    .dates input,
+    .periods input,
+    fieldset select {
+      font: inherit;
+      min-block-size: 44px;
     }
     .card-row {
       border: 1px dashed var(--sw-border);

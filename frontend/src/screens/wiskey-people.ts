@@ -10,6 +10,10 @@ import '../components/sw-avatar';
 import './wiskey-person-editor';
 import './wiskey-person-drawer';
 import './wiskey-message-dialog';
+import './wiskey-person-actions';
+import type { ActionKind, ActionResult } from './wiskey-person-actions';
+import { PENDING_CHECKS, PENDING_CHECK_MS, deleteSettled, personActions, type PersonAction } from '../access-control/people-writes-logic';
+import { wt } from '../i18n/access-writes';
 import type { StateKind } from '../components/sw-badge';
 import { can, isApi, onSession } from '../api/session';
 import { ApiError, describeError } from '../api/client';
@@ -137,8 +141,11 @@ const DEMO_ROWS: AcPerson[] = [
  * the credentials column, the credential and profile filters, the phone, the photo and the profile values are sensitive-level; the
  * employee-number column and the search by number follow the administrator's setting through `employee_no_visible`.
  *
- * The person editor, the PIN generator and the card capture are the existing components, untouched (their gate moves in a later
- * slice): "עריכה" in the person's page and "הוספת אדם" open `wiskey-person-editor` exactly as before.
+ * The person editor, the PIN generator and the card capture are the existing components: "עריכה" in the person's page and
+ * "הוספת אדם" open `wiskey-person-editor`. CR-036 S11: their gate is `access.people.manage` at any scope (the server checks every
+ * station of the person - the page's `editable`); "פעולות" on the person's page opens `wiskey-person-actions` (switch off / on,
+ * archive / restore, end a visitor's access, the cards, the photo, delete) - each a single write, said "נשמר" or, for a delete,
+ * "נשלח · ממתין לאישור" until the person is gone from the list.
  *
  * Operator-screen hygiene: no hint paragraphs, no platform names, no codes; the only texts are titles, counts, labels, state words
  * and one-line confirmations. The change notices (data-free, from the add-on's feed) refetch the shown list; when they are down the
@@ -181,6 +188,12 @@ export class WiskeyPeople extends LitElement {
   @state() private transport: MessagingTransport | null = null;
   @state() private msgConfig: MessagingConfig | null = null;
   @state() private message: { people: { id: string; name: string }[]; inDrawer: boolean } | null = null;
+  /** CR-036 S11: the actions dialog of the open person (the menu, or one action), and the one-line result of the last write. */
+  @state() private acting: ActionKind | null = null;
+  @state() private result: { id: string; state: string; text: string } | null = null;
+  private pendingTimer = 0;
+  /** A delete sent from the actions dialog and not yet confirmed by the read model (the page watches it once the dialog closes). */
+  private pendingDelete = '';
 
   private rowsKey = ''; // the query and filters the shown rows answer: "the last known" is only ever the answer to THIS request
   private generation = 0;
@@ -246,6 +259,7 @@ export class WiskeyPeople extends LitElement {
     window.clearTimeout(this.typing);
     window.clearTimeout(this.coalesce);
     window.clearInterval(this.poll);
+    window.clearTimeout(this.pendingTimer);
     this.generation++;
     this.detailGeneration++;
   }
@@ -519,30 +533,106 @@ export class WiskeyPeople extends LitElement {
     this.detailLoading = false;
     this.detailError = '';
     this.message = this.message?.inDrawer ? null : this.message;
+    this.closeActions();
   }
 
-  // ------------------------------------------------------------------ the editor (access.people.manage; unchanged)
+  /** The actions dialog closes; a delete it sent that the read model has not confirmed yet is watched on by the page. */
+  private closeActions() {
+    this.acting = null;
+    const id = this.pendingDelete;
+    if (!id) return;
+    this.pendingDelete = '';
+    this.notice = { tone: 'warn', text: wt('res.pending') };
+    this.watchDelete(id, 0);
+  }
 
+  // ------------------------------------------------------------------ the editor and the person's actions (CR-036 S11)
+
+  /** `access.people.manage` at ANY scope (S11: the writes follow the station chain; the server checks every station of the person,
+   * and a person's page says `editable` for this caller). */
   private get canManage(): boolean {
-    return isApi() && can('access.people.manage');
+    return isApi() && this.access.manage;
   }
 
-  private onSaved(e: CustomEvent<{ person: IntercomEditorPerson; notice: string; note: string }>) {
-    const { person, notice, note } = e.detail;
+  private onSaved(e: CustomEvent<{ person: IntercomEditorPerson; notice: string; note: string; pending?: boolean }>) {
+    const { person } = e.detail;
     this.editing = null;
-    this.notice = { tone: 'ok', text: `${t(notice)} ${note}` };
+    const text = e.detail.pending ? wt('res.pending') : wt('res.saved', { time: formatClock(new Date().toISOString(), this.zone) });
+    this.notice = { tone: e.detail.pending ? 'warn' : 'ok', text };
+    this.result = { id: person.id, state: e.detail.pending ? 'pending' : 'saved', text };
     this.selected = new Set();
     void this.reload().then(() => {
       if (this.rows.some((p) => p.id === person.id)) void this.openPerson(person.id);
     });
   }
 
-  private onDeleted(e: CustomEvent<{ id: string; notice: string; note: string }>) {
+  /** A delete is sent and PENDING (an UNKNOWN_EFFECT command) until the read model no longer finds the person. */
+  private onDeleted(e: CustomEvent<{ id: string; notice: string; note: string; pending?: boolean }>) {
     this.editing = null;
-    this.notice = { tone: 'ok', text: `${t(e.detail.notice)} ${e.detail.note}` };
+    this.notice = { tone: 'warn', text: wt('res.pending') };
     this.closePerson();
     this.selected = new Set();
     void this.reload();
+    this.watchDelete(e.detail.id, 0);
+  }
+
+  private watchDelete(id: string, checks: number) {
+    window.clearTimeout(this.pendingTimer);
+    if (!isApi()) return;
+    this.pendingTimer = window.setTimeout(async () => {
+      let status = 200;
+      try {
+        await getAcPerson(id);
+      } catch (err) {
+        status = err instanceof ApiError ? err.status : 0;
+      }
+      if (!this.isConnected) return;
+      if (deleteSettled(status) === 'confirmed') {
+        this.notice = { tone: 'ok', text: wt('res.deleted') };
+        void this.reload();
+      } else if (checks + 1 < PENDING_CHECKS) this.watchDelete(id, checks + 1);
+      else this.notice = { tone: 'warn', text: wt('res.still_pending') };
+    }, PENDING_CHECK_MS);
+  }
+
+  /** The actions offered on the open person (the menu of the "פעולות" button; the edit has its own button). */
+  private actionsFor(p: AcPerson | null): PersonAction[] {
+    return personActions(p, { manage: this.canManage }, { photoEnabled: this.photoOn }).filter((a) => a !== 'edit');
+  }
+
+  private onActionResult(e: CustomEvent<ActionResult>) {
+    const r = e.detail;
+    this.result = { id: r.id, state: r.state, text: r.text };
+    if (r.state === 'deleted') {
+      this.pendingDelete = '';
+      this.notice = { tone: 'ok', text: r.text };
+      this.closePerson();
+      void this.reload();
+      return;
+    }
+    // a pending delete: the person stays as it is on the page until the read model says it is gone (the dialog checks it)
+    if (r.kind === 'delete') this.pendingDelete = r.state === 'pending' ? r.id : '';
+    // a read is always safe: after a write that may have happened (saved, pending, unknown) the list and the page show what is there
+    if (r.state === 'saved' || r.state === 'unknown' || (r.state === 'pending' && r.kind !== 'delete')) {
+      this.scheduleRefresh();
+      void this.refreshPerson(r.id);
+    }
+  }
+
+  /** The open person's page read again after a write; what is shown stays until the answer (the dialog on it stays open). */
+  private async refreshPerson(id: string) {
+    if (!isApi() || this.openId !== id) return;
+    const generation = ++this.detailGeneration;
+    try {
+      const reply = await getAcPerson(id);
+      if (generation !== this.detailGeneration || this.openId !== id) return;
+      if (reply.state === 'ready' && reply.person) this.detail = reply.person;
+    } catch (err) {
+      if (generation !== this.detailGeneration || this.openId !== id) return;
+      if (err instanceof ApiError && err.status === 404) this.detailError = 'gone';
+    } finally {
+      if (generation === this.detailGeneration) this.detailLoading = false;
+    }
   }
 
   private openEditor(target: { id: string } | 'new') {
@@ -874,11 +964,19 @@ export class WiskeyPeople extends LitElement {
     const groupStations = Object.fromEntries(this.groups.map((g) => [g.id, g.station_ids ? g.station_ids.length : null]));
     const p = this.detail;
     const canEdit = this.canManage && !!p && p.editable !== false;
+    const actions = this.actionsFor(p);
     return html`<wiskey-person-drawer .open=${this.drawerOpen} .person=${p} .loading=${this.detailLoading} .error=${this.detailError}
         .stationNames=${stationNames} .groupLabels=${groupLabels} .groupStations=${groupStations} .fields=${this.fields} .zone=${this.zone} .photoEnabled=${this.photoOn}
-        .canEdit=${canEdit} .canMessage=${this.canMessage && !!p && p.phone_set !== false}
-        @close=${() => this.closePerson()} @edit=${(e: CustomEvent<{ id: string }>) => this.openEditor({ id: e.detail.id })} @message=${(e: CustomEvent<{ id: string }>) => this.openMessage([e.detail.id], true)}>
+        .canEdit=${canEdit} .canMessage=${this.canMessage && !!p && p.phone_set !== false} .canAct=${actions.length > 0 && !this.detailLoading}
+        .resultLine=${p && this.result?.id === p.id ? this.result : null}
+        @close=${() => this.closePerson()} @edit=${(e: CustomEvent<{ id: string }>) => this.openEditor({ id: e.detail.id })} @message=${(e: CustomEvent<{ id: string }>) => this.openMessage([e.detail.id], true)}
+        @actions=${() => (this.acting = 'menu')}>
         ${this.message?.inDrawer ? this.renderMessage() : nothing}
+        ${this.acting && p
+          ? html`<wiskey-person-actions .person=${p} .kind=${this.acting} .actions=${actions} .canCapture=${this.access.capture} .zone=${this.zone}
+              @action-result=${(e: CustomEvent<ActionResult>) => { e.stopPropagation(); this.onActionResult(e); }}
+              @close=${(e: Event) => { e.stopPropagation(); this.closeActions(); }}></wiskey-person-actions>`
+          : nothing}
       </wiskey-person-drawer>`;
   }
 

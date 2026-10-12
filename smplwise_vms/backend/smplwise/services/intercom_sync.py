@@ -585,6 +585,7 @@ WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "card_not_found": (404, "intercom_card_not_found", "הכרטיס הזה כבר אינו משויך לאדם. טענו מחדש את הרשומה."),
     "user_archived": (409, "intercom_person_archived", "האדם בארכיון. יש לשחזר אותו מהארכיון לפני שמפעילים אותו."),
     "guest_responsible_required": (422, "intercom_responsible_required", "לאורח או לקבלן נדרשים אחראי ותאריך סיום."),
+    "photo_disabled": (409, "intercom_photo_disabled", "קליטת התמונות כבויה בבקרת הכניסה, ולכן התמונה לא נשמרה. טענו מחדש את ההגדרות."),
 }
 # WisKey's refusals of the card-capture commands (lane "capture" for start / cancel; a confirm is a people write in the
 # config lane and gets WRITE_REFUSALS first): (HTTP status, SMPLWISE code, message)

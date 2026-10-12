@@ -26,25 +26,21 @@ type Busy = '' | 'readers' | 'start' | 'cancel' | 'save';
  * WisKey's own copy says "up to 30 seconds"). The 120 s session lifetime is separate; the server's own remaining
  * times drive the countdowns once a status arrived. */
 const COLLECT_S = 30;
-const CANCEL_RETRY_MS = 1000;
 const POLL_ACTIVE_MS = 1000; // WisKey's panel: every 1000 ms while preparing / waiting
 const POLL_CAPTURED_MS = 3000; // a collected card waiting for approval: only its TTL runs (and the backend wants to know the dialog is still open)
 const POLL_RETRY_MS = 2000;
 const ACTIVE = new Set(['preparing', 'waiting', 'captured', 'applying']);
 const CANCELLABLE = new Set(['preparing', 'waiting', 'captured']);
 
-/** WisKey `clearCapture()`'s cancel, but awaited and tried once more (review round 1): a cancel that did not reach
- * WisKey (a network blip, the capture slot busy) would otherwise leave the reader collecting until the backend's idle
- * cancel. A session that is already over, or being approved, is not retried. Runs after the dialog is gone too. */
+/** WisKey `clearCapture()`'s cancel, awaited, sent ONCE. CR-036 S11 (owner decision 2026-10-12): no write is retried
+ * automatically - a cancel is an UNKNOWN_EFFECT command, and one whose answer was lost may well have been carried out. A
+ * session nobody follows any more is cancelled by the backend itself after its idle limit (services/intercom_capture.py
+ * ABANDON_S), so a cancel that did not get through still ends. Runs after the dialog is gone too. */
 async function cancelSession(sessionId: string): Promise<void> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      await cancelIntercomCardCapture(sessionId);
-      return;
-    } catch (err) {
-      if (err instanceof ApiError && ['intercom_capture_not_found', 'intercom_capture_over', 'intercom_capture_applying'].includes(err.code)) return;
-      if (attempt === 0) await new Promise((resolve) => window.setTimeout(resolve, CANCEL_RETRY_MS));
-    }
+  try {
+    await cancelIntercomCardCapture(sessionId);
+  } catch {
+    /* not retried: the backend's idle cancel ends a session the dialog no longer follows */
   }
 }
 
@@ -233,7 +229,7 @@ export class WiskeyCardCapture extends LitElement {
       if (epoch !== this.epoch) return;
       const view = err instanceof ApiError ? (err.body?.details?.capture as IntercomCapture | undefined) : undefined;
       const outcome = actionOutcome(err);
-      this.setError(outcome === 'unknown' ? `לא ידוע אם הביטול התקבל ב־WisKey: ${describeError(err)}` : wiskeyText(err), err instanceof ApiError ? err.code : 'error', outcome);
+      this.setError(outcome === 'unknown' ? `לא ידוע אם הביטול התקבל: ${describeError(err)}` : wiskeyText(err), err instanceof ApiError ? err.code : 'error', outcome);
       this.show(view ?? c);
     } finally {
       if (epoch === this.epoch) this.busy = '';
@@ -300,7 +296,7 @@ export class WiskeyCardCapture extends LitElement {
     return html`<sw-dialog
       .open=${live(true)}
       heading=${t('capture_card')}
-      subheading=${`${this.person.display_name} · ${this.person.employee_no}`}
+      subheading=${[this.person.display_name, this.person.employee_no].filter(Boolean).join(' · ')}
       data-wiskey-capture
       data-wiskey-capture-step=${this.step}
       data-wiskey-capture-state=${state}
@@ -352,7 +348,7 @@ export class WiskeyCardCapture extends LitElement {
       <sw-icon name="warning" size=${16}></sw-icon>
       <span>לא ידוע אם הקורא נכנס למצב קריאה. ${this.error}</span>
     </div>
-    <p data-wiskey-capture-countdown=${left}>${left > 0 ? `ייתכן שהקורא בעמדה ${this.stationName(this.station)} ממתין לכרטיס עוד עד ${left} שניות (עד שיפוג הזמן של WisKey). שום כרטיס לא יתווסף בלי אישורכם.` : 'זמן הקריאה של WisKey הסתיים. אפשר לנסות שוב.'}</p>`;
+    <p data-wiskey-capture-countdown=${left}>${left > 0 ? `ייתכן שהקורא בעמדה ${this.stationName(this.station)} ממתין לכרטיס עוד עד ${left} שניות (עד שיפוג זמן הקריאה). שום כרטיס לא יתווסף בלי אישורכם.` : 'זמן הקריאה הסתיים. אפשר לנסות שוב.'}</p>`;
   }
 
   private renderSession(c: IntercomCapture) {
@@ -375,13 +371,13 @@ export class WiskeyCardCapture extends LitElement {
               <input maxlength="64" data-wiskey-capture-label .value=${live(this.label)} ?disabled=${this.step === 'confirm_save' || this.busy === 'save'} @input=${(e: Event) => (this.label = (e.target as HTMLInputElement).value)} />
             </sw-field>
             <p class="muted">${t('capture_targets')}: ${targets.join(', ') || t('csv_no_stations')}</p>
-            ${c.state === 'captured' ? html`<p class="muted" data-wiskey-capture-session-left=${sessionLeft}>הכרטיס ממתין לאישור עוד ${sessionLeft} שניות; אחר כך WisKey מוחק את הקריאה.</p>` : nothing}`
+            ${c.state === 'captured' ? html`<p class="muted" data-wiskey-capture-session-left=${sessionLeft}>הכרטיס ממתין לאישור עוד ${sessionLeft} שניות; אחר כך הקריאה נמחקת.</p>` : nothing}`
         : nothing}
       ${this.step === 'confirm_save' && c.state === 'captured'
-        ? html`<div class="note info" data-wiskey-capture-save-prompt>${t('capture_confirm_prompt').replace('{name}', this.person.display_name)} הכרטיס יישמר ב־WisKey מיד ויפתח את הדלתות שהמשתמש משויך אליהן.</div>`
+        ? html`<div class="note info" data-wiskey-capture-save-prompt>${t('capture_confirm_prompt').replace('{name}', this.person.display_name)} הכרטיס יישמר ויפתח את הדלתות שהמשתמש משויך אליהן.</div>`
         : nothing}
       ${c.reader_may_be_collecting && !collecting
-        ? html`<p class="note warn" data-wiskey-capture-maybe-collecting>ייתכן שהקורא בעמדה עדיין במצב קריאה עד שיפוג הזמן (עד ${sessionLeft} שניות לפי WisKey; זמן ההמתנה של הקורא עצמו נקבע בקושחה). שום כרטיס לא יתווסף בלי אישורכם.</p>`
+        ? html`<p class="note warn" data-wiskey-capture-maybe-collecting>ייתכן שהקורא בעמדה עדיין במצב קריאה עד שיפוג הזמן (עד ${sessionLeft} שניות; זמן ההמתנה של הקורא עצמו נקבע בקושחה). שום כרטיס לא יתווסף בלי אישורכם.</p>`
         : nothing}
     </div>`;
   }
@@ -389,7 +385,7 @@ export class WiskeyCardCapture extends LitElement {
   private stateText(c: IntercomCapture): string {
     switch (c.state) {
       case 'cancel_unknown':
-        return c.reason === 'abandoned' ? `${t('capture_state_abandoned')} לא ידוע אם הביטול התקבל ב־WisKey.` : 'לא ידוע אם הביטול התקבל ב־WisKey.';
+        return c.reason === 'abandoned' ? `${t('capture_state_abandoned')} לא ידוע אם הביטול התקבל.` : 'לא ידוע אם הביטול התקבל.';
       case 'unconfirmed':
         return t('capture_state_unconfirmed');
       case 'cancelled':
