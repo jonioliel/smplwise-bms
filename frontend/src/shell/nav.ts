@@ -437,6 +437,9 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
 export const WALL_SETTINGS_HREF = '#/system/wall'; // CR-030: wall display users (system.configure; the add / remove step also needs rbac.assign)
+/** CR-036 S10: הגדרות › בקרת כניסה - the access-control status, the intercom's own action log, groups and fields (access.admin.read at any scope; the
+ * pages inside it follow what the caller may have - the action log and the conflicts are installation-wide). */
+export const ACCESS_CONTROL_SETTINGS_HREF = '#/system/access-control';
 /** CR-017: the automations screen (the third tab of the home area: automations, scenes, scripts) and its settings page. */
 export const AUTOMATIONS_HREF = '#/devices/automations';
 export const AUTOMATIONS_SETTINGS_HREF = '#/system/automations';
@@ -651,6 +654,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'update', label: 'עדכונים', href: UPDATE_SETTINGS_HREF },
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
+    // CR-036 S10: the access-control status, the intercom's action log, groups and fields (access.admin.read at any scope)
+    { id: 'access-control', label: 'בקרת כניסה', href: ACCESS_CONTROL_SETTINGS_HREF },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
     { id: 'wall', label: 'מסכי קיר', href: WALL_SETTINGS_HREF },
@@ -831,6 +836,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
   [WALL_SETTINGS_HREF]: ['system.configure'],
+  // CR-036 S10: access.admin.read at ANY scope (a station-scoped administrator sees the status of their stations; the server narrows every read)
+  [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read'],
   // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation
   // (scene.manage or the control of a device) at any scope - the server narrows the lists to the caller's floors and leaves automations out for a caller
   // without automation.manage; the settings page is system.configure at installation scope.
@@ -886,9 +893,10 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
  * operator holds them below installation scope) - not `access.read` at installation scope. While the screen is the embedded
  * panel the tab keeps `access.read` (WisKey's own per-area permissions decide inside the frame). A viewer holding only
  * `access.read` is therefore not offered the native People tab, and a direct URL shows the screen's "not available to you" panel.
- * Each native slice adds its row (S7: people). */
+ * Each native slice adds its row (S7: people; S8: events). */
 export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: string[] }> = {
   '#/wiskey/people': { screen: 'people', need: ['access.people.read'] },
+  '#/wiskey/events': { screen: 'events', need: ['access.events.read'] }, // S8: the entry log
 };
 
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there

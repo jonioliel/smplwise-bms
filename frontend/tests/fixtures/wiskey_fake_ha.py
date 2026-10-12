@@ -54,9 +54,9 @@ Control API (SW_WISKEY_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON
                                         unless `notify` is false
     POST /limits {scan_page?, max_scan_pages?, user_burst?, user_rate?, global_burst?, global_rate?, config_user_burst?, config_user_rate?}
                                         set the SMPLWISE backend's own people-search scan and read / config
-                                        rate-bucket constants IN THIS PROCESS (intercom_sync SCAN_PAGE /
-                                        MAX_SCAN_PAGES / USER_BURST / USER_RATE / GLOBAL_BURST / GLOBAL_RATE /
-                                        CONFIG_USER_BURST / CONFIG_USER_RATE) and reset the buckets, so a test can reach the
+                                        rate-bucket constants IN THIS PROCESS (intercom_adapter SCAN_PAGE /
+                                        MAX_SCAN_PAGES; intercom_sync USER_BURST / USER_RATE / GLOBAL_BURST /
+                                        GLOBAL_RATE / CONFIG_USER_BURST / CONFIG_USER_RATE) and reset the buckets, so a test can reach the
                                         `complete: false` outcomes deterministically or click through the editor
                                         faster than a person; /reset restores the defaults
     POST /mode {people}                 how users/create | users/update | users/delete answer (tests/evidence-wiskey-
@@ -143,11 +143,16 @@ os.environ["WISKEY_PASSWORD"] = "fixture-pass"
 import httpx  # noqa: E402
 import websockets  # noqa: E402
 
-LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE", "GLOBAL_BURST", "GLOBAL_RATE", "CONFIG_USER_BURST", "CONFIG_USER_RATE")  # intercom_sync constants the /limits control may set
+LIMIT_NAMES = ("SCAN_PAGE", "MAX_SCAN_PAGES", "USER_BURST", "USER_RATE", "GLOBAL_BURST", "GLOBAL_RATE", "CONFIG_USER_BURST", "CONFIG_USER_RATE")  # constants the /limits control may set
+ADAPTER_LIMITS = frozenset({"SCAN_PAGE", "MAX_SCAN_PAGES"})  # CR-036 S4 moved the typed reads' scan caps to intercom_adapter; the rate buckets stayed in intercom_sync
 LIMIT_DEFAULTS: dict[str, Any] = {}  # filled on first use (the backend is imported only after `websockets.connect` is replaced)
 
 ZONE = {"kind": "iana", "name": "Asia/Jerusalem"}
 VERSION = "4.2.0-fake"
+# WisKey's `overview.api.commands`: the reads this fixture answers. The typed feature flags of CR-036 (services/intercom_adapter.FEATURES)
+# follow from it - the entry log and the people directory are offered; `events/detail`, `users/photo_get` and `events/export` are not
+# (the event drawer then shows the row alone, and there is no picture and no export button).
+FIXTURE_COMMANDS = ["events/list", "users/get", "users/query"]
 
 
 # a 64x36 synthetic picture (flat colours, no camera frame), the body of every good frame.jpeg answer
@@ -852,16 +857,17 @@ class World:
 
 
 def set_limits(values: dict[str, Any]) -> dict[str, Any]:
-    """The /limits control (and /reset with no values): the given intercom_sync constants - the rest back to their
-    defaults - and the read buckets reset, in the SMPLWISE backend running in this process."""
-    from smplwise.services import intercom_sync  # imported here: the backend must not load before websockets.connect is replaced
+    """The /limits control (and /reset with no values): the given scan caps (intercom_adapter) and rate constants
+    (intercom_sync) - the rest back to their defaults - and the read buckets reset, in the SMPLWISE backend running in this process."""
+    from smplwise.services import intercom_adapter, intercom_sync  # imported here: the backend must not load before websockets.connect is replaced
 
+    home = {name: intercom_adapter if name in ADAPTER_LIMITS else intercom_sync for name in LIMIT_NAMES}
     if not LIMIT_DEFAULTS:
-        LIMIT_DEFAULTS.update({name: getattr(intercom_sync, name) for name in LIMIT_NAMES})
+        LIMIT_DEFAULTS.update({name: getattr(home[name], name) for name in LIMIT_NAMES})
     for name, default in LIMIT_DEFAULTS.items():
-        setattr(intercom_sync, name, type(default)(values.get(name.lower(), default)))
+        setattr(home[name], name, type(default)(values.get(name.lower(), default)))
     intercom_sync.SYNC._buckets_reset()  # noqa: SLF001 - a test control over the in-process backend
-    return {name: getattr(intercom_sync, name) for name in LIMIT_NAMES}
+    return {name: getattr(home[name], name) for name in LIMIT_NAMES}
 
 
 WORLD = World()
@@ -916,7 +922,7 @@ class FakeHa:
                 WORLD.sent.append(msg)
             by_id = {s["id"]: s for s in WORLD.stations}
             if kind == "hikvision_intercom/overview":
-                self.push(ok(msg, {"version": VERSION, "api": {"version": 1, "min_client": 0}, "default_zone": ZONE, "user_count": len(WORLD.people), "users": [], "stations": copy.deepcopy(WORLD.stations)}))
+                self.push(ok(msg, {"version": VERSION, "api": {"version": 1, "min_client": 0, "commands": FIXTURE_COMMANDS}, "default_zone": ZONE, "user_count": len(WORLD.people), "users": [], "stations": copy.deepcopy(WORLD.stations)}))
             elif kind == "hikvision_intercom/subscribe":
                 self.wiskey_sub = msg["id"]
                 # the control API's pushes go to THIS socket, on its own loop: SMPLWISE's HA sync opens a second socket

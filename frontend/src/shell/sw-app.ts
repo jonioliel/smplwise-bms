@@ -59,6 +59,7 @@ import '../screens/live-camera';
 import '../screens/live-views';
 import '../screens/kiosk-wall';
 import '../screens/system-wall';
+import '../screens/system-access-control'; // CR-036 S10: הגדרות › בקרת כניסה
 import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
 import '../screens/investigate-playback';
 import '../screens/investigate-sync';
@@ -2067,6 +2068,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
+        if (s[1] === 'access-control') return html`<system-access-control .view=${s[2] ?? ''}></system-access-control>`; // הגדרות › בקרת כניסה (CR-036 S10, access.admin.read)
         if (s[1] === 'notifications') return html`<system-notifications .section=${r.params.get('section') ?? ''}></system-notifications>`; // CR-018: the administrator's eight sections; everyone else: the device registration
         return html`<system-diagnostics></system-diagnostics>`;
       case 'wiskey': {
