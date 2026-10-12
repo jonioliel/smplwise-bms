@@ -146,7 +146,9 @@ def test_d10a_schedule_enable_and_bulk_enable_refuse_a_door_step(scheds):
     assert got == {ids["door"]: (False, "door_step_not_converted"), ids["template"]: (False, "door_steps_unresolvable"), ids["light"]: (True, None)}, got
     assert ops.count("enable") == 1, "only the light schedule was enabled"
     assert scheds["fake"].items[ids["door"]]["enabled"] is False and scheds["fake"].items[ids["template"]]["enabled"] is False
-    # an armed door schedule can always be switched off
+    # an armed door schedule can always be switched off (by someone holding CR-014's rights on its lock: door.unlock)
+    role = c.post(f"{API}/access/roles", json={"name": "פותח " + uuid.uuid4().hex[:6], "permissions": ["map.read"], "sensitive": ["door.unlock"]}).json()["id"]
+    assert c.post(f"{API}/access/bindings", json={"subject_kind": "user", "subject_id": "dev-joni", "role_id": role, "scope_type": "installation", "scope_id": "*"}).status_code == 201
     r = post_json(c, f"/schedules/{ids['armed']}/disable", {"client_request_id": rid()})
     assert r.status_code == 200, r.text
     assert scheds["fake"].items[ids["armed"]]["enabled"] is False

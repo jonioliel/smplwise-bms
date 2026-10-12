@@ -30,6 +30,7 @@ STATION_PERMISSIONS = frozenset({
     "access.read", "access.release",  # CR-033: the door rule
     "access.stations.read", "access.events.read", "access.events.export",  # CR-036 S3: per-station reads
     "access.people.read", "access.people.sensitive", "access.people.manage", "access.admin.read",
+    "access.cards.capture",  # CR-036 S11 moves the person editor and card capture onto the station chain
 })
 
 _CUSTOM_CACHE: dict[tuple[str, int], dict[str, list[str]]] = {}
