@@ -22,7 +22,7 @@ from starlette.websockets import WebSocketDisconnect
 from smplwise.main import create_app
 from smplwise.rbac import ROLES
 from smplwise.routers.access import PERMISSION_LABELS
-from smplwise.services import intercom_sync
+from smplwise.services import intercom_sync, wiskey_background
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -510,20 +510,21 @@ def test_overview_round_trip_and_live_refresh(feed):
         body = c.get("/api/v1/intercom/overview").json()
         assert body["state"] == "ready" and body["fresh"] is True and body["configured"] is True and body["fetched_at"]
         ov = body["overview"]
-        assert ov["version"] == "4.2.0" and ov["api_version"] == 1 and ov["user_count"] == 1
+        assert ov["version"] == "4.2.0" and ov["api_version"] == 1 and "user_count" not in ov, "B0 (D-006): no directory size either"
         assert ov["default_zone"] == {"kind": "iana", "name": "Asia/Jerusalem"}
         gate, side = ov["stations"]
         assert gate == {
             "id": "entry-a", "name": "Main gate", "online": True, "call_state": "ringing", "sync_state": "synced", "lock_enabled": True,
             "lock_count": 1, "locks": [{"physical_index": 1, "name": "Gate"}],  # WisKey's api_id stays behind
             "has_camera": True, "camera_entity": "camera.main_gate", "last_error": None, "last_seen": "2026-09-27T08:00:00+00:00",
-            "pending_user_count": 0, "managed_user_count": 12, "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
-            "last_access": {"timestamp": "2026-09-27T07:59:00+03:00", "time_source": "device", "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1},
-        }
-        assert side["online"] is False and side["call_state"] == "unavailable" and side["last_access"] is None and side["zone"] is None and side["has_camera"] is False and side["camera_entity"] is None and side["pending_user_count"] == 2
+            "zone": {"kind": "iana", "name": "Asia/Jerusalem"},
+        }, "B0 (D-006): no last_access, no people counts"
+        assert side["online"] is False and side["call_state"] == "unavailable" and side["zone"] is None and side["has_camera"] is False and side["camera_entity"] is None
         text = json.dumps(body)
-        for private in ("192.0.2.10", "+972500000000", "****1234", "DS-KV6113", "users", "entities", "host", "lock.main_gate", "binary_sensor.", "sensor.main_gate"):
+        for private in ("192.0.2.10", "+972500000000", "****1234", "DS-KV6113", "users", "entities", "host", "lock.main_gate", "binary_sensor.", "sensor.main_gate",
+                        "Dana", "1001", "person_name", "employee_no", "last_access", "access_granted"):
             assert private not in text, f"{private} must not leave the feed"
+        assert wiskey_background.find_person_fields(body) == []
 
         pushed = []
         while not q.empty():
@@ -683,20 +684,24 @@ def sent(fakes: list[FakeHa], kind: str) -> list[dict[str, Any]]:
     return [m for f in fakes for m in f.sent if m.get("type") == f"hikvision_intercom/{kind}"]
 
 
-def test_activity_and_people_require_access_read(settings):
-    """Same gate as the overview (`access.read` at installation scope), checked before the query is validated."""
+def test_activity_and_people_require_their_own_permissions(settings):
+    """CR-036 S3 (owner answers 2026-10-11/12): the entry log needs `access.events.read`, the people directory
+    `access.people.read` - operator and above; a viewer keeps the entry center only. Checked before the query is validated."""
     intercom_sync.SYNC.reset()
     c = TestClient(create_app(settings))
     bind(c, settings, "wall", "kiosk", "installation", "*")
     bind(c, settings, "vera", "viewer", "installation", "*")
+    bind(c, settings, "otto", "operator", "installation", "*")
     for path in ("/api/v1/intercom/events", "/api/v1/intercom/people", "/api/v1/intercom/people/u1"):
         r = c.get(path, headers=as_user("wall"))
         assert r.status_code == 403 and r.json()["code"] == "forbidden", path
         assert c.get(path, headers=as_user("nobody")).status_code == 403, f"{path}: no binding at all"
-        assert c.get(path, headers=as_user("vera")).status_code == 200, path
-    r = c.get("/api/v1/intercom/events?limit=999&door=7", headers=as_user("wall"))
+        assert c.get(path, headers=as_user("vera")).status_code == 403, f"{path}: access.read alone no longer shows names"
+        assert c.get(path, headers=as_user("otto")).status_code == 200, path
+    assert c.get("/api/v1/intercom/overview", headers=as_user("vera")).status_code == 200, "the viewer keeps the entry center"
+    r = c.get("/api/v1/intercom/events?limit=999&door=7", headers=as_user("vera"))
     assert r.status_code == 403, "no permission: refused before the parameters are even looked at"
-    assert c.get("/api/v1/intercom/events?limit=999", headers=as_user("vera")).status_code == 422
+    assert c.get("/api/v1/intercom/events?limit=999", headers=as_user("otto")).status_code == 422
 
 
 def test_activity_and_people_without_home_assistant(settings):
@@ -886,7 +891,7 @@ def test_local_rate_buckets_refuse_before_calling_wiskey(feed, monkeypatch):
     app, fakes = ready_feed(feed, lambda msg: [ok(msg, copy.deepcopy(EVENTS_PAGE))] if msg["type"] == "hikvision_intercom/events/list" else None)
     intercom_sync.SYNC._buckets_reset()
     c = TestClient(app)
-    bind(c, feed[1], "vera", "viewer", "installation", "*")
+    bind(c, feed[1], "otto", "operator", "installation", "*")  # CR-036 S3: the entry log is access.events.read (operator and above)
 
     def get(headers: dict[str, str] | None = None) -> dict[str, Any]:
         return c.get("/api/v1/intercom/events", headers=headers or {}).json()
@@ -894,8 +899,8 @@ def test_local_rate_buckets_refuse_before_calling_wiskey(feed, monkeypatch):
     assert get()["state"] == "ready" and get()["state"] == "ready"
     mine = get()
     assert (mine["state"], mine["last_error"], mine["events"]) == ("error", "rate_limited", None), "the caller's own bucket is empty"
-    assert get(as_user("vera"))["state"] == "ready", "another user still has tokens of their own"
-    total = get(as_user("vera"))
+    assert get(as_user("otto"))["state"] == "ready", "another user still has tokens of their own"
+    total = get(as_user("otto"))
     assert (total["state"], total["last_error"]) == ("error", "rate_limited"), "and the shared bucket is empty now"
     assert len(sent(fakes, "events/list")) == 3, "a refused request never reaches WisKey"
     assert intercom_sync.STATE.state == "ready" and len(fakes) == 1
@@ -1153,13 +1158,15 @@ def test_search_scan_is_bounded(feed, monkeypatch):
     people = directory(450)
     app, fakes = ready_feed(feed, wiskey_directory(people))
     c = TestClient(app)
-    monkeypatch.setattr(intercom_sync, "MAX_SCAN_PAGES", 2)
+    from smplwise.services import intercom_adapter  # CR-036 S4: the scan lives in the adapter
+
+    monkeypatch.setattr(intercom_adapter, "MAX_SCAN_PAGES", 2)
     page = c.get("/api/v1/intercom/people", params={"query": "Person 1"}).json()["people"]
     assert len(sent(fakes, "users/query")) == 2
     assert page["complete"] is False and page["incomplete_reason"] == "scan_limit"
     assert page["total"] == len([p for p in people[:400] if "person 1" in p["display_name"].casefold()])
 
-    monkeypatch.setattr(intercom_sync, "MAX_SCAN_PAGES", 10)
+    monkeypatch.setattr(intercom_adapter, "MAX_SCAN_PAGES", 10)
     monkeypatch.setattr(intercom_sync, "USER_BURST", 2.0)
     monkeypatch.setattr(intercom_sync, "USER_RATE", 0.0)
     intercom_sync.SYNC._buckets_reset()
@@ -1237,8 +1244,8 @@ def test_busy_costs_no_rate_token(feed, monkeypatch):
 
 
 def test_events_client_never_sends_current_profile():
-    """S1 at the client layer too: whatever a caller passes, only EVENT_FILTER_KEYS reach WisKey."""
-    from smplwise.services import intercom_client
+    """S1 at the client layer too: whatever a caller passes, only EVENT_FILTER_KEYS reach WisKey (CR-036 S4: the adapter's read)."""
+    from smplwise.services import intercom_adapter
 
     seen: list[dict[str, Any]] = []
 
@@ -1246,7 +1253,7 @@ def test_events_client_never_sends_current_profile():
         seen.append({"type": msg_type, **kw})
         return {"success": True, "result": {"records": []}}
 
-    asyncio.run(intercom_client.events_list(call, {"station_id": "entry-a", "current_profile": {"id_number": "123456789"}, "person": None, "surprise": 1}))
+    asyncio.run(intercom_adapter.events_list(call, {"station_id": "entry-a", "current_profile": {"id_number": "123456789"}, "person": None, "surprise": 1}))
     assert seen == [{"type": "hikvision_intercom/events/list", "filters": {"station_id": "entry-a"}}]
 
 
@@ -1813,11 +1820,11 @@ def test_read_traffic_cannot_starve_physical_actions(feed, monkeypatch):
     app, fakes, c = actions_feed(feed, accept_unlock)
     intercom_sync.SYNC._buckets_reset()
     assert c.get("/api/v1/intercom/people/u1").json()["state"] in ("ready", "error")  # spends the only read token
-    assert c.get("/api/v1/intercom/people/u1", headers=as_user("vera")).json()["last_error"] == "rate_limited", "reads are exhausted"
+    assert c.get("/api/v1/intercom/people/u1", headers=as_user("sam")).json()["last_error"] == "rate_limited", "reads are exhausted (CR-036 S3: a viewer reads no person; sam holds access.people.read)"
     reads = intercom_sync.SYNC._inflight = threading.BoundedSemaphore(1)
     assert reads.acquire(blocking=False)
     try:
-        assert c.get("/api/v1/intercom/people/u1", headers=as_user("vera")).json()["last_error"] == "busy", "and every read slot is taken"
+        assert c.get("/api/v1/intercom/people/u1", headers=as_user("sam")).json()["last_error"] == "busy", "and every read slot is taken"
         r = release(c)
         assert r.status_code == 200 and r.json()["release"] == {"accepted": True}
     finally:
@@ -2719,7 +2726,7 @@ def test_person_editor_requires_access_people_manage(settings):
     site = c.post("/api/v1/sites", json={"name": "A1 site"}).json()["id"]
     bind(c, settings, "sally", "site_admin", "site", site)
     bind(c, settings, "sam", "site_admin", "installation", "*")
-    assert c.get("/api/v1/intercom/people/u1", headers=as_user("vera")).status_code != 403, "vera does hold access.read"
+    assert c.get("/api/v1/intercom/people/u1", headers=as_user("otto")).status_code != 403, "otto does hold access.people.read (CR-036 S3; access.read alone no longer reads people)"
     for user in ("vera", "otto", "eddie", "wall", "sally", "nobody"):
         for method, path, body in EDITOR_PATHS:
             r = c.request(method, path, json=body if body is not None else env(data=NEW_PERSON, revision=4, confirmed=True), headers=as_user(user))
@@ -2743,7 +2750,8 @@ def test_editor_projection_is_separate_and_the_read_projection_is_unchanged(feed
     rogue = {**copy.deepcopy(PERSON), "pin": "9999", "photo": "data:image/jpeg;base64,QUJD",
              "cards": [*PERSON["cards"], {"id": CARD_ID, "masked_number": "ABCD5678", "card_no": "ABCD5678", "label": "Spare", "card_type": "normalCard", "enabled": False}]}
     app, fakes, c = editor_feed(feed, lambda msg: [ok(msg, copy.deepcopy(rogue))] if msg["type"] == "hikvision_intercom/users/get" else None)
-    r = c.get("/api/v1/intercom/people/u1", headers=as_user("vera"))
+    bind(c, feed[1], "otto", "operator", "installation", "*")  # CR-036 S3: the people read is access.people.read (operator and above)
+    r = c.get("/api/v1/intercom/people/u1", headers=as_user("otto"))
     assert r.status_code == 200 and r.json()["person"] == PROJECTED_PERSON, "the read projection did not grow"
     assert not [p for p in PRIVATE if p in r.text], "no editor field leaks to access.read"
     r = c.get("/api/v1/intercom/people/u1/editor", headers=as_user("sam"))

@@ -1,0 +1,21 @@
+{
+ "station_id": "entry-a",
+ "period_days": 7,
+ "records": [
+  {
+   "at": "2026-09-27T06:00:00+00:00",
+   "online": true,
+   "poll_ms": 40,
+   "sync": "synced",
+   "events": "connected"
+  },
+  {
+   "at": "2026-09-27T07:00:00+00:00",
+   "online": false,
+   "poll_ms": null,
+   "sync": "teleporting",
+   "events": "disconnected"
+  }
+ ],
+ "storage_failed": false
+}

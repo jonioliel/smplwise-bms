@@ -16,7 +16,7 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import ui_background
-from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors
+from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, intercom_authority, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -207,6 +207,10 @@ DEFAULTS: dict[str, str] = {
     # (frontend/src/wiskey/companion-bridge.ts). "false" (the default) keeps the 0.1.123 behaviour: no frame in the app,
     # the SMPLWISE screen or a note plus "פתח ב-WisKey".
     "access.phone_embed": "false",
+    # CR-036 S3 (owner answers 2026-10-12: every decision is an administrator setting, the answer is the default): who sees
+    # what in the access-control reads - the employee number is a names-level field, the event picture needs only the events
+    # view (each view audited), sync error texts need access.admin.read. services/intercom_authority.py reads them per request.
+    **intercom_authority.POLICY_DEFAULTS,
     # CR-007 slice 6a: הגדרות › חשמל והתקנים - how the device-control screens look, per installation (read by every user
     # through GET /settings; changed with system.configure, audited like every product setting). Presentation only: the
     # safety rules of the bulk actions (confirmation, expiry, never locks / alarm / door release) are not settings.
@@ -638,6 +642,10 @@ class SettingsPatch(BaseModel):
     ui_wiskey_density: str | None = Field(default=None, pattern="^(auto|4|6|8|9|12)$", alias="ui.wiskey_density")
     ui_wiskey_wall: str | None = Field(default=None, pattern="^(auto|4|9|12)$", alias="ui.wiskey_wall")
     access_phone_embed: str | None = Field(default=None, pattern="^(true|false)$", alias="access.phone_embed")
+    access_employee_no_sensitive: str | None = Field(default=None, pattern="^(true|false)$", alias="access.employee_no_sensitive")  # CR-036 S3
+    access_event_portrait_sensitive: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_sensitive")
+    access_event_portrait_audit: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_audit")
+    access_sync_errors_everyone: str | None = Field(default=None, pattern="^(true|false)$", alias="access.sync_errors_everyone")
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")

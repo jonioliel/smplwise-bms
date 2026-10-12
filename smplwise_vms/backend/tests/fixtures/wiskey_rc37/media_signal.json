@@ -1,0 +1,9 @@
+{
+ "command": "answer",
+ "acknowledged": true,
+ "physical_result": "unverified",
+ "before_state": "ringing",
+ "observed_state": "in_call",
+ "observation": "state_changed",
+ "checked_at": "2026-09-27T08:01:00+00:00"
+}

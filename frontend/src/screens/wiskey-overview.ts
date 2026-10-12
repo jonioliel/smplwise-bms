@@ -37,12 +37,6 @@ import {
 } from '../api/intercom';
 import { formatTime, t, UTC_ZONE } from './wiskey-format';
 
-/** A timestamp as epoch milliseconds for ordering; unparseable ones sort last. */
-export function instant(ts: string | null | undefined): number {
-  const ms = ts ? Date.parse(ts) : NaN;
-  return Number.isNaN(ms) ? -Infinity : ms;
-}
-
 /** WisKey's door filter (wiskey-v4-overview.ts `WiskeyDoorFilter`). */
 type DoorFilter = 'all' | 'online' | 'attention';
 
@@ -132,12 +126,11 @@ const DEMO: IntercomOverview = {
   version: 'demo',
   api_version: 1,
   default_zone: { kind: 'iana', name: 'Asia/Jerusalem' },
-  user_count: 48,
   stations: [
-    { id: 'd1', name: 'שער ראשי', online: true, call_state: 'ringing', sync_state: 'synced', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 0, managed_user_count: 42, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-27T07:58:12+03:00', time_source: 'device', person_name: 'דנה כהן', employee_no: '1001', authentication: 'card', result: 'granted', event_type: 'access_granted', recovered: false, door: 1 } },
-    { id: 'd2', name: 'לובי', online: true, call_state: 'idle', sync_state: 'synced', lock_enabled: true, lock_count: 2, locks: [{ physical_index: 1, name: 'כניסה' }, { physical_index: 2, name: 'מחסום' }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 0, managed_user_count: 42, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-27T07:41:03+03:00', time_source: 'device', person_name: null, employee_no: '2044', authentication: 'pin', result: 'granted', event_type: 'access_granted', recovered: false, door: 2 } },
-    { id: 'd3', name: 'חניון', online: true, call_state: 'idle', sync_state: 'pending', lock_enabled: false, lock_count: 0, locks: [], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', pending_user_count: 3, managed_user_count: 39, zone: { kind: 'iana', name: 'Asia/Jerusalem' }, last_access: { timestamp: '2026-09-26T22:10:40+03:00', time_source: 'received', person_name: null, employee_no: null, authentication: 'unknown', result: 'denied', event_type: 'access_denied', recovered: true, door: null } },
-    { id: 'd4', name: 'מחסן', online: false, call_state: 'unavailable', sync_state: 'offline', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: false, camera_entity: null, last_error: null, last_seen: '2026-09-26T19:02:00+03:00', pending_user_count: 1, managed_user_count: null, zone: null, last_access: null },
+    { id: 'd1', name: 'שער ראשי', online: true, call_state: 'ringing', sync_state: 'synced', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', zone: { kind: 'iana', name: 'Asia/Jerusalem' } },
+    { id: 'd2', name: 'לובי', online: true, call_state: 'idle', sync_state: 'synced', lock_enabled: true, lock_count: 2, locks: [{ physical_index: 1, name: 'כניסה' }, { physical_index: 2, name: 'מחסום' }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', zone: { kind: 'iana', name: 'Asia/Jerusalem' } },
+    { id: 'd3', name: 'חניון', online: true, call_state: 'idle', sync_state: 'pending', lock_enabled: false, lock_count: 0, locks: [], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', zone: { kind: 'iana', name: 'Asia/Jerusalem' } },
+    { id: 'd4', name: 'מחסן', online: false, call_state: 'unavailable', sync_state: 'offline', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: false, camera_entity: null, last_error: null, last_seen: '2026-09-26T19:02:00+03:00', zone: null },
   ],
 };
 
@@ -545,7 +538,7 @@ export class WiskeyOverview extends LitElement {
     // --- ported from wiskeyOverview() (wiskey-v4-overview.ts:41-68)
     const all = o.stations;
     const ringing = all.filter((s) => s.call_state === 'ringing' && s.online);
-    const attention = all.filter((s) => !s.online || !!s.last_error || s.pending_user_count > 0);
+    const attention = all.filter((s) => !s.online || !!s.last_error || s.sync_state === 'pending');
     const q = this.query.trim().toLocaleLowerCase();
     const matches = all.filter((s) => {
       if (!s.name.toLocaleLowerCase().includes(q)) return false;
@@ -554,23 +547,14 @@ export class WiskeyOverview extends LitElement {
     const pages = Math.max(1, Math.ceil(matches.length / PAGE));
     const page = Math.min(this.page, pages - 1);
     const visible = matches.slice(page * PAGE, (page + 1) * PAGE);
-    const events = all
-      .filter((s) => s.last_access)
-      // by instant, not by text: device time carries the station's own offset, received time is +00:00 (a string
-      // sort puts 05:30+00:00 below 07:59+03:00; WisKey's own sort does that, CR-005 fixes it rather than keeps it)
-      .sort((a, b) => instant(b.last_access!.timestamp) - instant(a.last_access!.timestamp))
-      .slice(0, 5);
-    const pending = all.reduce((sum, s) => sum + s.pending_user_count, 0); // panel.ts pendingCount()
     const zone = o.default_zone ?? UTC_ZONE;
     // panel.ts sorts the legacy grid ringing-first; the WisKey 04 grid keeps WisKey's own order
     return html`
       <div class="stats" data-wiskey-stats aria-label="סיכום">
         <sw-kpi icon="door" tone=${all.length && all.every((s) => s.online) ? 'live' : all.some((s) => !s.online) ? 'offline' : 'neutral'} label=${t('online_stations')} value=${`⁦${all.filter((s) => s.online).length} / ${all.length}⁩`}></sw-kpi>
-        <sw-kpi icon="users" label=${t('total_users')} value=${String(o.user_count)}></sw-kpi>
         <sw-kpi icon="bell" tone=${ringing.length ? 'stale' : 'neutral'} label=${t('ringing_now')} value=${String(ringing.length)}></sw-kpi>
-        <sw-kpi icon="refresh" tone=${pending ? 'stale' : 'neutral'} label=${t('pending_sync')} value=${String(pending)}></sw-kpi>
       </div>
-      <div class="layout">
+      <div class=${attention.length ? 'layout with-side' : 'layout'}>
         <div class="main">
           <div class="toolbar">
             <label class="search"><sw-icon name="search" size=${16}></sw-icon><input type="search" data-wiskey-search aria-label=${t('wall_search')} placeholder=${t('wall_search')} .value=${this.query} @input=${(e: Event) => { this.query = (e.target as HTMLInputElement).value; this.page = 0; }} /></label>
@@ -590,23 +574,14 @@ export class WiskeyOverview extends LitElement {
               </div>`
             : nothing}
         </div>
-        <aside class="side">
-          <sw-card heading=${t('access_recent_activity')} data-wiskey-activity>
-            ${events.length
-              ? events.map((s) => html`<div class="event">
-                  <strong>${s.last_access!.person_name || t('unknown')}</strong>
-                  <small>${s.name} · ${t(s.last_access!.authentication)}</small>
-                  <time><bdi>${formatTime(s.last_access!.timestamp, 'he-IL', zone)}</bdi></time>
-                </div>`)
-              : html`<p class="muted">${t('no_events')}</p>`}
-          </sw-card>
-          ${attention.length
-            ? html`<sw-card heading=${t('access_attention')} data-wiskey-attention>
+        ${attention.length
+          ? html`<aside class="side">
+              <sw-card heading=${t('access_attention')} data-wiskey-attention>
                 <sw-badge slot="actions" kind="stale" label=${String(attention.length)}></sw-badge>
                 ${attention.slice(0, 5).map((s) => html`<div class="attn"><strong>${s.name}</strong><small>${!s.online ? t('offline') : s.last_error || t('pending_sync')}</small></div>`)}
-              </sw-card>`
-            : nothing}
-        </aside>
+              </sw-card>
+            </aside>`
+          : nothing}
       </div>
     `;
   }
@@ -621,9 +596,7 @@ export class WiskeyOverview extends LitElement {
           <b title=${s.name}>${s.name}</b>
           <small>${!s.online && s.last_seen
             ? html`${t('last_seen')}: <bdi>${formatTime(s.last_seen, 'he-IL', zone)}</bdi>`
-            : s.pending_user_count
-              ? `${t('pending_users')}: ${s.pending_user_count}`
-              : t('access_by_permissions')}</small>
+            : t('access_by_permissions')}</small>
         </div>
         <sw-badge kind=${kind} label=${t(status)}></sw-badge>
       </div>
@@ -635,7 +608,6 @@ export class WiskeyOverview extends LitElement {
         ${s.online && s.call_state !== 'ringing' ? html`<span>שיחה: ${t(s.call_state)}</span>` : nothing}
       </div>
       ${this.canAct() ? this.renderActions(s) : nothing}
-      ${this.renderLastAccess(s)}
     </article>`;
   }
 
@@ -713,39 +685,26 @@ export class WiskeyOverview extends LitElement {
     </div>`;
   }
 
-  /** panel.ts `lastAccess()` (1079-1096): the station's last access in the station's own clock zone. */
-  private renderLastAccess(s: IntercomStation) {
-    const e = s.last_access;
-    return html`<div class="last" data-wiskey-last>
-      <span class="muted">${t('last_access')}</span>
-      ${e
-        ? html`<div>${e.person_name ?? e.employee_no ?? t('unknown_person')}</div>
-            <div class="muted">${t(e.event_type)} · ${t(e.authentication)}</div>
-            <div class="muted">
-              <bdi>${formatTime(e.timestamp, 'he-IL', s.zone ?? UTC_ZONE)}</bdi>
-              ${!e.person_name && !e.employee_no ? html`<div>${t('identity_unavailable')}</div>` : nothing}
-              ${e.time_source === 'received' ? html` · ${t('receipt_time')}` : nothing}
-              ${e.recovered ? html` · ${t('historical_record')}` : nothing}
-            </div>`
-        : html`<div class="muted">${t('no_access_recorded')}</div>`}
-    </div>`;
-  }
-
   static styles = css`
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(140px, 240px));
       gap: 12px;
+    }
+    @media (max-width: 600px) {
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 300px;
+      grid-template-columns: minmax(0, 1fr);
       gap: 14px;
       align-items: start;
     }
-    @media (max-width: 1000px) {
-      .layout {
-        grid-template-columns: minmax(0, 1fr);
+    @media (min-width: 1001px) {
+      .layout.with-side {
+        grid-template-columns: minmax(0, 1fr) 300px;
       }
     }
     .main,
@@ -911,21 +870,12 @@ export class WiskeyOverview extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
-    .last {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      padding-block-start: 8px;
-      border-block-start: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
     .pager {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
     }
-    .event,
     .attn {
       display: flex;
       flex-direction: column;
@@ -933,13 +883,8 @@ export class WiskeyOverview extends LitElement {
       padding-block: 8px;
       border-block-end: 1px solid var(--sw-border);
     }
-    .event:last-child,
     .attn:last-child {
       border-block-end: 0;
-    }
-    .event time {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
     }
     .note {
       display: flex;

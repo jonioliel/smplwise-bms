@@ -1,0 +1,27 @@
+{
+ "allowed": true,
+ "is_admin": true,
+ "revision": 3,
+ "personal_renewal": false,
+ "areas": {
+  "overview": "manage",
+  "users": "manage",
+  "events": "manage",
+  "stations": "manage",
+  "management": "manage"
+ },
+ "fields": {
+  "phone": "manage",
+  "photo": "manage",
+  "credentials": "manage",
+  "profile": "manage",
+  "access": "manage"
+ },
+ "station_ids": null,
+ "security": {
+  "locked": false,
+  "idle_minutes": 0,
+  "reauth_sensitive": false,
+  "elevated": false
+ }
+}

@@ -1,0 +1,105 @@
+{
+ "integration_version": "2.0.0-rc.37",
+ "loaded": true,
+ "config_schema": {
+  "version": 1,
+  "minor_version": 2
+ },
+ "model": "DS-KV6124-E1",
+ "firmware": "V2.2 build 240101",
+ "camera": {
+  "snapshot": true,
+  "stream": true
+ },
+ "managed_locks": [
+  1
+ ],
+ "api_door_ids": [
+  1
+ ],
+ "call_states": [
+  "idle",
+  "ring"
+ ],
+ "online": true,
+ "consecutive_poll_failures": 0,
+ "requests": {
+  "requests": 120,
+  "failures": 1,
+  "sample_count": 50,
+  "last_ms": 40,
+  "p95_ms": 90
+ },
+ "quality": {
+  "requests": {
+   "requests": 120
+  }
+ },
+ "access": {
+  "sync_state": "synced",
+  "last_error": null,
+  "pending_request": false,
+  "worker_active": false,
+  "queue_depth": 0,
+  "assignment_states": {
+   "synced": 40,
+   "pending": 2
+  },
+  "errors": {
+   "device_unavailable": 1
+  },
+  "users": 42,
+  "cards": 37,
+  "capabilities": {
+   "max_users": 500
+  }
+ },
+ "sync_diagnostics": {
+  "retention": "last_200_stages_since_start",
+  "recent": [
+   {
+    "timestamp": "2026-09-27T07:00:00+00:00",
+    "station_ref": "abcdef012345",
+    "user_ref": "0123456789ab",
+    "step": "write",
+    "outcome": "ok"
+   }
+  ]
+ },
+ "events": {
+  "stream": "connected",
+  "history": "recovered",
+  "reconnects": 0,
+  "last_frame_at": "2026-09-27T07:00:00+00:00",
+  "telemetry": {
+   "seen": 3
+  },
+  "cached_records": 300,
+  "storage_failed": false
+ },
+ "clock": {
+  "source": "device",
+  "zone": {
+   "kind": "iana",
+   "name": "Asia/Jerusalem"
+  },
+  "device_zone": null,
+  "status": "ready",
+  "checked_at": "2026-09-27T07:00:00+00:00",
+  "skew_seconds": 1,
+  "error": null,
+  "measurement": null,
+  "next_transition": null,
+  "drift_state": "within_tolerance",
+  "time_mode": "NTP"
+ },
+ "media": null,
+ "audio": {
+  "active": false,
+  "source": null,
+  "last_result": null
+ },
+ "generated_at": "2026-09-27T07:00:01+00:00",
+ "format": "hikvision_intercom.compatibility",
+ "evidence_scope": "software_observation_not_physical_acceptance"
+}

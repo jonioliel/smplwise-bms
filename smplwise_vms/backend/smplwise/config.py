@@ -35,6 +35,10 @@ class Settings:
     # another one gets a per-station override (wiskey_station_credentials table). Server-side only, like nvr_password.
     wiskey_user: str | None = None
     wiskey_password: str | None = field(default=None, repr=False)
+    # WisKey background (read) channel (B0, D-004 / D-006): the long-lived access token of the dedicated, non-administrator
+    # Home Assistant account the OWNER creates after B0. Unset: the background channel shares the service identity
+    # (SUPERVISOR_TOKEN) and the diagnostics say so. Server-side only, never logged; valid on HA core, not on the proxy.
+    wiskey_background_token: str | None = field(default=None, repr=False)
     # CR-006 phase 2 (AI-rendered floor skins): the OpenAI API key - an add-on option like the NVR password, server-side
     # only, never stored in the database, never in logs, audit rows or error payloads (services/skins/provider.redact).
     openai_api_key: str | None = field(default=None, repr=False)
@@ -180,6 +184,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         go2rtc_password=_opt(options, "go2rtc_api_password", "GO2RTC_API_PASSWORD"),
         wiskey_user=_opt(options, "wiskey_username", "WISKEY_USER"),
         wiskey_password=_opt(options, "wiskey_password", "WISKEY_PASSWORD"),
+        wiskey_background_token=_opt(options, "wiskey_background_token", "WISKEY_BACKGROUND_TOKEN"),
         openai_api_key=_opt(options, "openai_api_key", "OPENAI_API_KEY"),
         # Home Assistant Core API: the Supervisor injects SUPERVISOR_TOKEN when config.yaml sets homeassistant_api;
         # never taken from the options file (no user token is stored in options).

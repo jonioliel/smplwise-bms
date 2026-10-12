@@ -25,13 +25,22 @@ serving the last-known copy as not fresh.
 Honest state: without Home Assistant access, without the WisKey integration, or when WisKey refuses the add-on's user,
 the state says so and no station data is served. Only the projection below is ever kept in memory - WisKey's people
 list (cards, PIN flags, phones) is dropped the moment the reply arrives; that belongs to a later, separately gated
-screen.
+screen. B0 (D-006): the same goes for each station's `last_access` (person name, employee number, event identity) and for
+every people count: WisKey's `overview` still sends them, this module never keeps, serves or logs them. A person's name
+reaches a screen only through the adapter's one-off reads (services/intercom_adapter.py, CR-036 S4). The background (read)
+channel proper - its own session, its own account once the owner creates it, and the closed D-006 projection - is
+services/wiskey_background_feed.py (the session) and services/wiskey_background.py (the projection); this session is the
+service channel (SUPERVISOR_TOKEN) that also carries the writes (D-004).
 
-One-off reads (phase 1b: `events/list`, `users/query`, `users/get`) go through `IntercomSync.command`: the request
-thread schedules the command on this feed's own event loop and it is sent over the SAME live session (`self._call`),
-never over a new Home Assistant connection. It runs only while the feed is `ready`; otherwise the reply carries the
-feed's own state (`ha_not_configured`, `connecting`, `ha_unavailable`, `not_installed`, `forbidden`, `error`) and no
-data. Nothing from these replies is cached, and only their projections below are returned.
+One-off reads go through `IntercomSync.command`: the request thread schedules the command on this feed's own event loop
+and it is sent over the SAME live session, never over a new Home Assistant connection. It runs only while the feed is
+`ready`; otherwise the reply carries the feed's own state (`ha_not_configured`, `connecting`, `ha_unavailable`,
+`not_installed`, `forbidden`, `error`) and no data. Since CR-036 S4 the stage-1 reads (people, events, groups, schedules,
+health, sync, alerts, WisKey's audit ...) are services/intercom_adapter.py's: they ride this socket under the `read` /
+`technical` channel guards (wiskey_channels), in this feed's read lane, and pass the projection filter
+(services/intercom_authority.py) before anything is served. With the copy this feed keeps each station's closed technical
+part and the `api` facts the adapter's feature flags need; a `refresh` push marks the adapter's cached reads stale and a
+dropped copy clears them.
 
 Physical actions (CR-005 phase 3: door release, call signal, TTS announcement) take the same road - `IntercomSync.action`
 shares `command`'s session, in-flight slots and rate buckets - but anything short of success is raised as an ApiError
@@ -53,7 +62,11 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import hashlib
+import hmac
+import json
 import logging
+import os
 import queue
 import re
 import threading
@@ -81,15 +94,15 @@ SERVED_STATES = ("ready", "ha_unavailable", "connecting", "error")  # the states
 # a camera entity id as Home Assistant spells it (lower-case, digits, underscores). It comes from WisKey's `overview`,
 # which is untrusted input, and is meant to name a media source later, so anything else is not kept.
 CAMERA_ENTITY = re.compile(r"camera\.[a-z0-9_]{1,200}")
-LAST_ACCESS_KEYS = ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")
-# one events/list row as the activity screen shows it: the overview's last-access fields plus the row's identity and
-# arrival time. Not kept: `card` (masked last-4), `portrait`, `evidence`, `major` / `minor`, `api_door`, `source`.
-EVENT_KEYS = ("id", "station_id", "timestamp", "received_at", *LAST_ACCESS_KEYS[1:])
+# WisKey's normalized call states (the coordinator's `normalized`; wiskey-format.ts names each). Anything else - a value a
+# newer WisKey adds, or schema drift - is served as `unknown`, never echoed (CR-036 2.2, D-003).
+CALL_STATES = frozenset({"idle", "ringing", "in_call", "ending", "unavailable", "unknown"})
+# a station's sync states (WisKey access/manager.py); anything else is `unknown` too (CR-036 S4 found it echoed before)
+STATION_SYNC_STATES = frozenset({"offline", "pending", "syncing", "synced", "error"})
 # one person as the read-only people screens show them. Not kept: `phone`, `cards`, `pin_configured`, `profile`,
 # `photo_configured`, `permission_overrides`, `access_timing_*`, `timing_readbacks`, `identity_locked`, `user_type`,
 # `sync_reference`, `created_at` / `updated_at`, and each assignment's `last_error` / revisions.
 PERSON_KEYS = ("id", "employee_no", "display_name")
-PEOPLE_PAGE_KEYS = ("total", "total_all", "offset", "limit", "next_offset", "previous_offset")
 COMMAND_TIMEOUT_S = 25.0  # a one-off read waits this long for WisKey (`ha_client`'s own per-call limit is 60 s)
 # WisKey's AdminLimiter allows 8 concurrent handlers per HA user, and the feed's own overview refetch shares that user:
 # one-off reads from browsers are kept to half of it. A slot stays taken until WisKey actually answered (or
@@ -100,7 +113,7 @@ MAX_INFLIGHT = 4
 # per SMPLWISE user (fairness) and in total (kept well under WisKey's own refill, so the feed always has headroom).
 USER_BURST, USER_RATE = 10.0, 1.0
 GLOBAL_BURST, GLOBAL_RATE = 20.0, 1.5
-# physical actions have a lane of their own, so read traffic (a people search spends up to MAX_SCAN_PAGES tokens) can
+# physical actions have a lane of their own, so read traffic (an adapter scan spends up to its MAX_SCAN_PAGES tokens) can
 # never leave a release or a hang-up `busy` / `rate_limited` (T054 review S5): their own in-flight slots and buckets.
 # Totals stay under WisKey's AdminLimiter (8 handlers, burst 30, refill 2/s per HA user) with room for the feed:
 # slots 4 + 2 (+ the feed's own overview / subscribe calls), bursts 20 + 8, refills 1.5 + 0.5 per second - at the very
@@ -142,11 +155,6 @@ READERS_TIMEOUT_S = 40.0  # WisKey's own asyncio.timeout(35) on cards/reader_cap
 RATE_LIMITED = "rate_limited"
 RATE_RETRY_S = 2.0  # the feed's own refetch answered `rate_limited`: keep the session and try again after this long
 DEFER_RETRY_S = 5.0  # a refetch failure deferred during an announcement (S6) is retried this often
-# people text search runs here, not in WisKey (D1, see search_people): the filtered directory is scanned in pages of
-# SCAN_PAGE, at most MAX_SCAN_PAGES per request (2 000 people; a WisKey station holds a few hundred), every page after
-# the first spending one more rate token
-SCAN_PAGE = 200
-MAX_SCAN_PAGES = 10
 # a physical action (release / call signal / TTS start) waits longer than a read: WisKey's own panel gives
 # `stations/test_unlock` 30 s and `media/signal` 40 s (a 15 s device budget plus up to 5 s of call-state observation)
 ACTION_TIMEOUT_S = 35.0
@@ -157,6 +165,9 @@ TTS_TERMINAL = ("completed", "closed")
 REQUEST_ERRORS = {
     "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey."),
     "invalid_fields": (422, "intercom_invalid_request", "WisKey דחה את פרמטרי הבקשה."),
+    # CR-036 S4 (the adapter's reads): the same answer as for something the caller may not see - no existence oracle
+    "event_not_found": (404, "intercom_event_not_found", "האירוע לא נמצא."),
+    "station_not_found": (404, "intercom_station_not_found", "העמדה לא נמצאה."),
 }
 
 
@@ -243,16 +254,19 @@ def _int(value: Any) -> int | None:
 
 
 def _station(raw: dict[str, Any]) -> dict[str, Any]:
+    """One station as the entry center shows it: identity, health and the operational state the door / call / camera
+    flows need (call, sync, relays, camera entity). Built field by field. B0 (D-006): never `last_access` (person name,
+    employee number, event identity) and never a people count (`pending_user_count`, `managed_user_count`); WisKey's
+    `overview` still sends them, and they are dropped here, before anything is cached, served or logged."""
     entities = raw.get("entities") if isinstance(raw.get("entities"), dict) else {}
     clock = raw.get("clock") if isinstance(raw.get("clock"), dict) else {}
-    last = raw.get("last_access") if isinstance(raw.get("last_access"), dict) else None
     locks = raw.get("integrated_locks") if isinstance(raw.get("integrated_locks"), list) else []
     return {
         "id": str(raw.get("id") or ""),
         "name": str(raw.get("name") or ""),
         "online": bool(raw.get("online")),
-        "call_state": str(raw.get("call_state") or "unknown"),
-        "sync_state": str(raw.get("sync_state") or "unknown"),
+        "call_state": call if isinstance(call := raw.get("call_state"), str) and call in CALL_STATES else "unknown",  # CR-036 2.2: an unknown value is "unknown"
+        "sync_state": sync if isinstance(sync := raw.get("sync_state"), str) and sync in STATION_SYNC_STATES else "unknown",  # CR-036 2.2, as call_state
         "lock_enabled": bool(raw.get("lock_enabled")),
         "lock_count": len(locks),
         # the relays a release may name (`stations/test_unlock` `lock` = physical_index); WisKey's `api_id` stays behind
@@ -268,26 +282,41 @@ def _station(raw: dict[str, Any]) -> dict[str, Any]:
         "camera_entity": camera if isinstance(camera := entities.get("camera"), str) and CAMERA_ENTITY.fullmatch(camera) else None,
         "last_error": raw.get("last_error") if isinstance(raw.get("last_error"), str) else None,
         "last_seen": raw.get("last_seen") if isinstance(raw.get("last_seen"), str) else None,
-        "pending_user_count": _int(raw.get("pending_user_count")) or 0,
-        "managed_user_count": _int(raw.get("managed_user_count")),
-        # the station clock's display zone (WisKey formats a station's last access in it, panel.ts zone())
+        # the station clock's display zone (WisKey formats a station's times in it, panel.ts zone())
         "zone": clock.get("zone") if isinstance(clock.get("zone"), dict) else None,
-        "last_access": {k: last.get(k) for k in LAST_ACCESS_KEYS} if last else None,
     }
 
 
+# What B0 (D-006) stopped keeping from WisKey's `overview` still tells the activity log and the people screens WHEN something
+# happened: a new access record changes a station's `last_access`, a people edit changes the counts. Browsers are told only
+# when the entry center changed (`intercom_refresh`, one notice per actual change), so the change itself is detected with an
+# opaque keyed digest of those removed fields: held in memory, never served, logged or compared across restarts (the key is
+# random per process). The digest is not a field of a person or an event, and it cannot be turned back into one.
+_CHANGE_KEY = os.urandom(16)
+
+
+def change_tag(raw: dict[str, Any]) -> str:
+    """Keyed digest of the parts of `overview` that are no longer projected (last access, people counts), so that a change
+    in them is still noticed without keeping them."""
+    parts = {
+        str(s.get("id") or ""): [s.get("last_access"), s.get("pending_user_count"), s.get("managed_user_count")]
+        for s in raw.get("stations") or []
+        if isinstance(s, dict)
+    }
+    body = json.dumps([parts, raw.get("user_count")], sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+    return hmac.new(_CHANGE_KEY, body, hashlib.sha256).hexdigest()
+
+
 def project_overview(raw: dict[str, Any]) -> dict[str, Any]:
-    """What SMPLWISE keeps and serves from WisKey's `overview`: the stations as the entry center shows them, counts,
-    and the display zone. Not kept: people, cards, PIN flags, tombstones / revocations, host / model / firmware."""
+    """What SMPLWISE keeps and serves from WisKey's `overview`: the stations as the entry center shows them and the
+    display zone. Not kept (B0, D-006): people, the directory size (`user_count`), per-station last access, cards, PIN
+    flags, tombstones / revocations, host / model / firmware."""
     stations = [_station(s) for s in raw.get("stations") or [] if isinstance(s, dict)]
     api = raw.get("api") if isinstance(raw.get("api"), dict) else {}
-    users = raw.get("users")
-    user_count = _int(raw.get("user_count"))
     return {
         "version": raw.get("version") if isinstance(raw.get("version"), str) else None,
         "api_version": _int(api.get("version")),
         "default_zone": raw.get("default_zone") if isinstance(raw.get("default_zone"), dict) else None,
-        "user_count": user_count if user_count is not None else (len(users) if isinstance(users, list) else 0),
         "stations": stations,
     }
 
@@ -302,22 +331,6 @@ def watched_entities(raw: dict[str, Any]) -> set[str]:
 
 def _str(value: Any) -> str | None:
     return value if isinstance(value, str) else None
-
-
-def project_event_page(raw: dict[str, Any]) -> dict[str, Any]:
-    """What SMPLWISE serves from one `events/list` page: the rows (EVENT_KEYS only), the cursor, the cache bounds, and
-    each station's stream / history status (so the screen can say "history incomplete")."""
-    records = [{k: r.get(k) for k in EVENT_KEYS} for r in raw.get("records") or [] if isinstance(r, dict)]
-    stations = raw.get("stations") if isinstance(raw.get("stations"), dict) else {}
-    return {
-        "records": records,
-        "next": _str(raw.get("next")),
-        "retention_days": _int(raw.get("retention_days")),
-        "capacity": _int(raw.get("capacity")),
-        "membership_basis": _str(raw.get("membership_basis")),
-        "storage_failed": bool(raw.get("storage_failed")),
-        "stations": {str(sid): {"stream": _str(st.get("stream")), "history": _str(st.get("history"))} for sid, st in stations.items() if isinstance(st, dict)},
-    }
 
 
 def project_person(raw: dict[str, Any]) -> dict[str, Any]:
@@ -343,19 +356,6 @@ def project_person(raw: dict[str, Any]) -> dict[str, Any]:
             for sid, a in sorted(assignments.items())
             if isinstance(a, dict)
         ],
-    }
-
-
-def project_people_page(raw: dict[str, Any]) -> dict[str, Any]:
-    """One `users/query` page without a search text: projected people plus WisKey's paging bookkeeping (`snapshot` /
-    `stale` included, so the next page request can pass the snapshot back). Always complete."""
-    return {
-        "records": [project_person(r) for r in raw.get("records") or [] if isinstance(r, dict)],
-        **{k: _int(raw.get(k)) for k in PEOPLE_PAGE_KEYS},
-        "snapshot": _str(raw.get("snapshot")) or "",
-        "stale": bool(raw.get("stale")),
-        "complete": True,
-        "incomplete_reason": None,
     }
 
 
@@ -645,93 +645,6 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
     return ApiError(502, "intercom_action_refused", f"WisKey דחה את הפקודה ({code}). לפי WisKey היא לא בוצעה.", details=details)
 
 
-def person_matches(person: dict[str, Any], needle: str) -> bool:
-    """SMPLWISE's people text search: a case-insensitive substring of the PROJECTED person's display name and employee
-    number. It is given the projection, so a phone number or card digits can never be what matched."""
-    return needle in f"{person['display_name']} {person['employee_no']}".casefold()
-
-
-async def search_people(
-    call: intercom_client.Call,
-    needle: str,
-    filters: dict[str, Any],
-    offset: int,
-    limit: int,
-    snapshot: str | None,
-    spend: Callable[[], bool],
-) -> dict[str, Any]:
-    """Text search without handing WisKey the text (D1). WisKey's own search also matches phone digits and card last-4,
-    so SMPLWISE asks WisKey for the filtered directory with an EMPTY query, page by page in WisKey's own order (its
-    `sort`), projects every record and keeps those that match `needle` (already casefolded) by name / employee number.
-
-    Paging is over SMPLWISE's match list, not WisKey's: `total` is the number of matches, `offset` / `next_offset` /
-    `previous_offset` index into the matches (an offset past the end is clamped to the last page, as WisKey does), and
-    `total_all` stays WisKey's directory size (it does not depend on the text). The whole filtered directory is scanned
-    so that `total` is exact; a scan stopped by MAX_SCAN_PAGES or by an empty rate bucket (`spend()` refused the next
-    page) is returned as it stands with `complete: false` and `incomplete_reason` `scan_limit` / `rate_limited`, and
-    `total` is then a lower bound ("narrow the search"). `snapshot` is WisKey's value from the first page; `stale` says
-    the caller's snapshot is out of date or the directory changed during the scan."""
-    matches: list[dict[str, Any]] = []
-    seen: set[str] = set()  # a directory change mid-scan can shift a person onto the next page as well
-    wk_offset, pages = 0, 0
-    current = ""
-    total_all: int | None = None
-    stale = False
-    reason: str | None = None
-    while True:
-        if pages >= MAX_SCAN_PAGES:
-            reason = "scan_limit"
-            break
-        if pages and not spend():  # the first page was paid for by command()
-            reason = RATE_LIMITED
-            break
-        raw = await intercom_client.users_query(call, filters, wk_offset, SCAN_PAGE, current)
-        pages += 1
-        if pages == 1:
-            current = _str(raw.get("snapshot")) or ""
-            total_all = _int(raw.get("total_all"))
-        elif raw.get("stale"):
-            stale = True  # someone changed the directory while it was being scanned
-        records = raw.get("records")
-        if records is None:
-            records = []
-        if not isinstance(records, list):
-            raise IntercomError("invalid_response", "users/query")
-        try:
-            for record in records:
-                if not isinstance(record, dict):
-                    continue
-                person = project_person(record)
-                if person["id"] in seen:
-                    continue
-                seen.add(person["id"])
-                if person_matches(person, needle):
-                    matches.append(person)
-        except Exception as exc:  # noqa: BLE001 - a malformed record is WisKey's error, not a lost connection
-            raise IntercomError("invalid_response", "users/query") from exc
-        following = _int(raw.get("next_offset"))
-        if following is None or following <= wk_offset:
-            break
-        wk_offset = following
-    total = len(matches)
-    if offset >= total:
-        offset = ((total - 1) // limit) * limit if total else 0
-    end = offset + limit
-    return {
-        "records": matches[offset:end],
-        "total": total,
-        "total_all": total_all,
-        "offset": offset,
-        "limit": limit,
-        "next_offset": end if end < total else None,
-        "previous_offset": max(0, offset - limit) if offset > 0 else None,
-        "snapshot": current,
-        "stale": stale or bool(snapshot and snapshot != current),
-        "complete": reason is None,
-        "incomplete_reason": reason,
-    }
-
-
 # ---------------------------------------------------------------- the session
 
 class IntercomSync:
@@ -743,6 +656,12 @@ class IntercomSync:
         # station id -> the station's host from the same `overview` reply. NEVER served: it only builds the station's
         # RTSP source for go2rtc (camera stills), server-side. Kept and dropped together with the copy.
         self._hosts: dict[str, str] = {}
+        # CR-036 S4: with the same copy, each station's closed technical part (intercom_adapter.project_station_technical:
+        # served only through the adapter's views, to access.stations.read holders) and the `api` facts the feature flags
+        # need. Kept and dropped together with the copy; never person data.
+        self._technical: dict[str, dict[str, Any]] = {}
+        self._api: dict[str, Any] | None = None
+        self._tag: str | None = None  # change_tag of the last overview stored (never served)
         self._cache_lock = threading.Lock()
         self._logged_error: str | None = None
         self._was_ready = False  # a session reached `ready` since the process (or reset()) started
@@ -801,6 +720,9 @@ class IntercomSync:
 
     def _session_reset(self) -> None:
         self._call: intercom_client.Call | None = None
+        # CR-036 S4: the same live socket under the other channels' guards (wiskey_channels): `read` (the adapter's READ
+        # commands) and `technical` (its reviewed non-READ reads). Built in on_ready, gone with the session.
+        self._channel_calls: dict[str, intercom_client.Call] = {}
         self._wiskey_sub: int | None = None
         self._entities_sub: int | None = None
         # event frames whose subscription id is not known yet: HA sends a subscription's first event right behind
@@ -864,6 +786,31 @@ class IntercomSync:
             cached = self._cache
         return state, cached if state in SERVED_STATES else None
 
+    def stations_superset(self, settings: Settings) -> dict[str, Any]:
+        """CR-036 S4: the served copy's stations, each with its closed technical part (`technical`), for the adapter's views -
+        never served as is. Like GET /intercom/overview it counts as someone looking (the copy is refetched after an idle
+        stretch). `stations` is None whenever there is nothing honest to show; `fresh` as in `snapshot`."""
+        self._viewed()
+        state, overview = self.served(settings)
+        with self._cache_lock:
+            technical = dict(self._technical)
+        stations = None if overview is None else [{**s, "technical": technical.get(s["id"])} for s in overview.get("stations") or []]
+        return {
+            "state": state,
+            "fresh": state == "ready" and overview is not None and self._deferred is None,
+            "fetched_at": STATE.fetched_at if overview is not None else None,
+            "stations": stations,
+            "default_zone": (overview or {}).get("default_zone"),
+        }
+
+    def api_facts(self, settings: Settings) -> dict[str, Any] | None:
+        """CR-036 S4: the served copy's `api` facts (version, min_client, the commands WisKey lists for the add-on's user), or
+        None while there is no served copy."""
+        if self.served(settings)[1] is None:
+            return None
+        with self._cache_lock:
+            return dict(self._api) if self._api is not None else {"version": None, "min_client": None, "commands": None}
+
     def station_host(self, settings: Settings, station_id: str) -> str | None:
         """The station's host as WisKey reported it with the served copy (server-side only), or None: no served copy,
         or WisKey sent none (it strips `host` for a user without its `stations` area)."""
@@ -898,6 +845,8 @@ class IntercomSync:
         project: Callable[[dict[str, Any]], dict[str, Any]],
         who: str = "",
         timeout: float | None = None,
+        channel: str = "service",
+        slot_wait: float = 0.0,
     ) -> dict[str, Any]:
         """Run one read-only WisKey command over the feed's live session and serve its projection under `key`:
         `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null whenever the command did not run or
@@ -911,8 +860,10 @@ class IntercomSync:
         Never blocks a worker thread on anything but the WisKey call itself: no rate token or no free slot is answered
         at once. The feed's state machine is never changed from here: the session's own overview refetch and reconnect
         loop remain the only judges of the connection. `timeout` replaces COMMAND_TIMEOUT_S for a read WisKey itself
-        allows longer (`cards/reader_capabilities` reaches the device: READERS_TIMEOUT_S)."""
-        return self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S if timeout is None else timeout)[0]
+        allows longer (`cards/reader_capabilities` reaches the device: READERS_TIMEOUT_S). `channel`: the guard the frame
+        goes through (see `_one_off`); the adapter's reads pass `read` or `technical`. `slot_wait`: how long a free read
+        slot may be waited for (the adapter's continuation pages of one scan; everything else answers `busy` at once)."""
+        return self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S if timeout is None else timeout, channel=channel, slot_wait=slot_wait)[0]
 
     def action(
         self,
@@ -966,6 +917,7 @@ class IntercomSync:
         free: bool = False,
         bucket: str | None = None,
         on_result: Callable[[dict[str, Any], str], None] | None = None,
+        channel: str = "service",
     ) -> tuple[dict[str, Any], str]:
         """`command`'s body. Also returns what is known about the command itself: `not_sent` (nothing reached WisKey),
         `refused` (WisKey answered with an error: a genuine refusal), `unknown` (sent, but no usable answer: timeout,
@@ -999,7 +951,7 @@ class IntercomSync:
             reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
             settled()
             return reply, "not_sent"
-        coro = self._one_off(send, not_after)
+        coro = self._one_off(send, not_after, channel)
         try:
             future = asyncio.run_coroutine_threadsafe(coro, loop)
         except RuntimeError as exc:  # the session's loop closed between the check above and scheduling
@@ -1109,21 +1061,6 @@ class IntercomSync:
         `_execute`'s (reply under `capture`, outcome)."""
         return self._execute(settings, "capture", send, project, who, CAPTURE_TIMEOUT_S, lane="capture", bucket="capture_poll", on_result=on_result)
 
-    def people(self, settings: Settings, who: str, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
-        """The people directory for `who`: without a text, one WisKey page as it is; with a text, SMPLWISE's own search
-        (search_people), each scanned page after the first paid from the same rate buckets. Either way WisKey's
-        `query` field is empty."""
-        needle = query.strip().casefold()
-        if not needle:
-            return self.command(settings, "people", lambda call: intercom_client.users_query(call, filters, offset, limit, snapshot), project_people_page, who=who)
-        return self.command(
-            settings,
-            "people",
-            lambda call: search_people(call, needle, filters, offset, limit, snapshot, spend=lambda: self._spend_token(who)),
-            lambda page: page,  # already projected, person by person, before matching
-            who=who,
-        )
-
     def station(self, station_id: str) -> dict[str, Any] | None:
         """One station from the served copy (None when there is no copy or no such station)."""
         with self._cache_lock:
@@ -1136,6 +1073,10 @@ class IntercomSync:
     def has_copy(self) -> bool:
         with self._cache_lock:
             return self._cache is not None
+
+    def subscribe_state(self) -> str:
+        """Whether WisKey's `subscribe` is live on this session (`ok`) or not (`not_attempted`: no ready session yet)."""
+        return "ok" if self._wiskey_sub is not None and STATE.state == "ready" else "not_attempted"
 
     def tts_status(self, station_id: str) -> dict[str, Any] | None:
         return self._tts_status.get(station_id)
@@ -1182,11 +1123,13 @@ class IntercomSync:
         except Exception:  # noqa: BLE001 - the announcement is over either way; the session end drops it too
             pass
 
-    async def _one_off(self, send: Callable[[intercom_client.Call], Awaitable[Any]], not_after: datetime.datetime | None = None) -> Any:
+    async def _one_off(self, send: Callable[[intercom_client.Call], Awaitable[Any]], not_after: datetime.datetime | None = None, channel: str = "service") -> Any:
         """On the feed's loop: send over the session that is live NOW (it may have ended since the request thread
-        looked), never a new connection - and, for a physical action, only while it has not expired."""
-        call = self._call
-        if call is None or STATE.state != "ready":
+        looked), never a new connection - and, for a physical action, only while it has not expired. `channel` picks the
+        guard the frame goes through (CR-036 S4): `service` (writes and the write flows' reads), `read` / `technical`
+        (the adapter's reads, services/intercom_adapter.py) - the same socket, a different allow-list."""
+        call = self._call if channel == "service" else self._channel_calls.get(channel)
+        if call is None or self._call is None or STATE.state != "ready":
             raise _NotReady()
         # `>=`: Windows ticks the wall clock in ~15.6 ms steps, so "now" can EQUAL a deadline that has just passed
         if not_after is not None and datetime.datetime.now(datetime.timezone.utc) >= not_after:
@@ -1216,17 +1159,34 @@ class IntercomSync:
                 pass
 
     def _store(self, raw: dict[str, Any]) -> bool:
+        from . import intercom_adapter  # CR-036 S4: the adapter's closed projections (it imports this module)
+
+        tag = change_tag(raw)
+        tag_changed = self._tag is not None and tag != self._tag
+        self._tag = tag
         projected = project_overview(raw)
         hosts = {
             str(s.get("id") or ""): s["host"]
             for s in raw.get("stations") or []
             if isinstance(s, dict) and isinstance(s.get("host"), str) and s["host"]
         }
+        try:
+            technical = {
+                str(s.get("id")): intercom_adapter.project_station_technical(s)
+                for s in raw.get("stations") or []
+                if isinstance(s, dict) and isinstance(s.get("id"), str) and s["id"]
+            }
+            api = intercom_adapter.project_api(raw.get("api"))
+        except Exception as exc:  # noqa: BLE001 - the adapter's extras must never take the entry center down: fail closed
+            log.warning("WisKey feed: the adapter's station / api projection failed (%s); technical details and features withheld", type(exc).__name__)
+            technical, api = {}, None
         with self._cache_lock:
             changed = projected != self._cache
             before = list((self._cache or {}).get("stations") or [])
             self._cache = projected
             self._hosts = hosts
+            self._technical = technical
+            self._api = api
         if changed:
             from . import notify_sources  # CR-018: a station that starts ringing signals `door.ring` - queued for the notifier's thread, never a write on this loop
 
@@ -1238,12 +1198,21 @@ class IntercomSync:
         if changed:
             STATE.sequence += 1
             publish({"type": "intercom_refresh", "sequence": STATE.sequence})
+        elif tag_changed:  # only what B0 no longer projects changed (a new access record, a people edit): still one notice
+            STATE.sequence += 1
+            publish({"type": "intercom_refresh", "sequence": STATE.sequence})
         return changed
 
     def _drop(self) -> None:
         with self._cache_lock:
             self._cache = None
             self._hosts = {}
+            self._technical = {}
+            self._api = None
+        self._tag = None
+        from . import intercom_adapter  # CR-036 S4: whatever the adapter cached from this WisKey goes with the copy
+
+        intercom_adapter.ADAPTER.forget()
 
     def _set_state(self, state: str, error: str | None) -> None:
         changed = state != STATE.state
@@ -1321,7 +1290,13 @@ class IntercomSync:
 
         async def on_ready(call: intercom_client.Call) -> None:
             nonlocal poller
+            from . import wiskey_channels
+
+            raw = call
+            call = wiskey_channels.guard(raw, "service")  # CR-036 S1: only the service (write) channel's allow-list leaves here
             self._call = call
+            # CR-036 S4: the adapter's reads ride this socket under their own guards (no write is on either list)
+            self._channel_calls = {name: wiskey_channels.guard(raw, name) for name in wiskey_channels.ADAPTER_CHANNELS}
             try:
                 raw = await intercom_client.overview(call)  # the probe: unknown_command = not loaded (yet?)
             except IntercomError as exc:
@@ -1351,6 +1326,7 @@ class IntercomSync:
             await ha_client.ws_session(self.settings, on_ready, lambda _data: None, end, on_message=self._on_message)
         finally:
             self._call = None
+            self._channel_calls = {}
             # nothing of this session may outlive it: a stray refresh's own `finally` would otherwise run after the
             # next session reset and break its one-refresh-at-a-time invariant
             tasks = [t for t in (stopper, poller, *self._tasks) if t is not None and not t.done()]
@@ -1399,6 +1375,9 @@ class IntercomSync:
         if mid == self._wiskey_sub:
             kind = event.get("kind")
             if kind == "refresh":
+                from . import intercom_adapter  # CR-036 S4: the adapter's cached reads are stale from now on
+
+                intercom_adapter.ADAPTER.cache.invalidate()
                 self._kick()
             elif kind == "access_revoked":
                 self._fail(IntercomError("unauthorized", "subscribe"))

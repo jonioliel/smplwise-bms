@@ -65,6 +65,13 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      source; it has not yet been verified against the lab installation. The WisKey tab's editor context shows
      whether WisKey lists the people commands for the add-on's user. Reading a card from a station's reader (card
      capture, `cards/*`) is in the same WisKey `users` area at `manage`.
+   - `wiskey_background_token` (optional, default empty) — the long-lived access token of a **dedicated, non-administrator
+     Home Assistant user that the owner creates** for WisKey's background (read) channel, after the release that carries it (see
+     `docs/integrations/wiskey/B0_STATUS_HE.md`). That user is meant to hold the WisKey `overview` area at `view`, an
+     explicit and narrow station scope, and `none` everywhere else. While the option is empty the background channel
+     shares the add-on's own identity, and the diagnostics card in הגדרות › בקרות כניסה ("WisKey רואה את Arx כ־") says so. The token is used only by the background
+     channel, on Home Assistant core (it is not valid on the Supervisor proxy), and is never logged or shown. The
+     door, call, announcement, people and card-reader writes keep using the add-on's own user (`ha_token`).
 4. Start the add-on and open it from the sidebar (**SmplWise Arx**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and

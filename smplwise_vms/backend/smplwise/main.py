@@ -321,6 +321,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(access.router, prefix=api, tags=["access"])
     app.include_router(access_groups.router, prefix=api, tags=["access"])
     app.include_router(access_control.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_reads  # CR-036 S4: the typed access-control reads (its own line: merges with CR-033 stay simple)
+
+    app.include_router(access_control_reads.router, prefix=api, tags=["access-control"])
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
@@ -498,6 +501,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import bill_pdf
 
             threading.Thread(target=bill_pdf.self_check, name="bill-pdf-selfcheck", daemon=True).start()
+        from .services import wiskey_background_feed
+
+        wiskey_background_feed.FEED.start(settings)  # B0 (D-004/D-006): the split background session; runs only with wiskey_background_token
         from .services import bridge_install, thumbnails
 
         if not ha_only:
@@ -577,6 +583,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import generator_runtime
 
         generator_runtime.RUNNER.shutdown()
+        from .services import wiskey_background_feed as _wbf
+
+        _wbf.FEED.shutdown()
         from .services import push as push_svc
 
         from starlette.concurrency import run_in_threadpool as _in_thread

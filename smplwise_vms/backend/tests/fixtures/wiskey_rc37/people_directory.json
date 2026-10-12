@@ -1,0 +1,301 @@
+[
+ {
+  "id": "u1",
+  "employee_no": "1001",
+  "display_name": "Dana",
+  "phone": "+972500000000",
+  "access_category": "staff",
+  "responsible_person": "",
+  "access_purpose": "",
+  "archived_at": null,
+  "access_timing_draft": null,
+  "access_timing_policy": {
+   "mode": "ha",
+   "schedule": {
+    "mode": "weekly",
+    "timezone": "Asia/Jerusalem",
+    "days": [
+     "sunday",
+     "monday"
+    ],
+    "dates": [],
+    "periods": [
+     {
+      "start": "08:00",
+      "end": "17:00"
+     }
+    ]
+   },
+   "bindings": {}
+  },
+  "active": true,
+  "user_type": "normal",
+  "valid_from": null,
+  "valid_until": "2027-01-01T00:00:00+00:00",
+  "assignments": {
+   "entry-a": {
+    "config_entry_id": "entry-a",
+    "enabled": true,
+    "allowed_locks": [
+     1,
+     2
+    ],
+    "schedule_template": null,
+    "desired_revision": 2,
+    "applied_revision": 2,
+    "sync_state": "synced",
+    "last_sync_at": "2026-09-01T00:00:00+00:00",
+    "last_error": null
+   },
+   "entry-b": {
+    "config_entry_id": "entry-b",
+    "enabled": false,
+    "allowed_locks": [
+     1
+    ],
+    "schedule_template": null,
+    "desired_revision": 2,
+    "applied_revision": 1,
+    "sync_state": "error",
+    "last_sync_at": "2026-09-01T00:00:00+00:00",
+    "last_error": "device_unavailable"
+   }
+  },
+  "revision": 3,
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "updated_at": "2026-09-01T00:00:00+00:00",
+  "identity_locked": false,
+  "profile": {
+   "department": "Engineering"
+  },
+  "group_ids": [
+   "staff"
+  ],
+  "permission_overrides": {},
+  "photo_configured": true,
+  "pin_configured": true,
+  "cards": [
+   {
+    "id": "card-u1",
+    "masked_number": "•••• 1234",
+    "label": "Main",
+    "card_type": "normalCard",
+    "enabled": true
+   }
+  ],
+  "timing_readbacks": {}
+ },
+ {
+  "id": "u2",
+  "employee_no": "1002",
+  "display_name": "Avi",
+  "phone": "+972500000002",
+  "access_category": "staff",
+  "responsible_person": "",
+  "access_purpose": "",
+  "archived_at": null,
+  "access_timing_draft": null,
+  "access_timing_policy": null,
+  "active": true,
+  "user_type": "normal",
+  "valid_from": null,
+  "valid_until": "2027-01-01T00:00:00+00:00",
+  "assignments": {
+   "entry-b": {
+    "config_entry_id": "entry-b",
+    "enabled": true,
+    "allowed_locks": [
+     1
+    ],
+    "schedule_template": null,
+    "desired_revision": 2,
+    "applied_revision": 2,
+    "sync_state": "synced",
+    "last_sync_at": "2026-09-01T00:00:00+00:00",
+    "last_error": null
+   }
+  },
+  "revision": 3,
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "updated_at": "2026-09-01T00:00:00+00:00",
+  "identity_locked": false,
+  "profile": {
+   "department": "Engineering"
+  },
+  "group_ids": [
+   "staff"
+  ],
+  "permission_overrides": {},
+  "photo_configured": false,
+  "pin_configured": true,
+  "cards": [
+   {
+    "id": "card-u2",
+    "masked_number": "•••• 1234",
+    "label": "Main",
+    "card_type": "normalCard",
+    "enabled": true
+   }
+  ],
+  "timing_readbacks": {}
+ },
+ {
+  "id": "u3",
+  "employee_no": "1003",
+  "display_name": "Noa",
+  "phone": "+972500000003",
+  "access_category": "staff",
+  "responsible_person": "",
+  "access_purpose": "",
+  "archived_at": null,
+  "access_timing_draft": null,
+  "access_timing_policy": null,
+  "active": true,
+  "user_type": "normal",
+  "valid_from": null,
+  "valid_until": "2027-01-01T00:00:00+00:00",
+  "assignments": {},
+  "revision": 3,
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "updated_at": "2026-09-01T00:00:00+00:00",
+  "identity_locked": false,
+  "profile": {
+   "department": "Engineering"
+  },
+  "group_ids": [],
+  "permission_overrides": {},
+  "photo_configured": false,
+  "pin_configured": true,
+  "cards": [
+   {
+    "id": "card-u3",
+    "masked_number": "•••• 1234",
+    "label": "Main",
+    "card_type": "normalCard",
+    "enabled": true
+   }
+  ],
+  "timing_readbacks": {}
+ },
+ {
+  "id": "u4",
+  "employee_no": "1004",
+  "display_name": "Lior",
+  "phone": "+972500000004",
+  "access_category": "staff",
+  "responsible_person": "",
+  "access_purpose": "",
+  "archived_at": null,
+  "access_timing_draft": null,
+  "access_timing_policy": null,
+  "active": true,
+  "user_type": "normal",
+  "valid_from": null,
+  "valid_until": "2027-01-01T00:00:00+00:00",
+  "assignments": {
+   "entry-c": {
+    "config_entry_id": "entry-c",
+    "enabled": true,
+    "allowed_locks": [
+     2
+    ],
+    "schedule_template": null,
+    "desired_revision": 2,
+    "applied_revision": 1,
+    "sync_state": "pending",
+    "last_sync_at": "2026-09-01T00:00:00+00:00",
+    "last_error": null
+   }
+  },
+  "revision": 3,
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "updated_at": "2026-09-01T00:00:00+00:00",
+  "identity_locked": false,
+  "profile": {
+   "department": "Engineering"
+  },
+  "group_ids": [
+   "night"
+  ],
+  "permission_overrides": {},
+  "photo_configured": false,
+  "pin_configured": true,
+  "cards": [
+   {
+    "id": "card-u4",
+    "masked_number": "•••• 1234",
+    "label": "Main",
+    "card_type": "normalCard",
+    "enabled": true
+   }
+  ],
+  "timing_readbacks": {}
+ },
+ {
+  "id": "u5",
+  "employee_no": "1005",
+  "display_name": "Dan Avraham",
+  "phone": "+972500000005",
+  "access_category": "staff",
+  "responsible_person": "",
+  "access_purpose": "",
+  "archived_at": null,
+  "access_timing_draft": null,
+  "access_timing_policy": null,
+  "active": true,
+  "user_type": "normal",
+  "valid_from": null,
+  "valid_until": "2027-01-01T00:00:00+00:00",
+  "assignments": {
+   "entry-a": {
+    "config_entry_id": "entry-a",
+    "enabled": true,
+    "allowed_locks": [
+     1
+    ],
+    "schedule_template": null,
+    "desired_revision": 2,
+    "applied_revision": 2,
+    "sync_state": "synced",
+    "last_sync_at": "2026-09-01T00:00:00+00:00",
+    "last_error": null
+   },
+   "entry-c": {
+    "config_entry_id": "entry-c",
+    "enabled": true,
+    "allowed_locks": [
+     1
+    ],
+    "schedule_template": null,
+    "desired_revision": 2,
+    "applied_revision": 2,
+    "sync_state": "synced",
+    "last_sync_at": "2026-09-01T00:00:00+00:00",
+    "last_error": null
+   }
+  },
+  "revision": 3,
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "updated_at": "2026-09-01T00:00:00+00:00",
+  "identity_locked": false,
+  "profile": {
+   "department": "Engineering"
+  },
+  "group_ids": [
+   "staff"
+  ],
+  "permission_overrides": {},
+  "photo_configured": false,
+  "pin_configured": true,
+  "cards": [
+   {
+    "id": "card-u5",
+    "masked_number": "•••• 1234",
+    "label": "Main",
+    "card_type": "normalCard",
+    "enabled": true
+   }
+  ],
+  "timing_readbacks": {}
+ }
+]

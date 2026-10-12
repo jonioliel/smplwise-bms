@@ -87,7 +87,7 @@ _SELF_SLUG: str | None = None    # the slug GET /addons/self/info last reported 
 OPTION_TYPES: dict[str, str] = {
     "bootstrap_admin_username": "str", "nvr_host": "str?", "nvr_http_port": "port", "nvr_rtsp_port": "port", "nvr_username": "str?",
     "nvr_password": "str?", "go2rtc_url": "str?", "go2rtc_api_username": "str?", "go2rtc_api_password": "str?", "wiskey_username": "str?",
-    "wiskey_password": "str?", "openai_api_key": "str?", "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
+    "wiskey_password": "str?", "wiskey_background_token": "str?", "openai_api_key": "str?", "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
     "log_level": "log_level",
     "push_relay_url": "str?", "push_relay_key": "str?",  # CR-027: the SmplWise push relay (config.py reads them into the environment)
     "frigate_enabled": "bool?",  # CR-029: the Frigate recorder type is selectable (run.sh maps it to SW_FRIGATE)

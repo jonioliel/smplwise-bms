@@ -1,0 +1,34 @@
+{
+ "generated_at": "2026-09-27T09:05:00+00:00",
+ "day_timezone": "station",
+ "oldest": "2026-09-27T07:00:00+00:00",
+ "newest": "2026-09-27T09:00:00+00:00",
+ "totals": {
+  "records": 8,
+  "authentication": 8,
+  "granted": 7,
+  "denied": 1,
+  "unknown": 0,
+  "other": 0,
+  "recovered": 0
+ },
+ "methods": {
+  "card": 8
+ },
+ "anomalies": {
+  "access_denied": 1,
+  "attempt_limit": 0,
+  "unlock_exception": 0,
+  "door_not_closed": 0
+ },
+ "anomaly_by_station": [],
+ "by_station": [],
+ "by_day": [],
+ "csv": "﻿\"timestamp\",\"station\",\"employee_no\",\"person_name\",\"event_type\",\"authentication\",\"result\",\"door\",\"masked_card\",\"recovered\",\"time_source\",\"display_timestamp\",\"display_timezone\"\r\n\"2026-09-27T09:00:00+00:00\",\"Loading dock\",\"1004\",\"Lior\",\"access_granted\",\"card\",\"granted\",\"1\",\"•••• 1234\",\"false\",\"device\",\"2026-09-27T09:00:00\",\"Asia/Jerusalem\"\r\n\"2026-09-27T08:50:00+00:00\",\"Side door\",\"1002\",\"Avi\",\"access_granted\",\"card\",\"granted\",\"1\",\"•••• 1234\",\"false\",\"device\",\"2026-09-27T08:50:00\",\"Asia/Jerusalem\"\r\n\"2026-09-27T08:40:00+00:00\",\"Main gate\",\"1001\",\"Dana\",\"access_granted\",\"card\",\"granted\",\"1\",\"•••• 1234\",\"false\",\"device\",\"2026-09-27T08:40:00\",\"Asia/Jerusalem\"\r\n\"2026-09-27T08:30:00+00:00\",\"Loading dock\",\"1005\",\"Dan Avraham\",\"access_granted\",\"card\",\"granted\",\"1\",\"•••• 1234\",\"false\",\"device\",\"2026-09-27T08:30:00\",\"Asia/Jerusalem\"\r\n\"2026-09-27T08:20:00+00:00\",\"Side door\",\"\",\"\",\"access_denied\",\"card\",\"denied\",\"1\",\"•••• 1234\",\"false\",\"device\",\"2026-09-27T08:20:00\",\"Asia/Jerusalem\"\r\n\"2026-09-27T08:10:00+00:00\",\"Main gate\",\"1005\",\"Dan Avraham\",\"access_granted\",\"card\",\"granted\",\"1\",\"•••• 1234\",\"false\",\"device\",\"2026-09-27T08:10:00\",\"Asia/Jerusalem\"\r\n\"2026-09-27T08:00:00+00:00\",\"Loading dock\",\"1004\",\"Lior\",\"access_granted\",\"card\",\"granted\",\"1\",\"•••• 1234\",\"false\",\"device\",\"2026-09-27T08:00:00\",\"Asia/Jerusalem\"\r\n\"2026-09-27T07:00:00+00:00\",\"Main gate\",\"1006\",\"'=HYPERLINK(1)\",\"access_granted\",\"card\",\"granted\",\"1\",\"•••• 9999\",\"false\",\"device\",\"2026-09-27T10:00:00\",\"Asia/Jerusalem\"\r\n",
+ "membership_basis": null,
+ "filters": {},
+ "retention_days": 30,
+ "capacity": 5000,
+ "storage_failed": false,
+ "stations": {}
+}
