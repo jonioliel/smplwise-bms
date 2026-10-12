@@ -12,6 +12,7 @@ import {
   POLICY_DEFAULTS,
   TABLE_COMPACT_MAX,
   TABLE_MEDIUM_MAX,
+  TABLE_MIN,
   UNKNOWN_HOLD_FALLBACK_MS,
   ageText,
   announceChoices,
@@ -100,11 +101,14 @@ test.describe('words, filters, counts', () => {
     expect(needsAttention(station('x', { errors: { last_error: null, scan_error: 'device_busy' } }))).toBe(true);
   });
 
-  test('the table gives up columns by width: a wide desktop shows all, a laptop and a tablet keep what is read and done', () => {
-    // the full table needs about 1040 px of host; the host is the viewport less the side rail and the place tree (about 400 px)
+  test('the table gives up columns by width: a wide desktop shows all, a laptop and a tablet keep what is read and done, a narrow window has none', () => {
+    // the full table needs about 1040 px of host, the compact one about 420; the host is the viewport less the side rail and the
+    // place tree (about 370 px)
     expect([2560, 1920, 1536, 1440].map(tableTierOf)).toEqual(['full', 'full', 'full', 'full']);
     expect([1439, 1366, 1280, 1101].map(tableTierOf)).toEqual(['medium', 'medium', 'medium', 'medium']);
-    expect([1100, 1024, 820, 768].map(tableTierOf)).toEqual(['compact', 'compact', 'compact', 'compact']);
+    expect([1100, 1024, 900, 820].map(tableTierOf)).toEqual(['compact', 'compact', 'compact', 'compact']);
+    expect([819, 768, 600, 390, 320].map(tableTierOf)).toEqual(['none', 'none', 'none', 'none', 'none']);
+    expect(TABLE_MIN).toBeLessThan(TABLE_COMPACT_MAX);
     expect(TABLE_COMPACT_MAX).toBeLessThan(TABLE_MEDIUM_MAX);
   });
 

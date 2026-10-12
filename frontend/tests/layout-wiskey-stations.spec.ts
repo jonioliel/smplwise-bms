@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { SKIN_IDS } from '../src/design/skins';
+import { TABLE_MIN } from '../src/screens/wiskey-stations-logic';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 
@@ -114,11 +115,13 @@ test.describe('wiskey-stations layout guard', () => {
           // list
           await click(`${SCREEN} sw-view-switch button[data-view="list"]`);
           await check(`${ctx} list`);
-          // table
-          if (!phone) {
+          // table (a narrow window has none: the list does its job)
+          if (w >= TABLE_MIN) {
             await click(`${SCREEN} sw-view-switch button[data-view="table"]`);
             await check(`${ctx} table`);
             cut.push(...(await page.evaluate(tableButtonsClipped, { ctx: `${ctx} table` })));
+          } else {
+            expect(await page.locator(`${SCREEN} sw-view-switch button[data-view="table"]`).count(), `${ctx}: no table option below ${TABLE_MIN} px`).toBe(0);
           }
           await click(`${SCREEN} sw-view-switch button[data-view="cards"]`);
           // the station's drawer with the door settings open (cards lie under the modal: the drawer's own content is the subject)

@@ -51,6 +51,7 @@ import {
   subtitleOf,
   TABLE_COMPACT_MAX,
   TABLE_MEDIUM_MAX,
+  TABLE_MIN,
   tableTierOf,
   tally,
   visibleStations,
@@ -140,7 +141,6 @@ export class WiskeyStations extends LitElement {
   @state() private now = Date.now();
   @state() private poster = Date.now();
   @state() private failed: Record<string, number> = {};
-  @state() private phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 767px)').matches : false;
   @state() private table: TableTier = tableTierOf(typeof window === 'undefined' ? 1440 : window.innerWidth);
 
   private clock = new CallClock();
@@ -166,12 +166,11 @@ export class WiskeyStations extends LitElement {
   private loadAgain = false;
   private placesKey = '';
   private detailAt: Record<string, number> = {};
-  private mq = typeof matchMedia === 'function' ? matchMedia('(max-width: 767px)') : null;
-  // the table gives up columns at two widths (screens/wiskey-stations-logic.ts `tableTierOf`)
+  // the table gives up columns at two widths and is gone below a third (screens/wiskey-stations-logic.ts `tableTierOf`)
   private mqc = typeof matchMedia === 'function' ? matchMedia(`(max-width: ${TABLE_COMPACT_MAX}px)`) : null;
   private mqm = typeof matchMedia === 'function' ? matchMedia(`(max-width: ${TABLE_MEDIUM_MAX}px)`) : null;
+  private mqn = typeof matchMedia === 'function' ? matchMedia(`(max-width: ${TABLE_MIN - 1}px)`) : null;
   private onMedia = () => {
-    this.phone = !!this.mq?.matches;
     this.table = tableTierOf(window.innerWidth);
   };
 
@@ -179,9 +178,9 @@ export class WiskeyStations extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.mq?.addEventListener('change', this.onMedia);
     this.mqc?.addEventListener('change', this.onMedia);
     this.mqm?.addEventListener('change', this.onMedia);
+    this.mqn?.addEventListener('change', this.onMedia);
     this.stopRoute = onRouteChange((r) => this.onRoute(r));
     if (!isApi()) return;
     if (!canAnywhere('access.read')) {
@@ -208,9 +207,9 @@ export class WiskeyStations extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.mq?.removeEventListener('change', this.onMedia);
     this.mqc?.removeEventListener('change', this.onMedia);
     this.mqm?.removeEventListener('change', this.onMedia);
+    this.mqn?.removeEventListener('change', this.onMedia);
     this.stop?.();
     this.stop = null;
     this.stopRoute?.();
@@ -507,8 +506,9 @@ export class WiskeyStations extends LitElement {
     return html`<sw-badge slot="actions" kind=${kind} label=${label} data-wk-feed=${live ? 'live' : f.state}></sw-badge>`;
   }
 
+  /** A narrow window has no table (the list does its job); the choice itself stays, for when the window grows. */
   private effectiveView(): ViewMode {
-    return this.phone && this.view === 'table' ? 'list' : this.view;
+    return this.table === 'none' && this.view === 'table' ? 'list' : this.view;
   }
 
   private renderReady(all: readonly AccessStation[]) {
@@ -536,7 +536,7 @@ export class WiskeyStations extends LitElement {
               <sw-view-switch data-wk-views label=${t.views.label} .value=${view} .options=${[
                 { id: 'cards', label: t.views.cards, icon: 'grid' },
                 { id: 'list', label: t.views.list, icon: 'list' },
-                ...(this.phone ? [] : [{ id: 'table', label: t.views.table, icon: 'table' }]),
+                ...(this.table === 'none' ? [] : [{ id: 'table', label: t.views.table, icon: 'table' }]),
               ]} @change=${(e: CustomEvent<string>) => this.setView(e.detail as ViewMode)}></sw-view-switch>
             </div>`
           : nothing}

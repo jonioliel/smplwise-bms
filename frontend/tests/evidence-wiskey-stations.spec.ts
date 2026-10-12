@@ -260,6 +260,31 @@ test.describe('wiskey-stations: filters, search, views, places', () => {
     await expect(head).toContainText('דגם · קושחה');
     await expect(head).toContainText('דלתות');
   });
+
+  test('a narrow window (800 px) has no table: the list takes over, the choice comes back when the window grows', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'one viewport is set here');
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await boot(page);
+    await ready(page);
+    const views = page.locator(`${SCREEN} sw-view-switch[data-wk-views]`);
+    await views.locator('button[data-view="table"]').click();
+    await expect(page.locator(`${SCREEN} [data-wk-stations]`)).toHaveAttribute('data-view', 'table');
+    await page.setViewportSize({ width: 800, height: 900 });
+    await expect(views.locator('button[data-view="table"]')).toHaveCount(0);
+    await expect(page.locator(`${SCREEN} [data-wk-stations]`)).toHaveAttribute('data-view', 'list');
+    await expect(page.locator(`${SCREEN} [data-wk-rows] [data-wk-station]`)).toHaveCount(6);
+    await page.setViewportSize({ width: 820, height: 900 });
+    await expect(views.locator('button[data-view="table"]')).toHaveCount(1);
+    await expect(page.locator(`${SCREEN} [data-wk-stations]`)).toHaveAttribute('data-view', 'table'); // the remembered choice
+    // the narrowest table (820 px): the buttons are in view
+    const table = page.locator(`${SCREEN} sw-table[data-wk-table]`);
+    await expect(table.locator('tbody tr')).toHaveCount(6);
+    const cut = await table.evaluate((host) => {
+      const box = host.getBoundingClientRect();
+      return Array.from(host.shadowRoot!.querySelectorAll('wk-action-button')).filter((b) => b.getBoundingClientRect().left < box.left - 1 || b.getBoundingClientRect().right > box.right + 1).length;
+    });
+    expect(cut).toBe(0);
+  });
 });
 
 test.describe('wiskey-stations: the drawer', () => {

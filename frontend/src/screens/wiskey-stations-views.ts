@@ -64,7 +64,8 @@ export interface ViewCtx {
   actions: StationActions;
   clock: CallClock;
   /** How much of the table fits: `full` (a wide desktop), `medium` (a laptop: no door names, no model), `compact` (a tablet: also
-   * no place, call and last-seen columns - they move under the state). The buttons and the state never go. */
+   * no place, call and last-seen columns - they move under the state), `none` (a narrow window: no table, the list does its job).
+   * The buttons and the state never go. */
   table: TableTier;
   /** The installation has the media server stills need (a station without it shows "no picture"). */
   media: boolean;
@@ -306,7 +307,7 @@ export function tableColumns(v: ViewCtx, list: readonly AccessStation[]): TableC
   // place, the last sighting, the door names and the technical columns. A wide table scrolls inside its host, so what is cut off
   // at a narrow width is always the least needed column, never the buttons.
   const none = html`<span style="color:var(--sw-text-3)">—</span>`;
-  const compact = v.table === 'compact';
+  const compact = v.table === 'compact' || v.table === 'none'; // 'none' is never rendered (the list takes over); the narrowest columns anyway
   const cols: TableColumn[] = [
     { key: 'name', label: t.table.station, render: (r) => html`<wk-action-button tone="quiet" data-wk-open=${as(r).id} @click=${() => v.open(as(r).id)}>${as(r).name}</wk-action-button>` },
     {

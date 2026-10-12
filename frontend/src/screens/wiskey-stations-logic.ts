@@ -113,11 +113,14 @@ export function visibleStations(list: readonly AccessStation[], f: StationFilter
  * columns by the viewport instead: `full` (a wide desktop: every column), `medium` (a laptop: no door names, no model), `compact`
  * (a tablet: also no place, no call and no "last seen" column - a call that is on and the offline station's last sighting move under
  * its state). Who, whether it is up, a call that is on, the buttons and the sync state are in every tier. Measured with the
- * mock-up's stations: the full table needs about 1040 px of host. */
-export type TableTier = 'full' | 'medium' | 'compact';
+ * mock-up's stations: the full table needs about 1040 px of host, the compact one about 420 px (the host is the viewport less the
+ * side rail and the place tree, about 370 px). Narrower than `TABLE_MIN` (`none`) even the compact table would cut the buttons
+ * off in some skin, so there is no table: the list does its job. */
+export type TableTier = 'none' | 'compact' | 'medium' | 'full';
+export const TABLE_MIN = 820;
 export const TABLE_COMPACT_MAX = 1100;
 export const TABLE_MEDIUM_MAX = 1439;
-export const tableTierOf = (viewport: number): TableTier => (viewport <= TABLE_COMPACT_MAX ? 'compact' : viewport <= TABLE_MEDIUM_MAX ? 'medium' : 'full');
+export const tableTierOf = (viewport: number): TableTier => (viewport < TABLE_MIN ? 'none' : viewport <= TABLE_COMPACT_MAX ? 'compact' : viewport <= TABLE_MEDIUM_MAX ? 'medium' : 'full');
 
 // ---------------------------------------------------------------- "seen" and ages
 
