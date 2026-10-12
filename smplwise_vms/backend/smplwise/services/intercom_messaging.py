@@ -33,7 +33,6 @@ import secrets
 import sqlite3
 import unicodedata
 import uuid
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -318,7 +317,11 @@ def save_settings(conn: sqlite3.Connection, doc: dict[str, Any]) -> None:
 
 
 def public_templates(cfg: dict[str, Any]) -> list[dict[str, str]]:
-    return deepcopy(cfg["templates"])
+    """The templates as the dialog gets them. `{organization}` is filled in here - the name is the administrator's own setting, not a secret -
+    so the text a sender sees (and may edit into a free text, which the server never renders) is the text that goes out; `{name}` stays: it
+    is the person's, the dialog shows it filled for one person and the server renders it for real at send time."""
+    organization = _one_line(cfg["organization"])[:ORGANIZATION_MAX]
+    return [{**t, "body": re.sub(r"\{organization\}", lambda _m: organization, t["body"])} for t in cfg["templates"]]
 
 
 # ---------------------------------------------------------------- what a sender may send

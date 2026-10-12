@@ -405,6 +405,21 @@ def test_the_configuration_for_a_sender(mc):
     assert len(sent(fake, "whatsapp/status")) == n, "the service's state is cached for a few seconds"
 
 
+def test_the_dialog_gets_the_templates_with_the_organization_filled_in(mc):
+    """`{organization}` is the administrator's own setting, not a secret: the dialog gets it filled in, so the text a sender sees - and may
+    edit into a free text, which the server never renders - is the text that goes out. `{name}` stays for the person; the editor keeps both."""
+    fake, c, _s = mc
+    saved = enable(c, organization="מגדל הדגמה", templates=[{"label": "הודעה", "body": "שלום {name}, מדברים מ{organization}."}])
+    assert saved["templates"][0]["body"] == "שלום {name}, מדברים מ{organization}."  # the stored document and the editor keep the placeholder
+    assert settings_doc(c)["templates"][0]["body"] == "שלום {name}, מדברים מ{organization}."
+    cfg = req(c, "GET", "/messaging", "root").json()["messaging"]
+    (t,) = cfg["templates"]
+    assert t["body"] == "שלום {name}, מדברים ממגדל הדגמה." and (t["id"], t["label"]) == (saved["templates"][0]["id"], "הודעה")
+    r = send(c, "u1", template=t["id"], templates_revision=cfg["templates_revision"])
+    assert r.status_code == 200, r.text
+    assert fake.wa_sent[-1]["text"] == "שלום Dana, מדברים ממגדל הדגמה."  # what the sender saw, with the person's name
+
+
 def test_the_service_states_the_dialog_must_say(mc):
     fake, c, _s = mc
     enable(c)
