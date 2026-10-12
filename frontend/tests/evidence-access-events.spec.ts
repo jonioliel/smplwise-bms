@@ -148,10 +148,13 @@ test.describe('the entry log: behaviour', () => {
     await choose(page, 'method', 'pin');
     await choose(page, 'door', '2');
     await expect.poll(() => lastEvents(mock)).toEqual({ station_id: 'entry-b', result: 'denied', authentication: 'pin', door: '2', limit: '100' });
-    // every row shown matches (the lobby, denied, by code)
-    const subs = await page.locator(`${SCREEN} [data-wiskey-event-station]`).evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText));
-    expect(subs.length).toBeGreaterThan(0);
-    for (const s of subs) expect(s).toContain('לובי');
+    // every row shown matches (the lobby, denied, by code) - once the filtered page has arrived (the request is recorded before its answer renders)
+    await expect
+      .poll(async () => {
+        const subs = await page.locator(`${SCREEN} [data-wiskey-event-station]`).evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText));
+        return subs.length > 0 && subs.every((s) => s.includes('לובי'));
+      })
+      .toBe(true);
     // the period chip: "today" is the local day of the filter zone (the station's clock zone), sent as an instant
     await choose(page, 'range', 'today');
     await expect.poll(() => lastEvents(mock).start).toBe('2026-09-26T21:00:00.000Z');
@@ -163,8 +166,9 @@ test.describe('the entry log: behaviour', () => {
     // the search is the person filter, after a short pause
     await page.locator('[data-wiskey-search]').fill('דנה');
     await expect.poll(() => lastEvents(mock).person, { timeout: 5_000 }).toBe('דנה');
-    const names = await page.locator(`${SCREEN} [data-wiskey-event-person]`).evaluateAll((els) => [...new Set(els.map((e) => (e as HTMLElement).innerText))]);
-    expect(names).toEqual(['דנה כהן']);
+    await expect
+      .poll(() => page.locator(`${SCREEN} [data-wiskey-event-person]`).evaluateAll((els) => [...new Set(els.map((e) => (e as HTMLElement).innerText))]))
+      .toEqual(['דנה כהן']);
     await expect(page.locator(`${SCREEN} [data-wiskey-filter-clear]`)).toBeVisible();
   });
 
