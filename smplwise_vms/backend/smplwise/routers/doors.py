@@ -391,8 +391,9 @@ def door_status(request: Request, request_id: str = Path(min_length=36, max_leng
     secret = ha_bridge.signing_key(conn)
     if not secret:
         raise ApiError(503, "bridge_not_paired", "אין חיבור לתשתית המערכת")
+    trusted_door.status_rate(principal.user_id)  # SEC-WXD I7: a read, but it signs and calls the bridge
     p = principal
-    signed = trusted_door.sign_message(secret, "door_open_status", p.user_id, p.display_name or p.username or p.user_id, str(details.get("station") or ""),
+    signed = trusted_door.sign_message(secret, "door_open_status", p.user_id, trusted_door.actor_name(p), str(details.get("station") or ""),
                                        {"target_request_id": request_id}, trusted_door.new_request_id())
     audit(conn, actor=principal, action="intercom.release.status", decision="allowed", resource_type=STATION, resource_id=str(details.get("station") or ""), request_id=_rid(request),
           details={"door_request_id": request_id, "status_request_id": signed.request_id, "body_sha256": signed.body_sha256})

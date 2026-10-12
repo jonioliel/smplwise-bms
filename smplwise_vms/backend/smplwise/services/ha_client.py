@@ -195,9 +195,13 @@ def reset_bridge_session() -> None:
 def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/smplwise_bridge/execute?return_response — the only write path to HA. Sent ONCE over the kept
     connection (LAT1); a transport error drops the pool and is reported, never retried (a command that may have left is not
-    sent twice - AGENTS.md: never blindly retry physical commands)."""
+    sent twice - AGENTS.md: never blindly retry physical commands). A WisKey door is never sent here (CR-033 T3,
+    services/door_execute_guard.py: refused before the request, `wiskey_door_execute_blocked`, nothing sent)."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    from . import door_execute_guard  # local import: ha_client stays free of the door modules at load time
+
+    door_execute_guard.check_payload(settings, payload)
     try:
         r = _bridge_client(settings).post(_rest_base(settings) + "/services/smplwise_bridge/execute?return_response", headers=_headers(settings), content=json.dumps(payload), timeout=timeout)
     except httpx.HTTPError as exc:

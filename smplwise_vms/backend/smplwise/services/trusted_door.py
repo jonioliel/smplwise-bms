@@ -28,6 +28,9 @@ import json
 import re
 import secrets
 import sqlite3
+import threading
+import time
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -84,7 +87,44 @@ def _iso(at: datetime) -> str:
 
 
 def _text_ok(value: str) -> bool:
-    return 1 <= len(value) <= 128 and not _CTRL.search(value)
+    """1..128 characters, no C0 / C1 control and (SEC-WXD I8) no Unicode format character - the bidi embeddings, overrides
+    and isolates (U+202A-E, U+2066-9), the marks U+200E / U+200F and every other category Cf character - so an actor name
+    signed into a door command cannot re-order or hide text in WisKey's audit display."""
+    return 1 <= len(value) <= 128 and not _CTRL.search(value) and not any(unicodedata.category(ch) == "Cf" for ch in value)
+
+
+def actor_name(principal: Any) -> str:
+    """The `actor.display_name` signed into a door command: the first of the principal's display name, user name and id
+    that `_text_ok` accepts (a name with a format character is never signed - review I8 - and never silently altered:
+    the next field is used instead). The id itself always passes the identity checks upstream."""
+    for candidate in (getattr(principal, "display_name", None), getattr(principal, "username", None), getattr(principal, "user_id", None)):
+        if isinstance(candidate, str) and _text_ok(candidate):
+            return candidate
+    return str(getattr(principal, "user_id", ""))
+
+
+# SEC-WXD I7: the status read signs and calls the bridge, so it is rate limited per person (a status is a read; a person
+# checking one unknown open needs a handful, never a stream)
+STATUS_PER_MIN = 6
+_STATUS_HITS: dict[str, list[float]] = {}
+_STATUS_LOCK = threading.Lock()
+
+
+def status_rate(user_id: str) -> None:
+    """Raise 429 `rate_limited` when `user_id` asked for more than STATUS_PER_MIN status reads in the last minute."""
+    now = time.monotonic()
+    with _STATUS_LOCK:
+        hits = [t for t in _STATUS_HITS.get(user_id, []) if now - t < 60.0]
+        if len(hits) >= STATUS_PER_MIN:
+            _STATUS_HITS[user_id] = hits
+            raise ApiError(429, "rate_limited", "יותר מדי בדיקות מצב ברצף; נסו שוב בעוד רגע.", retryable=True)
+        hits.append(now)
+        _STATUS_HITS[user_id] = hits
+
+
+def reset_status_rate() -> None:
+    with _STATUS_LOCK:
+        _STATUS_HITS.clear()
 
 
 @dataclass(frozen=True)

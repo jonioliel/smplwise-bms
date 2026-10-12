@@ -859,7 +859,7 @@ def _perform_signed(act: _Action, station_id: str, lock: int, request_id: str, n
         if datetime.now(timezone.utc) >= not_after:
             raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שנשלחה."))
         p = act.principal
-        signed = trusted_door.sign_message(secret, "door_open", p.user_id, p.display_name or p.username or p.user_id, station_id, {"relay": lock}, request_id)
+        signed = trusted_door.sign_message(secret, "door_open", p.user_id, trusted_door.actor_name(p), station_id, {"relay": lock}, request_id)
         act.details["body_sha256"] = signed.body_sha256  # computed after signing, recorded only in the audit
         act.attempt()
     except BaseException:
