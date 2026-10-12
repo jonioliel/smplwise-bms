@@ -33,3 +33,12 @@ catalog (which has no response shapes). They deliberately carry what Arx must dr
 counts, the `user_ref` pseudonym of `health/get`, the privileged-password presence of `technical_codes_get`, template
 profile values, actor ids) so the tests prove it never reaches a response. The generator was a scratchpad script of the S4
 session (not part of the product); edit the JSON by hand. Still W? until W2: every nested shape here.
+
+## CR-036 slice S7 fixtures
+
+`whatsapp_templates_get.json`: an APPROVED message catalogue (three Hebrew bodies, placeholders `name` and `organization` only)
+for the messaging fake (`FakeWiskey._whatsapp`). The command names and request keys are the pinned catalog's
+(`whatsapp/status | templates_get | preview | send | history`); the response keys follow `whatsapp_api.py` of rc.37 (`status`
+{available, history, accounts}, `preview` {token, recipient, message, warnings}, `send` {accepted}) with two PROPOSED additions
+(`consent`, `quota`) that W11 has not answered. rc.37's own templates embed the PIN (`{pin}`, `{credential_section}`); this
+catalogue deliberately carries no credential placeholder - it models what Arx will require. Values synthetic. W? until W11.

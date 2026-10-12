@@ -70,6 +70,31 @@ def _window(start: str | None, end: str | None) -> None:
         raise ApiError(422, "validation", "start חייב להיות לפני end.", details={"fields": ["start", "end"]})
 
 
+def _field_filters(auth: ia.Authority, request: Request, credential: str | None, profile: list[str] | None) -> dict[str, Any]:
+    """The people list's FIELD filters (S7): `credential` (pin | no_pin | card | no_card) and `profile` (repeated
+    `profile=<field id>=<value>`, exact match, at most eight, one value per field). Filtering by credentials or by profile values
+    separates people by what the sensitive level shows, so they need `access.people.sensitive` somewhere (an audited 403
+    otherwise); the adapter then answers from the people the caller sees at that level only. Returns the filters to hand on."""
+    out: dict[str, Any] = {}
+    wanted: dict[str, str] = {}
+    for item in profile or []:
+        field, sep, value = item.partition("=")
+        if not sep or not adapter.ID.fullmatch(field) or not value or len(value) > 100 or any(ord(c) < 32 for c in value):
+            raise ApiError(422, "validation", "מסנן שדה פרופיל חייב להיות מהצורה שדה=ערך.", details={"fields": ["profile"]})
+        if field in wanted:
+            raise ApiError(422, "validation", "שדה פרופיל מופיע במסנן פעם אחת בלבד.", details={"fields": ["profile"]})
+        wanted[field] = value
+    if len(wanted) > adapter.MAX_PROFILE_FILTERS:
+        raise ApiError(422, "validation", "יותר מדי מסנני שדות פרופיל.", details={"fields": ["profile"]})
+    if credential is not None or wanted:
+        ia.require_anywhere(auth.conn, auth.principal, ia.PEOPLE_SENSITIVE, _rid(request))
+    if credential is not None:
+        out["credential"] = credential
+    if wanted:
+        out["profile"] = wanted
+    return out
+
+
 def _group_filter(auth: ia.Authority, request: Request, current_group: str | None) -> None:
     """Filtering events by a person's group reveals group membership - people data: `access.people.read` somewhere."""
     if current_group is not None:
@@ -210,13 +235,19 @@ def people(
     rights: Literal["assigned", "unassigned", "disabled"] | None = Query(None),
     state: Literal["active", "inactive", "expired", "upcoming", "archived"] | None = Query(None),
     sort: Literal["name", "name_desc", "employee"] | None = Query(None),
+    credential: Literal["pin", "no_pin", "card", "no_card"] | None = Query(None),
+    profile: list[str] | None = Query(None, max_length=16),
 ) -> dict[str, Any]:
     """One page of the people the caller may see (a person is visible through an assignment on a station where the caller
     holds `access.people.read`). `query` is matched by Arx on the name and - where the caller sees it - the employee
     number; it never reaches WisKey. `people.sort` is the order applied (the employee-number order only for a caller who
     sees every number). `total` counts what the caller sees; `total_all` is null unless they see everyone; `complete`
-    false = the scan stopped early (`incomplete_reason` scan_limit / rate_limited). Reply: `{state, ..., people, sync}`."""
-    filters = {"station": station, "group": group, "rights": rights, "state": state, "sort": sort}
+    false = the scan stopped early (`incomplete_reason` scan_limit / rate_limited). `employee_no_visible` says whether the caller
+    sees every employee number (the number column, the search by number and the number order follow it). `credential` and
+    `profile` are sensitive-level filters (`access.people.sensitive` somewhere, else an audited 403; a person is matched only
+    where the caller sees them at that level). A list row carries no phone, photo flag, profile values or timing - one person's
+    page does. Reply: `{state, ..., people, sync}`."""
+    filters = {"station": station, "group": group, "rights": rights, "state": state, "sort": sort, **_field_filters(auth, request, credential, profile)}
     return adapter.ADAPTER.people(settings_of(request), auth, query=query, filters=filters, offset=offset, limit=limit, snapshot=snapshot)
 
 

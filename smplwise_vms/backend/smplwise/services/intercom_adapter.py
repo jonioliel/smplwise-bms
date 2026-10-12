@@ -98,15 +98,22 @@ async def _ask(call: intercom_client.Call, command: str, **fields: Any) -> Any:
 
 
 # the filters each WisKey read is ever given (any other key a caller passes is dropped here, not only in the routers)
-PEOPLE_FILTER_KEYS = ("group", "station", "rights", "state", "sort")  # never `credential` / `profile` (D1, field oracles)
+PEOPLE_FILTER_KEYS = ("group", "station", "rights", "state", "sort", "credential", "profile")
+# `credential` and `profile` are FIELD filters (S7): WisKey would match them on values only a holder of `access.people.sensitive`
+# may see, so they are handed on - and honoured - for such a caller only (D1, field oracles; see `has_field_filters`).
+FIELD_FILTER_KEYS = ("credential", "profile")
+MAX_PROFILE_FILTERS = 8
 EVENT_FILTER_KEYS = ("station_id", "person", "result", "authentication", "event_type", "door", "start", "end", "limit", "before", "current_group")  # never `current_profile`
 EXPORT_FILTER_KEYS = ("station_id", "person", "result", "authentication", "event_type", "door", "start", "end", "current_group")
 AUDIT_FILTER_KEYS = ("user_id", "station_id", "action", "start", "end", "before", "limit")
 
 
-async def users_query(call: intercom_client.Call, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> Any:
-    """`users/query` - the text is ALWAYS empty (D1: WisKey's own search matches phone digits and card digits)."""
-    body = {k: filters[k] for k in PEOPLE_FILTER_KEYS if filters.get(k) is not None}
+async def users_query(call: intercom_client.Call, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None, *, field_filters: bool = False) -> Any:
+    """`users/query` - the text is ALWAYS empty (D1: WisKey's own search matches phone digits and card digits). The field
+    filters (`credential`, `profile`) are dropped here unless `field_filters` is set, which only `IntercomAdapter.people` does,
+    for a caller who holds `access.people.sensitive` (S7): a frame built by any other caller never carries an oracle."""
+    keys = PEOPLE_FILTER_KEYS if field_filters else tuple(k for k in PEOPLE_FILTER_KEYS if k not in FIELD_FILTER_KEYS)
+    body = {k: filters[k] for k in keys if filters.get(k) is not None}
     return await _ask(call, "users/query", query="", filters=body, offset=offset, limit=limit, snapshot=snapshot or "")
 
 
@@ -381,10 +388,23 @@ def _timing(raw: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _credentials(raw: dict[str, Any], redacted: set[str]) -> dict[str, Any] | None:
+    """The KINDS of credential a person has, never a value (CR-036 S7; owner answer 2 of 2026-10-12: credentials are a sensitive
+    field level): whether a PIN is set and how many enabled cards there are. No card number, no mask, no label, no PIN. None =
+    unknown (WisKey redacted the category, or sent neither fact) - never "has none"."""
+    if "credentials" in redacted:
+        return None
+    cards = raw.get("cards")
+    count = sum(1 for c in cards[:50] if isinstance(c, dict) and c.get("enabled") is True) if isinstance(cards, list) else None
+    pin = _bool(raw.get("pin_configured"))
+    return None if pin is None and count is None else {"pin": pin, "cards": count}
+
+
 def project_person(raw: Any) -> dict[str, Any] | None:
     """One WisKey person (`users/query` record, `users/get`) as a closed superset, or None when it has no usable id. Not kept:
-    cards, the PIN flag, permission overrides, timing read-backs, sync references, created / updated. A category WisKey
-    redacted (`redacted_fields`) is unknown (null), never "empty"."""
+    card numbers / masks / labels, the PIN itself, permission overrides, timing read-backs, sync references, created / updated
+    (the credential KINDS are kept as `credentials`, S7). A category WisKey redacted (`redacted_fields`) is unknown (null),
+    never "empty"."""
     if not isinstance(raw, dict) or not _id(raw.get("id")):
         return None
     redacted = {f for f in (raw.get("redacted_fields") or []) if isinstance(f, str)} if isinstance(raw.get("redacted_fields"), list) else set()
@@ -420,6 +440,8 @@ def project_person(raw: Any) -> dict[str, Any] | None:
         "timing": None if "access" in redacted else _timing(raw),
         "operator_editable": _bool(raw.get("operator_editable")),
         "phone": None if "phone" in redacted else _text(raw.get("phone"), 32),
+        "phone_set": None if "phone" in redacted else isinstance(raw.get("phone"), str) and bool(raw["phone"].strip()),
+        "credentials": _credentials(raw, redacted),
         "photo_configured": None if "photo" in redacted else _bool(raw.get("photo_configured")),
         "profile": None if "profile" in redacted or profile is None else {k: v for k, v in list(profile.items())[:32] if _id(k) and isinstance(v, str) and len(v) <= 100},
         "responsible_person": None if "access" in redacted else _text(raw.get("responsible_person"), 64),
@@ -433,6 +455,47 @@ def project_one_person(raw: Any) -> dict[str, Any]:
     if person is None:
         raise ValueError("unexpected users/get answer")
     return person
+
+
+def credential_matches(person: dict[str, Any], wanted: str) -> bool:
+    """WisKey's `credential` filter (user_directory.py): `pin` = a PIN is set, `no_pin` = none is, `card` = at least one enabled
+    card, `no_card` = none. A person whose credentials are unknown matches none of them (unknown is not "has none")."""
+    credentials = person.get("credentials")
+    if not isinstance(credentials, dict):
+        return False
+    pin, cards = credentials.get("pin"), credentials.get("cards")
+    if wanted == "pin":
+        return pin is True
+    if wanted == "no_pin":
+        return pin is False
+    if wanted == "card":
+        return isinstance(cards, int) and cards > 0
+    if wanted == "no_card":
+        return cards == 0
+    return False
+
+
+def profile_matches(person: dict[str, Any], wanted: dict[str, str]) -> bool:
+    """WisKey's `profile` filter: every named profile field equals the given value (exact, as WisKey compares)."""
+    profile = person.get("profile")
+    return isinstance(profile, dict) and all(profile.get(k) == v for k, v in wanted.items())
+
+
+def field_filters_match(person: dict[str, Any], filters: dict[str, Any]) -> bool:
+    """The field filters of a request against one superset person (Arx's own check, used where Arx scans, and as the belt and
+    braces over a page WisKey filtered)."""
+    if filters.get("credential") is not None and not credential_matches(person, filters["credential"]):
+        return False
+    if filters.get("profile") and not profile_matches(person, filters["profile"]):
+        return False
+    return True
+
+
+def has_field_filters(filters: dict[str, Any]) -> bool:
+    """Whether a request carries a field filter (`credential` / `profile`). Such a request is only ever answered from people the
+    caller sees AT THE SENSITIVE LEVEL - the filter must never separate people by a value the caller cannot read - and WisKey
+    is asked to apply it for the page itself only when every person the caller can meet is at that level."""
+    return filters.get("credential") is not None or bool(filters.get("profile"))
 
 
 def person_matches(auth: ia.Authority, person: dict[str, Any], level: str, needle: str) -> bool:
@@ -1452,7 +1515,13 @@ class IntercomAdapter:
         every employee number (else `name`; the reply's `sort` says which order was applied)."""
         if not legacy and (unsupported := self._feature(settings, "people", "people")):
             return unsupported
-        filters = {k: v for k, v in filters.items() if k in PEOPLE_FILTER_KEYS and v is not None}
+        filters = {k: v for k, v in filters.items() if k in PEOPLE_FILTER_KEYS and v is not None and v != {}}
+        if legacy:
+            filters = {k: v for k, v in filters.items() if k not in FIELD_FILTER_KEYS}  # the phase-1b screens never offered them
+        fields = has_field_filters(filters)
+        if fields and not auth.anywhere(ia.PEOPLE_SENSITIVE):
+            # the route refuses (and audits) this first; a field filter from any other caller is refused here too, silently
+            raise forbidden(permission=ia.PEOPLE_SENSITIVE, target_type="installation", target_id="*", reason="field_level")
         everywhere = auth.employee_no_everywhere()
         if filters.get("sort") is None:
             filters["sort"] = "employee" if everywhere else "name"
@@ -1465,25 +1534,31 @@ class IntercomAdapter:
             reply = {**_feed(settings), "sync": intercom_sync.STATE.as_dict(), "people": None}
             if reply["state"] == "ready":  # a station the caller cannot see has nobody in it, exactly like a station that does not exist
                 reply.update(last_error=None, people=self._page([], 0, None, offset, limit, "", False, True, None, restricted))
-            return self._people_out(reply, filters, legacy)
-        if not needle and not restricted:
-            reply = self._read(settings, auth.principal.user_id, "people", lambda call: users_query(call, filters, offset, limit, snapshot), project_people_page,
+            return self._people_out(reply, filters, legacy, auth)
+        if not needle and not restricted and (not fields or auth.unrestricted(ia.PEOPLE_SENSITIVE)):
+            reply = self._read(settings, auth.principal.user_id, "people", lambda call: users_query(call, filters, offset, limit, snapshot, field_filters=fields), project_people_page,
                                command="users/query")
             if reply.get("people") is not None:
                 page = reply["people"]
-                views = [v for p in page["records"] if (v := ia.view_person(auth, p, legacy=legacy)) is not None]
-                if len(views) != len(page["records"]):
+                views = [v for p in page["records"] if (v := ia.view_person(auth, p, legacy=legacy, detail=False)) is not None]
+                # the caller should see every row at the level a field filter needs; one that does not (or that does not match
+                # the filter although WisKey said it did) is a surprise, answered the filtered way: fail closed
+                surprise = fields and any(ia.person_level_of(auth, p) != ia.SENSITIVE or not field_filters_match(p, filters) for p in page["records"])
+                if len(views) != len(page["records"]) or surprise:
                     # an unrestricted caller should see every row; one was dropped anyway (fail closed): WisKey's totals would
                     # count it, so this request is answered the restricted way - scanned and counted over what is shown
-                    return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, True, legacy), filters, legacy)
+                    return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, True, legacy), filters, legacy, auth)
                 page["records"] = views
-            return self._people_out(reply, filters, legacy)
-        return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, restricted, legacy), filters, legacy)
+            return self._people_out(reply, filters, legacy, auth)
+        return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, restricted, legacy), filters, legacy, auth)
 
     @staticmethod
-    def _people_out(reply: dict[str, Any], filters: dict[str, Any], legacy: bool) -> dict[str, Any]:
+    def _people_out(reply: dict[str, Any], filters: dict[str, Any], legacy: bool, auth: ia.Authority) -> dict[str, Any]:
+        """The page's bookkeeping the screen needs: the order that was applied, and whether the caller sees every employee number
+        (the search hint and the number column follow it)."""
         if not legacy and reply.get("people") is not None:
             reply["people"]["sort"] = filters["sort"]
+            reply["people"]["employee_no_visible"] = auth.employee_no_everywhere()
         return reply
 
     @staticmethod
@@ -1501,6 +1576,7 @@ class IntercomAdapter:
     def _scan_people(self, settings: Settings, auth: ia.Authority, needle: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None,
                      restricted: bool, legacy: bool) -> dict[str, Any]:
         who = auth.principal.user_id
+        fields = has_field_filters(filters)
         matches: list[tuple[dict[str, Any], dict[str, Any]]] = []  # (superset, view)
         seen: set[str] = set()
         wk_offset, pages, current, total_all, stale, reason = 0, 0, "", None, False, None
@@ -1510,7 +1586,7 @@ class IntercomAdapter:
                 reason = "scan_limit"
                 break
             at = wk_offset
-            reply = self._read(settings, who, "people", lambda call, at=at, snap=current: users_query(call, filters, at, SCAN_PAGE, snap), project_people_page,
+            reply = self._read(settings, who, "people", lambda call, at=at, snap=current: users_query(call, filters, at, SCAN_PAGE, snap, field_filters=fields), project_people_page,
                                command="users/query", slot_wait=2.0 if pages else 0.0)
             pages += 1
             if reply.get("people") is None:
@@ -1530,7 +1606,9 @@ class IntercomAdapter:
                 level = ia.person_level_of(auth, person)
                 if level == ia.NONE or (needle and not person_matches(auth, person, level, needle)):
                     continue
-                view = ia.view_person(auth, person, legacy=legacy)
+                if fields and (level != ia.SENSITIVE or not field_filters_match(person, filters)):
+                    continue  # a field filter separates people only by a value the caller may read: names level never matches
+                view = ia.view_person(auth, person, legacy=legacy, detail=False)
                 if view is not None:
                     matches.append((person, view))
             following = page["next_offset"]
@@ -1553,7 +1631,7 @@ class IntercomAdapter:
             return unsupported
         reply = self._read(settings, auth.principal.user_id, "person", lambda call: users_get(call, user_id), project_one_person, command="users/get")
         if reply.get("person") is not None:
-            view = ia.view_person(auth, reply["person"], legacy=legacy)
+            view = ia.view_person(auth, reply["person"], legacy=legacy, detail=True)
             if view is None:
                 raise _not_found(*PERSON_NOT_FOUND)
             reply["person"] = view

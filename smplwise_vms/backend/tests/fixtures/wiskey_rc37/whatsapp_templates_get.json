@@ -1,0 +1,10 @@
+{
+  "revision": 3,
+  "organization": "Demo Office",
+  "placeholders": ["name", "organization"],
+  "templates": [
+    {"id": "card_ready", "label": "Card ready", "body": "שלום {name}, כרטיס הכניסה שלך מוכן לאיסוף ב{organization}."},
+    {"id": "validity_reminder", "label": "Validity reminder", "body": "שלום {name}, תוקף הכניסה שלך ב{organization} מסתיים בקרוב. נא לפנות למשרד."},
+    {"id": "closure", "label": "Entrance closed", "body": "שלום {name}, הכניסה לחניון סגורה היום בין 12:00 ל־14:00."}
+  ]
+}

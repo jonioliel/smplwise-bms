@@ -306,6 +306,11 @@ def test_the_frame_the_adapter_sends_fits_the_pinned_request_schema(command: str
 def test_the_adapter_never_hands_wiskey_an_oracle_filter():
     """The filters WisKey would match on fields the caller may not see are dropped in the typed reads themselves."""
     assert adapter_frame("users/query")["query"] == "" and set(adapter_frame("users/query")["filters"]) == {"sort", "station"}
+    # S7: the field filters (credential, profile) are in the frame only when the adapter - which first checked that the caller holds
+    # `access.people.sensitive` - asks for them; a bare call (any other caller) still drops them
+    recorder = Recorder()
+    asyncio.run(adapter.users_query(recorder, {"sort": "name", "credential": "pin", "profile": {"x": "y"}}, 0, 50, "", field_filters=True))
+    assert recorder.frames[0]["filters"] == {"sort": "name", "credential": "pin", "profile": {"x": "y"}} and recorder.frames[0]["query"] == ""
     assert "current_profile" not in adapter_frame("events/list")["filters"] and "surprise" not in adapter_frame("events/list")["filters"]
     assert set(adapter_frame("events/export")["filters"]) == {"station_id"}, "no limit / before / current_profile on the export"
     assert "actor" not in adapter_frame("audit/list")["filters"]
