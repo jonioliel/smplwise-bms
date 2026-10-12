@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { DoorGrantSubject, DoorMap, DoorMapLock, DoorPathInventory, DoorPathItem } from '../src/api/doors';
 import {
-  builtinAnswer, doorsText, filterInventory, filterSubjects, grantQuestion, guardTone, inventorySummary, itemMeta, lastRunText, mappingState, otherGrants, parsePlacement, parseRelay,
+  GRANT_ALSO, builtinAnswer, doorsText, filterInventory, filterSubjects, grantQuestion, guardTone, inventorySummary, itemMeta, lastRunText, mappingState, otherGrants, parsePlacement, parseRelay,
   peopleLine, placementOptions, placementValue, relayOptions, roleQuestion,
 } from '../src/screens/system-doors-logic';
 
@@ -26,9 +26,15 @@ test('built-in roles are read-only answers; questions name the subject', () => {
   expect(builtinAnswer({ id: 'viewer', name: 'צופה', custom: false, includes: false, editable: false, answer: 'never' })).toBe('לעולם לא');
   expect(builtinAnswer({ id: 'site_admin', name: 'מנהל', custom: false, includes: true, editable: false, answer: 'yes' })).toBe('כן');
   expect(builtinAnswer({ id: 'operator', name: 'מפעיל', custom: false, includes: false, editable: false, answer: 'per_user' })).toBe('לא - אפשר לתת למשתמשים בנפרד');
-  expect(grantQuestion('דנה', true)).toBe('לתת לדנה הרשאה לפתוח דלתות?');
-  expect(grantQuestion('דנה', false)).toContain('להסיר');
+  // SEC-WXD L3: the granting questions name everything the door permission also allows; the removing ones stay short
+  expect(grantQuestion('דנה', true)).toBe(`לתת לדנה הרשאה לפתוח דלתות? ${GRANT_ALSO}`);
+  expect(GRANT_ALSO).toContain('שיחות');
+  expect(GRANT_ALSO).toContain('הכרזות');
+  expect(GRANT_ALSO).toContain('יומן הכניסות');
+  expect(grantQuestion('דנה', false)).toBe('להסיר מדנה את ההרשאה לפתוח דלתות?');
   expect(roleQuestion('משמרת', true)).toContain('משמרת');
+  expect(roleQuestion('משמרת', true)).toContain(GRANT_ALSO);
+  expect(roleQuestion('משמרת', false)).not.toContain(GRANT_ALSO);
 });
 
 test('other grants are listed by role and scope names, and the search filters by name', () => {

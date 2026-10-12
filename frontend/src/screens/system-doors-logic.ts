@@ -11,13 +11,20 @@ export function builtinAnswer(role: DoorGrantRole): string {
   return 'לא - אפשר לתת למשתמשים בנפרד';
 }
 
+/**
+ * What the door permission also allows (SEC-WXD L3): `access.release` / `access.read` also answer and end calls from the
+ * stations, send announcements, and open the intercom screen with its entry log and people directory. Said in every
+ * granting question until the owner decides on a door-only permission.
+ */
+export const GRANT_ALSO = 'ההרשאה כוללת גם מענה לשיחות מהעמדות, הכרזות, וצפייה ביומן הכניסות ובאנשי הקשר של האינטרקום.';
+
 /** The question each sensitive switch asks before it is sent (one short confirmation). */
 export function grantQuestion(name: string, enabled: boolean): string {
-  return enabled ? `לתת ל${name} הרשאה לפתוח דלתות?` : `להסיר מ${name} את ההרשאה לפתוח דלתות?`;
+  return enabled ? `לתת ל${name} הרשאה לפתוח דלתות? ${GRANT_ALSO}` : `להסיר מ${name} את ההרשאה לפתוח דלתות?`;
 }
 
 export function roleQuestion(name: string, enabled: boolean): string {
-  return enabled ? `לכלול פתיחת דלתות בתפקיד ${name}?` : `להסיר פתיחת דלתות מהתפקיד ${name}?`;
+  return enabled ? `לכלול פתיחת דלתות בתפקיד ${name}? ${GRANT_ALSO}` : `להסיר פתיחת דלתות מהתפקיד ${name}?`;
 }
 
 /** The line under a subject: what else lets them open ("שיוך אחר"), by role and scope name - never ids. */
