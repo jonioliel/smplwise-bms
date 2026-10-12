@@ -406,16 +406,14 @@ export class WiskeySchedules extends LitElement {
         ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-sch-edit @click=${() => (window.location.hash = CLASSIC_EDIT_HREF)}>${sch('editClassic')}</sw-button>`
         : nothing}
       <sw-button slot="actions" variant="ghost" icon="refresh" data-sch-refresh label=${sch('refresh')} @click=${() => this.refresh()}>${sch('refresh')}</sw-button>
+      ${doors.length && !this.narrow
+        ? html`<sw-view-switch slot="actions" data-sch-views label=${sch('viewLabel')} .value=${view} .options=${[
+            { id: 'door', label: sch('viewDoor'), icon: 'calendar' },
+            { id: 'table', label: sch('viewTable'), icon: 'table' },
+          ]} @change=${(e: CustomEvent<string>) => this.setView(e.detail as View)}></sw-view-switch>`
+        : nothing}
       <div data-sch data-sch-state=${doors.length ? 'ready' : 'empty'} data-sch-view=${view}>
         ${stale ? html`<p class="status" role="status" data-sch-stale="stations">${sch('stale', { t: stamp(this.feed?.fetched_at, this.feed?.default_zone ?? null) || '—' })}</p>` : nothing}
-        ${doors.length && !this.narrow
-          ? html`<div class="toolbar">
-              <sw-view-switch data-sch-views label=${sch('viewLabel')} .value=${view} .options=${[
-                { id: 'door', label: sch('viewDoor'), icon: 'calendar' },
-                { id: 'table', label: sch('viewTable'), icon: 'table' },
-              ]} @change=${(e: CustomEvent<string>) => this.setView(e.detail as View)}></sw-view-switch>
-            </div>`
-          : nothing}
         ${!doors.length
           ? html`<sw-state-panel quiet state="empty" heading=${sch('noDoors')} data-sch-panel="empty"></sw-state-panel>`
           : view === 'table'
@@ -460,6 +458,7 @@ export class WiskeySchedules extends LitElement {
 
   private renderCodePill(stationId: string) {
     const f = this.codesOf(stationId);
+    if (f?.state === 'unsupported' || f?.state === 'forbidden') return nothing; // the installed version does not offer it: absent, not greyed
     const cs = f?.data ? codeState(f.data) : 'unknown';
     const kind: StateKind = cs === 'set' ? 'live' : cs === 'unset' ? 'neutral' : 'unknown';
     return html`<sw-badge kind=${kind} label=${sch('codePill', { state: codeWord(cs) })} data-sch-code=${cs}></sw-badge>`;
@@ -529,8 +528,11 @@ export class WiskeySchedules extends LitElement {
   private renderLibrary(stations: readonly AccessStation[]) {
     const names = stationNamer(stations);
     const zone = this.feed?.default_zone ?? null;
+    // a read the installed version does not offer (or that the server refused) is absent - never a greyed block
+    const absent = (f: Fetch<unknown>) => f.state === 'forbidden' || f.state === 'unsupported';
     const lib = this.library;
-    const plans = this.plans.state === 'forbidden' ? null : this.plans;
+    const plans = absent(this.plans) ? null : this.plans;
+    if (absent(lib) && !plans) return nothing;
     const block = (title: string, attr: string, f: Fetch<unknown>, count: number | null, rows: unknown) => html`<sw-card>
       <div class="block" data-sch-block=${attr}>
         <div class="bh"><h3>${title}</h3>${count !== null ? html`<span class="n">${count}</span>` : nothing}</div>
@@ -546,7 +548,7 @@ export class WiskeySchedules extends LitElement {
       </div>
     </sw-card>`;
     const libRows = libraryRows(lib.data, plans?.data ?? null, names);
-    const planList = planRows(plans?.data ?? null, this.ops.state === 'forbidden' ? null : this.ops.data, lib.data, names);
+    const planList = planRows(plans?.data ?? null, absent(this.ops) ? null : this.ops.data, lib.data, names);
     const libBody = libRows.length
       ? html`<div class="rows">${libRows.map(
           (r) => html`<div class="row" data-sch-lib-row=${r.id}>
@@ -566,7 +568,7 @@ export class WiskeySchedules extends LitElement {
         )}</div>`
       : html`<sw-state-panel compact quiet state="empty" heading=${sch('plansEmpty')} data-sch-panel="plans-empty"></sw-state-panel>`;
     return html`<div class="two" data-sch-library>
-      ${block(sch('libraryTitle'), 'library', lib, lib.data ? lib.data.length : null, libBody)}
+      ${absent(lib) ? nothing : block(sch('libraryTitle'), 'library', lib, lib.data ? lib.data.length : null, libBody)}
       ${plans ? block(sch('plansTitle'), 'plans', plans, plans.data ? plans.data.length : null, planBody) : nothing}
     </div>`;
   }

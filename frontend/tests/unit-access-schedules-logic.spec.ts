@@ -37,6 +37,8 @@ const WIRE = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'access_control
 const STATIONS = WIRE.stations.stations as AccessStation[];
 const PROGRAMS = WIRE.programs.programs as StationPrograms;
 const JLM = { kind: 'iana', name: 'Asia/Jerusalem' } as const;
+/** The value without the left-to-right isolates the logic puts around times and dates (they are there for the right-to-left page). */
+const P = <T,>(v: T): T => JSON.parse(JSON.stringify(v).replace(/[⁦-⁩]/g, '')) as T;
 
 test.describe('doors', () => {
   test('every relay of a station sent WITH its technical part and an integrated lock - nothing inferred', () => {
@@ -88,18 +90,20 @@ test.describe('weekly windows', () => {
   });
 
   test('lines are Sunday first, equal neighbouring days fold into a range', () => {
-    expect(weeklyLines(PROGRAMS.programs[0].policy!.weekly)).toEqual(['א׳–ה׳ 07:00–09:00, 12:00–13:00', 'ו׳ 08:00–12:00']);
+    expect(P(weeklyLines(PROGRAMS.programs[0].policy!.weekly))).toEqual(['א׳–ה׳ 07:00–09:00, 12:00–13:00', 'ו׳ 08:00–12:00']);
     const every = Object.fromEntries(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((d) => [d, [{ start: '06:00', end: '22:00' }]]));
-    expect(weeklyLines(every)).toEqual(['כל יום 06:00–22:00']);
-    expect(weeklyLines({})).toEqual([]);
-    expect(weeklyLines(null)).toEqual([]);
+    expect(P(weeklyLines(every))).toEqual(['כל יום 06:00–22:00']);
+    expect(P(weeklyLines({}))).toEqual([]);
+    // the hours are a left-to-right isolate inside the Hebrew line (a right-to-left page would otherwise show "09:00–07:00")
+    expect(weeklyLines(PROGRAMS.programs[0].policy!.weekly)[1]).toBe('ו׳ ⁦08:00–12:00⁩');
+    expect(P(weeklyLines(null))).toEqual([]);
   });
 
   test('specific dates: closed, a range, hours, and an unreadable date said as unknown', () => {
-    expect(dateLines(PROGRAMS.programs[0].policy!.holidays)).toEqual(['ערב חג · 06.10 · 08:00–11:00']);
-    expect(dateLines([{ name: null, start: '2026-10-02', end: '2026-10-03', periods: [] }])).toEqual(['02.10–03.10 · סגור']);
-    expect(dateLines([{ name: 'x', start: null, end: '2026-10-03', periods: [] }])).toEqual(['x · לא ידוע · סגור']);
-    expect(dateLines(null)).toEqual([]);
+    expect(P(dateLines(PROGRAMS.programs[0].policy!.holidays))).toEqual(['ערב חג · 06.10 · 08:00–11:00']);
+    expect(P(dateLines([{ name: null, start: '2026-10-02', end: '2026-10-03', periods: [] }]))).toEqual(['02.10–03.10 · סגור']);
+    expect(P(dateLines([{ name: 'x', start: null, end: '2026-10-03', periods: [] }]))).toEqual(['x · לא ידוע · סגור']);
+    expect(P(dateLines(null))).toEqual([]);
   });
 });
 
@@ -176,7 +180,7 @@ test.describe('the library and the proposals', () => {
   test('a library row: name, version, hours, holidays, and the stations it was proposed for', () => {
     const rows = libraryRows(library, plans, names);
     expect(rows[0]).toMatchObject({ id: 'sch-office', name: 'שעות משרד', version: 'גרסה 3', holidays: 'חג אחד', proposals: 'הוצע ל־שער ראשי, לובי' });
-    expect(rows[0].lines).toEqual(['א׳–ה׳ 07:00–19:00', 'ו׳ 07:00–13:00']);
+    expect(P(rows[0].lines)).toEqual(['א׳–ה׳ 07:00–19:00', 'ו׳ 07:00–13:00']);
     expect(rows[1].proposals).toBe('הוצע ל־חניון');
     expect(libraryRows(library, [], names)[0].proposals).toBe('לא הוצע לאף תחנה');
     expect(libraryRows([{ ...library[0], name: null, revision: null, holidays: [{}, {}] }], null, names)[0]).toMatchObject({ name: 'ללא שם', version: '', holidays: '2 חגים' });
@@ -193,7 +197,7 @@ test.describe('the table across doors', () => {
       ['entry-b:2', 'לדלת הזאת אין לוחות זמנים', '', 'לא ידוע'],
       ['entry-c:1', 'לא ידוע', 'לא ידוע', 'לא ידוע'],
     ]);
-    expect(rows[0]).toMatchObject({ kind: 'פתוח קבוע', when: 'א׳–ה׳ 07:00–09:00, 12:00–13:00 · ו׳ 08:00–12:00', tone: 'live', codeState: 'set' });
+    expect(P(rows[0])).toMatchObject({ kind: 'פתוח קבוע', when: 'א׳–ה׳ 07:00–09:00, 12:00–13:00 · ו׳ 08:00–12:00', tone: 'live', codeState: 'set' });
   });
 });
 
@@ -216,10 +220,10 @@ test.describe('words, panels, time, access', () => {
   });
 
   test('stamps are in the station\'s zone, not the browser\'s', () => {
-    expect(stamp('2026-09-27T04:00:05+00:00', JLM)).toBe('27.09.2026 07:00');
-    expect(stamp('2026-09-27T04:00:05+00:00', null)).toBe('27.09.2026 04:00');
-    expect(stamp('2026-09-27T04:00:05', JLM)).toBe(''); // no offset: not an instant
-    expect(stamp(null)).toBe('');
+    expect(P(stamp('2026-09-27T04:00:05+00:00', JLM))).toBe('27.09.2026 07:00');
+    expect(P(stamp('2026-09-27T04:00:05+00:00', null))).toBe('27.09.2026 04:00');
+    expect(P(stamp('2026-09-27T04:00:05', JLM))).toBe(''); // no offset: not an instant
+    expect(P(stamp(null))).toBe('');
   });
 
   test('who sees what: the screen at any scope, the library only at installation scope, editing in the classic panel for administrators', () => {

@@ -122,7 +122,13 @@ export function weekGrid(weekly: Partial<Record<WeekdayName, Period[]>> | null |
   return { days, unreadable, empty: days.every((d) => !d.length) };
 }
 
-const periodsText = (p: readonly Period[] | undefined): string => (p ?? []).filter(validPeriod).map((x) => `${x.start}–${x.end}`).join(', ');
+/** A left-to-right isolate (LRI ... PDI): times, dates and their ranges read in their own order inside a Hebrew line (without it,
+ * "07:00–09:00" in a right-to-left paragraph shows as "09:00–07:00"). */
+export const ltr = (s: string): string => (s ? `⁦${s}⁩` : s);
+/** The text without the isolates (for comparisons). */
+export const plainText = (s: string): string => s.replace(/[⁦-⁩]/g, '');
+
+const periodsText = (p: readonly Period[] | undefined): string => ltr((p ?? []).filter(validPeriod).map((x) => `${x.start}–${x.end}`).join(', '));
 
 /** The weekly windows as short lines, Sunday first: consecutive days with the same windows are one range ("א׳–ה׳ 07:00–19:00"). */
 export function weeklyLines(weekly: Partial<Record<WeekdayName, Period[]>> | null | undefined): string[] {
@@ -159,7 +165,7 @@ export function dateLines(holidays: StationPolicy['holidays'] | null | undefined
   return (Array.isArray(holidays) ? holidays : []).map((h) => {
     const a = dayShort(h?.start ?? null);
     const b = dayShort(h?.end ?? null);
-    const when = a && b ? (a === b ? a : `${a}–${b}`) : sch('st_unknown');
+    const when = a && b ? ltr(a === b ? a : `${a}–${b}`) : sch('st_unknown');
     const hours = periodsText(Array.isArray(h?.periods) ? h.periods : []) || sch('closed');
     const name = h?.name?.trim();
     return name ? `${name} · ${when} · ${hours}` : `${when} · ${hours}`;
@@ -457,7 +463,7 @@ export function stamp(iso: string | null | undefined, zone: DisplayZone | null =
     offset = 0;
   }
   const d = new Date(ms + offset * 1000);
-  return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  return ltr(`${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`);
 }
 
 // ---------------------------------------------------------------- who sees what (the server still decides every read)

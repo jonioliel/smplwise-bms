@@ -15,13 +15,6 @@ export const schedulesCss = css`
       --sch-hit: 44px;
     }
   }
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--sw-s-2) var(--sw-s-3);
-  }
   .status {
     margin: 0;
     padding: var(--sw-s-1) var(--sw-s-3);
@@ -233,6 +226,10 @@ export const schedulesCss = css`
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--sw-s-4);
+    margin-block-start: var(--sw-s-4);
+  }
+  sw-table {
+    margin-block-start: var(--sw-s-3);
   }
   .rows {
     display: flex;
@@ -280,6 +277,10 @@ export const schedulesCss = css`
     }
     .chip {
       display: inline-flex;
+    }
+    /* the door chip already names the door on a phone: the title would repeat it */
+    .doorhead h2 {
+      display: none;
     }
     .block {
       padding: var(--sw-s-3);
