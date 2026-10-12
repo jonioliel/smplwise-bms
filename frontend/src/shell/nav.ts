@@ -862,6 +862,16 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/screens': ['system.configure'],
 };
 
+/** CR-036: a WisKey tab whose screen the owner switched to the native Arx one (`access.ui.<screen>` = smplwise) needs the NEW
+ * permission of that screen, held at ANY scope (the access-control permissions are scoped by station, so a station-scoped
+ * operator holds them below installation scope) - not `access.read` at installation scope. While the screen is the embedded
+ * panel the tab keeps `access.read` (WisKey's own per-area permissions decide inside the frame). A viewer holding only
+ * `access.read` is therefore not offered the native People tab, and a direct URL shows the screen's "not available to you" panel.
+ * Each native slice adds its row (S7: people). */
+export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: string[] }> = {
+  '#/wiskey/events': { screen: 'events', need: ['access.events.read'] }, // S8: the entry log
+};
+
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
@@ -872,8 +882,10 @@ export type Can = (permission: string, installationOnly?: boolean) => boolean;
 
 export function tabAllowed(href: string, can?: Can): boolean {
   // every WisKey tab (the static ones and those built from the embed API catalog) needs access.read at installation scope
-  const need = TAB_PERMISSIONS[href] ?? (isWiskeyHref(href) ? ['access.read'] : undefined);
-  const installationOnly = INSTALLATION_ONLY_HREFS.has(href) || isWiskeyHref(href);
+  const native = NATIVE_WISKEY_TABS[href];
+  const isNative = !!native && WISKEY_UI[native.screen] === 'smplwise';
+  const need = isNative ? native.need : (TAB_PERMISSIONS[href] ?? (isWiskeyHref(href) ? ['access.read'] : undefined));
+  const installationOnly = !isNative && (INSTALLATION_ONLY_HREFS.has(href) || isWiskeyHref(href));
   return !need || !can || need.some((p) => can(p, installationOnly));
 }
 

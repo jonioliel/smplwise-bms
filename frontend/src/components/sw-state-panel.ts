@@ -24,6 +24,9 @@ export class SwStatePanel extends LitElement {
   @property() hint = '';
   @property() actionLabel = '';
   @property({ type: Boolean, reflect: true }) compact = false;
+  /** CR-036 S8: no second sentence - an operator screen that says only its heading ("המסך הזה אינו זמין לך") does not get the
+   * preset's explanatory hint when it passes none of its own. */
+  @property({ type: Boolean, reflect: true }) quiet = false;
 
   static styles = css`
     :host {
@@ -110,7 +113,7 @@ export class SwStatePanel extends LitElement {
     // retry button goes away - a viewer used to see "משהו השתבש · נסה שוב" on the events centre (0.1.80).
     const forbidden = this.state === 'error' && /אין (לך )?הרשא/.test(this.hint);
     const preset = PRESETS[forbidden ? 'forbidden' : this.state];
-    const hint = this.hint || preset.hint();
+    const hint = this.hint || (this.quiet ? '' : preset.hint());
     return html`
       <div class="icon" data-look=${forbidden ? 'forbidden' : ''} aria-hidden="true"><sw-icon .name=${preset.icon} size=${this.compact ? 20 : 26}></sw-icon></div>
       <div class="text" role="status">
