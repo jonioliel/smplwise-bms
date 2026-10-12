@@ -333,8 +333,9 @@ test.describe('wiskey-stations: the drawer', () => {
     await expect(first).toContainText('כניסה');
     await expect(first).toContainText('מופעלת');
     await expect(first).toContainText('פתוחה בהחזקה');
-    await expect(first).toContainText('א׳–ה׳ 08:00–17:00');
-    await expect(first).toContainText('ו׳ 08:00–13:00');
+    // the hours are left-to-right isolates inside the Hebrew line (CR-036 S12: never shown reversed)
+    await expect(first).toContainText(/א׳–ה׳ \u206608:00–17:00\u2069/);
+    await expect(first).toContainText(/ו׳ \u206608:00–13:00\u2069/);
     await expect(first).toContainText('חגים: 1');
     await expect(inDrawer(page, '[data-wk-program="2"]')).toContainText('כבויה');
     const codes = inDrawer(page, '[data-wk-codes="set"]');

@@ -433,6 +433,11 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
       let rows = before ? records.filter((r) => r.sequence < before) : records;
       if (station) rows = rows.filter((r) => r.stations.includes(station));
       if (action) rows = rows.filter((r) => r.action === action);
+      // CR-036 S12: the period (`start`) and one person's records (`user_id`), as the integration filters them
+      const person = q.get('user_id');
+      const start = q.get('start');
+      if (person) rows = rows.filter((r) => r.person?.id === person);
+      if (start) rows = rows.filter((r) => Date.parse(r.time) >= Date.parse(start));
       if (before) {
         // the second page: older entries, generated
         rows = [{ sequence: 27, time: '2026-09-25T10:00:00+00:00', action: 'users/update', actor_name: 'מנהל אתר', fields: ['phone'], revision_before: 1, revision_after: 2, reason_code: null, stations: ['entry-b'], person: { id: 'u3', display_name: 'נועה בר', employee_no: '1050' } }];

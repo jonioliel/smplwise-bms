@@ -44,6 +44,7 @@ import {
   ttsLength,
   visibleStations,
   weeklyLines,
+  ltrRange,
   type PlaceMap,
 } from '../src/screens/wiskey-stations-logic';
 
@@ -296,11 +297,21 @@ test.describe('the announcement choices and the speech estimate', () => {
 });
 
 test.describe('door settings are read only and never carry a code value', () => {
+  /** A time range as the drawer prints it: a left-to-right isolate, so RTL never shows it reversed (CR-036 S12). */
+  const L = (a: string, b: string) => `\u2066${a}–${b}\u2069`;
+
+  test('a time range keeps its order inside a Hebrew line (left-to-right isolate)', () => {
+    expect(ltrRange('07:00', '09:00')).toBe('\u206607:00–09:00\u2069');
+    const line = weeklyLines({ Sunday: [{ start: '07:00', end: '09:00' }] }, he)[0];
+    expect(line.indexOf('\u2066')).toBeLessThan(line.indexOf('07:00'));
+    expect(line.indexOf('09:00')).toBeLessThan(line.indexOf('\u2069'));
+  });
+
   test('weekly windows: consecutive days with the same hours are one range', () => {
     const w = { Sunday: [{ start: '08:00', end: '17:00' }], Monday: [{ start: '08:00', end: '17:00' }], Tuesday: [{ start: '08:00', end: '17:00' }], Wednesday: [{ start: '08:00', end: '17:00' }], Thursday: [{ start: '08:00', end: '17:00' }], Friday: [{ start: '08:00', end: '13:00' }], Saturday: [] };
-    expect(weeklyLines(w, he)).toEqual(['א׳–ה׳ 08:00–17:00', 'ו׳ 08:00–13:00']);
-    expect(weeklyLines({ Sunday: [{ start: '00:00', end: '24:00' }], Monday: [{ start: '00:00', end: '24:00' }], Tuesday: [{ start: '00:00', end: '24:00' }], Wednesday: [{ start: '00:00', end: '24:00' }], Thursday: [{ start: '00:00', end: '24:00' }], Friday: [{ start: '00:00', end: '24:00' }], Saturday: [{ start: '00:00', end: '24:00' }] }, he)).toEqual(['כל הימים 00:00–24:00']);
-    expect(weeklyLines({ Saturday: [{ start: '09:00', end: '10:00' }, { start: '12:00', end: '13:00' }] }, he)).toEqual(['ש׳ 09:00–10:00, 12:00–13:00']);
+    expect(weeklyLines(w, he)).toEqual([`א׳–ה׳ ${L('08:00', '17:00')}`, `ו׳ ${L('08:00', '13:00')}`]);
+    expect(weeklyLines({ Sunday: [{ start: '00:00', end: '24:00' }], Monday: [{ start: '00:00', end: '24:00' }], Tuesday: [{ start: '00:00', end: '24:00' }], Wednesday: [{ start: '00:00', end: '24:00' }], Thursday: [{ start: '00:00', end: '24:00' }], Friday: [{ start: '00:00', end: '24:00' }], Saturday: [{ start: '00:00', end: '24:00' }] }, he)).toEqual([`כל הימים ${L('00:00', '24:00')}`]);
+    expect(weeklyLines({ Saturday: [{ start: '09:00', end: '10:00' }, { start: '12:00', end: '13:00' }] }, he)).toEqual([`ש׳ ${L('09:00', '10:00')}, ${L('12:00', '13:00')}`]);
     expect(weeklyLines({}, he)).toEqual([]);
     expect(weeklyLines(null, he)).toEqual([]);
   });
@@ -317,7 +328,7 @@ test.describe('door settings are read only and never carry a code value', () => 
     } as unknown as Parameters<typeof programViews>[0];
     const v = programViews(programs, LIST[1], he);
     expect(v).toHaveLength(2);
-    expect(v[0]).toMatchObject({ door: 1, name: 'כניסה', none: false, enabled: true, status: 'פתוחה בהחזקה', hours: ['א׳ 08:00–17:00'], holidays: 1, error: false, unreadable: false });
+    expect(v[0]).toMatchObject({ door: 1, name: 'כניסה', none: false, enabled: true, status: 'פתוחה בהחזקה', hours: [`א׳ ${L('08:00', '17:00')}`], holidays: 1, error: false, unreadable: false });
     expect(v[1]).toMatchObject({ door: 2, name: 'מחסום', enabled: false, removing: true, status: 'לא ידוע', error: true, unreadable: true });
     const none = programViews(null, LIST[1], he);
     expect(none.every((r) => r.none)).toBe(true);

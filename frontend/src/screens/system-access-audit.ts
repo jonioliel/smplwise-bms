@@ -13,11 +13,15 @@ import type { DisplayZone } from '../api/intercom';
 import { Resource } from '../access-control/status-feed';
 import { CELL, statusStyles } from '../access-control/status-css';
 import { failurePanel, skeletonRows } from '../access-control/status-panel';
-import { AUDIT_ACTIONS, age, appendAudit, auditFields, auditResult, auditTarget, whenOf } from '../access-control/status-logic';
+import { AUDIT_ACTIONS, AUDIT_PERIODS, age, appendAudit, auditFields, auditPeriodStart, auditPersonOf, auditResult, auditTarget, whenOf, type AuditPeriod } from '../access-control/status-logic';
 import { actionText, ageText, errorText, fieldText, whenText } from '../access-control/status-text';
 import { UTC_ZONE } from './wiskey-format';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { st } from '../i18n/access-status';
+
+/** CR-036 S12: a person's name on a record is a button that narrows the log to them (inline: the table's cells live in its shadow root). */
+const PERSON_BTN =
+  'display:inline-flex;align-items:center;min-block-size:var(--sw-touch-desktop,44px);padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer;text-decoration:underline;text-decoration-color:var(--sw-border-strong);text-underline-offset:3px';
 
 /**
  * CR-036 S10: "יומן האינטרקום" - the intercom's own action log, the second segment of the Settings page "בקרת כניסה". It lists what was
@@ -32,6 +36,9 @@ export class SystemAccessAudit extends LitElement {
   @property({ type: Number }) rev = 0;
   @state() private station = '';
   @state() private action = '';
+  /** CR-036 S12: the period (the last day / week / month) and one person's records. */
+  @state() private period: AuditPeriod = '';
+  @state() private person: { id: string; name: string } | null = null;
 
   private auditRes!: Resource<AuditPage, AuditReply>;
   private stationsRes!: Resource<StatusStation[], StatusStationsReply>;
@@ -59,7 +66,14 @@ export class SystemAccessAudit extends LitElement {
     };
     this.stationsRes = new Resource({ fetch: () => getStatusStations(), pick: (r: StatusStationsReply) => r.stations, onChange: change });
     this.auditRes = new Resource({
-      fetch: (cursor: unknown) => getWiskeyAudit({ station_id: this.station, action: this.action, before: typeof cursor === 'number' ? cursor : null }),
+      fetch: (cursor: unknown) =>
+        getWiskeyAudit({
+          station_id: this.station,
+          action: this.action,
+          user_id: this.person?.id,
+          start: auditPeriodStart(this.period, new Date()),
+          before: typeof cursor === 'number' ? cursor : null,
+        }),
       pick: (r: AuditReply) => r.audit,
       merge: appendAudit,
       cursorOf: (d: AuditPage) => d.next_cursor,
@@ -118,16 +132,39 @@ export class SystemAccessAudit extends LitElement {
     void this.auditRes.reload();
   }
 
+  private periodItems(): DropdownItem[] {
+    const label: Record<AuditPeriod, string> = { '': st('auditPeriodAll'), '24h': st('auditPeriod24h'), '7d': st('auditPeriod7d'), '30d': st('auditPeriod30d') };
+    return AUDIT_PERIODS.map((p) => ({ id: p, label: label[p] }));
+  }
+
+  private setPeriod(id: string): void {
+    this.period = (AUDIT_PERIODS as readonly string[]).includes(id) ? (id as AuditPeriod) : '';
+    void this.auditRes.reload();
+  }
+
+  private setPerson(p: { id: string; name: string } | null): void {
+    this.person = p;
+    void this.auditRes.reload();
+  }
+
   private clear(): void {
     this.station = '';
     this.action = '';
+    this.period = '';
+    this.person = null;
     void this.auditRes.reload();
   }
 
   private target(r: AuditRecord): TemplateResult | string {
     const t = auditTarget(r);
     if (t.kind === 'none') return '—';
-    if (t.kind === 'person') return html`<span>${t.name ?? st('unnamed')}${t.employee ? html` <span style=${CELL.muted}>· ${st('employeeShort', { n: t.employee })}</span>` : nothing}</span>`;
+    if (t.kind === 'person') {
+      const who = html`<span>${t.name ?? st('unnamed')}${t.employee ? html` <span style=${CELL.muted}>· ${st('employeeShort', { n: t.employee })}</span>` : nothing}</span>`;
+      const p = auditPersonOf(r);
+      if (!p || this.person) return who;
+      // CR-036 S12: a person on a record narrows the log to their records (the integration's own person filter)
+      return html`<button type="button" style=${PERSON_BTN} data-access-audit-person=${p.id} title=${st('auditPersonPick', { name: p.name })} @click=${() => this.setPerson(p)}>${who}</button>`;
+    }
     const names = t.ids.map((id) => this.nameOf(id)).join(', ');
     return t.more ? st('auditStationsMore', { names, n: t.more }) : st('auditStations', { names });
   }
@@ -163,7 +200,7 @@ export class SystemAccessAudit extends LitElement {
     const s = r.snap;
     const now = new Date();
     const page = s.data;
-    const filtered = !!(this.station || this.action);
+    const filtered = !!(this.station || this.action || this.period || this.person);
     let body: TemplateResult;
     if (!s.everAnswered || (s.busy && !page)) body = skeletonRows(5);
     else if (!page) return html`<div class="stack" data-access-status=${s.failure ?? 'error'}>${failurePanel(s.failure ?? 'error', s.message, () => this.reloadAll())}</div>`;
@@ -177,6 +214,10 @@ export class SystemAccessAudit extends LitElement {
           <div class="ctl">
             <sw-dropdown tall data-access-audit-station label=${st('auditStation')} .items=${this.stationItems()} .value=${this.station} @change=${(e: CustomEvent<{ id: string }>) => this.setStation(e.detail.id)}></sw-dropdown>
             <sw-dropdown tall data-access-audit-action label=${st('auditAction')} .items=${this.actionItems()} .value=${this.action} @change=${(e: CustomEvent<{ id: string }>) => this.setAction(e.detail.id)}></sw-dropdown>
+            <sw-dropdown tall data-access-audit-period label=${st('auditPeriod')} .items=${this.periodItems()} .value=${this.period} @change=${(e: CustomEvent<{ id: string }>) => this.setPeriod(e.detail.id)}></sw-dropdown>
+            ${this.person
+              ? html`<button type="button" class="chipbtn" aria-pressed="true" data-access-audit-person-chip aria-label=${st('auditPersonClear')} @click=${() => this.setPerson(null)}><span>${st('auditPerson', { name: this.person.name })}</span><sw-icon name="close" size=${14}></sw-icon></button>`
+              : nothing}
             ${filtered ? html`<sw-button size="lg" variant="ghost" data-access-audit-clear @click=${() => this.clear()}>${st('auditClear')}</sw-button>` : nothing}
           </div>
         </div>

@@ -31,6 +31,7 @@ import {
   showCallHint,
   statusOf,
   stationDoors,
+  stationEventsHref,
   stillTime,
   syncKind,
   syncWord,
@@ -41,6 +42,9 @@ import {
   type TableTier,
 } from './wiskey-stations-logic';
 import { wkIcon } from './wiskey-stations-icons';
+import { canAnywhere } from '../api/session';
+import { WISKEY_UI } from '../shell/nav';
+import { pt } from '../i18n/access-parity';
 
 export interface Fetch<T> {
   state: 'idle' | 'loading' | 'ready' | 'unsupported' | 'busy' | 'error';
@@ -443,6 +447,12 @@ function doorSettings(v: ViewCtx, s: AccessStation): TemplateResult | typeof not
   </section>`;
 }
 
+/** CR-036 S12: the drawer's way to the entry log of this station (only while the entry log is the native screen and readable). */
+function eventsLink(s: AccessStation): TemplateResult | typeof nothing {
+  const href = stationEventsHref(s.id, WISKEY_UI.events === 'smplwise', canAnywhere('access.events.read'));
+  return href ? html`<div class="evlink"><wk-action-button tone="quiet" icon="history" href=${href} data-wk-station-events=${s.id}>${pt('stationEvents')}</wk-action-button></div>` : nothing;
+}
+
 /** The drawer's content for a station the caller sees: the still (live video stays in the classic panel), the place, the sections. */
 export function drawerBody(v: ViewCtx, s: AccessStation): TemplateResult {
   const t = v.text;
@@ -460,6 +470,7 @@ export function drawerBody(v: ViewCtx, s: AccessStation): TemplateResult {
       <div class="ov"><span class="t"><sw-icon name="play" size=${16}></sw-icon>${t.drawer.liveClassic}</span><wk-action-button icon="window" href=${classicPanelHref()} data-wk-classic-link>${t.drawer.openClassic}</wk-action-button></div>
     </div>
     <div class="meta">${place ? html`<span>${place}</span>` : nothing}<span>${t.seen.prefix} <bdi>${seenOf(v, s)}</bdi></span></div>
+    ${eventsLink(s)}
     ${resultLine(v, s, true)}
     ${showCall
       ? html`<section class="dsec" data-wk-dsec="call">

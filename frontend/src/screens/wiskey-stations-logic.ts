@@ -351,7 +351,11 @@ export function speechSeconds(message: string): number {
 
 export const WEEK: readonly WeekdayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const periodsText = (p: readonly Period[] | undefined): string => (p ?? []).map((x) => `${x.start}–${x.end}`).join(', ');
+/** A time range as a left-to-right isolate (U+2066 ... U+2069): inside a Hebrew line "08:00–17:00" would otherwise display as
+ * "17:00–08:00" (CR-036 S12 fix of the S9 hand-off; the same isolate the schedules screen uses). */
+export const ltrRange = (start: string, end: string): string => `\u2066${start}–${end}\u2069`;
+
+const periodsText = (p: readonly Period[] | undefined): string => (p ?? []).map((x) => ltrRange(x.start, x.end)).join(', ');
 
 /** The weekly windows of a program as short lines: consecutive days with the same windows are one range ("א׳–ה׳ 08:00–17:00"). */
 export function weeklyLines(weekly: Partial<Record<WeekdayName, Period[]>> | null | undefined, text: StationsText = ws()): string[] {
@@ -497,6 +501,14 @@ export const showCallHint = (policy: StationsPolicy, rights: Rights): boolean =>
 /** The link behind "talk in the classic panel": the embedded panel's entry center, forced for this visit even when the screen
  * is set to Arx (`?classic=1`, read by shell/nav.ts `wiskeyRoute`). It changes no setting. */
 export const classicPanelHref = (): string => '#/wiskey/overview?classic=1';
+
+/** CR-036 S12: "the entry log of this station" - the native entry log filtered to the station (S8 applies `?station=` from the first
+ * request). Offered only while the entry log IS the native screen (else the address shows the embedded panel, which ignores the filter)
+ * and the caller holds `access.events.read` somewhere (the server still decides per station). */
+export function stationEventsHref(stationId: string, eventsNative: boolean, canReadEvents: boolean): string | null {
+  if (!eventsNative || !canReadEvents || !stationId) return null;
+  return `#/wiskey/events?station=${encodeURIComponent(stationId)}`;
+}
 
 // ---------------------------------------------------------------- feed states
 
