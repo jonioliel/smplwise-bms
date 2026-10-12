@@ -352,11 +352,16 @@ def _script_item(db: Database, item_id: str, sequence: list[dict[str, Any]]) -> 
                      (item_id, item_id, f"script.{item_id}", uuid.uuid4().hex[:16], json.dumps({"alias": item_id, "sequence": sequence}), now_iso(), now_iso()))
 
 
-def test_poc_m3_a_template_switch_wrapper_is_not_judged_as_a_possible_door(door_world):
-    """R-17 is fail closed for template locks and template buttons, whose action sequences the mirror does not hold. A template
-    switch (or cover, light, fan, select, number, valve, vacuum, alarm panel ...) runs an action sequence just as freely, yet
-    its turn_on is judged "no door": the run guard lets a script that presses it run, and the tile guard sends it to
-    `execute` for an operator who holds no door permission at all."""
+def _entity(db: Database, entity_id: str, platform: str, *, area: str | None = None, attributes: dict[str, Any] | None = None) -> None:
+    with db.connection() as conn:
+        conn.execute("INSERT INTO ha_entities(entity_id, domain, name, platform, area_id, attributes_json, state, state_seen_at, first_seen_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (entity_id, entity_id.split(".")[0], entity_id.split(".")[1], platform, area, json.dumps(attributes or {}), "off", now_iso(), now_iso(), now_iso()))
+
+
+def test_m3_a_template_switch_wrapper_is_judged_as_a_possible_door(door_world):
+    """R-17 is fail closed for template locks and template buttons, whose action sequences the mirror does not hold - and now
+    (FIXED) for every service on a script-backed entity: a template switch's turn_on is unresolved, the run guard refuses a
+    script that presses it, the tile guard refuses it before `execute`, and the inventory lists the script."""
     c, db, executed = door_world["c"], door_world["db"], door_world["executed"]
     _map_all(c)
     _script_item(db, "via_template_lock", [{"action": "lock.unlock", "target": {"entity_id": "lock.virtual"}}])
@@ -365,14 +370,74 @@ def test_poc_m3_a_template_switch_wrapper_is_not_judged_as_a_possible_door(door_
         with pytest.raises(ApiError) as exc:
             door_run_guard.judge_item(conn, "script", "via_template_lock")
         assert exc.value.code == "door_steps_unresolvable"
-        assert door_run_guard.judge_item(conn, "script", "via_template_switch") is None  # CURRENT: runs unchanged
-        door_run_guard.judge_entity_action(conn, "switch.gate", "switch.turn_on")  # CURRENT: no refusal
-        assert not door_path.Resolver(conn).resolve_actions([{"action": "switch.turn_on", "target": {"entity_id": "switch.gate"}}]).has_door
+        with pytest.raises(ApiError) as exc:
+            door_run_guard.judge_item(conn, "script", "via_template_switch")
+        assert exc.value.code == "door_steps_unresolvable"
+        with pytest.raises(ApiError):
+            door_run_guard.judge_entity_action(conn, "switch.gate", "switch.turn_on")
+        res = door_path.Resolver(conn).resolve_actions([{"action": "switch.turn_on", "target": {"entity_id": "switch.gate"}}])
+        assert [u.reason for u in res.unresolved] == ["template_entity"]
+        listed = {i["key"]: i for i in door_path.inventory(conn)["items"]}
+        assert listed["script:via_template_switch"]["run_guard"] == "refused_unresolvable"
+        assert "התקן וירטואלי שפעולתו אינה ידועה" in listed["script:via_template_switch"]["unresolved"]
     bind(c, door_world["settings"], "otto", "operator", "installation", "*")  # devices.control; no door permission
     assert _release(c, ENTRY, "otto").status_code == 403, "otto may not open the door himself"
     r = _tile(c, "switch.gate", "otto", action="switch.turn_on")
-    assert r.status_code == 202 and r.json()["via"] == "bridge", r.text
-    assert [p["service"] for p in executed] == ["turn_on"] and "switch.gate" in json.dumps(executed[0])
+    assert r.status_code == 409 and r.json()["code"] == "door_steps_unresolvable", r.text
+    assert executed == [], "nothing reached the bridge"
+
+
+def test_m3_every_template_domain_area_targets_and_scene_members_are_judged(door_world):
+    """Unit level over the resolver: a template cover / light / fan / select / number / valve / vacuum / alarm panel and a
+    universal media player are unresolved whatever the service; an area target that reaches one too; `homeassistant.turn_on`
+    of one; a scene member that sets one. An ordinary switch, and a domain without script-backed entities, stay "no door"."""
+    db = door_world["db"]
+    _map_all(door_world["c"])
+    domains = {"cover.gate_tpl": "open_cover", "light.tpl": "turn_on", "fan.tpl": "turn_on", "select.tpl": "select_option", "number.tpl": "set_value",
+               "valve.tpl": "open_valve", "vacuum.tpl": "start", "alarm_control_panel.tpl": "alarm_disarm"}
+    for eid in domains:
+        _entity(db, eid, "template", area="yard")
+    _entity(db, "media_player.uni", "universal")
+    _entity(db, "switch.plain", "shelly", area="yard")
+    with db.connection(mode="read") as conn:
+        r = door_path.Resolver(conn)
+        for eid, svc in domains.items():
+            res = r.resolve_actions([{"action": f"{eid.split('.')[0]}.{svc}", "target": {"entity_id": eid}}])
+            assert [u.reason for u in res.unresolved] == ["template_entity"], eid
+        assert r.resolve_actions([{"action": "media_player.turn_on", "target": {"entity_id": "media_player.uni"}}]).unresolved
+        assert r.resolve_actions([{"action": "cover.open_cover", "target": {"area_id": "yard"}}]).unresolved, "an area target reaching a template cover"
+        assert r.resolve_actions([{"action": "homeassistant.turn_on", "target": {"entity_id": "cover.gate_tpl"}}]).unresolved
+        assert r.resolve_actions([{"action": "switch.turn_on", "target": {"entity_id": "{{ states('input_text.x') }}"}}]).unresolved, "a template target where a template switch exists"
+        assert not r.resolve_actions([{"action": "switch.turn_on", "target": {"area_id": "yard"}}]).has_door, "the yard's only switch is an ordinary one"
+        assert not r.resolve_actions([{"action": "switch.turn_on", "target": {"entity_id": "switch.plain"}}]).has_door
+        assert not r.resolve_actions([{"action": "climate.set_temperature", "target": {"entity_id": "climate.any"}}]).has_door
+        scene = r.resolve_config("scene", {"entities": {"cover.gate_tpl": "open", "switch.plain": "on"}})
+        assert [u.reason for u in scene.unresolved] == ["template_entity"]
+        with pytest.raises(ApiError):
+            door_run_guard.judge_entity_action(conn, "cover.gate_tpl", "cover.open_cover")
+        door_run_guard.judge_entity_action(conn, "switch.plain", "switch.turn_on")  # an ordinary switch is never refused
+
+
+def test_m3_no_wiskey_door_means_template_entities_are_not_judged(settings):
+    """Without any WisKey door the guards have nothing to judge: a template switch on a tile is unchanged (availability)."""
+    create_app(settings)  # migrates the database
+    db = Database(settings.db_path)
+    _entity(db, "switch.gate2", "template")
+    with db.connection(mode="read") as conn:
+        door_run_guard.judge_entity_action(conn, "switch.gate2", "switch.turn_on")
+        assert door_path.possible_door_entities(conn) == set()
+
+
+def test_m3_bulk_actions_leave_script_backed_entities_out_where_a_wiskey_door_exists(door_world):
+    from smplwise.services import device_bulk
+
+    db = door_world["db"]
+    _entity(db, "switch.plain", "shelly")
+    with db.connection(mode="read") as conn:
+        policy = device_bulk.SwitchPolicy(conn)
+        assert policy.excluded_reason({"entity_id": "switch.gate", "domain": "switch"}) == "door_possible"
+        assert policy.excluded_reason({"entity_id": "switch.plain", "domain": "switch"}) is None
+        assert "door_possible" in device_bulk.EXCLUDED_LABELS
 
 
 # ================================================================ L1 - a wall-display (kiosk) account is not refused as such
@@ -472,11 +537,10 @@ def test_poc_l5_signed_mode_signs_a_stale_mapping_when_no_wiskey_copy_is_held(do
 
 # ================================================================ L6 - every integration scene is "unresolvable" once a WisKey door exists
 
-def test_poc_l6_an_integration_scene_with_no_lock_is_refused_once_any_wiskey_lock_exists(autos_app):
-    """The resolver means to judge a scene the editor does not hold by its members (`resolve_entity_item`, the branch for a
-    scene without a mirror row), but an integration scene HAS a mirror row (config_json NULL), so it is `unreadable_item`:
-    every integration scene - here one with no member at all - is refused from Arx and listed in the door report as soon as
-    the installation has one WisKey lock. Fail closed, but an availability regression the D9 tests do not cover."""
+def test_l6_an_integration_scene_is_judged_by_its_members(autos_app):
+    """An integration scene HAS a mirror row (config_json NULL); it was `unreadable_item` once one WisKey lock existed, so every
+    integration scene was refused from Arx and listed. FIXED: it is judged by its members like any scene Arx does not hold -
+    one with no door member runs and is not listed; one with the WisKey lock as a member stays refused."""
     app, s, c, fake, tr = autos_app
     automations.MIRROR.pull(None, "test")
     iid = "entity:scene.wall_scene_01"
@@ -486,13 +550,16 @@ def test_poc_l6_an_integration_scene_with_no_lock_is_refused_once_any_wiskey_loc
         assert door_run_guard.judge_item(conn, "scene", iid) is None, "no WisKey door in the installation: nothing to judge"
     _wiskey(app, "lock.front_door", fake=fake)
     with app.state.db.connection(mode="read") as conn:
+        assert door_run_guard.judge_item(conn, "scene", iid) is None
+        assert f"scene:{iid}" not in {i["key"] for i in door_path.inventory(conn)["items"]}
+    r = c.post(f"{API}/automations/scene/{iid}/apply", json={"client_request_id": str(uuid.uuid4()), "confirm": True})
+    assert r.status_code in (200, 202), r.text
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET attributes_json = ? WHERE entity_id = 'scene.wall_scene_01'", (json.dumps({"entity_id": ["light.office", "lock.front_door"]}),))
+    with app.state.db.connection(mode="read") as conn:
         with pytest.raises(ApiError) as exc:
             door_run_guard.judge_item(conn, "scene", iid)
-        assert exc.value.code == "door_steps_unresolvable"  # CURRENT
-        listed = {i["key"]: i for i in door_path.inventory(conn)["items"]}
-        assert f"scene:{iid}" in listed and listed[f"scene:{iid}"]["run_guard"] == "refused_unresolvable"
-    r = c.post(f"{API}/automations/scene/{iid}/apply", json={"client_request_id": str(uuid.uuid4()), "confirm": True})
-    assert r.status_code == 409 and r.json()["code"] == "door_steps_unresolvable", r.text
+        assert exc.value.code == "door_steps_unresolvable"
 
 
 # ================================================================ informational: the deny rule is chain-specific

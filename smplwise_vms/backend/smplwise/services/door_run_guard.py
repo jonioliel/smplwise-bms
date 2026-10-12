@@ -113,9 +113,10 @@ def judge_schedule_slot(conn: sqlite3.Connection, schedule_id: str, item: dict[s
 
 
 def judge_entity_action(conn: sqlite3.Connection, entity_id: str, action_id: str) -> None:
-    """A device tile / map card action that may run a chain: a script, a scene, a button, or a lock that is not itself a
-    WisKey lock (a lock group, a template lock). Refused when it reaches a WisKey door (statically or possibly); a
-    converted script or scene is run from the automations screen, where its doors are opened through the door path."""
+    """A device tile / map card action that may run a chain: a script, a scene, a button, a lock that is not itself a
+    WisKey lock (a lock group, a template lock), or any action on a script-backed entity (a template switch, cover ...).
+    Refused when it reaches a WisKey door (statically or possibly); a converted script or scene is run from the
+    automations screen, where its doors are opened through the door path."""
     r = door_path.Resolver(conn)
     present = r.present()
     domain = entity_id.split(".", 1)[0]
@@ -133,8 +134,10 @@ def judge_entity_action(conn: sqlite3.Connection, entity_id: str, action_id: str
         if res.has_door:
             raise refusal("door_steps_unresolvable" if not res.resolvable else "door_step_not_converted", UNRESOLVABLE if not res.resolvable else NOT_CONVERTED, res)
         return
-    if not present or action_id not in ("button.press", "lock.unlock", "lock.open"):
+    if not present:
         return
+    # SEC-WXD M3: every tile action is judged by the resolver, not five action ids - a template switch / cover / light ...
+    # runs an action sequence the mirror does not hold, exactly like a template lock or button
     res = r.resolve_actions([{"action": action_id, "target": {"entity_id": entity_id}}], "tile")
     if res.has_door:
         raise refusal("door_steps_unresolvable" if not res.resolvable else "door_step_not_converted", UNRESOLVABLE if not res.resolvable else NOT_CONVERTED, res)

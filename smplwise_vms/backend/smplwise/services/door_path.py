@@ -43,6 +43,10 @@ SCRIPT_DOMAIN_SERVICES = frozenset({"turn_on", "turn_off", "toggle", "reload"})
 OPEN_STATES = frozenset({"unlocked", "open", "opening", "unlocking"})
 LOCKED_STATES = frozenset({"locked", "locking"})
 MAX_DEPTH = 6
+# SEC-WXD M3: platforms whose entities run an action sequence the mirror does not hold (a template switch / cover / light /
+# fan / select / number / valve / vacuum / alarm panel / lock / button, a universal media player's commands): any service
+# call on one may hide a door opening, so it is unresolved wherever a WisKey door exists (fail closed, like a template lock)
+SCRIPT_BACKED_PLATFORMS = frozenset({"template", "universal"})
 _TEMPLATE = re.compile(r"\{\{|\{%|\{#")
 _REGISTRY_ID = re.compile(r"^[0-9a-f]{32}$")
 _ENTITY = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
@@ -60,6 +64,7 @@ UNRESOLVED_TEXT = {
     "template_lock": "מנעול וירטואלי שתוכנו אינו ידוע",
     "group_lock": "קבוצת מנעולים שחבריה אינם ידועים",
     "template_button": "כפתור וירטואלי שתוכנו אינו ידוע",
+    "template_entity": "התקן וירטואלי שפעולתו אינה ידועה",
     "wiskey_button": "כפתור של מערכת האינטרקום",
     "wiskey_device_action": "פעולת התקן של מערכת האינטרקום",
     "door_target_unknown": "לא צוינה דלת",
@@ -155,6 +160,7 @@ class Resolver:
         self._items: dict[str, sqlite3.Row | None] = {}
         self._present: bool | None = None
         self._map: dict[str, dict[str, Any]] | None = None
+        self._sb: set[str] | None = None  # entity ids of script-backed platforms (SEC-WXD M3)
 
     # ------------------------------------------------------------- facts
 
@@ -348,6 +354,7 @@ class Resolver:
             t = self._targets(s)
             self._ref_entities(self._of_domain(t, "script"), "script", p, via, depth, res, seen, problems=t.problems, explicit=t.explicit)
             self._ref_entities(self._of_domain(t, "scene"), "scene", p, via, depth, res, seen, problems=[], explicit=t.explicit)
+            self._script_backed(t, None, p, via, res, skip_domains=("script", "scene"))
             return
         if svc == "button.press":
             t = self._targets(s)
@@ -357,8 +364,35 @@ class Resolver:
                     continue
                 if (ent["platform"] or "") in intercom_doors.WISKEY_PLATFORMS:
                     res.unresolved.append(Unresolved(p, "wiskey_button", via))
-                elif ent["platform"] == "template":
+                elif (ent["platform"] or "") in SCRIPT_BACKED_PLATFORMS:
                     res.unresolved.append(Unresolved(p, "template_button", via))
+            return
+        # any other service: a target entity whose platform runs its own action sequence (SEC-WXD M3)
+        if domain and name:
+            self._script_backed(self._targets(s), None if domain == "homeassistant" else domain, p, via, res)
+
+    def _script_backed_ids(self) -> set[str]:
+        if self._sb is None:
+            marks = ",".join("?" * len(SCRIPT_BACKED_PLATFORMS))
+            self._sb = {r[0] for r in self.conn.execute(f"SELECT entity_id FROM ha_entities WHERE platform IN ({marks}) AND removed_at IS NULL", tuple(sorted(SCRIPT_BACKED_PLATFORMS))).fetchall()}
+        return self._sb
+
+    def _script_backed(self, t: _Targets, domain: str | None, p: str, via: tuple[str, ...], res: Resolution, skip_domains: tuple[str, ...] = ()) -> None:
+        """SEC-WXD M3: a service call reaching an entity of a script-backed platform (template, universal) is unresolved: its
+        action sequence is not in the mirror, so it may open a door. `domain` None = any domain (homeassistant.*). A target
+        that cannot be expanded (template, label) is unresolved when such an entity of that domain exists at all."""
+        sb = self._script_backed_ids()
+        if not sb:
+            return
+        in_domain = [e for e in sb if (domain is None or e.split(".", 1)[0] == domain) and e.split(".", 1)[0] not in skip_domains]
+        if not in_domain:
+            return
+        for prob in dict.fromkeys(t.problems):
+            if prob in ("template_target", "label_target"):
+                res.unresolved.append(Unresolved(p, prob, via))
+        targets = t.entities + ([e for e in in_domain if e not in t.entities] if t.all_entities else [])
+        if any(e in sb and e in in_domain for e in targets):
+            res.unresolved.append(Unresolved(p, "template_entity", via))
 
     def _lock(self, entity_id: str, svc: str, p: str, via: tuple[str, ...], depth: int, res: Resolution, seen: frozenset[str], *, explicit: bool) -> None:
         ent = self.entity(entity_id)
@@ -373,11 +407,13 @@ class Resolver:
                 return
             res.door_steps.append(self._door_of(entity_id, svc, p, via))
             return
+        if platform in SCRIPT_BACKED_PLATFORMS:
+            # its lock action runs a sequence the mirror does not hold, whichever service it is (SEC-WXD M3)
+            res.unresolved.append(Unresolved(p, "template_lock", via))
+            return
         if svc not in OPEN_SERVICES:
             return
-        if platform == "template":
-            res.unresolved.append(Unresolved(p, "template_lock", via))
-        elif platform == "group":
+        if platform == "group":
             if depth >= MAX_DEPTH:
                 res.unresolved.append(Unresolved(p, "too_deep", via))
                 return
@@ -468,15 +504,24 @@ class Resolver:
             res.refs.append(eid)
             self.resolve_entity_item(eid, role, p, via + (eid,), depth + 1, res, seen | {eid}, explicit=bool(explicit and eid in explicit))
 
+    def _scene_by_members(self, ent: dict[str, Any], p: str, via: tuple[str, ...], res: Resolution) -> None:
+        """A scene whose configuration Arx does not hold (an integration scene, YAML): only its members are known (the
+        entity's `entity_id` attribute), not the states it sets - a WisKey lock, a template / group / unknown lock or a
+        script-backed entity among them is unresolved; anything else cannot open a door."""
+        for m in _attr_members(ent):
+            if m.split(".", 1)[0] == "lock":
+                me = self.entity(m)
+                if me is None or (me["platform"] or "") in intercom_doors.WISKEY_PLATFORMS or (me["platform"] or "") in SCRIPT_BACKED_PLATFORMS or me["platform"] == "group":
+                    res.unresolved.append(Unresolved(p, "scene_state_unknown", via))
+            elif m in self._script_backed_ids():
+                res.unresolved.append(Unresolved(p, "template_entity", via))
+
     def resolve_entity_item(self, entity_id: str, role: str, p: str, via: tuple[str, ...], depth: int, res: Resolution, seen: frozenset[str], *, explicit: bool = True) -> None:
         row = self.item_row(entity_id)
         if row is None:
             ent = self.entity(entity_id)
             if role == "scene" and ent is not None:
-                # a scene the editor does not hold (an integration scene, YAML): only its members are known, not their states
-                for m in _attr_members(ent):
-                    if m.split(".", 1)[0] == "lock" and self.is_wiskey(m):
-                        res.unresolved.append(Unresolved(p, "scene_state_unknown", via))
+                self._scene_by_members(ent, p, via, res)
                 return
             if ent is None and not explicit:
                 return
@@ -484,6 +529,12 @@ class Resolver:
             return
         cfg = _config(row)
         if cfg is None:
+            ent = self.entity(entity_id)
+            if row["kind"] == "scene" and row["source"] == "integration" and ent is not None:
+                # SEC-WXD L6: an integration scene has a mirror row without a configuration (it is not the editor's):
+                # judged by its members like any scene Arx does not hold, never "unreadable" as a whole
+                self._scene_by_members(ent, p, via, res)
+                return
             res.unresolved.append(Unresolved(p, "unreadable_item", via))
             return
         self.resolve_config(row["kind"], cfg, via, depth, res, seen, path=p)
@@ -508,7 +559,12 @@ class Resolver:
                 res.unresolved.append(Unresolved(p, "template_target", via))
             return
         for eid, value in entities.items():
-            if not isinstance(eid, str) or eid.split(".", 1)[0] != "lock":
+            if not isinstance(eid, str):
+                continue
+            if eid.split(".", 1)[0] != "lock":
+                # SEC-WXD M3: setting a script-backed entity (a template switch / cover ...) runs its action sequence
+                if eid.lower() in self._script_backed_ids():
+                    res.unresolved.append(Unresolved(f"{p}.{eid}", "template_entity", via))
                 continue
             state = value.get("state") if isinstance(value, dict) else value
             mp = f"{p}.{eid}"
@@ -563,6 +619,13 @@ class Resolver:
                 steps.append(step)
             self.resolve_actions(steps, f"timeslots[{k}].actions", (), 0, res, frozenset())
         return res
+
+
+def possible_door_entities(conn: sqlite3.Connection) -> set[str]:
+    """SEC-WXD M3: the entities of a script-backed platform where a WisKey door exists (empty otherwise) - what a bulk
+    action leaves out, since any of their actions may open a door."""
+    r = Resolver(conn)
+    return set(r._script_backed_ids()) if r.present() else set()
 
 
 def _attr_members(ent: dict[str, Any]) -> list[str]:

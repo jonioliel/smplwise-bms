@@ -237,6 +237,10 @@ class SwitchPolicy:
         from . import alarm as alarm_svc
 
         self.alarm_managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: a zone's bypass control, never in bulk
+        from . import door_path
+
+        # SEC-WXD M3: where a WisKey door exists, a template / universal entity's action may open it - never in bulk
+        self.door_possible = door_path.possible_door_entities(conn)
 
     def switch_reason(self, entity_id: str) -> tuple[bool, str]:
         """(included, reason) for a switch, first hit wins (CR-019 section 4.1; the scheduler / media-managed switches never
@@ -260,6 +264,8 @@ class SwitchPolicy:
         # CR-010: an alarm zone's bypass control (computed once per request), or a row that says so itself
         if e["entity_id"] in self.alarm_managed or e.get("alarm_managed"):
             return "alarm_managed"
+        if e["entity_id"] in self.door_possible:
+            return "door_possible"
         if e["domain"] in ("cover", "switch") and e["entity_id"] in self.door_layer:
             return "doors_layer"
         if e["domain"] == "cover" and (e.get("device_class") or "") in DOOR_COVER_CLASSES:
@@ -274,6 +280,7 @@ EXCLUDED_LABELS = {
     "alarm_managed": "נשלט ממסך האזעקה - מתג עקיפה של חיישן אזעקה לעולם לא בפעולה מרוכזת",
     "door_cover": "דלת / שער / חניה - תנועה של מעבר אינה נכללת בפעולה מרוכזת",
     "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
+    "door_possible": "התקן וירטואלי שעשוי לפתוח דלת אינטרקום - לא בפעולה מרוכזת",
     # CR-019 section 7.4 (the same words for the "on" kinds)
     "switch_protected": "מתג מוגן - לא נכלל בפעולה קבוצתית",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
