@@ -386,6 +386,23 @@ test.describe('a start at the realistic rung draws at the person\'s cap from the
     });
   }
 
+  test('the live floor map, own rung realistic, cap 1', async ({ page }) => {
+    test.setTimeout(300_000);
+    await recordFrames(page);
+    await rememberRealistic(page);
+    await installReplayMock(page, { install: '1', own: 'realistic' });
+    await dialsWithCap(page, 1);
+    await page.goto(`/?design=a#/explore/floors/${FLOOR}`);
+    const host = page.locator('explore-floor-map');
+    const toggle = host.locator('[data-view-3d]');
+    await expect(toggle).toBeAttached({ timeout: 30000 });
+    await expect(toggle).not.toHaveAttribute('disabled', '', { timeout: 30000 });
+    await toggle.click();
+    const el = host.locator('sw-plan-3d[data-floor-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
+    await expectFromFirstFrame(page, el, 1);
+  });
+
   test('the event page, own rung realistic, cap 1.5', async ({ page }) => {
     test.setTimeout(300_000);
     await recordFrames(page);
