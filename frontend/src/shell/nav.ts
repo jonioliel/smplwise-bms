@@ -9,7 +9,7 @@ import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
- * panel embedded as-is, by הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28, embedded panel - the embed is the
+ * panel embedded as-is, by הגדרות › מתגי מסכי כניסה (CR-005 recorded decision 2026-09-28, embedded panel - the embed is the
  * default). The rest exist only in WisKey's panel and are always embedded (WISKEY_PANEL_TABS). */
 const STATIC_WISKEY_TABS: readonly TabItem[] = [
   { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
@@ -70,7 +70,7 @@ export function setWiskeyEmbedNav(patch: Partial<WiskeyEmbedNav>): void {
   for (const l of embedNavListeners) l();
 }
 
-/** WISKEY_TABS from the catalog (or the static list). A screen the owner set to SMPLWISE in הגדרות › בקרות כניסה
+/** WISKEY_TABS from the catalog (or the static list). A screen the owner set to SMPLWISE in הגדרות › מתגי מסכי כניסה
  * (מרכז הכניסה / פעילות / אנשים) is SMPLWISE's own screen, governed by SMPLWISE's access.read, not by WisKey: it stays in
  * the row even when this operator's WisKey catalog does not list it, at its usual place. */
 function rebuildWiskeyTabs(): void {
@@ -132,7 +132,7 @@ function wiskeyActiveTab(r: RouteState | null): string {
   return wiskeySegmentOf(confirmed ? confirmed.tab : wiskeyRequest(r).tab);
 }
 
-/** The SMPLWISE screens with a choice in הגדרות › בקרות כניסה (settings keys `access.ui.<screen>`). `stations` (CR-036 S6,
+/** The SMPLWISE screens with a choice in הגדרות › מתגי מסכי כניסה (settings keys `access.ui.<screen>`). `stations` (CR-036 S6,
  * "תחנות ודלתות") takes the route segment of WisKey's own devices tab, `devices`: the tab keeps its place in the row. */
 export type WiskeyScreen = 'overview' | 'events' | 'people' | 'stations';
 export type WiskeyUi = 'wiskey' | 'smplwise';
@@ -152,7 +152,7 @@ export function wiskeyScreenOf(segment: string): WiskeyScreen | null {
  * shell once the settings load and by the settings screen after a save. */
 export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', events: 'wiskey', people: 'wiskey', stations: 'wiskey' };
 
-/** הגדרות › בקרות כניסה, experimental (`access.phone_embed`, default off): embed WisKey inside the Companion app too,
+/** הגדרות › מתגי מסכי כניסה, experimental (`access.phone_embed`, default off): embed WisKey inside the Companion app too,
  * through the sign-in relay of `wiskey/companion-bridge.ts`. Off = the 0.1.123 behaviour (no frame in the app). */
 export let WISKEY_PHONE_EMBED = false;
 
@@ -178,7 +178,7 @@ export function applyWiskeyUi(settings: Record<string, unknown> | null | undefin
   rebuildWiskeyTabs(); // a screen switched to SMPLWISE stays in the row whatever the WisKey catalog lists
 }
 
-/** הגדרות › בקרות כניסה (T054 follow-up, owner request): hide the whole WisKey area from the navigation for
+/** הגדרות › מתגי מסכי כניסה (T054 follow-up, owner request): hide the whole WisKey area from the navigation for
  * everyone, regardless of role (`ui.hide_wiskey`) - the same "hidden for everyone" shape `ui.hide_map` uses for the
  * map area, but for a top-level area rather than a group of sub-tabs. Filled by the shell once settings load and by
  * the settings screen after a save (`applyWiskeyUi`'s sibling); read by `sw-app.ts` to route a direct URL to the

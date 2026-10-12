@@ -1496,10 +1496,10 @@ export class SwApp extends LitElement {
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
-          // הגדרות › בקרות כניסה: hide the whole WisKey area for everyone, regardless of role (T054 follow-up) - same
+          // הגדרות › מתגי מסכי כניסה: hide the whole WisKey area for everyone, regardless of role (T054 follow-up) - same
           // "hidden for everyone" shape as hideMap above, applied to the whole WISKEY_TABS group at once.
           if (applyWiskeyHidden(ps as unknown as Record<string, unknown>)) for (const wt of WISKEY_TABS) HIDDEN_HREFS.add(wt.href ?? '');
-          applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
+          applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › מתגי מסכי כניסה: embed or SMPLWISE per WisKey screen
           applySnapshotHidden(ps as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview leaves the navigation
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
@@ -2075,14 +2075,14 @@ export class SwApp extends LitElement {
         // T054/0.1.103: WisKey entry center (CR-005), now its own top-level area, not an explore sub-tab.
         // CR-005 phase 1b: the read-only activity log at #/wiskey/events and people directory at #/wiskey/people.
         // CR-005 recorded decision 2026-09-28: each of those three renders either the SMPLWISE screen or WisKey's own
-        // panel embedded as-is (הגדרות › בקרות כניסה, the embed by default); WisKey's other tabs are always embedded.
+        // panel embedded as-is (הגדרות › מתגי מסכי כניסה, the embed by default); WisKey's other tabs are always embedded.
         // The choice lives in the product settings, so wait for them rather than flash one screen and swap to the other.
         if (this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-        // T054 follow-up: the whole area hidden (הגדרות › בקרות כניסה) - a direct URL lands on the same "not
+        // T054 follow-up: the whole area hidden (הגדרות › מתגי מסכי כניסה) - a direct URL lands on the same "not
         // available" panel a missing access.read permission shows (wiskey-*.ts `data-wiskey-state="no_permission"`),
         // not the embed or either SMPLWISE screen; the per-screen choice does not apply while the area is hidden.
         if (this.session.mode === 'api' && WISKEY_HIDDEN) {
-          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות › בקרות כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
+          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות › מתגי מסכי כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
         }
         const w = wiskeyRoute(r, this.session.mode === 'api');
         // one call site: switching embedded tabs keeps the loaded frame (embed API v1: a wiskey:navigate message)

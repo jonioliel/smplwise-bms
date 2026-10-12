@@ -115,7 +115,7 @@ const DEMO: AccessStation[] = [
  * Data: the typed reads `GET /access-control/stations` (+ `/features`, and per station `/programs` and `/codes` on demand) - the
  * server omits stations outside the caller's scope and fields they may not see. The writes are the existing physical-action
  * endpoints (api/intercom.ts), unchanged; this screen only decides what to OFFER (screens/wiskey-stations-logic.ts `rightsOf`).
- * Shown instead of the embedded panel only when הגדרות › בקרות כניסה says so (`access.ui.stations` = smplwise).
+ * Shown instead of the embedded panel only when הגדרות › מתגי מסכי כניסה says so (`access.ui.stations` = smplwise).
  */
 @customElement('wiskey-stations')
 export class WiskeyStations extends LitElement {

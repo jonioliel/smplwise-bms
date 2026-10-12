@@ -63,7 +63,7 @@ import './wiskey-people';
  * panel's deep link (`/hikvision-intercom?tab=…&tool=…`, honoured in normal mode since rc.19) the way its own
  * `navigate()` does (`src/common/navigate.ts`: pushState on the main window, then `location-changed`).
  *
- * Experimental (owner request 2026-09-29, הגדרות › בקרות כניסה "הטמעה גם באפליקציית Companion", `access.phone_embed`,
+ * Experimental (owner request 2026-09-29, הגדרות › מתגי מסכי כניסה "הטמעה גם באפליקציית Companion", `access.phone_embed`,
  * default off): in the app the frame IS opened, with `external_auth=1`, and `wiskey/companion-bridge.ts` relays the app's
  * sign-in bridge from Home Assistant's top document into it (details and HA source lines there). If the nested
  * frontend still cannot sign in (a login redirect, or no connection within the panel timeout) the tab falls back to the
@@ -1083,7 +1083,7 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private renderError() {
-    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות › בקרות כניסה את מסכי Arx.';
+    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות › מתגי מסכי כניסה את מסכי Arx.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
       not_installed: { heading: 'לוח WisKey לא נמצא', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
       unreachable: { heading: 'לא ניתן לטעון את WisKey', hint: `הכתובת ${WISKEY_PANEL_PATH} לא נטענה בתוך המסגרת. ייתכן שההזדהות אינה זמינה בתוך מסגרת; או שהממשק נפתח ישירות, לא דרך תשתית המערכת. ${common}`, state: 'stale' },

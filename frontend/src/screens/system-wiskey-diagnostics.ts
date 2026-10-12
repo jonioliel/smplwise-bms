@@ -77,7 +77,7 @@ function stateKind(state: string): StateKind {
 }
 
 /**
- * הגדרות › בקרות כניסה › "WisKey רואה את Arx כ־" (B0, read-only, system administrators). WisKey's own answer to "who am I
+ * הגדרות › מתגי מסכי כניסה › "WisKey רואה את Arx כ־" (B0, read-only, system administrators). WisKey's own answer to "who am I
  * talking to": one `authorization/session` per identity Arx uses - the service identity (the add-on's user, which also carries
  * the existing writes) and the background channel (its own account once the owner creates it; until then it says it shares the
  * service identity), plus the commands each channel may send. Permission facts only; nothing is changed in WisKey. The call is

@@ -69,7 +69,7 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      Home Assistant user that the owner creates** for WisKey's background (read) channel, after the release that carries it (see
      `docs/integrations/wiskey/B0_STATUS_HE.md`). That user is meant to hold the WisKey `overview` area at `view`, an
      explicit and narrow station scope, and `none` everywhere else. While the option is empty the background channel
-     shares the add-on's own identity, and the diagnostics card in הגדרות › בקרות כניסה ("WisKey רואה את Arx כ־") says so. The token is used only by the background
+     shares the add-on's own identity, and the diagnostics card in הגדרות › מתגי מסכי כניסה ("WisKey רואה את Arx כ־") says so. The token is used only by the background
      channel, on Home Assistant core (it is not valid on the Supervisor proxy), and is never logged or shown. The
      door, call, announcement, people and card-reader writes keep using the add-on's own user (`ha_token`).
 4. Start the add-on and open it from the sidebar (**SmplWise Arx**). With NVR details set, the cameras
@@ -612,7 +612,7 @@ picture is sent anywhere yet.
   diff of the subject's bindings and takes effect immediately.
 - WisKey embedded (owner decision 2026-09-28): by default the WisKey area shows your real WisKey panel from Home
   Assistant (`/hikvision-intercom`) inside SMPLWISE, as it is - including WisKey's own screens SMPLWISE never built
-  (עמדות, סנכרון, בריאות, יומן שינויים, ניהול), each tab opening the matching WisKey screen. In הגדרות › בקרות כניסה
+  (עמדות, סנכרון, בריאות, יומן שינויים, ניהול), each tab opening the matching WisKey screen. In הגדרות › מתגי מסכי כניסה
   (system administrator) you choose, for מרכז הכניסה, פעילות and אנשים, "WisKey (מוטמע)" or the SMPLWISE screen; the
   other WisKey screens are always embedded. Inside an embedded screen you are using WisKey itself with your own Home
   Assistant login, so WisKey's permissions, confirmations and log apply there, not SMPLWISE's. In particular, a user

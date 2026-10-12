@@ -328,7 +328,7 @@
   },
   {
     "id": "settings-access-control",
-    "name_he": "הגדרות · בקרות כניסה",
+    "name_he": "הגדרות · מתגי מסכי כניסה",
     "section": "settings",
     "route": "#/system/diagnostics?tab=access-control",
     "viewports": [
@@ -338,7 +338,7 @@
       "system_admin"
     ],
     "setup": [],
-    "caption_he": "הגדרות · בקרות כניסה: הצגת/הסתרת אזור WisKey, ובחירת WisKey מוטמע מול SMPLWISE לכל מסך (מרכז הכניסה/פעילות/אנשים). פרטים ב-80-settings_HE.md ו-50-wiskey_HE.md.",
+    "caption_he": "הגדרות · מתגי מסכי כניסה: הצגת/הסתרת אזור WisKey, ובחירת WisKey מוטמע מול SMPLWISE לכל מסך (מרכז הכניסה/פעילות/אנשים). פרטים ב-80-settings_HE.md ו-50-wiskey_HE.md.",
     "source": "live"
   },
   {

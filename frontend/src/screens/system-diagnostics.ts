@@ -49,7 +49,7 @@ import './system-presence'; // CR-027: הגדרות › אפליקציה לני�
 import './system-brand-colors'; // 2.4.4: הגדרות › כללי › צבעי המותג (accent, switch-on colour)
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
-import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › בקרות כניסה › WisKey רואה את Arx כ־
+import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › מתגי מסכי כניסה › WisKey רואה את Arx כ־
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -62,7 +62,7 @@ import { RUNG_HE, type QualityMode } from '../map/quality-ladder';
 import { loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { planViewPrefs, type SiteLocation } from '../api/plan-view';
 
-/** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
+/** הגדרות › מתגי מסכי כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
   { screen: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview', detail: 'עמדות, צלצולים, פתיחת דלת ושיחה' },
   { screen: 'events', label: 'פעילות', href: '#/wiskey/events', detail: 'יומן הכניסות והאירועים' },
@@ -101,7 +101,7 @@ const TABS = [
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'map', label: 'מפה' },
   { id: 'ha', label: 'גשר Home Assistant' },
-  { id: 'access-control', label: 'בקרות כניסה' },
+  { id: 'access-control', label: 'מתגי מסכי כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
   { id: 'remote', label: 'גישה מרחוק' },
   { id: 'mobile', label: 'אפליקציה לנייד' }, // CR-027: the phone app's data sharing, the employee notice, the required-sensors policy
@@ -1070,14 +1070,14 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
-  /** הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28, embedded panel): per screen, WisKey's own Home Assistant
+  /** הגדרות › מתגי מסכי כניסה (CR-005 recorded decision 2026-09-28, embedded panel): per screen, WisKey's own Home Assistant
    * panel embedded as-is (the default) or the SMPLWISE screen; WisKey's other screens are always embedded. */
   private renderAccessControl() {
     const api = isApi();
     const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft) || 'ui.hide_wiskey' in this.draft || 'access.phone_embed' in this.draft;
     const choice = (s: WiskeyScreen) => (String(this.value(`access.ui.${s}`) ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey');
     return html`<div class="sections">
-      <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.">
+      <sw-card heading="מתגי מסכי כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.">
         <div class="row"><span class="lbl">הצג את WisKey במערכת<span class="muted">הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג</span></span>
           <sw-field class="ctl"><select data-set-hide-wiskey ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_wiskey', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') === 'true'}>מוסתר</option>
