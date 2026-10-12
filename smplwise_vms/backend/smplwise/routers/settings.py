@@ -218,6 +218,11 @@ DEFAULTS: dict[str, str] = {
     "access.talk_button": "classic",  # the talk button: classic (opens the classic panel - stage 1) | hidden
     "access.announce_scope": "scope",  # announcement targets: scope (all stations / a place inside the operator's scope) | station (one station)
     "access.announce_phrases": "",  # the announcement dialog's quick phrases, one per line, up to 8 (empty = the built-in ones)
+    # CR-036 S18 (owner 2026-10-12: live video and talk in stage 1, behind a per-screen setting, OFF by default): the station
+    # drawer's own live video and push-to-talk - off (the still and the classic panel, as before) | video | video_talk.
+    # Talk also needs a talk transport from the intercom (W10) and access.call on the station; without them the talk button
+    # keeps its classic-panel mode (access.talk_button). services/intercom_media.py.
+    "access.station_media": "off",
     # CR-007 slice 6a: הגדרות › חשמל והתקנים - how the device-control screens look, per installation (read by every user
     # through GET /settings; changed with system.configure, audited like every product setting). Presentation only: the
     # safety rules of the bulk actions (confirmation, expiry, never locks / alarm / door release) are not settings.
@@ -658,6 +663,7 @@ class SettingsPatch(BaseModel):
     access_talk_button: str | None = Field(default=None, pattern="^(classic|hidden)$", alias="access.talk_button")
     access_announce_scope: str | None = Field(default=None, pattern="^(scope|station)$", alias="access.announce_scope")
     access_announce_phrases: str | None = Field(default=None, max_length=2000, alias="access.announce_phrases")  # one phrase per line
+    access_station_media: str | None = Field(default=None, pattern="^(off|video|video_talk)$", alias="access.station_media")  # CR-036 S18
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")
