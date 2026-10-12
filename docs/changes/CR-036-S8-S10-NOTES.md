@@ -193,3 +193,54 @@ A typed address of a segment the caller may not have opens the status. A caller 
   are proven by the wire test against `fake_wiskey.py` and the behaviour by the mocked evidence. NOT_RUN: Crystal skin (not in this base).
 - The display switch of the access-control screens (CR-036 S12) is not here: it joins as a segment of this page (`AccessSegment` and
   `segments()` in `system-access-control.ts`); the old "בקרות כניסה" sub-tab of "כללי" keeps it until then.
+
+## Verification: what ran, where, at which commit
+
+The Ubuntu runner answered until about 06:20 on 2026-10-12 (its root disk then filled: every job failed with ENOSPC or tested an old
+head - the lead stopped runner use). Nothing was retried after that. Every runner result below is stated at the SHA it ran on;
+everything else ran on the workstation (one process at a time), mocked backend only. No real WisKey, Home Assistant or station was
+contacted by any of it.
+
+| Check | Where | Result |
+|---|---|---|
+| `tsc --noEmit` | runner `809c5425`; workstation, final head | ok; exit 0 |
+| Backend: the wire-shape test (16) + the adapter tests (33) | runner `809c5425`; the wire test also locally | 49 passed; 16 passed |
+| Node unit specs: S8 logic / feed / tabs, S10 logic / feed, token lint, tabs config, design tokens, schedules nav | workstation, final head | 122 passed |
+| S8 evidence (desktop / tablet / phone, every state, four skins x light / dark) | runner `809c5425` (274 passed with the unit specs, 1 failed: a read of rows before the filtered page arrived - fixed in `5e71982c`, then 3 of 3 locally); workstation after the shared mock changed | 43 passed, 1 skipped (desktop, final head); the phone and tablet projects passed earlier |
+| S8 layout guard, full sweep (4 skins x light / dark x 10 widths) | runner `5e71982c` | 8 passed, 90 checks each, 0 findings |
+| S8 Linux pixel baselines (29 images) | runner `ee49ac9a`: update run, then the compare run at the same SHA | 13 passed, 1 skipped (no phone table) each; committed |
+| S10 evidence (desktop 26, tablet 6, phone 7) | workstation, final head | 39 passed (the rest skipped by design: behaviour and skins run on desktop only) |
+| S10 layout guard, full sweep (4 skins x light / dark x 10 widths, 11 screens) | workstation, final head | 8 passed, 110 checks each, 0 findings |
+| S10 Linux pixel baselines | NOT_RUN - BLOCKED(runner disk) | the pixel flows ran locally (14 passed; the compare is skipped without a Windows baseline) |
+| Live spec `evidence-wiskey-events.spec.ts` against a plain backend / against the fixture WisKey | workstation | 2 passed / 7 passed |
+| Navigation regression: tabs, area navigation, navigation size, tab-dropdown settings | workstation | 18 passed, 6 skipped by design |
+| `vite build` to a scratch folder (bundling sanity) | workstation | exit 0 |
+| A throwaway merge with `origin/main` (`ca8d9045`, 2.4.7), which has the Crystal skin | workstation, not pushed | the Crystal cases of the S8 / S10 evidence (4) and of both layout guards (S8 2 x 90 checks, S10 2 x 110) passed; the S10 guard in main's shell (settings side menu) 0 findings in classic and bubble; main's settings-index spec needs the entries below |
+
+BLOCKED(runner disk) for the owner to run once space is free: the S10 Linux pixel baselines (`~/run_remote.sh spec <branch>
+tests/pixel-access-status.spec.ts --project=desktop --project=mobile --update-snapshots`, look at every image, commit the `-linux.png`
+files), and the preview / dist runs and the full backend suite (the backend is untouched by S10; S8 changed only its tests).
+
+## Merging with the other slices and with main
+
+- **S6 (stations):** merges clean.
+- **S7 (people):** two trivial conflicts. `shell/nav.ts` `NATIVE_WISKEY_TABS`: both slices add one row to the same table - keep both
+  (`'#/wiskey/events'` and `'#/wiskey/people'`); the `tabAllowed` change is identical on both sides. `screens/system-wiskey-diagnostics.ts`:
+  the S1 chip radius is fixed with `--sw-r-pill` here and in S6, `--sw-r-md` in S7 - take either.
+- **main (2.4.7):** the only textual conflict is `routers/settings.py` (the S3 / S4 settings against main's, not touched by S8 / S10). The
+  frontend merges clean (`sw-app.ts`, `system-diagnostics.ts`). main has a settings navigation (`screens/system-index.ts`: a side menu and a
+  search) whose spec `unit-settings-index.spec.ts` requires every Settings tab to have a top-level entry, so after the merge add these four
+  entries to the `system` group, after "חיבורים" (verified on the throwaway merge: that spec, the token lint, the tabs-config and the native-tabs
+  specs pass with them):
+
+  ```ts
+  { tab: 'access-control', label: 'בקרת כניסה', href: '#/system/access-control', keywords: 'wiskey אינטרקום תחנות בריאות סנכרון התרעות התנגשויות' },
+  { tab: 'access-control', label: 'יומן האינטרקום', href: '#/system/access-control/audit', sub: true, keywords: 'פעולות audit מי עשה מה' },
+  { tab: 'access-control', label: 'קבוצות ושדות', href: '#/system/access-control/groups', sub: true, keywords: 'קבוצה שדות פרופיל גרסאות מדיניות' },
+  { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה' },
+  ```
+- **Two near-identical names** exist until S12: this page "בקרת כניסה" and the old sub-tab of "כללי" "בקרות כניסה" (the per-screen display switch and
+  the diagnostics). S12 moves the switch into this page as a segment (`AccessSegment` / `segments()` in `system-access-control.ts`), removes
+  the old sub-tab and its index entry, and may rename accordingly.
+- **Skins:** the specs read `SKIN_IDS`; on main they include Crystal with no edit (checked above). Crystal pixel baselines do not exist for
+  either page.
