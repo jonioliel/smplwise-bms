@@ -480,7 +480,8 @@ export class WiskeyEvents extends LitElement {
     const s = demo ? { ...EventsFeed.initial(), reply: DEMO_REPLY, page: DEMO_REPLY.events, pages: 1, everReady: true } : this.feed.snap;
     const reply = s.reply;
     const stale = !!s.page && !!reply && reply.state !== 'ready';
-    return html`<sw-page heading=${ev('title')} subheading=${this.updatedText(s.shownAt, stale)} wide>
+    // while the rows are stale the banner below says so, with the time they were read: the subtitle does not say it twice
+    return html`<sw-page heading=${ev('title')} subheading=${stale ? '' : this.updatedText(s.shownAt, false)} wide>
       ${this.renderActions(demo, s.page?.records.length ?? 0)}
       ${this.renderChips()}
       ${this.renderNotes(s, stale)}
