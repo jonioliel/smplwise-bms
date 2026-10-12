@@ -20,7 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, Principal, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
+from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
 from ..services import ha_client, revocation
 from ..services import playback as pb
 from ..services.timeutil import parse_utc
@@ -513,6 +513,9 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
     if op == "bind" and effect == "allow" and scope[0] == STATION and "rbac.assign" in role_permissions(conn, role_id):
         # CR-033 D2, as the camera rule: no "administrator of one station" - an ALLOW at station scope carries operating roles only
         raise ApiError(422, "scope_not_allowed_for_role", "תפקיד שכולל שיוך תפקידים אינו מוקצה ברמת עמדת אינטרקום.", details={"role_id": role_id})
+    if op == "bind" and effect == "allow" and scope[0] == STATION and set(role_permissions(conn, role_id)) - STATION_PERMISSIONS:
+        # SEC-WXD L4: a station binding grants nothing above or beside itself - an ALLOW there carries the door permissions only
+        raise ApiError(422, "scope_not_allowed_for_role", "ברמת עמדת אינטרקום מוקצים רק תפקידי פתיחת דלתות.", details={"role_id": role_id})
     if full_authority(conn, principal):
         return
     if scope[0] == "camera" and not scope_in_reach(conn, principal, scope):

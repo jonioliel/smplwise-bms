@@ -236,6 +236,8 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     settings = settings_of(request)
     db: Database = request.app.state.db
     rid = getattr(request.state, "correlation_id", None)
+    if body.allowed_action_id in ("lock.lock", "lock.unlock") and intercom_doors.is_wiskey_lock(conn, entity_id):
+        _door_gate(conn, principal, request, entity_id, body.allowed_action_id)  # SEC-WXD L2: the permission first, a uniform 403
     if body.allowed_action_id == "lock.lock" and intercom_doors.is_wiskey_lock(conn, entity_id):
         # CR-033 D6: WisKey does not support lock - never sent, whoever asks, from a tile, a map card or "lock all"
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="wiskey_lock_unsupported",
@@ -372,6 +374,29 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון." if ok else None
     out["timing_ms"] = timing.as_dict()
     return out
+
+
+def _door_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """SEC-WXD L2: a WisKey lock's lock / unlock is decided by the one door rule at station level (the station the door map
+    links the entity to, else the one its registry entry names) BEFORE anything about the door is answered - whether it is
+    mapped, its station's name and whether that is online. A caller without control of the entity gets exactly the
+    audited 403 an ordinary lock gives; one with control but no door permission the door rule's own 403."""
+    from ..services import door_authority
+
+    row = intercom_doors.map_row(conn, entity_id)
+    if row is not None:
+        station = row["config_entry_id"]
+    else:
+        reg = conn.execute("SELECT config_entry_id FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+        station = (reg["config_entry_id"] if reg else None) or ""
+    decision = door_authority.check(conn, principal, station, None, entity_id=entity_id, dev_mode=bool(settings_of(request).dev_user))
+    if decision.allowed:
+        return
+    if not ha_scope.control_allowed(conn, principal, entity_id):
+        require(conn, principal, "ha.entity.control", INSTALLATION)  # the same audited 403 as for any lock
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=decision.reason,
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(403, "forbidden", "אין הרשאה לפתוח דלת זו", details={"reason": decision.reason, "action": action_id})
 
 
 def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:

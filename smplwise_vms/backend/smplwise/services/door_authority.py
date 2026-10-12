@@ -5,7 +5,8 @@ door - the devices tile (routers/ha.py), the WisKey screen and its notification 
 so no screen can diverge from another ("no second authority in Arx"). Order:
 
 1. Refused before anything else: no identified principal (`identity_unmapped`: a developer identity outside developer
-   mode), an inactive user.
+   mode), an inactive user, a wall-display account (`wall_account`: an enabled wall profile or a kiosk binding - SEC-WXD
+   L1: refused as such, whatever else reaches it).
 2. Deny wins across both permissions: an active deny binding that takes away `access.release` anywhere on the station's
    chain, or `door.unlock` anywhere on the lock entity's chain, refuses the request - "either permission" can never be
    used to slip past a deny the administrator wrote for the other one.
@@ -14,7 +15,8 @@ so no screen can diverge from another ("no second authority in Arx"). Order:
    scope without a shared room's mirrors; who may place or remove that anchor is `placement_allowed`, SEC-WXD M2).
 4. `ha.entity.control` is NOT required for a WisKey door (it stays required for every other lock).
 
-Kiosk and viewer principals hold neither permission, so they are refused by step 3 and nothing is ever sent for them.
+Viewer principals hold neither permission, so they are refused by step 3 and nothing is ever sent for them; a kiosk
+account is refused at step 1 even when a grant reaches it.
 The confirmation is not part of this rule: it always comes from the client and is checked by the route."""
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ import sqlite3
 from dataclasses import asdict, dataclass
 
 from ..rbac import INSTALLATION, STATION, Decision, Principal, authorize
+from ..rbac import _active_bindings as rbac_active_bindings
 from . import ha_scope, intercom_doors
 
 RELEASE = "access.release"
@@ -85,6 +88,21 @@ def identity_ok(principal: Principal, dev_mode: bool) -> bool:
     return principal.source in ("ingress", "remote") or (principal.source == "dev" and dev_mode)
 
 
+KIOSK_ROLE = "kiosk"
+
+
+def is_wall_account(conn: sqlite3.Connection, user_id: str) -> bool:
+    """SEC-WXD L1: a wall-display account - an enabled wall profile, or an active `kiosk` allow binding (direct or through a
+    group). Such an account is an unattended screen, never a person who opens doors (CR-033 4.1 step 1)."""
+    try:
+        if conn.execute("SELECT 1 FROM wall_profiles WHERE user_id = ? AND enabled = 1", (user_id,)).fetchone():
+            return True
+    except sqlite3.OperationalError:
+        pass
+    p = Principal(user_id, "", "", "internal")
+    return any(b["role_id"] == KIOSK_ROLE and b["effect"] == "allow" for b in rbac_active_bindings(conn, p))
+
+
 def check(conn: sqlite3.Connection, principal: Principal, station_id: str, relay: int | None = None, entity_id: str | None = None, *, dev_mode: bool = False) -> DoorDecision:
     """May `principal` open this WisKey door? `entity_id` when the request named a lock entity (the tile path); else the
     entities the door map links to (station, relay) - or to any relay of the station when `relay` is None (the WisKey
@@ -94,6 +112,8 @@ def check(conn: sqlite3.Connection, principal: Principal, station_id: str, relay
     user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if user is not None and not user["active"]:
         return DoorDecision(False, "user_inactive")
+    if is_wall_account(conn, principal.user_id):
+        return DoorDecision(False, "wall_account")
     release = authorize(conn, principal, RELEASE, (STATION, station_id))
     if release.reason == "explicit_deny":
         return _from(release, RELEASE)

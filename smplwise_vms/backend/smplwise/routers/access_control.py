@@ -740,6 +740,12 @@ def open_door(act: _Action, station_id: str, lock: int, entry_point: str, not_af
     sending), the transport, the outcome row. Never retried, never queued. `before_attempt(conn)` writes the caller's own
     pending record in the same transaction as the attempt row (the tile's ha_actions row)."""
     mode = trusted_door.mode(act.conn)
+    if not intercom_sync.SYNC.has_copy() and (mode == "on" or intercom_sync.STATE.state == "ready"):
+        # SEC-WXD L5: without a WisKey copy the station, the relay and its online state cannot be checked (a relay re-wired
+        # or removed in WisKey would be opened as mapped) - refused, nothing is sent. The signed transport does not use the
+        # feed, so it is refused here always; the interim one needs the feed, which refuses on its own (with the feed's
+        # state) unless the feed is up and the copy is not there yet
+        raise act.refuse(ApiError(503, "intercom_unavailable", "הפקודה לא נשלחה: אין כרגע נתונים עדכניים ממערכת האינטרקום."))
     request_id = _door_details(act, station_id, lock, entry_point, decision, mode)
     entry = RELAYS.acquire((station_id, lock))
     if entry is None:

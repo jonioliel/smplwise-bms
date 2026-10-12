@@ -215,6 +215,8 @@ def door_grants(principal: Principal = Depends(current_principal), conn: sqlite3
     for u in acc._users(conn, principal):
         if not full and not u["active"]:
             continue
+        if door_authority.is_wall_account(conn, u["id"]):
+            continue  # SEC-WXD L1: a wall display is not offered as a person who opens doors (the door rule refuses it anyway)
         users.append(subject_row("user", u["id"], u["name"], bool(u["active"])))
     groups = [subject_row("group", g["id"], g["name"], True) for g in conn.execute("SELECT id, name FROM groups ORDER BY name").fetchall()]
     if not full:
@@ -252,6 +254,9 @@ def switch_subject(body: SubjectSwitch, request: Request, principal: Principal =
     if body.enabled:
         if mine:
             return {"granted": True, "binding_id": mine[0]["id"], "revision": int(get_setting(conn, "permission_revision", "1") or 1)}
+        if body.subject_kind == "user" and door_authority.is_wall_account(conn, body.subject_id):
+            # SEC-WXD L1: never a door grant for a wall display (CR-033 4.1 step 1 refuses it at the door anyway)
+            raise ApiError(422, "wall_account", "מסך קיר אינו מקבל הרשאה לפתיחת דלתות.")
         bb = acc.BindingBody(subject_kind=body.subject_kind, subject_id=body.subject_id, role_id=DOOR_ROLE, scope_type="installation", scope_id="*")
         acc.validate_binding(conn, principal, bb)
         bid, rev = acc.insert_binding(conn, principal, request, bb, extra_audit={"via": "door_grants_card"})

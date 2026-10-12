@@ -23,6 +23,8 @@ ROLE_NAMES_HE: dict[str, str] = {
 SCOPE_ORDER = ("installation", "site", "building", "floor", "camera", "access_control_station")
 INSTALLATION = ("installation", "*")
 STATION = "access_control_station"  # CR-033 D2: one WisKey station, scope_id = its opaque config entry id
+# SEC-WXD L4: the only permissions a station-scope ALLOW binding may carry (door_opener and matching custom roles)
+STATION_PERMISSIONS = frozenset({"access.read", "access.release"})
 
 _CUSTOM_CACHE: dict[tuple[str, int], dict[str, list[str]]] = {}
 
@@ -245,6 +247,10 @@ def permissions_anywhere(conn: sqlite3.Connection, principal: Principal) -> list
         if b["effect"] == "deny":
             if (b["scope_type"], b["scope_id"]) == INSTALLATION:
                 denied_everywhere.update(perms)
+        elif b["scope_type"] == STATION:
+            # SEC-WXD L4 (CR-033 4.3): a station binding grants nothing above or beside itself - only the door permissions
+            # count, and only for that station (whatever a custom role bound there carries, now or after an edit)
+            allowed.update(p for p in perms if p in STATION_PERMISSIONS)
         else:
             allowed.update(perms)
     return sorted(allowed - denied_everywhere)

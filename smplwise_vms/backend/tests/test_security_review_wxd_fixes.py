@@ -474,37 +474,70 @@ def test_m3_bulk_actions_leave_script_backed_entities_out_where_a_wiskey_door_ex
 
 # ================================================================ L1 - a wall-display (kiosk) account is not refused as such
 
-def test_poc_l1_a_kiosk_account_opens_doors_once_any_grant_reaches_it(door_world):
-    """CR-033 4.1 step 1 refuses a kiosk principal before anything else; the code relies on the kiosk role holding neither
-    permission. The grant card lists every user, so one switch (or a group) gives the unattended wall display the door."""
-    c, feed = door_world["c"], door_world["feed"]
+def test_l1_a_kiosk_account_is_refused_as_such(door_world):
+    """CR-033 4.1 step 1 refuses a kiosk principal before anything else (FIXED: `wall_account`, whatever grant reaches it).
+    The grant card neither offers the wall display account nor grants it; a group grant that reaches it changes nothing."""
+    c, db, feed = door_world["c"], door_world["db"], door_world["feed"]
     _map_all(c)
     bind(c, door_world["settings"], "wall", "kiosk", "installation", "*")
     assert _release(c, ENTRY, "wall").status_code == 403
     users = c.get(f"{API}/access/door-grants").json()["users"]
-    assert "dev-wall" in {u["id"] for u in users}, "the wall display account is offered by the grant card like a person"
+    assert "dev-wall" not in {u["id"] for u in users}, "a wall display is not offered as a person who opens doors"
     r = c.post(f"{API}/access/door-grants/subjects", json={"subject_kind": "user", "subject_id": "dev-wall", "enabled": True, "confirmed": True})
-    assert r.status_code == 200 and r.json()["granted"] is True, r.text
-    opened = _release(c, ENTRY, "wall")
-    assert opened.status_code == 200, opened.text  # CURRENT: the kiosk account opens the entrance
-    assert len(feed.sent) == 1
+    assert r.status_code == 422 and r.json()["code"] == "wall_account", r.text
+    bind(c, door_world["settings"], "wall", "door_opener", "installation", "*")  # e.g. through a group or a direct binding
+    with db.connection(mode="read") as conn:
+        d = door_authority.check(conn, _principal("wall"), ENTRY, 1, dev_mode=True)
+    assert not d.allowed and d.reason == "wall_account"
+    assert _release(c, ENTRY, "wall").status_code == 403
+    assert _tile(c, "lock.entrance", "wall").status_code == 403
+    assert feed.sent == []
+    # an ordinary person with the same grant opens
+    bind(c, door_world["settings"], "dana", "door_opener", "installation", "*")
+    assert _release(c, ENTRY, "dana").status_code == 200
+
+
+def test_l1_an_enabled_wall_profile_is_a_wall_account(door_world):
+    db = door_world["db"]
+    door_world["c"].get(f"{API}/me", headers=as_user("lobby"))
+    with db.connection() as conn:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(wall_profiles)").fetchall()]
+        values = {"user_id": "dev-lobby", "enabled": 1, "title": "לובי", "config_json": "{}", "version": 1, "created_at": now_iso(), "updated_at": now_iso(), "created_by": "dev-joni", "updated_by": "dev-joni"}
+        use = [k for k in cols if k in values]
+        conn.execute(f"INSERT INTO wall_profiles({','.join(use)}) VALUES ({','.join('?' * len(use))})", [values[k] for k in use])
+        assert door_authority.is_wall_account(conn, "dev-lobby")
+        conn.execute("UPDATE wall_profiles SET enabled = 0 WHERE user_id = 'dev-lobby'")
+        assert not door_authority.is_wall_account(conn, "dev-lobby"), "a disabled profile is a plain user again"
 
 
 # ================================================================ L2 - the tile path answers before any permission check
 
-def test_poc_l2_a_caller_without_any_permission_learns_door_and_station_facts(door_world):
-    c = door_world["c"]
+def test_l2_a_caller_without_any_permission_learns_nothing_about_a_wiskey_door(door_world):
+    """FIXED: the door rule is asked first, at station level; a caller without it gets the same audited 403 as for an ordinary
+    lock - not "unmapped", not "lock unsupported", not the station's name and online state."""
+    c, db = door_world["c"], door_world["db"]
     c.get(f"{API}/me", headers=as_user("nobody"))
-    assert _tile(c, "lock.office", "nobody").status_code == 403, "an ordinary lock: the permission comes first"
+    ordinary = _tile(c, "lock.office", "nobody")
+    assert ordinary.status_code == 403, "an ordinary lock: the permission comes first"
     unmapped = _tile(c, "lock.entrance", "nobody")
-    assert unmapped.status_code == 409 and unmapped.json()["code"] == "intercom_lock_unmapped"  # CURRENT: "this is a WisKey door, unmapped"
+    assert unmapped.status_code == 403 and unmapped.json()["code"] == ordinary.json()["code"], unmapped.text
     lock_all = _tile(c, "lock.entrance", "nobody", action="lock.lock")
-    assert lock_all.status_code == 409 and lock_all.json()["code"] == "wiskey_lock_unsupported"
+    assert lock_all.status_code == 403, lock_all.text
     _map_all(c)
     offline = _tile(c, "lock.side", "nobody")
-    assert offline.status_code == 409 and offline.json()["code"] == "intercom_station_offline"
-    assert "דלת צד" in offline.json()["user_message"], "the station's name and its online state, to a user with no binding at all"
-    assert c.get(f"{API}/intercom/overview", headers=as_user("nobody")).status_code == 403, "the same facts are access.read data on the WisKey screen"
+    assert offline.status_code == 403 and "דלת צד" not in offline.text, offline.text
+    # an operator controls ordinary locks but holds no door permission: the door rule's own 403, still no door facts
+    bind(c, door_world["settings"], "otto", "operator", "installation", "*")
+    r = _tile(c, "lock.side", "otto")
+    assert r.status_code == 403 and "דלת צד" not in r.text, r.text
+    # with the door permission the facts are the person's to know (the station is offline: nothing sent)
+    bind(c, door_world["settings"], "dana", "door_opener", "installation", "*")
+    r = _tile(c, "lock.side", "dana")
+    assert r.status_code == 409 and r.json()["code"] == "intercom_station_offline"
+    assert _tile(c, "lock.entrance", "dana", action="lock.lock").json()["code"] == "wiskey_lock_unsupported"
+    with db.connection(mode="read") as conn:
+        n = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.action' AND decision = 'denied' AND actor_user_id = 'dev-otto'").fetchone()[0]
+    assert n >= 1, "the refusal is audited"
 
 
 # ================================================================ L3 - the one door switch grants more than opening doors
@@ -528,25 +561,34 @@ def test_poc_l3_the_door_switch_also_grants_calls_announcements_and_the_wiskey_d
 
 # ================================================================ L4 - a station-scope allow binding is honoured "anywhere"
 
-def test_poc_l4_a_station_scope_binding_of_a_broad_role_grants_beside_the_station(door_world):
-    """Only roles that carry rbac.assign are refused at station scope, so an editor (or operator, viewer, custom role) can be
-    bound to one station; routes that accept a permission held at ANY scope then honour it installation-wide."""
+def test_l4_a_station_scope_binding_carries_door_permissions_only(door_world):
+    """FIXED: an ALLOW at station scope is refused for any role beyond {access.read, access.release} (door_opener, matching
+    custom roles); and a station binding counts for nothing but those two "anywhere", whatever its role says (a custom role
+    edited after it was bound to a station, or a binding written before this rule)."""
     c, db = door_world["c"], door_world["db"]
     r = _bind_api(c, "stan", "editor", STATION, ENTRY)
-    assert r.status_code == 201, r.text  # CURRENT: accepted
+    assert r.status_code == 422 and r.json()["code"] == "scope_not_allowed_for_role", r.text
+    unlock_role = _custom_role(c, "פותח מנעולים " + uuid.uuid4().hex[:4], ["map.read"], ["door.unlock"])
+    assert _bind_api(c, "stan", unlock_role, STATION, ENTRY).status_code == 422
+    door_only = _custom_role(c, "פותח עמדה " + uuid.uuid4().hex[:4], ["access.read"], ["access.release"])
+    assert _bind_api(c, "stan", door_only, STATION, ENTRY).status_code == 201
+    assert _bind_api(c, "stan", "door_opener", STATION, SIDE).status_code == 201
+    with db.connection() as conn:  # a broad binding at station scope written before this rule (or by a restore)
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) VALUES (?, 'user', 'dev-stan', 'editor', ?, ?, 'allow', ?, 'test', ?)",
+                     (new_id(), STATION, ENTRY, permission_revision(conn), now_iso()))
     with db.connection(mode="read") as conn:
         anywhere = set(permissions_anywhere(conn, _principal("stan")))
-    assert {"catalog.manage", "placement.edit", "presence.report"} <= anywhere
-    # the installation's object library is managed under "catalog.manage anywhere": the gate passes (404 = no such item,
-    # after the permission), where a caller without the permission gets the audited 403
-    assert c.delete(f"{API}/catalog/objects/no-such-item", headers=as_user("stan")).status_code == 404
-    c.get(f"{API}/me", headers=as_user("nobody"))
-    assert c.delete(f"{API}/catalog/objects/no-such-item", headers=as_user("nobody")).status_code == 403
+    assert anywhere == {"access.read", "access.release"}, anywhere
+    assert c.delete(f"{API}/catalog/objects/no-such-item", headers=as_user("stan")).status_code == 403
+    # a deny of any role at station scope stays possible (it only takes away)
+    assert _bind_api(c, "stan", "editor", STATION, SIDE, effect="deny").status_code == 201
 
 
 # ================================================================ L5 - without a WisKey copy the map row is trusted as it is
 
-def test_poc_l5_signed_mode_signs_a_stale_mapping_when_no_wiskey_copy_is_held(door_world, monkeypatch):
+def test_l5_no_wiskey_copy_means_nothing_is_sent_in_any_mode(door_world, monkeypatch):
+    """FIXED: without a WisKey copy the station, relay and online state cannot be checked, so the open is refused (not_sent)
+    in signed mode as in the interim mode - a stale row is never signed."""
     c, db, feed = door_world["c"], door_world["db"], door_world["feed"]
     monkeypatch.setattr(trusted_door, "MIN_BRIDGE_FOR_TRUSTED_PATH", "0.9.0")
     bridge = FakeTrustedBridge({ENTRY: [1], SIDE: [1]}).install(monkeypatch)
@@ -555,16 +597,20 @@ def test_poc_l5_signed_mode_signs_a_stale_mapping_when_no_wiskey_copy_is_held(do
     assert c.put(f"{API}/doors/settings", json={"trusted_path": "on", "confirmed": True}).status_code == 200
     _map_all(c)
     bind(c, door_world["settings"], "dana", "door_opener", "installation", "*")
-    # the WisKey copy says the entrance no longer has relay 1: the row stops resolving (correct)
     with intercom_sync.SYNC._cache_lock:
         intercom_sync.SYNC._cache = intercom_sync.project_overview({"stations": [station(ENTRY, "כניסה ראשית", relays=[2]), station(SIDE, "דלת צד")]})
     assert _tile(c, "lock.entrance", "dana").json()["code"] == "intercom_lock_unmapped"
-    # no copy at all (the add-on restarted, the WisKey feed is not up yet): the same stale row is signed as-is
     with intercom_sync.SYNC._cache_lock:
         intercom_sync.SYNC._cache = None
     r = _tile(c, "lock.entrance", "dana")
-    assert r.status_code == 202, r.text  # CURRENT: sent without any station / relay / online check
-    assert [o["message"]["params"] for o in bridge.opens()] == [{"relay": 1}] and feed.sent == []
+    assert r.status_code == 503 and r.json()["code"] == "intercom_unavailable" and r.json()["details"]["outcome"] == "not_sent", r.text
+    w = _release(c, ENTRY, "dana")
+    assert w.status_code == 503 and w.json()["details"]["outcome"] == "not_sent", w.text
+    assert bridge.opens() == [] and feed.sent == []
+    # interim mode, no copy: refused the same way
+    assert c.put(f"{API}/doors/settings", json={"trusted_path": "off", "confirmed": True}).status_code == 200
+    assert _release(c, ENTRY, "dana").status_code == 503
+    assert feed.sent == []
 
 
 # ================================================================ L6 - every integration scene is "unresolvable" once a WisKey door exists
