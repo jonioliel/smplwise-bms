@@ -30,7 +30,8 @@ NOT_RUN: the full backend suite (361 files), the full frontend suites, fixture /
 real Home Assistant, bridge, WisKey or door.
 
 The PoC tests (`smplwise_vms/backend/tests/test_security_review_wxd_poc.py`) assert the CURRENT behaviour of each finding: they
-pass while the finding is open and fail on purpose once a fix lands (invert them into regression tests then).
+pass while the finding is open and fail on purpose once a fix lands (invert them into regression tests then). On
+`pilot/SEC-WXD-fixes` the file is `test_security_review_wxd_fixes.py` and the proofs are inverted - see section 8.
 
 ## 1. Combining the branches, integration and migration numbers
 
@@ -382,7 +383,67 @@ Route permissions (every route added or changed):
   added; the installation launcher runs through the judged routes.
 - SQL: parameters everywhere; the two `LIKE` patterns use regex-validated ids.
 
-## 8. Suggested order before integration
+## 8. Fix status (task SECWXDF, branch `pilot/SEC-WXD-fixes`, 2026-10-12)
+
+Every medium and every low was fixed on `pilot/SEC-WXD-fixes` (based on `pilot/SEC-WXD-review` @ ae83636d; not rebased, not
+part of release 2.4.8). The PoC file was renamed to `smplwise_vms/backend/tests/test_security_review_wxd_fixes.py`; each
+fixed finding's proof was inverted into regression tests, and every one of them was run against the unfixed product code
+(the fix's product files stashed) and FAILED there, then passed with the fix. No migration was added; no live door command
+and no default-enabled behaviour was added (`doors.editor_block` stays `blocked`, `doors.trusted_path` stays unavailable).
+
+| Finding | Commit | Fix | Regression tests (`test_security_review_wxd_fixes.py` unless stated) |
+|---|---|---|---|
+| M1 | e253c96c | `door_path_guard.check_config` / `check_schedule_payload`: a save is refused when the new content holds MORE of a door (lock entity, station, relay) or of an unresolvable reason than the stored content, as the shared D7 / D9 resolver sees it (lock groups, device actions, called scripts / automations / scenes, scene member states, templates); applied where a WisKey door exists. Called for create / replace / code save / copy / trash restore / version restore of automations, scripts, scenes (`automation_ops._raise_judgement`) and for schedule create / update / split / copy / trash restore. Scene capture expands lock groups; a scene member flipped to an open state is new. | `test_m1_typed_builder_refuses_a_new_door_step_through_a_lock_group`, `test_m1_scene_capture_refuses_a_lock_group_over_a_wiskey_lock`, `test_m1_code_mode_refuses_a_new_door_step_through_a_lock_group_or_a_device_action`, `test_m1_typed_builder_refuses_a_call_of_a_script_that_opens_the_door`, `test_m1_an_author_without_door_unlock_cannot_add_a_door_opening_through_a_script`, `test_m1_scene_member_flipped_from_locked_to_unlocked_is_a_new_step`, `test_m1_schedule_copy_split_and_restore_are_creates_for_the_editor_block`, `test_m1_schedule_guard_follows_a_called_script_and_keeps_existing_calls` |
+| M2 | cf2ffa9e | Review option 2 (keeps CR-033 4.1 step 3 as written): `door_authority.placement_allowed` - placing or removing the anchor of a door entity (a WisKey lock or a door-map row) needs `door.unlock` for it on its CURRENT chain (installation, or a floor with its own anchor; unplaced: installation only) and no deny on any of its floors, or `rbac.roles.manage` at the installation. `routers/anchors.py` create / delete refuse with an audited 403 (`door_unlock_required`), an allowed create is audited with `door: true`, both bump the permission revision. The door.unlock ALLOW targets exclude a shared room's mirrored floors (a deny there still wins; the alarm's `own_placements` rule); plan circuits never carry a lock. | `test_m2_a_floor_editor_cannot_extend_floor_door_unlock_by_placing_a_wiskey_door`, `test_m2_who_may_place_and_remove_a_wiskey_door` |
+| M3 | bc3da37e | `door_path.SCRIPT_BACKED_PLATFORMS = {template, universal}`: any service on such an entity (direct, area / device / floor / `all` targets, `homeassistant.*`, a template or label target where one exists in that domain, a scene member that sets one, an integration scene member) is unresolved `template_entity`; a template lock is unresolved for every lock service. `door_run_guard.judge_entity_action` judges EVERY tile / map card action. Bulk actions leave such entities out (`door_possible`, `device_bulk.SwitchPolicy`). All only where a WisKey door exists. | `test_m3_a_template_switch_wrapper_is_judged_as_a_possible_door`, `test_m3_every_template_domain_area_targets_and_scene_members_are_judged`, `test_m3_no_wiskey_door_means_template_entities_are_not_judged`, `test_m3_bulk_actions_leave_script_backed_entities_out_where_a_wiskey_door_exists` |
+| L1 | fbb7ab0f | `door_authority.check` refuses `wall_account` (an enabled wall profile, or an active `kiosk` allow binding, direct or through a group) right after identity / active; the grant card hides such accounts and refuses to grant them (422 `wall_account`). | `test_l1_a_kiosk_account_is_refused_as_such`, `test_l1_an_enabled_wall_profile_is_a_wall_account` |
+| L2 | fbb7ab0f | `routers/ha.py` `_door_gate`: for a WisKey lock's `lock.lock` / `lock.unlock` the one door rule is asked first at station level (the door map's station, else the registry's); without it a caller lacking control gets the same audited 403 as for any lock, one with control the door rule's 403; D6's refusal and the map / online answers come only after. | `test_l2_a_caller_without_any_permission_learns_nothing_about_a_wiskey_door` |
+| L3 | f01e5f3f | Owner decision pending (a door-only permission). Safest default applied: the granting questions of the grant card (user / group switch, custom-role switch) name everything the permission also allows (`GRANT_ALSO`: calls, announcements, entry log, people directory). No role or permission changed. | `frontend/tests/unit-door-settings.spec.ts` (built-in roles test) |
+| L4 | fbb7ab0f | Station scope accepts ALLOW bindings only for roles within `rbac.STATION_PERMISSIONS = {access.read, access.release}` (`routers/access.py` `check_delegation`, 422 `scope_not_allowed_for_role`); `permissions_anywhere` counts nothing else from a station binding (a custom role edited later, a restored / older binding). Deny bindings at station scope stay possible. | `test_l4_a_station_scope_binding_carries_door_permissions_only` |
+| L5 | fbb7ab0f | `access_control.open_door` refuses (503 `intercom_unavailable`, `not_sent`) without a WisKey copy in signed mode, and in interim mode when the feed is up but the copy is not there yet (otherwise the interim transport refuses on its own with the feed's state, as before). | `test_l5_no_wiskey_copy_means_nothing_is_sent_in_any_mode` |
+| L6 | bc3da37e | `door_path.Resolver.resolve_entity_item`: an integration scene (mirror row, `config_json` NULL) is judged by its members (`_scene_by_members`) like a scene without a row - not `unreadable_item`. | `test_l6_an_integration_scene_is_judged_by_its_members` |
+
+Not fixed here, with the reason:
+
+- M1 item 4 (CR-017: require `door.unlock` for lock steps reached through a called script or scene, for EVERY lock) - a
+  pre-existing gap of the CR-017 rights for ordinary locks, outside the CR-033 door path. For WisKey doors it is closed by
+  the editor block above (refused for everyone while `blocked`). Needs its own change in `services/automation_scope.py`
+  (`grant_reasons` over the resolver's expansion) and its own tests; left for a separate task.
+- M1 item 2's `set_enabled` / schedule `bulk` enable (I5) - informational in this review: enabling does not add a door step,
+  and the D10 "disable and list" run does not exist yet. To be decided with D10a.
+- L3's door-only permission (`access.door_open`) - an owner decision (permission catalogue, roles.json, migration of
+  existing grants); only the disclosure was done.
+- Informational I3, I4, I6-I13 - unchanged (informational; I8 / I7 must be closed before `doors.trusted_path` can be on).
+- `test_poc_i3_a_deny_written_on_the_other_chain_does_not_stop_either_permission` stays a `test_poc_*`: it documents CR-033
+  4.1 step 2 as written (chain-specific deny), deliberately unchanged.
+
+Behaviour changes the integrator should know (all only where a WisKey door exists, except L1 / L4 / M2's shared-room rule):
+the editors refuse new indirect door steps (M1); tile presses, Arx-started runs and bulk actions refuse / leave out template
+and universal entities (M3 - an availability cost for installations with many template entities; a future "this virtual
+entity is not a door" administrator attestation would be an owner decision); placing a WisKey lock on a map needs door.unlock
+or role administration (M2); kiosk / wall accounts never open doors (L1); station-scope allow bindings are door roles only
+(L4).
+
+Behaviour of the editor block for script-backed entities (5751322a): when a save adds only steps on template / universal
+entities, the refusal says so (`details.reason = possible_door`, its own Hebrew text) instead of the door-step text.
+
+Runs for the fixes:
+
+| # | Where | Commit | What | Result |
+|---|---|---|---|---|
+| 1 | workstation (one pytest process at a time) | each fix | the finding's regression tests with the fix's product files stashed | every regression test FAILED on the unfixed code (M1 8/8, M3 + L6 5/5, M2 2/2, L1 L2 L4 L5 5/5) |
+| 2 | workstation | fbb7ab0f | regression file + `test_wiskey_d6_d8` / `_door_inventory` / `_door_path` + `test_kiosk_role` | 69 passed |
+| 3 | workstation | fbb7ab0f | `test_intercom` + `test_rbac` / `_camera_scope` / `_groups` / `_matrix` | 303 passed |
+| 4 | workstation | various | `test_devices`, `test_ha`, `test_ha_authority`, `test_shared_spaces`, `test_access`, `test_custom_roles`, `test_automations_extra`, `test_anchor_3d` | all passed |
+| 5 | runner, 4 parallel shards (`run_smart.py backend`) | f01e5f3f | 76 related files (the review's run-2 set plus anchors, plans, presence, plan catalogue, shared spaces, wall, media bulk, home screen) | 1697 passed, 6 errors / failures all `sqlite3.OperationalError: unable to open database file` at setup (four shards in one runner worktree during the release gate) in `test_access` (3), `test_anchor_3d` (2), `test_automations_extra` (1) - those three files re-run on the workstation: all passed |
+| 6 | runner `tsc` | f01e5f3f | frontend type check | tsc ok |
+| 7 | runner `spec --project=desktop` | f01e5f3f | `unit-door-settings.spec.ts`, `unit-door-path.spec.ts` | 11 passed |
+| 8 | workstation | 5751322a | regression file (23) + `test_wiskey_d6_d8` / `_door_inventory` / `_door_path` | 69 passed |
+
+NOT_RUN: the full backend suite, fixture / visual / pixel jobs, browser evidence specs, anything against a real Home Assistant,
+bridge, WisKey or door.
+
+## 9. Suggested order before integration
 
 1. I1: decide the integration mechanics (revert `9065a130` or re-apply wave 1 as new commits) and the final migration numbers (I2),
    with a schema check of any persistent database that ran `integ/245` between 4ac95afb and 9065a130.
