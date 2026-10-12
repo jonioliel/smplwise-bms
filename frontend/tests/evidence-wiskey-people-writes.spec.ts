@@ -160,8 +160,11 @@ test.describe('the page offers only what the server allows', () => {
     await openActions(page);
     expect(await menu(page)).toEqual(['deactivate', 'cards', 'photo', 'archive', 'delete']); // staff: no "end temporary access"
     await plainCopy(page.locator(ACTIONS));
-    await closeActions(page);
+    await page.keyboard.press('Escape'); // Escape closes the dialog on top, not the person's page under it
+    await expect(page.locator(ACTIONS)).toHaveCount(0);
+    await expect(drawer(page).locator('sw-drawer[open]')).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(drawer(page).locator('sw-drawer[open]')).toHaveCount(0);
     await openPerson(page, 'p4');
     await openActions(page);
     expect(await menu(page)).toContain('temporary_cancel'); // a contractor
