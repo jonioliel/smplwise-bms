@@ -14,7 +14,9 @@ import { installStationsMock, newMock, openStations, type StationsMock } from '.
 // design, and the 44 px rule of components this screen does not own (the drawer's and the dialog's close buttons, sw-button) is
 // theirs. What IS asserted, in every state, is `ownTargets`: every control of this screen's own elements (wk-action-button,
 // sw-view-switch, sw-place-tree, the chips, the rows, the search, the announcement composer) is at least 44 x 44 px in touch layouts
-// (<= 1100 px) and at least the look dial (`--sw-touch-desktop`, 44 by default) on a desktop.
+// (<= 1100 px) and at least the look dial (`--sw-touch-desktop`, 44 by default) on a desktop. The table is asserted too: from 820 px
+// every table button must lie inside the visible table (a wide table scrolls inside its host and the guard would not flag it).
+// One project (desktop) runs the sweep - it sets the viewport itself.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ LAYOUT_QUICK=1 npx playwright test tests/layout-wiskey-stations.spec.ts --project=desktop --workers=1
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
