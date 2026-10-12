@@ -4,6 +4,7 @@ import {
   clearedFilters,
   countLine,
   credentialKinds,
+  dayWords,
   effectiveView,
   enabledStations,
   filterCount,
@@ -25,6 +26,7 @@ import {
   selectionState,
   setProfileFilter,
   stateOf,
+  timingView,
   toggleAll,
   toggleColumn,
   toggleSelected,
@@ -299,5 +301,25 @@ test.describe('selection (the bulk bar)', () => {
     expect(sel.size).toBe(0);
     expect([...pruneSelection(new Set(['1', '9']), rows)]).toEqual(['1']);
     expect(selectionState(new Set(['1']), [])).toBe('none');
+  });
+});
+
+test.describe('the timing view', () => {
+  test('weekday words in the week order, either spelling, unknown ones dropped', () => {
+    expect(dayWords(['monday', 'sunday', 'Thu', 'noday'])).toEqual(['ראשון', 'שני', 'חמישי']);
+    expect(dayWords([])).toEqual([]);
+  });
+
+  test('a weekly schedule, a dates schedule (six shown, the rest counted), nothing', () => {
+    expect(timingView(null)).toBeNull();
+    expect(timingView({ mode: 'weekly', timezone: 'Asia/Jerusalem', days: ['sunday', 'monday'], dates: [], periods: [{ start: '08:00', end: '17:00' }], enforcement: 'native' })).toEqual({
+      mode: 'weekly', days: ['ראשון', 'שני'], dates: [], moreDates: 0, hours: '08:00–17:00', timezone: 'Asia/Jerusalem', enforcement: 'native',
+    });
+    const dates = Array.from({ length: 8 }, (_, i) => `2026-11-${String(i + 1).padStart(2, '0')}`);
+    const view = timingView({ mode: 'dates', timezone: null, days: [], dates, periods: [], enforcement: 'ha' })!;
+    expect(view.dates).toEqual(['01.11.2026', '02.11.2026', '03.11.2026', '04.11.2026', '05.11.2026', '06.11.2026']);
+    expect(view.moreDates).toBe(2);
+    expect(view.hours).toBe('');
+    expect(timingView({ mode: null, timezone: null, days: [], dates: [], periods: [], enforcement: null })!.mode).toBe('unknown');
   });
 });

@@ -288,6 +288,45 @@ export function personSyncStatus(p: Pick<AcPerson, 'stations'>): SyncStatus {
 /** Enabled assignments - what "N תחנות" counts. */
 export const enabledStations = (p: Pick<AcPerson, 'stations'>): number => (p.stations ?? []).filter((s) => s.enabled).length;
 
+// ---------------------------------------------------------------- the timing view (when the person may enter)
+
+const DAY_HE: Record<string, string> = { sun: 'ראשון', mon: 'שני', tue: 'שלישי', wed: 'רביעי', thu: 'חמישי', fri: 'שישי', sat: 'שבת' };
+const DAY_ORDER = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/** The weekday words of WisKey's timing (`sunday` or `sun`, any case) in the week's order, Sunday first; an unknown word is dropped. */
+export function dayWords(days: readonly string[]): string[] {
+  const keys = new Set(days.map((d) => d.slice(0, 3).toLowerCase()).filter((d) => d in DAY_HE));
+  return DAY_ORDER.filter((d) => keys.has(d)).map((d) => DAY_HE[d]);
+}
+
+/** "08:00–17:00, 18:00–20:00" from the periods (empty list = all day). */
+export const hoursText = (periods: readonly { start: string; end: string }[]): string => periods.map((p) => `${p.start}–${p.end}`).join(', ');
+
+export interface TimingView {
+  mode: 'weekly' | 'dates' | 'unknown';
+  days: string[];
+  /** The listed dates (dd.mm.yyyy), at most six; `moreDates` counts the rest. */
+  dates: string[];
+  moreDates: number;
+  hours: string;
+  timezone: string | null;
+  enforcement: 'ha' | 'native' | 'unknown' | null;
+}
+
+export function timingView(timing: AcPerson['timing']): TimingView | null {
+  if (!timing) return null;
+  const dates = timing.dates.map((d) => d.split('-').reverse().join('.'));
+  return {
+    mode: timing.mode === 'weekly' || timing.mode === 'dates' ? timing.mode : 'unknown',
+    days: dayWords(timing.days),
+    dates: dates.slice(0, 6),
+    moreDates: Math.max(0, dates.length - 6),
+    hours: hoursText(timing.periods),
+    timezone: timing.timezone,
+    enforcement: timing.enforcement,
+  };
+}
+
 // ---------------------------------------------------------------- columns and views
 
 export type ColumnKey = 'name' | 'employee' | 'groups' | 'stations' | 'credentials' | 'validity' | 'state' | 'sync';
