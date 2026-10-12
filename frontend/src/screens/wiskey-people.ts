@@ -1034,10 +1034,9 @@ export class WiskeyPeople extends LitElement {
     .note.ok {
       background: var(--sw-success-soft);
     }
+    /* not sticky: now that the page scrolls, a bar stuck to the top of the column would pass under the shell's floating search / status
+       corner (it covers the far end of whatever is at the top) and cover the rows beneath it (layout guard: floating) */
     .bulk {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: 2;
       display: flex;
       align-items: center;
       flex-wrap: wrap;

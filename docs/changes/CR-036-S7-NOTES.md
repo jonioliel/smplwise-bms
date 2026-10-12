@@ -78,6 +78,13 @@ each row: `credentials {pin, cards}` and `phone_set` (sensitive level only).
    restricted caller, so "N of M" is never shown for them.
 9. **No "expiring soon" filter.** WisKey's states are active / inactive / expired / upcoming / archived; "expiring soon" is not one
    (the mock-up's chip). It needs a WisKey-side filter or a longer Arx scan - listed as a gap.
+10. **A screen element must not be `display: contents`** (found by reading the Linux baselines, fixed in `c68353d0`). The shell holds
+   the screen element to the height of its main column and lets the page inside overflow it, so the column scrolls; a contents host
+   hands `sw-page` itself to that column, where it is held to the viewport. The list (`overflow: hidden`) was then cut off on a phone
+   and could not be scrolled, and the filter row (`overflow-x: auto`) shrank to a sliver in the cards view. Nothing in a short mocked
+   list shows it; `layout-wiskey-people.spec.ts` now has a ~50-person directory at 390 / 820 / 1440 px (the page scrolls, nothing
+   clipped, the filter row keeps its height, the last row can be reached) and was shown to fail against the old rule. Slices S6 / S8 /
+   S9: keep the screen host as it is (no `:host` display rule), and give any screen a long-list check of this kind.
 
 ## 4. Tab gating (the S3/S4 carry-over)
 
@@ -160,7 +167,15 @@ states only); the mock `tests/wiskey-people-mock.ts`.
 - The rail label of the area still reads "WisKey" (`shell/nav.ts`): a platform name outside Settings, to be re-worded by S12 / S6.
 - Hebrew only (no English column).
 - The "unavailable" panel links to Settings for administrators (`#/system/diagnostics?tab=access-control`); S10 owns the page.
-- Per-station technical errors (the administrator's text) show as the server sent them (a code), not translated.
+- Per-station sync errors (sent to an administrator only): four known codes (`device_unavailable`, `action_failed`,
+  `station_unloaded`, `device_busy`) read as words, the code stays in the tooltip; any other code is shown as it came. The list of
+  codes is the one in the CR-005 brief - WisKey has no published catalogue of the per-person ones.
+- The table's header row is not sticky: the page scrolls and the table sits in its own horizontal scroll box (a sticky header would
+  need an inner vertical scroll area, a second scrollbar on the desktop).
+- The selection bar is not sticky. Stuck to the top of the scrolling column it would pass under the shell's floating search /
+  status corner (which covers the far end of whatever sits at the top, where "ביטול הבחירה" is) and cover the rows beneath it (the
+  layout guard's `floating` finding, bubble skin, 320 px). A bottom action bar (after the list, sticky to the bottom edge) is the
+  follow-up if the owner wants the bulk action in reach on a long selection.
 - A person shared with a station the caller cannot see is read-only for them (`editable: false` hides "עריכה"); the legacy editor
   endpoints still gate at installation scope until S11.
 
