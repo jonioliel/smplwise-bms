@@ -887,10 +887,11 @@ export class WiskeyPeople extends LitElement {
     return html`<wiskey-message-dialog open .transport=${this.transport} .people=${m.people} @close=${(e: CustomEvent<{ sent?: boolean }>) => { e.stopPropagation(); this.closeMessage(); if (e.detail?.sent) this.selected = new Set(); }}></wiskey-message-dialog>`;
   }
 
+  // No `:host { display: contents }` here: the shell makes the screen element a flex item that is held to the height of the main
+  // column and lets the page inside overflow it (so the column scrolls). A contents host hands the page itself to that column,
+  // where it is held to the viewport instead - the list (overflow: hidden) was then clipped and could not be scrolled, and the filter
+  // row (overflow-x: auto) shrank to a sliver in the cards view on a phone. tests/layout-wiskey-people.spec.ts guards it.
   static styles = css`
-    :host {
-      display: contents;
-    }
     .search {
       position: relative;
       display: flex;

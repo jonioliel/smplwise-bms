@@ -158,7 +158,12 @@ const he = {
   'drawer.responsible': 'אחראי',
   'drawer.purpose': 'מטרת הגישה',
   'drawer.stations': 'גישה לתחנות',
+  'drawer.door': 'דלת {doors}',
   'drawer.doors': 'דלתות {doors}',
+  'syncerr.device_unavailable': 'העמדה אינה זמינה',
+  'syncerr.action_failed': 'הפעולה נכשלה',
+  'syncerr.station_unloaded': 'העמדה אינה טעונה',
+  'syncerr.device_busy': 'העמדה עסוקה',
   'drawer.access_off': 'כבוי',
   'drawer.no_access': 'אין שיוך לתחנות',
   'drawer.error_detail': 'פירוט',
@@ -224,6 +229,22 @@ export type PeopleKey = keyof typeof he;
 export function pt(key: PeopleKey, vars?: Record<string, string | number>): string {
   const text: string = he[key] ?? key;
   return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+}
+
+const SYNC_ERRORS = new Map<string, PeopleKey>([
+  ['device_unavailable', 'syncerr.device_unavailable'],
+  ['action_failed', 'syncerr.action_failed'],
+  ['station_unloaded', 'syncerr.station_unloaded'],
+  ['device_busy', 'syncerr.device_busy'],
+]);
+
+/** True for a failed-sync code (the platform's own, sent to an administrator only) that has a word of its own. */
+export const knownSyncError = (code: string): boolean => SYNC_ERRORS.has(code);
+
+/** A failed-sync code as a word where it is a known one; any other code comes back as it was sent. */
+export function syncErrorText(code: string): string {
+  const key = SYNC_ERRORS.get(code);
+  return key ? pt(key) : code;
 }
 
 /** Every key, for the test that no key is unused or missing (tests/unit-people-strings.spec.ts reads the source). */

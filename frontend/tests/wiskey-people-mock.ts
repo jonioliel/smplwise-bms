@@ -82,6 +82,14 @@ export function directory(): RawPerson[] {
   ];
 }
 
+/** `n` more invented people (ids x1..xn, employee numbers from 2000), for the checks that need a directory longer than a screen. */
+export function extraPeople(n: number): RawPerson[] {
+  return Array.from({ length: n }, (_, i) =>
+    person(`x${i + 1}`, `עובד ${i + 1}`, String(2000 + i), {
+      group_ids: ['staff'], stations: [st('gate'), st('lobby')], phone: i % 5 === 4 ? '' : `050-001-${1000 + i}`, pin: i % 2 === 0, cards: 1,
+    }));
+}
+
 export type ReadMode = 'ready' | 'empty' | 'error' | 'unavailable' | 'unsupported' | 'connecting' | 'forbidden' | 'down_after_ready';
 export type MsgMode = 'ok' | 'rate' | 'not_registered' | 'uncertain' | 'service_down' | 'slow' | 'expired';
 

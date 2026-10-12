@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PEOPLE_KEYS, pt } from '../src/i18n/access-people';
+import { PEOPLE_KEYS, knownSyncError, pt, syncErrorText } from '../src/i18n/access-people';
 
 // CR-036 S7: the strings of the native people screen. Node only. Every key a screen asks for exists (a typo would show the key
 // itself to an operator), and no string names the platform or an internal code (docs/design/UI_COPY_RULES.md): the area is "בקרת
@@ -42,6 +42,22 @@ test('placeholders are filled', () => {
   expect(pt('page.count_of', { shown: 50, total: 312 })).toBe('50 מתוך 312');
   expect(pt('msg.rate', { minutes: 14 })).toBe('הגעת למכסת ההודעות · אפשר לשלוח שוב בעוד 14 דק׳');
   expect(pt('msg.preview_bulk', { send: 2, skip: '' })).toBe('יישלח ל־2');
+});
+
+test('a failed-sync code is a word where it is a known one, and comes back as it was sent where it is not', () => {
+  expect(knownSyncError('device_unavailable')).toBe(true);
+  expect(syncErrorText('device_unavailable')).toBe('העמדה אינה זמינה');
+  expect(syncErrorText('action_failed')).toBe('הפעולה נכשלה');
+  expect(syncErrorText('station_unloaded')).toBe('העמדה אינה טעונה');
+  expect(syncErrorText('device_busy')).toBe('העמדה עסוקה');
+  // an unknown code is shown as it came, and the names every object has are not codes
+  for (const code of ['some_new_code', 'constructor', 'toString', '__proto__', '']) {
+    expect(knownSyncError(code), code).toBe(false);
+    expect(syncErrorText(code), code).toBe(code);
+  }
+  // one door and several doors
+  expect(pt('drawer.door', { doors: '1' })).toBe('דלת 1');
+  expect(pt('drawer.doors', { doors: '1, 2' })).toBe('דלתות 1, 2');
 });
 
 test('the screens use no raw platform word either (a string typed in a template)', () => {

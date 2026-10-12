@@ -321,10 +321,14 @@ test.describe("the person's page", () => {
     const d = drawer(page);
     await expect(d.locator('[data-person-validity]')).toHaveText('ללא הגבלה');
     await expect(d.locator('[data-person-timing]')).toContainText('ללא הגבלת שעות'); // p3 has no timing
+    await expect(d.locator('[data-person-portrait] .frame')).toHaveText('מא'); // the portrait's letters are the avatar's (first letters of the first and last name)
     await d.locator('[data-person-tab="access"]').click();
     await expect(d.locator('[data-person-station]')).toHaveCount(4);
+    await expect(d.locator('[data-person-station="gate"]')).toContainText('דלת 1'); // one door: the singular
     await expect(d.locator('[data-person-station="mgmt"] [data-person-sync="error"]')).toBeVisible();
-    await expect(d.locator('[data-person-station="mgmt"] [data-person-sync-error]')).toContainText('device_unavailable'); // the administrator sees the text
+    // the administrator sees the failure as a word; the platform's code stays in the tooltip
+    await expect(d.locator('[data-person-station="mgmt"] [data-person-sync-error]')).toHaveText('העמדה אינה זמינה');
+    await expect(d.locator('[data-person-station="mgmt"] [data-person-sync-error]')).toHaveAttribute('data-person-sync-error', 'device_unavailable');
     await shot(page, info, 'drawer-access');
     await d.locator('[data-person-tab="groups"]').click();
     await expect(d.locator('[data-person-group="board"]')).toContainText('הנהלה');
@@ -333,6 +337,17 @@ test.describe("the person's page", () => {
     await expect(d.locator('[data-person-credentials]')).toContainText('2 כרטיסים');
     await page.keyboard.press('Escape');
     await expect(d.locator('sw-drawer[open]')).toHaveCount(0);
+  });
+
+  test('a failed-sync code without a word of its own is shown as it was sent', async ({ page }, info) => {
+    desktopOnly(info);
+    const st = newMock('admin');
+    st.people.find((p) => p.id === 'p3')!.stations.find((s) => s.station_id === 'mgmt')!.last_error = 'brand_new_code';
+    await open(page, st);
+    await ready(page);
+    await page.locator(`${SCREEN} [data-person-row="p3"]`).click();
+    await drawer(page).locator('[data-person-tab="access"]').click();
+    await expect(drawer(page).locator('[data-person-station="mgmt"] [data-person-sync-error]')).toHaveText('brand_new_code');
   });
 
   test('the timing view of a weekly schedule, and the validity states', async ({ page }, info) => {

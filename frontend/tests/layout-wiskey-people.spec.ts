@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { install, newMock } from './wiskey-people-mock';
+import { extraPeople, install, newMock } from './wiskey-people-mock';
 
 // CR-036 S7: the layout guard (tests/layout-guard.ts) over the native people screen - the list / table / cards, the selection bar,
 // the person's page and the message dialog - across widths 320..1440 x light / dark x the guard's own skin (bubble: its touch
@@ -99,8 +99,59 @@ async function layerCheck(page: Page, results: Finding[], ctx: string, kind: 'dr
   for (const d of bad) results.push({ cls: 'overflow', el: kind, detail: d, ctx });
 }
 
+/** In the page: a directory longer than the screen must scroll in the shell's main column - nothing clipped, the filter row at its
+ * height, the last row reachable. (A screen host with `display: contents` once handed the page to a column that held it to the
+ * viewport: the list was cut off and could not be scrolled, and the filter row shrank to a sliver in the cards view.) */
+function probeLongList(view: string): string[] {
+  const root = document.querySelector('sw-app')!.shadowRoot!;
+  const main = root.querySelector('main') as HTMLElement;
+  const sr = (root.querySelector('wiskey-people') as HTMLElement).shadowRoot!;
+  const out: string[] = [];
+  if (main.scrollHeight - main.clientHeight < 200) out.push(`the page does not scroll (${main.scrollHeight} vs ${main.clientHeight})`);
+  const filters = sr.querySelector('.filters') as HTMLElement;
+  const fh = filters.getBoundingClientRect().height;
+  if (fh < 44) out.push(`the filter row is ${Math.round(fh)}px high`);
+  const box = sr.querySelector(view === 'list' ? '.rows' : view === 'table' ? '.scroll' : '.grid') as HTMLElement | null;
+  if (!box) return [...out, `no ${view} container`];
+  if (box.scrollHeight - box.clientHeight > 1) out.push(`the ${view} is clipped (${box.scrollHeight} > ${box.clientHeight})`);
+  const rows = sr.querySelectorAll('[data-person-row]');
+  const last = rows[rows.length - 1] as HTMLElement;
+  last.scrollIntoView({ block: 'end', behavior: 'instant' as ScrollBehavior });
+  const lr = last.getBoundingClientRect();
+  const mr = main.getBoundingClientRect();
+  if (lr.bottom > mr.bottom + 1 || lr.top < mr.top - 1) out.push(`the last row cannot be reached (${Math.round(lr.top)}..${Math.round(lr.bottom)} in ${Math.round(mr.top)}..${Math.round(mr.bottom)})`);
+  main.scrollTop = 0;
+  return out;
+}
+
 test.describe('layout guard: the native people screen', () => {
   test.describe.configure({ timeout: 15 * 60_000 });
+
+  test('a long directory scrolls: nothing is clipped, the filter row keeps its height, the last row can be reached', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
+    page.setDefaultTimeout(20_000);
+    const st = newMock('admin');
+    st.people = [...st.people, ...extraPeople(40)];
+    await page.clock.setFixedTime(new Date(NOW));
+    await install(page, st);
+    const bad: string[] = [];
+    for (const [w, h] of [[390, 844], [820, 1100], [1440, 900]] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.goto('about:blank');
+      await page.goto('/?design=a&skin=classic&scheme=light#/wiskey/people');
+      await page.waitForSelector('sw-app');
+      await expect(page.locator(`${SCREEN} sw-page`)).toHaveAttribute('data-people-phase', 'ready', { timeout: 20_000 });
+      await expect(page.locator(`${SCREEN} [data-person-row]`).first()).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      for (const view of w < 1000 ? ['list', 'cards'] : ['table', 'list', 'cards']) {
+        await page.locator(`${SCREEN} [data-people-view="${view}"]`).click();
+        await settle(page);
+        expect(await page.locator(`${SCREEN} [data-person-row]`).count(), `${view} ${w}: all the people are listed`).toBeGreaterThan(45);
+        for (const f of await page.evaluate(probeLongList, view)) bad.push(`${view} ${w}: ${f}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
 
   test('list / table / cards, the selection bar, the person\'s page and the message dialog, light and dark, 320..1440', async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');

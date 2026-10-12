@@ -9,8 +9,8 @@ import '../components/sw-state-panel';
 import { fetchPersonPhoto, type AcPerson, type AcProfileField } from '../api/access-people';
 import type { DisplayZone } from '../api/intercom';
 import type { StateKind } from '../components/sw-badge';
-import { pt } from '../i18n/access-people';
-import { credentialKinds, enabledStations, formatDay, personSections, personSyncStatus, stateOf, timingView, validityState, type SyncStatus } from '../access-control/people-logic';
+import { knownSyncError, pt, syncErrorText } from '../i18n/access-people';
+import { credentialKinds, enabledStations, formatDay, initials, personSections, personSyncStatus, stateOf, timingView, validityState, type SyncStatus } from '../access-control/people-logic';
 import { UTC_ZONE } from './wiskey-format';
 
 export type DrawerTab = 'details' | 'access' | 'groups';
@@ -329,7 +329,7 @@ export class WiskeyPersonDrawer extends LitElement {
   private renderSensitive(p: AcPerson, s: ReturnType<typeof personSections>, full: boolean): TemplateResult {
     const photoPart = s.photo && this.photoEnabled
       ? html`<div class="portrait" data-person-portrait>
-          <div class="frame" aria-hidden=${this.photo.phase === 'ready' ? 'false' : 'true'}>${this.photo.phase === 'ready' ? html`<img src=${this.photo.url} alt=${p.display_name} data-person-photo-img />` : p.display_name.trim().slice(0, 2)}</div>
+          <div class="frame" aria-hidden=${this.photo.phase === 'ready' ? 'false' : 'true'}>${this.photo.phase === 'ready' ? html`<img src=${this.photo.url} alt=${p.display_name} data-person-photo-img />` : initials(p.display_name)}</div>
           <div>
             ${p.photo_configured === true
               ? this.photo.phase === 'ready'
@@ -367,10 +367,10 @@ export class WiskeyPersonDrawer extends LitElement {
             const b = syncKind(personSyncStatus({ stations: [st] }));
             return html`<li class="station" data-person-station=${st.station_id}>
               <span class="name">${this.stationNames[st.station_id] ?? st.station_id}</span>
-              ${st.doors.length ? html`<span class="sub">${pt('drawer.doors', { doors: st.doors.join(', ') })}</span>` : nothing}
+              ${st.doors.length ? html`<span class="sub">${pt(st.doors.length === 1 ? 'drawer.door' : 'drawer.doors', { doors: st.doors.join(', ') })}</span>` : nothing}
               ${st.enabled ? nothing : html`<sw-badge kind="neutral" label=${pt('drawer.access_off')}></sw-badge>`}
               <sw-badge data-person-sync=${personSyncStatus({ stations: [st] })} kind=${b.kind} label=${b.label}></sw-badge>
-              ${st.last_error ? html`<span class="err" data-person-sync-error><bdi class="ltr">${st.last_error}</bdi></span>` : nothing}
+              ${st.last_error ? html`<span class="err" data-person-sync-error=${st.last_error} title=${st.last_error}>${knownSyncError(st.last_error) ? syncErrorText(st.last_error) : html`<bdi class="ltr">${st.last_error}</bdi>`}</span>` : nothing}
             </li>`;
           })}</ul>`}
     </section>`;
