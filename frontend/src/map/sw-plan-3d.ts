@@ -968,6 +968,7 @@ export class SwPlan3d extends LitElement {
         quality: this.quality,
         night: this.night,
         real: this.realSettings(),
+        dprCap: this.viewDials.dpr_cap, // with the construction, not after it: a view that starts at the realistic rung draws its first frame at the person's cap
       });
       this.toggleAttribute('data-night', this.night);
     } catch (err) {
@@ -978,7 +979,7 @@ export class SwPlan3d extends LitElement {
     }
     this.view.setContinuous(this.continuous);
     this.view.setPaused(this.pauseGate.paused); // a view built while the tab is hidden or the kiosk idles draws nothing yet
-    this.view.setRealSettings({ dprCap: this.viewDials.dpr_cap, motion: this.viewDials.motion });
+    this.view.setRealSettings({ motion: this.viewDials.motion }); // (the DPR cap went in with the construction above)
     this.applySun();
     this.startClock();
     this.watchTheme();

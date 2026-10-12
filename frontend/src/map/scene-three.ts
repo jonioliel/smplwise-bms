@@ -23,6 +23,7 @@ import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, clampThumb, cutBox, c
 import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
 import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, type SunPosition } from './sun';
 import { LOOK_STYLES } from './look-style';
+import { DEFAULT_DPR_CAP, pixelRatioFor, type Rung } from './quality-ladder';
 import type { PostChain } from './post-chain';
 
 export type ScenePreset = 'top' | 'iso' | 'persp' | { camera: string };
@@ -70,6 +71,10 @@ export interface SceneViewOptions {
   pixelRatio?: number;
   /** The realistic level's dials (CR-029 S1: rung, style, furniture, textures, section cut). */
   real?: Partial<RealSettings>;
+  /** The realistic rung's pixel-ratio cap - the person's `dpr_cap` dial (CR-029 section 3.5). Given here, a view that starts at that
+   * rung draws its first frame at it (a cap handed over after construction would find the canvas already allocated at the default);
+   * `setRealSettings({ dprCap })` moves it later. Default DEFAULT_DPR_CAP. Only the realistic rung reads it (quality-ladder.pixelRatioFor). */
+  dprCap?: number;
   /** Where the plan3d assets are served (default: plan3d/ next to index.html). */
   assetBase?: string;
   /** The realistic level asks for a frame after an asset (texture, model, post chunk) arrived. */
@@ -395,6 +400,7 @@ export class SceneView {
     this.quality = opts.quality ?? 1;
     this.night = !!opts.night;
     this.real = { ...DEFAULT_REAL, ...(opts.real ?? {}) };
+    if (typeof opts.dprCap === 'number' && Number.isFinite(opts.dprCap) && opts.dprCap > 0) this.realDprCap = opts.dprCap; // before the first applyQuality(): the first frame is at it
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.basePixelRatio = opts.pixelRatio ?? Math.min(2, window.devicePixelRatio || 1);
     this.renderer.setPixelRatio(this.basePixelRatio);
@@ -537,7 +543,7 @@ export class SceneView {
     this.renderer.localClippingEnabled = this.quality === 3;
     this.renderer.shadowMap.autoUpdate = this.quality !== 3;
     this.renderer.shadowMap.type = this.quality === 3 ? PCFShadowMap : PCFSoftShadowMap;
-    this.renderer.setPixelRatio(this.quality === 3 ? Math.min(this.basePixelRatio, this.real.rung === 'lite' ? 1 : this.realDprCap) : this.basePixelRatio);
+    this.applyPixelRatio();
     this.scene.environment = null;
     this.scene.fog = null;
     if (this.quality === 3) {
@@ -567,6 +573,17 @@ export class SceneView {
       sun.position.set(1, 2, 1.2);
       this.lights.add(sun);
     }
+  }
+
+  /** The pixel ratio of the level and the rung (quality-ladder.pixelRatioFor: levels 1-2 the device's, the lite rung 1, the realistic
+   * rung the person's cap) on the canvas and, at level 3, on the post chain whose targets are sized in device pixels. Called wherever
+   * one of its inputs can have changed - applyQuality (the first build, a level or rung change) and setRealSettings (the cap). A ratio
+   * already in place is left alone: the canvas is not re-allocated (which would clear it) and the chain keeps the state it is in. */
+  private applyPixelRatio(): void {
+    const rung: Rung = this.quality === 3 ? this.real.rung : this.quality === 2 ? 'full' : 'schematic';
+    const ratio = pixelRatioFor(rung, this.basePixelRatio, this.realDprCap);
+    if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);
+    if (this.quality === 3) this.post?.setPixelRatio(ratio); // below level 3 the chain is not drawn: it is brought along when level 3 returns
   }
 
   /** The sun and its shadow camera around the extent: an orthographic box that holds the whole floor from the sun's
@@ -605,8 +622,9 @@ export class SceneView {
 
   // ---- the realistic level (CR-029 S1 / S2): rig, sky, environment, post chain, section cut, lamp pool, animation
 
-  /** The DPR cap of the top rung (the person's / device's dial; LOOK_SPEC section 10 default 1.25). */
-  private realDprCap = 1.25;
+  /** The DPR cap of the top rung (the person's / device's dial; LOOK_SPEC section 10 default 1.25): the constructor's `dprCap`, then
+   * `setRealSettings`. Read by applyPixelRatio only. */
+  private realDprCap = DEFAULT_DPR_CAP;
 
   /** The light rig of level 3 from the solar recipe and the style (LOOK_SPEC section 3), created once per switch. */
   private applyRealRig(): void {
@@ -741,12 +759,14 @@ export class SceneView {
   }
 
   /** Change the realistic level's dials: the style re-tints and re-lights; the rung, the furniture or the texture source
-   * realise the description again; the section cut moves the plane. */
+   * realise the description again; the section cut moves the plane; the DPR cap re-sizes the canvas (and the post chain) at once
+   * while the realistic rung draws - below level 3 and on the lite rung it is only kept for the next time. */
   setRealSettings(next: Partial<RealSettings> & { dprCap?: number; motion?: boolean }): void {
     const before = this.real;
     const { dprCap, motion, ...rest } = next;
     if (typeof motion === 'boolean') this.motion = motion;
-    if (typeof dprCap === 'number' && dprCap > 0) this.realDprCap = dprCap;
+    const capMoved = typeof dprCap === 'number' && Number.isFinite(dprCap) && dprCap > 0 && dprCap !== this.realDprCap;
+    if (capMoved) this.realDprCap = dprCap;
     this.real = { ...this.real, ...rest };
     if (this.quality !== 3) return;
     const rebuild = before.rung !== this.real.rung || before.furniture !== this.real.furniture || before.textures !== this.real.textures;
@@ -768,9 +788,12 @@ export class SceneView {
     if (rebuild) {
       this.realMats?.setRung(this.real.rung);
       this.realMats?.setSource(this.real.textures);
-      this.applyQuality();
+      this.applyQuality(); // (the pixel ratio with it: the new rung's, at the cap as it is now)
       this.rebuildNow();
-    } else this.applyCut();
+    } else {
+      this.applyCut();
+      if (capMoved) this.applyPixelRatio();
+    }
     this.invalidate();
   }
 

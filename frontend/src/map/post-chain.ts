@@ -24,9 +24,12 @@ export class PostChain {
   readonly msaa: boolean;
   /** The pass names in order (constructor names do not survive the minifier). */
   readonly passes: string[] = [];
+  /** The pixel ratio the targets are sized for: the canvas's when the chain was made, or what `setPixelRatio` was last told. */
+  private pixelRatio: number;
 
   constructor(renderer: WebGLRenderer, scene: Scene, camera: Camera, readonly rung: PostRung, width: number, height: number, style: StyleId) {
     const dpr = renderer.getPixelRatio();
+    this.pixelRatio = dpr;
     this.msaa = renderer.capabilities.isWebGL2;
     const target = new WebGLRenderTarget(Math.max(1, Math.round(width * dpr)), Math.max(1, Math.round(height * dpr)), { type: HalfFloatType, samples: this.msaa ? 2 : 0 });
     this.composer = new EffectComposer(renderer, target);
@@ -65,6 +68,15 @@ export class PostChain {
   setSize(width: number, height: number): void {
     this.composer.setSize(width, height);
     this.gtao?.setSize(width, height);
+  }
+
+  /** The canvas changed its pixel ratio while the chain lives (the DPR cap dial moved while the realistic rung draws, or a level
+   * change brought the chain back at another ratio): the composer's two targets and every pass are resized for it in place - no
+   * pass is rebuilt and no frame is drawn without the chain. The same ratio again changes nothing (the targets keep their state). */
+  setPixelRatio(ratio: number): void {
+    if (ratio === this.pixelRatio) return;
+    this.pixelRatio = ratio;
+    this.composer.setPixelRatio(ratio);
   }
 
   /** The style and the night factor set the bloom and the AO blend. */
