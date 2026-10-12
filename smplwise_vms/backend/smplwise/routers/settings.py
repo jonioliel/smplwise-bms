@@ -188,6 +188,7 @@ DEFAULTS: dict[str, str] = {
     "access.ui.overview": "wiskey",
     "access.ui.events": "wiskey",
     "access.ui.people": "wiskey",
+    "access.ui.stations": "wiskey",  # CR-036 S6: "תחנות ודלתות" (route #/wiskey/devices, the embedded panel's own devices tab); the embedded panel stays the default
     # T054 follow-up (owner request): hide the whole WisKey area from the navigation for everyone, regardless of role -
     # the same "hidden for everyone" shape as ui.hide_map, but for the WisKey top-level area. The access.ui.* choices
     # above apply only while this is false.
@@ -211,6 +212,12 @@ DEFAULTS: dict[str, str] = {
     # what in the access-control reads - the employee number is a names-level field, the event picture needs only the events
     # view (each view audited), sync error texts need access.admin.read. services/intercom_authority.py reads them per request.
     **intercom_authority.POLICY_DEFAULTS,
+    # CR-036 S6 (the same owner answers): what the native stations screen shows. They shape the screen only - the server's filter
+    # (intercom_authority) decides what data a caller gets and the physical actions keep their own gates.
+    "access.call_hint": "everyone",  # the incoming-call hint (no caller name) on a station card: everyone | call (only who may act on calls)
+    "access.talk_button": "classic",  # the talk button: classic (opens the classic panel - stage 1) | hidden
+    "access.announce_scope": "scope",  # announcement targets: scope (all stations / a place inside the operator's scope) | station (one station)
+    "access.announce_phrases": "",  # the announcement dialog's quick phrases, one per line, up to 8 (empty = the built-in ones)
     # CR-007 slice 6a: הגדרות › חשמל והתקנים - how the device-control screens look, per installation (read by every user
     # through GET /settings; changed with system.configure, audited like every product setting). Presentation only: the
     # safety rules of the bulk actions (confirmation, expiry, never locks / alarm / door release) are not settings.
@@ -636,6 +643,7 @@ class SettingsPatch(BaseModel):
     access_ui_overview: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.overview")
     access_ui_events: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.events")
     access_ui_people: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.people")
+    access_ui_stations: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.stations")  # CR-036 S6
     ui_hide_wiskey: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_wiskey")
     ui_wiskey_size: str | None = Field(default=None, pattern="^(normal|fit|full)$", alias="ui.wiskey_size")
     ui_wiskey_scale: str | None = Field(default=None, pattern="^(100|90|80|70)$", alias="ui.wiskey_scale")
@@ -646,6 +654,10 @@ class SettingsPatch(BaseModel):
     access_event_portrait_sensitive: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_sensitive")
     access_event_portrait_audit: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_audit")
     access_sync_errors_everyone: str | None = Field(default=None, pattern="^(true|false)$", alias="access.sync_errors_everyone")
+    access_call_hint: str | None = Field(default=None, pattern="^(everyone|call)$", alias="access.call_hint")  # CR-036 S6
+    access_talk_button: str | None = Field(default=None, pattern="^(classic|hidden)$", alias="access.talk_button")
+    access_announce_scope: str | None = Field(default=None, pattern="^(scope|station)$", alias="access.announce_scope")
+    access_announce_phrases: str | None = Field(default=None, max_length=2000, alias="access.announce_phrases")  # one phrase per line
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")

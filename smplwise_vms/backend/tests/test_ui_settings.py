@@ -82,7 +82,7 @@ def test_wiskey_density_and_wall_installation_defaults_validate_and_are_admin_on
 def test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited(settings):
     """CR-005 recorded decision 2026-09-28 (embedded panel): הגדרות › בקרות כניסה chooses, per SMPLWISE WisKey screen,
     between WisKey's own panel embedded as-is ("wiskey", the default) and the SMPLWISE screen ("smplwise")."""
-    keys = ("access.ui.overview", "access.ui.events", "access.ui.people")
+    keys = ("access.ui.overview", "access.ui.events", "access.ui.people", "access.ui.stations")  # CR-036 S6 added the stations screen
     app = create_app(settings)
     with TestClient(app) as c:
         before = c.get("/api/v1/settings").json()["settings"]
@@ -91,6 +91,7 @@ def test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited(s
         assert r.status_code == 200, r.text
         after = r.json()["settings"]
         assert after["access.ui.people"] == "smplwise" and after["access.ui.events"] == "smplwise" and after["access.ui.overview"] == "wiskey"
+        assert after["access.ui.stations"] == "wiskey"  # untouched by the other screens' choices
         assert c.get("/api/v1/settings").json()["settings"]["access.ui.people"] == "smplwise"
         # back to the embedded panel, and nothing else is accepted
         assert c.patch("/api/v1/settings", json={"access.ui.people": "wiskey"}).json()["settings"]["access.ui.people"] == "wiskey"
@@ -126,6 +127,57 @@ def test_access_phone_embed_is_off_by_default_and_audited(settings):
         assert {"access.phone_embed": "true"} in rows and {"access.phone_embed": "false"} in rows
         bind(c, settings, "ron", "viewer", "installation", "*")
         assert c.patch("/api/v1/settings", json={"access.phone_embed": "true"}, headers=as_user("ron")).status_code == 403
+
+
+STATIONS_DEFAULTS = {
+    "access.ui.stations": "wiskey",  # the embedded panel stays the default until the owner approves the native screen
+    "access.call_hint": "everyone",  # owner answer 3 of 2026-10-12
+    "access.talk_button": "classic",  # owner answer 8: shown, in the "talk in the classic panel" mode
+    "access.announce_scope": "scope",  # owner answer 7: all stations / a place inside the operator's scope
+    "access.announce_phrases": "",  # empty = the built-in quick phrases
+}
+
+
+def test_stations_screen_settings_defaults_validation_audit_and_gate(settings):
+    """CR-036 S6, owner answers of 2026-10-12 ("every decision is a setting an administrator can change; the answer only sets
+    the default"): the native stations screen's choice (access.ui.stations) and what it shows - who sees the incoming-call hint,
+    the talk button, the announcement targets and the quick phrases. Defaults are the answers; a value outside its list is
+    refused and changes nothing; a change is audited; any user reads them, only system.configure changes them."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        before = c.get("/api/v1/settings").json()["settings"]
+        assert {k: before[k] for k in STATIONS_DEFAULTS} == STATIONS_DEFAULTS
+        change = {
+            "access.ui.stations": "smplwise",
+            "access.call_hint": "call",
+            "access.talk_button": "hidden",
+            "access.announce_scope": "station",
+            "access.announce_phrases": "נא להמתין\nהדלת נפתחת",
+        }
+        r = c.patch("/api/v1/settings", json=change)
+        assert r.status_code == 200, r.text
+        assert {k: r.json()["settings"][k] for k in change} == change
+        assert {k: c.get("/api/v1/settings").json()["settings"][k] for k in change} == change
+        for key, bad in (
+            ("access.ui.stations", "iframe"), ("access.ui.stations", ""), ("access.ui.stations", "WISKEY"),
+            ("access.call_hint", "nobody"), ("access.call_hint", ""), ("access.call_hint", "Everyone"),
+            ("access.talk_button", "native"), ("access.talk_button", "shown"), ("access.talk_button", ""),
+            ("access.announce_scope", "all"), ("access.announce_scope", ""), ("access.announce_scope", "SCOPE"),
+            ("access.announce_phrases", "x" * 2001),
+        ):
+            assert c.patch("/api/v1/settings", json={key: bad}).status_code == 422, (key, bad[:20])
+        assert {k: c.get("/api/v1/settings").json()["settings"][k] for k in change} == change  # a refused value changes nothing
+        assert c.patch("/api/v1/settings", json=STATIONS_DEFAULTS).status_code == 200
+        assert {k: c.get("/api/v1/settings").json()["settings"][k] for k in STATIONS_DEFAULTS} == STATIONS_DEFAULTS
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert change in rows and STATIONS_DEFAULTS in rows
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        seen = c.get("/api/v1/settings", headers=as_user("dana"))
+        assert seen.status_code == 200 and seen.json()["can_edit"] is False
+        assert {k: seen.json()["settings"][k] for k in STATIONS_DEFAULTS} == STATIONS_DEFAULTS
+        assert c.patch("/api/v1/settings", json={"access.call_hint": "call"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["access.call_hint"] == "everyone"
 
 
 DEVICES_DEFAULTS = {
