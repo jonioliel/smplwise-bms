@@ -34,6 +34,13 @@ Switches (attributes, change them at any time, also while a session is open):
 - `drift`: schema drift - unknown top-level and per-row keys, unknown enum values, a dropped field (`last_seen`), so a
   test can prove unknown fields are dropped and unknown values shown as unknown;
 - `errors`: `{command: code}` - answer that command with that error code once per call (a hook for one-off cases).
+- CR-036 S7 (the people screen's message dialog; W11 is NOT delivered, so every shape here is W? except the keys rc.37's
+  whatsapp_api.py shows): `wa_available` (the messaging service is connected), `wa_quota` (`{limit, used}` sends per hour; the send
+  past it is answered `rate_limited`), `wa_unregistered` (phone numbers the provider refuses: `whatsapp_invalid_phone`). A
+  person may carry `whatsapp_consent` (`granted` | `declined` | `unknown`; the fake's own model of a consent W11 has not
+  defined). The templates are an APPROVED catalogue with the placeholders {name} and {organization} only - never a PIN or any
+  other credential (rc.37's own templates embed {pin}: the Arx adapter must not forward those; the fake models what Arx
+  will require).
 
 Shapes the catalog does not give (responses are "not statically generated" there) come from the fixtures; the fixtures follow
 the shapes tests/test_intercom.py already used (WISKEY_SOURCE_EXTRACTION.md, rc.37 `types.ts`). Where WisKey's real behaviour
@@ -183,6 +190,11 @@ class FakeWiskey:
         self.event_rows: list[dict[str, Any]] | None = None
         # CR-036 S7: the clock `users/query` uses for the `expired` / `upcoming` states (None = the real one)
         self.now: datetime | None = None
+        # CR-036 S7: the messaging fake (see the module docstring)
+        self.wa_available = True
+        self.wa_quota: dict[str, int] | None = None
+        self.wa_unregistered: set[str] = set()
+        self._wa_tokens: dict[str, dict[str, Any]] = {}
         # what happened
         self.received: list[dict[str, Any]] = []
         self.answered: list[tuple[str, str]] = []  # (command or HA type, "ok" | error code)
@@ -345,6 +357,8 @@ class FakeWiskey:
             if command == "stations/technical_hold_get" and msg.get("door") not in [lock["physical_index"] for lock in station.get("integrated_locks") or []]:
                 return [fail(msg, "operation_unsupported")]
             return [ok(msg, self._drifted(fixture(name)))]
+        if command.startswith("whatsapp/"):
+            return self._whatsapp(command, msg)
         if command == "tts/start":
             return [ok(msg)]  # the subscription id is the frame id (audio_tts.py); events are pushed by the test if needed
         name = FIXTURE_FOR.get(command)
@@ -355,6 +369,54 @@ class FakeWiskey:
             person["revision"] = int(msg.get("revision") or 0) + 1
             return [ok(msg, person)]  # WisKey answers the person's public record
         return [ok(msg, {})]
+
+    # ------------------------------------------------------------ CR-036 S7: the messaging fake (W11 is not delivered)
+    WA_ACCOUNT = {"id": "wa-1", "name": "Office line"}
+    WA_TEXT_MAX = 12000  # rc.37 whatsapp_api.py: a longer message is `invalid_fields`
+
+    def _whatsapp(self, command: str, msg: dict[str, Any]) -> list[Any]:
+        """`whatsapp/*` as rc.37's whatsapp_api.py shapes them: status {available, history, accounts}; preview {token, recipient,
+        message, warnings} (+ the PROPOSED `consent` and `quota`); send {accepted}; templates_get; history. Nothing is sent
+        anywhere - the 'send' only counts."""
+        if command == "whatsapp/status":
+            return [ok(msg, {"available": self.wa_available, "history": self.wa_available, "accounts": [dict(self.WA_ACCOUNT)] if self.wa_available else [],
+                             "quota": dict(self.wa_quota) if self.wa_quota else None})]
+        if command == "whatsapp/templates_get":
+            return [ok(msg, fixture("whatsapp_templates_get.json"))]
+        if command == "whatsapp/templates_update":
+            return [ok(msg, {**fixture("whatsapp_templates_get.json"), "revision": int(msg.get("revision") or 0) + 1})]
+        if not self.wa_available or msg.get("account") != self.WA_ACCOUNT["id"]:
+            return [fail(msg, "whatsapp_unavailable")]
+        person = self._person(msg.get("user_id"))
+        if person is None:
+            return [fail(msg, "user_not_found")]
+        number = str(person.get("phone") or "").strip()
+        if not number:
+            return [fail(msg, "whatsapp_invalid_phone")]
+        bound = {"user": person["id"], "revision": person.get("revision"), "phone": number, "account": msg["account"]}
+        if command == "whatsapp/preview":
+            templates = fixture("whatsapp_templates_get.json")
+            text = templates["templates"][0]["body"].format(name=person.get("display_name", ""), organization=templates["organization"])
+            token = f"wa-token-{len(self._wa_tokens) + 1}"
+            self._wa_tokens[token] = bound
+            return [ok(msg, {"token": token, "recipient": number, "message": text, "warnings": [], "consent": person.get("whatsapp_consent", "granted"),
+                             "quota": dict(self.wa_quota) if self.wa_quota else None})]
+        if command == "whatsapp/send":
+            text = msg.get("message")
+            if msg.get("confirmed") is not True or not isinstance(text, str) or not text.strip() or len(text) > self.WA_TEXT_MAX:
+                return [fail(msg, "invalid_fields")]
+            if self._wa_tokens.pop(msg.get("token"), None) != bound:  # one use, bound to the person, the revision and the phone
+                return [fail(msg, "whatsapp_preview_expired")]
+            if self.wa_quota is not None and self.wa_quota["used"] >= self.wa_quota["limit"]:
+                return [fail(msg, "rate_limited")]
+            if number in self.wa_unregistered:
+                return [fail(msg, "whatsapp_invalid_phone")]
+            if self.wa_quota is not None:
+                self.wa_quota["used"] += 1
+            return [ok(msg, {"accepted": True})]
+        if command == "whatsapp/history":
+            return [ok(msg, {"recipient": number, "messages": []})]
+        return [fail(msg, "unknown_command")]
 
     # ------------------------------------------------------------ CR-036 S4: the directory answers
     def _person(self, user_id: Any) -> dict[str, Any] | None:
@@ -609,7 +671,8 @@ class FakeWiskeySocket:
 def all_error_codes(fake: FakeWiskey) -> set[str]:
     """Every error code this fake can answer (for the test that each one is in the catalog or is Home Assistant's own)."""
     return {"unknown_command", "invalid_format", "request_too_large", "unauthorized", "station_not_found", "station_offline",
-            "revision_conflict", "user_not_found", "event_not_found", "station_unloaded", "operation_unsupported", "invalid_fields"} | set(fake.errors_once.values())
+            "revision_conflict", "user_not_found", "event_not_found", "station_unloaded", "operation_unsupported", "invalid_fields",
+            "whatsapp_unavailable", "whatsapp_invalid_phone", "whatsapp_preview_expired", "rate_limited"} | set(fake.errors_once.values())
 
 
 Responder = Callable[[dict[str, Any]], list[Any]]
