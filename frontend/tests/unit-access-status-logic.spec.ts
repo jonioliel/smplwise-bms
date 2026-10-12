@@ -27,6 +27,9 @@ import {
   kpis,
   optionsLine,
   panelKind,
+  POLICY_DEFAULT,
+  POLICY_KEYS,
+  policyValue,
   stationDot,
   streamTone,
   suppressionKey,
@@ -395,4 +398,19 @@ test('a station\'s zone: its own clock zone, else the installation\'s default, e
   expect(zoneOfStation(stations, 'b', JER).name).toBe('Asia/Jerusalem');
   expect(zoneOfStation(stations, 'z', null).name).toBe('UTC');
   expect(zoneOfStation(null, null, null).name).toBe('UTC');
+});
+
+test('the four administrator settings: "true" / "false" (or a boolean), and a value the server cannot read is the SAFE choice it acts on', () => {
+  expect(POLICY_KEYS).toEqual(['access.event_portrait_audit', 'access.event_portrait_sensitive', 'access.employee_no_sensitive', 'access.sync_errors_everyone']);
+  expect(POLICY_DEFAULT).toEqual({ 'access.event_portrait_audit': true, 'access.event_portrait_sensitive': false, 'access.employee_no_sensitive': false, 'access.sync_errors_everyone': false });
+  expect(policyValue({ 'access.employee_no_sensitive': 'true' }, 'access.employee_no_sensitive')).toBe(true);
+  expect(policyValue({ 'access.employee_no_sensitive': 'false' }, 'access.employee_no_sensitive')).toBe(false);
+  expect(policyValue({ 'access.event_portrait_audit': false }, 'access.event_portrait_audit')).toBe(false);
+  expect(policyValue({ 'access.event_portrait_audit': true }, 'access.event_portrait_audit')).toBe(true);
+  // unreadable or missing: the audit row stays on, a field stays sensitive, error texts stay hidden (what the server does)
+  expect(policyValue({ 'access.event_portrait_audit': 'maybe' }, 'access.event_portrait_audit')).toBe(true);
+  expect(policyValue({}, 'access.event_portrait_sensitive')).toBe(true);
+  expect(policyValue(null, 'access.employee_no_sensitive')).toBe(true);
+  expect(policyValue({ 'access.sync_errors_everyone': 1 }, 'access.sync_errors_everyone')).toBe(false);
+  expect(policyValue(undefined, 'access.sync_errors_everyone')).toBe(false);
 });

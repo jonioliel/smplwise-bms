@@ -471,3 +471,27 @@ export function panelKind(state: string, lastError: string | null): PanelKind {
       return state === 'ready' ? 'error' : 'unavailable';
   }
 }
+
+// ---------------------------------------------------------------- the administrator settings of the owner's answers (2026-10-12)
+
+/** The four product settings the access-control reads obey (services/intercom_authority.POLICY_DEFAULTS): what each one changes is the
+ * server's; the page only shows and sets them. */
+export const POLICY_KEYS = ['access.event_portrait_audit', 'access.event_portrait_sensitive', 'access.employee_no_sensitive', 'access.sync_errors_everyone'] as const;
+export type PolicyKey = (typeof POLICY_KEYS)[number];
+
+/** What each setting is until an administrator changes it (the owner's answers; the server's own defaults). */
+export const POLICY_DEFAULT: Record<PolicyKey, boolean> = {
+  'access.event_portrait_audit': true,
+  'access.event_portrait_sensitive': false,
+  'access.employee_no_sensitive': false,
+  'access.sync_errors_everyone': false,
+};
+
+/** A setting as the server reads it: "true" / "false" (a boolean too); anything else - a value that cannot be read, a missing key - reads as
+ * the SAFE choice, the way the server does (fail closed: a field stays sensitive, the audit row stays on, error texts stay hidden). */
+export function policyValue(settings: Record<string, unknown> | null | undefined, key: PolicyKey): boolean {
+  const raw = settings?.[key];
+  if (raw === true || raw === 'true') return true;
+  if (raw === false || raw === 'false') return false;
+  return key !== 'access.sync_errors_everyone';
+}

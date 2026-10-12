@@ -108,3 +108,88 @@ and by the backend tests against `fake_wiskey.py`.
 - Crystal: the base of this branch has four skins (classic, domus, tesla, bubble); the specs read `SKIN_IDS`, so Crystal is covered
   automatically once the branch is merged with a main that has it. NOT_RUN for Crystal here.
 - The live fixture does not offer detail / picture / export (above).
+
+## S10 - Settings: the access-control page ("בקרת כניסה", `#/system/access-control`)
+
+### What it is
+
+A new Settings tab, **בקרת כניסה**, between "חיבורים" and "קטלוג התקנים", with four segments. It is the technical truth of the
+integration for administrators (a Settings page may name the integration and the command that feeds a card; an operator screen never
+does). `shell/nav.ts`: `ACCESS_CONTROL_SETTINGS_HREF`, the tab entry, `TAB_PERMISSIONS` = `access.admin.read` at ANY scope (a
+station-scoped administrator sees the status of their stations; the server narrows every read). `shell/sw-app.ts`: the import and one
+route case. `system-diagnostics.ts` (the "בקרות כניסה" sub-tab of "כללי" with the per-screen switch and the diagnostics) is untouched.
+
+| Segment | Route | Who | Reads |
+|---|---|---|---|
+| מצב מערכת | `#/system/access-control` | `access.admin.read` (any scope) | `status/stations`, `status/sync`, `status/alerts`, `status/conflicts` (installation-wide administrators only), per station `stations/{id}/health`, `.../health/history` |
+| יומן האינטרקום | `.../audit` | installation-wide `access.admin.read` | `status/audit` (paged over `before` = `next_cursor`; filters: station, action) |
+| קבוצות ושדות | `.../groups` | `access.people.read` or installation-wide admin | `groups`, `groups/versions` (installation-wide admin only, paged over `offset`) |
+| מדיניות | `.../policy` | `system.configure` (installation) | `GET` / `PATCH /settings` (the four administrator settings) |
+
+A typed address of a segment the caller may not have opens the status. A caller without `access.admin.read` gets the plain panel
+"המסך הזה אינו זמין לך" and nothing is asked of the server.
+
+| Piece | Where |
+|---|---|
+| Typed client (no write, no device poll) | `src/api/access-status.ts` |
+| Pure logic: dots, sync words, ages / whens in the station's zone, tiles, sync rows, alert tones and paging, action-log targets, group rules, field flags, health tones, the seven-day strip, panel kinds, the four settings | `src/access-control/status-logic.ts` |
+| The page's sentences (a code with no word stays the code) | `src/access-control/status-text.ts`, `src/i18n/access-status.ts` |
+| The loader every card is built on | `src/access-control/status-feed.ts` |
+| Shared look, state panel, skeletons | `src/access-control/status-css.ts`, `status-panel.ts` |
+| Page, segments, station card | `src/screens/system-access-control.ts`, `system-access-status.ts`, `system-access-audit.ts`, `system-access-groups.ts`, `system-access-policy.ts`, `system-access-health.ts` |
+
+### Behaviour that is decided here
+
+- **Cards read on their own.** A failed or not-ready reload keeps the last good payload and marks it "not current" with when it was
+  read; a payload the server served from its cache (`fresh: false`) is marked the same way. A 403 drops the payload and the card is
+  ABSENT (never greyed): the conflicts, the log and the policy history are installation-wide in the integration, so a station-scoped
+  administrator is never asked for them (the server would audit a refusal); if a restricted installation-wide administrator is refused
+  anyway, the card disappears.
+- **Counts only.** The sync read carries no person; the tiles and the table sum nothing from people. A read that is not there is "not
+  known" (a dash), never zero; the conflicts tile exists only when the caller may see conflicts.
+- **Reads repeat every minute while the page is visible** and whenever the page's refresh is pressed; the server caches them for 30-60 s,
+  so asking more often would only repeat the answer. Nothing asks a device: the integration's `health/refresh` (a device poll),
+  `fleet/alerts_action` (acknowledge / mute), `conflicts/resolve` and `audit/export` are not offered in this stage.
+- **A station card** (a modal drawer; a bottom sheet on a phone) is mounted only while it is open, so closing it aborts what is in
+  flight. Its seven days are one cell per LOCAL day of the station zone: how much of the day it was online, the mean poll time, one
+  tone (ok / a gap or a sync problem / online less than half the day).
+- **The action log** shows what was done in the intercom's own window; the actions Arx started are in Arx's own audit (the subtitle
+  says so). A record carries the NAMES of the fields it changed, never their values. A code the page has no word for (an action, a
+  field, an error) is shown as the code in a technical style.
+- **Alerts**: a kind filter, the muted ones on request (why and until when), `complete: false` says the integration held more than it
+  sent; paged over `next_offset`.
+- **Groups**: each group's station rule as station names ("all stations" only when the group covers every station the page knows - never
+  guessed from an empty station list); a group with no rule is "not stated"; the field definitions card is absent when the server sends
+  `fields: null` (a caller without the sensitive permission and without the unrestricted status).
+- **The policy segment** is the Settings -> access control controls the S3/S4 notes announced for the owner's answers of 2026-10-12:
+  `access.event_portrait_audit` (default on), `access.event_portrait_sensitive`, `access.employee_no_sensitive`,
+  `access.sync_errors_everyone` (default off). One switch per row, saved at once as a single-key `PATCH /settings`; a failed save puts
+  the switch back and says so; a value the server cannot read is shown as the SAFE choice it acts on (fail closed, the same rule as
+  `Authority.policy`). It is the only thing on the page that writes, and it writes Arx's own settings, not the integration.
+- **Phone**: the shared table shows each row as a card (no sideways scroll); a station row is two lines (name and chevron, then the sync
+  word and when it was last seen); the actions of the page are 44 px; the tab row of the segments is the second-level tab style the
+  administrator configured.
+
+### Tests (S10)
+
+| What | File |
+|---|---|
+| Node unit: logic and words, the loader | `unit-access-status-logic.spec.ts`, `unit-access-status-feed.spec.ts` |
+| Mocked-backend evidence at desktop / tablet / phone: behaviour (reads asked, paging, filters, stale, permissions per persona, policy saves), every state, the skins x light / dark | `evidence-access-status.spec.ts` (+ `docs/design/evidence/CR-036-S10/*.png`) |
+| Layout guard across widths, light + dark, every skin | `layout-access-status.spec.ts` |
+| Linux pixel baselines | `pixel-access-status.spec.ts` |
+| The mock replies equal the real endpoints' shapes (status, health, history, sync, conflicts, alerts, audit, groups, versions) | `backend/tests/test_access_control_wire.py` (from S8) |
+
+### Known gaps (S10)
+
+- No member counts on the groups (the integration's groups read carries none; counting people would be a scan).
+- No "edit in the intercom window" button on the groups (a write phase / a deep link to the integration's tool, S15+).
+- The action log filters are station and action; the integration also filters by person and period (`status/audit` accepts `user_id`,
+  `start`, `end`) - not offered in this stage, and it has no export.
+- No place tree on the station list (the base has no station placement; CR-033).
+- English strings cover the page chrome only; Hebrew is complete.
+- Live: the committed fixture WisKey (`wiskey_fake_ha.py`) does not serve `health/get`, `sync/status`, `conflicts/list`, `fleet/alerts`,
+  `audit/list` or `profiles/*`, so the page was NOT run in a browser against the real backend and the fake WisKey end to end; the shapes
+  are proven by the wire test against `fake_wiskey.py` and the behaviour by the mocked evidence. NOT_RUN: Crystal skin (not in this base).
+- The display switch of the access-control screens (CR-036 S12) is not here: it joins as a segment of this page (`AccessSegment` and
+  `segments()` in `system-access-control.ts`); the old "בקרות כניסה" sub-tab of "כללי" keeps it until then.

@@ -61,10 +61,15 @@ export interface MockOptions {
   detail?: 'ok' | 'error';
   /** Features the installed integration does NOT offer (their names in the features reply). */
   hideFeatures?: string[];
-  /** The Settings status reads: ready (default), error (503), empty (no stations), slow, stale (served from the cache: fresh false), rate */
-  status?: 'ready' | 'error' | 'empty' | 'slow' | 'stale' | 'rate';
+  /** The Settings status reads: ready (default), error (503), empty (no stations), slow, hold (answers when `release()` is called), stale (served from
+   * the cache: fresh false), rate, not_configured (no integration in this environment), unsupported (the installed version does not offer them) */
+  status?: 'ready' | 'error' | 'empty' | 'slow' | 'hold' | 'stale' | 'rate' | 'not_configured' | 'unsupported';
+  /** Fleet alerts per page whatever `limit` asks (the next page is served over `offset`). */
+  alertsPage?: number;
   /** Extra product settings (merged over the defaults that switch the three screens to the native ones). */
   settings?: Record<string, string>;
+  /** A PATCH of the product settings: ok (default, merged and answered) or fail (500). */
+  settingsPatch?: 'ok' | 'fail';
 }
 
 export interface Call {
@@ -78,6 +83,8 @@ export interface AccessMock {
   calls: Call[];
   /** The paths the app asked for that nothing here answers (answered 404). */
   unhandled: string[];
+  /** The product-settings PATCH bodies the app sent, in order. */
+  patches: Record<string, string>[];
   portraitViews: number;
   detailViews: number;
   exports: Record<string, string>[];
@@ -123,10 +130,22 @@ export function allEvents(total = 130): Ev[] {
 const AVATAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#dfe6f2"/><circle cx="200" cy="120" r="56" fill="#8a97ae"/><path d="M80 300c0-72 54-112 120-112s120 40 120 112z" fill="#8a97ae"/></svg>`;
 
 export async function installAccessMock(page: Page, opts: MockOptions = {}): Promise<AccessMock> {
-  const st: AccessMock = { opts: { persona: 'admin', ...opts }, calls: [], unhandled: [], portraitViews: 0, detailViews: 0, exports: [], sockets: [], push: () => undefined, release: () => undefined, total: 0 };
+  const st: AccessMock = { opts: { persona: 'admin', ...opts }, calls: [], unhandled: [], patches: [], portraitViews: 0, detailViews: 0, exports: [], sockets: [], push: () => undefined, release: () => undefined, total: 0 };
   const gate = new Promise<void>((resolve) => (st.release = resolve));
   const events = allEvents();
   st.total = events.length;
+  // the product settings the app reads and the Settings page writes (the four access-control policy settings at their defaults)
+  const settingsState: Record<string, string> = {
+    'ui.design': 'a',
+    'access.ui.overview': 'smplwise',
+    'access.ui.events': 'smplwise',
+    'access.ui.people': 'smplwise',
+    'access.event_portrait_audit': 'true',
+    'access.event_portrait_sensitive': 'false',
+    'access.employee_no_sensitive': 'false',
+    'access.sync_errors_everyone': 'false',
+    ...(st.opts.settings ?? {}),
+  };
   const persona = () => st.opts.persona ?? 'admin';
   const holds = (perm: string) => PERMS[persona()].any.includes(perm);
   const scoped = () => persona() === 'scoped' || persona() === 'scopedAdmin';
@@ -208,10 +227,14 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
     if (p === 'me') return json(route, me(persona()));
     if (p === 'me/prefs') return json(route, { prefs: { 'nav.order': [] }, stored: [], updated_at: null });
     if (p === 'settings') {
-      return json(route, {
-        settings: { 'ui.design': 'a', 'access.ui.overview': 'smplwise', 'access.ui.events': 'smplwise', 'access.ui.people': 'smplwise', ...(st.opts.settings ?? {}) },
-        can_edit: holds('system.configure'),
-      });
+      if (method === 'PATCH') {
+        if (!holds('system.configure')) return refuse(route, 'system.configure');
+        if (st.opts.settingsPatch === 'fail') return json(route, { code: 'internal', user_message: 'השמירה נכשלה', retryable: false, correlation_id: 'mock', details: {} }, 500);
+        const body = JSON.parse(req.postData() ?? '{}') as Record<string, string>;
+        st.patches.push(body);
+        Object.assign(settingsState, body);
+      }
+      return json(route, { settings: { ...settingsState }, can_edit: holds('system.configure') });
     }
     if (p.startsWith('notifications')) return json(route, { unread: 0, items: [] });
     if (p === 'intercom/overview') {
@@ -310,12 +333,21 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
     const needAdmin = () => !holds('access.admin.read');
     const statusFailure = async (): Promise<boolean> => {
       if (statusMode === 'slow') await delay(1200);
+      if (statusMode === 'hold') await gate;
       if (statusMode === 'error') {
         await err(route, 503, 'unavailable');
         return true;
       }
       if (statusMode === 'rate') {
         await json(route, { state: 'error', configured: true, last_error: 'rate_limited', fetched_at: null, sync: sync() });
+        return true;
+      }
+      if (statusMode === 'not_configured') {
+        await json(route, { state: 'ha_not_configured', configured: false, last_error: 'ha_not_configured', fetched_at: null, sync: sync() });
+        return true;
+      }
+      if (statusMode === 'unsupported') {
+        await json(route, { state: 'unsupported', configured: true, last_error: 'not_listed', fetched_at: null, sync: sync() });
         return true;
       }
       return false;
@@ -346,6 +378,16 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
       if (needAdmin()) return refuse(route, 'access.admin.read');
       if (await statusFailure()) return;
       const b = clone(WIRE.status_sync);
+      if (scoped()) {
+        // the server counts only what the caller sees: the totals are recomputed over the stations left (never the integration's own)
+        const rows = (b.sync_status.stations as Array<Record<string, any>>).filter((r) => r.station_id === 'entry-a');
+        const sum = (k: string) => rows.reduce((n, r) => n + (r[k] ?? 0), 0);
+        const ops = (k: string) => rows.reduce((n, r) => n + (r.operations?.[k] ?? 0), 0);
+        b.sync_status = {
+          stations: rows,
+          totals: { pending_users: sum('pending_users'), managed_users: sum('managed_users'), revocations_pending: sum('revocations_pending'), card_removals_pending: sum('card_removals_pending'), pin_removals_pending: sum('pin_removals_pending'), deletions_pending: sum('deletions_pending'), operations: { pending: ops('pending'), failed: ops('failed'), verified: ops('verified'), settled: ops('settled') } },
+        };
+      }
       if (statusMode === 'empty') b.sync_status = { stations: [], totals: { ...b.sync_status.totals, pending_users: 0, managed_users: 0, revocations_pending: 0, pin_removals_pending: 0, operations: { pending: 0, failed: 0, verified: 0, settled: 0 } } };
       return json(route, { ...fresh(b), sync: sync() });
     }
@@ -363,14 +405,20 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
       const b = clone(WIRE.status_alerts);
       const kind = q.get('kind') ?? '';
       const includeSuppressed = q.get('include_suppressed') === 'true';
-      let items = b.alerts.items as Array<{ kind: string; suppressed: boolean }>;
+      let items = b.alerts.items as Array<{ kind: string; suppressed: boolean; station_id: string }>;
+      if (scoped()) items = items.filter((i) => i.station_id === 'entry-a');
       if (kind) items = items.filter((i) => i.kind === kind);
       if (!includeSuppressed) items = items.filter((i) => !i.suppressed);
       if (statusMode === 'empty') items = [];
-      b.alerts.items = items;
       b.alerts.total = items.length;
       b.alerts.active_count = items.filter((i) => !i.suppressed).length;
       b.alerts.suppressed_count = items.filter((i) => i.suppressed).length;
+      const offset = Number(q.get('offset') ?? 0);
+      const size = st.opts.alertsPage ?? Number(q.get('limit') ?? 50);
+      b.alerts.offset = offset;
+      b.alerts.limit = size;
+      b.alerts.next_offset = offset + size < items.length ? offset + size : null;
+      b.alerts.items = items.slice(offset, offset + size);
       return json(route, { ...fresh(b), sync: sync() });
     }
     if (ac === 'status/audit') {
@@ -397,7 +445,13 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
     if (ac === 'groups') {
       if (!holds('access.people.read')) return refuse(route, 'access.people.read');
       if (await statusFailure()) return;
-      return json(route, { ...fresh(clone(WIRE.groups)), sync: sync() });
+      const g = clone(WIRE.groups);
+      if (scoped()) {
+        // a station-scoped caller sees only the groups whose every station they see
+        g.groups.groups = (g.groups.groups as Array<{ station_ids: string[] | null }>).filter((x) => Array.isArray(x.station_ids) && x.station_ids.length > 0 && x.station_ids.every((id) => id === 'entry-a'));
+      }
+      if (!holds('access.people.sensitive') && scoped()) g.groups.fields = null;
+      return json(route, { ...fresh(g), sync: sync() });
     }
     if (ac === 'groups/versions') {
       if (needAdmin()) return refuse(route, 'access.admin.read');
