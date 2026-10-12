@@ -129,3 +129,29 @@ The browser never talks to WisKey.
 - Layout guard + own-target check: `tests/layout-wiskey-stations.spec.ts`.
 - Pixel (Linux baselines, new states only): `tests/pixel-wiskey-stations.spec.ts`.
 - Backend: `tests/test_ui_settings.py` (defaults, validation, audit, gate of the new keys).
+
+## 8. Verification state (2026-10-12) and what is BLOCKED
+
+| Check | Where, at which head | Result |
+|---|---|---|
+| `tsc --noEmit` | workstation at the final code; runner at `dca9e9ff` | clean |
+| Node unit (stations 43, nav 7, token lint 5) | workstation at the final code; runner at `8355ed08` | 55 passed |
+| Evidence + skins specs, desktop / tablet / mobile | workstation at the final code (`0d3fb577`): 163 passed, 8 skipped by design; runner at `8355ed08`: 327 passed, 6 skipped (the unit specs included) | pass |
+| Layout sweep, full (4 skins x light / dark x 10 widths, 472 checks) | workstation at `0d3fb577` | 0 findings, 0 own targets under 44 px, 0 table buttons cut off |
+| Layout sweep, quick, over all five skins incl. Crystal (120 checks) and the Crystal skins spec (6) | throwaway tree: this branch's screen over `origin/main`'s design layer, never pushed | pass |
+| Backend: `test_ui_settings.py`; and it plus nine settings / intercom neighbours | runner at `dca9e9ff` | 14 passed; 382 passed |
+
+BLOCKED (runner disk full, ENOSPC; nothing was run or deleted there after the coordinator's notice):
+
+- the Linux pixel baselines (`tests/pixel-wiskey-stations.spec.ts-snapshots/`): `linux-pixel` job, `--project=desktop
+  --project=mobile --update-snapshots`, look at every image, commit, then the same job without `--update-snapshots`. Until they
+  exist the gate reports the pixel tests as SKIPPED_NO_BASELINE (they are written to skip, not fail);
+- a `preview` (built dist) run of the evidence, skins and layout specs: the release gate classifies them as "rest" and runs them
+  against the built preview; they ran here against the Vite dev server only;
+- the runner's own full layout sweep (the one attempt died on the full disk: "browser closed", ERR_INSUFFICIENT_RESOURCES - an
+  infrastructure error, not a finding), the full backend suite, and tsc / spec re-runs at the final head.
+
+Hazard for the first runner job after the disk is freed: the runner worktree of this branch (`~/work/pilot-WISKEY-native-s6-stations`)
+holds UNTRACKED copies of the evidence images (two earlier spec runs wrote them there) and this branch now tracks the same paths,
+so the job's `git checkout` will refuse until they are removed (`git clean -fdq -- docs/design/evidence/wiskey-stations` in that
+worktree, or `run_remote.sh clean <branch>`). The pixel baselines the job generates are untracked there as well until fetched.
