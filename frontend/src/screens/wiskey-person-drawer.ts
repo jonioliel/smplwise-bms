@@ -38,8 +38,10 @@ export function stateBadge(p: Pick<AcPerson, 'archived' | 'active' | 'valid_from
   }
 }
 
-/** The person's validity as one phrase: nothing / until / from / a window / expired / not started. */
-export function validityText(p: Pick<AcPerson, 'valid_from' | 'valid_until'>, zone: DisplayZone): string {
+/** The person's validity as one phrase: nothing / until / from / a window / expired / not started. `compact` (a row, a card, a cell)
+ * names only the end of a running window ("עד 31.12.2026") - two dates side by side read the wrong way round to half the readers;
+ * the person's page names both ends ("מ־01.05.2026 עד 15.11.2026"). */
+export function validityText(p: Pick<AcPerson, 'valid_from' | 'valid_until'>, zone: DisplayZone, compact = false): string {
   const v = validityState(p);
   if (v === 'permanent') return pt('validity.permanent');
   if (v === 'validity_unknown') return pt('validity.unknown');
@@ -47,7 +49,7 @@ export function validityText(p: Pick<AcPerson, 'valid_from' | 'valid_until'>, zo
   const until = formatDay(p.valid_until, zone);
   if (v === 'validity_expired') return `${pt('validity.expired')} · ${until}`;
   if (v === 'validity_future') return `${pt('validity.future')} · ${from}`;
-  return pt('validity.window', { from, until });
+  return compact ? pt('validity.until', { date: until }) : pt('validity.window', { from, until });
 }
 
 /**

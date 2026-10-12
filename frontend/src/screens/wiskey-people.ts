@@ -114,11 +114,11 @@ const demoPerson = (id: string, employee_no: string, display_name: string, extra
 });
 const st = (station_id: string, sync_state: string, enabled = true) => ({ station_id, enabled, doors: [1], sync_state, last_sync_at: null, last_error: null });
 const DEMO_ROWS: AcPerson[] = [
-  demoPerson('p1', '1001', 'דנה כהן', { group_ids: ['staff'], stations: [st('d1', 'synced'), st('d2', 'synced')], credentials: { pin: true, cards: 2 } }),
-  demoPerson('p2', '1017', 'יוסי לוי', { stations: [st('d1', 'pending')], credentials: { pin: false, cards: 1 } }),
+  demoPerson('p1', '1001', 'דנה כהן', { phone: '050-000-0001', group_ids: ['staff'], stations: [st('d1', 'synced'), st('d2', 'synced')], credentials: { pin: true, cards: 2 } }),
+  demoPerson('p2', '1017', 'יוסי לוי', { phone: '050-000-0002', stations: [st('d1', 'pending')], credentials: { pin: false, cards: 1 } }),
   demoPerson('p3', '1033', 'מאיה כץ', { valid_from: '2026-01-01T00:00:00+02:00', valid_until: '2026-06-30T00:00:00+03:00', stations: [st('d3', 'synced')], phone_set: false, credentials: { pin: true, cards: 0 } }),
-  demoPerson('p4', '2044', 'אורן ברק', { active: false, group_ids: ['night'], stations: [st('d2', 'error', false)], credentials: { pin: false, cards: 0 } }),
-  demoPerson('p5', '2051', 'נועה שלו', { credentials: { pin: false, cards: 1 } }),
+  demoPerson('p4', '2044', 'אורן ברק', { phone: '050-000-0004', active: false, group_ids: ['night'], stations: [st('d2', 'error', false)], credentials: { pin: false, cards: 0 } }),
+  demoPerson('p5', '2051', 'נועה שלו', { phone: '050-000-0005', credentials: { pin: false, cards: 1 } }),
 ];
 
 /**
@@ -214,6 +214,7 @@ export class WiskeyPeople extends LitElement {
       const was = this.access.people;
       this.access = next;
       if (next.people && !was && this.phase === 'forbidden') this.begin();
+      else if (!next.people && this.phase !== 'forbidden') this.phase = 'forbidden'; // the permission was taken away while the screen was open
     });
     if (!this.access.people) {
       this.phase = 'forbidden';
@@ -588,6 +589,7 @@ export class WiskeyPeople extends LitElement {
     const selecting = this.selecting && ready;
     return html`<sw-page heading=${pt('page.title')} subheading=${ready ? this.subtitle() : ''} wide data-people-screen data-people-phase=${this.phase}>
         ${this.renderActions(ready)}
+        ${ready ? this.renderSearch() : nothing}
         ${ready ? this.renderFilters() : nothing}
         ${this.renderStrips()}
         ${selecting ? this.renderBulkBar() : nothing}
@@ -604,15 +606,7 @@ export class WiskeyPeople extends LitElement {
     const view = this.shownView;
     const views: [PeopleView, string, string][] = [['cards', pt('view.cards'), 'grid'], ['list', pt('view.list'), 'list']];
     if (!this.phone) views.push(['table', pt('view.table'), 'menu']);
-    const nameOnly = !this.employeeNoVisible;
     return html`
-      ${ready
-        ? html`<div class="search" slot="actions">
-            <sw-icon name="search" size=${16}></sw-icon>
-            <input type="search" data-wiskey-people-search name="query" maxlength="160" autocomplete="off" aria-label=${pt('search.label')} placeholder=${nameOnly ? pt('search.name') : pt('search.name_number')}
-              .value=${this.query} ?disabled=${!isApi()} @input=${(e: Event) => this.editQuery((e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.restart()} />
-          </div>`
-        : nothing}
       ${ready
         ? html`<div class="seg" slot="actions" role="group" aria-label=${pt('view.label')}>
             ${views.map(([id, label, icon]) => html`<button type="button" data-people-view=${id} aria-pressed=${view === id} aria-label=${label} title=${label} @click=${() => this.setView(id)}><sw-icon name=${icon as 'grid'} size=${16}></sw-icon></button>`)}
@@ -628,6 +622,15 @@ export class WiskeyPeople extends LitElement {
       ${isApi() && this.phase !== 'forbidden'
         ? html`<sw-button slot="actions" variant="ghost" icon="refresh" iconOnly data-wiskey-people-refresh label=${pt('action.refresh')} ?disabled=${this.busy} @click=${() => void this.reload()}></sw-button>`
         : nothing}`;
+  }
+
+  private renderSearch(): TemplateResult {
+    const nameOnly = !this.employeeNoVisible;
+    return html`<div class="search">
+      <sw-icon name="search" size=${16}></sw-icon>
+      <input type="search" data-wiskey-people-search name="query" maxlength="160" autocomplete="off" aria-label=${pt('search.label')} placeholder=${nameOnly ? pt('search.name') : pt('search.name_number')}
+        .value=${this.query} ?disabled=${!isApi()} @input=${(e: Event) => this.editQuery((e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.restart()} />
+    </div>`;
   }
 
   private selectChip(name: string, label: string, value: string, options: [string, string][], on: (v: string) => void): TemplateResult {
@@ -701,7 +704,7 @@ export class WiskeyPeople extends LitElement {
   private renderBody(): TemplateResult {
     switch (this.phase) {
       case 'loading':
-        return html`<div class="skeletons" aria-busy="true" data-people-skeleton>${Array.from({ length: 6 }, () => html`<div class="sk-row"><span class="sk dot"></span><span class="sk-col"><span class="sk a"></span><span class="sk b"></span></span><span class="sk c"></span></div>`)}</div>`;
+        return this.renderSkeleton();
       case 'unsupported':
         return html`<sw-state-panel data-wiskey-state="unsupported" state="empty" heading=${pt('state.unsupported')}></sw-state-panel>`;
       case 'unavailable':
@@ -711,7 +714,7 @@ export class WiskeyPeople extends LitElement {
       default:
         break;
     }
-    if (this.busy && !this.rows.length) return html`<div class="skeletons" aria-busy="true"></div>`;
+    if (this.busy && !this.rows.length) return this.renderSkeleton();
     if (!this.rows.length) {
       const filtered = isFiltered(this.query, this.filters);
       return html`<sw-state-panel data-wiskey-people-empty state="empty" heading=${filtered ? pt('state.no_results') : pt('state.empty')} actionLabel=${filtered ? pt('action.clear') : ''} @action=${() => this.clearAll()}></sw-state-panel>`;
@@ -722,6 +725,10 @@ export class WiskeyPeople extends LitElement {
       ${more !== null
         ? html`<div class="more"><sw-button data-wiskey-people-more ?disabled=${this.moreBusy} @click=${() => void this.loadMore()}>${this.moreBusy ? pt('state.detail_loading') : pt('action.more', { n: Math.min(PEOPLE_PAGE, Math.max(1, (this.page?.total ?? 0) - this.rows.length)) })}</sw-button></div>`
         : nothing}`;
+  }
+
+  private renderSkeleton(): TemplateResult {
+    return html`<div class="skeletons" aria-busy="true" data-people-skeleton>${Array.from({ length: 6 }, () => html`<div class="sk-row"><span class="sk dot"></span><span class="sk-col"><span class="sk a"></span><span class="sk b"></span></span><span class="sk c"></span></div>`)}</div>`;
   }
 
   private checkbox(p: AcPerson): TemplateResult {
@@ -762,7 +769,7 @@ export class WiskeyPeople extends LitElement {
           <sw-avatar name=${p.display_name} size=${36} aria-hidden="true"></sw-avatar>
           <span class="main"><b data-wiskey-person-name>${p.display_name}</b><span class="sub">${p.employee_no !== null ? html`<bdi class="ltr" data-wiskey-person-employee>${p.employee_no}</bdi> · ` : nothing}${this.groupsText(p)}</span></span>
           <span class="side hide-p">${this.stationsText(p)}</span>
-          <span class="side hide-p">${validityText(p, this.zone)}</span>
+          <span class="side hide-p">${validityText(p, this.zone, true)}</span>
           <sw-badge data-person-state kind=${sb.kind} label=${sb.label}></sw-badge>
           ${this.messageButton(p)}
         </li>`;
@@ -779,7 +786,7 @@ export class WiskeyPeople extends LitElement {
           <div class="ctop">${this.selecting ? this.checkbox(p) : nothing}<sw-avatar name=${p.display_name} size=${40} aria-hidden="true"></sw-avatar>
             <span class="main"><b data-wiskey-person-name>${p.display_name}</b>${p.employee_no !== null ? html`<span class="sub"><bdi class="ltr" data-wiskey-person-employee>${p.employee_no}</bdi></span>` : nothing}</span>
             <sw-badge kind=${sb.kind} label=${sb.label}></sw-badge></div>
-          <div class="cmeta"><span>${this.groupsText(p)}</span><span>${this.stationsText(p)}</span><span>${validityText(p, this.zone)}</span></div>
+          <div class="cmeta"><span>${this.groupsText(p)}</span><span>${this.stationsText(p)}</span><span>${validityText(p, this.zone, true)}</span></div>
           <div class="cfoot">${enabledStations(p) || p.stations?.length ? html`<sw-badge kind=${sync.kind} label=${sync.label}></sw-badge>` : nothing}${this.credentialsText(p) ? html`<span class="sub">${this.credentialsText(p)}</span>` : nothing}${this.messageButton(p)}</div>
         </article>`;
       })}
@@ -799,7 +806,7 @@ export class WiskeyPeople extends LitElement {
         case 'groups': return html`${this.groupsText(p)}`;
         case 'stations': return html`<span data-wiskey-person-assignments=${enabledStations(p)}>${this.stationsText(p)}</span>`;
         case 'credentials': return html`${this.credentialsText(p)}`;
-        case 'validity': return html`${validityText(p, this.zone)}`;
+        case 'validity': return html`${validityText(p, this.zone, true)}`;
         case 'state': { const b = stateBadge(p); return html`<sw-badge data-person-state kind=${b.kind} label=${b.label}></sw-badge>`; }
         default: { const b = syncKind(personSyncStatus(p)); return html`<sw-badge kind=${b.kind} label=${b.label}></sw-badge>`; }
       }
@@ -870,9 +877,7 @@ export class WiskeyPeople extends LitElement {
       position: relative;
       display: flex;
       align-items: center;
-      flex: 1 1 18rem;
-      min-inline-size: min(100%, 17rem);
-      max-inline-size: 26rem;
+      inline-size: min(100%, 28rem);
       color: var(--sw-text-3);
     }
     .search sw-icon {
@@ -963,7 +968,7 @@ export class WiskeyPeople extends LitElement {
     }
     .fchip select,
     .fchip input {
-      min-block-size: 40px;
+      min-block-size: 44px;
       max-inline-size: 11rem;
       border: 0;
       background: transparent;
@@ -1324,8 +1329,7 @@ export class WiskeyPeople extends LitElement {
         display: none;
       }
       .search {
-        flex-basis: 100%;
-        max-inline-size: none;
+        inline-size: 100%;
       }
       .filters {
         flex-wrap: nowrap;

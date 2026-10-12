@@ -446,6 +446,42 @@ test.describe("the person's page", () => {
   });
 });
 
+test.describe('the editor hands back to the screen', () => {
+  // the editor is the EXISTING component (its own flows are untouched); these specs prove only the events this screen answers.
+  const fire = (page: Page, name: string, detail: Record<string, unknown>) =>
+    page.locator('wiskey-person-editor').evaluate((el, [n, d]) => el.dispatchEvent(new CustomEvent(n as string, { detail: d, bubbles: true, composed: true })), [name, detail] as const);
+
+  test('close brings the person page back; a save reloads the list, says so and shows the person; a delete closes the page', async ({ page }, info) => {
+    desktopOnly(info);
+    const st = newMock('admin');
+    await open(page, st);
+    await ready(page);
+    await page.locator(`${SCREEN} [data-person-row="p1"]`).click();
+    await drawer(page).locator('[data-wiskey-person-edit]').click();
+    await expect(page.locator('wiskey-person-editor')).toHaveCount(1);
+    await fire(page, 'editor-close', {});
+    await expect(page.locator('wiskey-person-editor')).toHaveCount(0);
+    await expect(drawer(page).locator('sw-drawer[open]')).toBeVisible();
+    await drawer(page).locator('[data-wiskey-person-edit]').click();
+    const before = peopleHits(st).length;
+    st.people[0].display_name = 'דנה כהן (עודכן)';
+    await fire(page, 'editor-saved', { person: { id: 'p1' }, notice: 'saved', note: '' });
+    await expect(page.locator(`${SCREEN} [data-wiskey-people-notice="ok"]`)).toContainText('נשמר');
+    await expect.poll(() => peopleHits(st).length).toBeGreaterThan(before);
+    await expect(page.locator('wiskey-person-editor')).toHaveCount(0);
+    await expect(drawer(page).locator('sw-drawer[open]')).toBeVisible();
+    await expect(drawer(page)).toContainText('דנה כהן (עודכן)');
+    await page.keyboard.press('Escape');
+    await page.locator(`${SCREEN} [data-person-row="p2"]`).click();
+    await drawer(page).locator('[data-wiskey-person-edit]').click();
+    st.people = st.people.filter((p) => p.id !== 'p2');
+    await fire(page, 'editor-deleted', { id: 'p2', notice: 'deleted', note: '' });
+    await expect(drawer(page).locator('sw-drawer[open]')).toHaveCount(0);
+    await expect(rows(page)).toHaveCount(8);
+    await expect(page.locator(`${SCREEN} [data-person-row="p2"]`)).toHaveCount(0);
+  });
+});
+
 test.describe('the states', () => {
   test('loading: a skeleton, no spinner text', async ({ page }, info) => {
     const st = newMock('admin');
