@@ -13,7 +13,7 @@ Read with `docs/changes/CR-036-WISKEY-NATIVE-SCREENS.md` (sections 2, 3.2, 3.7; 
 
 | Piece | Where | One line |
 |---|---|---|
-| The screen | `frontend/src/screens/wiskey-people.ts` | filters, search, sort, "load more" paging with the snapshot, cards / list / table, selection and the bulk bar, the states |
+| The screen | `frontend/src/screens/wiskey-people.ts` | filters, search, sort, "load more" paging with the snapshot, cards / list / table (the table from 1000 px: seven columns need about 850 px; narrower windows use the list), selection and the bulk bar, the states |
 | The person's page | `screens/wiskey-person-drawer.ts` | modal drawer: details (validity and timing views), access (per-station sync state), groups, the sensitive section, the audited photo |
 | The message dialog | `screens/wiskey-message-dialog.ts` | one person or a selection; FAKES ONLY (section 5) |
 | Typed client | `api/access-people.ts` | `GET /access-control/{people, people/{id}, people/{id}/photo, stations, groups, features}` |
@@ -70,9 +70,9 @@ each row: `credentials {pin, cards}` and `phone_set` (sensitive level only).
 6. **WhatsApp (answers 9 and 10): templates AND free text, bulk in stage 1, the WisKey side (W11) unanswered, so FAKES ONLY** -
    section 5. The free-text box starts empty and a template is copied in only when picked; a template with a credential
    placeholder is never offered; a typed `{pin}` or "הקוד שלך 4821" is not sent (a best-effort guard on what the sender types).
-7. **View and columns are per browser (localStorage), not `/me/prefs`.** `/me/prefs` is a closed key list (backend + client + tests);
+7. **No table under 1000 px.** The runner's layout sweep found the table scrolling sideways by 105-161 px at 768-820 px; a shrunken table is what the design contract forbids, so narrower windows draw the list (a stored "table" falls back; the view switch offers none there). **View and columns are per browser (localStorage), not `/me/prefs`.** `/me/prefs` is a closed key list (backend + client + tests);
    a per-user server preference is a follow-up if the owner wants it across devices.
-8. **Stale handling.** A "load more" that comes back `stale` keeps the rows (deduplicated) and says "הרשימה השתנתה" with a restart;
+8. **Stale handling.** ("The last known list" is only ever the answer to the request that is current: after a new query or filter a failing service shows the error panel, not the rows of the old query.) A "load more" that comes back `stale` keeps the rows (deduplicated) and says "הרשימה השתנתה" with a restart;
    a refetch after a change notice asks for everything shown in ONE request (up to 200 rows; a longer list is marked changed
    instead); a service that drops after a list was shown keeps the list marked as the last known. `total_all` is null for a
    restricted caller, so "N of M" is never shown for them.

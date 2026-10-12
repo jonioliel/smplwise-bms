@@ -100,9 +100,8 @@ async def _ask(call: intercom_client.Call, command: str, **fields: Any) -> Any:
 # the filters each WisKey read is ever given (any other key a caller passes is dropped here, not only in the routers)
 PEOPLE_FILTER_KEYS = ("group", "station", "rights", "state", "sort", "credential", "profile")
 # `credential` and `profile` are FIELD filters (S7): WisKey would match them on values only a holder of `access.people.sensitive`
-# may see, so they are handed on - and honoured - for such a caller only (D1, field oracles; see `sensitive_filters_apply`).
+# may see, so they are handed on - and honoured - for such a caller only (D1, field oracles; see `has_field_filters`).
 FIELD_FILTER_KEYS = ("credential", "profile")
-CREDENTIAL_FILTERS = ("pin", "no_pin", "card", "no_card")
 MAX_PROFILE_FILTERS = 8
 EVENT_FILTER_KEYS = ("station_id", "person", "result", "authentication", "event_type", "door", "start", "end", "limit", "before", "current_group")  # never `current_profile`
 EXPORT_FILTER_KEYS = ("station_id", "person", "result", "authentication", "event_type", "door", "start", "end", "current_group")
