@@ -216,8 +216,22 @@ test.describe('wiskey-stations: filters, search, views, places', () => {
       const table = page.locator(`${SCREEN} sw-table[data-wk-table]`);
       await expect(table.locator('tbody tr')).toHaveCount(6);
       await expect(table.locator('thead')).toContainText('סנכרון'); // the technical columns come with the technical part
-      if (info.project.name === 'desktop') await expect(table.locator('thead')).toContainText('דגם · קושחה');
-      else await expect(table.locator('thead')).not.toContainText('דגם · קושחה'); // a tablet's table keeps what is read and done: model and door names wait in the drawer
+      // who, is it up, a call and the buttons come first: what a narrow table cuts off is never the buttons
+      const heads = (await table.locator('thead th').allTextContents()).map((h) => h.trim());
+      const head = table.locator('thead');
+      if (info.project.name === 'desktop') {
+        expect(heads.slice(0, 4)).toEqual(['תחנה', 'מצב', 'שיחה', 'פעולות']);
+        for (const col of ['מיקום', 'נראה לאחרונה', 'דלתות', 'דגם · קושחה']) await expect(head).toContainText(col);
+      } else {
+        // a tablet's table keeps what is read and done: place, door names and model wait in the drawer; a call that is on and the
+        // offline station's last sighting move under its state
+        expect(heads.slice(0, 3)).toEqual(['תחנה', 'מצב', 'פעולות']);
+        for (const col of ['שיחה', 'מיקום', 'נראה לאחרונה', 'דלתות', 'דגם · קושחה']) await expect(head).not.toContainText(col);
+        await expect(table.locator('tr[data-row-id="store"]')).toContainText('אתמול');
+        await expect(table.locator('tr[data-row-id="gate"] td:nth-child(2) [data-wk-call-pill="ringing"]')).toContainText('שיחה נכנסת');
+      }
+      // a wide table scrolls inside its host and hides what is at its end: at the reference widths the whole table is in view
+      expect(await table.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
       await expect(table.locator('[data-wk-open="lobby"]')).toHaveText('לובי');
       await expect(table.locator('[data-wk-call-pill="ringing"]')).toContainText('שיחה נכנסת');
       await table.locator('tr[data-row-id="park"]').click();
@@ -227,6 +241,24 @@ test.describe('wiskey-stations: filters, search, views, places', () => {
     await page.reload();
     await expect(page.locator(`${SCREEN} [data-wk-stations][data-wk-state="ready"]`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`${SCREEN} [data-wk-stations]`)).toHaveAttribute('data-view', phone(info) ? 'list' : 'table');
+  });
+
+  test("a laptop's table (1366 px) drops the door names and the model, keeps the place and the last sighting, and fits", async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'one viewport is set here');
+    await page.setViewportSize({ width: 1366, height: 800 });
+    await boot(page);
+    await ready(page);
+    await page.locator(`${SCREEN} sw-view-switch[data-wk-views] button[data-view="table"]`).click();
+    const table = page.locator(`${SCREEN} sw-table[data-wk-table]`);
+    await expect(table.locator('tbody tr')).toHaveCount(6);
+    const head = table.locator('thead');
+    for (const col of ['תחנה', 'מצב', 'שיחה', 'פעולות', 'מיקום', 'נראה לאחרונה', 'סנכרון']) await expect(head).toContainText(col);
+    for (const col of ['דלתות', 'דגם · קושחה']) await expect(head).not.toContainText(col);
+    expect(await table.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    // and growing the window brings the columns back without a reload
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await expect(head).toContainText('דגם · קושחה');
+    await expect(head).toContainText('דלתות');
   });
 });
 

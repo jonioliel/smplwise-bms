@@ -10,6 +10,8 @@ import {
   ARM_MS,
   CallClock,
   POLICY_DEFAULTS,
+  TABLE_COMPACT_MAX,
+  TABLE_MEDIUM_MAX,
   UNKNOWN_HOLD_FALLBACK_MS,
   ageText,
   announceChoices,
@@ -36,6 +38,7 @@ import {
   statusOf,
   subtitleOf,
   syncKind,
+  tableTierOf,
   tally,
   ttsLength,
   visibleStations,
@@ -95,6 +98,14 @@ test.describe('words, filters, counts', () => {
     expect(needsAttention(station('x', { sync_state: 'syncing' }))).toBe(false);
     expect(needsAttention(station('x', { sync_state: 'unknown' }))).toBe(true);
     expect(needsAttention(station('x', { errors: { last_error: null, scan_error: 'device_busy' } }))).toBe(true);
+  });
+
+  test('the table gives up columns by width: a wide desktop shows all, a laptop and a tablet keep what is read and done', () => {
+    // the full table needs about 1040 px of host; the host is the viewport less the side rail and the place tree (about 400 px)
+    expect([2560, 1920, 1536, 1440].map(tableTierOf)).toEqual(['full', 'full', 'full', 'full']);
+    expect([1439, 1366, 1280, 1101].map(tableTierOf)).toEqual(['medium', 'medium', 'medium', 'medium']);
+    expect([1100, 1024, 820, 768].map(tableTierOf)).toEqual(['compact', 'compact', 'compact', 'compact']);
+    expect(TABLE_COMPACT_MAX).toBeLessThan(TABLE_MEDIUM_MAX);
   });
 
   test('the search matches the name, the place and (with the technical part) the model', () => {

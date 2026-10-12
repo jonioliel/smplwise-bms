@@ -49,12 +49,16 @@ import {
   rightsOf,
   STATION_FILTERS,
   subtitleOf,
+  TABLE_COMPACT_MAX,
+  TABLE_MEDIUM_MAX,
+  tableTierOf,
   tally,
   visibleStations,
   type PlaceMap,
   type Rights,
   type StationFilter,
   type StationsPolicy,
+  type TableTier,
 } from './wiskey-stations-logic';
 import { drawerBody, grid, rows, tableColumns, type Fetch, type StationDetail, type ViewCtx } from './wiskey-stations-views';
 
@@ -137,7 +141,7 @@ export class WiskeyStations extends LitElement {
   @state() private poster = Date.now();
   @state() private failed: Record<string, number> = {};
   @state() private phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 767px)').matches : false;
-  @state() private compact = typeof matchMedia === 'function' ? matchMedia('(max-width: 1100px)').matches : false;
+  @state() private table: TableTier = tableTierOf(typeof window === 'undefined' ? 1440 : window.innerWidth);
 
   private clock = new CallClock();
   private actions = new StationActions({
@@ -163,10 +167,12 @@ export class WiskeyStations extends LitElement {
   private placesKey = '';
   private detailAt: Record<string, number> = {};
   private mq = typeof matchMedia === 'function' ? matchMedia('(max-width: 767px)') : null;
-  private mqc = typeof matchMedia === 'function' ? matchMedia('(max-width: 1100px)') : null;
+  // the table gives up columns at two widths (screens/wiskey-stations-logic.ts `tableTierOf`)
+  private mqc = typeof matchMedia === 'function' ? matchMedia(`(max-width: ${TABLE_COMPACT_MAX}px)`) : null;
+  private mqm = typeof matchMedia === 'function' ? matchMedia(`(max-width: ${TABLE_MEDIUM_MAX}px)`) : null;
   private onMedia = () => {
     this.phone = !!this.mq?.matches;
-    this.compact = !!this.mqc?.matches;
+    this.table = tableTierOf(window.innerWidth);
   };
 
   // ------------------------------------------------------------------ lifecycle
@@ -175,6 +181,7 @@ export class WiskeyStations extends LitElement {
     super.connectedCallback();
     this.mq?.addEventListener('change', this.onMedia);
     this.mqc?.addEventListener('change', this.onMedia);
+    this.mqm?.addEventListener('change', this.onMedia);
     this.stopRoute = onRouteChange((r) => this.onRoute(r));
     if (!isApi()) return;
     if (!canAnywhere('access.read')) {
@@ -203,6 +210,7 @@ export class WiskeyStations extends LitElement {
     super.disconnectedCallback();
     this.mq?.removeEventListener('change', this.onMedia);
     this.mqc?.removeEventListener('change', this.onMedia);
+    this.mqm?.removeEventListener('change', this.onMedia);
     this.stop?.();
     this.stop = null;
     this.stopRoute?.();
@@ -439,7 +447,7 @@ export class WiskeyStations extends LitElement {
       places: this.places,
       actions: this.actions,
       clock: this.clock,
-      compact: this.compact,
+      table: this.table,
       media: this.demo() ? false : cap('go2rtc'),
       poster: this.poster,
       failed: this.failed,
@@ -566,7 +574,7 @@ export class WiskeyStations extends LitElement {
     if (!all.length) return html`<sw-state-panel state="empty" heading=${t.states.empty} data-wk-panel="empty"></sw-state-panel>`;
     if (!shown.length) return html`<sw-state-panel compact state="empty" heading=${t.states.emptyFilter} data-wk-panel="empty-filter"></sw-state-panel>`;
     if (view === 'table') {
-      return html`<sw-table class="tbl" data-wk-table .columns=${tableColumns(v, all)} .rows=${shown as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.open(e.detail.id)}></sw-table>`;
+      return html`<sw-table class="tbl" dense data-wk-table .columns=${tableColumns(v, all)} .rows=${shown as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.open(e.detail.id)}></sw-table>`;
     }
     return view === 'list' ? rows(v, shown) : grid(v, shown);
   }

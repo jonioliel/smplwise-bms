@@ -18,7 +18,14 @@ The screen `תחנות ודלתות` (`<wiskey-stations>`), the first native rep
   (`data-set-access-ui="stations"` in `screens/system-diagnostics.ts`).
 - **Views.** Cards, list, table (the choice is remembered in the browser only), filter (all / online / needs attention /
   in a call), search, a place tree (phone: a sheet), a call strip when a call is active, the feed badge (live / last
-  update / not connected). The tablet's table drops the door-names and model columns (they are in the drawer).
+  update / not connected).
+- **The table keeps to its host.** `sw-table` scrolls a wide table inside itself, which hides the END of every row - and the
+  mock-up put the door buttons last, so at 1440 px they were half cut off. The columns are therefore ordered by use (station,
+  state, call, buttons, then place, last seen, door names, sync, model) and the table gives up columns by viewport width
+  (`tableTierOf` in `wiskey-stations-logic.ts`): `full` from 1440 px, `medium` 1101-1439 px (no door names, no model), `compact`
+  up to 1100 px (also no place; a call that is on and an offline station's last sighting move under its state). Measured: the
+  table fits its host from 1024 px up in every tier; the buttons are in view down to 768 px (the sync column may be cut
+  there). Door buttons stack two per line instead of widening the column. Deviation from the mock-up, on purpose.
 - **States.** loading, empty, empty-after-filter, error (retry), forbidden (no `access.read`), not configured, connecting,
   unavailable, unsupported, stale (last-known copy: readable, every physical control withdrawn), per-station still states.
 - **Drawer** per station: a still (live video stays in the classic panel), place, last seen, call row, doors, announce,
@@ -92,7 +99,10 @@ The browser never talks to WisKey.
    show none; the drawer's door row shows "open by hold" when the program says `held_acknowledged`.
 6. **Call duration** is counted from the first observation of the state by this browser (the feed carries no start time).
 7. **Crystal skin.** Not on this base (it exists on `origin/main`); the skin specs are driven by the skin list
-   (`SKIN_IDS`), so Crystal is covered automatically once merged.
+   (`SKIN_IDS`), so Crystal is covered automatically once merged. It was looked at once in a throwaway local tree (this
+   branch's screen files over `origin/main`'s `frontend/src/design`, never pushed): the skins spec, light and dark at the
+   three widths, passed, and `stations-*-crystal-*` in the evidence folder come from that run. The layout sweep and the pixel
+   baselines for Crystal run only after the merge.
 8. **Other screens' fallback panels** (`FEED_PANELS` in the sibling native screens) still say WisKey in places; this screen's
    feed messages never name the platform. Not touched here.
 9. **Fix outside the slice.** `system-wiskey-diagnostics.ts` chip radius was a literal (an S1 `unit-token-lint` failure);

@@ -47,6 +47,26 @@ function ownTargets(args: { ctx: string }): string[] {
   return out;
 }
 
+/** Runs inside the page: the table's own buttons (the station, a door, answer) that lie even partly outside the table host's visible
+ * width. A wide table scrolls inside its host and the layout guard does not call that a finding - but it hides what is at the end of
+ * the row, and the buttons must not be there (the table keeps to the host by giving up columns: screens/wiskey-stations-logic.ts). */
+function tableButtonsClipped(args: { ctx: string }): string[] {
+  const out: string[] = [];
+  const host = document.querySelector('sw-app')?.shadowRoot?.querySelector('wiskey-stations')?.shadowRoot?.querySelector('sw-table') as HTMLElement | null;
+  const root = host?.shadowRoot;
+  if (!host || !root) return out;
+  const box = host.getBoundingClientRect();
+  for (const el of Array.from(root.querySelectorAll('wk-action-button'))) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0) continue;
+    if (r.left < box.left - 1 || r.right > box.right + 1) {
+      const name = el.getAttribute('data-wk-door') ?? el.getAttribute('data-wk-open') ?? 'button';
+      out.push(`${args.ctx}: ${name} ${Math.round(r.left)}..${Math.round(r.right)} outside the table ${Math.round(box.left)}..${Math.round(box.right)}`);
+    }
+  }
+  return out;
+}
+
 async function settle(page: Page) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await page.waitForTimeout(120);
@@ -64,6 +84,7 @@ test.describe('wiskey-stations layout guard', () => {
     await installStationsMock(page, newMock());
     const results: Finding[] = [];
     const own: string[] = [];
+    const cut: string[] = [];
     let runs = 0;
     const check = async (ctx: string, extraSkip = '') => {
       runs++;
@@ -97,6 +118,7 @@ test.describe('wiskey-stations layout guard', () => {
           if (!phone) {
             await click(`${SCREEN} sw-view-switch button[data-view="table"]`);
             await check(`${ctx} table`);
+            cut.push(...(await page.evaluate(tableButtonsClipped, { ctx: `${ctx} table` })));
           }
           await click(`${SCREEN} sw-view-switch button[data-view="cards"]`);
           // the station's drawer with the door settings open (cards lie under the modal: the drawer's own content is the subject)
@@ -129,12 +151,14 @@ test.describe('wiskey-stations layout guard', () => {
       }
     }
     const { byCls, lines } = summarize(results);
-    console.log(`layout-wiskey-stations: ${runs} checks, findings ${results.length} (${JSON.stringify(byCls)}), own targets under the hit area ${own.length}, page errors ${errors.length}`);
+    console.log(`layout-wiskey-stations: ${runs} checks, findings ${results.length} (${JSON.stringify(byCls)}), own targets under the hit area ${own.length}, table buttons cut off ${cut.length}, page errors ${errors.length}`);
     for (const l of lines) console.log('  ' + l);
     for (const l of [...new Set(own)].slice(0, 40)) console.log('  [own target] ' + l);
+    for (const l of [...new Set(cut)].slice(0, 40)) console.log('  [table cut] ' + l);
     expect(errors, 'page errors').toEqual([]);
     expect(lines, 'layout findings').toEqual([]);
     expect([...new Set(own)], 'controls below the hit area').toEqual([]);
+    expect([...new Set(cut)], 'table buttons outside the visible table').toEqual([]);
   });
 
   test('the states of the screen never scroll sideways: loading, empty, forbidden, a last-known copy', async ({ page }) => {

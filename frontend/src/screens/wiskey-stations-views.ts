@@ -38,6 +38,7 @@ import {
   type PlaceMap,
   type Rights,
   type StationsPolicy,
+  type TableTier,
 } from './wiskey-stations-logic';
 import { wkIcon } from './wiskey-stations-icons';
 
@@ -62,8 +63,9 @@ export interface ViewCtx {
   places: PlaceMap | null;
   actions: StationActions;
   clock: CallClock;
-  /** A tablet or narrower: the table drops its least needed columns. */
-  compact: boolean;
+  /** How much of the table fits: `full` (a wide desktop), `medium` (a laptop: no door names, no model), `compact` (a tablet: also
+   * no place, call and last-seen columns - they move under the state). The buttons and the state never go. */
+  table: TableTier;
   /** The installation has the media server stills need (a station without it shows "no picture"). */
   media: boolean;
   /** Cache-buster of the stills (bumped every minute). */
@@ -299,28 +301,63 @@ export function tableColumns(v: ViewCtx, list: readonly AccessStation[]): TableC
   const t = v.text;
   const as = (r: Record<string, unknown>) => r as unknown as AccessStation;
   const tech = list.some((s) => s.technical);
+  // The cells render inside sw-table's own shadow root (this screen's stylesheet does not reach them), so they carry inline,
+  // token-only styles. The order is by what an operator reads and does: who, is it up, a call, the buttons - and only then the
+  // place, the last sighting, the door names and the technical columns. A wide table scrolls inside its host, so what is cut off
+  // at a narrow width is always the least needed column, never the buttons.
+  const none = html`<span style="color:var(--sw-text-3)">—</span>`;
+  const compact = v.table === 'compact';
   const cols: TableColumn[] = [
     { key: 'name', label: t.table.station, render: (r) => html`<wk-action-button tone="quiet" data-wk-open=${as(r).id} @click=${() => v.open(as(r).id)}>${as(r).name}</wk-action-button>` },
-    { key: 'place', label: t.table.place, render: (r) => html`<span>${placeLabelOf(as(r).id, v.places) || '—'}</span>` },
-    { key: 'status', label: t.table.status, render: (r) => html`<sw-badge kind=${as(r).online ? 'live' : 'offline'} label=${as(r).online ? t.status.online : t.status.offline}></sw-badge>` },
-    { key: 'seen', label: t.table.seen, render: (r) => html`<bdi>${seenOf(v, as(r))}</bdi>` },
-    { key: 'call', label: t.table.call, render: (r) => callPill(v, as(r), true) || html`<span style="color:var(--sw-text-3)">—</span>` },
+    {
+      key: 'status',
+      label: t.table.status,
+      render: (r) => {
+        const s = as(r);
+        const badge = html`<sw-badge kind=${s.online ? 'live' : 'offline'} label=${s.online ? t.status.online : t.status.offline}></sw-badge>`;
+        if (!compact) return badge;
+        // a compact table has no call and no "last seen" column: the state cell carries a call that is on, and an offline
+        // station's last sighting, under the state
+        const pill = callPill(v, s, true);
+        const seen = s.online ? nothing : html`<small style="color:var(--sw-text-3);font-size:var(--sw-fs-xs)"><bdi>${seenOf(v, s)}</bdi></small>`;
+        return pill === nothing && seen === nothing ? badge : html`<span style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:var(--sw-s-1)">${badge}${pill}${seen}</span>`;
+      },
+    },
   ];
-  // a tablet's table keeps what an operator reads and does; the door names (the buttons carry them) and the model wait in the drawer
-  if (!v.compact) cols.push({ key: 'doors', label: t.table.doors, render: (r) => html`<span>${stationDoors(as(r)).map((l) => doorName(l, t)).join(', ') || '—'}</span>` });
-  if (tech) {
-    cols.push({ key: 'sync', label: t.table.sync, render: (r) => (as(r).technical ? html`<sw-badge kind=${syncKind(as(r).sync_state)} label=${syncWord(as(r).sync_state, t)}></sw-badge>` : html`<span style="color:var(--sw-text-3)">—</span>`) });
-    if (!v.compact) cols.push({ key: 'model', label: t.table.model, ltr: true, render: (r) => html`<span>${[as(r).technical?.model, as(r).technical?.firmware].filter(Boolean).join(' · ') || '—'}</span>` });
-  }
+  if (!compact) cols.push({ key: 'call', label: t.table.call, render: (r) => callPill(v, as(r), true) });
   cols.push({
     key: 'actions',
-    label: '',
+    label: t.table.actions,
     render: (r) => {
       const s = as(r);
       const answer = v.rights.call && s.online && s.call_state === 'ringing' && showCallHint(v.policy, v.rights);
-      return html`<span style="display:inline-flex;align-items:center;gap:var(--sw-s-2)">${answer ? callButton(v, s, 'answer', 'ok', 'phone', t.call.answer) : nothing}${doorButtons(v, s)}</span>`;
+      // two buttons per line at most: a station with several doors stacks its buttons instead of widening the column
+      return html`<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--sw-s-2);max-inline-size:190px">${answer ? callButton(v, s, 'answer', 'ok', 'phone', t.call.answer) : nothing}${doorButtons(v, s)}</span>`;
     },
   });
+  // what a narrower table gives up waits in the drawer: the place (compact), the door names - the buttons carry them - and the
+  // model (medium and compact); the last sighting and a call that is on move into the state cell (compact)
+  if (!compact) {
+    cols.push(
+      { key: 'place', label: t.table.place, render: (r) => html`<span style="display:inline-block;white-space:normal;max-inline-size:130px;vertical-align:middle">${placeLabelOf(as(r).id, v.places) || '—'}</span>` },
+      { key: 'seen', label: t.table.seen, render: (r) => html`<bdi>${seenOf(v, as(r))}</bdi>` },
+    );
+  }
+  if (v.table === 'full') cols.push({ key: 'doors', label: t.table.doors, render: (r) => html`<span style="display:inline-block;white-space:normal;max-inline-size:120px;vertical-align:middle">${stationDoors(as(r)).map((l) => doorName(l, t)).join(', ') || '—'}</span>` });
+  if (tech) {
+    cols.push({ key: 'sync', label: t.table.sync, render: (r) => (as(r).technical ? html`<sw-badge kind=${syncKind(as(r).sync_state)} label=${syncWord(as(r).sync_state, t)}></sw-badge>` : none) });
+    if (v.table === 'full') {
+      cols.push({
+        key: 'model',
+        label: t.table.model,
+        ltr: true,
+        render: (r) => {
+          const tc = as(r).technical;
+          return tc?.model || tc?.firmware ? html`<span style="display:inline-block;vertical-align:middle">${tc.model ? html`<span style="display:block">${tc.model}</span>` : nothing}${tc.firmware ? html`<span style="display:block;color:var(--sw-text-3)">${tc.firmware}</span>` : nothing}</span>` : none;
+        },
+      });
+    }
+  }
   return cols;
 }
 

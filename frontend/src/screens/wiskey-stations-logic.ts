@@ -107,6 +107,18 @@ export function visibleStations(list: readonly AccessStation[], f: StationFilter
   return list.filter((s) => matchesFilter(s, f) && matchesQuery(s, query, placeLabelOf(s.id, map)) && inPlaceFilter(s.id, place, map));
 }
 
+// ---------------------------------------------------------------- the table's width tiers
+
+/** A wide table scrolls inside its host, which hides exactly the columns at its end - so the table gives up its least needed
+ * columns by the viewport instead: `full` (a wide desktop: every column), `medium` (a laptop: no door names, no model), `compact`
+ * (a tablet: also no place, no call and no "last seen" column - a call that is on and the offline station's last sighting move under
+ * its state). Who, whether it is up, a call that is on, the buttons and the sync state are in every tier. Measured with the
+ * mock-up's stations: the full table needs about 1040 px of host. */
+export type TableTier = 'full' | 'medium' | 'compact';
+export const TABLE_COMPACT_MAX = 1100;
+export const TABLE_MEDIUM_MAX = 1439;
+export const tableTierOf = (viewport: number): TableTier => (viewport <= TABLE_COMPACT_MAX ? 'compact' : viewport <= TABLE_MEDIUM_MAX ? 'medium' : 'full');
+
 // ---------------------------------------------------------------- "seen" and ages
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
