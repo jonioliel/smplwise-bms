@@ -15,6 +15,7 @@ import re
 import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -872,3 +873,56 @@ def test_the_migration_creates_the_record_and_the_opt_out_tables(mc):
     assert not {"text", "message", "body", "phone", "token", "pin"} & cols, "no column could hold a message, a number or a credential"
     assert {r["name"] for r in rows(s, "PRAGMA table_info(intercom_message_optout)")} == {"person_id", "at", "by_user_id", "by_name"}
     assert 79 in {r["version"] for r in rows(s, "SELECT version FROM schema_migrations")}
+
+
+# ---------------------------------------------------------------- the mock of the Playwright specs cannot drift from the routes
+
+WIRE = Path(__file__).resolve().parents[3] / "frontend" / "tests" / "fixtures" / "messaging_wire.json"
+
+
+def test_the_mock_replies_have_the_shape_of_the_real_routes(mc):
+    """The people screen and the Settings page are tested in Playwright against a MOCKED backend whose answers come from
+    frontend/tests/fixtures/messaging_wire.json. A mock that quietly drifts from the server would prove nothing, so this asks the REAL
+    routes (over the fake WisKey) and checks every reply in the fixture has exactly the keys and value types the server produces
+    (the shape rules are test_access_control_wire.py's)."""
+    from test_access_control_wire import mismatches, shape
+
+    fake, c, s = mc
+    wire = json.loads(WIRE.read_text(encoding="utf-8"))
+    enable(c, organization="מגדל הדגמה", rate_per_hour=2)
+    real: dict[str, Any] = {}
+    real["config"] = req(c, "GET", "/messaging").json()
+    real["recipients"] = req(c, "POST", "/messaging/recipients", json={"person_ids": ["u1"]}).json()
+    assert send(c, "u5", template="card_ready").status_code == 200
+    fake.wa_unregistered.add(PHONES[4])
+    assert send(c, "u5", text="שלום", bulk_id="bulk-wire-0001", bulk_total=2).status_code == 502
+    optout = req(c, "PUT", "/people/u5/messages/optout", json={"opted_out": True})
+    real["optout"] = optout.json()
+    real["history"] = req(c, "GET", "/people/u5/messages").json()
+    fake.wa_unregistered.clear()
+    person(fake, "u3")["phone"] = ""
+    errors: dict[str, Any] = {}
+    errors["no_phone"] = send(c, "u3", text="שלום").json()
+    assert send(c, "u2", text="שלום").status_code == 200  # the second message of the hour
+    errors["rate_hour"] = send(c, "u4", text="שלום").json()
+    errors["settings_invalid"] = save(c, bulk_max=0).json()
+    cur = settings_doc(c)
+    doc = {k: cur[k] for k in ("enabled", "free_text", "bulk_max", "rate_per_hour", "organization", "account", "templates")}
+    errors["settings_conflict"] = req(c, "PUT", "/messaging/settings", json={"base_revision": cur["revision"] - 1, **doc}).json()
+    with Database(s.db_path).connection() as conn:
+        conn.execute("DELETE FROM intercom_messages")
+    save(c, rate_per_hour=60)
+    fake.wa_uncertain.add("u1")
+    errors["uncertain"] = send(c, "u1", text="שלום").json()
+    fake.wa_uncertain.clear()
+    r = send(c, "u2", template="closure")
+    assert r.status_code == 200
+    real["sent"] = r.json()
+    real["settings"] = req(c, "GET", "/messaging/settings").json()
+    for name, reply in real.items():
+        mock = {**wire[name], "sync": wire["sync"]} if "sync" in reply else wire[name]
+        problems = mismatches(shape(reply), shape(mock))
+        assert not problems, f"{name} drifted from the server:\n  " + "\n  ".join(problems)
+    for key, body in errors.items():
+        assert wire["errors"][key]["code"] == body["code"], (key, body)
+        assert not mismatches(shape(body), shape(wire["errors"][key])), (key, mismatches(shape(body), shape(wire["errors"][key])))

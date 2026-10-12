@@ -7,11 +7,14 @@ import type { Page, Route, WebSocketRoute } from '@playwright/test';
 // routers/access_control_reads.py (the real rules are the backend tests: tests/test_intercom_people_s7.py and
 // tests/test_intercom_adapter.py) - level by level: a names-level caller gets no credentials, no phone flag and no photo, a list
 // row never carries the phone / profile / timing, the employee number follows `employeeNoVisible`, a station-scoped caller sees
-// only the people of their stations - and, for the message dialog, it is the EXECUTABLE form of the DRAFT messaging contract
-// (api/messaging-fake.ts): the real backend has no message route (WisKey ask W11 is open); nothing here can reach a phone.
+// only the people of their stations - and, for the message dialog, the message routes of routers/access_control_messaging.py (CR-036 WA):
+// the reply shapes come from tests/fixtures/messaging_wire.json, which the backend test test_intercom_messaging.py checks against the REAL routes
+// (so this mock cannot drift); the rules (consent, the allowance, the template revision, the outcomes) are the backend tests'. Nothing here can
+// reach a phone: the WisKey side of the messaging (ask W11) is unanswered and has only run against a fake.
 // Everything is invented: an office building, its stations, its people, numbers in the documentation range. No lab value.
 
 export const ADMIN = ['access.read', 'access.stations.read', 'access.events.read', 'access.events.export', 'access.people.read', 'access.people.sensitive', 'access.people.manage', 'access.cards.capture', 'access.call', 'access.admin.read', 'system.configure'];
+export const MESSAGE = 'access.people.message';
 export const OPERATOR = ['access.read', 'access.stations.read', 'access.events.read', 'access.people.read', 'access.call'];
 export const VIEWER = ['access.read'];
 export type Role = 'admin' | 'operator' | 'viewer' | 'scoped';
@@ -91,7 +94,47 @@ export function extraPeople(n: number): RawPerson[] {
 }
 
 export type ReadMode = 'ready' | 'empty' | 'error' | 'unavailable' | 'unsupported' | 'connecting' | 'forbidden' | 'down_after_ready';
-export type MsgMode = 'ok' | 'rate' | 'not_registered' | 'uncertain' | 'service_down' | 'slow' | 'expired';
+export type MsgMode = 'ok' | 'rate' | 'not_registered' | 'uncertain' | 'service_down' | 'slow' | 'expired' | 'template_changed' | 'forbidden' | 'gone';
+
+export interface HistoryRow {
+  id: string;
+  at: string;
+  by: string | null;
+  kind: 'template' | 'free';
+  template_id: string | null;
+  template_label: string | null;
+  outcome: 'sent' | 'refused' | 'unknown' | 'pending';
+  reason: string | null;
+  bulk: boolean;
+}
+
+/** The message routes' state: what the administrator set and what the next send does. */
+export interface MsgState {
+  /** How a send ends (`ok` by default). */
+  mode: MsgMode;
+  /** Per-person overrides of `mode` (a bulk run where one person fails). */
+  failFor: Record<string, MsgMode>;
+  /** The next N sends are refused with a burst rate limit ("wait a moment"), then they pass. */
+  burst: number;
+  /** The administrator's switch (`feature`), and whether the messaging service is connected (`enabled`). */
+  feature: boolean;
+  enabled: boolean;
+  freeText: boolean;
+  bulkMax: number;
+  quota: { limit: number; used: number } | null;
+  /** A faulty catalogue: one template with a credential placeholder (the dialog must not offer it). */
+  credentialTemplate: boolean;
+  templatesRevision: number;
+  paceMs: number;
+  /** null = by the sensitive level; false = hidden-phone mode, true = the masked number is shown. */
+  revealPhone: boolean | null;
+  /** Each send takes this long (to look at the "sending" state). */
+  delayMs: number;
+  history: Record<string, HistoryRow[]>;
+  optOut: Record<string, { at: string; by: string }>;
+  /** `GET people/{id}/messages` answers this status instead (403 | 404 | 503), to see the tab's states. */
+  historyFails: 0 | 403 | 404 | 503;
+}
 
 export interface PeopleMock {
   role: Role;
@@ -110,29 +153,33 @@ export interface PeopleMock {
   photoEnabled: boolean;
   /** Page size the list answers with at most (the screen asks for 50; a spec lowers it to see the paging). */
   pageCap: number;
+  /** The caller holds `access.people.message` (the messaging itself is the administrator's: `msg.feature`). */
   messaging: boolean;
-  msg: { mode: MsgMode; enabled: boolean; freeText: boolean; bulkMax: number; quota: { limit: number; used: number } | null; credentialTemplate: boolean };
+  msg: MsgState;
   hits: string[];
   writes: { path: string; body: unknown }[];
   revision: number;
   /** The change-notice sockets the screen opened (intercom/ws): `push(st)` sends WisKey's data-free refresh notice on each. */
   sockets: WebSocketRoute[];
-  /** A message can-send override (null = by the sensitive permission): a sender who may not see phone numbers (hidden-phone mode). */
-  canSend: boolean | null;
 }
 
 export function newMock(role: Role = 'admin'): PeopleMock {
   return {
     role, scope: ['gate', 'lobby'], employeeNoVisible: true, people: directory(), mode: 'ready', delay: 0, stale: false, incomplete: null, detail: 'ok', photo: 'ok', photoEnabled: true,
-    pageCap: 50, messaging: false, msg: { mode: 'ok', enabled: true, freeText: true, bulkMax: 10, quota: { limit: 6, used: 1 }, credentialTemplate: false }, hits: [], writes: [], revision: 1, sockets: [], canSend: null,
+    pageCap: 50, messaging: false, hits: [], writes: [], revision: 1, sockets: [],
+    msg: {
+      mode: 'ok', failFor: {}, burst: 0, feature: true, enabled: true, freeText: true, bulkMax: 10, quota: { limit: 6, used: 1 }, credentialTemplate: false, templatesRevision: 3,
+      paceMs: 0, revealPhone: null, delayMs: 0, history: {}, optOut: {}, historyFails: 0,
+    },
   };
 }
 
 const permsOf = (st: PeopleMock): { installation: string[]; any: string[] } => {
-  if (st.role === 'admin') return { installation: ADMIN, any: ADMIN };
-  if (st.role === 'operator') return { installation: OPERATOR, any: OPERATOR };
+  const plus = (list: string[]) => (st.messaging ? [...list, MESSAGE] : list);
+  if (st.role === 'admin') return { installation: plus(ADMIN), any: plus(ADMIN) };
+  if (st.role === 'operator') return { installation: plus(OPERATOR), any: plus(OPERATOR) };
   if (st.role === 'viewer') return { installation: VIEWER, any: VIEWER };
-  return { installation: ['access.read'], any: OPERATOR }; // a station-scoped operator: the new permissions below installation scope
+  return { installation: ['access.read'], any: plus(OPERATOR) }; // a station-scoped operator: the new permissions below installation scope
 };
 const sensitiveLevel = (st: PeopleMock) => st.role === 'admin';
 const err = (code: string, user_message: string, details: Record<string, unknown> = {}) => ({ code, user_message, retryable: false, correlation_id: '', details });
@@ -230,60 +277,131 @@ function listPeople(st: PeopleMock, q: URLSearchParams) {
   };
 }
 
-const m_canSend = (st: PeopleMock, perms: string[]) => st.canSend ?? perms.includes('access.people.sensitive');
 const head = (state: string, last_error: string | null = null) => ({ state, configured: state !== 'ha_not_configured', last_error, fetched_at: '2026-10-12T09:59:30Z', sync: { state: 'ready', connected: true } });
 
-/** The draft messaging contract's server: eligibility, the quota, the outcomes a spec asks for. */
-function messaging(st: PeopleMock, p: string, body: unknown, json: (b: unknown, s?: number) => Promise<void>): Promise<void> | null {
+const messagingWire = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'messaging_wire.json'), 'utf8')) as Record<string, any>;
+const wireOf = (name: string): any => JSON.parse(JSON.stringify(messagingWire[name]));
+const NOW_ISO = '2026-10-12T10:00:00Z';
+
+const MSG_TEMPLATES = [
+  { id: 'card_ready', label: 'כרטיס מוכן', body: 'שלום {name}, כרטיס הכניסה שלך מוכן לאיסוף במשרד.' },
+  { id: 'validity_reminder', label: 'תזכורת תוקף', body: 'שלום {name}, תוקף הכניסה שלך מסתיים בקרוב. נא לפנות למשרד.' },
+  { id: 'closure', label: 'הכניסה סגורה', body: 'שלום {name}, הכניסה לחניון סגורה היום בין 12:00 ל־14:00.' },
+];
+
+/** The effective consent of a person, as the server computes it: Arx's opt-out list, then what the messaging service keeps. */
+const consentOf = (st: PeopleMock, p: RawPerson | undefined): 'granted' | 'declined' | 'unknown' =>
+  p && (st.msg.optOut[p.id] || p.whatsapp_consent === 'declined') ? 'declined' : p?.whatsapp_consent === 'granted' ? 'granted' : 'unknown';
+
+const maskOf = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  return digits.length < 4 ? null : `${'•'.repeat(digits.length - 2)}${digits.slice(-2)}`;
+};
+
+/** The message routes: the dialog's configuration, the preview of a selection, a send, the history and the opt-out. */
+async function messaging(st: PeopleMock, method: string, p: string, body: unknown, json: (b: unknown, s?: number) => Promise<void>): Promise<void | null> {
   const m = st.msg;
-  const perms = permsOf(st).any;
-  const canSend = m_canSend(st, perms);
+  const reveal = m.revealPhone ?? sensitiveLevel(st);
+  const permitted = permsOf(st).any.includes(MESSAGE);
+  if (!/^access-control\/(messaging|people\/[^/]+\/messages)/.test(p)) return null;
+  if (!permitted) return json(err('forbidden', 'אין הרשאה לפעולה הזו.'), 403);
+
   if (p === 'access-control/messaging') {
+    const wire = wireOf('config');
+    const templates = [...MSG_TEMPLATES, ...(m.credentialTemplate ? [{ id: 'bad', label: 'עם קוד', body: 'הקוד שלך הוא {pin}' }] : [])];
     return json({
-      ...head('ready'),
+      ...wire,
       messaging: {
-        enabled: m.enabled, can_send: canSend, can_reveal_phone: sensitiveLevel(st), free_text: m.freeText, bulk_max: m.bulkMax, text_max: 1000,
-        templates: [
-          { id: 'card_ready', label: 'כרטיס מוכן', body: 'שלום {name}, כרטיס הכניסה שלך מוכן לאיסוף במשרד.' },
-          { id: 'validity_reminder', label: 'תזכורת תוקף', body: 'שלום {name}, תוקף הכניסה שלך מסתיים בקרוב. נא לפנות למשרד.' },
-          { id: 'closure', label: 'הכניסה סגורה', body: 'שלום {name}, הכניסה לחניון סגורה היום בין 12:00 ל־14:00.' },
-          ...(m.credentialTemplate ? [{ id: 'bad', label: 'עם קוד', body: 'הקוד שלך הוא {pin}' }] : []),
-        ],
-        quota: m.quota ? { ...m.quota, resets_in_s: 840 } : null,
+        ...wire.messaging, feature: m.feature, enabled: m.feature && m.enabled, can_send: m.feature, can_reveal_phone: sensitiveLevel(st), free_text: m.freeText, bulk_max: m.bulkMax,
+        templates: m.feature ? templates : [], templates_revision: m.templatesRevision, quota: m.feature && m.quota ? { ...m.quota, resets_in_s: 840 } : null, pace_ms: m.paceMs,
       },
     });
   }
   if (p === 'access-control/messaging/recipients') {
-    const ids = ((body as { person_ids?: string[] })?.person_ids ?? []) as string[];
+    if (!m.feature) return json(err('message_disabled', 'שליחת הודעות כבויה בהגדרות.'), 409);
+    const ids = [...new Set(((body as { person_ids?: string[] })?.person_ids ?? []) as string[])].slice(0, 6);
+    const wire = wireOf('recipients');
     return json({
-      recipients: ids.map((id) => {
+      ...wire,
+      recipients: ids.flatMap((id) => {
         const r = st.people.find((x) => x.id === id);
-        const phone = r?.phone ?? '';
-        const digits = phone.replace(/\D/g, '');
-        return {
-          person_id: id, name: r?.display_name ?? id, phone_masked: phone && sensitiveLevel(st) ? `${'•'.repeat(Math.max(3, digits.length - 2))}${digits.slice(-2)}` : null, has_phone: !!phone,
-          consent: r?.whatsapp_consent ?? 'granted',
-        };
+        if (!r || (st.role === 'scoped' && visibleStations(st, r).length === 0)) return [];
+        return [{ person_id: id, name: r.display_name, phone_masked: r.phone && reveal ? maskOf(r.phone) : null, has_phone: !!r.phone, consent: consentOf(st, r), allowed: true }];
       }),
     });
   }
-  const send = /^access-control\/people\/([^/]+)\/messages$/.exec(p);
-  if (send) {
-    const r = st.people.find((x) => x.id === send[1]);
-    const b = body as { text?: string; confirmed?: boolean };
+  const one = /^access-control\/people\/([^/]+)\/messages(\/optout)?$/.exec(p);
+  if (!one) return null;
+  const id = decodeURIComponent(one[1]);
+  const r = st.people.find((x) => x.id === id);
+  if (!r || (st.role === 'scoped' && visibleStations(st, r).length === 0)) return json(err('intercom_person_not_found', 'האדם לא נמצא.'), 404);
+  if (one[2]) {
     st.writes.push({ path: p, body });
-    if (!r || !r.phone) return json(err('message_no_phone', 'אין מספר טלפון.'), 422);
-    if (r.whatsapp_consent === 'declined') return json(err('message_no_consent', 'האדם ביקש לא לקבל הודעות.'), 409);
-    if (b.confirmed !== true || !b.text?.trim()) return json(err('message_forbidden_content', 'ההודעה אינה תקינה.'), 422);
-    if (m.mode === 'service_down') return json(err('message_service_unavailable', 'שירות ההודעות אינו מחובר.'), 503);
-    if (m.mode === 'rate' || (m.quota && m.quota.used >= m.quota.limit)) return json(err('message_rate_limited', 'המכסה מלאה.', { retry_after_s: 840 }), 429);
-    if (m.mode === 'not_registered') return json(err('message_not_registered', 'המספר אינו רשום.'), 502);
-    if (m.mode === 'uncertain') return json(err('message_uncertain', 'לא ידוע.'), 504);
-    if (m.mode === 'expired') return json(err('message_expired', 'פג.'), 410);
-    if (m.quota) m.quota.used += 1;
-    return json({ sent_at: '2026-10-12T10:00:00Z' });
+    const to = (body as { opted_out?: boolean }).opted_out === true;
+    if (to) m.optOut[id] = { at: NOW_ISO, by: 'בודק' };
+    else delete m.optOut[id];
+    return json({ opt_out: m.optOut[id] ?? null, consent: consentOf(st, r) });
   }
-  return null;
+  if (method === 'GET') {
+    if (m.historyFails === 403) return json(err('message_forbidden', 'אין לכם הרשאה לשלוח הודעה לאדם הזה.'), 403);
+    if (m.historyFails === 404) return json(err('intercom_person_not_found', 'האדם לא נמצא.'), 404);
+    if (m.historyFails === 503) return json(err('message_service_unavailable', 'שירות ההודעות אינו מחובר.'), 503);
+    return json({ ...wireOf('history'), messages: m.history[id] ?? [], opt_out: m.optOut[id] ?? null, consent: consentOf(st, r) });
+  }
+  // ---- a send
+  const b = body as { template_id?: string | null; templates_revision?: number; text?: string; confirmed?: boolean; bulk_id?: string };
+  st.writes.push({ path: p, body });
+  if (!m.feature) return json(err('message_disabled', 'שליחת הודעות כבויה בהגדרות.'), 409);
+  if (!r.phone) return json(err('message_no_phone', 'לאדם הזה אין מספר טלפון בכרטיס.', { outcome: 'not_sent' }), 422);
+  if (consentOf(st, r) === 'declined') return json(err('message_no_consent', 'האדם ביקש לא לקבל הודעות.', { outcome: 'not_sent' }), 409);
+  if (b.confirmed !== true) return json(err('confirmation_required', 'שליחת הודעה דורשת אישור מפורש.'), 409);
+  if (b.template_id) {
+    if (b.text !== undefined) return json(err('validation', 'בשליחת תבנית אין שולחים טקסט.'), 422);
+    if (b.templates_revision !== m.templatesRevision) return json(err('message_template_changed', 'התבניות עודכנו מאז שהחלון נפתח - בחרו שוב.', { templates_revision: m.templatesRevision }), 409);
+  } else {
+    if (!m.freeText) return json(err('message_free_text_disabled', 'הודעה חופשית אינה מופעלת.'), 403);
+    if (!b.text?.trim()) return json(err('message_empty', 'ההודעה ריקה.'), 422);
+    if (/(?:קוד|pin|code)[^\d\n]{0,14}\d{4,8}/i.test(b.text)) return json(err('message_forbidden_content', 'אי אפשר לשלוח קוד גישה או פרטי כניסה בהודעה.'), 422);
+  }
+  if (m.burst > 0) {
+    m.burst -= 1;
+    return json(err('message_rate_limited', 'יותר מדי הודעות בזמן קצר.', { outcome: 'not_sent', scope: 'burst', retry_after_s: 1 }), 429);
+  }
+  const mode = m.failFor[id] ?? m.mode;
+  if (mode === 'slow') await new Promise((res) => setTimeout(res, 600));
+  else if (m.delayMs) {
+    // a long wait is released by setting `delayMs` back to 0 (a spec holding a send "in flight" lets go of it before it closes the page)
+    for (const until = Date.now() + m.delayMs; m.delayMs && Date.now() < until; ) await new Promise((res) => setTimeout(res, 25));
+  }
+  if (mode === 'service_down') return json(err('message_service_unavailable', 'שירות ההודעות אינו מחובר.', { outcome: 'not_sent' }), 503);
+  if (mode === 'rate' || (m.quota && m.quota.used >= m.quota.limit)) {
+    return json(err('message_rate_limited', 'הגעתם למכסת ההודעות לשעה.', { outcome: 'not_sent', scope: 'hour', retry_after_s: 840, quota: { ...(m.quota ?? { limit: 6, used: 6 }), resets_in_s: 840 } }), 429);
+  }
+  if (mode === 'expired') return json(err('message_expired', 'ההודעה פגה.', { outcome: 'not_sent' }), 410);
+  if (mode === 'forbidden') return json(err('message_forbidden', 'אין לכם הרשאה לשלוח הודעה לאדם הזה.', { outcome: 'not_sent' }), 403);
+  if (mode === 'gone') return json(err('intercom_person_not_found', 'האדם לא נמצא.'), 404);
+  if (mode === 'template_changed') {
+    m.templatesRevision += 1;
+    return json(err('message_template_changed', 'התבניות עודכנו מאז שהחלון נפתח - בחרו שוב.', { templates_revision: m.templatesRevision }), 409);
+  }
+  const template = MSG_TEMPLATES.find((t) => t.id === b.template_id);
+  const row = (outcome: HistoryRow['outcome'], reason: string | null): HistoryRow => ({
+    id: `m${Object.values(m.history).flat().length + 1}`, at: NOW_ISO, by: 'בודק', kind: b.template_id ? 'template' : 'free', template_id: b.template_id ?? null,
+    template_label: template?.label ?? null, outcome, reason, bulk: !!b.bulk_id,
+  });
+  if (mode === 'not_registered') {
+    m.history[id] = [row('refused', 'not_registered'), ...(m.history[id] ?? [])];
+    return json(err('message_not_registered', 'המספר אינו רשום בוואטסאפ.', { outcome: 'refused' }), 502);
+  }
+  if (mode === 'uncertain') {
+    if (m.quota) m.quota.used += 1;
+    m.history[id] = [row('unknown', 'uncertain'), ...(m.history[id] ?? [])];
+    return json(err('message_uncertain', 'לא ידוע אם ההודעה נשלחה.', { outcome: 'unknown' }), 504);
+  }
+  if (m.quota) m.quota.used += 1;
+  m.history[id] = [row('sent', null), ...(m.history[id] ?? [])];
+  const wire = wireOf('sent');
+  return json({ ...wire, message: { ...wire.message, id: m.history[id][0].id, sent_at: NOW_ISO }, quota: m.quota ? { ...m.quota, resets_in_s: 840 } : null });
 }
 
 export async function install(page: Page, st: PeopleMock) {
@@ -318,7 +436,7 @@ export async function install(page: Page, st: PeopleMock) {
     // ---- the typed reads
     const feedState = st.mode === 'unavailable' ? 'ha_unavailable' : st.mode === 'connecting' ? 'connecting' : st.mode === 'error' ? 'error' : 'ready';
     if (p === 'access-control/features') {
-      return json({ ...head('ready'), client_api: 1, api: { version: 1, min_client: 1 }, features: { people: { available: st.mode !== 'unsupported', reason: null }, person: { available: true, reason: null }, person_photo: { available: st.photoEnabled, reason: null }, groups: { available: true, reason: null }, ...(st.messaging ? { messaging: { available: true, reason: null } } : {}) } });
+      return json({ ...head('ready'), client_api: 1, api: { version: 1, min_client: 1 }, features: { people: { available: st.mode !== 'unsupported', reason: null }, person: { available: true, reason: null }, person_photo: { available: st.photoEnabled, reason: null }, groups: { available: true, reason: null }, } });
     }
     if (p === 'access-control/stations') return json({ ...head('ready'), fresh: true, stations: st.role === 'scoped' ? STATIONS.filter((s) => st.scope.includes(s.id)) : STATIONS, default_zone: { kind: 'iana', name: 'Asia/Jerusalem' } });
     if (p === 'access-control/groups') {
@@ -327,8 +445,7 @@ export async function install(page: Page, st: PeopleMock) {
     }
     const forbidden = () => json(err('forbidden', 'אין הרשאה לפעולה הזו.'), 403);
     if (!perms.any.includes('access.people.read') && /^access-control\/(people|groups)/.test(p)) return forbidden();
-    const msg = messaging(st, p, req.postDataJSON(), json);
-    if (msg) return msg;
+    if ((await messaging(st, method, p, req.postDataJSON(), json)) !== null) return; // handled (the helper answers `null` for a path that is not its own)
     if (p === 'access-control/people') {
       if (st.delay) await new Promise((r) => setTimeout(r, st.delay));
       if (st.mode === 'forbidden') return forbidden();
