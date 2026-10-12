@@ -149,10 +149,11 @@ may send at all; whether the preview token can be replaced by Arx's own one-shot
 
 See the report of the run at the end of this file (section 9). Files: backend `tests/test_intercom_people_s7.py` (15),
 `tests/test_fake_wiskey_whatsapp.py` (7), the updated `tests/test_intercom_adapter.py`, `tests/test_wiskey_contract.py`; frontend
-unit `tests/unit-people-logic.spec.ts`, `unit-messaging-logic.spec.ts`, `unit-people-nav.spec.ts`, `unit-people-strings.spec.ts`;
-Playwright `tests/evidence-wiskey-people-native.spec.ts` (mocked backend, desktop / tablet / mobile, five skins x light / dark),
-`tests/layout-wiskey-people.spec.ts` (the layout guard, 320..1440), `tests/pixel-wiskey-people.spec.ts` (Linux baselines, new
-states only); the mock `tests/wiskey-people-mock.ts`.
+unit `tests/unit-people-logic.spec.ts` (32), `unit-messaging-logic.spec.ts` (18), `unit-people-nav.spec.ts` (5),
+`unit-people-strings.spec.ts` (5); Playwright `tests/evidence-wiskey-people-native.spec.ts` (59; mocked backend, desktop / tablet /
+mobile, five skins x light / dark), `tests/layout-wiskey-people.spec.ts` (2: the layout guard 320..1440, and the long directory that
+must scroll), `tests/pixel-wiskey-people.spec.ts` (11 x desktop and phone = 22; Linux baselines, new states only); the mock
+`tests/wiskey-people-mock.ts`.
 
 ## 7. Gaps (honest list)
 
@@ -188,3 +189,50 @@ states only); the mock `tests/wiskey-people-mock.ts`.
 `frontend/src/screens/wiskey-people.ts` (rewritten; it still exports `syncBadge` for the editor). New files do not collide:
 `wiskey-person-drawer.ts`, `wiskey-message-dialog.ts`, `api/access-people.ts`, `api/messaging-fake.ts`, `access-control/people-logic.ts`,
 `access-control/messaging-logic.ts`, `i18n/access-people.ts`, `playwright.unit.config.ts` (a Node-only config for the unit loop).
+
+**The pixel baselines and the runner.** `frontend/tests/pixel-wiskey-people.spec.ts-snapshots/` (40 PNGs, Linux) is committed. The
+runner's worktree of this branch (`~/work/pilot-WISKEY-native-s7-people`) holds the same files UNTRACKED (the `linux-pixel` job wrote
+them there), and `run_remote.sh` checks out with a plain `git checkout --detach`: the first runner job after the baselines commit
+stops at the checkout ("untracked working tree files would be overwritten") and, because the script has no `set -e`, carries on at
+the OLD commit - compare the SHA the job prints with the pushed one. Remove that folder in that worktree first. Nothing was deleted
+on the runner by this slice.
+
+## 9. The run report (what was actually run)
+
+Final code commit `ed24d46a`; the commit after it adds only the 40 baselines and this document. "Runner" = the shared Ubuntu box through
+`run_smart.py`; "local" = the workstation, one process at a time.
+
+| Where | What | At | Result |
+|---|---|---|---|
+| local | Node unit specs: people-logic 32, messaging-logic 18, people-nav 5, people-strings 5 | `c68353d0` | 60 passed |
+| local | layout, the long directory (new) - passes with the fix; against the old `display: contents` host it reported 8 findings (list clipped 3576 > 562 px, filter row 11 px, the page did not scroll) | `c68353d0` | passed / failed as intended |
+| local | layout sweep chasing the runner's finding (bubble skin, 320 and 390 px, light) after the selection bar lost its stickiness | `ed24d46a` | passed |
+| local | backend, 17 files that touch the changed modules or the fake WisKey (`test_fake_wiskey`, `_whatsapp`, `test_intercom`, `_adapter`, `_authority`, `_people_s7`, `test_wiskey_background / channels / contract / diagnostics`, `test_shared_space_stations`, `test_rbac_camera_scope`, `test_remote_access`, `test_body_limit`, `test_raw_body_order`, `test_upstream_watch`, `test_plan_catalog`) | `ed24d46a` | 662 passed, 1 warning (24 min) |
+| runner | `tsc --noEmit` | `c68353d0` | ok (the next commit changes a CSS block and a document) |
+| runner | Playwright, desktop + tablet + mobile: the 4 unit specs, `unit-token-lint`, `layout-wiskey-people`, `evidence-wiskey-people-native` | `ed24d46a` | 282 passed, 96 skipped, 0 failed |
+| runner | `linux-pixel` `--update-snapshots`, then a plain verification run (22 tests, desktop + phone) | `ed24d46a` | 22 passed, 22 passed |
+| runner | the full backend suite | `ed24d46a` | BLOCKED - see below |
+| runner | `tsc` again at `ed24d46a`, regression batch of other specs | - | BLOCKED - see below |
+
+The 96 skipped are the tablet and phone projects of the specs that run on the desktop project only by design (the evidence spec's
+`desktopOnly`, the layout sweep's "one project runs the whole sweep"). Earlier runner runs of this branch found, and the commits before
+this one fixed: a race in the sort test, the table scrolling sideways at 768-820 px (now no table under 1000 px), and a
+`border-radius: 10px` in the S1 diagnostics screen that `unit-token-lint` rejects.
+
+**Review of the baselines (all 40 images were looked at, twice for the ones that changed).** It found what the mocked specs could not,
+because the mocked list was always shorter than a screen: the screen host was `display: contents`, so on a phone the list was cut off
+at the bottom and could not be scrolled, and the filter row collapsed to a sliver in the cards view (decision 10). It also found the
+portrait letters that did not match the avatar, "דלתות 1" for one door and a raw English error code in the person's access tab. All four
+are fixed, covered by a test, and the baselines are the regenerated ones.
+
+**BLOCKED: the runner's disk is full.** At the time of the last jobs `/` on the runner was 100% used (221 GB of 232 GB, 0 available):
+`~/work` holds 149 GB in about 60 branch worktrees (4-7 GB each), `~/smplwise-results` 54 GB. The full backend run printed "setup"
+errors for most tests (`No usable temporary directory found` - pytest could not write), and a later `tsc` job failed in `git fetch`
+and `npm` with ENOSPC. So the full backend suite is NOT_RUN as a whole (the 17-file local subset above is what stands in for it; it
+covers every module and test file this slice touched), and nothing newer than `ed24d46a` was verified on the runner. Nothing was
+deleted on the runner; freeing space (`run_remote.sh clean <branch>` for finished branches) is for whoever owns the box.
+
+**NOT_RUN:** any live behaviour against a real WisKey (slice S14); the four old live specs of the embedded panel
+(`evidence-wiskey-people`, `-editor`, `-capture`, `-credentials`; `SW_LIVE=1` fixture only); a real message path (none exists); the
+rest of the frontend suite, the Windows pixel baselines (`win32-pixel`: the pixel spec skips where no baseline exists), the
+visual-diff matrix and the release gate.
