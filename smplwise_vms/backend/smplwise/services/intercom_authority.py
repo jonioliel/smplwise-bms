@@ -16,8 +16,10 @@ out (risk 1 of CR-036: a filter bug here shows everything). The rules (CR-036 2.
 - A person's field level is the LOWEST of the principal's levels over the person's visible stations: names
   (`access.people.read`) or sensitive (`access.people.sensitive` as well). Names level: identity, the employee number (owner
   answer 2 of 2026-10-12; `access.employee_no_sensitive` puts it back under sensitive), assignments, groups, validity,
-  timing. Sensitive: phone, the person's photo, profile values, responsible person and purpose. Credentials (cards, PIN
-  flag) are in no read view at all (the person editor keeps them).
+  timing. Sensitive: the credential kinds (a PIN is set, how many cards - S7, owner answer 2: credentials are a sensitive
+  field level), whether there is a phone, the phone, the person's photo, profile values, responsible person and purpose. A
+  card number, a card mask and a PIN are in no read view at all (the person editor keeps the masked cards). A list row
+  carries of these only the credential kinds and `phone_set`.
 - A person is `editable` only when the principal holds `access.people.manage` on EVERY station the person is assigned to
   (WisKey's `operator_editable` / `person_scope_shared`; the write slice S11 enforces the same rule server-side).
 - An access event is visible with `access.events.read` on its station - name, employee number and the event picture
@@ -308,7 +310,11 @@ def view_stations(auth: Authority, stations: Iterable[dict[str, Any]]) -> list[d
 
 
 PERSON_NAME_KEYS = ("id", "display_name", "active", "archived", "valid_from", "valid_until", "revision", "access_category", "user_type", "identity_locked")
-PERSON_SENSITIVE_KEYS = ("phone", "photo_configured", "profile", "responsible_person", "access_purpose")
+# Sensitive-level fields (owner answer 2 of 2026-10-12: photo, phone and credentials are sensitive field levels). `credentials`
+# is the KINDS only (a PIN is set, how many enabled cards) and `phone_set` whether there is a phone - never a card number, a PIN
+# or a phone in a LIST row: those leave only with one person's page (`detail`, GET /access-control/people/{id}).
+PERSON_SENSITIVE_KEYS = ("phone", "phone_set", "credentials", "photo_configured", "profile", "responsible_person", "access_purpose")
+PERSON_ROW_SENSITIVE_KEYS = ("phone_set", "credentials")
 ASSIGNMENT_KEYS = ("station_id", "enabled", "doors", "sync_state", "last_sync_at")
 
 
@@ -331,12 +337,14 @@ def person_level_of(auth: Authority, person: dict[str, Any]) -> str:
     return auth.person_level(ids)
 
 
-def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False) -> dict[str, Any] | None:
+def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False, detail: bool = True) -> dict[str, Any] | None:
     """A person as this principal may see them, or None (not visible). NAMES: identity with the employee number (unless the
     administrator made it sensitive), the visible assignments (sync state; the error text under the sync-error rule),
-    groups, validity and timing; SENSITIVE adds phone, photo flag, profile values, responsible person and purpose.
-    `editable`: `access.people.manage` on every one of the person's stations (and WisKey's own `operator_editable` when it
-    sent one). `legacy`: the field set of the phase-1b endpoints (GET /intercom/people*)."""
+    groups, validity and timing; SENSITIVE adds the credential kinds, whether there is a phone, the phone itself, the photo
+    flag, profile values, responsible person and purpose. `detail=False` is a LIST row: no timing, and of the sensitive fields
+    only the credential kinds and `phone_set` (the phone, the photo flag, the profile values, the responsible person and the
+    purpose leave only with one person's page). `editable`: `access.people.manage` on every one of the person's stations (and
+    WisKey's own `operator_editable` when it sent one). `legacy`: the field set of the phase-1b endpoints (GET /intercom/people*)."""
     level = person_level_of(auth, person)
     if level == NONE:
         return None
@@ -367,12 +375,12 @@ def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False
     out["employee_no"] = employee_no
     out["group_ids"] = _copy(person.get("group_ids"))
     out["stations"] = visible
-    out["timing"] = _copy(person.get("timing"))
+    out["timing"] = _copy(person.get("timing")) if detail else None
     out["level"] = level
     wiskey_editable = person.get("operator_editable")
     out["editable"] = bool(ids is not None and auth.person_editable(ids)) and wiskey_editable is not False
     for k in PERSON_SENSITIVE_KEYS:
-        out[k] = _copy(person.get(k)) if level == SENSITIVE else None
+        out[k] = _copy(person.get(k)) if level == SENSITIVE and (detail or k in PERSON_ROW_SENSITIVE_KEYS) else None
     return out
 
 

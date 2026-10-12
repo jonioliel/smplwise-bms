@@ -44,6 +44,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -180,6 +181,8 @@ class FakeWiskey:
         # CR-036 S4: the identity-matrix data (`use_directory`): several people and events across the three stations
         self.directory: list[dict[str, Any]] | None = None
         self.event_rows: list[dict[str, Any]] | None = None
+        # CR-036 S7: the clock `users/query` uses for the `expired` / `upcoming` states (None = the real one)
+        self.now: datetime | None = None
         # what happened
         self.received: list[dict[str, Any]] = []
         self.answered: list[tuple[str, str]] = []  # (command or HA type, "ok" | error code)
@@ -362,21 +365,56 @@ class FakeWiskey:
         return person if user_id == person["id"] else None
 
     def _people_page(self, msg: dict[str, Any]) -> dict[str, Any]:
-        """`users/query` over the directory, as WisKey pages it (its `station` / `rights` / `state` filters, name or employee
-        sort, offset clamped to the last page, a snapshot of the ids and revisions). The text is always empty from Arx."""
+        """`users/query` over the directory, as WisKey pages it (access/user_directory.py: its `group` / `profile` / `station` /
+        `rights` / `state` / `credential` filters, name or employee sort, offset clamped to the last page, a snapshot of the ids
+        and revisions). The text is always empty from Arx. `self.now` pins the clock the `expired` / `upcoming` states use."""
         filters = msg.get("filters") or {}
-        people = [p for p in copy.deepcopy(self.directory or []) if not p.get("archived_at")]
-        everyone = len(people)
-        if filters.get("station"):
-            people = [p for p in people if filters["station"] in p["assignments"]]
-        if filters.get("rights") == "assigned":
-            people = [p for p in people if any(a["enabled"] for a in p["assignments"].values())]
-        elif filters.get("rights") == "unassigned":
-            people = [p for p in people if not p["assignments"]]
-        if filters.get("state") == "active":
-            people = [p for p in people if p["active"]]
-        elif filters.get("state") == "inactive":
-            people = [p for p in people if not p["active"]]
+        state = filters.get("state") or ""
+        instant = self.now or datetime.now(timezone.utc)
+        everyone = len(self.directory or [])  # WisKey: total_all is the whole directory it was given
+        wanted_profile = {k: v for k, v in (filters.get("profile") or {}).items() if v}
+
+        def when(value: Any) -> datetime | None:
+            try:
+                parsed = datetime.fromisoformat(value) if value else None
+            except ValueError:
+                return None
+            return parsed.astimezone(timezone.utc) if parsed is not None and parsed.tzinfo else None
+
+        def matches(p: dict[str, Any]) -> bool:
+            if bool(p.get("archived_at")) != (state == "archived"):
+                return False
+            if filters.get("group") and filters["group"] not in p.get("group_ids", []):
+                return False
+            if any(p.get("profile", {}).get(k) != v for k, v in wanted_profile.items()):
+                return False
+            assignments = p.get("assignments", {})
+            station = filters.get("station") or ""
+            selected = [assignments[station]] if station and station in assignments else [] if station else list(assignments.values())
+            rights = filters.get("rights") or ""
+            if station and not rights and not selected:
+                return False
+            if rights == "assigned" and not any(a.get("enabled") for a in selected):
+                return False
+            if rights == "unassigned" and selected:
+                return False
+            if rights == "disabled" and not any(not a.get("enabled") for a in selected):
+                return False
+            if state == "active" and not p.get("active"):
+                return False
+            if state == "inactive" and p.get("active"):
+                return False
+            if state == "expired" and ((ends := when(p.get("valid_until"))) is None or ends > instant):
+                return False
+            if state == "upcoming" and ((starts := when(p.get("valid_from"))) is None or starts <= instant):
+                return False
+            has_card = any(c.get("enabled") for c in p.get("cards", []))
+            credential = filters.get("credential") or ""
+            if (credential == "pin" and not p.get("pin_configured")) or (credential == "no_pin" and p.get("pin_configured"))                     or (credential == "card" and not has_card) or (credential == "no_card" and has_card):
+                return False
+            return True
+
+        people = [p for p in copy.deepcopy(self.directory or []) if matches(p)]
         sort = filters.get("sort") or "employee"
         people.sort(key=(lambda p: p["employee_no"]) if sort == "employee" else (lambda p: p["display_name"].casefold()), reverse=sort == "name_desc")
         offset, limit = int(msg.get("offset") or 0), int(msg.get("limit") or 50)

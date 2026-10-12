@@ -171,7 +171,11 @@ def test_people_by_identity(ac):
     fake, c, _s = ac
     root = body(c, "/people", "root")["people"]
     assert root["total"] == 5 and root["total_all"] == 5 and [p["id"] for p in root["records"]] == ["u1", "u2", "u3", "u4", "u5"]
-    assert root["records"][0]["employee_no"] == "1001" and root["records"][0]["phone"] == "+972500000000" and root["sort"] == "employee"
+    assert root["records"][0]["employee_no"] == "1001" and root["sort"] == "employee" and root["employee_no_visible"] is True
+    # S7: a LIST row carries of the sensitive fields only the credential kinds and whether there is a phone - the phone, the photo flag,
+    # the profile values and the timing leave with one person's page (GET /people/{id}), so 200 rows never hold 200 phone numbers
+    assert root["records"][0]["phone"] is None and root["records"][0]["phone_set"] is True and root["records"][0]["credentials"] == {"pin": True, "cards": 1}
+    assert root["records"][0]["profile"] is None and root["records"][0]["photo_configured"] is None and root["records"][0]["timing"] is None
     otto = body(c, "/people", "otto")["people"]
     assert otto["total"] == 5, "an installation operator sees everyone, unassigned people included"
     assert otto["records"][0]["employee_no"] == "1001" and otto["records"][0]["phone"] is None, "names level: employee number yes, phone no"
