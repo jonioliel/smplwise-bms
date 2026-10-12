@@ -75,6 +75,7 @@ EVENTS_EXPORT = "access.events.export"  # CSV export of the entry log (sensitive
 PEOPLE_READ = "access.people.read"  # people: names, assignments, groups, validity
 PEOPLE_SENSITIVE = "access.people.sensitive"  # employee number, photo / portrait, phone, profile values (sensitive)
 PEOPLE_MANAGE = "access.people.manage"  # existing: the person editor (writes; S11 moves it onto the station chain)
+PEOPLE_MESSAGE = "access.people.message"  # CR-036 WA: a WhatsApp message to a person / a selection (sensitive; services/intercom_messaging.py)
 CALL = "access.call"  # answer / reject / hang up, announcement (sensitive; the endpoints move onto it in S11)
 ADMIN_READ = "access.admin.read"  # Settings status: health, sync, alerts, the intercom's own audit
 # the write phase (S15/S16 merged, owner answer 2): catalogue entries now, enforced when their writes exist
@@ -83,7 +84,7 @@ STATIONS_MANAGE = "access.stations.manage"
 GROUPS_MANAGE = "access.groups.manage"
 
 READ_PERMISSIONS = (READ, STATIONS_READ, EVENTS_READ, PEOPLE_READ, ADMIN_READ)
-SENSITIVE_PERMISSIONS = (EVENTS_EXPORT, PEOPLE_SENSITIVE, CALL, SCHEDULES_MANAGE, STATIONS_MANAGE, GROUPS_MANAGE)
+SENSITIVE_PERMISSIONS = (EVENTS_EXPORT, PEOPLE_SENSITIVE, PEOPLE_MESSAGE, CALL, SCHEDULES_MANAGE, STATIONS_MANAGE, GROUPS_MANAGE)
 NEW_PERMISSIONS = READ_PERMISSIONS[1:] + SENSITIVE_PERMISSIONS
 
 # a person's field level, and a station's view level
