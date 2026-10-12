@@ -269,6 +269,22 @@ export function formatDay(value: string | null | undefined, zone: DisplayZone = 
   }
 }
 
+/** The time an answer was fetched, for a person to read: "12:59" on the same day, "12.10.2026 12:59" on another (display zone, never a
+ * fixed offset). Empty for anything that is not an instant. */
+export function formatClock(value: string | null | undefined, zone: DisplayZone = UTC_ZONE, now = Date.now()): string {
+  if (!value || !/(Z|[+-][0-9]{2}:[0-9]{2})$/.test(value)) return '';
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return '';
+  try {
+    const shift = (t: number) => new Date(t + offsetAt(t, zone) * 1000);
+    const at = shift(ms);
+    const time = at.toLocaleTimeString('he-IL', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
+    return at.toISOString().slice(0, 10) === shift(now).toISOString().slice(0, 10) ? time : `${formatDay(value, zone)} ${time}`;
+  } catch {
+    return '';
+  }
+}
+
 export type SyncStatus = 'synced' | 'pending' | 'syncing' | 'conflict' | 'error' | 'delete_pending' | 'offline' | 'unknown' | 'unassigned';
 
 const SYNC_ORDER: SyncStatus[] = ['conflict', 'error', 'syncing', 'pending', 'delete_pending', 'offline'];
@@ -374,10 +390,14 @@ export function parseView(raw: string | null): PeopleView | null {
   return raw !== null && (VIEWS as readonly string[]).includes(raw) ? (raw as PeopleView) : null;
 }
 
-/** The view actually drawn: the phone has no table (DESIGN_CONTRACT), so a stored "table" falls back to the list there. */
-export function effectiveView(view: PeopleView | null, phone: boolean): PeopleView {
-  const v = view ?? (phone ? 'list' : 'table');
-  return v === 'table' && phone ? 'list' : v;
+/** Below this width (px) the screen has no table: seven columns need about 850 px of content, and a shrunken table is what the design
+ * contract forbids on a phone - a window under 1000 px (a phone, a tablet held upright) uses the list. */
+export const TABLE_MIN_WIDTH = 1000;
+
+/** The view actually drawn: without room for a table (`narrow`), a stored "table" falls back to the list. */
+export function effectiveView(view: PeopleView | null, narrow: boolean): PeopleView {
+  const v = view ?? (narrow ? 'list' : 'table');
+  return v === 'table' && narrow ? 'list' : v;
 }
 
 // ---------------------------------------------------------------- selection (the bulk bar)

@@ -6,8 +6,10 @@ import {
   credentialKinds,
   dayWords,
   effectiveView,
+  TABLE_MIN_WIDTH,
   enabledStations,
   filterCount,
+  formatClock,
   formatDay,
   initials,
   isFiltered,
@@ -220,13 +222,14 @@ test.describe('sensitivity per level', () => {
 });
 
 test.describe('views', () => {
-  test('the phone has no table', () => {
+  test('without room for a table (under 1000 px) the list is drawn instead', () => {
     expect(effectiveView('table', true)).toBe('list');
     expect(effectiveView('table', false)).toBe('table');
     expect(effectiveView('cards', true)).toBe('cards');
     expect(effectiveView(null, true)).toBe('list');
     expect(effectiveView(null, false)).toBe('table');
     expect(parseView('cards')).toBe('cards');
+    expect(TABLE_MIN_WIDTH).toBe(1000);
     expect(parseView('grid')).toBeNull();
     expect(parseView(null)).toBeNull();
   });
@@ -260,6 +263,16 @@ test.describe('state, validity and sync words', () => {
     expect(formatDay('2026-07-01T21:30:00Z', { kind: 'iana', name: 'Asia/Jerusalem' })).toBe('02.07.2026'); // summer time: +03:00
     expect(formatDay('2026-12-31T22:30:00', { kind: 'iana', name: 'UTC' })).toBe(''); // no offset: not an instant
     expect(formatDay(null)).toBe('');
+  });
+
+  test('the time an answer was fetched: the clock on the same day, the date and the clock on another', () => {
+    const jerusalem = { kind: 'iana', name: 'Asia/Jerusalem' } as const;
+    const now = Date.parse('2026-10-12T10:00:00Z');
+    expect(formatClock('2026-10-12T09:59:30Z', jerusalem, now)).toBe('12:59');
+    expect(formatClock('2026-10-11T22:30:00Z', jerusalem, now)).toBe('01:30'); // after midnight in Jerusalem: the same LOCAL day as now (UTC+03:00 in October)
+    expect(formatClock('2026-10-10T08:15:00Z', jerusalem, now)).toBe('10.10.2026 11:15');
+    expect(formatClock('2026-10-12T09:59:30', jerusalem, now)).toBe('');
+    expect(formatClock(null)).toBe('');
   });
 
   test('the overall sync status is the worst of the visible stations; unknown stays unknown, no assignment is unassigned', () => {

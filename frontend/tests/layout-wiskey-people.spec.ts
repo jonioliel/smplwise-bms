@@ -130,7 +130,7 @@ test.describe('layout guard: the native people screen', () => {
         log('width', ctx);
         runs++;
         // the width's own view: the table from 768 px, the list below (the choice is kept in the browser's storage)
-        const phone = w < 768;
+        const phone = w < 1000; // under 1000 px the screen has no table (it needs about 850 px)
         await page.locator(`${SCREEN} [data-people-view="${phone ? 'list' : 'table'}"]`).click();
         await check(page, results, `${ctx} default`, own);
         await ownTargets(page, results, `${ctx} default`);

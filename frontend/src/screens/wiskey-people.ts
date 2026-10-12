@@ -34,6 +34,7 @@ import {
   CREDENTIALS,
   PEOPLE_PAGE,
   PEOPLE_MAX_LIMIT,
+  TABLE_MIN_WIDTH,
   RIGHTS,
   SORTS,
   STATES,
@@ -43,6 +44,7 @@ import {
   effectiveView,
   enabledStations,
   filterCount,
+  formatClock,
   isFiltered,
   mergeRows,
   nextOffset,
@@ -66,7 +68,7 @@ import {
 } from '../access-control/people-logic';
 import type { MessagingConfig, MessagingTransport } from '../access-control/messaging-logic';
 import { pt } from '../i18n/access-people';
-import { formatTime, t, UTC_ZONE } from './wiskey-format';
+import { t, UTC_ZONE } from './wiskey-format';
 import { stateBadge, syncKind, validityText } from './wiskey-person-drawer';
 
 const POLL_MS = 30000; // while the change notices are down, the shown list is refetched this often
@@ -159,7 +161,7 @@ export class WiskeyPeople extends LitElement {
   @state() private view: PeopleView | null = parseView(store.get(STORE_VIEW));
   @state() private columns: ColumnKey[] | null = parseColumnPrefs(store.get(STORE_COLUMNS));
   @state() private columnsOpen = false;
-  @state() private phone = false;
+  @state() private phone = false; // under 1000 px: no table (it needs about 850 px); the phone rules (under 768 px) are CSS media queries
   @state() private stations: AcStationLite[] = [];
   @state() private zone: DisplayZone = UTC_ZONE;
   @state() private groups: AcGroup[] = [];
@@ -180,6 +182,7 @@ export class WiskeyPeople extends LitElement {
   @state() private msgConfig: MessagingConfig | null = null;
   @state() private message: { people: { id: string; name: string }[]; inDrawer: boolean } | null = null;
 
+  private rowsKey = ''; // the query and filters the shown rows answer: "the last known" is only ever the answer to THIS request
   private generation = 0;
   private detailGeneration = 0;
   private inflight = false;
@@ -196,7 +199,7 @@ export class WiskeyPeople extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.media = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 767px)') : null;
+    this.media = typeof window.matchMedia === 'function' ? window.matchMedia(`(max-width: ${TABLE_MIN_WIDTH - 1}px)`) : null;
     this.phone = !!this.media?.matches;
     this.media?.addEventListener('change', this.onMedia);
     if (!isApi()) {
@@ -261,6 +264,10 @@ export class WiskeyPeople extends LitElement {
 
   private request(offset: number, limit: number, snapshot: string): PeopleRequest {
     return { query: this.query, filters: sanitizeFilters(this.filters, this.filterAccess), offset, limit, snapshot };
+  }
+
+  private requestKey(): string {
+    return JSON.stringify([this.query.trim(), sanitizeFilters(this.filters, this.filterAccess)]);
   }
 
   /** Features, station names, groups and (when offered) the message configuration: none of them is fatal. */
@@ -366,6 +373,7 @@ export class WiskeyPeople extends LitElement {
     if (reply.state === 'ready' && reply.people) {
       const page = reply.people;
       this.rows = mergeRows(this.rows, page.records, mode);
+      this.rowsKey = this.requestKey();
       this.page = page; // its `next_offset` continues right after the rows it covered; its `snapshot` is the one the next page carries
       this.shownAt = reply.fetched_at;
       this.feedDown = false;
@@ -386,16 +394,25 @@ export class WiskeyPeople extends LitElement {
       this.phase = 'forbidden';
       return;
     }
-    if (reply.state === 'connecting' && !this.rows.length) {
-      this.phase = 'loading';
+    const known = this.rows.length > 0 && this.rowsKey === this.requestKey();
+    if (known) {
+      this.feedDown = true; // the last list stays, marked as the last known (it answers this very request)
       return;
     }
-    if (this.rows.length) {
-      this.feedDown = true; // the last list stays, marked as the last known
+    this.dropRows(); // rows of another query are not the last known of this one
+    if (reply.state === 'connecting') {
+      this.phase = 'loading';
       return;
     }
     this.phase = reply.state === 'error' ? 'error' : 'unavailable';
     this.panelNote = reply.last_error ?? '';
+  }
+
+  private dropRows() {
+    this.rows = [];
+    this.page = null;
+    this.rowsKey = '';
+    this.selected = new Set();
   }
 
   private fail(err: unknown) {
@@ -403,10 +420,11 @@ export class WiskeyPeople extends LitElement {
       this.phase = 'forbidden';
       return;
     }
-    if (this.rows.length) {
+    if (this.rows.length > 0 && this.rowsKey === this.requestKey()) {
       this.feedDown = true;
       return;
     }
+    this.dropRows();
     this.phase = 'error';
     this.panelNote = describeError(err);
   }
@@ -690,7 +708,7 @@ export class WiskeyPeople extends LitElement {
           </div>`
         : nothing}
       ${this.feedDown && this.rows.length
-        ? html`<div class="note stale" role="status" data-wiskey-stale><sw-icon name="offline" size=${16}></sw-icon><span>${pt('state.stale', { when: this.shownAt ? formatTime(this.shownAt, 'he-IL', this.zone) : '' })}</span></div>`
+        ? html`<div class="note stale" role="status" data-wiskey-stale><sw-icon name="offline" size=${16}></sw-icon><span>${pt('state.stale', { when: formatClock(this.shownAt, this.zone) })}</span></div>`
         : nothing}
       ${this.changed
         ? html`<div class="note stale" role="status" data-wiskey-people-stale><sw-icon name="warning" size=${16}></sw-icon><span>${pt('state.page_stale')}</span>

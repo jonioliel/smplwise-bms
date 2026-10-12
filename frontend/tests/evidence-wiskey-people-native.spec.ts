@@ -153,8 +153,8 @@ test.describe('the data path: typed reads only, filters are the server\'s', () =
     await ready(page);
     await choose(page, 'sort', 'name_desc');
     await expect.poll(() => lastQuery(st).get('sort')).toBe('name_desc');
+    await expect(rows(page).first()).toContainText('תומר אדר'); // the answer, not the request
     const list = await names(page);
-    expect(list[0]).toBe('תומר אדר');
     expect(list).toEqual([...list].sort((a, b) => b.localeCompare(a, 'he')));
   });
 });

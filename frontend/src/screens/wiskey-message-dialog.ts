@@ -431,8 +431,10 @@ export class WiskeyMessageDialog extends LitElement {
       <div class="prev" data-msg-preview><sw-icon name="users" size=${16}></sw-icon><span>${previewText}</span></div>
       ${line}
       <div slot="footer" style="display:contents">
-        <sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!plan.canSend || sending || !!done} @click=${() => void this.send()}>${done ? pt('msg.close') : pt('msg.send_n', { n: plan.send.length })}</sw-button>
-        <sw-button data-msg-cancel @click=${() => this.close()} ?disabled=${sending}>${done ? pt('msg.close') : pt('msg.cancel')}</sw-button>
+        ${done
+          ? html`<sw-button variant="primary" data-msg-cancel @click=${() => this.close()}>${pt('msg.close')}</sw-button>`
+          : html`<sw-button variant="primary" icon="mail" data-msg-send ?disabled=${!plan.canSend || sending} @click=${() => void this.send()}>${pt('msg.send_n', { n: plan.send.length })}</sw-button>
+              <sw-button data-msg-cancel @click=${() => this.close()} ?disabled=${sending}>${pt('msg.cancel')}</sw-button>`}
       </div>`;
   }
 
