@@ -94,6 +94,11 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     icon: 'cpu',
     entries: [
       { tab: 'setup', label: 'חיבורים', href: '#/system/setup', keywords: 'nvr go2rtc wiskey חשבון סיסמה ntp דיסקים הפעלה מחדש' },
+      // CR-036 S10: the access-control status page and its segments (docs/changes/CR-036-S8-S10-NOTES.md, "Merging ... with main")
+      { tab: 'access-control', label: 'בקרת כניסה', href: '#/system/access-control', keywords: 'wiskey אינטרקום תחנות בריאות סנכרון התרעות התנגשויות' },
+      { tab: 'access-control', label: 'יומן האינטרקום', href: '#/system/access-control/audit', sub: true, keywords: 'פעולות audit מי עשה מה' },
+      { tab: 'access-control', label: 'קבוצות ושדות', href: '#/system/access-control/groups', sub: true, keywords: 'קבוצה שדות פרופיל גרסאות מדיניות' },
+      { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה' },
       { tab: 'general', label: 'גשר Home Assistant', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor' },
       { tab: 'general', label: 'בקרות כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
@@ -163,6 +168,7 @@ export function routeHref(r: RouteState | null): string {
     return tab && tab !== 'main' ? `#/system/multimedia?tab=${tab}` : '#/system/multimedia';
   }
   if (s[1] === 'security') return s[2] ? `#/system/security/${s[2]}` : '#/system/security';
+  if (s[1] === 'access-control') return s[2] ? `#/system/access-control/${s[2]}` : '#/system/access-control'; // CR-036 S10 segments
   return `#/system/${s[1]}`;
 }
 
