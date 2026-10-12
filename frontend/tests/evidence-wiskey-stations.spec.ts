@@ -215,7 +215,9 @@ test.describe('wiskey-stations: filters, search, views, places', () => {
       await views.locator('button[data-view="table"]').click();
       const table = page.locator(`${SCREEN} sw-table[data-wk-table]`);
       await expect(table.locator('tbody tr')).toHaveCount(6);
-      await expect(table.locator('thead')).toContainText('דגם · קושחה'); // the technical columns come with the technical part
+      await expect(table.locator('thead')).toContainText('סנכרון'); // the technical columns come with the technical part
+      if (info.project.name === 'desktop') await expect(table.locator('thead')).toContainText('דגם · קושחה');
+      else await expect(table.locator('thead')).not.toContainText('דגם · קושחה'); // a tablet's table keeps what is read and done: model and door names wait in the drawer
       await expect(table.locator('[data-wk-open="lobby"]')).toHaveText('לובי');
       await expect(table.locator('[data-wk-call-pill="ringing"]')).toContainText('שיחה נכנסת');
       await table.locator('tr[data-row-id="park"]').click();

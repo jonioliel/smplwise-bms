@@ -62,6 +62,8 @@ export interface ViewCtx {
   places: PlaceMap | null;
   actions: StationActions;
   clock: CallClock;
+  /** A tablet or narrower: the table drops its least needed columns. */
+  compact: boolean;
   /** The installation has the media server stills need (a station without it shows "no picture"). */
   media: boolean;
   /** Cache-buster of the stills (bumped every minute). */
@@ -272,12 +274,14 @@ export function row(v: ViewCtx, s: AccessStation): TemplateResult {
       ${thumb(v, s)}
       <span class="rowtext"><span class="t"><span class="sdot ${s.online ? '' : 'off'}" aria-hidden="true"></span><b>${s.name}</b></span>${sub ? html`<span class="s">${sub}</span>` : nothing}</span>
     </button>
-    ${callPill(v, s)}
-    <span class="seen">${t.seen.prefix} <bdi>${seenOf(v, s)}</bdi></span>
-    <div class="rowacts">
-      ${answer ? callButton(v, s, 'answer', 'ok', 'phone', t.call.answer) : nothing}${doorButtons(v, s)}
+    <div class="rowside">
+      ${callPill(v, s)}
+      <span class="seen">${t.seen.prefix} <bdi>${seenOf(v, s)}</bdi></span>
+      <div class="rowacts">
+        ${answer ? callButton(v, s, 'answer', 'ok', 'phone', t.call.answer) : nothing}${doorButtons(v, s)}
+      </div>
+      <sw-icon name="chevron" size=${16} aria-hidden="true"></sw-icon>
     </div>
-    <sw-icon name="chevron" size=${16} aria-hidden="true"></sw-icon>
   </div>`;
 }
 
@@ -301,13 +305,12 @@ export function tableColumns(v: ViewCtx, list: readonly AccessStation[]): TableC
     { key: 'status', label: t.table.status, render: (r) => html`<sw-badge kind=${as(r).online ? 'live' : 'offline'} label=${as(r).online ? t.status.online : t.status.offline}></sw-badge>` },
     { key: 'seen', label: t.table.seen, render: (r) => html`<bdi>${seenOf(v, as(r))}</bdi>` },
     { key: 'call', label: t.table.call, render: (r) => callPill(v, as(r), true) || html`<span style="color:var(--sw-text-3)">—</span>` },
-    { key: 'doors', label: t.table.doors, render: (r) => html`<span>${stationDoors(as(r)).map((l) => doorName(l, t)).join(', ') || '—'}</span>` },
   ];
+  // a tablet's table keeps what an operator reads and does; the door names (the buttons carry them) and the model wait in the drawer
+  if (!v.compact) cols.push({ key: 'doors', label: t.table.doors, render: (r) => html`<span>${stationDoors(as(r)).map((l) => doorName(l, t)).join(', ') || '—'}</span>` });
   if (tech) {
-    cols.push(
-      { key: 'sync', label: t.table.sync, render: (r) => (as(r).technical ? html`<sw-badge kind=${syncKind(as(r).sync_state)} label=${syncWord(as(r).sync_state, t)}></sw-badge>` : html`<span style="color:var(--sw-text-3)">—</span>`) },
-      { key: 'model', label: t.table.model, ltr: true, render: (r) => html`<span>${[as(r).technical?.model, as(r).technical?.firmware].filter(Boolean).join(' · ') || '—'}</span>` },
-    );
+    cols.push({ key: 'sync', label: t.table.sync, render: (r) => (as(r).technical ? html`<sw-badge kind=${syncKind(as(r).sync_state)} label=${syncWord(as(r).sync_state, t)}></sw-badge>` : html`<span style="color:var(--sw-text-3)">—</span>`) });
+    if (!v.compact) cols.push({ key: 'model', label: t.table.model, ltr: true, render: (r) => html`<span>${[as(r).technical?.model, as(r).technical?.firmware].filter(Boolean).join(' · ') || '—'}</span>` });
   }
   cols.push({
     key: 'actions',

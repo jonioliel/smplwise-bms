@@ -137,6 +137,7 @@ export class WiskeyStations extends LitElement {
   @state() private poster = Date.now();
   @state() private failed: Record<string, number> = {};
   @state() private phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 767px)').matches : false;
+  @state() private compact = typeof matchMedia === 'function' ? matchMedia('(max-width: 1100px)').matches : false;
 
   private clock = new CallClock();
   private actions = new StationActions({
@@ -162,13 +163,18 @@ export class WiskeyStations extends LitElement {
   private placesKey = '';
   private detailAt: Record<string, number> = {};
   private mq = typeof matchMedia === 'function' ? matchMedia('(max-width: 767px)') : null;
-  private onMedia = () => (this.phone = !!this.mq?.matches);
+  private mqc = typeof matchMedia === 'function' ? matchMedia('(max-width: 1100px)') : null;
+  private onMedia = () => {
+    this.phone = !!this.mq?.matches;
+    this.compact = !!this.mqc?.matches;
+  };
 
   // ------------------------------------------------------------------ lifecycle
 
   connectedCallback() {
     super.connectedCallback();
     this.mq?.addEventListener('change', this.onMedia);
+    this.mqc?.addEventListener('change', this.onMedia);
     this.stopRoute = onRouteChange((r) => this.onRoute(r));
     if (!isApi()) return;
     if (!canAnywhere('access.read')) {
@@ -196,6 +202,7 @@ export class WiskeyStations extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.mq?.removeEventListener('change', this.onMedia);
+    this.mqc?.removeEventListener('change', this.onMedia);
     this.stop?.();
     this.stop = null;
     this.stopRoute?.();
@@ -432,6 +439,7 @@ export class WiskeyStations extends LitElement {
       places: this.places,
       actions: this.actions,
       clock: this.clock,
+      compact: this.compact,
       media: this.demo() ? false : cap('go2rtc'),
       poster: this.poster,
       failed: this.failed,

@@ -143,8 +143,10 @@ export const stationsCss = css`
   .card {
     min-inline-size: 0;
   }
+  /* the ring is the ONLY layer of the shadow: a skin may set --sw-shadow-N to "none" (Tesla does), and "none" inside a shadow list
+     makes the whole declaration invalid - the ring would vanish exactly where the screen needs it */
   .card.ringing {
-    box-shadow: 0 0 0 2px var(--sw-warning), var(--sw-shadow-2);
+    box-shadow: 0 0 0 2px var(--sw-warning);
     animation: wk-ring 1.6s ease-in-out infinite;
   }
   .media {
@@ -406,22 +408,32 @@ export const stationsCss = css`
     display: flex;
     flex-direction: column;
   }
+  /* a row is two groups: the station (opens the drawer) and its side - call pill, "seen", actions, chevron. When the row is
+     narrow the side takes its own line below the station, whole, instead of squeezing the station's name away. */
   .row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--sw-s-3);
+    gap: var(--sw-s-2) var(--sw-s-3);
     padding: var(--sw-s-2) var(--sw-s-3);
     border-block-start: 1px solid var(--sw-border);
   }
   .row:first-child {
     border-block-start: 0;
   }
+  .rowside {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sw-s-2) var(--sw-s-3);
+    margin-inline-start: auto;
+  }
   .rowmain {
-    flex: 1;
+    flex: 1 1 220px;
     display: flex;
     align-items: center;
     gap: var(--sw-s-3);
-    min-inline-size: 0;
+    min-inline-size: min(220px, 100%);
     min-block-size: var(--wk-hit);
     padding: 0;
     border: 0;
@@ -706,12 +718,6 @@ export const stationsCss = css`
     .search {
       flex-basis: 160px;
     }
-    .rowacts wk-action-button .lbl {
-      display: inline;
-    }
-    .row {
-      flex-wrap: wrap;
-    }
     .seen {
       display: none;
     }
@@ -719,10 +725,10 @@ export const stationsCss = css`
   @keyframes wk-ring {
     0%,
     100% {
-      box-shadow: 0 0 0 2px var(--sw-warning), var(--sw-shadow-2);
+      box-shadow: 0 0 0 2px var(--sw-warning);
     }
     50% {
-      box-shadow: 0 0 0 5px color-mix(in srgb, var(--sw-warning) 35%, transparent), var(--sw-shadow-2);
+      box-shadow: 0 0 0 5px color-mix(in srgb, var(--sw-warning) 35%, transparent);
     }
   }
   @keyframes wk-blink {
