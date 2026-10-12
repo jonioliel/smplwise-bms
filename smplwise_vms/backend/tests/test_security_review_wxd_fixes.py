@@ -156,6 +156,22 @@ def test_m1_typed_builder_refuses_a_new_door_step_through_a_lock_group(autos_app
     assert via_group.status_code == 422 and via_group.json()["code"] == "wiskey_door_step_blocked", via_group.text
 
 
+def test_m1_m3_a_new_step_on_a_template_switch_is_a_possible_door_with_its_own_message(autos_app):
+    """Where a WisKey door exists, a new step on a script-backed entity is refused by the editor block with its own words (a
+    possible door, not a known one); without a WisKey door the same automation saves."""
+    app, s, c, fake, tr = autos_app
+    _opener(c)
+    fake.states["switch.tpl_gate"] = {"entity_id": "switch.tpl_gate", "state": "off", "attributes": {"friendly_name": "שער"}, "last_changed": fake.iso()}
+    fake.registry.append(fake._reg_row("switch.tpl_gate", platform="template", unique_id="tpl_gate"))
+    seed_mirror(app.state.db, fake)
+    first = create_item(c, "automation", draft_of("שער בלי אינטרקום", actions=[svc_block("switch.turn_on", ["switch.tpl_gate"])]))
+    assert first.status_code == 201, first.text
+    _wiskey(app, "lock.front_door", fake=fake)
+    r = create_item(c, "automation", draft_of("שער", actions=[svc_block("switch.turn_on", ["switch.tpl_gate"])]))
+    assert r.status_code == 422 and r.json()["code"] == "wiskey_door_step_blocked", r.text
+    assert r.json()["details"]["reason"] == "possible_door" and "התקן וירטואלי" in r.json()["user_message"]
+
+
 def test_m1_scene_capture_refuses_a_lock_group_over_a_wiskey_lock(autos_app):
     app, s, c, fake, tr = autos_app
     _opener(c)

@@ -31,6 +31,7 @@ OPEN_SERVICES = ("lock.unlock", "lock.open")
 WISKEY_UNLOCK_SERVICE = "unlock_door"
 
 EDITOR_REFUSAL = "לא ניתן להוסיף כאן פתיחת דלת אינטרקום. פתיחה נעשית מכפתור הדלת או מתוכנית החזקה פתוחה."
+POSSIBLE_DOOR_REFUSAL = "לא ניתן להוסיף כאן פעולה על התקן וירטואלי: פעולתו אינה ידועה למערכת ועלולה לפתוח דלת אינטרקום."
 LOCK_UNSUPPORTED = "לא רלוונטי - מנעול של אינטרקום אינו תומך בנעילה."
 LOCK_ALL_SKIPPED = "לא רלוונטי: דלתות אינטרקום אינן נתמכות בנעילה ולא נשלחה אליהן פקודה."
 NEVER_WORKS = "לא יעבוד לעולם - מנעול של אינטרקום אינו תומך בנעילה"
@@ -178,16 +179,27 @@ def _door_counts(res: door_path.Resolution) -> Counter[tuple[Any, ...]]:
     return c
 
 
-def _added(new: door_path.Resolution, old: door_path.Resolution | None) -> list[str]:
-    """The entries the new content adds: door lock entity ids, or "?" for a door that cannot be resolved."""
+def _added(new: door_path.Resolution, old: door_path.Resolution | None) -> tuple[list[str], bool]:
+    """The entries the new content adds: door lock entity ids, or "?" for a door that cannot be resolved; and whether ONLY
+    script-backed entities (template / universal, SEC-WXD M3) were added - a possible door, not a known one."""
     n, o = _door_counts(new), _door_counts(old) if old is not None else Counter()
     out: list[str] = []
+    only_possible = True
     for key, count in n.items():
         if count > o[key]:
             label = key[1] if key[0] == "door" and key[1] else "?"
             if label not in out:
                 out.append(label)
-    return out
+            only_possible = only_possible and key == ("unresolved", "template_entity")
+    return out, bool(out) and only_possible
+
+
+def _raise_added(added: list[str], only_possible: bool) -> None:
+    if not added:
+        return
+    if only_possible:
+        raise ApiError(422, "wiskey_door_step_blocked", POSSIBLE_DOOR_REFUSAL, details={"reason": "possible_door", "entities": []})
+    raise refusal([e for e in added if e != "?"])
 
 
 def check_config(conn: sqlite3.Connection, kind: str, new_config: dict[str, Any] | None, old_config: dict[str, Any] | None, entity_id: str | None = None) -> None:
@@ -203,9 +215,7 @@ def check_config(conn: sqlite3.Connection, kind: str, new_config: dict[str, Any]
     if not new.has_door:
         return
     old = r.resolve_config(kind, old_config, (), 0, None, seen) if isinstance(old_config, dict) else None
-    added = _added(new, old)
-    if added:
-        raise refusal([e for e in added if e != "?"])
+    _raise_added(*_added(new, old))
 
 
 def check_schedule_payload(conn: sqlite3.Connection, new_item: dict[str, Any] | None, old_item: dict[str, Any] | None) -> None:
@@ -219,9 +229,7 @@ def check_schedule_payload(conn: sqlite3.Connection, new_item: dict[str, Any] | 
     if not new.has_door:
         return
     old = r.resolve_schedule_slots(old_item) if isinstance(old_item, dict) else None
-    added = _added(new, old)
-    if added:
-        raise refusal([e for e in added if e != "?"])
+    _raise_added(*_added(new, old))
 
 
 def _slots_item(d: dict[str, Any] | None) -> dict[str, Any] | None:
