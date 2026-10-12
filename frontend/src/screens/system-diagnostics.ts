@@ -68,6 +68,7 @@ const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detai
   { screen: 'events', label: 'פעילות', href: '#/wiskey/events', detail: 'יומן הכניסות והאירועים' },
   { screen: 'people', label: 'אנשים', href: '#/wiskey/people', detail: 'כולל עורך האדם וקליטת כרטיס שנפתחים ממנו' },
   { screen: 'stations', label: 'תחנות ודלתות', href: '#/wiskey/devices', detail: 'התחנות, פתיחת דלת, מענה לשיחה והכרזה; לשונית "עמדות" של WisKey' },
+  { screen: 'schedules', label: 'לוחות זמנים', href: '#/wiskey/schedules', detail: 'תוכניות הדלתות, ספריית לוחות הזמנים והצעות הפריסה, לצפייה בלבד; ב־WisKey הם בכלי הניהול, ולכן בבחירת WisKey אין לשונית נפרדת' },
 ];
 
 /** CR-008 D7: GET /health `video_codecs` - how many main / sub streams play over WebRTC (from the last discovery). */

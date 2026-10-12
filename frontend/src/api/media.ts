@@ -132,6 +132,8 @@ export interface ProductSettings {
   'access.ui.people'?: 'wiskey' | 'smplwise';
   /** CR-036 S6: "תחנות ודלתות" (route #/wiskey/devices). */
   'access.ui.stations'?: 'wiskey' | 'smplwise';
+  /** CR-036 S9: "לוחות זמנים" (route #/wiskey/schedules, read only); 'wiskey' = no own tab (the embedded panel's tools keep them). */
+  'access.ui.schedules'?: 'wiskey' | 'smplwise';
   /** CR-036 S6 (owner answers of 2026-10-12, every decision a setting): what the native stations screen shows - who sees the
    * incoming-call hint, the talk button, the announcement targets, the quick phrases (one per line). */
   'access.call_hint'?: 'everyone' | 'call';
