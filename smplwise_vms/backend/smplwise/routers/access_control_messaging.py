@@ -188,12 +188,13 @@ class RecipientsBody(BaseModel):
 
 @router.post("/access-control/messaging/recipients")
 def messaging_recipients(request: Request, auth: ia.Authority = Depends(_gate), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
-    """Who of the people the sender picked can be messaged, for the dialog's preview. At most RECIPIENT_READS (10) people are looked up
-    in WisKey (each lookup costs a rate token); for each: `{person_id, name, phone_masked, has_phone, consent, allowed}` - `phone_masked`
-    only for a caller at the sensitive level (everyone else: null, the dialog says "מספר מוסתר" and the server still holds the number),
-    `consent` = `granted` / `declined` (WisKey's or Arx's opt-out list) / `unknown`, `allowed` false = visible but not messageable by this
-    caller. A person the caller may not see, or WisKey does not know, is simply not in the list (no existence oracle); the people past
-    the first ten are not looked up - they are decided as each message goes. Reply: `{state, ..., recipients}`."""
+    """Who of the people the sender picked can be messaged, for the dialog's preview. At most RECIPIENT_READS (6) people are looked up
+    in WisKey (each lookup spends a read token of the sender, whose burst is 10); for each: `{person_id, name, phone_masked, has_phone,
+    consent, allowed}` - `phone_masked` only for a caller at the sensitive level (everyone else: null, the dialog says "מספר מוסתר" and
+    the server still holds the number), `consent` = `granted` / `declined` (WisKey's or Arx's opt-out list) / `unknown`, `allowed` false =
+    visible but not messageable by this caller. A person the caller may not see, or WisKey does not know, is simply not in the list (no
+    existence oracle); the people past the first RECIPIENT_READS are not looked up - they are decided as each message goes. Reply:
+    `{state, ..., recipients}`."""
     act = _Act(request, auth, "*")
     body: RecipientsBody = act.parse(RecipientsBody, raw)
     if any(not _ID.fullmatch(i) for i in body.person_ids):
