@@ -358,6 +358,127 @@
       "retained_from_revision": 1
     }
   },
+  "programs": {
+    "state": "ready",
+    "configured": true,
+    "last_error": null,
+    "fetched_at": "2026-09-27T10:29:46Z",
+    "fresh": true,
+    "programs": {
+      "programs": [
+        {
+          "door": 1, "revision": 4, "enabled": true, "removing": false,
+          "policy": {
+            "timezone": "Asia/Jerusalem", "name": "בוקר ובצהריים",
+            "weekly": {
+              "Monday": [{ "start": "07:00", "end": "09:00" }, { "start": "12:00", "end": "13:00" }],
+              "Tuesday": [{ "start": "07:00", "end": "09:00" }, { "start": "12:00", "end": "13:00" }],
+              "Wednesday": [{ "start": "07:00", "end": "09:00" }, { "start": "12:00", "end": "13:00" }],
+              "Thursday": [{ "start": "07:00", "end": "09:00" }, { "start": "12:00", "end": "13:00" }],
+              "Friday": [{ "start": "08:00", "end": "12:00" }],
+              "Saturday": [],
+              "Sunday": [{ "start": "07:00", "end": "09:00" }, { "start": "12:00", "end": "13:00" }]
+            },
+            "holidays": [{ "name": "ערב חג", "start": "2026-10-06", "end": "2026-10-06", "periods": [{ "start": "08:00", "end": "11:00" }] }]
+          },
+          "execution": { "owned": true, "attempted": "2026-09-27/07:00/09:00", "status": "held_acknowledged" },
+          "error": null,
+          "checked_at": "2026-09-27T04:00:05+00:00"
+        }
+      ],
+      "saved": [],
+      "timezone": "Asia/Jerusalem",
+      "native_supported": false
+    }
+  },
+  "codes": {
+    "state": "ready",
+    "configured": true,
+    "last_error": null,
+    "fetched_at": "2026-09-27T10:29:46Z",
+    "fresh": true,
+    "codes": {
+      "public_pin_state": "configured",
+      "slots": [{ "slot": 1, "configured": true }, { "slot": 2, "configured": false }],
+      "capabilities": { "advertised": true, "min": 4, "max": 8 },
+      "checked_at": "2026-09-27T07:10:00+00:00"
+    }
+  },
+  "schedules_library": {
+    "state": "ready",
+    "configured": true,
+    "last_error": null,
+    "fetched_at": "2026-09-27T10:29:46Z",
+    "fresh": true,
+    "schedules": [
+      {
+        "id": "sch-office", "revision": 3, "updated_at": "2026-09-20T09:00:00+00:00", "name": "שעות משרד",
+        "weekly": {
+          "Monday": [{ "start": "07:00", "end": "19:00" }], "Tuesday": [{ "start": "07:00", "end": "19:00" }], "Wednesday": [{ "start": "07:00", "end": "19:00" }],
+          "Thursday": [{ "start": "07:00", "end": "19:00" }], "Friday": [{ "start": "07:00", "end": "13:00" }], "Saturday": [], "Sunday": [{ "start": "07:00", "end": "19:00" }]
+        },
+        "holidays": [{ "name": "ראש השנה", "start": "2026-09-12", "end": "2026-09-13", "periods": [] }]
+      },
+      {
+        "id": "sch-contractors", "revision": 1, "updated_at": "2026-09-02T09:00:00+00:00", "name": "קבלנים",
+        "weekly": {
+          "Monday": [{ "start": "08:00", "end": "16:00" }], "Tuesday": [{ "start": "08:00", "end": "16:00" }], "Wednesday": [{ "start": "08:00", "end": "16:00" }],
+          "Thursday": [{ "start": "08:00", "end": "16:00" }], "Friday": [], "Saturday": [], "Sunday": [{ "start": "08:00", "end": "16:00" }]
+        },
+        "holidays": []
+      }
+    ]
+  },
+  "schedules_plans": {
+    "state": "ready",
+    "configured": true,
+    "last_error": null,
+    "fetched_at": "2026-09-27T10:29:46Z",
+    "fresh": true,
+    "schedules": [
+      {
+        "id": "plan-a", "revision": 2, "station_id": "entry-a", "draft_id": "sch-office", "draft_revision": 3, "name": "שעות משרד", "created_at": "2026-09-21T06:00:00+00:00",
+        "source_state": "current", "can_apply": false, "drifted_resources": [],
+        "report": {
+          "checked_at": "2026-09-27T05:00:00+00:00", "blockers": ["schedule_writes_unverified"],
+          "resources": [{ "kind": "weekly", "id": 1, "coverage": "complete", "state": "matches", "active": true }],
+          "users": { "state": "complete", "error": null }
+        }
+      },
+      {
+        "id": "plan-b", "revision": 1, "station_id": "entry-b", "draft_id": "sch-office", "draft_revision": 2, "name": "שעות משרד", "created_at": "2026-09-15T06:00:00+00:00",
+        "source_state": "changed", "can_apply": false, "drifted_resources": ["weekly:2"],
+        "report": {
+          "checked_at": "2026-09-15T06:01:00+00:00", "blockers": ["schedule_writes_unverified"],
+          "resources": [{ "kind": "weekly", "id": 2, "coverage": "partial", "state": "different", "active": null }],
+          "users": { "state": "failed", "error": "timeout" }
+        }
+      },
+      {
+        "id": "plan-c", "revision": 1, "station_id": "entry-c", "draft_id": "sch-contractors", "draft_revision": 1, "name": "קבלנים", "created_at": "2026-09-03T06:00:00+00:00",
+        "source_state": "current", "can_apply": false, "drifted_resources": [],
+        "report": null
+      }
+    ]
+  },
+  "schedules_operations": {
+    "state": "ready",
+    "configured": true,
+    "last_error": null,
+    "fetched_at": "2026-09-27T10:29:46Z",
+    "fresh": true,
+    "schedules": {
+      "jobs": [
+        { "id": "job-a1", "revision": 1, "plan_id": "plan-a", "station_id": "entry-a", "name": "שעות משרד", "status": "failed", "error": "station_offline", "blockers": [], "ownership": "not_checked", "created_at": "2026-09-21T06:02:00+00:00", "updated_at": "2026-09-21T06:03:00+00:00" },
+        { "id": "job-a2", "revision": 2, "plan_id": "plan-a", "station_id": "entry-a", "name": "שעות משרד", "status": "blocked", "error": null, "blockers": ["schedule_writes_unverified"], "ownership": "current", "created_at": "2026-09-27T05:00:00+00:00", "updated_at": "2026-09-27T05:01:00+00:00" },
+        { "id": "job-c1", "revision": 1, "plan_id": "plan-c", "station_id": "entry-c", "name": "קבלנים", "status": "checking", "error": null, "blockers": [], "ownership": "not_checked", "created_at": "2026-09-27T10:00:00+00:00", "updated_at": "2026-09-27T10:00:30+00:00" }
+      ],
+      "archive": [],
+      "journal": [],
+      "claims": [{ "id": "claim-a", "plan_id": "plan-a", "station_id": "entry-a", "created_at": "2026-09-21T06:02:00+00:00" }],
+      "writes_enabled": false
+    }
+  },
   "errors": {
     "cursor_expired": { "code": "intercom_cursor_expired", "user_message": "רשימת האירועים התעדכנה והסמן של 'טען עוד' פג - טענו מחדש מההתחלה.", "retryable": false, "correlation_id": "c0ffee000001", "details": {} },
     "export_station_required": { "code": "intercom_export_station_required", "user_message": "יש לבחור עמדה לייצוא.", "retryable": false, "correlation_id": "c0ffee000002", "details": {} },

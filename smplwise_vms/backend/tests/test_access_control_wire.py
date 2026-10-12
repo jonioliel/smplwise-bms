@@ -51,6 +51,12 @@ ENDPOINTS: dict[str, tuple[str, dict[str, Any]]] = {
     "status_audit": ("/status/audit", {}),
     "groups": ("/groups", {}),
     "group_versions": ("/groups/versions", {}),
+    # CR-036 S9: the schedules screen (per station: door programs, public-code presence; installation-wide: library, proposals, checks)
+    "programs": ("/stations/entry-a/programs", {}),
+    "codes": ("/stations/entry-a/codes", {}),
+    "schedules_library": ("/schedules", {}),
+    "schedules_plans": ("/schedules/plans", {}),
+    "schedules_operations": ("/schedules/operations", {}),
 }
 
 
@@ -167,6 +173,35 @@ def test_the_mock_status_enums_are_the_servers(ac, wire):  # noqa: F811
         assert record["action"] in intercom_adapter.VERSION_ACTIONS
     for field in wire["groups"]["groups"]["fields"]:
         assert field["type"] in intercom_adapter.FIELD_TYPES
+
+
+def test_the_mock_schedule_enums_are_the_servers(ac, wire):  # noqa: F811
+    """CR-036 S9: the schedules screen words every state the closed projections allow - the fixture uses only those values, and
+    a proposal names its library schedule by id (draft_id), which the projection keeps for exactly that join."""
+    for p in wire["programs"]["programs"]["programs"]:
+        assert p["execution"]["status"] in intercom_adapter.EXECUTION_STATUSES and p["door"] in (1, 2)
+        assert set(p["policy"]["weekly"]) == set(intercom_adapter.WEEKDAYS)
+    assert wire["codes"]["codes"]["public_pin_state"] in intercom_adapter.PUBLIC_PIN_STATES
+    library_ids = {s["id"] for s in wire["schedules_library"]["schedules"]}
+    for plan in wire["schedules_plans"]["schedules"]:
+        assert plan["source_state"] in intercom_adapter.PLAN_SOURCE_STATES and plan["draft_id"] in library_ids
+        for r in (plan["report"] or {}).get("resources", []):
+            assert r["kind"] in intercom_adapter.RESOURCE_KINDS and r["coverage"] in intercom_adapter.COVERAGES and r["state"] in intercom_adapter.RESOURCE_STATES
+    plan_ids = {p["id"] for p in wire["schedules_plans"]["schedules"]}
+    for job in wire["schedules_operations"]["schedules"]["jobs"]:
+        assert job["status"] in intercom_adapter.JOB_STATUSES and job["plan_id"] in plan_ids and job["ownership"] in intercom_adapter.OWNERSHIP
+    assert wire["schedules_operations"]["schedules"]["writes_enabled"] is False
+
+
+def test_the_plan_projection_keeps_the_library_link_and_nothing_personal():
+    """S9 added `draft_id` / `draft_revision` to the proposal projection (ids only): a non-id draft id is dropped, the device-user
+    counts of the report stay out."""
+    raw = [{"id": "p1", "station_id": "entry-a", "draft_id": "sch-1", "draft_revision": 2, "name": "x", "report": {"users": {"state": "complete", "error": None, "read": 412, "explicit": 3}}},
+           {"id": "p2", "station_id": "entry-a", "draft_id": "not an id!", "draft_revision": "2"}]
+    out = intercom_adapter.project_schedule_plans(raw)
+    assert (out[0]["draft_id"], out[0]["draft_revision"]) == ("sch-1", 2)
+    assert (out[1]["draft_id"], out[1]["draft_revision"]) == (None, None)
+    assert out[0]["report"]["users"] == {"state": "complete", "error": None}
 
 
 def test_the_mock_error_bodies_are_the_servers(ac, wire):  # noqa: F811
