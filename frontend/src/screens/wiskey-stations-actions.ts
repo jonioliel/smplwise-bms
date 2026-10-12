@@ -22,7 +22,14 @@ export type Tone = 'ok' | 'warn' | 'err';
 export interface ActionResult {
   tone: Tone;
   text: string;
+  /** Wall clock (ms) when it was set: a result line does not stay on a card for good (`prune`). */
+  at: number;
 }
+
+/** How long an outcome line stays on its station: a plain outcome a short while; an unknown outcome (amber) longer, so the
+ * operator still reads that something may have happened. */
+export const RESULT_TTL_MS = 45_000;
+export const RESULT_UNKNOWN_TTL_MS = 120_000;
 
 /** How long a relay's button waits after an unknown outcome: the backend's own `retry_after_s`, else the longest it can hold. */
 export function holdMs(err: unknown): number {
@@ -105,7 +112,16 @@ export class StationActions {
   }
 
   setResult(stationId: string, tone: Tone, text: string): void {
-    this.results = { ...this.results, [stationId]: { tone, text } };
+    this.results = { ...this.results, [stationId]: { tone, text, at: this.deps.now() } };
+    this.deps.changed();
+  }
+
+  /** Drops the outcome lines that have been on their station long enough (called on the screen's tick). */
+  prune(): void {
+    const now = this.deps.now();
+    const keep = Object.entries(this.results).filter(([, r]) => now - r.at < (r.tone === 'warn' ? RESULT_UNKNOWN_TTL_MS : RESULT_TTL_MS));
+    if (keep.length === Object.keys(this.results).length) return;
+    this.results = Object.fromEntries(keep);
     this.deps.changed();
   }
 

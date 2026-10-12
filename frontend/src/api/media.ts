@@ -119,6 +119,14 @@ export interface ProductSettings {
   'access.ui.overview'?: 'wiskey' | 'smplwise';
   'access.ui.events'?: 'wiskey' | 'smplwise';
   'access.ui.people'?: 'wiskey' | 'smplwise';
+  /** CR-036 S6: "תחנות ודלתות" (route #/wiskey/devices). */
+  'access.ui.stations'?: 'wiskey' | 'smplwise';
+  /** CR-036 S6 (owner answers of 2026-10-12, every decision a setting): what the native stations screen shows - who sees the
+   * incoming-call hint, the talk button, the announcement targets, the quick phrases (one per line). */
+  'access.call_hint'?: 'everyone' | 'call';
+  'access.talk_button'?: 'classic' | 'hidden';
+  'access.announce_scope'?: 'scope' | 'station';
+  'access.announce_phrases'?: string;
   /** 'true' hides the whole WisKey area from the navigation for everyone, regardless of role (T054 follow-up); the
    * access.ui.* choices above apply only while this is false. */
   'ui.hide_wiskey'?: string;

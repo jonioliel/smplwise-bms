@@ -530,6 +530,24 @@ export function syncWord(state: string, text: StationsText = ws()): string {
   return (text.sync as Record<string, string>)[state] ?? text.sync.unknown;
 }
 
+/** An announcement's progress in words (the POST reply, then `intercom_tts` notices): sent, preparing, playing, finished - and
+ * "not verified" at the end, because nobody confirms the speaker was heard. A stop says why. */
+export function ttsStateText(s: { state: string; reason: string | null }, text: StationsText = ws()): string {
+  const t = text.announceDlg;
+  switch (s.state) {
+    case 'started':
+      return t.progressStarted;
+    case 'generating':
+      return t.progressGenerating;
+    case 'speaking':
+      return t.progressSpeaking;
+    case 'completed':
+      return t.progressCompleted;
+    default:
+      return fill(t.progressClosed, { reason: (t.reasons as Record<string, string>)[s.reason ?? ''] ?? s.reason ?? '' });
+  }
+}
+
 /** The sync pill's `sw-badge` kind: synced = live, waiting = stale, failed = error, offline, unknown. */
 export function syncKind(state: string): 'live' | 'stale' | 'error' | 'offline' | 'unknown' {
   switch (state) {

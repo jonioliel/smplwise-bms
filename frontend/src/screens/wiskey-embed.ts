@@ -7,7 +7,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { can, isApi } from '../api/session';
 import { parseRoute, pushRoute, replaceRoute } from '../router';
-import { WISKEY_PHONE_EMBED, WISKEY_SCALE, WISKEY_SCREENS, WISKEY_SIZE, WISKEY_SIZE_EVENT, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { WISKEY_PHONE_EMBED, WISKEY_SCALE, WISKEY_SIZE, WISKEY_SIZE_EVENT, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeyScreenOf, wiskeySegmentOf } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
 import { attachCompanionBridge, bridgeWindow, type CompanionBridge, type ShimState } from '../wiskey/companion-bridge';
 import { currentWiskeyView, refreshWiskeyView, whenWiskeyViewLoaded, wiskeyViewLoaded, WISKEY_VIEW_EVENT } from '../wiskey/wiskey-prefs';
@@ -796,7 +796,8 @@ export class WiskeyEmbed extends LitElement {
     if (r.mode !== 'wiskey') return; // the user already left the area
     const seg = wiskeySegmentOf(loc.tab);
     // a screen the owner set to SMPLWISE keeps its own path: rewriting it would swap the embed out under the user
-    const own = (WISKEY_SCREENS as string[]).includes(seg) && WISKEY_UI[seg as WiskeyScreen] === 'smplwise';
+    const screen = wiskeyScreenOf(seg);
+    const own = !!screen && WISKEY_UI[screen] === 'smplwise';
     const params = new URLSearchParams(r.params);
     params.set('wiskey_tab', loc.tab);
     if (loc.tool) params.set('wiskey_tool', loc.tool);

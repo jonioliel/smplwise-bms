@@ -4,7 +4,7 @@ import type { AccessStation } from '../src/api/access-stations';
 import { announceToStations } from '../src/api/access-stations';
 import type { IntercomCallResult, IntercomTtsStatus } from '../src/api/intercom';
 import { enStationsText, fill, heStationsText } from '../src/i18n/wiskey-stations';
-import { StationActions, callText, failure, holdMs, type ActionDeps } from '../src/screens/wiskey-stations-actions';
+import { RESULT_TTL_MS, RESULT_UNKNOWN_TTL_MS, StationActions, callText, failure, holdMs, type ActionDeps } from '../src/screens/wiskey-stations-actions';
 import {
   ARM_MIN_MS,
   ARM_MS,
@@ -471,7 +471,7 @@ test.describe('door release', () => {
     expect(h.actions.confirm).toEqual({ stationId: 'lobby', lock: 1 });
     await h.actions.confirmRelease();
     expect(h.releases).toEqual([['lobby', 1]]);
-    expect(h.actions.results.lobby).toEqual({ tone: 'ok', text: 'פתיחה נשלחה · הפקודה התקבלה · 08:21' });
+    expect(h.actions.results.lobby).toMatchObject({ tone: 'ok', text: 'פתיחה נשלחה · הפקודה התקבלה · 08:21' });
     expect(h.actions.confirm).toBeNull();
     expect(h.actions.releasing.size).toBe(0);
   });
@@ -497,7 +497,7 @@ test.describe('door release', () => {
     h.actions.askRelease('gate', 1);
     await h.actions.confirmRelease();
     expect(h.releases).toHaveLength(1);
-    expect(h.actions.results.gate).toEqual({ tone: 'err', text: 'msg intercom_station_offline' });
+    expect(h.actions.results.gate).toMatchObject({ tone: 'err', text: 'msg intercom_station_offline' });
     expect(h.actions.isHeld('gate/1')).toBe(false);
     h.advance(120_000);
     expect(h.releases).toHaveLength(1); // nothing ever retries
@@ -627,6 +627,22 @@ test.describe('call controls: two taps', () => {
     expect(h.signals).toHaveLength(1);
     expect(callText(ack('hangUp', { acknowledged: null, observation: 'unchanged', observed_state: 'in_call' }), he)).toBe('סיום נשלח · לא התקבל אישור קבלה מהעמדה · מצב אחרי הפקודה: בשיחה (לא השתנה)');
     expect(callText(ack('answer', { observation: 'unavailable', observed_state: null }), he)).toBe('מענה נשלח · העמדה אישרה קבלה · מצב השיחה אחרי הפקודה לא נקרא');
+  });
+
+  test('an outcome line does not stay on its station for good: a plain one goes after a short while, an unknown one later', () => {
+    const h = new Harness();
+    h.actions.setResult('gate', 'ok', 'a');
+    h.actions.setResult('lobby', 'warn', 'b');
+    h.actions.setResult('lab', 'err', 'c');
+    h.advance(RESULT_TTL_MS - 1_000);
+    h.actions.prune();
+    expect(Object.keys(h.actions.results).sort()).toEqual(['gate', 'lab', 'lobby']);
+    h.advance(2_000);
+    h.actions.prune();
+    expect(Object.keys(h.actions.results)).toEqual(['lobby']); // the amber one still says something may have happened
+    h.advance(RESULT_UNKNOWN_TTL_MS);
+    h.actions.prune();
+    expect(h.actions.results).toEqual({});
   });
 
   test('announcement progress never steps back from a later state', () => {

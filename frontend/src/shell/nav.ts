@@ -87,14 +87,17 @@ function rebuildWiskeyTabs(): void {
     : [...STATIC_WISKEY_TABS];
   if (catalog) {
     for (const s of WISKEY_SCREENS) {
-      if (WISKEY_UI[s] !== 'smplwise' || next.some((t) => t.id === s)) continue;
-      const own = STATIC_WISKEY_TABS.find((t) => t.id === s)!;
+      const seg = WISKEY_SCREEN_SEGMENT[s];
+      if (WISKEY_UI[s] !== 'smplwise' || next.some((t) => t.id === seg)) continue;
+      const own = STATIC_WISKEY_TABS.find((t) => t.id === seg)!;
       const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
-      const at = next.findIndex((t) => rank(t.id) > rank(s));
+      const at = next.findIndex((t) => rank(t.id) > rank(seg));
       next.splice(at < 0 ? next.length : at, 0, { ...own });
     }
   }
-  WISKEY_TABS.splice(0, WISKEY_TABS.length, ...next);
+  // CR-036 S6: the native stations screen is named for what it shows ("תחנות ודלתות"); WisKey's own tab keeps WisKey's label
+  const named = WISKEY_UI.stations === 'smplwise' ? next.map((t) => (t.id === WISKEY_SCREEN_SEGMENT.stations ? { ...t, label: WISKEY_STATIONS_LABEL } : t)) : next;
+  WISKEY_TABS.splice(0, WISKEY_TABS.length, ...named);
 }
 
 /** What a WisKey route asks the embed to show. The confirmed-location mirror (`wiskey_tab` / `wiskey_tool` in the
@@ -122,20 +125,32 @@ function safeDecode(s: string): string {
  * embed, so its route decides. */
 function wiskeyActiveTab(r: RouteState | null): string {
   const path = wiskeyPathSegment(r);
-  const own = (WISKEY_SCREENS as string[]).includes(path) && WISKEY_UI[path as WiskeyScreen] === 'smplwise';
+  const screen = wiskeyScreenOf(path);
+  const own = !!screen && WISKEY_UI[screen] === 'smplwise';
   if (own) return path;
   const confirmed = embedNav.confirmed;
   return wiskeySegmentOf(confirmed ? confirmed.tab : wiskeyRequest(r).tab);
 }
 
-/** The SMPLWISE screens with a choice in הגדרות › בקרות כניסה (settings keys `access.ui.<screen>`). */
-export type WiskeyScreen = 'overview' | 'events' | 'people';
+/** The SMPLWISE screens with a choice in הגדרות › בקרות כניסה (settings keys `access.ui.<screen>`). `stations` (CR-036 S6,
+ * "תחנות ודלתות") takes the route segment of WisKey's own devices tab, `devices`: the tab keeps its place in the row. */
+export type WiskeyScreen = 'overview' | 'events' | 'people' | 'stations';
 export type WiskeyUi = 'wiskey' | 'smplwise';
-export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people'];
+export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people', 'stations'];
+
+/** The route segment (`#/wiskey/<segment>`) of each screen: its own name, except `stations`, which is WisKey's `devices` tab. */
+export const WISKEY_SCREEN_SEGMENT: Record<WiskeyScreen, string> = { overview: 'overview', events: 'events', people: 'people', stations: 'devices' };
+/** What the native stations screen's tab is called in the row (WisKey's own tab keeps WisKey's label). */
+export const WISKEY_STATIONS_LABEL = 'תחנות ודלתות';
+
+/** The screen a route segment belongs to, or null (a segment that is only ever the embedded panel). */
+export function wiskeyScreenOf(segment: string): WiskeyScreen | null {
+  return WISKEY_SCREENS.find((s) => WISKEY_SCREEN_SEGMENT[s] === segment) ?? null;
+}
 
 /** The owner's choice per screen; 'wiskey' (the embedded panel) until the product settings say otherwise. Filled by the
  * shell once the settings load and by the settings screen after a save. */
-export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', events: 'wiskey', people: 'wiskey' };
+export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', events: 'wiskey', people: 'wiskey', stations: 'wiskey' };
 
 /** הגדרות › בקרות כניסה, experimental (`access.phone_embed`, default off): embed WisKey inside the Companion app too,
  * through the sign-in relay of `wiskey/companion-bridge.ts`. Off = the 0.1.123 behaviour (no frame in the app). */
@@ -218,7 +233,11 @@ export function wiskeyRoute(r: RouteState | null, api: boolean): { kind: 'smplwi
   // the path decides between the SMPLWISE screen and the embed; the mirror only refines what the embed shows (the
   // panel may have gone to "users" by itself while אנשים is set to SMPLWISE - that must not swap the embed out)
   const seg = wiskeyPathSegment(r);
-  if ((WISKEY_SCREENS as string[]).includes(seg) && (!api || WISKEY_UI[seg as WiskeyScreen] === 'smplwise')) return { kind: 'smplwise', screen: seg as WiskeyScreen };
+  const screen = wiskeyScreenOf(seg);
+  // `?classic=1` (CR-036 S6, "talk in the classic panel"): this visit shows the embedded panel even for a screen set to SMPLWISE.
+  // A per-visit way to the classic panel; it changes no setting, and the embed keeps it in the address it mirrors.
+  const classic = api && r?.params.get('classic') === '1';
+  if (screen && !classic && (!api || WISKEY_UI[screen] === 'smplwise')) return { kind: 'smplwise', screen };
   const request = wiskeyRequest(r);
   return { kind: 'embed', tab: request.tab, tool: request.tool };
 }
