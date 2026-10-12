@@ -651,7 +651,7 @@ export class WiskeyPersonEditor extends LitElement {
     const guest = d.category !== 'staff';
     return html`<fieldset data-wiskey-editor-section="category">
       <legend><sw-icon name="users" size=${16}></sw-icon>${wt('cat.label')}</legend>
-      <sw-field label=${wt('cat.label')}>
+      <sw-field label=${wt('cat.field')}>
         <select data-wiskey-editor-category .value=${live(d.category)} @change=${(e: Event) => this.patch('category', (e.target as HTMLSelectElement).value as Category)}>
           ${(['staff', 'visitor', 'contractor'] as const).map((c) => html`<option value=${c} ?selected=${c === d.category}>${wt(`cat.${c}` as WritesKey)}</option>`)}
         </select>

@@ -129,6 +129,7 @@ const he = {
 
   // ---- the access category (the editor)
   'cat.label': 'סוג גישה',
+  'cat.field': 'קטגוריה',
   'cat.staff': 'עובד',
   'cat.visitor': 'אורח',
   'cat.contractor': 'קבלן',
