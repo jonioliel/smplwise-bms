@@ -81,9 +81,13 @@ ADMIN_READ = "access.admin.read"  # Settings status: health, sync, alerts, the i
 SCHEDULES_MANAGE = "access.schedules.manage"
 STATIONS_MANAGE = "access.stations.manage"
 GROUPS_MANAGE = "access.groups.manage"
+# CR-036 S11 (owner decision 2026-10-12, PG): generating a person's PIN - a personal value shown once to the requesting operator,
+# stored nowhere - is its own sensitive permission, required on top of access.people.manage, in an interactive session only
+# (services/intercom_writes.py). Default: site_admin and system_admin, like access.cards.capture.
+PIN_GENERATE = "access.pin.generate"
 
 READ_PERMISSIONS = (READ, STATIONS_READ, EVENTS_READ, PEOPLE_READ, ADMIN_READ)
-SENSITIVE_PERMISSIONS = (EVENTS_EXPORT, PEOPLE_SENSITIVE, CALL, SCHEDULES_MANAGE, STATIONS_MANAGE, GROUPS_MANAGE)
+SENSITIVE_PERMISSIONS = (EVENTS_EXPORT, PEOPLE_SENSITIVE, CALL, SCHEDULES_MANAGE, STATIONS_MANAGE, GROUPS_MANAGE, PIN_GENERATE)
 NEW_PERMISSIONS = READ_PERMISSIONS[1:] + SENSITIVE_PERMISSIONS
 
 # a person's field level, and a station's view level

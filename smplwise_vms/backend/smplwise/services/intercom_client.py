@@ -173,13 +173,39 @@ _USER_WRITE_REFUSED = frozenset({
     "user_not_found", "revision_conflict", "identity_migration_required", "employee_conflict", "pin_conflict",
     "card_conflict", "pin_removal_pending", "card_removal_pending", "photo_storage_full",
     "storage_stopping",
+    # CR-036 S11 (verified in the rc.37 reference source, read only): two more build_user codes (models.py: `user_archived` -
+    # an archived person cannot be made active; `guest_responsible_required` - a visitor / contractor needs a responsible
+    # person), both raised by manager._validate before the commit; and WisKey's dual-approval gate (`approval_required`,
+    # websocket.py `_dispatch`, raised before the handler runs - WisKey's own setting, never bypassed by Arx).
+    "user_archived", "guest_responsible_required", "approval_required",
 })
+# CR-036 S11: the person writes the editor did not have (rc.37 reference source, read only - websocket.py `_dispatch_inner`
+# 1504-1590 and access/repository.py `_archive_user` / `async_cancel_temporary` / `_update_user`, access/admin_audit.py
+# `audit_actor`). Each runs the same commit as users/update (`_update_user` -> build_user -> `_commit`), so the build_user and
+# collision codes above apply; before it:
+# - users/archive, users/unarchive: `confirmation_required` (the handler's own check), `archive_state_changed` (already in that
+#   state), `user_not_found`, `revision_conflict`;
+# - users/temporary_cancel: `temporary_user_required` (staff cannot be "temporarily" cancelled), `temporary_already_inactive`;
+#   an unknown `reason_code` is `invalid_fields` from `audit_actor` (PRE_DISPATCH);
+# - cards/add, cards/remove: the handler reads the person first (`user_not_found`) and checks the card (`invalid_fields`,
+#   `card_not_found`); the patch then goes through manager.async_update.
+# NOT here, so "unknown": `manager_closed` (`request_user` runs after the commit: saved, the stations not asked),
+# `storage_write_failed`, `action_failed` and every code this table does not know.
+_ARCHIVE_REFUSED = _USER_WRITE_REFUSED | {"confirmation_required", "archive_state_changed"}
+_CANCEL_REFUSED = _USER_WRITE_REFUSED | {"temporary_user_required", "temporary_already_inactive"}
+_CARD_REFUSED = _USER_WRITE_REFUSED | {"card_not_found"}
 PRE_STORAGE: dict[str, frozenset[str]] = {
     "users/create": _USER_WRITE_REFUSED,
     "users/update": _USER_WRITE_REFUSED,
     # _delete_user raises `user_not_found` / `revision_conflict` inside the commit's change function, `async_save`
     # `storage_stopping`. `manager_closed` comes from `request()` after the tombstone commit: unknown.
-    "users/delete": frozenset({"user_not_found", "revision_conflict", "storage_stopping"}),
+    "users/delete": frozenset({"user_not_found", "revision_conflict", "storage_stopping", "approval_required"}),
+    "users/archive": _ARCHIVE_REFUSED,
+    "users/unarchive": _ARCHIVE_REFUSED,
+    "users/set_active": _USER_WRITE_REFUSED,
+    "users/temporary_cancel": _CANCEL_REFUSED,
+    "cards/add": _CARD_REFUSED,
+    "cards/remove": _CARD_REFUSED,
 }
 # Card capture (CR-005 phase 2 slice A2), verified against the WisKey source (access/enrollment.py CardEnrollment,
 # websocket.py:524-539 dispatch, access/manager.py _station / _driver, access/repository.py get):
@@ -342,6 +368,65 @@ async def users_delete(call: Call, user_id: str, revision: int) -> Any:
         raise IntercomError("invalid_fields", "users/delete")
     frame = await call(command_type("users/delete"), user_id=user_id, revision=revision, api_contract=API_CONTRACT)
     return _action_result(frame, "users/delete")
+
+
+# ---------------------------------------------------------------- CR-036 S11: the person writes the editor did not have
+# WisKey's own commands with the key sets the pinned catalog lists (rc37-contract.4 commands.static.json), sent once, never
+# retried, `api_contract` on each (none is a READ command). Every one answers the person's public record (`ManagedUser.public()`,
+# cards masked, never a PIN) after its commit; `request_user` then asks the stations (WisKey's default, these commands carry no
+# `sync_now` key in rc.37). A failure code is a refusal only when PRE_STORAGE proves it comes before the commit.
+
+TEMPORARY_CANCEL_REASONS = ("visit_cancelled", "visit_completed", "access_no_longer_needed")  # access/admin_audit.py CANCELLATION_REASONS
+
+
+async def users_archive(call: Call, user_id: str, revision: int, archived: bool) -> Any:
+    """`hikvision_intercom/users/archive` / `users/unarchive {user_id, revision, confirmed: true, api_contract}` - archive keeps
+    the identity, history and pending cleanup and makes the person inactive; unarchive restores the record INACTIVE (WisKey's
+    own rule: a restored person is switched on separately). `confirmed` is WisKey's own required key (the caller's
+    confirmation step has run; WisKey refuses anything else with `confirmation_required`)."""
+    command = "users/archive" if archived else "users/unarchive"
+    if type(revision) is not int:
+        raise IntercomError("invalid_fields", command)
+    frame = await call(command_type("users/archive") if archived else command_type("users/unarchive"), user_id=user_id, revision=revision, confirmed=True, api_contract=API_CONTRACT)
+    return _action_result(frame, command)
+
+
+async def users_set_active(call: Call, user_id: str, revision: int, active: bool) -> Any:
+    """`hikvision_intercom/users/set_active {user_id, revision, active, api_contract}` - switch a person on or off (WisKey
+    patches `active` through its update path; an archived person cannot be switched on: `user_archived`)."""
+    if type(revision) is not int or type(active) is not bool:
+        raise IntercomError("invalid_fields", "users/set_active")
+    frame = await call(command_type("users/set_active"), user_id=user_id, revision=revision, active=active, api_contract=API_CONTRACT)
+    return _action_result(frame, "users/set_active")
+
+
+async def users_temporary_cancel(call: Call, user_id: str, revision: int, reason_code: str) -> Any:
+    """`hikvision_intercom/users/temporary_cancel {user_id, revision, reason_code, api_contract}` - end a visitor's or a
+    contractor's access early (WisKey keeps the credentials and every rule, and switches the person off); `reason_code` is one
+    of WisKey's three cancellation reasons and goes into WisKey's own audit."""
+    if type(revision) is not int or reason_code not in TEMPORARY_CANCEL_REASONS:
+        raise IntercomError("invalid_fields", "users/temporary_cancel")
+    frame = await call(command_type("users/temporary_cancel"), user_id=user_id, revision=revision, reason_code=reason_code, api_contract=API_CONTRACT)
+    return _action_result(frame, "users/temporary_cancel")
+
+
+async def cards_add(call: Call, user_id: str, revision: int, card: dict[str, Any]) -> Any:
+    """`hikvision_intercom/cards/add {user_id, revision, data: {card_no, label, card_type, enabled}, api_contract}` - one card
+    typed by number (WisKey CARD_FIELDS, `card_no` required, never an `id`). The number travels only in this frame; WisKey's
+    answer carries it masked."""
+    if type(revision) is not int or not isinstance(card.get("card_no"), str) or "id" in card or set(card) - {"card_no", "label", "card_type", "enabled"}:
+        raise IntercomError("invalid_fields", "cards/add")
+    frame = await call(command_type("cards/add"), user_id=user_id, revision=revision, data=card, api_contract=API_CONTRACT)
+    return _action_result(frame, "cards/add")
+
+
+async def cards_remove(call: Call, user_id: str, revision: int, card_id: str) -> Any:
+    """`hikvision_intercom/cards/remove {user_id, revision, card_id, api_contract}` - one saved card by its id (WisKey answers
+    `card_not_found` for an id the person does not have). The removal from each station follows WisKey's own sync."""
+    if type(revision) is not int or not isinstance(card_id, str) or not card_id:
+        raise IntercomError("invalid_fields", "cards/remove")
+    frame = await call(command_type("cards/remove"), user_id=user_id, revision=revision, card_id=card_id, api_contract=API_CONTRACT)
+    return _action_result(frame, "cards/remove")
 
 
 # ---------------------------------------------------------------- card capture (CR-005 phase 2, slice A2)

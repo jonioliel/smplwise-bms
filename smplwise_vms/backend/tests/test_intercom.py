@@ -2716,8 +2716,10 @@ def test_access_people_manage_permission_catalogue(settings):
 
 def test_person_editor_requires_access_people_manage(settings):
     """`access.read` is not enough - and neither is `access.release`: every editor endpoint is 403 for a viewer, an
-    operator, an editor, a kiosk, a site-scoped site_admin and nobody, before the body is looked at, and no
-    `intercom.person.*` audit row is ever written for them."""
+    operator, an editor, a kiosk and nobody, before the body is looked at, and no `intercom.person.*` audit row is ever
+    written for them. CR-036 S11: the gate is `access.people.manage` ANYWHERE a station can be (the access-control station
+    chain) - a site-scoped site_admin passes it, and is then refused per station: no station is placed under her site (CR-033
+    places stations), so she manages none - the editor context lists no station and no write of hers reaches WisKey."""
     intercom_sync.SYNC.reset()
     intercom_sync.SYNC.start(settings)
     c = TestClient(create_app(settings))
@@ -2727,17 +2729,21 @@ def test_person_editor_requires_access_people_manage(settings):
     bind(c, settings, "sally", "site_admin", "site", site)
     bind(c, settings, "sam", "site_admin", "installation", "*")
     assert c.get("/api/v1/intercom/people/u1", headers=as_user("otto")).status_code != 403, "otto does hold access.people.read (CR-036 S3; access.read alone no longer reads people)"
-    for user in ("vera", "otto", "eddie", "wall", "sally", "nobody"):
+    for user in ("vera", "otto", "eddie", "wall", "nobody"):
         for method, path, body in EDITOR_PATHS:
             r = c.request(method, path, json=body if body is not None else env(data=NEW_PERSON, revision=4, confirmed=True), headers=as_user(user))
             assert r.status_code == 403 and r.json()["code"] == "forbidden", (user, path, r.text)
         r = c.post("/api/v1/intercom/people", content=b"{not json", headers={**as_user(user), "Content-Type": "application/json"})
         assert r.status_code == 403, "permission before the body"
+    # sally: past the gate, refused per station (a person on entry-a is not hers); the context has nothing of hers to list
+    r = c.post("/api/v1/intercom/people", json=env(data=NEW_PERSON), headers=as_user("sally"))
+    assert r.status_code == 403 and r.json()["code"] == "intercom_person_scope" and r.json()["details"]["outcome"] == "not_sent", r.text
     with Database(settings.db_path).connection() as conn:
         denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = ? AND decision = 'denied' AND actor_username = 'vera'", (MANAGE,)).fetchone()[0]
-        own = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.person.%' AND actor_username != 'sam'").fetchone()[0]
+        own = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.person.%' AND actor_username != 'sam' AND decision = 'allowed'").fetchone()[0]
+        refused = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.person.%' AND actor_username NOT IN ('sam', 'sally')").fetchone()[0]
     assert denied == len(EDITOR_PATHS) + 1, "every permission refusal is audited under the real caller"
-    assert own == 0
+    assert own == 0 and refused == 0, "nothing was attempted for anyone but sam; sally's refusal is audited as one"
     assert MANAGE in c.get("/api/v1/me", headers=as_user("sam")).json()["permissions_installation"]
     assert MANAGE not in c.get("/api/v1/me", headers=as_user("sally")).json()["permissions_installation"]
     intercom_sync.SYNC.reset()
@@ -2798,15 +2804,14 @@ def test_person_create_round_trip_and_audit(feed):
     for row in (attempt, outcome):
         assert (row["actor_user_id"], row["actor_username"], row["decision"], row["resource_type"], row["resource_id"], row["reason"]) == ("dev-sam", "sam", "allowed", "intercom_person", "new", None)
         d = row["details"]
-        assert d["command_id"] == body["command_id"] and d["sync_now"] is True and d["pin_change"] == "set"
+        assert d["command_id"] == body["command_id"] and d["sync_now"] is True and (d["effect"], d["pending"]) == ("sync", False)
         assert d["fields"] == ["access_policy_revision", "active", "cards", "display_name", "door_permissions", "employee_no", "permission_overrides", "phone", "pin", "valid_from", "valid_until"]
-        assert (d["card_count"], d["enabled_cards"], d["new_cards"]) == (1, 1, 1)
-        assert (d["door_permissions"], d["permission_overrides"], d["access_policy_revision"]) == ({"entry-a": [1]}, {"entry-a": "allow"}, 3)
+        # CR-036 S11 (D06, 2026-10-12): the field NAMES only - no PIN change kind, no card counts, no relay map, no values
+        for gone in ("pin_change", "card_count", "enabled_cards", "new_cards", "door_permissions", "permission_overrides", "access_policy_revision"):
+            assert gone not in d, gone
         assert not holds_secret(json.dumps(d, ensure_ascii=False)), d
-    assert outcome["details"]["outcome"] == "ok" and outcome["details"]["result"] == {
-        "id": "u9", "employee_no": "700112233", "display_name": "Noa", "revision": 1, "active": True, "pin_configured": True, "card_count": 1, "enabled_cards": 1,
-        "assignments": {"entry-a": {"enabled": True, "allowed_locks": [1]}},
-    }
+    assert outcome["details"]["outcome"] == "ok" and outcome["details"]["result"] == {"id": "u9", "revision": 1}, "the target and its new revision only"
+    assert body["effect"] == "sync" and body["pending"] is False
     # a new person needs a name and an employee number: refused locally, audited (with its command id), nothing sent
     body = env(data={"phone": "050-777-1234"})
     r = c.post("/api/v1/intercom/people", json=body, headers=as_user("sam"))
@@ -2841,7 +2846,8 @@ def test_person_update_and_delete_round_trip(feed):
     [attempt] = audit_rows(s, "intercom.person.update", "attempt")
     assert (attempt["resource_type"], attempt["resource_id"]) == ("intercom_person", "u1")
     d = attempt["details"]
-    assert (d["revision"], d["pin_change"], d["card_count"], d["enabled_cards"], d["new_cards"], d["fields"]) == (4, "removed", 2, 1, 1, ["cards", "display_name", "door_permissions", "permission_overrides", "pin"])
+    assert (d["revision"], d["fields"]) == (4, ["cards", "display_name", "door_permissions", "permission_overrides", "pin"])
+    assert "pin_change" not in d and "card_count" not in d and "door_permissions" not in d, "CR-036 S11 (D06): names only"
     assert "NEW77" not in json.dumps(d) and "Dana K" not in json.dumps(d), "values stay out of the attempt row"
     assert audit_rows(s, "intercom.person.update", "outcome")[0]["details"]["result"]["id"] == "u9"
     # nothing to change: refused locally
@@ -3011,7 +3017,7 @@ def test_people_config_lane_is_separate_from_the_action_lane(feed, monkeypatch):
 @pytest.mark.parametrize("draft, field", [
     ({**NEW_PERSON, "profile": {"department": "x"}}, "data.profile"),
     ({**NEW_PERSON, "photo": None}, "data.photo"),
-    ({**NEW_PERSON, "access_timing_draft": None}, "data.access_timing_draft"),
+    ({**NEW_PERSON, "access_timing_draft": {"mode": "hourly"}}, "data"),  # CR-036 S11 accepts timing - validated as WisKey validates it
     ({**NEW_PERSON, "group_ids": ["staff"]}, "data.group_ids"),
     ({**NEW_PERSON, "user_type": "normal"}, "data.user_type"),
     ({**NEW_PERSON, "active": 1}, "data.active"),
@@ -3166,11 +3172,14 @@ def test_editor_context_and_pin_generate(feed):
     # PIN generate: the value is served once and is nowhere in the audit log
     r = c.post("/api/v1/intercom/people/pin-generate", json={"user_id": ""}, headers=as_user("sam"))
     assert r.status_code == 200 and r.json()["pin"] == {"pin": "246810"}, r.text
+    assert r.headers["cache-control"] == "no-store", "CR-036 S11 (PG): never cached"
     [msg] = sent(fakes, "users/pin_generate")
     assert msg == {"id": msg["id"], "type": "hikvision_intercom/users/pin_generate", "user_id": "", "api_contract": 1}
     with Database(s.db_path).connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE details_json LIKE '%246810%' OR reason LIKE '%246810%'").fetchone()[0] == 0
-        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.person.%'").fetchone()[0] == 0, "a read is not audited as a write"
+        # CR-036 S11 (PG, D06): who asked, for whom, the request ids, the outcome - never the value, its hash or length
+        actions = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'intercom.person.%'").fetchall()]
+        assert actions == ["intercom.person.pin_generate", "intercom.person.pin_generate"]
     assert c.post("/api/v1/intercom/people/pin-generate", content=b"user_id=", headers={**as_user("sam"), "Content-Type": "text/plain"}).status_code == 415
     assert c.post("/api/v1/intercom/people/pin-generate", json={"user_id": "u1", "pin": "1"}, headers=as_user("sam")).status_code == 422, "no extra keys"
     r = c.post("/api/v1/intercom/people/pin-generate", json={"user_id": "gone"}, headers=as_user("sam"))
@@ -3457,8 +3466,9 @@ def test_card_capture_round_trip(feed, fast_capture):
     assert msg == {"id": msg["id"], "type": CAP + "capture_confirm", "session_id": sid, "label": "  תג ראשי ", "api_contract": 1}
     [attempt] = audit_rows(s, "intercom.card_capture.confirm", "attempt")
     [outcome] = audit_rows(s, "intercom.card_capture.confirm", "outcome")
-    assert attempt["details"]["cards_added"] == 1 and attempt["details"]["label_set"] is True and attempt["details"]["session_id"] == sid
-    assert outcome["details"]["result"]["card_count"] == 2 and "cards" not in outcome["details"]["result"]
+    assert attempt["details"]["session_id"] == sid and "label_set" not in attempt["details"] and attempt["details"]["effect"] == "unknown_effect"
+    assert outcome["details"]["result"] == {"id": body["person"]["id"], "revision": 5}, "CR-036 S11 (D06): the target and its revision only"
+    assert body["pending"] is True, "UNKNOWN_EFFECT: sent, the read model confirms"
     assert CAPTURED_NUMBER not in r.text and "WXYZ" not in json.dumps(capture_rows(s), ensure_ascii=False)
     no_card_digits_in_audit(s)
     # the session is over: nothing left to cancel or confirm

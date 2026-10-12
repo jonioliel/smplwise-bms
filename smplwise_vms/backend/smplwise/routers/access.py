@@ -243,6 +243,11 @@ PERMISSION_LABELS: dict[str, str] = {
     "access.schedules.manage": "בקרת כניסה: עריכת לוחות זמנים של דלתות",
     "access.stations.manage": "בקרת כניסה: עריכת הגדרות עמדה (תוכניות דלת, החזקה פתוחה, קודים ציבוריים)",
     "access.groups.manage": "בקרת כניסה: עריכת קבוצות ושדות פרופיל",
+    # CR-036 S11 (owner decision 2026-10-12, PG): generating a person's PIN - a personal value shown once to the requesting
+    # operator and stored, logged, cached or audited nowhere. Its own permission ON TOP of access.people.manage, in an interactive
+    # session only (an HA frontend or Arx browser session, never a bearer-token client); sensitive (never implied); default
+    # site_admin and system_admin, like access.cards.capture. Scoped by the access-control station chain like the people writes.
+    "access.pin.generate": "בקרת כניסה: יצירת קוד PIN לאדם (מוצג פעם אחת למבקש; דורש גם ניהול אנשים)",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,

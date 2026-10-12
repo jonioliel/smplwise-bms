@@ -324,6 +324,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_reads  # CR-036 S4: the typed access-control reads (its own line: merges with CR-033 stay simple)
 
     app.include_router(access_control_reads.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
+
+    app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])

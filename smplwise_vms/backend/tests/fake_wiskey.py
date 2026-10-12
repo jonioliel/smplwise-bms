@@ -34,6 +34,11 @@ Switches (attributes, change them at any time, also while a session is open):
 - `drift`: schema drift - unknown top-level and per-row keys, unknown enum values, a dropped field (`last_seen`), so a
   test can prove unknown fields are dropped and unknown values shown as unknown;
 - `errors`: `{command: code}` - answer that command with that error code once per call (a hook for one-off cases).
+- CR-036 S11 (the person writes): with `use_directory()` every person write (`users/create`, `update`, `delete`, `archive`,
+  `unarchive`, `set_active`, `temporary_cancel`, `cards/add`, `cards/remove`) is answered STATEFULLY - the revision
+  compare-and-set, rc.37's archive / temporary / card rules, card numbers unique across people (kept inside the fake, the record
+  shows the mask), a photo written is the one `users/photo_get` serves - so a test can write and read the effect back;
+  `pin_value`: the SENTINEL `users/pin_generate` answers (tests never use a real PIN).
 - CR-036 S7 (the people screen's message dialog; W11 is NOT delivered, so every shape here is W? except the keys rc.37's
   whatsapp_api.py shows): `wa_available` (the messaging service is connected), `wa_quota` (`{limit, used}` sends per hour; the send
   past it is answered `rate_limited`), `wa_unregistered` (phone numbers the provider refuses: `whatsapp_invalid_phone`). A
@@ -78,7 +83,17 @@ SEPARATE_GRANTS: dict[str, list[tuple[str, str]]] = {
 }
 # commands that act on a station's device: refused with `station_offline` when the station is offline
 STATION_BOUND = frozenset({"stations/test_unlock", "media/signal", "tts/start", "cards/reader_capabilities", "cards/capture_start"})
-REVISIONED_WRITES = frozenset({"users/update", "users/delete", "cards/capture_start"})
+REVISIONED_WRITES = frozenset({"users/update", "users/delete", "cards/capture_start",
+                               # CR-036 S11
+                               "users/archive", "users/unarchive", "users/set_active", "users/temporary_cancel", "cards/add", "cards/remove"})
+# CR-036 S11: the person writes the fake answers STATEFULLY over the directory (`use_directory`): rc.37's own rules as read in the
+# reference source (websocket.py `_dispatch_inner`, access/repository.py, access/models.py build_user) - existence, the revision
+# compare-and-set, the archive / temporary / card checks, card numbers unique across people (kept only inside the fake; the
+# public record carries the mask) - so a test can write, read back and see the effect. Without the directory a write answers the
+# fixture person, as before.
+PERSON_WRITES = frozenset({"users/create", "users/update", "users/delete", "users/archive", "users/unarchive", "users/set_active",
+                           "users/temporary_cancel", "cards/add", "cards/remove"})
+CARD_FIELDS = frozenset({"id", "card_no", "label", "card_type", "enabled"})
 LEVELS = {"none": 0, "view": 1, "manage": 2}
 FIXTURE_FOR = {
     "overview": "overview.json",
@@ -195,6 +210,11 @@ class FakeWiskey:
         self.wa_quota: dict[str, int] | None = None
         self.wa_unregistered: set[str] = set()
         self._wa_tokens: dict[str, dict[str, Any]] = {}
+        # CR-036 S11: what the stateful person writes keep that a public record never shows (card numbers by card id, photos)
+        self._card_numbers: dict[str, str] = {}
+        self._photos: dict[str, str] = {}
+        self._serial = 0
+        self.pin_value: str | None = None  # `users/pin_generate` answers this sentinel when set (else the fixture's)
         # what happened
         self.received: list[dict[str, Any]] = []
         self.answered: list[tuple[str, str]] = []  # (command or HA type, "ok" | error code)
@@ -340,7 +360,16 @@ class FakeWiskey:
             person = self._person(msg.get("user_id"))
             if person is None:
                 return [fail(msg, "user_not_found")]
+            if person["id"] in self._photos:
+                return [ok(msg, {"photo": self._photos[person["id"]]})]
             return [ok(msg, fixture("users_photo_get.json") if person.get("photo_configured") else {"photo": None})]
+        if command in PERSON_WRITES and self.directory is not None:
+            return self._person_write(command, msg)
+        if command == "users/pin_generate":
+            # CR-036 S11: a test sets `pin_value` to a SENTINEL (never a real PIN); an unknown person in the directory is WisKey's own code
+            if self.directory is not None and msg.get("user_id") and self._person(msg["user_id"]) is None:
+                return [fail(msg, "user_not_found")]
+            return [ok(msg, {"pin": self.pin_value} if self.pin_value is not None else fixture("users_pin_generate.json"))]
         if command == "events/detail":
             return self._event_detail(msg)
         if command == "sync/status":
@@ -364,11 +393,129 @@ class FakeWiskey:
         name = FIXTURE_FOR.get(command)
         if name is not None:
             return [ok(msg, fixture(name))]
-        if command in ("users/create", "users/update"):
+        if command in ("users/create", "users/update", "users/archive", "users/unarchive", "users/set_active", "users/temporary_cancel", "cards/add", "cards/remove"):
             person = fixture("users_get.json")
             person["revision"] = int(msg.get("revision") or 0) + 1
             return [ok(msg, person)]  # WisKey answers the person's public record
         return [ok(msg, {})]
+
+    # ------------------------------------------------------------ CR-036 S11: the stateful person writes over the directory
+    def _public(self, person: dict[str, Any]) -> dict[str, Any]:
+        """`ManagedUser.public()`: never a PIN, never a card number, never the photo itself."""
+        out = copy.deepcopy(person)
+        for key in ("pin", "photo"):
+            out.pop(key, None)
+        return out
+
+    def _mask(self, number: str) -> str:
+        return "•••• " + number[-4:]
+
+    def _apply(self, person: dict[str, Any], data: dict[str, Any]) -> str | None:
+        """A users/create / users/update patch onto a stored person (the subset of build_user the tests need). Returns WisKey's
+        refusal code, or None."""
+        if person.get("archived_at") and data.get("active") is True:
+            return "user_archived"
+        for key in ("display_name", "employee_no", "phone", "active", "valid_from", "valid_until", "access_category", "responsible_person", "access_purpose",
+                    "access_timing_draft", "access_timing_policy"):
+            if key in data:
+                person[key] = copy.deepcopy(data[key])
+        if "pin" in data:
+            person["pin_configured"] = data["pin"] is not None
+        if "photo" in data:
+            if data["photo"] is None:
+                self._photos.pop(person["id"], None)
+            else:
+                self._photos[person["id"]] = data["photo"]
+            person["photo_configured"] = data["photo"] is not None
+        if "cards" in data:
+            existing = {c["id"]: c for c in person.get("cards", [])}
+            cards = []
+            for raw in data["cards"]:
+                if "id" in raw:
+                    card = existing.get(raw["id"])
+                    if card is None:
+                        return "invalid_cards"
+                    cards.append({**card, "label": raw.get("label", card.get("label", "")), "enabled": raw.get("enabled", card.get("enabled", True))})
+                else:
+                    number = raw["card_no"]
+                    if number in self._card_numbers.values():
+                        return "card_conflict"
+                    self._serial += 1
+                    cid = f"card-new-{self._serial}"
+                    self._card_numbers[cid] = number
+                    cards.append({"id": cid, "masked_number": self._mask(number), "label": raw.get("label", ""), "card_type": raw.get("card_type", "normalCard"),
+                                  "enabled": raw.get("enabled", True)})
+            person["cards"] = cards
+        overrides, doors = data.get("permission_overrides"), data.get("door_permissions")
+        if isinstance(overrides, dict) and isinstance(doors, dict):
+            assignments = person.setdefault("assignments", {})
+            for sid, effect in overrides.items():
+                if effect == "deny" and sid in assignments:
+                    assignments[sid]["enabled"] = False
+            for sid, locks in doors.items():
+                previous = assignments.get(sid, {})
+                assignments[sid] = {**previous, "config_entry_id": sid, "enabled": True, "allowed_locks": list(locks), "sync_state": "pending",
+                                    "last_sync_at": previous.get("last_sync_at"), "last_error": None}
+            person["permission_overrides"] = dict(overrides)
+        return None
+
+    def _person_write(self, command: str, msg: dict[str, Any]) -> list[Any]:
+        assert self.directory is not None
+        if command == "users/create":
+            data = msg.get("data") or {}
+            if any(p.get("employee_no") == data.get("employee_no") for p in self.directory):
+                return [fail(msg, "employee_conflict")]
+            self._serial += 1
+            person = {"id": f"u-new-{self._serial}", "display_name": "", "employee_no": "", "phone": "", "active": True, "user_type": "normal", "valid_from": None,
+                      "valid_until": None, "revision": 1, "identity_locked": False, "profile": {}, "group_ids": [], "permission_overrides": {}, "photo_configured": False,
+                      "pin_configured": False, "cards": [], "assignments": {}, "access_category": "staff", "responsible_person": "", "access_purpose": "",
+                      "access_timing_draft": None, "access_timing_policy": None, "archived_at": None}
+            code = self._apply(person, data)
+            if code:
+                return [fail(msg, code)]
+            self.directory.append(person)
+            return [ok(msg, self._public(person))]
+        person = next((p for p in self.directory if p["id"] == msg.get("user_id")), None)
+        if person is None:
+            return [fail(msg, "user_not_found")]
+        if msg.get("revision") != person.get("revision"):
+            return [fail(msg, "revision_conflict")]
+        if command == "users/delete":
+            self.directory.remove(person)
+            return [ok(msg, {"accepted": True})]
+        candidate = copy.deepcopy(person)
+        if command == "users/update":
+            code = self._apply(candidate, msg.get("data") or {})
+        elif command in ("users/archive", "users/unarchive"):
+            archived = command == "users/archive"
+            code = "archive_state_changed" if bool(candidate.get("archived_at")) == archived else None
+            candidate["archived_at"] = datetime.now(timezone.utc).isoformat() if archived else None
+            candidate["active"] = False  # archived or restored: switched off (restoration stays inactive)
+        elif command == "users/set_active":
+            code = self._apply(candidate, {"active": msg["active"]})
+        elif command == "users/temporary_cancel":
+            code = None
+            if candidate.get("access_category") not in ("visitor", "contractor"):
+                code = "temporary_user_required"
+            elif not candidate.get("active"):
+                code = "temporary_already_inactive"
+            candidate["active"] = False
+        elif command == "cards/add":
+            card = msg.get("data") or {}
+            if set(card) - CARD_FIELDS or "card_no" not in card or "id" in card:
+                return [fail(msg, "invalid_fields")]
+            code = self._apply(candidate, {"cards": [{"id": c["id"]} for c in candidate.get("cards", [])] + [card]})
+        else:  # cards/remove
+            if not any(c["id"] == msg.get("card_id") for c in candidate.get("cards", [])):
+                return [fail(msg, "card_not_found")]
+            candidate["cards"] = [c for c in candidate.get("cards", []) if c["id"] != msg.get("card_id")]
+            self._card_numbers.pop(str(msg.get("card_id")), None)
+            code = None
+        if code:
+            return [fail(msg, code)]
+        candidate["revision"] = int(person["revision"]) + 1
+        self.directory[self.directory.index(person)] = candidate
+        return [ok(msg, self._public(candidate))]
 
     # ------------------------------------------------------------ CR-036 S7: the messaging fake (W11 is not delivered)
     WA_ACCOUNT = {"id": "wa-1", "name": "Office line"}
@@ -672,7 +819,10 @@ def all_error_codes(fake: FakeWiskey) -> set[str]:
     """Every error code this fake can answer (for the test that each one is in the catalog or is Home Assistant's own)."""
     return {"unknown_command", "invalid_format", "request_too_large", "unauthorized", "station_not_found", "station_offline",
             "revision_conflict", "user_not_found", "event_not_found", "station_unloaded", "operation_unsupported", "invalid_fields",
-            "whatsapp_unavailable", "whatsapp_invalid_phone", "whatsapp_preview_expired", "rate_limited"} | set(fake.errors_once.values())
+            "whatsapp_unavailable", "whatsapp_invalid_phone", "whatsapp_preview_expired", "rate_limited",
+            # CR-036 S11: the stateful person writes
+            "employee_conflict", "card_conflict", "invalid_cards", "user_archived", "archive_state_changed", "temporary_user_required",
+            "temporary_already_inactive", "card_not_found"} | set(fake.errors_once.values())
 
 
 Responder = Callable[[dict[str, Any]], list[Any]]
