@@ -143,6 +143,56 @@ def judge_entity_action(conn: sqlite3.Connection, entity_id: str, action_id: str
         raise refusal("door_steps_unresolvable" if not res.resolvable else "door_step_not_converted", UNRESOLVABLE if not res.resolvable else NOT_CONVERTED, res)
 
 
+# ---------------------------------------------------------------- enabling an item (D10a groundwork, review I5)
+#
+# Enabling an automation or a schedule from Arx re-arms what Home Assistant then runs ON ITS OWN: a door step in it would
+# open a WisKey door outside the door path (no door authority, no Arx actor) - after the D10 "disable and list" run, an
+# operator could switch the autonomous door opener back on from Arx. While the editor block is `blocked` (the default;
+# CR-033 6.3, the same administrator setting that refuses NEW door steps), enabling such an item from Arx is refused the
+# way a new door step is; disabling is always allowed. An item converted by D10a carries no door step in Home Assistant
+# and enables as before. Home Assistant's own screens are not an Arx path (DR-7) and are not judged.
+
+ENABLE_NOT_CONVERTED = "לא ניתן להפעיל: יש בפריט פתיחת דלת שלא הוסבה"
+ENABLE_UNRESOLVABLE = "לא ניתן להפעיל: לא ניתן לזהות את הדלתות בפריט"
+
+
+def _enable_refusal(res: door_path.Resolution) -> ApiError:
+    unresolvable = not res.resolvable
+    return ApiError(409, "door_steps_unresolvable" if unresolvable else "door_step_not_converted", ENABLE_UNRESOLVABLE if unresolvable else ENABLE_NOT_CONVERTED,
+                    details={"listed": True, "op": "enable", "door_steps": len(res.door_steps)})
+
+
+def _enable_judged(conn: sqlite3.Connection) -> bool:
+    from . import door_path_guard  # local: door_path_guard is the editor-side module; no import cycle at load time
+
+    return door_path_guard.editor_mode(conn) == "blocked"
+
+
+def judge_enable_item(conn: sqlite3.Connection, kind: str, item_id: str) -> None:
+    """Enabling an automation from Arx: refused (raised) when it holds a WisKey door step, or a step that may be one."""
+    if not _enable_judged(conn):
+        return
+    r = door_path.Resolver(conn)
+    if not r.present():
+        return
+    res, _row = r.resolve_item(kind, item_id)
+    if res.has_door:
+        raise _enable_refusal(res)
+
+
+def judge_enable_schedule(conn: sqlite3.Connection, item: dict[str, Any]) -> None:
+    """Enabling a schedule from Arx (alone or in a bulk enable): refused (raised) when any of its slots holds a WisKey door
+    step, or a step that may be one."""
+    if not _enable_judged(conn):
+        return
+    r = door_path.Resolver(conn)
+    if not r.present():
+        return
+    res = r.resolve_schedule_slots(item, None)
+    if res.has_door:
+        raise _enable_refusal(res)
+
+
 def authorize_plan(conn: sqlite3.Connection, principal: Principal, plan: RunPlan, *, dev_mode: bool) -> None:
     """Every door of a converted run, judged by the one door authority with the real operator, BEFORE the run starts: one
     door the operator may not open refuses the whole run (403), nothing is sent."""

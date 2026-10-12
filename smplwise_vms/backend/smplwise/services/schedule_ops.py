@@ -688,6 +688,9 @@ def set_enabled(w: W, schedule_id: str, enable: bool, client_request_id: str, co
             w.rate()  # a bulk request is counted once, by bulk()
         w.writable()
         item, row, core = fresh(w, schedule_id)
+        if enable and not core["enabled"]:
+            # CR-033 D10a / review I5: enabling (alone or in a bulk enable) never re-arms an autonomous door opener from Arx
+            door_run_guard.judge_enable_schedule(w.conn, item)
         cls = model.classify(core, w.ctx.resolver)
         wide = w.ctx.access.wide(view.MANAGE)
         if not cls["understood"]:
@@ -1177,6 +1180,8 @@ def bulk(w: W, op: str, ids: list[str], confirm: bool, client_request_id: str) -
                     row = store.cache_row(w.conn, sid)
                     if row is not None:
                         core = model.normalize(store.item_of(row))
+                        if not core["enabled"]:
+                            door_run_guard.judge_enable_schedule(w.conn, store.item_of(row))  # CR-033 D10a: said before the lowering question
                         if model.classify(core, w.ctx.resolver)["lowering"]:
                             raise ApiError(409, "lowering_confirmation_required", "תזמון שמנטרל אזעקה, פותח נעילה, דלת או שער דורש אישור מפורש.")
                 key = hashlib.sha256(f"{client_request_id}|{i}|{sid}".encode("utf-8")).hexdigest()[:48]  # never truncated into a collision (review L3)

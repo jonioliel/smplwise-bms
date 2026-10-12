@@ -937,6 +937,8 @@ def set_enabled(w: W, item_id: str, enable: bool, confirm: bool, client_request_
         w.runtime_ready()
         if row.config_id is None:
             raise ApiError(422, "not_editable", "פריט זה מוגדר בקובץ תצורה או במכשיר ואינו ניתן לעריכה כאן.")
+        if enable:
+            door_run_guard.judge_enable_item(w.conn, "automation", item_id)  # CR-033 D10a / review I5: no autonomous door opener re-armed from Arx
         reasons = scope.run_reasons(w.ctx, "automation", facts, entity_id=row.entity_id, source=row.source)
         if reasons:
             raise reason_error(reasons[0])
