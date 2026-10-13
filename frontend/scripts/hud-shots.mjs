@@ -3,11 +3,11 @@
 // building seeded into the devices fixture backend (tests/hud-live-seed.ts: three floors, the apartment plan, four named rooms, cameras, devices, a lighting
 // circuit, a second level). Five shots per skin x scheme x width:
 //   list2d   the 2D plan with the side list open (floor chip, level bar, quick floor buttons, circuit button, legend, zoom buttons, label pills)
-//   strip3d  the 3D view of the ground floor with the floor strip, the level thumbnails, the pills and the view bar (the side list is closed again: it stands in
-//            the corner of the time pill and the walk bar, and it is a persisted choice - pass --list3d open to keep it open there)
-//   time3d   the realistic level with the time pill and its open picker (the circuit buttons are hidden for this shot: they stand in the pill's corner)
-//   overlap3d the same realistic level with the circuit button where the time pill is: an existing layout collision (both are top / inline-end 12px), which the
-//            opaque panels make plain - the button now hides the pill instead of showing through it
+//   strip3d  the 3D view of the ground floor with the floor strip, the level thumbnails, the pills and the view bar (the side list is closed again: it is a
+//            persisted choice - pass --list3d open to keep it open there)
+//   time3d   the realistic level with the time pill and its open picker (a menu: it opens over the circuit button, which stands below the pill)
+//   overlap3d the same realistic level with the circuit button under the time pill. Before the layout fix (map/hud-layout.ts, tests/evidence-hud-layout-live.spec.ts,
+//            docs/design/evidence/hud-layout/) the two stood on the same spot - both top / inline-end 12 px - and the opaque button hid the pill
 //   walk3d   the eye-level walk with the walk bar (the bottom sheet on a phone)
 //
 //   SW_API_PORT=8381 python frontend/tests/fixtures/devices_fake_ha.py   (SW_PORT=8381 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni)
@@ -53,7 +53,6 @@ async function until(fn, timeout, what) {
 }
 const has = (loc, attr) => loc.evaluate((el, a) => el.hasAttribute(a), attr);
 const jsClick = (loc) => loc.evaluate((el) => el.click()); // the realistic level keeps the main thread busy: a click through the page is not held up by actionability checks
-const circuits = (page, hide) => page.locator('explore-floor-map').evaluate((el, h) => { const c = el.shadowRoot?.querySelector('[data-circuit-strip]'); if (c) c.style.display = h ? 'none' : ''; }, hide);
 
 let seed;
 const api = await request.newContext({ baseURL: base });
@@ -126,13 +125,11 @@ for (const w of widths) {
               console.log('shot', name('overlap3d', skin, scheme, w));
             }
             if (shots.includes('time3d')) {
-              await circuits(page, true);
               await jsClick(page.locator(`${MAP} sw-plan-3d [data-3d-time-toggle]`)); // the picker opens under the pill: the pill and its popover together
               await page.waitForTimeout(500);
               await page.screenshot({ path: name('time3d', skin, scheme, w), animations: 'disabled' });
               console.log('shot', name('time3d', skin, scheme, w));
               await jsClick(page.locator(`${MAP} sw-plan-3d [data-3d-time-toggle]`));
-              await circuits(page, false);
             }
             if (shots.includes('walk3d')) {
               await jsClick(page.locator(`${MAP} sw-plan-3d [data-walk-btn]`));
