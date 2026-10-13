@@ -58,7 +58,7 @@ import { anchorOnLevel, initialLevel } from '../map/studio-ops';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { circuitAction } from '../map/circuit-action';
-import { HUD_BELOW_LIST, HUD_EDGE, HUD_GAP, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, endItemWidth, hudBottom, hudEnd, needsSecondRow, type HudCorner } from '../map/hud-layout';
+import { HUD_BELOW_LIST, HUD_EDGE, HUD_GAP, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, HUD_WALK_SHEET, endItemWidth, hudBottom, hudEnd, listBottom, needsSecondRow, type HudCorner } from '../map/hud-layout';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
 import { CONTROL_STATES, controlDescription, controlSceneInput } from '../map/skin-control';
 import { getFloorSkins, uploadControlImage } from '../api/skins';
@@ -421,6 +421,8 @@ export class ExploreFloorMap extends LitElement {
                            here and in the 3D element and the 2D canvas start there
          --hud-circuits-top  where the circuit buttons start: the edge inset, under the 3D time pill's row, or under the walk's minimap
          --hud-bar-top / --hud-cols-top  the level bar's row when it has a row of its own (data-hud-row2), and where the columns start under it
+         --hud-bar-h       the bar's measured height (one line, or two when it wraps in its own row)
+         --hud-list-bottom how far above the bottom the docked side list stops (the 2D view: above the measured zoom buttons)
          data-corner       what the 3D element keeps in the corner (its hud-corner event)
          data-hud-row2     the level bar does not fit beside the floor chip and the corner's item (needsSecondRow)
        They are written by syncHud(); without them (the first paint, the demo, a test that never mounts the stage) every var() falls back to the old edge. */
@@ -428,6 +430,8 @@ export class ExploreFloorMap extends LitElement {
       --hud-circuits-top: ${HUD_EDGE}px;
       --hud-bar-top: ${HUD_PILL_ROW}px;
       --hud-cols-top: calc(var(--hud-bar-top) + var(--hud-bar-h, 38px) + ${HUD_GAP}px);
+      /* the 3D element's slow-device notice stands under the bar (a skin's chips make the bar taller: Bubble's is 54 px) */
+      --hud-hint-top: calc(${HUD_EDGE}px + var(--hud-bar-h, 38px) + ${HUD_GAP}px);
     }
     .stage[data-corner='pill'] {
       --hud-circuits-top: ${HUD_PILL_ROW}px;
@@ -445,7 +449,7 @@ export class ExploreFloorMap extends LitElement {
     /* The level bar is centred in the free band: two logical insets (the start edge, and --hud-end) with auto margins and a fit-content size, so it
        is centred in RTL and LTR alike. The old inset-inline-start: 50% + translateX(-50%) shifted it LEFT by half its own width in RTL, off the
        canvas at 390 px and over the corner's blocks everywhere (the owner's pictures). One line; when the band is too narrow for it beside the floor
-       chip and the corner's item it takes a row of its own under them (data-hud-row2) and, if it is still wider than the band, scrolls inside it. */
+       chip and the corner's item it takes a row of its own under them (data-hud-row2) and, if it is still wider than the band, wraps to a second line. */
     .levelbar {
       position: absolute;
       inset-block-start: ${HUD_EDGE}px;
@@ -465,11 +469,8 @@ export class ExploreFloorMap extends LitElement {
     }
     .stage[data-hud-row2] .levelbar {
       inset-block-start: var(--hud-bar-top);
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-    .stage[data-hud-row2] .levelbar::-webkit-scrollbar {
-      display: none;
+      white-space: normal; /* wider than its band (a docked list, many levels): a second line, never a scrolling bar - every chip stays in view */
+      text-align: center;
     }
     .circuits {
       position: absolute;
@@ -483,7 +484,7 @@ export class ExploreFloorMap extends LitElement {
     }
     /* the level bar's own row: the circuit buttons and the floor buttons of both columns start under it */
     .stage[data-hud-row2] {
-      --hud-hint-top: var(--hud-cols-top); /* the 3D element's slow-device notice stands under the bar too */
+      --hud-hint-top: var(--hud-cols-top);
     }
     .stage[data-hud-row2] .circuits {
       inset-block-start: max(var(--hud-circuits-top), var(--hud-cols-top));
@@ -711,13 +712,13 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
     }
-    /* A docked list: it takes the end edge's column from the top to the row of the zoom buttons (HUD_BELOW_LIST: 90 px with a mouse, 120 px at
-       the touch size, + the edge and a gap - it used to stop 56 px up and covered two of the three buttons). The corner's blocks start past it
-       (--hud-end), so nothing but the plan stands under it. A phone gets the bottom sheet below. */
+    /* A docked list: it takes the end edge's column from the top to the row of the zoom buttons (--hud-list-bottom: the floor map measures their dock,
+       a skin's controls make it 90 px (Classic) or 144 px (Bubble) high; the 3D view has none: HUD_BELOW_LIST). It used to stop 56 px up and covered
+       two of the three buttons. The corner's blocks start past it (--hud-end), so nothing but the plan stands under it. A phone gets the bottom sheet below. */
     .sidelist {
       position: absolute;
       inset-inline-end: ${HUD_EDGE}px;
-      inset-block: ${HUD_EDGE}px ${HUD_BELOW_LIST}px;
+      inset-block: ${HUD_EDGE}px var(--hud-list-bottom, ${HUD_BELOW_LIST}px);
       inline-size: 236px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
@@ -1055,6 +1056,10 @@ export class ExploreFloorMap extends LitElement {
       .sidelist.tall {
         block-size: 78%;
       }
+      /* the eye-level walk keeps its own bottom row (the phone's one-row sheet, the floating bar of a wider view): the list's sheet stands above it */
+      .stage[data-corner='minimap'] .sidelist {
+        inset-block-end: calc(${HUD_WALK_SHEET}px + env(safe-area-inset-bottom, 0px));
+      }
       .sidelist .grab {
         display: flex;
       }
@@ -1328,7 +1333,7 @@ export class ExploreFloorMap extends LitElement {
     const chip = this.renderRoot.querySelector<HTMLElement>('[data-floorchip]');
     const circuits = this.renderRoot.querySelector<HTMLElement>('[data-circuit-strip]');
     if (bar) this.hudRo?.observe(bar); // its chips can change width on their own (levels renamed, a font arrived)
-    const row2 = !!bar && needsSecondRow({ stage: stage.clientWidth, end, bar: bar.scrollWidth + 2, chip: chip?.offsetWidth ?? 0, endItem: endItemWidth(corner, circuits?.offsetWidth ?? 0) });
+    const row2 = !!bar && needsSecondRow({ stage: stage.clientWidth, end, bar: this.barLineWidth(bar), chip: chip?.offsetWidth ?? 0, endItem: endItemWidth(corner, circuits?.offsetWidth ?? 0) });
     stage.toggleAttribute('data-hud-row2', row2);
     if (corner) stage.setAttribute('data-corner', corner);
     else stage.removeAttribute('data-corner');
@@ -1337,7 +1342,21 @@ export class ExploreFloorMap extends LitElement {
     const bottom = hudBottom({ sideList: listOn, viewport, tall: this.sheetTall });
     if (bottom) stage.style.setProperty('--hud-bottom', bottom);
     else stage.style.removeProperty('--hud-bottom');
-    if (bar) stage.style.setProperty('--hud-bar-h', `${Math.ceil(bar.offsetHeight)}px`);
+    if (bar) stage.style.setProperty('--hud-bar-h', `${Math.ceil(bar.offsetHeight)}px`); // after data-hud-row2: a wrapped bar is two lines tall
+    // the docked list stops above the zoom buttons (2D); the 3D view has none and keeps the constant
+    const zoom = !this.shows3d && listOn && end !== HUD_EDGE ? this.canvas?.zoomDockRect() ?? null : null;
+    if (zoom) stage.style.setProperty('--hud-list-bottom', `${listBottom(stage.getBoundingClientRect().top + stage.clientTop + stage.clientHeight - zoom.top)}px`);
+    else stage.style.removeProperty('--hud-list-bottom');
+  }
+
+  /** The level bar's width on one line. The bar in its own row wraps, and a wrapped bar reports its wrapped width: it is measured with the wrapping
+   * switched off for the moment (the decision must not depend on the state it decides). */
+  private barLineWidth(bar: HTMLElement): number {
+    const prev = bar.style.whiteSpace;
+    bar.style.whiteSpace = 'nowrap';
+    const w = bar.scrollWidth + 2; // + the hairline
+    bar.style.whiteSpace = prev;
+    return w;
   }
 
   /** Entity state pushes (scoped server-side to the floors this user may read). */

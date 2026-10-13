@@ -18,10 +18,12 @@ import {
   HUD_SHEET,
   HUD_SHEET_MAX,
   HUD_SHEET_TALL,
+  HUD_WALK_SHEET,
   cornerBottom,
   endItemWidth,
   hudBottom,
   hudEnd,
+  listBottom,
   needsSecondRow,
 } from '../src/map/hud-layout';
 
@@ -136,8 +138,12 @@ test.describe('the numbers of the contract', () => {
     expect(hudBottom({ sideList: true, viewport: 390, tall: true })).toBe('calc(78% + 12px)');
   });
 
-  test('the list stops above the zoom buttons: HUD_BELOW_LIST clears 120 px (touch size) + the edge', () => {
+  test('the list stops above the zoom buttons: the measured dock when the 2D view has one (Classic 102 px, Bubble 169 px from the bottom), else the 3D constant', () => {
     expect(HUD_BELOW_LIST).toBeGreaterThanOrEqual(120 + HUD_EDGE);
+    expect(listBottom(null)).toBe(HUD_BELOW_LIST);
+    expect(listBottom(102)).toBe(102 + HUD_GAP);
+    expect(listBottom(168.4)).toBe(169 + HUD_GAP); // rounded up: the list never touches the buttons
+    expect(listBottom(0)).toBe(HUD_GAP);
   });
 
   test('endItemWidth: the minimap, the pill, else the circuit buttons themselves', () => {
@@ -197,6 +203,13 @@ test.describe('the CSS agrees with the contract (the rules that collided are not
     expect(decl(base, 'inset-inline'), 'the two insets of the free band').toMatch(/^0px var\(--hud-end, 0px\)$/); // 12px / the end inset (interpolations read as 0)
     expect(decl(base, 'margin-inline')).toBe('auto');
     expect(decl(base, 'inline-size')).toBe('fit-content');
+    // in its own row it wraps to a second line: no scrolling bar with chips out of view
+    const own = rulesOf(MAP, '.stage[data-hud-row2] .levelbar');
+    expect(own.length).toBe(1);
+    expect(decl(own[0], 'white-space')).toBe('normal');
+    expect(decl(own[0], 'inset-block-start')).toBe('var(--hud-bar-top)');
+    expect(own[0].body, 'no overflow scroller').not.toMatch(/overflow/);
+    expect(decl(base, 'white-space')).toBe('nowrap');
     for (const r of rules) {
       expect(r.body, 'no translate: a physical shift is wrong in one of the two directions').not.toMatch(/translate/);
       expect(decl(r, 'inset-inline-start'), 'no start inset of 50 %').toBeUndefined();
@@ -235,24 +248,43 @@ test.describe('the CSS agrees with the contract (the rules that collided are not
     // the slow-device notice stands under the level bar when that has a row of its own, and paints above the columns it may cross
     expect(decl(rulesOf(P3D, '.pill.hint')[0], 'z-index')).toMatch(/calc\(var\(--sw-z-map-ui\) \+ 1\)/);
     expect(decl(rulesOf(MAP, '.stage[data-hud-row2]')[0], '--hud-hint-top')).toBe('var(--hud-cols-top)');
+    expect(rulesOf(MAP, '.stage').map((r) => decl(r, '--hud-hint-top')).find(Boolean), 'one line of the bar: under its measured height (Bubble\'s chips make it 54 px)').toBe('calc(0px + var(--hud-bar-h, 38px) + 0px)');
   });
 
-  test('the 2D canvas lifts its zoom buttons and scale above the phone sheet (--hud-bottom)', () => {
-    for (const sel of ['.controls', '.scale']) expect(decl(rulesOf(CANVAS, sel)[0], 'bottom'), sel).toMatch(/^var\(--hud-bottom, /);
+  test('the 2D canvas keeps its zoom buttons and scale in one row (the readout follows the buttons) and lifts it above the phone sheet (--hud-bottom)', () => {
+    const dock = rulesOf(CANVAS, '.zoomdock')[0];
+    expect(decl(dock, 'bottom')).toMatch(/^var\(--hud-bottom, /);
+    expect(decl(dock, 'display')).toBe('flex');
+    expect(decl(dock, 'align-items')).toBe('flex-end');
+    for (const sel of ['.controls', '.scale']) {
+      const r = rulesOf(CANVAS, sel)[0];
+      expect(decl(r, 'position'), `${sel} is a child of the row, not placed by a fixed offset (Bubble's 52 px column lay 8 px over a readout at 56 px)`).toBeUndefined();
+      expect(decl(r, 'left'), sel).toBeUndefined();
+    }
   });
 
   test('the side list stops above the zoom buttons on a wide stage and is a bottom sheet on a narrow one', () => {
     const rules = rulesOf(MAP, '.sidelist');
     const base = rules.find((r) => r.at === '')!;
-    expect(decl(base, 'inset-block')).toMatch(/^0px 0px$/); // 12px, HUD_BELOW_LIST (interpolations read as 0)
-    expect(read(MAP)).toMatch(/inset-block: \$\{HUD_EDGE\}px \$\{HUD_BELOW_LIST\}px;/);
+    expect(decl(base, 'inset-block')).toBe('0px var(--hud-list-bottom, 0px)'); // 12px, the measured zoom dock, else HUD_BELOW_LIST (interpolations read as 0)
+    expect(read(MAP)).toMatch(/inset-block: \$\{HUD_EDGE\}px var\(--hud-list-bottom, \$\{HUD_BELOW_LIST\}px\);/);
     const sheet = rules.find((r) => r.at.includes('max-width: 767px'))!;
     expect(decl(sheet, 'inset')).toBe('auto 0 0 0');
+    // during the walk the sheet stands above the walk's own bottom row: the phone's 60 px sheet, the floating bar's 12 + 58 px
+    expect(HUD_WALK_SHEET).toBeGreaterThanOrEqual(12 + 58);
+    const walkRows = rulesOf(MAP, ".stage[data-corner='minimap'] .sidelist");
+    expect(walkRows.length).toBe(1);
+    expect(walkRows[0].at).toContain('max-width: 767px');
+    expect(decl(walkRows[0], 'inset-block-end')).toBe('calc(0px + env(safe-area-inset-bottom, 0px))'); // HUD_WALK_SHEET (read as 0) + the home indicator
+    expect(read(MAP)).toMatch(/inset-block-end: calc\(\$\{HUD_WALK_SHEET\}px \+ env\(safe-area-inset-bottom, 0px\)\);/);
   });
 
   test('the floor map writes the contract onto the stage: --hud-end, --hud-bottom, --hud-bar-h, data-corner, data-hud-row2', () => {
     const src = read(MAP);
-    for (const token of ["'--hud-end'", "'--hud-bottom'", "'--hud-bar-h'", "'data-corner'", "'data-hud-row2'"]) expect(src, token).toContain(token);
+    for (const token of ["'--hud-end'", "'--hud-bottom'", "'--hud-bar-h'", "'--hud-list-bottom'", "'data-corner'", "'data-hud-row2'"]) expect(src, token).toContain(token);
+    // the decision about the bar's row is made on its one-line width, whatever row it stands in now
+    expect(src).toContain('barLineWidth(bar)');
+    expect(src).toContain('zoomDockRect()');
     expect(src).toContain('@hud-corner=');
     // and the 3D element reports the corner
     expect(read(P3D)).toContain("'hud-corner'");

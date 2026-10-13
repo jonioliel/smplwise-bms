@@ -223,8 +223,8 @@ export function defineHudLayoutTests(skins: readonly string[]): void {
           const name = `${skin}/${scheme}/${w}`;
           const me = { skin, scheme, w };
           const sheet = shortList(w); // the list is a bottom sheet: it covers the 3D view's bottom rows by design
-          const listApart: [string, string][] = DOCKED_AGAINST.filter((n) => !sheet || !['bar3d', 'walkbar'].includes(n)).map((n) => ['sidelist', n]);
-          const sheetCover: Record<string, string[]> = sheet ? { bar3d: ['sidelist'], thumbs: ['sidelist'], walkbar: ['sidelist'], walksheet: ['sidelist'] } : {};
+          const listApart: [string, string][] = DOCKED_AGAINST.filter((n) => !sheet || n !== 'bar3d').map((n) => ['sidelist', n]); // the sheet covers the view bar by design; the walk's row it leaves free
+          const sheetCover: Record<string, string[]> = sheet ? { bar3d: ['sidelist'], thumbs: ['sidelist'] } : {};
           const topmost = (s: HudSnapshot, state: string) => {
             if (s.pickerCovered.length) findings.push(`${name} / ${state}: the picker is not the top-most thing: ${s.pickerCovered.join(', ')} painted over it`);
           };

@@ -11,7 +11,7 @@
  *   2. THE DOCKED PANELS. The side list and the layers list are docked at the inline-end edge. While one is open the corner's blocks (circuit
  *      buttons, time pill, picker, minimap) start past it (`--hud-end`, set on the stage; hudEnd() is the rule), the level bar is centred in what
  *      is left, and the side list stops above the zoom buttons' row (HUD_BELOW_LIST). On a phone the list is a bottom sheet: the zoom buttons
- *      stand above it (`--hud-bottom`).
+ *      stand above it (`--hud-bottom`), and during the walk the sheet stands above the walk's own bottom row (HUD_WALK_SHEET).
  *   3. THE LEVEL BAR. It was centred with `inset-inline-start: 50%` + `translateX(-50%)`: in RTL that pushed it half its own width off the
  *      canvas's left edge. It is centred with two logical insets and auto margins now (direction-free). One row between the floor chip and the
  *      corner when it fits (needsSecondRow() decides, from measured widths), else a row of its own under them, and the blocks of the two
@@ -45,12 +45,16 @@ export const HUD_PANEL_W = 302;
 export const HUD_END_LIST = HUD_EDGE + HUD_LIST_W + HUD_GAP + 2;
 export const HUD_END_PANEL = HUD_EDGE + HUD_PANEL_W + HUD_GAP + 2;
 
-/** How far above the stage's bottom a docked list stops: the zoom buttons (90 px with a mouse, 120 px at the touch size) + their 12 px edge + a gap.
- * The 3D view's rows and the walk bar are shorter than that, so nothing of the bottom edge stands under the list. */
+/** How far above the stage's bottom a docked list stops when the zoom buttons are not there to measure (the 3D view): its view bar's two rows and the
+ * walk bar are shorter than that, so nothing of the bottom edge stands under the list. In the 2D view the floor map measures the zoom buttons (a
+ * skin's controls are 26, 36 or 44 px: 90 px high in Classic, 144 px in Bubble) and the list stops above what it found - listBottom(). */
 export const HUD_BELOW_LIST = 140;
 /** The phone's side list is a bottom sheet of this share of the stage (38 %, 78 % pulled up): the zoom buttons stand above it. */
 export const HUD_SHEET = 38;
 export const HUD_SHEET_TALL = 78;
+/** While the eye-level walk is on, its own bottom controls (walk-hud.ts: the phone's one-row sheet, 60 px; the floating bar of a wider view, 12 px + 58 px)
+ * keep their row and the list's sheet stands above it - never over the walk's exit button. */
+export const HUD_WALK_SHEET = 72;
 
 /** What the 3D element keeps in the corner (its `hud-corner` event): the time pill, the walk's minimap, or nothing. */
 export type HudCorner = 'pill' | 'minimap' | null;
@@ -69,6 +73,12 @@ export function hudEnd(s: { sideList: boolean; panel: boolean; viewport: number 
   if (s.sideList && s.viewport > HUD_SHEET_MAX) end = Math.max(end, HUD_END_LIST);
   if (s.panel && s.viewport > HUD_PHONE_MAX) end = Math.max(end, HUD_END_PANEL);
   return end;
+}
+
+/** How far above the stage's bottom the docked list stops: above the zoom buttons' dock when it was measured (its extent from the stage's bottom edge, px),
+ * else the 3D view's constant. */
+export function listBottom(zoomExtent: number | null): number {
+  return zoomExtent === null ? HUD_BELOW_LIST : Math.ceil(zoomExtent) + HUD_GAP;
 }
 
 /** The bottom inset of the zoom buttons and the scale readout while the phone's side list is a bottom sheet over the plan (null = their own edge). */
