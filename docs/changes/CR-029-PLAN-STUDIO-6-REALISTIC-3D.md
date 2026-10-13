@@ -784,3 +784,14 @@ ceiling and bloomed into halos, the office chair was a leather barrel, and a pho
 `scene-frame.ts` / `sw-plan-3d.ts`; levels 1-2 and their baselines are unchanged; no new dependency, chunk or asset.
 The look-dev harness (`frontend/tests/lookdev-studio6.spec.ts`, opt-in `SW_LOOKDEV=1`) and its synthetic two-floor
 building (`frontend/tests/lookdev/house.ts`, schema 2.2, product catalog ids) stay in the tree for the next round.
+
+## 17. The five 2.4.10 oddities (branch `pilot/ST7-odd-2411`, 2026-10-13)
+
+The 2.4.10 integrator looked at the round-3 images and listed five oddities (`docs/release/2.4.10-INTEGRATION-NOTES.md`).
+`docs/design/studio6/ODD_2411.md` has each one's reproduction, root cause, fix, regression test and before / after images. In
+short: the camera cones (level-2 prisms up to the camera mount) were never cut by the section plane, so they rose over the cut
+walls as translucent ghost volumes and white wisps - they now own their material and take the plane with the walls; the
+entity pills had no collision handling - `pill-layout.ts` stacks a pill that would cover another; the glTF export control was
+a ghost button that faded into the picture - it is a surfaced button like its neighbours (the bar never overlapped); the
+look-dev house hung three wall items over windows - moved, and `unit-lookdev-house.spec.ts` keeps it so. Levels 1-2 and
+their baselines are unchanged; the five replay-3d Linux baselines that showed the cone were regenerated and looked at.
