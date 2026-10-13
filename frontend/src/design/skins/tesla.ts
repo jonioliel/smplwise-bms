@@ -11,6 +11,9 @@ const tokens: TokenTable = {
   '--sw-surface-solid': lt('#fafafa', '#0f0f0f'),
   '--sw-surface-2-solid': lt('#f2f2f2', '#171717'),
   '--sw-surface-3-solid': lt('#e6e6e6', '#242424'),
+  // a menu is opaque (owner 2026-10-13): the solid twin and the 12 % rule flattened over it (tesla's surfaces were already flat)
+  '--sw-menu-surface': lt('#fafafa', '#0f0f0f'),
+  '--sw-menu-border': lt('#dcdcdc', '#2c2c2c'),
   '--sw-border': lt('rgba(0,0,0,.12)', 'rgba(255,255,255,.12)'),
   '--sw-border-strong': lt('rgba(0,0,0,.28)', 'rgba(255,255,255,.26)'),
   '--sw-overlay': lt('rgba(0,0,0,.50)', 'rgba(0,0,0,.72)'),

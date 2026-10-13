@@ -154,6 +154,10 @@ export const devicesThemes = css`
     --sw-surface-3: var(--dv-surface-3);
     --sw-border: var(--dv-border);
     --sw-border-strong: var(--dv-border-strong);
+    /* a menu inside a glass screen is the palette's SOLID surface (owner 2026-10-13: no transparency in any menu), light or dark by the
+       host's own scheme - never the translucent --sw-surface above; its hairline is the panel hairline over that opaque fill */
+    --sw-menu-surface: var(--dv-surface-solid);
+    --sw-menu-border: var(--dv-border);
     --sw-overlay: var(--dv-overlay);
     --sw-text: var(--dv-text);
     --sw-heading: var(--dv-text);

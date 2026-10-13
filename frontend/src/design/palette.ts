@@ -331,6 +331,10 @@ export function paletteTokens(pal: Palette, scheme: Scheme): Record<string, stri
   t['--sw-surface-solid'] = s.surfaceElevated;
   t['--sw-surface-2-solid'] = s.surface2;
   t['--sw-surface-3-solid'] = surface3Of(s);
+  // a menu is opaque (owner 2026-10-13): the palette's elevated surface - the one every text pair of the palette is checked on; the bubble
+  // skin is borderless, so the menu's hairline is the surface itself (an opaque border that draws nothing)
+  t['--sw-menu-surface'] = s.surfaceElevated;
+  t['--sw-menu-border'] = s.surfaceElevated;
   t['--sw-border-strong'] = s.border;
   t['--sw-overlay'] = s.glass.overlay;
   t['--sw-text'] = s.text;

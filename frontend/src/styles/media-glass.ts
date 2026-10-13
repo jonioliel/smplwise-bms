@@ -808,6 +808,8 @@ export const mediaBubbleKnobs = css`
     --sw-surface-3: inherit;
     --sw-border: inherit;
     --sw-border-strong: inherit;
+    --sw-menu-surface: inherit;
+    --sw-menu-border: inherit;
     --sw-overlay: inherit;
     --sw-text: inherit;
     --sw-heading: inherit;

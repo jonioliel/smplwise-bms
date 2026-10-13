@@ -20,6 +20,10 @@ const tokens: TokenTable = {
   '--sw-surface-solid': lt('#f4f5fa', '#3b3548'),
   '--sw-surface-2-solid': lt('#dfe3ee', '#4a4356'),
   '--sw-surface-3-solid': lt('#cfd5e3', '#5a5268'),
+  // a menu is opaque (owner 2026-10-13): the pop-up's own sheet colour at full alpha (= --sw-sheet-rgb below); bubble is borderless, so the
+  // hairline is the surface itself (an opaque border that draws nothing and keeps the box the same size)
+  '--sw-menu-surface': lt('#f6f7fc', '#3b3548'),
+  '--sw-menu-border': lt('#f6f7fc', '#3b3548'),
   '--sw-border': lt('transparent', 'transparent'),
   '--sw-border-strong': lt('rgba(34, 49, 76, 0.2)', 'rgba(255, 255, 255, 0.18)'),
   '--sw-highlight': lt('rgba(255, 255, 255, 0.85)', 'rgba(255, 255, 255, 0.16)'),

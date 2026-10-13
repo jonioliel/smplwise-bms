@@ -99,7 +99,8 @@ export class SwUserMenu extends LitElement {
       position: absolute;
       display: flex;
       flex-direction: column;
-      background: var(--sw-surface);
+      /* a menu is never see-through (owner 2026-10-13): the opaque menu surface in every skin, scheme and glass palette, no blur */
+      background: var(--sw-menu-surface);
       color: var(--sw-text);
       box-shadow: var(--sw-shadow-3);
       overflow: auto;
@@ -117,7 +118,7 @@ export class SwUserMenu extends LitElement {
         inset-block-end: max(12px, env(safe-area-inset-bottom, 0px));
         inline-size: 300px;
         max-block-size: min(640px, calc(100dvh - 24px));
-        border: 1px solid var(--sw-border);
+        border: 1px solid var(--sw-menu-border);
         border-radius: var(--sw-r-lg);
         opacity: 0;
         transform: translateY(8px) scale(0.98);
@@ -220,7 +221,7 @@ export class SwUserMenu extends LitElement {
       list-style: none;
       margin: 0;
       padding: 6px 8px;
-      border-block-start: 1px solid var(--sw-border);
+      border-block-start: 1px solid var(--sw-menu-border);
     }
     li > a,
     li > button,
@@ -291,7 +292,7 @@ export class SwUserMenu extends LitElement {
       cursor: pointer;
     }
     li.view .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       color: var(--sw-text);
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-shadow-1);
@@ -362,7 +363,7 @@ export class SwUserMenu extends LitElement {
     }
     footer {
       padding: 6px 8px 10px;
-      border-block-start: 1px solid var(--sw-border);
+      border-block-start: 1px solid var(--sw-menu-border);
     }
     footer > button {
       color: var(--sw-danger);

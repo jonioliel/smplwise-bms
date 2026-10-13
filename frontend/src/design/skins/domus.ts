@@ -11,6 +11,9 @@ const tokens: TokenTable = {
   '--sw-surface-solid': lt('#fbfcfe', '#161b26'),
   '--sw-surface-2-solid': lt('#ffffff', '#1e2432'),
   '--sw-surface-3-solid': lt('#e3e8f1', '#273043'),
+  // a menu is opaque (owner 2026-10-13): the solid twin, and the skin's ink hairline (12 % light / 10 % white dark) flattened over it
+  '--sw-menu-surface': lt('#fbfcfe', '#161b26'),
+  '--sw-menu-border': lt('#dfe1e6', '#2d323c'),
   '--sw-border': lt('rgba(255,255,255,.72)', 'rgba(255,255,255,.10)'),
   '--sw-border-strong': lt('rgba(20,30,50,.20)', 'rgba(255,255,255,.18)'),
   '--sw-highlight': lt('rgba(255,255,255,.95)', 'rgba(255,255,255,.10)'),

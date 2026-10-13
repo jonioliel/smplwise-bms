@@ -167,6 +167,8 @@ export const remoteStyles = css`
     --sw-border: var(--mr-border);
     --sw-border-strong: var(--mr-border-strong);
     --sw-surface: var(--mr-surface-solid);
+    --sw-menu-surface: var(--mr-surface-solid);
+    --sw-menu-border: var(--mr-border-strong);
     --sw-surface-2: var(--mr-surface-2);
     --sw-surface-3: var(--mr-surface-3);
     --sw-accent: var(--mr-accent);
