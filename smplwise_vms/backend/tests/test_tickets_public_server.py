@@ -340,6 +340,47 @@ def test_one_upload_in_flight_per_link_at_the_socket(serve):
         first.close()
 
 
+def test_lookups_stay_answered_while_uploads_wait_for_a_held_decoder(tmp_path):
+    """Four uploads (four links) meet a decoder held elsewhere (e.g. an internal upload). Only ONE may wait inside a worker
+    thread; the others wait on the listener's loop - so the four-token pool still serves every token lookup meanwhile."""
+    import io
+
+    from PIL import Image
+
+    from smplwise.services.tickets import image_intake as ii
+
+    world = build_world(tmp_path, decode_wait_s=3.0)
+    lst = ps.PublicListener("tickets-public-decode")
+    assert lst.start(world.app, host="127.0.0.1", port=0)
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 48), (1, 2, 3)).save(buf, "JPEG")
+    tokens = [world.links.add()[1] for _ in range(4)]
+    results: list[int] = []
+    assert ii._DECODE.acquire(timeout=5)  # noqa: SLF001 - someone else is decoding
+    try:
+        def up(tok: str) -> None:
+            with httpx.Client(base_url=f"http://127.0.0.1:{lst.port}", timeout=20) as c:
+                r = c.post("/t/api/photo", headers={"x-ticket-token": tok}, data={"client_request_id": str(uuid.uuid4())},
+                           files={"file": ("a.jpg", buf.getvalue(), "image/jpeg")})
+                results.append(r.status_code)
+
+        threads = [threading.Thread(target=up, args=(t,)) for t in tokens]
+        for t in threads:
+            t.start()
+        time.sleep(0.8)  # every upload has reached the decode stage by now
+        t0 = time.monotonic()
+        with httpx.Client(base_url=f"http://127.0.0.1:{lst.port}") as c:
+            for _ in range(5):
+                assert c.get("/t/api/photo/ffffffffffffffff", headers={"x-ticket-token": tokens[0]}).status_code == 404
+        assert time.monotonic() - t0 < 2.0
+    finally:
+        ii._DECODE.release()  # noqa: SLF001
+    for t in threads:
+        t.join(20)
+    lst.stop()
+    assert sorted(results) and all(code in (201, 429) for code in results) and 201 in results
+
+
 def test_cf_connecting_ip_over_the_socket_with_a_trusted_local_peer(serve):
     world, lst = serve(trusted=("127.0.0.0/8",))
     path = "/t/api/photo/a1b2c3d4e5f60718"  # a token route that resolves its link (one lookup each)

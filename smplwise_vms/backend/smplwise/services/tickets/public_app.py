@@ -311,7 +311,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
     api.state.gate = gate
     in_flight = InFlight()
     idempotency = Idempotency(deps.requests)
-    slots: dict[str, asyncio.Semaphore] = {}
+    slots: dict[str, asyncio.Semaphore] = {}  # per running loop (the listener has one; tests may run several)
 
     @api.exception_handler(PublicError)
     async def _public(_request: Request, exc: PublicError) -> Response:
@@ -457,19 +457,28 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
     # ---------------------------------------------------------------- photos (spec 10.6)
 
     @contextlib.asynccontextmanager
-    async def upload_slot():
-        loop_key = str(id(asyncio.get_running_loop()))
-        sem = slots.get(loop_key)
+    async def loop_slot(name: str, size: int, wait_s: float):
+        """An asyncio semaphore of this app on the running loop: `upload` bounds the upload bodies held in memory at once;
+        `decode` lets at most one upload at a time wait for the decoder IN A WORKER THREAD - without it, uploads waiting
+        for the (process-wide) decode slot could hold all four worker threads and stall every token lookup meanwhile."""
+        key = f"{name}:{id(asyncio.get_running_loop())}"
+        sem = slots.get(key)
         if sem is None:
-            sem = slots.setdefault(loop_key, asyncio.Semaphore(max(1, deps.upload_slots)))
+            sem = slots.setdefault(key, asyncio.Semaphore(max(1, size)))
         try:
-            await asyncio.wait_for(sem.acquire(), deps.upload_slot_wait_s)
+            await asyncio.wait_for(sem.acquire(), wait_s)
         except asyncio.TimeoutError:
             raise IntakeError("busy", 429, retry_after_s=5) from None
         try:
             yield
         finally:
             sem.release()
+
+    def upload_slot():
+        return loop_slot("upload", deps.upload_slots, deps.upload_slot_wait_s)
+
+    def decode_admission():
+        return loop_slot("decode", 1, deps.decode_wait_s)
 
     @api.post("/t/api/photo")
     async def photo_upload(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> Response:
@@ -493,7 +502,8 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
                 del form
 
                 async def work() -> tuple[int, Mapping[str, Any]]:
-                    image = await run_in_threadpool(image_intake.reencode, data, wait_s=deps.decode_wait_s)
+                    async with decode_admission():
+                        image = await run_in_threadpool(image_intake.reencode, data, wait_s=deps.decode_wait_s)
                     stored = await run_in_threadpool(image_intake.store_image, root, link.ticket_id, image)
                     if deps.storage is not None:
                         deps.storage.note(stored.bytes)

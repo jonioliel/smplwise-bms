@@ -106,6 +106,59 @@ def test_flush_and_restore_round_trip_under_the_scope_only():
     assert db.execute("SELECT count(*) FROM block_counters WHERE scope = 'signin'").fetchone()[0] == 1
 
 
+def test_flush_to_and_restore_from_the_real_database_and_schema(tmp_path):
+    """The janitor wiring of slice 4: ScopedRateLimiter.flush_to / restore_from through smplwise.db.Database and migration
+    0071's block_counters - only this scope's expired rows are deleted, another scope's rows survive."""
+    from smplwise.db import Database
+
+    db = Database(tmp_path / "smplwise.db")
+    db.migrate()
+    with db.connection() as conn:
+        conn.execute("INSERT INTO block_counters(scope, key, hits_json, expires_at) VALUES ('signin', 'ip:x', '[1]', 1.0)")
+    c = Clock()
+    lim = rl.new_public_limiter(c)
+    assert lim.flush_to(db) == 0  # nothing changed: no write transaction at all
+    for _ in range(12):
+        lim.record("fail:198.51.100.0/24", ((60.0, 20),))
+    assert lim.flush_to(db) == 1
+    fresh = rl.new_public_limiter(c)
+    assert fresh.restore_from(db) == 1 and fresh.count("fail:198.51.100.0/24", 60) == 12
+    c.advance(lim.horizon_s + 1)
+    lim.record("other", ((60.0, 2),))
+    lim.flush_to(db)  # deletes this scope's expired rows only
+    with db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT scope, key FROM block_counters ORDER BY scope, key").fetchall()
+    assert [tuple(r) for r in rows] == [("signin", "ip:x"), ("tickets_link", "other")]
+
+
+def test_cached_switch_is_fed_from_outside_and_fails_closed():
+    from smplwise.services.tickets.public_ports import CachedSwitch
+
+    reads: list[int] = []
+    value = {"on": True}
+
+    def read() -> bool:
+        reads.append(1)
+        if value.get("boom"):
+            raise RuntimeError("database is locked")
+        return value["on"]
+
+    sw = CachedSwitch(read)
+    assert sw.module_on() is False and not reads and sw.refreshed_at is None  # off until the first refresh
+    assert sw.refresh() is True and sw.module_on() is True
+    for _ in range(100):
+        sw.module_on()
+    assert len(reads) == 1  # a request never reads
+    value["boom"] = True
+    assert sw.refresh() is True and sw.module_on() is True  # a failing read keeps the last value
+    value.pop("boom")
+    value["on"] = False
+    sw.refresh()
+    assert sw.module_on() is False
+    sw.set(True)
+    assert sw.module_on() is True
+
+
 def test_a_busy_database_keeps_the_batch_for_the_next_flush():
     c = Clock()
     lim = limiter(c)
