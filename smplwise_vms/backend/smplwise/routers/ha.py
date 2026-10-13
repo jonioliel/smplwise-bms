@@ -608,6 +608,10 @@ def bridge_install_now(request: Request, principal: Principal = Depends(current_
 @router.get("/ha/bridge/pairing")
 def pairing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), regenerate: bool = False) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
+    if regenerate:  # CR-040: a re-pair replaces the trust relationship - an open rotation is superseded, the epoch starts again at 1
+        from ..services import bridge_trust
+
+        bridge_trust.on_repair(conn, principal)
     secret = ha_bridge.ensure_pairing(conn, regenerate=regenerate)
     if regenerate:
         audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
@@ -658,6 +662,10 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
             set_setting(conn, "bridge.delegated_authoring", new)
             set_setting(conn, "bridge.delegation_changed_at", changed)
             audit(conn, actor=None, action="bridge.delegation_seen", decision="allowed", resource_type="installation", resource_id="*", details={"delegated_authoring": new == "true", "changed_at": changed})
+    # CR-040 (bridge 0.8.1): the trust epoch the bridge holds and whether it can rotate - read only from this verified push
+    from ..services import bridge_trust
+
+    bridge_trust.note_push(conn, message)
     # CR-028 (bridge 0.7.0): the cast origin the bridge may let a TV fetch from - signed with the pairing secret under its own purpose (a
     # captured call of another kind can never pass for it); null while casting is not ready. Older bridges ignore the key.
     from ..services import cast_sessions

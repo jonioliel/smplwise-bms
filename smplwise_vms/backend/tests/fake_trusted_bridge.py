@@ -9,20 +9,29 @@ WisKey, no door, no key (the pairing secret is the published golden-vector TEST 
 - `FakeClock`: the bridge's notion of now (epoch seconds), frozen or offset.
 - `FakeWisKeyFeed`: a served WisKey overview copy (stations, relays, online flags) installed into `intercom_sync.SYNC`
   plus the interim station-release transport (`SYNC.action`) recorded instead of sent, with injectable outcomes
-  (accepted, refused before the device, not sent, unknown)."""
+  (accepted, refused before the device, not sent, unknown).
+- `FakeTrustBridge` (CR-040, WXROT): the bridge's `trust_rotate` / `trust_status` for the add-on's tests - the REAL bridge core
+  (custom_components/smplwise_bridge/trust.py and signing.py, loaded without Home Assistant) with an in-memory durable store, the
+  one Verifier every signed service shares (also behind `ha_client.call_bridge_execute`), restarts from the store, and transport
+  faults per call. A `FakeTrustedBridge` routes the two trust services to an attached one (`attach_trust`)."""
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
+import threading
 import time
 from typing import Any, Callable
 
+import bridge_loader
 import test_wiskey_golden_vectors as gv
 
 from smplwise.errors import ApiError
 from smplwise.services import ha_client, intercom_sync
 
 TEST_SECRET = gv.TEST_SECRET  # published test constant, never a real pairing secret
+TEST_TRUST_KEY = "TEST-ONLY-bridge-trust-key-0001-NOT-A-REAL-SECRET"  # synthetic pairing key of the trust tests, never a real one
+TRUST_SERVICES = ("trust_rotate", "trust_status")
 
 
 class FakeClock:
@@ -51,9 +60,16 @@ class FakeTrustedBridge:
         self.records: list[dict[str, Any]] = []
         self.calls: list[dict[str, Any]] = []  # every call: service, signed_message_json, parsed message, response
         self.other_calls: list[tuple[str, str]] = []
+        self.trust: FakeTrustBridge | None = None  # CR-040: the trust services, when a test attaches them
+
+    def attach_trust(self, trust: "FakeTrustBridge") -> "FakeTrustedBridge":
+        self.trust = trust
+        return self
 
     # ------------------------------------------------------------- what the add-on calls
     def call_service(self, settings: Any, domain: str, service: str, data: dict[str, Any], return_response: bool = False, timeout: float = 15.0) -> dict[str, Any]:
+        if domain == "smplwise_bridge" and service in TRUST_SERVICES and self.trust is not None:
+            return self.trust.call_service(settings, domain, service, data, return_response=return_response, timeout=timeout)
         if domain != "smplwise_bridge" or service not in ("door_open", "door_open_status"):
             self.other_calls.append((domain, service))
             raise AssertionError(f"FakeTrustedBridge: unexpected service {domain}.{service}")
@@ -142,3 +158,170 @@ class FakeWisKeyFeed:
         finally:
             if on_settled:
                 on_settled()
+
+
+# ---------------------------------------------------------------- CR-040: the bridge's trust services
+
+class FakeTrustStore:
+    """The bridge's private trust store, in memory and durable across `FakeTrustBridge.restart()`. `fail_next_save` makes the next
+    write raise (a full disk); `saves` counts the writes."""
+
+    def __init__(self) -> None:
+        self.data: Any = None
+        self.fail_next_save = False
+        self.saves = 0
+
+    async def save(self, state: dict[str, Any]) -> None:
+        if self.fail_next_save:
+            self.fail_next_save = False
+            raise OSError("disk full (test)")
+        self.data = copy.deepcopy(state)
+        self.saves += 1
+
+
+class Crash(RuntimeError):
+    """The add-on process dying in the middle of a call: an error nothing in the rotation path handles, so the request ends there."""
+
+
+class FakeTrustBridge:
+    """`smplwise_bridge.trust_rotate` / `trust_status` as bridge 0.8.1 answers them: the REAL trust core (trust.TrustRuntime, the
+    shared signing.Verifier) with an in-memory durable store. Faults, one per call, queued per service (`fail_next`):
+      `unreachable`   the connection is never made (ConnectError): nothing reaches the bridge
+      `drop_before`   the bridge dies before its handler runs (the caller sees RemoteProtocolError); it restarts from its store
+      `timeout_after` the bridge handles the call (persists, switches) and the caller sees a ReadTimeout
+      `crash_after`   the bridge handles it and dies before answering (RemoteProtocolError); it restarts from its store
+      `http_500`      Home Assistant answers 500 after the handler ran
+      `garbage`       the answer is not one of the closed shapes
+      `hold`          the call waits for `release()` (a slow bridge); `holding` is set while it waits
+      `arx_crash_before` / `arx_crash_after`  the ADD-ON process dies before / after the bridge handled the call (raises Crash)
+    `call_bridge_execute` verifies a device command with the same Verifier (so the old key is refused after a switch). Synthetic keys
+    only; no Home Assistant, bridge, WisKey or door."""
+
+    def __init__(self, entry_code: str = TEST_TRUST_KEY, *, entry_id: str = "entry-test", pairing_id: str = "legacy", clock: Callable[[], float] | None = None) -> None:
+        self._trust = bridge_loader.load("trust")
+        self._signing = bridge_loader.load("signing")
+        self.entry_code, self.entry_id, self.pairing_id = entry_code, entry_id, pairing_id
+        self.entry_epoch: int | None = None
+        self.store = FakeTrustStore()
+        self.clock = clock or time.time
+        self.faults: dict[str, list[str]] = {s: [] for s in TRUST_SERVICES}
+        self.calls: list[dict[str, Any]] = []  # service, signed text, answer (None when not handled), fault
+        self.executed: list[dict[str, Any]] = []
+        self.restarts = 0
+        self._loop = asyncio.new_event_loop()
+        self._lock = threading.Lock()
+        self._release = threading.Event()
+        self.holding = threading.Event()
+        self.start()
+
+    # ------------------------------------------------------------- life cycle (trust_service.async_setup_trust's reconcile)
+    def start(self) -> None:
+        stored = copy.deepcopy(self.store.data)
+        state = self._trust.reconcile(stored, self.entry_id, self.pairing_id, self.entry_epoch)
+        if state != stored:
+            self.store.data = copy.deepcopy(state)
+        self.verifier = self._signing.Verifier(self.entry_code)
+        self.verifier.secret = self._trust.current_key(state, self.entry_code)
+        self.runtime = self._trust.TrustRuntime(self.verifier, state, self.store.save, clock=self.clock, on_switch=self._mirror)
+
+    def _mirror(self, key: str, epoch: int) -> None:
+        self.entry_code, self.entry_epoch = key, epoch
+
+    def restart(self) -> None:
+        """Home Assistant restarts: the nonce cache is gone, the store and the (mirrored) config entry remain."""
+        self.restarts += 1
+        self.start()
+
+    def re_pair(self, code: str, pairing_id: str = "re-paired") -> None:
+        """The config flow accepted a DIFFERENT code (a new pairing id, epoch 1) and the entry reloads."""
+        self.entry_code, self.pairing_id, self.entry_epoch = code, pairing_id, 1
+        self.restart()
+
+    @property
+    def key(self) -> str:
+        return self.verifier.secret
+
+    @property
+    def epoch(self) -> int:
+        return self.runtime.epoch
+
+    @property
+    def ledger(self) -> dict[str, Any]:
+        return self.runtime.state.get("ledger") or {}
+
+    def fail_next(self, service: str, *faults: str) -> "FakeTrustBridge":
+        self.faults[service].extend(faults)
+        return self
+
+    def release(self) -> None:
+        self._release.set()
+
+    def handle(self, service: str, text: str) -> dict[str, Any]:
+        """Hand one signed text straight to the bridge (a replay, a late delivery) - no transport, no fault."""
+        with self._lock:
+            return self._loop.run_until_complete(self.runtime.handle(service, {"signed_message_json": text}))
+
+    # ------------------------------------------------------------- what the add-on calls
+    def call_service(self, settings: Any, domain: str, service: str, data: dict[str, Any], return_response: bool = False, timeout: float = 15.0) -> dict[str, Any]:
+        if domain != "smplwise_bridge" or service not in TRUST_SERVICES:
+            raise AssertionError(f"FakeTrustBridge: unexpected service {domain}.{service}")
+        assert return_response is True, "the trust services are always called with return_response"
+        fault = self.faults[service].pop(0) if self.faults[service] else None
+        text = data.get("signed_message_json") if isinstance(data, dict) else None
+        record: dict[str, Any] = {"service": service, "text": text, "answer": None, "fault": fault}
+        self.calls.append(record)
+        if fault == "unreachable":
+            raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": "ConnectError"})
+        if fault == "drop_before":
+            self.restart()
+            raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": "RemoteProtocolError"})
+        if fault == "arx_crash_before":
+            raise Crash("the add-on died before the request left")
+        if fault == "hold":
+            self.holding.set()
+            assert self._release.wait(timeout=20), "the test never released the held call"
+        with self._lock:
+            answer = self._loop.run_until_complete(self.runtime.handle(service, copy.deepcopy(data)))
+        record["answer"] = copy.deepcopy(answer)
+        if fault == "timeout_after":
+            raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": "ReadTimeout"})
+        if fault == "crash_after":
+            self.restart()
+            raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": "RemoteProtocolError"})
+        if fault == "arx_crash_after":
+            raise Crash("the add-on died after the bridge handled the request")
+        if fault == "http_500":
+            raise ApiError(503, "ha_error", "תשתית המערכת החזירה שגיאה.", retryable=True, details={"status": 500})
+        if fault == "garbage":
+            return {"result": "rotated", "request_id": "not-this-request"}
+        return copy.deepcopy(answer)
+
+    def call_bridge_execute(self, settings: Any, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+        """`smplwise_bridge.execute`, verified with the one Verifier; nothing is executed (fakes only)."""
+        reason = self.verifier.verify(dict(payload))
+        self.executed.append({"request_id": payload.get("request_id"), "error": reason})
+        if reason:
+            return {"ok": False, "error": reason}
+        return {"ok": True, "context_id": "ctx-test", "request_id": payload.get("request_id")}
+
+    def push(self, **extra: Any) -> dict[str, Any]:
+        """The 0.8.1 directory push, signed with the bridge's current key."""
+        body = {"users": [], "version": "0.8.1", "delegated_authoring": False, "delegated_changed_at": None, "config_item": True,
+                "trust_epoch": self.epoch, "trust_rotation": 1, **extra}
+        return self._signing.sign(self.verifier.secret, body)
+
+    def rotations(self) -> list[dict[str, Any]]:
+        return [c for c in self.calls if c["service"] == "trust_rotate"]
+
+    def statuses(self) -> list[dict[str, Any]]:
+        return [c for c in self.calls if c["service"] == "trust_status"]
+
+    def install(self, monkeypatch: Any) -> "FakeTrustBridge":
+        monkeypatch.setattr(ha_client, "call_service", self.call_service)
+        monkeypatch.setattr(ha_client, "call_bridge_execute", self.call_bridge_execute)
+        monkeypatch.setattr(ha_client, "configured", lambda s: True)
+        return self
+
+    def close(self) -> None:
+        self._release.set()
+        self._loop.close()
