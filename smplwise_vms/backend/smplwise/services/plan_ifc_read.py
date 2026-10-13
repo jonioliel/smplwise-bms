@@ -55,6 +55,7 @@ _SI_PREFIX = {"EXA": 1e18, "PETA": 1e15, "TERA": 1e12, "GIGA": 1e9, "MEGA": 1e6,
               "MILLI": 1e-3, "MICRO": 1e-6, "NANO": 1e-9, "PICO": 1e-12, "FEMTO": 1e-15, "ATTO": 1e-18}
 _NUMBER = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?")
 _INSTANCE = re.compile(r"#(\d+)\s*=\s*([A-Z0-9_]+)\s*\(")
+_TOKEN = re.compile(r"[()']")
 
 Pt = tuple[float, float]
 Pt3 = tuple[float, float, float]
@@ -284,32 +285,33 @@ class Model:
             if not m:
                 break
             iid, name = int(m.group(1)), m.group(2)
-            # the end of this instance: the ';' outside strings and parentheses
+            # the end of this instance: the closing parenthesis outside strings (jumping between the interesting
+            # characters with a regex, not one character at a time: a 32 MiB file has tens of millions of them)
             j = m.end()
             depth = 1
-            while j < end:
-                c = text[j]
+            while True:
+                t = _TOKEN.search(text, j)
+                if not t:
+                    raise IfcError("ifc_not_step", "unterminated instance")
+                c = t.group(0)
+                j = t.end()
                 if c == "'":
-                    k = j + 1
                     while True:
-                        k = text.find("'", k)
+                        k = text.find("'", j)
                         if k < 0:
                             raise IfcError("ifc_not_step", "unterminated string")
                         if k + 1 < end and text[k + 1] == "'":
-                            k += 2
+                            j = k + 2
                             continue
                         break
                     j = k + 1
-                    continue
-                if c == "(":
+                elif c == "(":
                     depth += 1
-                elif c == ")":
+                else:
                     depth -= 1
                     if depth == 0:
+                        j = t.start()
                         break
-                j += 1
-            if depth != 0:
-                raise IfcError("ifc_not_step", "unterminated instance")
             if j - m.end() > MAX_INSTANCE_CHARS:
                 raise IfcError("ifc_too_complex", "instance too long", {"instance": iid})
             if iid not in self.spans:  # a duplicate id keeps the first (never silently the attacker's second)
