@@ -208,7 +208,7 @@ def test_start_is_idempotent_stop_joins_and_closes_the_port(serve):
     _world, lst = serve()
     port = lst.port
     assert lst.running and lst.start(object(), host="127.0.0.1", port=0)  # a no-op while running
-    assert lst.snapshot()["running"] is True and lst.snapshot()["port"] == port
+    assert lst.snapshot()["running"] is True and lst.snapshot()["port"] == port and lst.snapshot()["connections_open"] == 0
     t0 = time.monotonic()
     assert lst.stop() is True and time.monotonic() - t0 < ps.STOP_JOIN_S
     assert not lst.running and lst.port is None and lst.stop() is True

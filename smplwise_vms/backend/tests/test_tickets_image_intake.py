@@ -6,10 +6,13 @@ the one-upload-per-link guard. Every file is synthesised; no real photo is used.
 from __future__ import annotations
 
 import io
+import os
 import struct
+import sys
 import threading
 import time
 import zlib
+from pathlib import Path
 
 import pytest
 from conftest import sw_time_factor
@@ -548,3 +551,36 @@ def test_one_upload_in_flight_per_link():
     for t in threads:
         t.join(5)
     assert len(wins) == 1
+
+
+@pytest.mark.skipif(not (os.environ.get("SW_MEASURE_RSS") == "1" and sys.platform.startswith("linux")),
+                    reason="a measurement: Linux (the add-on image) and SW_MEASURE_RSS=1 only")
+@pytest.mark.parametrize("case", ["baseline_16mp", "progressive_8mp", "png_rgba_8mp"])
+def test_peak_rss_of_one_decode_per_path(tmp_path, case):
+    """Code review V6: the peak memory of ONE upload's decode, per path, in a fresh interpreter (ru_maxrss before / after the
+    reencode call). A measurement with a loose bound, run on the runner on demand: SW_MEASURE_RSS=1 pytest -k peak_rss -s."""
+    import subprocess
+
+    if case == "baseline_16mp":
+        data = jpeg(4000, 4000, noise=True)
+    elif case == "progressive_8mp":
+        data = jpeg(4000, 2000, noise=True, progressive=True)
+    else:
+        buf = io.BytesIO()
+        Image.frombytes("RGBA", (4000, 2000), bytes((i * 31) % 251 for i in range(4000 * 2000 * 4))).save(buf, "PNG")
+        data = buf.getvalue()
+    src = tmp_path / "upload.bin"
+    src.write_bytes(data)
+    code = ("import resource, sys; from pathlib import Path\n"
+            "from smplwise.services.tickets import image_intake as ii\n"
+            f"data = Path({str(src)!r}).read_bytes()\n"
+            "before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
+            "ii.reencode(data)\n"
+            "after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
+            "print(before, after)\n")
+    out = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+                         timeout=120, check=True).stdout.split()
+    before_kb, after_kb = int(out[0]), int(out[1])
+    peak_mb = (after_kb - before_kb) / 1024
+    print(f"peak RSS growth of one decode, {case}: {peak_mb:.0f} MB")
+    assert peak_mb < 400

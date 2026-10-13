@@ -438,8 +438,11 @@ class PublicListener:
         return ended
 
     def snapshot(self) -> dict[str, Any]:
-        """Health (spec 17): running, port, last error, the listener's counters."""
-        return {"running": self.running, "port": self.port, "error": self.error, "stats": self.stats.snapshot() if self.stats else None}
+        """Health (spec 17): running, port, last error, open connections, the listener's counters."""
+        budget = getattr(self.config, "connection_budget", None) if self.running else None
+        return {"running": self.running, "port": self.port, "error": self.error,
+                "connections_open": budget.open if budget is not None else None,
+                "stats": self.stats.snapshot() if self.stats else None}
 
 
 SERVER = PublicListener()
