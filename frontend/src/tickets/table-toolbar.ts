@@ -160,9 +160,9 @@ export class TicketsTableToolbar extends LitElement {
   private columnsPop(): TemplateResult {
     const list = chooserOrder(this.layout.columns);
     const shown = this.layout.columns;
-    return html`<div class="pop" role="dialog" aria-label=${tbt('columns')} data-pop="columns">
+    return html`<div class="pop lst" role="dialog" aria-label=${tbt('columns')} data-pop="columns">
       <div class="hd">${tbt('columns')}</div>
-      ${list.map((c) => {
+      <div class="plist">${list.map((c) => {
         const i = shown.indexOf(c.key);
         return html`<div class="crow" data-col=${c.key}>
           <label class="opt"><input type="checkbox" .checked=${c.shown} ?disabled=${c.required} data-col-toggle=${c.key}
@@ -172,7 +172,7 @@ export class TicketsTableToolbar extends LitElement {
             <button type="button" class="btn quiet sm mv" aria-label=${tbt('moveDown', { col: columnLabel(c.key) })} ?disabled=${i >= shown.length - 1} data-col-down=${c.key}
               @click=${() => this.setLayout({ columns: moveColumn(shown, c.key, 1) })}>${tbIcon('down')}</button>` : nothing}
         </div>`;
-      })}
+      })}</div>
       <hr />
       <button type="button" data-col-reset @click=${() => this.setLayout({ columns: [...DEFAULT_COLUMNS] as ColumnKey[] })}>${tIcon('refresh')}${tbt('columnsReset')}</button>
     </div>`;
@@ -180,16 +180,16 @@ export class TicketsTableToolbar extends LitElement {
 
   private viewsPop(): TemplateResult {
     const views = this.views;
-    return html`<div class="pop wide" role="dialog" aria-label=${tbt('savedViews')} data-pop="views">
+    return html`<div class="pop wide lst" role="dialog" aria-label=${tbt('savedViews')} data-pop="views">
       <div class="hd">${tbt('savedViews')}</div>
-      ${views === null ? html`<span class="skl" style="block-size:44px"></span>` : views.length ? views.map((v) => html`<div class="vrow" data-view=${v.id}>
+      <div class="plist">${views === null ? html`<span class="skl" style="block-size:44px"></span>` : views.length ? views.map((v) => html`<div class="vrow" data-view=${v.id}>
           <button type="button" data-view-apply=${v.id} @click=${() => { this.close(); this.emit('view-apply', { view: v }); }}>${tbIcon('bookmark')}<span>${v.name}</span></button>
           <button type="button" class="icon" aria-pressed=${String(this.defaultView === v.id)} data-view-default=${v.id}
             aria-label=${this.defaultView === v.id ? tbt('unsetDefault', { name: v.name }) : tbt('makeDefault', { name: v.name })}
             @click=${() => void this.setDefault(this.defaultView === v.id ? null : v.id)}>${tbIcon('star')}</button>
           <button type="button" class="icon" data-view-delete=${v.id} aria-label=${this.confirmDelete === v.id ? tbt('deleteConfirm', { name: v.name }) : tbt('deleteView', { name: v.name })}
             @click=${() => void this.deleteView(v)}>${this.confirmDelete === v.id ? tIcon('check') : tIcon('trash')}</button>
-        </div>`) : html`<div class="note" data-views-empty>${tbt('noViews')}</div>`}
+        </div>`) : html`<div class="note" data-views-empty>${tbt('noViews')}</div>`}</div>
       <hr />
       ${this.naming ? html`<div class="save">
           <label class="vh" for="vname">${tbt('viewName')}</label>
@@ -206,7 +206,8 @@ export class TicketsTableToolbar extends LitElement {
     const e = this.extra;
     const prioName = (k: string) => this.meta?.departments[0]?.priorities.find((p) => p.key === k)?.name ?? tbt(`prio_${k}` as TableTextKey);
     const radio = (value: string, label: string) => html`<button type="button" class="rc" aria-pressed=${String(e.assignee === value)} data-f-assignee=${value || 'any'} @click=${() => this.setExtra({ assignee: value })}>${label}</button>`;
-    return html`<div class="pop wide" role="dialog" aria-label=${tbt('filters')} data-pop="filters">
+    return html`<div class="pop wide lst" role="dialog" aria-label=${tbt('filters')} data-pop="filters">
+      <div class="plist">
       <div class="hd">${tbt('fPriority')}</div>
       <div class="fgrp">${PRIORITY_KEYS.map((k) => html`<button type="button" class="rc" aria-pressed=${String(e.priority.includes(k))} data-f-priority=${k}
         @click=${() => this.setExtra({ priority: e.priority.includes(k) ? e.priority.filter((x) => x !== k) : [...e.priority, k] })}>${prioName(k)}</button>`)}</div>
@@ -219,6 +220,7 @@ export class TicketsTableToolbar extends LitElement {
       <div class="dates">
         <label>${tbt('fCreatedFrom')}<input class="inp" type="datetime-local" data-f-from .value=${toLocalInput(e.created_from)} @change=${(ev: Event) => this.setExtra({ created_from: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>
         <label>${tbt('fCreatedTo')}<input class="inp" type="datetime-local" data-f-to .value=${toLocalInput(e.created_to)} @change=${(ev: Event) => this.setExtra({ created_to: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>
+      </div>
       </div>
       <hr />
       <button type="button" data-f-clear ?disabled=${!activeExtraCount(e)} @click=${() => this.setExtra({ ...NO_TABLE_FILTERS })}>${tIcon('x')}${tbt('fClear')}</button>

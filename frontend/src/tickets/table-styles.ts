@@ -38,6 +38,19 @@ export const ticketTableStyles = css`
     background: var(--sw-menu-surface);
     border-color: var(--sw-menu-border);
   }
+  /* a long list scrolls inside the popover (the popover itself never overflows its own box) */
+  .anchor > .pop.lst {
+    max-block-size: none;
+    overflow: visible;
+  }
+  .pop .plist {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-block-size: min(46vh, 380px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
   .anchor.end > .pop {
     inset-inline-start: auto;
     inset-inline-end: 0;
@@ -153,7 +166,8 @@ export const ticketTableStyles = css`
   .pop.wide {
     min-inline-size: min(320px, calc(100vw - 32px));
   }
-  .rc {
+  .rc,
+  .pop button.rc {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -167,7 +181,12 @@ export const ticketTableStyles = css`
     font-weight: 600;
     white-space: nowrap;
   }
-  .rc[aria-pressed='true'] {
+  .pop button.rc:hover {
+    background: var(--dv-surface-3);
+  }
+  .rc[aria-pressed='true'],
+  .pop button.rc[aria-pressed='true'],
+  .pop button.rc[aria-pressed='true']:hover {
     background: var(--dv-text);
     color: var(--dv-surface-solid);
     border-color: transparent;
