@@ -119,7 +119,8 @@ test.describe('CR-040: the bridge key segment in Settings', () => {
     await page.locator(`${DIALOG} input[data-trust-ack]`).check();
     await page.locator(`${DIALOG} sw-button[data-trust-go]`).click();
     await expect(page.locator(`${SEG} [data-trust-open="unknown"]`)).toContainText('לא ידוע אם המפתח הוחלף');
-    await expect(page.locator(`${SEG} [data-trust-outcome="stale"]`)).toContainText('לא התקבלה תשובה');
+    await expect(page.locator(`${SEG} [data-trust-open="unknown"]`)).toContainText('(לא התקבלה תשובה)');
+    await expect(page.locator(`${SEG} [data-trust-outcome]`)).toHaveCount(0); // said once, in the banner
     await expect(page.locator(`${SEG} sw-button[data-trust-rotate]`)).toHaveAttribute('disabled', '');
     await shots(page, info, 'trust-unknown');
     await page.locator(`${SEG} sw-button[data-trust-check]`).click();

@@ -83,8 +83,9 @@ export function openText(kind: OpenKind): string {
   return tt(kind === 'running' ? 'openRunning' : kind === 'neither' ? 'openNeither' : 'openUnknown');
 }
 
-/** The status check is offered for an unknown request only (one in flight answers by itself). */
-export const canCheck = (open: RotationRow | null): boolean => !!open && open.state === 'unknown';
+/** The status check is offered for an unknown request only - not for one in flight (it answers by itself), and not when the bridge
+ * already accepted neither key (asking again cannot help: a re-pair is the way out, and it closes the request). */
+export const canCheck = (open: RotationRow | null): boolean => !!open && open.state === 'unknown' && open.code !== 'neither_key';
 
 /** Why the rotate button is not offered (null: it is). */
 export function rotateBlockedText(view: TrustView): string | null {

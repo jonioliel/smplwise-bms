@@ -85,6 +85,7 @@ test('the open request: in flight, unknown (checkable), neither key (re-pair); n
   expect(openKind(row({ state: 'unknown', code: 'neither_key' }))).toBe('neither');
   expect(canCheck(row({ state: 'unknown', code: 'transport' }))).toBe(true);
   expect(canCheck(row({ state: 'dispatching', code: null }))).toBe(false);
+  expect(canCheck(row({ state: 'unknown', code: 'neither_key' }))).toBe(false);
   expect(canCheck(null)).toBe(false);
   expect(openText('neither')).toContain('צימוד מחדש');
   expect(openText('unknown')).toContain('לא תישלח שוב');
@@ -117,4 +118,27 @@ test('the segment is wired: only --sw-* tokens, the page offers it for the permi
   expect(page).toContain("if (isApi() && !this.admin && !this.trust)");
   const nav = readFileSync(path.join(SRC, 'shell', 'nav.ts'), 'utf8');
   expect(nav).toContain("[ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read', 'access.trust.rotate']");
+});
+
+test('the settings index offers each access-control sub-entry to whoever may use it', async () => {
+  const { visibleGroups } = await import('../src/screens/system-index');
+  const hrefs = (anywhere: string[], installation: string[] = anywhere) =>
+    visibleGroups(true, (p, installationOnly) => (installationOnly ? installation : anywhere).includes(p)).flatMap((g) => g.entries).map((e) => e.href);
+  const keyholder = hrefs(['access.trust.rotate']);
+  expect(keyholder).toContain('#/system/access-control');
+  expect(keyholder).toContain('#/system/access-control/trust');
+  for (const sub of ['audit', 'groups', 'policy', 'messaging']) expect(keyholder, sub).not.toContain(`#/system/access-control/${sub}`);
+  const acAdmin = hrefs(['access.admin.read']);
+  expect(acAdmin).toContain('#/system/access-control/audit');
+  expect(acAdmin).not.toContain('#/system/access-control/trust');
+  expect(hrefs(['access.trust.rotate'], [])).not.toContain('#/system/access-control/trust'); // held below installation scope only
+  expect(visibleGroups(false).flatMap((g) => g.entries).map((e) => e.href)).toContain('#/system/access-control/trust'); // the static preview
+});
+
+test('the settings index lists the segment and its search finds it', async () => {
+  const { SETTINGS_GROUPS, searchSettings, visibleGroups } = await import('../src/screens/system-index');
+  const entry = SETTINGS_GROUPS.flatMap((g) => g.entries).find((e) => e.href === '#/system/access-control/trust');
+  expect(entry?.label).toBe('מפתח הגשר');
+  expect(entry?.sub).toBe(true);
+  expect(searchSettings(visibleGroups(false), 'החלפת מפתח')[0]?.entry.href).toBe('#/system/access-control/trust');
 });

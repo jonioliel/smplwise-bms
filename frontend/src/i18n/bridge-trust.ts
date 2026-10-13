@@ -48,6 +48,7 @@ const he = {
   rowLine: '{when} · {who} · מדור {from} לדור {to}',
   ref: 'בקשה {id}',
   checks: '{n} בדיקות מצב',
+  checksOne: 'בדיקת מצב אחת',
   // why (the code, in words)
   c_rotated: 'הגשר אישר',
   c_status_applied: 'בדיקת המצב אישרה',

@@ -166,7 +166,11 @@ export class SystemAccessTrust extends LitElement {
 
   private show(result: RotationResult): void {
     this.view = result.trust;
-    const tone = result.state === 'rotated' ? 'info' : result.state === 'unknown' ? 'stale' : result.state === 'not_rotated' ? 'err' : 'info';
+    if (result.state === 'unknown') {
+      this.outcome = null; // the open request's banner says it, with the reason - never twice
+      return;
+    }
+    const tone = result.state === 'not_rotated' ? 'err' : 'info';
     const why = codeText(result.code);
     this.outcome = { tone, text: why && result.state !== 'rotated' ? `${result.message} (${why})` : result.message };
   }
@@ -226,7 +230,7 @@ export class SystemAccessTrust extends LitElement {
         <span class="s wrap">${rowLine(r, when)}</span>
       </div>
       <div class="side">
-        ${r.status_checks ? html`<span>${tt('checks', { n: r.status_checks })}</span>` : nothing}
+        ${r.status_checks ? html`<span>${r.status_checks === 1 ? tt('checksOne') : tt('checks', { n: r.status_checks })}</span>` : nothing}
         <span class="ref">${tt('ref', { id: '' })}<span class="ltr mono" data-trust-ref>${shortId(r.request_id)}</span></span>
       </div>
     </div>`;
@@ -276,7 +280,7 @@ export class SystemAccessTrust extends LitElement {
       </sw-card>
       ${kind && v.open
         ? html`<div class=${`note ${kind === 'neither' ? 'err' : 'stale'}`} role="status" data-trust-open=${kind}>
-            <sw-icon name="warning" size=${16}></sw-icon><span>${openText(kind)}</span>
+            <sw-icon name="warning" size=${16}></sw-icon><span>${openText(kind)}${kind === 'unknown' && codeText(v.open.code) ? ` (${codeText(v.open.code)})` : ''}</span>
             ${canCheck(v.open) ? html`<sw-button class="act" size="sm" icon="refresh" data-trust-check ?disabled=${!!this.busy} @click=${() => void this.check(v.open!)}>${this.busy === 'check' ? tt('checking') : tt('check')}</sw-button>` : nothing}
           </div>`
         : nothing}
