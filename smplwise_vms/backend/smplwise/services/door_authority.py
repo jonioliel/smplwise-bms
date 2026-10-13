@@ -7,27 +7,35 @@ so no screen can diverge from another ("no second authority in Arx"). Order:
 1. Refused before anything else: no identified principal (`identity_unmapped`: a developer identity outside developer
    mode), an inactive user, a wall-display account (`wall_account`: an enabled wall profile or a kiosk binding - SEC-WXD
    L1: refused as such, whatever else reaches it).
-2. Deny wins across both permissions: an active deny binding that takes away `access.release` anywhere on the station's
+2. Deny wins across both permissions: an active deny binding that takes away `access.doors.open` anywhere on the station's
    chain, or `door.unlock` anywhere on the lock entity's chain, refuses the request - "either permission" can never be
    used to slip past a deny the administrator wrote for the other one.
-3. Allowed with `access.release` on the station's chain (the station -> its building -> its site -> installation), or with
+3. Allowed with `access.doors.open` on the station's chain (the station -> its building -> its site -> installation), or with
    `door.unlock` on the lock entity's own chain (installation, or a floor it has its own anchor on - the existing entity
    scope without a shared room's mirrors; who may place or remove that anchor is `placement_allowed`, SEC-WXD M2).
 4. `ha.entity.control` is NOT required for a WisKey door (it stays required for every other lock).
 
 Viewer principals hold neither permission, so they are refused by step 3 and nothing is ever sent for them; a kiosk
 account is refused at step 1 even when a grant reaches it.
-The confirmation is not part of this rule: it always comes from the client and is checked by the route."""
+The confirmation is not part of this rule: it always comes from the client and is checked by the route.
+
+WXPERM (owner decision 2026-10-13) - the door permission and its compatibility rule: the door rule judges the door-only
+permission `access.doors.open` (built-in holders: site_admin, system_admin, door_opener - exactly the roles that held
+`access.release` before, so nothing regresses). `access.release` is its legacy name: a custom role saved with it holds
+`access.doors.open` through rbac.LEGACY_PERMISSIONS, for an allow AND for a deny (a deny binding of such a role still refuses
+the door), so no existing grant or deny is lost and nobody gains a door. `granted_by` names `access.release` when the grant
+came only through the legacy name, so the audit shows which roles still ride it. No migration: stored roles are unchanged."""
 from __future__ import annotations
 
 import sqlite3
 from dataclasses import asdict, dataclass
 
-from ..rbac import INSTALLATION, STATION, Decision, Principal, authorize
+from ..rbac import INSTALLATION, STATION, Decision, Principal, authorize, legacy_name_of
 from ..rbac import _active_bindings as rbac_active_bindings
 from . import ha_scope, intercom_doors
 
-RELEASE = "access.release"
+DOOR_OPEN = "access.doors.open"  # WXPERM: the door-only permission the rule judges
+RELEASE = "access.release"  # its legacy name (rbac.LEGACY_PERMISSIONS): honoured through the role expansion, never checked here
 UNLOCK = "door.unlock"
 
 
@@ -35,7 +43,7 @@ UNLOCK = "door.unlock"
 class DoorDecision:
     allowed: bool
     reason: str
-    granted_by: str | None = None  # access.release | door.unlock
+    granted_by: str | None = None  # access.doors.open | access.release (the legacy name was the only grant) | door.unlock
     scope_type: str | None = None
     scope_id: str | None = None
     binding_id: str | None = None
@@ -114,15 +122,15 @@ def check(conn: sqlite3.Connection, principal: Principal, station_id: str, relay
         return DoorDecision(False, "user_inactive")
     if is_wall_account(conn, principal.user_id):
         return DoorDecision(False, "wall_account")
-    release = authorize(conn, principal, RELEASE, (STATION, station_id))
+    release = authorize(conn, principal, DOOR_OPEN, (STATION, station_id))
     if release.reason == "explicit_deny":
-        return _from(release, RELEASE)
+        return _from(release, DOOR_OPEN)
     entities = [entity_id] if entity_id else intercom_doors.entities_for(conn, station_id, relay)
     unlock, unlock_deny = _unlock_decisions(conn, principal, entities)
     if unlock_deny is not None:
         return _from(unlock_deny, UNLOCK)
     if release.allowed:
-        return _from(release, RELEASE)
+        return _from(release, legacy_name_of(conn, release.role_id, DOOR_OPEN) or DOOR_OPEN)
     if unlock is not None:
         return _from(unlock, UNLOCK)
     return DoorDecision(False, release.reason if release.reason == "user_inactive" else "no_binding")

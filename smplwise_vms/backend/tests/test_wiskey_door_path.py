@@ -246,7 +246,7 @@ def test_d1_door_map_fill_order_and_refusals(world):
 # ================================================================ D3: one door authority (T6) and the grant card (T26)
 
 def test_d3_door_opener_role_shape():
-    assert ROLES["door_opener"] == ["access.read", "access.release"]
+    assert ROLES["door_opener"] == ["access.read", "access.doors.open"]  # WXPERM: the door-only permission (was access.release)
     assert {r for r, perms in ROLES.items() if "door.unlock" in perms} == set(), "door.unlock stays held by no built-in role"
 
 
@@ -322,16 +322,17 @@ def test_d3_grant_card_switches_users_groups_and_custom_roles(world):
     gid = c.post(f"{API}/access/groups", json={"name": "שומרים"}).json()["id"]
     r = c.post(f"{API}/access/door-grants/subjects", json={"subject_kind": "group", "subject_id": gid, "enabled": True, "confirmed": True})
     assert r.status_code == 200 and r.json()["granted"] is True, r.text
-    # a custom role switch adds / removes access.release in its sensitive list; a built-in role is refused
+    # a custom role switch adds / removes the door permission in its sensitive list (WXPERM: access.doors.open on; off removes
+    # it and the legacy access.release); a built-in role is refused
     rid = custom_role(c, "משמרת לילה", [], permissions=["map.read", "access.read"])
     role = next(x for x in c.get(f"{API}/access/door-grants").json()["roles"] if x["id"] == rid)
     assert role["includes"] is False and role["editable"] is True
     r = c.put(f"{API}/access/door-grants/roles/{rid}", json={"enabled": True, "revision": role["revision"], "confirmed": True})
     assert r.status_code == 200 and r.json()["revision"] == role["revision"] + 1, r.text
-    assert "access.release" in next(x for x in c.get(f"{API}/access/roles").json()["roles"] if x["id"] == rid)["permissions"]
+    assert "access.doors.open" in next(x for x in c.get(f"{API}/access/roles").json()["roles"] if x["id"] == rid)["permissions"]
     assert c.put(f"{API}/access/door-grants/roles/{rid}", json={"enabled": False, "revision": role["revision"], "confirmed": True}).json()["code"] == "stale_revision"
     r = c.put(f"{API}/access/door-grants/roles/{rid}", json={"enabled": False, "revision": role["revision"] + 1, "confirmed": True})
-    assert r.status_code == 200 and "access.release" not in next(x for x in c.get(f"{API}/access/roles").json()["roles"] if x["id"] == rid)["permissions"]
+    assert r.status_code == 200 and not {"access.doors.open", "access.release"} & set(next(x for x in c.get(f"{API}/access/roles").json()["roles"] if x["id"] == rid)["permissions"])
     assert c.put(f"{API}/access/door-grants/roles/operator", json={"enabled": True, "revision": 1, "confirmed": True}).json()["code"] == "builtin_role"
     # who may use the card: not an operator; a delegated site admin only when door_opener is on the delegation allow-list
     bind(c, s, "otto", "operator", "installation", "*")
@@ -357,7 +358,7 @@ def test_d4_interim_wiskey_screen_release_is_station_release_with_door_audit(wor
     attempt, outcome = rows(db, "intercom.release")
     for row in (attempt, outcome):
         d = row["details"]
-        assert (d["transport"], d["mode"], d["entry_point"], d["granted_by"], d["station"], d["relay"]) == ("trusted_door", "interim", "wiskey_screen", "access.release", ENTRY, 1)
+        assert (d["transport"], d["mode"], d["entry_point"], d["granted_by"], d["station"], d["relay"]) == ("trusted_door", "interim", "wiskey_screen", "access.doors.open", ENTRY, 1)
         assert d["door_request_id"] == r.json()["door_request_id"] and "body_sha256" not in d
     assert outcome["details"]["outcome"] == "ok"
     # the notification deep link: the same path, its origin recorded only
@@ -379,7 +380,7 @@ def test_d4_wiskey_screen_permission_gate_and_per_relay_check(world, monkeypatch
     assert rows(db, "intercom.release")[-1]["reason"] == "forbidden"
     r = c.post(f"{API}/intercom/stations/{DOCK}/release", json=env(confirmed=True, lock=2), headers=as_user("vera"))
     assert r.status_code == 403
-    assert rows(db, "access.release")[-1]["decision"] == "denied", "the gate refuses before the body, audited as before"
+    assert rows(db, "access.doors.open")[-1]["decision"] == "denied", "the gate refuses before the body, audited under the door permission"
     assert len(feed.sent) == 1
     bind(c, s, "uli", "viewer", "installation", "*")  # the WisKey screen itself needs access.read at installation (R2)
     ov = c.get(f"{API}/intercom/overview", headers=as_user("uli")).json()

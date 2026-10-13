@@ -594,7 +594,8 @@ def test_l4_a_station_scope_binding_carries_door_permissions_only(door_world):
                      (new_id(), STATION, ENTRY, permission_revision(conn), now_iso()))
     with db.connection(mode="read") as conn:
         anywhere = set(permissions_anywhere(conn, _principal("stan")))
-    assert anywhere == {"access.read", "access.release"}, anywhere
+    # WXPERM: the legacy access.release of a custom role stands for access.doors.open too (rbac.LEGACY_PERMISSIONS)
+    assert anywhere == {"access.read", "access.doors.open", "access.release"}, anywhere
     assert c.delete(f"{API}/catalog/objects/no-such-item", headers=as_user("stan")).status_code == 403
     # a deny of any role at station scope stays possible (it only takes away)
     assert _bind_api(c, "stan", "editor", STATION, SIDE, effect="deny").status_code == 201

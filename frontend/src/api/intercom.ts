@@ -3,7 +3,8 @@
  * panel calls `hass.callWS({ type: 'hikvision_intercom/overview' })`, the SMPLWISE screen calls `getIntercomOverview()`,
  * which asks the SMPLWISE backend; only the backend talks to Home Assistant. Phase 1a: read-only entry center; phase 1b:
  * the read-only activity log (`getIntercomEvents`) and people directory (`getIntercomPeople` / `getIntercomPerson`).
- * Phase 3 (access.release): door release, call answer / reject / hang up, and a spoken announcement.
+ * Phase 3: door release (`access.doors.open`, legacy name `access.release` - WXPERM), call answer / reject / hang up and a
+ * spoken announcement (`access.call` since 2.4.9).
  */
 import { ApiError, api, apiUrl, get, post, put } from './client';
 import { commandId } from './request-id';
@@ -64,8 +65,9 @@ export interface IntercomFeed {
   server_time_ms?: number;
   /** Per station with a camera: whether its still can be had, or which setting is missing. */
   camera_access?: Record<string, IntercomCameraAccess>;
-  /** CR-033 D3: per station, whether this user may open a door there (the one door rule: `access.release` on the
-   * station, or `door.unlock` on its mapped lock). Absent from an older backend: the screen falls back to `access.release`. */
+  /** CR-033 D3: per station, whether this user may open a door there (the one door rule: `access.doors.open` - legacy name
+   * `access.release` - on the station, or `door.unlock` on its mapped lock). Absent from an older backend: the screen falls
+   * back to either door permission (access-control/access.ts DOOR_PERMISSIONS). */
   door_access?: Record<string, boolean>;
 }
 
@@ -288,7 +290,7 @@ export function getIntercomPeople(query: string, filters: IntercomPeopleFilters,
 
 export const getIntercomPerson = (userId: string) => get<IntercomPersonReply>(`intercom/people/${encodeURIComponent(userId)}`);
 
-// ---------------------------------------------------------------- physical actions (access.release)
+// ---------------------------------------------------------------- physical actions (door: access.doors.open; calls: access.call)
 
 /** A one-off action's reply (the read endpoints' shape): `<key>` holds WisKey's projected answer. Anything short of
  * success is thrown as an ApiError whose `details.outcome` is `not_sent`, `refused` or `unknown`. */

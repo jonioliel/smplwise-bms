@@ -357,6 +357,10 @@ test.describe('rights and the administrator\'s display policy', () => {
     expect(rightsOf(has('access.read', 'access.release'), POLICY_DEFAULTS)).toEqual({ door: true, call: false, announce: false, talk: false });
     expect(rightsOf(has('access.read', 'access.call'), POLICY_DEFAULTS)).toEqual({ door: false, call: true, announce: true, talk: true });
     expect(rightsOf(has('access.release', 'access.call'), POLICY_DEFAULTS)).toEqual({ door: true, call: true, announce: true, talk: true });
+    // WXPERM (owner decision 2026-10-13): the door-only permission access.doors.open opens the door and nothing else; the legacy
+    // name access.release (above) still counts for an older backend's answer
+    expect(rightsOf(has('access.doors.open'), POLICY_DEFAULTS)).toEqual({ door: true, call: false, announce: false, talk: false });
+    expect(rightsOf(has('access.read', 'access.doors.open', 'access.call'), POLICY_DEFAULTS)).toEqual({ door: true, call: true, announce: true, talk: true });
     expect(rightsOf(has('access.call'), { ...POLICY_DEFAULTS, talk: 'hidden' }).talk).toBe(false);
     // the call rights are asked "anywhere a station can be" when the screen passes that check; the door at installation
     expect(rightsOf(has('access.read'), POLICY_DEFAULTS, has('access.call'))).toEqual({ door: false, call: true, announce: true, talk: true });

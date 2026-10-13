@@ -164,7 +164,7 @@ p > img + em, img + em { display:block; }
 <li class="l1"><a href="#p-50-wiskey">אזור WisKey (בקרת כניסה)</a></li>
 <li class="l2"><a href="#p-50-wiskey-2">מה זה</a></li>
 <li class="l2"><a href="#p-50-wiskey-3">איך אני… (צופה — access.read)</a></li>
-<li class="l2"><a href="#p-50-wiskey-4">איך אני… (מפעיל ומעלה — access.release, רגישה)</a></li>
+<li class="l2"><a href="#p-50-wiskey-4">איך אני… (פתיחת דלת — access.doors.open; שיחות והכרזות — access.call; שתיהן רגישות)</a></li>
 <li class="l2"><a href="#p-50-wiskey-5">איך אני… (מנהל אתר / מנהל מערכת — access.people.manage, רגישה)</a></li>
 <li class="l2"><a href="#p-50-wiskey-6">מה קורה בפאנל המוטמע (rc.19, contract v1)</a></li>
 <li class="l2"><a href="#p-50-wiskey-7">אפליקציית הטלפון (0.1.123)</a></li>
@@ -1255,7 +1255,7 @@ p > img + em, img + em { display:block; }
 <li><strong>מבין למה משהו נראה אחרת בפאנל המוטמע.</strong> בפאנל המוטמע, תשתית המערכת מסתירה את סרגל הצד שלה סביב הפאנל כשגרסתה מאפשרת זאת (אחרת הוא נשאר גלוי עם הערה). המסגרת המוטמעת טוענת עותק שני של ממשק התשתית — היא איטית יותר ממסך SMPLWISE המקביל, במיוחד בטלפון.</li>
 <li><strong>רואה את הפאנל בגודל שנבחר (0.1.146).</strong> הפאנל המוטמע הוא המסגרת ותו לא: אין פס מעליו, אין כפתורי רענון / הגדלה / חלון חדש, ואין מסגרת של Arx. גודל התצוגה נקבע לכל ההתקנה בהגדרות (גודל תצוגת WisKey): <strong>רגיל</strong> - ממלא את אזור התוכן; <strong>מותאם</strong> - הפאנל מוצג גדול יותר ומוקטן (100 / 90 / 80 / 70%), כך שנכנסים בו יותר כרטיסים; <strong>מסך מלא</strong> - מכסה את כל החלון, ויוצאים ממנו בכפתור הקטן בפינה או ב-Esc. קיר של 10 מצלמות דורש שינוי בפאנל של WisKey עצמו, לא כאן.</li>
 </ol>
-<h2 id="p-50-wiskey-4">איך אני… (מפעיל ומעלה — <code>access.release</code>, רגישה)</h2>
+<h2 id="p-50-wiskey-4">איך אני… (פתיחת דלת — <code>access.doors.open</code>; שיחות והכרזות — <code>access.call</code>; שתיהן רגישות)</h2>
 <ol start=4>
 <li><strong>משחרר דלת / עונה או דוחה שיחה / משמיע הכרזה</strong> — רק במסך "מרכז הכניסה" של SMPLWISE (בפאנל המוטמע, אלה פעולות WisKey עצמו, ראו למטה). הכפתורים "שחרור דלת", "מענה"/"דחייה"/"סיום שיחה", "הכרזה בעמדה" זמינים כאן. תוצאת הקריאה מדווחת כ<strong>"בוצע"</strong> (העמדה אישרה קבלה), <strong>"לא ידוע"</strong> (לא התקבל אישור), או שגיאה ספציפית (מנוע ההקראה נכשל, ההשמעה בעמדה נכשלה, ערוץ שמע תפוס).</li>
 </ol>
@@ -1280,7 +1280,7 @@ p > img + em, img + em { display:block; }
 </ul>
 <h2 id="p-50-wiskey-8">שים לב</h2>
 <ul>
-<li><code>access.release</code> (רגישה) מכסה את הפעולות הפיזיות בלבד — שחרור דלת, מענה/דחייה/ניתוק, הכרזות. <code>access.people.manage</code> (רגישה) פותחת את עורך האנשים. שתיהן מוענקות כברירת מחדל רק ל-site_admin ו-system_admin; כדי לתת לאדם ספציפי רק את עריכת האנשים בלי כל תפקיד מנהל אתר — בונים תפקיד מותאם אישית (<a href="#p-81-roles"><code>81-roles_HE.md</code></a>).</li>
+<li><code>access.doors.open</code> (רגישה) — פתיחת דלתות בלבד (site_admin, system_admin ותפקיד "פותח דלתות"); השם הקודם שלה, <code>access.release</code>, ממשיך לפעול בתפקידים מותאמים שנשמרו איתו. <code>access.call</code> (רגישה) — מענה/דחייה/ניתוק והכרזות (מפעיל, site_admin, system_admin). <code>access.people.manage</code> (רגישה) פותחת את עורך האנשים, ומי שמחזיק בה כברירת מחדל מחזיק גם ב-<code>access.people.message</code> (וואטסאפ). כל ההרשאות האלה מוענקות כברירת מחדל רק לתפקידים שצוינו, וכל אחת מהן ניתנת להוספה לכל תפקיד מותאם; כדי לתת לאדם ספציפי רק את עריכת האנשים בלי כל תפקיד מנהל אתר — בונים תפקיד מותאם אישית (<a href="#p-81-roles"><code>81-roles_HE.md</code></a>).</li>
 <li>כל שמירה בעורך האנשים דרך SMPLWISE מבוקרת תחת משתמש ה-SMPLWISE (שמות שדות וספירות בלבד — <strong>לעולם לא PIN, מספר כרטיס או טלפון</strong>).</li>
 <li>קליטת כרטיס לא אומתה עדיין מול עמדה פיזית אמיתית (רק מול קוד מקור ו-fixture) — השימוש האמיתי הראשון הוא הבדיקה החיה; יש לבצע אותה עם מישהו בדלת ולבדוק גם את הדלת וגם את הקורא.</li>
 </ul>
@@ -1691,7 +1691,7 @@ p > img + em, img + em { display:block; }
 <h2 id="p-81-roles-7">איך אני… (לשונית הרשאות אפקטיביות והרשאות מיוחדות בהיקף WisKey)</h2>
 <ol start=15>
 <li><strong>"הרשאות אפקטיביות"</strong> מחשבת בצד השרת מה משתמש נתון באמת רשאי לעשות בהיקף נתון — בלי התחזות (impersonation), רק חישוב.</li>
-<li>הרשאות WisKey הרגישות: <code>access.read</code> (viewer ומעלה) — צפייה בלבד; <code>access.release</code> (site_admin/system_admin) — שחרור דלת, מענה/דחייה/ניתוק, הכרזות; <code>access.people.manage</code> (site_admin/system_admin) — עורך האנשים; <code>access.cards.capture</code> (site_admin/system_admin, בנוסף ל-people.manage) — קליטת כרטיס. כדי לתת למישהו רק עריכת אנשים בלי כל תפקיד מנהל אתר — בונים תפקיד מותאם אישית שמפרט את <code>access.people.manage</code> בין הרשאותיו הרגישות.</li>
+<li>הרשאות WisKey הרגישות: <code>access.read</code> (viewer ומעלה) — צפייה בלבד; <code>access.doors.open</code> (site_admin/system_admin/"פותח דלתות") — פתיחת דלתות בלבד (השם הקודם <code>access.release</code> עדיין פועל בתפקידים מותאמים ישנים); <code>access.call</code> (מפעיל ומעלה) — מענה/דחייה/ניתוק והכרזות; <code>access.people.manage</code> (site_admin/system_admin) — עורך האנשים; <code>access.cards.capture</code> (site_admin/system_admin, בנוסף ל-people.manage) — קליטת כרטיס. כדי לתת למישהו רק עריכת אנשים בלי כל תפקיד מנהל אתר — בונים תפקיד מותאם אישית שמפרט את <code>access.people.manage</code> בין הרשאותיו הרגישות.</li>
 </ol>
 <h2 id="p-81-roles-8">הרשאות התזמונים (CR-014)</h2>
 <p>שלוש הרשאות חדשות: <code>schedule.view</code> (צפייה בתזמונים), <code>schedule.manage</code> (ניהול תזמונים - רגישה, אינה מרומזת) ו- <code>schedule.sensitive</code> (תזמון אזעקה, מנעולים, דלתות ושערים - רגישה, אינה מרומזת). ברירת מחדל: מנהל אתר - צפייה וניהול בהיקפו; מנהל מערכת - שלושתן; אחרים - אין. לעורך תזמונים בלבד בונים תפקיד מותאם "עורך תזמונים" (הרשאות רגילות: צפייה בתזמונים, צפייה בחשמל והתקנים, שליטה בהתקן בודד; רגישה: ניהול תזמונים) ומשייכים אותו בהיקף הרצוי. כדי לערוך תזמון צריך גם שליטה בכל ההתקנים שבו. המתכון המלא, כלל ההיקף והמגבלות ב-<a href="#p-80-settings"><code>80-settings_HE.md</code></a> (הגדרות › תזמונים).</p>

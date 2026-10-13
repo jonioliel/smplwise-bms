@@ -198,10 +198,11 @@ class Reach:
 
     def door(self, n: dict[str, Any]) -> dict[str, Any] | None:
         """A doorbell row's deep-link target for "פתח דלת": {id, name, can_open}. can_open = the caller may use the existing
-        release path (access.release at installation scope) - it only decides whether the in-app confirmation is offered;
+        release path (access.doors.open at installation scope - WXPERM; a custom role's legacy access.release counts through
+        rbac.LEGACY_PERMISSIONS) - it only decides whether the in-app confirmation is offered;
         the confirmation itself calls that route, which checks it again. Never a token, never an action."""
         n = note_dict(n)
         if n.get("source") != "door.ring" or n.get("subject_kind") != "door" or not n.get("subject_id"):
             return None
         params = n.get("params") or {}
-        return {"id": str(n["subject_id"]), "name": str(params.get("name") or params.get("place") or ""), "can_open": self._allowed("access.release")}
+        return {"id": str(n["subject_id"]), "name": str(params.get("name") or params.get("place") or ""), "can_open": self._allowed("access.doors.open")}

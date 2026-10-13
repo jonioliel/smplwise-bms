@@ -20,7 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
+from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, expand_legacy, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
 from ..services import ha_client, revocation
 from ..services import playback as pb
 from ..services.timeutil import parse_utc
@@ -205,7 +205,17 @@ PERMISSION_LABELS: dict[str, str] = {
     # not get it. Narrowing it later = removing it from those two roles in roles.json and the design catalogue.
     # 2.4.9 (owner decision 2026-10-13): the call signal and the announcement moved onto access.call (below), so
     # access.release is the door permission alone (CR-033's one door rule, with door.unlock on the mapped lock).
-    "access.release": "פעולות פיזיות בבקרת כניסה (WisKey): שחרור דלת",
+    # WXPERM (owner decision 2026-10-13): renamed to the door-only access.doors.open (below). access.release stays a known,
+    # sensitive LEGACY name (rbac.LEGACY_PERMISSIONS): a custom role saved with it keeps opening doors (and a deny of such a
+    # role keeps refusing them); no built-in role lists it any more, and the role editor offers it only to a role that already
+    # has it. Kept in the catalogue so stored roles and backups stay valid.
+    "access.release": "בקרת כניסה: שחרור דלת (שם קודם של פתיחת דלתות; נשמר לתפקידים קיימים)",
+    # access.doors.open (WXPERM, owner decision 2026-10-13): opening a door - the one door rule (services/door_authority.py)
+    # on the station's chain, or door.unlock on the mapped lock. Door only: no call, announcement, entry log or people
+    # directory (those are access.call / access.events.read / access.people.read). Sensitive (never implied; a custom role
+    # names it explicitly), station-scope capable (rbac.STATION_PERMISSIONS). Default: site_admin, system_admin and the
+    # door_opener grant role - the roles that held access.release before, so nothing regresses.
+    "access.doors.open": "בקרת כניסה: פתיחת דלתות",
     # access.people.manage (CR-005 §3, phase 2 slice A1; owner decision 2026-09-28, answer 1 to the phase-2 brief):
     # create / edit / delete a person in WisKey - identity, phone, active, validity, PIN, cards, station assignments.
     # A configuration write that grants or revokes physical access once WisKey syncs it, so it gets exactly
@@ -792,7 +802,7 @@ def list_roles(principal: Principal = Depends(current_principal), conn: sqlite3.
     for rid, perms in ROLES.items():
         roles.append({
             "id": rid, "name": ROLE_NAMES_HE.get(rid, rid), "permissions": list(perms), "custom": False, "description": "", "revision": None, "delegable": rid in delegable,
-            "sensitive_included": [p for p in perms if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in perms], "system_role": bool(set(perms) & SYSTEM_PERMISSIONS),
+            "sensitive_included": [p for p in perms if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in perms and p not in LEGACY_PERMISSIONS], "system_role": bool(set(perms) & SYSTEM_PERMISSIONS),
             "delegation_block": delegation_block(conn, rid),
         })
     for r in conn.execute("SELECT * FROM custom_roles WHERE deleted_at IS NULL ORDER BY created_at").fetchall():
@@ -800,6 +810,7 @@ def list_roles(principal: Principal = Depends(current_principal), conn: sqlite3.
     if delegated_only:
         roles = [r for r in roles if r["id"] in delegable]
     return {"roles": roles, "labels": PERMISSION_LABELS, "sensitive": SENSITIVE, "system_permissions": sorted(SYSTEM_PERMISSIONS), "delegable_roles": delegable,
+            "legacy_permissions": LEGACY_PERMISSIONS,  # WXPERM: old name -> the permission it stands for (the editor hides an old name a role does not hold)
             "can_manage_roles": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed, "delegated": delegated_only or not full_authority(conn, principal)}
 
 
@@ -1067,7 +1078,7 @@ def _custom_role_dict(conn: sqlite3.Connection, r: sqlite3.Row) -> dict[str, Any
     allp = sorted(set(perms) | set(sens))
     return {
         "id": r["id"], "name": r["name_he"], "description": r["description"], "permissions": allp, "custom": True, "revision": r["revision"], "delegable": bool(r["delegable"]),
-        "sensitive_included": [p for p in allp if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in allp], "system_role": False,
+        "sensitive_included": [p for p in allp if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in allp and p not in LEGACY_PERMISSIONS], "system_role": False,  # WXPERM: an old name is never "missing"
         "created_by_username": r["created_by_username"], "updated_by_username": r["updated_by_username"], "updated_at": r["updated_at"],
         "delegation_block": "sensitive_custom_role" if set(allp) & set(SENSITIVE) else "assign_role" if "rbac.assign" in allp else None,
     }
@@ -1101,6 +1112,7 @@ def _check_delegable_flag(delegable: bool, perms: list[str], sens: list[str]) ->
 def _role_impact(conn: sqlite3.Connection, role_id: str | None, new_perms: list[str]) -> dict[str, Any]:
     """Who is touched by a role change: bindings, users (direct and through groups), groups and scopes, plus the permission diff."""
     current = role_permissions(conn, role_id) if role_id else []
+    new_perms = expand_legacy(new_perms)  # WXPERM: compare like with like (role_permissions expands legacy names)
     out: dict[str, Any] = {"role_id": role_id, "added": sorted(set(new_perms) - set(current)), "removed": sorted(set(current) - set(new_perms)), "bindings": 0, "users": [], "groups": [], "scopes": []}
     if not role_id:
         return out

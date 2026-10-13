@@ -638,8 +638,9 @@ picture is sent anywhere yet.
   go2rtc, network and browser that carry that many streams (WisKey refuses a connection beyond 12). The framed panel
   is also asked for a transparent, padding-free layout (`chrome=none`) so no dark border shows around it.
 - WisKey (access control) permissions: `access.read` (viewer and above) shows the entry center, the activity log and
-  the people directory; `access.release` (site_admin and system_admin only, sensitive) covers the physical actions -
-  door release, call answer / reject / hang up, announcements; `access.people.manage` (site_admin and system_admin
+  the people directory; `access.doors.open` (site_admin, system_admin and the door-opening grant, sensitive) opens doors
+  and nothing else - its old name `access.release` keeps working in custom roles saved with it; `access.call` (operator
+  and above, sensitive) answers / rejects / hangs up calls and announces; `access.people.manage` (site_admin and system_admin
   only, sensitive) opens the person editor - create, edit and delete people in WisKey with their PIN, cards, validity
   window and station assignments. To give one specific person the editor without the whole site_admin role, create a
   custom role that lists `access.people.manage` among its sensitive permissions and bind it to them at the

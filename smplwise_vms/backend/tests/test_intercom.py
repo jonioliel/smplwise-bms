@@ -1257,7 +1257,7 @@ def test_events_client_never_sends_current_profile():
     assert seen == [{"type": "hikvision_intercom/events/list", "filters": {"station_id": "entry-a"}}]
 
 
-# ---------------------------------------------------------------- phase 3: physical actions (access.release)
+# ---------------------------------------------------------------- phase 3: physical actions (the door: access.doors.open, legacy access.release)
 
 import datetime as _dt  # noqa: E402
 import logging  # noqa: E402
@@ -1340,17 +1340,21 @@ def release(c: TestClient, station: str = "entry-a", user: str = "sam", **fields
 
 
 def test_access_release_permission_catalogue():
-    """`access.release` is its own, sensitive permission: only site_admin and system_admin hold it by default (the
-    decision recorded at routers/access.py PERMISSION_LABELS), it is never implied, and the design catalogue agrees."""
-    # CR-033 D3: door_opener (access.read + access.release) is the one-switch door grant; it is never anyone's base role
-    assert {r for r, perms in ROLES.items() if "access.release" in perms} == {"site_admin", "system_admin", "door_opener"}
+    """The door permission is its own, sensitive permission: only site_admin and system_admin hold it by default (the
+    decision recorded at routers/access.py PERMISSION_LABELS), it is never implied, and the design catalogue agrees.
+    WXPERM (owner decision 2026-10-13): its name is `access.doors.open`; `access.release` is the legacy name - no built-in
+    role lists it any more, it stays a known sensitive permission so custom roles saved with it keep their door."""
+    # CR-033 D3: door_opener (access.read + the door permission) is the one-switch door grant; it is never anyone's base role
+    assert {r for r, perms in ROLES.items() if "access.doors.open" in perms} == {"site_admin", "system_admin", "door_opener"}
+    assert not [r for r, perms in ROLES.items() if "access.release" in perms], "the legacy name is in no built-in role"
     for role in ("viewer", "kiosk", "operator", "editor"):
-        assert "access.release" not in ROLES[role], role
-    assert "access.release" in SENSITIVE and "door.unlock" in SENSITIVE
-    assert PERMISSION_LABELS["access.release"]
+        assert "access.doors.open" not in ROLES[role], role
+    assert {"access.doors.open", "access.release", "door.unlock"} <= set(SENSITIVE)
+    assert PERMISSION_LABELS["access.release"] and PERMISSION_LABELS["access.doors.open"]
     contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
-    assert {r["id"]: "access.release" in r["permissions"] for r in contract["roles"]} == {r["id"]: "access.release" in ROLES[r["id"]] for r in contract["roles"]}
-    assert "access.release" in contract["sensitive_permissions_not_implied"]
+    for permission in ("access.doors.open", "access.release"):
+        assert {r["id"]: permission in r["permissions"] for r in contract["roles"]} == {r["id"]: permission in ROLES[r["id"]] for r in contract["roles"]}
+        assert permission in contract["sensitive_permissions_not_implied"]
 
 
 def test_physical_actions_require_access_release(settings):
@@ -1379,15 +1383,15 @@ def test_physical_actions_require_access_release(settings):
     assert r.status_code == 403, "no permission: refused before the body is looked at"
     assert c.post("/api/v1/intercom/stations/entry-a/call", json=env(command="open sesame"), headers=as_user("sam")).status_code == 422
     with Database(settings.db_path).connection() as conn:
-        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'access.release' AND decision = 'denied' AND actor_username = 'vera'").fetchone()[0]
+        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'access.doors.open' AND decision = 'denied' AND actor_username = 'vera'").fetchone()[0]
         denied_call = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'access.call' AND decision = 'denied' AND actor_username = 'vera'").fetchone()[0]
         refused = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.%' AND actor_username = 'vera'").fetchone()[0]
         sally = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action IN ('intercom.call', 'intercom.tts') AND decision = 'denied' AND actor_username = 'sally'").fetchone()[0]
     assert denied == 1 and denied_call == len(action_paths()) - 1 + 1, "every permission refusal is audited under the real caller"
     assert refused == 0, "a caller without the permission never reaches the action's own audit"
     assert sally == 2, "the station check refuses a call / announcement off the caller's chain, audited as not sent"
-    assert "access.release" in c.get("/api/v1/me", headers=as_user("sam")).json()["permissions_installation"]
-    assert "access.release" not in c.get("/api/v1/me", headers=as_user("sally")).json()["permissions_installation"]
+    assert "access.doors.open" in c.get("/api/v1/me", headers=as_user("sam")).json()["permissions_installation"]
+    assert "access.doors.open" not in c.get("/api/v1/me", headers=as_user("sally")).json()["permissions_installation"]
     intercom_sync.SYNC.reset()
 
 

@@ -94,6 +94,8 @@ export interface RolesResponse {
   labels: Record<string, string>;
   sensitive: string[];
   system_permissions?: string[];
+  /** WXPERM: legacy permission name -> the permission it stands for (a role listing the old name holds the new one). */
+  legacy_permissions?: Record<string, string>;
   delegable_roles?: string[];
   can_manage_roles?: boolean;
   delegated?: boolean;

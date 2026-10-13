@@ -76,7 +76,7 @@
       "permissions": [
         "map.read",
         "access.read",
-        "access.release",
+        "access.doors.open",
         "devices.read",
         "alarm.view",
         "alarm.arm",
@@ -148,7 +148,7 @@
       "permissions": [
         "map.read",
         "access.read",
-        "access.release",
+        "access.doors.open",
         "devices.read",
         "alarm.view",
         "alarm.arm",
@@ -235,6 +235,7 @@
     "camera.ptz",
     "ha.entity.control",
     "door.unlock",
+    "access.doors.open",
     "access.release",
     "access.people.manage",
     "access.cards.capture",

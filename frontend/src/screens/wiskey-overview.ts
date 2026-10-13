@@ -14,6 +14,7 @@ import '../components/sw-field';
 import type { PanelState } from '../components/sw-state-panel';
 import type { StateKind } from '../components/sw-badge';
 import { can, canAnywhere, cap, isApi } from '../api/session';
+import { holdsDoorPermission } from '../access-control/access';
 import { ApiError, describeError } from '../api/client';
 import {
   actionOutcome,
@@ -284,11 +285,11 @@ export class WiskeyOverview extends LitElement {
     return isApi() && canAnywhere('access.call');
   }
 
-  /** CR-033 D3: the open button follows the one door rule per station (`door_access`, from the server: `access.release`
-   * on the station or `door.unlock` on its mapped lock); the release route decides again. */
+  /** CR-033 D3: the open button follows the one door rule per station (`door_access`, from the server: `access.doors.open` -
+   * legacy name `access.release` - on the station or `door.unlock` on its mapped lock); the release route decides again. */
   private canOpen(s: IntercomStation): boolean {
     const access = this.feed?.door_access;
-    return isApi() && (access ? !!access[s.id] : can('access.release'));
+    return isApi() && (access ? !!access[s.id] : holdsDoorPermission((p) => can(p)));
   }
 
   private setResult(stationId: string, tone: Tone, text: string) {

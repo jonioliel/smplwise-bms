@@ -380,9 +380,9 @@ def test_t20_covers_switches_buttons_and_ordinary_locks_still_use_execute(world)
 def test_t22_permission_names_and_the_ha_native_lock_path():
     """H1: the HA-native lock path is not changed by Arx RBAC - door.unlock stays a sensitive grant no built-in role holds,
     the one-switch door role carries only the WisKey screen's two permissions, and the labels say what each one is."""
-    assert ROLES["door_opener"] == ["access.read", "access.release"]
+    assert ROLES["door_opener"] == ["access.read", "access.doors.open"]  # WXPERM: the door-only permission (was access.release)
     assert not any("door.unlock" in perms for perms in ROLES.values())
-    assert PERMISSION_LABELS["door.unlock"] and PERMISSION_LABELS["access.release"]
+    assert PERMISSION_LABELS["door.unlock"] and PERMISSION_LABELS["access.doors.open"] and PERMISSION_LABELS["access.release"]
     roles = json.loads((BACKEND / "roles.json").read_text(encoding="utf-8"))["roles"]
     opener = next(r for r in roles if r["id"] == "door_opener")
     assert opener["name_he"] == "פותח דלתות"

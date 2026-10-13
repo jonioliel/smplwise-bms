@@ -86,9 +86,13 @@ GROUPS_MANAGE = "access.groups.manage"
 # stored nowhere - is its own sensitive permission, required on top of access.people.manage, in an interactive session only
 # (services/intercom_writes.py). Default: site_admin and system_admin, like access.cards.capture.
 PIN_GENERATE = "access.pin.generate"
+# WXPERM (owner decision 2026-10-13): opening a door, door only - the door rule's permission (services/door_authority.py, which
+# judges it on the station chain together with door.unlock). Its legacy name access.release (rbac.LEGACY_PERMISSIONS) still
+# grants it through a custom role saved with that name. Default: site_admin, system_admin, door_opener.
+DOORS_OPEN = "access.doors.open"
 
 READ_PERMISSIONS = (READ, STATIONS_READ, EVENTS_READ, PEOPLE_READ, ADMIN_READ)
-SENSITIVE_PERMISSIONS = (EVENTS_EXPORT, PEOPLE_SENSITIVE, PEOPLE_MESSAGE, CALL, SCHEDULES_MANAGE, STATIONS_MANAGE, GROUPS_MANAGE, PIN_GENERATE)
+SENSITIVE_PERMISSIONS = (EVENTS_EXPORT, PEOPLE_SENSITIVE, PEOPLE_MESSAGE, CALL, SCHEDULES_MANAGE, STATIONS_MANAGE, GROUPS_MANAGE, PIN_GENERATE, DOORS_OPEN)
 NEW_PERMISSIONS = READ_PERMISSIONS[1:] + SENSITIVE_PERMISSIONS
 
 # a person's field level, and a station's view level

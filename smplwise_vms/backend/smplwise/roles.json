@@ -86,7 +86,7 @@
       "permissions": [
         "map.read",
         "access.read",
-        "access.release",
+        "access.doors.open",
         "devices.read",
         "alarm.view",
         "alarm.arm",
@@ -161,7 +161,7 @@
       "permissions": [
         "map.read",
         "access.read",
-        "access.release",
+        "access.doors.open",
         "devices.read",
         "alarm.view",
         "alarm.arm",
@@ -263,7 +263,7 @@
       "name_he": "פותח דלתות",
       "permissions": [
         "access.read",
-        "access.release"
+        "access.doors.open"
       ]
     }
   ],
@@ -274,6 +274,7 @@
     "camera.ptz",
     "ha.entity.control",
     "door.unlock",
+    "access.doors.open",
     "access.release",
     "access.people.manage",
     "access.cards.capture",

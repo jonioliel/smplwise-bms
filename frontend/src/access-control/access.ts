@@ -15,6 +15,8 @@
  *   admin         access.admin.read       Settings: health, sync, alerts, the intercom's own action log
  *   capture       access.cards.capture    reading a card at a station's reader (sensitive; with manage)
  *   pin           access.pin.generate     generating a person's PIN, shown once (S11; sensitive; with manage)
+ *   (door)        access.doors.open       opening a door, door only (WXPERM; sensitive; legacy name access.release - see
+ *                                         DOOR_PERMISSIONS; the server's per-station door answer decides)
  * The labels must equal the backend's routers/access.py PERMISSION_LABELS (tests/test_intercom_authority.py compares them).
  */
 import { canAnywhere, isApi, onSession } from '../api/session';
@@ -32,6 +34,7 @@ export const ACCESS_CONTROL_PERMISSIONS = [
   'access.stations.manage',
   'access.groups.manage',
   'access.pin.generate',
+  'access.doors.open',
 ] as const;
 export type AccessControlPermission = (typeof ACCESS_CONTROL_PERMISSIONS)[number];
 
@@ -49,7 +52,16 @@ export const ACCESS_CONTROL_PERMISSION_LABELS: Record<AccessControlPermission, s
   'access.stations.manage': 'בקרת כניסה: עריכת הגדרות עמדה (תוכניות דלת, החזקה פתוחה, קודים ציבוריים)',
   'access.groups.manage': 'בקרת כניסה: עריכת קבוצות ושדות פרופיל',
   'access.pin.generate': 'בקרת כניסה: יצירת קוד PIN לאדם (מוצג פעם אחת למבקש; דורש גם ניהול אנשים)',
+  'access.doors.open': 'בקרת כניסה: פתיחת דלתות',
 };
+
+/** WXPERM (owner decision 2026-10-13): the door permission and its legacy name. The server expands a custom role's legacy
+ * `access.release` into `access.doors.open` (rbac.LEGACY_PERMISSIONS), so /me already lists the new name; the legacy one is
+ * kept here only so an older backend's answer still shows the door. Shaping only - the server's door rule decides. */
+export const DOOR_PERMISSIONS = ['access.doors.open', 'access.release'] as const;
+
+/** Whether `has` (a permission test, at any scope or at installation scope - the caller's choice) grants a door permission. */
+export const holdsDoorPermission = (has: (permission: string) => boolean): boolean => DOOR_PERMISSIONS.some((p) => has(p));
 
 /** The label of any permission id when it is one of the above (undefined otherwise), for label lookups keyed by a plain string. */
 export const accessControlPermissionLabel = (id: string): string | undefined => (ACCESS_CONTROL_PERMISSION_LABELS as Record<string, string>)[id];
