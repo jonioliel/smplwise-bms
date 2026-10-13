@@ -15,6 +15,11 @@
   is unknown, by the person who sent it (or a system administrator). Signed mode only.
 - Door-path inventory (D7, decision 15): `GET /intercom/door-path-inventory` - READ ONLY, system administrator: every
   saved item that opens a WisKey door (services/door_path.py), by name only. No call, no write, no conversion.
+- Blocks (WXUNBLK, owner 2026-10-13): `GET /doors/blocks` (read only) lists what the door path blocks - the script-backed
+  (template / universal) entities and the saved items it refuses to run or enable - and `PUT /doors/blocks/entities/{entity_id}`
+  releases ONE such entity by hand (a note is required) or blocks it again. System administrator (`system.configure`),
+  confirmation, audited `intercom.door.entity_unblocked` / `intercom.door.entity_reblocked` (who, when, why). The release applies
+  to that entity only: an item with a real WisKey door step stays refused (services/door_overrides.py, door_blocks.py).
 
 Every switch carries an explicit `confirmed: true` from the client's confirmation step (never supplied by the server)."""
 from __future__ import annotations
@@ -32,7 +37,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, Principal, authorize, require, role_permissions, scope_name
-from ..services import door_authority, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
+from ..services import door_authority, door_blocks, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
 from . import access as acc
 
 router = APIRouter()
@@ -416,3 +421,62 @@ def door_path_inventory(request: Request, principal: Principal = Depends(current
     disabled or sent. Names only - no entity ids, station ids or addresses."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     return door_path.inventory(conn, dev_mode=bool(settings_of(request).dev_user))
+
+
+# ---------------------------------------------------------------- the blocks screen: what the door path blocks, and the one release (WXUNBLK)
+
+@router.get("/doors/blocks")
+def door_blocks_list(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """"חסימות פתיחת דלתות": the entities the door path blocks (template / universal ones, while a WisKey door exists) with their
+    state - blocked, or released by an administrator (why, who, when) - and the saved automations, scripts, scenes, schedules and
+    launcher buttons it refuses to run or enable, each with the reason (a real door step, or only virtual devices). Read only over
+    Arx's own mirror: nothing is called, released or sent. System administrator only."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    return door_blocks.listing(conn, dev_mode=bool(settings_of(request).dev_user))
+
+
+class EntityBlockBody(BaseModel):
+    unblocked: StrictBool
+    note: str | None = Field(default=None, max_length=2000)
+    confirmed: Any = None
+
+
+@router.put("/doors/blocks/entities/{entity_id}")
+def set_entity_block(body: EntityBlockBody, request: Request, entity_id: str = Path(min_length=3, max_length=255), principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Release ONE blocked entity (`unblocked: true`, with a note saying why - required) or block it again (`unblocked: false`).
+    Explicit, audited (`intercom.door.entity_unblocked` / `intercom.door.entity_reblocked`: who, when, why) and reversible. It
+    changes how the guards judge THIS entity and nothing else: an item with a real WisKey door step stays refused, a WisKey lock
+    or an entity mapped to an intercom door is never released, and `execute` for a WisKey door stays blocked. Only a script-backed
+    (template / universal) entity is accepted, and only while a WisKey door exists."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    _confirmed(body.confirmed)
+    if not door_overrides.ENTITY_ID.fullmatch(entity_id):
+        raise door_blocks.note_error("bad_entity")
+    current = door_overrides.read(conn).get(entity_id)
+    r = door_path.Resolver(conn, ignore_overrides=True)
+    ent = r.entity(entity_id) or {}
+    facts = {"domain": ent.get("domain") or entity_id.split(".", 1)[0], "platform": ent.get("platform")}
+    who = principal.username or principal.display_name or principal.user_id
+    if body.unblocked:
+        reason = door_blocks.releasable(conn, r, entity_id)
+        if reason is not None:
+            audit(conn, actor=principal, action="intercom.door.entity_unblocked", decision="denied", resource_type="ha_entity", resource_id=entity_id, request_id=_rid(request),
+                  reason=reason, details=facts)
+            raise door_blocks.refusal(reason)
+        try:
+            entry = door_overrides.release(conn, entity_id, note=body.note or "", by=principal.user_id, by_name=who)
+        except door_overrides.OverrideError as exc:
+            audit(conn, actor=principal, action="intercom.door.entity_unblocked", decision="denied", resource_type="ha_entity", resource_id=entity_id, request_id=_rid(request),
+                  reason=exc.code, details=facts)
+            raise door_blocks.note_error(exc.code) from None
+        audit(conn, actor=principal, action="intercom.door.entity_unblocked", decision="allowed", resource_type="ha_entity", resource_id=entity_id, request_id=_rid(request),
+              details={**facts, "note": entry.note, "replaced": current is not None, **({"previous_note": current.note, "previous_by": current.by} if current else {})})
+        return {"entity_id": entity_id, "state": "unblocked", "override": entry.public(), "changed": True}
+    removed = door_overrides.reblock(conn, entity_id)
+    if removed is None:
+        return {"entity_id": entity_id, "state": "blocked", "override": None, "changed": False}
+    why = door_overrides.clean_note(body.note)[: door_overrides.NOTE_MAX]
+    audit(conn, actor=principal, action="intercom.door.entity_reblocked", decision="allowed", resource_type="ha_entity", resource_id=entity_id, request_id=_rid(request),
+          details={**facts, "released_note": removed.note, "released_by": removed.by, "released_at": removed.at, **({"note": why} if why else {})})
+    return {"entity_id": entity_id, "state": "blocked", "override": None, "changed": True}
