@@ -275,6 +275,7 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
         await page.unrouteAll({ behavior: 'ignoreErrors' });
         // the frozen history on the ticket's full screen (internal content, no person name)
         await installTicketsDeviceMock(page, { mode: 'sheet' });
+        await page.goto('about:blank'); // a fresh page: the device window of the step before must not cover the shot
         await page.goto(`/?design=a${q}#/tickets/0000000000000b01`);
         const hist = page.locator('sw-app [data-sect="device-history"]').first();
         await expect(hist).toBeVisible({ timeout: 15_000 });

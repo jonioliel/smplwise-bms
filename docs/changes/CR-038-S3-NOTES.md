@@ -85,6 +85,12 @@ toggle the device. "פתיחת {ticket}" needs `tickets.create`. Alt+Enter opens
    slice 2's department screen.
 8. **The D23 checkbox UI** belongs to the contact branch of the assign dialog (slice 4); slice 3 delivers the server rule and the
    `device_context.shareable` flag the dialog needs.
+10. **Which rows get the gesture** - exactly the hosts' existing `data-activity` sites (12.1: "no host change beyond `activityTag()`"): the
+    area screen's tiles and rows, the bubble pills and the tiles panel. The area's main sensors strip has no such site, so a sensor there
+    has no long press (its tile in the sensors card, when the card is shown, has one). A follow-up can add the strip if the owner wants it.
+11. **Menu placement** - with the module on, the menu grows from the press point towards the inline end (RTL: its right edge at the
+    finger), clamped inside the viewport; with the module off the placement is unchanged.
+12. **Timeline** - the creation of a device ticket adds a `device_context` row ("צורפה היסטוריית המכשיר · N שינויים"; counts only).
 9. **Assignment history order** - `store.assignments` ordered same-second rows by their random id; now by insertion order (rowid). It made
    `test_tickets_api::test_assignment_rules` flaky.
 
