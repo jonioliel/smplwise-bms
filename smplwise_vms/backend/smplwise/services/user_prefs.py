@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from ..db import now_iso
 from . import area_row, dd_style, home_config, look, media_layout, nav_size, tabs_mode
+from .tickets import table_prefs as tickets_table_prefs  # CR-038 S6b (D24): the `tickets.board` validator
 
 # The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
 # overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
@@ -123,6 +124,11 @@ DEFAULTS["generator.view_mode"] = "gauges"
 PLAN_QUALITY_MODES: tuple[str, ...] = ("auto", "1", "2", "realistic", "lite")
 VALIDATORS["plan.quality"] = _choice("plan.quality", PLAN_QUALITY_MODES)
 DEFAULTS["plan.quality"] = None
+
+# `tickets.board` (CR-038 S6b, D24): the tickets board's view / table columns / sort / density / page size / default saved view - a partial
+# object (services/tickets/table_prefs.py); null = the defaults. Presentation only: no permission needed.
+VALIDATORS["tickets.board"] = tickets_table_prefs.normalize
+DEFAULTS["tickets.board"] = None
 
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
