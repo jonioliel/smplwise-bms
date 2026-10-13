@@ -152,6 +152,7 @@ class CodeRecord:
     expires_at: float
     attempts: int = 0
     consumed_at: float | None = None
+    generation: int = 1  # the link generation the code belongs to (code review V8)
 
 
 @dataclass(frozen=True)
@@ -174,11 +175,14 @@ class SessionRecord:
 
 @runtime_checkable
 class CodeStore(Protocol):
-    def latest_code(self, link_id: str) -> CodeRecord | None:
-        """The newest code of the link in any state (consumed, expired, invalidated by a newer one)."""
+    """Every per-link read and the wrong-code window are scoped to the link GENERATION (code review V8): a code, its send caps
+    and its lock belong to one generation, so the manager's "new link" starts clean by construction."""
 
-    def code_times_since(self, link_id: str, since: float) -> list[float]:
-        """`created_at` of every code of the link created at or after `since`, ascending (the per-link send caps)."""
+    def latest_code(self, link_id: str, generation: int) -> CodeRecord | None:
+        """The newest code of the link's generation in any state (consumed, expired, invalidated by a newer one)."""
+
+    def code_times_since(self, link_id: str, generation: int, since: float) -> list[float]:
+        """`created_at` of every code of the link's generation created at or after `since`, ascending (the per-link send caps)."""
 
     def replace_code(self, record: CodeRecord, now: float) -> None:
         """Insert `record`; every older unconsumed code of the same link stops being valid at `now` (expires_at = now)."""
@@ -192,13 +196,13 @@ class CodeStore(Protocol):
     def consume(self, code_id: str, now: float) -> bool:
         """Mark the code used; True only for the first caller (compare-and-set on `consumed_at IS NULL`)."""
 
-    def failures(self, link_id: str) -> FailureRecord | None:
+    def failures(self, link_id: str, generation: int) -> FailureRecord | None:
         ...
 
-    def put_failures(self, link_id: str, record: FailureRecord) -> None:
+    def put_failures(self, link_id: str, generation: int, record: FailureRecord) -> None:
         ...
 
-    def clear_failures(self, link_id: str) -> None:
+    def clear_failures(self, link_id: str, generation: int) -> None:
         ...
 
     def put_session(self, record: SessionRecord) -> None:
@@ -220,6 +224,20 @@ class CodeSender(Protocol):
         queued. The code itself is never stored, queued or logged: the outbox row keeps `code_id` only and the worker derives
         the six digits at render time with `codes.derive_code(k_tickets, code_id)` - exactly as it derives the link URL from
         (link_id, generation). (Spec gap resolved here: 7.3 forbids `{code}` in `params_json` and 10.5 stores only an HMAC.)"""
+
+
+@runtime_checkable
+class CodeEvents(Protocol):
+    """What the module records around the public code routes (slice 7, spec 10.5 / 7.2): the access rows the manager sees
+    (`code_ok`, `code_bad`, `locked`), the timeline (`code_verified`, `code_locked`), the audit envelope, the sliding expiry of a
+    verified code and the ticket's "waiting for the manager" (`code_locked`) when a guess starts a lock. Never receives a code,
+    a hash or a session value. A failure here never changes the public answer (the code engine already decided)."""
+
+    def verified(self, link: LinkRecord, client_key: str) -> None:
+        ...
+
+    def refused(self, link: LinkRecord, reason: str, client_key: str, *, just_locked: bool, locked_until: float | None) -> None:
+        ...
 
 
 # ---------------------------------------------------------------- photos (spec 10.6) and their quotas

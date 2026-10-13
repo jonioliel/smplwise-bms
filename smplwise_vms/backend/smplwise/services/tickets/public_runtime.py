@@ -32,7 +32,9 @@ from .module_key import ModuleKeyError
 from .public_app import PublicApp, PublicDeps, create_public_app
 from .public_ports import CachedSwitch
 from .public_server import SERVER
-from .public_store import NoCodeChannel, SqlCodeStore, SqlLinkStore, SqlPhotoSink, SqlRedeemStore, SqlRequestLog
+from .code_flow import SqlCodeEvents, SqlCodeSender
+from .codes import CodePolicy
+from .public_store import SqlCodeStore, SqlLinkStore, SqlPhotoSink, SqlRedeemStore, SqlRequestLog
 from .ratelimit import DEFAULT_TRUSTED_PROXY_CIDRS, new_public_limiter, parse_trusted_cidrs
 
 log = logging.getLogger("smplwise.tickets.public")
@@ -85,7 +87,7 @@ class Runtime:
             trusted = parse_trusted_cidrs(DEFAULT_TRUSTED_PROXY_CIDRS)
         limiter = new_public_limiter(clock) if clock is not None else new_public_limiter()
         root = self.attachments_root()
-        engine_kw: dict[str, Any] = {"limiter": limiter}
+        engine_kw: dict[str, Any] = {"limiter": limiter, "policy": code_policy_reader(db)}
         if clock is not None:
             engine_kw["clock"] = clock
         codes = CodeEngine(SqlCodeStore(db), KEYS, **engine_kw)
@@ -95,7 +97,8 @@ class Runtime:
             deps_kw["clock"] = clock
         deps = PublicDeps(
             links=SqlLinkStore(db), switch=switch, key=KEYS, trusted_proxies=trusted, requests=SqlRequestLog(db), redeems=SqlRedeemStore(db),
-            codes=codes, code_sender=NoCodeChannel(), photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
+            codes=codes, code_sender=SqlCodeSender(db, KEYS, clock=clock), code_events=SqlCodeEvents(db, clock=clock),
+            photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
             extra_routers=(build_router(db, clock=clock),), **deps_kw,
         )
@@ -212,6 +215,30 @@ class Runtime:
 
 def _iso(at: dt.datetime) -> str:
     return at.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def code_policy_reader(db: Database, *, every_s: float = 30.0):
+    """The code engine's policy from `tickets.settings.code` (ttl_min, max_attempts, lock_min; out-of-range values read as the
+    defaults - codes.CodePolicy.from_settings), re-read at most every `every_s` seconds; a failing read keeps the last policy."""
+    state: dict[str, Any] = {"at": -1e18, "policy": CodePolicy()}
+    lock = threading.Lock()
+
+    def read() -> CodePolicy:
+        now = time.monotonic()
+        with lock:
+            if now - state["at"] < every_s:
+                return state["policy"]
+            state["at"] = now
+        try:
+            with db.connection(mode="read", label="tickets.public.code_policy") as conn:
+                pol = CodePolicy.from_settings(settings_doc.read(conn).get("code"))
+        except Exception:  # noqa: BLE001
+            return state["policy"]
+        with lock:
+            state["policy"] = pol
+        return pol
+
+    return read
 
 
 def _module_on(db: Database) -> bool:

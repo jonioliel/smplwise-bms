@@ -46,7 +46,7 @@ from .public_http import (PHOTO_MAX, ROUTES, STATE_KEY, UNIFORM_404, BodyDeadlin
                           RouteRule)
 from .public_log import SERVER_LOG, PublicStats, exception_summary
 from .public_multipart import FieldRule, MultipartError, boundary_of, parse_form
-from .public_ports import CodeSender, LinkRecord, LinkStore, ModuleSwitch, PhotoSink, RedeemStore, RequestLog
+from .public_ports import CodeEvents, CodeSender, LinkRecord, LinkStore, ModuleSwitch, PhotoSink, RedeemStore, RequestLog
 from .ratelimit import DEFAULT_TRUSTED_PROXY_CIDRS, Network, PublicLimits, PublicRateGate, ScopedRateLimiter, new_public_limiter, parse_trusted_cidrs
 
 REDEEM_MAX_USES = 3
@@ -99,6 +99,7 @@ class PublicDeps:
     redeems: RedeemStore | None = None
     codes: CodeEngine | None = None
     code_sender: CodeSender | None = None
+    code_events: CodeEvents | None = None
     photos: PhotoSink | None = None
     attachments_root: Path | None = None
     storage: StorageMeter | None = None
@@ -479,6 +480,22 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
             raise PublicError(503, "code_unavailable")
         return JSONResponse({"sent": True, "channel": channel, "expires_in_s": int(issued.expires_at - deps.clock())})
 
+    def _client_key(pr: PublicRequest) -> str:
+        """The access-row device key (links.client_key: network + UA family under the module key) - "how many devices", nothing
+        more. Empty when the key is unusable (the event rows then go without a device)."""
+        try:
+            return links.client_key(deps.key(), pr.net, links.ua_family(pr.user_agent))
+        except ModuleKeyError:
+            return ""
+
+    async def _record(fn: Callable[..., None], *args: Any, **kw: Any) -> None:
+        """A CodeEvents call: the engine already decided the answer, so a failure to record is logged (type only) and never
+        turns the answer into a 500."""
+        try:
+            await run_in_threadpool(fn, *args, **kw)
+        except Exception as exc:  # noqa: BLE001
+            SERVER_LOG.warning("public listener: code event not recorded (%s)", exception_summary(exc))
+
     @api.post("/t/api/code/verify")
     async def code_verify(request: Request, ctx: LinkContext = Depends(link_context(need_code=False))) -> Response:
         body: CodeVerifyIn = await read_json(request, CodeVerifyIn)
@@ -486,12 +503,18 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
             raise PublicError(503, "code_unavailable")
         if not ctx.link.require_code:
             raise PublicError(409, "code_not_required")
+        events = deps.code_events
         try:
             verified = await run_in_threadpool(deps.codes.verify, ctx.link, body.code)
         except CodeRefused as exc:
+            if events is not None and (exc.reason == "invalid" or exc.just_locked):
+                until = deps.clock() + exc.retry_after_s if exc.just_locked else None
+                await _record(events.refused, ctx.link, exc.reason, _client_key(ctx.request), just_locked=exc.just_locked, locked_until=until)
             raise _code_refused(exc) from None
         except ModuleKeyError:
             raise PublicError(503, "code_unavailable") from None
+        if events is not None:
+            await _record(events.verified, ctx.link, _client_key(ctx.request))
         return JSONResponse({"session": verified.session, "expires_in_s": int(verified.expires_at - deps.clock())})
 
     # ---------------------------------------------------------------- photos (spec 10.6)

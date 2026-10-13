@@ -46,7 +46,9 @@ def test_code_is_six_digits_derived_and_stored_only_as_the_spec_hmac(env):
     assert len(code) == 6 and code.isdigit()
     rec = store.latest_code(link.link_id)
     assert rec.id == issued.code_id and rec.channel == "whatsapp" and rec.expires_at == clock() + 600
-    assert rec.code_hash == cd.code_hash(KEY, link.link_id, code) and code not in rec.code_hash
+    assert rec.code_hash == cd.code_hash(KEY, link.link_id, code, generation=link.generation) and code not in rec.code_hash
+    assert rec.generation == link.generation
+    assert rec.code_hash != cd.code_hash(KEY, link.link_id, code, generation=link.generation + 1)  # V8: the generation is inside
     assert code not in repr(rec)
 
 
@@ -243,11 +245,69 @@ def test_reset_after_a_lock_is_the_managers_new_link(env):
         with pytest.raises(cd.CodeRefused):
             engine.verify(link, wrong(code))
     assert engine.locked_for(link) > 0
-    engine.reset(link.link_id)
+    engine.reset(link.link_id, link.generation)
+    assert engine.locked_for(link) == 0 and store.failures(link.link_id, link.generation) is None
     new_link = dataclasses.replace(link, generation=link.generation + 1)
     assert engine.locked_for(new_link) == 0
     clock.advance(61)
     assert engine.verify(new_link, the_code(engine.issue(new_link, "whatsapp"))).session
+
+
+# ---------------------------------------------------------------- code review V8: generation-scoped, WITHOUT reset()
+
+
+def test_a_code_of_generation_one_never_opens_generation_two_without_reset(env):
+    """The trap of code review V8: the manager's new link bumps the generation; even if nobody calls reset(), the old live code
+    (in a forwarded message) must be refused for the new generation."""
+    clock, store, engine, link, _ = env
+    code = the_code(engine.issue(link, "whatsapp"))
+    gen2 = dataclasses.replace(link, generation=link.generation + 1)
+    with pytest.raises(cd.CodeRefused) as e:
+        engine.verify(gen2, code)
+    assert e.value.reason == "no_code"  # no code exists for generation 2 at all - and the guess is not counted
+    assert store.failures(link.link_id, 2) is None
+    assert engine.verify(link, code).session  # generation 1 itself still works (it is dead only by the token hash change)
+
+
+def test_a_lock_of_generation_one_does_not_carry_into_generation_two_without_reset(env):
+    clock, store, engine, link, _ = env
+    code = the_code(engine.issue(link, "whatsapp"))
+    for _ in range(5):
+        with pytest.raises(cd.CodeRefused):
+            engine.verify(link, wrong(code))
+    assert engine.locked_for(link) > 0
+    gen2 = dataclasses.replace(link, generation=link.generation + 1)
+    assert engine.locked_for(gen2) == 0
+    issued = engine.issue(gen2, "whatsapp")  # the send caps of generation 1 do not apply either
+    assert engine.verify(gen2, the_code(issued)).session
+
+
+def test_the_send_caps_belong_to_the_generation(env):
+    clock, store, engine, link, _ = env
+    engine.issue(link, "whatsapp")
+    with pytest.raises(cd.CodeRefused):
+        engine.issue(link, "whatsapp")
+    gen2 = dataclasses.replace(link, generation=link.generation + 1)
+    engine.issue(gen2, "whatsapp")
+    assert len(store.code_times_since(link.link_id, 1, clock() - 60)) == 1
+    assert len(store.code_times_since(link.link_id, 2, clock() - 60)) == 1
+
+
+def test_the_locking_guess_says_so_once(env):
+    clock, store, engine, link, _ = env
+    code = the_code(engine.issue(link, "whatsapp"))
+    flags = []
+    for _ in range(7):
+        with pytest.raises(cd.CodeRefused) as e:
+            engine.verify(link, wrong(code))
+        flags.append((e.value.reason, e.value.just_locked))
+    assert flags == [("invalid", False)] * 4 + [("locked", True), ("locked", False), ("locked", False)]
+
+
+def test_code_hash_refuses_a_missing_or_odd_generation():
+    for bad in (0, -1, True, "1", None, 1.0):
+        with pytest.raises(ValueError):
+            cd.code_hash(KEY, "a" * 32, "123456", generation=bad)  # type: ignore[arg-type]
 
 
 def test_withdrawn_code_is_dead_but_still_counts(env):

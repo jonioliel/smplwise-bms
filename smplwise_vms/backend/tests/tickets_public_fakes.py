@@ -124,26 +124,30 @@ class FakeRequests:
 
 
 class FakeCodes:
-    """CodeStore over dicts, with the atomicity the contract asks for (replace_code, consume)."""
+    """CodeStore over dicts, with the atomicity the contract asks for (replace_code, consume) and the generation scope of code
+    review V8 (every per-link read and the wrong-code window belong to one link generation). A test may leave the generation
+    out (`latest_code(link_id)`, `failures(link_id)`): it then means generation 1."""
 
     def __init__(self) -> None:
         self.codes: dict[str, CodeRecord] = {}
         self.order: list[str] = []
-        self.failures_by_link: dict[str, FailureRecord] = {}
+        self.failures_by_link: dict[tuple[str, int], FailureRecord] = {}
         self.sessions: dict[str, SessionRecord] = {}
         self.lock = threading.Lock()
 
-    def latest_code(self, link_id: str) -> CodeRecord | None:
+    def latest_code(self, link_id: str, generation: int = 1) -> CodeRecord | None:
         with self.lock:
             for cid in reversed(self.order):
                 c = self.codes[cid]
-                if c.link_id == link_id:
+                if c.link_id == link_id and c.generation == generation:
                     return c
             return None
 
-    def code_times_since(self, link_id: str, since: float) -> list[float]:
+    def code_times_since(self, link_id: str, *args: Any) -> list[float]:
+        generation, since = (1, args[0]) if len(args) == 1 else (args[0], args[1])
         with self.lock:
-            return sorted(c.created_at for c in self.codes.values() if c.link_id == link_id and c.created_at >= since)
+            return sorted(c.created_at for c in self.codes.values()
+                          if c.link_id == link_id and c.generation == generation and c.created_at >= since)
 
     def replace_code(self, record: CodeRecord, now: float) -> None:
         with self.lock:
@@ -173,17 +177,18 @@ class FakeCodes:
             self.codes[code_id] = dataclasses.replace(c, consumed_at=now)
             return True
 
-    def failures(self, link_id: str) -> FailureRecord | None:
+    def failures(self, link_id: str, generation: int = 1) -> FailureRecord | None:
         with self.lock:
-            return self.failures_by_link.get(link_id)
+            return self.failures_by_link.get((link_id, generation))
 
-    def put_failures(self, link_id: str, record: FailureRecord) -> None:
+    def put_failures(self, link_id: str, *args: Any) -> None:
+        generation, record = (1, args[0]) if len(args) == 1 else (args[0], args[1])
         with self.lock:
-            self.failures_by_link[link_id] = record
+            self.failures_by_link[(link_id, generation)] = record
 
-    def clear_failures(self, link_id: str) -> None:
+    def clear_failures(self, link_id: str, generation: int = 1) -> None:
         with self.lock:
-            self.failures_by_link.pop(link_id, None)
+            self.failures_by_link.pop((link_id, generation), None)
 
     def put_session(self, record: SessionRecord) -> None:
         with self.lock:

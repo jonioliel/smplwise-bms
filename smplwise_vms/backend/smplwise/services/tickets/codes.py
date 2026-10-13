@@ -6,8 +6,9 @@ Fixed rules (owner decision D2 and the spec - the length is NOT a setting, a 4-d
 - Sending: at most 1 per 60 s, 3 per hour and 6 per day per link (counted over the code rows, so a restart does not reset
   them), and 6 per hour to one recipient across links (the `phone_key`, through the public limiter). Never held by send
   hours (the caller's outbox rule). Codes do NOT count against the per-recipient WhatsApp message cap (spec 9.2).
-- Verifying: `hmac.compare_digest` of HMAC-SHA256(k_tickets, link_id | code) against the stored hash; 5 wrong codes per link
-  within 15 minutes lock the link's code entry for 30 minutes (`ticket_link_failures`, the second_factor._Failures pattern;
+- Verifying: `hmac.compare_digest` of HMAC-SHA256(k_tickets, link_id | generation | code) against the stored hash; 5 wrong
+  codes per link generation within 15 minutes lock the link's code entry for 30 minutes (`ticket_link_failures`, the
+  second_factor._Failures pattern;
   `max_attempts` / `lock_min` are settings within safe bounds). A correct code returns a 256-bit session value
   (`X-Ticket-Session`, stored as its SHA-256, 12 hours, never past the link's expiry; a new generation kills it).
 
@@ -61,9 +62,12 @@ def derive_code(key: bytes, code_id: str) -> str:
     return f"{int.from_bytes(mac, 'big') % 10 ** CODE_DIGITS:0{CODE_DIGITS}d}"
 
 
-def code_hash(key: bytes, link_id: str, code: str) -> str:
-    """`ticket_link_codes.code_hash`: HMAC-SHA256(k_tickets, link_id | code) hex (spec 7.2)."""
-    return hmac.new(bytes(key), f"{link_id}|{code}".encode("ascii"), hashlib.sha256).hexdigest()
+def code_hash(key: bytes, link_id: str, code: str, *, generation: int) -> str:
+    """`ticket_link_codes.code_hash`: HMAC-SHA256(k_tickets, link_id | generation | code) hex (spec 7.2, code review V8: the link
+    GENERATION is part of the input, so a code issued for generation N can never match under N+1, with or without reset())."""
+    if isinstance(generation, bool) or not isinstance(generation, int) or generation < 1:
+        raise ValueError("generation must be a positive int")
+    return hmac.new(bytes(key), f"{link_id}|{generation}|{code}".encode("ascii"), hashlib.sha256).hexdigest()
 
 
 def parse_code(raw: object) -> str | None:
@@ -159,13 +163,15 @@ class Verified:
 
 class CodeRefused(Exception):
     """`reason`: locked | rate_limited | malformed | no_code | expired | invalid. `retry_after_s` for locked / rate_limited,
-    `attempts_left` for invalid / locked. The message is the reason only - never a code or a hash."""
+    `attempts_left` for invalid / locked. `just_locked`: THIS guess started the lock (the caller then records the lock once:
+    the ticket waits for the manager, slice 7). The message is the reason only - never a code or a hash."""
 
-    def __init__(self, reason: str, *, retry_after_s: float = 0.0, attempts_left: int | None = None) -> None:
+    def __init__(self, reason: str, *, retry_after_s: float = 0.0, attempts_left: int | None = None, just_locked: bool = False) -> None:
         super().__init__(reason)
         self.reason = reason
         self.retry_after_s = max(0.0, float(retry_after_s))
         self.attempts_left = attempts_left
+        self.just_locked = just_locked
 
 
 class CodeEngine:
@@ -197,24 +203,26 @@ class CodeEngine:
         return fr.locked_until - now if fr is not None and fr.locked_until is not None and fr.locked_until > now else 0.0
 
     def locked_for(self, link: LinkRecord) -> float:
-        """Seconds the link's code entry stays locked (0.0 = not locked)."""
-        return self._locked(self.store.failures(link.link_id), self.clock())
+        """Seconds the code entry of the link's CURRENT generation stays locked (0.0 = not locked)."""
+        return self._locked(self.store.failures(link.link_id, link.generation), self.clock())
 
     # ---------------------------------------------------------------- send
 
     def issue(self, link: LinkRecord, channel: str) -> Issued:
         """Create the link's next code (the caller then queues it: CodeSender.send(link, code_id, channel)). CodeRefused
-        `locked` / `rate_limited` before anything is written."""
+        `locked` / `rate_limited` before anything is written. Codes, their send caps and the wrong-code window belong to the
+        link's generation (code review V8): the manager's "new link" starts clean by construction."""
         if channel not in CHANNELS:
             raise ValueError("channel must be whatsapp or email")
         pol = self.policy()
+        gen = link.generation
         with self._lock(link.link_id):
             now = self.clock()
-            wait = self._locked(self.store.failures(link.link_id), now)
+            wait = self._locked(self.store.failures(link.link_id, gen), now)
             if wait > 0:
                 raise CodeRefused("locked", retry_after_s=wait, attempts_left=0)
             longest = max(w for w, _ in pol.send_limits)
-            times = sorted(self.store.code_times_since(link.link_id, now - longest))
+            times = sorted(self.store.code_times_since(link.link_id, gen, now - longest))
             for window, cap in pol.send_limits:
                 inside = [t for t in times if now - t < window]
                 if len(inside) >= cap:
@@ -227,8 +235,9 @@ class CodeEngine:
                     raise CodeRefused("rate_limited", retry_after_s=self.limiter.check(rk, self.recipient_limits))
             key = self._key()
             code_id = new_code_id()
-            record = CodeRecord(id=code_id, link_id=link.link_id, code_hash=code_hash(key, link.link_id, derive_code(key, code_id)),
-                                channel=channel, created_at=now, expires_at=now + pol.ttl_s)
+            record = CodeRecord(id=code_id, link_id=link.link_id,
+                                code_hash=code_hash(key, link.link_id, derive_code(key, code_id), generation=gen),
+                                channel=channel, created_at=now, expires_at=now + pol.ttl_s, generation=gen)
             self.store.replace_code(record, now)
             return Issued(code_id, channel, record.expires_at)
 
@@ -244,19 +253,20 @@ class CodeEngine:
         if code is None:
             raise CodeRefused("malformed")
         pol = self.policy()
+        gen = link.generation
         with self._lock(link.link_id):
             now = self.clock()
-            fr = self.store.failures(link.link_id)
+            fr = self.store.failures(link.link_id, gen)
             wait = self._locked(fr, now)
             if wait > 0:
                 raise CodeRefused("locked", retry_after_s=wait, attempts_left=0)
-            latest = self.store.latest_code(link.link_id)
-            if latest is None or latest.consumed_at is not None:
+            latest = self.store.latest_code(link.link_id, gen)
+            if latest is None or latest.consumed_at is not None or latest.generation != gen:
                 raise CodeRefused("no_code")
             if latest.expires_at <= now or latest.attempts >= pol.max_attempts:
                 raise CodeRefused("expired")
             key = self._key()
-            if not hmac.compare_digest(code_hash(key, link.link_id, code), latest.code_hash):
+            if not hmac.compare_digest(code_hash(key, link.link_id, code, generation=gen), latest.code_hash):
                 self.store.add_attempt(latest.id)
                 if fr is None or fr.locked_until is not None or now - fr.window_start > pol.fail_window_s:
                     start, n = now, 0
@@ -264,17 +274,17 @@ class CodeEngine:
                     start, n = fr.window_start, fr.failures
                 n += 1
                 if n >= pol.max_attempts:
-                    self.store.put_failures(link.link_id, FailureRecord(now, 0, now + pol.lock_s))
+                    self.store.put_failures(link.link_id, gen, FailureRecord(now, 0, now + pol.lock_s))
                     self.store.expire_code(latest.id, now)
-                    raise CodeRefused("locked", retry_after_s=pol.lock_s, attempts_left=0)
-                self.store.put_failures(link.link_id, FailureRecord(start, n, None))
+                    raise CodeRefused("locked", retry_after_s=pol.lock_s, attempts_left=0, just_locked=True)
+                self.store.put_failures(link.link_id, gen, FailureRecord(start, n, None))
                 raise CodeRefused("invalid", attempts_left=pol.max_attempts - n)
             if not self.store.consume(latest.id, now):
                 raise CodeRefused("no_code")
             value = new_session_value()
             expires = min(now + pol.session_ttl_s, link.expires_at)
-            self.store.put_session(SessionRecord(session_hash(value), link.link_id, link.generation, now, expires))
-            self.store.clear_failures(link.link_id)
+            self.store.put_session(SessionRecord(session_hash(value), link.link_id, gen, now, expires))
+            self.store.clear_failures(link.link_id, gen)
             return Verified(value, expires)
 
     def session_ok(self, link: LinkRecord, value: object) -> bool:
@@ -287,11 +297,12 @@ class CodeEngine:
         return (rec is not None and rec.link_id == link.link_id and rec.generation == link.generation
                 and now < rec.expires_at and now < link.expires_at)
 
-    def reset(self, link_id: str) -> None:
-        """The manager's "שלח קישור חדש" after a lock (new generation): a clean failure window, no live code."""
+    def reset(self, link_id: str, generation: int) -> None:
+        """Defence in depth for the manager's "שלח קישור חדש" (new generation): a clean failure window of `generation` and no
+        live code of it. Codes and windows are generation-scoped anyway (V8), so a new generation never needs this to be safe."""
         with self._lock(link_id):
             now = self.clock()
-            self.store.clear_failures(link_id)
-            latest = self.store.latest_code(link_id)
+            self.store.clear_failures(link_id, generation)
+            latest = self.store.latest_code(link_id, generation)
             if latest is not None and latest.consumed_at is None and latest.expires_at > now:
                 self.store.expire_code(latest.id, now)

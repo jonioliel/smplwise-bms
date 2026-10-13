@@ -79,6 +79,13 @@ class LinksPatch(BaseModel):  # slice 4 (D5): the link lifetime; per-department 
     grace_hours: int | None = Field(default=None, ge=0, le=168)
 
 
+class CodePatch(BaseModel):  # slice 7 (10.5 / 14.1): option B codes; the length is fixed at 6 (D2) - never a field here
+    model_config = ConfigDict(extra="forbid")
+    ttl_min: int | None = Field(default=None, ge=1, le=30)
+    max_attempts: int | None = Field(default=None, ge=3, le=10)
+    lock_min: int | None = Field(default=None, ge=5, le=240)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -86,6 +93,7 @@ class SettingsBody(BaseModel):
     organization_name: str | None = Field(default=None, max_length=400)
     public: PublicPatch | None = None
     links: LinksPatch | None = None
+    code: CodePatch | None = None  # slice 7
 
 
 @router.put("/tickets/settings")
@@ -101,7 +109,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.organization_name is not None:
         patch["organization_name"] = body.organization_name
-    for block in ("public", "links"):  # slice 4
+    for block in ("public", "links", "code"):  # slice 4; "code" slice 7
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None}

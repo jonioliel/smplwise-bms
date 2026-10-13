@@ -80,6 +80,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("links", "sliding_days"): (14, _int_range(1, 90)),
     ("links", "cap_days"): (90, _int_range(7, 365)),
     ("links", "grace_hours"): (24, _int_range(0, 168)),
+    # slice 7: option B verification codes (section 10.5 / 14.1); the length is fixed at 6 (D2) and is NOT a setting
+    ("code", "ttl_min"): (10, _int_range(1, 30)),
+    ("code", "max_attempts"): (5, _int_range(3, 10)),
+    ("code", "lock_min"): (30, _int_range(5, 240)),
 }
 
 
