@@ -467,6 +467,9 @@ def erase(conn, viewer: Viewer, contact_id: str, *, history: bool, rid: str | No
     store_links.set_contact_departments(conn, contact_id, [])
     if history:
         store_links.rewrite_contact_names(conn, contact_id, TOMBSTONE)
+    from . import costs  # S9 (11A.11): the claims keep the company, the amounts and the files; the person's name goes
+
+    costs.on_contact_erased(conn, contact_id, TOMBSTONE)
     audit(conn, actor=viewer.principal, action="ticket.contact.erase", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
           request_id=rid, details={"history": bool(history), "links_revoked": revoked})
     return {"id": contact_id, "erased": True, "links_revoked": revoked}
@@ -489,4 +492,11 @@ def export(conn, viewer: Viewer, contact_id: str, rid: str | None = None) -> dic
                          "return_kind": a.get("return_kind"), "return_reason": a.get("return_reason")} for a in store_links.contact_assignments(conn, contact_id)],
         "timeline": [{"ticket_number": e["number"], "at": e["at"], "kind": e["kind"], "from": e.get("from_status"), "to": e.get("to_status"),
                       "body": e.get("body")} for e in store_links.contact_events(conn, contact_id)],
+        "cost_claims": _cost_claims(conn, contact_id),  # S9 (11A.11 / 15.2)
     }
+
+
+def _cost_claims(conn, contact_id: str) -> list[dict[str, Any]]:
+    from . import costs
+
+    return costs.contact_export(conn, contact_id)

@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from smplwise.db import Database
-from smplwise.services.tickets import access, export
+from smplwise.services.tickets import access, export, naming
 from tickets_world import API, MAINT, build, rid
 
 SMPLWISE = Path(__file__).resolve().parents[1] / "smplwise"
@@ -328,7 +328,8 @@ def test_export_gate_columns_bom_zone_and_no_invisible_rows(w):
     r = w.c.get(f"{API}/tickets/export.csv?columns=number,title,status,department", headers=w.h("mona"))
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv") and "attachment" in r.headers["content-disposition"]
     rows = _csv(r)
-    assert rows[0] == ["מס׳ קריאה", "כותרת", "מצב", "מחלקה"], rows[0]
+    number_header = naming.render(export.HEADERS["he"]["number"], naming.DEFAULTS["he"])  # the configured (here: default) name, whatever it is
+    assert rows[0] == [number_header, "כותרת", "מצב", "מחלקה"], rows[0]
     assert rows[1:] == [[str(t["number"]), "מזגן", "חדש", "אחזקה"]], "mona does not see the cleaning ticket"
     assert r.headers["x-export-rows"] == "1"
     audit = _audit(w, "ticket.export")
@@ -422,5 +423,5 @@ def test_the_table_router_does_not_hardcode_the_module_name_and_holds_no_sql():
     src = (SMPLWISE / "routers" / "tickets_table.py").read_text(encoding="utf-8")
     code = re.sub(r'"""[\s\S]*?"""', '""', src)
     code = "\n".join(line.split("#", 1)[0] for line in code.splitlines())
-    assert not re.search(r"קריא(ה|ות|ת)|\bTickets?\b", code)
+    assert not re.search(r"קריא(ה|ות|ת)|בקש(ה|ת|ות) שירות|ניהול השירות|\bTickets?\b", code)
     assert not re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", src)

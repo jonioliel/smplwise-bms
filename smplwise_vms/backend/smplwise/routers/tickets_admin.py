@@ -80,6 +80,19 @@ class LinksPatch(BaseModel):  # slice 4 (D5): the link lifetime; per-department 
     grace_hours: int | None = Field(default=None, ge=0, le=168)
 
 
+class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; department / vendor overrides live on their rows
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["required", "optional", "off"] | None = None
+    currencies: list[str] | None = Field(default=None, max_length=5)
+    vat_rate_bp: int | None = Field(default=None, ge=0, le=5000)
+    claim_window_days: int | None = Field(default=None, ge=1, le=90)
+    require_invoice: bool | None = None
+    max_claim_total_minor: int | None = Field(default=None, ge=100, le=99_999_999_999)
+    review_flag_above_minor: int | None = Field(default=None, ge=0, le=99_999_999_999)
+    notify_vendor_approved: bool | None = None
+    retention_days: int | None = Field(default=None, ge=730, le=3650)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -87,6 +100,7 @@ class SettingsBody(BaseModel):
     organization_name: str | None = Field(default=None, max_length=400)
     public: PublicPatch | None = None
     links: LinksPatch | None = None
+    costs: CostsPatch | None = None
 
 
 @router.put("/tickets/settings")
@@ -102,7 +116,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.organization_name is not None:
         patch["organization_name"] = body.organization_name
-    for block in ("public", "links"):  # slice 4
+    for block in ("public", "links", "costs"):  # slice 4, slice 9
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None}

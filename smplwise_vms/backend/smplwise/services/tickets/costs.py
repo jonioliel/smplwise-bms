@@ -734,6 +734,42 @@ def tick(conn, now: dt.datetime) -> int:
     return n
 
 
+# ---------------------------------------------------------------- the contact directory (15.2)
+
+def on_contact_erased(conn, contact_id: str, tombstone: str) -> int:
+    """11A.11: a claim is a financial record the organisation must keep - the company name, vendor reference, amounts and files
+    stay; the PERSON's name leaves the snapshot (phone and e-mail were never in it)."""
+    n = 0
+    for row in conn.execute("SELECT id, snapshot_json FROM ticket_cost_claims WHERE contact_id = ?", (contact_id,)).fetchall():
+        try:
+            snap = json.loads(row["snapshot_json"] or "{}")
+        except ValueError:
+            snap = {}
+        if snap.get("contact_kind") == "vendor":
+            continue  # a vendor row is a company: its name is the record's
+        snap["contact_name"] = tombstone
+        conn.execute("UPDATE ticket_cost_claims SET snapshot_json = ? WHERE id = ?",
+                     (json.dumps(snap, ensure_ascii=False, separators=(",", ":")), row["id"]))
+        n += 1
+    return n
+
+
+def contact_export(conn, contact_id: str) -> list[dict[str, Any]]:
+    """15.2: the person's claims in the contact export - status and totals of each revision, never a file's content."""
+    out = []
+    for c in conn.execute("SELECT * FROM ticket_cost_claims WHERE contact_id = ? ORDER BY created_at", (contact_id,)).fetchall():
+        try:
+            snap = json.loads(c["snapshot_json"] or "{}")
+        except ValueError:
+            snap = {}
+        out.append({"ticket_number": snap.get("number"), "status": c["status"], "currency": c["currency"],
+                    "revisions": [{"seq": r["seq"], "source": r["source"], "total_minor": r["total_minor"], "vat_minor": r["vat_minor"],
+                                   "vendor_ref": r.get("vendor_ref"), "notes": r.get("notes") if r["source"] == "vendor" else None,
+                                   "lines": _lines(r) if r["source"] == "vendor" else None, "created_at": r["created_at"]}
+                                  for r in store_costs.revisions(conn, c["id"])]})
+    return out
+
+
 # ---------------------------------------------------------------- presentation
 
 def _lines(rev: Mapping[str, Any]) -> list[dict[str, Any]]:

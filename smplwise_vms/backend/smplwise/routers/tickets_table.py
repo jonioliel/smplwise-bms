@@ -58,13 +58,23 @@ def _manages_some_department(viewer: Viewer) -> bool:
     return access.ALL_DEPARTMENTS in viewer.anywhere or any(r == "manager" for r in viewer.roles.values())
 
 
-def _query(conn: sqlite3.Connection, params: dict[str, Any]) -> tuple[table.Query, int, tuple[list[Any], str] | None]:
+def _query(conn: sqlite3.Connection, params: dict[str, Any], viewer: Viewer | None = None) -> tuple[table.Query, int, tuple[list[Any], str] | None]:
     try:
         query, limit, cursor = table.from_query_params(params)
         after = table.decode_cursor(cursor, query.sort)
     except table.TableError as exc:
         raise _invalid(conn, exc) from None
+    if query.uses_costs and viewer is not None:
+        _need_costs(conn, viewer)
     return query, limit, after
+
+
+def _need_costs(conn: sqlite3.Connection, viewer: Viewer) -> None:
+    """Slice 9: sorting / filtering by cost needs tickets.costs.view at installation scope (11A.9)."""
+    if viewer.holds_installation("tickets.costs.view"):
+        return
+    audit(conn, actor=viewer.principal, action="ticket.costs.table", decision="denied", resource_type="installation", resource_id="*", reason="no_binding")
+    raise ApiError(403, "forbidden", text(conn, "אין הרשאה לצפייה בעלויות."), details={"permission": "tickets.costs.view"})
 
 
 def filter_params(
@@ -80,10 +90,11 @@ def filter_params(
     created_from: str | None = Query(None, max_length=40),
     created_to: str | None = Query(None, max_length=40),
     q: str = Query("", max_length=80),
+    cost_status: str | None = Query(None, max_length=80),
 ) -> dict[str, Any]:
     """The filter query parameters shared by the list and the export (the section 13.6 whitelist; table.py validates the values)."""
     return {"scope": scope, "status": status, "department": department, "priority": priority, "assignee": assignee, "floor": floor, "area": area,
-            "stuck": stuck, "waiting": waiting, "created_from": created_from, "created_to": created_to, "q": q}
+            "stuck": stuck, "waiting": waiting, "created_from": created_from, "created_to": created_to, "q": q, "cost_status": cost_status}
 
 
 # ---------------------------------------------------------------- the table's list
@@ -102,7 +113,7 @@ def table_page(
     viewer = Viewer(conn, principal)
     _need(conn, viewer, access.VIEW)
     params = {**filters, "sort": sort, "limit": limit, "cursor": cursor}
-    query, size, after = _query(conn, params)
+    query, size, after = _query(conn, params, viewer)
     seen, position = access.visible_table_page(viewer, query, after, size)
     now = dt.datetime.now(dt.timezone.utc)
     lk = present.Lookups(conn)
@@ -132,11 +143,13 @@ def export_csv(
     wait = export.rate_check(principal.user_id)
     if wait > 0:
         raise ApiError(429, "export_rate", text(conn, "אפשר לייצא פעם בדקה. נסו שוב בעוד רגע."), retryable=True, details={"retry_after_s": int(wait) + 1})
-    query, _limit, _after = _query(conn, {**filters, "sort": sort})
+    query, _limit, _after = _query(conn, {**filters, "sort": sort}, viewer)
     try:
         cols = table.parse_columns(columns, require=False)
     except table.TableError as exc:
         raise _invalid(conn, exc) from None
+    if set(cols) & set(table.COST_KEYS):
+        _need_costs(conn, viewer)  # slice 9: the cost columns of the CSV need tickets.costs.view
     try:
         rows = access.visible_export_rows(viewer, query)
     except access.ExportTooLarge:
