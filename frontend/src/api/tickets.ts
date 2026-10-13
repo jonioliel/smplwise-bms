@@ -48,6 +48,8 @@ export interface TicketItem {
   closed_at: string | null;
   revision: number;
   view: 'full' | 'limited';
+  /** slice 2: the SLA dues (null = no threshold applies now / off) */
+  sla?: { ack_due_at: string | null; stuck_due_at: string | null; resolve_due_at: string | null };
   /** slice 3: a device's ticket */
   entity_id?: string | null;
 }
@@ -177,6 +179,8 @@ export interface MetaDepartment {
   open_to_all: boolean;
   categories: { id: string; name: string; parent_id: string | null; default_priority_id: string | null; domains?: string[] }[];
   priorities: { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean }[];
+  /** slice 2: the department's active ticket templates (the create form prefills from them) */
+  templates?: { id: string; name: string; title: string; body: string; category_id: string | null; priority_key: PriorityKey | null }[];
 }
 export interface Meta {
   departments: MetaDepartment[];
@@ -209,7 +213,27 @@ export interface Eligible { kind: 'user'; id: string; name: string; member_role:
 
 // ---------------------------------------------------------------- settings (the module's own screen)
 
-export interface AdminCategory { id: string; name: string; parent_id: string | null; default_priority_id: string | null; sort_order: number; active: boolean }
+export interface AdminCategory { id: string; name: string; parent_id: string | null; default_priority_id: string | null; domains: string[]; sort_order: number; active: boolean }
+export type PriorityKey = 'urgent' | 'high' | 'normal' | 'low';
+export interface SendHours { from: string; to: string }
+export interface LinkDurations { sliding_days: number; cap_days: number; grace_hours: number }
+/** slice 2: the department's own overrides (null = the installation value). */
+export interface PolicyOverrides { link_sliding_days: number | null; link_cap_days: number | null; link_grace_hours: number | null; send_hours: SendHours | null; urgent_is_critical: boolean | null }
+/** slice 2: what is in force for a department (services/tickets/policy.py). */
+export interface EffectivePolicy { links: LinkDurations; send_hours: SendHours; urgent_is_critical: boolean; auto_close_after_days: number | null; share_history_external: boolean; reopen_days: number; overridden: string[] }
+export interface InstallationDefaults { links: LinkDurations; send_hours: SendHours; urgent_is_critical: boolean }
+/** slice 2: one row of the SLA grid (minutes; null = off). */
+export interface SlaRow {
+  priority_id: string; priority_key: PriorityKey; priority_name: string; priority_active: boolean;
+  unassigned_after_min: number | null; link_unopened_min: number | null; ack_within_min: number | null; stuck_after_min: number | null;
+  stuck_waiting_min: number | null; resolve_within_min: number | null; remind_every_min: number | null; max_reminders: number; manager_alert_after_steps: number;
+  revision: number; updated_at: string | null; updated_by: string | null;
+}
+export type SlaField = 'unassigned_after_min' | 'link_unopened_min' | 'ack_within_min' | 'stuck_after_min' | 'stuck_waiting_min' | 'resolve_within_min'
+  | 'remind_every_min' | 'max_reminders' | 'manager_alert_after_steps';
+export type SlaPatch = { priority_id: string; revision: number } & Partial<Record<SlaField, number | null>>;
+export interface AdminTemplate { id: string; kind: 'ticket'; name: string; title: string; body: string; category_id: string | null; priority_key: PriorityKey | null; active: boolean; revision: number; updated_at: string }
+export interface TemplateBody { name?: string; title?: string; body?: string; category_id?: string | null; priority_key?: PriorityKey | null; active?: boolean; revision?: number }
 export interface AdminPriority { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean; active: boolean }
 export interface AdminMember { kind: 'user' | 'group'; id: string; name: string; role: 'manager' | 'member'; notify_new: boolean; added_at: string }
 export interface AdminDepartment {
@@ -229,8 +253,23 @@ export interface AdminDepartment {
   priorities: AdminPriority[];
   members: AdminMember[];
   can_edit_members: boolean;
+  // slice 2
+  auto_close_after_days: number | null;
+  share_history_external: boolean;
+  overrides: PolicyOverrides;
+  effective: EffectivePolicy;
+  sla: SlaRow[];
+  templates: AdminTemplate[];
 }
-export interface DepartmentBody { key?: string; name?: string; description?: string; active?: boolean; open_to_all?: boolean; reopen_days?: number; sort_order?: number; revision?: number }
+export interface DepartmentBody {
+  key?: string; name?: string; description?: string; active?: boolean; open_to_all?: boolean; reopen_days?: number; sort_order?: number; revision?: number;
+  // slice 2 - null clears an override
+  auto_close_after_days?: number | null; share_history_external?: boolean; urgent_is_critical?: boolean | null;
+  link_sliding_days?: number | null; link_cap_days?: number | null; link_grace_hours?: number | null; send_hours?: SendHours | null;
+}
+export interface DepartmentsResponse { departments: AdminDepartment[]; all_departments: boolean; installation?: InstallationDefaults }
+/** slice 2: a row of the "who may" matrix (a role and the ticket permissions it carries). */
+export interface RoleRow { id: string; name: string; builtin: boolean; permissions: string[] }
 export interface Holder {
   id: string;
   name: string;
@@ -238,10 +277,9 @@ export interface Holder {
   grants: { binding_id: string; permissions: string[]; via: 'grant' | 'group' | 'role'; role_id: string; role_name: string; group_name: string | null;
     scope_type: string; scope_id: string; scope_name: string; effect: 'allow' | 'deny'; expires_at: string | null }[];
 }
-export interface HoldersResponse { users: Holder[]; grant_roles: string[] }
-export interface SettingsDoc { revision: number; ui: UiSettings; device_long_press?: 'sheet' | 'menu' }
-/** Keys of the settings document outside `ui` (slice 3: D17). */
-export interface SettingsExtra { device_long_press?: 'sheet' | 'menu' }
+export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles?: RoleRow[] }
+export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ }
+export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; device_long_press?: 'sheet' | 'menu' }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;
@@ -260,19 +298,24 @@ export interface TicketsBackend {
   photoUrl(att: TicketAttachment): string;
   assignees(departmentId: string, ticketId?: string): Promise<{ users: Eligible[] }>;
   settings(): Promise<SettingsDoc>;
-  saveSettings(revision: number, ui: Partial<UiSettings>, extra?: SettingsExtra): Promise<SettingsDoc>;
-  /** slice 3: the device window's tab */
-  byEntity(entityId: string): Promise<EntityTickets>;
+  saveSettings(revision: number, ui: Partial<UiSettings>): Promise<SettingsDoc>;
+  /** slice 2: any installation key of the document (links, send hours, urgent as critical, ui) */
+  saveInstallation(revision: number, patch: SettingsPatch): Promise<SettingsDoc>;
   saveName(revision: number, names: Partial<NameEntries>): Promise<NameDoc>;
-  departments(): Promise<{ departments: AdminDepartment[]; all_departments: boolean }>;
+  departments(): Promise<DepartmentsResponse>;
   createDepartment(body: DepartmentBody): Promise<AdminDepartment>;
   patchDepartment(id: string, body: DepartmentBody): Promise<AdminDepartment>;
   deleteDepartment(id: string): Promise<void>;
   createCategory(departmentId: string, name: string): Promise<AdminDepartment>;
-  patchCategory(id: string, body: { name?: string; active?: boolean; default_priority_id?: string | null }): Promise<AdminDepartment>;
+  patchCategory(id: string, body: { name?: string; active?: boolean; default_priority_id?: string | null; parent_id?: string | null; domains?: string[] }): Promise<AdminDepartment>;
   deleteCategory(id: string): Promise<AdminDepartment>;
-  patchPriority(id: string, body: { name?: string; is_default?: boolean; active?: boolean }): Promise<AdminDepartment>;
-  putMember(departmentId: string, kind: 'user' | 'group', subjectId: string, role: 'manager' | 'member'): Promise<AdminDepartment>;
+  patchPriority(id: string, body: { name?: string; is_default?: boolean; active?: boolean; notify_severity?: Severity }): Promise<AdminDepartment>;
+  /** slice 2: rows of the SLA grid (all or nothing; 409 sla_stale names the rows whose revision moved) */
+  saveSla(departmentId: string, rows: SlaPatch[]): Promise<AdminDepartment>;
+  createTemplate(departmentId: string, body: TemplateBody): Promise<AdminDepartment>;
+  patchTemplate(id: string, body: TemplateBody): Promise<AdminDepartment>;
+  deleteTemplate(id: string): Promise<AdminDepartment>;
+  putMember(departmentId: string, kind: 'user' | 'group', subjectId: string, role: 'manager' | 'member', notifyNew?: boolean): Promise<AdminDepartment>;
   deleteMember(departmentId: string, kind: 'user' | 'group', subjectId: string): Promise<AdminDepartment>;
   directory(q?: string): Promise<{ users: { id: string; name: string }[]; groups: { id: string; name: string }[] }>;
   holders(): Promise<HoldersResponse>;
@@ -310,10 +353,11 @@ const rest: TicketsBackend = {
   photoUrl: (att) => apiUrl(att.url),
   assignees: (departmentId, ticketId) => get<{ users: Eligible[] }>(`${T}/assignees${qs({ department_id: departmentId, ticket_id: ticketId })}`),
   settings: () => get<SettingsDoc>(`${T}/settings`),
-  saveSettings: (revision, ui, extra = {}) => put<SettingsDoc>(`${T}/settings`, Object.keys(ui).length ? { revision, ui, ...extra } : { revision, ...extra }),
+  saveSettings: (revision, ui) => put<SettingsDoc>(`${T}/settings`, { revision, ui }),
+  saveInstallation: (revision, body) => put<SettingsDoc>(`${T}/settings`, { revision, ...body }),
   byEntity: (entityId) => get<EntityTickets>(`${T}/by-entity/${enc(entityId)}`),
   saveName: (revision, names) => put<NameDoc>(`${T}/name`, { revision, ...names }),
-  departments: () => get<{ departments: AdminDepartment[]; all_departments: boolean }>(`${T}/admin/departments`),
+  departments: () => get<DepartmentsResponse>(`${T}/admin/departments`),
   createDepartment: (body) => post<AdminDepartment>(`${T}/admin/departments`, body),
   patchDepartment: (id, body) => patch<AdminDepartment>(`${T}/admin/departments/${enc(id)}`, body),
   deleteDepartment: (id) => del<void>(`${T}/admin/departments/${enc(id)}`),
@@ -321,7 +365,12 @@ const rest: TicketsBackend = {
   patchCategory: (id, body) => patch<AdminDepartment>(`${T}/admin/categories/${enc(id)}`, body),
   deleteCategory: (id) => del<AdminDepartment>(`${T}/admin/categories/${enc(id)}`),
   patchPriority: (id, body) => patch<AdminDepartment>(`${T}/admin/priorities/${enc(id)}`, body),
-  putMember: (departmentId, kind, subjectId, role) => put<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/members/${kind}/${enc(subjectId)}`, { role }),
+  saveSla: (departmentId, rows) => put<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/sla`, { rows }),
+  createTemplate: (departmentId, body) => post<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/templates`, body),
+  patchTemplate: (id, body) => patch<AdminDepartment>(`${T}/admin/templates/${enc(id)}`, body),
+  deleteTemplate: (id) => del<AdminDepartment>(`${T}/admin/templates/${enc(id)}`),
+  putMember: (departmentId, kind, subjectId, role, notifyNew) =>
+    put<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/members/${kind}/${enc(subjectId)}`, notifyNew === undefined ? { role } : { role, notify_new: notifyNew }),
   deleteMember: (departmentId, kind, subjectId) => del<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/members/${kind}/${enc(subjectId)}`),
   directory: (q = '') => get<{ users: { id: string; name: string }[]; groups: { id: string; name: string }[] }>(`${T}/admin/directory${qs({ q })}`),
   holders: () => get<HoldersResponse>(`${T}/admin/holders`),

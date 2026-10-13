@@ -89,6 +89,9 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
                            for c in store.categories(conn, d["id"], include_inactive=False)],
             "priorities": [{"id": p["id"], "key": p["key"], "name": p["name"], "rank": p["rank"], "severity": p["notify_severity"], "is_default": bool(p["is_default"])}
                            for p in store.priorities(conn, d["id"]) if p["active"]],
+            # slice 2: the department's ticket templates (the create form prefills from them)
+            "templates": [{"id": t["id"], "name": t["name"], "title": t["title"], "body": t["body"], "category_id": t.get("category_id"),
+                           "priority_key": t.get("priority_key")} for t in store.templates(conn, d["id"], kind="ticket", include_inactive=False)],
         })
     return {
         "departments": out,
