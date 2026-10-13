@@ -43,6 +43,7 @@ DEFAULTS = {
     "access.stations.manage": {"system_admin"},
     "access.groups.manage": {"system_admin"},
     "access.pin.generate": {"site_admin", "system_admin"},  # S11 (owner decision 2026-10-12, PG)
+    "access.doors.open": {"site_admin", "system_admin", "door_opener"},  # WXPERM: the door-only permission (was access.release)
 }
 
 

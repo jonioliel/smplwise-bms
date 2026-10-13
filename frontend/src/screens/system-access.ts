@@ -69,6 +69,7 @@ import '../electricity/permission-rows'; // CR-023: the electricity permission r
 import { energyPermissionLabel } from '../electricity/access';
 import { generatorPermissionLabel } from '../generator/access'; // CR-031 // CR-023: the one source of the energy permission labels
 import { accessControlPermissionLabel } from '../access-control/access'; // CR-036 S3: the access-control permission labels
+import { legacyFiltered } from './system-access-logic'; // WXPERM: legacy permission names in the role editor
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const TABS = [
@@ -1036,6 +1037,10 @@ export class SystemAccess extends LitElement {
     const sens = new Set(roles.sensitive);
     const sys = new Set(roles.system_permissions ?? []);
     const ordinary = Object.keys(roles.labels).filter((p) => !sens.has(p) && !sys.has(p));
+    // WXPERM: a legacy permission name (access.release -> access.doors.open) is offered only to a role that already holds it,
+    // so it can be removed; a new grant uses the new name
+    const held = new Set(e.id ? roles.roles.find((r) => r.id === e.id)?.permissions ?? [] : []);
+    const sensitive = legacyFiltered(roles.sensitive, roles.legacy_permissions, held);
     const im = this.roleImpact;
     return html`<sw-dialog open heading=${e.id ? 'עריכת תפקיד מותאם' : 'תפקיד מותאם חדש'} subheading="הרשאות רגילות + הרשאות רגישות במפורש · ללא הרשאות מערכת · ההשפעה מוצגת לפני השמירה" data-role-dialog @close=${() => (this.roleEdit = null)}>
       ${this.error ? html`<div class="err banner" data-role-error>${this.error}</div>` : nothing}
@@ -1050,11 +1055,11 @@ export class SystemAccess extends LitElement {
       <div class="perms">${ordinary.map((p) => html`<label class="chk"><input type="checkbox" data-role-perm=${p} .checked=${e.permissions.includes(p)} @change=${() => this.toggleRolePerm(p, false)} /> ${roles.labels[p]}</label>`)}</div>
       <div class="hint permsrow" style="margin-block-start:6px">הרשאות רגישות — לעולם לא מרומזות, נדרשות במפורש
         <span class="permsel">
-          <sw-button size="sm" variant="ghost" data-role-sensitive-all @click=${() => this.setAllRolePerms('sensitive', roles.sensitive, true)}>בחר הכל</sw-button>
-          <sw-button size="sm" variant="ghost" data-role-sensitive-none @click=${() => this.setAllRolePerms('sensitive', roles.sensitive, false)}>נקה הכל</sw-button>
+          <sw-button size="sm" variant="ghost" data-role-sensitive-all @click=${() => this.setAllRolePerms('sensitive', sensitive, true)}>בחר הכל</sw-button>
+          <sw-button size="sm" variant="ghost" data-role-sensitive-none @click=${() => this.setAllRolePerms('sensitive', sensitive, false)}>נקה הכל</sw-button>
         </span>
       </div>
-      <div class="perms">${roles.sensitive.map((p) => html`<label class="chk sens"><input type="checkbox" data-role-sensitive=${p} .checked=${e.sensitive.includes(p)} @change=${() => this.toggleRolePerm(p, true)} /> ${roles.labels[p] ?? p}</label>`)}</div>
+      <div class="perms">${sensitive.map((p) => html`<label class="chk sens"><input type="checkbox" data-role-sensitive=${p} .checked=${e.sensitive.includes(p)} @change=${() => this.toggleRolePerm(p, true)} /> ${roles.labels[p] ?? p}</label>`)}</div>
       ${!e.id ? html`<label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-assign-me .checked=${e.assignMe !== false} @change=${(ev: Event) => (this.roleEdit = { ...e, assignMe: (ev.target as HTMLInputElement).checked })} /> שייך את התפקיד אליי מיד (כל המתקן)</label>` : nothing}
       <label class="chk" style="margin-block-start:6px"><input type="checkbox" data-role-delegable ?disabled=${e.sensitive.length > 0 || e.permissions.includes('rbac.assign')} .checked=${e.delegable && !e.sensitive.length && !e.permissions.includes('rbac.assign')} @change=${(ev: Event) => (this.roleEdit = { ...e, delegable: (ev.target as HTMLInputElement).checked })} /> מנהל אתר רשאי להקצות תפקיד זה בהיקפו (בכפוף להרשאות שהוא מחזיק)${e.sensitive.length || e.permissions.includes('rbac.assign') ? html`<span class="hint"> · לא זמין: תפקיד עם הרשאה רגישה או עם שיוך תפקידים אינו ניתן להאצלה</span>` : nothing}</label>
       ${im

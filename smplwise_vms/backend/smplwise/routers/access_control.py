@@ -63,7 +63,8 @@ log = logging.getLogger("smplwise.intercom")
 
 READ = "access.read"
 CREDENTIALS = "system.configure"  # device secrets: the system administrator only
-RELEASE = "access.release"  # the door release (CR-033 door rule); calls / announcements ride ia.CALL since 2.4.9; see routers/access.py PERMISSION_LABELS
+DOOR_OPEN = door_authority.DOOR_OPEN  # WXPERM: the door release's permission (CR-033 door rule); calls / announcements ride ia.CALL since 2.4.9
+RELEASE = door_authority.RELEASE  # its legacy name, honoured through rbac.LEGACY_PERMISSIONS (routers/access.py PERMISSION_LABELS)
 MANAGE = "access.people.manage"  # the person editor (CR-005 phase 2); same default grants and sensitivity as access.release
 CAPTURE = "access.cards.capture"  # card capture from a station reader (CR-005 phase 2 A2); required IN ADDITION to MANAGE
 PIN_GENERATE = ia.PIN_GENERATE  # CR-036 S11 (PG): a person's PIN, shown once; required IN ADDITION to MANAGE
@@ -570,14 +571,15 @@ def _call_station(act: "_Action") -> None:
 
 def _door_gate_ro(request: Request, station_id: str = Path(), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
     """CR-033 D3: the door release's permission gate, before the body is read (the read_gate pattern). The one door rule
-    (services/door_authority.py) at station level: `access.release` on the station's chain, or `door.unlock` on a lock
-    entity the door map links to this station, and no deny of either. The precise relay is judged again once the body
-    names it. A refusal is audited as `access.release` denied, exactly like the installation-only check it replaces."""
+    (services/door_authority.py) at station level: `access.doors.open` on the station's chain (or its legacy name
+    `access.release` in a custom role), or `door.unlock` on a lock entity the door map links to this station, and no deny of
+    either. The precise relay is judged again once the body names it. A refusal is audited as `access.doors.open` denied
+    (WXPERM; it was `access.release` before the rename)."""
     sid = station_id[:MAX_STATION_ID]
     decision = door_authority.may_open_some_door(conn, principal, sid, dev_mode=bool(settings_of(request).dev_user))
     if not decision.allowed:
-        audit(conn, actor=principal, action=RELEASE, decision="denied", resource_type=STATION, resource_id=sid, reason=decision.reason)
-        raise forbidden(permission=RELEASE, target_type=STATION, target_id=sid, reason=decision.reason)
+        audit(conn, actor=principal, action=DOOR_OPEN, decision="denied", resource_type=STATION, resource_id=sid, reason=decision.reason)
+        raise forbidden(permission=DOOR_OPEN, target_type=STATION, target_id=sid, reason=decision.reason)
     return principal
 
 
@@ -764,7 +766,7 @@ def _relay_of(act: _Action, station: dict[str, Any] | None, lock: int | None) ->
 def release(request: Request, station_id: str, principal: Principal = Depends(_door_gate_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Release a station's door relay once. Body: `{lock?, confirmed, client_request_id, expires_at, origin?}`; `confirmed:
     true` is sent only by the UI's confirmation dialog. Permission (CR-033 D3): the one door rule (services/door_authority.py)
-    - `access.release` on the station's chain or `door.unlock` on the mapped lock entity, deny of either wins - at the gate
+    - `access.doors.open` (legacy name `access.release`) on the station's chain or `door.unlock` on the mapped lock entity, deny of either wins - at the gate
     and again for the named relay. Transport (CR-033 D4): services/trusted_door.py - today's `stations/test_unlock` while
     `doors.trusted_path` is off, the signed `door_open` once it is on; never `execute`. The reply's `release.accepted`
     means the command was ACCEPTED ("sent"); it does not mean the door moved. Refused before sending, each refusal
@@ -803,7 +805,7 @@ def _door_details(act: _Action, station_id: str, lock: int, entry_point: str, de
     request_id = trusted_door.new_request_id()
     act.details.update(transport=trusted_door.TRANSPORT, mode="signed" if mode == "on" else "interim", entry_point=entry_point, door_request_id=request_id,
                        station=station_id, relay=lock, **decision.audit_fields())
-    note_grant(decision.as_rbac(), RELEASE if decision.granted_by == RELEASE else "door.unlock")
+    note_grant(decision.as_rbac(), decision.granted_by or door_authority.UNLOCK)
     return request_id
 
 

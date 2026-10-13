@@ -437,8 +437,9 @@ export function codesSummary(codes: StationCodes | null | undefined, text: Stati
 
 // ---------------------------------------------------------------- rights and policy
 
-/** The permissions' effect on this screen. The door follows `access.release` (the CR-033 door authority decides per station
- * again on the server). Since 2.4.9 (owner decision 2026-10-13) the call signal, the announcement and talk ride `access.call`
+/** The permissions' effect on this screen. The door follows the door permission `access.doors.open` - or its legacy name
+ * `access.release` from an older backend (WXPERM; the server lists the new name for a legacy role) - and the CR-033 door
+ * authority decides per station again on the server. Since 2.4.9 (owner decision 2026-10-13) the call signal, the announcement and talk ride `access.call`
  * over the station chain (backend routers/access_control.py `_caller_ro` + the per-station check; owner answer 6 of 2026-10-12:
  * announcing is part of the call permission; S18: talk too), so those controls follow `access.call` held anywhere a station
  * can be (`hasAnywhere`); the server still refuses a station off the caller's chain. */
@@ -452,7 +453,7 @@ export interface Rights {
 export const NO_RIGHTS: Rights = { door: false, call: false, announce: false, talk: false };
 
 export function rightsOf(has: (permission: string) => boolean, policy: StationsPolicy, hasAnywhere: (permission: string) => boolean = has): Rights {
-  const door = has('access.release');
+  const door = has('access.doors.open') || has('access.release');
   const call = hasAnywhere('access.call');
   return { door, call, announce: call, talk: call && policy.talk === 'classic' };
 }

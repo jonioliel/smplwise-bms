@@ -47,7 +47,7 @@ SERVICE_READS = frozenset({
     "tts/engines", "cards/capture_status",  # reads that belong to a write flow
 })
 SERVICE_WRITES = frozenset({
-    "stations/test_unlock", "media/signal", "tts/start",  # physical actions (access.release)
+    "stations/test_unlock", "media/signal", "tts/start",  # physical actions (the door: access.doors.open; calls / announcements: access.call)
     "users/create", "users/update", "users/delete", "users/pin_generate",  # person editor (access.people.manage)
     "cards/reader_capabilities", "cards/capture_start", "cards/capture_cancel", "cards/capture_confirm",  # card capture
     # CR-036 S11: the person writes the editor did not have (access.people.manage on the person's stations)

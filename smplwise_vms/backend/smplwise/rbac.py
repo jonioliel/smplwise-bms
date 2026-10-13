@@ -27,7 +27,7 @@ STATION = "access_control_station"  # CR-033 D2: one WisKey station, scope_id = 
 # WXD-INT (2.4.8 line): CR-036 S3 judges its station-level access permissions on this same chain
 # (services/intercom_authority.py `Authority.station`), so a station role may carry them too; nothing outside `access.*`.
 STATION_PERMISSIONS = frozenset({
-    "access.read", "access.release",  # CR-033: the door rule
+    "access.read", "access.doors.open", "access.release",  # CR-033: the door rule (WXPERM: access.doors.open; access.release = its legacy name)
     "access.stations.read", "access.events.read", "access.events.export",  # CR-036 S3: per-station reads
     "access.people.read", "access.people.sensitive", "access.people.manage", "access.admin.read",
     "access.cards.capture",  # CR-036 S11 moves the person editor and card capture onto the station chain
@@ -35,6 +35,40 @@ STATION_PERMISSIONS = frozenset({
     # the station (WA) and calls / announcements / talk (S18 + the 2.4.9 call re-gating) - may be carried by a station role
     "access.pin.generate", "access.people.message", "access.call",
 })
+
+# WXPERM (owner decision 2026-10-13): legacy permission names and the permission each one now stands for. A role that lists
+# the legacy name holds the new permission too (one direction only: the new name never implies the legacy one). Built-in roles
+# (roles.json) list the new names only; the expansion keeps custom roles saved before the rename working with no migration -
+# for allows AND for denies (a deny binding of such a role takes the new permission away as well), so nobody silently gains
+# or loses access. `access.release` was the door permission (since 2.4.9 the door alone: calls and announcements moved onto
+# access.call); the door rule (services/door_authority.py) now judges `access.doors.open`.
+LEGACY_PERMISSIONS: dict[str, str] = {"access.release": "access.doors.open"}
+
+
+def expand_legacy(perms: list[str] | set[str] | tuple[str, ...]) -> list[str]:
+    """`perms` plus the permission each legacy name in it stands for (sorted, no duplicates)."""
+    out = set(perms)
+    out.update(LEGACY_PERMISSIONS[p] for p in perms if p in LEGACY_PERMISSIONS)
+    return sorted(out)
+
+
+def legacy_name_of(conn: sqlite3.Connection, role_id: str | None, permission: str) -> str | None:
+    """The legacy name through which `role_id` holds `permission` when it holds it ONLY that way (a custom role saved with
+    `access.release` and without `access.doors.open`); None otherwise. For the audit rows: an administrator can see which
+    grants still ride the old name."""
+    if not role_id or role_id in ROLES:
+        return None
+    try:
+        row = conn.execute("SELECT permissions_json, sensitive_json FROM custom_roles WHERE id = ?", (role_id,)).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if row is None:
+        return None
+    raw = set(json.loads(row["permissions_json"])) | set(json.loads(row["sensitive_json"] or "[]"))
+    if permission in raw:
+        return None
+    return next((old for old, new in LEGACY_PERMISSIONS.items() if new == permission and old in raw), None)
+
 
 _CUSTOM_CACHE: dict[tuple[str, int], dict[str, list[str]]] = {}
 
@@ -53,7 +87,8 @@ def custom_roles(conn: sqlite3.Connection) -> dict[str, list[str]]:
             rows = conn.execute("SELECT id, permissions_json, sensitive_json FROM custom_roles WHERE deleted_at IS NULL").fetchall()
         except sqlite3.OperationalError:  # before the migration ran
             rows = []
-        cached = {r["id"]: sorted(set(json.loads(r["permissions_json"])) | set(json.loads(r["sensitive_json"] or "[]"))) for r in rows}
+        # WXPERM: legacy names expanded (LEGACY_PERMISSIONS), so every check through role_permissions sees the new permission
+        cached = {r["id"]: expand_legacy(set(json.loads(r["permissions_json"])) | set(json.loads(r["sensitive_json"] or "[]"))) for r in rows}
         _CUSTOM_CACHE.clear()
         _CUSTOM_CACHE[rev] = cached
     return cached

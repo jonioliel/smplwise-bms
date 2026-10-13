@@ -170,7 +170,7 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
     e["media_managed"] = media_store.is_managed(conn, entity_id)  # CR-015: read-only here, operated from "מולטימדיה"
     e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"] or e["media_managed"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
     if e["actions"] and intercom_doors.is_wiskey_lock(conn, entity_id):
-        # CR-033 D3: a WisKey door's open is the one door rule's answer (access.release on its station or door.unlock on it)
+        # CR-033 D3: a WisKey door's open is the one door rule's answer (access.doors.open on its station or door.unlock on it)
         e["wiskey_door"] = True
         e["actions"] = [{**a, "granted": _wiskey_open_allowed(conn, principal, entity_id)} if a["id"] == "lock.unlock" else a for a in e["actions"] if a["id"] != "lock.lock"]  # D6: no lock
     e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]

@@ -7,8 +7,9 @@
   covers).
 - Door opening grants (D3, decision 13: "anyone I choose, not too complicated"): `GET /access/door-grants`,
   `POST /access/door-grants/subjects` (one switch per user / group: a `door_opener` binding at installation scope that this
-  card created, or revoking exactly those), `PUT /access/door-grants/roles/{role_id}` (one switch per CUSTOM role: adds or
-  removes `access.release` in its sensitive list). Built-in roles are shown read-only and are never changed here.
+  card created, or revoking exactly those), `PUT /access/door-grants/roles/{role_id}` (one switch per CUSTOM role: adds
+  `access.doors.open` to its sensitive list, or removes it together with its legacy name `access.release` - WXPERM: switching
+  door opening off must not leave the legacy grant behind). Built-in roles are shown read-only and are never changed here.
 - The trusted path flag (D4): `GET|PUT /doors/settings` - `doors.trusted_path`, system administrator, confirmation,
   audited `settings.changed`; it cannot be switched on while no bridge offers the signed door_open.
 - Door status (D4): `POST /doors/requests/{request_id}/status` - the read-only `door_open_status` of an open whose outcome
@@ -39,7 +40,9 @@ router = APIRouter()
 
 CONFIGURE = "system.configure"
 DOOR_ROLE = "door_opener"
-RELEASE = "access.release"
+DOOR_OPEN = door_authority.DOOR_OPEN  # WXPERM: the door-only permission
+RELEASE = door_authority.RELEASE  # its legacy name (rbac.LEGACY_PERMISSIONS)
+DOOR_GRANTS = (DOOR_OPEN, RELEASE)  # a custom role's own list "includes door opening" when it names either
 MAX_ID = 128
 REQUEST_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
@@ -181,7 +184,7 @@ def _may_manage_subjects(conn: sqlite3.Connection, principal: Principal) -> bool
 def _builtin_answer(role_id: str, perms: list[str]) -> str:
     if role_id in ("viewer", "kiosk"):
         return "never"
-    return "yes" if RELEASE in perms else "per_user"
+    return "yes" if DOOR_OPEN in perms else "per_user"
 
 
 @router.get("/access/door-grants")
@@ -206,7 +209,7 @@ def door_grants(principal: Principal = Depends(current_principal), conn: sqlite3
         for b in by_subject.get((kind, sid), []):
             if b["id"] in card and b["role_id"] == DOOR_ROLE:
                 mine.append(b["id"])
-            elif RELEASE in role_permissions(conn, b["role_id"]):
+            elif DOOR_OPEN in role_permissions(conn, b["role_id"]):  # expanded: a legacy access.release role counts too
                 if full or acc.delegated_sees(conn, principal, b):
                     other.append({"binding_id": b["id"], "role_name": ROLE_NAMES_HE.get(b["role_id"], b["role_id"]), "scope_name": scope_name(conn, b["scope_type"], b["scope_id"])})
         return {"kind": kind, "id": sid, "name": name, "active": is_active, "granted": bool(mine), "other": other}
@@ -226,10 +229,10 @@ def door_grants(principal: Principal = Depends(current_principal), conn: sqlite3
     for rid, perms in ROLES.items():
         if rid == DOOR_ROLE:
             continue
-        roles.append({"id": rid, "name": ROLE_NAMES_HE.get(rid, rid), "custom": False, "includes": RELEASE in perms, "editable": False, "answer": _builtin_answer(rid, perms)})
+        roles.append({"id": rid, "name": ROLE_NAMES_HE.get(rid, rid), "custom": False, "includes": DOOR_OPEN in perms, "editable": False, "answer": _builtin_answer(rid, perms)})
     for r in conn.execute("SELECT id, name_he, sensitive_json, delegable, revision FROM custom_roles WHERE deleted_at IS NULL ORDER BY created_at").fetchall():
         sens = json.loads(r["sensitive_json"] or "[]")
-        roles.append({"id": r["id"], "name": r["name_he"], "custom": True, "includes": RELEASE in sens, "editable": can_roles, "delegable": bool(r["delegable"]), "revision": r["revision"]})
+        roles.append({"id": r["id"], "name": r["name_he"], "custom": True, "includes": any(p in sens for p in DOOR_GRANTS), "editable": can_roles, "delegable": bool(r["delegable"]), "revision": r["revision"]})
     return {"users": users, "groups": groups, "roles": roles if can_roles else [], "can_manage_roles": can_roles, "can_manage_subjects": can_subjects, "delegated": not full}
 
 
@@ -279,8 +282,9 @@ class RoleSwitch(BaseModel):
 
 @router.put("/access/door-grants/roles/{role_id}")
 def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Add or remove `access.release` in a CUSTOM role's sensitive list (the role's revision and the permission revision
-    move, as any role edit). Built-in roles are never changed by a setting (owner default for open question 1)."""
+    """Add `access.doors.open` to a CUSTOM role's sensitive list, or remove it AND its legacy name `access.release` (the role's
+    revision and the permission revision move, as any role edit). Built-in roles are never changed by a setting (owner
+    default for open question 1)."""
     require(conn, principal, "rbac.roles.manage", INSTALLATION)
     _confirmed(body.confirmed)
     if role_id in ROLES:
@@ -295,9 +299,10 @@ def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Pri
     if body.enabled:
         if r["delegable"]:
             raise ApiError(422, "sensitive_role_not_delegable", "תפקיד שניתן להאצלה אינו יכול לכלול פתיחת דלתות; בטלו קודם את ההאצלה שלו.")
-        sens.add(RELEASE)
+        if not sens & set(DOOR_GRANTS):  # a legacy access.release already opens doors: nothing to add
+            sens.add(DOOR_OPEN)
     else:
-        sens.discard(RELEASE)
+        sens.difference_update(DOOR_GRANTS)
     if not perms and not sens:
         raise ApiError(422, "validation", "תפקיד חייב לכלול לפחות הרשאה אחת.")
     new_sens = sorted(sens)

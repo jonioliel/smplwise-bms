@@ -12,9 +12,11 @@ export function builtinAnswer(role: DoorGrantRole): string {
 }
 
 /**
- * What the door permission also allows (SEC-WXD L3): `access.read` opens the intercom screen with its entry log and people
- * directory. Said in every granting question until the owner decides on a door-only permission. Since 2.4.9 (owner decision
- * 2026-10-13) calls and announcements ride `access.call`, not `access.release`, so the door grant no longer carries them.
+ * What the door grant also allows (SEC-WXD L3): the card's grant is the built-in `door_opener` role, which bundles `access.read`
+ * with the door permission, and `access.read` opens the intercom screen (in the embedded panel, WisKey's own entry log and
+ * people directory). Since 2.4.9 (owner decision 2026-10-13) calls and announcements ride `access.call`, so the door grant no
+ * longer carries them. WXPERM (owner decision 2026-10-13): the door permission itself is the door-only `access.doors.open`
+ * (legacy name `access.release`); a custom role holding it alone opens doors and sees nothing else.
  */
 export const GRANT_ALSO = 'ההרשאה כוללת גם צפייה ביומן הכניסות ובאנשי הקשר של האינטרקום.';
 

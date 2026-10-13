@@ -66,7 +66,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | access-control | GET | `/api/v1/access-control/status/sync` | Per-station sync counts (pending people, operations by state, revocations, card / PIN removals, deletions) and their |
 | access-control | POST | `/api/v1/access-control/talk/{session_id}/stop` | Ends the caller's own talk session (idempotent); another user's session answers 404 `intercom_talk_not_found`. |
 | access-control | GET | `/api/v1/access/door-grants` | The "פתיחת דלתות" card: per user and group whether this card granted door opening (`granted`), and the other |
-| access-control | PUT | `/api/v1/access/door-grants/roles/{role_id}` | Add or remove `access.release` in a CUSTOM role's sensitive list (the role's revision and the permission revision |
+| access-control | PUT | `/api/v1/access/door-grants/roles/{role_id}` | Add `access.doors.open` to a CUSTOM role's sensitive list, or remove it AND its legacy name `access.release` (the role's |
 | access-control | POST | `/api/v1/access/door-grants/subjects` | On: one `door_opener` binding at installation scope ("כל הדלתות"), through the same checks as any binding (delegation, |
 | access-control | POST | `/api/v1/doors/requests/{request_id}/status` | The read-only `door_open_status` of one open (decision DR-11: an unknown outcome is resolved only by reading, never by |
 | access-control | GET | `/api/v1/doors/settings` |  |

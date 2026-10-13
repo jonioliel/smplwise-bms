@@ -182,11 +182,10 @@ export interface AnnounceOutcome {
  * THE BINDING POINT FOR S11. Announces `message` at each station of `req.stationIds`, one station after the other, ONCE each
  * (never retried, never queued - a failure at one station never stops the rest, and never repeats it). Today this is one
  * `POST /intercom/stations/{id}/tts` per station (api/intercom.ts `speakAtIntercom`: the existing physical-action write path,
- * gated by `access.release` at installation scope, audited per station with the spoken text, a fresh command id per
+ * gated since 2.4.9 by `access.call` over the station chain, audited per station with the spoken text, a fresh command id per
  * station). Owner answers of 2026-10-12: announcing is part of the call permission (`access.call`) and "all stations" /
- * a whole place are allowed for an operator inside their scope. Slice S11 moves the gate onto `access.call` over the
- * station chain (and may replace this loop with one multi-target endpoint); the dialog calls only this function, so nothing
- * in the screen changes when it does.
+ * a whole place are allowed for an operator inside their scope. A later slice may replace this loop with one multi-target
+ * endpoint; the dialog calls only this function, so nothing in the screen changes when it does.
  *
  * `speak` is injectable for the unit specs.
  */

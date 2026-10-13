@@ -64,8 +64,9 @@ Source: original
 
 15. **"הרשאות אפקטיביות"** מחשבת בצד השרת מה משתמש נתון באמת רשאי לעשות בהיקף נתון — בלי
     התחזות (impersonation), רק חישוב.
-16. הרשאות WisKey הרגישות: `access.read` (viewer ומעלה) — צפייה בלבד; `access.release`
-    (site_admin/system_admin) — שחרור דלת, מענה/דחייה/ניתוק, הכרזות; `access.people.manage`
+16. הרשאות WisKey הרגישות: `access.read` (viewer ומעלה) — צפייה בלבד; `access.doors.open`
+    (site_admin/system_admin/"פותח דלתות") — פתיחת דלתות בלבד (השם הקודם `access.release` עדיין פועל בתפקידים
+    מותאמים ישנים); `access.call` (מפעיל ומעלה) — מענה/דחייה/ניתוק והכרזות; `access.people.manage`
     (site_admin/system_admin) — עורך האנשים; `access.cards.capture` (site_admin/system_admin,
     בנוסף ל-people.manage) — קליטת כרטיס. כדי לתת למישהו רק עריכת אנשים בלי כל תפקיד מנהל אתר —
     בונים תפקיד מותאם אישית שמפרט את `access.people.manage` בין הרשאותיו הרגישות.
