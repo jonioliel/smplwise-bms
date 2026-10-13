@@ -140,7 +140,9 @@ slice 1's display card). Personal: `/me/prefs` `tickets.board.tree_hidden` (hidd
   goes into the board header's title row (`screens/tickets-board.ts header()`); the board route parser `tickets/board-model.ts` takes the
   extra params.
 - **4:** call `notify_bridge.contact_changed(conn, ticket_id)` when a phone / e-mail change revokes links (`resolved=True` on reassign / new
-  link); the monitor reads `ticket_links.created_at / first_opened_at / expires_at / cap_at / revoked_at` of the CURRENT assignment.
+  link); the monitor reads `ticket_links.created_at / first_opened_at / expires_at / cap_at / revoked_at` of the CURRENT assignment. When
+  the monitor marks `waiting_reason = link_expired` (waiting for the manager), "new link" / "resend" must set `waiting_on` / `waiting_reason`
+  back (`model.waiting_for(status)`) - the monitor sets it once and never clears it.
 - **5a / 5b:** register `monitor.EXTERNAL_REMINDER` (outbox purpose `reminder`, same live link, extends the sliding expiry); call
   `notify_bridge.send_failed`, `reply_unmatched`, `channel_state` (and `messaging_accounts.state_transitions` -> `channel_state` per account).
   `hours.signal_severity` of msg-core and `notify_bridge.severity_of` implement the same D28 rule - keep one at integration.

@@ -113,9 +113,17 @@ export class TicketsBoard extends LitElement {
       font-weight: 700;
       font-variant-numeric: tabular-nums;
     }
-    .seg button small {
+    .seg button small,
+    .rc small {
       font-variant-numeric: tabular-nums;
       margin-inline-start: 6px;
+    }
+    .rc small {
+      color: var(--dv-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .rc[aria-pressed='true'] small {
+      color: inherit;
     }
     .sub {
       display: flex;
