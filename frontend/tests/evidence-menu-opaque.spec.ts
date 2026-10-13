@@ -218,6 +218,24 @@ test.describe('a menu inside a glass device screen is the palette\'s SOLID twin,
         const lum = (c: number[]) => 0.2126 * (c[0] / 255) ** 2.2 + 0.7152 * (c[1] / 255) ** 2.2 + 0.0722 * (c[2] / 255) ** 2.2;
         expect(Math.abs(lum(fg) - lum(bg)), `glass ${theme}/${scheme}: dark text on light or light on dark (${ink} on ${p.bg})`).toBeGreaterThan(0.3);
         await page.keyboard.press('Escape');
+
+        // a dropdown's list inside the same glass screen (a real sw-dropdown placed in the screen's shadow root inherits the bridge): the same solid twin
+        await host.evaluate((h) => {
+          const root = h.shadowRoot!;
+          root.querySelectorAll('#menu-probe').forEach((e) => e.remove());
+          const dd = document.createElement('sw-dropdown') as HTMLElement & { items: unknown; value: string };
+          dd.id = 'menu-probe';
+          dd.setAttribute('dd-style', 'capsule');
+          dd.items = [{ id: 'a', label: 'סלון', count: 6 }, { id: 'b', label: 'מטבח' }, { id: 'c', label: 'משרד' }];
+          dd.value = 'a';
+          dd.style.cssText = 'position:fixed;inset-block-start:90px;inset-inline-start:90px;z-index:5';
+          root.appendChild(dd);
+        });
+        await page.locator('devices-building #menu-probe .chip').click();
+        const dp = await expectOpaqueMenu(page.locator('devices-building #menu-probe .pop'), `glass ${theme}/${scheme}: dropdown list`);
+        expect(dp.token, `glass ${theme}/${scheme}: the dropdown list is the palette's solid twin`).toBe(rgbText(solidOf(theme, scheme)));
+        await page.keyboard.press('Escape');
+        await host.evaluate((h) => h.shadowRoot!.querySelectorAll('#menu-probe').forEach((e) => e.remove()));
       }
     }
   });
