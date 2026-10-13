@@ -37,7 +37,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, STATION, Principal, authorize, require, role_permissions, scope_name
+from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
 from ..services import door_authority, door_blocks, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
 from . import access as acc
 
@@ -216,7 +216,7 @@ def door_grants(principal: Principal = Depends(current_principal), conn: sqlite3
                 mine.append(b["id"])
             elif DOOR_OPEN in role_permissions(conn, b["role_id"]):  # expanded: a legacy access.release role counts too
                 if full or acc.delegated_sees(conn, principal, b):
-                    other.append({"binding_id": b["id"], "role_name": ROLE_NAMES_HE.get(b["role_id"], b["role_id"]), "scope_name": scope_name(conn, b["scope_type"], b["scope_id"])})
+                    other.append({"binding_id": b["id"], "role_name": role_name(conn, b["role_id"]), "scope_name": scope_name(conn, b["scope_type"], b["scope_id"])})
         return {"kind": kind, "id": sid, "name": name, "active": is_active, "granted": bool(mine), "other": other}
 
     users = []
@@ -234,7 +234,7 @@ def door_grants(principal: Principal = Depends(current_principal), conn: sqlite3
     for rid, perms in ROLES.items():
         if rid == DOOR_ROLE:
             continue
-        roles.append({"id": rid, "name": ROLE_NAMES_HE.get(rid, rid), "custom": False, "includes": DOOR_OPEN in perms, "editable": False, "answer": _builtin_answer(rid, perms)})
+        roles.append({"id": rid, "name": role_name(conn, rid), "custom": False, "includes": DOOR_OPEN in perms, "editable": False, "answer": _builtin_answer(rid, perms)})  # CR-038 D33: names rendered
     for r in conn.execute("SELECT id, name_he, sensitive_json, delegable, revision FROM custom_roles WHERE deleted_at IS NULL ORDER BY created_at").fetchall():
         sens = json.loads(r["sensitive_json"] or "[]")
         roles.append({"id": r["id"], "name": r["name_he"], "custom": True, "includes": any(p in sens for p in DOOR_GRANTS), "editable": can_roles, "delegable": bool(r["delegable"]), "revision": r["revision"]})

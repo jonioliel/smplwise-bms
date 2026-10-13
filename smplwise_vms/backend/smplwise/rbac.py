@@ -301,6 +301,19 @@ def permissions_anywhere(conn: sqlite3.Connection, principal: Principal) -> list
     return sorted(allowed - denied_everywhere)
 
 
+def role_name(conn: sqlite3.Connection, role_id: str) -> str:
+    """A built-in role's Hebrew name as a screen shows it. A module's role name may carry its display name as a token (CR-038 D33:
+    the tickets grant roles say "{tickets}"), rendered here with the configured name; a custom role keeps the name it was saved with."""
+    name = ROLE_NAMES_HE.get(role_id)
+    if name is None:
+        return role_id
+    if "{" in name:
+        from .services.tickets import naming
+
+        return naming.render_for(conn, name, "he")
+    return name
+
+
 def bindings_of(conn: sqlite3.Connection, principal: Principal) -> list[dict]:
     out = []
     for b in _active_bindings(conn, principal):
@@ -308,7 +321,7 @@ def bindings_of(conn: sqlite3.Connection, principal: Principal) -> list[dict]:
             "id": b["id"],
             "subject_kind": b["subject_kind"],
             "role_id": b["role_id"],
-            "role_name": ROLE_NAMES_HE.get(b["role_id"], b["role_id"]),
+            "role_name": role_name(conn, b["role_id"]),
             "scope_type": b["scope_type"],
             "scope_id": b["scope_id"],
             "scope_name": scope_name(conn, b["scope_type"], b["scope_id"]),

@@ -69,8 +69,9 @@ STATUS_ON = {"location_auth": "always", "precise": True, "sharing": True, "senso
 
 def test_presence_permissions_in_every_role_but_kiosk_and_labelled():
     for role, perms in ROLES.items():
-        # door_opener (CR-033) is an add-on grant next to a person's base role, not a role of its own: no presence.report
-        assert ("presence.report" in perms) == (role not in ("kiosk", "door_opener")), role
+        # door_opener (CR-033) and the single-permission ticket grants (CR-038 8.2: tickets_view, tickets_manage ...) are add-on grants
+        # next to a person's base role, not roles of their own: no presence.report
+        assert ("presence.report" in perms) == (role not in ("kiosk", "door_opener") and not role.startswith("tickets_")), role
     assert "presence.sensors.view" in ROLES["system_admin"] and "presence.sensors.view" not in ROLES["operator"]
     assert PERMISSION_LABELS["presence.report"] and PERMISSION_LABELS["presence.sensors.view"]
     contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
