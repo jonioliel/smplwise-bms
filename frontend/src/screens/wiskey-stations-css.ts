@@ -575,10 +575,12 @@ export const stationsCss = css`
     color: var(--sw-text-3);
     font-size: var(--sw-fs-sm);
   }
-  /* CR-036 S12: the way to the entry log of this station */
+  /* CR-036 S12 / WXSCH: the quiet ways on from a station - its entry log, the schedules of its doors */
   .evlink {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-start;
+    gap: var(--sw-s-2);
   }
   .dsec {
     display: flex;
