@@ -24,9 +24,9 @@ here would only add an add/add conflict. After integration the package is a regu
 |---|---|---|
 | `public_server.py` | 10.1 | `PublicListener` (`SERVER`): bind in `start()`, own daemon thread `tickets-public`, a fresh asyncio loop, anyio thread limiter of THAT loop = 4 tokens, `PublicConfig` (never reconfigures process logging, never wraps the app), `PublicServer` (no signal capture), `PublicH11Protocol` (ProtocolLog logging, 10 s request-head deadline, 300 s connection lifetime between requests, JSON 400 with the security headers), `stop()` joins (5 s) then forces, `snapshot()` for health |
 | `public_http.py` | 10.1-10.4 | `PublicEdge`, the pure ASGI layer in front of the public FastAPI app: head cap (431), module switch, the route allow-list `ROUTES` (the whole public surface of 10.3 + 11A.12 with kinds, body rules, caps, deadlines), client network, token header parse + hash, the rate gate before any read, Content-Type / Content-Length rules, body read deadlines, cookie stripping, response header policy in one canonical order, drain-before-early-answer, uniform 404, sanitised 500 |
-| `public_app.py` | 10.2, 10.3, 10.5, 10.6 | `create_public_app(PublicDeps) -> PublicApp`; `link_context()` dependency; `read_json()` + the input-free 422 envelope; `parse_client_request_id()`; `Idempotency`; routes: `GET /t/`, `GET /t/r/{rid}` (same static shell), `GET /t/assets/{name}`, `GET /t/healthz`, `POST /t/api/redeem`, `POST /t/api/code/send`, `POST /t/api/code/verify`, `POST /t/api/photo`, `GET /t/api/photo/{attachment_id}`; `PublicDeps.extra_routers` for slice 4's routes |
+| `public_app.py` | 10.2, 10.3, 10.5, 10.6 | `create_public_app(PublicDeps) -> PublicApp`; `link_context()` dependency; `read_json()` + the input-free 422 envelope; `parse_client_request_id()`; `Idempotency`; `spend_budget(request)`; routes: `GET /t/`, `GET /t/r/{rid}` (same static shell), `GET /t/assets/{name}`, `GET /t/healthz`, `POST /t/api/redeem`, `POST /t/api/code/send`, `POST /t/api/code/verify`, `POST /t/api/photo`, `GET /t/api/photo/{attachment_id}`; `PublicDeps.extra_routers` for slice 4's routes |
 | `public_ports.py` | - | the Protocols slice 4 implements + `LinkRecord` / `CodeRecord` / `FailureRecord` / `SessionRecord` / `StoredResponse` / `PhotoCounts` / `StoredImage` / `PhotoFile`, and `CachedSwitch` |
-| `ratelimit.py` | 10.2 | `ScopedRateLimiter` (scope-parameterised RateLimiter, `block_counters` persistence: `flush` / `restore` / `flush_to(db)` / `restore_from(db)`), `parse_trusted_cidrs`, `client_network`, `PublicLimits`, `PublicRateGate` (`admit` / `failure` / `success` / `trips`), `MinuteCounter`, `new_public_limiter()` (scope `tickets_link`) |
+| `ratelimit.py` | 10.2 | `ScopedRateLimiter` (scope-parameterised RateLimiter, `block_counters` persistence: `flush` / `restore` / `flush_to(db)` / `restore_from(db)`), `parse_trusted_cidrs`, `client_network`, `PublicLimits`, `PublicRateGate` (`admit` / `failure` / `success` / `spend` / `trips` / `flush_to` / `restore_from`; a second limiter, scope `tickets_good`, keeps the known-good marks), `MinuteCounter`, `new_public_limiter()` (scope `tickets_link`) |
 | `links.py` | 10.2, 7.2 | `derive_token`, `token_hash`, `parse_token`, `verify_token`, `limiter_key`, `new_link_id`, redeem ids (`new_redeem_id`, `parse_redeem_id`, `redeem_hash`), code sessions (`new_session_value`, `parse_session`, `session_hash`), `phone_key`, `client_key`, `ua_family`, `validate_public_base_url`, `handler_url` (token in the fragment), `redeem_url` |
 | `module_key.py` | 7.4 | `k_tickets` in `<data>/secrets/tickets_key` (0600, atomic write, damaged file refused), `load`, `rotate`, `ModuleKey` (cached provider, callable) |
 | `codes.py` | 10.5 | `CodeEngine` (`issue`, `withdraw`, `verify`, `session_ok`, `reset`, `locked_for`), `CodePolicy` (+ `from_settings`), `derive_code`, `code_hash`, `parse_code`, `code_channel` (the D6 rule), `effective_require_code` |
@@ -46,13 +46,16 @@ harness), `test_tickets_text_hygiene.py`, `test_tickets_links.py`, `test_tickets
 1. **uvicorn / h11** (`PublicH11Protocol`): a request head must be complete within 10 s (also on a kept-alive connection) and
    within 16 KiB while incomplete; a malformed request gets `400 {"code":"bad_request"}` with the security headers; at most 16
    concurrent connections (uvicorn counts the arriving one: 15 open + the new one gets 503); keep-alive 5 s.
-2. **Edge** (`PublicEdge`): head > 64 headers or 16 KiB -> 431; module off -> uniform 404; client network; unmatched
-   (method, path) -> uniform 404 (charged to the static budget, 120/min per network); token parse + SHA-256; **rate gate**;
-   body rules; cookie removed; deadline-bound receive; the app runs.
+2. **Edge** (`PublicEdge`): head > 64 headers or 16 KiB -> 431; Transfer-Encoding together with Content-Length -> 400;
+   module off -> uniform 404; client network; unmatched (method, path) -> uniform 404 (charged to the static budget,
+   120/min per network); token parse + SHA-256; **rate gate**; body rules; `Cookie`, `Range` and conditional headers removed;
+   deadline-bound receive (no deadline once the body is complete); the app runs.
 3. **App** (`link_context`): ONE `LinkStore.lookup(token_hash)`; unknown / expired / revoked / past grace -> `gate.failure()` +
    uniform 404; read-only grace (409 `read_only` on writes); code session (`X-Ticket-Session`, 403 `code_required` on writes).
 4. **Answer**: canonical headers (spec 10.4 set, `cache-control: no-store` unless the route set one, no `Server`, no cookie, no
-   CORS); a small unread body is drained first so the client is not reset out of the answer.
+   CORS, no `ETag` / `Last-Modified` / `Accept-Ranges`); a small unread body (<= 64 KiB) is drained for at most 2 s first so the
+   client is not reset out of the answer - never for a 429 or a token-less 404, which close the connection. A client that
+   leaves mid-body is recorded as 499 (no error line, no 5xx).
 
 The uniform 404 (`404 {"code":"link_unavailable"}`) is byte-identical whoever produces it (edge or app) and for every case: unknown
 token, expired, revoked, past grace, old generation, malformed or missing token, unknown path, other method, OPTIONS, HEAD,
@@ -72,12 +75,14 @@ token, code, session value, redeem id or phone number in clear - only `links.tok
 | `RequestLog` | `get(scope, crid)`, `put(scope, crid, route, status, body) -> bool` | `ticket_requests` (24 h) | Scope `link:<link_id>`. Write the row **in the same transaction as the effect** (the in-process claim of `Idempotency` covers concurrent duplicates inside the process). Only 2xx answers are stored. |
 | `CodeStore` | `latest_code`, `code_times_since`, `replace_code`, `expire_code`, `add_attempt`, `consume`, `failures`, `put_failures`, `clear_failures`, `put_session`, `session` | `ticket_link_codes`, `ticket_link_failures`, `ticket_link_sessions` | `replace_code`: insert and set `expires_at = now` on every older unconsumed code of the link, in one transaction. `consume`: compare-and-set on `consumed_at IS NULL`. `ticket_link_failures` is keyed by `link_id` (no generation column): the manager's "שלח קישור חדש" must call `CodeEngine.reset(link_id)`. |
 | `CodeSender` | `channel_for(link) -> 'whatsapp' \| 'email' \| None`; `send(link, code_id, channel) -> bool` | the outbox (slice 5b / 7), purpose `code`, priority 0, never held | Implement `channel_for` with `codes.code_channel(...)` (D6). `send` queues the row with `code_id` only; the worker renders the six digits with `codes.derive_code(k_tickets, code_id)` (see 6, decision 1). |
-| `PhotoSink` | `counts(link) -> PhotoCounts`; `record(link, StoredImage, crid) -> answer`; `open(link, attachment_id) -> PhotoFile \| None` | `ticket_attachments`, `ticket_events` | `record`: the attachment row (`visible_external = 1`), the `photo` timeline row, audit, sliding expiry - raising makes the route delete the stored file. `open`: only `visible_external`, not deleted, of the link's ticket; return the absolute path (the route confines it again). |
+| `PhotoSink` | `counts(link) -> PhotoCounts`; `record(link, StoredImage, crid) -> answer`; `open(link, attachment_id) -> PhotoFile \| None` | `ticket_attachments`, `ticket_events`, `ticket_requests` | `record`: the attachment row (`visible_external = 1`), the `photo` timeline row, audit, sliding expiry, and the `ticket_requests` row (scope `link:<id>`, crid, `/t/api/photo`, 201, the answer) **in the same transaction** - raising makes the route delete the stored file. `open`: only `visible_external`, not deleted, of the link's ticket; return the absolute path (the route confines it again). |
 
 Other things slice 4 builds with these helpers: the ticket routes as a router in `PublicDeps.extra_routers` (the edge rules for
 them already exist in `ROUTES`); `link_context(write=True)` for writes, `read_json(request, Model)` with
 `model_config = ConfigDict(extra="forbid", strict=True)` and `text_hygiene.clean_str(...)` fields, `parse_client_request_id`,
-`Idempotency(...).run(...)`; `ticket_link_access.client_key` = `links.client_key(key, ctx.request.net,
+`Idempotency(...).run(...)` (the effect's own transaction should also write the `ticket_requests` row), and
+**`spend_budget(request)` once a write is stored** (the edge only checks the 20 writes / hour budget; a refused, replayed or
+failed write must not spend it); `ticket_link_access.client_key` = `links.client_key(key, ctx.request.net,
 links.ua_family(ctx.request.user_agent))`; the claim routes of slice 9 reuse `image_intake.reencode` / `store_image(...,
 subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_documents`, the `InFlight` guard and the
 `claim_file` rate kind. The test router in `tests/test_tickets_public_app.py` (`slice4_router`) shows the pattern.
@@ -87,11 +92,11 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
 | What | Value |
 |---|---|
 | Listener | port 18093, `limit_concurrency` 16, keep-alive 5 s, 4 worker tokens, backlog 64, graceful stop 3 s, join 5 s |
-| Head | 16 KiB / 64 headers (431; *added*), 10 s to complete (*added*), connection closed between requests after 300 s (*added*) |
-| Bodies | JSON 16 KiB (claim JSON 32 KiB, *chosen*), photo 8 MiB + 64 KiB, invoice file 10 MiB + 64 KiB; deadline 10 s JSON / 60 s upload; drained below 64 KiB (*added*) |
-| Rate gate | unknown tokens 20 failures/min per /24-/64 and 300/min global; token 60 req/min, 20 writes/h, 10 photos/h, 40 invoice files/h; redeem 10/min per network; static + unmatched 120/min per network (*added*); known-good bypass 15 min (*added*) |
+| Head | 16 KiB / 64 headers (431; *added*), 10 s to complete (*added*), TE + CL refused (400; *added*), a connection older than 300 s answers its next request with `connection: close` (*added*) |
+| Bodies | JSON 16 KiB (claim JSON 32 KiB, *chosen*), photo 8 MiB + 64 KiB, invoice file 10 MiB + 64 KiB; deadline 10 s JSON / 60 s upload; an early answer drains <= 64 KiB for at most 2 s, never on a 429 / token-less 404 (*added*) |
+| Rate gate | failed lookups 20/min per /24-/64 network; 300/min installation-wide for tokens and, separately, 300/min for redeem ids (*added*); requests without a well-formed token count per network only (*added*); token 60 req/min (counted once the token proved valid), 20 writes/h, 10 photos/h, 40 invoice files/h - checked at admission, spent after the effect (*changed*); redeem 10/min per network; static + unmatched 120/min per network (*added*); known-good bypass 24 h, persisted (*added*) |
 | Codes | 6 digits fixed; TTL 10 min; 1/60 s, 3/h, 6/day per link; 6/h per recipient; 5 wrong / 15 min -> 30 min lock; session 12 h (never past the link) |
-| Photos | JPEG / PNG only; 8 MiB; 16 MP; side <= 10 000 px (*added*); <= 100 JPEG scans (*added*); out <= 2048 px, JPEG q82; 30 per assignment, 60 per ticket; 2 GiB installation cap (60 s cached walk); one upload in flight per link; 4 upload bodies in memory, 1 decode admitted per loop (*added*) |
+| Photos | JPEG / PNG only; 8 MiB; 16 MP; side <= 10 000 px (*added*); <= 100 JPEG scans (*added*); out <= 2048 px, JPEG q82; 30 per assignment, 60 per ticket; 2 GiB installation cap (60 s cached walk, re-walked off the lock); one upload in flight per link; 2 uploads in their body / store phase, 1 decode admitted per loop (*added*) |
 | PDFs | `%PDF-` at 0, `%%EOF` in the last 1 KiB, 10 MiB, refused names `/JavaScript /JS /Launch /EmbeddedFile /RichMedia /XFA /OpenAction /AA /Encrypt` (as whole names, `#xx` decoded; > 2000 escaped names refused) |
 | Documents | 3 per revision, 1 PDF or 1-10 pages each, 25 files, no duplicate SHA-256; 30 pending per link, pending 24 h |
 
@@ -105,11 +110,12 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
    comes from slice 4's store (`PublicDeps(links=..., switch=CachedSwitch(...), key=ModuleKey(settings.data_dir), requests=...,
    redeems=..., codes=CodeEngine(store, key, limiter=limiter), code_sender=..., photos=..., attachments_root=settings.data_dir /
    "tickets", storage=StorageMeter(...), shell_dir=<www-public>, limiter=limiter, trusted_proxies=parse_trusted_cidrs(
-   settings_doc.public.trusted_proxy_cidrs))`). Restore the counters first: `limiter.restore_from(app.state.db)`.
+   settings_doc.public.trusted_proxy_cidrs))`). Restore the counters right after building the app:
+   `public_app.gate.restore_from(app.state.db)` (both scopes: `tickets_link` windows, `tickets_good` known-good marks).
 3. **Stop** in `main.py _stop_janitor` next to `cast_relay.SERVER.stop()`: `await run_in_threadpool(public_server.SERVER.stop)`,
-   then `limiter.flush_to(app.state.db)`.
-4. **Janitor tick** (guarded steps): `limiter.flush_to(db)` (scope `tickets_link` only); `switch.refresh()`; slice 4's retention of
-   codes / sessions / redeem ids / requests (spec 15.1).
+   then `public_app.gate.flush_to(app.state.db)`.
+4. **Janitor tick** (guarded steps): `public_app.gate.flush_to(db)` (its own scopes only; no write transaction when nothing
+   changed); `switch.refresh()`; slice 4's retention of codes / sessions / redeem ids / requests (spec 15.1).
 5. **Settings route**: after `PUT /settings` changes `tickets.enabled`, call `switch.refresh()`; a changed
    `tickets.settings.public.trusted_proxy_cidrs` needs a listener restart (or rebuild the app) - validate it with
    `parse_trusted_cidrs`, and `public.base_url` with `links.validate_public_base_url`.
@@ -124,7 +130,11 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
    not travel); `secrets/tickets_key` never travels.
 9. **Security note** in `docs/security/` (slice 4, review C13): the token-authorised media exception (`GET /t/api/photo/{id}`).
 10. **Install guide** (slice 8): Cloudflare rate-limiting rule and script-injecting features (Rocket Loader, e-mail obfuscation,
-    Bot Fight Mode) off for the `t-*` hostname; port 18093 never mapped on the host.
+    Bot Fight Mode) off for the `t-*` hostname; port 18093 never mapped on the host; the tunnel route's
+    `originRequest.keepAliveTimeout` SHORTER than the listener's 5 s keep-alive (e.g. 4 s) - otherwise cloudflared can reuse a
+    connection the listener is closing and a POST (redeem, code verify) fails with a 502 (UNVERIFIED on the owner's tunnel).
+11. **Module key**: never call `module_key.load(create=True)` / `ModuleKey.get(create=True)` once `ticket_links` rows exist - a
+    missing key then means a restore or a lost file; refuse and tell the administrator (a new key kills every live link).
 
 ## 6. Decisions where the spec was ambiguous or silent (the safer reading), and deviations
 
@@ -140,9 +150,12 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
 3. **Rate limiter**: the spec asks `RateLimiter` to gain a scope parameter. On this new-files-only branch it is a new class,
    `ScopedRateLimiter` (same table, row format, half-cap rule, bounded keys; plus `check`, `record`, per-scope `horizon_s`).
    Follow-up (optional): re-base `ha_user_auth.RateLimiter` on it as scope `signin`.
-4. **Known-good tokens pass the flood caps** (review T1b): a token that resolved to a live link within 15 minutes is not
-   "unknown", so the 300/min global and the per-network failure caps do not lock out vendors already working. A fresh link's
-   first open during a flood still meets the 429 (the page says "try again in a minute").
+4. **Known-good tokens pass the flood caps** (review T1b): a token that resolved to a live link within 24 hours is not
+   "unknown", so the 300/min global and the per-network failure caps do not lock out vendors already working; the marks are
+   persisted (scope `tickets_good`), so a restart during a flood does not lock them out either. A request without a
+   well-formed token never counts against the installation-wide budget (it costs no lookup), and redeem ids have a budget of
+   their own. A fresh link's first open during a sustained flood of well-formed guesses still meets the 429 (the page says
+   "try again in a minute").
 5. **Lock-out without extra DoS** (review T5a): a malformed code and a guess while no code is live are not counted (they cannot
    succeed); the 5 / 15 min / 30 min numbers are unchanged. The lock is per link; a new generation must call `reset()`.
 6. **PDF scan**: names are matched as whole PDF name tokens with `#xx` escapes decoded - catches `/J#61vaScript`, does not refuse
@@ -153,10 +166,13 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
 8. **Pillow logging (finding)**: Pillow's TIFF reader logs EXIF tag VALUES at DEBUG while `exif_transpose` reads them; at add-on
    log level "debug" every upload's GPS / serial numbers would reach the log. `image_intake` pins the `PIL` logger at INFO for
    the process (the `main.py` httpx precedent). Found by the log scan; regression test next to the pipeline.
-9. **Edge additions not in the spec table**: 431 head cap; drain of small unread bodies (a socket closed on unread bytes is
-   RESET and the client can lose the answer - seen on Windows in the tests, the same TCP rule on Linux); unmatched paths charged
-   to the static budget; one decode admitted per loop (otherwise uploads waiting for a decode slot held elsewhere could occupy
-   all 4 worker threads and stall every lookup - a test shows a 4.3 s stall without it); head deadline and connection lifetime.
+9. **Edge additions not in the spec table**: 431 head cap; TE + CL refused; a short drain (<= 64 KiB, <= 2 s) of small unread
+   bodies before an early answer (a socket closed on unread bytes is RESET and the client can lose the answer - seen on Windows
+   in the tests, the same TCP rule on Linux) but none for a 429 or a token-less 404; unmatched paths charged to the static
+   budget; `Range` / conditional request headers dropped and cache validators never sent; one decode admitted per loop and 2
+   upload slots (otherwise uploads waiting for a decode slot, a slow disk or the write gate could occupy all 4 worker threads
+   and stall every lookup - a test shows a 2.7-4.3 s stall without it); head deadline; over-age connections retired with
+   `connection: close` on their next answer; client disconnects recorded as 499.
 10. **Module off** answers the uniform 404 to everything including the shell and `/t/healthz` (spec 6 / C8 literal). The
     address probe of slice 4 therefore only succeeds while the module is on.
 11. **Status codes chosen** (the spec names only some): 403 `code_required`, 408 `body_timeout`, 409 `read_only` /
@@ -173,8 +189,19 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
     (the spec puts them in `links.py`); `text_hygiene.clean_text` keeps the semantics of slice 1's `model.clean_text` and also
     normalises U+2028 / U+2029 / VT / FF / NEL and cuts stacked combining marks - one of the two should delegate at integration.
 14. **Idempotency** replays 2xx answers only and claims (scope, id) in the process before reading the log; a concurrent duplicate
-    is 409 `request_in_progress` (retryable).
+    is 409 `request_in_progress` (retryable); a failing `RequestLog.put` after a stored effect still answers the success.
 15. **Times**: the ports use epoch seconds; the tables keep ISO text (slice 4 converts).
+16. **Budgets are spent by effects**: the per-token write / photo / file budgets are checked at admission and recorded only
+    after the effect (`PublicRateGate.spend`, `spend_budget(request)`), so retries, `busy` answers and replays cost nothing; the
+    per-token request window of a token that is not yet known good is checked before the lookup and recorded on success (an
+    unknown token creates no key). Keys only valid tokens create are never evicted from the key table.
+17. **Independent review** (read-only, 2026-10-13, after the first complete version): 2 medium + 14 low findings - early answers
+    holding connections for the upload deadline, flood lock-out of established vendors, disconnects reported as 500, key-table
+    churn, TE + CL length confusion, the deadline firing after a complete body, the photo budget charged per attempt, unknown
+    keys echoed in 422s, range / conditional responses, worker-pool exhaustion by uploads, the lifetime close racing a proxy,
+    a non-atomic idempotency write, an inheritable socket, a non-durable key rename, unbounded enclosing marks, a doubled upload
+    buffer. All fixed on this branch (commit `eb5b2b06`), each with a test; the parts that need slice 4 (request row in the
+    effect's transaction, `create=True` refusal) are in sections 3 and 5.
 
 ## 7. Known limits (stated, accepted or residual)
 
@@ -189,9 +216,17 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
 - A large unread upload body is cut with `connection: close`; the client may get a TCP reset instead of the 4xx (the page's
   retry with the same `client_request_id` covers it).
 - A token / code limiter row survives a restart only once a key reached half a cap (the RateLimiter rule); the per-link code caps
-  are counted over the code rows and always survive.
+  are counted over the code rows and always survive. Known-good marks are written at every flush (30 s): a crash can lose the
+  last 30 s of them.
 - The per-recipient code cap needs the contact's `phone_key`; a contact without a phone (e-mail only) has only the per-link caps.
-- During a global flood a freshly sent link's first open can meet the 429 (review T1b residual).
+- During a sustained flood of WELL-FORMED token guesses from many networks (an IPv6 /64-rotating client reaches the 300/min
+  installation budget easily), a freshly sent link's first open - and an e-mail redeem during a redeem flood - can meet the 429
+  (review T1b residual). Vendors whose token worked within 24 h are not affected. The Cloudflare rate-limiting rule is the
+  first line (install guide).
+- Budgets are checked at admission and spent after the effect: two concurrent writes of one link can both pass the last free
+  unit (a small overshoot; uploads are one at a time per link anyway).
+- Idempotency is atomic with the effect only when slice 4 writes the `ticket_requests` row inside the effect's transaction (the
+  `PhotoSink.record` contract); the in-process claim covers concurrent duplicates.
 - Anyone holding a forwarded link can lock the code entry for 30 minutes (spec S10, accepted; the manager's new link resets it).
 - Escalating back-off for unknown-token networks is not implemented (192-bit tokens; 20 lookups/min per network is the spec's
   rate); the code lock is the meaningful lock-out.
@@ -200,7 +235,8 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
 ## 8. UNVERIFIED (needs the owner's environment or a later slice)
 
 - **Cloudflare tunnel to container port 18093** on the owner's installation (spec 22 item 4): reachability of a second container
-  port through `cloudflared`, and the source address cloudflared connects from (inside 172.30.32.0/23 is assumed).
+  port through `cloudflared`, the source address cloudflared connects from (inside 172.30.32.0/23 is assumed), whether
+  Cloudflare streams request bodies to the origin or buffers them, and the tunnel's origin keep-alive (must be below 5 s).
 - The runtime is Linux (the add-on image); every test here ran on the Windows workstation (Proactor event loop, Windows TCP
   stack). The listener's own loop is a stdlib asyncio loop on both. `SO_REUSEADDR` is set on Linux only.
 - uvicorn 0.53.0 behaviours the design rests on are asserted by tests against the pinned version (signal capture skipped off the
@@ -218,17 +254,17 @@ tests/test_tickets_public_logs.py -q`
 
 | File | Tests | Covers |
 |---|---|---|
-| `test_tickets_text_hygiene.py` | 23 | bidi / zero-width / controls / noncharacters, line handling, combining marks, length after cleaning, pydantic type, template check, random-text fuzz, CSV formula escaping |
+| `test_tickets_text_hygiene.py` | 24 | bidi / zero-width / controls / noncharacters, line handling, combining marks (incl. enclosing and class-0 marks), length after cleaning, pydantic type, template check, random-text fuzz, CSV formula escaping |
 | `test_tickets_links.py` | 38 | spec token formula (192 bits), generation, hash-only, strict parsing fuzz, mutated tokens, redeem ids, sessions, keyed digests, public URL rules, fragment-only transport, hash-timing check, key file create / damaged / rotate |
-| `test_tickets_ratelimit.py` | 21 | windows, retry-after, sliding lock, bounded keys, block_counters round trip (sqlite + the real `Database` with all migrations), busy database, exact counting under 16 threads, trusted-proxy keying, flood with known-good bypass, per-token caps, `CachedSwitch` |
+| `test_tickets_ratelimit.py` | 27 | windows, retry-after, sliding lock, bounded keys, protected keys under an address-rotating flood, block_counters round trip (sqlite + the real `Database` with all migrations), busy database, exact counting under 16 threads, trusted-proxy keying, flood with known-good bypass (24 h, persisted across a restart), token-less floods, the separate redeem budget, unknown tokens creating no key, budgets spent by effects, `CachedSwitch` |
 | `test_tickets_codes.py` | 42 | derivation and storage, uniformity, parsing (incl. Arabic-Indic digits) + fuzz, send caps, invalidation, per-recipient cap, lock and window, not-counted guesses, reset, withdraw, 40 parallel guesses, 8 parallel correct codes (one session), policy bounds, D6 rule in all 64 combinations |
-| `test_tickets_image_intake.py` | 52 | re-encode, bounds, phone sizes, metadata stripping (EXIF GPS / ICC / XMP / comment), orientation, polyglots, PNG chunk attacks, pixel and zlib bombs, 16 MP + 1, scan bomb, truncation, every refused type, own semaphore vs the administrator's, storage confinement, storage cap, quotas, in-flight guard, EXIF never logged |
+| `test_tickets_image_intake.py` | 53 | re-encode, bounds, phone sizes, metadata stripping (EXIF GPS / ICC / XMP / comment), orientation, polyglots, PNG chunk attacks, pixel and zlib bombs, 16 MP + 1, scan bomb, truncation, every refused type, own semaphore vs the administrator's, storage confinement, storage cap and the off-lock walk, quotas, in-flight guard, EXIF never logged |
 | `test_tickets_cost_files.py` | 57 | each refused name, encryption, `#xx` spellings, look-alike names, magic / trailer / size, the pinned known limit, scan cost bounds, documents and pages rules, pending quota, download headers |
 | `test_tickets_public_multipart.py` | 33 | exact form reading, boundary rules, every refusal, fuzz |
-| `test_tickets_public_app.py` | 43 | only /t/ routes, headers on every answer, no cookie / CORS, byte-identical uniform 404 (15 cases), one lookup per dead token, rate gate before any lookup, trusted proxy, JSON-only and caps, 422 without input, text cleaning, idempotency (incl. concurrency), grace, code flow, lock, redeem, photos (re-encode, replay, refusals, storage full, failed record, scoping), 500 without data, shell and assets, missing key fails closed |
-| `test_tickets_public_server.py` | 38 | Config values, no logging side effect, never wrapped at TRACE, no signal capture (and uvicorn's own off-main-thread skip), own thread / loop / 4-token pool, start / stop / busy port, route enumeration at the socket, malformed requests, head floods, slow heads, lifetime, body deadline, large vs small unread bodies, keep-alive, the connection cap, decoder held elsewhere, one upload in flight, CF-Connecting-IP from a trusted peer, the main app serves no /t/ route |
+| `test_tickets_public_app.py` | 47 | only /t/ routes, headers on every answer, no cookie / CORS, byte-identical uniform 404 (15 cases), one lookup per dead token, rate gate before any lookup, token-less floods, TE + CL, trusted proxy, JSON-only and caps, 422 without input (unknown keys not echoed), text cleaning, idempotency (incl. concurrency), grace, code flow, lock, redeem, photos (re-encode, replay, refusals, storage full, failed record, scoping, range / conditional requests ignored, budget spent per stored photo), 500 without data, shell and assets, missing key fails closed |
+| `test_tickets_public_server.py` | 41 | Config values, no logging side effect, never wrapped at TRACE, no signal capture (and uvicorn's own off-main-thread skip), own thread / loop / 4-token pool, start / stop / busy port, route enumeration at the socket, malformed requests, TE + CL, head floods, slow heads, over-age connections retired, body deadline, early refusals never holding a connection, large vs small unread bodies, client disconnects (499, no error line), keep-alive, the connection cap, decoder held elsewhere (deterministic), one upload in flight, CF-Connecting-IP from a trusted peer, the main app serves no /t/ route |
 | `test_tickets_public_logs.py` | 1 | the log scan described in its docstring |
-| **Total** | **348 passed** | last run 58 s on the workstation (one process) |
+| **Total** | **363 passed** | about 1-2 minutes on the workstation (one process) |
 
 Also run (unchanged repository tests that scan the source tree): `test_db_gate.py::test_no_manual_transaction_control_outside_db_py`,
 `test_security_review_246_poc.py::test_i3_no_module_but_image_guard_writes_pillows_process_wide_threshold` - passed.
