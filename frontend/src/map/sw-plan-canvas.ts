@@ -1190,10 +1190,12 @@ export class SwPlanCanvas extends LitElement {
       fill: rgba(154, 163, 181, 0.14);
       stroke: var(--sw-offline);
     }
+    /* the zoom buttons and the scale readout stand at the bottom-end corner; while the host's phone sheet (the side list) covers the bottom of the
+       plan they stand above it (--hud-bottom, set by the floor map: map/hud-layout.ts) */
     .controls {
       position: absolute;
       left: var(--sw-s-3);
-      bottom: var(--sw-s-3);
+      bottom: var(--hud-bottom, var(--sw-s-3));
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -1208,7 +1210,7 @@ export class SwPlanCanvas extends LitElement {
     .scale {
       position: absolute;
       left: 56px;
-      bottom: var(--sw-s-3);
+      bottom: var(--hud-bottom, var(--sw-s-3));
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       background: var(--sw-menu-surface);
