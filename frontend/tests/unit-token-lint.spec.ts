@@ -42,7 +42,6 @@ const ALLOW_HEX: Record<string, string> = {
   'components/sw-floor-glyph.ts': 'the floor glyph',
   'components/sw-schedule-grid.ts': 'the 24 h grid (--sc-* knobs on the state tokens; the night band)',
   'components/sw-pill.ts': 'the lit wash mixes toward white by design (bubble)',
-  'components/sw-automation-card.ts': 'the --dv-* fallback',
 };
 
 function walk(dir: string, out: string[] = []): string[] {

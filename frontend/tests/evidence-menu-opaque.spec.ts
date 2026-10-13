@@ -165,7 +165,7 @@ test.describe('menus keep their opaque surface under every look dial and palette
     });
   }
 
-  for (const id of [BUILTIN_PALETTES[0].id, 'sunset']) {
+  for (const id of ['calm-blue', 'sunset', 'high-contrast']) {
     test(`bubble palette ${id}: the menu surface is the palette's elevated surface, opaque, light and dark`, async ({ page }, info) => {
       test.skip(info.project.name !== 'desktop', 'the palette acts the same on every width');
       const pal = BUILTIN_PALETTES.find((p) => p.id === id);

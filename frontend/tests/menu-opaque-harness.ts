@@ -74,6 +74,8 @@ export async function paintOf(surface: Locator): Promise<MenuPaint> {
 
 /** The one assertion: this surface is opaque, un-blurred, un-faded and painted with the menu token. */
 export async function expectOpaqueMenu(surface: Locator, label: string): Promise<MenuPaint> {
+  // the menu really is open and on screen (a closed menu would be "opaque" for free)
+  await expect(surface, `${label}: the menu is open and visible`).toBeVisible();
   // an open transition (opacity / transform, 200 ms) is over when the surface is not faded any more
   await expect.poll(async () => (await paintOf(surface)).effectiveOpacity, { message: `${label}: still fading in`, timeout: 4000 }).toBe(1);
   const p = await paintOf(surface);
