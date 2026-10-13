@@ -1,6 +1,7 @@
 """CR-038 9.1 / 9.7 / 14.3 / D26 / D33: the channel model and the message templates (no database, no network)."""
 from __future__ import annotations
 
+from smplwise.services.tickets import naming  # slice 5b: the module's default name is read, never written
 import random
 
 import pytest
@@ -129,7 +130,7 @@ def test_params_never_carry_secrets():
 
 def test_default_assign_text_hebrew():
     text = tp.render(tp.STARTERS["assign"]["he"], PARAMS, lang="he", secrets={"link": LINK})
-    assert text == ("שלום דני,\nקריאה 1042 (אחזקה): מזגן לא מקרר\nקומה 1 · חדר 102\nלעדכון הטיפול: " + LINK +
+    assert text == ("שלום דני,\n" + naming.DEFAULTS["he"]["one"] + " 1042 (אחזקה): מזגן לא מקרר\nקומה 1 · חדר 102\nלעדכון הטיפול: " + LINK +
                     "\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול")
 
 
@@ -151,7 +152,7 @@ def test_module_name_and_gender_follow_the_setting():
     assert tp.render(tp.STARTERS["reopened"]["he"], PARAMS, lang="he", display_name=masculine, secrets={"link": LINK}).startswith(
         "אירוע 1042 (אחזקה) נפתח מחדש")
     ru = tp.render(tp.STARTERS["reopened"]["ru"], PARAMS, lang="ru", secrets={"link": LINK})
-    assert ru.startswith("Заявка № 1042 (אחזקה) открыта снова")
+    assert ru.startswith(naming.DEFAULTS["ru"]["one"] + " № 1042 (אחזקה) открыта снова")
     ru_m = tp.render(tp.STARTERS["assign"]["ru"], PARAMS, lang="ru", display_name={"ru": {"one": "запрос", "gender": "m"}}, secrets={"link": LINK})
     assert "Новый запрос № 1042" in ru_m
     en = tp.render(tp.STARTERS["closed"]["en"], PARAMS, lang="en", display_name={"en": {"one": "work order"}})
@@ -160,7 +161,7 @@ def test_module_name_and_gender_follow_the_setting():
 
 def test_display_name_values_are_sanitised():
     names = tp.names_for({"he": {"one": "{link}‮פנייה", "many": "", "gender": "x"}}, "he")
-    assert names == {"one": "linkפנייה", "many": "קריאות", "gender": "f"}
+    assert names == {"one": "linkפנייה", "many": naming.DEFAULTS["he"]["many"], "gender": "f"}
 
 
 def test_render_refuses_too_long():

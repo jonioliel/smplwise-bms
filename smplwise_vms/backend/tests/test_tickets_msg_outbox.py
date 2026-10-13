@@ -3,6 +3,7 @@ holds, retries, `unknown` never re-sent, fallbacks (e-mail with the redeem link,
 and disconnects, module off, restart recovery, pacing, and a property test over random operation sequences."""
 from __future__ import annotations
 
+from smplwise.services.tickets import naming  # slice 5b: the module's default name is read, never written
 import dataclasses
 import datetime as dt
 import random
@@ -53,9 +54,9 @@ def test_assign_is_written_then_sent_from_the_account_resolved_at_claim():
     assert done.state == "sent" and done.account_key == KEY_A and done.attempts == 1 and done.provider_message_id
     [call] = env.fake.calls
     assert call["data"]["account"] == ENTRY_A and call["data"]["target"] == PHONE_VENDOR
-    assert env.links.url("L1") in call["data"]["message"] and "קריאה 1042 (אחזקה)" in call["data"]["message"]
+    assert env.links.url("L1") in call["data"]["message"] and f"{naming.DEFAULTS['he']['one']} 1042 (אחזקה)" in call["data"]["message"]
     assert env.links.notes == [("L1", "whatsapp", "assign")]
-    assert ("outcome", row.id, ("sent", None, KEY_A, "קריאות ····0001")) in env.hooks.events
+    assert ("outcome", row.id, ("sent", None, KEY_A, "שירות ····0001")) in env.hooks.events
     assert len(env.ledger.rows) == 1 and env.ledger.rows[0][3] == "message" and PHONE_VENDOR not in str(env.ledger.rows)
 
 
@@ -479,17 +480,17 @@ def test_contact_language_and_buttons():
     call = env.fake.calls[0]
     assert call["service"] == "send_buttons" and "مرحبًا" in call["data"]["message"]
     assert call["data"]["buttons"][0] == {"id": f"t:{row.reply_nonce}:ack", "displayText": "تم الاستلام"}
-    assert call["data"]["footer"] == "طلب 1042"
+    assert call["data"]["footer"] == f"{naming.DEFAULTS['ar']['one']} 1042"
 
 
 def test_a_contact_template_in_the_department_is_used():
     from smplwise.services.tickets.message_templates import TemplateText
 
     env = make_env()
-    env.tpl.items.append(TemplateText("tp1", "assign", "he", "קריאה דחופה {number}: {link}", department_id="D1", revision=3))
+    env.tpl.items.append(TemplateText("tp1", "assign", "he", "בקשה דחופה {number}: {link}", department_id="D1", revision=3))
     assign(env)
     env.tick()
-    assert env.fake.calls[0]["data"]["message"].startswith("קריאה דחופה 1042: https://")
+    assert env.fake.calls[0]["data"]["message"].startswith("בקשה דחופה 1042: https://")
 
 
 # ---------------------------------------------------------------- property: random operations keep the invariants

@@ -15,7 +15,7 @@ from smplwise.services import messaging_accounts as ma
 from smplwise.services.tickets import channel_whatsapp as cw
 from smplwise.services.tickets.channel import AccountRef, Button, OutboundMessage, Recipient, TicketChannel
 
-TEXT = "שלום דני, קריאה 1042: https://t-demo.example.test/t/#SECRETTOKEN0123456789abcdefghijk"
+TEXT = "שלום דני, בקשת שירות 1042: https://t-demo.example.test/t/#SECRETTOKEN0123456789abcdefghijk"
 
 
 def accounts(fake: FakeHaWhatsapp) -> ma.AccountsService:
@@ -26,7 +26,7 @@ def accounts(fake: FakeHaWhatsapp) -> ma.AccountsService:
 
 def msg(**kw) -> OutboundMessage:
     base = dict(outbox_id="ob1", channel="whatsapp", purpose="assign", recipient=Recipient("c1", "דני", phone=PHONE_VENDOR),
-                text=TEXT, account=AccountRef(KEY_A, ENTRY_A, "קריאות"))
+                text=TEXT, account=AccountRef(KEY_A, ENTRY_A, "שירות"))
     base.update(kw)
     return OutboundMessage(**base)
 
@@ -54,14 +54,14 @@ def test_send_message_always_names_the_account():
 def test_buttons_only_when_switched_on():
     b = (Button("t:0123456789abcdef:ack", "התקבל"), Button("t:0123456789abcdef:wip", "בטיפול"))
     ch, fake = channel()
-    ch.send(msg(buttons=b, footer="קריאה 1042"))
+    ch.send(msg(buttons=b, footer="בקשת שירות 1042"))
     assert fake.calls[-1]["service"] == "send_message" and "buttons" not in fake.calls[-1]["data"]
     ch, fake = channel(buttons=True)
-    ch.send(msg(buttons=b, footer="קריאה 1042"))
+    ch.send(msg(buttons=b, footer="בקשת שירות 1042"))
     data = fake.calls[-1]["data"]
     assert fake.calls[-1]["service"] == "send_buttons"
     assert data["buttons"] == [{"id": "t:0123456789abcdef:ack", "displayText": "התקבל"}, {"id": "t:0123456789abcdef:wip", "displayText": "בטיפול"}]
-    assert data["footer"] == "קריאה 1042"
+    assert data["footer"] == "בקשת שירות 1042"
 
 
 @pytest.mark.parametrize("kw,code", [

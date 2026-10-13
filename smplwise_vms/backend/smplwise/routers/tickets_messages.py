@@ -174,7 +174,7 @@ def resend(request: Request, ticket_id: str = Path(..., pattern=ID), outbox_id: 
     if row.state not in ("unknown", "not_sent", "refused") or row.purpose in ("code", "test"):
         raise ApiError(409, "not_resendable", text(conn, "את ההודעה הזו אי אפשר לשלוח שוב."), details={"state": row.state})
     if seen.row["status"] in model.FINAL:
-        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}."))
+        raise ApiError(409, "ticket_closed", text(conn, "{ticket} זו {f:סגורה|m:סגור}."))
     current = seen.row.get("current_assignment_id") if not seen.row.get("asg_ended_at") else None
     if row.assignment_id and row.assignment_id != current:
         raise ApiError(409, "assignment_ended", text(conn, "ההודעה שייכת לטיפול שהסתיים."))
@@ -207,12 +207,12 @@ def send_update(request: Request, ticket_id: str = Path(..., pattern=ID), princi
     if not viewer.holds(access.EXTERNAL, row):
         raise _refuse(conn, viewer, "ticket.message.update", row, "external_permission_missing", rid, permission=access.EXTERNAL)
     if row["status"] in model.FINAL:
-        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}."))
+        raise ApiError(409, "ticket_closed", text(conn, "{ticket} זו {f:סגורה|m:סגור}."))
     current = row.get("current_assignment_id") if not row.get("asg_ended_at") else None
     link = store_links.link_for_assignment(conn, current) if current and row.get("asg_kind") == "contact" else None
     rt = messaging.RUNTIME
     if link is None or handler_links.state(link, rt.clock()) != "live":
-        raise ApiError(409, "no_link", text(conn, "ל{ticket} אין קישור פעיל של מטפל חיצוני."))
+        raise ApiError(409, "no_link", text(conn, "אין קישור פעיל של מטפל חיצוני."))
     contact = store_links.contact(conn, link["contact_id"])
     if contact is None or contact.get("erased_at"):
         raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר לשלוח לאיש הקשר הזה."))
@@ -307,7 +307,7 @@ def attach_inbound(body: AttachBody, request: Request, inbound_id: str = Path(..
         raise _invalid(conn, [{"field": "ticket_id", "code": "not_a_candidate"}])
     seen = access.require_visible(viewer, body.ticket_id)
     if seen.row["status"] in model.FINAL:
-        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}."))
+        raise ApiError(409, "ticket_closed", text(conn, "{ticket} זו {f:סגורה|m:סגור}."))
     at = now_iso()
     asg = store.assignment(conn, seen.row.get("current_assignment_id"))
     store.insert_event(conn, seen.row["id"], "inbound", actor_kind="inbound", actor_name=(asg or {}).get("assignee_name") or "",

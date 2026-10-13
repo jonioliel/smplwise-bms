@@ -37,17 +37,18 @@ VALUE_MAX = {"name": 80, "number": 7, "department": 60, "title": 120, "place": 2
              "organization": 60, "link": 120, "code": 6, "manager": 80, "eta": 24, "module_name": 30, "module_name_plural": 30}
 SECRET_MAX = {"link": 400, "code": 6}  # send time (slice 5b): the real URL is system-made and never cut (a cut link is a dead link)
 
-# 14.3 defaults. The Hebrew and English nouns are read from slice 1's naming.DEFAULTS (one source; its D33 lint forbids writing the
-# default name anywhere else in services/tickets) - same values as before the merge of slice 1 and the message core.
-_HE, _EN = _naming.DEFAULTS["he"], _naming.DEFAULTS["en"]
+# 14.3 defaults - ONE source (slice 5b unified the two naming schemes): slice 1's naming.DEFAULTS (`tickets.name`, tokens {ticket} /
+# {tickets}) for all four languages; these templates keep their {module_name} / {module_name_plural} tokens, rendered from the same
+# names (the outbox passes naming.names_for per language). English has no grammatical gender there: "n" here.
 DEFAULT_DISPLAY_NAME: dict[str, dict[str, Any]] = {
-    "he": {"one": _HE["one"], "many": _HE["many"], "gender": _HE["gender"]},
-    "en": {"one": "ticket", "many": "tickets", "gender": "n"},
-    "ar": {"one": "طلب", "many": "طلبات", "gender": "m"},
-    "ru": {"one": "заявка", "many": "заявки", "gender": "f"},
+    lang: {"one": _naming.DEFAULTS[lang]["one"], "many": _naming.DEFAULTS[lang]["many"], "gender": _naming.DEFAULTS[lang]["gender"] or "n"}
+    for lang in LANGS
 }
-# the default nouns (and listed case forms) that user-facing message texts must not hard-code (14.3 lint)
-DEFAULT_NOUNS = (_HE["one"], _HE["many"], "ticket", "tickets", _EN["one"], _EN["many"], "طلب", "طلبات", "заявка", "заявки", "заявку", "заявок")
+# the default nouns (and listed case forms) that user-facing message texts must not hard-code (14.3 lint); the earlier message-core
+# defaults stay listed too
+DEFAULT_NOUNS = tuple(dict.fromkeys(
+    [_naming.DEFAULTS[lang][form] for lang in LANGS for form in ("one", "many")]
+    + ["ticket", "tickets", "طلب", "طلبات", "заявка", "заявки", "заявку", "заявок"]))
 
 _TOKEN = re.compile(r"\{([^{}]*)\}")
 _GENDER = re.compile(r"^g:([fmn]=[^|{}]*)(\|[fmn]=[^|{}]*)*$")
