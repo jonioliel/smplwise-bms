@@ -78,7 +78,7 @@ export const deviceBlockStyles = css`
     display: flex; align-items: flex-start; gap: var(--sw-s-3); padding: var(--sw-s-3); border-radius: var(--sw-r-lg);
     background: var(--sw-surface-2); border: 1px solid var(--sw-border);
   }
-  .devblk .di { flex: none; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 18px; }
+  .devblk .di { flex: none; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-lg); }
   .devblk .dt { display: grid; gap: 2px; min-inline-size: 0; }
   .devblk .dt b { font-weight: var(--sw-fw-semibold); }
   .devblk .dt small { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
