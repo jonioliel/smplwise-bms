@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-13T13:04:13.077117+00:00
+Generated: 2026-10-13T14:56:07.382450+00:00
 
-Tasks: 197 | Requirements: 305 | Tests: 321 | Screens: 32
+Tasks: 205 | Requirements: 313 | Tests: 329 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 26
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 17
+- REVIEW: 25
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 103
+- V1: 111
 - V2: 29
 - V3: 2
 
@@ -235,3 +235,11 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WXDINT](tasks/WXDINT.md) | V1 | DONE | WisKey CR-033: door path integrated on the 2.4.8 line (wave 1 + D6-D9 + review fixes + D5a/D5b/D10a/D11 on fakes) | — |
 | [ST7DPR](tasks/ST7DPR.md) | V2 | REVIEW | Plan Studio 6: dpr_cap is the pixel ratio of the first realistic frame and moves at once (fix of the 2.4.7 known limit) | — |
 | [GATE248](tasks/GATE248.md) | V1 | DONE | Release gate: baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed | — |
+| [FIXMENU](tasks/FIXMENU.md) | V1 | REVIEW | Opaque menu surfaces: one --sw-menu-surface token for every floating menu in all five skins | — |
+| [WXPERM](tasks/WXPERM.md) | V1 | REVIEW | access.doors.open: a door-only permission for any role; access.release kept as its legacy name | — |
+| [WXMEDSET](tasks/WXMEDSET.md) | V1 | REVIEW | Settings row for live video and talk on the stations screen (access.station_media) | — |
+| [WXSCH](tasks/WXSCH.md) | V1 | REVIEW | A schedules link from the station drawer to the native schedules screen | — |
+| [WXUNBLK](tasks/WXUNBLK.md) | V1 | REVIEW | Door-opening blocks card: see what the door path blocks and release one script-backed entity by hand | — |
+| [ST7LOOK](tasks/ST7LOOK.md) | V1 | REVIEW | Studio 6 look-dev round 3: normals, ground disc, level-3 plates, ceilings, lamp pools, chair model, phone pill cap | — |
+| [ST8](tasks/ST8.md) | V1 | REVIEW | Plan Studio 8: IFC4 export and import in the plan editor (CR-037) | — |
+| [TTSLOG](tasks/TTSLOG.md) | V1 | REVIEW | Station announcements: the audit rows hold the envelope only, never the spoken text | — |

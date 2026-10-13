@@ -8767,5 +8767,189 @@
     ],
     "executed_at": "2026-10-13T12:55:03Z",
     "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run. selftest_gate.py on the test machine: SELFTEST PASSED, 37 OK (2026-10-13); the seed was installed and used by this gate."
+  },
+  {
+    "id": "AT323",
+    "requirement_ids": [
+      "R307"
+    ],
+    "task_ids": [
+      "FIXMENU"
+    ],
+    "title": "Opaque menu surfaces: one --sw-menu-surface token for every floating menu in all five skins",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "FIXMENU (pilot/FIX-menus-opaque @ f36bc24e):",
+      "npx playwright test tests/unit-menu-lint.spec.ts tests/unit-menu-surfaces.spec.ts tests/unit-token-lint.spec.ts",
+      "npx playwright test tests/evidence-menu-opaque.spec.ts tests/dropdown-styles.spec.ts tests/dropdown-styles-b.spec.ts tests/dropdown-capsule.spec.ts tests/evidence-dropdown-capsule.spec.ts (desktop / tablet / mobile)"
+    ],
+    "expected": "Every floating menu (user menu, dropdowns, popovers, pickers, search results) paints an opaque surface from one token in every skin and scheme; a drift guard refuses a new see-through menu rule.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+  },
+  {
+    "id": "AT324",
+    "requirement_ids": [
+      "R308"
+    ],
+    "task_ids": [
+      "WXPERM"
+    ],
+    "title": "access.doors.open: a door-only permission for any role; access.release kept as its legacy name",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "WXPERM (pilot/WXPERM @ ca5514f6):",
+      "pytest tests/test_access_permissions_wxperm.py tests/test_intercom.py tests/test_intercom_authority.py tests/test_wiskey_door_path.py tests/test_wiskey_door_gate.py tests/test_security_review_wxd_fixes.py",
+      "npx playwright test tests/unit-role-editor-legacy.spec.ts tests/unit-wiskey-stations.spec.ts"
+    ],
+    "expected": "Opening a door needs access.doors.open (or door.unlock on the mapped lock); a custom role saved with the legacy access.release keeps exactly its doors, allows and denies; every access-control right is a permission any role may carry.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+  },
+  {
+    "id": "AT325",
+    "requirement_ids": [
+      "R309"
+    ],
+    "task_ids": [
+      "WXMEDSET"
+    ],
+    "title": "Settings row for live video and talk on the stations screen (access.station_media)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "WXMEDSET (pilot/WX-small-2410 @ 7f4cd4a6):",
+      "npx playwright test tests/unit-wxmedset.spec.ts",
+      "npx playwright test tests/evidence-wxmedset.spec.ts (desktop / tablet / mobile)",
+      "pixel-access-s12.spec.ts display images (Linux baselines)"
+    ],
+    "expected": "The display card of the access-control switches offers off / video / video and talk for access.station_media, saved through PATCH /settings by system.configure holders only.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+  },
+  {
+    "id": "AT326",
+    "requirement_ids": [
+      "R310"
+    ],
+    "task_ids": [
+      "WXSCH"
+    ],
+    "title": "A schedules link from the station drawer to the native schedules screen",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "WXSCH (pilot/WX-small-2410 @ 7f4cd4a6):",
+      "npx playwright test tests/unit-wxsch.spec.ts",
+      "npx playwright test tests/evidence-wxsch.spec.ts tests/layout-wxsch.spec.ts"
+    ],
+    "expected": "The station drawer links to #/wiskey/schedules on the station's first door only when the native schedules screen is on, the caller may view schedules and the station has a relay.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+  },
+  {
+    "id": "AT327",
+    "requirement_ids": [
+      "R311"
+    ],
+    "task_ids": [
+      "WXUNBLK"
+    ],
+    "title": "Door-opening blocks card: see what the door path blocks and release one script-backed entity by hand",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "WXUNBLK (pilot/WX-small-2410 @ 7f4cd4a6):",
+      "pytest tests/test_wiskey_door_overrides.py tests/test_wiskey_door_path.py tests/test_wiskey_door_inventory.py",
+      "npx playwright test tests/unit-wxunblk.spec.ts tests/evidence-wxunblk.spec.ts tests/layout-wxunblk.spec.ts"
+    ],
+    "expected": "GET /doors/blocks and PUT /doors/blocks/entities/{entity_id} (system.configure, confirmed, a note required, audited, reversible) release one blocked template / universal entity; a WisKey door step, a WisKey lock or a mapped entity is never released.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+  },
+  {
+    "id": "AT328",
+    "requirement_ids": [
+      "R312"
+    ],
+    "task_ids": [
+      "ST7LOOK"
+    ],
+    "title": "Studio 6 look-dev round 3: normals, ground disc, level-3 plates, ceilings, lamp pools, chair model, phone pill cap",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "ST7LOOK (pilot/ST7-look-r3 @ a60239a7):",
+      "npx playwright test tests/unit-plan-3d-look-r3.spec.ts tests/unit-plan3d-assets.spec.ts tests/unit-plan3d-real.spec.ts",
+      "evidence-replay-3d.spec.ts level-3 images (12 Linux baselines) and pixel-walk-touch.spec.ts"
+    ],
+    "expected": "The realistic 3D level lights its walls and ground correctly, shows ceilings in the walk, lamp pools under the fitting, the round-3 furniture and at most eight pills on a phone; levels 1-2 are unchanged.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+  },
+  {
+    "id": "AT329",
+    "requirement_ids": [
+      "R313"
+    ],
+    "task_ids": [
+      "ST8"
+    ],
+    "title": "Plan Studio 8: IFC4 export and import in the plan editor (CR-037)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "ST8 (pilot/ST8-ifc @ ed1fd497):",
+      "pytest tests/test_plan_ifc.py",
+      "npx playwright test tests/unit-plan-ifc.spec.ts"
+    ],
+    "expected": "A floor exports as IFC4 with stable GlobalIds, and an IFC4 text file (at most 32 MiB, untrusted, bounded) imports as candidates accepted through the existing detect / accept step; nothing is stored by the import.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+  },
+  {
+    "id": "AT330",
+    "requirement_ids": [
+      "R314"
+    ],
+    "task_ids": [
+      "TTSLOG"
+    ],
+    "title": "Station announcements: the audit rows hold the envelope only, never the spoken text",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TTSLOG (integ/2410 @ 52d442e9):",
+      "pytest tests/test_intercom.py -k \"tts\" (test_tts_engines_and_announcement_lifecycle, test_tts_length_bucket_edges, test_tts_text_never_reaches_the_audit_log)"
+    ],
+    "expected": "POST /intercom/stations/{id}/tts audits the station, engine, language, a length bucket and the outcome - sent and refused alike - and no fragment of the announcement text reaches the audit log.",
+    "status": "NOT_RUN",
+    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
   }
 ]

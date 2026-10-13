@@ -5907,5 +5907,133 @@
     "test_ids": [
       "AT322"
     ]
+  },
+  {
+    "id": "R307",
+    "title": "Opaque menu surfaces: one --sw-menu-surface token for every floating menu in all five skins",
+    "statement": "Every floating menu (user menu, dropdowns, popovers, pickers, search results) paints an opaque surface from one token in every skin and scheme; a drift guard refuses a new see-through menu rule.",
+    "task_ids": [
+      "FIXMENU"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT323"
+    ]
+  },
+  {
+    "id": "R308",
+    "title": "access.doors.open: a door-only permission for any role; access.release kept as its legacy name",
+    "statement": "Opening a door needs access.doors.open (or door.unlock on the mapped lock); a custom role saved with the legacy access.release keeps exactly its doors, allows and denies; every access-control right is a permission any role may carry.",
+    "task_ids": [
+      "WXPERM"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT324"
+    ]
+  },
+  {
+    "id": "R309",
+    "title": "Settings row for live video and talk on the stations screen (access.station_media)",
+    "statement": "The display card of the access-control switches offers off / video / video and talk for access.station_media, saved through PATCH /settings by system.configure holders only.",
+    "task_ids": [
+      "WXMEDSET"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT325"
+    ]
+  },
+  {
+    "id": "R310",
+    "title": "A schedules link from the station drawer to the native schedules screen",
+    "statement": "The station drawer links to #/wiskey/schedules on the station's first door only when the native schedules screen is on, the caller may view schedules and the station has a relay.",
+    "task_ids": [
+      "WXSCH"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT326"
+    ]
+  },
+  {
+    "id": "R311",
+    "title": "Door-opening blocks card: see what the door path blocks and release one script-backed entity by hand",
+    "statement": "GET /doors/blocks and PUT /doors/blocks/entities/{entity_id} (system.configure, confirmed, a note required, audited, reversible) release one blocked template / universal entity; a WisKey door step, a WisKey lock or a mapped entity is never released.",
+    "task_ids": [
+      "WXUNBLK"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT327"
+    ]
+  },
+  {
+    "id": "R312",
+    "title": "Studio 6 look-dev round 3: normals, ground disc, level-3 plates, ceilings, lamp pools, chair model, phone pill cap",
+    "statement": "The realistic 3D level lights its walls and ground correctly, shows ceilings in the walk, lamp pools under the fitting, the round-3 furniture and at most eight pills on a phone; levels 1-2 are unchanged.",
+    "task_ids": [
+      "ST7LOOK"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT328"
+    ]
+  },
+  {
+    "id": "R313",
+    "title": "Plan Studio 8: IFC4 export and import in the plan editor (CR-037)",
+    "statement": "A floor exports as IFC4 with stable GlobalIds, and an IFC4 text file (at most 32 MiB, untrusted, bounded) imports as candidates accepted through the existing detect / accept step; nothing is stored by the import.",
+    "task_ids": [
+      "ST8"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT329"
+    ]
+  },
+  {
+    "id": "R314",
+    "title": "Station announcements: the audit rows hold the envelope only, never the spoken text",
+    "statement": "POST /intercom/stations/{id}/tts audits the station, engine, language, a length bucket and the outcome - sent and refused alike - and no fragment of the announcement text reaches the audit log.",
+    "task_ids": [
+      "TTSLOG"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT330"
+    ]
   }
 ]

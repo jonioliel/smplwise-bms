@@ -4996,7 +4996,9 @@
       "Acceptance evidence tied to commit and environment",
       "Documentation, known limits and rollback notes"
     ],
-    "evidence": [],
+    "evidence": [
+      "2026-10-13 (integ-2410): the IFC4 export and the text-form import of this task were delivered as ST8 (pilot/ST8-ifc @ ed1fd497, CR-037) with its own reader instead of IfcOpenShell; this row stays BACKLOG because its dependencies T085 / T088 are not DONE and its acceptance names IfcOpenShell. See ST8."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -9678,6 +9680,318 @@
     ],
     "owner": null,
     "commit": "7b9b63e7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIXMENU",
+    "title": "Opaque menu surfaces: one --sw-menu-surface token for every floating menu in all five skins",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Opaque menu surfaces: one --sw-menu-surface token for every floating menu in all five skins: built on fakes / mocked backends and fixtures (pilot/FIX-menus-opaque @ f36bc24e); no live device action."
+    ],
+    "requirement_ids": [
+      "R307"
+    ],
+    "test_ids": [
+      "AT323"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/FIX-menus-opaque)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on pilot/FIX-menus-opaque @ f36bc24e; notes: the branch commit messages and docs/design/handoff/TOKEN_CONTRACT.md (menu surface). Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXPERM",
+    "title": "access.doors.open: a door-only permission for any role; access.release kept as its legacy name",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "access.doors.open: a door-only permission for any role; access.release kept as its legacy name: built on fakes / mocked backends and fixtures (pilot/WXPERM @ ca5514f6); no live device action."
+    ],
+    "requirement_ids": [
+      "R308"
+    ],
+    "test_ids": [
+      "AT324"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WXPERM)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on pilot/WXPERM @ ca5514f6; notes: docs/changes/WXPERM-ACCESS-PERMISSIONS-NOTES.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXMEDSET",
+    "title": "Settings row for live video and talk on the stations screen (access.station_media)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Settings row for live video and talk on the stations screen (access.station_media): built on fakes / mocked backends and fixtures (pilot/WX-small-2410 @ 7f4cd4a6); no live device action."
+    ],
+    "requirement_ids": [
+      "R309"
+    ],
+    "test_ids": [
+      "AT325"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WX-small-2410)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section A. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXSCH",
+    "title": "A schedules link from the station drawer to the native schedules screen",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "A schedules link from the station drawer to the native schedules screen: built on fakes / mocked backends and fixtures (pilot/WX-small-2410 @ 7f4cd4a6); no live device action."
+    ],
+    "requirement_ids": [
+      "R310"
+    ],
+    "test_ids": [
+      "AT326"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WX-small-2410)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section B. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXUNBLK",
+    "title": "Door-opening blocks card: see what the door path blocks and release one script-backed entity by hand",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Door-opening blocks card: see what the door path blocks and release one script-backed entity by hand: built on fakes / mocked backends and fixtures (pilot/WX-small-2410 @ 7f4cd4a6); no live device action."
+    ],
+    "requirement_ids": [
+      "R311"
+    ],
+    "test_ids": [
+      "AT327"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/WX-small-2410)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section C. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7LOOK",
+    "title": "Studio 6 look-dev round 3: normals, ground disc, level-3 plates, ceilings, lamp pools, chair model, phone pill cap",
+    "epic": "MAP",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Studio 6 look-dev round 3: normals, ground disc, level-3 plates, ceilings, lamp pools, chair model, phone pill cap: built on fakes / mocked backends and fixtures (pilot/ST7-look-r3 @ a60239a7); no live device action."
+    ],
+    "requirement_ids": [
+      "R312"
+    ],
+    "test_ids": [
+      "AT328"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-look-r3)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on pilot/ST7-look-r3 @ a60239a7; notes: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 16 and docs/design/studio6/ROUND3_CRITIQUE.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST8",
+    "title": "Plan Studio 8: IFC4 export and import in the plan editor (CR-037)",
+    "epic": "MAP",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 8: IFC4 export and import in the plan editor (CR-037): built on fakes / mocked backends and fixtures (pilot/ST8-ifc @ ed1fd497); no live device action."
+    ],
+    "requirement_ids": [
+      "R313"
+    ],
+    "test_ids": [
+      "AT329"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST8-ifc)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on pilot/ST8-ifc @ ed1fd497; notes: docs/changes/CR-037-PLAN-STUDIO-8-IFC.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TTSLOG",
+    "title": "Station announcements: the audit rows hold the envelope only, never the spoken text",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Station announcements: the audit rows hold the envelope only, never the spoken text: built on fakes / mocked backends and fixtures (integ/2410 @ 52d442e9); no live device action."
+    ],
+    "requirement_ids": [
+      "R314"
+    ],
+    "test_ids": [
+      "AT330"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (integ/2410)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-13 (integ-2410): built on integ/2410 @ 52d442e9; notes: the commit message of 52d442e9 and docs/release/2.4.10-INTEGRATION-NOTES.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+    ],
+    "owner": null,
+    "commit": null,
     "actual_cost_usd": null
   }
 ]
