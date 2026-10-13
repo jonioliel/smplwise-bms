@@ -127,7 +127,8 @@ test('the two styles: auto follows the theme, bloom moves with the night, the da
   expect(styleFor('light', 'dark')).toBe('light');
   expect(bloomFor(LOOK_STYLES.light, 0).threshold).toBe(2.0);
   expect(bloomFor(LOOK_STYLES.light, 1).threshold).toBeCloseTo(1.6, 9);
-  expect(bloomFor(LOOK_STYLES.dark, 0.5).strength).toBeCloseTo(0.41, 9);
+  expect(bloomFor(LOOK_STYLES.dark, 0.5).strength).toBeCloseTo(0.31, 9); // R3 G5: dark day .26, night .36 (ROUND3_CRITIQUE section 3)
+  expect(bloomFor(LOOK_STYLES.dark, 1).threshold).toBeCloseTo(1.15, 9);
   expect(daylightFactor(4, 20)).toBe(1);
   expect(daylightFactor(1, 20)).toBe(0.25);
   expect(daylightFactor(0, 0)).toBe(0);
