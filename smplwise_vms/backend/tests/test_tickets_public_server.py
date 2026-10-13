@@ -24,7 +24,7 @@ from fastapi import APIRouter
 from smplwise.services.tickets import public_server as ps
 from smplwise.services.tickets.public_http import ROUTES, RouteRule
 from smplwise.services.tickets.public_log import ProtocolLog, PublicStats
-from tests.tickets_public_fakes import build_world
+from tests.tickets_public_fakes import build_world, wait_until
 
 UNIFORM = b'{"code":"link_unavailable"}'
 
@@ -257,7 +257,9 @@ def test_a_slow_request_head_is_closed(serve):
     assert world.app.stats.snapshot()["counters"].get("slow_heads_closed", 0) >= 2
 
 
-def test_connection_lifetime_cap_applies_between_requests(tmp_path):
+def test_an_over_age_connection_answers_its_next_request_then_closes(tmp_path):
+    """The lifetime cap never closes a socket a proxy may be reusing right now: the next request is answered in full and the
+    connection closes after it (review finding 11)."""
     world = build_world(tmp_path)
     lst = ps.PublicListener("tickets-public-lifetime")
     assert lst.start(world.app, host="127.0.0.1", port=0, max_connection_s=1.0)
@@ -265,17 +267,45 @@ def test_connection_lifetime_cap_applies_between_requests(tmp_path):
         with socket.create_connection(("127.0.0.1", lst.port), timeout=5) as s:
             s.sendall(b"GET /t/healthz HTTP/1.1\r\nHost: t.example\r\n\r\n")
             assert read_response(s)[0] == 200
-            time.sleep(1.2)
-            s.sendall(b"GET /t/healthz HTTP/1.1\r\nHost: t.example\r\n\r\n")  # answered or closed - never cut halfway
-            try:
-                status = read_response(s)[0]
-            except OSError:
-                status = 0
-            assert status in (200, 0)
+            time.sleep(1.6)  # over age, still inside the 5 s keep-alive
+            assert world.app.stats.snapshot()["counters"].get("lifetime_retired") == 1
+            s.sendall(b"GET /t/healthz HTTP/1.1\r\nHost: t.example\r\n\r\n")
+            status, _h, body = read_response(s)
+            assert (status, body) == (200, b'{"ok":true}')
             assert closed_by_server(s, within=3.0)
-        assert world.app.stats.snapshot()["counters"].get("lifetime_closed", 0) >= 1
     finally:
         lst.stop()
+
+
+def test_early_refusals_never_hold_a_connection_for_the_body_deadline(serve):
+    """Review finding 1: a refusal with an announced body that never comes - token-less 404 / 429: closed at once; any other
+    early answer: read at most 2 s, then closed - never the 60 s of the upload deadline."""
+    world, lst = serve()
+    head = (b"POST /t/api/photo HTTP/1.1\r\nHost: t.example\r\nContent-Type: multipart/form-data; boundary=b\r\n"
+            b"Content-Length: 65536\r\n\r\n")
+    with socket.create_connection(("127.0.0.1", lst.port), timeout=10) as s:  # no token
+        t0 = time.monotonic()
+        s.sendall(head)
+        status, headers, body = read_response(s)
+        assert (status, body) == (404, UNIFORM) and headers.get("connection") == "close"
+        assert time.monotonic() - t0 < 1.0 * sw_time_factor()
+    link, tok = world.links.add()
+    world.links.replace(link, revoked=True)
+    with socket.create_connection(("127.0.0.1", lst.port), timeout=10) as s:  # a dead token: the app's 404, a short drain
+        t0 = time.monotonic()
+        s.sendall(b"POST /t/api/code/send HTTP/1.1\r\nHost: t.example\r\nX-Ticket-Token: " + tok.encode() +
+                  b"\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{")
+        status, headers, body = read_response(s)
+        assert (status, body) == (404, UNIFORM) and headers.get("connection") == "close"
+        assert 1.5 <= time.monotonic() - t0 < 4.0 * sw_time_factor()
+
+
+def test_transfer_encoding_with_content_length_is_refused_at_the_socket(serve):
+    world, lst = serve()
+    status, headers, body = exchange(lst.port, b"POST /t/api/redeem HTTP/1.1\r\nHost: t.example\r\nContent-Type: application/json\r\n"
+                                               b"Content-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n")
+    assert (status, body) == (400, b'{"code":"bad_request"}') and headers.get("connection") == "close"
+    assert world.redeems.rows == {}
 
 
 def test_a_trickling_body_meets_the_read_deadline(serve):
@@ -286,6 +316,23 @@ def test_a_trickling_body_meets_the_read_deadline(serve):
         assert status == 408 and body == b'{"code":"body_timeout"}' and headers.get("connection") == "close"
         assert closed_by_server(s, within=3)
     assert world.app.stats.snapshot()["counters"].get("body_timeouts") == 1
+
+
+def test_a_client_that_leaves_mid_body_is_not_a_server_error(serve, caplog):
+    world, lst = serve()
+    caplog.set_level(logging.DEBUG, logger="smplwise.tickets.public.http")
+    for expect in (True, False):
+        with socket.create_connection(("127.0.0.1", lst.port), timeout=5) as s:
+            s.sendall(b"POST /t/api/redeem HTTP/1.1\r\nHost: t.example\r\nContent-Type: application/json\r\nContent-Length: 40\r\n" +
+                      (b"Expect: 100-continue\r\n" if expect else b"") + b"\r\n" + (b"" if expect else b'{"rid":'))
+            if expect:
+                s.settimeout(3)
+                assert b"100 Continue" in s.recv(4096)
+        # the socket closes here, before the body is complete
+    assert wait_until(lambda: world.app.stats.snapshot()["counters"].get("client_disconnects", 0) == 2)
+    snap = world.app.stats.snapshot()
+    assert snap["last_5xx_at"] is None and "unhandled_errors" not in snap["counters"]
+    assert "unhandled error" not in caplog.text
 
 
 def test_a_large_unread_body_closes_the_connection(serve):
@@ -378,27 +425,39 @@ def test_lookups_stay_answered_while_uploads_wait_for_a_held_decoder(tmp_path):
     Image.new("RGB", (64, 48), (1, 2, 3)).save(buf, "JPEG")
     tokens = [world.links.add()[1] for _ in range(4)]
     results: list[int] = []
+    base = f"http://127.0.0.1:{lst.port}"
+    clients = [httpx.Client(base_url=base, timeout=20) for _ in range(5)]  # created before any clock: a client loads CA files
+    entered = threading.Event()
+    real_reencode = ii.reencode
+
+    def signalling_reencode(*a, **kw):  # the route looks reencode up at call time
+        entered.set()
+        return real_reencode(*a, **kw)
+
+    ii.reencode = signalling_reencode
     assert ii._DECODE.acquire(timeout=5)  # noqa: SLF001 - someone else is decoding
     try:
-        def up(tok: str) -> None:
-            with httpx.Client(base_url=f"http://127.0.0.1:{lst.port}", timeout=20) as c:
-                r = c.post("/t/api/photo", headers={"x-ticket-token": tok}, data={"client_request_id": str(uuid.uuid4())},
-                           files={"file": ("a.jpg", buf.getvalue(), "image/jpeg")})
-                results.append(r.status_code)
+        def up(client: httpx.Client, tok: str) -> None:
+            r = client.post("/t/api/photo", headers={"x-ticket-token": tok}, data={"client_request_id": str(uuid.uuid4())},
+                            files={"file": ("a.jpg", buf.getvalue(), "image/jpeg")})
+            results.append(r.status_code)
 
-        threads = [threading.Thread(target=up, args=(t,)) for t in tokens]
+        threads = [threading.Thread(target=up, args=(clients[i], tok)) for i, tok in enumerate(tokens)]
         for t in threads:
             t.start()
-        time.sleep(0.8)  # every upload has reached the decode stage by now
+        assert entered.wait(10)  # one upload waits for the decoder in a worker thread ...
+        time.sleep(0.3)  # ... and the other three have queued behind it (on the loop, or - without the admission - in threads)
         t0 = time.monotonic()
-        with httpx.Client(base_url=f"http://127.0.0.1:{lst.port}") as c:
-            for _ in range(5):
-                assert c.get("/t/api/photo/ffffffffffffffff", headers={"x-ticket-token": tokens[0]}).status_code == 404
-        assert time.monotonic() - t0 < 2.0 * sw_time_factor()  # a stalled pool takes the 3 s decode wait (4.3 s seen)
+        for _ in range(5):
+            assert clients[4].get("/t/api/photo/ffffffffffffffff", headers={"x-ticket-token": tokens[0]}).status_code == 404
+        assert time.monotonic() - t0 < 1.0 * sw_time_factor()  # a stalled pool waits out the 3 s decode wait (4.3 s seen)
     finally:
         ii._DECODE.release()  # noqa: SLF001
+        ii.reencode = real_reencode
     for t in threads:
         t.join(20)
+    for c in clients:
+        c.close()
     lst.stop()
     assert sorted(results) and all(code in (201, 429) for code in results) and 201 in results
 

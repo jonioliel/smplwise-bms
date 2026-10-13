@@ -274,6 +274,16 @@ def test_requests_without_a_token_are_failures_without_any_lookup():
     assert (d.ok, d.reason) == (False, "no_token")
 
 
+def _spent(g: rl.PublicRateGate, kind: str, net: str, tok: str, attempts: int) -> int:
+    """Admit `attempts` requests; each admitted one 'succeeds' and spends its budget (what a route does after its effect)."""
+    ok = 0
+    for _ in range(attempts):
+        if g.admit(kind, net, tok).ok:
+            g.spend(kind, tok)
+            ok += 1
+    return ok
+
+
 def test_per_token_caps_requests_writes_photos_files():
     c = Clock()
     g = gate(c)
@@ -281,13 +291,105 @@ def test_per_token_caps_requests_writes_photos_files():
     g.success(tok)
     assert sum(g.admit("token_read", net, tok).ok for _ in range(70)) == 60
     c.advance(61)
-    assert sum(g.admit("token_write", net, tok).ok for _ in range(25)) == 20
+    assert _spent(g, "token_write", net, tok, 25) == 20
     c.advance(3601)
-    assert sum(g.admit("photo", net, tok).ok for _ in range(15)) == 10
+    assert _spent(g, "photo", net, tok, 15) == 10
     c.advance(3601)
-    assert sum(g.admit("claim_file", net, tok).ok for _ in range(45)) == 40  # 40/h but also <= 60/min
+    assert _spent(g, "claim_file", net, tok, 45) == 40  # 40/h but also <= 60/min
     trips = g.trips()
     assert trips["token_rate"] >= 10 and trips["write_rate"] == 5 and trips["photo_rate"] == 5
+
+
+def test_budgets_are_spent_by_effects_not_attempts():
+    """Review finding 7: retries, busy answers and replays must not use up a vendor's hourly photo budget."""
+    c = Clock()
+    g = gate(c)
+    net, tok = "198.51.100.0/24", "t:" + "d" * 24
+    g.success(tok)
+    for _ in range(50):  # fifty admitted attempts that never stored anything (busy, replays, refusals)
+        assert g.admit("photo", net, tok).ok
+        c.advance(1.1)  # stay under 60 / minute
+    assert _spent(g, "photo", net, tok, 15) == 10
+
+
+def test_unknown_tokens_create_no_per_token_key_and_valid_ones_are_counted_on_success():
+    """Review finding 4: before the lookup an unknown token is only CHECKED; its request is counted once it proved valid."""
+    c = Clock()
+    g = gate(c)
+    net = "198.51.100.0/24"
+    for i in range(15):
+        tok = f"t:{i:024x}"
+        d = g.admit("token_write", net, tok)
+        assert d.ok and d.counted is False
+        g.failure(net, tok)
+        assert g.limiter.count(tok, 60) == 0 and g.limiter.count("w:" + tok, 3600) == 0
+    keys = g.limiter.keys
+    assert keys <= 3  # fail:<net>, fail:* - never a per-token key for a token that was never valid
+    valid = "t:" + "e" * 24
+    d = g.admit("token_read", net, valid)
+    assert d.ok and not d.counted and g.limiter.count(valid, 60) == 0
+    g.success(valid, counted=d.counted)
+    assert g.limiter.count(valid, 60) == 1 and g.known_good(valid)
+    d2 = g.admit("token_read", net, valid)
+    assert d2.ok and d2.counted and g.limiter.count(valid, 60) == 2
+
+
+def test_tokenless_floods_cannot_fill_the_installation_budget():
+    """Review finding 2: a request without a token costs nothing to refuse, so it counts against its network only."""
+    c = Clock()
+    g = gate(c)
+    for i in range(40):  # 40 networks x 19 token-less requests: no network locks, and nothing reaches fail:*
+        for _ in range(19):
+            d = g.admit("token_read", f"198.51.{i}.0/24", None)
+            assert d.reason == "no_token"
+            g.failure(f"198.51.{i}.0/24", None, lookup=False)
+    assert g.limiter.count("fail:*", 60) == 0
+    assert g.admit("token_read", "203.0.113.0/24", "t:" + "f" * 24).ok  # a fresh token still gets its lookup
+
+
+def test_redeem_has_its_own_installation_budget():
+    c = Clock()
+    g = gate(c)
+    for i in range(300):  # a token-guessing flood fills the token budget ...
+        g.failure(f"198.51.{i % 30}.0/24")
+    assert g.admit("token_read", "203.0.113.0/24", "t:" + "a" * 24).reason == "flood"
+    assert g.admit("redeem", "203.0.113.0/24").ok  # ... and e-mail links still redeem
+    for i in range(300):
+        g.failure(f"192.0.{i % 30}.0/24", kind="redeem")
+    assert g.admit("redeem", "203.0.113.0/24").reason == "flood"
+
+
+def test_known_good_marks_last_24h_and_survive_a_restart(tmp_path):
+    from smplwise.db import Database
+
+    db = Database(tmp_path / "smplwise.db")
+    db.migrate()
+    c = Clock()
+    g = gate(c)
+    tok = "t:" + "b" * 24
+    g.success(tok)
+    c.advance(6 * 3600)
+    assert g.known_good(tok)
+    assert g.flush_to(db) >= 1
+    restarted = rl.PublicRateGate(rl.new_public_limiter(c))
+    assert not restarted.known_good(tok)
+    assert restarted.restore_from(db) >= 1 and restarted.known_good(tok)
+    c.advance(18 * 3600 + 1)
+    assert not restarted.known_good(tok)
+
+
+def test_protected_keys_survive_an_address_rotating_key_flood():
+    """Review finding 4: per-network keys created by a /64-rotating client must not evict a vendor's budgets or a recipient's
+    code count."""
+    c = Clock()
+    lim = rl.ScopedRateLimiter("tickets_link", horizon_s=3600.0, clock=c, max_keys=200, low_water=150)
+    g = rl.PublicRateGate(lim)
+    g.spend("photo", "t:" + "c" * 24)
+    lim.hit("cr:" + "9" * 24, ((3600.0, 6),))
+    for i in range(1000):
+        g.admit("static", f"2001:db8:{i:x}::/64")
+    assert lim.keys <= 200
+    assert lim.count("p:t:" + "c" * 24, 3600) == 1 and lim.count("cr:" + "9" * 24, 3600) == 1
 
 
 def test_redeem_and_static_have_their_own_network_caps():

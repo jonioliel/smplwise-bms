@@ -36,6 +36,7 @@ AUTO_LINKIFY = False
 
 MAX_COMBINING = 8  # combining marks kept on one base character
 _REMOVED_CATEGORIES = frozenset({"Cc", "Cf", "Cs"})
+_MARK_CATEGORIES = frozenset({"Mn", "Me", "Mc"})  # nonspacing, enclosing and spacing combining marks
 # every character that ends a line; inside a multi-line field each becomes LF, inside a single-line field a space
 _LINE_BREAKS = frozenset({"\n", "\r", "\x0b", "\x0c", "\x85", " ", " "})
 _MULTI_NEWLINES = re.compile(r"\n{3,}")
@@ -74,7 +75,7 @@ def clean_text(value: object, *, multiline: bool = False, max_combining: int = M
             continue
         if is_hidden(ch):
             continue
-        if unicodedata.combining(ch):
+        if unicodedata.category(ch) in _MARK_CATEGORIES:  # by category: enclosing marks and class-0 marks stack too
             marks += 1
             if marks > max_combining:
                 continue

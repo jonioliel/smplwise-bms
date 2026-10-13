@@ -377,6 +377,31 @@ def test_storage_cap_is_checked_from_a_cached_walk(tmp_path):
     assert meter.used() == 900  # re-walked: the same truth
 
 
+def test_a_slow_storage_walk_never_blocks_other_admits(tmp_path):
+    """Review finding 10: a stale total is re-walked by one caller while the others go on with the stale value."""
+    now = [0.0]
+    meter = ii.StorageMeter(tmp_path, cap_bytes=10_000, refresh_s=60, clock=lambda: now[0])
+    assert meter.used() == 0
+    now[0] = 61
+    entered, release = threading.Event(), threading.Event()
+    real_walk = meter._walk  # noqa: SLF001
+
+    def slow_walk() -> int:
+        entered.set()
+        release.wait(5)
+        return real_walk()
+
+    meter._walk = slow_walk  # type: ignore[method-assign]  # noqa: SLF001
+    t = threading.Thread(target=meter.used)
+    t.start()
+    assert entered.wait(5)
+    t0 = time.monotonic()
+    meter.admit(100)  # answered from the stale total while the walk runs
+    assert time.monotonic() - t0 < 0.5
+    release.set()
+    t.join(5)
+
+
 def test_photo_quota_per_assignment_and_per_ticket():
     ii.check_photo_quota(PhotoCounts(29, 59))
     for counts in (PhotoCounts(30, 0), PhotoCounts(0, 60)):

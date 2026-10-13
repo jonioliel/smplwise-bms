@@ -17,17 +17,20 @@ Three parts:
    by its own address and the header is ignored (review T1a). Residual: every add-on on the hassio network is inside the
    trusted network and could set the header; only the installation-wide caps hold against such a peer.
 
-3. `PublicRateGate` - the policy of spec 10.2 on top of one limiter (scope `tickets_link`):
-   - unknown tokens: 20 failures / minute per client network and 300 / minute installation-wide; past either, 429 for every
-     request that needs a lookup - except a token this process saw resolve to a live link within the last 15 minutes
-     ("known good"), so a flood of guesses does not lock out the vendors already working (review T1b mitigated; a FRESH
-     link's first open can still meet the 429 during a flood - the page then says "try again in a minute", never
-     "unavailable");
-   - a token: 60 requests / minute; writes 20 / hour; photos 10 / hour; invoice files 40 / hour;
+3. `PublicRateGate` - the policy of spec 10.2 on two limiters (scope `tickets_link`: the windows; scope `tickets_good`: the
+   tokens that resolved to a live link within 24 h, persisted, so neither a flood nor a restart locks working vendors out):
+   - failed lookups: 20 / minute per client network and 300 / minute installation-wide (tokens), 300 / minute (redeem ids,
+     their own budget); past them, 429 for every request that would need a lookup - except a known-good token (review T1b
+     mitigated; a FRESH link's first open can still meet the 429 during a flood - the page then says "try again in a
+     minute", never "unavailable"). A request with no well-formed token is refused without a lookup and counts against its
+     network only - it cannot fill the installation-wide budget;
+   - a token: 60 requests / minute (recorded only once the token proved valid: unknown tokens create no key); writes
+     20 / hour, photos 10 / hour, invoice files 40 / hour - checked at admission, SPENT only once the effect happened;
    - the e-mail redeem route: 10 / minute per network (on top of the failure caps);
-   - the static shell and the health route: 120 / minute per network.
-   The per-link verification-code caps (1 / minute, 3 / hour, 6 / day) live in codes.py over the code rows; the
-   per-recipient one (6 / hour across links) uses this limiter too."""
+   - the static shell, the health route and unmatched paths: 120 / minute per network.
+   The keys only valid tokens create (per-token windows and budgets, per-recipient code counts, the global failure counts)
+   are never evicted to make room in the key table. The per-link verification-code caps (1 / minute, 3 / hour, 6 / day) live
+   in codes.py over the code rows; the per-recipient one (6 / hour across links) uses this limiter too."""
 from __future__ import annotations
 
 import collections
@@ -73,6 +76,14 @@ class ScopedRateLimiter:
         self._hits: collections.OrderedDict[str, collections.deque[float]] = collections.OrderedDict()  # least recently used first
         self._dirty: set[str] = set()
         self._persisted: set[str] = set()
+        self._protected: tuple[str, ...] = ()
+
+    def protect(self, prefixes: Iterable[str]) -> None:
+        """Keys starting with one of `prefixes` (or equal to one) are never evicted to make room - only dropped once expired."""
+        self._protected = tuple(prefixes)
+
+    def _is_protected(self, key: str) -> bool:
+        return bool(self._protected) and key.startswith(self._protected)
 
     # ---------------------------------------------------------------- the hot path (memory only)
 
@@ -166,13 +177,15 @@ class ScopedRateLimiter:
 
     def _shrink(self, now: float) -> None:
         """Under the lock: expired keys first, then cold ones (never near a cap), then the least recently used, down to
-        LOW_WATER. An evicted key keeps its row (if any) until the row expires; it is no longer flushed."""
+        LOW_WATER - never a protected key (see `protect`). An evicted key keeps its row (if any) until the row expires; it is no
+        longer flushed."""
         for k in [k for k, v in self._hits.items() if not v or now - v[-1] > self.horizon_s]:
             self._drop(k)
         for hot in (False, True):
             if len(self._hits) <= self.low_water:
                 return
-            for k in [k for k in self._hits if (k in self._persisted) == hot][: len(self._hits) - self.low_water]:
+            victims = [k for k in self._hits if (k in self._persisted) == hot and not self._is_protected(k)]
+            for k in victims[: len(self._hits) - self.low_water]:
                 self._drop(k)
 
     def _drop(self, k: str) -> None:
@@ -342,22 +355,30 @@ class PublicLimits:
 
     static_per_network: Limits = ((60.0, 120),)
     unknown_per_network: Limits = ((60.0, 20),)
-    unknown_global: Limits = ((60.0, 300),)
+    unknown_global: Limits = ((60.0, 300),)  # failed LOOKUPS of well-formed tokens, installation-wide
+    redeem_global: Limits = ((60.0, 300),)  # failed redeem releases, installation-wide (its own: a token flood never blocks e-mail links)
     token_requests: Limits = ((60.0, 60),)
     token_writes: Limits = ((3600.0, 20),)
     token_photos: Limits = ((3600.0, 10),)
     token_claim_files: Limits = ((3600.0, 40),)
     redeem_per_network: Limits = ((60.0, 10),)
     code_per_recipient: Limits = ((3600.0, 6),)
-    known_good_ttl_s: float = 900.0
-    known_good_max: int = 5000
+    known_good_ttl_s: float = 86400.0
 
     @property
     def horizon_s(self) -> float:
-        windows = [w for lim in (self.static_per_network, self.unknown_per_network, self.unknown_global, self.token_requests,
-                                 self.token_writes, self.token_photos, self.token_claim_files, self.redeem_per_network,
-                                 self.code_per_recipient) for w, _ in lim]
+        windows = [w for lim in (self.static_per_network, self.unknown_per_network, self.unknown_global, self.redeem_global,
+                                 self.token_requests, self.token_writes, self.token_photos, self.token_claim_files,
+                                 self.redeem_per_network, self.code_per_recipient) for w, _ in lim]
         return max(windows)
+
+
+# the per-token budgets a route SPENDS once its effect happened (PublicRateGate.spend): checked before the lookup, recorded after
+SPEND = {"token_write": ("w:", "token_writes", "write_rate"), "photo": ("p:", "token_photos", "photo_rate"),
+         "claim_file": ("c:", "token_claim_files", "claim_file_rate")}
+# keys only valid tokens / links create: never evicted from the key table (only expired), so an address-rotating flood of
+# per-network keys cannot reset a vendor's budgets or a recipient's code count
+PROTECTED_PREFIXES = ("t:", "w:", "p:", "c:", "cr:", "fail:*", "fail:redeem")
 
 
 @dataclass(frozen=True)
@@ -365,6 +386,7 @@ class Decision:
     ok: bool
     reason: str = "ok"  # ok | no_token | network_locked | flood | token_rate | write_rate | photo_rate | claim_file_rate | redeem_rate | static_rate
     retry_after_s: int = 0
+    counted: bool = False  # the token's request was already counted at admission (a known-good token); else success() counts it
 
 
 class MinuteCounter:
@@ -393,21 +415,36 @@ class MinuteCounter:
 
 
 class PublicRateGate:
-    """Spec 10.2 on one limiter. `admit` runs before anything reads the database or the body; `failure` / `success` after the
-    one lookup."""
+    """Spec 10.2 on two limiters: `limiter` (scope `tickets_link`: the windows) and `good` (scope `tickets_good`: the tokens
+    that resolved to a live link within known_good_ttl_s - persisted like the windows, so a restart does not lock working
+    vendors out during a flood). `admit` runs before anything reads the database or the body; `failure` / `success` after the
+    one lookup; `spend` after a route's effect (a write stored, a NEW photo stored).
 
-    def __init__(self, limiter: ScopedRateLimiter, limits: PublicLimits | None = None) -> None:
+    What counts where (review findings, 2026-10-13):
+    - a request without a well-formed token never reaches a lookup: it counts against its network only, never against the
+      installation-wide failure budget (it costs nothing to refuse, so it must not be able to fill the budget that protects
+      lookups);
+    - a well-formed token that is not known good is only CHECKED against its per-token request window before the lookup; the
+      request is recorded by `success()` once the token proved valid - unknown tokens create no per-token key at all;
+    - the per-token write / photo / file budgets are checked at admission and spent after the effect, so retries, `busy`
+      answers and idempotent replays do not use up a vendor's hourly budget;
+    - redeem ids have their own installation-wide failure budget: a flood of token guesses does not block e-mail links."""
+
+    def __init__(self, limiter: ScopedRateLimiter, limits: PublicLimits | None = None, good: ScopedRateLimiter | None = None) -> None:
         self.limiter = limiter
         self.limits = limits or PublicLimits()
         if limiter.horizon_s < self.limits.horizon_s:
             raise ValueError("the limiter's horizon is shorter than the longest window of the public limits")
-        caps = [cap for name in ("static_per_network", "unknown_per_network", "unknown_global", "token_requests", "token_writes",
-                                 "token_photos", "token_claim_files", "redeem_per_network", "code_per_recipient")
+        caps = [cap for name in ("static_per_network", "unknown_per_network", "unknown_global", "redeem_global", "token_requests",
+                                 "token_writes", "token_photos", "token_claim_files", "redeem_per_network", "code_per_recipient")
                 for _w, cap in getattr(self.limits, name)]
         if max(caps) >= limiter.max_events:
             raise ValueError("a cap of the public limits does not fit the limiter's per-key event memory")
-        self._good: collections.OrderedDict[str, float] = collections.OrderedDict()
-        self._lock = threading.Lock()
+        limiter.protect(PROTECTED_PREFIXES)
+        self.good = good or ScopedRateLimiter("tickets_good", horizon_s=self.limits.known_good_ttl_s, clock=limiter.clock, max_events=4)
+        if self.good.horizon_s < self.limits.known_good_ttl_s:
+            raise ValueError("the known-good limiter's horizon is shorter than known_good_ttl_s")
+        self.good.protect(("g:",))
         self._trips: dict[str, MinuteCounter] = {}
 
     @property
@@ -417,34 +454,33 @@ class PublicRateGate:
     # ---------------------------------------------------------------- known good tokens
 
     def known_good(self, token_key: str | None) -> bool:
-        if not token_key:
-            return False
-        now = self.clock()
-        with self._lock:
-            until = self._good.get(token_key)
-            if until is None:
-                return False
-            if until <= now:
-                self._good.pop(token_key, None)
-                return False
-            return True
+        return bool(token_key) and self.good.count("g:" + str(token_key), self.limits.known_good_ttl_s) > 0
 
-    def success(self, token_key: str) -> None:
-        """The token resolved to a live link: it is "known good" for known_good_ttl_s."""
-        now = self.clock()
-        with self._lock:
-            self._good[token_key] = now + self.limits.known_good_ttl_s
-            self._good.move_to_end(token_key)
-            while len(self._good) > self.limits.known_good_max:
-                self._good.popitem(last=False)
+    def success(self, token_key: str, *, counted: bool = True) -> None:
+        """The token resolved to a live link: "known good" for known_good_ttl_s, and - when admission only checked it - its
+        request is counted now."""
+        self.good.record("g:" + token_key, ((self.limits.known_good_ttl_s, 1),))
+        if not counted:
+            self.limiter.record(token_key, self.limits.token_requests)
 
-    def failure(self, net: str, token_key: str | None = None) -> None:
-        """An unknown / unavailable token (or redeem id): one failure for the client network and one installation-wide."""
+    def failure(self, net: str, token_key: str | None = None, *, lookup: bool = True, kind: str = "token") -> None:
+        """A refused credential: one failure for the client network; when a lookup was made (`lookup`), one against the
+        installation-wide budget of that kind (`token` or `redeem`). A token whose lookup failed loses its known-good mark."""
         self.limiter.record(f"fail:{net}", self.limits.unknown_per_network)
-        self.limiter.record("fail:*", self.limits.unknown_global)
+        if lookup:
+            if kind == "redeem":
+                self.limiter.record("fail:redeem", self.limits.redeem_global)
+            else:
+                self.limiter.record("fail:*", self.limits.unknown_global)
         if token_key:
-            with self._lock:
-                self._good.pop(token_key, None)
+            self.good.forget("g:" + token_key)
+
+    def spend(self, kind: str, token_key: str | None) -> None:
+        """A route's effect happened (a write stored, a new photo stored, a file stored): spend one unit of its budget."""
+        spec = SPEND.get(kind)
+        if spec is not None and token_key:
+            prefix, name, _reason = spec
+            self.limiter.record(prefix + token_key, getattr(self.limits, name))
 
     # ---------------------------------------------------------------- the decision
 
@@ -455,14 +491,13 @@ class PublicRateGate:
         counter.add()
         return Decision(False, reason, max(1, math.ceil(wait)))
 
-    def _locks(self, net: str) -> Decision | None:
-        wait = self.limiter.check(f"fail:{net}", self.limits.unknown_per_network)
-        if wait > 0:
-            return self._refuse("network_locked", wait)
-        wait = self.limiter.check("fail:*", self.limits.unknown_global)
-        if wait > 0:
-            return self._refuse("flood", wait)
-        return None
+    def _check(self, key: str, limits: Limits, reason: str) -> Decision | None:
+        wait = self.limiter.check(key, limits)
+        return self._refuse(reason, wait) if wait > 0 else None
+
+    def _locks(self, net: str, global_key: str | None, global_limits: Limits) -> Decision | None:
+        return self._check(f"fail:{net}", self.limits.unknown_per_network, "network_locked") or (
+            self._check(global_key, global_limits, "flood") if global_key else None)
 
     def _hit(self, key: str, limits: Limits, reason: str) -> Decision | None:
         if self.limiter.hit(key, limits):
@@ -475,29 +510,38 @@ class PublicRateGate:
         if kind in ("static", "health"):
             return self._hit(f"s:{net}", self.limits.static_per_network, "static_rate") or Decision(True)
         if kind == "redeem":
-            return self._locks(net) or self._hit(f"r:{net}", self.limits.redeem_per_network, "redeem_rate") or Decision(True)
+            return (self._locks(net, "fail:redeem", self.limits.redeem_global)
+                    or self._hit(f"r:{net}", self.limits.redeem_per_network, "redeem_rate") or Decision(True))
         if kind not in TOKEN_KINDS:
             raise ValueError(f"unknown route kind {kind!r}")
         if not token_key:
-            # nothing to look up: a failure without any lookup (the caller records it and answers the uniform 404) - unless
-            # the network is already locked, which it learns first
-            return self._locks(net) or Decision(False, "no_token", 0)
-        if not self.known_good(token_key):
-            locked = self._locks(net)
+            # nothing to look up: the caller records a network-only failure and answers the uniform 404 - unless the network is
+            # already locked, which it learns first
+            return self._locks(net, None, ()) or Decision(False, "no_token", 0)
+        good = self.known_good(token_key)
+        if not good:
+            locked = self._locks(net, "fail:*", self.limits.unknown_global)
             if locked is not None:
                 return locked
-        refused = self._hit(token_key, self.limits.token_requests, "token_rate")
-        if refused is None and kind == "token_write":
-            refused = self._hit("w:" + token_key, self.limits.token_writes, "write_rate")
-        elif refused is None and kind == "photo":
-            refused = self._hit("p:" + token_key, self.limits.token_photos, "photo_rate")
-        elif refused is None and kind == "claim_file":
-            refused = self._hit("c:" + token_key, self.limits.token_claim_files, "claim_file_rate")
-        return refused or Decision(True)
+            refused = self._check(token_key, self.limits.token_requests, "token_rate")
+        else:
+            refused = self._hit(token_key, self.limits.token_requests, "token_rate")
+        if refused is None and kind in SPEND:
+            prefix, name, reason = SPEND[kind]
+            refused = self._check(prefix + token_key, getattr(self.limits, name), reason)
+        return refused or Decision(True, counted=good)
 
     def trips(self, minutes: int = MinuteCounter.SLOTS) -> dict[str, int]:
         """Refusals per reason over the last `minutes` (health: "rate-limit trips last 24 h")."""
         return {reason: c.total(minutes) for reason, c in sorted(self._trips.items())}
+
+    # ---------------------------------------------------------------- persistence of both limiters (the janitor wiring)
+
+    def flush_to(self, db: Any) -> int:
+        return self.limiter.flush_to(db) + self.good.flush_to(db)
+
+    def restore_from(self, db: Any) -> int:
+        return self.limiter.restore_from(db) + self.good.restore_from(db)
 
 
 def new_public_limiter(clock: Callable[[], float] = time.time, limits: PublicLimits | None = None) -> ScopedRateLimiter:

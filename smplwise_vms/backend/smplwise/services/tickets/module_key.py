@@ -55,10 +55,30 @@ def _write(p: Path, key: bytes) -> None:
         except OSError:
             pass
         raise
+    _fsync_dir(d)
+
+
+def _fsync_dir(d: Path) -> None:
+    """Make the rename itself durable (POSIX): without it a power cut can lose the new directory entry, and a later
+    `load(create=True)` would silently mint ANOTHER key - every link and every phone_key dead. Windows has no directory fsync."""
+    if os.name == "nt":
+        return
+    try:
+        fd = os.open(str(d), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 def load(data_dir: Path, *, create: bool) -> bytes | None:
-    """The key, or None when there is none and `create` is False. A file of another length raises ModuleKeyError."""
+    """The key, or None when there is none and `create` is False. A file of another length raises ModuleKeyError.
+    The caller (slice 4) must not pass `create=True` once `ticket_links` rows exist: a missing key then means a restore or a
+    lost file, and a new key would silently kill every live link - refuse and tell the administrator instead."""
     p = key_path(data_dir)
     with _lock:
         if p.exists():

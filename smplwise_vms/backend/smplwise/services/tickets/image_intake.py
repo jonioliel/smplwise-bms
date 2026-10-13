@@ -334,6 +334,7 @@ class StorageMeter:
         self._walked: int | None = None
         self._at = 0.0
         self._since = 0
+        self._walking = False
 
     def _walk(self) -> int:
         total = 0
@@ -350,11 +351,23 @@ class StorageMeter:
         return total
 
     def used(self) -> int:
+        """The cached total; a stale one is re-walked by ONE caller while the others go on with the stale value (a walk of a
+        large tree is never done under the lock, so uploads do not queue behind it in worker threads). Bytes noted while a
+        walk runs may be counted twice or missed until the next walk - a few MB against a 2 GiB cap."""
         with self._lock:
             now = self._clock()
-            if self._walked is None or now - self._at >= self.refresh_s:
-                self._walked, self._at, self._since = self._walk(), now, 0
-            return self._walked + self._since
+            stale = self._walked is None or now - self._at >= self.refresh_s
+            if not stale or (self._walking and self._walked is not None):
+                return (self._walked or 0) + self._since
+            self._walking = True
+        try:
+            total = self._walk()
+        finally:
+            with self._lock:
+                self._walking = False
+        with self._lock:
+            self._walked, self._at, self._since = total, self._clock(), 0
+            return total
 
     def admit(self, incoming: int) -> None:
         if self.used() + max(0, incoming) > self.cap_bytes:

@@ -239,6 +239,23 @@ def test_a_path_scan_pays_the_static_budget(w):
     assert w.client(peer="203.0.113.1").get("/scan/x").status_code == 404
 
 
+def test_a_tokenless_flood_does_not_block_lookups_installation_wide(w):
+    """Review finding 2: requests without a token cost nothing to refuse and count against their own network only."""
+    for i in range(40):
+        c = w.client(peer=f"198.51.{i}.9")
+        for _ in range(19):
+            assert c.get("/t/api/ticket").status_code == 404
+    link, tok = w.links.add()
+    assert w.client(peer="203.0.113.77").get("/t/api/ticket", headers={"x-ticket-token": tok}).status_code == 200
+
+
+def test_both_transfer_encoding_and_content_length_are_refused(w):
+    link, tok = w.links.add()
+    r = w.client().post("/t/api/note", content=b"{}", headers={"x-ticket-token": tok, "content-type": "application/json",
+                                                               "transfer-encoding": "chunked", "content-length": "2"})
+    assert r.status_code == 400 and r.json() == {"code": "bad_request"} and w.links.lookups == 0
+
+
 def test_per_token_request_cap(w):
     link, tok = w.links.add()
     c = w.client()
@@ -299,8 +316,11 @@ def test_validation_errors_never_echo_the_input(w):
     r = w.client().post("/t/api/note", json={"text": "x", "client_request_id": crid(), "phone": PHONE},
                         headers={"x-ticket-token": tok})
     assert r.status_code == 422
-    assert r.json() == {"code": "invalid", "fields": [{"field": "phone", "code": "extra_forbidden"}]}
-    assert PHONE not in r.text and "input" not in r.text and "url" not in r.text
+    # an unknown key is the CLIENT's text: reported as `body`, never echoed (review finding 8)
+    assert r.json() == {"code": "invalid", "fields": [{"field": "body", "code": "extra_forbidden"}]}
+    assert PHONE not in r.text and "input" not in r.text and "url" not in r.text and "phone" not in r.text
+    r = w.client().post("/t/api/note", json={"text": "x", "client_request_id": crid(), "<script>": 1}, headers={"x-ticket-token": tok})
+    assert r.status_code == 422 and "script" not in r.text
     r = w.client().post("/t/api/note", json={"text": PHONE * 300, "client_request_id": crid()}, headers={"x-ticket-token": tok})
     assert r.status_code == 422 and r.json()["fields"] == [{"field": "text", "code": "too_long"}] and PHONE not in r.text
     r = w.client().post("/t/api/note", json={"text": 5, "client_request_id": crid()}, headers={"x-ticket-token": tok})
@@ -555,6 +575,34 @@ def test_a_failed_record_removes_the_stored_file(w):
     r = upload(w.client(), tok)
     assert r.status_code == 500 and r.json() == {"code": "server_error"}
     assert not list(w.root.rglob("*.jpg"))
+
+
+def test_photo_get_ignores_range_and_conditional_requests(w):
+    """Review finding 9: no partial, multipart-byterange or 304 answers, no validators that reveal file times."""
+    link, tok = w.links.add()
+    pid = upload(w.client(), tok).json()["id"]
+    c = w.client()
+    full = c.get(f"/t/api/photo/{pid}", headers={"x-ticket-token": tok})
+    for extra in ({"range": "bytes=0-10"}, {"range": "bytes=0-1,5-6,9-10"}, {"range": "garbage"}, {"if-none-match": "*"},
+                  {"if-modified-since": "Fri, 01 Jan 2100 00:00:00 GMT"}, {"if-range": "x", "range": "bytes=1-2"}):
+        r = c.get(f"/t/api/photo/{pid}", headers={"x-ticket-token": tok, **extra})
+        assert r.status_code == 200 and r.content == full.content, extra
+    for h in ("etag", "last-modified", "accept-ranges", "content-range"):
+        assert h not in full.headers
+
+
+def test_photo_uploads_spend_the_budget_only_when_a_photo_is_stored(w):
+    link, tok = w.links.add()
+    c = w.client()
+    rid = crid()
+    assert upload(c, tok, rid=rid).status_code == 201
+    for _ in range(12):  # replays of the same upload: answered, never charged
+        assert upload(c, tok, rid=rid).status_code == 201
+    stored = 1
+    for _ in range(12):
+        if upload(c, tok).status_code == 201:
+            stored += 1
+    assert stored == 10  # 10 photos / hour per link
 
 
 def test_photo_get_is_scoped_to_the_links_ticket_and_the_code(w):

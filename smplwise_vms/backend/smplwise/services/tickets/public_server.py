@@ -16,9 +16,11 @@ Isolation rules of spec 10.1 (review R1 / T17 / C1), and how each is met here:
 - `load()` keeps the app unwrapped: no ProxyHeadersMiddleware, and no MessageLoggerMiddleware even if someone sets the
   uvicorn log level to TRACE (it would log request bodies);
 - slow clients: a request head must arrive within HEAD_TIMEOUT_S (uvicorn has no header-read timeout - a slowloris on headers
-  would otherwise hold one of the 16 connections forever), a connection is closed between requests once it is older than
-  MAX_CONNECTION_S (and in any case LIFETIME_GRACE_S later), keep-alive idles 5 s; the body read deadline (10 s JSON / 60 s
-  upload) is the edge's (public_http);
+  would otherwise hold one of the 16 connections forever); a connection older than MAX_CONNECTION_S answers its next request
+  with `connection: close` (closed outright only LIFETIME_GRACE_S later); keep-alive idles 5 s. Behind cloudflared the
+  tunnel's own idle timeout towards the origin must be SHORTER than 5 s (`originRequest.keepAliveTimeout`, install guide):
+  otherwise it can reuse a connection the listener is closing and a POST fails (UNVERIFIED on the owner's tunnel). The body
+  read deadline (10 s JSON / 60 s upload) is the edge's (public_http);
 - a malformed request gets uvicorn's 400 rebuilt with the public security headers and a JSON body;
 - signals: none. `uvicorn.Server.capture_signals` already skips signal capture off the main thread (uvicorn 0.53; asserted by
   a test), and PublicServer overrides it to a no-op anyway - the add-on's SIGTERM stays the main server's;
@@ -79,6 +81,7 @@ class PublicH11Protocol(H11Protocol):
         self._head_since: float | None = None
         self._seen_cycle: Any = None
         self._watch: asyncio.TimerHandle | None = None
+        self._retire = False
 
     def connection_made(self, transport: Any) -> None:  # type: ignore[override]
         super().connection_made(transport)
@@ -96,6 +99,13 @@ class PublicH11Protocol(H11Protocol):
         if self.cycle is not None and self.cycle is not self._seen_cycle:
             self._seen_cycle = self.cycle  # a request head was parsed: its clock stops
             self._head_since = None
+            if self._retire:
+                self.cycle.keep_alive = False  # an over-age connection answers this request with `connection: close`
+
+    def _bump(self, name: str) -> None:
+        stats = getattr(self.logger, "stats", None)
+        if stats is not None:  # counted for health, never a log line per connection (a flood would fill the log)
+            stats.bump(name)
 
     def _tick(self) -> None:
         self._watch = None
@@ -104,15 +114,21 @@ class PublicH11Protocol(H11Protocol):
         self._note_cycle()
         now = self.loop.time()
         idle = self._waiting_for_head()
-        too_slow = idle and self._head_since is not None and now - self._head_since > self._head_timeout
-        # the lifetime cap is applied between requests (never in the middle of an upload), with an absolute backstop
-        too_old = (idle and now - self._born > self._max_connection) or now - self._born > self._max_connection + LIFETIME_GRACE_S
-        if too_slow or too_old:
-            stats = getattr(self.logger, "stats", None)
-            if stats is not None:  # counted for health, never a log line per connection (a flood would fill the log)
-                stats.bump("slow_heads_closed" if too_slow else "lifetime_closed")
+        if idle and self._head_since is not None and now - self._head_since > self._head_timeout:
+            self._bump("slow_heads_closed")
             self.transport.close()
             return
+        if now - self._born > self._max_connection + LIFETIME_GRACE_S:  # the absolute backstop, whatever runs
+            self._bump("lifetime_closed")
+            self.transport.close()
+            return
+        if not self._retire and now - self._born > self._max_connection:
+            # over age: the NEXT answer carries `connection: close` (closing an idle socket here would race with a proxy -
+            # cloudflared - that reuses it for a request the client cannot safely retry); an idle one ends with keep-alive
+            self._retire = True
+            self._bump("lifetime_retired")
+            if not idle and self.cycle is not None:
+                self.cycle.keep_alive = False
         self._arm()
 
     def data_received(self, data: bytes) -> None:
@@ -180,8 +196,7 @@ def _bind(host: str, port: int) -> socket.socket:
     try:
         if os.name != "nt":  # on Windows SO_REUSEADDR would let a second process take a port that is in use
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((host, port))
-        sock.set_inheritable(True)
+        sock.bind((host, port))  # not inheritable (the default): a child process never keeps 18093 open after stop()
     except BaseException:
         sock.close()
         raise

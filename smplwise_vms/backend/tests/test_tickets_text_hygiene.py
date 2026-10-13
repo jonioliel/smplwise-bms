@@ -51,6 +51,15 @@ def test_niqqud_stays_and_stacked_marks_are_cut():
     assert out == "a" + "́" * th.MAX_COMBINING + "b"
 
 
+def test_enclosing_and_class_zero_marks_are_capped_too():
+    """Review finding 15: the canonical combining class is 0 for enclosing marks (Me) and some nonspacing ones; the cap
+    counts by category."""
+    # Me class 0 (enclosing circle, Cyrillic millions sign), Mn class 0 (Thaana abafili), Mc class 0 (Devanagari visarga)
+    for mark in ("⃝", "҉", "ަ", "ः"):
+        out = th.clean_text("x" + mark * 60 + "y")
+        assert out == "x" + mark * th.MAX_COMBINING + "y", hex(ord(mark))
+
+
 def test_emoji_joiners_fall_apart_as_accepted_by_the_spec():
     family = "\U0001F468‍\U0001F469‍\U0001F467"
     assert th.clean_text(family) == "\U0001F468\U0001F469\U0001F467"

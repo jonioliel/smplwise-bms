@@ -35,6 +35,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.requests import ClientDisconnect
 
 from . import image_intake, links
 from .codes import CodeEngine, CodeRefused
@@ -43,14 +44,17 @@ from .image_intake import InFlight, IntakeError, StorageMeter
 from .module_key import ModuleKeyError
 from .public_http import (PHOTO_MAX, ROUTES, STATE_KEY, UNIFORM_404, BodyDeadline, BodyTooLarge, PublicEdge, PublicRequest,
                           RouteRule)
-from .public_log import PublicStats
+from .public_log import SERVER_LOG, PublicStats, exception_summary
 from .public_multipart import FieldRule, MultipartError, boundary_of, parse_form
 from .public_ports import CodeSender, LinkRecord, LinkStore, ModuleSwitch, PhotoSink, RedeemStore, RequestLog
 from .ratelimit import DEFAULT_TRUSTED_PROXY_CIDRS, Network, PublicLimits, PublicRateGate, ScopedRateLimiter, new_public_limiter, parse_trusted_cidrs
 
 REDEEM_MAX_USES = 3
 CRID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-UPLOAD_SLOTS = 4  # upload bodies held in memory at once by this listener (each at most 8 MiB + 64 KiB)
+# uploads in their body / storage / record phase at once (each holds at most one 8 MiB + 64 KiB body in memory). Fewer than the
+# listener's 4 worker threads: uploads blocked on a slow disk (fsync), the shared SQLite write gate or the storage walk can never
+# take every thread a token lookup needs.
+UPLOAD_SLOTS = 2
 UPLOAD_SLOT_WAIT_S = 5.0
 SHELL_FILE = "index.html"
 _ASSET_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*\.(js|css|svg|png|ico)")
@@ -126,6 +130,14 @@ def public_request(request: Request) -> PublicRequest:
     return pr
 
 
+def spend_budget(request: Request) -> None:
+    """For a route of slice 4 / 9 once its effect is stored (a status, a note, an ETA, a return, a claim, a claim file): spend
+    one unit of the per-token budget of the route's kind (writes 20 / hour, invoice files 40 / hour). The edge only CHECKED the
+    budget; a refused, replayed or failed request never spends it."""
+    pr = public_request(request)
+    request.app.state.gate.spend(pr.rule.kind, pr.token_key)
+
+
 def link_context(*, write: bool = False, need_code: bool = True) -> Callable[[Request], Awaitable[LinkContext]]:
     """The dependency of every token route (see the module docstring). `write`: refuse during the read-only grace (409
     `read_only`); `need_code`: a link that requires a code needs a valid code session (403 `code_required`) - for writes; a
@@ -142,7 +154,7 @@ def link_context(*, write: bool = False, need_code: bool = True) -> Callable[[Re
         if link is None or not link.available(now):
             gate.failure(pr.net, pr.token_key)
             raise unavailable()
-        gate.success(pr.token_key)
+        gate.success(pr.token_key, counted=pr.counted)
         read_only = link.read_only(now)
         code_ok = not link.require_code
         if link.require_code and deps.codes is not None and pr.session:
@@ -188,13 +200,21 @@ def parse_json_object(raw: bytes) -> dict[str, Any]:
     return value
 
 
-def validation_fields(exc: ValidationError | RequestValidationError) -> list[dict[str, str]]:
-    """`{field, code}` pairs only - never the input, the context or a documentation URL (review T16-2)."""
+def validation_fields(exc: ValidationError | RequestValidationError, model: type[BaseModel] | None = None) -> list[dict[str, str]]:
+    """`{field, code}` pairs only - never the input, the context or a documentation URL (review T16-2). A field name is
+    reported only when it is one the model declares: an unknown key (`extra_forbidden`) is the CLIENT's text and is reported
+    as `body`, so nothing the client sent is echoed back."""
     errors = exc.errors(include_url=False, include_context=False, include_input=False) if isinstance(exc, ValidationError) else exc.errors()
+    declared = set(model.model_fields) if model is not None else None
     out: list[dict[str, str]] = []
     for e in errors[:20]:
+        kind = str(e.get("type", "invalid"))[:40]
         loc = [str(p) for p in e.get("loc", ()) if p not in ("body", "query", "path", "header")]
-        out.append({"field": ".".join(loc)[:64] or "body", "code": str(e.get("type", "invalid"))[:40]})
+        if kind == "extra_forbidden" or not loc or (declared is not None and loc[0] not in declared):
+            field_name = "body"
+        else:
+            field_name = ".".join(p if (p.isascii() and p.replace("_", "").isalnum()) else "?" for p in loc)[:64]
+        out.append({"field": field_name, "code": kind})
     return out
 
 
@@ -209,7 +229,7 @@ async def read_json(request: Request, model: type[BaseModel]) -> Any:
     try:
         return model.model_validate(data)
     except ValidationError as exc:
-        raise PublicError(422, "invalid", fields=validation_fields(exc)) from None
+        raise PublicError(422, "invalid", fields=validation_fields(exc, model)) from None
 
 
 def parse_client_request_id(value: object) -> str:
@@ -252,7 +272,10 @@ class Idempotency:
                     return JSONResponse(dict(prior.body), status_code=prior.status, headers={"x-idempotent-replay": "1"})
             status, body = await work()
             if self.log is not None and 200 <= status < 300:
-                await run_in_threadpool(self.log.put, scope, crid, route, status, body)
+                try:
+                    await run_in_threadpool(self.log.put, scope, crid, route, status, body)
+                except Exception as exc:  # noqa: BLE001 - the effect happened: the client must get its success, not a 500 to retry into a duplicate
+                    SERVER_LOG.warning("public listener: request id not stored for %s (%s)", route, exception_summary(exc))
         return JSONResponse(dict(body), status_code=status)
 
 
@@ -346,6 +369,12 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
     async def _deadline(_request: Request, _exc: BodyDeadline) -> Response:
         return _error_response(408, "body_timeout")
 
+    @api.exception_handler(ClientDisconnect)
+    async def _gone(_request: Request, _exc: ClientDisconnect) -> Response:
+        # the client went away while its body was read: nothing can be answered, and it is not a server error (no 5xx in
+        # the health counters, no error line a client could produce at will)
+        return Response(status_code=499)
+
     @api.exception_handler(Exception)
     async def _server_error(_request: Request, _exc: Exception) -> Response:
         return _error_response(500, "server_error")  # Starlette re-raises; the edge logs the type and frame once
@@ -409,13 +438,13 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         released = await run_in_threadpool(deps.redeems.release, links.redeem_hash(rid), now, REDEEM_MAX_USES) if rid else None
         link = await run_in_threadpool(deps.links.by_id, released[0]) if released else None
         if released is None or link is None or link.generation != released[1] or not link.available(now):
-            gate.failure(pr.net)
+            gate.failure(pr.net, kind="redeem", lookup=rid is not None)
             raise unavailable()
         try:
             token = links.derive_token(deps.key(), link.link_id, link.generation)
         except ModuleKeyError:
             raise unavailable() from None  # no key (a /data restored without secrets/): fail closed, say nothing
-        gate.success(links.limiter_key(links.token_hash(token)))
+        gate.success(links.limiter_key(links.token_hash(token)), counted=True)  # its first API call passes a flood
         return JSONResponse({"token": token})
 
     # ---------------------------------------------------------------- option B: verification codes (spec 10.5)
@@ -497,16 +526,21 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         if photos is None or root is None:
             raise unavailable()
         link = ctx.link
-        if deps.storage is not None:  # spec 10.6: the installation cap BEFORE the body is read
-            await run_in_threadpool(deps.storage.admit, ctx.request.content_length or PHOTO_MAX)
         with in_flight.claim(link.link_id):
             async with upload_slot():
-                raw = await request.body()
+                if deps.storage is not None:  # spec 10.6: the installation cap BEFORE the body is read
+                    await run_in_threadpool(deps.storage.admit, ctx.request.content_length or PHOTO_MAX)
+                # the body into ONE buffer of ours (request.body() would keep a second, cached copy for the request's life);
+                # the edge bounds its size and the time it may take
+                raw = bytearray()
+                async for chunk in request.stream():
+                    raw += chunk
                 try:
                     form = parse_form(raw, boundary_of(ctx.request.content_type), PHOTO_FIELDS)
                 except MultipartError as exc:
                     raise PublicError(422, "invalid", fields=[{"field": "form", "code": exc.code}]) from None
-                del raw
+                finally:
+                    del raw
                 crid = parse_client_request_id(form["client_request_id"].text())
                 data = form["file"].data
                 del form
@@ -526,6 +560,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
                         if deps.storage is not None:
                             deps.storage.note(-stored.bytes)
                         raise
+                    gate.spend("photo", ctx.request.token_key)  # a NEW photo: retries, replays and refusals spend nothing
                     return 201, answer
 
                 return await idempotency.run(f"link:{link.link_id}", crid, "/t/api/photo", work)

@@ -132,8 +132,14 @@ def _headers(block: bytes) -> str:
     return disposition
 
 
-def parse_form(body: bytes, boundary: bytes, rules: Mapping[str, FieldRule]) -> dict[str, Part]:
-    """The parts of `body` by name, exactly as `rules` allow, or MultipartError."""
+def parse_form(body: bytes | bytearray, boundary: bytes, rules: Mapping[str, FieldRule]) -> dict[str, Part]:
+    """The parts of `body` by name, exactly as `rules` allow, or MultipartError. Each part's data is ONE copy (bytes) of its
+    slice of `body`, so the caller can drop the whole body right after."""
+    with memoryview(body) as view:
+        return _parse(body, view, boundary, rules)
+
+
+def _parse(body: bytes | bytearray, view: memoryview, boundary: bytes, rules: Mapping[str, FieldRule]) -> dict[str, Part]:
     delim = b"--" + boundary
     if not body.startswith(delim + b"\r\n"):
         raise MultipartError("structure")
@@ -144,7 +150,7 @@ def parse_form(body: bytes, boundary: bytes, rules: Mapping[str, FieldRule]) -> 
         hend = body.find(b"\r\n\r\n", pos, pos + MAX_HEADER_BLOCK + 4)
         if hend < 0:
             raise MultipartError("headers")
-        name, has_filename = _disposition(_headers(body[pos:hend]))
+        name, has_filename = _disposition(_headers(bytes(view[pos:hend])))
         rule = rules.get(name)
         if rule is None:
             raise MultipartError("unknown_field")
@@ -158,11 +164,11 @@ def parse_form(body: bytes, boundary: bytes, rules: Mapping[str, FieldRule]) -> 
             raise MultipartError("structure")
         if end - start > rule.max_bytes:
             raise MultipartError("field_too_large")
-        parts[name] = Part(name, body[start:end], rule.file)
+        parts[name] = Part(name, bytes(view[start:end]), rule.file)
         after = end + len(sep)
-        tail = body[after:after + 2]
+        tail = bytes(view[after:after + 2])
         if tail == b"--":
-            if body[after + 2:] not in (b"", b"\r\n"):
+            if len(body) - (after + 2) > 2 or bytes(view[after + 2:]) not in (b"", b"\r\n"):
                 raise MultipartError("structure")
             break
         if tail != b"\r\n":

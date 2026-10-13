@@ -256,7 +256,9 @@ class PhotoSink(Protocol):
     def record(self, link: LinkRecord, image: StoredImage, client_request_id: str) -> Mapping[str, Any]:
         """Write the `ticket_attachments` row (`visible_external = 1`: the assignee's own upload), the `photo` timeline row,
         the audit row, extend the sliding expiry; return the public answer (e.g. {"id", "width", "height"}). Raising here makes
-        the caller delete the stored file."""
+        the caller delete the stored file. It SHOULD also write the `ticket_requests` row (scope `link:<link_id>`, this
+        client_request_id, route `/t/api/photo`, 201, the answer) in the SAME transaction: the app's own RequestLog.put after it
+        is then a no-op (False), and a crash between the two can never let a retry store the photo twice."""
 
     def open(self, link: LinkRecord, attachment_id: str) -> PhotoFile | None:
         """A photo of the link's ticket that is `visible_external` and not deleted, else None."""

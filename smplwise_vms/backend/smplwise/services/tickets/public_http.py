@@ -7,21 +7,23 @@ Per request, before any database read and before one byte of the body is read:
    enumeration: an unknown path, a known path with another method, OPTIONS, HEAD all answer the same bytes);
 3. the client network (/24 or /64; CF-Connecting-IP only from a trusted peer - ratelimit.client_network);
 4. the token header (`X-Ticket-Token`) of a token route, strictly parsed, hashed - never stored, never logged;
-5. the rate gate (ratelimit.PublicRateGate): 429 with `Retry-After`, or - a token route without a usable token - a counted
-   failure and the uniform 404, with no lookup at all;
+5. the rate gate (ratelimit.PublicRateGate): 429 with `Retry-After`, or - a token route without a usable token - a failure
+   counted against the client network only and the uniform 404, with no lookup at all; a request carrying both
+   Transfer-Encoding and Content-Length is refused (400, the shape of request smuggling);
 6. the body rules of the route: none (a GET with a body is 413), JSON (`Content-Type: application/json` or 415; 16 KiB) or
    multipart (`multipart/form-data` or 415; 8 MiB + 64 KiB for a photo, 10 MiB + 64 KiB for an invoice file); a declared
    Content-Length over the cap is 413 before anything is read; a chunked body is counted as it streams;
 7. a body READ DEADLINE from the start of the request - 10 s for JSON, 60 s for an upload: a 1 KB/s upload cannot hold a parser
    (spec 10.1); past it, 408 and the connection closes;
-8. the request's `Cookie` header is removed before the app sees it; the app never sets one (any `Set-Cookie` is dropped);
+8. the request's `Cookie`, `Range` and conditional headers are removed before the app sees them (no partial or 304 answers);
+   the app never sets a cookie (any `Set-Cookie` is dropped), nor `ETag` / `Last-Modified` / `Accept-Ranges`;
 9. every response carries the headers of spec 10.4 (CSP without 'unsafe-inline', frame / referrer / sniffing / opener /
    resource / permissions policies, `X-Robots-Tag`), `Cache-Control: no-store` unless the route set its own, no `Server`, no
    CORS headers, all in one canonical order (two answers with the same status and body are byte-identical). An answer given
-   before the request body was read (a 404, a 429): a small declared body (<= 64 KiB) is read and discarded first, inside the
-   route's deadline - a socket closed on unread bytes is RESET by the kernel and the client may lose the answer - and the
-   connection stays usable; a larger or chunked one closes the connection (`connection: close`), so an unread body is never
-   parsed as the next request and a client trickling one cannot keep the connection;
+   before the request body was read (a dead link's 404, a 415, a 409): a small declared body (<= 64 KiB) is read and discarded
+   first, for at most 2 s - a socket closed on unread bytes is RESET by the kernel and the client may lose the answer - and the
+   connection stays usable; a 429, a token-less 404 and a larger or chunked body close the connection (`connection:
+   close`), so an unread body is never parsed as the next request and a client trickling one cannot keep the connection;
 10. an unhandled error is answered 500 `{"code": "server_error"}` and logged as its type and innermost frame only.
 The route's facts travel to the app in `scope["state"]["sw_public"]` (PublicRequest)."""
 from __future__ import annotations
@@ -32,6 +34,8 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
+
+from starlette.requests import ClientDisconnect
 
 from . import image_intake, links
 from .cost_files import PDF_MAX_BYTES
@@ -54,8 +58,14 @@ MAX_HEAD_BYTES = 16 * KiB
 MAX_HEADERS = 64
 # An answer sent before the request body was read: a socket closed with unread bytes is RESET by the kernel (Linux and
 # Windows), and the client may lose the answer it was sent. A small declared body (<= DRAIN_MAX) is therefore read and
-# discarded first, within the route's deadline, and the connection stays usable; a larger one is cut (connection: close).
+# discarded first - for at most DRAIN_WAIT_S, never for a 429 or a request without a token (an attacker's shapes: those close)
+# - and the connection stays usable; anything else is cut (connection: close).
 DRAIN_MAX = 64 * KiB
+DRAIN_WAIT_S = 2.0
+# request headers a route never sees: no partial or conditional answers on the public surface (FileResponse would otherwise
+# answer ranges, multipart byteranges, 304s and plain-text 400s outside the JSON vocabulary)
+_DROPPED_REQUEST = frozenset({b"cookie", b"range", b"if-range", b"if-match", b"if-none-match", b"if-modified-since",
+                              b"if-unmodified-since"})
 
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; form-action 'none'; "
        "frame-ancestors 'none'; base-uri 'none'; manifest-src 'none'")
@@ -70,7 +80,8 @@ SECURITY_HEADERS: tuple[tuple[bytes, bytes], ...] = (
     (b"x-robots-tag", b"noindex, nofollow"),
 )
 _OURS = frozenset(k for k, _ in SECURITY_HEADERS)
-_DROPPED_RESPONSE = frozenset({b"set-cookie", b"server", b"x-powered-by", b"connection"}) | _OURS
+_DROPPED_RESPONSE = frozenset({b"set-cookie", b"server", b"x-powered-by", b"connection", b"etag", b"last-modified",
+                               b"accept-ranges"}) | _OURS
 UNIFORM_404 = b'{"code":"link_unavailable"}'
 _ID = r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}"
 
@@ -128,8 +139,9 @@ class PublicRequest:
     session: str | None  # the raw X-Ticket-Session value (codes.CodeEngine.session_ok parses it strictly)
     user_agent: str
     content_type: str
-    content_length: int | None
+    content_length: int | None  # None for a chunked body
     started: float
+    counted: bool = False  # the gate already counted this token's request (a known-good token); else link_context's success() does
 
 
 class BodyTooLarge(Exception):
@@ -230,12 +242,15 @@ class PublicEdge:
         await send({"type": "http.response.body", "body": body})
 
     async def _drain(self, receive: Callable, flags: dict[str, Any], deadline: float, declared: int | None) -> bool:
-        """Read and discard what is left of a SMALL declared body (<= DRAIN_MAX) before the deadline, so an early answer is not
-        lost to a TCP reset; True when the body ended (the connection can stay open). Never for a chunked or a large body."""
+        """Read and discard what is left of a SMALL declared body (<= DRAIN_MAX), for at most DRAIN_WAIT_S and never past the
+        route's deadline, so an early answer is not lost to a TCP reset; True when the body ended (the connection can stay
+        open). Never for a chunked or a large body. The short cap keeps an early refusal from holding one of the 16
+        connections for the route's whole body deadline (60 s on the upload routes)."""
         if flags["complete"]:
             return True
         if flags["tripped"] or declared is None or declared > DRAIN_MAX:
             return False
+        deadline = min(deadline, self._mono() + DRAIN_WAIT_S)
         while not flags["complete"]:
             remaining = deadline - self._mono()
             if remaining <= 0:
@@ -265,14 +280,15 @@ class PublicEdge:
             lk = k.lower()
             if lk in wanted:
                 wanted[lk].append(v)
+        chunked = bool(wanted[b"transfer-encoding"])
         declared: int | None = None
         cl = _single(wanted[b"content-length"])
-        if cl is not None:
+        if cl is not None and not chunked:  # with Transfer-Encoding the body is chunked (h11: TE wins) - its length is unknown
             try:
                 declared = int(cl.strip())
             except ValueError:
                 declared = None
-        has_body = bool(wanted[b"transfer-encoding"]) or (declared or 0) > 0
+        has_body = chunked or (declared or 0) > 0
         flags: dict[str, Any] = {"received": 0, "complete": not has_body, "tripped": None, "response_started": False}
 
         async def refuse(status: int, body: bytes, *, deadline_s: float = JSON_DEADLINE_S, drain: bool = True, close: bool = False,
@@ -284,6 +300,11 @@ class PublicEdge:
         if len(raw_headers) > MAX_HEADERS or head_bytes > MAX_HEAD_BYTES:
             self.stats.bump("headers_too_large")
             await refuse(431, payload("headers_too_large"), drain=False, close=True)
+            return
+        if chunked and wanted[b"content-length"]:
+            # both framings at once (RFC 9112 6.3): the shape of request smuggling - refused, the connection closes
+            self.stats.bump("invalid_requests")
+            await refuse(400, payload("bad_request"), drain=False, close=True)
             return
         if not self.switch.module_on():
             await refuse(404, UNIFORM_404)
@@ -298,7 +319,7 @@ class PublicEdge:
             self.stats.bump("unmatched")
             scanned = self.gate.admit("static", net)
             if not scanned.ok:
-                await refuse(429, payload("rate_limited", retry_after_s=scanned.retry_after_s),
+                await refuse(429, payload("rate_limited", retry_after_s=scanned.retry_after_s), drain=False,
                              extra=[(b"retry-after", str(scanned.retry_after_s).encode("ascii"))])
                 return
             await refuse(404, UNIFORM_404)
@@ -312,11 +333,12 @@ class PublicEdge:
                 token_key = links.limiter_key(token_hash)
         decision = self.gate.admit(rule.kind, net, token_key)
         if not decision.ok:
+            # the two refusals an attacker meets most: never a drain, the connection closes when a body was announced
             if decision.reason == "no_token":
-                self.gate.failure(net, None)
-                await refuse(404, UNIFORM_404, deadline_s=rule.deadline_s)
+                self.gate.failure(net, None, lookup=False)  # no lookup made: its network pays, not the installation budget
+                await refuse(404, UNIFORM_404, drain=False)
                 return
-            await refuse(429, payload("rate_limited", retry_after_s=decision.retry_after_s), deadline_s=rule.deadline_s,
+            await refuse(429, payload("rate_limited", retry_after_s=decision.retry_after_s), drain=False,
                          extra=[(b"retry-after", str(decision.retry_after_s).encode("ascii"))])
             return
         content_type = _single(wanted[b"content-type"]) or ""
@@ -338,18 +360,21 @@ class PublicEdge:
                 return
 
         child = dict(scope)
-        child["headers"] = [(k, v) for k, v in raw_headers if k.lower() != b"cookie"]
+        child["headers"] = [(k, v) for k, v in raw_headers if k.lower() not in _DROPPED_REQUEST]
         state = dict(scope.get("state") or {})
         state[STATE_KEY] = PublicRequest(rule=rule, net=net, token_hash=token_hash, token_key=token_key,
                                          session=_single(wanted[b"x-ticket-session"]),
                                          user_agent=(_single(wanted[b"user-agent"]) or "")[:512],
-                                         content_type=content_type, content_length=declared, started=started)
+                                         content_type=content_type, content_length=declared, started=started,
+                                         counted=decision.counted)
         child["state"] = state
         deadline = started + rule.deadline_s
 
         async def limited_receive() -> dict[str, Any]:
             if flags["tripped"]:
                 return {"type": "http.disconnect"}
+            if flags["complete"]:
+                return await receive()  # the body is in: a later receive() only waits for a disconnect (streaming answers)
             remaining = deadline - self._mono()
             if remaining <= 0:
                 flags["tripped"] = "deadline"
@@ -390,12 +415,16 @@ class PublicEdge:
                     await self._plain(send, box, 413, payload("too_large", max_bytes=rule.max_body), close=True)
                 else:
                     await self._plain(send, box, 408, payload("body_timeout"), close=True)
+        except ClientDisconnect:
+            box["status"] = 499  # the client went away mid-body: nothing to answer, not a server error, no log line
         except Exception as exc:  # noqa: BLE001 - one answer, one sanitised line
             self.stats.bump("unhandled_errors")
             SERVER_LOG.error("public listener: unhandled error in %s (%s)", rule.template, exception_summary(exc))
             if not flags["response_started"]:
                 flags["response_started"] = True
                 await self._plain(send, box, 500, payload("server_error"), close=True)
+        if box["status"] == 499:
+            self.stats.bump("client_disconnects")
         if flags["tripped"] == "size":
             self.stats.bump("too_large")
         elif flags["tripped"] == "deadline":
