@@ -134,6 +134,14 @@ def refresh(conn: sqlite3.Connection, a: dict[str, Any]) -> bool:
     def since_request(ts: str | None) -> bool:
         return bool(ts) and parse_utc(ts.replace("+00:00", "Z")) >= requested - dt.timedelta(seconds=2)
 
+    if a.get("via") == "trusted_door":
+        # CR-033 (T8, WXD-INT): a WisKey door's tile row is settled only by the door path itself (open_from_tile writes the
+        # outcome). A row still pending is an open in flight, or one a restart cut off between its attempt and its outcome:
+        # it may have been sent, so it never turns "confirmed" here - only "unknown" once the window has passed.
+        if timed_out:
+            conn.execute("UPDATE ha_actions SET status = 'unknown', observed_state = ? WHERE id = ?", (e["state"] if e else None, action_id))
+            return True
+        return False
     if e and a["confirmation"] == "attribute":
         # the attribute that reports the effect (current_position, percentage, temperature, fan_mode, mute),
         # within its tolerance, reported after the request (last_updated: an attribute change moves it, the state's

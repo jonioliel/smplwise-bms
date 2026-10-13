@@ -11,7 +11,7 @@ export interface AccessBinding {
   subject_name: string;
   role_id: string;
   role_name: string;
-  scope_type: 'installation' | 'site' | 'building' | 'floor' | 'camera';
+  scope_type: 'installation' | 'site' | 'building' | 'floor' | 'camera' | 'access_control_station';
   scope_id: string;
   scope_name: string;
   effect: 'allow' | 'deny';
@@ -50,7 +50,8 @@ export interface DirectoryUser {
 
 export interface ScopeRef {
   /** T055: 'camera' = a single camera (the picker lists only cameras wholly inside the caller's reach). */
-  type: 'installation' | 'site' | 'building' | 'floor' | 'camera';
+  /** CR-033 D2: 'access_control_station' = one WisKey station (listed by name in the same scope picker). */
+  type: 'installation' | 'site' | 'building' | 'floor' | 'camera' | 'access_control_station';
   id: string;
   name: string;
 }

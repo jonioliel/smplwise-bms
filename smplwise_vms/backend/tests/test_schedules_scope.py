@@ -249,7 +249,7 @@ def test_control_door_and_alarm_rules(sched_app):
     unlock = draft_of("U", [slot("06:00:00", None, act("lock.unlock", "lock.front_door"))])
     r = c.post(f"{API}/schedules", json={"draft": unlock, "enabled": True, "client_request_id": rid(), "confirm_lowering": True}, headers=OMER)
     assert r.status_code == 403 and r.json()["code"] == "grant_required" and r.json()["user_message"] == "הפעולה דורשת הרשאה נפרדת (פתיחת דלת)."
-    _grant(c, "omer", "פותח דלתות", ["map.read"], ["door.unlock"], "installation", "*")
+    _grant(c, "omer", "פותח דלתות מותאם", ["map.read"], ["door.unlock"], "installation", "*")
     assert c.post(f"{API}/schedules", json={"draft": unlock, "enabled": True, "client_request_id": rid(), "confirm_lowering": True}, headers=OMER).status_code == 201
     # the alarm: the alarm section's own authority, not control_allowed
     arm = draft_of("A", [slot("23:00:00", None, act("alarm_control_panel.alarm_arm_away", "alarm_control_panel.shed_panel"))])

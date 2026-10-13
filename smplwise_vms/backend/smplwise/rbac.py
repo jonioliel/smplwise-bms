@@ -20,8 +20,18 @@ ROLE_NAMES_HE: dict[str, str] = {
     role["id"]: role["name_he"] for role in json.loads((Path(__file__).parent / "roles.json").read_text(encoding="utf-8"))["roles"]
 }
 
-SCOPE_ORDER = ("installation", "site", "building", "floor", "camera")
+SCOPE_ORDER = ("installation", "site", "building", "floor", "camera", "access_control_station")
 INSTALLATION = ("installation", "*")
+STATION = "access_control_station"  # CR-033 D2: one WisKey station, scope_id = its opaque config entry id
+# SEC-WXD L4: the only permissions a station-scope ALLOW binding may carry (door_opener and matching custom roles).
+# WXD-INT (2.4.8 line): CR-036 S3 judges its station-level access permissions on this same chain
+# (services/intercom_authority.py `Authority.station`), so a station role may carry them too; nothing outside `access.*`.
+STATION_PERMISSIONS = frozenset({
+    "access.read", "access.release",  # CR-033: the door rule
+    "access.stations.read", "access.events.read", "access.events.export",  # CR-036 S3: per-station reads
+    "access.people.read", "access.people.sensitive", "access.people.manage", "access.admin.read",
+    "access.cards.capture",  # CR-036 S11 moves the person editor and card capture onto the station chain
+})
 
 _CUSTOM_CACHE: dict[tuple[str, int], dict[str, list[str]]] = {}
 
@@ -105,6 +115,8 @@ def scope_chain(conn: sqlite3.Connection, target_type: str, target_id: str) -> l
         if INSTALLATION not in chain:
             chain.append(INSTALLATION)
         return chain
+    if target_type == STATION:
+        return station_chain(conn, target_id)
     chain: list[tuple[str, str]] = []
     if target_type == "floor":
         row = conn.execute("SELECT id, building_id FROM floors WHERE id = ?", (target_id,)).fetchone()
@@ -120,6 +132,33 @@ def scope_chain(conn: sqlite3.Connection, target_type: str, target_id: str) -> l
         target_type, target_id = "site", row["site_id"]
     if target_type == "site":
         chain.append(("site", target_id))
+    chain.append(INSTALLATION)
+    return chain
+
+
+def station_placement(conn: sqlite3.Connection, station_id: str) -> sqlite3.Row | None:
+    """The station's placement row (migration 0077), or None - unplaced, or a database before the migration."""
+    try:
+        return conn.execute("SELECT site_id, building_id FROM intercom_station_placement WHERE config_entry_id = ?", (station_id,)).fetchone()
+    except sqlite3.OperationalError:
+        return None
+
+
+def station_chain(conn: sqlite3.Connection, station_id: str) -> list[tuple[str, str]]:
+    """CR-033 D2: a WisKey station and its ancestors. The installation contains every station; a site or a building
+    contains it only when the station is placed under it (Settings, intercom_station_placement); an unplaced station
+    hangs off the installation alone. A station is a leaf: no floor, camera or entity chain ever contains it, so a
+    station binding grants nothing above or beside itself."""
+    chain: list[tuple[str, str]] = [(STATION, station_id)]
+    row = station_placement(conn, station_id)
+    if row is not None and row["building_id"]:
+        b = conn.execute("SELECT id, site_id FROM buildings WHERE id = ? AND deleted_at IS NULL", (row["building_id"],)).fetchone()
+        if b is not None:
+            chain += [("building", b["id"]), ("site", b["site_id"])]
+    elif row is not None and row["site_id"]:
+        s = conn.execute("SELECT id FROM sites WHERE id = ? AND deleted_at IS NULL", (row["site_id"],)).fetchone()
+        if s is not None:
+            chain.append(("site", s["id"]))
     chain.append(INSTALLATION)
     return chain
 
@@ -215,6 +254,10 @@ def permissions_anywhere(conn: sqlite3.Connection, principal: Principal) -> list
         if b["effect"] == "deny":
             if (b["scope_type"], b["scope_id"]) == INSTALLATION:
                 denied_everywhere.update(perms)
+        elif b["scope_type"] == STATION:
+            # SEC-WXD L4 (CR-033 4.3): a station binding grants nothing above or beside itself - only the door permissions
+            # count, and only for that station (whatever a custom role bound there carries, now or after an edit)
+            allowed.update(p for p in perms if p in STATION_PERMISSIONS)
         else:
             allowed.update(perms)
     return sorted(allowed - denied_everywhere)
@@ -243,6 +286,12 @@ def scope_name(conn: sqlite3.Connection, scope_type: str, scope_id: str) -> str:
     if scope_type == "camera":
         row = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (scope_id,)).fetchone()
         return f"מצלמה · {row['alias'] or row['name_source'] or 'ערוץ ' + str(row['channel'])}" if row else scope_id
+    if scope_type == STATION:
+        # the station's name from the WisKey copy the add-on serves; never its opaque id on a screen
+        from .services import intercom_sync
+
+        station = intercom_sync.SYNC.station(scope_id)
+        return f"עמדה · {station['name']}" if station and station.get("name") else "עמדת אינטרקום (לא זמינה כרגע)"
     table = {"site": "sites", "building": "buildings", "floor": "floors"}[scope_type]
     row = conn.execute(f"SELECT name FROM {table} WHERE id = ?", (scope_id,)).fetchone()
     return row["name"] if row else scope_id

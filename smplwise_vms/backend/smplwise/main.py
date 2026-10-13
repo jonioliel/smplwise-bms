@@ -22,7 +22,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
+from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -333,6 +333,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
+    app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])

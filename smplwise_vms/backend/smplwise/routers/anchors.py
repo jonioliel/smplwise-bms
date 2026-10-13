@@ -11,10 +11,10 @@ from pydantic import BaseModel, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import new_id, now_iso
+from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
-from ..services import floor_images, plan_anchor_scope, plan_bakes
+from ..services import door_authority, floor_images, plan_anchor_scope, plan_bakes
 from ..services.access import camera_reach_for_placement, camera_scope, floor_reach, require_camera_placement, require_floor_read
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
@@ -402,6 +402,7 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
             raise ApiError(422, "not_placeable", "תזמון אינו התקן ואי אפשר למקם אותו על המפה.")
         if body.layer_id == "cameras":  # default layer by domain unless the editor chose one
             body.layer_id = "doors" if ent["domain"] in ("lock", "cover") else "lights" if ent["domain"] in ("light", "switch", "fan") else "sensors"
+        _require_door_placement(conn, principal, request, body.resource_id, floor_id)
     dup = conn.execute("SELECT id FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND resource_type = ? AND resource_id = ?", (floor_id, body.resource_type, body.resource_id)).fetchone()
     if dup:
         raise conflict("already_placed", "הפריט כבר מוצב על הקומה הזו.", anchor_id=dup["id"])
@@ -412,9 +413,23 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         (aid, floor_id, version["id"], body.resource_type, body.resource_id, body.x, body.y, body.rotation_degrees, body.field_of_view_degrees, body.layer_id, body.label, now, principal.user_id, principal.user_id, now,
          body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None, body.mount_height_m, body.tilt_deg),
     )
+    door = body.resource_type == "ha_entity" and door_authority.is_door_entity(conn, body.resource_id)
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
-          details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y})
+          details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y, **({"door": True} if door else {})})
+    if door:
+        bump_permission_revision(conn)  # SEC-WXD M2: who holds door.unlock for this door may have changed
     return anchor_row(get_anchor(conn, aid))
+
+
+def _require_door_placement(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, floor_id: str, action: str = "anchor.create") -> None:
+    """SEC-WXD M2: a WisKey door's lock entity is placed on (or taken off) a floor only by someone who already holds
+    door.unlock for it on its current chain (or a role administrator) - placing it otherwise would hand every door.unlock
+    holder of that floor the door. Refused with an audited 403."""
+    if not door_authority.is_door_entity(conn, entity_id) or door_authority.placement_allowed(conn, principal, entity_id):
+        return
+    audit(conn, actor=principal, action=action, decision="denied", resource_type="floor", resource_id=floor_id, reason="door_unlock_required",
+          request_id=_rid(request), details={"resource": f"ha_entity:{entity_id}"})
+    raise ApiError(403, "forbidden", "מיקום מנעול של דלת אינטרקום דורש הרשאת פתיחה לדלת זו.", details={"permission": door_authority.UNLOCK, "reason": "door_unlock_required"})
 
 
 def _anchor_edit_scope(conn: sqlite3.Connection, principal: Principal, a: sqlite3.Row, from_floor_id: str | None):
@@ -534,6 +549,9 @@ def delete_anchor(anchor_id: str, request: Request, from_floor_id: str | None = 
     if a["resource_type"] == "camera":
         # T055 B1: taking a camera off a floor can lift a deny that sat on that floor - the same reach as placing it
         require_camera_placement(conn, principal, a["resource_id"])
+    door = a["resource_type"] == "ha_entity" and door_authority.is_door_entity(conn, a["resource_id"])
+    if door:
+        _require_door_placement(conn, principal, request, a["resource_id"], a["floor_id"], "anchor.delete")  # SEC-WXD M2: the same reach as placing it
     now = now_iso()
     conn.execute("UPDATE map_anchors SET effective_to = ?, updated_by = ?, updated_at = ? WHERE id = ?", (now, principal.user_id, now, anchor_id))
     from ..services import geometry_store
@@ -550,6 +568,8 @@ def delete_anchor(anchor_id: str, request: Request, from_floor_id: str | None = 
     for zid in ended:
         audit(conn, actor=principal, action="zone.share.member_remove", decision="allowed", resource_type="zone", resource_id=zid, request_id=_rid(request),
               details={"resource": f"{a['resource_type']}:{a['resource_id']}", "reason": "anchor_removed", "anchor_id": anchor_id})
+    if door:
+        bump_permission_revision(conn)  # SEC-WXD M2: who holds door.unlock for this door may have changed
     if ended:
         from ..services import revocation
 

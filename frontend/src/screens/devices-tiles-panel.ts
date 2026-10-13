@@ -20,6 +20,7 @@ import { activityTag, ActivityPress } from '../components/device-activity-press'
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
 import { activeOf } from '../api/device-commands';
+import { lockAllQuestion, skippedText, splitLockAll } from './door-path-logic';
 import { runCommand, type CommandPhase } from '../api/device-commands';
 
 /** Which rows a segment shows: `active` = the tile's counted state (lit, on, open, running, playing, locked, armed). */
@@ -204,7 +205,7 @@ export class DevicesTilesPanel extends LitElement {
   @state() private why: string | null = null; // the read-only row whose reason is shown (tap)
   @state() private unlocking: DeviceItem | null = null;
   /** Lock-all (owner 2026-09-29): the locks to lock, the dialog's step and each lock's outcome. Never unlock-all. */
-  @state() private lockAll: { rows: DeviceItem[]; step: 'confirm' | 'running' | 'done'; out: Record<string, CommandPhase> } | null = null;
+  @state() private lockAll: { rows: DeviceItem[]; skipped: DeviceItem[]; step: 'confirm' | 'running' | 'done'; out: Record<string, CommandPhase> } | null = null;
   private ctl = new DeviceControls(this, () => this.changed());
   readonly press = new ActivityPress(this);
   private stop: (() => void) | null = null;
@@ -757,10 +758,10 @@ export class DevicesTilesPanel extends LitElement {
   private renderLockAllButton(shown: DeviceItem[]) {
     const mine = shown.filter((r) => r.can_control && rowState(r) !== 'unavailable');
     if (!isApi() || !mine.length) return nothing;
-    const open = mine.filter((r) => !r.locked);
+    const { sendable: open, skipped } = splitLockAll(mine); // CR-033 D6: a WisKey door is never sent lock.lock
     const words = 'נעל את כל המנעולים';
-    return html`<button type="button" class="master" data-panel-master="locks" data-master="lock_all" aria-label=${open.length ? `${words} (${open.length} לא נעולים)` : `${words} - כולם נעולים`} title=${words} ?disabled=${!open.length}
-      @click=${() => (this.lockAll = { rows: open, step: 'confirm', out: {} })}>
+    return html`<button type="button" class="master" data-panel-master="locks" data-master="lock_all" aria-label=${open.length ? `${words} (${open.length} לא נעולים)` : `${words} - כולם נעולים`} title=${words} ?disabled=${!open.length && !skipped.length}
+      @click=${() => (this.lockAll = { rows: open, skipped, step: 'confirm', out: {} })}>
       <sw-icon name="lock" size=${20}></sw-icon>${open.length ? html`<span class="badge" aria-hidden="true">${ltrNum(open.length)}</span>` : nothing}
     </button>`;
   }
@@ -770,6 +771,7 @@ export class DevicesTilesPanel extends LitElement {
     if (!la || la.step !== 'confirm') return;
     this.lockAll = { ...la, step: 'running' };
     for (const r of la.rows) {
+      if (r.wiskey_door) continue; // defence in depth: the server refuses it too
       const key = `${r.entity_id}:lock`;
       await runCommand(key, 'lock', r.entity_id, 'lock.lock', {}, 'locked', (s) => {
         this.ctl.setCmd(key, s);
@@ -786,14 +788,15 @@ export class DevicesTilesPanel extends LitElement {
     const word: Record<CommandPhase, string> = { pending: 'ממתין לאישור', confirmed: 'ננעל', sent: 'נשלח', rolled_back: 'לא ננעל' };
     const done = Object.values(la.out).filter((x) => x === 'confirmed').length;
     return html`<sw-dialog open ?locked=${la.step === 'running'} data-lock-all-dialog=${la.step} heading="נעילת מנעולים" subheading="כל מנעול ננעל בפעולה נפרדת, אחד אחרי השני" @close=${() => la.step !== 'running' && (this.lockAll = null)}>
-      <div class="unlock-what" data-lock-all-question>${la.step === 'confirm' ? (la.rows.length === 1 ? 'לנעול מנעול אחד?' : `לנעול ${la.rows.length} מנעולים?`) : `ננעלו ${done} מתוך ${la.rows.length}`}</div>
+      <div class="unlock-what" data-lock-all-question>${la.step === 'confirm' ? lockAllQuestion(la.rows.length, la.skipped.length) : `ננעלו ${done} מתוך ${la.rows.length}`}</div>
+      ${la.skipped.length ? html`<div class="unlock-what" data-lock-all-skipped role="note">${skippedText(la.skipped.length)}<ul class="la-list">${la.skipped.map((r) => html`<li data-lock-all-item=${r.entity_id} data-outcome="not_relevant">${bidi(r.name)} <span class="note">· ${bidi(r.area_name)} · לא רלוונטי</span></li>`)}</ul></div>` : nothing}
       <details ?open=${la.step !== 'confirm'}><summary>רשימת המנעולים</summary>
         <ul class="la-list">${la.rows.map((r) => html`<li data-lock-all-item=${r.entity_id} data-outcome=${la.out[r.entity_id] ?? ''}>${bidi(r.name)} <span class="note">· ${bidi(r.area_name)}${la.out[r.entity_id] ? ` · ${word[la.out[r.entity_id]]}` : ''}</span></li>`)}</ul>
       </details>
       <div class="unlock-actions">
         ${la.step === 'confirm'
           ? html`<sw-button data-lock-all-cancel autofocus @click=${() => (this.lockAll = null)}>ביטול</sw-button>
-              <sw-button data-lock-all-confirm variant="primary" icon="lock" @click=${() => void this.runLockAll()}>נעל (${ltrNum(la.rows.length)})</sw-button>`
+              ${la.rows.length ? html`<sw-button data-lock-all-confirm variant="primary" icon="lock" @click=${() => void this.runLockAll()}>נעל (${ltrNum(la.rows.length)})</sw-button>` : nothing}`
           : html`<sw-button data-lock-all-close ?disabled=${la.step === 'running'} @click=${() => (this.lockAll = null)}>סגור</sw-button>`}
       </div>
     </sw-dialog>`;

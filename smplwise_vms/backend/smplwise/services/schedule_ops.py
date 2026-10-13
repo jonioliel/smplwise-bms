@@ -23,7 +23,8 @@ from ..audit import audit
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
-from . import ha_bridge, ha_sync
+from . import door_path_guard as guard
+from . import door_run_guard, ha_bridge, ha_sync
 from . import schedule_model as model
 from . import schedule_policy as policy
 from . import schedule_view as view
@@ -588,6 +589,7 @@ def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, c
         ev = evaluate(w, draft, None, creating=True)
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, draft, None)  # CR-033 D8
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, conditions=cond_entities(draft))
@@ -645,6 +647,7 @@ def update(w: W, schedule_id: str, draft: dict[str, Any], base_revision: str, cl
         ev = evaluate(w, draft, core, creating=False)
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, draft, core)  # CR-033 D8
         if ev.denials:
             raise ev.denials[0]
         diff = model.diff_summary(core, draft)
@@ -685,6 +688,9 @@ def set_enabled(w: W, schedule_id: str, enable: bool, client_request_id: str, co
             w.rate()  # a bulk request is counted once, by bulk()
         w.writable()
         item, row, core = fresh(w, schedule_id)
+        if enable and not core["enabled"]:
+            # CR-033 D10a / review I5: enabling (alone or in a bulk enable) never re-arms an autonomous door opener from Arx
+            door_run_guard.judge_enable_schedule(w.conn, item)
         cls = model.classify(core, w.ctx.resolver)
         wide = w.ctx.access.wide(view.MANAGE)
         if not cls["understood"]:
@@ -751,6 +757,12 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
         cls = model.classify(core, w.ctx.resolver)
         if not cls["understood"]:
             raise ApiError(422, "unsupported_content", "התזמון כולל תוכן שהמערכת אינה מציגה במלואו; אפשר לערוך אותו רק ברכיב המקורי.")
+        # CR-033 D9 (R-17): a slot that opens a WisKey door is never run from Arx through the component (no inner
+        # lock.unlock on an Arx-started path): refused before anything else about the run, and the schedule is listed in
+        # the door-path inventory
+        door_slot = slot_index if slot_index is not None else (0 if len(core["slots"]) == 1 else None)
+        if door_slot is not None and 0 <= door_slot < len(core["slots"]):
+            door_run_guard.judge_schedule_slot(w.conn, schedule_id, item, door_slot)
         old_rights(w, core, cls)
         if slot_index is None:
             if len(core["slots"]) != 1:
@@ -861,6 +873,7 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         ev = evaluate(w, nd, None, creating=True)
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, nd, None)  # CR-033 D8 / SEC-WXD M1: the new schedule is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, moved_days=moving)
@@ -990,6 +1003,7 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
         ev = evaluate(w, nd, None, creating=True, inherited_days=list(core["weekdays"]))
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, nd, None)  # CR-033 D8 / SEC-WXD M1: a copy is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering)
@@ -1084,6 +1098,7 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         ev = evaluate(w, draft, None, creating=True, inherited_days=list(core["weekdays"]))
         if ev.errors:
             raise problem_error(ev.errors)
+        guard.check_schedule(w.conn, draft, None)  # CR-033 D8 / SEC-WXD M1: a restored schedule is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, conditions=cond_entities(draft), trashed_schedule_id=t["schedule_id"])
@@ -1165,6 +1180,8 @@ def bulk(w: W, op: str, ids: list[str], confirm: bool, client_request_id: str) -
                     row = store.cache_row(w.conn, sid)
                     if row is not None:
                         core = model.normalize(store.item_of(row))
+                        if not core["enabled"]:
+                            door_run_guard.judge_enable_schedule(w.conn, store.item_of(row))  # CR-033 D10a: said before the lowering question
                         if model.classify(core, w.ctx.resolver)["lowering"]:
                             raise ApiError(409, "lowering_confirmation_required", "תזמון שמנטרל אזעקה, פותח נעילה, דלת או שער דורש אישור מפורש.")
                 key = hashlib.sha256(f"{client_request_id}|{i}|{sid}".encode("utf-8")).hexdigest()[:48]  # never truncated into a collision (review L3)
