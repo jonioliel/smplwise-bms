@@ -64,7 +64,8 @@ function cssBlocks(src: string): string[] {
   return blocks.map((b) => b.replace(/\$\{[^}]*\}/g, ' '));
 }
 
-const inScope = (rel: string) => /^(components\/sw-|shell\/|screens\/)/.test(rel) && !/\.d\.ts$/.test(rel);
+// CR-038: the tickets module's own components and styles (src/tickets/) are read too - a new module starts inside the guard
+const inScope = (rel: string) => /^(components\/sw-|shell\/|screens\/|tickets\/)/.test(rel) && !/\.d\.ts$/.test(rel);
 
 const files = walk(SRC).map((f) => ({ abs: f, rel: path.relative(SRC, f).replace(/\\/g, '/') })).filter((f) => inScope(f.rel));
 

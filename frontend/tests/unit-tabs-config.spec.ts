@@ -80,7 +80,7 @@ test('a section never ends up empty, and the way back to the editor cannot be hi
 test('every registry section comes from the arrays of nav.ts (nothing duplicated) and the map lost its device tab', () => {
   expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
   const byId = Object.fromEntries(TAB_SECTIONS.map((s) => [s.id, ids(s.tabs())]));
-  expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra']); // CR-015: multimedia sits between the map and WisKey; CR-023: תשתיות after WisKey
+  expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra', 'tickets']); // CR-015: multimedia sits between the map and WisKey; CR-023: תשתיות after WisKey; CR-038: the optional tickets area last
   expect(byId['devices']).toEqual(['building', 'automations']); // 0.1.154: the home area's tabs (the schedules became the first segment of the second, קברניט)
   expect(byId['security']).toEqual(ids(SECURITY_SECTIONS));
   expect(byId['security.live']).toEqual(ids(SECTION_TABS.live));
@@ -122,9 +122,9 @@ test('the security sections: first visible tab of the configured order is where 
 });
 
 test('the rail: the admin order is the default, the user own order wins, hidden areas leave, an area lands on its first visible tab', () => {
-  expect(ids(visibleAreas(true, ALL))).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra']); // CR-023: תשתיות after WisKey
+  expect(ids(visibleAreas(true, ALL))).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra']); // CR-023: תשתיות after WisKey; CR-038: the tickets area is off by default
   applyTabsConfig({ 'ui.tabs': { areas: { order: ['explore', 'security'], hidden: ['wiskey'] }, explore: { order: ['floors', 'sites'], hidden: [] } } });
-  expect(defaultNavOrder()).toEqual(['explore', 'security', 'devices', 'multimedia', 'wiskey', 'infra']);
+  expect(defaultNavOrder()).toEqual(['explore', 'security', 'devices', 'multimedia', 'wiskey', 'infra', 'tickets']);
   const rail = visibleAreas(true, ALL); // default order = the admin's
   expect(ids(rail)).toEqual(['explore', 'security', 'devices', 'multimedia', 'infra']);
   expect(rail[0].href).toBe('#/explore/floors/f0'); // the map lands on the floor map: the order decides

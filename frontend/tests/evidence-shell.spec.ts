@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR1-shell');
 const TABS = ['ראשי', 'אבטחה', 'מפה', 'מולטימדיה', 'WisKey', 'תשתיות']; // the static demo shows every area (CR-015 added מולטימדיה, CR-023 תשתיות)
-const DEFAULT_ORDER = ['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra']; // the stored order: every tab, hidden ones included
+const DEFAULT_ORDER = ['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra', 'tickets']; // the stored order: every tab, hidden ones included (CR-038: tickets last)
 /** What a user WITHOUT media.read and energy.view sees: the same order without the multimedia (CR-015) and infrastructure (CR-023) entries. */
 const VISIBLE_ORDER = DEFAULT_ORDER.filter((t) => t !== 'multimedia' && t !== 'infra');
 
@@ -676,7 +676,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'ראשי', 'אבטחה', 'WisKey']);
     await dlg.locator('[data-nav-order-save]').click();
     await expect.poll(() => mock.puts.length).toBe(1);
-    expect(mock.puts[0]).toEqual({ user: 'u-admin', body: { 'nav.order': ['explore', 'devices', 'security', 'multimedia', 'wiskey', 'infra'] } });
+    expect(mock.puts[0]).toEqual({ user: 'u-admin', body: { 'nav.order': ['explore', 'devices', 'security', 'multimedia', 'wiskey', 'infra', 'tickets'] } });
     expect(await navTabs(page, info)).toEqual(['explore', 'devices', 'security', 'wiskey']);
     // another device: no local copy - the server's order applies
     await page.evaluate(() => localStorage.removeItem('sw.nav.order'));
@@ -711,6 +711,6 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(dlg.locator('li[data-tab]')).toHaveCount(3);
     await dlg.locator('li[data-tab="security"] [data-move="up"]').click();
     await dlg.locator('[data-nav-order-save]').click();
-    await expect.poll(() => mock.puts.at(-1)?.body).toEqual({ 'nav.order': ['wiskey', 'explore', 'security', 'devices', 'multimedia', 'infra'] });
+    await expect.poll(() => mock.puts.at(-1)?.body).toEqual({ 'nav.order': ['wiskey', 'explore', 'security', 'devices', 'multimedia', 'infra', 'tickets'] });
   });
 });
