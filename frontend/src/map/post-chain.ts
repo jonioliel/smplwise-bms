@@ -10,7 +10,7 @@
  * Levels 1-2 never load it. The bloom numbers follow the style and the night factor (look-style.bloomFor); the GTAO
  * blend is the style's. Thumbnails never go through it (a composer resize re-allocates GTAO's targets).
  */
-import { HalfFloatType, Vector2, WebGLRenderTarget, type Camera, type Scene, type WebGLRenderer } from './three-bundle';
+import { HalfFloatType, Vector2, WebGLRenderTarget, type Camera, type Plane, type Scene, type WebGLRenderer } from './three-bundle';
 import { EffectComposer, GTAOPass, OutputPass, RenderPass, SMAAPass, UnrealBloomPass } from './three-post';
 import { LOOK_STYLES, bloomFor, type StyleId } from './look-style';
 
@@ -86,6 +86,18 @@ export class PostChain {
     this.bloom.strength = b.strength;
     this.bloom.radius = b.radius;
     if (this.gtao) this.gtao.blendIntensity = LOOK_STYLES[style].post.aoBlend;
+  }
+
+  /** The section planes of the cut (null: nothing cut) on the GTAO normal / depth pass. ST7-odd: the pass renders the scene
+   * with its own MeshNormalMaterial, which knew nothing of the cut, so the occlusion of the full-height walls (their top
+   * corners, the camera body's corner) was composited over the sky above the cut walls as faint grey "wisps". */
+  setClip(planes: Plane[] | null): void {
+    if (this.gtao) this.gtao.normalMaterial.clippingPlanes = planes;
+  }
+
+  /** The planes the normal pass clips with (tests). */
+  get clip(): Plane[] | null {
+    return this.gtao?.normalMaterial.clippingPlanes ?? null;
   }
 
   draw(): void {

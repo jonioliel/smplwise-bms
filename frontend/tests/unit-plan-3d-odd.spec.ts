@@ -20,6 +20,8 @@ interface Probe {
   view: {
     scene: { traverse: (f: (o: Record<string, unknown>) => void) => void };
     realPending: number;
+    postPasses: string[];
+    postClip: number[] | null;
     getRealSettings: () => { rung: string; style: string; sectionCut: boolean };
     setRealSettings: (s: Record<string, unknown>) => void;
   };
@@ -74,6 +76,18 @@ async function showHouse(el: Locator, rung: 'lite' | 'realistic', level: string 
   return desc;
 }
 
+/** The style guide hands its own demo (description, cameras) back to the element whenever it re-renders (a realistic-change
+ * event, a level change): the house is handed again and waited for before a step that depends on it. */
+async function holdHouse(el: Locator, desc: SceneDescription): Promise<void> {
+  await el.evaluate((n, a) => {
+    const e = n as unknown as Probe;
+    e.cameras = [{ id: 'cam-hall', label: 'מצלמה · כניסה' }, { id: 'cam-living', label: 'מצלמה · סלון' }];
+    e.description = a.desc;
+  }, { desc });
+  await expect(el).toHaveAttribute('data-parts', String(desc.parts.length));
+  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 180_000 }).toBe(0);
+}
+
 /** The cone meshes of the graph: their clipping planes (constants) and whether two cones share one material. */
 const cones = (el: Locator) =>
   el.evaluate((n) => {
@@ -110,17 +124,30 @@ test('1+2: at level 3 the camera cones are cut by the section plane, like the wa
   await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: true }));
   expect((await cones(el)).map((x) => x.planes)).toEqual([[1.68], [1.68]]);
   // a camera preset never cuts
+  await holdHouse(el, desc);
   await el.locator('[data-preset-camera]').selectOption('cam-hall');
-  await expect.poll(() => el.getAttribute('data-preset')).not.toBe('iso');
+  await expect(el).toHaveAttribute('data-preset', 'camera');
   expect((await cones(el)).map((x) => x.planes)).toEqual([null, null]);
   await el.locator('[data-preset-top]').click();
   await expect(el).toHaveAttribute('data-preset', 'top');
   expect((await cones(el)).map((x) => x.planes)).toEqual([[1.68], [1.68]]);
+  // the realistic rung's GTAO normal / depth pass is cut with the walls too (the "wisps": the occlusion of the full-height
+  // walls composited over the sky), and lifted with them
+  await el.locator('[data-quality-3]').click();
+  await expect(el).toHaveAttribute('data-rung', 'realistic');
+  await holdHouse(el, desc);
+  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.postPasses), { timeout: 60000 }).toContain('gtao');
+  await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('[1.68]');
+  await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: false }));
+  await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('null');
+  await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: true }));
+  await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('[1.68]');
+  await el.locator('[data-quality-3-lite]').click();
+  await expect(el).toHaveAttribute('data-rung', 'lite');
   // levels 1-2 never clip (their pictures do not move)
   await el.locator('[data-quality-2]').click();
   await expect(el).toHaveAttribute('data-quality', '2');
-  await el.evaluate((n, d) => { (n as unknown as Probe).description = d; }, buildScene(houseInput({ level: 'L0', walk: false, realistic: false }))); // the style guide hands its own demo back on a level change
-  await expect(el).toHaveAttribute('data-parts', String(buildScene(houseInput({ level: 'L0', walk: false, realistic: false })).parts.length));
+  await holdHouse(el, buildScene(houseInput({ level: 'L0', walk: false, realistic: false })));
   c = await cones(el);
   expect(c.length).toBe(2);
   expect(c.every((x) => !x.planes || x.planes.length === 0)).toBe(true);

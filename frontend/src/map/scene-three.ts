@@ -336,6 +336,8 @@ export class SceneView {
    * (ST7-odd: a cone rises to the camera's mount height, above the cut, and showed as a translucent volume spilling past
    * the cut walls in the orbit views and as white wisps over the wall tops). */
   private cones: Mesh[] = [];
+  /** The section planes as last applied (null: nothing cut), handed to a post chain that arrives later. */
+  private cutPlanes: Plane[] | null = null;
   /** How many times the parts were realised (tests: a fade step must not add one). */
   private builds = 0;
   private smallGroups: Object3D[] = [];
@@ -764,6 +766,9 @@ export class SceneView {
     // the camera cones (level-2 illustrations kept at level 3) are cut with the walls: a cone stands from the floor to
     // the camera's mount height, above the cut, and would otherwise show as a ghost volume over and past the cut walls
     for (const c of this.cones) if (!Array.isArray(c.material)) c.material.clippingPlanes = on ? [this.clipPlane] : null;
+    // the GTAO normal / depth pass is cut too (ST7-odd: it drew the occlusion of the full-height walls over the sky)
+    this.cutPlanes = on ? [this.clipPlane] : null;
+    this.post?.setClip(this.cutPlanes);
     const caps = this.realBuilt?.caps;
     if (caps) for (const c of caps.children) c.visible = on && c.userData.level === top!.id && (!c.userData.edge || LOOK_STYLES[this.real.style].cut.edge !== null);
     this.renderer.shadowMap.needsUpdate = true;
@@ -846,6 +851,11 @@ export class SceneView {
     return this.post?.passes ?? [];
   }
 
+  /** The section plane constants the post chain's GTAO pass clips with (null: no chain, no GTAO or nothing cut; tests). */
+  get postClip(): number[] | null {
+    return this.post?.clip?.map((p) => Math.round(p.constant * 1000) / 1000) ?? null;
+  }
+
   /** The realistic graph's counters (the perf report). */
   get realStats(): RealBuilt['stats'] | null {
     return this.realBuilt?.stats ?? null;
@@ -866,6 +876,7 @@ export class SceneView {
         const h = this.opts.mount.clientHeight || 1;
         this.post = new PostChain(this.renderer, this.scene, this.active, rung, w, h, this.real.style);
         this.post.setLook(this.real.style, this.recipe.night);
+        this.post.setClip(this.cutPlanes); // the chain may arrive after the cut was applied
         this.postRung = rung;
       })
       .catch((err) => console.warn('sw-plan-3d: post chain failed to load, drawing without it', err))
