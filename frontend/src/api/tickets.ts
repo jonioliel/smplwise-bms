@@ -48,6 +48,45 @@ export interface TicketItem {
   closed_at: string | null;
   revision: number;
   view: 'full' | 'limited';
+  /** slice 3: a device's ticket */
+  entity_id?: string | null;
+}
+
+/** Slice 3 (section 12.3): one line of a device's 24 h history - no person name ever (the actor's type only, a name for an automation). */
+export interface HistoryItem {
+  at: string;
+  kind: string;
+  from: Record<string, string | number | boolean | null>;
+  to: Record<string, string | number | boolean | null>;
+  changed: string[];
+  actor: { type: string; name?: string };
+}
+export interface HistorySummary {
+  source: 'device_activity' | 'state_history' | 'none' | null;
+  window_hours: number;
+  window_from: string | null;
+  window_to: string | null;
+  count: number;
+  truncated: boolean;
+  withheld: string | null;
+  lines: HistoryItem[];
+}
+/** The frozen snapshot on a ticket's detail (internal content; present only when the viewer may read the device too). */
+export interface DeviceContext extends HistorySummary {
+  captured_at: string | null;
+  coverage: { from?: string | null; gaps?: { from: string; to: string }[]; availability?: string };
+  /** D3 / D23: whether it may EVER be shown to an outside handler (never for locks, alarm panels, covers, cameras) */
+  shareable: boolean;
+}
+/** GET tickets/by-entity/{entity_id} - the device window's tab. */
+export interface EntityTickets {
+  entity: { entity_id: string; name: string; domain: string; tracked: boolean };
+  items: TicketItem[];
+  open_count: number;
+  can_create: boolean;
+  place_text: string;
+  /** what a new ticket would carry (only with can_create) */
+  history: HistorySummary | null;
 }
 
 export interface TicketEvent {
@@ -115,6 +154,8 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   can: TicketCan;
   transitions: { to: TicketStatus; note_required: boolean }[];
   assignments: TicketAssignment[];
+  /** slice 3 */
+  device_context?: DeviceContext | null;
 }
 
 export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode }
@@ -134,7 +175,7 @@ export interface MetaDepartment {
   can_create: boolean;
   can_manage: boolean;
   open_to_all: boolean;
-  categories: { id: string; name: string; parent_id: string | null; default_priority_id: string | null }[];
+  categories: { id: string; name: string; parent_id: string | null; default_priority_id: string | null; domains?: string[] }[];
   priorities: { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean }[];
 }
 export interface Meta {
@@ -155,8 +196,10 @@ export interface CreateBody {
   assign_note?: string;
   assign_note_external?: boolean;
   client_request_id: string;
+  /** slice 3: a device's ticket - the server resolves the place and freezes the 24 h history */
+  entity_id?: string | null;
 }
-export type CreateAnswer = (TicketDetail | { id: string; number: number; view: 'none' }) & { result: 'created' | 'absorbed' };
+export type CreateAnswer = (TicketDetail | { id: string; number: number; view: 'none' }) & { result: 'created' | 'absorbed'; open_for_entity?: TicketItem[] };
 export interface PatchBody { title?: string; description?: string; category_id?: string | null; priority_id?: string; department_id?: string; revision: number }
 export interface StatusBody { to: TicketStatus; note?: string | null; duplicate_of?: string | null; revision: number }
 export interface AssignBody { assignee: { kind: 'user'; id: string }; note?: string | null; note_external?: boolean; revision: number }
@@ -196,7 +239,9 @@ export interface Holder {
     scope_type: string; scope_id: string; scope_name: string; effect: 'allow' | 'deny'; expires_at: string | null }[];
 }
 export interface HoldersResponse { users: Holder[]; grant_roles: string[] }
-export interface SettingsDoc { revision: number; ui: UiSettings }
+export interface SettingsDoc { revision: number; ui: UiSettings; device_long_press?: 'sheet' | 'menu' }
+/** Keys of the settings document outside `ui` (slice 3: D17). */
+export interface SettingsExtra { device_long_press?: 'sheet' | 'menu' }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;
@@ -215,7 +260,9 @@ export interface TicketsBackend {
   photoUrl(att: TicketAttachment): string;
   assignees(departmentId: string, ticketId?: string): Promise<{ users: Eligible[] }>;
   settings(): Promise<SettingsDoc>;
-  saveSettings(revision: number, ui: Partial<UiSettings>): Promise<SettingsDoc>;
+  saveSettings(revision: number, ui: Partial<UiSettings>, extra?: SettingsExtra): Promise<SettingsDoc>;
+  /** slice 3: the device window's tab */
+  byEntity(entityId: string): Promise<EntityTickets>;
   saveName(revision: number, names: Partial<NameEntries>): Promise<NameDoc>;
   departments(): Promise<{ departments: AdminDepartment[]; all_departments: boolean }>;
   createDepartment(body: DepartmentBody): Promise<AdminDepartment>;
@@ -263,7 +310,8 @@ const rest: TicketsBackend = {
   photoUrl: (att) => apiUrl(att.url),
   assignees: (departmentId, ticketId) => get<{ users: Eligible[] }>(`${T}/assignees${qs({ department_id: departmentId, ticket_id: ticketId })}`),
   settings: () => get<SettingsDoc>(`${T}/settings`),
-  saveSettings: (revision, ui) => put<SettingsDoc>(`${T}/settings`, { revision, ui }),
+  saveSettings: (revision, ui, extra = {}) => put<SettingsDoc>(`${T}/settings`, Object.keys(ui).length ? { revision, ui, ...extra } : { revision, ...extra }),
+  byEntity: (entityId) => get<EntityTickets>(`${T}/by-entity/${enc(entityId)}`),
   saveName: (revision, names) => put<NameDoc>(`${T}/name`, { revision, ...names }),
   departments: () => get<{ departments: AdminDepartment[]; all_departments: boolean }>(`${T}/admin/departments`),
   createDepartment: (body) => post<AdminDepartment>(`${T}/admin/departments`, body),

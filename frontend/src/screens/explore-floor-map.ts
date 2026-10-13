@@ -61,6 +61,11 @@ import { circuitAction } from '../map/circuit-action';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
 import { CONTROL_STATES, controlDescription, controlSceneInput } from '../map/skin-control';
 import { getFloorSkins, uploadControlImage } from '../api/skins';
+// CR-038 slice 3: the device card's "{tickets}" entry and the open-count chip (section 12.1; nothing while the module is off)
+import '../tickets/ticket-count-chip';
+import { openDeviceTickets } from '../tickets/ticket-count-chip';
+import { deviceTicketsOn } from '../tickets/device-entry';
+import { dt } from '../tickets/device-text';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
@@ -2409,7 +2414,7 @@ export class ExploreFloorMap extends LitElement {
     const renaming = this.renaming?.id === a.id ? this.renaming : null;
     return html`
       <div class="ecard" data-entity-card>
-        <div class="estate ${tone}"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span class="esub">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${floorName}</span></div>
+        <div class="estate ${tone}"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span class="esub">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${floorName}</span>${deviceTicketsOn() ? html`<ticket-count-chip entity-id=${e.entity_id}></ticket-count-chip>` : nothing}</div>
         ${a.label && e.name && a.label !== e.name ? html`<div class="note">שם מקורי: ${e.name}</div>` : nothing}
         ${this.notice ? html`<div class="note" data-notice>${this.notice}</div>` : nothing}
         ${renaming
@@ -2424,6 +2429,7 @@ export class ExploreFloorMap extends LitElement {
             <dt>נראה לאחרונה</dt><dd>${fmtTime(e.state_seen_at)}</dd>
             <dt>ID</dt><dd><span class="ltr">${e.entity_id}</span></dd>
           </dl>
+          ${deviceTicketsOn() ? html`<sw-button size="sm" variant="ghost" icon="list" data-map-tickets @click=${(ev: Event) => openDeviceTickets(e.entity_id, entityName(a), stateLabel(e), ev.currentTarget as HTMLElement)}>${dt('mapAction')}</sw-button>` : nothing}
         </details>
       </div>
       ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'ההתקן אינו זמין.' : 'הסנכרון מול תשתית המערכת מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}

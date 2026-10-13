@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { ifDefined } from 'lit/directives/if-defined.js';
 import './sw-sheet';
 import './sw-icon';
 import './sw-button';
@@ -19,7 +20,14 @@ import { runCommand } from '../api/device-commands';
 import { DeviceControls, deviceControlStyles } from '../screens/devices-controls';
 import { ApiError } from '../api/client';
 import { can } from '../api/session';
-import { OPEN_EVENT, type ActivityOpen, type ActivityTarget } from './device-activity-press';
+import { OPEN_EVENT, type ActivityOpen, type ActivityTab, type ActivityTarget } from './device-activity-press';
+import '../tickets/device-tickets-tab';
+import '../tickets/ticket-create';
+import type { TabStatus } from '../tickets/device-tickets-tab';
+import { ticketsApi, type EntityTickets, type Meta, type NewTicketMode } from '../api/tickets';
+import { dt } from '../tickets/device-text';
+import { deviceTicketsOn, longPressMode, menuItems, sheetTabs, type MenuItem } from '../tickets/device-entry';
+import { onTicketNames } from '../tickets/naming';
 import {
   ACTOR_FILTERS, DEFAULT_FILTERS, EVENT_FILTERS, KIND_ICON, PERIODS, PERIOD_LABEL, VIEW_KEY, activeFilterCount, actorView, clockOf, describeEvent, eventTone, footnote, fullDate, gapText,
   groupByDay, isFiltered, parseView, queryOf, trackedSince, type ActivityView, type Filters, type Period,
@@ -29,7 +37,7 @@ import {
   powerActions, stateKey, type CardAction, type CardKind,
 } from './device-card-logic';
 
-type Tab = 'activity' | 'schedules';
+type Tab = ActivityTab;
 
 function readView(): ActivityView {
   try {
@@ -89,6 +97,17 @@ export class DeviceActivity extends LitElement {
   @state() private holding = false;
   @state() private timerBusy = false;
   @state() private timerNote = '';
+  // CR-038 slice 3: the "{tickets}" tab (last), the D17 menu and the create sheet over the window
+  @state() private menuSource: 'press' | 'context' = 'context';
+  @state() private tdata: EntityTickets | null = null;
+  @state() private tstatus: TabStatus = 'loading';
+  @state() private creating = false;
+  @state() private meta: Meta | null = null;
+  @state() private newMode: NewTicketMode = 'sheet';
+  @state() private ticketsOn = false;
+  private openDevice: (() => void) | undefined;
+  private ticketsToken = 0;
+  private offNames: (() => void) | null = null;
 
   private opener: HTMLElement | null = null;
   private token = 0;
@@ -101,10 +120,12 @@ export class DeviceActivity extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener(OPEN_EVENT, this.onOpen as EventListener);
+    this.offNames = onTicketNames(() => this.requestUpdate());
   }
 
   disconnectedCallback() {
     window.removeEventListener(OPEN_EVENT, this.onOpen as EventListener);
+    this.offNames?.();
     super.disconnectedCallback();
   }
 
@@ -113,17 +134,47 @@ export class DeviceActivity extends LitElement {
     this.opener = d.opener ?? null;
     this.target = d.target;
     this.area = d.area ?? '';
+    this.ticketsOn = deviceTicketsOn();
+    this.openDevice = d.openDevice;
     if (d.menu) {
+      this.menuSource = d.source ?? 'context';
       this.menu = d.menu;
       this.open = false;
+      this.tdata = null;
+      if (this.ticketsOn) void this.loadTickets(); // the menu's "the device's {tickets}" shows the open count
       return;
     }
-    this.openPopup(d.tab);
+    this.tdata = null;
+    this.openPopup(d.tab, d.create);
   };
 
-  private openPopup(tab: Tab) {
+  private get tracked(): boolean {
+    return this.target?.tracked !== false;
+  }
+
+  /** The window's tabs (section 12.1): today's two for a tracked device, "{tickets}" last while the entry exists. */
+  private tabs(): Tab[] {
+    return sheetTabs({ tracked: this.tracked, on: this.ticketsOn });
+  }
+
+  private openPopup(tab: Tab, create = false) {
+    const tabs = this.tabs();
+    if (!tabs.length) return;
+    if (!tabs.includes(tab)) tab = tabs[0];
     this.menu = null;
     this.tab = tab;
+    this.creating = false;
+    if (this.ticketsOn) {
+      if (!this.tdata || this.tdata.entity.entity_id !== this.target?.id) void this.loadTickets();
+      if (create) void this.startCreate();
+    } else {
+      this.tdata = null;
+    }
+    if (!this.tracked) {
+      this.open = true;
+      this.editing = null;
+      return;
+    }
     this.filters = { ...DEFAULT_FILTERS };
     this.feed = [];
     this.page = null;
@@ -144,10 +195,77 @@ export class DeviceActivity extends LitElement {
     this.token++;
     this.schedToken++;
     this.rowToken++;
+    this.ticketsToken++;
+    this.creating = false;
     this.cancelHold();
     const back = this.opener;
     this.opener = null;
     if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+  }
+
+  // ---------------------------------------------------------------------------------------------- CR-038 slice 3: the "{tickets}" tab
+
+  /** GET tickets/by-entity: the tab's list, the open count (tab badge, menu) and what a new ticket would carry. */
+  private async loadTickets() {
+    const target = this.target;
+    if (!target) return;
+    const mine = ++this.ticketsToken;
+    this.tstatus = 'loading';
+    try {
+      const d = await ticketsApi().byEntity(target.id);
+      if (mine !== this.ticketsToken) return;
+      this.tdata = d;
+      this.tstatus = 'ready';
+    } catch (e) {
+      if (mine !== this.ticketsToken) return;
+      this.tdata = null;
+      this.tstatus = e instanceof ApiError && (e.status === 404 || e.status === 403) ? 'no_device' : 'error';
+    }
+  }
+
+  /** "Open a {ticket}" (the tab's button or the menu item): the create form over the window, with the device (D22 decides sheet / dialog). */
+  private async startCreate() {
+    this.creating = true;
+    if (this.meta) return;
+    try {
+      const [meta, mod] = await Promise.all([ticketsApi().meta(), ticketsApi().module().catch(() => null)]);
+      this.meta = meta;
+      if (mod) this.newMode = mod.ui.new_ticket;
+    } catch {
+      this.meta = { departments: [], can: { view: false, create: false, manage: false, all_departments: false, external: false, configure: false } };
+    }
+  }
+
+  private onCreated = () => {
+    this.creating = false;
+    this.meta = null; // the departments a user may open in can change between two openings
+    this.tab = 'tickets';
+    void this.loadTickets();
+  };
+
+  private onCreateClosed = () => {
+    this.creating = false;
+  };
+
+  private renderCreate() {
+    const tg = this.target;
+    if (!this.creating || !tg) return nothing;
+    return html`<ticket-create .open=${true} .meta=${this.meta} mode=${this.newMode} data-device-create
+      .device=${{ id: tg.id, name: tg.name, data: this.tdata }} @created=${this.onCreated} @close=${this.onCreateClosed}></ticket-create>`;
+  }
+
+  private menuAction(item: MenuItem) {
+    const tg = this.target;
+    if (!tg) return;
+    if (item === 'device') {
+      const run = this.openDevice;
+      this.menu = null;
+      run?.();
+      return;
+    }
+    if (item === 'ticket_new') return this.openPopup('tickets', true);
+    if (item === 'tickets') return this.openPopup('tickets');
+    this.openPopup(item);
   }
 
   // ---------------------------------------------------------------------------------------------- data
@@ -236,18 +354,42 @@ export class DeviceActivity extends LitElement {
 
   render() {
     const tg = this.target;
-    return html`${this.renderMenu()}${tg ? this.renderPopup(tg) : nothing}${this.renderEditor()}`;
+    return html`${this.renderMenu()}${tg ? this.renderPopup(tg) : nothing}${this.renderEditor()}${this.renderCreate()}`;
   }
 
+  /** The menu of a right click / the menu key (and, CR-038 D17 mode "menu", of the long press): today's activity items, then - with the
+   * tickets module - "open a {ticket}" and the device's list. Opaque (--sw-menu-surface in every skin), keyboard-operable, Escape / an
+   * outside tap close it. */
   private renderMenu() {
     const m = this.menu;
-    if (!m) return nothing;
-    const x = Math.min(Math.max(8, m.x), Math.max(8, window.innerWidth - 188));
-    const y = Math.min(Math.max(8, m.y), Math.max(8, window.innerHeight - 100));
+    const tg = this.target;
+    if (!m || !tg) return nothing;
+    const items = menuItems({ tracked: this.tracked, on: this.ticketsOn, mode: longPressMode(), source: this.menuSource, canOpenDevice: !!this.openDevice });
+    if (!items.length) return nothing;
+    const rows = items.length + (items.some((i) => i === 'ticket_new' || i === 'tickets') && items.some((i) => i === 'activity' || i === 'device') ? 1 : 0);
+    const x = Math.min(Math.max(8, m.x), Math.max(8, window.innerWidth - 228));
+    const y = Math.min(Math.max(8, m.y), Math.max(8, window.innerHeight - 16 - rows * 46));
+    const n = this.tdata?.open_count;
+    const menuMode = this.ticketsOn && longPressMode() === 'menu';
+    const go = (item: MenuItem) => () => this.menuAction(item);
+    let ticketsStarted = false;
     return html`<div class="scrim" data-activity-menu-scrim @pointerdown=${() => (this.menu = null)} @contextmenu=${(e: Event) => { e.preventDefault(); this.menu = null; }}></div>
-      <div class="menu" role="menu" aria-label=${t('deviceActivity.menuLabel')} style=${`inset-inline-start:auto;left:${x}px;top:${y}px`} data-activity-menu @keydown=${this.onMenuKey}>
-        <button type="button" role="menuitem" data-activity-menu-activity @click=${() => this.openPopup('activity')}><sw-icon name="history" size=${16}></sw-icon>${t('deviceActivity.menuActivity')}</button>
-        <button type="button" role="menuitem" data-activity-menu-schedules @click=${() => this.openPopup('schedules')}><sw-icon name="calendar" size=${16}></sw-icon>${t('deviceActivity.menuSchedules')}</button>
+      <div class="menu" role="menu" aria-label=${this.ticketsOn ? dt('menuLabel') : t('deviceActivity.menuLabel')} style=${`inset-inline-start:auto;left:${x}px;top:${y}px`} data-activity-menu data-menu-source=${this.menuSource} @keydown=${this.onMenuKey}>
+        ${items.map((item) => {
+          const ticketItem = item === 'ticket_new' || item === 'tickets';
+          const sep = ticketItem && !ticketsStarted && items[0] !== item;
+          if (ticketItem) ticketsStarted = true;
+          const row = item === 'device'
+            ? html`<button type="button" role="menuitem" data-activity-menu-device @click=${go(item)}><sw-icon name="expand" size=${16}></sw-icon><span class="ml">${dt('menuDevice')}</span></button>`
+            : item === 'activity'
+              ? html`<button type="button" role="menuitem" data-activity-menu-activity @click=${go(item)}><sw-icon name="history" size=${16}></sw-icon><span class="ml">${menuMode ? dt('menuHistory') : t('deviceActivity.menuActivity')}</span></button>`
+              : item === 'schedules'
+                ? html`<button type="button" role="menuitem" data-activity-menu-schedules @click=${go(item)}><sw-icon name="calendar" size=${16}></sw-icon><span class="ml">${t('deviceActivity.menuSchedules')}</span></button>`
+                : item === 'ticket_new'
+                  ? html`<button type="button" role="menuitem" data-activity-menu-ticket-new @click=${go(item)}><sw-icon name="ticket" size=${16}></sw-icon><span class="ml">${dt('menuNew')}</span></button>`
+                  : html`<button type="button" role="menuitem" data-activity-menu-tickets @click=${go(item)}><sw-icon name="list" size=${16}></sw-icon><span class="ml">${dt('menuList')}</span>${n ? html`<span class="mc" data-menu-count>${n}</span>` : nothing}</button>`;
+          return sep ? html`<hr aria-hidden="true" />${row}` : row;
+        })}
       </div>`;
   }
 
@@ -272,7 +414,8 @@ export class DeviceActivity extends LitElement {
   private renderPopup(tg: ActivityTarget) {
     const card = cardKindOf(tg.kind);
     const on = card ? isOnState(card, this.row?.state ?? null) || (!this.row && !!tg.state && !/כבוי|סגור|לא זמין/.test(tg.state)) : !!tg.state && !/כבוי|סגור|לא זמין/.test(tg.state);
-    return html`<sw-sheet ?open=${this.open && !this.editing} heading=${`${t('deviceActivity.popupLabel')}: ${tg.name}`} data-device-activity style="--sw-sheet-w:430px" @close=${() => this.closePopup()}>
+    const tabs = this.tabs();
+    return html`<sw-sheet ?open=${this.open && !this.editing && !this.creating} heading=${`${t('deviceActivity.popupLabel')}: ${tg.name}`} data-device-activity style="--sw-sheet-w:430px" @close=${() => this.closePopup()}>
       <div slot="head" class="ph ${on ? '' : 'off'}">
         <span class="ic"><sw-icon name=${KIND_ICON[tg.kind] as IconName} size=${18}></sw-icon></span>
         <div class="tt"><h3>${bidi(tg.name)}</h3><div class="sub">${card
@@ -280,14 +423,32 @@ export class DeviceActivity extends LitElement {
           : html`${this.area ? html`${bidi(this.area)} · ` : nothing}<span data-activity-state>${tg.state}</span>${this.powerText()}`}</div></div>
       </div>
       ${card ? this.renderCard(card, tg) : nothing}
-      <div class="segt" role="tablist" aria-label=${t('deviceActivity.tabs')}>
-        ${(['activity', 'schedules'] as Tab[]).map(
+      ${tabs.length > 1 ? html`<div class="segt" role="tablist" aria-label=${t('deviceActivity.tabs')}>
+        ${tabs.map(
           (id) => html`<button type="button" role="tab" id=${`da-tab-${id}`} aria-selected=${String(this.tab === id)} aria-controls="da-panel" tabindex=${this.tab === id ? 0 : -1}
-            class=${this.tab === id ? 'on' : ''} data-tab=${id} @click=${() => (this.tab = id)} @keydown=${this.onTabKey}>${id === 'activity' ? t('deviceActivity.tabActivity') : t('deviceActivity.tabSchedules')}${id === 'schedules' && this.schedStatus === 'ready' && this.sched.length ? html`<span class="cnt">${this.sched.length}</span>` : nothing}</button>`,
+            class=${this.tab === id ? 'on' : ''} data-tab=${id} @click=${() => (this.tab = id)} @keydown=${this.onTabKey}>${this.tabLabel(id)}${this.tabCount(id)}</button>`,
         )}
-      </div>
-      <div id="da-panel" class="pbody" role="tabpanel" aria-labelledby=${`da-tab-${this.tab}`}>${this.tab === 'activity' ? this.renderActivity(tg) : this.renderSchedules()}</div>
+      </div>` : nothing}
+      <div id="da-panel" class="pbody" role=${tabs.length > 1 ? 'tabpanel' : 'region'} aria-labelledby=${ifDefined(tabs.length > 1 ? `da-tab-${this.tab}` : undefined)} aria-label=${ifDefined(tabs.length > 1 ? undefined : dt('tab'))} data-panel=${this.tab}>${this.renderPanel(tg)}</div>
     </sw-sheet>`;
+  }
+
+  private tabLabel(id: Tab): string {
+    return id === 'activity' ? t('deviceActivity.tabActivity') : id === 'schedules' ? t('deviceActivity.tabSchedules') : dt('tab');
+  }
+
+  private tabCount(id: Tab) {
+    if (id === 'schedules' && this.schedStatus === 'ready' && this.sched.length) return html`<span class="cnt">${this.sched.length}</span>`;
+    if (id === 'tickets' && this.tstatus === 'ready' && this.tdata?.open_count) return html`<span class="cnt" data-tickets-count>${this.tdata.open_count}</span>`;
+    return nothing;
+  }
+
+  private renderPanel(tg: ActivityTarget) {
+    if (this.tab === 'tickets') {
+      return html`<device-tickets-tab .data=${this.tdata} status=${this.tstatus} @create=${() => void this.startCreate()} @retry=${() => void this.loadTickets()}
+        @leave=${() => this.closePopup()}></device-tickets-tab>`;
+    }
+    return this.tab === 'activity' ? this.renderActivity(tg) : this.renderSchedules();
   }
 
   /** An outlet's current power, only when the server linked a power sensor of the same device. */
@@ -297,10 +458,14 @@ export class DeviceActivity extends LitElement {
   }
 
   private onTabKey = (e: KeyboardEvent) => {
+    // the computed tab list (CR-038: "{tickets}" last); in RTL the left arrow moves forward, the right one back
+    const tabs = this.tabs();
+    const i = Math.max(0, tabs.indexOf(this.tab));
     let next: Tab | null = null;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') next = this.tab === 'activity' ? 'schedules' : 'activity';
-    else if (e.key === 'Home') next = 'activity';
-    else if (e.key === 'End') next = 'schedules';
+    if (e.key === 'ArrowLeft') next = tabs[(i + 1) % tabs.length];
+    else if (e.key === 'ArrowRight') next = tabs[(i - 1 + tabs.length) % tabs.length];
+    else if (e.key === 'Home') next = tabs[0];
+    else if (e.key === 'End') next = tabs[tabs.length - 1];
     if (!next) return;
     e.preventDefault();
     this.tab = next;
@@ -704,7 +869,7 @@ export class DeviceActivity extends LitElement {
     .skels.tight { padding: 0; }
     .scrim { position: fixed; inset: 0; z-index: calc(var(--sw-z-modal) + 1); }
     .menu {
-      position: fixed; z-index: calc(var(--sw-z-modal) + 2); min-inline-size: 176px; padding: var(--sw-s-1);
+      position: fixed; z-index: calc(var(--sw-z-modal) + 2); min-inline-size: 176px; max-inline-size: calc(100vw - 16px); padding: var(--sw-s-1);
       background: var(--sw-menu-surface); color: var(--sw-text); border: 1px solid var(--sw-menu-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-3);
       display: grid; gap: 2px;
     }
@@ -714,6 +879,10 @@ export class DeviceActivity extends LitElement {
     }
     .menu button:hover, .menu button:focus-visible { background: var(--sw-accent-soft); color: var(--sw-accent-text); outline: none; }
     .menu button:focus-visible { box-shadow: 0 0 0 2px var(--sw-focus); }
+    /* CR-038 D17: the ticket items under a divider, the device's open count at the end of its row */
+    .menu hr { border: 0; border-block-start: 1px solid var(--sw-menu-border); margin: var(--sw-s-1) var(--sw-s-2); }
+    .menu .ml { flex: 1; }
+    .menu .mc { min-inline-size: 20px; padding-inline: 6px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-xs); text-align: center; font-variant-numeric: tabular-nums; }
 
     .ph { display: flex; align-items: center; gap: var(--sw-s-3); min-inline-size: 0; flex: 1; }
     .ic { display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent-soft); color: var(--sw-accent-text); flex: none; }

@@ -14,6 +14,7 @@ import { tt } from './text';
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
+import { deviceBlock, deviceBlockStyles, type DeviceRef } from './ticket-device-context';
 
 /**
  * CR-038 `<ticket-create .open .meta mode="sheet|dialog">`: the create form (D22: a side sheet - the automation builder's 620 px sheet - or a
@@ -32,6 +33,9 @@ export class TicketCreate extends LitElement {
   @property() scope: TicketsRoute['scope'] = 'mine';
   /** D18: where a similar ticket opens */
   @property() detailMode: 'drawer' | 'fullscreen' | 'drawer_fullscreen' = 'drawer_fullscreen';
+  /** CR-038 slice 3: a ticket opened from a device (the device window): the device, its place, its open tickets first (the duplicate hint),
+   * what history will be attached, the category preselected by the device's domain; the server resolves the place itself. */
+  @property({ attribute: false }) device: DeviceRef | null = null;
   @state() private dept = '';
   @state() private category = '';
   @state() private priority = '';
@@ -50,7 +54,7 @@ export class TicketCreate extends LitElement {
   private offNames: (() => void) | null = null;
   private previews = new Map<File, string>();
 
-  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, deviceBlockStyles, css`
     sw-drawer {
       --sw-drawer-modal-w: 620px;
     }
@@ -111,6 +115,9 @@ export class TicketCreate extends LitElement {
     const d = this.meta?.departments.find((x) => x.id === id);
     this.category = '';
     this.priority = d?.priorities.find((p) => p.is_default)?.id ?? d?.priorities[0]?.id ?? '';
+    const domain = this.device?.id.split('.')[0];
+    const byDomain = domain ? d?.categories.find((c) => c.domains?.includes(domain)) : undefined;
+    if (byDomain) this.pickCategory(byDomain.id);
     this.assignTo = '';
     this.eligible = null;
     if (d?.can_manage) void ticketsApi().assignees(id).then((r) => { if (this.dept === id) this.eligible = r.users; }).catch(() => (this.eligible = []));
@@ -169,6 +176,7 @@ export class TicketCreate extends LitElement {
       const answer = await ticketsApi().create({
         department_id: this.dept, category_id: this.category || null, priority_id: this.priority || null, title: this.ttl.trim(),
         description: this.description.trim(), assign: this.assignTo ? { kind: 'user', id: this.assignTo } : null, client_request_id: this.requestId,
+        ...(this.device ? { entity_id: this.device.id } : {}),
       });
       let ticket: TicketDetail | null = 'events' in answer ? (answer as TicketDetail) : null;
       let failed = 0;
@@ -204,6 +212,7 @@ export class TicketCreate extends LitElement {
     if (!depts.length) return html`<div class="statebox glass" role="status" data-create-state="no-department"><span class="ring">${tIcon('ticket')}</span><b>${tt('createNoDepartment')}</b></div>`;
     const titleMissing = this.tried && !this.ttl.trim();
     return html`<div class="form" data-create-form>
+      ${this.device ? deviceBlock(this.device, (id) => this.hrefOf(id)) : nothing}
       <div class="two">
         <label class="fld"><span>${tt('fDepartment')}</span>
           <select class="inp" data-create-department @change=${(e: Event) => this.pickDepartment((e.target as HTMLSelectElement).value)}>${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === this.dept}>${x.name}</option>`)}</select></label>

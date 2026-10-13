@@ -22,6 +22,8 @@ import {
 } from '../api/tickets';
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
 import { tt, type TicketTextKey } from '../tickets/text';
+import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
+import { setLongPressMode } from '../tickets/device-entry';
 
 type Tab = 'general' | 'departments' | 'permissions';
 /** The unsaved inputs of one department card. */
@@ -390,6 +392,28 @@ export class SystemTickets extends LitElement {
     }
   }
 
+  /** CR-038 slice 3, D17: what a long press on a device opens - the device window (default) or the short opaque menu. */
+  private longPressRow(): TemplateResult {
+    const cur = this.doc?.device_long_press ?? 'sheet';
+    return html`<div class="row" data-long-press><span class="lbl">${dt('setLongPress')}<span class="muted">${dt('setLongPressSub')}</span></span>
+      <span class="seg" role="radiogroup" aria-label=${dt('setLongPress')}>${(['sheet', 'menu'] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)} data-long-press-mode=${v} ?disabled=${this.busy} @click=${() => void this.saveLongPress(v)}>${dt(`lp_${v}`)}</button>`)}</span></div>`;
+  }
+
+  private async saveLongPress(mode: 'sheet' | 'menu'): Promise<void> {
+    if (!this.doc || this.busy || this.doc.device_long_press === mode) return;
+    this.busy = true;
+    try {
+      this.doc = await ticketsApi().saveSettings(this.doc.revision, {}, { device_long_press: mode });
+      setLongPressMode(this.doc.device_long_press ?? mode); // this tab follows at once; everyone else with their next /me
+      this.say(tt('setSaved'));
+    } catch (e) {
+      this.fail(e);
+      if (e instanceof ApiError && e.status === 409) this.doc = await ticketsApi().settings().catch(() => this.doc);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private nameRow(lang: TicketLang): TemplateResult {
     const e = this.draft?.[lang] ?? DEFAULT_TICKET_NAMES[lang];
     const editable = !isApi() || can('tickets.configure');
@@ -429,6 +453,7 @@ export class SystemTickets extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.detail === v)} aria-checked=${String(this.doc?.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveUi({ detail: v })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
         <div class="row"><span class="lbl">${tt('setNewTicket')}<span class="muted">${tt('setNewTicketSub')}</span></span>
           <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveUi({ new_ticket: v })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
+        ${this.longPressRow()}
       </sw-card>` : nothing}
     </div>`;
   }

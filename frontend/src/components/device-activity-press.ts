@@ -11,6 +11,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ActivityKind } from '../api/device-activity';
 import { canAnywhere } from '../api/session';
+import { deviceTicketsOn, directTab, longPressMode, pressPlan } from '../tickets/device-entry';
 
 export const LONG_PRESS_MS = 500;
 export const MOVE_SLOP_PX = 8;
@@ -23,23 +24,39 @@ export interface ActivityTarget {
   name: string;
   /** The tile's own state text ("דלוק 60%"). */
   state: string;
+  /** CR-038 slice 3: false for a catalogued device the server does NOT track (no activity / schedules tabs: the tickets tab only).
+   * Absent = tracked (every tag written before slice 3). */
+  tracked?: boolean;
 }
+
+export type ActivityTab = 'activity' | 'schedules' | 'tickets';
 
 export interface ActivityOpen {
   target: ActivityTarget;
   area?: string;
-  tab: 'activity' | 'schedules';
-  /** When set the popup is not opened: a two-item menu is shown at this point instead. */
+  tab: ActivityTab;
+  /** When set the popup is not opened: the menu is shown at this point instead. */
   menu?: { x: number; y: number };
+  /** CR-038 D17: the menu was opened by a long press (mode "menu") rather than by a right click / the menu key. */
+  source?: 'press' | 'context';
+  /** CR-038 slice 3: the tickets tab opens with the create form ("open a ticket" from the menu). */
+  create?: boolean;
+  /** CR-038 D17 "open the device": the host's own "open" tap action (a plain row pill), when it has one. */
+  openDevice?: () => void;
   /** The element to give focus back to. */
   opener?: HTMLElement | null;
 }
 
-/** The value of a tile's `data-activity` attribute, or `nothing`-like undefined when the server did not flag the entity. */
-export function activityTag(r: { entity_id: string; name: string; activity?: boolean; activity_kind?: ActivityKind | null; activity_permissions?: string[] }, state = '', held: (p: string) => boolean = canAnywhere): string | undefined {
-  if (!r.activity) return undefined;
-  // a lock / alarm panel: the server names the permissions that operate it; none held = no entry (the route would answer 403)
+/** The value of a tile's `data-activity` attribute, or `nothing`-like undefined when the tile has no long press. A tracked device (the
+ * server's `activity` flag) as before; CR-038 slice 3: with the tickets module on (and tickets.view + devices.read) EVERY catalogued row
+ * gets one too, marked `tracked: false` (its window has the tickets tab only - tickets/device-entry.ts). */
+export function activityTag(r: { entity_id: string; name: string; activity?: boolean; activity_kind?: ActivityKind | null; activity_permissions?: string[] }, state = '', held: (p: string) => boolean = canAnywhere, ticketsOn: boolean = deviceTicketsOn(held)): string | undefined {
+  // a lock / alarm panel: the server names the permissions that operate it; none held = no entry (the routes would answer 403 / 404)
   if (r.activity_permissions?.length && !r.activity_permissions.some(held)) return undefined;
+  if (!r.activity) {
+    if (!ticketsOn) return undefined;
+    return JSON.stringify({ id: r.entity_id, kind: 'generic', name: r.name, state, tracked: false } satisfies ActivityTarget);
+  }
   const t: ActivityTarget = { id: r.entity_id, kind: r.activity_kind ?? 'generic', name: r.name, state };
   return JSON.stringify(t);
 }
@@ -48,10 +65,19 @@ export function parseTag(raw: string | null | undefined): ActivityTarget | null 
   if (!raw) return null;
   try {
     const t = JSON.parse(raw) as Partial<ActivityTarget>;
-    return t.id ? { id: t.id, kind: t.kind ?? 'generic', name: t.name ?? '', state: t.state ?? '' } : null;
+    if (!t.id) return null;
+    const out: ActivityTarget = { id: t.id, kind: t.kind ?? 'generic', name: t.name ?? '', state: t.state ?? '' };
+    if (t.tracked === false) out.tracked = false;
+    return out;
   } catch {
     return null;
   }
+}
+
+/** CR-038 D17: a host row whose tap OPENS something (a plain row pill fires `activate`) - "open the device" replays that; a toggle never. */
+export function opensOnTap(el: { tagName?: string; getAttribute?: (n: string) => string | null } | null | undefined): boolean {
+  if (!el || (el.tagName ?? '').toLowerCase() !== 'sw-pill') return false;
+  return (el.getAttribute?.('variant') ?? 'plain') === 'plain';
 }
 
 /** True when the pointer has moved past the slop. */
@@ -192,7 +218,25 @@ export class ActivityPress implements ReactiveController {
     }
     this.endRing(true);
     this.start = null;
-    this.emit({ target: s.target, tab: 'activity', opener: s.el });
+    // CR-038 D17: the long press follows the installation's setting (tickets/device-entry.ts pressPlan - the matrix of section 12.1)
+    const plan = pressPlan({ tracked: s.target.tracked !== false, on: deviceTicketsOn(), mode: longPressMode() });
+    if (!plan) return;
+    if (plan.kind === 'menu') {
+      const r = s.el.getBoundingClientRect();
+      const menu = s.type === 'mouse' ? { x: s.x, y: s.y } : { x: Math.min(s.x, r.right), y: Math.min(s.y + 8, r.bottom) };
+      this.emit({ target: s.target, tab: 'activity', menu, source: 'press', openDevice: this.opener(s.el), opener: s.el });
+      return;
+    }
+    this.emit({ target: s.target, tab: plan.tab, opener: s.el });
+  }
+
+  /** "Open the device" (D17): the host's own "open" action of a plain row pill, replayed without the long press's click guard. */
+  private opener(el: HTMLElement): (() => void) | undefined {
+    if (!opensOnTap(el)) return undefined;
+    return () => {
+      this.swallowUntil = 0;
+      el.dispatchEvent(new CustomEvent('activate', { bubbles: true, composed: true }));
+    };
   }
 
   private cancel() {
@@ -248,15 +292,17 @@ export class ActivityPress implements ReactiveController {
     const r = hit.el.getBoundingClientRect();
     const menu = keyboard ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: e.clientX, y: e.clientY };
     this.lastType = 'mouse';
-    this.emit({ target: hit.target, tab: 'activity', menu, opener: hit.el });
+    this.emit({ target: hit.target, tab: 'activity', menu, source: 'context', openDevice: this.opener(hit.el), opener: hit.el });
   };
 
   private key = (e: KeyboardEvent) => {
     if (e.key !== 'Enter' || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const hit = this.find(e, true);
     if (!hit) return;
+    const tab = directTab({ tracked: hit.target.tracked !== false, on: deviceTicketsOn() });
+    if (!tab) return;
     e.preventDefault();
     e.stopPropagation();
-    this.emit({ target: hit.target, tab: 'activity', opener: hit.el });
+    this.emit({ target: hit.target, tab, opener: hit.el });
   };
 }

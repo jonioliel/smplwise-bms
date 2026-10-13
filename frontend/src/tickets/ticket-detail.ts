@@ -18,6 +18,7 @@ import { tt } from './text';
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
+import { deviceBlockStyles, historySection } from './ticket-device-context'; // CR-038 slice 3: the frozen device history
 
 interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
 
@@ -73,7 +74,7 @@ export class TicketDetailView extends LitElement {
   private flashTimer = 0;
   private offNames: (() => void) | null = null;
 
-  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, deviceBlockStyles, css`
     sw-drawer {
       --sw-drawer-modal-w: 480px;
     }
@@ -581,6 +582,7 @@ export class TicketDetailView extends LitElement {
       ${this.statusSection(t)}
       ${this.assigneeSection(t)}
       ${this.photosSection(t)}
+      ${historySection(t.device_context)}
       ${this.timelineSection(t)}
     </div>`;
   }
@@ -625,7 +627,7 @@ export class TicketDetailView extends LitElement {
       ${this.flashRow()}
       <div class="cols">
         <div class="stack">${this.sentence(t)}${this.statusSection(t)}<div class="glass card">${this.timelineSection(t)}</div></div>
-        <div class="stack">${this.assigneeSection(t)}${this.photosSection(t)}</div>
+        <div class="stack">${this.assigneeSection(t)}${this.photosSection(t)}${historySection(t.device_context)}</div>
       </div>
       ${this.dialogs()}
     </div>`;

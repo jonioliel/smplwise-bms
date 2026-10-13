@@ -4,7 +4,7 @@
  * table (services/tickets/model.py STATUS_MOVES) in a simplified form. Nothing here is a security rule - the server decides.
  */
 import type {
-  AdminDepartment, AssignBody, CreateAnswer, CreateBody, DepartmentBody, Eligible, HoldersResponse, ListPage, ListQuery, Meta, ModuleState,
+  AdminDepartment, AssignBody, CreateAnswer, CreateBody, DepartmentBody, Eligible, EntityTickets, HistorySummary, HoldersResponse, ListPage, ListQuery, Meta, ModuleState,
   NameDoc, NameEntries, PatchBody, ReturnAnswer, ReturnBody, SettingsDoc, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
 } from './tickets';
 import { DEFAULT_TICKET_NAMES } from '../tickets/naming';
@@ -71,6 +71,20 @@ const departments: AdminDepartment[] = [
 
 let ui: UiSettings = { detail: 'drawer_fullscreen', new_ticket: 'sheet' };
 let settingsRevision = 0;
+let longPress: 'sheet' | 'menu' = 'sheet';
+const FINAL_STATUSES: TicketStatus[] = ['closed', 'cancelled'];
+const TRACKED = ['light', 'switch', 'input_boolean', 'climate', 'fan', 'humidifier', 'cover', 'water_heater', 'valve', 'vacuum', 'lock', 'alarm_control_panel'];
+
+/** Slice 3: the demo's 24 h history preview - a schedule and an automation, never a person's name. */
+function demoHistory(): HistorySummary {
+  const at = (h: number) => new Date(Date.now() - h * HOUR).toISOString().replace(/\.\d+Z$/, 'Z');
+  const lines = [
+    { at: at(0.5), kind: 'power', from: { state: 'cool' }, to: { state: 'off' }, changed: ['state'], actor: { type: 'person' } },
+    { at: at(3), kind: 'value', from: { state: 'cool', temperature: 24 }, to: { state: 'cool', temperature: 22 }, changed: ['temperature'], actor: { type: 'schedule', name: 'קירור בוקר' } },
+    { at: at(9), kind: 'power', from: { state: 'off' }, to: { state: 'cool' }, changed: ['state'], actor: { type: 'automation', name: 'הפעלה לפני הגעה' } },
+  ];
+  return { source: 'device_activity', window_hours: 24, window_from: at(24), window_to: at(0), count: lines.length, truncated: false, withheld: null, lines };
+}
 let names: NameDoc = { ...clone(DEFAULT_TICKET_NAMES), revision: 0 };
 
 const tickets: TicketDetail[] = [];
@@ -109,6 +123,8 @@ function seed(): void {
   mk('נורה מהבהבת בלובי', 'גוף תאורה שני משמאל לדלפק הקבלה מהבהב.', 'dept-maintenance', 'cat-elec', 'normal', 'closed', 200, PEOPLE[3]);
 }
 seed();
+// slice 3: the first demo ticket belongs to a device (the device window's tab lists it)
+Object.assign(tickets[0], { origin: 'device', entity_id: 'climate.room_102', device_name: 'מזגן חדר 102', place_text: 'קומה 1 · חדר 102' });
 
 function canOf(t: TicketDetail): TicketDetail['can'] {
   const final = t.status === 'closed' || t.status === 'cancelled';
@@ -195,9 +211,16 @@ export const mockBackend: TicketsBackend = {
       closed_at: null, revision: 1, view: 'full', events: [ev('created', now, { ...ME, me: true }, { to: 'new' })], attachments: [], close_note: null, closed_by_name: null,
       duplicate_of: null, reopen_until: null, can: null as unknown as TicketDetail['can'], transitions: [], assignments: [],
     };
+    if (body.entity_id) {
+      // slice 3: a device's ticket - the demo has no place resolution; the history is the synthetic preview
+      const before = tickets.find((x) => x.entity_id === body.entity_id);
+      Object.assign(t, { origin: 'device', entity_id: body.entity_id, device_name: before?.device_name || body.entity_id, place_text: before?.place_text ?? '',
+        device_context: { ...demoHistory(), captured_at: now, coverage: {}, shareable: !['lock', 'alarm_control_panel', 'cover', 'camera'].includes(body.entity_id.split('.')[0]) } });
+    }
     tickets.unshift(t);
     if (body.assign) await mockBackend.assign(t.id, { assignee: body.assign, note: body.assign_note, revision: t.revision });
-    return { ...view(t), result: 'created' };
+    const others = body.entity_id ? (await mockBackend.byEntity(body.entity_id)).items.filter((x) => x.id !== t.id && !FINAL_STATUSES.includes(x.status)) : undefined;
+    return { ...view(t), result: 'created', ...(others ? { open_for_entity: others } : {}) };
   },
   async patch(id, body: PatchBody) {
     await sleep();
@@ -299,13 +322,25 @@ export const mockBackend: TicketsBackend = {
   },
   async settings(): Promise<SettingsDoc> {
     await sleep(40);
-    return { revision: settingsRevision, ui: { ...ui } };
+    return { revision: settingsRevision, ui: { ...ui }, device_long_press: longPress };
   },
-  async saveSettings(_revision, patch) {
+  async saveSettings(_revision, patch, extra = {}) {
     await sleep(80);
     ui = { ...ui, ...patch };
+    if (extra.device_long_press) longPress = extra.device_long_press;
     settingsRevision += 1;
-    return { revision: settingsRevision, ui: { ...ui } };
+    return { revision: settingsRevision, ui: { ...ui }, device_long_press: longPress };
+  },
+  async byEntity(entityId: string): Promise<EntityTickets> {
+    // slice 3, the demo store: the device's tickets by entity id, and a synthetic history preview (no person names)
+    await sleep(60);
+    const rows = tickets.filter((t) => t.entity_id === entityId).sort((a, b) => Number(FINAL_STATUSES.includes(a.status)) - Number(FINAL_STATUSES.includes(b.status)) || b.created_at.localeCompare(a.created_at));
+    const items = rows.map((t) => { const { description, events: _e, attachments: _a, close_note: _c, closed_by_name: _n, duplicate_of: _d, reopen_until: _u, can: _x, transitions: _t, assignments: _s, device_context: _dc, ...item } = clone(t); return { ...item, excerpt: description.slice(0, 240) }; });
+    const domain = entityId.split('.')[0];
+    return {
+      entity: { entity_id: entityId, name: rows[0]?.device_name || entityId, domain, tracked: TRACKED.includes(domain) },
+      items, open_count: rows.filter((t) => !FINAL_STATUSES.includes(t.status)).length, can_create: true, place_text: rows[0]?.place_text ?? '', history: demoHistory(),
+    };
   },
   async saveName(_revision, entries) {
     await sleep(80);
