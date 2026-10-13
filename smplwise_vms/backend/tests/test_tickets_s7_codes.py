@@ -343,6 +343,23 @@ def test_raising_the_contact_flag_raises_its_live_links_at_once_lowering_never(s
     assert s4.link_row(t["id"])["require_code"] == 1, "turning the flag off applies to new links only"
 
 
+def test_a_failing_event_recorder_never_changes_the_answer(s4, fake, caplog):
+    _t, token = s4.sent(require_code=True)
+    client, app = s4.public(Clock(time.time()))
+
+    def boom(*a, **kw):
+        raise RuntimeError("database is locked")
+
+    app.deps.code_events.verified = boom
+    app.deps.code_events.refused = boom
+    assert client.post("/t/api/code/send", headers=hdr(token), json={}).status_code == 200
+    r = client.post("/t/api/code/verify", headers=hdr(token), json={"code": wrong(fake.last_code)})
+    assert r.status_code == 422 and r.json()["code"] == "code_invalid"
+    r = client.post("/t/api/code/verify", headers=hdr(token), json={"code": fake.last_code})
+    assert r.status_code == 200 and r.json()["session"]
+    assert "database is locked" not in caplog.text, "the recorder's failure is logged by type only"
+
+
 def test_manual_dispatch_still_refuses_code_protected_assignments(s4):
     """Without a message channel (slice 4's ManualDispatch), the D6 rule keeps refusing - never a silent code-less link."""
     t = s4.ticket()
