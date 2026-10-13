@@ -881,6 +881,20 @@ class OutboxDispatch:
         """(WhatsApp can carry a code now, e-mail can carry a code now) for the D6 rule at assignment time."""
         return code_channels(conn, contact, self.rt)
 
+    def queue_code(self, conn, *, ticket: dict[str, Any], link: dict[str, Any], contact: dict[str, Any], code: str, code_id: str,
+                   channel: str, requested_by: str) -> dict[str, Any]:
+        """Slice 7's seam (external.LinkDispatch.queue_code): the verification-code message - purpose `code`, priority 0, never held
+        by the send hours, the `code` template (no link, no title) - written inside the caller's transaction. The six digits stay
+        IN MEMORY (outbox TransientSecrets) and the row keeps the code ROW id only (W9: after a restart they are derived again from
+        it). The code row learns its outbox id."""
+        if self.rt.outbox is None or channel not in ("whatsapp", "email"):
+            return {"queued": False}
+        row = self.rt.enqueue(conn, purpose="code", contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=link["assignment_id"],
+                              link_id=link["id"], department_id=ticket["department_id"], params={"number": str(ticket["number"])},
+                              channel=channel, requested_by=requested_by, code=code, code_id=code_id)
+        store_links.set_code_outbox(conn, code_id, row.id)
+        return {"queued": True, "outbox_id": row.id, "channel": channel}
+
     def preview_extra(self, conn, ticket: dict[str, Any], contact: dict[str, Any]) -> dict[str, Any]:
         """The assign dialog's lines (review T13-3): the exact text, the channel, the account it would leave from, the send-hours
         line ("יישלח ב-07:00") and the "send now" default (preselected for critical priorities, D29)."""
@@ -929,7 +943,7 @@ def code_channels(conn, contact: Mapping[str, Any], rt: MessagingRuntime) -> tup
             whatsapp_ok = ref is not None and bool(ref.value) and rt.accounts().status(ref.key).sendable
         except Exception:  # noqa: BLE001
             whatsapp_ok = False
-    email_ok = bool(contact.get("email")) and email_configured(conn, rt.data_dir)
+    email_ok = bool(contact.get("email")) and cs["email_fallback"] and email_configured(conn, rt.data_dir)
     return whatsapp_ok, email_ok
 
 
@@ -969,11 +983,9 @@ class OutboxCodeSender:
                 if row is None or contact is None or ticket is None:
                     return False
                 digits = codes_mod.derive_code(KEYS.get(row.get("key_id")), code_id)
-                queued = self.rt.enqueue(conn, purpose="code", contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=row["assignment_id"],
-                                         link_id=row["id"], department_id=ticket["department_id"], params={"number": str(ticket["number"])},
-                                         channel=channel, requested_by=f"link:{row['id'][:6]}", code=digits, code_id=code_id)
-                store_links.set_code_outbox(conn, code_id, queued.id)
-            return True
+                result = OutboxDispatch(self.rt).queue_code(conn, ticket=ticket, link=row, contact=contact, code=digits, code_id=code_id,
+                                                            channel=channel, requested_by=f"link:{row['id'][:6]}")
+            return bool(result.get("queued"))
         except Exception:  # noqa: BLE001 - the code route answers 503 code_unavailable; nothing about the code is logged
             log.warning("verification code not queued")
             return False
