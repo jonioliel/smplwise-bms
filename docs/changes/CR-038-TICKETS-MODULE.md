@@ -5,7 +5,8 @@
 **CR-037 on `pilot/ST8-ifc`**), and a text search for `CR-038`..`CR-049` in `docs/`, `management/`, `private/` on every remote
 branch (no hit).
 
-**Status:** DESIGN ONLY. No product code, no migration file, no test exists yet. Branch `pilot/TICKETS-spec` (from `origin/main`
+**Status:** **APPROVED FOR BUILD by the owner on 2026-10-13** (spec r2.4 and the mock-up v2 served on port 8796 during the
+review). Still a design: no product code, no migration file, no test exists yet. Original r1 status: DESIGN ONLY. No product code, no migration file, no test exists yet. Branch `pilot/TICKETS-spec` (from `origin/main`
 at `b26c1b7d`, release 2.4.8). Nothing here has been run against a real Home Assistant, a real `ha-whatsapp` installation, a real
 phone or a real Cloudflare tunnel. Every claim about existing code below was read in the repository at that commit (or on the
 named branch) and cites the file; every claim about `ha-whatsapp` was read on its public documentation pages on 2026-10-13
@@ -31,6 +32,8 @@ for which only the hook is designed (section 18).
   permission, grantable to one specific user (8.2); vendor-page languages; queued messages follow an account change; urgent
   quiet-hours bypass as an installation + department setting; "send now" for holders of `tickets.external`. No owner
   question remains open (22).
+- r2.4 (2026-10-13): owner decision D30 (the board's area tree can be hidden per user). **Owner approval of the spec and
+  of mock-up v2 (port 8796) for development.**
 
 **Related:** CR-018 (notification core: sources, recipients, escalation - the module's internal alerts ride on it), CR-008
 (remote access through a Cloudflare tunnel, the threat model of a public surface), CR-028 (the cast relay: the precedent for a
@@ -113,6 +116,7 @@ decision 2026-10-01: the database engine is decided when ticketing is specified 
 | D27 | Messages still queued when the ticket WhatsApp account changes **leave from the new account**; an `unknown` outcome is never re-sent silently. | 9.9.4 |
 | D28 | Urgent tickets **pass the managers' quiet hours by default**; a setting with an installation default and a per-department override. | 7.1, 13.4, 14.1 |
 | D29 | The first assignment message outside vendor send hours **waits for the morning**; "שלח עכשיו" is available to **anyone holding `tickets.external`** who can see the ticket (also a user granted it individually), not only to managers. | 9.2, 8.1 |
+| D30 | The board's side **area tree is hideable by each user** (a hide / show control on the board, remembered per user) and can be turned **fully off** by the installation setting (`board_floors = chips`) - the tree is not relevant for every customer. Effort: negligible (inside slice 6). | 13.7 |
 
 D18-D22 (and D17) are **installation settings** under Settings › קריאות שירות › כללי (`system.configure`); the per-user
 choices of D24 (view, columns, density, sort, saved filters) are personal and stored per user.
@@ -1913,7 +1917,7 @@ Dragging a card calls the same status route; drop zones of transitions the calle
 | Setting (`tickets.settings.ui.*`) | Values | Default | Effect |
 |---|---|---|---|
 | `detail` (D18) | `drawer` / `fullscreen` / `drawer_fullscreen` | `drawer_fullscreen` | how a ticket opens from the list, board, table and device tab; the full-screen form is `#/tickets/<id>` |
-| `board_floors` (D19) | `chips` / `tree` / `chips_tree` | `tree` | floors / areas filter: chips above the list; or a side tree (sites › buildings › floors › areas, per-floor collapse, counts from facets; hidden on phone, where chips are used); or chips with the tree behind the filter button |
+| `board_floors` (D19, D30) | `chips` / `tree` / `chips_tree` | `tree` | floors / areas filter: chips above the list; or a side tree (sites › buildings › floors › areas, per-floor collapse, counts from facets; hidden on phone, where chips are used); or chips with the tree behind the filter button. **D30:** with `tree` / `chips_tree` each user can hide or show the tree with a control on the board (remembered per user in `user_prefs` `tickets.board.tree_hidden`; hiding it shows the chips instead); `chips` turns the tree fully off for the installation (no control shown) |
 | `grouping` (D20) | `always` / `no_status_filter` / `never` | `no_status_filter` | whether the cards view groups into ממתין לי / תקועות / בטיפול |
 | `closed_strip` (D21) | `week` / `all` / `hidden` | `all` | the last item of the state strip: "נסגרו השבוע", "סגורות (הכול)" or nothing |
 | `new_ticket` (D22) | `sheet` / `dialog` | `sheet` | the create form as a side sheet or a centred dialog |
@@ -1950,7 +1954,7 @@ The values reach every signed-in user through `GET /tickets/module` (`ui: {...}`
   "device_long_press": "sheet",            // D17: "sheet" (default, today's behaviour) | "menu" (the mock-up's opaque menu)
   "ui": {                                  // D18-D22, section 13.7
     "detail": "drawer_fullscreen", "board_floors": "tree", "grouping": "no_status_filter",
-    "closed_strip": "all", "new_ticket": "sheet"
+    "closed_strip": "all", "new_ticket": "sheet"   // board_floors "chips" = the tree fully off (D30)
   },
   "email_fallback": true,
   "retention": { "closed_days": 730, "contacts_inactive_days": 365, "inbound_days": 30, "outbox_days": 90, "link_access_days": 90 }
