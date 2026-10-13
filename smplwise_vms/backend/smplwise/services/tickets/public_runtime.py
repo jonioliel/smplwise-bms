@@ -36,6 +36,9 @@ from .public_store import NoCodeChannel, SqlCodeStore, SqlLinkStore, SqlPhotoSin
 from .ratelimit import DEFAULT_TRUSTED_PROXY_CIDRS, new_public_limiter, parse_trusted_cidrs
 
 log = logging.getLogger("smplwise.tickets.public")
+# Slice 5b: the verification code's way out (services/tickets/messaging.OutboxCodeSender, purpose `code` on the outbox, the code row
+# id only - W9). None = no message channel: `code/send` answers 503 `code_unavailable` (NoCodeChannel).
+CODE_SENDER: Any = None
 RETENTION_EVERY_S = 3600.0
 ACCESS_KEEP_DAYS = 90
 CODES_KEEP_DAYS = 1
@@ -95,7 +98,7 @@ class Runtime:
             deps_kw["clock"] = clock
         deps = PublicDeps(
             links=SqlLinkStore(db), switch=switch, key=KEYS, trusted_proxies=trusted, requests=SqlRequestLog(db), redeems=SqlRedeemStore(db),
-            codes=codes, code_sender=NoCodeChannel(), photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
+            codes=codes, code_sender=CODE_SENDER() if CODE_SENDER is not None else NoCodeChannel(), photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
             extra_routers=(build_router(db, clock=clock),), **deps_kw,
         )

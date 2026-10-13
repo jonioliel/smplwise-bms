@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from . import links, settings_doc, store_links
 from .keyring import KEYS
@@ -26,6 +26,24 @@ SLIDING_RANGE = (1, 90)
 CAP_RANGE = (7, 365)
 GRACE_RANGE = (0, 168)
 UTC = dt.timezone.utc
+
+# Slice 5b registers the status notice to the contact whose link a manager's act ended: fn(conn, link_row, purpose, at) with purpose
+# "closed" (close / cancel: the read-only grace starts) or "reassigned" (revoked at once). None = no message channel (slice 4).
+NOTICE: Callable[[Any, dict[str, Any], str, dt.datetime], None] | None = None
+# Slice 5b: can a message channel (WhatsApp / e-mail) carry this link's contact a resend now? None = no (the manager copies the link).
+CHANNEL_OK: Callable[[Any, dict[str, Any]], bool] | None = None
+
+
+def _notice(conn, row: dict[str, Any], purpose: str, at: dt.datetime) -> None:
+    fn = NOTICE
+    if fn is None:
+        return
+    try:
+        fn(conn, row, purpose, at)
+    except Exception:  # noqa: BLE001 - a notice never fails the manager's act
+        import logging
+
+        logging.getLogger("smplwise.tickets.links").warning("ticket notice failed purpose=%s", purpose, exc_info=True)
 
 
 def now_utc() -> dt.datetime:
@@ -127,6 +145,8 @@ def revoke(conn, link_row: dict[str, Any] | None, reason: str, at: dt.datetime) 
 def revoke_for_assignment(conn, assignment_id: str | None, reason: str, at: dt.datetime) -> dict[str, Any] | None:
     row = store_links.link_for_assignment(conn, assignment_id)
     if row and revoke(conn, row, reason, at):
+        if reason == "reassigned":
+            _notice(conn, row, "reassigned", at)  # slice 5b: "handed to someone else, your link no longer works"
         return row
     return None
 
@@ -142,6 +162,8 @@ def on_final(conn, ticket_id: str, assignment_id: str | None, to_status: str, de
             store_links.update_link(conn, row["id"], {"grace_until": iso(at + dt.timedelta(hours=grace_h))})
         else:
             revoke(conn, row, "cancelled" if to_status == "cancelled" else "closed", at)
+        if row["assignment_id"] == assignment_id:
+            _notice(conn, row, "closed", at)  # slice 5b: the handler of the current assignment is told (held by the send hours)
 
 
 def on_reopened(conn, ticket_id: str, at: dt.datetime) -> None:
@@ -242,6 +264,6 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
             "copy": external and current and st == "live",
             "new": external and current and st in ("live", "expired", "revoked") and row.get("revoked_reason") not in ("contact_erased", "module_key"),
             "revoke": current and st in ("live", "grace"),
-            "resend": False,  # slice 5b: no message channel exists yet - the manager copies the link
+            "resend": bool(external and current and st == "live" and CHANNEL_OK is not None and CHANNEL_OK(conn, row)),  # slice 5b
         },
     }

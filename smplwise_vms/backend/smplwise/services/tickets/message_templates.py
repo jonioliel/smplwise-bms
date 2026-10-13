@@ -35,6 +35,7 @@ BODY_MAX = 1500
 # per-placeholder caps: worst-case values at save time, hard caps at send time
 VALUE_MAX = {"name": 80, "number": 7, "department": 60, "title": 120, "place": 200, "device": 80, "priority": 30,
              "organization": 60, "link": 120, "code": 6, "manager": 80, "eta": 24, "module_name": 30, "module_name_plural": 30}
+SECRET_MAX = {"link": 400, "code": 6}  # send time (slice 5b): the real URL is system-made and never cut (a cut link is a dead link)
 
 # 14.3 defaults. The Hebrew and English nouns are read from slice 1's naming.DEFAULTS (one source; its D33 lint forbids writing the
 # default name anywhere else in services/tickets) - same values as before the merge of slice 1 and the message core.
@@ -148,9 +149,10 @@ def starter(purpose: str, lang: str) -> TemplateText | None:
 
 
 def choose(candidates: Iterable[TemplateText], *, purpose: str, lang: str, department_id: str | None) -> TemplateText | None:
-    """D26: the contact's language first, then Hebrew. Within a language: the department's template, then the installation's.
-    Configured templates (any language of that order) win over starters; then the starter in the contact's language, then the
-    Hebrew starter. (Recorded reading of "falling back to Hebrew when a department has no template in that language".)"""
+    """D26: the contact's language first, then Hebrew. Within a language: the department's template, then the installation's, then
+    the starter of that language (the spec's starters ship in he / en / ar / ru as templates of their own, 9.7 - slice 5b reading:
+    an Arabic-speaking vendor gets the Arabic starter rather than an administrator's Hebrew text). Hebrew is the fallback only for a
+    purpose without a starter in the contact's language (the cost notices of slice 9)."""
     lang = lang if lang in LANGS else DEFAULT_LANG
     live = [t for t in candidates if t.active and t.purpose == purpose]
     order = [lang] if lang == DEFAULT_LANG else [lang, DEFAULT_LANG]
@@ -159,6 +161,9 @@ def choose(candidates: Iterable[TemplateText], *, purpose: str, lang: str, depar
             for t in live:
                 if t.lang == want and t.department_id == dept:
                     return t
+        own = STARTERS.get(purpose, {})
+        if want in own:
+            return starter(purpose, want)
     return starter(purpose, lang)
 
 
@@ -260,7 +265,7 @@ def render(body: str, params: Mapping[str, Any], *, lang: str, display_name: Map
     names = names_for(display_name, lang)
     values: dict[str, str] = {k: one_line(params.get(k), VALUE_MAX[k]) for k in PARAM_KEYS}
     for key in SECRET_PLACEHOLDERS:
-        values[key] = one_line((secrets or {}).get(key), VALUE_MAX[key])
+        values[key] = one_line((secrets or {}).get(key), SECRET_MAX[key])
     values["module_name"] = names["one"]
     values["module_name_plural"] = names["many"]
 

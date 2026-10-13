@@ -34,6 +34,12 @@ def _int_range(lo: int, hi: int) -> Callable[[Any], int]:
     return check
 
 
+def _bool(v: Any) -> bool:
+    if not isinstance(v, bool):
+        raise ValueError("boolean")
+    return v
+
+
 def _org_name(v: Any) -> str:
     """Slice 4: the organisation name the handler page shows at the top - plain text, controls / bidi marks stripped."""
     from .text_hygiene import clean_text
@@ -80,6 +86,11 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("links", "sliding_days"): (14, _int_range(1, 90)),
     ("links", "cap_days"): (90, _int_range(7, 365)),
     ("links", "grace_hours"): (24, _int_range(0, 168)),
+    # slice 5b: the ticket message channel (9.3 / 9.5 / 9.6); the accounts and their pacing live in `messaging.whatsapp` (9.9)
+    ("whatsapp", "enabled"): (False, _bool),  # the master switch: OFF until an administrator turns it on
+    ("whatsapp", "use_buttons"): (False, _bool),  # 9.3: buttons may show as text only on multi-device clients - numbered replies
+    ("whatsapp", "reply_window_h"): (72, _int_range(1, 336)),  # 9.6: replies are matched to messages sent within this window
+    ("email_fallback",): (True, _bool),  # 9.5 / D13: a contact with an e-mail address gets the redeem link when WhatsApp fails
 }
 
 

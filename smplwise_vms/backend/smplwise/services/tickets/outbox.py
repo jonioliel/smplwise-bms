@@ -38,7 +38,8 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable, Mapping, Protocol
 from zoneinfo import ZoneInfo
 
-from . import hours, templates
+from . import hours
+from . import message_templates as templates  # renamed in slice 5b: slice 2 owns `templates.py` (ticket templates)
 from .channel import (LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, SENT, UNKNOWN, AccountRef, OutboundMessage,
                       Recipient, SendResult, TicketChannel, keyed_hash, phone_digits, priority_of)
 
@@ -110,6 +111,7 @@ class OutboxRow:
     requested_by: str | None = None
     idempotency_key: str | None = None  # proposed 0081 column (UNIQUE)
     send_now: bool = False  # proposed 0081 column (D29: bypasses the send hours of `assign`)
+    code_id: str | None = None  # 0081 (slice 5b): purpose 'code' - the ticket_link_codes row; the digits are derived at render time (W9)
     account_key: str | None = None  # written at claim time only
     sent_at: dt.datetime | None = None
     updated_at: dt.datetime | None = None
@@ -365,6 +367,7 @@ class Ports:
     secrets: TransientSecrets = field(default_factory=TransientSecrets)
     new_id: Callable[[], str] = lambda: _secrets.token_hex(8)
     new_nonce: Callable[[], str] = lambda: _secrets.token_hex(8)  # 64-bit, 16 hex (button ids 't:<nonce>:<action>')
+    derive_code: Callable[[OutboxRow], str | None] | None = None  # slice 5b: the six digits of a `code_id` row (W9)
 
 
 class Outbox:
@@ -380,7 +383,7 @@ class Outbox:
                 params: Mapping[str, Any] | None = None, template_id: str | None = None, template_revision: int | None = None,
                 channel: str = "whatsapp", requested_by: str | None = None, idempotency_key: str | None = None,
                 send_now: bool = False, code: str | None = None, test_target: str | None = None,
-                test_account_key: str | None = None) -> OutboxRow:
+                test_account_key: str | None = None, code_id: str | None = None) -> OutboxRow:
         """Write one message. Returns the existing row when `idempotency_key` was already used (no second message).
         A `test` row names its account at enqueue time (the per-account "שליחת בדיקה"); every other row gets its account when
         the worker claims it."""
@@ -414,7 +417,7 @@ class Outbox:
                 assignment_id=assignment_id, link_id=link_id, department_id=department_id, params=clean, template_id=template_id,
                 template_revision=template_revision, priority=priority_of(purpose), requested_by=requested_by,
                 idempotency_key=idempotency_key, send_now=bool(send_now) and purpose == "assign",
-                account_key=test_account_key if purpose == "test" else None,
+                account_key=test_account_key if purpose == "test" else None, code_id=code_id if purpose == "code" else None,
                 reply_nonce=self.p.new_nonce() if channel == "whatsapp" and purpose in REPLY_PURPOSES else None)
             if assignment_id:
                 for old in self.p.store.open_rows():
@@ -655,6 +658,8 @@ class Outbox:
             secrets["link"] = url
         if row.purpose == "code":
             code = self.p.secrets.code(row.id)
+            if not code and row.code_id and self.p.derive_code is not None:
+                code = self.p.derive_code(row)  # slice 5b (W9): derived from the code row id at render time, never stored
             if not code:
                 return None, "code_lost"
             secrets["code"] = code

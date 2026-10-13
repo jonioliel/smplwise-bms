@@ -13,7 +13,8 @@ from zoneinfo import ZoneInfo
 from fake_ha_whatsapp import FakeHaWhatsapp, FakeMirror, PairedAccount
 
 from smplwise.services import messaging_accounts as ma
-from smplwise.services.tickets import hours, templates
+from smplwise.services.tickets import hours
+from smplwise.services.tickets import message_templates as templates
 from smplwise.services.tickets.channel import NOT_SENT, SENT, UNKNOWN, Recipient, SendResult
 from smplwise.services.tickets.channel_whatsapp import WhatsAppChannel
 from smplwise.services.tickets.outbox import MemoryOutboxStore, Outbox, OutboxRow, Ports
@@ -188,7 +189,7 @@ class FakeEmailChannel:
 def default_doc(**uses: str | None) -> ma.MappingDoc:
     mapping = {"tickets.messages": KEY_A, "tickets.codes": None}
     mapping.update({k.replace("__", "@dept:"): v for k, v in uses.items()})
-    return ma.MappingDoc(revision=1, accounts=(ma.Account(KEY_A, "discovered", "קריאות ····0001", "0001", pacing=ma.Pacing()),
+    return ma.MappingDoc(revision=1, accounts=(ma.Account(KEY_A, "discovered", "שירות ····0001", "0001", pacing=ma.Pacing()),
                                                ma.Account(KEY_B, "discovered", "שני ····0002", "0002", pacing=ma.Pacing())),
                          uses=mapping)
 

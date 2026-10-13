@@ -179,7 +179,7 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     d = handler_links.durations(conn, row["department_id"])
     now = handler_links.now_utc()
     expires, cap = handler_links.first_expiry(now, d, handler_links.resolve_window_min(conn, row["department_id"], row["priority_id"]))
-    return {
+    out = {
         "channel": DISPATCH.channel(conn, contact),
         "lang": lang,
         "text": render_message(conn, row, contact, LINK_PLACEHOLDER[lang]),
@@ -191,6 +191,10 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
                  "expires_at": handler_links.iso(expires), "cap_at": handler_links.iso(cap)},
         "refusals": refusals,
     }
+    extra = getattr(DISPATCH, "preview_extra", None)  # slice 5b: the template text, the account, the send-hours line, "send now"
+    if extra is not None:
+        out.update(extra(conn, row, contact))
+    return out
 
 
 def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: str | None, note_external: bool, require_code: bool | None,

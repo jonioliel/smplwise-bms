@@ -483,7 +483,7 @@ def test_contact_language_and_buttons():
 
 
 def test_a_contact_template_in_the_department_is_used():
-    from smplwise.services.tickets.templates import TemplateText
+    from smplwise.services.tickets.message_templates import TemplateText
 
     env = make_env()
     env.tpl.items.append(TemplateText("tp1", "assign", "he", "קריאה דחופה {number}: {link}", department_id="D1", revision=3))

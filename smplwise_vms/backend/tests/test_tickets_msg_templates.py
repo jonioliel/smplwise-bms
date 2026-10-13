@@ -5,7 +5,7 @@ import random
 
 import pytest
 
-from smplwise.services.tickets import channel, templates as tp
+from smplwise.services.tickets import channel, message_templates as tp
 from smplwise.services.tickets.channel import (AccountRef, ChannelRegistry, OutboundMessage, Recipient, SendResult, phone_digits,
                                                strip_controls)
 
@@ -176,8 +176,11 @@ def test_choose_prefers_language_then_department():
     assert tp.choose(items, purpose="assign", lang="he", department_id="D1").id == "d-he"
     assert tp.choose(items, purpose="assign", lang="ar", department_id="D1").id == "d-ar"
     assert tp.choose(items, purpose="assign", lang="ru", department_id="D1").id == "i-ru"
-    assert tp.choose(items, purpose="assign", lang="en", department_id="D1").id == "d-he"  # inactive en: Hebrew of the department
-    assert tp.choose(items, purpose="assign", lang="ar", department_id="D2").id == "i-he"
+    # slice 5b reading (D26): the contact's language - its starter included - before any Hebrew text
+    assert tp.choose(items, purpose="assign", lang="en", department_id="D1").id == "starter:assign:en"  # inactive en: the English starter
+    assert tp.choose(items, purpose="assign", lang="ar", department_id="D2").id == "starter:assign:ar"
+    hebrew_only = [T("c-he", "cost_approved", "he", "x")]
+    assert tp.choose(hebrew_only, purpose="cost_approved", lang="ru", department_id=None).id == "c-he"  # no Russian starter: Hebrew
     assert tp.choose([], purpose="assign", lang="ar", department_id=None).id == "starter:assign:ar"
     assert tp.choose([], purpose="assign", lang="xx", department_id=None).id == "starter:assign:he"
     assert tp.choose([], purpose="cost_approved", lang="he", department_id=None) is None

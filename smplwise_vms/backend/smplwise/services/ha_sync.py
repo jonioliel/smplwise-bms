@@ -91,6 +91,10 @@ ATTR_ALLOW = {
 }
 AUTOMATION_PREFIXES = ("automation.", "script.", "scene.")  # CR-017
 AUTOMATION_EVENTS = ("automation_reloaded", "scene_reloaded", "automation_triggered", "script_started")
+# CR-038 S5b (9.6): ha-whatsapp's reply events - subscribed only while the tickets module is on, its WhatsApp switch is on and a ticket
+# use has an account; handed to services/tickets/messaging.submit_inbound (a bounded queue). The event is never logged or stored here
+# (it holds a phone number and a message text) and its media_url is never fetched.
+TICKET_EVENTS = ("whatsapp_message_received", "whatsapp_button_pressed")
 MEDIA_LIST_KEYS = {"source_list": 80, "activity_list": 200, "sound_mode_list": 80}  # attribute -> the longest item kept; 100 items at most (MAX_MEDIA_LIST)
 HELPER_GROUP_MEMBERS_MAX = 120  # a `group` helper player's `entity_id` attribute (its member list): kept for media_player entities only
 MAX_MEDIA_LIST = 100
@@ -691,6 +695,8 @@ class HaSync:
         self._last_done: tuple[float, bool] | None = None
         # CR-014: the id of this session's `scheduler_updated` subscription (its event frames carry it), None = not subscribed
         self._sched_sub_id: int | None = None
+        # CR-038 S5b: the ids of this session's TICKET_EVENTS subscriptions ([] = not subscribed)
+        self._ticket_sub_ids: list[int] = []
 
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
@@ -791,6 +797,14 @@ class HaSync:
                     log.exception("scheduler event hook failed")
                 return
             event = msg.get("event")
+            if isinstance(event, dict) and event.get("event_type") in TICKET_EVENTS:
+                from .tickets import messaging as tickets_messaging  # CR-038 S5b: a bounded hand-off; nothing written or logged here
+
+                try:
+                    tickets_messaging.submit_inbound(msg)
+                except Exception:  # noqa: BLE001 - never the event in a log line
+                    log.warning("ticket reply hand-off failed")
+                return
             if isinstance(event, dict) and event.get("event_type") in AUTOMATION_EVENTS:
                 from . import automations as automations_svc  # CR-017: reloads, automation runs, script starts
 
@@ -845,6 +859,10 @@ class HaSync:
             task = asyncio.create_task(self._automations_start(call, "connect"))  # CR-017: subscribe + full pull when the feature is on
             tasks.add(task)
             task.add_done_callback(tasks.discard)
+            self._ticket_sub_ids = []
+            task = asyncio.create_task(self._tickets_inbound(call, None))  # CR-038 S5b: ticket replies, only when wanted
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
 
             # periodic registry refresh inside the session: the safety net under the registry events
             async def refresher() -> None:
@@ -869,6 +887,7 @@ class HaSync:
         finally:
             self._session_loop = self._session_call = None
             self._sched_sub_id = None
+            self._ticket_sub_ids = []
             if debouncer is not None:
                 debouncer.cancel()
             for task in list(tasks):
@@ -987,6 +1006,48 @@ class HaSync:
         if loop is None or call is None or not STATE.connected:
             return
         asyncio.run_coroutine_threadsafe(self._automations_start(call, "enabled"), loop)
+
+    # ------------------------------------------------------------------ CR-038 S5b: ha-whatsapp reply events (events only, no call)
+
+    async def _tickets_inbound(self, call, want: bool | None) -> None:
+        """Subscribe TICKET_EVENTS when the tickets module wants them (module on, WhatsApp switch on, a ticket use mapped -
+        `want` None = read it now), unsubscribe when it no longer does. A refusal is logged; replies then wait for the next session."""
+        if self.db is None:
+            return
+        if want is None:
+            from .tickets import messaging as tickets_messaging
+
+            try:
+                want = await asyncio.get_event_loop().run_in_executor(None, tickets_messaging.RUNTIME.wants_inbound, self.db)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("ticket reply subscription check failed: %s", type(exc).__name__)
+                return
+        if want and not self._ticket_sub_ids:
+            ids: list[int] = []
+            for et in TICKET_EVENTS:
+                try:
+                    reply = await call("subscribe_events", event_type=et)
+                    if isinstance(reply, dict) and reply.get("success") and isinstance(reply.get("id"), int):
+                        ids.append(reply["id"])
+                    else:
+                        log.info("HA did not accept the %s subscription", et)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("%s subscription failed: %s", et, type(exc).__name__)
+            self._ticket_sub_ids = ids
+        elif not want and self._ticket_sub_ids:
+            ids, self._ticket_sub_ids = self._ticket_sub_ids, []
+            for sid in ids:
+                try:
+                    await call("unsubscribe_events", subscription=sid)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("ticket reply unsubscribe failed: %s", type(exc).__name__)
+
+    def tickets_inbound_switched(self, want: bool) -> None:
+        """The tickets channel settings changed (thread-safe): follow them on the live session."""
+        loop, call = self._session_loop, self._session_call
+        if loop is None or call is None or not STATE.connected:
+            return
+        asyncio.run_coroutine_threadsafe(self._tickets_inbound(call, want), loop)
 
     def refresh_now(self) -> dict[str, Any]:
         """Force a registry refresh from a request thread (the "רענן מ-Home Assistant" button): runs on the live
