@@ -150,20 +150,20 @@ def test_group_membership_counts_and_the_first_manager_is_told_about_new_tickets
 
 def test_display_settings_document(w, settings):
     doc = w.c.get(f"{API}/tickets/settings").json()
-    assert doc == {"revision": 0, "ui": {"detail": "drawer_fullscreen", "new_ticket": "sheet"}}
+    assert doc == {"revision": 0, "ui": {"detail": "drawer_fullscreen", "new_ticket": "sheet"}, "device_long_press": "sheet"}  # D17: slice 3's key
     assert w.c.get(f"{API}/tickets/settings", headers=as_user("mona")).status_code == 403
     bind(w.c, settings, "cara", "tickets_configure", "installation", "*")
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 0, "ui": {"detail": "drawer"}}, headers=as_user("cara")).status_code == 403, \
         "the installation document is system.configure (section 14.1)"
     r = w.c.put(f"{API}/tickets/settings", json={"revision": 0, "ui": {"detail": "fullscreen", "new_ticket": "dialog"}})
-    assert r.status_code == 200 and r.json() == {"revision": 1, "ui": {"detail": "fullscreen", "new_ticket": "dialog"}}
+    assert r.status_code == 200 and r.json() == {"revision": 1, "ui": {"detail": "fullscreen", "new_ticket": "dialog"}, "device_long_press": "sheet"}
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 0, "ui": {"detail": "drawer"}}).json()["code"] == "settings_stale"
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 1, "ui": {"detail": "popup"}}).status_code == 422
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 1, "links": {"cap_days": 3}}).status_code == 422, "later slices' keys are not accepted yet"
     assert w.c.get(f"{API}/tickets/module", headers=as_user("vic")).json()["ui"] == {"detail": "fullscreen", "new_ticket": "dialog"}
     with w.c.app.state.db.connection() as conn:
         conn.execute("UPDATE settings SET value = '{\"revision\": 4, \"ui\": {\"detail\": \"bogus\"}}' WHERE key = 'tickets.settings'")
-    assert w.c.get(f"{API}/tickets/settings").json() == {"revision": 4, "ui": {"detail": "drawer_fullscreen", "new_ticket": "sheet"}}, "invalid reads as default"
+    assert w.c.get(f"{API}/tickets/settings").json() == {"revision": 4, "ui": {"detail": "drawer_fullscreen", "new_ticket": "sheet"}, "device_long_press": "sheet"}, "invalid reads as default"
 
 
 # ---------------------------------------------------------------- pickers and the permissions overview

@@ -28,6 +28,7 @@ def _choice(*allowed: str) -> Callable[[Any], str]:
 SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail"): ("drawer_fullscreen", _choice("drawer", "fullscreen", "drawer_fullscreen")),  # D18
     ("ui", "new_ticket"): ("sheet", _choice("sheet", "dialog")),  # D22
+    ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
 }
 
 

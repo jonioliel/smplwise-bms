@@ -210,7 +210,7 @@ def test_only_the_access_module_reads_ticket_rows_unchecked():
         if rel in ("services/tickets/access.py", "services/tickets/store.py"):
             continue
         text = path.read_text(encoding="utf-8")
-        if re.search(r"\b(ticket_row_unchecked|ticket_by_number_unchecked|open_by_dedupe_key_unchecked|candidate_rows)\b", text):
+        if re.search(r"\b(ticket_row_unchecked|ticket_by_number_unchecked|open_by_dedupe_key_unchecked|candidate_rows|entity_ticket_rows_unchecked)\b", text):
             offenders.append(rel)
     assert offenders == [], f"a ticket row read around access.visible(): {offenders}"
 

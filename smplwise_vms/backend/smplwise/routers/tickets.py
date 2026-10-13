@@ -21,10 +21,12 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, attachments, create, model, naming, present, service, settings_doc, store
+from ..services import device_activity
+from ..services.tickets import access, attachments, create, device_context, model, naming, place, present, service, settings_doc, store
 from ..services.tickets.access import Viewer, text
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+ENTITY = r"^[a-z0-9_]{1,64}\.[a-z0-9_]{1,190}$"  # a Home Assistant entity id (slice 3)
 STATUS_FILTER = r"^(open|unassigned|handling|done|closed|all|new|assigned|acknowledged|in_progress|waiting_part|returned|cancelled)$"
 
 
@@ -82,7 +84,8 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
         out.append({
             "id": d["id"], "key": d["key"], "name": d["name"], "icon": d.get("icon"), "color": d.get("color"), "my_role": role,
             "can_create": can_create, "can_manage": can_manage, "open_to_all": bool(d["open_to_all"]),
-            "categories": [{"id": c["id"], "name": c["name"], "parent_id": c.get("parent_id"), "default_priority_id": c.get("default_priority_id")}
+            "categories": [{"id": c["id"], "name": c["name"], "parent_id": c.get("parent_id"), "default_priority_id": c.get("default_priority_id"),
+                            "domains": _domains(c)}  # slice 3: the device domains a category is preselected for (section 14.2)
                            for c in store.categories(conn, d["id"], include_inactive=False)],
             "priorities": [{"id": p["id"], "key": p["key"], "name": p["name"], "rank": p["rank"], "severity": p["notify_severity"], "is_default": bool(p["is_default"])}
                            for p in store.priorities(conn, d["id"]) if p["active"]],
@@ -98,6 +101,47 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
             "configure": viewer.holds_installation(access.CONFIGURE),
         },
     }
+
+
+def _domains(category: dict[str, Any]) -> list[str]:
+    try:
+        raw = json.loads(category.get("domains_json") or "[]")
+    except ValueError:
+        return []
+    return [d for d in raw if isinstance(d, str)][:32] if isinstance(raw, list) else []
+
+
+# ---------------------------------------------------------------- the device tab (slice 3, section 12.1; review T18-3)
+
+@router.get("/tickets/by-entity/{entity_id}")
+def by_entity(entity_id: str = Path(..., max_length=255, pattern=ENTITY), principal: Principal = Depends(current_principal_ro),
+              conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The device window's tab: the device's tickets the caller may see (open first, newest first), whether the caller may open one
+    from it, and what a new one would carry (the place and a preview of the 24 h history, as the caller may read it). Gate order:
+    module (router) -> tickets.view -> the DEVICE (devices.read on the entity, the lock / alarm rule - a device the caller may not
+    read is the same 404 as an unknown one) -> the visibility rule per ticket."""
+    viewer = Viewer(conn, principal)
+    _need_any(conn, viewer, access.VIEW)
+    entity = device_context.readable_entity(conn, principal, entity_id)
+    if entity is None:
+        raise ApiError(404, "not_found", text(conn, "ההתקן לא נמצא."))
+    seen = access.visible_for_entity(viewer, entity_id, entity.get("registry_id"))
+    lk = present.Lookups(conn)
+    last = store.last_assignee_names(conn, [s.row["id"] for s in seen if not s.row.get("current_assignment_id")])
+    where = place.locate_entity(conn, entity_id, entity)
+    can_create = viewer.holds(access.CREATE, where.columns()) and any(viewer.can_create_in(d) for d in store.departments(conn, include_inactive=False))
+    out: dict[str, Any] = {
+        "entity": {"entity_id": entity_id, "name": entity.get("name") or entity.get("original_name") or entity_id, "domain": entity["domain"],
+                   "tracked": entity["domain"] in device_activity.ACTIVITY_DOMAINS},
+        "items": [present.ticket_item(conn, s, lk, last) for s in seen],
+        "open_count": sum(1 for s in seen if s.row["status"] not in model.FINAL),
+        "can_create": can_create,
+        "place_text": where.place_text,
+        "history": None,
+    }
+    if can_create:
+        out["history"] = device_context.summary(device_context.capture(conn, principal, entity_id, connected=device_context.ha_connected()))
+    return out
 
 
 # ---------------------------------------------------------------- the list
@@ -142,6 +186,7 @@ class CreateBody(BaseModel):
     assign_note: str = Field(default="", max_length=20000)
     assign_note_external: bool = True
     client_request_id: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
+    entity_id: str | None = Field(default=None, max_length=255, pattern=ENTITY)  # slice 3: a device's ticket (place + history server-side)
 
 
 CREATE_ROUTE = "POST /tickets"
@@ -161,11 +206,18 @@ def create_ticket(body: CreateBody, request: Request, principal: Principal = Dep
         department_id=body.department_id, title=body.title, description=body.description, category_id=body.category_id,
         priority_id=body.priority_id, assign_to=create.AssigneeRef(body.assign.kind, body.assign.id) if body.assign else None,
         assign_note=body.assign_note, assign_note_external=body.assign_note_external,
+        entity_id=body.entity_id, origin="device" if body.entity_id else "manual",
     )
     result = create.create_ticket(conn, spec, viewer, rid=_rid(request))
     seen = access.visible_by_id(viewer, result.ticket_id)
     answer: dict[str, Any] = present.ticket_detail(conn, viewer, seen) if seen else {"id": result.ticket_id, "number": result.number, "view": "none"}
     answer["result"] = result.kind
+    if body.entity_id:
+        # section 8.1: the OTHER open tickets of the same device the caller may see (the create sheet listed them first as well)
+        lk = present.Lookups(conn)
+        others = [s for s in access.visible_for_entity(viewer, body.entity_id, seen.row.get("registry_id") if seen else None)
+                  if s.row["id"] != result.ticket_id and s.row["status"] not in model.FINAL]
+        answer["open_for_entity"] = [present.ticket_item(conn, s, lk) for s in others]
     store.request_put(conn, scope, body.client_request_id, CREATE_ROUTE, 201, answer)
     return JSONResponse(answer, status_code=201)
 

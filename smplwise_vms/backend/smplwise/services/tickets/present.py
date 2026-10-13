@@ -10,7 +10,7 @@ import sqlite3
 from typing import Any
 
 from ..timeutil import parse_utc
-from . import model, store
+from . import device_context, model, store
 from .access import Seen, Viewer, attachment_visible, event_visible, public_ready
 
 DESCRIPTION_EXCERPT = 240
@@ -140,6 +140,7 @@ def ticket_item(conn: sqlite3.Connection, seen: Seen, lk: Lookups, last_names: d
         "priority": {"id": prio["id"], "key": prio["key"], "name": prio["name"], "rank": prio["rank"], "severity": prio["notify_severity"]} if prio else None,
         "place_text": row.get("place_text") or "",
         "device_name": row.get("device_name") or "",
+        "entity_id": row.get("entity_id"),  # slice 3: a device's ticket (the device window / map link)
         "created_by": {"id": row["created_by"], "name": row.get("created_by_name") or ""},
         "created_at": row["created_at"],
         "last_activity_at": row["last_activity_at"],
@@ -215,6 +216,8 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
         "reopen_until": reopen_until(row, dept),
         "can": can_block(viewer, seen, dept),
         "transitions": transitions(viewer, seen, dept),
+        # slice 3 (section 12.3): the frozen 24 h history - internal content, and only for a viewer who may read the device too
+        "device_context": device_context.for_ticket(conn, viewer.principal, row, full=seen.full),
     })
     if seen.full:
         out["assignments"] = [

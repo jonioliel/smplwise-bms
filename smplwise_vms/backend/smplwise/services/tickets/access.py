@@ -207,6 +207,23 @@ def visible_open_by_dedupe_key(viewer: Viewer, key: str) -> Seen | None:
     return visible(viewer, store.open_by_dedupe_key_unchecked(viewer.conn, key))
 
 
+ENTITY_SCAN = 200  # a device tab scans at most this many of the device's tickets (open first, newest first)
+
+
+def visible_for_entity(viewer: Viewer, entity_id: str, registry_id: str | None, limit: int = PAGE_DEFAULT) -> list[Seen]:
+    """Slice 3, the device tab: the device's tickets this caller may see (by registry id first, then entity id - section 12.2), open
+    ones first. The CALLER checked the device itself first (device_context.readable_entity: devices.read on the entity, the security
+    rule) - this function decides every ticket row with the one rule above."""
+    out: list[Seen] = []
+    for row in store.entity_ticket_rows_unchecked(viewer.conn, entity_id, registry_id, ENTITY_SCAN):
+        seen = visible(viewer, row)
+        if seen is not None:
+            out.append(seen)
+            if len(out) >= limit:
+                break
+    return out
+
+
 def event_visible(seen: Seen, ev: dict[str, Any], uid: str) -> bool:
     return seen.full or bool(ev.get("visible_external")) or ev.get("actor_user_id") == uid
 

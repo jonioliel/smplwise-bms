@@ -70,6 +70,7 @@ class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
     ui: UiPatch | None = None
+    device_long_press: Literal["sheet", "menu"] | None = None  # D17 (slice 3)
 
 
 @router.put("/tickets/settings")
@@ -83,6 +84,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         ui = {k: v for k, v in body.ui.model_dump().items() if v is not None}
         if ui:
             patch["ui"] = ui
+    if body.device_long_press is not None:  # D17 (slice 3)
+        patch["device_long_press"] = body.device_long_press
     try:
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:

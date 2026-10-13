@@ -2,17 +2,19 @@
 in slice 3, and phase 2's rule action). A rule or an automation (phase 2) adds an actor of its own and `dedupe_key`
 "rule:<rule id>:<entity|camera>": an OPEN ticket with the same key absorbs the repeat (a timeline row) instead of a new ticket.
 
-Slice 1 creates placeless manual tickets only: `entity_id` (a device's ticket: place resolution and the 24 h history snapshot) is
-slice 3's (services/tickets/place.py, device_context.py) and refused here until then."""
+Slice 1 created placeless manual tickets; slice 3 adds `entity_id` (a device's ticket, origin 'device'): the creator must be able to read
+the device (device_context.readable_entity - else 422 entity_id unknown, so a hidden device does not leak), the place is resolved
+server-side (place.locate_entity; tickets.create is then needed WHERE the ticket lies) and the 24 h history is captured as the creator
+and frozen (device_context, section 12.3)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from ...audit import audit
 from ...db import new_id, now_iso
 from ...errors import ApiError
-from . import access, model, notify_bridge, service, store
+from . import access, device_context, model, notify_bridge, place, service, store
 from .access import Viewer, text
 
 
@@ -55,10 +57,22 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
         audit(conn, actor=viewer.principal, action="ticket.create", decision="denied", resource_type="ticket_department", resource_id=dept["id"],
               reason="create_not_allowed", request_id=rid)
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפתוח {tickets} במחלקה הזו."), details={"permission": access.CREATE, "department_id": dept["id"]})
-    if spec.entity_id:
-        raise service.invalid(conn, model.Invalid([model.Problem("entity_id", "not_supported")]))
     if spec.origin not in ("manual", "rule", "inbound", "device"):
         raise service.invalid(conn, model.Invalid([model.Problem("origin", "unknown")]))
+    # slice 3: a device's ticket - the creator must be able to read the device (an entity they cannot see is "unknown", never "forbidden",
+    # so its existence does not leak); the place is resolved here (the client never sends one) and the ticket lies there for RBAC
+    entity = None
+    where = place.Place()
+    if spec.entity_id:
+        entity = device_context.readable_entity(conn, viewer.principal, spec.entity_id)
+        if entity is None:
+            raise service.invalid(conn, model.Invalid([model.Problem("entity_id", "unknown")]))
+        where = place.locate_entity(conn, spec.entity_id, entity)
+        placed = where.columns()
+        if not viewer.holds(access.CREATE, placed):
+            audit(conn, actor=viewer.principal, action="ticket.create", decision="denied", resource_type="ticket_department", resource_id=dept["id"],
+                  reason="create_not_allowed_here", request_id=rid)
+            raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפתוח {tickets} במחלקה הזו."), details={"permission": access.CREATE, "department_id": dept["id"]})
     try:
         title = model.text_field(spec.title, "title", required=True, max_len=model.TITLE_MAX)
         description = model.text_field(spec.description, "description", required=False, max_len=model.DESCRIPTION_MAX, multiline=True)
@@ -84,7 +98,9 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
     if spec.assign_to is not None:
         # everything the assignment needs is checked BEFORE anything is written: an API error commits the request's transaction
         # (the audit row of a refusal survives), so a refused assignment must not leave a half-made ticket behind
-        if not viewer.manages_department(dept["id"]) or access.VIEW not in viewer.anywhere:
+        # a placed (device) ticket: the manager must hold view and manage WHERE it lies, or the assignment below would fail after the write
+        placed_ok = entity is None or (viewer.holds(access.VIEW, where.columns()) and viewer.holds(access.MANAGE, where.columns()))
+        if not viewer.manages_department(dept["id"]) or access.VIEW not in viewer.anywhere or not placed_ok:
             audit(conn, actor=viewer.principal, action="ticket.assign", decision="denied", resource_type="ticket_department", resource_id=dept["id"],
                   reason="not_manager", request_id=rid)
             raise ApiError(403, "forbidden", text(conn, "רק מנהל המחלקה מעביר {tickets} לטיפול."), details={"reason": "not_manager"})
@@ -104,17 +120,29 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
     ticket_id = new_id()
     number = store.next_number(conn)
     waiting_on, waiting_reason = model.waiting_for("new")
+    device: dict[str, Any] = {}
+    if entity is not None:
+        device = {"entity_id": entity["entity_id"], "registry_id": entity.get("registry_id") or None,
+                  "device_name": model.clean_text(entity.get("name") or entity.get("original_name") or entity["entity_id"])[:200], **where.columns()}
     store.insert_ticket(conn, {
         "id": ticket_id, "number": number, "department_id": dept["id"], "category_id": category["id"] if category else None,
         "priority_id": priority["id"], "title": title, "description": description, "status": "new", "origin": spec.origin,
         "place_text": "", "created_by": viewer.uid, "created_by_name": service.actor_name(viewer), "last_activity_at": now,
         "waiting_on": waiting_on, "waiting_reason": waiting_reason, "rule_ref": spec.rule_ref, "dedupe_key": spec.dedupe_key,
-        "revision": 1, "created_at": now, "updated_at": now,
+        "revision": 1, "created_at": now, "updated_at": now, **device,
     })
     store.insert_event(conn, ticket_id, "created", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
                        to_status="new", data={"origin": spec.origin}, at=now)
+    details: dict[str, Any] = {"number": number, "department_id": dept["id"], "origin": spec.origin}
+    if entity is not None:
+        # section 12.3: the 24 h history, as the creator may read it, frozen with the ticket (person names removed)
+        snap = device_context.capture(conn, viewer.principal, entity["entity_id"], connected=device_context.ha_connected())
+        device_context.freeze(conn, ticket_id, snap)
+        store.insert_event(conn, ticket_id, "device_context", actor_kind="system", actor_name="", at=now,
+                           data={"source": snap["source"], "count": len(snap["items"]), "truncated": bool(snap["truncated"]), "withheld": snap["withheld"]})
+        details.update(entity_id=entity["entity_id"], floor_id=where.floor_id, history=snap["source"], history_items=len(snap["items"]))
     audit(conn, actor=viewer.principal, action="ticket.create", decision="allowed", resource_type="ticket", resource_id=ticket_id, request_id=rid,
-          details={"number": number, "department_id": dept["id"], "origin": spec.origin})
+          details=details)
     notify_bridge.ticket_created(conn, ticket_id)
     if spec.assign_to is not None:
         seen = access.require_visible(viewer, ticket_id)  # checked above: the manager holds tickets.view and the ticket is placeless
