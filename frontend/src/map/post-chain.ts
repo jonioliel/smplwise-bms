@@ -16,10 +16,11 @@ import { LOOK_STYLES, bloomFor, type StyleId } from './look-style';
 
 export type PostRung = 'realistic' | 'lite';
 
-/** ST7-odd: hides (or shows again) the meshes marked `userData.skipAO` - the sky dome and the horizon band - around the
- * GTAO pass, so its normal / depth render sees them as background (depth 1, which the AO shader leaves alone). A backdrop
- * with a depth of its own took an occlusion halo along every cut wall top once the walls were cut in that pass. The beauty
- * pass before and the bloom after see the scene whole; no buffer is swapped. */
+/** ST7-odd: hides (or shows again) the meshes marked `userData.skipAO` - the backdrop: sky dome, horizon band, ground plate
+ * and its contact shade - around the GTAO pass, so its normal / depth render sees them as background (depth 1, which the
+ * AO shader leaves alone). The ground seen just over a cut wall's top lies metres behind it and took an occlusion halo
+ * against the wall top once the walls were cut in that pass. The beauty pass before and the bloom after see the scene
+ * whole; no buffer is swapped. */
 class SkipAoPass extends Pass {
   constructor(private readonly scene: Scene, private readonly hide: boolean) {
     super();
