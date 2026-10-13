@@ -206,7 +206,7 @@ export class SystemAccessParity extends LitElement {
         render: (x) => {
           const r = rec(x);
           const why = whyText(r);
-          return html`<span>${why || nothing}${r.reason ? html`<span style=${why ? CELL.sub : CELL.raw}><span style=${CELL.raw}>${r.reason}</span></span>` : nothing}${!why && !r.reason ? '—' : nothing}</span>`;
+          return html`<span style=${CELL.wrap} data-parity-why>${why || nothing}${r.reason ? html`<span style=${why ? CELL.sub : CELL.raw}><span style=${CELL.raw}>${r.reason}</span></span>` : nothing}${!why && !r.reason ? '—' : nothing}</span>`;
         },
       },
       { key: 'open', label: pt('colOpen'), render: (x) => this.openCell(rec(x)) },

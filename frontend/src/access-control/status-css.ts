@@ -359,4 +359,6 @@ export const CELL = {
   raw: 'direction:ltr;unicode-bidi:isolate;font-family:var(--sw-font-mono);font-size:var(--sw-fs-xs)',
   row: 'display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px 8px',
   strong: 'font-weight:var(--sw-fw-semibold);color:var(--sw-heading)',
+  /** A sentence in a table cell (sw-table cells do not wrap on a wide screen): wraps inside a bounded column instead of running off the card. */
+  wrap: 'display:block;white-space:normal;min-inline-size:16ch;max-inline-size:44ch;overflow-wrap:anywhere',
 } as const;

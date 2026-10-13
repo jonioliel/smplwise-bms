@@ -141,6 +141,10 @@ test.describe('S12: the parity report and the side-by-side checklist', () => {
     expect(rows[2]).toContain('הריצו שוב');
     expect(rows[4]).toContain('not_listed');
     expect(rows[5]).toContain('לפחות 1000');
+    // integ-249: the mismatch sentence wraps inside the card instead of running off its edge (sw-table cells do not wrap)
+    const card = await page.locator(`${PARITY} sw-card[data-access-card="parity"]`).boundingBox();
+    const why = await page.locator(`${PARITY} sw-table[data-parity-table] tbody tr`).nth(2).locator('[data-parity-why]').boundingBox();
+    expect(card && why && why.x >= card.x - 1 && why.x + why.width <= card.x + card.width + 1).toBe(true);
     // the native screen only where it is switched on (the mock switches overview / events / people); the classic panel per visit
     const people = page.locator(`${PARITY} sw-table[data-parity-table] tbody tr`).nth(1);
     await expect(people.locator('a[data-parity-open="native"]')).toHaveAttribute('href', '#/wiskey/people');
