@@ -1702,17 +1702,63 @@ def test_tts_engines_and_announcement_lifecycle(feed):
         intercom_sync.unsubscribe(q)
     for row in audit_rows(s, "intercom.tts", "attempt") + audit_rows(s, "intercom.tts", "outcome"):
         assert (row["actor_username"], row["resource_id"]) == ("sam", "entry-a")
-        assert row["details"]["message"] == "נא להמתין ליד השער" and row["details"]["engine_id"] == "tts.piper" and row["details"]["language"] == "he"
+        # 2.4.10 (TTSLOG): the envelope only - station (the resource), engine, language, a length bucket, the outcome; never the text
+        assert "message" not in row["details"] and row["details"]["engine_id"] == "tts.piper" and row["details"]["language"] == "he"
+        assert row["details"]["length_bucket"] == "1-20", "'נא להמתין ליד השער' is 18 characters once collapsed"
     assert audit_rows(s, "intercom.tts", "outcome")[0]["details"]["outcome"] == "ok"
 
-    # validation before anything is sent - and audited, with the text that was NOT spoken
+    # validation before anything is sent - audited as not sent, with the length bucket and never the text
     for bad in (env(engine_id="tts.piper", message="   "), env(engine_id="tts.piper", message="x" * 501), env(engine_id="", message="hi")):
         r = c.post("/api/v1/intercom/stations/entry-a/tts", json=bad, headers=as_user("sam"))
         assert r.status_code == 422 and r.json()["details"]["outcome"] == "not_sent", bad
     assert c.post("/api/v1/intercom/stations/entry-b/tts", json=env(engine_id="tts.piper", message="hi"), headers=as_user("sam")).json()["code"] == "intercom_station_offline"
     refused = audit_rows(s, "intercom.tts", "refused")
-    assert len(refused) == 4 and refused[-1]["details"]["message"] == "hi"
+    assert len(refused) == 4 and [r["details"].get("length_bucket") for r in refused] == ["0", "over_500", None, "1-20"]
+    assert all("message" not in r["details"] for r in refused)
     assert len(sent(fakes, "tts/start")) == 1
+
+
+def test_tts_length_bucket_edges():
+    """TTSLOG: the announcement's audit rows carry a coarse length bucket of the collapsed text, never the text."""
+    from smplwise.routers.access_control import tts_length_bucket
+    assert [tts_length_bucket(n) for n in (0, 1, 20, 21, 60, 61, 150, 151, 500, 501, 2000)] == \
+        ["0", "1-20", "1-20", "21-60", "21-60", "61-150", "61-150", "151-500", "151-500", "over_500", "over_500"]
+
+
+def test_tts_text_never_reaches_the_audit_log(feed):
+    """TTSLOG (2.4.10): `tts/start` used to store the full announcement text in the audit log, refused requests included.
+    Every path - sent, refused by permission (gate and station chain), by validation, by expiry, by an offline station -
+    leaves rows whose JSON holds no fragment of the text; the text still reaches WisKey exactly as typed (collapsed)."""
+    text = "Courier-7731 please wait at gate Zulu"
+
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/tts/start":
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"state": "completed", "physical_result": "unverified"}}]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    door = c.post("/api/v1/access/roles", json={"name": "דלת בלבד", "description": "doors only", "permissions": ["access.read"], "sensitive": ["access.doors.open"]}).json()["id"]
+    caller = c.post("/api/v1/access/roles", json={"name": "הכרזות", "description": "calls only", "permissions": ["access.read"], "sensitive": ["access.call"]}).json()["id"]
+    bind(c, s, "dora", door, "installation", "*")
+    bind(c, s, "stu", caller, "access_control_station", "entry-c")
+    assert c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message=text), headers=as_user("sam")).status_code == 200
+    assert c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message=text), headers=as_user("dora")).status_code == 403
+    assert c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message=text), headers=as_user("stu")).status_code == 403
+    assert c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message=text * 20), headers=as_user("sam")).status_code == 422
+    assert c.post("/api/v1/intercom/stations/entry-a/tts", json=env(ttl=-5, engine_id="tts.piper", message=text), headers=as_user("sam")).status_code == 409
+    assert c.post("/api/v1/intercom/stations/entry-b/tts", json=env(engine_id="tts.piper", message=text), headers=as_user("sam")).json()["code"] == "intercom_station_offline"
+    [start] = sent(fakes, "tts/start")
+    assert start["message"] == text, "WisKey still receives the text"
+    with Database(s.db_path).connection() as conn:
+        rows = [dict(r) for r in conn.execute("SELECT * FROM audit_log").fetchall()]
+    everything = json.dumps(rows, ensure_ascii=False)
+    for fragment in ("Courier", "7731", "Zulu", "please wait"):
+        assert fragment not in everything, fragment
+    tts = [r for r in rows if r["action"] == "intercom.tts"]
+    assert len(tts) >= 6 and all("message" not in json.loads(r["details_json"] or "{}") for r in tts)
+    buckets = {json.loads(r["details_json"])["length_bucket"] for r in tts if "length_bucket" in json.loads(r["details_json"] or "{}")}
+    assert buckets == {"21-60", "over_500"}, buckets
 
 
 def test_tts_cut_by_a_lost_connection_is_reported_closed(feed):

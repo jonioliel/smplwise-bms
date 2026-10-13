@@ -515,7 +515,7 @@ export class WiskeyOverview extends LitElement {
                 <textarea data-wiskey-tts-message rows="3" maxlength=${TTS_MAX} .value=${this.ttsMessage} @input=${(e: Event) => (this.ttsMessage = (e.target as HTMLTextAreaElement).value)}></textarea>
               </sw-field>`
           : html`<div class="muted" data-wiskey-tts-engines-state>${this.enginesNote || 'טוען את מנועי ההקראה…'}</div>`}
-        <div class="note info" data-wiskey-tts-external>ההודעה תושמע ברמקול של העמדה ${station.name}. הטקסט נשלח למנוע ההקראה שנבחר בתשתית המערכת - אם זהו שירות ענן, הטקסט יוצא מהמבנה. ההכרזה והטקסט שלה נרשמים ביומן הביקורת בשמך.</div>
+        <div class="note info" data-wiskey-tts-external>ההודעה תושמע ברמקול של העמדה ${station.name}. הטקסט נשלח למנוע ההקראה שנבחר בתשתית המערכת - אם זהו שירות ענן, הטקסט יוצא מהמבנה. ההכרזה נרשמת ביומן הביקורת בשמך, בלי הטקסט.</div>
         ${this.ttsError ? html`<div class="note err" role="alert" data-wiskey-tts-error>${this.ttsError}</div>` : nothing}
       </div>
       <div slot="footer">

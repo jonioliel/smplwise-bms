@@ -486,6 +486,19 @@ class TtsBody(CommandEnvelope):
     message: str = Field(min_length=1, max_length=4 * intercom_client.TTS_MESSAGE_MAX)  # checked again once collapsed
 
 
+# 2.4.10 (TTSLOG): the announcement's audit rows record how long the text was, never the text. The buckets are coarse on
+# purpose (a length is a weak fingerprint of a short message); the last one is the refusal of an over-long text.
+TTS_LENGTH_BUCKETS: tuple[tuple[int, str], ...] = ((0, "0"), (20, "1-20"), (60, "21-60"), (150, "61-150"), (intercom_client.TTS_MESSAGE_MAX, f"151-{intercom_client.TTS_MESSAGE_MAX}"))
+
+
+def tts_length_bucket(length: int) -> str:
+    """The bucket of a collapsed announcement's length (`TTS_LENGTH_BUCKETS`); `over_<max>` beyond WisKey's limit."""
+    for upper, label in TTS_LENGTH_BUCKETS:
+        if length <= upper:
+            return label
+    return f"over_{intercom_client.TTS_MESSAGE_MAX}"
+
+
 class _Relay:
     """One relay's release in progress (see _RelayGuard)."""
 
@@ -1010,15 +1023,16 @@ def tts_speak(request: Request, station_id: str, principal: Principal = Depends(
     """Speak `message` through the station's speaker (WisKey `tts/start`). Body: `{engine_id, language, message,
     client_request_id, expires_at}`. Permission (2.4.9): `access.call` anywhere at the gate, then on this station's chain
     (an announcement to several stations is one request per station, each judged). The text goes to the Home Assistant TTS engine `engine_id` - which may be a cloud
-    provider, so the text can leave the premises - and is recorded, as spoken, in SMPLWISE's audit log (refused
-    requests too). The reply's `tts` is the announcement's progress when WisKey took it (`started`, or already
-    `generating` / ...); later progress arrives as `intercom_tts` notices on /intercom/ws, ending in `completed`
-    (`physical_result: "unverified"`) or `closed` with a reason. Reply: `{state, configured, last_error, fetched_at,
-    tts, sync, command_id}`."""
+    provider, so the text can leave the premises. SMPLWISE's audit rows (refused requests too) hold the envelope only:
+    the station (the row's resource), the engine, the language, a length bucket of the collapsed text (`length_bucket`,
+    TTS_LENGTH_BUCKETS) and the outcome - never the text itself (2.4.10, TTSLOG). The reply's `tts` is the
+    announcement's progress when WisKey took it (`started`, or already `generating` / ...); later progress arrives as
+    `intercom_tts` notices on /intercom/ws, ending in `completed` (`physical_result: "unverified"`) or `closed` with a
+    reason. Reply: `{state, configured, last_error, fetched_at, tts, sync, command_id}`."""
     act = _Action(request, conn, principal, "intercom.tts", station_id)
     body: TtsBody = _parse(act, TtsBody, raw)
     message = intercom_client.collapse(body.message)
-    act.details.update(engine_id=body.engine_id, language=body.language, message=message)
+    act.details.update(engine_id=body.engine_id, language=body.language, length_bucket=tts_length_bucket(len(message)))
     if not 1 <= len(message) <= intercom_client.TTS_MESSAGE_MAX:
         raise act.refuse(ApiError(422, "validation", f"ההודעה חייבת להכיל 1-{intercom_client.TTS_MESSAGE_MAX} תווים."))
     not_after = _envelope(act, body)
