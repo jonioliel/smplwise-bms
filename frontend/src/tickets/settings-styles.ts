@@ -377,9 +377,23 @@ export const ticketSettingsCss = css`
     min-inline-size: 0;
     overflow-wrap: anywhere;
   }
-  @media (max-width: 1023px) {
+  /* the layout follows the space the component really has (a settings page sits beside the settings index), not the window */
+  :host {
+    container-type: inline-size;
+  }
+  @container (max-width: 1000px) {
     .split {
       grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @container (max-width: 660px) {
+    .gridwrap {
+      display: none;
+    }
+    .pcards {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
   }
   @media (max-width: 767px) {
@@ -388,14 +402,6 @@ export const ticketSettingsCss = css`
     }
     .names > :last-child {
       grid-column: 1 / -1;
-    }
-    .gridwrap {
-      display: none;
-    }
-    .pcards {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
     }
   }
 `;
