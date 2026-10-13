@@ -172,9 +172,11 @@ test('entity pills are DOM labels (slice 1c): no sprite in the scene, the readab
   }
   // each pill stands on its own part's projected point - bottom edge a small gap above it, so the object under it stays
   // clickable from straight above (matched by id: reversing the description's part order moves nothing); pills are no
-  // Tab stops (the list and the inspector select by keyboard)
-  const first = ents[0];
-  const at = await el.evaluate((n, id) => { const e = n as unknown as { toScreen: (p: number[]) => { x: number; y: number } | null; description: SceneDescription }; return e.toScreen(e.description.parts.find((x) => x.id === id)!.position); }, first.id);
+  // Tab stops (the list and the inspector select by keyboard). ST7-odd: a pill another pill would cover is raised above it
+  // (pill-layout.ts), so the one checked here is the lowest on the screen - it always keeps its place
+  const screen = await el.evaluate((n, ids) => { const e = n as unknown as { toScreen: (p: number[]) => { x: number; y: number } | null; description: SceneDescription }; return ids.map((id) => e.toScreen(e.description.parts.find((x) => x.id === id)!.position)); }, ents.map((p) => p.id));
+  const first = ents[screen.reduce((best, s, i) => (s && (!screen[best] || s.y > screen[best]!.y) ? i : best), 0)];
+  const at = screen[ents.indexOf(first)];
   const lbl = el.locator(`[data-3d-label="${first.userData.id}"]`);
   await expect(lbl).toHaveAttribute('tabindex', '-1');
   const box = (await lbl.boundingBox())!;

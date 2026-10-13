@@ -10,6 +10,7 @@ import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
 import { PHONE_STAGE_PX, PILL_CAP, PILL_CAP_PHONE } from './scene-frame';
+import { resolvePillOverlaps, type PillBox } from './pill-layout';
 import { FpsWatch, recoverFps } from './quality-mode';
 import { cachedOwnMode, loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { WalkSession } from './walk-session';
@@ -55,6 +56,8 @@ export const DEFAULT_MIN_FPS = 30;
 export { PILL_CAP } from './scene-frame';
 /** The pill's bottom edge sits this far above its point, so the object under it stays clickable from straight above. */
 const PILL_GAP_PX = 6;
+/** The clear space between two stacked pills (ST7-odd: a pill raised off another). */
+const PILL_STACK_GAP_PX = 2;
 
 export interface PartSelectDetail {
   id: string | null;
@@ -246,6 +249,8 @@ export class SwPlan3d extends LitElement {
    * camera (three draws no sprite for them). Derived in willUpdate from the description, never a second update. */
   private overlays: ScenePart[] = [];
   private overlayById = new Map<string, ScenePart>();
+  /** The measured size of every pill by part id and text (ST7-odd: the overlap pass of layoutOverlays). */
+  private pillSizes = new Map<string, { w: number; h: number }>();
   /** Pills left out by the cap (the "+N" hint). */
   private hiddenPills = 0;
   @state() private ready = false;
@@ -1057,6 +1062,7 @@ export class SwPlan3d extends LitElement {
     const view = this.view;
     if (!view || !this.overlays.length) return;
     const els = this.renderRoot.querySelectorAll<HTMLElement>('[data-3d-part]');
+    const shown: { el: HTMLElement; p: ScenePart; x: number; y: number }[] = [];
     els.forEach((el) => {
       const p = this.overlayById.get(el.getAttribute('data-3d-part') ?? '');
       const at = p ? view.projectPoint(p.position) : null;
@@ -1065,9 +1071,26 @@ export class SwPlan3d extends LitElement {
         return;
       }
       el.style.display = 'block';
-      // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
-      el.style.transform = p.kind === 'chip' ? `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -50%)` : `translate(${Math.round(at.x)}px, ${Math.round(at.y) - PILL_GAP_PX}px) translate(-50%, -100%)`;
+      shown.push({ el, p, x: Math.round(at.x), y: Math.round(at.y) });
     });
+    // ST7-odd: two pills whose points project close together never cover one another - the upper one is raised to a stack
+    // (pill-layout.ts). A pill's size is read once per text (one layout read for a new pill, none per frame).
+    const boxes: PillBox[] = [];
+    for (const s of shown) {
+      if (s.p.kind === 'chip') continue;
+      const key = `${s.p.id}|${s.p.text ?? ''}`;
+      let size = this.pillSizes.get(key);
+      if (!size) {
+        size = { w: s.el.offsetWidth, h: s.el.offsetHeight };
+        if (size.w > 0 && size.h > 0) this.pillSizes.set(key, size);
+      }
+      boxes.push({ id: s.p.id, x: s.x, y: s.y - PILL_GAP_PX, w: size.w, h: size.h });
+    }
+    const raised = boxes.length > 1 ? resolvePillOverlaps(boxes, PILL_STACK_GAP_PX) : null;
+    for (const { el, p, x, y } of shown) {
+      // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
+      el.style.transform = p.kind === 'chip' ? `translate(${x}px, ${y}px) translate(-50%, -50%)` : `translate(${x}px, ${y - PILL_GAP_PX + Math.round(raised?.get(p.id) ?? 0)}px) translate(-50%, -100%)`;
+    }
   }
 
   private apply(desc: SceneDescription): void {
@@ -1870,6 +1893,7 @@ export class SwPlan3d extends LitElement {
         ${this.walkable
           ? html`<sw-chip data-walk-btn title="סיור בגובה עין: W A S D או החצים להליכה, Shift לריצה, גרירה להסתכלות, לחיצה על הרצפה להליכה לשם, Esc ליציאה" ?selected=${this.walkState !== 'off'} @click=${() => this.requestWalk()}>${this.walkState === 'requested' ? 'טוען סיור…' : 'סיור'}</sw-chip>`
           : nothing}
+        <!-- ST7-odd: a surface like the chips beside it - a ghost control over the rendered picture faded into whatever lay behind it -->
         <sw-button size="sm" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}

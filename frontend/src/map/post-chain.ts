@@ -10,11 +10,29 @@
  * Levels 1-2 never load it. The bloom numbers follow the style and the night factor (look-style.bloomFor); the GTAO
  * blend is the style's. Thumbnails never go through it (a composer resize re-allocates GTAO's targets).
  */
-import { HalfFloatType, Vector2, WebGLRenderTarget, type Camera, type Scene, type WebGLRenderer } from './three-bundle';
-import { EffectComposer, GTAOPass, OutputPass, RenderPass, SMAAPass, UnrealBloomPass } from './three-post';
+import { HalfFloatType, Vector2, WebGLRenderTarget, type Camera, type Plane, type Scene, type WebGLRenderer } from './three-bundle';
+import { EffectComposer, GTAOPass, OutputPass, Pass, RenderPass, SMAAPass, UnrealBloomPass } from './three-post';
 import { LOOK_STYLES, bloomFor, type StyleId } from './look-style';
 
 export type PostRung = 'realistic' | 'lite';
+
+/** ST7-odd: hides (or shows again) the meshes marked `userData.skipAO` - the backdrop: sky dome, horizon band, ground plate
+ * and its contact shade - around the GTAO pass, so its normal / depth render sees them as background (depth 1, which the
+ * AO shader leaves alone). The ground seen just over a cut wall's top lies metres behind it and took an occlusion halo
+ * against the wall top once the walls were cut in that pass. The beauty pass before and the bloom after see the scene
+ * whole; no buffer is swapped. */
+class SkipAoPass extends Pass {
+  constructor(private readonly scene: Scene, private readonly hide: boolean) {
+    super();
+    this.needsSwap = false;
+  }
+
+  render(): void {
+    this.scene.traverse((o) => {
+      if (o.userData.skipAO) o.visible = !this.hide;
+    });
+  }
+}
 
 export class PostChain {
   readonly composer: EffectComposer;
@@ -46,7 +64,9 @@ export class PostChain {
       gtao.updateGtaoMaterial({ radius: s.post.aoRadius, distanceExponent: 1, thickness: 1, distanceFallOff: 1, scale: 0.9, samples: 6 });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 6 });
       gtao.blendIntensity = s.post.aoBlend;
+      this.composer.addPass(new SkipAoPass(scene, true));
       this.composer.addPass(gtao);
+      this.composer.addPass(new SkipAoPass(scene, false));
       this.passes.push('gtao');
       this.gtao = gtao;
     } else this.gtao = null;
@@ -86,6 +106,18 @@ export class PostChain {
     this.bloom.strength = b.strength;
     this.bloom.radius = b.radius;
     if (this.gtao) this.gtao.blendIntensity = LOOK_STYLES[style].post.aoBlend;
+  }
+
+  /** The section planes of the cut (null: nothing cut) on the GTAO normal / depth pass. ST7-odd: the pass renders the scene
+   * with its own MeshNormalMaterial, which knew nothing of the cut, so the occlusion of the full-height walls (their top
+   * corners, the camera body's corner) was composited over the sky above the cut walls as faint grey "wisps". */
+  setClip(planes: Plane[] | null): void {
+    if (this.gtao) this.gtao.normalMaterial.clippingPlanes = planes;
+  }
+
+  /** The planes the normal pass clips with (tests). */
+  get clip(): Plane[] | null {
+    return this.gtao?.normalMaterial.clippingPlanes ?? null;
   }
 
   draw(): void {
