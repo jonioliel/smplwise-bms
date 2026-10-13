@@ -50,7 +50,9 @@ const SHOTS: Shot[] = [
     mock: () => newTrustMock(),
     then: async (p) => {
       await p.locator(`${SCREEN} sw-button[data-trust-rotate]`).click();
-      await p.waitForSelector(`${SCREEN} sw-dialog[data-trust-dialog][open]`);
+      // a modal dialog's host has no box of its own (its layer is fixed), so waiting for the host to be visible never ends: wait for what is
+      // drawn - the "הבנתי" row - with a bound
+      await p.locator(`${SCREEN} sw-dialog[data-trust-dialog] label.ack`).waitFor({ state: 'visible', timeout: 30_000 });
     },
   },
   { name: 'old-bridge', mock: () => newTrustMock({ version: '0.8.0', supported: false, epochSeen: null }) },
