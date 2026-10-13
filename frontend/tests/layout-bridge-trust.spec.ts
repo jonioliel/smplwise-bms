@@ -9,6 +9,8 @@ import { installTrustMock, newTrustMock, openTrust, openUnknown, type TrustMock 
 // ellipsis, the page never scrolls sideways). The 44 px rule is asserted for what this segment owns: the "הבנתי" row of the confirmation in
 // every skin, and the segment's buttons in the skins whose buttons follow the shared size dial (classic, tesla, bubble) - domus and crystal
 // size every sw-button in their own skin rules for the whole product (as in layout-wxunblk.spec.ts).
+// One test per skin x theme x state (50 bounded tests, 10 widths each) rather than one long test per skin x theme: the same coverage, a
+// budget each test can keep on a loaded shared runner, and the workers share the sweep (the first run of the all-states shape exceeded 30 min).
 //   SW_BASE_URL=http://127.0.0.1:<port>/ LAYOUT_QUICK=1 npx playwright test tests/layout-bridge-trust.spec.ts --project=desktop --workers=1
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
@@ -20,7 +22,19 @@ const SCREEN = 'system-access-trust';
 const BUBBLE = '.row, .note, .ch, .main, .side, .facts, .hist';
 const SKIN_SIZED_BUTTONS = new Set(['domus', 'crystal']);
 
-const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+// two animation frames; never more than a second (a throttled frame must not hold the sweep - the 150 ms wait before already let the layout settle)
+const settle = (page: Page) =>
+  page.evaluate(() => new Promise<void>((r) => {
+    let done = false;
+    const finish = () => {
+      if (!done) {
+        done = true;
+        r();
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(finish));
+    setTimeout(finish, 1000);
+  }));
 
 interface Shot {
   name: string;
@@ -83,51 +97,46 @@ function ownTargets(args: { ctx: string; buttons: boolean }): string[] {
 
 test.describe('CR-040 layout guard', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
-  test.describe.configure({ timeout: 30 * 60_000 });
+  test.describe.configure({ timeout: 10 * 60_000 });
   test.beforeEach(({}, info) => {
     test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
   });
 
   for (const skin of SKINS) {
     for (const theme of THEMES) {
-      test(`${skin} ${theme}: the segment across widths in its states`, async ({ page, context }) => {
-        const errors: string[] = [];
-        const results: Finding[] = [];
-        const own: string[] = [];
-        let runs = 0;
-        for (const shot of SHOTS) {
-          const p = await context.newPage();
-          p.on('pageerror', (e) => errors.push(`${shot.name}: ${e.message}`));
-          await p.emulateMedia({ reducedMotion: 'reduce' });
-          await installTrustMock(p, shot.mock());
-          await p.setViewportSize({ width: 1440, height: 900 });
-          await openTrust(p, { skin, scheme: theme });
-          await p.waitForSelector(`${SCREEN} sw-card[data-trust-card]`, { timeout: 30_000 });
-          if (shot.then) await shot.then(p);
-          await p.evaluate(() => document.fonts.ready);
+      for (const shot of SHOTS) {
+        test(`${skin} ${theme} ${shot.name}: the segment across widths`, async ({ page }) => {
+          const errors: string[] = [];
+          const results: Finding[] = [];
+          const own: string[] = [];
+          page.on('pageerror', (e) => errors.push(`${shot.name}: ${e.message}`));
+          await page.emulateMedia({ reducedMotion: 'reduce' });
+          await installTrustMock(page, shot.mock());
+          await page.setViewportSize({ width: 1440, height: 900 });
+          await openTrust(page, { skin, scheme: theme });
+          await page.waitForSelector(`${SCREEN} sw-card[data-trust-card]`, { timeout: 30_000 });
+          if (shot.then) await shot.then(page);
+          await page.evaluate(() => document.fonts.ready);
           for (const w of WIDTHS) {
-            await p.setViewportSize({ width: w, height: height(w) });
-            await p.waitForTimeout(150);
-            await settle(p);
-            runs++;
+            await page.setViewportSize({ width: w, height: height(w) });
+            await page.waitForTimeout(150);
+            await settle(page);
             const ctx = `${shot.name} ${skin} ${theme} ${w}`;
-            const found = await p.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, within: SCREEN });
+            const found = await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, within: SCREEN });
             // the floating rule and the dialog's own close button belong to the shared dialog; `target` is asserted by the guard in the bubble skin
             results.push(...found.filter((f) => !(f.cls === 'floating') && (skin === 'bubble' || f.cls !== 'target')));
-            own.push(...(await p.evaluate(ownTargets, { ctx, buttons: !SKIN_SIZED_BUTTONS.has(skin) })));
-            expect(await p.evaluate(() => document.documentElement.scrollWidth - innerWidth), `${ctx}: the page scrolls sideways`).toBeLessThanOrEqual(1);
+            own.push(...(await page.evaluate(ownTargets, { ctx, buttons: !SKIN_SIZED_BUTTONS.has(skin) })));
+            expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), `${ctx}: the page scrolls sideways`).toBeLessThanOrEqual(1);
           }
-          await p.close();
-        }
-        const { byCls, lines } = summarize(results);
-        console.log(`layout-bridge-trust ${skin} ${theme}: ${runs} checks, findings ${results.length} (${JSON.stringify(byCls)}), own targets under the hit area ${new Set(own).size}, page errors ${errors.length}`);
-        for (const l of lines) console.log('  ' + l);
-        for (const l of [...new Set(own)].slice(0, 30)) console.log('  [own target] ' + l);
-        void page;
-        expect(errors, 'page errors').toEqual([]);
-        expect(lines, 'layout findings').toEqual([]);
-        expect([...new Set(own)], 'controls below the hit area').toEqual([]);
-      });
+          const { byCls, lines } = summarize(results);
+          console.log(`layout-bridge-trust ${skin} ${theme} ${shot.name}: ${WIDTHS.length} checks, findings ${results.length} (${JSON.stringify(byCls)}), own targets under the hit area ${new Set(own).size}, page errors ${errors.length}`);
+          for (const l of lines) console.log('  ' + l);
+          for (const l of [...new Set(own)].slice(0, 30)) console.log('  [own target] ' + l);
+          expect(errors, 'page errors').toEqual([]);
+          expect(lines, 'layout findings').toEqual([]);
+          expect([...new Set(own)], 'controls below the hit area').toEqual([]);
+        });
+      }
     }
   }
 });
