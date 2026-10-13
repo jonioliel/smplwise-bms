@@ -68,6 +68,7 @@ const he = {
   exportTooLarge: 'יותר מ־5,000 שורות. צמצמו את הסינון',
   exportRate: 'אפשר לייצא פעם בדקה',
   count: '{n} {tickets}',
+  countOne: '{ticket} {f:אחת|m:אחד}',
   countMore: '{n}+ {tickets}',
   keyboardHelp: 'חצים למעלה ולמטה עוברים בין השורות, Enter פותח, רווח בוחר, Ctrl+A בוחר את העמוד, Esc מבטל את הבחירה',
 
@@ -200,6 +201,7 @@ const en: Partial<Record<TableTextKey, string>> = {
   exportTooLarge: 'More than 5,000 rows. Narrow the filter',
   exportRate: 'One export a minute',
   count: '{n} {tickets}',
+  countOne: '1 {ticket}',
   countMore: '{n}+ {tickets}',
   keyboardHelp: 'Up and down arrows move between rows, Enter opens, Space selects, Ctrl+A selects the page, Esc clears the selection',
   tableLabel: '{tickets} table',

@@ -247,7 +247,7 @@ export class TicketsTableToolbar extends LitElement {
       <button type="button" class="btn sm" aria-pressed=${String(compact)} data-density=${this.layout.density} aria-label=${`${tbt('density')}: ${tbt(compact ? 'density_compact' : 'density_comfortable')}`}
         @click=${() => this.setLayout({ density: compact ? 'comfortable' : 'compact' })}>${tbIcon('density')}${tbt(compact ? 'density_compact' : 'density_comfortable')}</button>
       <span class="grow"></span>
-      ${this.count !== null ? html`<span class="count" data-table-count>${tbt(this.more ? 'countMore' : 'count', { n: this.count })}</span>` : nothing}
+      ${this.count !== null ? html`<span class="count" data-table-count>${tbt(this.more ? 'countMore' : this.count === 1 ? 'countOne' : 'count', { n: this.count })}</span>` : nothing}
       ${this.canExport ? html`<button type="button" class="btn sm" data-export ?disabled=${this.exporting} aria-label=${tbt('exportTitle')} @click=${() => this.emit('export-csv', {})}>${tbIcon('download')}${tbt('csv')}</button>` : nothing}
     </div>`;
   }
