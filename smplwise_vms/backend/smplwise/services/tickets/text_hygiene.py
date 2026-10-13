@@ -4,10 +4,16 @@ Rule of the module: every title, description, note, return reason, contact name,
 `clean_text` (or `clean_field`) BEFORE its length is checked and before it is stored. What happens to a value:
 
 - Unicode category Cc (controls: NUL, ESC, DEL, the C1 block), Cf (format characters: the bidi embeddings / overrides /
-  isolates U+202A-202E and U+2066-2069, LRM / RLM / ALM, zero-width space and joiners U+200B-200D, the BOM U+FEFF, the soft
-  hyphen, the Arabic letter mark, tag characters) and Cs (lone surrogates) are removed. Accepted side effect (spec 10.3):
-  emoji joined by ZWJ fall apart into their parts and LRM / RLM marks disappear. A bidi override inside a Hebrew note can no
-  longer turn "בוצע" into "לא בוצע" on the manager's screen.
+  isolates U+202A-202E and U+2066-2069, LRM / RLM U+200E-200F, the Arabic letter mark U+061C, zero-width space U+200B and
+  joiner U+200D, word joiner and invisible operators U+2060-2064, the BOM U+FEFF, the soft hyphen U+00AD, interlinear
+  annotation U+FFF9-FFFB, tag characters U+E0000-E007F, shorthand format controls) and Cs (lone surrogates) are removed -
+  EXCEPT the format characters of KEEP_FORMAT, which carry no bidi or hiding effect and are part of correct spelling (code
+  review V11): U+200C ZERO WIDTH NON-JOINER (required in Persian and Urdu words) and the prepended concatenation marks
+  U+0600-0605, U+06DD, U+0890-0891, U+08E2 (Arabic number signs), U+070F (Syriac) and U+110BD / U+110CD (Kaithi).
+  Accepted side effect (spec 10.3): emoji joined by ZWJ fall apart into their parts and LRM / RLM marks disappear. A bidi
+  override inside a Hebrew note can no longer turn "בוצע" into "לא בוצע" on the manager's screen.
+- The result is NFC-normalised (code review V11): the same Hebrew word typed with precomposed or decomposed niqqud is one
+  string for search and for the dedupe keys of later slices.
 - The noncharacters U+FDD0-U+FDEF and U+xFFFE / U+xFFFF are removed.
 - A run of more than MAX_COMBINING combining marks on one letter is cut to MAX_COMBINING ("zalgo" text that paints over the
   neighbouring lines). Hebrew niqqud and Arabic harakat stay: a letter carries at most three or four marks.
@@ -36,6 +42,9 @@ AUTO_LINKIFY = False
 
 MAX_COMBINING = 8  # combining marks kept on one base character
 _REMOVED_CATEGORIES = frozenset({"Cc", "Cf", "Cs"})
+# Cf characters that are spelling, not formatting tricks (see the module docstring)
+KEEP_FORMAT = frozenset({"\u200c", *(chr(c) for c in range(0x0600, 0x0606)), "\u06dd", "\u0890", "\u0891", "\u08e2",
+                         "\u070f", "\U000110bd", "\U000110cd"})
 _MARK_CATEGORIES = frozenset({"Mn", "Me", "Mc"})  # nonspacing, enclosing and spacing combining marks
 # every character that ends a line; inside a multi-line field each becomes LF, inside a single-line field a space
 _LINE_BREAKS = frozenset({"\n", "\r", "\x0b", "\x0c", "\x85", " ", " "})
@@ -52,6 +61,8 @@ def _noncharacter(cp: int) -> bool:
 def is_hidden(ch: str) -> bool:
     """True for a character this module never keeps (Cc / Cf / Cs, a noncharacter). Line breaks and tabs are Cc too; the
     cleaners map them to LF / space before this test."""
+    if ch in KEEP_FORMAT:
+        return False
     return unicodedata.category(ch) in _REMOVED_CATEGORIES or _noncharacter(ord(ch))
 
 
@@ -82,7 +93,7 @@ def clean_text(value: object, *, multiline: bool = False, max_combining: int = M
         else:
             marks = 0
         out.append(ch)
-    text = "".join(out)
+    text = unicodedata.normalize("NFC", "".join(out))
     if not multiline:
         return " ".join(text.split())
     lines = [ln.rstrip() for ln in text.split("\n")]

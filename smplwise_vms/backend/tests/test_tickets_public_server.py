@@ -849,3 +849,33 @@ def test_the_main_app_serves_no_public_route(settings):
             r = c.get(path, headers={"x-ticket-token": "A" * 32})
             assert r.status_code == 404, path
         assert c.post("/t/api/redeem", json={"rid": "a" * 32}).status_code in (404, 405)
+
+
+def test_the_public_bundle_is_never_built_into_the_main_apps_www():
+    """W16 (code review section 2: the guard was only documented): the main app serves smplwise_vms/www with html=True under the
+    Ingress origin - a public page built there would run with the main app's cookies and without the public CSP. The public
+    bundle lives in www-public/ (slice 4's second Vite entry)."""
+    from pathlib import Path
+
+    www = Path(__file__).resolve().parents[2] / "www"
+    assert www.is_dir()
+    assert not (www / "t").exists() and not (www / "www-public").exists()
+    assert not list(www.glob("**/ticket-public*"))
+
+
+def test_no_framework_body_readers_under_the_tickets_package():
+    """W17: a route that declares FastAPI's Body / Form / File / UploadFile has its body read BEFORE link_context runs
+    (python-multipart spools to disk and logs input; pydantic puts `input` in 422s). Public routes use read_json / parse_form."""
+    import ast
+    from pathlib import Path
+
+    pkg = Path(ps.__file__).resolve().parent
+    offenders = []
+    for f in sorted(pkg.glob("*.py")):
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module in ("fastapi", "fastapi.params", "fastapi.param_functions"):
+                bad = {a.name for a in node.names} & {"Body", "Form", "File", "UploadFile"}
+                if bad:
+                    offenders.append((f.name, sorted(bad)))
+    assert offenders == []
