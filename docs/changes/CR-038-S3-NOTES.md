@@ -110,6 +110,21 @@ toggle the device. "פתיחת {ticket}" needs `tickets.create`. Alt+Enter opens
   `test_tickets_visibility.py` names `entity_ticket_rows_unchecked`.
 - NOT touched: `roles.json`, `rbac.py`, `routers/access.py`, migration 0079, `shell/nav.ts`, `sw-app.ts`, `tickets/text.ts`.
 
+## 4A. Merge of slice 2 (`45208163`)
+
+`origin/pilot/TICKETS-s2` is merged into this branch. Conflicts were unions: the SCHEMA of `settings_doc.py` (the D17 key next to the
+slice-2 installation keys), `SettingsBody` / `put_settings`, `create.py` (imports; the slice-2 `sla.refresh` runs after the device
+snapshot), the store comment. The D17 row of Settings saves through slice 2's `saveDoc` / `saveInstallation` (`device_long_press` is a
+field of `SettingsDoc` / `SettingsPatch`); slice 3's own `saveSettings(extra)` variant is gone. Slice 2 does NOT serve category domains in
+`GET /tickets/meta` (it adds `templates`); the `domains` field there is slice 3's.
+
+## 4B. Owner rename of 14.10 (module "ניהול השירות", item "בקשת שירות" / "בקשות שירות")
+
+Every user-facing text of this slice names the item through the D33 tokens (`{ticket}`, `{tickets}`, `{f:..|m:..}`) in
+`tickets/device-text.ts`; none writes the old word (the unit spec fails if one does). The old word still appears only in files this
+slice did not write: the default name in `tickets/naming.ts` / `services/tickets/naming.py` and the S1 tests that assert it, and the
+unrelated "קריאה בלבד" (read-only) of the floor map card.
+
 ## 5. Tests
 
 Backend `tests/test_tickets_device.py` (13): place resolution, snapshot (names removed, frozen, state history, truncation), creation gates
