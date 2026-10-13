@@ -22,7 +22,7 @@
     },
     "hud_layout": {
       "script": "frontend/tests/fixtures/devices_fake_ha.py",
-      "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_HUD_SHOTS": "1", "SW_HUD_TAG": "before", "SW_HUD_SKINS": "classic"},
+      "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_HUD_SHOTS": "1", "SW_HUD_TAG": "before", "SW_HUD_SHOT_SKINS": "classic,domus,tesla,bubble,crystal", "SW_HUD_SHOT_SCHEMES": "light,dark"},
       "specs": {
         "evidence-hud-layout-live.spec.ts": {"gate": false, "projects": ["desktop"]}
       }
