@@ -250,6 +250,25 @@ def test_reset_after_a_lock_is_the_managers_new_link(env):
     assert engine.verify(new_link, the_code(engine.issue(new_link, "whatsapp"))).session
 
 
+def test_a_new_generation_does_not_accept_the_old_generations_code_even_without_reset(env):
+    """Code review V8 / W8: the manager's "new link" bumps the generation; a code issued under generation N must not verify
+    under N+1, and N's failure window must not lock N+1 - without relying on the caller remembering reset()."""
+    clock, store, engine, link, _ = env
+    old_code = the_code(engine.issue(link, "whatsapp"))
+    new_link = dataclasses.replace(link, generation=link.generation + 1)
+    with pytest.raises(cd.CodeRefused) as e:
+        engine.verify(new_link, old_code)
+    assert e.value.reason == "no_code"
+    for _ in range(5):  # lock generation N
+        with pytest.raises(cd.CodeRefused):
+            engine.verify(link, wrong(old_code))
+    assert engine.locked_for(link) > 0
+    assert engine.locked_for(new_link) == 0  # N+1 starts clean
+    clock.advance(61)
+    fresh = the_code(engine.issue(new_link, "whatsapp"))
+    assert engine.verify(new_link, fresh).session
+
+
 def test_withdrawn_code_is_dead_but_still_counts(env):
     clock, store, engine, link, _ = env
     issued = engine.issue(link, "whatsapp")

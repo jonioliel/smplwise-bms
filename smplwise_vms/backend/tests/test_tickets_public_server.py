@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 import select
 import signal
 import socket
@@ -298,6 +299,86 @@ def test_early_refusals_never_hold_a_connection_for_the_body_deadline(serve):
         status, headers, body = read_response(s)
         assert (status, body) == (404, UNIFORM) and headers.get("connection") == "close"
         assert 1.5 <= time.monotonic() - t0 < 4.0 * sw_time_factor()
+
+
+def test_a_never_valid_token_cannot_hold_the_connections_with_an_announced_body(serve):
+    """Code review V1: an early refusal for a well-formed token that never proved valid (here a 415) used to drain an
+    announced 64 KiB body for 2 s, counted nowhere - 16 such connections held every slot and the next request met the cap.
+    Such a refusal now never waits for the body: answered at once, connection closed, its network pays one failure."""
+    world, lst = serve()
+    held: list[socket.socket] = []
+    try:
+        for _ in range(16):
+            s = socket.create_connection(("127.0.0.1", lst.port), timeout=5)
+            s.sendall(b"POST /t/api/note HTTP/1.1\r\nHost: t.example\r\nX-Ticket-Token: " + secrets.token_urlsafe(24).encode() +
+                      b"\r\nContent-Type: text/plain\r\nContent-Length: 65536\r\n\r\n")  # the body never comes
+            held.append(s)
+        time.sleep(0.3)  # every head is in
+        t0 = time.monotonic()
+        status, _headers, body = exchange(lst.port, b"GET /t/healthz HTTP/1.1\r\nHost: t.example\r\nConnection: close\r\n\r\n")
+        assert (status, body) == (200, b'{"ok":true}'), (status, body)
+        assert time.monotonic() - t0 < 1.0 * sw_time_factor()
+        for s in held:
+            status, headers, body = read_response(s, timeout=1.0 * sw_time_factor())
+            assert (status, body) == (415, b'{"code":"unsupported_media_type"}') and headers.get("connection") == "close"
+    finally:
+        for s in held:
+            s.close()
+    assert world.links.lookups == 0
+    assert world.app.gate.limiter.count("fail:127.0.0.0/24", 60) == 16
+    assert world.app.stats.snapshot()["counters"].get("drains", 0) == 0
+
+
+def _jpeg(size: tuple[int, int] = (64, 48)) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", size, (1, 2, 3)).save(buf, "JPEG")
+    return buf.getvalue()
+
+
+def _start_trickle(port: int, tok: str, boundary: bytes = b"xYz123boundary", length: int = 8_000_000) -> socket.socket:
+    s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    s.sendall(b"POST /t/api/photo HTTP/1.1\r\nHost: t.example\r\nX-Ticket-Token: " + tok.encode() +
+              b"\r\nContent-Type: multipart/form-data; boundary=" + boundary + b"\r\nContent-Length: " + str(length).encode() +
+              b"\r\n\r\n--" + boundary + b"\r\n")
+    return s
+
+
+def test_two_trickling_uploads_cannot_starve_every_other_vendors_upload(serve):
+    """Code review V2: an upload took one of TWO upload slots before its body was read, the body could trickle for the 60 s
+    deadline, and the 408 spent no photo budget - two forwarded links answered every other vendor's upload 429 `busy`. The
+    memory bound is now bytes (UPLOAD_MEMORY_BYTES for the declared bodies), so two tricklers leave room for others."""
+    world, lst = serve()
+    tricklers: list[socket.socket] = []
+    stop = threading.Event()
+    try:
+        for _ in range(2):
+            _link, tok = world.links.add()
+            tricklers.append(_start_trickle(lst.port, tok))
+
+        def keep_trickling() -> None:  # one byte per trickler every 0.5 s: never idle long enough to be cut
+            while not stop.wait(0.5):
+                for s in tricklers:
+                    try:
+                        s.sendall(b"x")
+                    except OSError:
+                        pass
+
+        feeder = threading.Thread(target=keep_trickling, daemon=True)
+        feeder.start()
+        time.sleep(0.5)
+        _third, tok3 = world.links.add()
+        with httpx.Client(base_url=f"http://127.0.0.1:{lst.port}", timeout=20) as c:
+            r = c.post("/t/api/photo", headers={"x-ticket-token": tok3}, files={"file": ("a.jpg", _jpeg(), "image/jpeg")},
+                       data={"client_request_id": str(uuid.uuid4())})
+        assert r.status_code == 201, r.text
+    finally:
+        stop.set()
+        for s in tricklers:
+            s.close()
 
 
 def test_transfer_encoding_with_content_length_is_refused_at_the_socket(serve):
