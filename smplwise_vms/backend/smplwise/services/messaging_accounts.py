@@ -201,9 +201,11 @@ class UseSpec:
 
 
 def tickets_uses(module_on: Callable[[], bool]) -> tuple[UseSpec, ...]:
+    """The two ticket uses (owner requirement 10). The labels are D33 templates (`{ticket}` / `{tickets}`, services/tickets/naming.py):
+    the settings route renders them with the module's configured name - the default name is never written here."""
     return (
-        UseSpec("tickets.messages", "tickets", "הודעות קריאות שירות", per_department=True, required=True, active=module_on),
-        UseSpec("tickets.codes", "tickets", "קודי אימות לקריאות שירות", inherits="tickets.messages", active=module_on),
+        UseSpec("tickets.messages", "tickets", "הודעות {tickets}", per_department=True, required=True, active=module_on),
+        UseSpec("tickets.codes", "tickets", "קודי אימות ל{tickets}", inherits="tickets.messages", active=module_on),
     )
 
 
@@ -601,19 +603,16 @@ class MemorySendLedger:
         return n
 
 
-# The table of migration 0082 (slice 5a owns the file; this copy is what the SQLite ledger is written and tested against).
-LEDGER_DDL = """
-CREATE TABLE messaging_send_ledger (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  account_key    TEXT NOT NULL,
-  use_key        TEXT NOT NULL,
-  recipient_key  TEXT NOT NULL,
-  kind           TEXT NOT NULL CHECK (kind IN ('message', 'code', 'test')),
-  at             TEXT NOT NULL
-);
-CREATE INDEX idx_messaging_ledger_account ON messaging_send_ledger (account_key, at);
-CREATE INDEX idx_messaging_ledger_recipient ON messaging_send_ledger (account_key, recipient_key, at);
-"""
+def _ledger_ddl() -> str:
+    """The table of migration 0082 (`*_messaging_accounts.sql`, slice 5a), read from the migration file itself so the SQLite ledger
+    is written and tested against exactly what the database gets (found by name: a renumbering at integration keeps it working)."""
+    from pathlib import Path
+
+    found = sorted((Path(__file__).resolve().parent.parent / "migrations").glob("*_messaging_accounts.sql"))
+    return found[-1].read_text(encoding="utf-8") if found else ""
+
+
+LEDGER_DDL = _ledger_ddl()
 
 
 class SqliteSendLedger:
