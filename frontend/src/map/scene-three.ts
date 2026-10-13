@@ -22,7 +22,7 @@ import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, clampThumb, cutBox, cutawayIds, isoFrame, levelExtent, quantiseAzimuth, sceneExtent, type Extent, type IsoFrame } from './scene-frame';
 import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
 import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, type SunPosition } from './sun';
-import { LOOK_STYLES } from './look-style';
+import { LOOK_STYLES, type LookStyle } from './look-style';
 import type { PostChain } from './post-chain';
 
 export type ScenePreset = 'top' | 'iso' | 'persp' | { camera: string };
@@ -313,7 +313,7 @@ export class SceneView {
   private readonly unitCylinder = new CylinderGeometry(0.5, 0.5, 1, 24);
   private readonly unitPlane = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   private readonly boxEdges = unitBoxEdges();
-  private readonly materials = new Map<string, { token: string; material: MeshLambertMaterial | MeshStandardMaterial }>();
+  private readonly materials = new Map<string, { token: string; material: MeshLambertMaterial | MeshStandardMaterial; state: keyof LookStyle['states'] | null }>();
   private readonly outlineMaterial: LineBasicMaterial;
   private aoMaterial: MeshBasicMaterial | null = null;
   private readonly raycaster = new Raycaster();
@@ -721,7 +721,10 @@ export class SceneView {
       light.intensity = base * pool * Math.min(3, Math.max(0.4, l.lumens / 1200));
       light.distance = 0;
       light.decay = 2;
-      light.position.set(l.position[0], l.position[1] - 0.05, l.position[2]);
+      // R3 G5: a ceiling fitting's point light sits 0.45 m under the bulb (a pendant's 0.25 m): a point 5 cm from the
+      // ceiling plate lit a 1 m hotspot above the lamp (1 / d^2) that bloom turned into a halo over the whole ceiling
+      const drop = l.kind === 'floor' || l.kind === 'wall' ? 0.05 : l.kind === 'pendant' ? 0.25 : 0.45;
+      light.position.set(l.position[0], l.position[1] - drop, l.position[2]);
     });
   }
 
@@ -853,26 +856,39 @@ export class SceneView {
 
   // ---- building
 
+  /** R3 G2: at level 3 the state layer's colours are the style's (LOOK_SPEC section 2 "states"), not the UI tokens: the
+   * open-door frame glows in `open_door`, the presence plate and ring take `presence`. null: not a state token. */
+  private stateOf(token: string): keyof LookStyle['states'] | null {
+    if (this.quality !== 3) return null;
+    if (token === 'danger') return 'open_door';
+    if (token === 'map-presence') return 'presence';
+    return null;
+  }
+
   private material(token: string, opacity: number, doubleSided = false, role: Role = 'std'): MeshLambertMaterial | MeshStandardMaterial {
     // an object on a heavy floor shades with Lambert (HEAVY_CONFIG): its own cache entry, so a floor that crosses the
     // threshold between two descriptions never reuses the other configuration's material
     const lambert = this.quality >= 2 && role === 'object' && this.config().lambertObjects;
-    const key = `${token}|${opacity}|${doubleSided ? 2 : 1}|${this.quality >= 2 ? (lambert ? 'object-lambert' : role) : 'l1'}`;
+    const state = this.stateOf(token);
+    const key = `${token}|${opacity}|${doubleSided ? 2 : 1}|${this.quality >= 2 ? (lambert ? 'object-lambert' : role) : 'l1'}${state ? `|s3:${this.real.style}` : ''}`;
     let entry = this.materials.get(key);
     if (!entry) {
       // a double-sided translucent surface draws in one pass (three would draw it twice, back then front)
       const sides = doubleSided ? { side: DoubleSide, forceSinglePass: true } : {};
       const tok = this.quality >= 2 && token === STRUCTURE_TOKEN && role === 'std' ? WALL_TOKEN_3D : token;
-      const color = new Color(this.opts.color(tok));
+      const color = state ? new Color(LOOK_STYLES[this.real.style].states[state]) : new Color(this.opts.color(tok));
       let material: MeshLambertMaterial | MeshStandardMaterial;
       if (this.quality >= 2 && role === 'glass') {
         material = new MeshStandardMaterial({ color, roughness: 0.12, metalness: 0.25, transparent: true, opacity: Math.max(opacity, 0.35), depthWrite: false, side: DoubleSide, forceSinglePass: true });
+      } else if (state === 'open_door') {
+        // the frame is an emitter (LOOK_SPEC section 2: emissive .9): it reads at night and in the dark style, and blooms a little
+        material = new MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.6, metalness: 0, ...sides });
       } else if (this.quality >= 2 && !lambert) {
         material = new MeshStandardMaterial({ color, roughness: role === 'floor' ? 1 : 0.88, metalness: 0, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...sides });
       } else {
         material = new MeshLambertMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...sides });
       }
-      entry = { token: tok, material };
+      entry = { token: tok, material, state };
       this.materials.set(key, entry);
     }
     return entry.material;
@@ -880,8 +896,25 @@ export class SceneView {
 
   /** Read the tokens again (a theme switch between two descriptions recolours the cached materials). */
   private recolour(): void {
-    for (const { token, material } of this.materials.values()) material.color.set(this.opts.color(token));
+    for (const { token, material, state } of this.materials.values()) {
+      if (state) {
+        material.color.set(LOOK_STYLES[this.real.style].states[state]);
+        if ('emissive' in material && material.emissiveIntensity > 0) material.emissive.copy(material.color);
+      } else material.color.set(this.opts.color(token));
+    }
     this.outlineMaterial.color.set(this.opts.color('accent'));
+  }
+
+  /** R3 G2: the state plates of the realistic level. Level 2 paints a lit room with a saturated plate (map-lit, alpha .45)
+   * over its floor and a presence plate + ring (alpha .36 / .75): at level 3 the lamps light the room (the plate would
+   * hide the floor material), so the lit plate is dropped, the presence plate thins to .13 and the ring to .34
+   * (LOOK_SPEC section 2). Levels 1-2 keep every part (their baselines). */
+  private statePart(p: ScenePart): ScenePart | null {
+    if (p.kind !== 'tint') return p;
+    if (p.id.endsWith('#lit')) return null;
+    if (p.id.endsWith('#presence-ring')) return { ...p, opacity: Math.round(p.opacity * 0.45 * 1e4) / 1e4 };
+    if (p.id.endsWith('#presence')) return { ...p, opacity: Math.round(p.opacity * 0.35 * 1e4) / 1e4 };
+    return p;
   }
 
   private transform(o: Object3D, p: ScenePart): void {
@@ -1005,7 +1038,7 @@ export class SceneView {
       out.real = built;
       out.root.add(built.root);
       for (const [o, ps] of built.lookup) out.lookup.set(o, ps as ScenePart[]);
-      parts = parts.filter((p) => !REAL_KINDS.has(p.kind));
+      parts = parts.filter((p) => !REAL_KINDS.has(p.kind)).map((p) => this.statePart(p)).filter((p): p is ScenePart => p !== null);
     }
     for (const p of parts) {
       if (p.group && (p.shape === 'box' || p.shape === 'cylinder')) {
@@ -1111,8 +1144,9 @@ export class SceneView {
       // new opacity in place
       for (const p of desc.parts) {
         if (p.kind !== 'tint') continue;
+        const sp = this.quality === 3 && desc.real ? this.statePart(p) : p; // level 3 thins the presence plates (R3 G2)
         const mesh = this.tints.get(p.id);
-        if (mesh && !Array.isArray(mesh.material)) mesh.material.opacity = p.opacity;
+        if (sp && mesh && !Array.isArray(mesh.material)) mesh.material.opacity = sp.opacity;
       }
       this.desc = desc;
       this.invalidate();

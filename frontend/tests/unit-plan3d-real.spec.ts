@@ -120,3 +120,26 @@ test('materials, bevels, families, floors, caps, models, lamps and shutters are 
   expect(stale.shutters[0].down).toBe(0);
   console.log(`real: ${r.parts.length} detail parts, ${r.caps.length} caps, ${r.models.length} models, ${r.lamps.length} lamps`);
 });
+
+test('round 3: every room gets a ceiling plate at its height unless the document says `ceiling: false`; a cylinder item takes its kit model', () => {
+  const d = buildScene(input({ realistic: true }));
+  const r = d.real!;
+  // G4: one ceiling per room, at elevation + ceiling height, in the room's / level's ceiling material, same polygon as the floor
+  expect(r.ceilings!.map((c) => c.zone).sort()).toEqual(['z1', 'z2']);
+  for (const c of r.ceilings!) {
+    const f = r.floors.find((q) => q.zone === c.zone)!;
+    expect(c.polygon).toEqual(f.polygon);
+    expect(c.y).toBeCloseTo(f.y + d.levels.find((l) => l.id === c.level_id)!.ceiling_height_m, 4);
+    expect(IDS.has(c.material)).toBe(true);
+  }
+  const noCeil = doc();
+  noCeil.rooms.push({ id: 'z1', level_id: 'L0', ceiling: false });
+  expect(buildScene(input({ realistic: true, doc: noCeil })).real!.ceilings!.map((c) => c.zone)).toEqual(['z2']);
+  // G9: the office chair is a cylinder in the catalog; it reaches the model path like a box does
+  const withChair = doc();
+  withChair.objects.push(obj('oc1', 'chair.office', 0.7, 0.3));
+  const rc = buildScene(input({ realistic: true, doc: withChair })).real!;
+  expect(rc.models.some((m) => m.id === 'model:oc1' && m.item === 'chair.office')).toBe(true);
+  // determinism holds with the new rows
+  expect(JSON.stringify(buildScene(input({ realistic: true, doc: withChair })).real)).toBe(JSON.stringify(rc));
+});

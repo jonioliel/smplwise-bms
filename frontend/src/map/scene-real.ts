@@ -22,7 +22,7 @@
  *   prefiltered into the environment (IBL) on time change.
  * No HDRI, no path tracer, no KTX2, no Draco; the post chain lives in its own lazy chunk (post-chain.ts).
  */
-import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
+import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import type { RealWorld } from './scene-real-builder';
 import { MATERIALS, type MaterialDef } from './material-resolve';
@@ -46,7 +46,7 @@ const rad = (d: number): number => (d * Math.PI) / 180;
 /** Kinds the realistic level draws itself (structure and objects); everything else keeps SceneView's level-2 path. */
 export const REAL_KINDS = new Set(['floor', 'wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'room']);
 /** What is cut by the section plane (decals, caps, ground, sprites and lines are not). */
-const CLIPPED_KINDS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera']);
+const CLIPPED_KINDS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'ceiling']);
 const MAX_BLOB_BASE_M = 0.5;
 const CREASE = rad(35);
 
@@ -317,7 +317,10 @@ class Bucket {
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
     const p = g.getAttribute('position');
     const n = g.getAttribute('normal');
-    const nm = new Matrix4().copy(matrix).invert().transpose();
+    // R3 G1: the normal matrix proper (inverse transpose of the upper 3x3). The round-2 port applied the transposed
+    // inverse 4x4 to the normal as a point, so the translation row skewed every merged normal by the part's position -
+    // walls metres from the origin faced nowhere, the sun never lit an interior and the plaster read as navy.
+    const nm = new Matrix3().getNormalMatrix(matrix);
     const v = new Vector3();
     this.ranges.push(this.pos.length / 9);
     this.parts.push(part);
@@ -325,7 +328,7 @@ class Bucket {
       v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(matrix);
       this.pos.push(v.x, v.y, v.z);
       if (n) {
-        v.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix4(nm).setLength(1);
+        v.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix3(nm).normalize();
         this.nrm.push(v.x, v.y, v.z);
       } else this.nrm.push(0, 1, 0);
     }
@@ -360,8 +363,9 @@ function partGeometry(shape: string, size: Vec3, radius: number, taper: number, 
 }
 const sizeKey = (s: Vec3) => s.map((v) => Math.round(v * 1000)).join('x');
 
-/** The prism top of a floor polygon at height y (a room floor plate: its top face and a thin edge). */
-function plateGeometry(polygon: [number, number][], y: number, thick: number): BufferGeometry | null {
+/** The prism top of a floor polygon at height y (a room floor plate: its top face and a thin edge); `down` turns the
+ * winding so the face looks down (a ceiling, R3 G4). */
+function plateGeometry(polygon: [number, number][], y: number, thick: number, down = false): BufferGeometry | null {
   if (polygon.length < 3) return null;
   const tris = ShapeUtils.triangulateShape(polygon.map(([x, z]) => new Vector2(x, z)), []);
   const pos: number[] = [];
@@ -369,8 +373,8 @@ function plateGeometry(polygon: [number, number][], y: number, thick: number): B
     const [a, b, c] = [polygon[i], polygon[j], polygon[k]];
     const cross = (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
     if (Math.abs(cross) < 1e-10) continue;
-    // counter-clockwise seen from above (normal +y): x-z cross must be negative
-    if (cross > 0) pos.push(a[0], y + thick, a[1], c[0], y + thick, c[1], b[0], y + thick, b[1]);
+    // counter-clockwise seen from above (normal +y): x-z cross must be negative; a ceiling takes the other order
+    if (cross > 0 !== down) pos.push(a[0], y + thick, a[1], c[0], y + thick, c[1], b[0], y + thick, b[1]);
     else pos.push(a[0], y + thick, a[1], b[0], y + thick, b[1], c[0], y + thick, c[1]);
   }
   if (!pos.length) return null;
@@ -499,6 +503,12 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     if (!levels.has(f.level_id)) continue;
     const geo = plateGeometry(f.polygon, f.y, 0.006);
     if (geo) bucket(f.level_id, f.material, 'floor', 'floor').push(geo, new Matrix4(), { id: f.id, kind: 'room', userData: { id: f.zone, kind: 'zone' } });
+  }
+  // ---- room ceilings (R3 G4): the plate's underside, cut away by the section plane in the orbit views, seen in the walk
+  for (const c of real.ceilings ?? []) {
+    if (!levels.has(c.level_id)) continue;
+    const geo = plateGeometry(c.polygon, c.y - 0.006, 0.006, true);
+    if (geo) bucket(c.level_id, c.material, 'std', 'ceiling').push(geo, new Matrix4(), { id: c.id, kind: 'room', userData: { id: c.zone, kind: 'zone' } });
   }
 
   // ---- merged meshes
@@ -758,7 +768,9 @@ export function buildExterior(extent: { x0: number; x1: number; y0: number; z0: 
   const r = Math.hypot(w, d) * 0.8 + 20;
   const y = extent.y0 - 0.06;
   const discMat = lit ? new MeshStandardMaterial({ color: s.ground.disc, roughness: 1, transparent: true, alphaMap: discTexture(), depthWrite: false }) : new MeshBasicMaterial({ color: s.ground.disc, transparent: true, alphaMap: discTexture(), depthWrite: false });
-  const disc = new Mesh(new BoxGeometry(2 * r, 0, 2 * r), discMat);
+  // R3 G3: a plane facing up. A zero-height BoxGeometry gives its top face a DOWNWARD normal (three builds the +y face with
+  // `depth > 0 ? 1 : -1` on a 0 depth), so the lit disc of the realistic rung never saw the sun and read as a dark pit.
+  const disc = new Mesh(new PlaneGeometry(2 * r, 2 * r).rotateX(-Math.PI / 2), discMat);
   disc.position.set(cx, y, cz);
   disc.receiveShadow = lit;
   disc.name = 'ground';
