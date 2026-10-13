@@ -151,6 +151,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         tickets_public.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others (W15)
         log.warning("tickets public janitor failed", exc_info=True)
+    try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
+        from .services import messaging_runtime
+
+        messaging_runtime.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("messaging ledger janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -439,6 +445,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the module key and the public listener's wiring
 
     tickets_public.configure(settings, app.state.db)
+    from .routers import messaging_accounts as messaging_accounts_router  # CR-038 S5a: WhatsApp accounts per use (installation-level, no module gate)
+
+    app.include_router(messaging_accounts_router.router, prefix=api, tags=["messaging"])
 
     @app.on_event("startup")
     async def _start_janitor() -> None:
