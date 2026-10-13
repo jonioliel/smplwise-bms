@@ -27,6 +27,18 @@ confirmed by WisKey; **W?** unknown to Arx, asked of WisKey (section 3); **O** o
 | O4 | An EMERGENCY button that LOCKS all doors and an EMERGENCY button that OPENS all doors (evacuation) | 8 |
 | O5 (standing rules) | Arx RBAC is the only authority; WisKey is the engine; door actions go through the signed trusted-caller path, which is disabled until bridge 0.8.1 / the generalized W1 appendix; automations opening WisKey doors are refused today with no bypass; no physical action is exercised live without per-action owner approval; sub-agents use fakes only | 4, 7, 9, 13, 16 |
 
+### 0.1 Owner decisions on this CR's questions (2026-10-13, after the first draft)
+| Q (section 20) | Decision | Status |
+|---|---|---|
+| 1 exterior doors on software-relocked windows | **interior (and courtyard) doors first**; exterior only after U1 or a hardware review | **DECIDED** |
+| 2 who holds `access.emergency.open` by default | **system administrators only** (grantable per user by the owner) | **DECIDED** |
+| 6 spoken announcement at emergency start | **OFF** until the owner has heard the phrase in a drill | **DECIDED** |
+| 3 Secure vs Lockdown | build **Secure** now; Lockdown when WisKey offers a command (U4) | recommended default, not yet explicitly confirmed |
+| 4 guard override for operators by default | **yes** (`access.windows.cancel` in the operator role) | recommended default, not yet explicitly confirmed |
+| 5 build order vs the tickets module | **in parallel, on fakes** - but see the shared-file rule in section 17 | recommended default, not yet explicitly confirmed |
+
+The decided items are applied in 7.2, 13, 17 and the Hebrew summary; the three defaults stand until the owner says otherwise.
+
 ## 1. Goals and non-goals
 
 **Goals**
@@ -102,7 +114,7 @@ caller incl. the automation actor, W2 schemas, W4 lock mapping, W5 error codes) 
 | **U6** | Does WisKey emit a `subscribe` refresh when a program's execution status changes (W6)? | status is near-live | Arx polls `technical_program_list` on the watchdog cadence (4.4) |
 | **U7** | Which program-save / action error codes are **before effect** (safe to call "refused") - W5 for these three commands | precise refusal mapping | everything but a proven pre-effect code is `unknown` (the CR-036 rule) |
 
-### 3.3 New request to WisKey - W13 (to be appended to the open-requirements document by the lead, not by this CR)
+### 3.3 New request to WisKey - W13 (written: `private/wiskey-foldin/ARX_W13_DOOR_WINDOWS_AND_EMERGENCY_REQUEST_2026-10-13_HE.md`; the owner forwards it)
 "Door windows and emergency": (a) U1 - station-side schedules; (b) U3 - `doors/hold_until {station_id, door, until, request_id}`
 + `doors/hold_release {station_id, door, request_id}` + `doors/hold_status`; (c) U4 - lockdown; (d) U5 per supported model;
 (e) an **emergency** command family that acts on a list of doors in one call with per-door results
@@ -376,9 +388,9 @@ locking a building are different decisions and get their own names (owner rule: 
 ### 7.2 Defaults (`roles.json`, `contracts/examples/role-catalog.design.json`)
 | Role | gets |
 |---|---|
-| `system_admin` | all four |
+| `system_admin` | all four (**owner decision 2026-10-13:** `access.emergency.open` is held by system administrators only; anyone else gets it by a per-user grant from the owner) |
 | `site_admin` | `access.windows.manage`, `access.windows.cancel`, `access.emergency.lock` |
-| `operator` | `access.windows.cancel` (the guard override; operators already hold `access.call`, 2.4.9 decision 2) |
+| `operator` | `access.windows.cancel` (the guard override; operators already hold `access.call`, 2.4.9 decision 2) - recommended default, not yet explicitly confirmed |
 | `door_opener`, `viewer`, `kiosk`, wall accounts | none; a kiosk / wall account is refused at the authority step like a door open (V `door_authority` step 1) |
 | **new single-permission roles** (the D25 pattern, CR-038 8.2) | `door_windows_manager` (ניהול חלונות פתיחה), `door_windows_guard` (הפסקת חלון פתיחה), `emergency_lock` (נעילת חירום), `emergency_open` (פתיחת חירום) - each holds exactly its permission plus `access.read`, `access.stations.read` so the holder can see what they act on |
 
@@ -675,7 +687,8 @@ HA token identity (AGENTS.md v1.1). Audit never holds a token (9.1 `ha_event`), 
 | `doors.emergency.lockdown_enabled` | `off / on` | **off**, cannot be on until U4 | the Lockdown level |
 | `doors.emergency.hold_ms` | 1000..3000 | 1500 | the hold-to-confirm |
 | `doors.emergency.home_widget` | `off / on` | off | the home-screen entry |
-| `doors.emergency.announce_phrase` | text <= 120 | "" | the spoken announcement on start (empty = none) |
+| `doors.emergency.announce_phrase` | text <= 120 | "" (**owner decision:** OFF until heard in a drill) | the spoken announcement on start (empty = none) |
+| `doors.windows.exterior_allowed` | `false / true` | **false** (**owner decision:** interior doors first) | a door the administrator marked exterior in the door map (new column `intercom_door_map.exterior`, in 0085) cannot be in a rule while false; the rule editor hides such doors and says why in Settings only |
 
 Settings screen: Settings › access control gains two cards "חלונות פתיחה" and "חירום" (the `system-access-*.ts` family, V);
 the emergency card shows the life-safety text (8.9) with the acceptance checkbox and the recorded attestation; the state of
@@ -752,6 +765,11 @@ each dependency is shown in plain words ("ממתין לממשק מצד מערכ�
 | W9 | Lab verification with the owner, per action: one weekly window on one door, one override, one relock-unconfirmed drill (feed cut deliberately), LOCK-secure on one door; OPEN only after W13 and the attestation | W8, U2 | owner session | **no** |
 
 Total **96-116 agent-hours** before the owner session. Recommended order: W0 -> W1 -> (W2 ‖ W3) -> W5 -> W6 -> W4 -> W7 -> W8.
+**Shared-file rule (build order vs tickets):** the tickets module's slice 1 (CR-038) owns the shared files `roles.json`,
+`rbac.py` / `routers/access.py` (permission labels, delegation defaults), `shell/nav.ts` and the migration numbers; the
+door-windows build (W1 onward) **starts only after tickets slice 1 is merged** to its integration branch, and W1 then
+rebases its permissions, roles and migration numbers on that tree. W0 (fakes, the static closed-rule test) touches none of
+those files and may start at once.
 Everything up to W8 proceeds on fakes without a WisKey answer; what waits: tier B live writes (U2 + signed transport),
 `armed` triggers (W1 automation actor), emergency OPEN and Lockdown (W13 / U3 / U4), tier A (U1).
 
@@ -786,12 +804,12 @@ Everything up to W8 proceeds on fakes without a WisKey answer; what waits: tier 
 ## 20. Open questions
 **For WisKey (W13, section 3.3):** U1-U7 and the emergency command family.
 
-**For the owner** (plain-language versions with options and a recommendation are in `CR-039-..._HE.md`):
-1. Exterior / perimeter doors on windows at all, given that the relock is software in HA until U1? (recommendation: interior
-   and courtyard doors first; exterior only after U1 or a hardware review).
-2. Who holds `access.emergency.open` by default: system administrators only (recommended) or site administrators too?
-3. Emergency LOCK level the owner expects: "Secure" (credentials still work) is what exists; is "Lockdown" a requirement
-   worth waiting for (U4)?
-4. The guard override for operators by default (recommended) or only by explicit grant?
-5. Build order relative to the tickets module and the WisKey live verification.
-6. The spoken announcement on emergency start: on by default with a phrase, or off.
+**For the owner** (plain-language versions in `CR-039-..._HE.md`; status per 0.1):
+1. ~~Exterior / perimeter doors on software-relocked windows~~ - **DECIDED 2026-10-13:** interior and courtyard doors first;
+   exterior only after U1 or a hardware review (setting `doors.windows.exterior_allowed`, 13).
+2. ~~Who holds `access.emergency.open` by default~~ - **DECIDED 2026-10-13:** system administrators only.
+3. Emergency LOCK level: "Secure" now, "Lockdown" when U4 allows - recommended default, not yet explicitly confirmed.
+4. The guard override for operators by default - recommended default (yes), not yet explicitly confirmed.
+5. Build order: in parallel with tickets on fakes, after tickets slice 1 is merged (17) - recommended default, not yet
+   explicitly confirmed.
+6. ~~The spoken announcement on emergency start~~ - **DECIDED 2026-10-13:** OFF until heard in a drill.
