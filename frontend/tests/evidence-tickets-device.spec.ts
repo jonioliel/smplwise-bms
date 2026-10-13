@@ -71,7 +71,7 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
     test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
     await installTicketsDeviceMock(page, { enabled: false });
     await open(page);
-    expect(await area(page).locator('[data-entity="sensor.living_temp"][data-activity]').count()).toBe(0);
+    expect(await area(page).locator('[data-entity="media_player.living_tv"][data-activity]').count()).toBe(0);
     await hold(page, dev(page, 'light.living_main'));
     await expect(opened(page)).toHaveCount(1);
     await expect(tabs(page)).toHaveCount(2);
@@ -84,7 +84,7 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
     test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
     await installTicketsDeviceMock(page, { mode: 'menu', perms: [...AREA_PERMS, 'tickets.create'] });
     await open(page);
-    expect(await area(page).locator('[data-entity="sensor.living_temp"][data-activity]').count()).toBe(0);
+    expect(await area(page).locator('[data-entity="media_player.living_tv"][data-activity]').count()).toBe(0);
     await hold(page, dev(page, 'light.living_main'));
     await expect(opened(page)).toHaveCount(1);
     await expect(tabs(page)).toHaveCount(2);
@@ -107,13 +107,13 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
     await expect(page.locator('sw-app device-activity [data-device-ticket]')).toHaveCount(2);
     await expect(page.locator('sw-app device-activity [data-tickets-new]')).toBeVisible();
     await closeAll(page);
-    await hold(page, dev(page, 'sensor.living_temp'));
+    await hold(page, dev(page, 'media_player.living_tv'));
     await expect(opened(page)).toHaveCount(1);
     await expect(tabs(page)).toHaveCount(0);
     await expect(page.locator('sw-app device-activity [data-panel="tickets"] device-tickets-tab')).toHaveCount(1);
     await expect(page.locator('sw-app device-activity [data-tickets-state="empty"]')).toBeVisible();
-    expect(st.calls.filter((c) => c.path.startsWith('tickets/by-entity/')).map((c) => c.path)).toEqual(['tickets/by-entity/light.living_main', 'tickets/by-entity/sensor.living_temp']);
-    expect(st.devhist.feedCalls.map((c) => c.entity)).not.toContain('sensor.living_temp'); // an untracked device never asks for an activity feed
+    expect(st.calls.filter((c) => c.path.startsWith('tickets/by-entity/')).map((c) => c.path)).toEqual(['tickets/by-entity/light.living_main', 'tickets/by-entity/media_player.living_tv']);
+    expect(st.devhist.feedCalls.map((c) => c.entity)).not.toContain('media_player.living_tv'); // an untracked device never asks for an activity feed
     // the right click gains "open a ticket" in this mode too
     await closeAll(page);
     await dev(page, 'light.living_main').click({ button: 'right', position: { x: 20, y: 14 } });
@@ -144,7 +144,7 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
     await expect(page.locator('sw-app device-activity [data-tab="tickets"]')).toHaveAttribute('aria-selected', 'true');
     await closeAll(page);
     // an untracked device: no history item
-    await hold(page, dev(page, 'sensor.living_temp'));
+    await hold(page, dev(page, 'media_player.living_tv'));
     expect(await menuIds(page)).toEqual(['data-activity-menu-ticket-new', 'data-activity-menu-tickets']);
     await page.mouse.click(5, 5); // an outside tap closes it
     await expect(menu(page)).toHaveCount(0);
@@ -264,7 +264,7 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
         await page.waitForTimeout(300);
         await shot(`menu-${skin}-${scheme}`);
         await closeAll(page);
-        await hold(page, dev(page, 'sensor.living_temp'));
+        await hold(page, dev(page, 'media_player.living_tv'));
         await expect(menu(page)).toBeVisible();
         await menu(page).locator('[data-activity-menu-tickets]').click();
         await expect(opened(page)).toHaveCount(1);

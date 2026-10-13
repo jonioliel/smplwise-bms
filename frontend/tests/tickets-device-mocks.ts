@@ -80,7 +80,7 @@ export async function installTicketsDeviceMock(page: Page, o: DeviceMockOptions 
       const id = decodeURIComponent(be[1]);
       const items = byEntity[id] ?? [];
       return json(route, {
-        entity: { entity_id: id, name: id, domain: id.split('.')[0], tracked: !id.startsWith('sensor.') },
+        entity: { entity_id: id, name: id, domain: id.split('.')[0], tracked: !id.startsWith('media_player.') && !id.startsWith('sensor.') },
         items, open_count: items.filter((x) => !['closed', 'cancelled'].includes(x.status)).length, can_create: perms.includes('tickets.create'),
         place_text: 'קומת קרקע · סלון', history: perms.includes('tickets.create') ? HISTORY : null,
       });
