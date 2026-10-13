@@ -8,6 +8,8 @@ import type { CandidatePixels, DetectResult } from '../api/geometry';
 import type { GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt } from './geometry';
 
 export type CandState = 'accepted' | 'rejected';
+/** Where a candidate set came from: the detector, the DXF the version was made from, or an IFC file (CR-037). */
+export type CandSource = 'detect' | 'dxf' | 'ifc';
 export type CandKind = 'wall' | 'door' | 'window' | 'passage';
 export interface CandidateSet {
   walls: GeomWall[];
@@ -65,11 +67,11 @@ export function objectCandidateLabel(itemId: string): string {
   return 'עצם';
 }
 
-/** The panel's line for the object candidates: how many of which kind (detect), or how many from the file (DXF). */
-export function objectsSummary(set: CandidateSet, source: 'detect' | 'dxf'): string {
+/** The panel's line for the object candidates: how many of which kind (detect), or how many from the file (DXF, IFC). */
+export function objectsSummary(set: CandidateSet, source: CandSource): string {
   const n = set.objects.length;
   const count = n === 1 ? 'עצם אחד' : `${n} עצמים`;
-  if (source === 'dxf') return `${count} מהקובץ`;
+  if (source !== 'detect') return `${count} מהקובץ`;
   const tribunes = set.objects.filter((o) => o.item_id.startsWith('tribune.')).length;
   const columns = set.objects.filter((o) => o.item_id.startsWith('column.')).length;
   const parts = [tribunes ? (tribunes === 1 ? 'טריבונה' : `${tribunes} טריבונות`) : '', columns ? (columns === 1 ? 'עמוד' : `${columns} עמודים`) : ''].filter(Boolean);

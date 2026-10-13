@@ -4,8 +4,8 @@
  * state and passes callbacks; its shadow root provides the shared classes (.row, .two, .note, .btns, .err).
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
-import type { CalibrationHint, CopyCandidate, GeometryIssue } from '../api/geometry';
-import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandState, objectsSummary } from '../map/candidates';
+import type { CalibrationHint, CopyCandidate, GeometryIssue, IfcImportReport } from '../api/geometry';
+import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandSource, type CandState, objectsSummary } from '../map/candidates';
 import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
 import { COLOR_TOKENS, FLOOR_HEIGHT_RANGE, floorHeight, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, wallLengthPx, wallOutlineAreaM2, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
@@ -15,6 +15,7 @@ import type { SaveState } from '../map/studio-controller';
 import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type AlignMode, type WallDefaults } from '../map/studio-ops';
 import { symbolOf } from '../map/plan-symbols';
 import { pkgT } from '../i18n/plan-package';
+import { ifcSkippedLines, ifcSummary, ifcT } from '../i18n/plan-ifc';
 import { curveT } from '../i18n/plan-curves';
 import { cornerRoundable, curvePointAt, curvePoints, maxCornerRadiusM, minRadiusM, segmentRadiusM } from '../map/curve-ops';
 import { glassT, operationLabel, tintLabel } from '../i18n/plan-glass';
@@ -158,6 +159,8 @@ export interface StudioView {
   exportSvg: string;
   exportPng: string;
   exportDxf: string;
+  /** CR-037: the draft as IFC4 (the route refuses an uncalibrated plan). */
+  exportIfc: string;
   busy: boolean;
   /** Setting `plan.estimates`: show estimated metres ("≈") before calibration, or hide them. */
   showEstimates: boolean;
@@ -191,6 +194,8 @@ export interface StudioActions {
    * package also carries the DXF with the plan picture beside it. */
   exportPackage(withDxf?: boolean): void;
   importPackage(file: File): void;
+  /** CR-037: an IFC file's candidates into the detect tool (nothing stored until the accept). */
+  importIfc(file: File): void;
   reload(): void;
   calibrate(): void;
   retry(): void;
@@ -247,6 +252,9 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
       <button class="btnlink" data-export-package ?disabled=${v.busy} @click=${() => a.exportPackage()}>${pkgT('exportPackage')}</button>
       <label class="btnlink" data-import-package-label>${pkgT('importPackage')}<input type="file" accept=".zip,application/zip" data-import-package hidden ?disabled=${v.busy}
         @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) a.importPackage(f); (e.target as HTMLInputElement).value = ''; }} /></label>
+      <a class="btnlink" data-export-ifc href=${v.exportIfc} download>${ifcT('ifc')}</a>
+      <label class="btnlink" data-import-ifc-label>${ifcT('importIfc')}<input type="file" accept=".ifc,application/x-step,model/ifc" data-import-ifc hidden ?disabled=${v.busy}
+        @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) a.importIfc(f); (e.target as HTMLInputElement).value = ''; }} /></label>
       <span class="note">ייצוא הטיוטה כפי שהיא</span>
     </div>
     ${v.saveState === 'error'
@@ -660,7 +668,7 @@ export interface DetectAcceptError {
   stale: boolean;
 }
 export interface DetectCandidatesView {
-  source: 'detect' | 'dxf';
+  source: CandSource;
   set: CandidateSet;
   states: Record<string, CandState>;
   sel: string | null;
@@ -668,8 +676,10 @@ export interface DetectCandidatesView {
   /** Unlocked items of the candidates' source in the live draft (what a replace would remove). */
   existingAuto: { walls: number; openings: number; objects?: number };
   elapsedMs: number | null;
-  /** DXF only: room polygons offered to the zones layer (never part of the structure accept). */
+  /** DXF / IFC: room polygons offered to the zones layer (never part of the structure accept). */
   rooms: number;
+  /** IFC only (CR-037): the import report - what was read, what was skipped and why. */
+  ifc?: IfcImportReport | null;
 }
 /** The replace step before an accept that removes earlier automatic items. */
 export interface DetectReplaceAsk {
@@ -790,10 +800,12 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
   const err = v.acceptError;
   const bad = new Set(err?.ids ?? []);
   const existing = c.existingAuto.walls + c.existingAuto.openings + (c.existingAuto.objects ?? 0);
-  const earlier = c.source === 'dxf' ? 'מיובאים' : 'אוטומטיים';
-  const origin = c.source === 'dxf' ? ' · מיובאים מ־DXF' : c.elapsedMs !== null ? ` · זוהו ב־${(c.elapsedMs / 1000).toFixed(1)} שנ׳` : '';
+  const earlier = c.source !== 'detect' ? 'מיובאים' : 'אוטומטיים';
+  const origin = c.source === 'dxf' ? ' · מיובאים מ־DXF' : c.source === 'ifc' ? ` · ${ifcT('origin')}` : c.elapsedMs !== null ? ` · זוהו ב־${(c.elapsedMs / 1000).toFixed(1)} שנ׳` : '';
   return html`<div class="note" data-detect-summary>${countLabel(set.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(set.openings.length, 'פתח אחד', 'פתחים')}${set.objects.length ? ` · ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')}` : ''} · <span data-detect-accepted>${v.acceptedCount}</span> מסומנים לאישור${origin}</div>
     ${outsideMainSummary(set) ? html`<div class="note warn" data-detect-outside-main>${outsideMainSummary(set)}</div>` : nothing}
+    ${c.ifc ? html`<div class="note" data-ifc-summary>${ifcSummary(c.ifc)}</div>
+      ${c.ifc.skipped_total ? html`<ul class="note ifc-skipped" data-ifc-skipped>${ifcSkippedLines(c.ifc).map((line) => html`<li>${line}</li>`)}</ul>` : nothing}` : nothing}
     ${!ids.length ? html`<div class="note" data-detect-empty>לא נמצאו קירות. נסה עוצמת ניקוי אחרת, או צייר בכלי "מבנה".</div>` : nothing}
     ${c.hint && v.estimated && v.canEstimate && !v.hintApplied
       ? html`<div class="hint" data-calib-hint>
@@ -1857,6 +1869,10 @@ export const studioPanelStyles = css`
     font: inherit;
     cursor: pointer;
     padding: 0;
+  }
+  .ifc-skipped {
+    margin: 0;
+    padding-inline-start: 18px;
   }
   .steps {
     margin: 0 0 8px;

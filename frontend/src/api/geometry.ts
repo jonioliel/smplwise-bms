@@ -188,7 +188,7 @@ export const copyGeometryFrom = (versionId: string, fromVersionId: string) =>
   post<GeometryResponse>(`plan-versions/${versionId}/geometry/copy-from`, { from_version_id: fromVersionId });
 export const calibrate = (versionId: string, pairs: { a: Pt; b: Pt; metres: number }[]) =>
   patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, { pairs });
-export function exportUrl(versionId: string, fmt: 'svg' | 'png' | 'dxf', opts: { draft?: boolean; layers?: string[] } = {}): string {
+export function exportUrl(versionId: string, fmt: 'svg' | 'png' | 'dxf' | 'ifc', opts: { draft?: boolean; layers?: string[] } = {}): string {
   const q = new URLSearchParams();
   if (opts.draft) q.set('draft', 'true');
   if (opts.layers?.length) q.set('layers', opts.layers.join(','));
@@ -341,6 +341,21 @@ export interface DxfRoomCandidate {
   polygon: { x: number; y: number }[];
   name: string;
 }
+/** Plan Studio 8 (CR-037): the report of an IFC import - what was read for the chosen storey, what was skipped and
+ * why (a partial import is never silent), the file's storeys and how the model was aligned to the plan. */
+export interface IfcImportReport {
+  schema: string;
+  entities: number;
+  metres_per_unit: number;
+  ms: number;
+  storeys: { index: number; name: string; elevation_m: number; chosen: boolean }[];
+  counts: { walls: number; openings: number; objects: number; rooms: number };
+  skipped: { id: string; class: string; reason: string; name: string }[];
+  skipped_total: number;
+  skipped_by_reason: Record<string, number>;
+  warnings: string[];
+  alignment: { dx_m: number; dy_m: number; fits: boolean; needed_m: [number, number] | null; plan_m: [number, number] };
+}
 /** POST /plan-versions/{id}/detect and POST …/import-dxf-geometry: candidates in document-v2 shape, never stored.
  * Deviation from the brief (API review): object candidates are document-v2 objects (GeomObject), not the brief's
  * pose/catalog_id shape - the backend never produced that shape (services/plan_geometry.py merge_candidates,
@@ -368,6 +383,8 @@ export interface DetectResult {
   /** Items of the candidates' source already in the draft; `objects` comes with the DXF import (and a newer /detect). */
   existing_auto: { walls: number; openings: number; objects?: number };
   elapsed_ms?: number;
+  /** The IFC import's report (CR-037); absent from /detect and the DXF import. */
+  ifc?: IfcImportReport;
 }
 export interface AcceptRequest {
   accepted: string[];
@@ -467,3 +484,14 @@ export interface DxfEntities {
 export const getDxfEntities = (assetId: string) => get<DxfEntities>(`plan-assets/${assetId}/dxf/entities`);
 export const importDxfGeometry = (versionId: string, body: { layer_map: Record<string, DxfTarget>; block_map: Record<string, string | null>; level_id?: string }) =>
   post<DetectResult>(`plan-versions/${versionId}/import-dxf-geometry`, body);
+/** POST /plan-versions/{id}/import-ifc (CR-037): the file's candidates for one document level in the shape of /detect
+ * plus the report under `ifc`; nothing is stored (the accept goes through /detect/accept). map.import. */
+export function importIfcGeometry(versionId: string, file: File | Blob, opts: { levelId?: string; storey?: number } = {}): Promise<DetectResult> {
+  const q = new URLSearchParams();
+  if (opts.levelId) q.set('level_id', opts.levelId);
+  if (opts.storey !== undefined) q.set('storey', String(opts.storey));
+  const form = new FormData();
+  form.append('file', file, file instanceof File ? file.name : 'plan.ifc');
+  const qs = q.toString();
+  return upload<DetectResult>(`plan-versions/${versionId}/import-ifc${qs ? `?${qs}` : ''}`, form);
+}
