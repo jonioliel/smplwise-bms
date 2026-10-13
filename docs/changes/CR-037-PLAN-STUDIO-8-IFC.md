@@ -109,6 +109,8 @@ Settings page, no hints or badges, no infrastructure branding, desktop only like
   openings, 5,000 objects, 500 rooms) — the rest is reported as `limit`.
 - Output of the import is the candidate shape only; ids are `imp-<run>-w001` etc. (never the file's); the file's names
   are cleaned like every imported text (control characters and bidi marks removed, ≤ 80 chars).
+- Measured on the workstation (2026-10-13): a synthetic 15.5 MB file with 316,000 instances and 2,000 walls scans in
+  1.2 s and maps in 2.3 s; the 32 MiB cap therefore sits well inside the 60 s `detect_timeout_s`.
 - Export: only the anchors the caller may see (review M2 / PLNS: hidden anchor references are nulls in the served
   document, so a withheld body is exported at the served pose, never the hidden camera's).
 
@@ -161,12 +163,20 @@ isolated converter process like `dwg2dxf` in section 17.2, never linked into the
 - `smplwise_vms/backend/smplwise/services/plan_ifc.py` — writer (STEP encoder, GlobalId, the entity builders).
 - `smplwise_vms/backend/smplwise/services/plan_ifc_read.py` — bounded STEP parser + mapper to candidates + report.
 - `smplwise_vms/backend/smplwise/routers/plan_ifc.py` — the two routes; registered in `main.py`; `body_limit.LIMITS` row.
-- `smplwise_vms/backend/tests/test_plan_ifc.py` — writer structure, determinism and GlobalId stability, permissions and
-  audit, round trip (two levels, curved wall, every opening kind, objects, rooms), a hand-written foreign-style file
-  (millimetres, IFC2X3, rectangle-profile walls without Axis, material layers, doors by OperationType), hostile files.
+- `smplwise_vms/backend/tests/test_plan_ifc.py` (19 tests) — writer structure, determinism and GlobalId stability,
+  permissions and audit, round trip (two levels, curved wall, glass wall, every opening kind, objects, rooms), a
+  hand-written foreign-style file (millimetres, IFC2X3, rectangle-profile walls without Axis, material layers,
+  `Pset_WallCommon`, a door through an opening, a rotated chair, a slab and a stair reported), IFC4 door operation
+  types, conversion-based units (feet), a file without a length unit, hostile files (not STEP, zip, NUL, unterminated,
+  deep nesting, too many instances, instance / string / aggregate bounds, oversize, a placement cycle, absurd numbers, a
+  self-referencing mapped item, the deadline, duplicate ids, storeys), the routes (calibration required, permissions,
+  audit rows, the accept through `/detect/accept`, the 413, a route-level round trip).
 - Frontend: `api/geometry.ts` (`exportUrl('ifc')`, `importIfcGeometry`, the report type), `i18n/plan-ifc.ts`,
-  `screens/plan-studio-panel.ts` (export row, candidate origin), `screens/explore-plan-editor.ts` (the import flow and
-  the report), `map/candidates.ts` (source `ifc`).
+  `screens/plan-studio-panel.ts` (export row, candidate origin, the report block), `screens/explore-plan-editor.ts` (the
+  import flow), `map/candidates.ts` (source `ifc`); `frontend/tests/unit-plan-ifc.spec.ts` (3 node tests).
+- No Playwright screen spec was added: the import's UI is the existing detect tool with two more controls in the export
+  row (the fixture spec `evidence-plan-package.spec.ts` keeps covering that row); an evidence run of the IFC buttons is a
+  follow-up for the integrator's fixture round.
 
 ## 9. Known limits
 
