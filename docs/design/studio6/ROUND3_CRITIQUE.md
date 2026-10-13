@@ -74,9 +74,11 @@ Everything else in LOOK_SPEC sections 1-6 stands. The level 1-2 descriptions and
   both floors.
 - The full matrices (36 frames each, three passes): `private-evidence/studio6-lookdev/{before,after1,after2,after3}/`
   on the workstation (gitignored; `frames.txt` has draw calls and triangles per frame).
-- Draw calls / triangles (workstation GPU, 1440 x 900, realistic rung, one floor): before 408 / 54.4k, after 408 /
-  56.0k (the ceilings: one merged mesh per level, +1.6k triangles; the office chair model replaces a 14-segment cylinder).
-  No new draw calls, no new texture, no new chunk. The lite rung: 151 / 18.7k -> 151 / 20.3k.
+- Draw calls / triangles (workstation GPU, 1440 x 900, `frames.txt` of the before / after3 passes): realistic iso one
+  floor 408 / 54.4k -> 408 / 56.0k; lite iso 151 / 18.7k -> 150 / 19.2k; realistic walk 185 / 29.6k -> 183 / 29.6k;
+  realistic perspective of both floors 686 / 90.8k -> 684 / 98.7k; phone lite walk 67 / 9.3k -> 66 / 9.3k. The ceilings
+  are one merged mesh per level (+0.5-1.6k triangles per level), the office chair model replaces a 14-segment cylinder
+  (+0.6k each on the open-office floor). No new draw call, texture or chunk.
 
 ## 5. Performance and budgets
 
