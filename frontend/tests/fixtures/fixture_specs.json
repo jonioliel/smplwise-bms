@@ -12,6 +12,7 @@
         "evidence-plan-glass.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass-entity.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-floorstrip.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
+        "evidence-hud-opaque-live.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-lat1-instant-toggle.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-home-polish.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},

@@ -53,6 +53,9 @@ CSS (GPL-3.0) is used.
    screen's own `data-devices-scheme` (a dark glass screen under a light product therefore gets a dark menu with the
    screen's light text, never the product's light surface), with no blur behind it. Cards, KPIs, the tree and the dialog
    keep the glass. The translucent `--sw-surface` above must never paint a menu.
+   **The same holds for the HUD panels over a plan or a 3D canvas** (owner 2026-10-13, second report): the floor map embedded in a
+   glass screen paints its floor chip, level bar, side list, zoom buttons and pills with `--sw-menu-surface` too - the palette's
+   solid twin, by the screen's own scheme (`docs/design/handoff/TOKEN_CONTRACT.md` §3c).
 2. **Palettes.** Each palette sets every knob, on
    `:host([data-devices-style='glass'][data-devices-theme='<id>'])`, in up to three blocks:
    - a **light** block, which is the default;

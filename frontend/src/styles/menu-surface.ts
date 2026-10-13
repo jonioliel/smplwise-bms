@@ -27,8 +27,10 @@
  * One token pair, not a second family: the skins, the bubble palettes, the glass bridge and every dial already keep it opaque.
  *   - A HUD panel that is ONE box paints the token itself (`via: 'background'`).
  *   - A row of shared controls (sw-chip, sw-button, a select) floating on the canvas with no box of its own re-points `--sw-surface` at the
- *     menu surface and `--sw-surface-2` at its solid twin on the container (`via: 'surface-token'`), so every control in it is opaque,
- *     hover included - the shared components themselves stay glass everywhere else.
+ *     menu surface and `--sw-surface-2` (their hover fill) at that surface washed 8 % towards the ink on the container (`via: 'surface-token'`),
+ *     so every control in it is opaque, hover included - the shared components themselves stay glass everywhere else. Tesla draws its chips and
+ *     secondary buttons flat and transparent on the page (skins/tesla.ts); they read the fill from `--hud-fill`, which the same container sets
+ *     to the menu surface (a local hook, not a token: unset, a Tesla control stays transparent).
  *   - Text on it uses the readable ink only (`--sw-text`, `--sw-text-2`, `--sw-accent-text`, the `-text` twins of the state colours): never
  *     `--sw-text-3` and never a bare state colour as a text colour (unit-hud-opaque.spec.ts proves every pair for every skin x scheme).
  *   - A disabled floating control is dimmed by its ink, not by `opacity` on the box (a faded box is see-through again).
@@ -96,8 +98,9 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
 
 /** A HUD panel over the plan canvas or the 3D canvas: how it is made opaque (see "WHAT IS A HUD PANEL" above). */
 export interface HudSurface extends MenuSurface {
-  /** `background` (default): the rule paints `var(--sw-menu-surface)`. `surface-token`: the rule re-points `--sw-surface` at it (and `--sw-surface-2`
-   * at `--sw-surface-2-solid`) for the shared controls it contains. `fill`: an SVG label pill drawn inside the canvas fills with it. */
+  /** `background` (default): the rule paints `var(--sw-menu-surface)`. `surface-token`: the rule re-points `--sw-surface` at it (and `--sw-surface-2`,
+   * the hover fill, at that surface washed towards the ink: `color-mix(in srgb, var(--sw-menu-surface) 92%, var(--sw-text))`) for the shared controls it
+   * contains. `fill`: an SVG label pill drawn inside the canvas fills with it. */
   via?: 'background' | 'surface-token' | 'fill';
 }
 

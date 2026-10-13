@@ -145,8 +145,11 @@ function badPaint(list: readonly (MenuSurface & { via?: 'background' | 'surface-
       continue;
     }
     if (m.via === 'surface-token') {
-      const set = rules.filter((r) => decls(r.body, '--sw-surface').includes('var(--sw-menu-surface)') && decls(r.body, '--sw-surface-2').includes('var(--sw-surface-2-solid)'));
-      if (!set.length) bad.push(`${m.file} | ${m.selector}: none of its ${rules.length} rule(s) re-points --sw-surface at var(--sw-menu-surface) and --sw-surface-2 at var(--sw-surface-2-solid) (${m.what})`);
+      // the hover tone is the menu surface washed towards the ink: an opaque mix of two bridged tokens (an rgba or a mix with `transparent` would not be)
+      const hover = (v: string) => /^color-mix\(in srgb, var\(--sw-menu-surface\) \d+%, var\(--sw-text\)\)$/.test(v);
+      // --hud-fill is the hook the flat Tesla controls read (skins/tesla.ts: transparent on the page, the HUD's fill over a canvas)
+      const set = rules.filter((r) => decls(r.body, '--sw-surface').includes('var(--sw-menu-surface)') && decls(r.body, '--sw-surface-2').some(hover) && decls(r.body, '--hud-fill').includes('var(--sw-menu-surface)'));
+      if (!set.length) bad.push(`${m.file} | ${m.selector}: none of its ${rules.length} rule(s) re-points --sw-surface and --hud-fill at var(--sw-menu-surface) and --sw-surface-2 at color-mix(in srgb, var(--sw-menu-surface) N%, var(--sw-text)) (${m.what})`);
       for (const r of rules) for (const f of blurs(r.body)) if (f !== 'none') bad.push(`${m.file} | ${m.selector}: backdrop-filter: ${f.slice(0, 60)} - a HUD panel does not blur`);
       continue;
     }

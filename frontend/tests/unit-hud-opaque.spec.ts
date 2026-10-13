@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKIN_IDS, SKINS } from '../src/design/skins';
 import { skinTable } from '../src/design/css';
 import { TOKENS } from '../src/design/tokens';
 import { contrastRatio, over, parseColor, type RGBA } from '../src/design/contrast';
@@ -57,7 +57,6 @@ test('text on the fills a HUD panel lays over its surface (a chip, a hover, a se
   // [ink token, the fills over the panel surface (in order), what it is, the minimum ratio (4.5 text; 3 for an icon that carries no text)]
   const pairs: [string, string[], string, number][] = [
     ['--sw-text', ['--sw-surface'], 'a chip or a button on a bar (sw-chip, sw-button)', 4.5],
-    ['--sw-text', ['--sw-surface-2'], 'its hover fill', 4.5],
     ['--sw-text-2', ['--sw-surface-2'], 'a floor of the strip under the pointer (its name is the secondary ink)', 4.5],
     ['--sw-text', ['--sw-surface-3'], 'a hovered or selected list row, with its caption (the side list)', 4.5],
     ['--sw-text', ['--sw-accent-soft'], 'the floor of the strip that is on screen', 4.5],
@@ -73,6 +72,11 @@ test('text on the fills a HUD panel lays over its surface (a chip, a hover, a se
         const r = contrastRatio(over(colorOf(id, scheme, fg), bg), bg);
         if (r < min) fails.push(`${id}/${scheme} ${fg} on ${layers.join(' + ')} (${what}): ${r.toFixed(2)} < ${min}`);
       }
+      // the hover fill of a control on the bar: the menu surface washed 8 % towards the ink (color-mix in sw-plan-3d / the event page buttons)
+      const ink = colorOf(id, scheme, '--sw-text');
+      const wash = over([ink[0], ink[1], ink[2], 0.08], onSurface(id, scheme));
+      const rWash = contrastRatio(over(ink, wash), wash);
+      if (rWash < 4.5) fails.push(`${id}/${scheme} --sw-text on the hover wash of a bar control: ${rWash.toFixed(2)}`);
       // an accent fill is opaque: the pressed chip / walk button and the selected quick floor button put the inverse ink on it
       const accent = colorOf(id, scheme, '--sw-accent');
       const rAccent = contrastRatio(over(colorOf(id, scheme, '--sw-text-inverse'), accent), accent);
@@ -116,6 +120,23 @@ test('the 3D night backdrop is an opaque navy with light ink that reads on it', 
   expect(ink).toBeTruthy();
   expect(m![1]).not.toMatch(/color-mix|rgba|transparent/);
   expect(contrastRatio(parseColor(ink!)!, parseColor(bg!)!)).toBeGreaterThanOrEqual(4.5);
+});
+
+test('Tesla draws chips and secondary buttons flat and transparent on the page: they take their fill from --hud-fill, which every HUD bar of shared controls sets', () => {
+  const rules = SKINS.tesla.rules;
+  // the hook is read by exactly the two rules that make a control transparent (chip, secondary / danger button), with the transparent fallback
+  expect(rules).toMatch(/:host\(sw-chip\) button \{ background: var\(--hud-fill, transparent\);/);
+  expect(rules).toMatch(/:host\(sw-button\[variant='secondary'\]\) button, :host\(sw-button\[variant='danger'\]\) button \{ background: var\(--hud-fill, transparent\); \}/);
+  expect(rules).not.toMatch(/:host\(sw-chip\) button \{ background: transparent/); // (no hard-wired flat chip is left behind)
+  // and the registered bars of shared controls set it to the opaque menu surface (the lint proves the rule: unit-menu-lint.spec.ts)
+  const bars = HUD_SURFACES.filter((h) => h.via === 'surface-token');
+  expect(bars.map((b) => `${b.file} | ${b.selector}`).sort()).toEqual(['map/sw-plan-3d.ts | .bar', 'screens/investigate-event-detail.ts | .tools3d']);
+  for (const b of bars) {
+    const src = readFileSync(path.resolve(HERE, '../src', b.file), 'utf8');
+    const rule = new RegExp(`\\n\\s*${b.selector.replace('.', '\\.')} \\{([^}]*)\\}`).exec(src);
+    expect(rule, `${b.file} ${b.selector}`).toBeTruthy();
+    expect(rule![1], `${b.file} ${b.selector} sets the hook`).toContain('--hud-fill: var(--sw-menu-surface);');
+  }
 });
 
 test('the owner\'s list is registered: the floor strip, floor chip, level bar, legend, side list, selection bar, time pill and walk bar', () => {

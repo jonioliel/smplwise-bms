@@ -398,7 +398,7 @@ export class SwPlan3d extends LitElement {
       inline-size: min(280px, calc(100% - 24px));
       padding: 10px 12px;
       border-radius: 12px;
-      /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it keeps its glass */
+      /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it is opaque too (second report, same day) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
@@ -460,9 +460,12 @@ export class SwPlan3d extends LitElement {
       max-inline-size: calc(100% - 24px);
       direction: rtl;
       /* the chips, the select and the export button float on the canvas with no box of their own: the shared controls read --sw-surface, so
-         here it is the opaque menu surface (and their hover fill its solid twin) - glass everywhere else (owner 2026-10-13) */
+         here it is the opaque menu surface, and their hover fill that surface washed 8 % towards the ink (an opaque mix of two tokens the glass
+         screens bridge, so it is right in every skin, scheme and glass palette) - glass everywhere else (owner 2026-10-13). Tesla draws its
+         chips and secondary buttons flat and transparent on the page: they take the fill from --hud-fill (skins/tesla.ts), so here too. */
       --sw-surface: var(--sw-menu-surface);
-      --sw-surface-2: var(--sw-surface-2-solid);
+      --sw-surface-2: color-mix(in srgb, var(--sw-menu-surface) 92%, var(--sw-text));
+      --hud-fill: var(--sw-menu-surface);
     }
     .bar select {
       font: inherit;
