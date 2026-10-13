@@ -8,8 +8,10 @@ PDFs (11A.6) - a PDF cannot be re-encoded without a renderer, which the add-on d
   `/OpenAction`, `/AA` or `/Encrypt` (an encrypted file cannot be scanned at all). The scan reads every PDF NAME token of the
   file and compares it exactly after decoding `#xx` escapes - so `/J#61vaScript` is caught, and `/JSON` or `/AAPL` are not
   mistaken for `/JS` / `/AA` as a plain substring search would;
-- KNOWN LIMIT, stated plainly: names inside compressed object streams (`/ObjStm`, PDF 1.5+) or any other compressed stream are
-  invisible to a byte scan. The scan is a FILTER, NOT A GUARANTEE. The real controls are the next two rules;
+- FlateDecode streams (object streams of PDF 1.5+ included) are inflated with a bound (4 x the file, at most 32 MiB in total -
+  past it the file is refused) and scanned the same way (slice 9, code review V7). KNOWN LIMIT, stated plainly: other filters
+  (LZW, ASCII85 chains ...) and streams that do not inflate cleanly are not looked into. The scan is a FILTER, NOT A GUARANTEE.
+  The real controls are the next two rules;
 - stored under a random name in `<data>/tickets/<ticket_id>/costs/`, and never parsed, rendered, thumbnailed or previewed by Arx;
 - served only as a DOWNLOAD to authorised internal users: `Content-Type: application/pdf`, `Content-Disposition: attachment`,
   `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`, `Cache-Control: private, no-store`
@@ -80,10 +82,57 @@ def active_markers(data: bytes) -> set[str]:
     return found
 
 
+# Slice 9 (code review V7): names inside FlateDecode streams - PDF 1.5+ object streams put EVERY object there - are inflated with
+# a bound and scanned too. The bound is on the TOTAL inflated bytes of the file: past it the file is refused (a deflate bomb buys
+# nothing). A stream that does not inflate cleanly is skipped (it is scanned as raw bytes already); this stays a filter.
+_STREAM_RE = re.compile(rb"stream\r?\n")
+_FLATE_RE = re.compile(rb"/FlateDecode(?=[" + _DELIM + rb"]|\Z)")
+INFLATE_FACTOR = 4
+INFLATE_MAX = 32 * MiB
+MAX_STREAMS = 4000
+_DICT_LOOKBACK = 2048
+
+
+def inflated_markers(data: bytes) -> set[str]:
+    """The refused names found inside the file's FlateDecode streams, after a bounded inflate; {"(inflate_bound)"} when the
+    streams inflate past min(4 x the file size, 32 MiB) and {"(streams)"} past MAX_STREAMS streams."""
+    import zlib
+
+    budget = min(INFLATE_FACTOR * len(data), INFLATE_MAX)
+    found: set[str] = set()
+    pos = 0
+    streams = 0
+    while True:
+        m = _STREAM_RE.search(data, pos)
+        if m is None:
+            break
+        start = m.end()
+        end = data.find(b"endstream", start)
+        if end < 0:
+            break
+        pos = end + 9
+        head = data[max(0, m.start() - _DICT_LOOKBACK):m.start()]
+        if b"<<" not in head or not _FLATE_RE.search(head[head.rfind(b"<<"):]):
+            continue
+        streams += 1
+        if streams > MAX_STREAMS:
+            return {"(streams)"}
+        d = zlib.decompressobj()
+        try:
+            out = d.decompress(data[start:end], budget + 1)
+        except zlib.error:
+            continue
+        budget -= len(out)
+        if budget < 0 or d.unconsumed_tail:
+            return {"(inflate_bound)"}
+        found |= active_markers(out)
+    return found
+
+
 def check_pdf(data: bytes) -> PdfInfo:
     """Accept a PDF per 11A.6, or IntakeError: 413 `too_large`, 415 `unsupported_format` (no `%PDF-` at offset 0), 422
-    `pdf_invalid` (no `%%EOF` in the last 1 KiB), 422 `pdf_refused` (an active-content or encryption name). See the module
-    docstring for what this check can and cannot see."""
+    `pdf_invalid` (no `%%EOF` in the last 1 KiB), 422 `pdf_refused` (an active-content or encryption name - in the raw bytes or
+    inside an inflated FlateDecode stream). See the module docstring for what this check can and cannot see."""
     if not isinstance(data, (bytes, bytearray)) or not data:
         raise IntakeError("unsupported_format", 415)
     if len(data) > PDF_MAX_BYTES:
@@ -93,7 +142,7 @@ def check_pdf(data: bytes) -> PdfInfo:
         raise IntakeError("unsupported_format", 415)
     if b"%%EOF" not in data[-PDF_TAIL:]:
         raise IntakeError("pdf_invalid", 422)
-    if active_markers(data):
+    if active_markers(data) or inflated_markers(data):
         raise IntakeError("pdf_refused", 422)
     return PdfInfo(bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
 

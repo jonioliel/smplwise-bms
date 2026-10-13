@@ -292,6 +292,11 @@ PERMISSION_LABELS: dict[str, str] = {
     "tickets.external": "{tickets}: שליחה לגורם חיצוני (ספקים ואנשי קשר)",
     "tickets.all_departments": "{tickets}: כל המחלקות",
     "tickets.configure": "{tickets}: הגדרות (מחלקות, חברים וספרייה)",
+    # CR-038 D31 (slice 9, section 11A.8): cost claims of external vendors - both sensitive, each also a single-permission role.
+    # costs.view: see amounts, lines, invoice files, cost columns and reports (site_admin, system_admin); costs: approve / adjust /
+    # reject, mark paid, enter a claim on the vendor's behalf, reopen the window, override the close gate (system_admin).
+    "tickets.costs.view": "{tickets}: צפייה בעלויות (סכומים, חשבוניות ודוחות)",
+    "tickets.costs": "{tickets}: אישור עלויות (אישור, תיקון, דחייה וסימון תשלום)",
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",

@@ -224,11 +224,27 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
         out["assignments"] = [
             {"id": a["id"], "kind": a["assignee_kind"], "name": a["assignee_name"], "channel": a["channel"], "assigned_at": a["assigned_at"],
              "assigned_by_name": store.display_name(conn, a["assigned_by"]), "acknowledged_at": a.get("acknowledged_at"), "ended_at": a.get("ended_at"),
-             "end_reason": a.get("end_reason"), "return_kind": a.get("return_kind"), "return_reason": a.get("return_reason")}
+             "end_reason": a.get("end_reason"), "return_kind": a.get("return_kind"), "return_reason": a.get("return_reason"),
+             "cost_claim": a.get("cost_claim")}
             for a in store.assignments(conn, row["id"])
         ]
     else:
         out["assignments"] = []
+    out["cost"] = cost_block(viewer, seen)
+    return out
+
+
+def cost_block(viewer: Viewer, seen: Seen) -> dict[str, Any]:
+    """Slice 9 (11A.3 / 11A.8): the ticket's cost status for everyone who sees the ticket (the chip); the total and what the caller
+    may do only with tickets.costs.view on the ticket's place. The claims themselves: GET /tickets/{id}/costs."""
+    from .costs import COSTS, COSTS_VIEW
+
+    row = seen.row
+    may_view = seen.full and viewer.holds(COSTS_VIEW, row)
+    out: dict[str, Any] = {"status": row.get("cost_status") or "not_required", "can_view": may_view}
+    if may_view:
+        out.update({"total_minor": row.get("cost_total_minor"), "currency": row.get("cost_currency"),
+                    "can_decide": viewer.holds(COSTS, row), "can_set_requirement": seen.manager})
     return out
 
 

@@ -34,3 +34,15 @@ def contact_changed(conn: sqlite3.Connection, ticket_id: str) -> None:
     """Slice 4: a contact's phone / e-mail changed (or its row was linked to a user) while it held a live link of this ticket -
     the link is already revoked (slice 6: `ticket.contact_changed` to the department's managers, section 13.4)."""
     return None
+
+
+def cost_submitted(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> None:
+    """Slice 9 (11A.7): a vendor's claim (or one entered on its behalf) waits for review (slice 6: `ticket.cost_submitted` to the
+    holders of tickets.costs who can see the ticket; category tickets, severity info)."""
+    return None
+
+
+def cost_missing(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> None:
+    """Slice 9 (11A.5 / 11A.7): the window of a REQUIRED claim passed without a submission (slice 6: `ticket.cost_missing` to the
+    department's managers who hold tickets.costs.view). Raised once per claim window."""
+    return None

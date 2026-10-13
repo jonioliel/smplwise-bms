@@ -73,6 +73,7 @@ class Runtime:
 
     def build_app(self, db: Database, *, clock=None) -> PublicApp:
         """The public app over the real store (the public-core notes, wiring item 2)."""
+        from . import public_claims  # slice 9: the cost claim step (11A)
         from .public_routes import build_router
 
         switch = CachedSwitch(lambda: _module_on(db))
@@ -97,7 +98,8 @@ class Runtime:
             links=SqlLinkStore(db), switch=switch, key=KEYS, trusted_proxies=trusted, requests=SqlRequestLog(db), redeems=SqlRedeemStore(db),
             codes=codes, code_sender=NoCodeChannel(), photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
-            extra_routers=(build_router(db, clock=clock),), **deps_kw,
+            extra_routers=(build_router(db, clock=clock), public_claims.build_router(db, clock=clock)),
+            claim_window=public_claims.claim_window(db), claim_files=public_claims.SqlClaimFileSink(db, clock=clock), **deps_kw,
         )
         app = create_public_app(deps)
         try:

@@ -29,7 +29,8 @@ router = APIRouter(dependencies=[Depends(module_gate)])
 KEY = r"^[a-z][a-z0-9_-]{1,31}$"
 ICON = r"^[a-z][a-zA-Z0-9_-]{0,31}$"
 COLOR = r"^--sw-[a-z0-9-]{1,40}$"
-GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure")
+GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure",
+               "tickets_costs_view", "tickets_costs")  # S9 (D31, 11A.8)
 
 
 def _rid(request: Request) -> str | None:

@@ -157,7 +157,7 @@ def full_phone_for(viewer: Viewer, contact_depts: list[str], managed: set[str] |
 
 
 def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, open_count: int = 0,
-            vendors: dict[str, str] | None = None, configure: bool = False) -> dict[str, Any]:
+            vendors: dict[str, str] | None = None, configure: bool = False, rates: bool = False) -> dict[str, Any]:
     """One directory row for the caller: the full phone / e-mail only when `full_phone`; the internal notes only for the
     directory's editors (`configure`)."""
     phone = row.get("phone_e164")
@@ -185,6 +185,12 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
         "open_tickets": open_count,
         "last_assigned_at": row.get("last_assigned_at"),
         "revision": row["revision"],
+        # S9 (11A.1 / 11A.2): the cost-claim defaults of this contact; the hourly rate only for tickets.costs.view holders (11A.8)
+        "cost_claim": row.get("cost_claim"),
+        "vat_exempt": bool(row.get("vat_exempt")),
+        "vat_default": row.get("vat_default") or "excluded",
+        "labor_rate_minor": row.get("labor_rate_minor") if rates else None,
+        "rate_currency": row.get("rate_currency") if rates else None,
     }
 
 
@@ -207,7 +213,7 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
         if department_id and not allowed_in(depts, department_id):
             continue
         out.append(present(conn, r, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure),
-                           open_count=counts.get(r["id"], 0), vendors=vendors, configure=configure))
+                           open_count=counts.get(r["id"], 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere))
     return {"contacts": out, "can_edit": configure}
 
 
@@ -286,6 +292,31 @@ def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, An
             f["vendor_id"] = vid
         elif kind == "vendor" and (current or {}).get("vendor_id"):
             f["vendor_id"] = None
+        # S9 (11A.1 / 11A.2, D32): the claim requirement default, VAT handling and the hourly-rate prefill
+        if "cost_claim" in body:
+            if body["cost_claim"] not in (None, "required", "optional", "off"):
+                raise ContactInvalid("cost_claim", "choice")
+            f["cost_claim"] = body["cost_claim"]
+        if "vat_exempt" in body:
+            if not isinstance(body["vat_exempt"], bool):
+                raise ContactInvalid("vat_exempt", "type")
+            f["vat_exempt"] = 1 if body["vat_exempt"] else 0
+        if "vat_default" in body:
+            if body["vat_default"] not in ("included", "excluded"):
+                raise ContactInvalid("vat_default", "choice")
+            f["vat_default"] = body["vat_default"]
+        if "labor_rate" in body:
+            from .money import CURRENCIES, MoneyError, parse_amount
+
+            rate = body.get("labor_rate")
+            try:
+                f["labor_rate_minor"] = None if rate in (None, "") else parse_amount(rate, "labor_rate")
+            except MoneyError as exc:
+                raise ContactInvalid("labor_rate", exc.code) from None
+            cur = body.get("rate_currency") or (current or {}).get("rate_currency") or "ILS"
+            if cur not in CURRENCIES:
+                raise ContactInvalid("rate_currency", "choice")
+            f["rate_currency"] = cur if f["labor_rate_minor"] is not None else None
         if "user_id" in body:
             uid = body.get("user_id") or None
             if uid is not None and uid not in store.active_user_ids(conn):
@@ -352,7 +383,7 @@ def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
             vendors[v["id"]] = v["display_name"]
     counts = store_links.open_ticket_counts(conn, [contact_id])
     out = present(conn, row, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure),
-                  open_count=counts.get(contact_id, 0), vendors=vendors, configure=configure)
+                  open_count=counts.get(contact_id, 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere)
     out["live_links"] = len(store_links.live_links_of_contact(conn, contact_id))
     out["persons"] = [{"id": p["id"], "display_name": p["display_name"]} for p in store_links.persons_of(conn, contact_id)] if row["kind"] == "vendor" else []
     return out

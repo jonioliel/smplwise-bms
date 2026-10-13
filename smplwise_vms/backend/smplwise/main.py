@@ -437,6 +437,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tickets_links_router.router, prefix=api, tags=["tickets"])  # handler links, health, address probe, key - BEFORE /tickets/{ticket_id}
     from .routers import tickets_table as tickets_table_router  # CR-038 S6b: the board table (table, export.csv, bulk, views)
     app.include_router(tickets_table_router.router, prefix=api, tags=["tickets"])  # CR-038 S6b - BEFORE /tickets/{ticket_id}
+    from .routers import tickets_costs as tickets_costs_router  # CR-038 S9: cost claims (report, export, review, on-behalf, downloads)
+    app.include_router(tickets_costs_router.router, prefix=api, tags=["tickets"])  # CR-038 S9 - BEFORE /tickets/{ticket_id}
     app.include_router(tickets_router.router, prefix=api, tags=["tickets"])
     from .services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the module key and the public listener's wiring
 

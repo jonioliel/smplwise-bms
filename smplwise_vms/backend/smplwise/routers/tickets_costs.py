@@ -1,0 +1,391 @@
+"""CR-038 slice 9 - the internal cost-claim API (section 11A.12; owner decisions D31 / D32).
+
+    GET  /tickets/costs/report                         tickets.costs.view (rows: visible tickets with the permission on their place)
+    GET  /tickets/costs/export.csv                     tickets.costs.view; 5,000 rows, 1 a minute, audited ticket.costs.export
+    GET  /tickets/{id}/costs                           visible; amounts / lines / files / history with tickets.costs.view, else the status
+    POST /tickets/{id}/costs/requirement               a manager of the ticket: {assignment_id, mode} while no claim was submitted
+    POST /tickets/{id}/costs/files                     tickets.costs: one invoice page or PDF as a PENDING file (on-behalf entry)
+    POST /tickets/{id}/costs                           tickets.costs: a claim on the vendor's behalf {assignment_id?, lines, ...}
+    POST /tickets/{id}/costs/{claim_id}/approve        tickets.costs + tickets.costs.view: {revision_id, revision}
+    POST /tickets/{id}/costs/{claim_id}/adjust         ... {revision_id, revision, lines, reason}
+    POST /tickets/{id}/costs/{claim_id}/reject         ... {revision_id, revision, reason}
+    POST /tickets/{id}/costs/{claim_id}/mark-paid      ... {revision, payment_ref, payment_date}
+    POST /tickets/{id}/costs/{claim_id}/unmark-paid    ... {revision, reason}
+    POST /tickets/{id}/costs/{claim_id}/reopen-window  ... {revision}
+    GET  /tickets/{id}/costs/files/{file_id}           tickets.costs.view: a PDF as a sandboxed DOWNLOAD (11A.6), a page as an image
+    GET  /tickets/{id}/costs/{claim_id}/documents/{revision_id}/{doc_no}.pdf   tickets.costs.view: the photographed pages as ONE PDF
+
+Order of every route: signed in -> the module switch (router dependency) -> the ticket's visibility (the uniform 404) -> the cost
+permissions on the ticket's place (an audited 403). Every write is one transaction: the claim row, its revision / decision rows, the
+ticket's denormalised cost columns, the timeline row and an audit row with ids, statuses and totals only - never a line
+description, a note, a vendor reference or a file."""
+from __future__ import annotations
+
+import sqlite3
+from typing import Any, Literal
+
+from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
+
+from ..audit import audit
+from ..auth import current_principal, get_conn, settings_of
+from ..db import unlocked
+from ..errors import ApiError
+from ..rbac import Principal
+from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, service, store, store_costs
+from ..services.tickets.access import Seen, Viewer, text
+from .tickets import ID, module_gate
+
+router = APIRouter(dependencies=[Depends(module_gate)])
+
+
+def _rid(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
+
+
+def _root(request: Request):
+    root = settings_of(request).data_dir / "tickets"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _deny(conn: sqlite3.Connection, viewer: Viewer, action: str, row: dict[str, Any] | None, permission: str, rid: str | None) -> ApiError:
+    audit(conn, actor=viewer.principal, action=action, decision="denied", resource_type="ticket", resource_id=(row or {}).get("id") or "*",
+          reason="permission_missing", request_id=rid, details={"permission": permission, **({"number": row.get("number")} if row else {})})
+    return ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": permission})
+
+
+def _need(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str, action: str, rid: str | None, *, decide: bool = False) -> Seen:
+    """The ticket (the uniform 404 when invisible) and the cost permissions on its place: tickets.costs.view always (a reviewer
+    must see what they approve, 11A.8), tickets.costs for a decision. Cost data needs the members' full view of the ticket."""
+    seen = access.require_visible(viewer, ticket_id)
+    if not seen.full or not viewer.holds(costs.COSTS_VIEW, seen.row):
+        raise _deny(conn, viewer, action, seen.row, costs.COSTS_VIEW, rid)
+    if decide and not viewer.holds(costs.COSTS, seen.row):
+        raise _deny(conn, viewer, action, seen.row, costs.COSTS, rid)
+    return seen
+
+
+def _claim(conn: sqlite3.Connection, seen: Seen, claim_id: str) -> dict[str, Any]:
+    c = store_costs.claim(conn, claim_id)
+    if c is None or c.get("ticket_id") != seen.row["id"]:
+        raise ApiError(404, "claim_not_found", text(conn, "דרישת העלות לא נמצאה."))
+    return c
+
+
+def _audit(conn, viewer: Viewer, action: str, seen: Seen, claim: dict[str, Any] | None, rid: str | None, **details: Any) -> None:
+    audit(conn, actor=viewer.principal, action=action, decision="allowed", resource_type="ticket", resource_id=seen.row["id"], request_id=rid,
+          details={"number": seen.row["number"], **({"claim_id": claim["id"], "status": claim["status"]} if claim else {}), **details})
+
+
+def _answer(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[str, Any]:
+    seen = access.require_visible(viewer, ticket_id)
+    full = seen.full and viewer.holds(costs.COSTS_VIEW, seen.row)
+    claims = [costs.present_claim(conn, c, full=full) for c in store_costs.claims_of_ticket(conn, ticket_id)]
+    s = costs.cost_settings(conn)
+    out: dict[str, Any] = {"ticket_id": ticket_id, "number": seen.row["number"], "cost": present.cost_block(viewer, seen), "claims": claims}
+    if full:
+        out["settings"] = {"currencies": list(s.currencies), "vat_rate_bp": s.vat_rate_bp, "review_flag_above_minor": s.review_flag_above_minor,
+                           "max_claim_total_minor": s.max_claim_total_minor, "require_invoice": s.require_invoice}
+        out["external_assignments"] = [{"id": a["id"], "name": a["assignee_name"], "assigned_at": a["assigned_at"], "ended_at": a.get("ended_at"),
+                                        "cost_claim": a.get("cost_claim")}
+                                       for a in store.assignments(conn, ticket_id) if a["assignee_kind"] == "contact"]
+    return out
+
+
+def _refused(conn, exc: costs.CostRefused) -> ApiError:
+    return service.cost_error(conn, exc)
+
+
+# ---------------------------------------------------------------- report and export (before /tickets/{id}/... by shape anyway)
+
+def _filters(conn, group_by: str, date_from: str | None, date_to: str | None, status: str | None, currency: str | None) -> costs_report.Filters:
+    try:
+        return costs_report.parse_filters(conn, group_by=group_by, date_from=date_from, date_to=date_to, status=status, currency=currency)
+    except costs_report.ReportError as exc:
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field, "code": exc.code}]}) from None
+
+
+def _need_report(conn, viewer: Viewer, action: str, rid: str | None) -> None:
+    if costs.COSTS_VIEW not in viewer.anywhere:
+        raise _deny(conn, viewer, action, None, costs.COSTS_VIEW, rid)
+
+
+@router.get("/tickets/costs/report")
+def cost_report(request: Request, group_by: str = Query("vendor", max_length=16), date_from: str | None = Query(None, alias="from", max_length=10),
+                date_to: str | None = Query(None, alias="to", max_length=10), status: str | None = Query(None, max_length=40),
+                currency: str | None = Query(None, max_length=3), principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    _need_report(conn, viewer, "ticket.costs.report", _rid(request))
+    f = _filters(conn, group_by, date_from, date_to, status, currency)
+    out = costs_report.report(conn, viewer, f)
+    audit(conn, actor=principal, action="ticket.costs.report", decision="allowed", resource_type="ticket", resource_id="*", request_id=_rid(request),
+          details={"group_by": f.group_by, "from": date_from, "to": date_to, "status": list(f.statuses), "currency": currency, "claims": out["claims"]})
+    return out
+
+
+@router.get("/tickets/costs/export.csv")
+def cost_export(request: Request, group_by: str = Query("vendor", max_length=16), date_from: str | None = Query(None, alias="from", max_length=10),
+                date_to: str | None = Query(None, alias="to", max_length=10), status: str | None = Query(None, max_length=40),
+                currency: str | None = Query(None, max_length=3), rows: Literal["claim", "line"] = Query("claim"),
+                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> StreamingResponse:
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    _need_report(conn, viewer, "ticket.costs.export", rid)
+    wait = costs_report.rate_check(principal.user_id)
+    if wait > 0:
+        raise ApiError(429, "export_rate", text(conn, "אפשר לייצא פעם בדקה. נסו שוב בעוד רגע."), retryable=True, details={"retry_after_s": int(wait) + 1})
+    f = _filters(conn, group_by, date_from, date_to, status, currency)
+    try:
+        cells = costs_report.build_csv(conn, viewer, f, rows)
+    except costs_report.ReportError:
+        raise ApiError(413, "export_too_large", text(conn, "יותר מדי שורות לייצוא. צמצמו את הסינון."), details={"max_rows": costs_report.EXPORT_MAX_ROWS}) from None
+    audit(conn, actor=principal, action="ticket.costs.export", decision="allowed", resource_type="ticket", resource_id="*", request_id=rid,
+          details={"from": date_from, "to": date_to, "status": list(f.statuses), "currency": currency, "rows_kind": rows, "rows": len(cells) - 1})
+    costs_report.mark(principal.user_id)
+    return StreamingResponse(costs_report.stream(cells), media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="{costs_report.filename(conn)}"', "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff"})
+
+
+# ---------------------------------------------------------------- one ticket's claims
+
+@router.get("/tickets/{ticket_id}/costs")
+def get_costs(ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    return _answer(conn, Viewer(conn, principal), ticket_id)
+
+
+class RequirementBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assignment_id: str = Field(min_length=1, max_length=64, pattern=ID)
+    mode: Literal["required", "optional", "off"]
+
+
+@router.post("/tickets/{ticket_id}/costs/requirement")
+def post_requirement(body: RequirementBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    if not seen.manager:
+        raise service.refuse(conn, viewer, "ticket.cost.requirement", seen.row, "not_manager", _rid(request))
+    asg = store.assignment(conn, body.assignment_id)
+    if asg is None or asg["ticket_id"] != ticket_id:
+        raise ApiError(404, "assignment_not_found", text(conn, "השיוך לא נמצא."))
+    try:
+        costs.set_requirement(conn, seen.row, asg, body.mode, by=viewer.uid, at=costs.now_utc())
+    except costs.CostRefused as exc:
+        raise _refused(conn, exc) from None
+    _audit(conn, viewer, "ticket.cost.requirement", seen, None, _rid(request), assignment_id=asg["id"], mode=body.mode)
+    return _answer(conn, viewer, ticket_id)
+
+
+class DecisionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=1)
+    revision_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    reason: str | None = Field(default=None, max_length=5000)
+    lines: list[dict[str, Any]] | None = Field(default=None, max_length=30)
+    payment_ref: str | None = Field(default=None, max_length=500)
+    payment_date: str | None = Field(default=None, max_length=10)
+
+
+ACTIONS = ("approve", "adjust", "reject", "mark-paid", "unmark-paid", "reopen-window")
+AUDIT_ACTIONS = {"approve": "ticket.cost.approve", "adjust": "ticket.cost.adjust", "reject": "ticket.cost.reject", "mark-paid": "ticket.cost.mark_paid",
+                 "unmark-paid": "ticket.cost.unmark_paid", "reopen-window": "ticket.cost.reopen_window"}
+
+
+@router.post("/tickets/{ticket_id}/costs/{claim_id}/{action}")
+def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..., pattern=ID), claim_id: str = Path(..., pattern=ID),
+                  action: Literal["approve", "adjust", "reject", "mark-paid", "unmark-paid", "reopen-window"] = Path(...),
+                  principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    seen = _need(conn, viewer, ticket_id, AUDIT_ACTIONS[action], rid, decide=True)
+    claim = _claim(conn, seen, claim_id)
+    at = costs.now_utc()
+    needs_rev = action in ("approve", "adjust", "reject")
+    if needs_rev and not body.revision_id:
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "revision_id", "code": "required"}]})
+    try:
+        if action == "approve":
+            fresh = costs.approve(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", at=at)
+        elif action == "adjust":
+            fresh = costs.adjust(conn, claim, {"lines": body.lines or []}, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "",
+                                 reason=body.reason, at=at)
+        elif action == "reject":
+            fresh = costs.reject(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", reason=body.reason, at=at)
+        elif action == "mark-paid":
+            fresh = costs.mark_paid(conn, claim, by=viewer.uid, revision=body.revision, payment_ref=body.payment_ref, payment_date=body.payment_date, at=at)
+        elif action == "unmark-paid":
+            fresh = costs.unmark_paid(conn, claim, by=viewer.uid, revision=body.revision, reason=body.reason, at=at)
+        else:
+            fresh = costs.reopen_window(conn, claim, by=viewer.uid, revision=body.revision, at=at)
+    except costs.CostRefused as exc:
+        raise _refused(conn, exc) from None
+    _audit(conn, viewer, AUDIT_ACTIONS[action], seen, fresh, rid, revision_id=fresh.get("current_revision_id"),
+           total_minor=fresh.get("approved_total_minor"))
+    store.insert_event(conn, ticket_id, "cost_decision", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
+                       assignment_id=fresh["assignment_id"], data={"claim_id": fresh["id"], "action": action.replace("-", "_")})
+    return _answer(conn, viewer, ticket_id)
+
+
+# ---------------------------------------------------------------- on the vendor's behalf (a paper invoice): pending files, then the claim
+
+@router.post("/tickets/{ticket_id}/costs/files", status_code=201)
+def post_cost_file(request: Request, ticket_id: str = Path(..., pattern=ID), file: UploadFile = File(...),
+                   principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    seen = _need(conn, viewer, ticket_id, "ticket.cost.file_upload", rid, decide=True)
+    data = file.file.read(cost_files.PDF_MAX_BYTES + 1)
+    root = _root(request)
+    now = costs.now_utc()
+    since = costs.iso(now - costs.PENDING_TTL)
+    if len(store_costs.pending_for_user(conn, ticket_id, viewer.uid, since)) >= cost_files.MAX_PENDING_PER_LINK:
+        raise ApiError(409, "file_limit", text(conn, "הגעתם למספר הקבצים המרבי."))
+    try:
+        with unlocked(conn):  # the decode / PDF scan never holds the database write lock
+            stored = cost_storage.store_upload(root, ticket_id, data)
+    except image_intake.IntakeError as exc:
+        audit(conn, actor=principal, action="ticket.cost.file_upload", decision="denied", resource_type="ticket", resource_id=ticket_id, reason=exc.code,
+              request_id=rid)
+        raise ApiError(exc.status, exc.code, text(conn, "הקובץ נדחה."), retryable=exc.status == 429, details=dict(exc.details)) from None
+    try:
+        seen = _need(conn, viewer, ticket_id, "ticket.cost.file_upload", rid, decide=True)
+        if store_costs.hash_in_claim_or_pending(conn, stored.sha256, claim_id=None, link_id=None, ticket_id=ticket_id, user_id=viewer.uid, since=since):
+            raise ApiError(409, "duplicate_file", text(conn, "הקובץ הזה כבר צורף."))
+        fid = store_costs.insert_file(conn, {"ticket_id": ticket_id, "kind": stored.kind, "path": stored.rel_path, "sha256": stored.sha256,
+                                             "bytes": stored.bytes, "width": stored.width, "height": stored.height, "uploaded_by_kind": "user",
+                                             "uploaded_by": viewer.uid, "created_at": costs.iso(now), "name": ""})
+    except ApiError:
+        cost_storage.remove(root, stored.rel_path)
+        raise
+    _audit(conn, viewer, "ticket.cost.file_upload", seen, None, rid, file_id=fid, kind=stored.kind, bytes=stored.bytes)
+    return {"id": fid, "kind": stored.kind, "bytes": stored.bytes, "width": stored.width, "height": stored.height}
+
+
+class OnBehalfBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assignment_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    lines: list[dict[str, Any]] = Field(default_factory=list, max_length=30)
+    currency: str | None = Field(default=None, max_length=3)
+    amounts_include_vat: bool | None = None
+    vendor_ref: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=5000)
+    no_charge: bool = False
+    documents: list[dict[str, Any]] = Field(default_factory=list, max_length=3)
+
+
+@router.post("/tickets/{ticket_id}/costs", status_code=201)
+def post_on_behalf(body: OnBehalfBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    seen = _need(conn, viewer, ticket_id, "ticket.cost.on_behalf", rid, decide=True)
+    at = costs.now_utc()
+    try:
+        claim = costs.ensure_for_on_behalf(conn, seen.row, body.assignment_id, at)
+        fresh = costs.submit(conn, claim, body.model_dump(exclude={"assignment_id"}), by_kind="user", by_id=viewer.uid, link_id=None, at=at,
+                             kind="on_behalf", actor_name=service.actor_name(viewer))
+    except costs.CostRefused as exc:
+        raise _refused(conn, exc) from None
+    rev = store_costs.revision(conn, fresh.get("current_revision_id")) or {}
+    _audit(conn, viewer, "ticket.cost.on_behalf", seen, fresh, rid, revision_id=rev.get("id"), total_minor=rev.get("total_minor"), currency=rev.get("currency"))
+    return _answer(conn, viewer, ticket_id)
+
+
+# ---------------------------------------------------------------- downloads (11A.6: a PDF only as a sandboxed download)
+
+def _file_of_ticket(conn, seen: Seen, file_id: str) -> dict[str, Any]:
+    f = store_costs.file(conn, file_id)
+    if f is None or f["ticket_id"] != seen.row["id"] or f.get("claim_id") is None:
+        raise ApiError(404, "file_not_found", text(conn, "הקובץ לא נמצא."))
+    return f
+
+
+@router.get("/tickets/{ticket_id}/costs/files/{file_id}")
+def get_cost_file(request: Request, ticket_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID),
+                  principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    seen = _need(conn, viewer, ticket_id, "ticket.cost.file_download", rid)
+    f = _file_of_ticket(conn, seen, file_id)
+    try:
+        path = cost_storage.path_of(_root(request), f["path"])
+    except image_intake.StorePathError:
+        raise ApiError(404, "file_not_found", text(conn, "הקובץ לא נמצא.")) from None
+    if not path.is_file():
+        raise ApiError(404, "file_not_found", text(conn, "הקובץ לא נמצא."))
+    n = 1 + [x["id"] for x in store_costs.files_of_claim(conn, f["claim_id"])].index(f["id"])
+    headers = cost_files.pdf_download_headers(seen.row["number"], n) if f["kind"] == "pdf" else cost_files.photo_headers(seen.row["number"])
+    media = headers.pop("Content-Type")
+    _audit(conn, viewer, "ticket.cost.file_download", seen, None, rid, file_id=file_id, kind=f["kind"])
+    return FileResponse(path, media_type=media, headers=headers)
+
+
+@router.get("/tickets/{ticket_id}/costs/{claim_id}/documents/{revision_id}/{doc_no}.pdf")
+def get_document_pdf(request: Request, ticket_id: str = Path(..., pattern=ID), claim_id: str = Path(..., pattern=ID),
+                     revision_id: str = Path(..., pattern=ID), doc_no: int = Path(..., ge=1, le=3),
+                     principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+    """"הורדה כ-PDF" (11A.6A): the photographed pages of one document, assembled on the server from the re-encoded images."""
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    seen = _need(conn, viewer, ticket_id, "ticket.cost.file_download", rid)
+    claim = _claim(conn, seen, claim_id)
+    rev = store_costs.revision(conn, revision_id)
+    if rev is None or rev["claim_id"] != claim["id"]:
+        raise ApiError(404, "file_not_found", text(conn, "הקובץ לא נמצא."))
+    pages = [f for f in store_costs.revision_files(conn, revision_id) if int(f["doc_no"]) == doc_no]
+    if not pages or any(p["kind"] != "photo" for p in pages):
+        raise ApiError(404, "file_not_found", text(conn, "הקובץ לא נמצא."))
+    root = _root(request)
+    try:
+        paths = [cost_storage.path_of(root, p["path"]) for p in pages]
+    except image_intake.StorePathError:
+        raise ApiError(404, "file_not_found", text(conn, "הקובץ לא נמצא.")) from None
+    if not all(p.is_file() for p in paths):
+        raise ApiError(404, "file_not_found", text(conn, "הקובץ לא נמצא."))
+    with unlocked(conn):
+        data = cost_storage.assemble_pdf(paths)
+    _audit(conn, viewer, "ticket.cost.file_download", seen, claim, rid, revision_id=revision_id, document=doc_no, assembled=True)
+    return Response(data, headers=cost_files.pdf_download_headers(seen.row["number"], doc_no))
+
+
+# ---------------------------------------------------------------- department defaults (Settings; tickets.configure)
+
+class DepartmentCostsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    cost_claim: Literal["required", "optional", "off"] | None = None  # None = the installation's `costs.mode`
+    claim_window_days: int | None = Field(default=None, ge=1, le=90)  # None = the installation's `costs.claim_window_days`
+
+
+def _need_configure(conn, viewer: Viewer, action: str, rid: str | None) -> None:
+    from ..rbac import INSTALLATION
+
+    if not viewer.holds_installation(access.CONFIGURE):
+        audit(conn, actor=viewer.principal, action=action, decision="denied", resource_type="installation", resource_id=str(INSTALLATION[1]),
+              reason="permission_missing", request_id=rid, details={"permission": access.CONFIGURE})
+        raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.CONFIGURE})
+
+
+@router.get("/tickets/costs/departments")
+def get_department_costs(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    _need_configure(conn, viewer, "ticket.department.costs", _rid(request))
+    s = costs.cost_settings(conn)
+    return {"departments": store_costs.department_cost_rows(conn), "installation": {"mode": s.mode, "claim_window_days": s.claim_window_days}}
+
+
+@router.put("/tickets/costs/departments/{dept_id}")
+def put_department_costs(body: DepartmentCostsBody, request: Request, dept_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    _need_configure(conn, viewer, "ticket.department.costs", rid)
+    if not store_costs.set_department_costs(conn, dept_id, body.cost_claim, body.claim_window_days, costs.iso(costs.now_utc())):
+        raise ApiError(404, "department_not_found", text(conn, "המחלקה לא נמצאה."))
+    audit(conn, actor=principal, action="ticket.department.costs", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
+          request_id=rid, details={"cost_claim": body.cost_claim, "claim_window_days": body.claim_window_days})
+    return get_department_costs(request, principal, conn)

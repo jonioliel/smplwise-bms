@@ -70,6 +70,22 @@ def _cidrs(v: Any) -> list[str]:
     return [str(n) for n in nets]
 
 
+def _bool(v: Any) -> bool:
+    if not isinstance(v, bool):
+        raise ValueError("type")
+    return v
+
+
+def _currencies(v: Any) -> list[str]:
+    """Slice 9 (11A.2 / 11A.14): the claim currencies, ISO 4217 codes from money.CURRENCIES (all with two minor digits); the
+    first is the default, 1-5 codes, no repeat."""
+    from .money import CURRENCIES
+
+    if not isinstance(v, list) or not 1 <= len(v) <= 5 or not all(isinstance(x, str) and x in CURRENCIES for x in v) or len(set(v)) != len(v):
+        raise ValueError("invalid")
+    return list(v)
+
+
 SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail"): ("drawer_fullscreen", _choice("drawer", "fullscreen", "drawer_fullscreen")),  # D18
     ("ui", "new_ticket"): ("sheet", _choice("sheet", "dialog")),  # D22
@@ -80,6 +96,16 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("links", "sliding_days"): (14, _int_range(1, 90)),
     ("links", "cap_days"): (90, _int_range(7, 365)),
     ("links", "grace_hours"): (24, _int_range(0, 168)),
+    # slice 9: cost claims (11A.14, D31 / D32); department and vendor overrides live on their rows (11A.1)
+    ("costs", "mode"): ("optional", _choice("required", "optional", "off")),
+    ("costs", "currencies"): (["ILS"], _currencies),
+    ("costs", "vat_rate_bp"): (1800, _int_range(0, 5000)),
+    ("costs", "claim_window_days"): (14, _int_range(1, 90)),
+    ("costs", "require_invoice"): (False, _bool),
+    ("costs", "max_claim_total_minor"): (100_000_000, _int_range(100, 99_999_999_999)),
+    ("costs", "review_flag_above_minor"): (1_000_000, _int_range(0, 99_999_999_999)),
+    ("costs", "notify_vendor_approved"): (True, _bool),
+    ("costs", "retention_days"): (2555, _int_range(730, 3650)),
 }
 
 

@@ -191,19 +191,21 @@ def test_the_grant_roles_and_their_delegation_defaults():
     assert grants == {
         "tickets_view": ["tickets.view"], "tickets_create": ["tickets.create"], "tickets_manage": ["tickets.manage"],
         "tickets_all_departments": ["tickets.all_departments"], "tickets_external": ["tickets.external"], "tickets_configure": ["tickets.configure"],
+        "tickets_costs_view": ["tickets.costs.view"], "tickets_costs": ["tickets.costs"],
     }
-    for sens in ("tickets.all_departments", "tickets.external", "tickets.configure", "messaging.accounts.manage"):
+    for sens in ("tickets.all_departments", "tickets.external", "tickets.configure", "tickets.costs.view", "tickets.costs", "messaging.accounts.manage"):
         assert sens in SENSITIVE
     for plain in ("tickets.view", "tickets.create", "tickets.manage"):
         assert plain not in SENSITIVE
     assert {"tickets_view", "tickets_create", "tickets_manage"} <= set(DEFAULT_DELEGABLE)
-    assert not {"tickets_all_departments", "tickets_external", "tickets_configure"} & set(DEFAULT_DELEGABLE)
+    assert not {"tickets_all_departments", "tickets_external", "tickets_configure", "tickets_costs_view", "tickets_costs"} & set(DEFAULT_DELEGABLE)
     assert {r: [p for p in ROLES[r] if p.startswith("tickets.")] for r in ("viewer", "kiosk", "editor", "door_opener", "operator", "site_admin")} == {
         "viewer": [], "kiosk": [], "editor": [], "door_opener": [], "operator": ["tickets.view", "tickets.create"],
-        "site_admin": ["tickets.view", "tickets.create", "tickets.manage", "tickets.external"],
+        "site_admin": ["tickets.view", "tickets.create", "tickets.manage", "tickets.external", "tickets.costs.view"],
     }
     assert sorted(p for p in ROLES["system_admin"] if p.startswith(("tickets.", "messaging."))) == sorted([
-        "tickets.view", "tickets.create", "tickets.manage", "tickets.external", "tickets.all_departments", "tickets.configure", "messaging.accounts.manage"])
+        "tickets.view", "tickets.create", "tickets.manage", "tickets.external", "tickets.all_departments", "tickets.configure", "tickets.costs.view", "tickets.costs",
+        "messaging.accounts.manage"])
 
 
 def test_a_site_admin_may_delegate_the_plain_grants_only(w, settings):

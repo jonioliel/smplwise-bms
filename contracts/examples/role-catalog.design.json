@@ -145,7 +145,8 @@
         "tickets.view",
         "tickets.create",
         "tickets.manage",
-        "tickets.external"
+        "tickets.external",
+        "tickets.costs.view"
       ]
     },
     {
@@ -238,6 +239,8 @@
         "tickets.external",
         "tickets.all_departments",
         "tickets.configure",
+        "tickets.costs.view",
+        "tickets.costs",
         "messaging.accounts.manage"
       ]
     }
@@ -284,6 +287,8 @@
     "tickets.all_departments",
     "tickets.external",
     "tickets.configure",
+    "tickets.costs.view",
+    "tickets.costs",
     "messaging.accounts.manage"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."

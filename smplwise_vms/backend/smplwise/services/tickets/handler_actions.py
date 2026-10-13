@@ -162,6 +162,10 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     _progress(conn, f, now, client_key)
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
     notify_bridge.ticket_status(conn, f.ticket["id"], frm, to)
+    if to == "done":  # S9 (11A.1): the vendor's cost claim is asked from here on (per the assignment's requirement)
+        from . import costs
+
+        costs.on_assignment_done(conn, f.ticket["id"], f.assignment["id"], now)
     return _finish(conn, f.link, crid, 200, {"ok": True, "status": to})
 
 
@@ -225,6 +229,9 @@ def give_back(conn, link: LinkRecord, *, kind: str, reason: str, crid: str, now:
     store_links.insert_access(conn, f.link.link_id, at, "update", client_key)
     audit_link(conn, f.link, "ticket.return", kind=kind)
     notify_bridge.ticket_returned(conn, f.ticket["id"], kind)
+    from . import costs  # S9 (11A.1): after "לא אוכל לטפל" a claim is optional; after "לא שלי" none is asked
+
+    costs.on_assignment_returned(conn, f.ticket["id"], f.assignment["id"], kind, now)
     return _finish(conn, f.link, crid, 200, {"ok": True, "status": "returned", "kind": kind, "number": f.ticket["number"]})
 
 

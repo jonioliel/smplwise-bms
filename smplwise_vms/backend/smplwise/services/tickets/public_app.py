@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import json
 import re
 import threading
@@ -37,7 +38,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import ClientDisconnect
 
-from . import image_intake, links
+from . import cost_files, image_intake, links
 from .codes import CodeEngine, CodeRefused
 from .cost_files import photo_headers
 from .image_intake import InFlight, IntakeError, StorageMeter
@@ -67,6 +68,10 @@ FALLBACK_SHELL = ('<!doctype html><html lang="he" dir="rtl"><head><meta charset=
                   '<meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><title></title></head>'
                   '<body><p>הדף אינו זמין כרגע.</p></body></html>').encode("utf-8")
 PHOTO_FIELDS = {"file": FieldRule(file=True, max_bytes=image_intake.MAX_BYTES), "client_request_id": FieldRule(file=False, max_bytes=64)}
+# slice 9: an invoice page or PDF of a cost claim (11A.6) with its optional document grouping and the vendor's own file label
+CLAIM_FILE_FIELDS = {"file": FieldRule(file=True, max_bytes=cost_files.PDF_MAX_BYTES), "client_request_id": FieldRule(file=False, max_bytes=64),
+                     "document_key": FieldRule(file=False, max_bytes=32, required=False), "page_no": FieldRule(file=False, max_bytes=2, required=False),
+                     "name": FieldRule(file=False, max_bytes=240, required=False)}
 
 
 class PublicError(Exception):
@@ -81,6 +86,33 @@ class PublicError(Exception):
 
 def unavailable() -> PublicError:
     return PublicError(404, "link_unavailable")
+
+
+class ClaimFileSink:
+    """Slice 9's port for the invoice files of a claim (public_claims.SqlClaimFileSink implements it): `check_open` (the claim of
+    the link's assignment accepts uploads now - else PublicError 409), `check_quota` (30 pending files per link - 409
+    `file_limit`), `record` (the pending `ticket_cost_files` row + the request row in ONE transaction, W5; raising makes the route
+    delete the stored file; a duplicate file of the same claim is 409 `duplicate_file`)."""
+
+    def check_open(self, link: LinkRecord) -> None:  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def check_quota(self, link: LinkRecord) -> None:  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def record(self, link: LinkRecord, stored: Any, crid: str, document_key: str | None, page_no: int | None,
+               name: str) -> Mapping[str, Any]:  # pragma: no cover - interface
+        raise NotImplementedError
+
+
+def _opt_text(form: Mapping[str, Any], key: str) -> str | None:
+    part = form.get(key)
+    if part is None:
+        return None
+    try:
+        return part.text()
+    except Exception:  # noqa: BLE001 - an undecodable field is an invalid field
+        raise PublicError(422, "invalid", fields=[{"field": key, "code": "encoding"}]) from None
 
 
 # ---------------------------------------------------------------- the dependencies of one public app
@@ -112,6 +144,10 @@ class PublicDeps:
     decode_wait_s: float = image_intake.DECODE_WAIT_S
     upload_slots: int = UPLOAD_SLOTS
     upload_slot_wait_s: float = UPLOAD_SLOT_WAIT_S
+    # slice 9 (11A.5): a link that no longer serves the page may still open the CLAIM step until the claim's own window ends -
+    # `claim_window(link, now)` answers that window's end (epoch seconds) or None; asked ONLY for a token that matched a row
+    claim_window: Callable[[LinkRecord, float], float | None] | None = None
+    claim_files: "ClaimFileSink | None" = None
 
 
 @dataclass(frozen=True)
@@ -121,6 +157,7 @@ class LinkContext:
     read_only: bool
     code_ok: bool
     now: float
+    claim_mode: bool = False  # slice 9: the link serves the claim step only (its `expires_at` is the claim window's end)
 
 
 def public_request(request: Request) -> PublicRequest:
@@ -138,7 +175,7 @@ def spend_budget(request: Request) -> None:
     request.app.state.gate.spend(pr.rule.kind, pr.token_key)
 
 
-def link_context(*, write: bool = False, need_code: bool = True) -> Callable[[Request], Awaitable[LinkContext]]:
+def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bool = False) -> Callable[[Request], Awaitable[LinkContext]]:
     """The dependency of every token route (see the module docstring). `write`: refuse during the read-only grace (409
     `read_only`); `need_code`: a link that requires a code needs a valid code session (403 `code_required`) - for writes; a
     read route checks `code_ok` itself to decide what it may show (spec 10.5: number, department, organisation only)."""
@@ -151,11 +188,18 @@ def link_context(*, write: bool = False, need_code: bool = True) -> Callable[[Re
             raise unavailable()
         link = await run_in_threadpool(deps.links.lookup, pr.token_hash)
         now = deps.clock()
+        claim_mode = False
+        if link is not None and not link.available(now) and allow_claim and deps.claim_window is not None:
+            # slice 9 (11A.5): one more read, only for a token that matched a link row - nothing is learned without a real token
+            until = await run_in_threadpool(deps.claim_window, link, now)
+            if until is not None and now < until:
+                link = dataclasses.replace(link, expires_at=until, grace_until=None, revoked=False)
+                claim_mode = True
         if link is None or not link.available(now):
             gate.failure(pr.net, pr.token_key)
             raise unavailable()
         gate.success(pr.token_key, counted=pr.counted)
-        read_only = link.read_only(now)
+        read_only = link.read_only(now) or claim_mode
         code_ok = not link.require_code
         if link.require_code and deps.codes is not None and pr.session:
             code_ok = await run_in_threadpool(deps.codes.session_ok, link, pr.session)
@@ -163,7 +207,7 @@ def link_context(*, write: bool = False, need_code: bool = True) -> Callable[[Re
             raise PublicError(409, "read_only")
         if write and need_code and not code_ok:
             raise PublicError(403, "code_required")
-        return LinkContext(link=link, request=pr, read_only=read_only, code_ok=code_ok, now=now)
+        return LinkContext(link=link, request=pr, read_only=read_only, code_ok=code_ok, now=now, claim_mode=claim_mode)
 
     return dep
 
@@ -458,7 +502,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         return PublicError(422, codes_map.get(exc.reason, "code_invalid"), **extra)
 
     @api.post("/t/api/code/send")
-    async def code_send(request: Request, ctx: LinkContext = Depends(link_context(need_code=False))) -> Response:
+    async def code_send(request: Request, ctx: LinkContext = Depends(link_context(need_code=False, allow_claim=True))) -> Response:
         await read_json(request, CodeSendIn)
         engine, sender = deps.codes, deps.code_sender
         if engine is None or sender is None:
@@ -480,7 +524,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         return JSONResponse({"sent": True, "channel": channel, "expires_in_s": int(issued.expires_at - deps.clock())})
 
     @api.post("/t/api/code/verify")
-    async def code_verify(request: Request, ctx: LinkContext = Depends(link_context(need_code=False))) -> Response:
+    async def code_verify(request: Request, ctx: LinkContext = Depends(link_context(need_code=False, allow_claim=True))) -> Response:
         body: CodeVerifyIn = await read_json(request, CodeVerifyIn)
         if deps.codes is None:
             raise PublicError(503, "code_unavailable")
@@ -584,6 +628,68 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         headers = photo_headers(f.ticket_number)
         media = headers.pop("Content-Type")
         return FileResponse(path, media_type=media, headers=headers)
+
+    # ---------------------------------------------------------------- invoice files of a cost claim (slice 9, spec 11A.6 / 11A.6A)
+
+    @api.post("/t/api/claim/file")
+    async def claim_file(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True))) -> Response:
+        """One photographed page or one PDF of the vendor's claim, stored as a PENDING file (24 h) - the submission references it.
+        The photo route's protections apply (one upload in flight per link, the upload slots, the storage cap before the body,
+        the decoder admission, idempotent by `client_request_id`); a code-protected link needs its code session. Code review V2:
+        the per-token file budget (40 / hour) is spent as soon as an upload enters its body phase - a trickled, refused or
+        abandoned upload costs the same as a stored one, so one link cannot hold the upload slots for free."""
+        sink, root = deps.claim_files, deps.attachments_root
+        if sink is None or root is None:
+            raise unavailable()
+        if not ctx.code_ok:
+            raise PublicError(403, "code_required")
+        link = ctx.link
+        await run_in_threadpool(sink.check_open, link)
+        with in_flight.claim(link.link_id):
+            async with upload_slot():
+                gate.spend("claim_file", ctx.request.token_key)
+                if deps.storage is not None:
+                    await run_in_threadpool(deps.storage.admit, ctx.request.content_length or ctx.request.rule.max_body)
+                raw = bytearray()
+                async for chunk in request.stream():
+                    raw += chunk
+                try:
+                    form = parse_form(raw, boundary_of(ctx.request.content_type), CLAIM_FILE_FIELDS)
+                except MultipartError as exc:
+                    raise PublicError(422, "invalid", fields=[{"field": "form", "code": exc.code}]) from None
+                finally:
+                    del raw
+                crid = parse_client_request_id(form["client_request_id"].text())
+                try:
+                    doc_key, page_no = cost_files.page_fields(_opt_text(form, "document_key"), _opt_text(form, "page_no"))
+                except ValueError as exc:
+                    raise PublicError(422, "invalid", fields=[{"field": str(exc), "code": "invalid"}]) from None
+                name = _opt_text(form, "name") or ""
+                data = form["file"].data
+                del form
+
+                async def work() -> tuple[int, Mapping[str, Any]]:
+                    from . import cost_storage
+
+                    kind = cost_storage.check(data)
+                    await run_in_threadpool(sink.check_quota, link)
+                    if kind == "photo":
+                        async with decode_admission():
+                            stored = await run_in_threadpool(cost_storage.store_photo, root, link.ticket_id, data, wait_s=deps.decode_wait_s)
+                    else:
+                        stored = await run_in_threadpool(cost_storage.store_pdf, root, link.ticket_id, data)
+                    if deps.storage is not None:
+                        deps.storage.note(stored.bytes)
+                    try:
+                        answer = await run_in_threadpool(sink.record, link, stored, crid, doc_key, page_no, name)
+                    except Exception:
+                        cost_storage.remove(root, stored.rel_path)
+                        if deps.storage is not None:
+                            deps.storage.note(-stored.bytes)
+                        raise
+                    return 201, answer
+
+                return await idempotency.run(f"link:{link.link_id}", crid, "/t/api/claim/file", work)
 
     for router in deps.extra_routers:
         api.include_router(router)

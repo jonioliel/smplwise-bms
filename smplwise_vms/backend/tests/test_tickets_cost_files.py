@@ -1,6 +1,6 @@
 """CR-038 invoice files (services/tickets/cost_files.py, spec 11A.6 / 11A.6A): the PDF acceptance checks exactly as the spec
 lists them (magic, trailer, size, the active-content / encryption names - matched as PDF name tokens, `#xx` escapes decoded),
-the stated known limit (compressed object streams are invisible), the document grouping limits (3 documents, 10 pages, 25
+the bounded inflate of FlateDecode streams (code review V7), the document grouping limits (3 documents, 10 pages, 25
 files, duplicates) and the download / inline headers. Every PDF here is hand-written and harmless."""
 from __future__ import annotations
 
@@ -73,16 +73,33 @@ def test_magic_trailer_and_size_rules():
             cf.check_pdf(not_pdf)
 
 
-def test_known_limit_names_inside_a_compressed_object_stream_are_not_seen():
-    """Pinned on purpose (spec 11A.6 'stated limit'): a byte scan cannot see inside a FlateDecode object stream. This file
-    carries an /OpenAction /JavaScript dictionary only in compressed form and IS accepted - the real controls are that Arx
-    never parses or renders a PDF and serves it only as a sandboxed download. If this test starts failing because the check
-    got stronger, update the notes and the spec's 'stated limit' together."""
+def _flate(data: bytes) -> bytes:
+    packed = zlib.compress(data)
+    return b"<< /Filter /FlateDecode /Length " + str(len(packed)).encode() + b" >>\nstream\n" + packed + b"\nendstream"
+
+
+def test_names_inside_a_compressed_object_stream_are_seen_after_a_bounded_inflate():
+    """Slice 9 (code review V7): the FlateDecode streams are inflated (bounded) and scanned with the same rule - the common
+    PDF 1.5+ shape is no longer a way past the filter. The scan stays a FILTER: a stream that does not inflate cleanly is skipped
+    (the stated limit of 11A.6 moves there); the real controls stay download-only, sandboxed, never rendered."""
     hidden = zlib.compress(b"<< /Type /Catalog /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >>")
     objstm = b"<< /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length " + str(len(hidden)).encode() + b" >>\nstream\n" + hidden + b"\nendstream"
     data = pdf(objstm)
     assert b"JavaScript" not in data
-    cf.check_pdf(data)
+    with pytest.raises(IntakeError) as e:
+        cf.check_pdf(data)
+    assert e.value.code == "pdf_refused"
+    cf.check_pdf(pdf(_flate(b"BT /F1 12 Tf 72 712 Td (Invoice 1042) Tj ET")))
+
+
+def test_a_deflate_bomb_inside_a_pdf_is_refused_at_the_bound():
+    with pytest.raises(IntakeError) as e:
+        cf.check_pdf(pdf(_flate(bytes(8 * 1024 * 1024))))
+    assert e.value.code == "pdf_refused"
+
+
+def test_a_stream_that_does_not_inflate_is_skipped_not_fatal():
+    cf.check_pdf(pdf(b"<< /Filter /FlateDecode /Length 9 >>\nstream\nnot-zlib!\nendstream"))
 
 
 def test_the_scan_stays_cheap_on_crafted_files():

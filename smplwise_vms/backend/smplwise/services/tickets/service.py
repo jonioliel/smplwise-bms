@@ -143,7 +143,7 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
 # ---------------------------------------------------------------- status (section 11.2)
 
 def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, revision: int, duplicate_of: str | None = None,
-                  rid: str | None = None) -> None:
+                  rid: str | None = None, override_claim_reason: str | None = None) -> None:
     row = seen.row
     frm = row["status"]
     if to not in model.STATUSES:
@@ -174,6 +174,13 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
         original = access.visible_by_id(viewer, duplicate_of)
         if original is None or original.row["id"] == row["id"]:
             raise invalid(conn, model.Invalid([model.Problem("duplicate_of", "unknown")]))
+    if to == "closed":  # S9 (11A.3): a REQUIRED cost claim that is not approved blocks the close unless overridden with a reason
+        from . import costs
+
+        try:
+            costs.check_close(conn, viewer, row, override_claim_reason, rid)
+        except costs.CostRefused as exc:
+            raise cost_error(conn, exc) from None
     now = now_iso()
     fields: dict[str, Any] = {"status": to, "last_activity_at": now}
     fields["waiting_on"], fields["waiting_reason"] = model.waiting_for(to)
@@ -213,6 +220,41 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
     action = {"closed": "ticket.close", "cancelled": "ticket.cancel", "reopened": "ticket.reopen"}.get(kind, "ticket.status")
     _audit(conn, viewer, action, row, rid, **{"from": frm, "to": to, "actor": actor, **({"duplicate_of": original.row["id"]} if original else {})})
     notify_bridge.ticket_status(conn, row["id"], frm, to)
+    if to == "done" and asg and row.get("asg_kind") == "contact":  # S9: the manager reported "done" on the vendor's behalf
+        from . import costs
+
+        costs.on_assignment_done(conn, row["id"], asg, handler_links.parse(now) or handler_links.now_utc())
+
+
+COST_MESSAGES = {
+    "cost_claim_pending": "יש דרישת עלות חובה שעדיין לא אושרה. אשרו אותה, או סגרו עם נימוק.",
+    "forbidden": "אין הרשאה לפעולה הזו.",
+    "claim_stale": "דרישת העלות השתנתה בינתיים. טענו מחדש.",
+    "claim_closed": "דרישת העלות כבר אושרה.",
+    "claim_not_submitted": "אין הגשה שממתינה לבדיקה.",
+    "claim_not_approved": "דרישת העלות עדיין לא אושרה.",
+    "claim_not_paid": "דרישת העלות אינה מסומנת כשולמה.",
+    "claim_not_open": "דרישת העלות אינה פתוחה להגשה.",
+    "window_still_open": "חלון ההגשה עדיין פתוח.",
+    "already_reopened": "חלון ההגשה כבר נפתח מחדש פעם אחת.",
+    "claim_already_submitted": "אי אפשר לשנות את הדרישה אחרי שהוגשה דרישת עלות.",
+    "not_external": "דרישת עלות קיימת רק לשיוך לגורם חיצוני.",
+    "no_external_assignment": "ל{ticket} אין שיוך לגורם חיצוני.",
+    "claim_window_closed": "חלון ההגשה נסגר.",
+    "invoice_required": "יש לצרף חשבונית או קבלה.",
+    "claim_too_large": "הסכום גבוה מהמותר.",
+}
+
+
+def cost_error(conn, exc) -> ApiError:
+    """A services/tickets/costs.CostRefused as the internal API's envelope (Hebrew, with the module's display name - D33)."""
+    if exc.status == 422 and exc.code not in COST_MESSAGES:
+        return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field or "body", "code": exc.code}]})
+    msg = COST_MESSAGES.get(exc.code, "הפעולה נדחתה.")
+    details = dict(exc.extra)
+    if exc.field:
+        details["field"] = exc.field
+    return ApiError(exc.status, exc.code, text(conn, msg), details=details)
 
 
 # ---------------------------------------------------------------- assignment to an internal user
