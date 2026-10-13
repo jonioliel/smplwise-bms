@@ -577,7 +577,16 @@ def test_every_allow_listed_action_is_allowed_by_the_bridge():
         have = _bridge_allowed_services(copy / "__init__.py")
         assert not want - have, f"{copy}: missing in the bridge allow-list: {sorted(want - have)}"
     manifest = json.loads((ROOT / "custom_components" / "smplwise_bridge" / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == ha_bridge.BRIDGE_EQUIPMENT_REQUIRED, "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
+    # the shipped bridge carries the allow-list the add-on requires (a new allow-list ships as a new bridge version - HA must restart to
+    # load it): at least BRIDGE_EQUIPMENT_REQUIRED, the rule scripts/release_check.py enforces. It was `==` until the first bump that did not
+    # change the allow-list (CR-040, 0.8.1: the trust rotation) - raising the equipment requirement would wrongly call every 0.8.0 bridge outdated.
+    from smplwise.services import bridge_trust
+
+    def version(v: str) -> tuple[int, ...]:
+        return tuple(int(x) for x in v.split("."))
+
+    assert version(manifest["version"]) >= version(ha_bridge.BRIDGE_EQUIPMENT_REQUIRED), "the shipped bridge must carry the add-on's allow-list"
+    assert version(manifest["version"]) >= version(bridge_trust.MIN_BRIDGE_FOR_ROTATION), "the shipped bridge must offer the trust rotation (CR-040)"
 
 
 def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app, monkeypatch):
