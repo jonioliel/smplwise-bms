@@ -8,6 +8,7 @@ import { applyCapabilities, capHiddenHref, needsOfSegments, segmentsOfHref } fro
 import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '../api/media';
 import { onTicketNames } from '../tickets/naming';
 import { tt } from '../tickets/text';
+import { bt } from '../tickets/board-text'; // CR-038 slice 6: the board tab's label
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -577,10 +578,12 @@ export function applyInfraMeters(hasMetersOrManage: boolean): void {
 export const TICKETS_MINE_HREF = '#/tickets/mine';
 export const TICKETS_DEPARTMENT_HREF = '#/tickets/department';
 export const TICKETS_ALL_HREF = '#/tickets/all';
+export const TICKETS_BOARD_HREF = '#/tickets/board'; // CR-038 slice 6
 export const TICKETS_SETTINGS_HREF = '#/system/tickets';
 export const TICKETS_TABS: TabItem[] = [
   { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
   { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
+  { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
   { id: 'all', get label() { return tt('tabAll'); }, href: TICKETS_ALL_HREF },
 ];
 const isTicketsAreaHref = (href: string) => href === '#/tickets' || href.startsWith('#/tickets/');
@@ -759,7 +762,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return s[1] === 'generator' ? 'generator' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'department' || s[1] === 'all' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      return s[1] === 'department' || s[1] === 'all' || s[1] === 'board' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -916,6 +919,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [TICKETS_MINE_HREF]: ['tickets.view', 'tickets.create'],
   [TICKETS_DEPARTMENT_HREF]: ['tickets.view'],
   [TICKETS_ALL_HREF]: ['tickets.all_departments'],
+  [TICKETS_BOARD_HREF]: ['tickets.manage'], // slice 6: the manager board (the server also needs a manager membership or all departments)
   [TICKETS_SETTINGS_HREF]: ['system.configure', 'tickets.configure'],
   // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)
   [UPDATE_SETTINGS_HREF]: ['system.update'],

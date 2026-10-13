@@ -102,6 +102,7 @@ export class TicketCard extends LitElement {
         ${t.priority ? html`<span class=${`chip ${ptone}`} data-chip="priority"><i class=${`dot ${ptone === 'bad' ? 'bad' : ptone === 'info' ? 'run' : ''}`}></i>${t.priority.name}</span>` : nothing}
         ${t.department ? html`<span class="chip" data-chip="department">${bidi(t.department.name)}</span>` : nothing}
         ${t.reopen_count > 0 ? html`<span class="chip warn" data-chip="reopened">${tIcon('refresh')}${tt('reopenedChip')}</span>` : nothing}
+        <slot name="chips"></slot>
       </div>
     </article>`;
   }

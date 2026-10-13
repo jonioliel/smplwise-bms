@@ -10,6 +10,7 @@ import {
   type Category, type Channel, type Delivery, type EmailBody, type EscalationSettings, type InboxFilter, type Notification, type NotifyPolicy, type NotifySettings, type NotifyStats, type PassThrough,
   type PushAction, type Severity, type SourceInfo, type SubjectKind, type Weekday,
 } from '../api/notifications';
+import { bt as boardText } from '../tickets/board-text'; // CR-038: the `ticket` subject kind's labels carry the module's configured name (D33)
 
 // ------------------------------------------------------------------------------------------------ keyboard
 
@@ -53,10 +54,12 @@ export function placeText(n: Pick<Notification, 'subject' | 'category'> & { plac
 
 const KIND_LABEL: Record<SubjectKind, string> = {
   camera: 'מצלמה', entity: 'התקן', area: 'אזור', alarm_panel: 'לוח אזעקה', door: 'עמדת כניסה', schedule: 'תזמון', automation: 'אוטומציה', bulk_job: 'פעולה קבוצתית', system: 'מערכת', session: 'כניסות', generator: 'גנרטור',
+  get ticket() { return boardText('kindTicket'); }, // CR-038 D33: the configured name
 };
 const OPEN_LABEL: Record<SubjectKind, string> = {
   camera: 'פתח את המצלמה', entity: 'פתח את ההתקן', area: 'פתח את האזור', alarm_panel: 'פתח את האזעקה', door: 'פתח את העמדה', schedule: 'פתח את התזמון', automation: 'פתח את האוטומציה',
   bulk_job: 'פתח את התוצאה', system: 'פתח את הבריאות', session: 'פתח את הכניסות', generator: 'פתח את הגנרטור',
+  get ticket() { return boardText('openTicket'); }, // CR-038 D33
 };
 /** The label of the "open the device" menu item: "פתח את המצלמה". */
 export const openLabel = (n: Pick<Notification, 'subject'>): string => OPEN_LABEL[n.subject.kind];
@@ -89,7 +92,7 @@ export function filterCounts(rows: readonly Notification[], now: number): Record
   return { all: rows.length, unread: rows.filter((n) => isUnread(n, now)).length, critical: rows.filter((n) => n.severity === 'critical').length };
 }
 export interface SourceOption { category: Category; label: string; count: number; icon: string }
-const CATEGORY_ICON: Record<Category, string> = { safety: 'siren', device_faults: 'warning', system: 'settings', doors: 'door', automations: 'bolt', security: 'key', alerts: 'cam' };
+const CATEGORY_ICON: Record<Category, string> = { safety: 'siren', device_faults: 'warning', system: 'settings', doors: 'door', automations: 'bolt', security: 'key', alerts: 'cam', tickets: 'ticket' };
 /** The source filter's options: the categories that have rows, in the matrix order, with their counts. */
 export function sourceOptions(rows: readonly Pick<Notification, 'category'>[]): SourceOption[] {
   const count: Partial<Record<Category, number>> = {};

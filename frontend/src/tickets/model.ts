@@ -4,6 +4,9 @@
  */
 import type { ListScope, Severity, StatusFilter, TicketDetail, TicketEvent, TicketItem, TicketStatus } from '../api/tickets';
 import { tt, type TicketTextKey } from './text';
+import { bt, type BoardTextKey } from './board-text';
+
+const BOARD_REASONS = ['unassigned', 'overdue', 'unopened', 'ack', 'stuck', 'waiting'];
 
 export const TICKETS_ROOT = '#/tickets';
 export const SCOPES: readonly Exclude<ListScope, 'visible'>[] = ['mine', 'department', 'all'];
@@ -212,6 +215,17 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
       return { icon: 'trash', text: tt('e_photoRemoved') };
     case 'duplicate':
       return { icon: 'copy', text: tt('e_duplicate', { n: Number(d.number ?? 0) }) };
+    // slice 6: the rows the SLA monitor writes (actor: the system)
+    case 'stuck':
+      return { icon: 'clock', text: bt('e_stuck', { reason: BOARD_REASONS.includes(String(d.kind)) ? bt(`r_${String(d.kind)}` as BoardTextKey) : '' }) };
+    case 'reminder':
+      return { icon: 'clock', text: bt('e_reminder', { n: Number(d.n ?? 1) }) };
+    case 'manager_alerted':
+      return { icon: 'user', text: bt('e_manager_alerted') };
+    case 'auto_closed':
+      return { icon: 'lock', text: bt('e_auto_closed') };
+    case 'link_expired':
+      return { icon: 'x', text: bt('e_link_expired') };
     default:
       return { icon: 'note', text: e.kind };
   }

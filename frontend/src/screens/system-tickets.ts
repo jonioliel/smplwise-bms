@@ -22,6 +22,8 @@ import {
 } from '../api/tickets';
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
 import { tt, type TicketTextKey } from '../tickets/text';
+import '../tickets/board-settings'; // CR-038 slice 6: the D19-D21 / D28 rows of the display card
+import type { BoardSettingsDoc } from '../api/tickets-board';
 
 type Tab = 'general' | 'departments' | 'permissions';
 /** The unsaved inputs of one department card. */
@@ -429,6 +431,7 @@ export class SystemTickets extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.detail === v)} aria-checked=${String(this.doc?.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveUi({ detail: v })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
         <div class="row"><span class="lbl">${tt('setNewTicket')}<span class="muted">${tt('setNewTicketSub')}</span></span>
           <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveUi({ new_ticket: v })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
+        <ticket-board-settings .doc=${this.doc as unknown as BoardSettingsDoc} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<BoardSettingsDoc>) => { this.doc = e.detail as unknown as SettingsDoc; this.say(tt('setSaved')); }}></ticket-board-settings>
       </sw-card>` : nothing}
     </div>`;
   }
