@@ -231,6 +231,14 @@ def test_global_flood_spares_a_vendor_already_working(w):
     assert working.get("/t/api/ticket", headers={"x-ticket-token": tok}).status_code == 200
 
 
+def test_a_path_scan_pays_the_static_budget(w):
+    c = w.client(peer="192.0.2.99")
+    codes = [c.get(f"/scan/{i}").status_code for i in range(125)]
+    assert codes[:120] == [404] * 120 and set(codes[120:]) == {429}
+    assert c.get("/t/").status_code == 429  # the same budget: a scanner learns nothing about which paths exist
+    assert w.client(peer="203.0.113.1").get("/scan/x").status_code == 404
+
+
 def test_per_token_request_cap(w):
     link, tok = w.links.add()
     c = w.client()
@@ -321,6 +329,37 @@ def test_idempotent_replay_and_reuse_on_another_route(w, tmp_path):
     assert photo.status_code == 409 and photo.json()["code"] == "request_id_reused"
     for bad in ("", "not-a-uuid", "0" * 36, str(uuid.uuid4())[:-1]):
         assert note(c, tok, rid=bad).json()["fields"] == [{"field": "client_request_id", "code": "uuid"}]
+
+
+def test_idempotency_never_runs_the_work_twice_under_concurrency():
+    import asyncio
+
+    from tests.tickets_public_fakes import FakeRequests
+
+    idem = Idempotency(FakeRequests())
+    runs: list[int] = []
+
+    async def work():
+        runs.append(1)
+        await asyncio.sleep(0.05)
+        return 201, {"id": "a1"}
+
+    async def scenario():
+        async def attempt():
+            try:
+                r = await idem.run("link:L", "same-id", "/t/api/photo", work)
+                return r.status_code
+            except PublicError as exc:
+                return exc.code
+
+        first = await asyncio.gather(*(attempt() for _ in range(6)))
+        later = await attempt()
+        return first, later
+
+    first, later = asyncio.run(scenario())
+    assert runs == [1] and first.count(201) == 1 and first.count("request_in_progress") == 5 and later == 201
+    replay = asyncio.run(idem.run("link:L", "same-id", "/t/api/photo", work))
+    assert replay.headers.get("x-idempotent-replay") == "1" and runs == [1]
 
 
 def test_read_only_grace_after_close(w):
@@ -473,6 +512,18 @@ def test_photo_refusals(w):
     r = upload(c, tok)
     assert r.status_code == 409 and r.json() == {"code": "photo_limit"}
     assert not w.photos.rows
+
+
+def test_a_retry_of_the_upload_that_reached_the_quota_is_its_replay(w):
+    link, tok = w.links.add()
+    w.photos.extra_ticket = 59
+    c = w.client()
+    rid = crid()
+    first = upload(c, tok, rid=rid)
+    assert first.status_code == 201  # the 60th photo of the ticket
+    retry = upload(c, tok, rid=rid)
+    assert retry.status_code == 201 and retry.json() == first.json() and retry.headers.get("x-idempotent-replay") == "1"
+    assert upload(c, tok).json() == {"code": "photo_limit"}  # a NEW photo is refused
 
 
 def test_storage_full_is_refused_before_the_body_is_decoded(tmp_path):

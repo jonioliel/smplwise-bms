@@ -239,13 +239,16 @@ class Idempotency:
                 self._busy.discard(key)
 
     async def run(self, scope: str, crid: str, route: str, work: Callable[[], Awaitable[tuple[int, Mapping[str, Any]]]]) -> JSONResponse:
-        if self.log is not None:
-            prior = await run_in_threadpool(self.log.get, scope, crid)
-            if prior is not None:
-                if prior.route != route:
-                    raise PublicError(409, "request_id_reused")
-                return JSONResponse(dict(prior.body), status_code=prior.status, headers={"x-idempotent-replay": "1"})
+        """Claim (scope, id) in this process FIRST, then look for a stored answer, then work: a duplicate that arrives while
+        the first runs is 409 `request_in_progress` (the page retries), one that arrives after it is the replay - never a
+        second effect. Only 2xx answers are stored (a 429 / 409 must not be replayed forever)."""
         with self._claim((scope, crid)):
+            if self.log is not None:
+                prior = await run_in_threadpool(self.log.get, scope, crid)
+                if prior is not None:
+                    if prior.route != route:
+                        raise PublicError(409, "request_id_reused")
+                    return JSONResponse(dict(prior.body), status_code=prior.status, headers={"x-idempotent-replay": "1"})
             status, body = await work()
             if self.log is not None and 200 <= status < 300:
                 await run_in_threadpool(self.log.put, scope, crid, route, status, body)
@@ -486,8 +489,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         if photos is None or root is None:
             raise unavailable()
         link = ctx.link
-        image_intake.check_photo_quota(await run_in_threadpool(photos.counts, link))
-        if deps.storage is not None:
+        if deps.storage is not None:  # spec 10.6: the installation cap BEFORE the body is read
             await run_in_threadpool(deps.storage.admit, ctx.request.content_length or PHOTO_MAX)
         with in_flight.claim(link.link_id):
             async with upload_slot():
@@ -502,6 +504,8 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
                 del form
 
                 async def work() -> tuple[int, Mapping[str, Any]]:
+                    # the quotas inside the idempotent part: a retry of an upload that reached the 30th photo is its replay
+                    image_intake.check_photo_quota(await run_in_threadpool(photos.counts, link))
                     async with decode_admission():
                         image = await run_in_threadpool(image_intake.reencode, data, wait_s=deps.decode_wait_s)
                     stored = await run_in_threadpool(image_intake.store_image, root, link.ticket_id, image)

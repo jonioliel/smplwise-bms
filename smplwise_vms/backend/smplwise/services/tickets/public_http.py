@@ -288,16 +288,22 @@ class PublicEdge:
         if not self.switch.module_on():
             await refuse(404, UNIFORM_404)
             return
-        rule = self.match(method, path)
-        if rule is None:
-            self.stats.bump("unmatched")
-            await refuse(404, UNIFORM_404)
-            return
-        box["template"] = rule.template
         client = scope.get("client")
         peer = client[0] if isinstance(client, (list, tuple)) and client else None
         forwarded = [v.decode("latin-1") for v in wanted[b"cf-connecting-ip"]]
         net = client_network(peer, forwarded, self.trusted)
+        rule = self.match(method, path)
+        if rule is None:
+            # a path scan pays like a static request (120 / minute per network): a flood of guesses is not free
+            self.stats.bump("unmatched")
+            scanned = self.gate.admit("static", net)
+            if not scanned.ok:
+                await refuse(429, payload("rate_limited", retry_after_s=scanned.retry_after_s),
+                             extra=[(b"retry-after", str(scanned.retry_after_s).encode("ascii"))])
+                return
+            await refuse(404, UNIFORM_404)
+            return
+        box["template"] = rule.template
         token_hash = token_key = None
         if rule.kind in TOKEN_KINDS:
             token = links.parse_token(_single(wanted[b"x-ticket-token"]))
