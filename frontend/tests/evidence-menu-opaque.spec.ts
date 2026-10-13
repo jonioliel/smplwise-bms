@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { DEVICE_PALETTES } from '../src/styles/devices-palettes';
 import { BUILTIN_PALETTES } from '../src/design/palette';
 import { MENU_SCHEMES, MENU_SKINS, expectOpaqueMenu, mountDropdowns, openApp, rgbText, type MenuScheme, type MenuSkin } from './menu-opaque-harness';
+import { expectOpaqueControl, expectOpaqueHud, whenQuiet } from './hud-opaque-harness';
+import { buildScene, type Catalog3DLookup } from '../src/map/scene-builder';
+import { camera as walkCamera, walkDoc, walkInput } from './walk-fixtures';
 
 // Menus are never see-through (owner 2026-10-13: the user menu was half transparent over the building tree in the glass look and the
 // texts overlapped). A menu is opened for real - in every skin x scheme, on the desktop popover and the phone's bottom sheet, inside the glass
@@ -12,6 +15,7 @@ import { MENU_SCHEMES, MENU_SKINS, expectOpaqueMenu, mountDropdowns, openApp, rg
 // background alpha is 1, the colour IS the menu token, no backdrop-filter, nothing above it fades it.
 //   SW_BASE_URL=http://127.0.0.1:4173/ npx playwright test tests/evidence-menu-opaque.spec.ts --workers=1 --project=desktop --project=mobile
 // The static twin is tests/unit-menu-lint.spec.ts (it scans the CSS of the menu components), the token twin tests/unit-menu-surfaces.spec.ts.
+// The same file also holds the second half of the report (the HUD panels over the plan and the 3D canvas, last describe below) and its text contrast.
 
 const isPhone = (info: { project: { name: string } }) => info.project.name === 'mobile';
 const DD_STYLES = ['auto', 'pill', 'capsule'] as const;
@@ -239,4 +243,110 @@ test.describe('a menu inside a glass device screen is the palette\'s SOLID twin,
       }
     }
   });
+});
+
+// ---- the second half of the same report (owner 2026-10-13): the HUD panels over the plan and the 3D canvas are opaque too. The demo floor map
+// (no backend) shows the floor chip, the legend, the zoom buttons and the scale over the 2D plan, and over the 3D scene the view / quality bar,
+// the entity pills, the time pill (at the realistic level); the walk bar is the real element on the style guide's 3D card with the walk world of
+// the walk specs. The panels that need the fixture backend (the floor strip, the side list, the selection bar, the circuit buttons, the level bar,
+// the quick floor buttons, the level thumbnails, the room labels) are tests/evidence-hud-opaque-live.spec.ts. What is read: the computed background
+// alpha is 1 and IS the menu token, no backdrop-filter, nothing fades it - and every text of the panel reads at the WCAG ratio on the opaque
+// colour it stands on, in every skin x scheme, on the desktop and the phone.
+//   SW_HUD_SHOTS=1 also writes the desktop pictures into docs/design/evidence/hud-opaque/ (the "after" set; "before" was taken on the commit before).
+
+const HUD_SHOTS = process.env.SW_HUD_SHOTS ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/hud-opaque') : '';
+const hudShot = async (page: Page, name: string) => {
+  if (!HUD_SHOTS) return;
+  fs.mkdirSync(HUD_SHOTS, { recursive: true });
+  await page.screenshot({ path: path.join(HUD_SHOTS, `${name}.png`), animations: 'disabled' });
+};
+
+const WALK_ITEMS = new Map(
+  (JSON.parse(fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'smplwise_vms', 'backend', 'smplwise', 'catalog', 'objects.json'), 'utf8')) as { items: { id: string; shape: string; color_token: string; role: string; mesh?: unknown; walkable?: boolean }[] }).items.map((i) => [i.id, i]),
+);
+const walkCatalog: Catalog3DLookup = (id) => {
+  const i = WALK_ITEMS.get(id);
+  return i ? ({ shape: i.shape, color_token: i.color_token, role: i.role, mesh: (i.mesh as never) ?? null, walkable: i.walkable } as ReturnType<Catalog3DLookup>) : undefined;
+};
+
+test.describe('the HUD panels over the plan and the 3D canvas are opaque in every skin and scheme', () => {
+  test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name === 'tablet', 'the desktop and the phone are the two forms');
+  });
+
+  for (const skin of MENU_SKINS) {
+    for (const scheme of MENU_SCHEMES) {
+      test(`2D plan: floor chip, legend, zoom buttons and scale - ${skin} / ${scheme}`, async ({ page }, info) => {
+        await openApp(page, skin as MenuSkin, scheme as MenuScheme, '/explore/floors/f0');
+        const map = page.locator('explore-floor-map');
+        await expect(map.locator('[data-floorchip]')).toBeVisible({ timeout: 20000 });
+        await expect(map.locator('sw-plan-canvas')).toBeVisible();
+        await page.waitForTimeout(600);
+        await expectOpaqueHud(map.locator('[data-floorchip]'), `floor chip ${skin}/${scheme}`);
+        if (!isPhone(info)) await expectOpaqueHud(map.locator('.legend'), `legend ${skin}/${scheme}`); // the legend leaves a phone (767 px rule)
+        await expectOpaqueHud(map.locator('sw-plan-canvas .controls'), `zoom buttons ${skin}/${scheme}`, false);
+        await expectOpaqueHud(map.locator('sw-plan-canvas .scale'), `scale ${skin}/${scheme}`);
+        if (!isPhone(info) && (skin === 'domus' || skin === 'crystal' || skin === 'classic')) await hudShot(page, `after-demo2d-${skin}-${scheme}-1440`);
+      });
+
+      test(`3D view: the view bar, the pills, the time pill - ${skin} / ${scheme}`, async ({ page }, info) => {
+        test.setTimeout(150_000);
+        await openApp(page, skin as MenuSkin, scheme as MenuScheme, '/explore/floors/f0');
+        const map = page.locator('explore-floor-map');
+        const toggle = map.locator('[data-view-3d]');
+        await expect(toggle).toBeAttached({ timeout: 30000 });
+        await expect(toggle).not.toHaveAttribute('disabled', '', { timeout: 30000 });
+        await toggle.click();
+        const el = map.locator('sw-plan-3d[data-floor-3d]');
+        await expect(el).toHaveAttribute('data-ready', '', { timeout: 40000 });
+        await whenQuiet(page);
+        // the shared controls on the bar float on the canvas with no box of their own: opaque in every state - the preset that is on (accent fill),
+        // the ones that are not (the surface), the camera select, the export button
+        await expectOpaqueControl(el.locator('[data-preset-iso] button'), `view chip on ${skin}/${scheme}`, { token: false });
+        await expectOpaqueControl(el.locator('[data-preset-top] button'), `view chip ${skin}/${scheme}`, { token: false });
+        await expectOpaqueControl(el.locator('[data-preset-camera]'), `camera select ${skin}/${scheme}`, { token: false });
+        await expectOpaqueControl(el.locator('[data-export-gltf] button'), `export button ${skin}/${scheme}`, { token: false });
+        await el.locator('[data-preset-top]').hover(); // the hover fill of a chip is the surface washed towards the ink (an opaque mix): still opaque
+        await expectOpaqueControl(el.locator('[data-preset-top] button'), `hovered view chip ${skin}/${scheme}`, { token: false });
+        // the entity pills over the scene (the demo floor has lights, a lock and sensors)
+        const pill = el.locator('[data-3d-label]:visible').first(); // a pill the frame loop has placed on screen
+        await expect(pill).toBeVisible({ timeout: 15000 });
+        await expectOpaqueHud(pill, `entity pill ${skin}/${scheme}`);
+        if (!isPhone(info)) await hudShot(page, `after-demo3d-${skin}-${scheme}-1440`);
+        // the realistic level: the time pill (its picker is a menu: opaque as well)
+        await el.locator('[data-quality-3]').evaluate((c) => (c as HTMLElement).click());
+        const time = el.locator('[data-3d-time]');
+        await expect(time).toBeVisible({ timeout: 60000 });
+        await whenQuiet(page); // the realistic level compiles its post chain on the main thread (software GL): the page answers again when that is done
+        await expectOpaqueHud(time, `time pill ${skin}/${scheme}`);
+        await time.locator('[data-3d-time-toggle]').evaluate((b) => (b as HTMLElement).click());
+        await expectOpaqueHud(el.locator('[data-3d-time-pop]'), `time picker ${skin}/${scheme}`, true, false); // a menu over the dark canvas: its fill is its edge
+        if (!isPhone(info)) await hudShot(page, `after-demotime-${skin}-${scheme}-1440`);
+      });
+
+      test(`walk: the walk bar (desktop) and its bottom sheet (phone) - ${skin} / ${scheme}`, async ({ page }, info) => {
+        test.setTimeout(150_000);
+        await page.clock.setFixedTime(new Date('2026-10-13T10:00:00Z'));
+        await page.goto('about:blank');
+        await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}&look=performance:full#/styleguide`);
+        await page.locator('styleguide-screen [data-3d-demo-load]').click();
+        const el = page.locator('styleguide-screen sw-plan-3d');
+        await expect(el).toHaveAttribute('data-ready', '', { timeout: 40000 });
+        const desc = buildScene({ ...walkInput(walkDoc(), { 'binary_sensor.d1': 'on' }, [walkCamera]), catalog: walkCatalog, walk: true });
+        await el.evaluate((n, d) => {
+          const w = n as unknown as { minFps: number; walkable: boolean; description: unknown; startWalk(s: unknown): void };
+          w.minFps = 0;
+          w.walkable = true;
+          w.description = d;
+        }, desc);
+        await el.scrollIntoViewIfNeeded();
+        await el.evaluate((n) => (n as unknown as { startWalk(s: unknown): void }).startWalk({ id: 'start', kind: 'centre', label: '', level: 'L0', x: 3, z: 4, heading_deg: 90, pitch_deg: 0, eye_m: null }));
+        await expect(el).toHaveAttribute('data-walk', '');
+        const bar = el.locator(isPhone(info) ? '[data-walk-sheet]' : '.walkbar');
+        await expect(bar).toBeVisible();
+        await expectOpaqueHud(bar, `walk ${isPhone(info) ? 'sheet' : 'bar'} ${skin}/${scheme}`, true, !isPhone(info)); // the phone sheet is a menu over the dark canvas, the bar a panel with the strong hairline
+      });
+    }
+  }
 });
