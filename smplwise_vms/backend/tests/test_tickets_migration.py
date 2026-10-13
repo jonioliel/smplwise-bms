@@ -43,7 +43,9 @@ def _schema(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
 
 def test_0079_is_the_highest_migration_of_the_branch():
     numbers = sorted(int(f.name.split("_", 1)[0]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert numbers[-1] == 79 and (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").is_file()
+    # 0079 is the core; the numbers above it are the tickets module's own reserved range 0080-0084 (slice 4 adds 0080)
+    assert (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").is_file() and all(n <= 84 for n in numbers)
+    assert [n for n in numbers if n >= 79][0] == 79
     assert numbers.count(79) == 1
     sql = (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").read_text(encoding="utf-8")
     assert not re.search(r"^\s*(BEGIN|COMMIT)\b", sql, re.M | re.I), "Database.migrate wraps the file in its own transaction"
@@ -87,13 +89,14 @@ def test_on_top_of_the_previous_schema_nothing_else_moves(settings, tmp_path, mo
         conn.execute("INSERT INTO settings(key, value) VALUES ('ui.start_route', 'live')")
         before = conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0]
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [79]
+    applied = dbmod.Database(settings.db_path).migrate()
+    assert applied[0] == 79 and all(80 <= n <= 84 for n in applied[1:]), applied  # later slices add 0080-0084 on top
     with database.connection(mode="read") as conn:
         assert conn.execute("SELECT value FROM settings WHERE key = 'ui.start_route'").fetchone()[0] == "live"
         tables, _ = _schema(conn)
         assert TABLES <= tables
         assert conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0] > before
-        assert conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 79
+        assert conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == applied[-1]
     assert dbmod.Database(settings.db_path).migrate() == [], "applied once"
 
 

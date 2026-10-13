@@ -28,3 +28,9 @@ def ticket_status(conn: sqlite3.Connection, ticket_id: str, from_status: str, to
 def ticket_returned(conn: sqlite3.Connection, ticket_id: str, kind: str) -> None:
     """The assignee handed the ticket back (slice 6: `ticket.returned` to the department's managers)."""
     return None
+
+
+def contact_changed(conn: sqlite3.Connection, ticket_id: str) -> None:
+    """Slice 4: a contact's phone / e-mail changed (or its row was linked to a user) while it held a live link of this ticket -
+    the link is already revoked (slice 6: `ticket.contact_changed` to the department's managers, section 13.4)."""
+    return None

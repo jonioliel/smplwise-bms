@@ -986,6 +986,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     if tickets_switch is not None:
         audit(conn, actor=principal, action="tickets.module.enable" if tickets_switch == "true" else "tickets.module.disable", decision="allowed",
               resource_type="installation", resource_id="tickets", request_id=getattr(request.state, "correlation_id", None))
+        from ..services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the handler page follows at once (W3, W12)
+
+        tickets_public.module_switched(tickets_switch == "true")
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}

@@ -45,9 +45,12 @@ def module_on(conn: sqlite3.Connection) -> bool:
 
 
 def public_ready(conn: sqlite3.Connection) -> bool:
-    """Whether a ticket can be sent to an outside contact: the public handler page (add-on option `tickets_public`, a configured
-    public address - slice 4) exists. Always False in slice 1: external assignment answers 409 public_link_unavailable."""
-    return False
+    """Whether a ticket can be sent to an outside contact: the public handler page exists - the add-on option `tickets_public`
+    is on, its listener runs and a public address is configured (slice 4, services/tickets/public_runtime.py). Otherwise external
+    assignment answers 409 public_link_unavailable and Settings says what is missing."""
+    from .public_runtime import RUNTIME
+
+    return RUNTIME.ready(conn)
 
 
 def text(conn: sqlite3.Connection, template: str) -> str:
