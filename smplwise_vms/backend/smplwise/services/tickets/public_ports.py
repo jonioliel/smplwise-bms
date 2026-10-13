@@ -33,7 +33,9 @@ class LinkRecord:
     `revoked`: `revoked_at` is set (reassign, return / "לא שלי", manual, key rotation, contact change / erase, new generation,
     module key) OR the assignment is no longer the ticket's current one - slice 4 folds both into this flag.
     `grace_until`: set at close / cancel (spec 10.2, D5): until then the page is read-only; afterwards the link is unavailable.
-    `recipient_key`: the contact's `phone_key` (per-recipient code caps across links), None when the contact has no phone."""
+    `recipient_key`: the contact's `phone_key` (per-recipient code caps across links), None when the contact has no phone.
+    `key_id`: `ticket_links.key_id` - the module key (module_key ids) that derived this link's token; its codes are hashed and
+    derived under the same key (code review V4: every row that depends on the key names the key)."""
 
     link_id: str
     generation: int
@@ -42,6 +44,7 @@ class LinkRecord:
     contact_id: str
     require_code: bool
     expires_at: float
+    key_id: str
     grace_until: float | None = None
     revoked: bool = False
     recipient_key: str | None = None
@@ -146,6 +149,7 @@ class RequestLog(Protocol):
 class CodeRecord:
     id: str
     link_id: str
+    generation: int  # `ticket_link_codes.generation` (code review V8): a code belongs to one generation of its link
     code_hash: str
     channel: str  # 'whatsapp' | 'email'
     created_at: float
@@ -156,7 +160,8 @@ class CodeRecord:
 
 @dataclass(frozen=True)
 class FailureRecord:
-    """`ticket_link_failures`: the wrong-code window of a link (the second_factor._Failures pattern)."""
+    """`ticket_link_failures`: the wrong-code window of one link GENERATION (the second_factor._Failures pattern; keyed by
+    (link_id, generation) since code review V8)."""
 
     window_start: float
     failures: int
@@ -174,14 +179,19 @@ class SessionRecord:
 
 @runtime_checkable
 class CodeStore(Protocol):
-    def latest_code(self, link_id: str) -> CodeRecord | None:
-        """The newest code of the link in any state (consumed, expired, invalidated by a newer one)."""
+    """Every read and window is per (link_id, generation) (code review V8): a code, a failure window and the send caps of one
+    generation never reach another. Index `ticket_link_codes(link_id, generation, created_at)` and key `ticket_link_failures`
+    by (link_id, generation)."""
 
-    def code_times_since(self, link_id: str, since: float) -> list[float]:
-        """`created_at` of every code of the link created at or after `since`, ascending (the per-link send caps)."""
+    def latest_code(self, link_id: str, generation: int) -> CodeRecord | None:
+        """The newest code of that link generation in any state (consumed, expired, invalidated by a newer one)."""
+
+    def code_times_since(self, link_id: str, generation: int, since: float) -> list[float]:
+        """`created_at` of every code of that link generation created at or after `since`, ascending (the send caps)."""
 
     def replace_code(self, record: CodeRecord, now: float) -> None:
-        """Insert `record`; every older unconsumed code of the same link stops being valid at `now` (expires_at = now)."""
+        """Insert `record`; every older unconsumed code of the same LINK (any generation) stops being valid at `now`
+        (expires_at = now) - in the same transaction as the insert (W7)."""
 
     def expire_code(self, code_id: str, now: float) -> None:
         """The code could not be handed to a channel: it stops being valid (it still counts against the send caps)."""
@@ -190,15 +200,15 @@ class CodeStore(Protocol):
         """Count one wrong attempt on this code; returns the new count."""
 
     def consume(self, code_id: str, now: float) -> bool:
-        """Mark the code used; True only for the first caller (compare-and-set on `consumed_at IS NULL`)."""
+        """Mark the code used; True only for the first caller (compare-and-set on `consumed_at IS NULL`, check rowcount)."""
 
-    def failures(self, link_id: str) -> FailureRecord | None:
+    def failures(self, link_id: str, generation: int) -> FailureRecord | None:
         ...
 
-    def put_failures(self, link_id: str, record: FailureRecord) -> None:
+    def put_failures(self, link_id: str, generation: int, record: FailureRecord) -> None:
         ...
 
-    def clear_failures(self, link_id: str) -> None:
+    def clear_failures(self, link_id: str, generation: int) -> None:
         ...
 
     def put_session(self, record: SessionRecord) -> None:
@@ -218,8 +228,9 @@ class CodeSender(Protocol):
     def send(self, link: LinkRecord, code_id: str, channel: str) -> bool:
         """Queue the code message (the `code` template: no link, no title) for the code row `code_id`. False = it could not be
         queued. The code itself is never stored, queued or logged: the outbox row keeps `code_id` only and the worker derives
-        the six digits at render time with `codes.derive_code(k_tickets, code_id)` - exactly as it derives the link URL from
-        (link_id, generation). (Spec gap resolved here: 7.3 forbids `{code}` in `params_json` and 10.5 stores only an HMAC.)"""
+        the six digits at render time with `codes.derive_code(key(link.key_id), code_id)` - exactly as it derives the link
+        URL from (link_id, generation) under the link's key. (Spec gap resolved here: 7.3 forbids `{code}` in `params_json`
+        and 10.5 stores only an HMAC.)"""
 
 
 # ---------------------------------------------------------------- photos (spec 10.6) and their quotas

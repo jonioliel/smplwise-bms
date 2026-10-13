@@ -14,6 +14,12 @@ from smplwise.services.tickets.public_ports import (CodeRecord, FailureRecord, L
                                                     StoredImage, StoredResponse)
 
 KEY = bytes(range(32))  # a fixed test key - never a real one
+KEY_ID = "0123456789ab"  # its id (module_key ids)
+
+
+def fake_key(key_id: str | None = None) -> bytes:
+    """PublicDeps.key / CodeEngine key of the fakes: one key under every id."""
+    return KEY
 
 
 class Clock:
@@ -50,8 +56,8 @@ class FakeLinks:
         link_id = link_id or links.new_link_id()
         rec = LinkRecord(link_id=link_id, generation=generation, ticket_id=ticket_id, assignment_id="as" + link_id[:8],
                          contact_id="ct" + link_id[:8], require_code=require_code, expires_at=self.clock() + ttl_s,
-                         grace_until=grace_until, revoked=revoked, recipient_key=recipient_key, sent_via=sent_via,
-                         ticket_number=ticket_number)
+                         key_id=KEY_ID, grace_until=grace_until, revoked=revoked, recipient_key=recipient_key,
+                         sent_via=sent_via, ticket_number=ticket_number)
         token = links.derive_token(KEY, link_id, generation)
         with self.lock:
             self.by_hash[links.token_hash(token)] = rec
@@ -124,26 +130,28 @@ class FakeRequests:
 
 
 class FakeCodes:
-    """CodeStore over dicts, with the atomicity the contract asks for (replace_code, consume)."""
+    """CodeStore over dicts, with the atomicity the contract asks for (replace_code, consume); every read and window is per
+    (link_id, generation)."""
 
     def __init__(self) -> None:
         self.codes: dict[str, CodeRecord] = {}
         self.order: list[str] = []
-        self.failures_by_link: dict[str, FailureRecord] = {}
+        self.failures_by_link: dict[tuple[str, int], FailureRecord] = {}
         self.sessions: dict[str, SessionRecord] = {}
         self.lock = threading.Lock()
 
-    def latest_code(self, link_id: str) -> CodeRecord | None:
+    def latest_code(self, link_id: str, generation: int) -> CodeRecord | None:
         with self.lock:
             for cid in reversed(self.order):
                 c = self.codes[cid]
-                if c.link_id == link_id:
+                if c.link_id == link_id and c.generation == generation:
                     return c
             return None
 
-    def code_times_since(self, link_id: str, since: float) -> list[float]:
+    def code_times_since(self, link_id: str, generation: int, since: float) -> list[float]:
         with self.lock:
-            return sorted(c.created_at for c in self.codes.values() if c.link_id == link_id and c.created_at >= since)
+            return sorted(c.created_at for c in self.codes.values()
+                          if c.link_id == link_id and c.generation == generation and c.created_at >= since)
 
     def replace_code(self, record: CodeRecord, now: float) -> None:
         with self.lock:
@@ -173,17 +181,17 @@ class FakeCodes:
             self.codes[code_id] = dataclasses.replace(c, consumed_at=now)
             return True
 
-    def failures(self, link_id: str) -> FailureRecord | None:
+    def failures(self, link_id: str, generation: int) -> FailureRecord | None:
         with self.lock:
-            return self.failures_by_link.get(link_id)
+            return self.failures_by_link.get((link_id, generation))
 
-    def put_failures(self, link_id: str, record: FailureRecord) -> None:
+    def put_failures(self, link_id: str, generation: int, record: FailureRecord) -> None:
         with self.lock:
-            self.failures_by_link[link_id] = record
+            self.failures_by_link[(link_id, generation)] = record
 
-    def clear_failures(self, link_id: str) -> None:
+    def clear_failures(self, link_id: str, generation: int) -> None:
         with self.lock:
-            self.failures_by_link.pop(link_id, None)
+            self.failures_by_link.pop((link_id, generation), None)
 
     def put_session(self, record: SessionRecord) -> None:
         with self.lock:
@@ -212,10 +220,13 @@ class FakeSender:
 
 
 class FakePhotos:
-    """PhotoSink: rows in a dict; counts per assignment / ticket; `fail_record` makes `record` raise (the file must then go)."""
+    """PhotoSink: rows in a dict; counts per assignment / ticket; `fail_record` makes `record` raise (the file must then go).
+    With `requests` set, `record` also writes the request row (scope link:<id>:<generation>, route /t/api/photo, 201, the
+    answer) under the same lock - the "same transaction" contract of PhotoSink.record (W5)."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, requests: "FakeRequests | None" = None) -> None:
         self.root = root
+        self.requests = requests
         self.rows: dict[str, dict[str, Any]] = {}
         self.extra_ticket = 0
         self.fail_record = False
@@ -235,7 +246,12 @@ class FakePhotos:
             self.n += 1
             aid = f"{self.n:016x}"
             self.rows[aid] = {"ticket_id": link.ticket_id, "assignment_id": link.assignment_id, "rel": image.rel_path, "visible_external": 1}
-        return {"id": aid, "width": image.width, "height": image.height}
+            answer = {"id": aid, "width": image.width, "height": image.height}
+            if self.requests is not None:  # one transaction with the photo row
+                with self.requests.lock:
+                    self.requests.rows.setdefault((f"link:{link.link_id}:{link.generation}", client_request_id),
+                                                  StoredResponse("/t/api/photo", 201, dict(answer)))
+        return answer
 
     def open(self, link: LinkRecord, attachment_id: str) -> PhotoFile | None:
         with self.lock:
@@ -279,7 +295,8 @@ class World:
 
 
 def build_world(tmp_path: Path, *, now: float | None = None, storage_cap: int | None = None, routers: tuple = (), rules: tuple | None = None,
-                shell_dir: Path | None = None, trusted: tuple[str, ...] | None = None, decode_wait_s: float = 5.0) -> World:
+                shell_dir: Path | None = None, trusted: tuple[str, ...] | None = None, decode_wait_s: float = 5.0,
+                client_ip_header: str = "cf-connecting-ip") -> World:
     from smplwise.services.tickets.codes import CodeEngine
     from smplwise.services.tickets.image_intake import StorageMeter
     from smplwise.services.tickets.public_app import PublicDeps, create_public_app
@@ -292,14 +309,16 @@ def build_world(tmp_path: Path, *, now: float | None = None, storage_cap: int | 
     root.mkdir(parents=True, exist_ok=True)
     limiter = new_public_limiter(clock)
     codes = FakeCodes()
-    engine = CodeEngine(codes, lambda: KEY, limiter=limiter, clock=clock)
+    engine = CodeEngine(codes, fake_key, limiter=limiter, clock=clock)
     world = World(clock=clock, links=fl, switch=FakeSwitch(True), redeems=FakeRedeems(), requests=FakeRequests(), codes=codes,
                   engine=engine, sender=FakeSender(), photos=FakePhotos(root), root=root,
                   storage=StorageMeter(root, cap_bytes=storage_cap or 2 * 1024 ** 3), app=None)
-    deps = PublicDeps(links=fl, switch=world.switch, key=lambda: KEY,
+    world.photos.requests = world.requests  # the PhotoSink.record contract: the request row in the same transaction (W5)
+    deps = PublicDeps(links=fl, switch=world.switch, key=fake_key,
                       trusted_proxies=parse_trusted_cidrs(trusted or DEFAULT_TRUSTED_PROXY_CIDRS),
                       requests=world.requests, redeems=world.redeems, codes=engine, code_sender=world.sender, photos=world.photos,
                       attachments_root=root, storage=world.storage, shell_dir=shell_dir, limiter=limiter, clock=clock,
-                      extra_routers=routers, rules=rules or ROUTES, decode_wait_s=decode_wait_s)
+                      extra_routers=routers, rules=rules or ROUTES, decode_wait_s=decode_wait_s,
+                      client_ip_header=client_ip_header)
     world.app = create_public_app(deps)
     return world
