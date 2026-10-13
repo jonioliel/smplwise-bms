@@ -5,8 +5,8 @@ import { installStationsMock, newMock, openStations, type StationsMock } from '.
 // (tests/wiskey-stations-mocks.ts: invented stations, drawn stills, recorded writes; no WisKey, no Home Assistant, no station).
 // Desktop / tablet / phone: the same behaviour at every width (the table is a tablet / desktop view). What it pins:
 //   - the screen replaces the embedded panel only when `access.ui.stations` says so (default: the embedded panel stays);
-//   - every control follows the caller's rights by ABSENCE (never greyed): doors / call / announce need access.release (today's
-//     gate of the physical endpoints), the technical row needs access.stations.read, the call hint is for everyone;
+//   - every control follows the caller's rights by ABSENCE (never greyed): doors need access.release, call / announce / talk
+//     need access.call (2.4.9, the gate of those endpoints), the technical row needs access.stations.read, the call hint is for everyone;
 //   - a door release: one confirmation sentence, ONE request, "sent" never "opened", an unknown outcome holds the button, never retried;
 //   - call controls are two taps; the announcement goes station by station, once each; talk is a link to the classic panel;
 //   - stale copies are for reading; the states (loading, empty, error, forbidden, feed states); no platform name on the screen.

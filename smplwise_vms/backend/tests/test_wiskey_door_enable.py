@@ -21,8 +21,9 @@ from smplwise.services import door_path_guard, door_run_guard, ha_client, interc
 
 ENTRY = "01JTESTSTATIONENTRY000000A"
 API = "/api/v1"
-NOT_CONVERTED = "לא ניתן להפעיל: יש בפריט פתיחת דלת שלא הוסבה"
-UNRESOLVABLE = "לא ניתן להפעיל: לא ניתן לזהות את הדלתות בפריט"
+# 2.4.9 (owner decision 2026-10-13): the refusal says plainly why, and that switching the item off is allowed
+NOT_CONVERTED = "לא ניתן להפעיל: הפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת; אפשר לכבות אותו."
+UNRESOLVABLE = "לא ניתן להפעיל: ייתכן שהפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת; אפשר לכבות אותו."
 
 
 @pytest.fixture(autouse=True)

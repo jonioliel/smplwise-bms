@@ -351,12 +351,15 @@ test.describe('door settings are read only and never carry a code value', () => 
 test.describe('rights and the administrator\'s display policy', () => {
   const has = (...p: string[]) => (x: string) => p.includes(x);
 
-  test('today the physical controls follow access.release (what the server enforces), the talk button also the policy', () => {
+  test('the door follows access.release; call, announcement and talk follow access.call (2.4.9); the talk button also the policy', () => {
     expect(rightsOf(has('access.read'), POLICY_DEFAULTS)).toEqual({ door: false, call: false, announce: false, talk: false });
-    expect(rightsOf(has('access.read', 'access.release'), POLICY_DEFAULTS)).toEqual({ door: true, call: true, announce: true, talk: true });
-    expect(rightsOf(has('access.release'), { ...POLICY_DEFAULTS, talk: 'hidden' }).talk).toBe(false);
-    // access.call alone is a catalogue entry until S11 moves the endpoints onto it: no control the server would refuse
-    expect(rightsOf(has('access.call'), POLICY_DEFAULTS).call).toBe(false);
+    // owner decision 2026-10-13: the door grant alone no longer answers calls or announces (the server refuses it too)
+    expect(rightsOf(has('access.read', 'access.release'), POLICY_DEFAULTS)).toEqual({ door: true, call: false, announce: false, talk: false });
+    expect(rightsOf(has('access.read', 'access.call'), POLICY_DEFAULTS)).toEqual({ door: false, call: true, announce: true, talk: true });
+    expect(rightsOf(has('access.release', 'access.call'), POLICY_DEFAULTS)).toEqual({ door: true, call: true, announce: true, talk: true });
+    expect(rightsOf(has('access.call'), { ...POLICY_DEFAULTS, talk: 'hidden' }).talk).toBe(false);
+    // the call rights are asked "anywhere a station can be" when the screen passes that check; the door at installation
+    expect(rightsOf(has('access.read'), POLICY_DEFAULTS, has('access.call'))).toEqual({ door: false, call: true, announce: true, talk: true });
   });
 
   test('the defaults are the owner answers (everyone sees the call hint, talk in the classic panel, all stations inside the scope)', () => {

@@ -28,8 +28,9 @@ test('built-in roles are read-only answers; questions name the subject', () => {
   expect(builtinAnswer({ id: 'operator', name: 'מפעיל', custom: false, includes: false, editable: false, answer: 'per_user' })).toBe('לא - אפשר לתת למשתמשים בנפרד');
   // SEC-WXD L3: the granting questions name everything the door permission also allows; the removing ones stay short
   expect(grantQuestion('דנה', true)).toBe(`לתת לדנה הרשאה לפתוח דלתות? ${GRANT_ALSO}`);
-  expect(GRANT_ALSO).toContain('שיחות');
-  expect(GRANT_ALSO).toContain('הכרזות');
+  // 2.4.9 (owner decision 2026-10-13): calls and announcements ride access.call, so the door grant no longer names them
+  expect(GRANT_ALSO).not.toContain('שיחות');
+  expect(GRANT_ALSO).not.toContain('הכרזות');
   expect(GRANT_ALSO).toContain('יומן הכניסות');
   expect(grantQuestion('דנה', false)).toBe('להסיר מדנה את ההרשאה לפתוח דלתות?');
   expect(roleQuestion('משמרת', true)).toContain('משמרת');

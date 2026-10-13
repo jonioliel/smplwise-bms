@@ -37,7 +37,7 @@ DEFAULTS = {
     "access.people.read": {"operator", "site_admin", "system_admin"},
     "access.people.sensitive": {"site_admin", "system_admin"},
     "access.people.message": {"site_admin", "system_admin"},
-    "access.call": {"site_admin", "system_admin"},
+    "access.call": {"operator", "site_admin", "system_admin"},  # 2.4.9: operator added (owner decision 2026-10-13)
     "access.admin.read": {"site_admin", "system_admin"},
     "access.schedules.manage": {"system_admin"},
     "access.stations.manage": {"system_admin"},

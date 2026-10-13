@@ -281,7 +281,7 @@ export class WiskeyStations extends LitElement {
   }
 
   private rights(): Rights {
-    return this.demo() ? NO_RIGHTS : rightsOf(can, this.policy);
+    return this.demo() ? NO_RIGHTS : rightsOf(can, this.policy, canAnywhere);
   }
 
   private async load() {

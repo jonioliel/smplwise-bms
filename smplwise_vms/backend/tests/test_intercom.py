@@ -1355,7 +1355,9 @@ def test_access_release_permission_catalogue():
 
 def test_physical_actions_require_access_release(settings):
     """`access.read` is not enough: a viewer (and an operator, an editor, a kiosk, a site-scoped site_admin) gets 403
-    on every physical endpoint, before the body is even validated and before anything could be sent."""
+    on the door release, before the body is even validated and before anything could be sent. Calls and announcements
+    (2.4.9, owner decision 2026-10-13) ride `access.call` on the station chain: the operator holds it by default and passes
+    the gate; the others are refused (a site-scoped site_admin by the station check - the station is not under her site)."""
     intercom_sync.SYNC.reset()
     intercom_sync.SYNC.start(settings)
     c = TestClient(create_app(settings))
@@ -1368,15 +1370,22 @@ def test_physical_actions_require_access_release(settings):
     for user in ("vera", "otto", "eddie", "wall", "sally", "nobody"):
         for method, path, body in action_paths():
             r = c.request(method, path, json=body, headers=as_user(user))
+            if (user == "otto" and not path.endswith("/release")) or (user == "sally" and path.endswith("/tts/engines")):
+                # the operator holds access.call; the engine list (no station) needs access.call anywhere, which a site binding is
+                assert r.status_code != 403, (user, path, "access.call is held")
+                continue
             assert r.status_code == 403 and r.json()["code"] == "forbidden", (user, path)
     r = c.post("/api/v1/intercom/stations/entry-a/call", json={"command": "open sesame"}, headers=as_user("vera"))
     assert r.status_code == 403, "no permission: refused before the body is looked at"
     assert c.post("/api/v1/intercom/stations/entry-a/call", json=env(command="open sesame"), headers=as_user("sam")).status_code == 422
     with Database(settings.db_path).connection() as conn:
         denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'access.release' AND decision = 'denied' AND actor_username = 'vera'").fetchone()[0]
+        denied_call = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'access.call' AND decision = 'denied' AND actor_username = 'vera'").fetchone()[0]
         refused = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action LIKE 'intercom.%' AND actor_username = 'vera'").fetchone()[0]
-    assert denied == len(action_paths()) + 1, "every permission refusal is audited under the real caller"
+        sally = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action IN ('intercom.call', 'intercom.tts') AND decision = 'denied' AND actor_username = 'sally'").fetchone()[0]
+    assert denied == 1 and denied_call == len(action_paths()) - 1 + 1, "every permission refusal is audited under the real caller"
     assert refused == 0, "a caller without the permission never reaches the action's own audit"
+    assert sally == 2, "the station check refuses a call / announcement off the caller's chain, audited as not sent"
     assert "access.release" in c.get("/api/v1/me", headers=as_user("sam")).json()["permissions_installation"]
     assert "access.release" not in c.get("/api/v1/me", headers=as_user("sally")).json()["permissions_installation"]
     intercom_sync.SYNC.reset()
@@ -1603,6 +1612,40 @@ def test_call_signal_round_trip_and_audit(feed):
     assert [(r["actor_username"], r["details"]["signal"], r["details"]["outcome"]) for r in outcomes] == [("sam", "answer", "ok"), ("sam", "hangUp", "ok")]
     assert outcomes[0]["details"]["result"]["acknowledged"] is True and outcomes[0]["details"]["station_name"] == "Loading dock"
     assert [r["reason"] for r in audit_rows(s, "intercom.call", "refused")] == ["validation", "validation", "validation", "intercom_station_offline"]
+
+
+def test_calls_and_announcements_ride_access_call_in_any_role(feed):
+    """2.4.9 (owner decision 2026-10-13): the call signal, the announcement and the engine list are gated by the PERMISSION
+    `access.call` - never a role name. A custom role carrying it answers and announces; a custom role with the door grant
+    alone (`access.release`) does not; a station-scoped binding of such a role acts on that station only (refused and audited,
+    nothing sent, elsewhere); the operator holds it by default."""
+    def answer(msg: dict[str, Any]) -> list[Any] | None:
+        if msg["type"] == "hikvision_intercom/media/signal":
+            return [ok(msg, {**SIGNAL_RESULT, "command": msg["command"]})]
+        return None
+
+    app, fakes, c = actions_feed(feed, answer)
+    s = feed[1]
+    caller = c.post("/api/v1/access/roles", json={"name": "עונה לשיחות", "description": "calls only", "permissions": ["access.read"], "sensitive": ["access.call"]})
+    assert caller.status_code == 201, caller.text
+    door = c.post("/api/v1/access/roles", json={"name": "דלת בלבד", "description": "doors only", "permissions": ["access.read"], "sensitive": ["access.release"]}).json()["id"]
+    bind(c, s, "cal", caller.json()["id"], "installation", "*")
+    bind(c, s, "dora", door, "installation", "*")
+    bind(c, s, "stu", caller.json()["id"], "access_control_station", "entry-c")
+    bind(c, s, "otto", "operator", "installation", "*")
+    for user in ("cal", "otto", "stu"):
+        r = c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="answer"), headers=as_user(user))
+        assert r.status_code == 200 and r.json()["call"]["command"] == "answer", (user, r.text)
+    r = c.post("/api/v1/intercom/stations/entry-c/call", json=env(command="answer"), headers=as_user("dora"))
+    assert r.status_code == 403 and r.json()["code"] == "forbidden", "the door grant alone no longer answers calls"
+    assert c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message="hi"), headers=as_user("dora")).status_code == 403
+    r = c.post("/api/v1/intercom/stations/entry-a/call", json=env(command="answer"), headers=as_user("stu"))
+    assert r.status_code == 403 and r.json()["details"]["outcome"] == "not_sent", "a station binding acts on its own station only"
+    r = c.post("/api/v1/intercom/stations/entry-a/tts", json=env(engine_id="tts.piper", message="hi"), headers=as_user("stu"))
+    assert r.status_code == 403 and r.json()["details"]["outcome"] == "not_sent"
+    assert len(sent(fakes, "media/signal")) == 3 and sent(fakes, "tts/start") == []
+    assert [r["actor_username"] for r in audit_rows(s, "intercom.call", "refused")] == ["stu"]
+    assert [r["actor_username"] for r in audit_rows(s, "intercom.tts", "refused")] == ["stu"]
 
 
 def test_tts_engines_and_announcement_lifecycle(feed):

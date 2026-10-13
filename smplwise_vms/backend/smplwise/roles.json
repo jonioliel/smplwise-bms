@@ -34,6 +34,7 @@
         "access.stations.read",
         "access.events.read",
         "access.people.read",
+        "access.call",
         "devices.read",
         "alarm.view",
         "alarm.arm",

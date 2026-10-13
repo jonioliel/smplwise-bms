@@ -14,11 +14,13 @@ export const NOW_ISO = '2026-10-12T08:14:07Z';
 export type Persona = 'admin' | 'operator' | 'door' | 'viewer' | 'none';
 
 const PERMS: Record<Persona, string[]> = {
-  // everything the screen reacts to: physical actions (access.release), the technical part, status, devices (the place tree)
+  // everything the screen reacts to: doors (access.release), calls / announcements / talk (access.call, 2.4.9), the technical
+  // part, status, devices (the place tree)
   admin: ['access.read', 'access.release', 'access.stations.read', 'access.events.read', 'access.people.read', 'access.admin.read', 'access.call', 'devices.read', 'system.configure', 'map.read'],
-  // an ordinary operator of this build: sees stations with the technical part, no physical actions (they need access.release)
+  // a reader role without any action: sees stations with the technical part, no door (access.release) and no call control
+  // (access.call - the built-in operator holds it since 2.4.9; this persona stands for a custom role without it)
   operator: ['access.read', 'access.stations.read', 'access.events.read', 'access.people.read', 'devices.read', 'map.read'],
-  // a door opener: the physical actions, no technical part
+  // a door opener: the doors only (since 2.4.9 calls and announcements need access.call), no technical part
   door: ['access.read', 'access.release', 'devices.read', 'map.read'],
   viewer: ['access.read', 'devices.read', 'map.read'],
   none: ['map.read'],

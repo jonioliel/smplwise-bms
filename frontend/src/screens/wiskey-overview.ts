@@ -13,7 +13,7 @@ import '../components/sw-dialog';
 import '../components/sw-field';
 import type { PanelState } from '../components/sw-state-panel';
 import type { StateKind } from '../components/sw-badge';
-import { can, cap, isApi } from '../api/session';
+import { can, canAnywhere, cap, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import {
   actionOutcome,
@@ -276,16 +276,16 @@ export class WiskeyOverview extends LitElement {
     }
   }
 
-  // ------------------------------------------------------------------ physical actions (access.release)
+  // ------------------------------------------------------------------ physical actions (access.release / access.call)
 
-  /** The stricter permission: `access.read` shows the doors, only `access.release` acts on them. */
+  /** Calls and announcements (2.4.9, owner decision 2026-10-13): `access.call` anywhere a station can be; the server's call /
+   * announcement routes decide again per station. `access.read` alone only shows the stations. */
   private canAct(): boolean {
-    return isApi() && can('access.release');
+    return isApi() && canAnywhere('access.call');
   }
 
   /** CR-033 D3: the open button follows the one door rule per station (`door_access`, from the server: `access.release`
-   * on the station or `door.unlock` on its mapped lock); the release route decides again. Calls and announcements stay
-   * behind `access.release` itself. */
+   * on the station or `door.unlock` on its mapped lock); the release route decides again. */
   private canOpen(s: IntercomStation): boolean {
     const access = this.feed?.door_access;
     return isApi() && (access ? !!access[s.id] : can('access.release'));

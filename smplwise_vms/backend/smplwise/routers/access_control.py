@@ -63,7 +63,7 @@ log = logging.getLogger("smplwise.intercom")
 
 READ = "access.read"
 CREDENTIALS = "system.configure"  # device secrets: the system administrator only
-RELEASE = "access.release"  # every PHYSICAL WisKey command; role grants: see the note at routers/access.py PERMISSION_LABELS
+RELEASE = "access.release"  # the door release (CR-033 door rule); calls / announcements ride ia.CALL since 2.4.9; see routers/access.py PERMISSION_LABELS
 MANAGE = "access.people.manage"  # the person editor (CR-005 phase 2); same default grants and sensitivity as access.release
 CAPTURE = "access.cards.capture"  # card capture from a station reader (CR-005 phase 2 A2); required IN ADDITION to MANAGE
 PIN_GENERATE = ia.PIN_GENERATE  # CR-036 S11 (PG): a person's PIN, shown once; required IN ADDITION to MANAGE
@@ -548,15 +548,24 @@ class _RelayGuard:
 RELAYS = _RelayGuard()
 
 
-def _releaser(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    """`access.release` at installation scope, as a dependency (checked before the body is looked at; a refusal is
-    audited by `require`). `access.read` alone is not enough: seeing the stations never implies acting on them."""
-    require(conn, principal, RELEASE, INSTALLATION)
+# 2.4.9 (owner decision 2026-10-13; CR-036 owner answer 6 of 2026-10-12): the call signal (answer / reject / hang up), the
+# announcement and the TTS engine list ride `access.call` - the permission S18's talk already uses - on the station chain,
+# no longer `access.release` at installation scope. The gate: `access.call` anywhere a station can be, checked on a READ
+# connection before the body is read (review L7; a refusal is audited as `access.call` denied); the route then judges the
+# named station (`_call_station`). `access.read` alone, and the door grant alone (`access.release`), never act on a call.
+_caller_ro = read_gate(lambda conn, principal: ia.require_anywhere(conn, principal, ia.CALL))
+
+
+def _caller(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """The same `access.call` gate for the body-less read of the TTS engines."""
+    ia.require_anywhere(conn, principal, ia.CALL, getattr(request.state, "correlation_id", None))
     return principal
 
 
-# review L7: the raw-body routes check the permission on a READ connection, read the body, and only then open the write one
-_releaser_ro = read_gate(lambda conn, principal: require(conn, principal, RELEASE, INSTALLATION))
+def _call_station(act: "_Action") -> None:
+    """`access.call` on the named station's chain (deny wins), before anything is sent; refused and audited as not sent."""
+    if not ia.Authority(act.conn, act.principal).station(ia.CALL, act.station_id):
+        raise act.refuse(ApiError(403, "forbidden", "אין הרשאה לשיחות ולהכרזות בעמדה הזו.", details={"permission": ia.CALL}))
 
 
 def _door_gate_ro(request: Request, station_id: str = Path(), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
@@ -968,9 +977,10 @@ def open_from_tile(request: Request, principal: Principal, entity_id: str, actio
 
 
 @router.post("/intercom/stations/{station_id}/call")
-def call_signal(request: Request, station_id: str, principal: Principal = Depends(_releaser_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def call_signal(request: Request, station_id: str, principal: Principal = Depends(_caller_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Answer / reject a ringing call or hang up a call in progress (WisKey `media/signal`). Body: `{command,
-    client_request_id, expires_at}`. WisKey checks the call state on the device itself and refuses a mismatch
+    client_request_id, expires_at}`. Permission (2.4.9): `access.call` anywhere a station can be at the gate, then on this
+    station's chain. WisKey checks the call state on the device itself and refuses a mismatch
     (`device_unavailable`), so SMPLWISE does not second-guess it from its own copy, which can lag a ring by a moment.
     The reply's `call` is WisKey's result as sent: `acknowledged` (true, or null when the device's answer was lost),
     `observed_state` / `observation` after the signal, and `physical_result: "unverified"`. Refusals and outcomes are
@@ -979,12 +989,13 @@ def call_signal(request: Request, station_id: str, principal: Principal = Depend
     body: CallBody = _parse(act, CallBody, raw)
     act.details["signal"] = body.command
     not_after = _envelope(act, body)
+    _call_station(act)
     _station(act)
     return _perform(act, "call", lambda call: intercom_client.media_signal(call, station_id, body.command), intercom_sync.project_signal, not_after)
 
 
 @router.get("/intercom/tts/engines")
-def tts_engines(request: Request, principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def tts_engines(request: Request, principal: Principal = Depends(_caller), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Home Assistant's TTS engines WisKey can speak through (`tts/engines`, a read): `{state, configured, last_error,
     fetched_at, tts, sync}` with `tts = {default, engines: [{engine_id, name, supported_languages, default_language}]}`,
     null unless `state` is `ready`. Gated like the announcement itself (WisKey gates it at manage level too)."""
@@ -993,9 +1004,10 @@ def tts_engines(request: Request, principal: Principal = Depends(_releaser), con
 
 
 @router.post("/intercom/stations/{station_id}/tts")
-def tts_speak(request: Request, station_id: str, principal: Principal = Depends(_releaser_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def tts_speak(request: Request, station_id: str, principal: Principal = Depends(_caller_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Speak `message` through the station's speaker (WisKey `tts/start`). Body: `{engine_id, language, message,
-    client_request_id, expires_at}`. The text goes to the Home Assistant TTS engine `engine_id` - which may be a cloud
+    client_request_id, expires_at}`. Permission (2.4.9): `access.call` anywhere at the gate, then on this station's chain
+    (an announcement to several stations is one request per station, each judged). The text goes to the Home Assistant TTS engine `engine_id` - which may be a cloud
     provider, so the text can leave the premises - and is recorded, as spoken, in SMPLWISE's audit log (refused
     requests too). The reply's `tts` is the announcement's progress when WisKey took it (`started`, or already
     `generating` / ...); later progress arrives as `intercom_tts` notices on /intercom/ws, ending in `completed`
@@ -1008,6 +1020,7 @@ def tts_speak(request: Request, station_id: str, principal: Principal = Depends(
     if not 1 <= len(message) <= intercom_client.TTS_MESSAGE_MAX:
         raise act.refuse(ApiError(422, "validation", f"ההודעה חייבת להכיל 1-{intercom_client.TTS_MESSAGE_MAX} תווים."))
     not_after = _envelope(act, body)
+    _call_station(act)
     _station(act)
     language = body.language
     return _perform(act, "tts", lambda call: intercom_sync.SYNC.tts_start(call, station_id, body.engine_id, language, message), lambda status: status, not_after)

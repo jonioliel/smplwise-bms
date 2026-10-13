@@ -203,7 +203,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # It is in sensitive_permissions_not_implied (like door.unlock), so a custom role must list it explicitly among its
     # sensitive permissions. Installation scope only (stations are not mapped to sites): a site-scoped site_admin does
     # not get it. Narrowing it later = removing it from those two roles in roles.json and the design catalogue.
-    "access.release": "פעולות פיזיות בבקרת כניסה (WisKey): שחרור דלת, מענה לשיחה, הכרזה",
+    # 2.4.9 (owner decision 2026-10-13): the call signal and the announcement moved onto access.call (below), so
+    # access.release is the door permission alone (CR-033's one door rule, with door.unlock on the mapped lock).
+    "access.release": "פעולות פיזיות בבקרת כניסה (WisKey): שחרור דלת",
     # access.people.manage (CR-005 §3, phase 2 slice A1; owner decision 2026-09-28, answer 1 to the phase-2 brief):
     # create / edit / delete a person in WisKey - identity, phone, active, validity, PIN, cards, station assignments.
     # A configuration write that grants or revokes physical access once WisKey syncs it, so it gets exactly
@@ -230,8 +232,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # people.read = people (names, station assignments, groups, validity); admin.read = the Settings status page (health,
     # sync, alerts, the intercom's own action log). Sensitive (never implied; a custom role names them explicitly):
     # events.export (CSV, audited), people.sensitive, call (answer / reject / hang up and spoken announcements - the
-    # access.release split so answering a ring needs no door rights; the endpoints move onto it in slice S11, default
-    # grants keep today's holders), and the three managers of the write phase (S15/S16) - catalogue entries only until
+    # access.release split so answering a ring needs no door rights; 2.4.9, owner decision 2026-10-13: the call, announcement
+    # and TTS-engine routes ride it on the station chain, held by operator, site_admin and system_admin by default - a custom
+    # role may carry it too), and the three managers of the write phase (S15/S16) - catalogue entries only until
     # that phase gates its writes on them.
     "access.stations.read": "בקרת כניסה: פרטים טכניים של עמדות (דגם, קושחה, ממסרים, שעון, תוכניות דלת, לוחות החזקה, האם מוגדר קוד)",
     "access.events.read": "בקרת כניסה: יומן כניסות (כולל שמות)",

@@ -558,16 +558,16 @@ def test_l2_a_caller_without_any_permission_learns_nothing_about_a_wiskey_door(d
 
 # ================================================================ L3 - the one door switch grants more than opening doors
 
-def test_poc_l3_the_door_switch_also_grants_calls_announcements_and_the_wiskey_directory(door_world):
+def test_poc_l3_the_door_switch_grants_the_wiskey_directory_but_no_longer_calls_or_announcements(door_world):
     c = door_world["c"]
     c.get(f"{API}/me", headers=as_user("gil"))
     c.get(f"{API}/me", headers=as_user("nobody"))
     r = c.post(f"{API}/access/door-grants/subjects", json={"subject_kind": "user", "subject_id": "dev-gil", "enabled": True, "confirmed": True})
     assert r.status_code == 200, r.text
-    # the permission gate of call answer / hang-up and of announcements (access.release at installation) now passes: the
-    # empty body is refused by validation (422), not by permission (403) as for a user without the switch
-    assert c.post(f"{API}/intercom/stations/{ENTRY}/call", json={}, headers=as_user("gil")).status_code == 422
-    assert c.post(f"{API}/intercom/stations/{ENTRY}/tts", json={}, headers=as_user("gil")).status_code == 422
+    # 2.4.9 (owner decision 2026-10-13): call answer / hang-up and announcements ride access.call, not access.release, so the
+    # door switch alone no longer passes their permission gate - refused (403) before the body is looked at
+    assert c.post(f"{API}/intercom/stations/{ENTRY}/call", json={}, headers=as_user("gil")).status_code == 403
+    assert c.post(f"{API}/intercom/stations/{ENTRY}/tts", json={}, headers=as_user("gil")).status_code == 403
     assert c.post(f"{API}/intercom/stations/{ENTRY}/call", json={}, headers=as_user("nobody")).status_code == 403
     # access.read at installation: the WisKey screen (and, by the same `_reader` gate, its entry events and the people
     # directory - routers/access_control.py events / people / person)

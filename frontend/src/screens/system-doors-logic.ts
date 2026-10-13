@@ -12,11 +12,11 @@ export function builtinAnswer(role: DoorGrantRole): string {
 }
 
 /**
- * What the door permission also allows (SEC-WXD L3): `access.release` / `access.read` also answer and end calls from the
- * stations, send announcements, and open the intercom screen with its entry log and people directory. Said in every
- * granting question until the owner decides on a door-only permission.
+ * What the door permission also allows (SEC-WXD L3): `access.read` opens the intercom screen with its entry log and people
+ * directory. Said in every granting question until the owner decides on a door-only permission. Since 2.4.9 (owner decision
+ * 2026-10-13) calls and announcements ride `access.call`, not `access.release`, so the door grant no longer carries them.
  */
-export const GRANT_ALSO = 'ההרשאה כוללת גם מענה לשיחות מהעמדות, הכרזות, וצפייה ביומן הכניסות ובאנשי הקשר של האינטרקום.';
+export const GRANT_ALSO = 'ההרשאה כוללת גם צפייה ביומן הכניסות ובאנשי הקשר של האינטרקום.';
 
 /** The question each sensitive switch asks before it is sent (one short confirmation). */
 export function grantQuestion(name: string, enabled: boolean): string {

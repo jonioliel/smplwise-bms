@@ -353,9 +353,9 @@ def test_d9_unconverted_and_unresolvable_items_are_refused_before_the_bridge(aut
     for path in ("script/door_script/run", "script/outer_script/run", "scene/9001/apply", "automation/8001/run"):
         r = c.post(f"{API}/automations/{path}", json={"client_request_id": _rid(), "confirm": True})
         assert r.status_code == 409 and r.json()["code"] == "door_step_not_converted", (path, r.text)
-        assert r.json()["user_message"] == "לא ניתן להריץ: יש בפריט פתיחת דלת שלא הוסבה"
+        assert r.json()["user_message"] == "לא ניתן להריץ: הפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת."
     r = c.post(f"{API}/automations/script/tpl_script/run", json={"client_request_id": _rid(), "confirm": True})
-    assert r.status_code == 409 and r.json()["code"] == "door_steps_unresolvable" and r.json()["user_message"] == "לא ניתן להריץ: לא ניתן לזהות את הדלתות בפריט"
+    assert r.status_code == 409 and r.json()["code"] == "door_steps_unresolvable" and r.json()["user_message"] == "לא ניתן להריץ: ייתכן שהפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת."
     assert _runs(tr) == [] and autos["executed"] == [] and autos["feed"].sent == []
     assert _denied(app.state.db, "automation.run").count("door_step_not_converted") == 4
     # an ordinary script still runs

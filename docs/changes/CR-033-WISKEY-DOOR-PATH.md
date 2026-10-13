@@ -256,8 +256,8 @@ same resolver as 6.1:
 |---|---|
 | no WisKey door step | unchanged (existing `run_reasons` checks) |
 | door steps all resolvable and the item is converted (6.4, its door steps are Arx door steps) | the item runs without door steps in HA; for each door step Arx calls `trusted_door.open` with the operator as actor, after `door_authority.check` per door; one confirmation covers the run, and every door gets its own request id and audit pair |
-| door step not converted | refused: "לא ניתן להריץ: יש בפריט פתיחת דלת שלא הוסבה"; listed in the inventory |
-| any door step unresolvable | refused: "לא ניתן להריץ: לא ניתן לזהות את הדלתות בפריט" |
+| door step not converted | refused: "לא ניתן להריץ: הפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת." (wording of 2.4.9); listed in the inventory |
+| any door step unresolvable | refused: "לא ניתן להריץ: ייתכן שהפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת." (wording of 2.4.9) |
 
 No inner `lock.unlock` reaches a WisKey lock on any of these paths.
 

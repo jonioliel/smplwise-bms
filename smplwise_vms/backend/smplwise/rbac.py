@@ -31,6 +31,9 @@ STATION_PERMISSIONS = frozenset({
     "access.stations.read", "access.events.read", "access.events.export",  # CR-036 S3: per-station reads
     "access.people.read", "access.people.sensitive", "access.people.manage", "access.admin.read",
     "access.cards.capture",  # CR-036 S11 moves the person editor and card capture onto the station chain
+    # 2.4.9 (owner decision 2026-10-13): the other station-chain permissions - PIN generation (S11), WhatsApp to the people of
+    # the station (WA) and calls / announcements / talk (S18 + the 2.4.9 call re-gating) - may be carried by a station role
+    "access.pin.generate", "access.people.message", "access.call",
 })
 
 _CUSTOM_CACHE: dict[tuple[str, int], dict[str, list[str]]] = {}
