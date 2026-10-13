@@ -45,6 +45,10 @@ export const CUTAWAY_HEIGHT_M = 0.7;
 /** Above this many entity pills at the overview the element draws only the selected, hovered and alerting ones
  * (slice 1c; here rather than in the element so a node spec can read it without Lit's decorators). */
 export const PILL_CAP = 60;
+/** R3 G10: on a phone-wide stage (under PHONE_STAGE_PX CSS px) the realistic level caps the pills much lower - a 390 px
+ * picture under sixty pills is a pill cloud, not a plan; the alerting ones (open, on, stale) stay, the rest count in "+N". */
+export const PILL_CAP_PHONE = 8;
+export const PHONE_STAGE_PX = 640;
 /** The cutaway follows the camera azimuth in steps of this many degrees (a small orbit does not re-cut every frame). */
 export const CUTAWAY_STEP_DEG = 10;
 /** A wall is cut when its outward normal faces the camera at least this closely (cos 65 deg). */

@@ -50,6 +50,16 @@ export interface RealFloor {
   polygon: [number, number][];
   material: string;
 }
+/** R3 G4: a room's ceiling plate (CR-029 section 5.2 `ceiling`, default true): the walk sees a ceiling, not the sky;
+ * the orbit views cut it away with the section plane. */
+export interface RealCeiling {
+  id: string;
+  zone: string;
+  level_id: string;
+  y: number;
+  polygon: [number, number][];
+  material: string;
+}
 export interface RealCap {
   id: string;
   level_id: string;
@@ -101,6 +111,8 @@ export interface RealWorld {
   replaced: string[];
   parts: RealPart[];
   floors: RealFloor[];
+  /** Absent in `real-1` descriptions built before round 3 (an older history bundle): no ceiling drawn. */
+  ceilings?: RealCeiling[];
   caps: RealCap[];
   models: RealModel[];
   lamps: RealLamp[];
@@ -151,7 +163,7 @@ export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): Rea
   const { input } = ctx;
   const doc: GeometryDoc = input.doc;
   const resolved = resolveMaterials(doc, catalog);
-  const out: RealWorld = { version: 'real-1', library_version: resolved.library_version, north_deg: typeof doc.north_deg === 'number' && Number.isFinite(doc.north_deg) ? doc.north_deg : 0, materials: {}, radius: {}, replaced: [], parts: [], floors: [], caps: [], models: [], lamps: [], shutters: [], rooms: {}, warnings: resolved.warnings };
+  const out: RealWorld = { version: 'real-1', library_version: resolved.library_version, north_deg: typeof doc.north_deg === 'number' && Number.isFinite(doc.north_deg) ? doc.north_deg : 0, materials: {}, radius: {}, replaced: [], parts: [], floors: [], ceilings: [], caps: [], models: [], lamps: [], shutters: [], rooms: {}, warnings: resolved.warnings };
   const walls = new Map(doc.walls.map((w) => [w.id, w]));
   const openings = new Map(doc.openings.map((o) => [o.id, o]));
   const objects = new Map(doc.objects.map((o) => [o.id, o]));
@@ -251,7 +263,9 @@ export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): Rea
       continue;
     }
     const model = MODEL_MAP[o.item_id];
-    if (model && p.shape === 'box') {
+    // R3 G9: a cylinder item (the office chair, a round stool) takes its kit model too - the round-2 port drew it as a
+    // leather-tiled barrel because only boxes reached the model path
+    if (model) {
       const [w, h, dd] = p.size;
       const yawM = p.rotation[1];
       const bottom = p.position[1] - h / 2;
@@ -275,6 +289,10 @@ export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): Rea
     const poly = z.polygon.map((q): [number, number] => [r4(ctx.m(q.x * input.width)), r4(ctx.m(q.y * input.height))]);
     const room = resolved.rooms[z.id];
     out.floors.push({ id: `rfloor:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m), polygon: poly, material: room?.floor ?? levelFloor(lv.id) });
+    // R3 G4: the ceiling at the room's own height (else the level's), unless the document says the room has none
+    const docRoom = doc.rooms.find((r) => r.id === z.id);
+    const ceilH = typeof docRoom?.ceiling_height_m === 'number' && docRoom.ceiling_height_m > 0 ? docRoom.ceiling_height_m : lv.ceiling_height_m;
+    if (room?.has_ceiling !== false) out.ceilings!.push({ id: `rceil:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m + ceilH), polygon: poly, material: room?.ceiling ?? resolved.levels[lv.id]?.ceiling ?? 'plaster_ceiling' });
     let glass = 0;
     for (const o of doc.openings) {
       if (o.kind !== 'window') continue;
@@ -295,6 +313,7 @@ export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): Rea
 
   out.parts.sort(cmp);
   out.floors.sort(cmp);
+  out.ceilings!.sort(cmp);
   out.caps.sort(cmp);
   out.models.sort(cmp);
   out.lamps.sort(cmp);

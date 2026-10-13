@@ -9,7 +9,7 @@ import { WEBGL_UNAVAILABLE_HE } from './webgl';
 import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
-import { PILL_CAP } from './scene-frame';
+import { PHONE_STAGE_PX, PILL_CAP, PILL_CAP_PHONE } from './scene-frame';
 import { FpsWatch, recoverFps } from './quality-mode';
 import { cachedOwnMode, loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { WalkSession } from './walk-session';
@@ -1008,7 +1008,7 @@ export class SwPlan3d extends LitElement {
     if (this.walkState === 'on') {
       // the walk shows no pill cloud at eye level (CR-029 section 4.6): only the selected and the hovered entity
       pills = pills.filter((p) => p.userData.id === this.selectedId || p.userData.id === this.hover?.id);
-    } else if (pills.length > PILL_CAP) {
+    } else if (pills.length > (this.quality === 3 && this.clientWidth > 0 && this.clientWidth < PHONE_STAGE_PX ? PILL_CAP_PHONE : PILL_CAP)) {
       const keep = pills.filter((p) => p.userData.id === this.selectedId || p.userData.id === this.hover?.id || p.color !== 'text-3');
       this.hiddenPills = pills.length - keep.length;
       pills = keep;
