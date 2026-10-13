@@ -128,6 +128,8 @@ def test_keyset_pagination_is_stable_across_pages_and_inserts(w):
 
 def test_short_pages_under_the_visibility_check_keep_a_cursor(w):
     older = [w.create("tom", f"ללא מקום {i}") for i in range(3)]
+    for t in older:  # strictly older than the placed ones (tickets made in the same second tie and order by their random id)
+        _set(w, t["id"], last_activity_at="2026-01-01T00:00:00Z")
     placed = [w.create("tom", f"קומה 2 #{i}") for i in range(130)]
     for t in placed:
         w.place(t["id"], "floor2")
