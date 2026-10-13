@@ -55,6 +55,7 @@ import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
 import '../screens/tickets-list'; // CR-038: the tickets area (the list, the drawer, the create sheet)
 import '../screens/tickets-detail'; // CR-038 D18: a ticket on the full screen (#/tickets/<id>)
 import '../screens/system-tickets'; // CR-038: the tickets module's settings
+import '../screens/system-messaging-accounts'; // CR-038 S5a: הגדרות › ערוץ ההודעות (WhatsApp accounts per use)
 import '../screens/security-alarm';
 import '../screens/schedule-editor';
 import '../screens/live-overview';
@@ -2081,6 +2082,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
+        if (s[1] === 'messaging-accounts') return html`<system-messaging-accounts></system-messaging-accounts>`; // CR-038 S5a: ערוץ ההודעות
         if (s[1] === 'tickets') return html`<system-tickets></system-tickets>`; // CR-038: the tickets module (its label is the configured name, D33)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
