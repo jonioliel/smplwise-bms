@@ -161,9 +161,10 @@ export class MediaAdminToolbar extends LitElement {
       gap: 2px;
       min-inline-size: 190px;
       padding: 6px;
-      border: 1px solid var(--sw-border-strong);
+      /* the column chooser is a menu: opaque, never see-through (owner 2026-10-13) */
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       box-shadow: var(--sw-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.18));
     }
     .colspanel.flip {

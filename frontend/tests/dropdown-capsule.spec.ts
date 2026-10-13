@@ -3,8 +3,9 @@ import { SKIN_IDS } from '../src/design/skins';
 
 // Unreleased (owner request 2026-10-04): the `capsule` dropdown style and the SIZE dial (dd-size: sm / md / lg).
 //  - the items API: `icon`, `count` and a `divider` item; the other styles ignore icon and divider;
-//  - the closed capsule (ring, fill, shadow, icon at the start, chevron at the end, chevron up while open) and the open panel (radius, translucent
-//    surface, tinted selected row, icon at the start and the COUNT at the other end of every row, a divider after the first row), RTL;
+//  - the closed capsule (ring, fill, shadow, icon at the start, chevron at the end, chevron up while open) and the open panel (radius, OPAQUE
+//    surface with no blur - a list is a menu, owner 2026-10-13 -, tinted selected row, icon at the start and the COUNT at the other end of every row,
+//    a divider after the first row), RTL;
 //  - keyboard and screen-reader behaviour unchanged (listbox / option roles, arrows skip the divider, Home / End, type-ahead, Escape);
 //  - the sizes (trigger height, font, icon, row height, panel padding) grow sm < md < lg; the touch target stays 44 px on a phone;
 //  - the resolver (user group > user global > installation group > installation global > md) and the Settings card against a mocked backend.
@@ -215,7 +216,7 @@ test.describe('closed and open look', () => {
     expect(open.shadow, 'a stronger ring while open').not.toBe(closed.shadow);
   });
 
-  test('open: a rounded translucent panel as wide as the chip or wider, a tinted selected row with its icon, a thin divider, generous rows', async ({ page }) => {
+  test('open: a rounded opaque panel as wide as the chip or wider, a tinted selected row with its icon, a thin divider, generous rows', async ({ page }) => {
     await stage(page);
     await mount(page, ['capsule:md']);
     const chipW = (await chip(page, 'capsule:md').boundingBox())!.width;
@@ -236,8 +237,9 @@ test.describe('closed and open look', () => {
     expect(r.radius).toBeGreaterThanOrEqual(16);
     expect(r.radius).toBeLessThanOrEqual(22);
     expect(r.w).toBeGreaterThanOrEqual(chipW - 1);
-    expect(r.bg, 'translucent, not opaque').toMatch(/rgba|color\(/);
-    expect(r.blur).toContain('blur');
+    // a menu is never see-through (owner 2026-10-13): an opaque colour (alpha 1) and nothing blurred behind it
+    expect(/^rgb\(/.test(r.bg) || /rgba\(.*,\s*1\)$/.test(r.bg), `opaque, not translucent (${r.bg})`).toBe(true);
+    expect(r.blur).toBe('none');
     expect(r.shadow).not.toBe('none');
     expect(r.selBg, 'the chosen row is tinted').not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
     expect(r.otherBg).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);

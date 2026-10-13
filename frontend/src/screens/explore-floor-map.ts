@@ -506,8 +506,9 @@ export class ExploreFloorMap extends LitElement {
       z-index: var(--sw-z-map-ui);
       inline-size: 272px;
       max-inline-size: calc(100% - 24px);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the layers list opens over the plan like a popover: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 12px 14px;
@@ -633,8 +634,9 @@ export class ExploreFloorMap extends LitElement {
       max-inline-size: calc(100% - 24px);
       max-block-size: 60%;
       overflow: auto;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the shared room's members card hangs over the plan like the room card: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 10px 12px;
@@ -1053,8 +1055,9 @@ export class ExploreFloorMap extends LitElement {
       z-index: var(--sw-z-map-ui);
       inline-size: 240px;
       max-inline-size: calc(100% - 24px);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the selected room's card hangs over the plan like a popover: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 8px 12px 10px;

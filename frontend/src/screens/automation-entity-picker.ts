@@ -34,10 +34,11 @@ export class AutomationEntityPicker extends LitElement {
         flex-direction: column;
         min-block-size: 0;
         max-block-size: inherit;
-        background: var(--ab-sheet, var(--dv-surface-solid));
-        -webkit-backdrop-filter: blur(40px) saturate(1.8);
-        backdrop-filter: blur(40px) saturate(1.8);
-        border: 1px solid var(--dv-border);
+        /* the entity picker is a menu surface (a popover on a desktop, a bottom sheet on a phone): opaque, never see-through (owner 2026-10-13) */
+        background: var(--sw-menu-surface);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border: 1px solid var(--sw-menu-border);
         border-radius: var(--sw-r-2xl);
         box-shadow: var(--dv-shadow-3);
         overflow: hidden;

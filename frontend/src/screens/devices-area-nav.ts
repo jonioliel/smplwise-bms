@@ -210,8 +210,9 @@ export class DevicesAreaNav extends LitElement {
       max-block-size: min(60vh, 420px);
       overflow: auto;
       padding: 4px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the picker's list (a popover, a bottom sheet on a phone) is a menu: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
     }

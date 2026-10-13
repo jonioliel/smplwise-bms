@@ -476,8 +476,9 @@ export class InvestigatePlayback extends LitElement {
       inset-block-end: calc(100% + 6px);
       transform: translateX(-50%);
       inline-size: 200px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the hover preview over the timeline is a popover: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 4px;

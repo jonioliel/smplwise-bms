@@ -208,7 +208,7 @@ export class AutomationCard extends LitElement {
       gap: 6px;
     }
     .pop {
-      background: var(--dv-surface-solid, #fff);
+      background: var(--sw-menu-surface);
       inset-block-start: 52px;
       inset-inline-end: 12px;
       min-inline-size: 190px;

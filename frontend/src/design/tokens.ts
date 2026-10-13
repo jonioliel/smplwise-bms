@@ -55,7 +55,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // menu, popover, picker, dropdown list, search-result list or bottom sheet (the user menu, a dropdown's list, a "..." menu, the time
       // picker): fully opaque in every skin and scheme (never an rgba), and nothing blurs behind it. The glass screens map them to their
       // palette's solid twin (styles/devices-themes.ts), the bubble palettes to `surfaceElevated` (design/palette.ts); a skin sets both
-      // columns. The registry of the surfaces that use them is styles/menu-surface.ts (tests/unit-menu-surfaces.spec.ts keeps it honest).
+      // columns. The registry of the surfaces that use them is styles/menu-surface.ts (tests/unit-menu-lint.spec.ts keeps it honest).
       '--sw-menu-surface': lt('#ffffff', '#151c2c'),
       '--sw-menu-border': lt('#e7ebf2', '#232e45'),
       '--sw-border': lt('#e7ebf2', '#232e45'),

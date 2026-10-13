@@ -127,7 +127,7 @@ export class SceneCapture extends LitElement {
       position: relative;
     }
     .pop {
-      background: var(--dv-surface-solid, #fff);
+      background: var(--sw-menu-surface);
       inset-block-start: calc(100% + 6px);
       inset-inline-start: 0;
       min-inline-size: min(320px, 90vw);

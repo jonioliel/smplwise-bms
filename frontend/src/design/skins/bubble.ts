@@ -119,18 +119,18 @@ const rules = `
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 0; border-radius: var(--sw-r-lg); background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { border-radius: 50%; }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
-:host(sw-app) a.item.a.active { background: var(--sw-accent); color: var(--sw-text-inverse); }
+/* the chosen item of every list is the accent pill (one rule for the rail, the phone dock's icon and the building tree row; they were three identical rules until the menu rules needed the room under the 50-rule budget) */
+:host(sw-app) a.item.a.active, :host(sw-app) nav.bottom.bottom a.active .ic, :host(devices-building) .tree-row.selected { background: var(--sw-accent); color: var(--sw-text-inverse); }
 :host(sw-app) a.item.a.active sw-icon { color: var(--sw-text-inverse); }
-/* bubble 3 - the floating corner (search / status) and the search panel */
-:host(sw-app) .float .pillrow, :host(sw-app) .searchpanel { border-radius: var(--sw-r-pill); background: var(--sw-perf-glass-bg, var(--sw-nav-glass)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); }
+/* bubble 3 - the floating corner (search / status) keeps its glass; the search panel is a menu: the same pill shape, fully opaque, nothing blurred behind it (owner 2026-10-13) */
+:host(sw-app) .float .pillrow { border-radius: var(--sw-r-pill); background: var(--sw-perf-glass-bg, var(--sw-nav-glass)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); }
+:host(sw-app) .searchpanel { border-radius: var(--sw-r-pill); background: var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); }
 /* bubble 4 - the phone dock: the bottom bar is a floating pill stack beside the home button (sw-app renders the dock row in this skin) */
 :host(sw-app) nav.bottom.bottom { background: transparent; border: 0; box-shadow: none; }
 :host(sw-app) nav.bottom.bottom .stack { background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-2); }
-:host(sw-app) nav.bottom.bottom a.active .ic { background: var(--sw-accent); color: var(--sw-text-inverse); }
-/* bubble 5 - the building tree stays prominent: a glass panel, pill rows, the selected row filled */
+/* bubble 5 - the building tree stays prominent: a glass panel, pill rows, the selected row filled (the filled row is the shared accent rule above) */
 :host(devices-building) nav.tree { border: 0; border-radius: var(--sw-r-lg); padding: 14px 10px; background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight); }
 :host(devices-building) .tree-row { border-radius: var(--sw-r-pill); min-block-size: 44px; }
-:host(devices-building) .tree-row.selected { background: var(--sw-accent); color: var(--sw-text-inverse); }
 :host(devices-building) .tree-row:not(.selected):hover { background: var(--sw-layer); }
 /* bubble 6 - cards, KPI tiles, home widgets, floor cards and area tiles: flat pills, no border, no shadow */
 :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(home-widgets) .wg { border: 0; border-radius: var(--sw-r-lg); background: var(--sw-surface); box-shadow: none; }
@@ -153,16 +153,17 @@ const rules = `
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); min-block-size: calc(var(--sw-touch-desktop) - 6px); }
 :host(sw-tabs) a, :host(sw-tabs) button, :host(sw-tabs[data-variant='pill']) a, :host(sw-tabs[data-variant='pill']) button { min-block-size: var(--sw-touch-desktop); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
-/* bubble 9 - floating layers (dialog, drawer, popover) are translucent sheets over a blurred page, solid when the OS asks for less transparency or blur is unsupported */
-:host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel { border: 0; border-radius: var(--sw-r-xl); background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
+/* bubble 9 - floating layers (dialog, drawer) are translucent sheets over a blurred page, solid when the OS asks for less transparency or blur is unsupported; a popover is a menu: the same shape, fully opaque, no blur (owner 2026-10-13) */
+:host(sw-dialog) .box, :host(sw-drawer) .panel { border: 0; border-radius: var(--sw-r-xl); background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
+:host(sw-popover) { border: 0; border-radius: var(--sw-r-xl); background: var(--sw-menu-surface); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
 :host(sw-dialog) .backdrop { -webkit-backdrop-filter: var(--sw-backdrop-blur); backdrop-filter: var(--sw-backdrop-blur); }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); } }
-@media (prefers-reduced-transparency: reduce) { :host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-dialog) .box, :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); } }
+@media (prefers-reduced-transparency: reduce) { :host(sw-dialog) .box, :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* bubble 10 - the phone tab pair (0.1.153 dropdown mode) and the dropdown chip / list follow the skin: glass row, pill chips, a translucent list */
 :host(sw-app) .tabpair { background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); }
 :host(sw-app) .tabpair a.alarmpin { border-radius: 50%; background: var(--sw-surface-2); }
 :host(sw-dropdown[dd-style='auto']) .chip { border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); box-shadow: none; }
-:host(sw-dropdown) .pop { border: 0; border-radius: var(--sw-r-lg); background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
+:host(sw-dropdown) .pop { border: 0; border-radius: var(--sw-r-lg); background: var(--sw-menu-surface); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
 /* bubble 11 - tables: pill-shaped rows with a soft hover (admin lists stay tables, never a column of pills) */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); }

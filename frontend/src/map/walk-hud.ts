@@ -257,10 +257,11 @@ export class SwWalkHud extends LitElement {
       max-block-size: min(64%, 480px);
       border-start-start-radius: var(--sw-r-xl);
       border-start-end-radius: var(--sw-r-xl);
-      /* over a live 3D scene: the sheet's colour stays (nearly) solid so the text always reads, whatever the look dial says */
-      background: color-mix(in srgb, var(--sw-surface-solid) 94%, transparent);
-      -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
-      backdrop-filter: var(--sw-glass-blur-sheet);
+      /* over a live 3D scene the bottom sheet (places, fields) is a menu: fully opaque so the text always reads, whatever the look dial or the
+         skin says (owner 2026-10-13; it was 94 % of the solid twin under a blur) */
+      background: var(--sw-menu-surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
       box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3);
       color: var(--sw-text);
       padding-block-end: env(safe-area-inset-bottom, 0px);

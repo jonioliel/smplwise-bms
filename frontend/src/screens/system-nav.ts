@@ -201,9 +201,9 @@ export class SystemNav extends LitElement {
     :host([compact]) .none {
       margin-block-start: 6px;
       padding: 6px;
-      border: 1px solid var(--sw-border);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
-      background: var(--sw-surface-solid);
+      background: var(--sw-menu-surface);
       box-shadow: var(--sw-shadow-2);
     }
     :host([compact]) nav {
@@ -229,9 +229,9 @@ export class SystemNav extends LitElement {
       .none {
         margin-block-start: 6px;
         padding: 6px;
-        border: 1px solid var(--sw-border);
+        border: 1px solid var(--sw-menu-border);
         border-radius: var(--sw-r-md);
-        background: var(--sw-surface-solid);
+        background: var(--sw-menu-surface);
         box-shadow: var(--sw-shadow-2);
       }
       .search {

@@ -86,6 +86,41 @@ export async function expectOpaqueMenu(surface: Locator, label: string): Promise
   return p;
 }
 
+/** Parses the colour a probe element computes for a CSS colour string (hex or rgb()) into the browser's `rgb(r, g, b)` text. */
+export const rgbText = (hex: string): string => {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  return `rgb(${parseInt(m[1].slice(0, 2), 16)}, ${parseInt(m[1].slice(2, 4), 16)}, ${parseInt(m[1].slice(4, 6), 16)})`;
+};
+
+/** A stage over the app with `sw-tabs` in dropdown form, one per dd-style (the dropdown's own harness, as dropdown-styles-b.spec.ts uses it). */
+export async function mountDropdowns(page: Page, styles: readonly string[], n = 6): Promise<void> {
+  await page.waitForFunction(() => !!customElements.get('sw-dropdown') && !!customElements.get('sw-tabs'));
+  await page.evaluate(
+    ([list, count]) => {
+      document.querySelectorAll('#stage').forEach((e) => e.remove());
+      const st = document.createElement('div');
+      st.id = 'stage';
+      st.style.cssText = 'position:fixed;inset:0;z-index:10;background:var(--sw-bg,#fff);padding:24px 16px;display:flex;flex-direction:column;gap:20px;align-items:flex-start';
+      document.body.appendChild(st);
+      const words = ['סלון', 'מטבח', 'חדר שינה', 'משרד', 'מרפסת', 'חצר', 'מחסן', 'חדר כביסה'];
+      const items = Array.from({ length: count as number }, (_, i) => ({ id: `i${i}`, label: words[i % words.length], ...(i === 0 ? { count: 6 } : {}) }));
+      for (const s of list as string[]) {
+        const t = document.createElement('sw-tabs') as HTMLElement & { items: unknown; active: string };
+        t.setAttribute('variant', 'dropdown');
+        t.setAttribute('dd-style', s);
+        t.setAttribute('group-label', 'אבטחה');
+        t.setAttribute('data-t', s);
+        t.items = items;
+        t.active = 'i0';
+        st.appendChild(t);
+      }
+    },
+    [styles as string[], n] as [string[], number],
+  );
+  await page.waitForTimeout(300);
+}
+
 /** Opens the app on a route in a skin and scheme (demo mode, fixed clock, performance dial full so no tier changes the paint). */
 export async function openApp(page: Page, skin: MenuSkin, scheme: MenuScheme, hash: string, query = ''): Promise<void> {
   await page.clock.setFixedTime(new Date('2026-10-13T10:00:00Z'));

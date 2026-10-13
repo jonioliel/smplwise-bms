@@ -498,8 +498,9 @@ export class SwApp extends LitElement {
       inline-size: min(560px, 90vw);
       max-block-size: 60vh;
       overflow: auto;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* a result list is a menu: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 6px;
@@ -658,8 +659,9 @@ export class SwApp extends LitElement {
     .searchpanel {
       margin-block-start: 6px;
       inline-size: min(440px, calc(100vw - 24px));
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the search panel (field + results) hangs over the page like a menu: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
       overflow: hidden;
@@ -675,7 +677,7 @@ export class SwApp extends LitElement {
       border: 0;
       border-radius: 0;
       box-shadow: none;
-      border-block-start: 1px solid var(--sw-border);
+      border-block-start: 1px solid var(--sw-menu-border);
     }
     /* the first thing in the content (a page header) keeps clear of the floating corner; wide screens with a tab row
        or a section switch above it have their own row and need no reserve */

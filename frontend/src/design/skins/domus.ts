@@ -124,7 +124,9 @@ const rules = `
 /* domus 3 - brand tile, rail items and the floating corner */
 :host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
-:host(sw-app) .float .pillrow, :host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2); }
+:host(sw-app) .float .pillrow { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2); }
+/* domus 3b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13); the corner pill above keeps its glass */
+:host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--sw-shadow-2); }
 :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-block-start: 1px solid var(--sw-border); box-shadow: none; }
 /* domus 4 - glass panels: cards, KPI tiles, the home widgets, the floor cards, area tiles and the building tree */
 :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg { background: var(--sw-glass-sheen), var(--sw-surface); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur); backdrop-filter: var(--sw-glass-blur); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
@@ -146,8 +148,9 @@ const rules = `
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb); }
-/* domus 8 - floating layers are opaque enough to read, with a sheet blur behind */
-:host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); }
+/* domus 8 - floating layers are opaque enough to read, with a sheet blur behind; a popover is a menu (owner 2026-10-13): fully opaque, no blur */
+:host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); }
+:host(sw-popover) { background: var(--sw-glass-sheen), var(--sw-menu-surface); }
 :host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
 /* domus 9 - tables and list rows: hairline rows, a soft hover */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }

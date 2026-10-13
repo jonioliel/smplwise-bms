@@ -131,7 +131,7 @@ const tokens: TokenTable = {
   '--sw-hover-lift': same('-1px'),
 };
 
-/* The component rules (budget 50; this skin uses 27). Written for the shadow roots (SKIN_AUTHORING_HE.md §2). Every translucent
+/* The component rules (budget 50; this skin uses 34). Written for the shadow roots (SKIN_AUTHORING_HE.md §2). Every translucent
    layer has its solid twin (@supports / prefers-reduced-transparency, rules 26-27); a scrolling layer wraps its blur and fill in the
    performance switches (TOKEN_CONTRACT §7). */
 const rules = `
@@ -139,11 +139,13 @@ const rules = `
 :host(sw-app) { background: linear-gradient(var(--sw-bg-veil), var(--sw-bg-veil)), var(--sw-bg-image) center / cover no-repeat, var(--sw-canvas); }
 /* crystal 2 - the rail is a floating crystal panel with a luminous rim */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
-/* crystal 3 - brand tile, rail items, the floating corner and the search panel, the phone bar */
+/* crystal 3 - brand tile, rail items, the floating corner (the search panel is a menu, rule 3b), the phone bar */
 :host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); box-shadow: var(--sw-shadow-primary); }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
 :host(sw-app) a.item.a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); box-shadow: inset 0 0 0 1px var(--sw-border); }
-:host(sw-app) .float .pillrow, :host(sw-app) .searchpanel, :host(sw-app) .tabpair { border: 1px solid var(--sw-border); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-app) .float .pillrow, :host(sw-app) .tabpair { border: 1px solid var(--sw-border); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
+/* crystal 3b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13) */
+:host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-block-start: 1px solid var(--sw-border); box-shadow: 0 -1px 0 var(--sw-highlight); }
 /* crystal 4 - crystal panels: cards, KPI tiles, home widgets, floor cards, area tiles and the building tree (blur and fill behind the performance switches) */
 :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
@@ -165,8 +167,9 @@ const rules = `
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight); }
-/* crystal 8 - floating layers read on anything: the solid twin under the sheen, a sheet blur behind, a luminous rim */
-:host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel, :host(sw-dropdown) .pop { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
+/* crystal 8 - floating layers read on anything: the solid twin under the sheen, a sheet blur behind, a luminous rim; the menus (a popover, a dropdown's list) are fully opaque, no blur (owner 2026-10-13) */
+:host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-popover), :host(sw-dropdown) .pop { background: var(--sw-glass-sheen), var(--sw-menu-surface); border-color: var(--sw-menu-border); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
 :host(sw-dialog) .backdrop { -webkit-backdrop-filter: var(--sw-backdrop-blur); backdrop-filter: var(--sw-backdrop-blur); }
 /* crystal 9 - tables and list rows: hairline rows, a soft hover; tabular numbers on the KPI tiles; headings */
@@ -175,8 +178,8 @@ const rules = `
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
 :host(sw-page) h1 { font-weight: var(--sw-h1-weight); }
 /* crystal 10 - no backdrop-filter, or the OS asks for less transparency: every crystal layer becomes its solid twin (layout unchanged) */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .searchpanel, :host(sw-app) .tabpair { background: var(--sw-surface-solid); } }
-@media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .searchpanel, :host(sw-app) .tabpair { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); } }
+@media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 `;
 
 export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: 'קריסטל', noteHe: 'זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות', tokens, rules };

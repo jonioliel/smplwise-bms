@@ -238,9 +238,10 @@ export class NotifyRow extends LitElement {
         inset-block-start: calc(100% - 8px);
         inset-inline-end: 8px;
         z-index: 30;
-        background: var(--mm-sheet-surface);
-        -webkit-backdrop-filter: var(--mm-sheet-blur);
-        backdrop-filter: var(--mm-sheet-blur);
+        /* a row's "..." menu is never see-through (owner 2026-10-13): the opaque menu surface, nothing blurred behind it */
+        background: var(--sw-menu-surface);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
       }
     `,
   ];

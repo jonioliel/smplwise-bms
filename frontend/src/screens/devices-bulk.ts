@@ -172,9 +172,10 @@ export class DevicesBulkMenu extends LitElement {
       min-inline-size: 220px;
       max-inline-size: min(300px, calc(100vw - 16px));
       color: var(--sw-text);
-      /* a summary over the tree must stay readable: the glass palette's solid surface when there is one */
-      background: var(--dv-surface-solid, var(--sw-surface));
-      border: 1px solid var(--sw-border);
+      /* a summary over the tree must stay readable: the opaque menu surface (the glass palette's solid twin inside a glass screen; before
+         2026-10-13 it fell back to the translucent --sw-surface outside one, so the Domus / Crystal skins showed the tree through it) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 6px;

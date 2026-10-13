@@ -1,5 +1,15 @@
 # Token contract (designer handoff, 2026-09-30)
 
+> **Status 2026-10-13 - menus are opaque (branch `pilot/FIX-menus-opaque`, owner report: the user menu showed the building tree through
+> it in the glass look):** two new tokens, `--sw-menu-surface` and `--sw-menu-border`, are the ONLY paint of anything that floats over
+> other content as a menu - the user menu and its phone sheet, a dropdown / select list, a "..." menu, a popover card, a picker's popup,
+> a search-result list, a bottom sheet of controls (§3b). Every skin sets both for light and dark, as fully opaque colours (never an
+> rgba); the ready bubble palettes map them to `surfaceElevated`; the glass device screens bridge them to their palette's solid twin
+> (`--dv-surface-solid`, `docs/design/DEVICE_THEMES.md` §2); no blur sits behind a menu and no look dial, performance tier or knob can
+> thin one out. `--sw-surface` stays the translucent glass of CARDS (they sit on their own backdrop blur). The registry of the menu
+> surfaces is `frontend/src/styles/menu-surface.ts`; `frontend/tests/unit-menu-lint.spec.ts` (static) and
+> `frontend/tests/evidence-menu-opaque.spec.ts` (computed alpha and blur of real menus, every skin x scheme) keep it that way.
+>
 > **Status 2026-10-09 - DU1 (branch `pilot/DU1-design-unification`, `docs/design/DU1_DESIGN_UNIFICATION.md`):** the screens now read the
 > table for every font size and radius (new tiers `--sw-fs-2xs` / `--sw-fs-base`, `--sw-r-2xs` / `--sw-r-xs` / `--sw-r-2xl`), the control
 > states (`--sw-ctl-h-*`, `--sw-disabled-opacity`, `--sw-focus-w`, `--sw-hover-wash`, ...), the toast surface and the on-video HUD family;
@@ -75,6 +85,8 @@ are listed so the designer knows the starting point and can decide what to keep.
 | `--sw-surface-3` | `#eef2f8` | (SW A override)
 | `--sw-border` | `#e7ebf2` | (SW A override)
 | `--sw-border-strong` | `#e1e6ef` | (SW A override)
+| `--sw-menu-surface` | `#ffffff` | 2026-10-13: the opaque surface of every menu (§3b); dark `#151c2c`
+| `--sw-menu-border` | `#e7ebf2` | 2026-10-13: the hairline of a menu, opaque; dark `#232e45`
 | `--sw-overlay` | `rgba(17, 24, 39, 0.45)` |
 | `--sw-text` | `#22314c` | (SW A override)
 | `--sw-text-2` | `#5b6a85` | (SW A override)
@@ -199,6 +211,24 @@ with `-soft`, plus `purple`), canvas (`video-bg`, `map-*`, `fov`, `obj-*` 12 obj
 `map-sky-horizon`, `map-wall-3d`, state layer `map-lit`, `map-presence`, `map-temp`), typography (`font`, `font-mono`, `fs-xs..3xl`,
 `lh`, `fw-*`, `h1*`), spacing (`s-1..10`, `page-pad`), radii (`r-sm/md/lg/pill`), elevation (`shadow-1..3`), layout (`rail-w*`,
 `topbar-h` = 0, `bottomnav-h`, `drawer-w`, `touch`, `content-max`), z-index, motion (`t-fast`, `t-med`, `ease`).
+
+### 3b. Menus are opaque (owner 2026-10-13)
+
+A **menu** is anything that floats over other content: the user menu popover and its phone bottom sheet, a dropdown / select /
+combobox list, a "..." (overflow, context) menu, a popover card or a hover preview, a search-result (autocomplete) list, a picker's
+popup (time of day, entities, columns, cast), a bottom sheet of controls. Over a page whose rows and cards scroll behind it, a
+see-through surface overlaps its own text with what lies behind it (the owner's screenshot: the user menu over the building tree in the
+Domus / Crystal skins, where `--sw-surface` is a 52 % / 58 % glass).
+
+| Rule | Value |
+|---|---|
+| Paint | `background: var(--sw-menu-surface)`; the hairline is `var(--sw-menu-border)`; a skin may lay a gradient SHEEN on top of the colour, never replace it |
+| Opacity | both tokens are fully opaque colours in every skin and scheme (`#rrggbb`, never an rgba); the surface is the skin's own palette (classic / domus / tesla / crystal: the solid twin `--sw-surface-solid`; bubble: the pop-up's sheet colour at full alpha; a bubble palette: its `surfaceElevated`); the hairline is the skin's ink hairline flattened over the surface (bubble is borderless: the hairline equals the surface) |
+| Blur | none (`backdrop-filter` absent or `none`) - a nested blur cannot blur what lies beyond its parent anyway |
+| Bridge | the glass device screens map `--sw-menu-surface: var(--dv-surface-solid)` and `--sw-menu-border: var(--dv-border)` (`DEVICE_THEMES.md` §2): a menu inside a glass screen is that palette's solid twin, light or dark by the screen's own scheme |
+| Dials | no look dial, performance tier, palette or knob thins a menu: the Bubble `transparency` dial, the lite tier's tinted fill and `--mm-sheet-surface` never reach one |
+| Not a menu | cards, KPI tiles, floor cards, the building tree, the rail, the dock, the corner pill, HUD bars over a canvas (stay glass); the modal layers - dialog, drawer, the Bubble pop-up sheet, the notification center, the automation editor sheet - whose alpha is bounded by a computed contrast floor over a dimmed scrim (the scrim may stay translucent) |
+| Registry | `frontend/src/styles/menu-surface.ts` lists every menu surface and how to add one; `frontend/tests/unit-menu-lint.spec.ts` fails a menu-named or floating rule that is neither registered nor exempted, and any skin rule that paints a menu with something else; `frontend/tests/evidence-menu-opaque.spec.ts` opens real menus in every skin x scheme and reads the computed alpha and blur |
 
 ## 4. `--dv-*` glass knobs (device screens): current default palette, light / dark
 
