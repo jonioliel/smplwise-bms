@@ -121,6 +121,8 @@ export class TicketsBoard extends LitElement {
     .rc small {
       color: var(--dv-text-2);
       font-size: var(--sw-fs-sm);
+      margin-inline-start: 10px;
+      font-weight: 600;
     }
     .rc[aria-pressed='true'] small {
       color: inherit;
@@ -185,10 +187,21 @@ export class TicketsBoard extends LitElement {
       .dh-det .stf button {
         padding-inline: 6px;
       }
+      /* the departments are two columns on a phone (nothing hidden behind a scroll, as the state filter) */
       .dh-det .depts {
         order: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         inline-size: 100%;
-        overflow-x: auto;
+        box-sizing: border-box;
+        border-radius: var(--sw-r-xl);
+      }
+      .dh-det .depts button {
+        min-inline-size: 0;
+        padding-inline: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .dh-det .grow {
         display: none;
