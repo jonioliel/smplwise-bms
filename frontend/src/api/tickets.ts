@@ -301,6 +301,8 @@ export interface TicketsBackend {
   saveSettings(revision: number, ui: Partial<UiSettings>): Promise<SettingsDoc>;
   /** slice 2: any installation key of the document (links, send hours, urgent as critical, ui) */
   saveInstallation(revision: number, patch: SettingsPatch): Promise<SettingsDoc>;
+  /** slice 3: the device window's tab */
+  byEntity(entityId: string): Promise<EntityTickets>;
   saveName(revision: number, names: Partial<NameEntries>): Promise<NameDoc>;
   departments(): Promise<DepartmentsResponse>;
   createDepartment(body: DepartmentBody): Promise<AdminDepartment>;
