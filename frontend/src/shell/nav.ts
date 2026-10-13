@@ -28,6 +28,15 @@ const STATIC_WISKEY_TABS: readonly TabItem[] = [
  * choice and old bookmarks keep working). Until then, and for an older WisKey, the static list above. */
 export const WISKEY_TABS: TabItem[] = [...STATIC_WISKEY_TABS];
 
+/** CR-036 S9: what the native schedules screen's tab is called. */
+export const WISKEY_SCHEDULES_LABEL = 'לוחות זמנים';
+/** CR-036 S9: tabs that exist only as a native Arx screen - the embedded panel has no top-level tab for them (its schedule editors
+ * live under its own management tools). Such a tab is in the row only while its screen is switched to Arx; with the switch off
+ * (the default) nothing changes for anyone. */
+const NATIVE_ONLY_WISKEY_TABS: readonly TabItem[] = [{ id: 'schedules', label: WISKEY_SCHEDULES_LABEL, href: '#/wiskey/schedules' }];
+/** Where each tab sits in the row (the design's order: entry center, activity, people, stations, schedules, then the panel's own). */
+const WISKEY_TAB_ORDER: readonly string[] = ['overview', 'events', 'people', 'devices', 'schedules', 'sync', 'health', 'audit', 'tools'];
+
 /** WisKey tab id → SMPLWISE route segment (only `users` differs: SMPLWISE has always called it `people`). */
 export function wiskeySegmentOf(tab: string): string {
   return tab === 'users' ? 'people' : tab;
@@ -75,7 +84,7 @@ export function setWiskeyEmbedNav(patch: Partial<WiskeyEmbedNav>): void {
  * the row even when this operator's WisKey catalog does not list it, at its usual place. */
 function rebuildWiskeyTabs(): void {
   const catalog = embedNav.catalog;
-  const order = STATIC_WISKEY_TABS.map((t) => t.id);
+  const order = WISKEY_TAB_ORDER;
   const labels = new Map(STATIC_WISKEY_TABS.map((t) => [t.id, t.label]));
   const next: TabItem[] = catalog
     ? catalog.tabs
@@ -85,15 +94,16 @@ function rebuildWiskeyTabs(): void {
           return { id: seg, label: t.label.trim() || labels.get(seg) || t.id, href: `#${wiskeyPath({ tab: t.id })}` };
         })
     : [...STATIC_WISKEY_TABS];
-  if (catalog) {
-    for (const s of WISKEY_SCREENS) {
-      const seg = WISKEY_SCREEN_SEGMENT[s];
-      if (WISKEY_UI[s] !== 'smplwise' || next.some((t) => t.id === seg)) continue;
-      const own = STATIC_WISKEY_TABS.find((t) => t.id === seg)!;
-      const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
-      const at = next.findIndex((t) => rank(t.id) > rank(seg));
-      next.splice(at < 0 ? next.length : at, 0, { ...own });
-    }
+  // a screen switched to Arx keeps its tab whatever the catalog lists; with no catalog the static list already holds the four
+  // screens the panel has too, so this only adds a native-only tab (S9: the schedules) there
+  for (const s of WISKEY_SCREENS) {
+    const seg = WISKEY_SCREEN_SEGMENT[s];
+    if (WISKEY_UI[s] !== 'smplwise' || next.some((t) => t.id === seg)) continue;
+    const own = [...STATIC_WISKEY_TABS, ...NATIVE_ONLY_WISKEY_TABS].find((t) => t.id === seg);
+    if (!own) continue;
+    const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+    const at = next.findIndex((t) => rank(t.id) > rank(seg));
+    next.splice(at < 0 ? next.length : at, 0, { ...own });
   }
   // CR-036 S6: the native stations screen is named for what it shows ("תחנות ודלתות"); WisKey's own tab keeps WisKey's label
   const named = WISKEY_UI.stations === 'smplwise' ? next.map((t) => (t.id === WISKEY_SCREEN_SEGMENT.stations ? { ...t, label: WISKEY_STATIONS_LABEL } : t)) : next;
@@ -134,12 +144,13 @@ function wiskeyActiveTab(r: RouteState | null): string {
 
 /** The SMPLWISE screens with a choice in הגדרות › מתגי מסכי כניסה (settings keys `access.ui.<screen>`). `stations` (CR-036 S6,
  * "תחנות ודלתות") takes the route segment of WisKey's own devices tab, `devices`: the tab keeps its place in the row. */
-export type WiskeyScreen = 'overview' | 'events' | 'people' | 'stations';
+export type WiskeyScreen = 'overview' | 'events' | 'people' | 'stations' | 'schedules';
 export type WiskeyUi = 'wiskey' | 'smplwise';
-export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people', 'stations'];
+export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people', 'stations', 'schedules'];
 
-/** The route segment (`#/wiskey/<segment>`) of each screen: its own name, except `stations`, which is WisKey's `devices` tab. */
-export const WISKEY_SCREEN_SEGMENT: Record<WiskeyScreen, string> = { overview: 'overview', events: 'events', people: 'people', stations: 'devices' };
+/** The route segment (`#/wiskey/<segment>`) of each screen: its own name, except `stations`, which is WisKey's `devices` tab.
+ * `schedules` (CR-036 S9, read only) has no tab of the embedded panel: its tab exists only while the screen is switched to Arx. */
+export const WISKEY_SCREEN_SEGMENT: Record<WiskeyScreen, string> = { overview: 'overview', events: 'events', people: 'people', stations: 'devices', schedules: 'schedules' };
 /** What the native stations screen's tab is called in the row (WisKey's own tab keeps WisKey's label). */
 export const WISKEY_STATIONS_LABEL = 'תחנות ודלתות';
 
@@ -150,7 +161,7 @@ export function wiskeyScreenOf(segment: string): WiskeyScreen | null {
 
 /** The owner's choice per screen; 'wiskey' (the embedded panel) until the product settings say otherwise. Filled by the
  * shell once the settings load and by the settings screen after a save. */
-export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', events: 'wiskey', people: 'wiskey', stations: 'wiskey' };
+export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', events: 'wiskey', people: 'wiskey', stations: 'wiskey', schedules: 'wiskey' };
 
 /** הגדרות › מתגי מסכי כניסה, experimental (`access.phone_embed`, default off): embed WisKey inside the Companion app too,
  * through the sign-in relay of `wiskey/companion-bridge.ts`. Off = the 0.1.123 behaviour (no frame in the app). */
@@ -897,6 +908,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: string[] }> = {
   '#/wiskey/people': { screen: 'people', need: ['access.people.read'] },
   '#/wiskey/events': { screen: 'events', need: ['access.events.read'] }, // S8: the entry log
+  '#/wiskey/schedules': { screen: 'schedules', need: ['access.stations.read'] }, // S9: the door schedules (read only)
 };
 
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there

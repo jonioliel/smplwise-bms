@@ -35,6 +35,7 @@ import '../screens/wiskey-overview';
 import '../screens/wiskey-events';
 import '../screens/wiskey-people';
 import '../screens/wiskey-stations';
+import '../screens/wiskey-schedules';
 import '../screens/wiskey-embed';
 import '../screens/devices-building';
 import '../screens/devices-area';
@@ -2090,6 +2091,7 @@ export class SwApp extends LitElement {
         if (w.screen === 'events') return html`<wiskey-events></wiskey-events>`;
         if (w.screen === 'people') return html`<wiskey-people></wiskey-people>`;
         if (w.screen === 'stations') return html`<wiskey-stations></wiskey-stations>`; // CR-036 S6: "תחנות ודלתות", behind access.ui.stations
+        if (w.screen === 'schedules') return html`<wiskey-schedules></wiskey-schedules>`; // CR-036 S9: "לוחות זמנים" (read only), behind access.ui.schedules
         return html`<wiskey-overview></wiskey-overview>`;
       }
       case 'security': {

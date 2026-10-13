@@ -70,6 +70,10 @@ export interface MockOptions {
   settings?: Record<string, string>;
   /** A PATCH of the product settings: ok (default, merged and answered) or fail (500). */
   settingsPatch?: 'ok' | 'fail';
+  /** CR-036 S9, every schedules read (per station: programs, codes; installation-wide: library, proposals, checks): ready (default),
+   * error (503), busy (not ready: rate_limited), unsupported (the installed version does not list it), empty (nothing scheduled
+   * anywhere), stale (served from the cache: fresh false), hold (answers when `release()` is called) */
+  schedules?: 'ready' | 'error' | 'busy' | 'unsupported' | 'empty' | 'stale' | 'hold';
 }
 
 export interface Call {
@@ -465,6 +469,61 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
         b.versions.previous_offset = 0;
       }
       return json(route, { ...fresh(b), sync: sync() });
+    }
+
+    // ---------------------------------------------------------------- CR-036 S9: the schedules (access.stations.read)
+    const schedMode = st.opts.schedules ?? 'ready';
+    const schedFailure = async (key: string): Promise<boolean> => {
+      if (schedMode === 'hold') await gate;
+      if (schedMode === 'error') {
+        await err(route, 503, 'unavailable');
+        return true;
+      }
+      if (schedMode === 'busy') {
+        await json(route, { state: 'error', configured: true, last_error: 'rate_limited', fetched_at: null, fresh: false, [key]: null, sync: sync() });
+        return true;
+      }
+      if (schedMode === 'unsupported') {
+        await json(route, { state: 'unsupported', configured: true, last_error: 'not_listed', fetched_at: null, [key]: null, sync: sync() });
+        return true;
+      }
+      return false;
+    };
+    const schedFresh = <T extends Record<string, unknown>>(b: T): T => (schedMode === 'stale' ? { ...b, fresh: false, fetched_at: '2026-09-27T09:58:00Z' } : b);
+    const perStation = /^stations\/([^/]+)\/(programs|codes)$/.exec(ac);
+    if (perStation) {
+      const id = decodeURIComponent(perStation[1]);
+      if (!holds('access.stations.read')) return refuse(route, 'access.stations.read');
+      // a station the caller may not see answers exactly like one that does not exist
+      if ((scoped() && id !== 'entry-a') || !['entry-a', 'entry-b', 'entry-c'].includes(id)) return json(route, { code: 'intercom_station_not_found', user_message: 'העמדה לא נמצאה.', retryable: false, correlation_id: 'mock', details: {} }, 404);
+      if (await schedFailure(perStation[2])) return;
+      if (perStation[2] === 'codes') {
+        const b = clone(WIRE.codes);
+        if (id === 'entry-b') b.codes = { ...b.codes, public_pin_state: 'absent', slots: [{ slot: 1, configured: false }] };
+        if (id === 'entry-c') b.codes = { ...b.codes, public_pin_state: 'unknown', slots: [{ slot: 1, configured: null }] };
+        return json(route, { ...schedFresh(b), sync: sync() });
+      }
+      const b = clone(WIRE.programs);
+      const base = b.programs.programs[0];
+      if (schedMode === 'empty') b.programs.programs = [];
+      else if (id === 'entry-b') {
+        // door 1 paused; door 2 has only an older saved draft (never activated)
+        b.programs.programs = [{ ...base, revision: 2, enabled: false, policy: { ...base.policy, name: 'ערב', weekly: { ...base.policy.weekly, Friday: [], Sunday: [{ start: '17:00', end: '20:00' }] }, holidays: [] }, execution: { owned: false, attempted: null, status: 'idle' }, checked_at: '2026-09-26T17:00:00+00:00' }];
+        b.programs.saved = [{ door: 2, revision: 1, policy: { ...base.policy, name: 'מחסום פתוח', holidays: [] } }];
+      } else if (id === 'entry-c') {
+        b.programs.programs = [{ ...base, error: 'device_unreachable', execution: { owned: false, attempted: null, status: 'unknown' } }];
+      }
+      return json(route, { ...schedFresh(b), sync: sync() });
+    }
+    const lib = /^schedules(?:\/(plans|operations))?$/.exec(ac);
+    if (lib) {
+      if (!holds('access.stations.read')) return refuse(route, 'access.stations.read');
+      // installation-wide in the integration: a station-scoped caller is refused (and the server audits it)
+      if (scoped()) return json(route, { ...clone(WIRE.errors.forbidden), details: { permission: 'access.stations.read', target_type: 'installation', target_id: '*', reason: 'station_scoped' } }, 403);
+      if (await schedFailure('schedules')) return;
+      const b = clone(lib[1] === 'plans' ? WIRE.schedules_plans : lib[1] === 'operations' ? WIRE.schedules_operations : WIRE.schedules_library);
+      if (schedMode === 'empty') b.schedules = lib[1] === 'operations' ? { ...b.schedules, jobs: [], claims: [] } : [];
+      return json(route, { ...schedFresh(b), sync: sync() });
     }
 
     st.unhandled.push(`${method} access-control/${ac}`);

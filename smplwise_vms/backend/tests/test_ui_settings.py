@@ -82,7 +82,7 @@ def test_wiskey_density_and_wall_installation_defaults_validate_and_are_admin_on
 def test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited(settings):
     """CR-005 recorded decision 2026-09-28 (embedded panel): הגדרות › בקרות כניסה chooses, per SMPLWISE WisKey screen,
     between WisKey's own panel embedded as-is ("wiskey", the default) and the SMPLWISE screen ("smplwise")."""
-    keys = ("access.ui.overview", "access.ui.events", "access.ui.people", "access.ui.stations")  # CR-036 S6 added the stations screen
+    keys = ("access.ui.overview", "access.ui.events", "access.ui.people", "access.ui.stations", "access.ui.schedules")  # CR-036 S6 stations, S9 schedules
     app = create_app(settings)
     with TestClient(app) as c:
         before = c.get("/api/v1/settings").json()["settings"]
@@ -92,6 +92,7 @@ def test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited(s
         after = r.json()["settings"]
         assert after["access.ui.people"] == "smplwise" and after["access.ui.events"] == "smplwise" and after["access.ui.overview"] == "wiskey"
         assert after["access.ui.stations"] == "wiskey"  # untouched by the other screens' choices
+        assert after["access.ui.schedules"] == "wiskey"
         assert c.get("/api/v1/settings").json()["settings"]["access.ui.people"] == "smplwise"
         # back to the embedded panel, and nothing else is accepted
         assert c.patch("/api/v1/settings", json={"access.ui.people": "wiskey"}).json()["settings"]["access.ui.people"] == "wiskey"
@@ -178,6 +179,30 @@ def test_stations_screen_settings_defaults_validation_audit_and_gate(settings):
         assert {k: seen.json()["settings"][k] for k in STATIONS_DEFAULTS} == STATIONS_DEFAULTS
         assert c.patch("/api/v1/settings", json={"access.call_hint": "call"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings").json()["settings"]["access.call_hint"] == "everyone"
+
+
+def test_schedules_screen_switch_defaults_to_the_embedded_panel_validated_audited_and_gated(settings):
+    """CR-036 S9: the read-only schedules screen ("לוחות זמנים") ships behind its own per-screen switch, OFF by default
+    (`access.ui.schedules` = "wiskey": no own tab, the embedded panel keeps the schedules). Only the two values are accepted, a
+    change is audited, any user reads it (the shell routes on it), only system.configure changes it."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["access.ui.schedules"] == "wiskey"
+        r = c.patch("/api/v1/settings", json={"access.ui.schedules": "smplwise"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["access.ui.schedules"] == "smplwise"
+        assert r.json()["settings"]["access.ui.stations"] == "wiskey"  # one screen's switch never moves another's
+        for bad in ("iframe", "", "WISKEY", "native", "true"):
+            assert c.patch("/api/v1/settings", json={"access.ui.schedules": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["access.ui.schedules"] == "smplwise"  # a refused value changes nothing
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"access.ui.schedules": "smplwise"} in rows
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        seen = c.get("/api/v1/settings", headers=as_user("dana"))
+        assert seen.status_code == 200 and seen.json()["settings"]["access.ui.schedules"] == "smplwise"
+        assert c.patch("/api/v1/settings", json={"access.ui.schedules": "wiskey"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["access.ui.schedules"] == "smplwise"
 
 
 DEVICES_DEFAULTS = {

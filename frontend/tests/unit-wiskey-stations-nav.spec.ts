@@ -14,8 +14,8 @@ test.describe('the stations screen in the WisKey area navigation', () => {
   test.beforeEach(reset);
   test.afterAll(reset);
 
-  test('four screens have a switch; stations is WisKey\'s devices tab', () => {
-    expect([...WISKEY_SCREENS]).toEqual(['overview', 'events', 'people', 'stations']);
+  test('the screens with a switch; stations is WisKey\'s devices tab', () => {
+    expect([...WISKEY_SCREENS]).toEqual(['overview', 'events', 'people', 'stations', 'schedules']); // S9 added the schedules
     expect(WISKEY_SCREEN_SEGMENT.stations).toBe('devices');
     expect(wiskeyScreenOf('devices')).toBe('stations');
     expect(wiskeyScreenOf('people')).toBe('people');

@@ -687,6 +687,9 @@ def project_schedule_plans(raw: Any) -> list[dict[str, Any]]:
         users = report.get("users") if report and isinstance(report.get("users"), dict) else None
         out.append({
             "id": p["id"], "revision": _int(p.get("revision")), "station_id": p.get("station_id") if ia.valid_id(p.get("station_id")) else None,
+            # CR-036 S9: the library schedule (draft) the proposal was prepared from and its revision then - ids only, so the schedules
+            # screen can say which stations a library schedule was proposed for and whether the proposal still matches it
+            "draft_id": _id(p.get("draft_id")), "draft_revision": _int(p.get("draft_revision")),
             "name": _text(p.get("name"), 64), "created_at": _iso(p.get("created_at")),
             "source_state": _enum(p.get("source_state"), PLAN_SOURCE_STATES), "can_apply": bool(p.get("can_apply")),
             "drifted_resources": [_code(r) for r in (p.get("drifted_resources") if isinstance(p.get("drifted_resources"), list) else [])[:64]],
