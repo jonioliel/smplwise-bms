@@ -8788,8 +8788,16 @@
       "npx playwright test tests/evidence-menu-opaque.spec.ts tests/dropdown-styles.spec.ts tests/dropdown-styles-b.spec.ts tests/dropdown-capsule.spec.ts tests/evidence-dropdown-capsule.spec.ts (desktop / tablet / mobile)"
     ],
     "expected": "Every floating menu (user menu, dropdowns, popovers, pickers, search results) paints an opaque surface from one token in every skin and scheme; a drift guard refuses a new see-through menu rule.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   },
   {
     "id": "AT324",
@@ -8811,8 +8819,16 @@
       "npx playwright test tests/unit-role-editor-legacy.spec.ts tests/unit-wiskey-stations.spec.ts"
     ],
     "expected": "Opening a door needs access.doors.open (or door.unlock on the mapped lock); a custom role saved with the legacy access.release keeps exactly its doors, allows and denies; every access-control right is a permission any role may carry.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   },
   {
     "id": "AT325",
@@ -8835,8 +8851,16 @@
       "pixel-access-s12.spec.ts display images (Linux baselines)"
     ],
     "expected": "The display card of the access-control switches offers off / video / video and talk for access.station_media, saved through PATCH /settings by system.configure holders only.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   },
   {
     "id": "AT326",
@@ -8858,8 +8882,16 @@
       "npx playwright test tests/evidence-wxsch.spec.ts tests/layout-wxsch.spec.ts"
     ],
     "expected": "The station drawer links to #/wiskey/schedules on the station's first door only when the native schedules screen is on, the caller may view schedules and the station has a relay.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   },
   {
     "id": "AT327",
@@ -8881,8 +8913,16 @@
       "npx playwright test tests/unit-wxunblk.spec.ts tests/evidence-wxunblk.spec.ts tests/layout-wxunblk.spec.ts"
     ],
     "expected": "GET /doors/blocks and PUT /doors/blocks/entities/{entity_id} (system.configure, confirmed, a note required, audited, reversible) release one blocked template / universal entity; a WisKey door step, a WisKey lock or a mapped entity is never released.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   },
   {
     "id": "AT328",
@@ -8904,8 +8944,16 @@
       "evidence-replay-3d.spec.ts level-3 images (12 Linux baselines) and pixel-walk-touch.spec.ts"
     ],
     "expected": "The realistic 3D level lights its walls and ground correctly, shows ceilings in the walk, lamp pools under the fitting, the round-3 furniture and at most eight pills on a phone; levels 1-2 are unchanged.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   },
   {
     "id": "AT329",
@@ -8927,8 +8975,16 @@
       "npx playwright test tests/unit-plan-ifc.spec.ts"
     ],
     "expected": "A floor exports as IFC4 with stable GlobalIds, and an IFC4 text file (at most 32 MiB, untrusted, bounded) imports as candidates accepted through the existing detect / accept step; nothing is stored by the import.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   },
   {
     "id": "AT330",
@@ -8949,7 +9005,15 @@
       "pytest tests/test_intercom.py -k \"tts\" (test_tts_engines_and_announcement_lifecycle, test_tts_length_bucket_edges, test_tts_text_never_reaches_the_audit_log)"
     ],
     "expected": "POST /intercom/stations/{id}/tts audits the station, engine, language, a length bucket and the outcome - sent and refused alike - and no fragment of the announcement text reaches the audit log.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2410 runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2410 @ 240424e0, which contains this item and runs its listed tests; it is not an item-specific run.",
+    "commit": "240424e0",
+    "environment": "Linux test machine, release gate tier L, integ/2410 @ 240424e0 (2.4.10), backend + preview + dev + pixel + fixture suites (PASS in 106 min 38 s, 0 red, 0 flaky: backend 7133p, preview 8685p, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "executed_at": "2026-10-13T17:21:30Z",
+    "evidence": [
+      "docs/release/2.4.10-INTEGRATION-NOTES.md",
+      "docs/release/2.4.10-RELEASE-NOTES.md",
+      "gate report gate_integ-2410_240424e0.md on the test machine"
+    ]
   }
 ]
