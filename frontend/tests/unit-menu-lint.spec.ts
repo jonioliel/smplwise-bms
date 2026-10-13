@@ -283,6 +283,24 @@ test('every registered HUD panel paints var(--sw-menu-surface) (or re-points the
   expect(HUD_SURFACES.filter((h) => !hosts.has(h.file)).map((h) => `${h.file} | ${h.selector}`)).toEqual([]);
 });
 
+test('a registered HUD panel is edged by the strong border (or a hairline of a colour of its own) - never by the menu hairline or the plain border, which Bubble draws as nothing', () => {
+  // Bubble is borderless: --sw-border is transparent and --sw-menu-border is its surface colour. An opaque panel in #f6f7fc on the plan's #f4f6fa ground with
+  // such a hairline has no edge at all (its chip shape vanishes), so a HUD panel takes --sw-border-strong, the edge every skin tunes for a floating surface
+  const bad: string[] = [];
+  let seen = 0;
+  for (const m of HUD_SURFACES) {
+    if (m.via === 'fill' || m.via === 'surface-token') continue; // a label pill has its stroke; a row of shared controls has the controls' own edges
+    for (const r of (rulesByFile.get(m.file) ?? []).filter((x) => x.selectors.includes(m.selector))) {
+      for (const v of [...decls(r.body, 'border'), ...decls(r.body, 'border-color')]) {
+        seen++;
+        if (/var\(--sw-(menu-border|border)\)/.test(v)) bad.push(`${m.file} | ${m.selector}: border: ${v} - a HUD panel is edged by var(--sw-border-strong) (the menu hairline and --sw-border draw nothing in Bubble)`);
+      }
+    }
+  }
+  expect(seen, 'the scan reads the hairlines of the HUD panels').toBeGreaterThan(15);
+  expect(bad, bad.join('\n')).toEqual([]);
+});
+
 test('a rule that floats over a canvas and paints a translucent fill or a blur is a registered menu / HUD panel, or exempted with a reason; no stale exemption', () => {
   const registered = new Set([...MENU_SURFACES, ...HUD_SURFACES].map((m) => `${m.file} | ${m.selector}`));
   const flagged = new Set<string>();
@@ -305,7 +323,7 @@ test('a rule that floats over a canvas and paints a translucent fill or a blur i
     }
   }
   const stale = Object.keys(HUD_EXEMPT).filter((k) => !flagged.has(k));
-  expect(unregistered, `a rule floating over a canvas paints a translucent fill: make it opaque (background: var(--sw-menu-surface), border var(--sw-menu-border), no backdrop-filter) and add it to HUD_SURFACES in src/styles/menu-surface.ts, or add it to HUD_EXEMPT here with the reason it is not a panel:\n${unregistered.join('\n')}`).toEqual([]);
+  expect(unregistered, `a rule floating over a canvas paints a translucent fill: make it opaque (background: var(--sw-menu-surface), border var(--sw-border-strong), no backdrop-filter) and add it to HUD_SURFACES in src/styles/menu-surface.ts, or add it to HUD_EXEMPT here with the reason it is not a panel:\n${unregistered.join('\n')}`).toEqual([]);
   expect(stale, `stale HUD_EXEMPT entries (the rule is gone or now opaque):\n${stale.join('\n')}`).toEqual([]);
 });
 

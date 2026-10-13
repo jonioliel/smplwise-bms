@@ -6,8 +6,10 @@ import { SKIN_IDS, SKINS } from '../src/design/skins';
 import { skinTable } from '../src/design/css';
 import { TOKENS } from '../src/design/tokens';
 import { contrastRatio, over, parseColor, type RGBA } from '../src/design/contrast';
+import { BUILTIN_PALETTES } from '../src/design/palette';
 import { PILL_INK, pillInk } from '../src/map/pill-ink';
 import { HUD_SURFACES } from '../src/styles/menu-surface';
+import { MIN_EDGE } from './hud-opaque-harness';
 
 // The HUD panels over the plan and the 3D canvas are opaque (owner 2026-10-13, second report): the token side. Every panel paints
 // `--sw-menu-surface`; this spec proves the text it carries reads on it - the ink tokens on the surface, on the fills a panel lays over
@@ -81,6 +83,29 @@ test('text on the fills a HUD panel lays over its surface (a chip, a hover, a se
       const accent = colorOf(id, scheme, '--sw-accent');
       const rAccent = contrastRatio(over(colorOf(id, scheme, '--sw-text-inverse'), accent), accent);
       if (rAccent < 4.5) fails.push(`${id}/${scheme} --sw-text-inverse on --sw-accent (a selected chip / a pressed button): ${rAccent.toFixed(2)}`);
+    }
+  }
+  expect(fails, fails.join('\n')).toEqual([]);
+});
+
+test('the strong border draws an edge around the opaque HUD surface in every skin x scheme and every built-in Bubble palette (Bubble draws the menu hairline as nothing, so a HUD panel is edged by this one)', () => {
+  const fails: string[] = [];
+  for (const id of SKIN_IDS) {
+    for (const scheme of SCHEMES) {
+      const bg = onSurface(id, scheme);
+      const edge = over(colorOf(id, scheme, '--sw-border-strong'), bg);
+      const d = Math.hypot(edge[0] - bg[0], edge[1] - bg[1], edge[2] - bg[2]);
+      if (d < MIN_EDGE) fails.push(`${id}/${scheme}: --sw-border-strong over --sw-menu-surface is ${d.toFixed(1)} from it (< ${MIN_EDGE}): the edge would draw nothing`);
+    }
+  }
+  // a Bubble palette maps the menu surface to its elevated surface and the strong border to its border colour (design/palette.ts)
+  for (const pal of BUILTIN_PALETTES) {
+    for (const scheme of SCHEMES) {
+      const s = pal.schemes[scheme];
+      const bg = parseColor(s.surfaceElevated)!;
+      const edge = over(parseColor(s.border)!, bg);
+      const d = Math.hypot(edge[0] - bg[0], edge[1] - bg[1], edge[2] - bg[2]);
+      if (d < MIN_EDGE) fails.push(`palette ${pal.id}/${scheme}: its border over its elevated surface is ${d.toFixed(1)} from it (< ${MIN_EDGE})`);
     }
   }
   expect(fails, fails.join('\n')).toEqual([]);

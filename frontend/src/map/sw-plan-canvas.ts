@@ -1169,7 +1169,7 @@ export class SwPlanCanvas extends LitElement {
     }
     .ruler rect {
       fill: var(--sw-menu-surface);
-      stroke: var(--sw-menu-border);
+      stroke: var(--sw-border-strong);
     }
     .ruler text {
       fill: var(--sw-text);
@@ -1199,7 +1199,7 @@ export class SwPlanCanvas extends LitElement {
       gap: 2px;
       /* the zoom buttons and the readout float over the drawing: opaque (owner 2026-10-13, styles/menu-surface.ts) */
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: 10px;
       box-shadow: var(--sw-shadow-2);
       padding: 3px;
@@ -1212,7 +1212,7 @@ export class SwPlanCanvas extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 2px 8px;
       z-index: var(--sw-z-map-ui);

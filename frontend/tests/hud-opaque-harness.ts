@@ -164,11 +164,46 @@ export async function expectReadable(surface: Locator, label: string): Promise<I
   return r.texts;
 }
 
-/** A HUD panel painted with the menu surface: opaque, un-blurred, un-faded, its paint IS the token - and its text reads. `readable: false` for a panel
- * with no text of its own (the 2D canvas' zoom buttons are icons). */
-export async function expectOpaqueHud(surface: Locator, label: string, readable = true): Promise<MenuPaint> {
+/** The hairline of a panel against its own fill: the border colour laid over the background, and how far apart the two are in sRGB (0 = the edge draws
+ * nothing). `width` 0 / `style` none = the panel has no hairline (its edge, if any, is a shadow). The colours are read through a canvas pixel, so every
+ * syntax the browser computes (rgb, rgba, color(), oklab() of a color-mix) is handled the same way. */
+export async function edgeOf(surface: Locator): Promise<{ width: number; style: string; border: string; bg: string; distance: number }> {
+  return surface.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const px = (c: string): [number, number, number, number] => {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 1;
+      const g = cv.getContext('2d', { willReadFrequently: true })!;
+      g.clearRect(0, 0, 1, 1);
+      g.fillStyle = '#000';
+      g.fillStyle = c;
+      g.fillRect(0, 0, 1, 1);
+      const d = g.getImageData(0, 0, 1, 1).data;
+      return [d[0], d[1], d[2], d[3] / 255];
+    };
+    const bg = px(cs.backgroundColor);
+    const bd = px(cs.borderTopColor);
+    // the fill extends under the border (background-clip: border-box): the hairline is its colour laid over the fill
+    const edge = [0, 1, 2].map((i) => bd[i] * bd[3] + bg[i] * (1 - bd[3]));
+    const distance = Math.hypot(edge[0] - bg[0], edge[1] - bg[1], edge[2] - bg[2]);
+    return { width: parseFloat(cs.borderTopWidth) || 0, style: cs.borderTopStyle, border: cs.borderTopColor, bg: cs.backgroundColor, distance: Math.round(distance * 10) / 10 };
+  });
+}
+
+/** The least sRGB distance between a panel's hairline and its fill that still draws an edge (the strong border of every skin x scheme is 35 or more). */
+export const MIN_EDGE = 24;
+
+/** A HUD panel painted with the menu surface: opaque, un-blurred, un-faded, its paint IS the token - and its text reads, and a hairline it has shows
+ * against the fill (Bubble's MENU hairline is its surface colour: an opaque panel in it on the light plan ground would have no edge at all, so a HUD
+ * panel is edged by the strong border). `readable: false` for a panel with no text of its own (the 2D canvas' zoom buttons are icons); `edge: false`
+ * for a MENU that opens over the dark 3D canvas (the time picker, the walk's phone sheet: they keep the menu hairline, the fill is their edge there). */
+export async function expectOpaqueHud(surface: Locator, label: string, readable = true, edge = true): Promise<MenuPaint> {
   const p = await expectOpaqueMenu(surface, label);
   if (readable) await expectReadable(surface, label);
+  const e = await edgeOf(surface);
+  if (edge && e.width > 0 && e.style !== 'none') {
+    expect(e.distance, `${label}: its hairline ${e.border} must show against its fill ${e.bg} (distance ${e.distance} < ${MIN_EDGE}: the edge draws nothing)`).toBeGreaterThanOrEqual(MIN_EDGE);
+  }
   return p;
 }
 

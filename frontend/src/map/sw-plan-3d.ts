@@ -362,9 +362,9 @@ export class SwPlan3d extends LitElement {
       gap: 4px;
       padding: 3px;
       border-radius: 999px;
-      /* a HUD panel over the 3D canvas is opaque (owner 2026-10-13, styles/menu-surface.ts): the menu surface and its hairline, no blur */
+      /* a HUD panel over the 3D canvas is opaque (owner 2026-10-13, styles/menu-surface.ts): the menu surface and the strong hairline, no blur */
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
       direction: rtl;
     }
@@ -501,7 +501,7 @@ export class SwPlan3d extends LitElement {
       gap: 2px;
       padding: 4px;
       inline-size: 96px;
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-menu-surface);
       color: var(--sw-text-2);
@@ -572,7 +572,7 @@ export class SwPlan3d extends LitElement {
       top: 0;
       transform: translate(-50%, -50%);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 1px 7px;
       font: inherit;
@@ -601,7 +601,7 @@ export class SwPlan3d extends LitElement {
       inset-inline-start: 12px;
       inset-block-start: 12px;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 1px 8px;
       font-size: var(--sw-fs-xs);
@@ -614,7 +614,7 @@ export class SwPlan3d extends LitElement {
       z-index: var(--sw-z-map-ui);
       pointer-events: none;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       padding: 3px 8px;
       font-size: var(--sw-fs-xs);
@@ -632,7 +632,7 @@ export class SwPlan3d extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 2px 8px;
       direction: rtl;
@@ -665,7 +665,7 @@ export class SwPlan3d extends LitElement {
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 4px 12px;
       font-size: var(--sw-fs-xs);
@@ -719,7 +719,7 @@ export class SwPlan3d extends LitElement {
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 4px 12px;
       font-size: var(--sw-fs-xs);

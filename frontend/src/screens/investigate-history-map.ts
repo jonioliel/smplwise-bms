@@ -198,7 +198,7 @@ export class InvestigateHistoryMap extends LitElement {
       gap: 12px;
       /* the HUD panels over the plan are opaque (owner 2026-10-13, styles/menu-surface.ts): the legend was a white 92 % pill with the dark scheme's light ink on it */
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 3px 10px;
       font-size: var(--sw-fs-xs);
@@ -210,7 +210,7 @@ export class InvestigateHistoryMap extends LitElement {
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 5px 10px;
       font-size: var(--sw-fs-sm);

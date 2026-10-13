@@ -321,7 +321,7 @@ test.describe('the HUD panels over the plan and the 3D canvas are opaque in ever
         await whenQuiet(page); // the realistic level compiles its post chain on the main thread (software GL): the page answers again when that is done
         await expectOpaqueHud(time, `time pill ${skin}/${scheme}`);
         await time.locator('[data-3d-time-toggle]').evaluate((b) => (b as HTMLElement).click());
-        await expectOpaqueHud(el.locator('[data-3d-time-pop]'), `time picker ${skin}/${scheme}`);
+        await expectOpaqueHud(el.locator('[data-3d-time-pop]'), `time picker ${skin}/${scheme}`, true, false); // a menu over the dark canvas: its fill is its edge
         if (!isPhone(info)) await hudShot(page, `after-demotime-${skin}-${scheme}-1440`);
       });
 
@@ -345,7 +345,7 @@ test.describe('the HUD panels over the plan and the 3D canvas are opaque in ever
         await expect(el).toHaveAttribute('data-walk', '');
         const bar = el.locator(isPhone(info) ? '[data-walk-sheet]' : '.walkbar');
         await expect(bar).toBeVisible();
-        await expectOpaqueHud(bar, `walk ${isPhone(info) ? 'sheet' : 'bar'} ${skin}/${scheme}`);
+        await expectOpaqueHud(bar, `walk ${isPhone(info) ? 'sheet' : 'bar'} ${skin}/${scheme}`, true, !isPhone(info)); // the phone sheet is a menu over the dark canvas, the bar a panel with the strong hairline
       });
     }
   }

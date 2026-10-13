@@ -23,8 +23,13 @@
  * buttons, the circuit buttons, the selection bar, the side list, the zoom controls and the scale, the 3D time pill, the view / quality bar,
  * the level thumbnails, the entity and room-name pills, the hover tip, the notes and toasts, the walk bar, the editor's tool rail. Over a
  * drawing that is all lines and labels a see-through panel overlaps its own text with what lies behind it - the same bug as a menu's, so a
- * HUD panel is painted exactly like one: `background: var(--sw-menu-surface)`, the hairline `var(--sw-menu-border)`, no `backdrop-filter`.
- * One token pair, not a second family: the skins, the bubble palettes, the glass bridge and every dial already keep it opaque.
+ * HUD panel is painted like one: `background: var(--sw-menu-surface)`, no `backdrop-filter`. Its hairline is the skin's STRONG border,
+ * `var(--sw-border-strong)`, not the menu hairline: a menu floats over a page, a HUD panel over a drawing on a light ground, and Bubble's
+ * menu hairline is its own surface colour (the skin is borderless, so a menu gets its edge from the pop-up ring and the shadow in the skin's
+ * own rules) - an opaque panel in that colour on the plan's ground (#f6f7fc on #f4f6fa) has no edge at all, its chip shape disappears.
+ * The strong border is the edge every skin already tunes for an opaque floating surface (Tesla's popover and dialog, Bubble's pop-up ring),
+ * it is bridged by the glass screens, and it is a colour token: no skin rule is needed (Bubble stays at 50).
+ * No second token family: the skins, the bubble palettes, the glass bridge and every dial already keep the surface opaque.
  *   - A HUD panel that is ONE box paints the token itself (`via: 'background'`).
  *   - A row of shared controls (sw-chip, sw-button, a select) floating on the canvas with no box of its own re-points `--sw-surface` at the
  *     menu surface and `--sw-surface-2` (their hover fill) at that surface washed 8 % towards the ink on the container (`via: 'surface-token'`),

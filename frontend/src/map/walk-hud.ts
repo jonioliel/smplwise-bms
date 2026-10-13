@@ -236,9 +236,9 @@ export class SwWalkHud extends LitElement {
       gap: var(--sw-s-2);
       padding: 6px 8px;
       border-radius: var(--sw-r-md);
-      /* over the live 3D scene the bar is opaque (owner 2026-10-13, like the phone sheet below): the menu surface and its hairline, no blur */
+      /* over the live 3D scene the bar is opaque (owner 2026-10-13, like the phone sheet below): the menu surface and the strong hairline, no blur */
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       box-shadow: var(--sw-shadow-1);
       max-inline-size: calc(100% - 24px);
       overflow-x: auto;

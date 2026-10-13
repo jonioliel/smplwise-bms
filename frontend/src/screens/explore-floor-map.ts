@@ -320,8 +320,9 @@ export class ExploreFloorMap extends LitElement {
       overflow: auto;
     }
     /* HUD panels over the plan are opaque (owner 2026-10-13, tokens: styles/menu-surface.ts): the quick floor buttons, the floor chip, the
-       level bar, the circuit buttons, the selection bar, the side list, the legend and the floor strip paint the menu surface and its
-       hairline, with no blur - a see-through panel overlaps its own text with the drawing behind it */
+       level bar, the circuit buttons, the selection bar, the side list, the legend and the floor strip paint the menu surface and the strong
+       hairline (Bubble's menu hairline is its own surface: no edge on the plan's ground), with no blur - a see-through panel overlaps its own
+       text with the drawing behind it */
     .floorbtns button {
       font: inherit;
       font-size: var(--sw-fs-xs);
@@ -329,7 +330,7 @@ export class ExploreFloorMap extends LitElement {
       min-inline-size: 38px;
       padding: 6px 8px;
       border-radius: var(--sw-r-sm);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       background: var(--sw-menu-surface);
       color: var(--sw-text-2);
       cursor: pointer;
@@ -401,7 +402,7 @@ export class ExploreFloorMap extends LitElement {
       align-items: center;
       gap: 6px;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 6px 10px;
       font-size: var(--sw-fs-sm);
@@ -418,7 +419,7 @@ export class ExploreFloorMap extends LitElement {
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: 999px;
       padding: 4px 8px;
       box-shadow: var(--sw-shadow-1);
@@ -449,7 +450,7 @@ export class ExploreFloorMap extends LitElement {
       align-items: center;
       text-align: start;
       padding: 6px 10px;
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       background: var(--sw-menu-surface);
       box-shadow: var(--sw-shadow-1);
@@ -495,7 +496,7 @@ export class ExploreFloorMap extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       padding: 3px 7px; /* 4 / 8 minus the hairline: the box keeps its size */
     }
@@ -667,7 +668,7 @@ export class ExploreFloorMap extends LitElement {
       inline-size: 236px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-2);
       display: flex;
@@ -802,7 +803,7 @@ export class ExploreFloorMap extends LitElement {
       display: flex;
       gap: 10px;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 3px 10px;
       font-size: var(--sw-fs-xs);
@@ -1110,7 +1111,7 @@ export class ExploreFloorMap extends LitElement {
       flex-direction: column;
       gap: 4px;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 4px;
       box-shadow: var(--sw-shadow-2);

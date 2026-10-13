@@ -243,7 +243,7 @@ export class InvestigateEventDetail extends LitElement {
       align-items: center;
       gap: 5px;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       padding: 3px 8px;
       font-size: var(--sw-fs-xs);

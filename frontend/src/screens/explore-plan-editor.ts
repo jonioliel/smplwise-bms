@@ -387,7 +387,7 @@ export class ExplorePlanEditor extends LitElement {
       gap: 4px;
       /* the HUD panels over the plan are opaque (owner 2026-10-13, styles/menu-surface.ts): the tool rail, the floor chip, the level bar and the legend */
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-2);
       padding: 5px;
@@ -430,7 +430,7 @@ export class ExplorePlanEditor extends LitElement {
       gap: 8px;
       padding: 8px 12px;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-1);
       font-size: var(--sw-fs-sm);
@@ -531,7 +531,7 @@ export class ExplorePlanEditor extends LitElement {
       display: flex;
       gap: 12px;
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 5px 10px;
       font-size: var(--sw-fs-xs);
@@ -870,7 +870,7 @@ export class ExplorePlanEditor extends LitElement {
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-menu-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-2xl); /* a pill on one row; a rounded card, not a blob, when a narrow canvas wraps it */
       padding: 4px 8px;
       box-shadow: var(--sw-shadow-1);
