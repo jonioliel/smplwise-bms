@@ -71,6 +71,7 @@ const he = {
   sharedOutsideSub: 'למשל אינטרקום או טלפון של אדם',
   pacing: 'קצב שליחה',
   pacingSub: 'משותף לכל השימושים של החשבון',
+  pacingSummary: '{hour} בשעה · {day} ביממה · מרווח {gap} שניות',
   p_min_gap_s: 'מרווח מזערי (שניות)',
   p_jitter_s: 'תוספת אקראית (שניות)',
   p_per_hour: 'בשעה',

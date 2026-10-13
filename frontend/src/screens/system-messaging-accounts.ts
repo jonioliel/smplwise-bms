@@ -167,11 +167,22 @@ export class SystemMessagingAccounts extends LitElement {
     .in.num {
       inline-size: 96px;
     }
+    /* a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
+    .row.stack .lbl {
+      flex: none;
+    }
     .warnline {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
       margin-block-start: 4px;
+      min-inline-size: 0;
+    }
+    /* a warning is a sentence: it wraps inside its row on a narrow phone instead of leaving the card */
+    .warnline .tag {
+      white-space: normal;
+      max-inline-size: 100%;
+      box-sizing: border-box;
     }
     .usegroup {
       border-block-start: 1px solid var(--sw-border);
@@ -360,6 +371,15 @@ export class SystemMessagingAccounts extends LitElement {
     this.fieldErrors = {};
   }
 
+  /** Select an account; on a one-column layout (phone, tablet) the selected card lies below the lists - bring it into view. */
+  private select(key: string): void {
+    this.selected = key;
+    this.pacingOpen = false;
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      void this.updateComplete.then(() => this.renderRoot.querySelector('[data-card="selected"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    }
+  }
+
   private removeAccount(key: string): void {
     if (!this.draft || usesOf(this.draft, key).length) return;
     this.draft = { ...this.draft, accounts: this.draft.accounts.filter((a) => a.key !== key) };
@@ -401,7 +421,7 @@ export class SystemMessagingAccounts extends LitElement {
     const cap = draft.accounts.find((a) => a.key === key)?.pacing.per_day ?? v?.pacing.per_day ?? 0;
     const shared = accountWarnings(view, key).some((w) => w.code !== 'maybe_same_number') || draft.accounts.find((a) => a.key === key)?.shared_outside;
     const line = [uses.length ? wt('usedBy', { uses: usesText(view, uses) }) : wt('unused'), wt('sends', { n: v?.sends_24h ?? 0, cap })].join(' · ');
-    return html`<button type="button" class="acc" aria-pressed=${String(this.selected === key)} data-account=${key} @click=${() => { this.selected = key; this.pacingOpen = false; }}>
+    return html`<button type="button" class="acc" aria-pressed=${String(this.selected === key)} data-account=${key} @click=${() => this.select(key)}>
       <sw-icon name="signal" size="18"></sw-icon>
       <span class="nm"><b>${bidi(displayLabel(view, draft, key))}${v?.last4 ? html` <span class="ltr muted">····${v.last4}</span>` : nothing}${v?.kind === 'manual' || !v ? html` <span class="tag mute">${wt('manualTag')}</span>` : nothing}</b>
         <small>${line}</small></span>
@@ -482,7 +502,7 @@ export class SystemMessagingAccounts extends LitElement {
           @input=${(e: Event) => { this.ensureDraftAccount(key); this.setAccount(key, { label: (e.target as HTMLInputElement).value }); }} /></div>
       ${kind === 'manual' ? html`
         <div class="row stack"><label class="lbl" for="mv">${wt('manualValue')}<span class="muted">${wt('manualValueSub')}</span></label>
-          <input id="mv" class="in ltr" dir="ltr" maxlength="64" data-manual-value .value=${d?.account ?? (view.can_manage ? '' : v?.last4 ? `····${v.last4}` : '')} ?disabled=${!ed}
+          <input id="mv" class="in ltr" dir="ltr" maxlength="64" data-manual-value .value=${view.can_manage ? d?.account ?? '' : v?.last4 ? `····${v.last4}` : ''} ?disabled=${!ed}
             aria-invalid=${String(!!fe[`accounts.account`])} @input=${(e: Event) => this.setAccount(key, { account: (e.target as HTMLInputElement).value })} /></div>
         <div class="row stack"><label class="lbl" for="se">${wt('manualStatus')}</label>
           <input id="se" class="in ltr" dir="ltr" maxlength="120" data-manual-status .value=${d?.status_entity_id ?? ''} ?disabled=${!ed}
@@ -491,7 +511,7 @@ export class SystemMessagingAccounts extends LitElement {
         <sw-toggle label=${wt('sharedOutside')} labelHidden data-shared-outside .checked=${d?.shared_outside ?? v?.shared_outside ?? false} ?disabled=${!ed}
           @change=${(e: CustomEvent<{ checked: boolean }>) => { this.ensureDraftAccount(key); this.setAccount(key, { shared_outside: e.detail.checked }); }}></sw-toggle></div>
       <div class="row stack"><span class="lbl">${wt('pacing')}<span class="muted">${wt('pacingSub')}</span></span>
-        <button type="button" class="linkbtn" aria-expanded=${String(this.pacingOpen)} data-pacing-toggle @click=${() => (this.pacingOpen = !this.pacingOpen)}>${`${pacing.per_hour} / ${pacing.per_day} · ${pacing.min_gap_s}s`}</button>
+        <button type="button" class="linkbtn" aria-expanded=${String(this.pacingOpen)} data-pacing-toggle @click=${() => (this.pacingOpen = !this.pacingOpen)}>${wt('pacingSummary', { hour: pacing.per_hour, day: pacing.per_day, gap: pacing.min_gap_s })}</button>
         ${this.pacingOpen ? html`<div class="pace" data-pacing>${PACING_KEYS.map((k: PacingKey) => html`<label>${wt(`p_${k}` as WaTextKey)}
           <input class="in num" type="number" inputmode="numeric" min=${view.pacing_ranges[k][0]} max=${view.pacing_ranges[k][1]} data-pace=${k} .value=${String(pacing[k])} ?disabled=${!ed}
             aria-invalid=${String(!!fe[`pacing.${k}`])} @input=${(e: Event) => { this.ensureDraftAccount(key); this.setAccount(key, { pacing: { ...pacing, [k]: Number((e.target as HTMLInputElement).value) } }); }} />
@@ -510,7 +530,7 @@ export class SystemMessagingAccounts extends LitElement {
     return html`<sw-dialog heading=${wt('manualTitle')} .open=${this.manualOpen} data-manual-dialog @close=${() => (this.manualOpen = false)}>
       <div class="form">
         <label>${wt('labelField')}<input class="in" maxlength=${LABEL_MAX} data-manual-label .value=${this.manual.label} @input=${(e: Event) => (this.manual = { ...this.manual, label: (e.target as HTMLInputElement).value })} /></label>
-        <label>${wt('manualValue')}<span class="muted">${wt('manualValueSub')}</span><input class="in ltr" dir="ltr" maxlength="64" data-manual-new-value aria-invalid=${String(!!err)} .value=${this.manual.value} @input=${(e: Event) => (this.manual = { ...this.manual, value: (e.target as HTMLInputElement).value })} />
+        <label>${wt('manualValue')}<span class="muted">${wt('manualValueSub')}</span><input class="in ltr" dir="ltr" maxlength="64" data-manual-new-value aria-invalid=${String(!!err)} .value=${this.manual.value} @input=${(e: Event) => { this.manual = { ...this.manual, value: (e.target as HTMLInputElement).value }; this.fieldErrors = {}; }} />
           ${err ? html`<span class="field-error" data-manual-error>${err}</span>` : nothing}</label>
         <label>${wt('manualStatus')}<input class="in ltr" dir="ltr" maxlength="120" data-manual-new-status .value=${this.manual.entity} @input=${(e: Event) => (this.manual = { ...this.manual, entity: (e.target as HTMLInputElement).value })} /></label>
       </div>
