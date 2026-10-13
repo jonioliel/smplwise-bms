@@ -154,6 +154,13 @@ def page_fields(document_key: object, page_no: object) -> tuple[str | None, int 
     return key, page
 
 
+def check_pending_quota(pending_count: int) -> None:
+    """Spec 11A.6: at most 30 pending (uploaded, not yet submitted) files per link -> 409 `file_limit` (the hourly 40 is the
+    public rate gate's `token_claim_files`)."""
+    if pending_count >= MAX_PENDING_PER_LINK:
+        raise IntakeError("file_limit", 409)
+
+
 def assemble_documents(documents: Sequence[Sequence[str]], pending: Mapping[str, PendingFile], *, link_id: str,
                        now: float) -> list[list[PendingFile]]:
     """The documents of one submission in the order given: each a list of file ids (one PDF, or 1-10 photographed pages in page

@@ -173,6 +173,13 @@ def test_page_fields_refusals(key, page):
         cf.page_fields(key, page)
 
 
+def test_pending_file_quota_per_link():
+    cf.check_pending_quota(29)
+    with pytest.raises(IntakeError) as e:
+        cf.check_pending_quota(30)
+    assert (e.value.code, e.value.status) == ("file_limit", 409)
+
+
 def test_download_and_inline_headers():
     h = cf.pdf_download_headers(1042, 2)
     assert h == {"Content-Type": "application/pdf", "Content-Disposition": 'attachment; filename="ticket-1042-invoice-2.pdf"',

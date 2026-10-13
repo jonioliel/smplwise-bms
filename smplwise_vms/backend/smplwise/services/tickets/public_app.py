@@ -40,6 +40,7 @@ from . import image_intake, links
 from .codes import CodeEngine, CodeRefused
 from .cost_files import photo_headers
 from .image_intake import InFlight, IntakeError, StorageMeter
+from .module_key import ModuleKeyError
 from .public_http import (PHOTO_MAX, ROUTES, STATE_KEY, UNIFORM_404, BodyDeadline, BodyTooLarge, PublicEdge, PublicRequest,
                           RouteRule)
 from .public_log import PublicStats
@@ -410,7 +411,10 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         if released is None or link is None or link.generation != released[1] or not link.available(now):
             gate.failure(pr.net)
             raise unavailable()
-        token = links.derive_token(deps.key(), link.link_id, link.generation)
+        try:
+            token = links.derive_token(deps.key(), link.link_id, link.generation)
+        except ModuleKeyError:
+            raise unavailable() from None  # no key (a /data restored without secrets/): fail closed, say nothing
         gate.success(links.limiter_key(links.token_hash(token)))
         return JSONResponse({"token": token})
 
@@ -439,6 +443,8 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
             issued = await run_in_threadpool(engine.issue, ctx.link, channel)
         except CodeRefused as exc:
             raise _code_refused(exc) from None
+        except ModuleKeyError:
+            raise PublicError(503, "code_unavailable") from None
         if not await run_in_threadpool(sender.send, ctx.link, issued.code_id, channel):
             await run_in_threadpool(engine.withdraw, ctx.link, issued.code_id)
             raise PublicError(503, "code_unavailable")
@@ -455,6 +461,8 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
             verified = await run_in_threadpool(deps.codes.verify, ctx.link, body.code)
         except CodeRefused as exc:
             raise _code_refused(exc) from None
+        except ModuleKeyError:
+            raise PublicError(503, "code_unavailable") from None
         return JSONResponse({"session": verified.session, "expires_in_s": int(verified.expires_at - deps.clock())})
 
     # ---------------------------------------------------------------- photos (spec 10.6)

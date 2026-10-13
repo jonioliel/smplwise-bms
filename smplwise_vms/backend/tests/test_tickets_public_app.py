@@ -455,6 +455,21 @@ def test_redeem_refusals_are_uniform(w):
     assert all(a == answers[0] for a in answers)
 
 
+def test_a_missing_module_key_fails_closed(tmp_path):
+    from smplwise.services.tickets.module_key import ModuleKey
+
+    w = build_world(tmp_path)
+    missing = ModuleKey(tmp_path / "no-data")  # never enabled / restored without secrets/
+    w.app.deps.key = missing
+    w.engine._key = missing  # noqa: SLF001
+    link, tok = w.links.add(require_code=True)
+    plain, _ = w.links.add()
+    rid = w.redeems.add(plain, w.clock())
+    c = w.client()
+    assert c.post("/t/api/redeem", json={"rid": rid}).content == b'{"code":"link_unavailable"}'
+    assert c.post("/t/api/code/send", json={}, headers={"x-ticket-token": tok}).json() == {"code": "code_unavailable"}
+
+
 def test_redeem_is_rate_limited_per_network(w):
     c = w.client(peer="192.0.2.77")
     codes = [c.post("/t/api/redeem", json={"rid": links.new_redeem_id()}).status_code for _ in range(12)]
