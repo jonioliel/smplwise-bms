@@ -303,6 +303,7 @@ class PublicEdge:
                 await self._handle(scope, receive, send, started, box)
             else:
                 self.stats.bump("busy_refusals")
+                box["template"] = "(busy)"  # not routed: refused before anything was looked at
                 has_body = any(k.lower() in (b"content-length", b"transfer-encoding") and v.strip() not in (b"", b"0")
                                for k, v in scope.get("headers") or [])
                 await self._plain(send, box, 503, BUSY_503, close=has_body,
