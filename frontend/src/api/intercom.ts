@@ -378,18 +378,46 @@ export interface IntercomEditorStation extends IntercomPersonStation {
   applied_revision: number | null;
 }
 
-/** One person for editing (routers/access_control.py `person_editor`, intercom_sync.project_person_editor): the read
- * projection plus phone, the PIN flag (never a value), the masked cards, overrides, `identity_locked` and
- * `has_timing` (a weekly / dates schedule or an enforced timing policy exists - slice A3 edits it; a save from this
- * editor never touches it). */
-export interface IntercomEditorPerson extends Omit<IntercomPerson, 'stations'> {
-  phone: string;
+/** A timing schedule as WisKey keeps it (access/user_timing.py): weekly days (WisKey's English names, Monday first) or calendar
+ * dates (YYYY-MM-DD), and up to eight HH:MM windows (an end may be 24:00), in an IANA zone. */
+export interface IntercomTimingSchedule {
+  mode: 'weekly' | 'dates' | 'unknown';
+  timezone: string | null;
+  days: string[];
+  dates: string[];
+  periods: { start: string; end: string }[];
+}
+
+/** The enforced timing policy: `ha` = enforced by the system through the access window it renews; `native` = the device's own
+ * schedule, bound per station to device slots (edited only through the API; the screen shows it). */
+export interface IntercomTimingPolicy {
+  mode: 'ha' | 'native' | 'unknown';
+  schedule: IntercomTimingSchedule | null;
+  bindings: Record<string, { template: number | null; weekly: number | null; holiday_group: number | null; holidays: number[] }>;
+}
+
+/** One person for editing (routers/access_control.py `person_editor`, intercom_writes.project_editor): the read projection plus
+ * phone, the PIN flag (never a value), the masked cards, overrides, `identity_locked`, `has_timing` and (CR-036 S11) the archive
+ * state, the access category, the responsible person and purpose, the photo flag and the timing proposal / policy - at the
+ * caller's field level (`level`): below the sensitive level phone, the PIN flag, the cards, the photo flag, the responsible
+ * person and purpose are null (not shown - never "none"). */
+export interface IntercomEditorPerson extends Omit<IntercomPerson, 'stations' | 'employee_no'> {
+  employee_no: string | null;
+  phone: string | null;
   identity_locked: boolean;
-  pin_configured: boolean;
-  cards: IntercomEditorCard[];
+  pin_configured: boolean | null;
+  cards: IntercomEditorCard[] | null;
   permission_overrides: Record<string, 'allow' | 'deny'>;
   has_timing: boolean;
   stations: IntercomEditorStation[];
+  level?: 'names' | 'sensitive';
+  archived?: boolean;
+  access_category?: 'staff' | 'visitor' | 'contractor' | 'unknown';
+  responsible_person?: string | null;
+  access_purpose?: string | null;
+  photo_configured?: boolean | null;
+  timing_draft?: IntercomTimingSchedule | null;
+  timing_policy?: IntercomTimingPolicy | null;
 }
 
 /** What the editor needs from WisKey's overview (intercom_sync.project_editor_context): the stations with their relays
@@ -403,6 +431,10 @@ export interface IntercomEditorContext {
   writes_listed: boolean | null;
   users_manage: boolean | null;
   profile_policy: { revision: number | null; groups: number; fields: number } | null;
+  /** CR-036 S11: the stations (of the listed ones - those the caller manages) where the caller may also read a card. */
+  capture_stations?: string[];
+  /** CR-036 S11: this caller, in this session, may generate a PIN (the permission and an interactive session). */
+  pin_generate?: boolean;
 }
 
 /** A card of the draft as sent (WisKey CARD_FIELDS): a saved card by `id` (its stored number stays in WisKey) or a new
@@ -426,6 +458,13 @@ export interface IntercomPersonDraft {
   permission_overrides?: Record<string, 'allow' | 'deny'>;
   door_permissions?: Record<string, number[]>;
   access_policy_revision?: number;
+  /** CR-036 S11: the access category (a visitor / contractor needs a responsible person and an end date), and the timing: the
+   * proposal (never a grant) or the system-enforced policy; null clears it. */
+  access_category?: 'staff' | 'visitor' | 'contractor';
+  responsible_person?: string;
+  access_purpose?: string;
+  access_timing_draft?: { mode: 'weekly' | 'dates'; timezone: string; days: string[]; dates: string[]; periods: { start: string; end: string }[] } | null;
+  access_timing_policy?: { mode: 'ha'; schedule: { mode: 'weekly' | 'dates'; timezone: string; days: string[]; dates: string[]; periods: { start: string; end: string }[] }; bindings: Record<string, never> } | null;
 }
 
 export type IntercomEditorContextReply = ReadReply<'context', IntercomEditorContext>;
@@ -434,8 +473,14 @@ export type IntercomPinReply = ReadReply<'pin', { pin: string }>;
 /** A save's reply: `person` is the saved record as WisKey returned it (WisKey accepted it into its store; the stations
  * follow through WisKey's own sync, per assignment `sync_state`). Anything short of that is thrown as an ApiError whose
  * `details.outcome` is `not_sent`, `refused` (`intercom_pin_conflict`, `intercom_revision_conflict`, ...) or `unknown`. */
-export type IntercomPersonSaveReply = Actioned<ActionReply<'person', IntercomEditorPerson> & { note: string }>;
-export type IntercomPersonDeleteReply = Actioned<ActionReply<'deleted', { accepted: boolean }> & { note: string }>;
+/** CR-036 S11: every write reply says its effect class: `sync` = stored, the stations follow; `unknown_effect` (delete, the card
+ * capture commands) = sent, the result is PENDING until a read shows it - never shown as done. */
+export interface WriteEffect {
+  effect?: 'sync' | 'unknown_effect' | 'personal_value';
+  pending?: boolean;
+}
+export type IntercomPersonSaveReply = Actioned<ActionReply<'person', IntercomEditorPerson> & { note: string } & WriteEffect>;
+export type IntercomPersonDeleteReply = Actioned<ActionReply<'deleted', { accepted: boolean }> & { note: string } & WriteEffect>;
 
 export const getIntercomEditorContext = () => get<IntercomEditorContextReply>('intercom/people-editor/context');
 export const getIntercomPersonForEdit = (userId: string) => get<IntercomEditorPersonReply>(`intercom/people/${encodeURIComponent(userId)}/editor`);
@@ -501,8 +546,8 @@ export interface IntercomCapture {
   reader_may_be_collecting: boolean;
 }
 
-export type IntercomCaptureStartReply = Actioned<ActionReply<'capture', IntercomCapture> & { note: string }>;
-export type IntercomCaptureCancelReply = Actioned<ActionReply<'cancelled', { cancelled: boolean }> & { note: string; capture: IntercomCapture }>;
+export type IntercomCaptureStartReply = Actioned<ActionReply<'capture', IntercomCapture> & { note: string } & WriteEffect>;
+export type IntercomCaptureCancelReply = Actioned<ActionReply<'cancelled', { cancelled: boolean }> & { note: string; capture: IntercomCapture } & WriteEffect>;
 export type IntercomCaptureConfirmReply = IntercomPersonSaveReply & { capture: IntercomCapture };
 
 export const getIntercomCardReaders = (stationId: string) => get<IntercomReadersReply>(`${station(stationId)}/card-readers`);

@@ -12,6 +12,8 @@
  *   manage        access.people.manage    the person editor (sensitive)
  *   call          access.call             answer / reject / hang up, spoken announcement (sensitive; endpoints move in S11)
  *   admin         access.admin.read       Settings: health, sync, alerts, the intercom's own action log
+ *   capture       access.cards.capture    reading a card at a station's reader (sensitive; with manage)
+ *   pin           access.pin.generate     generating a person's PIN, shown once (S11; sensitive; with manage)
  * The labels must equal the backend's routers/access.py PERMISSION_LABELS (tests/test_intercom_authority.py compares them).
  */
 import { canAnywhere, isApi, onSession } from '../api/session';
@@ -27,6 +29,7 @@ export const ACCESS_CONTROL_PERMISSIONS = [
   'access.schedules.manage',
   'access.stations.manage',
   'access.groups.manage',
+  'access.pin.generate',
 ] as const;
 export type AccessControlPermission = (typeof ACCESS_CONTROL_PERMISSIONS)[number];
 
@@ -42,6 +45,7 @@ export const ACCESS_CONTROL_PERMISSION_LABELS: Record<AccessControlPermission, s
   'access.schedules.manage': 'בקרת כניסה: עריכת לוחות זמנים של דלתות',
   'access.stations.manage': 'בקרת כניסה: עריכת הגדרות עמדה (תוכניות דלת, החזקה פתוחה, קודים ציבוריים)',
   'access.groups.manage': 'בקרת כניסה: עריכת קבוצות ושדות פרופיל',
+  'access.pin.generate': 'בקרת כניסה: יצירת קוד PIN לאדם (מוצג פעם אחת למבקש; דורש גם ניהול אנשים)',
 };
 
 /** The label of any permission id when it is one of the above (undefined otherwise), for label lookups keyed by a plain string. */
@@ -57,12 +61,15 @@ export interface AccessControlAccess {
   manage: boolean;
   call: boolean;
   admin: boolean;
+  /** S11: card capture from a station reader (access.cards.capture) and PIN generation (access.pin.generate), at any scope. */
+  capture: boolean;
+  pin: boolean;
 }
 
 /** The caller's permissions at any scope (a station-scoped binding counts): what a screen offers. Without a backend (static
  * preview) everything is offered; the demo data carries nothing real. */
 export function accessControlAccess(): AccessControlAccess {
-  if (!isApi()) return { read: true, stations: true, events: true, export: true, people: true, sensitive: true, manage: true, call: true, admin: true };
+  if (!isApi()) return { read: true, stations: true, events: true, export: true, people: true, sensitive: true, manage: true, call: true, admin: true, capture: true, pin: true };
   return {
     read: canAnywhere('access.read'),
     stations: canAnywhere('access.stations.read'),
@@ -73,6 +80,8 @@ export function accessControlAccess(): AccessControlAccess {
     manage: canAnywhere('access.people.manage'),
     call: canAnywhere('access.call'),
     admin: canAnywhere('access.admin.read'),
+    capture: canAnywhere('access.cards.capture'),
+    pin: canAnywhere('access.pin.generate'),
   };
 }
 

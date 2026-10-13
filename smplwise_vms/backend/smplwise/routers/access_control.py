@@ -51,6 +51,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import go2rtc as g2
 from ..services import intercom_adapter, intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from ..services import intercom_authority as ia
+from ..services import intercom_writes as iw
 from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
@@ -64,6 +65,7 @@ CREDENTIALS = "system.configure"  # device secrets: the system administrator onl
 RELEASE = "access.release"  # every PHYSICAL WisKey command; role grants: see the note at routers/access.py PERMISSION_LABELS
 MANAGE = "access.people.manage"  # the person editor (CR-005 phase 2); same default grants and sensitivity as access.release
 CAPTURE = "access.cards.capture"  # card capture from a station reader (CR-005 phase 2 A2); required IN ADDITION to MANAGE
+PIN_GENERATE = ia.PIN_GENERATE  # CR-036 S11 (PG): a person's PIN, shown once; required IN ADDITION to MANAGE
 RECHECK_S = 60
 MAX_PAGE = 200  # WisKey's own cap for events/list and users/query
 MAX_STATION_ID = 128
@@ -823,6 +825,18 @@ def tts_speak(request: Request, station_id: str, principal: Principal = Depends(
 # groups and photos are slice A3 and are deliberately not accepted here (`extra="forbid"` refuses their keys). Card
 # capture from a station reader is slice A2. WisKey's `pin_check` oracle is not offered (owner decision 8): a
 # conflicting PIN surfaces at save time as `intercom_pin_conflict`, and `users/pin_generate` gives a free one.
+#
+# CR-036 S11 (owner decisions 2026-10-12: every write in stage 1; Arx RBAC the only authority; DW / PG approved): these endpoints
+# moved from installation scope onto the access-control station chain - `access.people.manage` (and `access.cards.capture` /
+# `access.pin.generate` where they apply) anywhere a station can be as the dependency (before the body, audited 403), then the
+# person's own stations before AND after the change (services/intercom_writes.py `gate_person_write`, a fresh `users/get` unless
+# the caller is unrestricted; the write then carries the revision that read returned); a sensitive field needs
+# `access.people.sensitive` on the same stations. The audit rows keep the actor, the request ids, the logical target and the
+# outcome, plus the field NAMES of an update - never a value (no PIN, card number, phone, name, relay map, count or hash). Every
+# reply says its effect class (`effect`, `pending`); delete and the capture commands are UNKNOWN_EFFECT ("sent, result
+# pending"). The editor accepts the access category, the responsible person and purpose, and the timing proposal / enforced
+# policy too; the photo, archive, activation, temporary cancel and single cards have endpoints of their own
+# (routers/access_control_writes.py). The editor projection is served at the caller's field level (iw.view_editor_person).
 
 IDENTIFIER = r"^[A-Za-z0-9_-]{1,32}$"  # WisKey validate_identifier / validate_card (client/access.py)
 PIN_PATTERN = r"^[0-9]{1,128}$"  # models.py build_user
@@ -890,11 +904,33 @@ class PersonData(BaseModel):
     permission_overrides: dict[str, Literal["allow", "deny"]] | None = None
     door_permissions: dict[str, list[StrictInt]] | None = None
     access_policy_revision: StrictInt | None = Field(None, ge=0)
+    # CR-036 S11: the access category with its responsible person and purpose (a visitor / contractor needs both a responsible
+    # person and an end date - WisKey's `guest_responsible_required` / `invalid_validity`), and the timing: the proposal
+    # (`access_timing_draft`, never a grant) and the enforced policy (`access_timing_policy`: `ha` = Arx's own enforcement
+    # through WisKey's rolling validity window, `native` = the device's own schedule with per-station slot bindings). Present
+    # and null clears it. Both are validated exactly as WisKey validates them (services/intercom_writes.py).
+    access_category: Literal["staff", "visitor", "contractor"] | None = None
+    responsible_person: str | None = Field(None, max_length=64)
+    access_purpose: str | None = Field(None, max_length=128)
+    access_timing_draft: dict[str, Any] | None = None
+    access_timing_policy: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _rules(self) -> "PersonData":
         if self.display_name is not None and (not self.display_name.strip() or not _no_control(self.display_name)):
             raise ValueError("display_name")
+        for text in (self.responsible_person, self.access_purpose):
+            if text is not None and not _no_control(text):
+                raise ValueError("text")
+        if "access_category" in self.model_fields_set and self.access_category is None:
+            raise ValueError("access_category")  # WisKey always has one: it can be changed, never removed
+        try:
+            if "access_timing_draft" in self.model_fields_set:
+                self.access_timing_draft = iw.timing_draft(self.access_timing_draft)
+            if "access_timing_policy" in self.model_fields_set:
+                self.access_timing_policy = iw.timing_policy(self.access_timing_policy)
+        except ValueError as exc:
+            raise ValueError(f"timing: {exc}") from None
         if self.phone and (not PHONE.fullmatch(self.phone) or not 7 <= len(re.sub(r"[^0-9]", "", self.phone)) <= 15):
             raise ValueError("phone")
         if ("valid_from" in self.model_fields_set) != ("valid_until" in self.model_fields_set) or (self.valid_from is None) != (self.valid_until is None):
@@ -928,7 +964,8 @@ class PersonData(BaseModel):
     def wiskey(self) -> dict[str, Any]:
         """The `data` dict for WisKey: exactly the keys the draft set, in WisKey's shapes."""
         out: dict[str, Any] = {}
-        for key in ("employee_no", "display_name", "phone", "active", "valid_from", "valid_until", "pin"):
+        for key in ("employee_no", "display_name", "phone", "active", "valid_from", "valid_until", "pin",
+                    "access_category", "responsible_person", "access_purpose", "access_timing_draft", "access_timing_policy"):
             if key in self.model_fields_set:
                 out[key] = getattr(self, key)
         if self.cards is not None:
@@ -966,149 +1003,220 @@ class PinGenerateBody(BaseModel):
     user_id: str = Field("", max_length=128)  # "" for a person not saved yet
 
 
-def _manager(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    """`access.people.manage` at installation scope, as a dependency (before the body; a refusal is audited by
-    `require`). `access.read` alone never reaches the editor projection, let alone a write."""
-    require(conn, principal, MANAGE, INSTALLATION)
-    return principal
+def people_writer(*extra: str):
+    """CR-036 S11: `access.people.manage` - and `extra` (`access.cards.capture`, `access.pin.generate`) - somewhere a station can
+    be, as a dependency on the request's READ connection, checked before the body is read (audited 403s); the person's own
+    stations are checked per request (services/intercom_writes.py). Returns the request's Authority. `access.read` alone never
+    reaches the editor projection, let alone a write (was: installation scope)."""
+
+    def dep(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> ia.Authority:
+        rid = getattr(request.state, "correlation_id", None)
+        auth = ia.require_anywhere(conn, principal, MANAGE, rid)
+        for permission in extra:
+            ia.require_anywhere(conn, principal, permission, rid)
+        return auth
+
+    return dep
 
 
-_manager_ro = read_gate(lambda conn, principal: require(conn, principal, MANAGE, INSTALLATION))  # review L7
-
-
-def _draft_summary(data: dict[str, Any]) -> dict[str, Any]:
-    """What the audit records about a draft: the field names and counts, never a value that is a secret or personal
-    (no PIN, no card number, no phone)."""
-    cards = data.get("cards")
-    out: dict[str, Any] = {"fields": sorted(data)}
-    if "pin" in data:
-        out["pin_change"] = "removed" if data["pin"] is None else "set"
-    if isinstance(cards, list):
-        out.update(card_count=len(cards), enabled_cards=sum(1 for c in cards if c.get("enabled")), new_cards=sum(1 for c in cards if "card_no" in c))
-    if isinstance(data.get("door_permissions"), dict):
-        out["door_permissions"] = dict(data["door_permissions"])
-        out["permission_overrides"] = dict(data.get("permission_overrides") or {})
-    if "access_policy_revision" in data:
-        out["access_policy_revision"] = data["access_policy_revision"]
-    return out
+def _write_summary(data: dict[str, Any]) -> dict[str, Any]:
+    """What the audit records about a draft (D06, 2026-10-12): the NAMES of the fields it sets - never a value, a count, a
+    relay map, a hash or a length."""
+    return {"fields": sorted(data)}
 
 
 def _person_summary(person: dict[str, Any]) -> dict[str, Any]:
-    """The outcome row's record of the saved person: identity, revision, the PIN flag and counts (WisKey's own audit
-    summary keeps the same: `{pin_configured, card_count, enabled_cards, assignments}`)."""
-    return {
-        "id": person["id"], "employee_no": person["employee_no"], "display_name": person["display_name"], "revision": person["revision"],
-        "active": person["active"], "pin_configured": person["pin_configured"],
-        "card_count": len(person["cards"]), "enabled_cards": sum(1 for c in person["cards"] if c["enabled"]),
-        "assignments": {s["station_id"]: {"enabled": s["enabled"], "allowed_locks": s["doors"]} for s in person["stations"]},
-    }
+    """The outcome row's record of the saved person: the logical target and its new revision only (D06)."""
+    return {"id": person["id"], "revision": person["revision"]}
 
 
-def _parse_read(request: Request, model: type[BaseModel], raw: bytes) -> Any:
-    """A read endpoint's JSON body (pin-generate): content type, JSON, then the fields - no audit row (nothing is
-    written anywhere), the same 415 / 422 as `_parse`."""
-    if not _is_json(request.headers.get("content-type")):
-        raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
+def gated(act: "_Action", conn: sqlite3.Connection, check: Callable[[], Any]) -> Any:
+    """Run a station-scope check that may read the person from WisKey (services/intercom_writes.py) with the request's write lock
+    released (a WisKey round trip never holds SQLite's single write lock); its refusal is an audited `not_sent`."""
     try:
-        data = json.loads(raw) if raw.strip() else {}
-    except (ValueError, RecursionError):
-        raise ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]}) from None
-    try:
-        return model.model_validate(data)
-    except ValidationError as exc:
-        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
-        raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
+        with unlocked(conn):
+            return check()
+    except ApiError as exc:
+        raise act.refuse(exc) from None
 
 
 @router.get("/intercom/people-editor/context")
-def people_editor_context(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def people_editor_context(request: Request, auth: ia.Authority = Depends(people_writer())) -> dict[str, Any]:
     """What the editor needs from WisKey's `overview` beyond the entry center (intercom_sync.project_editor_context):
     the stations with their relays and whether each can take a keypad PIN, the HA display zone, WisKey's
     `api.capabilities`, whether the people-write commands are listed for the add-on's HA user (`writes_listed` /
     `users_manage`, null when WisKey does not say - the user needs WisKey's `users:manage` area), and whether a
     profile policy exists. A fresh read each time (never cached). Reply: `{state, configured, last_error, fetched_at,
-    context, sync}`."""
-    with unlocked(conn):
-        return intercom_sync.SYNC.command(settings_of(request), "context", intercom_client.overview, intercom_sync.project_editor_context, who=principal.user_id)
+    context, sync}`.
+
+    CR-036 S11: only the stations the caller manages (`access.people.manage` on the station chain) - a station off it is
+    omitted, never greyed; `capture_stations` the ids of those where the caller may also read a card (`access.cards.capture`);
+    `pin_generate` whether this caller, in this session, may generate a PIN (the permission somewhere and an interactive
+    session)."""
+    reply = intercom_sync.SYNC.command(settings_of(request), "context", intercom_client.overview, intercom_sync.project_editor_context, who=auth.principal.user_id)
+    ctx = reply.get("context")
+    if ctx is not None:
+        ctx["stations"] = [s for s in ctx["stations"] if auth.station(MANAGE, s["id"])]
+        ctx["capture_stations"] = [s["id"] for s in ctx["stations"] if auth.station(CAPTURE, s["id"])]
+        ctx["pin_generate"] = auth.anywhere(PIN_GENERATE) and iw.interactive(auth.principal)
+    return reply
 
 
 @router.get("/intercom/people/{user_id}/editor")
-def person_editor(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
-    """One person for editing (WisKey `users/get`, intercom_sync.project_person_editor): the read projection plus
-    phone, the PIN flag, the cards in WisKey's masked form (`•••• 1234` - the full number never leaves WisKey), the
-    overrides, `identity_locked`, `has_timing` and each assignment's sync bookkeeping. 404 `intercom_person_not_found`.
-    Reply: `{state, configured, last_error, fetched_at, person, sync}`."""
-    with unlocked(conn):
-        return intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id), intercom_sync.project_person_editor, who=principal.user_id)
+def person_editor(request: Request, auth: ia.Authority = Depends(people_writer()), user_id: str = Path(min_length=1, max_length=128)) -> dict[str, Any]:
+    """One person for editing (WisKey `users/get`): the read projection plus phone, the PIN flag, the cards in WisKey's masked
+    form (`•••• 1234` - the full number never leaves WisKey), the overrides, `identity_locked`, `has_timing`, each assignment's
+    sync bookkeeping and (S11) the archive state, the access category, the responsible person and purpose, the photo flag and the
+    timing proposal / policy. 404 `intercom_person_not_found`. Reply: `{state, configured, last_error, fetched_at, person, sync}`.
+
+    CR-036 S11: only for a person the caller may change (`access.people.manage` on every station of theirs; a person they cannot
+    see is the uniform 404, one shared with a station outside their chain a 403 `intercom_person_scope`), at the caller's field
+    level (`person.level`; phone, the PIN flag, the cards, the photo flag, the responsible person and purpose are null below the
+    sensitive level)."""
+    try:
+        reply = intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id),
+                                           lambda raw: {"superset": intercom_adapter.project_one_person(raw), "editor": iw.project_editor(raw)}, who=auth.principal.user_id)
+    except ApiError as exc:
+        if exc.code == "intercom_person_not_found":
+            raise iw.uniform_not_found() from None
+        raise
+    found = reply.get("person")
+    if found is not None:
+        target = iw.check_person(auth, found["superset"])
+        reply["person"] = iw.view_editor_person(auth, found["editor"], target.level)
+    return reply
 
 
 @router.post("/intercom/people/pin-generate")
-def person_pin_generate(request: Request, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def person_pin_generate(request: Request, response: Response, auth: ia.Authority = Depends(people_writer(PIN_GENERATE)), raw: bytes = Depends(_raw_body),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A free six-digit PIN from WisKey (`users/pin_generate`; body `{user_id}`, "" for a person not saved yet). Not
-    reserved: the save still answers `intercom_pin_conflict` if it was taken meanwhile. The value is shown once in
-    the form and is never logged or audited by SMPLWISE. Reply: `{state, ..., pin: {pin}}`; a WisKey refusal is
-    `state: error` with `last_error` (`pin_generation_failed`), an unknown person a 404."""
-    body: PinGenerateBody = _parse_read(request, PinGenerateBody, raw)
-    with unlocked(conn):
-        return intercom_sync.SYNC.command(settings_of(request), "pin", lambda call: intercom_client.users_pin_generate(call, body.user_id), intercom_sync.project_pin, who=principal.user_id)
+    reserved: the save still answers `intercom_pin_conflict` if it was taken meanwhile. Reply: `{state, ..., pin: {pin}}`; a
+    WisKey refusal is `state: error` with `last_error` (`pin_generation_failed`), an unknown person a 404.
+
+    CR-036 S11 (owner decision 2026-10-12, PG): `access.pin.generate` on top of `access.people.manage` (and, for a saved person,
+    both on every station of theirs with the sensitive level - a PIN is a credential); an interactive human session only
+    (services/intercom_writes.interactive: a bearer-token client is refused 403 `intercom_pin_interactive_only`). The value is in
+    THIS response only (`Cache-Control: no-store`) for the requesting operator: never stored, logged, cached, audited, put in an
+    error or replayed. The audit rows say who asked, for whom, the request ids and the outcome - never the value, its hash or its
+    length."""
+    response.headers["Cache-Control"] = "no-store"
+    act = _Action(request, conn, auth.principal, "intercom.person.pin_generate", "new", PERSON)
+    body: PinGenerateBody = _parse(act, PinGenerateBody, raw)
+    act.resource_id = body.user_id or "new"
+    act.details.update(iw.effect_fields("users/pin_generate"))
+    if not iw.interactive(auth.principal):
+        raise act.refuse(ApiError(403, "intercom_pin_interactive_only", "יצירת קוד PIN זמינה רק בהפעלה אינטראקטיבית של אדם (דפדפן), לא ללקוח עם אסימון.",
+                                  details={"reason": "interactive_session_required"}))
+    settings = settings_of(request)
+    if body.user_id:
+        gated(act, conn, lambda: iw.gate_person_write(settings, auth, body.user_id, permissions=(MANAGE, PIN_GENERATE), sensitive=True))
+    elif not auth.anywhere(ia.PEOPLE_SENSITIVE):
+        raise act.refuse(iw.field_refusal())
+    act.attempt()
+    try:
+        reply = intercom_sync.SYNC.command(settings, "pin", lambda call: intercom_client.users_pin_generate(call, body.user_id), intercom_sync.project_pin, who=auth.principal.user_id)
+    except ApiError as exc:
+        act.outcome("refused", exc.code, {})
+        if exc.code == "intercom_person_not_found":
+            raise iw.uniform_not_found() from None
+        raise
+    except BaseException as exc:
+        act.outcome("unknown", type(exc).__name__, {})
+        raise
+    finally:
+        conn.execute("BEGIN")  # deferred, lock-free (as _perform): nothing more is written on the request's connection
+    pin = reply.get("pin")
+    state = reply.get("state")
+    outcome = "ok" if pin is not None else ("not_sent" if state not in ("error", "forbidden", "unsupported") or reply.get("last_error") in ("busy", RATE_LIMITED_CODE) else "failed")
+    act.outcome(outcome, None if pin is not None else str(reply.get("last_error") or state), {})  # never the value, its hash or length
+    return reply
 
 
+RATE_LIMITED_CODE = intercom_sync.RATE_LIMITED
 SAVE_NOTE = "WisKey שמר את הרשומה. הסנכרון לתחנות מתבצע על ידי WisKey בנפרד - מצב הסנכרון של כל תחנה מוצג ברשומה."
 
 
 @router.post("/intercom/people")
-def person_create(request: Request, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def person_create(request: Request, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Create a person in WisKey (`users/create`). Body: `{data: PersonData, sync_now, client_request_id, expires_at}`;
     `data` needs at least `display_name` and `employee_no`. Refused before sending (each refusal audited): a malformed
     draft, an expired or duplicate command. WisKey's refusals come back by name (`intercom_employee_conflict`,
     `intercom_pin_conflict`, `intercom_card_conflict`, `intercom_invalid_request` ...) with `details.outcome`
     `refused`; no clear answer is a 504 `intercom_outcome_unknown` (reload the directory before trying again - the
-    person may exist). Reply: `{state, configured, last_error, fetched_at, person, sync, note, command_id}`; `person`
-    is the saved record in the editor projection (WisKey accepted it into its store - the stations follow later)."""
-    act = _Action(request, conn, principal, "intercom.person.create", "new", PERSON)
+    person may exist). Reply: `{state, configured, last_error, fetched_at, person, sync, note, command_id, effect, pending}`;
+    `person` is the saved record in the editor projection at the caller's field level (WisKey accepted it into its store - the
+    stations follow, `sync_now` true asks them at once).
+
+    CR-036 S11: `access.people.manage` on every station the draft names (unrestricted for a person with none), the sensitive
+    level there for a sensitive field (403 `intercom_person_scope` / `intercom_field_level`, audited, nothing sent)."""
+    act = _Action(request, conn, auth.principal, "intercom.person.create", "new", PERSON)
     body: PersonSaveBody = _parse(act, PersonSaveBody, raw)
     data = body.data.wiskey()
-    act.details.update(sync_now=body.sync_now, **_draft_summary(data))
+    act.details.update(sync_now=body.sync_now, **_write_summary(data), **iw.effect_fields("users/create"))
     not_after = _envelope(act, body)  # before the draft's own checks: every refusal row from here carries the command id
     missing = [k for k in ("display_name", "employee_no") if not data.get(k)]
     if missing:
         raise act.refuse(ApiError(422, "validation", "לאדם חדש נדרשים שם ומזהה עובד.", details={"fields": missing}))
-    reply = _perform(act, "person", lambda call: intercom_client.users_create(call, data, body.sync_now), intercom_sync.project_person_editor, not_after, lane="config", summary=_person_summary)
+    try:
+        iw.gate_create(auth, iw.draft_stations(data), sensitive=iw.sensitive_write(auth, data))
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    reply = _perform(act, "person", lambda call: intercom_client.users_create(call, data, body.sync_now), iw.project_editor, not_after, lane="config", summary=_person_summary)
+    reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply["note"] = SAVE_NOTE
+    reply.update(iw.effect_fields("users/create"))
     return reply
 
 
 @router.put("/intercom/people/{user_id}")
-def person_update(request: Request, user_id: str, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def person_update(request: Request, user_id: str, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Update a person in WisKey (`users/update`, compare-and-set on `revision`). Body: `{data: PersonData (a patch),
     revision, sync_now, client_request_id, expires_at}`. A stale revision is a 409 `intercom_revision_conflict`
-    (reload the person, then retry); the other refusals and the unknown outcome as for create. Reply as create."""
-    act = _Action(request, conn, principal, "intercom.person.update", user_id, PERSON)
+    (reload the person, then retry); the other refusals and the unknown outcome as for create. Reply as create.
+
+    CR-036 S11: `access.people.manage` on every station of the person before AND after the change (the stations the patch
+    names); the sensitive level for a sensitive field; a caller who is not unrestricted is checked against a fresh read and the
+    patch must carry that read's revision."""
+    act = _Action(request, conn, auth.principal, "intercom.person.update", user_id, PERSON)
     body: PersonUpdateBody = _parse(act, PersonUpdateBody, raw)
-    not_after = _envelope(act, body)
+    act.details.update(client_request_id=body.client_request_id, expires_at=body.expires_at, revision=body.revision)
     data = body.data.wiskey()
     if not data:
         raise act.refuse(ApiError(422, "validation", "אין שינוי לשמור.", details={"fields": ["data"]}))
-    act.details.update(revision=body.revision, sync_now=body.sync_now, **_draft_summary(data))
-    reply = _perform(act, "person", lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), intercom_sync.project_person_editor, not_after, lane="config", summary=_person_summary)
+    act.details.update(sync_now=body.sync_now, **_write_summary(data), **iw.effect_fields("users/update"))
+    settings = settings_of(request)
+    gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, after=iw.draft_stations(data), sensitive=iw.sensitive_write(auth, data), revision=body.revision))
+    not_after = _envelope(act, body)  # expiry and duplicate under the write lock again, right before the attempt row
+    reply = _perform(act, "person", lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), iw.project_editor, not_after, lane="config", summary=_person_summary)
+    reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply["note"] = SAVE_NOTE
+    reply.update(iw.effect_fields("users/update"))
     return reply
 
 
 @router.post("/intercom/people/{user_id}/delete")
-def person_delete(request: Request, user_id: str, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def person_delete(request: Request, user_id: str, auth: ia.Authority = Depends(people_writer()), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Delete a person from WisKey (`users/delete`). Body: `{revision, confirmed, client_request_id, expires_at}`;
     `confirmed: true` is sent only by the confirmation dialog (WisKey's own `confirm_delete`, naming the stations the
     removal is scheduled on). WisKey answers `accepted`: the person left its list and the removal from each station
-    (offline ones included) is queued, not done. Reply: `{state, ..., deleted: {accepted: true}, sync, note, command_id}`."""
-    act = _Action(request, conn, principal, "intercom.person.delete", user_id, PERSON)
+    (offline ones included) is queued, not done. Reply: `{state, ..., deleted: {accepted: true}, sync, note, command_id, effect,
+    pending}`.
+
+    CR-036 S11: `access.people.manage` on every station of the person. UNKNOWN_EFFECT (the DW matrix of 2026-10-12: WisKey
+    schedules jobs): `pending: true` - the screens say "sent, result pending" until a read no longer finds the person."""
+    act = _Action(request, conn, auth.principal, "intercom.person.delete", user_id, PERSON)
     body: PersonDeleteBody = _parse(act, PersonDeleteBody, raw)
-    act.details["revision"] = body.revision
-    not_after = _envelope(act, body)
+    act.details.update(client_request_id=body.client_request_id, expires_at=body.expires_at, revision=body.revision, **iw.effect_fields("users/delete"))
     if body.confirmed is not True:
+        _envelope(act, body)  # an expired or duplicate command is refused as such first (the order the rows always had)
         raise act.refuse(ApiError(409, "confirmation_required", "מחיקת אדם דורשת אישור מפורש."))
+    settings = settings_of(request)
+    gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, revision=body.revision))
+    not_after = _envelope(act, body)
     reply = _perform(act, "deleted", lambda call: intercom_client.users_delete(call, user_id, body.revision), intercom_sync.project_accepted, not_after, lane="config")
     reply["note"] = "WisKey קיבל את המחיקה. ההסרה מכל תחנה (גם מנותקת) מתוזמנת על ידי WisKey ואינה מיידית."
+    reply.update(iw.effect_fields("users/delete"))
     return reply
 
 
@@ -1131,23 +1239,16 @@ def person_delete(request: Request, user_id: str, principal: Principal = Depends
 # Refused vs unknown per command: intercom_client.PRE_CAPTURE (verified against the WisKey source). A start whose
 # outcome is unknown may have put the reader into collection mode under a session SMPLWISE cannot see: the station is
 # held for the rest of WisKey's 120 s and the reply says so; nothing is ever added to a person without the confirm.
+#
+# CR-036 S11: both permissions anywhere a station can be as the dependency, then per request - the start: both on the reader's
+# station and on every station of the person, with the sensitive level (a card is a credential), against a fresh read unless the
+# caller is unrestricted (the start carries that read's revision); the stations decided at the start are kept with the session
+# and checked again at the confirm (a scope taken away meanwhile refuses it). All three commands are UNKNOWN_EFFECT (DW matrix,
+# 2026-10-12): the replies say `pending: true`. The browser cancels ONCE (no automatic retry of a write); a session nobody
+# follows any more is cancelled by the backend after ABANDON_S (services/intercom_capture.py), not by a retry.
 
 CAPTURE_NOTE = "הקורא בעמדה במצב קריאת כרטיס. הצמידו כרטיס אחד לקורא; שום כרטיס לא יתווסף לאדם עד שתאשרו אותו."
-
-
-def _capturer(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    """`access.cards.capture` AND `access.people.manage` at installation scope, as a dependency (before the body; each
-    refusal audited by `require`)."""
-    require(conn, principal, CAPTURE, INSTALLATION)
-    require(conn, principal, MANAGE, INSTALLATION)
-    return principal
-
-
-def _capturer_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
-    """`_capturer` on a read-mode connection, for the status the capture dialog polls every second."""
-    require(conn, principal, CAPTURE, INSTALLATION)
-    require(conn, principal, MANAGE, INSTALLATION)
-    return principal
+_capturer_ro = people_writer(CAPTURE)  # access.people.manage + access.cards.capture anywhere, on the read connection
 
 
 class CaptureStartBody(CommandEnvelope):
@@ -1177,20 +1278,24 @@ def _capture_or_refuse(act: _Action, session_id: str) -> Any:
 
 
 @router.get("/intercom/stations/{station_id}/card-readers")
-def card_readers(request: Request, station_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def card_readers(request: Request, station_id: str, auth: ia.Authority = Depends(_capturer_ro)) -> dict[str, Any]:
     """The station's card readers (WisKey `cards/reader_capabilities`, a read that reaches the device - WisKey allows it
     35 s): `readers` (0 = the station's default reader) and the card-number length bounds. A station that advertises
     no card collection is `state: error`, `last_error: capture_unsupported`; offline / no managed lock likewise by
-    WisKey's code. Reply: `{state, configured, last_error, fetched_at, readers, sync}`."""
+    WisKey's code. Reply: `{state, configured, last_error, fetched_at, readers, sync}`.
+
+    CR-036 S11: both permissions on THIS station's chain - a station off it answers exactly like an unknown one (404
+    `intercom_station_not_found`), and nothing is asked of the device."""
     if not 1 <= len(station_id) <= MAX_STATION_ID:
         raise ApiError(422, "validation", "מזהה העמדה אינו תקין.", details={"fields": ["station_id"]})
-    with unlocked(conn):
-        return intercom_sync.SYNC.command(settings_of(request), "readers", lambda call: intercom_client.reader_capabilities(call, station_id), intercom_sync.project_readers,
-                                          who=principal.user_id, timeout=intercom_sync.READERS_TIMEOUT_S)
+    if not (auth.station(CAPTURE, station_id) and auth.station(MANAGE, station_id)):
+        raise ApiError(404, intercom_adapter.STATION_NOT_FOUND[0], intercom_adapter.STATION_NOT_FOUND[1])
+    return intercom_sync.SYNC.command(settings_of(request), "readers", lambda call: intercom_client.reader_capabilities(call, station_id), intercom_sync.project_readers,
+                                      who=auth.principal.user_id, timeout=intercom_sync.READERS_TIMEOUT_S)
 
 
 @router.post("/intercom/people/{user_id}/card-capture")
-def card_capture_start(request: Request, user_id: str, principal: Principal = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Start reading a card at a station (WisKey `cards/capture_start`, PHYSICAL: the station's reader enters card-
     collection mode). Body: `{station_id, reader_id, revision, confirmed, client_request_id, expires_at}`; `confirmed:
     true` comes only from the dialog's confirmation step. Refused before sending (each audited, `not_sent`): a malformed
@@ -1199,10 +1304,20 @@ def card_capture_start(request: Request, user_id: str, principal: Principal = De
     (`intercom_capture_station_busy`, also for the rest of WisKey's 120 s after a start with an unknown outcome there).
     WisKey's refusals by name (`intercom_capture_station_busy`, `intercom_capture_limit`, `intercom_revision_conflict`
     ...); an unclear answer is a 504 `intercom_outcome_unknown` - the reader may be collecting. Reply: `{state, ...,
-    capture: <the session as GET /intercom/card-capture/{id} serves it>, sync, note, command_id}`."""
+    capture: <the session as GET /intercom/card-capture/{id} serves it>, sync, note, command_id, effect, pending}`.
+
+    CR-036 S11: `access.cards.capture` and `access.people.manage` on the reader's station and on every station of the person,
+    with the sensitive level (a card is a credential); not unrestricted = checked against a fresh read whose revision the start
+    must carry. UNKNOWN_EFFECT: `pending: true` (the session state the dialog polls is what tells)."""
+    principal = auth.principal
     act = _Action(request, conn, principal, "intercom.card_capture.start", user_id, PERSON)
     body: CaptureStartBody = _parse(act, CaptureStartBody, raw)
-    act.details.update(station_id=body.station_id, reader_id=body.reader_id, revision=body.revision)
+    act.details.update(client_request_id=body.client_request_id, expires_at=body.expires_at, station_id=body.station_id, reader_id=body.reader_id, revision=body.revision,
+                       **iw.effect_fields("cards/capture_start"))
+    settings = settings_of(request)
+    target = gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, permissions=(MANAGE, CAPTURE), extra_stations=[body.station_id], sensitive=True, revision=body.revision))
+    if target.person is None and not (auth.station(CAPTURE, body.station_id) and auth.station(MANAGE, body.station_id)):
+        raise act.refuse(iw.scope_refusal())  # (unrestricted callers hold both everywhere; kept explicit, fail closed)
     not_after = _envelope(act, body)
     station = intercom_sync.SYNC.station(body.station_id)
     if station is None and intercom_sync.SYNC.has_copy():
@@ -1237,33 +1352,39 @@ def card_capture_start(request: Request, user_id: str, principal: Principal = De
         CAPTURES.release(token)
         raise
     capture = CAPTURES.register(token, reply["capture"], principal, user_id, station_id, act.details.get("station_name"), reader_id, revision, settings_of(request), request.app.state.db)
+    capture.person_stations = target.stations  # S11: checked again at the confirm (None = decided by the unrestricted shortcut)
     reply["capture"] = CAPTURES.view(capture)
     reply["note"] = CAPTURE_NOTE
+    reply.update(iw.effect_fields("cards/capture_start"))
     return reply
 
 
 @router.get("/intercom/card-capture/{session_id}")
-def card_capture_status(session_id: str, principal: Principal = Depends(_capturer_ro)) -> dict[str, Any]:
+def card_capture_status(session_id: str, auth: ia.Authority = Depends(_capturer_ro)) -> dict[str, Any]:
     """The caller's own capture session as SMPLWISE's poller last read it from WisKey (no WisKey traffic per request):
     `state` preparing | waiting | captured | applying (active) or error | cancelled | cancel_unknown | expired | lost |
     confirmed | unconfirmed | closed; `error` (WisKey's code, e.g. `capture_timeout`); `card` (`{masked_number,
     technology, reader_id}` while captured - the masked form only); the countdowns (`collect_remaining_s` of WisKey's
     70 s collection, `session_remaining_s` of its 120 s session); `reader_may_be_collecting`. Reading it keeps the session
     alive: one nobody asked about for 20 s is cancelled by the backend. Another user's session is a 404."""
-    capture = CAPTURES.owned(session_id, principal.user_id)
+    capture = CAPTURES.owned(session_id, auth.principal.user_id)
     if capture is None:
         raise ApiError(404, "intercom_capture_not_found", "קריאת הכרטיס הזו אינה קיימת (או שאינה שלכם).")
     return {"capture": CAPTURES.view(capture)}
 
 
 @router.post("/intercom/card-capture/{session_id}/cancel")
-def card_capture_cancel(request: Request, session_id: str, principal: Principal = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def card_capture_cancel(request: Request, session_id: str, auth: ia.Authority = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Cancel the caller's own capture (WisKey `cards/capture_cancel`): WisKey stops waiting for a card and drops the
     session. Body `{}` (JSON). WisKey's reader timeout is the firmware's own: cancelling is not proof the reader left
     collection mode (WisKey `capture_limits`). A cancel with no clear answer is 504 unknown (the session is then
     `cancel_unknown`). A cancel spends no rate token: polling or other captures can never get it refused locally.
-    Reply: `{state, ..., cancelled, capture, sync, note, command_id}`."""
-    act = _Action(request, conn, principal, "intercom.card_capture.cancel", session_id, "intercom_capture")
+    Reply: `{state, ..., cancelled, capture, sync, note, command_id, effect, pending}`.
+
+    CR-036 S11: the owner of the session may always cancel it (it only ever ends a reader's collection); UNKNOWN_EFFECT
+    (`pending: true`). The screens send it ONCE - no automatic retry."""
+    act = _Action(request, conn, auth.principal, "intercom.card_capture.cancel", session_id, "intercom_capture")
+    act.details.update(iw.effect_fields("cards/capture_cancel"))
     _parse(act, CaptureCancelBody, raw)
     capture = _capture_or_refuse(act, session_id)
     if capture.state == "applying":
@@ -1290,32 +1411,41 @@ def card_capture_cancel(request: Request, session_id: str, principal: Principal 
         raise
     reply["capture"] = CAPTURES.view(capture)
     reply["note"] = "WisKey הפסיק להמתין לכרטיס ושום כרטיס לא נוסף. זמן ההמתנה של הקורא עצמו נקבע בקושחה שלו."
+    reply.update(iw.effect_fields("cards/capture_cancel"))
     return reply
 
 
 @router.post("/intercom/card-capture/{session_id}/confirm")
-def card_capture_confirm(request: Request, session_id: str, principal: Principal = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def card_capture_confirm(request: Request, session_id: str, auth: ia.Authority = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add the collected card to the person (WisKey `cards/capture_confirm`, a people write: the card, enabled, goes to
     the person's existing station assignments with WisKey's immediate sync - it opens their doors). Body: `{label,
     confirmed, client_request_id, expires_at}`; `confirmed: true` comes only from the confirmation step naming the
     person. Only from `captured`. WisKey's refusals by name (`intercom_revision_conflict`, `intercom_card_conflict`,
     `intercom_capture_not_found` ...); an unclear answer is a 504 `intercom_outcome_unknown` (reload the person and look
-    for the new card before anything else). The audit rows record `cards_added: 1` - never the number, not even masked.
-    Reply: `{state, ..., person (the editor projection), capture, sync, note, command_id}`."""
-    act = _Action(request, conn, principal, "intercom.card_capture.confirm", session_id, "intercom_capture")
+    for the new card before anything else). The audit rows name the session, the person and the station - never the number,
+    not even masked. Reply: `{state, ..., person (the editor projection), capture, sync, note, command_id, effect, pending}`.
+
+    CR-036 S11: the stations decided when the capture started are checked again (a scope taken away meanwhile refuses the
+    confirm, 403, nothing sent; WisKey's own revision check binds the person). UNKNOWN_EFFECT (DW matrix 2026-10-12: WisKey
+    adds the card and asks the stations): `pending: true` until a read of the person shows the card on their stations."""
+    act = _Action(request, conn, auth.principal, "intercom.card_capture.confirm", session_id, "intercom_capture")
+    act.details.update(iw.effect_fields("cards/capture_confirm"))
     body: CaptureConfirmBody = _parse(act, CaptureConfirmBody, raw)
     capture = _capture_or_refuse(act, session_id)
-    act.details.update(cards_added=1, label_set=bool(body.label.strip()))
     not_after = _envelope(act, body)
     if not _no_control(body.label):
         raise act.refuse(ApiError(422, "validation", "תווית הכרטיס אינה תקינה (ללא תווי בקרה).", details={"fields": ["label"]}))
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "הוספת הכרטיס לאדם דורשת אישור מפורש."))
+    try:
+        iw.check_stations(auth, capture.person_stations, permissions=(MANAGE, CAPTURE), extra_stations=[capture.station_id], sensitive=True)
+    except ApiError as exc:
+        raise act.refuse(exc) from None
     if not CAPTURES.begin_applying(capture):
         raise act.refuse(ApiError(409, "intercom_capture_not_ready", "אין כרטיס שנקרא וממתין לאישור.", details={"capture": CAPTURES.view(capture)}))
     label = body.label
     try:
-        reply = _perform(act, "person", lambda call: intercom_client.capture_confirm(call, capture.session_id, label), intercom_sync.project_person_editor, not_after,
+        reply = _perform(act, "person", lambda call: intercom_client.capture_confirm(call, capture.session_id, label), iw.project_editor, not_after,
                          lane="config", summary=_person_summary)
     except ApiError as exc:
         outcome, code = exc.details.get("outcome"), str(exc.details.get("wiskey_code") or "")
@@ -1331,8 +1461,10 @@ def card_capture_confirm(request: Request, session_id: str, principal: Principal
         CAPTURES.set_state(capture, "unconfirmed", None, only_from=("applying",))
         raise
     CAPTURES.set_state(capture, "confirmed", only_from=("applying",))
+    reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply["capture"] = CAPTURES.view(capture)
     reply["note"] = "WisKey הוסיף את הכרטיס לאדם וביקש לסנכרן את התחנות שלו. מצב הסנכרון של כל תחנה מוצג ברשומה."
+    reply.update(iw.effect_fields("cards/capture_confirm"))
     return reply
 
 

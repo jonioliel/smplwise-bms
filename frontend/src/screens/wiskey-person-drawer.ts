@@ -10,6 +10,7 @@ import { fetchPersonPhoto, type AcPerson, type AcProfileField } from '../api/acc
 import type { DisplayZone } from '../api/intercom';
 import type { StateKind } from '../components/sw-badge';
 import { knownSyncError, pt, syncErrorText } from '../i18n/access-people';
+import { wt } from '../i18n/access-writes';
 import { credentialKinds, enabledStations, formatDay, initials, personSections, personSyncStatus, stateOf, timingView, validityState, type SyncStatus } from '../access-control/people-logic';
 import { UTC_ZONE } from './wiskey-format';
 
@@ -76,6 +77,10 @@ export class WiskeyPersonDrawer extends LitElement {
   @property({ attribute: false }) zone: DisplayZone = UTC_ZONE;
   @property({ type: Boolean }) canEdit = false;
   @property({ type: Boolean }) canMessage = false;
+  /** CR-036 S11: the page offers the person's actions (switch off / on, archive, cards, photo, delete ...): a "פעולות" button. */
+  @property({ type: Boolean }) canAct = false;
+  /** CR-036 S11: the one-line outcome of the last write on this person, under the header ("נשלח · ממתין לאישור" for a pending one). */
+  @property({ attribute: false }) resultLine: { state: string; text: string } | null = null;
   /** The photo is offered at all (the feature exists and the installation's photo switch is on). */
   @property({ type: Boolean }) photoEnabled = true;
 
@@ -252,6 +257,29 @@ export class WiskeyPersonDrawer extends LitElement {
     sw-button {
       min-block-size: 44px;
     }
+    .result {
+      margin: 0;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-sm);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+    }
+    .result.saved,
+    .result.deleted {
+      background: var(--sw-success-soft);
+      color: var(--sw-text);
+    }
+    .result.pending,
+    .result.unknown {
+      background: var(--sw-stale-soft);
+      color: var(--sw-text);
+    }
+    .result.refused,
+    .result.not_sent {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
   `;
 
   protected willUpdate(changed: PropertyValues<this>) {
@@ -407,6 +435,7 @@ export class WiskeyPersonDrawer extends LitElement {
                 ${enabledStations(p) || p.stations?.length ? html`<sw-badge data-person-sync-all=${personSyncStatus(p)} kind=${sync!.kind} label=${sync!.label}></sw-badge>` : nothing}
               </div>
             </div>
+            ${this.resultLine ? html`<p class="result ${this.resultLine.state}" role="status" data-person-result=${this.resultLine.state}>${this.resultLine.text}</p>` : nothing}
             ${this.error
               ? html`<sw-state-panel compact data-person-error=${this.error} state=${this.error === 'gone' ? 'empty' : 'error'} heading=${this.error === 'gone' ? pt('state.detail_gone') : pt('state.detail_error')}></sw-state-panel>`
               : nothing}
@@ -417,9 +446,10 @@ export class WiskeyPersonDrawer extends LitElement {
               ${this.tab === 'details' ? this.renderDetails(p, full) : this.tab === 'access' ? this.renderAccess(p) : this.renderGroups(p)}
             </div>`
         : nothing}
-      ${p && (this.canMessage || this.canEdit)
+      ${p && (this.canMessage || this.canEdit || this.canAct)
         ? html`<div slot="footer" style="display:contents">
             ${this.canMessage ? html`<sw-button icon="mail" data-person-message @click=${() => this.fire('message', { id: p.id })}>${pt('action.message')}</sw-button>` : nothing}
+            ${this.canAct ? html`<sw-button icon="more" data-person-actions-open @click=${() => this.fire('actions', { id: p.id })}>${wt('actions.open')}</sw-button>` : nothing}
             ${this.canEdit ? html`<sw-button variant="primary" icon="edit" data-wiskey-person-edit @click=${() => this.fire('edit', { id: p.id })}>${pt('action.edit')}</sw-button>` : nothing}
           </div>`
         : nothing}

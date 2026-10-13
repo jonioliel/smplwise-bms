@@ -87,6 +87,9 @@ class Capture:
     last_poll: float = 0.0
     ended: float | None = None
     reason: str | None = None  # why SMPLWISE itself ended it: `abandoned` (nobody asked for it for ABANDON_S)
+    # CR-036 S11: the person's stations the start was authorised over (None = the unrestricted shortcut decided it); the
+    # confirm checks the caller's scope over them again (routers/access_control.py, services/intercom_writes.check_stations)
+    person_stations: list[str] | None = None
 
     def elapsed(self, now: float | None = None) -> float:
         return (time.monotonic() if now is None else now) - self.started

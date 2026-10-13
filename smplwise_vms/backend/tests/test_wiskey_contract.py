@@ -171,6 +171,13 @@ CLIENT_CALLS: dict[str, Any] = {
     "cards/capture_status": lambda c: intercom_client.capture_status(c, "sess1"),
     "cards/capture_cancel": lambda c: intercom_client.capture_cancel(c, "sess1"),
     "cards/capture_confirm": lambda c: intercom_client.capture_confirm(c, "sess1", "Label"),
+    # CR-036 S11: the person writes the editor did not have
+    "users/archive": lambda c: intercom_client.users_archive(c, "u1", 3, True),
+    "users/unarchive": lambda c: intercom_client.users_archive(c, "u1", 3, False),
+    "users/set_active": lambda c: intercom_client.users_set_active(c, "u1", 3, False),
+    "users/temporary_cancel": lambda c: intercom_client.users_temporary_cancel(c, "u1", 3, "visit_completed"),
+    "cards/add": lambda c: intercom_client.cards_add(c, "u1", 3, {"card_no": "A1", "label": "", "card_type": "normalCard", "enabled": True}),
+    "cards/remove": lambda c: intercom_client.cards_remove(c, "u1", 3, "card-1"),
     # separate handlers: still driven, to pin the exact key sets WisKey's own handlers check
     "subscribe": lambda c: intercom_client.subscribe(c),
     "tts/engines": lambda c: intercom_client.tts_engines(c),

@@ -320,14 +320,14 @@ const HE: Record<string, string> = {
   station_offline: 'התחנה מנותקת.',
   close: 'סגירה',
   // not in WisKey's i18n (brief A.7: states WisKey's panel has no text for) - SMPLWISE's own wording
-  capture_state_applying: 'הכרטיס נשמר ב־WisKey…',
-  capture_state_expired: 'זמן הקריאה (שתי דקות) הסתיים ב־WisKey. לא נשמר כרטיס.',
-  capture_state_cancelled: 'הקריאה בוטלה. לא נשמר כרטיס.',
+  capture_state_applying: 'הכרטיס נשמר…',
+  capture_state_expired: 'זמן הקריאה (שתי דקות) הסתיים. לא נשמר כרטיס.',
+  capture_state_cancelled: 'נשלח ביטול לקריאה. לא נשמר כרטיס.',
   capture_state_abandoned: 'הקריאה נסגרה כי החלון הפסיק לעקוב אחריה (למשל כרטיסייה מוקפאת או מחשב שנכנס למצב שינה). לא נשמר כרטיס.',
-  capture_state_lost: 'WisKey אינו מכיר עוד את הקריאה (למשל אחרי הפעלה מחדש של תשתית המערכת). לא נשמר כרטיס.',
-  capture_state_closed: 'WisKey דחה את הוספת הכרטיס וסגר את הקריאה. לא נשמר כרטיס.',
+  capture_state_lost: 'בקרת הכניסה אינה מכירה עוד את הקריאה (למשל אחרי הפעלה מחדש של תשתית המערכת). לא נשמר כרטיס.',
+  capture_state_closed: 'בקרת הכניסה דחתה את הוספת הכרטיס וסגרה את הקריאה. לא נשמר כרטיס.',
   capture_state_confirmed: 'הכרטיס נוסף למשתמש ונשלחה בקשה לסנכרון לתחנות.',
-  manager_closed: 'מנהל הגישה של WisKey נסגר (ייתכן שתשתית המערכת נטענה מחדש). נסה שוב בעוד רגע.',
+  manager_closed: 'מנהל הגישה של בקרת הכניסה נסגר (ייתכן שתשתית המערכת נטענה מחדש). נסה שוב בעוד רגע.',
 };
 
 /** WisKey's `translate`: a known key, else the key itself with underscores as spaces. */

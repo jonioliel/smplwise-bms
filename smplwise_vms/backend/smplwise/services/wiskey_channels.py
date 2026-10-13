@@ -44,6 +44,8 @@ SERVICE_WRITES = frozenset({
     "stations/test_unlock", "media/signal", "tts/start",  # physical actions (access.release)
     "users/create", "users/update", "users/delete", "users/pin_generate",  # person editor (access.people.manage)
     "cards/reader_capabilities", "cards/capture_start", "cards/capture_cancel", "cards/capture_confirm",  # card capture
+    # CR-036 S11: the person writes the editor did not have (access.people.manage on the person's stations)
+    "users/archive", "users/unarchive", "users/set_active", "users/temporary_cancel", "cards/add", "cards/remove",
 })
 SERVICE = SERVICE_READS | SERVICE_WRITES
 

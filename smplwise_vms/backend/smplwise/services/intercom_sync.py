@@ -577,6 +577,15 @@ WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey (ייתכן שנמחק בינתיים)."),
     "unauthorized": (502, "intercom_action_refused", "WisKey דחה את הפקודה: למשתמש תשתית המערכת אין הרשאת ניהול אנשים (users:manage) ב־WisKey. הפקודה לא בוצעה."),
     "storage_stopping": (503, "intercom_unavailable", "תשתית המערכת נכבתה כרגע, ולכן WisKey לא שמר את השינוי. נסו שוב אחרי ההפעלה."),
+    # CR-036 S11 (the person writes added in this slice; the screens word them by code, without a platform name)
+    "approval_required": (409, "intercom_approval_required", "בקרת הכניסה דורשת אישור נוסף לפעולה הזו בחלון האינטרקום, ולכן היא לא בוצעה."),
+    "archive_state_changed": (409, "intercom_archive_state_changed", "מצב הארכיון של האדם כבר השתנה. טענו מחדש את הרשומה."),
+    "temporary_user_required": (409, "intercom_not_temporary", "סיום גישה זמנית חל רק על אורח או קבלן."),
+    "temporary_already_inactive": (409, "intercom_already_inactive", "הגישה של האדם כבר מושבתת."),
+    "card_not_found": (404, "intercom_card_not_found", "הכרטיס הזה כבר אינו משויך לאדם. טענו מחדש את הרשומה."),
+    "user_archived": (409, "intercom_person_archived", "האדם בארכיון. יש לשחזר אותו מהארכיון לפני שמפעילים אותו."),
+    "guest_responsible_required": (422, "intercom_responsible_required", "לאורח או לקבלן נדרשים אחראי ותאריך סיום."),
+    "photo_disabled": (409, "intercom_photo_disabled", "קליטת התמונות כבויה בבקרת הכניסה, ולכן התמונה לא נשמרה. טענו מחדש את ההגדרות."),
 }
 # WisKey's refusals of the card-capture commands (lane "capture" for start / cancel; a confirm is a people write in the
 # config lane and gets WRITE_REFUSALS first): (HTTP status, SMPLWISE code, message)
