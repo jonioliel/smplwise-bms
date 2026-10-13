@@ -718,7 +718,8 @@ export class SceneView {
       }
       const base = l.kind === 'floor' ? 6 : l.kind === 'wall' ? 5 : 11;
       light.color.copy(lampColor(l.color_k));
-      light.intensity = base * pool * Math.min(3, Math.max(0.4, l.lumens / 1200));
+      // R3 G5: the lumens scale by their square root (a 3,600 lm panel 1.7x a bulb, not 3x): a small room under two panels blew out
+      light.intensity = base * pool * Math.min(2, Math.max(0.4, Math.sqrt(l.lumens / 1200)));
       light.distance = 0;
       light.decay = 2;
       // R3 G5: a ceiling fitting's point light sits 0.45 m under the bulb (a pendant's 0.25 m): a point 5 cm from the
@@ -766,6 +767,7 @@ export class SceneView {
         else m.color.setHex(st.cut.cap);
       }
       this.envElevation = null;
+      this.recolour(); // R3 G2: the state plates and frames take the style's colours
       if (!rebuild) this.applyTime(); // re-tinted and re-lit: no geometry rebuild (LOOK_SPEC section 1)
     }
     if (rebuild) {

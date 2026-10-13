@@ -63,7 +63,7 @@ export const LOOK_STYLES: Readonly<Record<StyleId, LookStyle>> = {
     rig: {
       exposureDay: 0.72, exposureNight: 0.8, sunScale: 0.55, skyScale: 0.32, envDay: 0.5, envNight: 0.2, hemiScale: 0.42, interiorFill: [0.45, 0.9],
       shadowRadius: 8, rim: { color: 0x7cc8ff, intensity: 0.55 }, floorSheen: 0.72, fog: { color: '#0a1322', density: 0.045 },
-      lampEmissiveDay: 1.5, lampEmissiveNight: 2.0, lampPoolDay: 1.0, lampPoolNight: 1.1, moonScale: 0.8,
+      lampEmissiveDay: 1.5, lampEmissiveNight: 2.6, lampPoolDay: 1.0, lampPoolNight: 1.1, moonScale: 0.8,
     },
     post: { bloomThresholdDay: 1.2, bloomThresholdNight: 1.15, bloomStrengthDay: 0.26, bloomStrengthNight: 0.36, bloomRadius: 0.4, aoRadius: 0.6, aoBlend: 0.5, blobAlpha: 0.52, junctionAlpha: 0.62 },
     grade: { vignette: 0.4, vignetteColor: 'rgba(0,0,0,.6)', contrast: 1.08, saturation: 1.0 },

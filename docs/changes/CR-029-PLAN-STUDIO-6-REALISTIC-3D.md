@@ -770,3 +770,17 @@ never a closed, locked, stale one or a window; the cache; a tap and a long press
 scripted clock), `unit-walk-controller` (S4, unchanged). Browser (real touch events, `Input.dispatchTouchEvent`):
 `evidence-walk-touch` (mobile project for the gestures; the bar / sheet and its 44 px targets on every project and in the five
 skins), `unit-plan-3d-walk` (S4, all projects). Pixel baselines (new states only, Linux): `pixel-walk-touch`.
+
+## 16. Look-dev round 3 on the shipped product (branch `pilot/ST7-look-r3`, 2026-10-13)
+
+The owner approved the round-2 look (2026-10-10) and authorised a third round without specific complaints. Round 3 is a
+self-critique of the **product** (2.4.7 / 2.4.8 code), not the prototype: `docs/design/studio6/ROUND3_CRITIQUE.md` has
+the method, the ten gaps ranked by impact, the fixes and the changed numbers (an addendum to LOOK_SPEC sections 1-6).
+In short: two port bugs hid the whole look (the merged structure's normals were skewed by each part's position, so the
+sun lit no wall and the plaster read as navy; the realistic rung's ground disc faced down and drew as a dark pit), the
+level-2 state plates painted over the materials, the walk had no ceilings, the lamp pool lights sat 5 cm from the
+ceiling and bloomed into halos, the office chair was a leather barrel, and a phone showed a pill cloud. Fixed in
+`scene-real.ts`, `scene-real-builder.ts` (`RealWorld.ceilings`, additive), `scene-three.ts`, `look-style.ts`,
+`scene-frame.ts` / `sw-plan-3d.ts`; levels 1-2 and their baselines are unchanged; no new dependency, chunk or asset.
+The look-dev harness (`frontend/tests/lookdev-studio6.spec.ts`, opt-in `SW_LOOKDEV=1`) and its synthetic two-floor
+building (`frontend/tests/lookdev/house.ts`, schema 2.2, product catalog ids) stay in the tree for the next round.

@@ -117,7 +117,7 @@ const ROOMS: RoomM[] = [
 ];
 
 // id, item, level, centre (m), rotation, [w, d, h], z, entity (lamps: the light entity), material override
-type ObjectM = [string, string, string, [number, number], number, [number, number, number], number, string?, string?];
+type ObjectM = [string, string, string, [number, number], number, [number, number, number], number, string?, string?, { kind: 'floor'; color_k: number; lumens: number }?];
 const OBJECTS: ObjectM[] = [
   // living
   ['sofa', 'sofa.3', 'L0', [6.3, 3.9], 180, [2.3, 0.95, 0.85], 0],
@@ -134,7 +134,7 @@ const OBJECTS: ObjectM[] = [
   ['rug', 'mat.gym', 'L0', [6.3, 3.2], 0, [3.0, 2.2, 0.02], 0, undefined, 'fabric_rug'],
   ['lamp-liv-a', 'light.ceiling', 'L0', [6.3, 2.6], 0, [0.5, 0.5, 0.12], -0.3, 'light.living'],
   ['lamp-liv-b', 'light.ceiling', 'L0', [9.6, 3.2], 0, [0.5, 0.5, 0.12], -0.3, 'light.living'],
-  ['lamp-floor', 'light.pole', 'L0', [4.1, 1.0], 0, [0.35, 0.35, 1.5], 0, 'light.living_floor'],
+  ['lamp-floor', 'light.pole', 'L0', [4.1, 1.0], 0, [0.35, 0.35, 1.5], 0, 'light.living_floor', undefined, { kind: 'floor', color_k: 2700, lumens: 800 }],
   // hall / corridor / stairs
   ['console', 'cabinet.low', 'L0', [2.0, 0.85], 0, [1.2, 0.4, 0.8], 0],
   ['lamp-hall', 'light.ceiling', 'L0', [2.0, 2.0], 0, [0.4, 0.4, 0.1], -0.3, 'light.hall'],
@@ -269,10 +269,11 @@ export function houseDoc(): GeometryDoc {
     anchor_ref: entity ? { resource_type: 'ha_entity', resource_id: entity } : null, confidence: 1, source: 'manual', external_ids: {},
     ...(tint ? { tint: tint as 'frosted' } : {}),
   }));
-  const objects: GeomObject[] = OBJECTS.map(([id, item, level, c, rot, size, z, entity, material]) => ({
+  const objects: GeomObject[] = OBJECTS.map(([id, item, level, c, rot, size, z, entity, material, light]) => ({
     id, item_id: item, level_id: level, position: N(c[0], c[1]), rotation_deg: rot, size: { w_m: size[0], d_m: size[1], h_m: size[2] }, z_m: z, params: {}, label: null,
     anchor_ref: entity ? { resource_type: 'ha_entity', resource_id: entity } : null, group_id: null, confidence: 1, source: 'manual', locked: false, external_ids: {},
     ...(material ? { material_id: material } : {}),
+    ...(light ? { light } : {}),
   }));
   return {
     schema_version: '2.2',

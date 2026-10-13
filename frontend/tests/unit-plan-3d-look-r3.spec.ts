@@ -110,7 +110,11 @@ test('G2 / G3: no lit plate at level 3, thinned presence plates, an emissive ope
   const drawn = tints.find((t) => t.name === 'room:r-living#presence-ring')!;
   expect(drawn.opacity).toBeCloseTo(Math.round(plate.opacity * 0.45 * 1e4) / 1e4, 4);
   expect(drawn.color).toBe('2767ed'); // the light style's presence colour
-  const frames = await materialsOf(el, 'open:');
+  const office = tints.find((t) => t.name === 'room:r-office#presence')!;
+  const officePart = desc.parts.find((p) => p.id === 'room:r-office#presence')!;
+  expect(office.opacity, `office plate ${JSON.stringify(tints)}`).toBeCloseTo(Math.round(officePart.opacity * 0.35 * 1e4) / 1e4, 4);
+  // the open-door frames are instanced per (shape, token, opacity): the group's mesh carries the token in its name
+  const frames = await materialsOf(el, 'box|danger|');
   expect(frames.length).toBeGreaterThan(0);
   for (const f of frames) {
     expect(f.color).toBe('e4463c');
@@ -120,7 +124,7 @@ test('G2 / G3: no lit plate at level 3, thinned presence plates, an emissive ope
   // a style switch re-tints the state materials without a rebuild
   await el.evaluate((n) => { (n as unknown as Probe).themeForce = 'dark'; });
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.getRealSettings().style)).toBe('dark');
-  await expect.poll(async () => (await materialsOf(el, 'open:'))[0]?.color).toBe('ff6b62');
+  await expect.poll(async () => (await materialsOf(el, 'box|danger|'))[0]?.color).toBe('ff6b62');
   expect((await materialsOf(el, 'room:')).find((t) => t.name === 'room:r-living#presence-ring')!.color).toBe('38bdf8');
   const disc = await normalsOf(el, 'ground');
   expect(disc.normals).toEqual(['0,1,0']);
