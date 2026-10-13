@@ -6,6 +6,7 @@ import {
   BOARD_HREF, autoCloseLine, boardHref, floorChips, floorsLayout, fmtDur, groupingOn, nestTree, parseBoardRoute, sections, stripItems, stuckChip, waitingLabel,
 } from '../src/tickets/board-model';
 import { BOARD_TEXT_EN_KEYS, BOARD_TEXT_KEYS, boardTemplate, bt } from '../src/tickets/board-text';
+import { tt } from '../src/tickets/text';
 import { boardUiOf, type BoardItem, type TreeNode } from '../src/api/tickets-board';
 import { setTicketNames } from '../src/tickets/naming';
 import { eventLine } from '../src/tickets/model';
@@ -125,7 +126,7 @@ test('the board tab: after "המחלקה", for tickets.manage, active on #/ticke
 
 test('the notification category and subject kind of the module (spec 13.4)', () => {
   expect(CATEGORY_ORDER.at(-1)).toBe('tickets');
-  expect(CATEGORY_LABEL.tickets).toBe('קריאות'); // a getter: the configured plural (the default here)
+  expect(CATEGORY_LABEL.tickets).toBe(tt('area')); // a getter: the configured plural (whatever the default is)
   setTicketNames({ he: { one: 'פנייה', many: 'פניות', gender: 'f' } });
   expect(CATEGORY_LABEL.tickets).toBe('פניות');
   expect(VISIBILITY_PERMISSION.ticket).toBe('tickets.view');

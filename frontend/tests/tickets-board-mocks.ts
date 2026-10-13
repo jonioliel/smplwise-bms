@@ -90,7 +90,7 @@ export async function installBoardMock(page: Page, o: BoardMockOptions = {}): Pr
     return json(route, { prefs: { 'nav.order': [], ...st.prefs }, stored: [], updated_at: null });
   });
   await page.route('**/api/v1/tickets/module', async (route) => {
-    const he = o.name ?? { one: 'קריאה', many: 'קריאות', gender: 'f' };
+    const he = o.name ?? { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' }; // owner 14.10: the default noun
     const names = { he, en: { one: 'Ticket', many: 'Tickets', gender: '' }, ar: { one: 'بلاغ', many: 'بلاغات', gender: 'm' }, ru: { one: 'Заявка', many: 'Заявки', gender: 'f' } };
     return json(route, { enabled: o.enabled ?? true, public_ready: false, name: names, name_revision: o.name ? 1 : 0,
       ui: { detail: o.ui?.detail ?? 'drawer_fullscreen', new_ticket: o.ui?.new_ticket ?? 'sheet', ...ui } });
