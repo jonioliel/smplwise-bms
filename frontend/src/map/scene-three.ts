@@ -904,6 +904,10 @@ export class SceneView {
         if ('emissive' in material && material.emissiveIntensity > 0) material.emissive.copy(material.color);
       } else material.color.set(this.opts.color(token));
     }
+    for (const m of this.tints.values()) {
+      const st = m.userData.state as keyof LookStyle['states'] | null | undefined;
+      if (st && !Array.isArray(m.material)) (m.material as MeshStandardMaterial).color.set(LOOK_STYLES[this.real.style].states[st]);
+    }
     this.outlineMaterial.color.set(this.opts.color('accent'));
   }
 
@@ -983,7 +987,10 @@ export class SceneView {
       // a tint owns its material: a fade step changes its opacity alone (a shared material would fade every room)
       const material = p.kind === 'tint' ? shared.clone() : shared;
       const mesh = new Mesh(geometry, material);
-      if (p.kind === 'tint') mesh.userData.ownMaterial = true;
+      if (p.kind === 'tint') {
+        mesh.userData.ownMaterial = true;
+        mesh.userData.state = this.stateOf(p.color); // R3 G2: a style switch recolours the clone too
+      }
       mesh.position.set(p.position[0], p.position[1], p.position[2]);
       this.shadows(mesh, p);
       return mesh;

@@ -123,8 +123,9 @@ test('G2 / G3: no lit plate at level 3, thinned presence plates, an emissive ope
   }
   // a style switch re-tints the state materials without a rebuild
   await el.evaluate((n) => { (n as unknown as Probe).themeForce = 'dark'; });
-  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.getRealSettings().style)).toBe('dark');
-  await expect.poll(async () => (await materialsOf(el, 'box|danger|'))[0]?.color).toBe('ff6b62');
+  // (a realistic frame takes seconds on SwiftShader at 390 px: the element's update lands when the frame is done)
+  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.getRealSettings().style), { timeout: 90_000 }).toBe('dark');
+  await expect.poll(async () => (await materialsOf(el, 'box|danger|'))[0]?.color, { timeout: 60_000 }).toBe('ff6b62');
   expect((await materialsOf(el, 'room:')).find((t) => t.name === 'room:r-living#presence-ring')!.color).toBe('38bdf8');
   const disc = await normalsOf(el, 'ground');
   expect(disc.normals).toEqual(['0,1,0']);
