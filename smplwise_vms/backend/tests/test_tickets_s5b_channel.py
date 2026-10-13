@@ -265,6 +265,29 @@ def test_an_unmapped_use_holds_the_message_and_a_moved_use_sends_from_the_new_ac
     assert env.fake.calls[0]["data"]["account"] == ENTRY_B and env.rows(t["id"])[0].account_key == KEY_B
 
 
+def test_turning_the_switch_off_stops_whatsapp_for_messages_already_queued(env):
+    t, _ = _sent_ticket(env)
+    env.channel(whatsapp={"enabled": False})
+    env.tick()
+    assert env.rows(t["id"])[0].held_reason == "account_unmapped" and env.fake.calls == []
+    env.tick(minutes=16)
+    assert env.rows(t["id"])[0].state == "not_sent" and env.fake.calls == [], "nothing leaves on WhatsApp while the switch is off"
+
+
+def test_a_reassignment_tells_the_previous_contact_and_sends_the_new_one(env):
+    t, _ = _sent_ticket(env)
+    env.tick()
+    other = env.s4.add_contact(display_name="יוסי לוי", phone="050-000-0061").json()
+    r = env.s4.assign_contact(t["id"], contact_id=other["id"])
+    assert r.status_code == 200, r.text
+    env.tick(seconds=30)
+    env.tick(seconds=30)
+    purposes = {(x.purpose, x.contact_id, x.state) for x in env.rows(t["id"])}
+    assert ("reassigned", env.s4.contact["id"], "sent") in purposes and ("assign", other["id"], "sent") in purposes
+    targets = [c["data"]["target"] for c in env.fake.calls]
+    assert targets.count(PHONE_A_E164) == 2 and targets.count("972500000061") == 1
+
+
 def test_the_d6_rule_refuses_a_code_protected_assignment_without_a_code_channel(env):
     env.channel(whatsapp={"enabled": False})
     t = env.s4.ticket()

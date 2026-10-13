@@ -715,10 +715,19 @@ class _GuardedOutbox:
 
 
 class _LazyAccounts:
-    """The account service of the worker, built on first use (after the migrations ran)."""
+    """The account service of the worker, built on first use (after the migrations ran). While the master WhatsApp switch is OFF no
+    ticket use resolves to an account: rows queued before the switch went off are held (`account_unmapped`) and then fall back (D13) -
+    nothing leaves on WhatsApp. A per-account test send (`ref`) is the administrator's own act and is not affected."""
 
     def __init__(self, rt: MessagingRuntime) -> None:
         self.rt = rt
+
+    def resolve(self, use_key: str, department_id: str | None = None) -> AccountRef | None:
+        if self.rt.db is not None:
+            with obs.Access(self.rt.db).read() as conn:
+                if not channel_settings(conn)["whatsapp"]["enabled"]:
+                    return None
+        return self.rt.accounts().resolve(use_key, department_id)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.rt.accounts(), name)
