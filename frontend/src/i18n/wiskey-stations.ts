@@ -99,6 +99,7 @@ const he = {
     lastStill: 'תמונה אחרונה',
     notFound: 'התחנה אינה זמינה',
     notFoundHint: 'התחנה אינה בתחום שלך',
+    schedules: 'לוחות זמנים',
   },
   tech: {
     sync: 'סנכרון',
@@ -287,6 +288,7 @@ const en: StationsText = {
     lastStill: 'Last picture',
     notFound: 'The station is not available',
     notFoundHint: 'The station is outside your scope',
+    schedules: 'Schedules',
   },
   tech: {
     sync: 'Sync',

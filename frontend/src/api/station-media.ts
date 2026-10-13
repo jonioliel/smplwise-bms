@@ -85,9 +85,13 @@ export const stopTalk = (session: string) => post<{ stopped: boolean }>(`access-
 
 export const talkSocketUrl = (wsPath: string): string => relayWsUrl(wsPath);
 
+/** The settings key (routers/settings.py) and its three values, in the order Settings offers them. */
+export const STATION_MEDIA_KEY = 'access.station_media';
+export const STATION_MEDIA_MODES: readonly StationMediaMode[] = ['off', 'video', 'video_talk'];
+
 /** The administrator setting as the screen reads it; anything unreadable is `off` (the still and the classic panel). */
 export function parseMediaMode(settings: Record<string, unknown> | null | undefined): StationMediaMode {
-  const v = settings?.['access.station_media'];
+  const v = settings?.[STATION_MEDIA_KEY];
   return v === 'video' || v === 'video_talk' ? v : 'off';
 }
 

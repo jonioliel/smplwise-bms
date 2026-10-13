@@ -35,7 +35,7 @@ from typing import Any
 
 from ..db import now_iso
 from ..rbac import Principal
-from . import intercom_doors, intercom_sync
+from . import door_overrides, intercom_doors, intercom_sync
 
 WISKEY_DOMAINS = intercom_doors.WISKEY_PLATFORMS  # the integration's own service domain has the same two names
 OPEN_SERVICES = frozenset({"lock.unlock", "lock.open"})
@@ -45,7 +45,9 @@ LOCKED_STATES = frozenset({"locked", "locking"})
 MAX_DEPTH = 6
 # SEC-WXD M3: platforms whose entities run an action sequence the mirror does not hold (a template switch / cover / light /
 # fan / select / number / valve / vacuum / alarm panel / lock / button, a universal media player's commands): any service
-# call on one may hide a door opening, so it is unresolved wherever a WisKey door exists (fail closed, like a template lock)
+# call on one may hide a door opening, so it is unresolved wherever a WisKey door exists (fail closed, like a template lock).
+# WXUNBLK (owner 2026-10-13): an entity the system administrator released by hand (services/door_overrides.py) is the one exception,
+# per ENTITY: `Resolver.blocked_platform` is the single place that says "still blocked"; every other reason stays as it was.
 SCRIPT_BACKED_PLATFORMS = frozenset({"template", "universal"})
 _TEMPLATE = re.compile(r"\{\{|\{%|\{#")
 _REGISTRY_ID = re.compile(r"^[0-9a-f]{32}$")
@@ -94,6 +96,9 @@ class Unresolved:
     path: str
     reason: str
     via: tuple[str, ...] = ()
+    # WXUNBLK: the script-backed entities that made this step unresolved - the ones an administrator may release (empty for every
+    # other reason: a computed service, a label, an unknown item ... nothing to release). Never part of a screen's output as an id.
+    entities: tuple[str, ...] = ()
 
 
 @dataclass
@@ -154,15 +159,33 @@ class _Targets:
 class Resolver:
     """The static resolver over one connection (entities and items cached per instance: one request, one snapshot)."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, *, ignore_overrides: bool = False) -> None:
+        """`ignore_overrides`: judge as if no administrator had released any entity (WXUNBLK) - what the Settings screen asks to
+        show what is blocked and what a release would free. Every guard builds its resolver without it."""
         self.conn = conn
         self._entities: dict[str, dict[str, Any] | None] = {}
         self._items: dict[str, sqlite3.Row | None] = {}
         self._present: bool | None = None
         self._map: dict[str, dict[str, Any]] | None = None
-        self._sb: set[str] | None = None  # entity ids of script-backed platforms (SEC-WXD M3)
+        self._sb: set[str] | None = None  # entity ids of script-backed platforms that are still blocked (SEC-WXD M3, minus WXUNBLK releases)
+        self._ignore_overrides = ignore_overrides
+        self._released: frozenset[str] | None = None
 
     # ------------------------------------------------------------- facts
+
+    def released(self) -> frozenset[str]:
+        """WXUNBLK: the script-backed entities the system administrator released by hand (services/door_overrides.py), read once
+        per resolver - one request, one snapshot. Empty when asked to ignore overrides. An entity the administrator mapped to an
+        intercom door is a known door, never "not provably a door": a release that predates its mapping (or was written by hand)
+        is not honoured here, whatever the route that stored it allowed."""
+        if self._released is None:
+            self._released = frozenset() if self._ignore_overrides else frozenset(e for e in door_overrides.unblocked_ids(self.conn) if self._map_row(e) is None)
+        return self._released
+
+    def blocked_platform(self, entity_id: str, platform: str | None) -> bool:
+        """An entity of a script-backed platform that the guards still block: its action sequence is not in the mirror, and no
+        administrator released this ONE entity. The only place that decides it."""
+        return (platform or "") in SCRIPT_BACKED_PLATFORMS and entity_id not in self.released()
 
     def present(self) -> bool:
         """Whether this installation has any WisKey door at all (a WisKey lock entity in the mirror, or a door map row).
@@ -364,17 +387,19 @@ class Resolver:
                     continue
                 if (ent["platform"] or "") in intercom_doors.WISKEY_PLATFORMS:
                     res.unresolved.append(Unresolved(p, "wiskey_button", via))
-                elif (ent["platform"] or "") in SCRIPT_BACKED_PLATFORMS:
-                    res.unresolved.append(Unresolved(p, "template_button", via))
+                elif self.blocked_platform(e, ent["platform"]):
+                    res.unresolved.append(Unresolved(p, "template_button", via, (e,)))
             return
         # any other service: a target entity whose platform runs its own action sequence (SEC-WXD M3)
         if domain and name:
             self._script_backed(self._targets(s), None if domain == "homeassistant" else domain, p, via, res)
 
     def _script_backed_ids(self) -> set[str]:
+        """The entities of a script-backed platform that are still blocked: every one, less the ones an administrator released."""
         if self._sb is None:
             marks = ",".join("?" * len(SCRIPT_BACKED_PLATFORMS))
-            self._sb = {r[0] for r in self.conn.execute(f"SELECT entity_id FROM ha_entities WHERE platform IN ({marks}) AND removed_at IS NULL", tuple(sorted(SCRIPT_BACKED_PLATFORMS))).fetchall()}
+            every = {r[0] for r in self.conn.execute(f"SELECT entity_id FROM ha_entities WHERE platform IN ({marks}) AND removed_at IS NULL", tuple(sorted(SCRIPT_BACKED_PLATFORMS))).fetchall()}
+            self._sb = every - self.released()
         return self._sb
 
     def _script_backed(self, t: _Targets, domain: str | None, p: str, via: tuple[str, ...], res: Resolution, skip_domains: tuple[str, ...] = ()) -> None:
@@ -391,8 +416,9 @@ class Resolver:
             if prob in ("template_target", "label_target"):
                 res.unresolved.append(Unresolved(p, prob, via))
         targets = t.entities + ([e for e in in_domain if e not in t.entities] if t.all_entities else [])
-        if any(e in sb and e in in_domain for e in targets):
-            res.unresolved.append(Unresolved(p, "template_entity", via))
+        hit = [e for e in dict.fromkeys(targets) if e in sb and e in in_domain]
+        if hit:
+            res.unresolved.append(Unresolved(p, "template_entity", via, tuple(hit)))
 
     def _lock(self, entity_id: str, svc: str, p: str, via: tuple[str, ...], depth: int, res: Resolution, seen: frozenset[str], *, explicit: bool) -> None:
         ent = self.entity(entity_id)
@@ -407,9 +433,10 @@ class Resolver:
                 return
             res.door_steps.append(self._door_of(entity_id, svc, p, via))
             return
-        if platform in SCRIPT_BACKED_PLATFORMS:
-            # its lock action runs a sequence the mirror does not hold, whichever service it is (SEC-WXD M3)
-            res.unresolved.append(Unresolved(p, "template_lock", via))
+        if self.blocked_platform(entity_id, platform):
+            # its lock action runs a sequence the mirror does not hold, whichever service it is (SEC-WXD M3); a released one
+            # (WXUNBLK) is judged like any other lock that is not a WisKey door, a group or a template: nothing to resolve
+            res.unresolved.append(Unresolved(p, "template_lock", via, (entity_id,)))
             return
         if svc not in OPEN_SERVICES:
             return
@@ -511,10 +538,11 @@ class Resolver:
         for m in _attr_members(ent):
             if m.split(".", 1)[0] == "lock":
                 me = self.entity(m)
-                if me is None or (me["platform"] or "") in intercom_doors.WISKEY_PLATFORMS or (me["platform"] or "") in SCRIPT_BACKED_PLATFORMS or me["platform"] == "group":
-                    res.unresolved.append(Unresolved(p, "scene_state_unknown", via))
+                held = me is not None and self.blocked_platform(m, me["platform"])  # a template lock nobody released
+                if me is None or (me["platform"] or "") in intercom_doors.WISKEY_PLATFORMS or held or me["platform"] == "group":
+                    res.unresolved.append(Unresolved(p, "scene_state_unknown", via, (m,) if held else ()))
             elif m in self._script_backed_ids():
-                res.unresolved.append(Unresolved(p, "template_entity", via))
+                res.unresolved.append(Unresolved(p, "template_entity", via, (m,)))
 
     def resolve_entity_item(self, entity_id: str, role: str, p: str, via: tuple[str, ...], depth: int, res: Resolution, seen: frozenset[str], *, explicit: bool = True) -> None:
         row = self.item_row(entity_id)
@@ -564,13 +592,15 @@ class Resolver:
             if eid.split(".", 1)[0] != "lock":
                 # SEC-WXD M3: setting a script-backed entity (a template switch / cover ...) runs its action sequence
                 if eid.lower() in self._script_backed_ids():
-                    res.unresolved.append(Unresolved(f"{p}.{eid}", "template_entity", via))
+                    res.unresolved.append(Unresolved(f"{p}.{eid}", "template_entity", via, (eid.lower(),)))
                 continue
             state = value.get("state") if isinstance(value, dict) else value
             mp = f"{p}.{eid}"
             if _has_template(state) or not isinstance(state, str):
-                if self.is_wiskey(eid) or (self.entity(eid) or {}).get("platform") in ("template", "group") or self.entity(eid) is None:
-                    res.unresolved.append(Unresolved(mp, "scene_state_unknown", via))
+                platform = (self.entity(eid) or {}).get("platform")
+                held = platform == "template" and eid.lower() not in self.released()  # a template lock nobody released
+                if self.is_wiskey(eid) or held or platform == "group" or self.entity(eid) is None:
+                    res.unresolved.append(Unresolved(mp, "scene_state_unknown", via, (eid.lower(),) if held else ()))
                 continue
             st = state.strip().lower()
             if st in OPEN_STATES:
@@ -839,19 +869,29 @@ def _view(conn: sqlite3.Connection, r: Resolver, *, kind: str, key: str, name: s
         "suggestion_text": SUGGESTION_TEXT[suggestion],
         "disable_required": disable_required,
         "revision": revision,
+        # WXUNBLK: the script-backed entities behind the item's unresolved steps. An internal key: `inventory` drops it unless the
+        # caller (the Settings screen of the blocks, services/door_blocks.py) asks for it - the report itself stays names-only.
+        "_entities": sorted({e for u in res.unresolved for e in u.entities}),
     }
 
 
-def inventory(conn: sqlite3.Connection, *, dev_mode: bool = False) -> dict[str, Any]:
+def inventory(conn: sqlite3.Connection, *, dev_mode: bool = False, ignore_overrides: bool = False, with_entities: bool = False) -> dict[str, Any]:
     """The read-only report "פריטים שפותחים דלתות": every saved item with a WisKey door step (or one that cannot be
-    resolved, or a lock.lock on a WisKey lock), from Arx's own mirror. No call, no write."""
-    r = Resolver(conn)
+    resolved, or a lock.lock on a WisKey lock), from Arx's own mirror. No call, no write.
+
+    `ignore_overrides` (WXUNBLK): judge as if no administrator had released an entity - the items blocked WITHOUT any release.
+    `with_entities`: keep each item's `_entities` (entity ids): for the system administrator's blocks screen only; the route of this
+    report never asks, so it stays names-only."""
+    r = Resolver(conn, ignore_overrides=ignore_overrides)
     present = r.present()
     items: list[dict[str, Any]] = []
     if present:
         items.extend(_config_items(conn, r, dev_mode))
         items.extend(_schedules(conn, r, dev_mode))
         items.extend(_launcher(conn, r, dev_mode))
+    if not with_entities:
+        for i in items:
+            i.pop("_entities", None)
     order = {"refused_unresolvable": 0, "refused_not_converted": 1, "unchanged": 2}
     items.sort(key=lambda i: (order[i["run_guard"]], i["kind"], i["name"]))
     counts = {

@@ -9,6 +9,7 @@ import type { PanelState } from '../components/sw-state-panel';
 import type { AccessStation, CallState, StationCodes, StationPrograms, StationProgram, WeekdayName, Period } from '../api/access-stations';
 import type { DeviceTree } from '../api/devices';
 import type { DisplayZone, IntercomFeedState, IntercomLock } from '../api/intercom';
+import { doorsOf } from '../access-control/schedules-logic';
 import { fill, ws, type StationsText } from '../i18n/wiskey-stations';
 import { offsetAt, UTC_ZONE } from './wiskey-format';
 
@@ -510,6 +511,17 @@ export const classicPanelHref = (): string => '#/wiskey/overview?classic=1';
 export function stationEventsHref(stationId: string, eventsNative: boolean, canReadEvents: boolean): string | null {
   if (!eventsNative || !canReadEvents || !stationId) return null;
   return `#/wiskey/events?station=${encodeURIComponent(stationId)}`;
+}
+
+/** WXSCH (owner 2026-10-13): "the door schedules of this station" - the native schedules screen (S9) opened on the station's first
+ * door (`?door=<station>:<relay>`). Offered only while the schedules screen IS the native one (else the address shows the embedded
+ * panel, which has no schedules tab and ignores the door), the caller holds the schedules view permission (`access.stations.read`)
+ * somewhere, and the server sent THIS station with its technical part - the very rule that puts a station's doors into that screen's
+ * door list (`doorsOf`), so the link can never land on a door the screen does not list. */
+export function stationSchedulesHref(station: AccessStation, schedulesNative: boolean, canReadStations: boolean): string | null {
+  if (!schedulesNative || !canReadStations || !station.id) return null;
+  const door = doorsOf([station])[0];
+  return door ? `#/wiskey/schedules?door=${encodeURIComponent(door.key)}` : null;
 }
 
 // ---------------------------------------------------------------- feed states

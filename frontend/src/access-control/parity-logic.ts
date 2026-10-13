@@ -4,6 +4,7 @@
  * so tests/unit-access-parity-logic.spec.ts runs it without a browser. Nothing here reads a network or names an integration command.
  */
 import type { ParityOutcome, ParityRow, ParitySide } from '../api/access-parity';
+import { STATION_MEDIA_MODES, type StationMediaMode } from '../api/station-media';
 import { pt, ptDynamic, type PtKey } from '../i18n/access-parity';
 import { POLICY_KEYS, parsePolicy } from '../screens/wiskey-stations-logic';
 
@@ -19,6 +20,12 @@ export function phrasePreview(text: string): { shown: number; dropped: number; b
   const shown = parsePolicy({ [POLICY_KEYS.phrases]: text }).phrases.length;
   return { shown, dropped: Math.max(0, lines.length - shown), builtIn: shown === 0 };
 }
+
+const MEDIA_LABEL: Record<StationMediaMode, PtKey> = { off: 'dispMediaOff', video: 'dispMediaVideo', video_talk: 'dispMediaTalk' };
+
+/** The choices of the "וידאו ודיבור במסך התחנות" row (`access.station_media`): value and label, in the order Settings offers them. The
+ * live picture always goes through the product's own media server (WebRTC or MSE); that is not a choice, so nothing here names it. */
+export const mediaOptions = (): Array<[StationMediaMode, string]> => STATION_MEDIA_MODES.map((m) => [m, pt(MEDIA_LABEL[m])]);
 
 export type BadgeKind = 'live' | 'neutral' | 'error' | 'partial' | 'forbidden' | 'unknown' | 'offline';
 
