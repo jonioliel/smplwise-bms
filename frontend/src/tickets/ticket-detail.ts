@@ -18,6 +18,7 @@ import { tt } from './text';
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
+import { messageEventLine, messagesBlock } from './ticket-messages'; // slice 5b: the delivery lines (D14) and the message events
 
 interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
 
@@ -438,6 +439,11 @@ export class TicketDetailView extends LitElement {
     </section>`;
   }
 
+  /** slice 5b: the messages to the outside handler (D14 lines, "send now" D29, "send again", "send update") - tickets/ticket-messages.ts */
+  private messagesSection(t: TicketDetail): TemplateResult | typeof nothing {
+    return messagesBlock(t, { busy: this.busy, act: (fn, done) => void this.run(fn, done) });
+  }
+
   private photosSection(t: TicketDetail): TemplateResult | typeof nothing {
     if (!t.attachments.length && !t.can.attach) return nothing;
     const marks = marksInternal(t);
@@ -473,7 +479,7 @@ export class TicketDetailView extends LitElement {
       </div>` : nothing}
       <ol class="tline" data-timeline>
         ${repeat(rows, (e) => e.id, (e) => {
-          const line = eventLine(e, t.department ? { [t.department.id]: t.department.name } : {});
+          const line = messageEventLine(e) ?? eventLine(e, t.department ? { [t.department.id]: t.department.name } : {});
           return html`<li data-kind=${e.kind} data-event=${e.id}>
             <span class="ring">${tIcon(line.icon)}</span>
             <div class="tx">
@@ -580,6 +586,7 @@ export class TicketDetailView extends LitElement {
       ${this.sentence(t)}
       ${this.statusSection(t)}
       ${this.assigneeSection(t)}
+      ${this.messagesSection(t)}
       ${this.photosSection(t)}
       ${this.timelineSection(t)}
     </div>`;
@@ -625,7 +632,7 @@ export class TicketDetailView extends LitElement {
       ${this.flashRow()}
       <div class="cols">
         <div class="stack">${this.sentence(t)}${this.statusSection(t)}<div class="glass card">${this.timelineSection(t)}</div></div>
-        <div class="stack">${this.assigneeSection(t)}${this.photosSection(t)}</div>
+        <div class="stack">${this.assigneeSection(t)}${this.messagesSection(t)}${this.photosSection(t)}</div>
       </div>
       ${this.dialogs()}
     </div>`;

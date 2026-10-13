@@ -8,6 +8,9 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import '../tickets/settings-dept';
+import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
+import '../tickets/settings-message-templates'; // slice 5b: תבניות הודעה (D26)
+import { mtt } from '../tickets/messages-text';
 import { ApiError, describeError, patch } from '../api/client';
 import { productSettings, invalidateSettings } from '../api/prefs';
 import { can, canAnywhere, isApi } from '../api/session';
@@ -28,8 +31,8 @@ import { intIn, windowProblem } from '../tickets/durations';
 import { ticketSettingsCss } from '../tickets/settings-styles';
 import { tt, type TicketTextKey } from '../tickets/text';
 
-type Tab = 'general' | 'departments' | 'permissions';
-const TABS: readonly Tab[] = ['general', 'departments', 'permissions'];
+type Tab = 'general' | 'departments' | 'channel' | 'messages' | 'permissions';
+const TABS: readonly Tab[] = ['general', 'departments', 'channel', 'messages', 'permissions'];
 const PERMS = ['view', 'create', 'manage', 'external', 'all_departments', 'configure'] as const;
 type Perm = (typeof PERMS)[number];
 const SENSITIVE_PERMS: readonly Perm[] = ['external', 'all_departments', 'configure'];
@@ -166,6 +169,8 @@ export class SystemTickets extends LitElement {
       } else if (this.tab === 'departments') {
         await this.loadDepartments();
         if (!this.directory) this.directory = await ticketsApi().directory();
+      } else if (this.tab === 'channel' || this.tab === 'messages') {
+        // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
         this.holders = await ticketsApi().holders();
         if (!this.directory) this.directory = await ticketsApi().directory();
@@ -526,9 +531,13 @@ export class SystemTickets extends LitElement {
     const heading = tt('area');
     if (this.enabled === null) return html`<sw-page crumbs="הגדרות" heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const tabs = this.enabled ? html`<sw-tabs variant="underline" data-tickets-settings-tabs .items=${[
-      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') }, { id: 'permissions', label: tt('setTabPermissions') },
+      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') },
+      { id: 'channel', label: mtt('tabChannel') }, { id: 'messages', label: mtt('tabTemplates') }, { id: 'permissions', label: tt('setTabPermissions') },
     ]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;
-    const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab() : this.permissionsTab();
+    const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
+      : this.tab === 'channel' ? html`<tickets-channel-settings @notice=${this.onNotice}></tickets-channel-settings>` // slice 5b
+      : this.tab === 'messages' ? html`<tickets-message-templates @notice=${this.onNotice}></tickets-message-templates>` // slice 5b
+      : this.permissionsTab();
     return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${tt('setSub')} data-tickets-settings data-tab=${this.tab}>
       ${tabs}
       ${this.error ? html`<div class="msg err" role="alert" data-tickets-settings-error>${this.error}</div>` : nothing}
