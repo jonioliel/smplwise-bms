@@ -208,6 +208,23 @@ def test_send_window_resolution_department_then_installation_then_default():
     assert stuck.send_window("garbage", "{bad") == ("07:00", "21:00")
 
 
+@pytest.mark.parametrize("status", ["new", "returned", "assigned", "acknowledged", "in_progress", "waiting_part", "done"])
+def test_the_monitor_and_slice_2s_stored_dues_agree(status):
+    """stuck.evaluate (the monitor) and sla.compute (slice 2's stored ack / stuck / resolve dues) are the same formulas."""
+    from smplwise.services.tickets import sla
+
+    r = row(status, last=T0 + m(7), eta=T0 + m(500) if status == "in_progress" else None)
+    since = z(T0 + m(3))
+    ev = stuck.evaluate(r, RULE, T0, unassigned_since=since)
+    d = sla.compute(status=status, created_at=r["created_at"], last_activity_at=r["last_activity_at"], unassigned_since=since,
+                    assigned_at=r["asg_at"], eta_at=r["eta_at"], done_at=None, rule=RULE, auto_close_after_days=None)
+    first = ev.dues.get("unassigned") or ev.dues.get("ack")
+    assert (z(first) if first else None) == d.ack_due_at
+    nxt = ev.dues.get("stuck") or ev.dues.get("waiting")
+    assert (z(nxt) if nxt else None) == d.stuck_due_at
+    assert (z(ev.dues["overdue"]) if "overdue" in ev.dues else None) == d.resolve_due_at
+
+
 def test_nearest_due_for_the_board():
     r = row("assigned")
     cell = stuck.nearest_due(stuck.evaluate(r, RULE, T0 + m(10)), T0 + m(10))

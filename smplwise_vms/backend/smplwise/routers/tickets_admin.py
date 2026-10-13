@@ -9,18 +9,19 @@ manager. Department configuration is installation-wide, so these permissions are
 (ids and field names, never free text). Mounted BEFORE routers/tickets.py (its `/tickets/{ticket_id}` would match these paths)."""
 from __future__ import annotations
 
+import json
 import sqlite3
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
 from ..errors import ApiError
-from ..rbac import INSTALLATION, ROLES, Principal, require, role_permissions, scope_name
-from ..services.tickets import access, model, naming, settings_doc, store
+from ..rbac import INSTALLATION, ROLES, Principal, all_roles, require, role_permissions, scope_name
+from ..services.tickets import access, model, naming, policy, settings_doc, sla, store, templates
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
 
@@ -29,6 +30,7 @@ router = APIRouter(dependencies=[Depends(module_gate)])
 KEY = r"^[a-z][a-z0-9_-]{1,31}$"
 ICON = r"^[a-z][a-zA-Z0-9_-]{0,31}$"
 COLOR = r"^--sw-[a-z0-9-]{1,40}$"
+DOMAIN = r"^[a-z][a-z0-9_]{0,39}$"
 GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure")
 
 
@@ -69,11 +71,38 @@ class UiPatch(BaseModel):
     closed_strip: Literal["week", "all", "hidden"] | None = None  # D21 (slice 6)
 
 
+class LinksPatch(BaseModel):
+    """D5 installation values (ranges and the cap >= sliding rule: settings_doc.SCHEMA)."""
+    model_config = ConfigDict(extra="forbid")
+    sliding_days: StrictInt | None = None
+    cap_days: StrictInt | None = None
+    grace_hours: StrictInt | None = None
+
+
+class HoursBody(BaseModel):
+    """D4: a local-time window, `from` earlier than `to` (settings_doc.send_hours)."""
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    from_: str = Field(alias="from", max_length=5)
+    to: str = Field(max_length=5)
+
+    def window(self) -> dict[str, str]:
+        return {"from": self.from_, "to": self.to}
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
     ui: UiPatch | None = None
-    urgent_is_critical: StrictBool | None = None  # D28 (slice 6): a real boolean only
+    links: LinksPatch | None = None  # slice 2
+    send_hours: HoursBody | None = None  # slice 2
+    urgent_is_critical: StrictBool | None = None  # slice 2
+
+
+def _problem(exc: ValueError) -> tuple[str, str]:
+    field, _, code = str(exc).partition(":")
+    if field == "unknown":
+        return code or "body", "unknown"
+    return field, code or "invalid"
 
 
 @router.put("/tickets/settings")
@@ -87,12 +116,18 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         ui = {k: v for k, v in body.ui.model_dump().items() if v is not None}
         if ui:
             patch["ui"] = ui
-    if body.urgent_is_critical is not None:  # D28 (slice 6)
+    if body.links is not None:
+        links = {k: v for k, v in body.links.model_dump().items() if v is not None}
+        if links:
+            patch["links"] = links
+    if body.send_hours is not None:
+        patch["send_hours"] = body.send_hours.window()
+    if body.urgent_is_critical is not None:
         patch["urgent_is_critical"] = body.urgent_is_critical
     try:
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:
-        raise _invalid(conn, str(exc).split(":")[0], "invalid") from None
+        raise _invalid(conn, *_problem(exc)) from None
     audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"revision": doc["revision"], "changed": changed})
     return doc
@@ -146,18 +181,38 @@ def _member_dicts(conn: sqlite3.Connection, dept_id: str) -> list[dict[str, Any]
     return out
 
 
-def _department_dict(conn: sqlite3.Connection, viewer: Viewer, d: dict[str, Any]) -> dict[str, Any]:
+def domains_of(c: dict[str, Any]) -> list[str]:
+    try:
+        raw = json.loads(c.get("domains_json") or "[]")
+    except ValueError:
+        return []
+    return [x for x in raw if isinstance(x, str)] if isinstance(raw, list) else []
+
+
+def _department_dict(conn: sqlite3.Connection, viewer: Viewer, d: dict[str, Any], installation: dict[str, Any] | None = None) -> dict[str, Any]:
+    inst = installation if installation is not None else settings_doc.read(conn)
     return {
         "id": d["id"], "key": d["key"], "name": d["name"], "description": d["description"], "icon": d.get("icon"), "color": d.get("color"),
         "sort_order": d["sort_order"], "active": bool(d["active"]), "open_to_all": bool(d["open_to_all"]), "reopen_days": d["reopen_days"],
         "revision": d["revision"], "open_tickets": store.open_ticket_count(conn, d["id"]),
         "categories": [{"id": c["id"], "name": c["name"], "parent_id": c.get("parent_id"), "default_priority_id": c.get("default_priority_id"),
-                        "sort_order": c["sort_order"], "active": bool(c["active"])} for c in store.categories(conn, d["id"])],
+                        "domains": domains_of(c), "sort_order": c["sort_order"], "active": bool(c["active"])} for c in store.categories(conn, d["id"])],
         "priorities": [{"id": p["id"], "key": p["key"], "name": p["name"], "rank": p["rank"], "severity": p["notify_severity"],
                         "is_default": bool(p["is_default"]), "active": bool(p["active"])} for p in store.priorities(conn, d["id"])],
         "members": _member_dicts(conn, d["id"]),
         "can_edit_members": _may_edit_members(viewer, d["id"]),
+        # slice 2: the department's policy (its own overrides, NULL = the installation value) and what is in force
+        "auto_close_after_days": d.get("auto_close_after_days"),
+        "share_history_external": bool(d.get("share_history_external")),
+        "overrides": policy.overrides_of(d),
+        "effective": policy.resolve(inst, d).as_dict(),
+        "sla": store.sla_rules(conn, d["id"]),
+        "templates": [templates.as_dict(t) for t in store.templates(conn, d["id"], kind="ticket")],
     }
+
+
+def _installation_defaults(inst: dict[str, Any]) -> dict[str, Any]:
+    return {"links": dict(inst["links"]), "send_hours": dict(inst["send_hours"]), "urgent_is_critical": inst["urgent_is_critical"]}
 
 
 def _may_edit_members(viewer: Viewer, dept_id: str) -> bool:
@@ -167,8 +222,10 @@ def _may_edit_members(viewer: Viewer, dept_id: str) -> bool:
 @router.get("/tickets/admin/departments")
 def list_departments(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     viewer = _configurer(conn, principal)
-    return {"departments": [_department_dict(conn, viewer, d) for d in store.departments(conn)],
-            "all_departments": viewer.holds_installation(access.ALL_DEPARTMENTS)}
+    inst = settings_doc.read(conn)
+    return {"departments": [_department_dict(conn, viewer, d, inst) for d in store.departments(conn)],
+            "all_departments": viewer.holds_installation(access.ALL_DEPARTMENTS),
+            "installation": _installation_defaults(inst)}
 
 
 class DepartmentBody(BaseModel):
@@ -183,9 +240,64 @@ class DepartmentBody(BaseModel):
     open_to_all: bool | None = None
     reopen_days: int | None = Field(default=None, ge=1, le=90)
     revision: int | None = Field(default=None, ge=1)
+    # slice 2 - the department's policy; an explicit null clears an override (back to the installation value / two-step close)
+    auto_close_after_days: StrictInt | None = None
+    share_history_external: StrictBool | None = None
+    urgent_is_critical: StrictBool | None = None
+    link_sliding_days: StrictInt | None = None
+    link_cap_days: StrictInt | None = None
+    link_grace_hours: StrictInt | None = None
+    send_hours: HoursBody | None = None
 
 
-def _department_fields(conn: sqlite3.Connection, body: DepartmentBody, *, creating: bool) -> dict[str, Any]:
+POLICY_FIELDS = ("auto_close_after_days", "share_history_external", "urgent_is_critical", "link_sliding_days", "link_cap_days",
+                 "link_grace_hours", "send_hours_json")
+
+
+def _policy_fields(conn: sqlite3.Connection, body: DepartmentBody, sent: set[str], current: dict[str, Any] | None) -> dict[str, Any]:
+    """The policy columns of a department write, validated with the installation ranges (policy._valid) and the cross-key rule
+    against the values that will be in force (an override, or the installation value it falls back to)."""
+    fields: dict[str, Any] = {}
+    if "auto_close_after_days" in sent:
+        v = body.auto_close_after_days
+        if v is not None and not policy.AUTO_CLOSE_DAYS[0] <= v <= policy.AUTO_CLOSE_DAYS[1]:
+            raise _invalid(conn, "auto_close_after_days", "range")
+        fields["auto_close_after_days"] = v
+    if "share_history_external" in sent:
+        if body.share_history_external is None:
+            raise _invalid(conn, "share_history_external", "required")
+        fields["share_history_external"] = 1 if body.share_history_external else 0
+    if "urgent_is_critical" in sent:
+        fields["urgent_is_critical"] = None if body.urgent_is_critical is None else (1 if body.urgent_is_critical else 0)
+    for key in ("link_sliding_days", "link_cap_days", "link_grace_hours"):
+        if key in sent:
+            v = getattr(body, key)
+            if v is not None:
+                try:
+                    policy._valid(key, v)
+                except ValueError as exc:
+                    raise _invalid(conn, key, str(exc)) from None
+            fields[key] = v
+    if "send_hours" in sent:
+        if body.send_hours is None:
+            fields["send_hours_json"] = None
+        else:
+            try:
+                window = settings_doc.send_hours(body.send_hours.window())
+            except ValueError as exc:
+                raise _invalid(conn, "send_hours", str(exc)) from None
+            fields["send_hours_json"] = json.dumps(window, separators=(",", ":"))
+    if {"link_sliding_days", "link_cap_days"} & set(fields):
+        inst = settings_doc.read(conn)["links"]
+        merged = {**(current or {}), **fields}
+        sliding = merged.get("link_sliding_days") or inst["sliding_days"]
+        cap = merged.get("link_cap_days") or inst["cap_days"]
+        if cap < sliding:
+            raise _invalid(conn, "link_cap_days", "below_sliding")
+    return fields
+
+
+def _department_fields(conn: sqlite3.Connection, body: DepartmentBody, *, creating: bool, current: dict[str, Any] | None = None) -> dict[str, Any]:
     sent = body.model_fields_set - {"revision"}
     fields: dict[str, Any] = {}
     if creating and not body.key:
@@ -205,6 +317,7 @@ def _department_fields(conn: sqlite3.Connection, body: DepartmentBody, *, creati
     for k in ("active", "open_to_all"):
         if k in sent and getattr(body, k) is not None:
             fields[k] = 1 if getattr(body, k) else 0
+    fields.update(_policy_fields(conn, body, sent, current))
     return fields
 
 
@@ -240,14 +353,18 @@ def patch_department(body: DepartmentBody, request: Request, dept_id: str = Path
     d = _dept_or_404(conn, dept_id)
     if body.revision is None:
         raise _invalid(conn, "revision", "required")
-    fields = _department_fields(conn, body, creating=False)
+    fields = _department_fields(conn, body, creating=False, current=d)
     if "key" in fields and store.department_key_taken(conn, fields["key"], except_id=dept_id):
         raise ApiError(409, "department_key_taken", text(conn, "כבר קיימת מחלקה עם המזהה הזה."), details={"key": fields["key"]})
     if not store.update_department(conn, dept_id, fields, body.revision):
         raise ApiError(409, "department_stale", text(conn, "המחלקה השתנתה בינתיים. טענו מחדש."), details={"revision": d["revision"]})
     changed = sorted(k for k in fields if d.get(k) != fields[k])
+    # policy values are configuration (numbers, flags, a time window): the audit row carries them before / after; texts never
+    values = {k: [d.get(k), fields[k]] for k in changed if k in POLICY_FIELDS}
+    if "auto_close_after_days" in changed:
+        sla.refresh_many(conn, store.open_ticket_ids(conn, dept_id, status="done"))  # D10: the close time of waiting "done" tickets moves
     audit(conn, actor=principal, action="ticket.department.update", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
-          request_id=_rid(request), details={"fields": changed})
+          request_id=_rid(request), details={"fields": changed, **({"policy": values} if values else {})})
     return _department_dict(conn, viewer, store.department(conn, dept_id) or {})
 
 
@@ -273,6 +390,8 @@ class CategoryBody(BaseModel):
     default_priority_id: str | None = Field(default=None, pattern=ID)
     sort_order: int | None = Field(default=None, ge=0, le=9999)
     active: bool | None = None
+    # slice 2: device domains / types that preselect this category from a device (slice 3 reads them), e.g. ["climate", "fan"]
+    domains: list[Annotated[str, Field(pattern=DOMAIN)]] | None = Field(default=None, max_length=20)
 
 
 def _category_fields(conn: sqlite3.Connection, body: CategoryBody, dept_id: str, category_id: str | None, *, creating: bool) -> dict[str, Any]:
@@ -296,6 +415,8 @@ def _category_fields(conn: sqlite3.Connection, body: CategoryBody, dept_id: str,
         fields["sort_order"] = body.sort_order
     if "active" in sent and body.active is not None:
         fields["active"] = 1 if body.active else 0
+    if "domains" in sent:
+        fields["domains_json"] = json.dumps(sorted(set(body.domains or [])), separators=(",", ":"))
     return fields
 
 
@@ -373,6 +494,156 @@ def patch_priority(body: PriorityBody, request: Request, priority_id: str = Path
     audit(conn, actor=principal, action="ticket.priority.update", decision="allowed", resource_type="ticket_priority", resource_id=priority_id,
           request_id=_rid(request), details={"fields": sorted(fields)})
     return _department_dict(conn, viewer, store.department(conn, p["department_id"]) or {})
+
+
+# ---------------------------------------------------------------- the SLA matrix (slice 2: every threshold per department x priority, 13.1 / D11)
+
+class SlaRowBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    priority_id: str = Field(pattern=ID)
+    revision: int = Field(ge=0)
+    unassigned_after_min: StrictInt | None = None
+    link_unopened_min: StrictInt | None = None
+    ack_within_min: StrictInt | None = None
+    stuck_after_min: StrictInt | None = None
+    stuck_waiting_min: StrictInt | None = None
+    resolve_within_min: StrictInt | None = None
+    remind_every_min: StrictInt | None = None
+    max_reminders: StrictInt | None = None
+    manager_alert_after_steps: StrictInt | None = None
+
+
+class SlaBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rows: list[SlaRowBody] = Field(min_length=1, max_length=8)
+
+
+@router.put("/tickets/admin/departments/{dept_id}/sla")
+def put_sla(body: SlaBody, request: Request, dept_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+            conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Save rows of the department's SLA grid. Only the fields SENT change (an explicit null turns a threshold off). All rows are
+    checked first - priority, values, revision - and nothing is written unless every row passes (409 `sla_stale` names the rows
+    whose revision moved). Open tickets of a changed priority get their dues recomputed at once."""
+    viewer = _configurer(conn, principal)
+    _dept_or_404(conn, dept_id)
+    prios = {p["id"]: p for p in store.priorities(conn, dept_id)}
+    plans: list[tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any], int]] = []
+    problems: list[dict[str, str]] = []
+    stale_rows: list[str] = []
+    seen_ids: set[str] = set()
+    for i, row in enumerate(body.rows):
+        p = prios.get(row.priority_id)
+        if p is None or row.priority_id in seen_ids:
+            problems.append({"field": f"rows.{i}.priority_id", "code": "unknown"})
+            continue
+        seen_ids.add(row.priority_id)
+        sent = {k: getattr(row, k) for k in row.model_fields_set - {"priority_id", "revision"}}
+        try:
+            clean = sla.validate_rule(sent)
+        except model.Invalid as exc:
+            problems.extend({"field": f"rows.{i}.{pr.field}", "code": pr.code} for pr in exc.problems)
+            continue
+        current = store.sla_rule(conn, dept_id, row.priority_id)
+        if (current["revision"] if current else 0) != row.revision:
+            stale_rows.append(row.priority_id)
+            continue
+        plans.append((p, current, clean, row.revision))
+    if problems:
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": problems})
+    if stale_rows:
+        raise ApiError(409, "sla_stale", text(conn, "הספים השתנו בינתיים. טענו מחדש."), details={"priority_ids": stale_rows})
+    for p, current, clean, revision in plans:
+        changes = {k: [(current or {}).get(k), v] for k, v in clean.items() if (current or {}).get(k) != v}
+        if not changes and current is not None:
+            continue
+        if not store.write_sla_rule(conn, dept_id, p["id"], clean, revision, principal.user_id):
+            raise ApiError(409, "sla_stale", text(conn, "הספים השתנו בינתיים. טענו מחדש."), details={"priority_ids": [p["id"]]})
+        sla.refresh_many(conn, store.open_ticket_ids(conn, dept_id, priority_id=p["id"]))
+        audit(conn, actor=principal, action="ticket.sla.update", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
+              request_id=_rid(request), details={"priority_id": p["id"], "priority_key": p["key"], "changes": changes})
+    return _department_dict(conn, viewer, store.department(conn, dept_id) or {})
+
+
+# ---------------------------------------------------------------- ticket templates (slice 2; message templates are slice 5b's)
+
+class TemplateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["ticket", "message"] | None = None
+    name: str | None = Field(default=None, max_length=200)
+    title: str | None = Field(default=None, max_length=1000)
+    body: str | None = Field(default=None, max_length=20000)
+    category_id: str | None = Field(default=None, pattern=ID)
+    priority_key: str | None = Field(default=None, max_length=20)
+    active: StrictBool | None = None
+    revision: int | None = Field(default=None, ge=1)
+
+
+def _template_fields(conn: sqlite3.Connection, body: TemplateBody, dept_id: str, *, creating: bool) -> dict[str, Any]:
+    if (body.kind or "ticket") not in templates.KINDS_BUILT:
+        raise _invalid(conn, "kind", "not_supported")  # message templates arrive with the message channel (slice 5b)
+    sent = {k: getattr(body, k) for k in body.model_fields_set - {"kind", "revision"}}
+    try:
+        fields = templates.validate_ticket(sent, creating=creating)
+    except model.Invalid as exc:
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."),
+                       details={"fields": [{"field": p.field, "code": p.code} for p in exc.problems]}) from None
+    if fields.get("category_id"):
+        cat = store.category(conn, fields["category_id"])
+        if cat is None or cat["department_id"] != dept_id:
+            raise _invalid(conn, "category_id", "unknown")
+    return fields
+
+
+def _template_or_404(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
+    t = store.template(conn, template_id)
+    if t is None or t["department_id"] is None or store.department(conn, t["department_id"]) is None:
+        raise ApiError(404, "not_found", text(conn, "התבנית לא נמצאה."))
+    return t
+
+
+@router.post("/tickets/admin/departments/{dept_id}/templates", status_code=201)
+def create_template(body: TemplateBody, request: Request, dept_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = _configurer(conn, principal)
+    _dept_or_404(conn, dept_id)
+    fields = _template_fields(conn, body, dept_id, creating=True)
+    if len(store.templates(conn, dept_id, kind="ticket")) >= 50:
+        raise ApiError(409, "too_many_templates", text(conn, "הגעתם למספר התבניות המרבי למחלקה."), details={"max": 50})
+    tid = store.insert_template(conn, dept_id, "ticket", fields, principal.user_id)
+    audit(conn, actor=principal, action="ticket.template.create", decision="allowed", resource_type="ticket_template", resource_id=tid,
+          request_id=_rid(request), details={"department_id": dept_id, "kind": "ticket", "diff": templates.text_diff(None, store.template(conn, tid))})
+    return _department_dict(conn, viewer, store.department(conn, dept_id) or {})
+
+
+@router.patch("/tickets/admin/templates/{template_id}")
+def patch_template(body: TemplateBody, request: Request, template_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = _configurer(conn, principal)
+    before = _template_or_404(conn, template_id)
+    if body.revision is None:
+        raise _invalid(conn, "revision", "required")
+    if body.kind is not None and body.kind != before["kind"]:
+        raise _invalid(conn, "kind", "immutable")
+    fields = _template_fields(conn, body, before["department_id"], creating=False)
+    if not store.update_template(conn, template_id, fields, body.revision, principal.user_id):
+        raise ApiError(409, "template_stale", text(conn, "התבנית השתנתה בינתיים. טענו מחדש."), details={"revision": before["revision"]})
+    after = store.template(conn, template_id)
+    changed = sorted(k for k in fields if before.get(k) != fields[k])
+    audit(conn, actor=principal, action="ticket.template.update", decision="allowed", resource_type="ticket_template", resource_id=template_id,
+          request_id=_rid(request), details={"department_id": before["department_id"], "kind": before["kind"], "fields": changed,
+                                             "diff": templates.text_diff(before, after)})
+    return _department_dict(conn, viewer, store.department(conn, before["department_id"]) or {})
+
+
+@router.delete("/tickets/admin/templates/{template_id}")
+def delete_template(request: Request, template_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = _configurer(conn, principal)
+    before = _template_or_404(conn, template_id)
+    store.soft_delete_template(conn, template_id, principal.user_id)
+    audit(conn, actor=principal, action="ticket.template.delete", decision="allowed", resource_type="ticket_template", resource_id=template_id,
+          request_id=_rid(request), details={"department_id": before["department_id"], "kind": before["kind"], "diff": templates.text_diff(before, None)})
+    return _department_dict(conn, viewer, store.department(conn, before["department_id"]) or {})
 
 
 # ---------------------------------------------------------------- members (the escalation rule, review T19)
@@ -471,4 +742,14 @@ def holders(principal: Principal = Depends(current_principal_ro), conn: sqlite3.
                 "scope_type": b["scope_type"], "scope_id": b["scope_id"], "scope_name": scope_name(conn, b["scope_type"], b["scope_id"]),
                 "effect": b["effect"], "expires_at": b["expires_at"],
             })
-    return {"users": sorted(people.values(), key=lambda u: u["name"]), "grant_roles": [r for r in GRANT_ROLES if r in ROLES]}
+    # slice 2 - the "מי רשאי" matrix: every role (built-in and organisation-defined) with the ticket permissions it carries; the
+    # single-permission grant roles are the personal-grant card's, not rows here
+    roles = []
+    for role_id, perms in all_roles(conn).items():
+        if role_id in GRANT_ROLES:
+            continue
+        roles.append({"id": role_id, "name": role_name(conn, role_id), "builtin": role_id in ROLES,
+                      "permissions": [p for p in access.TICKET_PERMISSIONS if p in perms]})
+    order = {r: i for i, r in enumerate(("viewer", "kiosk", "operator", "editor", "door_opener", "site_admin", "system_admin"))}
+    roles.sort(key=lambda r: (not r["builtin"], order.get(r["id"], 50), r["name"]))
+    return {"users": sorted(people.values(), key=lambda u: u["name"]), "grant_roles": [r for r in GRANT_ROLES if r in ROLES], "roles": roles}

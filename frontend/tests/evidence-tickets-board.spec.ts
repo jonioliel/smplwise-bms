@@ -136,7 +136,7 @@ test.describe('tickets board evidence', () => {
     await page.waitForSelector(`${B} [data-tickets-state="off"]`);
   });
 
-  test('Settings > display: the board rows (D19-D21) and urgent passes quiet hours (D28)', async ({ page }) => {
+  test('Settings > display: the board rows (D19-D21; the D28 row is slice 2s)', async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) {
       await go(page, '/system/tickets', { persona: 'admin' }, scheme);
       await page.waitForSelector('sw-app system-tickets ticket-board-settings [data-ui-board]');
@@ -148,8 +148,8 @@ test.describe('tickets board evidence', () => {
     await page.locator('sw-app system-tickets [data-ui-board="grouping:never"]').click();
     await expect.poll(() => mock.calls.find((c) => c.method === 'PUT' && c.path === 'tickets/settings')?.body).toEqual({ revision: 1, ui: { grouping: 'never' } });
     await expect(page.locator('sw-app system-tickets [data-ui-board="grouping:never"]')).toHaveAttribute('aria-checked', 'true');
-    await page.locator('sw-app system-tickets [data-urgent-critical]').click();
-    await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT' && c.path === 'tickets/settings').at(-1)?.body).toEqual({ revision: 2, urgent_is_critical: false });
+    await page.locator('sw-app system-tickets [data-ui-board="closed_strip:week"]').click();
+    await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT' && c.path === 'tickets/settings').at(-1)?.body).toEqual({ revision: 2, ui: { closed_strip: 'week' } });
   });
 
   test('a rename reaches the board (D33)', async ({ page }) => {

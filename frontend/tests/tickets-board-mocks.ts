@@ -104,7 +104,8 @@ export async function installBoardMock(page: Page, o: BoardMockOptions = {}): Pr
       if (typeof b.urgent_is_critical === 'boolean') urgent = b.urgent_is_critical;
       revision += 1;
     }
-    return json(route, { revision, ui: { detail: o.ui?.detail ?? 'drawer_fullscreen', new_ticket: o.ui?.new_ticket ?? 'sheet', ...ui }, urgent_is_critical: urgent });
+    return json(route, { revision, ui: { detail: o.ui?.detail ?? 'drawer_fullscreen', new_ticket: o.ui?.new_ticket ?? 'sheet', ...ui }, urgent_is_critical: urgent,
+      links: { sliding_days: 14, cap_days: 90, grace_hours: 24 }, send_hours: { from: '07:00', to: '21:00' } }); // slice 2's keys
   });
   await page.route('**/api/v1/tickets/board**', async (route) => {
     const url = new URL(route.request().url());

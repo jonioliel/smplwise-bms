@@ -24,7 +24,7 @@ import sqlite3
 from typing import Any
 
 from ...rbac import Principal
-from . import naming, settings_doc, store
+from . import naming, policy, store
 from .notify_sources import RULE_ASSIGNEE, RULE_MANAGERS, SUBJECT
 
 log = logging.getLogger("smplwise.tickets.notify")
@@ -120,18 +120,14 @@ def text(conn: sqlite3.Connection, template: str, **values: Any) -> str:
 
 
 def urgent_is_critical(conn: sqlite3.Connection, department: dict[str, Any] | None) -> bool:
-    """D28: the department's override (NULL = follow), else the installation's `urgent_is_critical` (default true)."""
-    dept_value = (department or {}).get("urgent_is_critical")
-    if dept_value is not None:
-        return bool(dept_value)
-    return bool(settings_doc.read(conn).get("urgent_is_critical", True))
+    """D28: the department's override (NULL = follow), else the installation's `urgent_is_critical` (default true) - slice 2's
+    effective policy (services/tickets/policy.py) is the one place that decides it."""
+    return policy.effective(conn, department or {}).urgent_is_critical
 
 
 def severity_of(conn: sqlite3.Connection, row: dict[str, Any]) -> str:
     prio = store.priority(conn, row["priority_id"]) or {}
-    sev = prio.get("notify_severity") or "alert"
-    if sev == "critical" and not urgent_is_critical(conn, store.department_any(conn, row["department_id"])):
-        return "alert"
+    sev = policy.notify_severity(policy.effective(conn, store.department_any(conn, row["department_id"]) or {}), prio.get("notify_severity") or "alert")
     return sev if sev in ("info", "alert", "critical") else "alert"
 
 

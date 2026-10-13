@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import sqlite3
 from typing import Any, Callable
 
@@ -25,11 +26,43 @@ def _choice(*allowed: str) -> Callable[[Any], str]:
     return check
 
 
-def _bool(v: Any) -> bool:  # slice 6
+def int_range(lo: int, hi: int) -> Callable[[Any], int]:
+    def check(v: Any) -> int:
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError("integer")
+        if not lo <= v <= hi:
+            raise ValueError("range")
+        return v
+
+    return check
+
+
+def boolean(v: Any) -> bool:
     if not isinstance(v, bool):
         raise ValueError("boolean")
     return v
 
+
+_HHMM = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+def send_hours(v: Any) -> dict[str, str]:
+    """D4 / 14.1: a local-time window `{"from": "HH:MM", "to": "HH:MM"}`, every day, in the installation's time zone. `from` must be
+    earlier than `to`: a window across midnight is refused in release 1, and `from == to` (an empty window) too."""
+    if not isinstance(v, dict) or set(v) != {"from", "to"}:
+        raise ValueError("shape")
+    a, b = v["from"], v["to"]
+    if not isinstance(a, str) or not isinstance(b, str) or not _HHMM.match(a) or not _HHMM.match(b):
+        raise ValueError("time")
+    if a >= b:
+        raise ValueError("order")
+    return {"from": a, "to": b}
+
+
+# section 14.1 / D5: link lifetime ranges (shared with the per-department overrides, services/tickets/policy.py)
+SLIDING_DAYS = (1, 90)
+CAP_DAYS = (7, 365)
+GRACE_HOURS = (0, 168)
 
 SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail"): ("drawer_fullscreen", _choice("drawer", "fullscreen", "drawer_fullscreen")),  # D18
@@ -37,8 +70,21 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "board_floors"): ("tree", _choice("chips", "tree", "chips_tree")),  # D19 / D30 (slice 6)
     ("ui", "grouping"): ("no_status_filter", _choice("always", "no_status_filter", "never")),  # D20 (slice 6)
     ("ui", "closed_strip"): ("all", _choice("week", "all", "hidden")),  # D21 (slice 6)
-    ("urgent_is_critical",): (True, _bool),  # D28 installation default; ticket_departments.urgent_is_critical overrides (slice 6)
+    # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
+    ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5
+    ("links", "cap_days"): (90, int_range(*CAP_DAYS)),  # D5, >= sliding_days (checked across keys below)
+    ("links", "grace_hours"): (24, int_range(*GRACE_HOURS)),  # D5
+    ("send_hours",): ({"from": "07:00", "to": "21:00"}, send_hours),  # D4
+    ("urgent_is_critical",): (True, boolean),  # D28
 }
+
+
+def _cross_problem(doc: dict[str, Any]) -> str | None:
+    """A rule over several keys: the link cap is never shorter than the sliding window (section 14.1)."""
+    links = doc.get("links") or {}
+    if links.get("cap_days", 0) < links.get("sliding_days", 0):
+        return "links.cap_days:below_sliding"
+    return None
 
 
 def _get(doc: dict[str, Any], path: tuple[str, ...]) -> Any:
@@ -83,6 +129,9 @@ def read(conn: sqlite3.Connection) -> dict[str, Any]:
         except ValueError:
             value = copy.deepcopy(default)
         _set(out, path, value)
+    if _cross_problem(out):  # a stored pair that breaks the cross-key rule reads as the default pair (fail safe)
+        for path in (("links", "sliding_days"), ("links", "cap_days")):
+            _set(out, path, SCHEMA[path][0])
     return out
 
 
@@ -112,6 +161,10 @@ def apply_patch(conn: sqlite3.Connection, patch: dict[str, Any]) -> tuple[dict[s
         if _get(current, path) != clean:
             changed.append(".".join(path))
         _set(stored, path, clean)
+        _set(current, path, clean)
+    problem = _cross_problem(current)
+    if problem:
+        raise ValueError(problem)
     stored["revision"] = current["revision"] + 1
     conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                  (SETTING_KEY, json.dumps(stored, ensure_ascii=False, separators=(",", ":"))))

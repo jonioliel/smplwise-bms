@@ -159,11 +159,12 @@ def test_display_settings_document(w, settings):
     assert r.status_code == 200 and r.json()["revision"] == 1 and r.json()["ui"].items() >= {"detail": "fullscreen", "new_ticket": "dialog"}.items()
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 0, "ui": {"detail": "drawer"}}).json()["code"] == "settings_stale"
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 1, "ui": {"detail": "popup"}}).status_code == 422
-    assert w.c.put(f"{API}/tickets/settings", json={"revision": 1, "links": {"cap_days": 3}}).status_code == 422, "later slices' keys are not accepted yet"
-    assert w.c.get(f"{API}/tickets/module", headers=as_user("vic")).json()["ui"] == {"detail": "fullscreen", "new_ticket": "dialog"}
+    assert w.c.put(f"{API}/tickets/settings", json={"revision": 1, "links": {"cap_days": 3}}).status_code == 422, "slice 2 accepts links: the cap is 7-365 days"
+    assert w.c.get(f"{API}/tickets/module", headers=as_user("vic")).json()["ui"].items() >= {"detail": "fullscreen", "new_ticket": "dialog"}.items()
     with w.c.app.state.db.connection() as conn:
         conn.execute("UPDATE settings SET value = '{\"revision\": 4, \"ui\": {\"detail\": \"bogus\"}}' WHERE key = 'tickets.settings'")
-    assert w.c.get(f"{API}/tickets/settings").json() == {"revision": 4, "ui": {"detail": "drawer_fullscreen", "new_ticket": "sheet"}}, "invalid reads as default"
+    got = w.c.get(f"{API}/tickets/settings").json()
+    assert got["revision"] == 4 and got["ui"].items() >= {"detail": "drawer_fullscreen", "new_ticket": "sheet"}.items(), "invalid reads as default"
 
 
 # ---------------------------------------------------------------- pickers and the permissions overview

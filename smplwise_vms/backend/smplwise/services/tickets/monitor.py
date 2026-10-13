@@ -25,7 +25,7 @@ from typing import Any, Callable
 
 from ...audit import audit
 from ...db import Database, get_setting
-from . import notify_bridge, settings_doc, store, stuck
+from . import notify_bridge, policy, settings_doc, sla, store, stuck
 
 log = logging.getLogger("smplwise.tickets.monitor")
 
@@ -100,10 +100,10 @@ def _link_info(conn, row: dict[str, Any]) -> stuck.LinkInfo | None:
 
 
 def _window(conn, row: dict[str, Any], now: dt.datetime) -> tuple[bool, dt.datetime]:
+    """D4: the department's effective vendor send window (slice 2's policy: the override, else the installation's) in the zone."""
     dept = store.department_any(conn, row["department_id"]) or {}
-    stored = settings_doc._stored(conn)  # the installation's send_hours (14.1; its editor is slice 5b's) - read tolerant here
-    window = stuck.send_window(stored.get("send_hours"), dept.get("send_hours_json"))
-    return stuck.window_state(now, window, get_setting(conn, "time.zone", None))
+    hours = policy.effective(conn, dept).send_hours
+    return stuck.window_state(now, (hours["from"], hours["to"]), get_setting(conn, "time.zone", None))
 
 
 def evaluate(conn, row: dict[str, Any], now: dt.datetime) -> stuck.Evaluation:
@@ -178,7 +178,7 @@ def auto_close(conn, ticket_id: str, now: dt.datetime) -> bool:
     if row is None or row["status"] != "done" or not row.get("done_at"):
         return False
     dept = store.department_any(conn, row["department_id"]) or {}
-    days = dept.get("auto_close_after_days")
+    days = policy.effective(conn, dept).auto_close_after_days  # slice 2's policy: 1-30 days or None (two-step)
     done_at = stuck.parse(row["done_at"])
     if not days or int(days) <= 0 or done_at is None or done_at + dt.timedelta(days=int(days)) > now:
         return False
@@ -191,6 +191,7 @@ def auto_close(conn, ticket_id: str, now: dt.datetime) -> bool:
         return False
     if asg:
         store.update_assignment(conn, asg, {"ended_at": stamp, "end_reason": "closed"})
+    sla.refresh(conn, ticket_id)  # slice 2's dues: none for a closed ticket
     store.set_sla_state(conn, ticket_id, {"stuck_kind": None, "stuck_level": 0, "reminders_sent": 0, "next_check_at": None})
     store.insert_event(conn, ticket_id, "auto_closed", actor_kind="system", via="system", from_status="done", to_status="closed", at=stamp,
                        data={"after_days": int(days)})
