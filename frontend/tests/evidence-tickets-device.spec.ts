@@ -273,6 +273,16 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
         await page.waitForTimeout(400);
         await shot(`untracked-${skin}-${scheme}`);
         await page.unrouteAll({ behavior: 'ignoreErrors' });
+        // the frozen history on the ticket's full screen (internal content, no person name)
+        await installTicketsDeviceMock(page, { mode: 'sheet' });
+        await page.goto(`/?design=a${q}#/tickets/0000000000000b01`);
+        const hist = page.locator('sw-app [data-sect="device-history"]').first();
+        await expect(hist).toBeVisible({ timeout: 15_000 });
+        await expect(hist.locator('[data-history-line]')).toHaveCount(3);
+        await hist.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(400);
+        await shot(`history-${skin}-${scheme}`);
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
       }
     }
   });

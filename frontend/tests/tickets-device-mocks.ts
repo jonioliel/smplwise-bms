@@ -37,6 +37,8 @@ function item(id: string, number: number, title: string, status: string, hours: 
   };
 }
 
+const NAMES: Record<string, string> = { 'light.living_main': 'תאורה מרכזית', 'media_player.living_tv': 'טלוויזיה סלון' };
+
 const HISTORY = {
   source: 'device_activity', window_hours: 24, window_from: ago(24), window_to: ago(0), count: 3, truncated: false, withheld: null,
   lines: [
@@ -80,7 +82,7 @@ export async function installTicketsDeviceMock(page: Page, o: DeviceMockOptions 
       const id = decodeURIComponent(be[1]);
       const items = byEntity[id] ?? [];
       return json(route, {
-        entity: { entity_id: id, name: id, domain: id.split('.')[0], tracked: !id.startsWith('media_player.') && !id.startsWith('sensor.') },
+        entity: { entity_id: id, name: NAMES[id] ?? id, domain: id.split('.')[0], tracked: !id.startsWith('media_player.') && !id.startsWith('sensor.') },
         items, open_count: items.filter((x) => !['closed', 'cancelled'].includes(x.status)).length, can_create: perms.includes('tickets.create'),
         place_text: 'קומת קרקע · סלון', history: perms.includes('tickets.create') ? HISTORY : null,
       });
@@ -101,6 +103,18 @@ export async function installTicketsDeviceMock(page: Page, o: DeviceMockOptions 
       return json(route, { ...t, description: '', events: [], attachments: [], close_note: null, closed_by_name: null, duplicate_of: null, reopen_until: null,
         can: { edit_fields: [], assign: false, assign_external: false, note: true, note_external: false, attach: true, attach_external: false, eta: false, return: false, manage: false },
         transitions: [], assignments: [], device_context: null, result: 'created', open_for_entity: [] }, 201);
+    }
+    const one = /^tickets\/([0-9a-f]{16})$/.exec(p);
+    if (one && method === 'GET') {
+      const t = Object.values(byEntity).flat().find((x) => x.id === one[1]);
+      if (!t) return err(route, 404, 'ticket_not_found');
+      return json(route, {
+        ...t, description: 'הנורה מהבהבת מאז אתמול בערב.', attachments: [], close_note: null, closed_by_name: null, duplicate_of: null, reopen_until: null,
+        events: [{ id: 'e1', at: t.created_at, kind: 'created', actor: { kind: 'user', name: 'רונית לוי', me: true }, from: null, to: 'new', body: null, data: { origin: 'device' }, via: 'app', external: false },
+          { id: 'e2', at: t.created_at, kind: 'device_context', actor: { kind: 'system', name: '', me: false }, from: null, to: null, body: null, data: { source: 'device_activity', count: 3 }, via: 'system', external: false }],
+        can: { edit_fields: [], assign: false, assign_external: false, note: true, note_external: false, attach: true, attach_external: false, eta: false, return: false, manage: false },
+        transitions: [], assignments: [], device_context: { ...HISTORY, captured_at: t.created_at, coverage: { from: ago(400), gaps: [] }, shareable: true },
+      });
     }
     return err(route, 404, 'not_found');
   });

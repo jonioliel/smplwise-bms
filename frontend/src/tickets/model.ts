@@ -4,6 +4,7 @@
  */
 import type { ListScope, Severity, StatusFilter, TicketDetail, TicketEvent, TicketItem, TicketStatus } from '../api/tickets';
 import { tt, type TicketTextKey } from './text';
+import { dt } from './device-text';
 
 export const TICKETS_ROOT = '#/tickets';
 export const SCOPES: readonly Exclude<ListScope, 'visible'>[] = ['mine', 'department', 'all'];
@@ -212,6 +213,8 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
       return { icon: 'trash', text: tt('e_photoRemoved') };
     case 'duplicate':
       return { icon: 'copy', text: tt('e_duplicate', { n: Number(d.number ?? 0) }) };
+    case 'device_context': // slice 3: the 24 h history frozen at creation (counts only)
+      return { icon: 'clock', text: d.withheld || d.source === 'none' ? dt('historyNotAttached') : dt('historyAttached', { n: Number(d.count ?? 0) }) };
     default:
       return { icon: 'note', text: e.kind };
   }

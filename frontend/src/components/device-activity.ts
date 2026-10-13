@@ -369,12 +369,16 @@ export class DeviceActivity extends LitElement {
     const rows = items.length + (items.some((i) => i === 'ticket_new' || i === 'tickets') && items.some((i) => i === 'activity' || i === 'device') ? 1 : 0);
     const x = Math.min(Math.max(8, m.x), Math.max(8, window.innerWidth - 228));
     const y = Math.min(Math.max(8, m.y), Math.max(8, window.innerHeight - 16 - rows * 46));
+    // CR-038 D17: RTL-aligned to the press point - the menu's start (right) edge at the finger, growing towards the inline end
+    const rtl = this.ticketsOn && getComputedStyle(this).direction === 'rtl';
+    const right = Math.min(Math.max(8, window.innerWidth - m.x), Math.max(8, window.innerWidth - 236));
+    const place = rtl ? `left:auto;right:${right}px;top:${y}px` : `inset-inline-start:auto;left:${x}px;top:${y}px`;
     const n = this.tdata?.open_count;
     const menuMode = this.ticketsOn && longPressMode() === 'menu';
     const go = (item: MenuItem) => () => this.menuAction(item);
     let ticketsStarted = false;
     return html`<div class="scrim" data-activity-menu-scrim @pointerdown=${() => (this.menu = null)} @contextmenu=${(e: Event) => { e.preventDefault(); this.menu = null; }}></div>
-      <div class="menu" role="menu" aria-label=${this.ticketsOn ? dt('menuLabel') : t('deviceActivity.menuLabel')} style=${`inset-inline-start:auto;left:${x}px;top:${y}px`} data-activity-menu data-menu-source=${this.menuSource} @keydown=${this.onMenuKey}>
+      <div class="menu" role="menu" aria-label=${this.ticketsOn ? dt('menuLabel') : t('deviceActivity.menuLabel')} style=${place} data-activity-menu data-menu-source=${this.menuSource} @keydown=${this.onMenuKey}>
         ${items.map((item) => {
           const ticketItem = item === 'ticket_new' || item === 'tickets';
           const sep = ticketItem && !ticketsStarted && items[0] !== item;

@@ -42,7 +42,7 @@ export function deviceBlock(dev: DeviceRef, hrefOf: (id: string) => string): Tem
   const open = (d?.items ?? []).filter((t) => !(FINAL as readonly string[]).includes(t.status));
   const note = historyNote(d?.history);
   return html`<div class="devblk" data-create-device=${dev.id}>
-      <span class="di">${tIcon('flag')}</span>
+      <span class="di">${tIcon('layers')}</span>
       <div class="dt"><b>${bidi(d?.entity.name || dev.name)}</b>${d?.place_text ? html`<small data-create-place>${bidi(d.place_text)}</small>` : nothing}
         ${note ? html`<small class="hn" data-create-history>${tIcon('clock')}${note}</small>` : nothing}</div>
     </div>
