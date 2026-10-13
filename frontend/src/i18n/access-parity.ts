@@ -75,6 +75,11 @@ const he = {
   dispTalkText: 'בשלב זה הדיבור נפתח בחלון הקלאסי',
   dispTalkClassic: 'מוצג · נפתח בחלון הקלאסי',
   dispTalkHidden: 'מוסתר',
+  // live video and talk in the stations drawer (`access.station_media`, CR-036 S18): one clean row, nothing explained beside it
+  dispMedia: 'וידאו ודיבור במסך התחנות',
+  dispMediaOff: 'כבוי',
+  dispMediaVideo: 'וידאו',
+  dispMediaTalk: 'וידאו ודיבור',
   dispAnnounce: 'יעדי הכרזה',
   dispAnnounceText: 'המערכת מכריזה רק לתחנות שבתחום ההרשאה של המשתמש',
   dispAnnounceScope: 'תחנה, מקום או כל התחנות',
@@ -112,6 +117,10 @@ const en: Partial<Record<PtKey, string>> = {
   out_unavailable: 'No answer',
   checklistTitle: 'Side-by-side checklist',
   dispTitle: 'Stations screen display',
+  dispMedia: 'Video and talk on the stations screen',
+  dispMediaOff: 'Off',
+  dispMediaVideo: 'Video',
+  dispMediaTalk: 'Video and talk',
   dispSave: 'Save',
 };
 
