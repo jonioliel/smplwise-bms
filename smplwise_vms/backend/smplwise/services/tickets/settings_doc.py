@@ -118,6 +118,8 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("organization_name",): ("", _org_name),
     ("public", "base_url"): ("", _base_url),
     ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
+    # where a trusted proxy puts the client address (code review V3): cloudflared's header, or another proxy's X-Forwarded-For
+    ("public", "client_ip_header"): ("cf-connecting-ip", _choice("cf-connecting-ip", "x-forwarded-for")),
     # slice 5b: the ticket message channel (9.3 / 9.5 / 9.6); the accounts and their pacing live in `messaging.whatsapp` (9.9)
     ("whatsapp", "enabled"): (False, boolean),  # the master switch: OFF until an administrator turns it on
     ("whatsapp", "use_buttons"): (False, boolean),  # 9.3: buttons may show as text only on multi-device clients - numbered replies

@@ -1,115 +1,77 @@
 """CR-038 slice 4: the module key `k_tickets` as the rest of the module uses it - one object per process (`KEYS`), configured at
-start-up with the add-on's data directory and a `has_keyed_rows` check over the store.
+start-up with the add-on's data directory and the store's "does any row depend on a key" check (module_key.ModuleKey with key
+ids, code review V4).
 
-Creation rule (code review W12 / V4): a key is minted only when there is none AND the store reports that no row depends on a
-key (no link, no contact with a phone key). A /data restored without secrets/ therefore never mints a fresh key that would kill
-every live link and silently unmatch every phone - the caller gets ModuleKeyError and the health page says "restore secrets/".
-Nothing on the public listener's request path ever creates a key (`current(create=True)` is called from the manager-side
-actions that need one: an assignment that mints a link, a contact saved with a phone, the module switch turned on).
-
-The public-core library is moving to key ids (V4: `tickets_key.<id>` + `tickets_key.current`, `ModuleKey.current()`); this
-wrapper speaks to both shapes so the module works on either: with the single-file key the id is LEGACY_ID."""
+Creation rule (code review W12, public-core notes wiring item 11): a key is minted ONLY by the "module on" paths - the settings
+route that turns `tickets.enabled` on, and the start-up of an installation whose module is already on - and only when there is
+no key AND no row depends on one (no link, no contact with a phone key). A /data restored without secrets/ therefore never mints
+a fresh key that would kill every live link and silently unmatch every phone: the caller gets ModuleKeyError and the health page
+says "restore secrets/". Every other path reads: `current()` for a new derivation, `get(row.key_id)` for a row's own key.
+Nothing on the public listener's request path ever creates a key."""
 from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 from .module_key import ModuleKey, ModuleKeyError
-
-LEGACY_ID = "000000000000"
 
 
 class KeyRing:
     def __init__(self) -> None:
-        self._mk: Any = None
-        self._has_rows: Callable[[], bool] | None = None
+        self._mk: ModuleKey | None = None
         self._lock = threading.Lock()
 
     def configure(self, data_dir: Path, has_keyed_rows: Callable[[], bool]) -> None:
         with self._lock:
-            self._has_rows = has_keyed_rows
-            try:
-                self._mk = ModuleKey(Path(data_dir), has_links=has_keyed_rows)  # key ids (public-core V4)
-            except TypeError:
-                self._mk = ModuleKey(Path(data_dir))  # the single-file key
+            self._mk = ModuleKey(Path(data_dir), has_links=has_keyed_rows)
 
     @property
     def configured(self) -> bool:
         return self._mk is not None
 
-    def _require(self) -> Any:
-        if self._mk is None:
+    def _require(self) -> ModuleKey:
+        mk = self._mk
+        if mk is None:
             raise ModuleKeyError("the tickets module key is not configured")
-        return self._mk
-
-    @property
-    def has_ids(self) -> bool:
-        return hasattr(self._require(), "current")
+        return mk
 
     def current(self, *, create: bool = False) -> tuple[str, bytes]:
-        """(id, key) of the key new derivations use. `create=True` mints the first key under the rule of the module docstring."""
-        mk = self._require()
-        if hasattr(mk, "current"):
-            return mk.current(create=create)
-        if create:
-            check = self._has_rows
-            try:
-                mk.get()
-                return LEGACY_ID, mk.get()
-            except ModuleKeyError:
-                pass
-            try:
-                in_use = bool(check()) if check is not None else True
-            except Exception:  # noqa: BLE001 - an unanswered check is a refusal, never a new key
-                raise ModuleKeyError("could not check for existing links; no tickets module key was created") from None
-            if in_use:
-                raise ModuleKeyError("links exist but the tickets module key is missing - restore secrets/ instead")
-            return LEGACY_ID, mk.get(create=True)
-        return LEGACY_ID, mk.get()
+        """(id, key) of the key new derivations use; `create=True` only on the "module on" paths (module docstring)."""
+        return self._require().current(create=create)
+
+    def ensure(self) -> str | None:
+        """The "module on" paths: the current key id, minted when there is none and nothing depends on one. None (and an
+        error line by the caller) when the key cannot exist safely - a restore without secrets/."""
+        try:
+            return self._require().current(create=True)[0]
+        except ModuleKeyError:
+            return None
 
     def get(self, key_id: str | None = None) -> bytes:
         """The key a row names (`key_id`), or the current key when None."""
-        mk = self._require()
-        if hasattr(mk, "current"):
-            return mk.get(key_id)
-        return mk.get()
+        return self._require().get(key_id)
 
     def __call__(self, key_id: str | None = None) -> bytes:
         return self.get(key_id)
 
     def ids(self) -> tuple[str, ...]:
-        mk = self._require()
-        if hasattr(mk, "ids"):
-            return tuple(mk.ids())
-        try:
-            mk.get()
-            return (LEGACY_ID,)
-        except ModuleKeyError:
-            return ()
+        return tuple(self._require().ids())
 
     def status(self) -> dict[str, object]:
         """For the health page: never key material."""
         if self._mk is None:
             return {"state": "not_configured"}
-        mk = self._mk
-        if hasattr(mk, "status"):
-            return dict(mk.status())
-        try:
-            mk.get()
-            return {"state": "ok", "current": LEGACY_ID, "keys": 1}
-        except ModuleKeyError:
-            return {"state": "absent", "current": None, "keys": 0}
+        return dict(self._mk.status())
 
     def reload(self) -> None:
-        mk = self._mk
-        if mk is not None:
-            mk.reload()
+        if self._mk is not None:
+            self._mk.reload()
 
-    # ---------------------------------------------------------------- rotation (key ids only; the single-file key cannot rotate safely)
+    # ---------------------------------------------------------------- rotation (public-core notes wiring item 11)
 
     def can_rotate(self) -> bool:
-        return self._mk is not None and hasattr(self._mk, "stage")
+        return self._mk is not None and self.status().get("state") == "ok"
 
     def stage(self) -> tuple[str, bytes]:
         """A new key beside the current one (unused until `commit`): (id, key)."""
@@ -121,16 +83,16 @@ class KeyRing:
         self._require().commit(key_id)
 
     def retire_unused(self, in_use: set[str]) -> int:
-        """Delete the key files no row names any more (never the current key). The caller passes the ids rows name."""
+        """Delete the key files no row needs any more (never the current key). `in_use`: the ids live links and phone keys name."""
         mk = self._mk
-        if mk is None or not hasattr(mk, "retire"):
+        if mk is None:
             return 0
         try:
             current = mk.current()[0]
         except ModuleKeyError:
             return 0
         n = 0
-        for key_id in self.ids():
+        for key_id in mk.ids():
             if key_id != current and key_id not in in_use:
                 try:
                     n += 1 if mk.retire(key_id) else 0
