@@ -25,9 +25,61 @@ def _choice(*allowed: str) -> Callable[[Any], str]:
     return check
 
 
+def _int_range(lo: int, hi: int) -> Callable[[Any], int]:
+    def check(v: Any) -> int:
+        if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+            raise ValueError("range")
+        return v
+
+    return check
+
+
+def _org_name(v: Any) -> str:
+    """Slice 4: the organisation name the handler page shows at the top - plain text, controls / bidi marks stripped."""
+    from .text_hygiene import clean_text
+
+    if not isinstance(v, str):
+        raise ValueError("type")
+    text = clean_text(v)
+    if len(text) > 80 or "{" in text or "}" in text:
+        raise ValueError("invalid")
+    return text
+
+
+def _base_url(v: Any) -> str:
+    """Slice 4: the public address of the handler page (`https://<host>`, spec 14.1); empty = not configured."""
+    from .links import PublicUrlError, validate_public_base_url
+
+    if v == "":
+        return ""
+    try:
+        return validate_public_base_url(v)
+    except PublicUrlError as exc:
+        raise ValueError(exc.code) from None
+
+
+def _cidrs(v: Any) -> list[str]:
+    """Slice 4: the peers whose CF-Connecting-IP is believed (spec 10.2, review T1a); at most 8, none broader than /8 or /32."""
+    from .ratelimit import parse_trusted_cidrs
+
+    if not isinstance(v, list) or len(v) > 8 or not all(isinstance(x, str) and 0 < len(x) <= 64 for x in v):
+        raise ValueError("invalid")
+    nets = parse_trusted_cidrs(v)
+    if len(nets) != len(v):
+        raise ValueError("invalid")
+    return [str(n) for n in nets]
+
+
 SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail"): ("drawer_fullscreen", _choice("drawer", "fullscreen", "drawer_fullscreen")),  # D18
     ("ui", "new_ticket"): ("sheet", _choice("sheet", "dialog")),  # D22
+    # slice 4: the handler page (section 10 / 14.1) and the link lifetime D5 (department overrides live on the department row)
+    ("organization_name",): ("", _org_name),
+    ("public", "base_url"): ("", _base_url),
+    ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
+    ("links", "sliding_days"): (14, _int_range(1, 90)),
+    ("links", "cap_days"): (90, _int_range(7, 365)),
+    ("links", "grace_hours"): (24, _int_range(0, 168)),
 }
 
 

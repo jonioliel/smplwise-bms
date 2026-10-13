@@ -194,7 +194,12 @@ def assignees(
     if not allowed or store.department(conn, department_id) is None:
         audit(conn, actor=principal, action="ticket.assignees", decision="denied", resource_type="ticket_department", resource_id=department_id, reason="not_manager")
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"reason": "not_manager"})
-    return {"users": service.eligible_assignees(conn, department_id, row), "contacts": []}
+    # slice 4: the outside contacts allowed in the department - only for a caller who may send outside (D25)
+    from ..services.tickets import contacts as contacts_svc
+
+    outside = contacts_svc.assignable_for(viewer, row or {"department_id": department_id})
+    return {"users": service.eligible_assignees(conn, department_id, row), "contacts": outside,
+            "external": access.EXTERNAL in viewer.anywhere, "public_ready": access.public_ready(conn)}
 
 
 # ---------------------------------------------------------------- one ticket
@@ -250,6 +255,9 @@ class AssignBody(BaseModel):
     assignee: AssigneeBody
     note: str | None = Field(default=None, max_length=20000)
     note_external: bool = True
+    require_code: bool | None = None  # slice 4: an outside contact only - raise only, never below the contact's own setting
+    share_history: bool | None = None  # slice 4 (D23): only where a device snapshot exists, never for security domains
+    send_now: bool = False  # slice 5b (D29): release the message outside the send hours
     revision: int = Field(ge=1)
 
 
@@ -258,7 +266,14 @@ def post_assign(body: AssignBody, request: Request, ticket_id: str = Path(..., p
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     seen = access.require_visible(viewer, ticket_id)
-    service.assign(conn, viewer, seen, body.assignee.kind, body.assignee.id, body.note, body.note_external, body.revision, _rid(request))
+    if body.assignee.kind == "contact":  # slice 4: a handler link for an outside contact / vendor
+        from ..services.tickets import external
+
+        external.assign_contact(conn, viewer, seen, body.assignee.id, note=body.note, note_external=body.note_external,
+                                require_code=body.require_code, share_history=body.share_history, send_now=body.send_now,
+                                revision=body.revision, rid=_rid(request))
+    else:
+        service.assign(conn, viewer, seen, body.assignee.kind, body.assignee.id, body.note, body.note_external, body.revision, _rid(request))
     return _detail(conn, viewer, ticket_id)
 
 
