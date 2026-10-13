@@ -56,15 +56,18 @@ const TREE = [
   { key: 'floor:f3', kind: 'floor', name: 'קומה 3', parent: 'building:b', order: 3 },
 ];
 
+const WHO = ['קליימה-טק מיזוג אוויר', 'יוסי מזרחי', 'נועה שחר'];
+const who = (name: string) => `a-${WHO.indexOf(name) + 1}`;
+
 function item(s: Spec) {
   return {
     id: s.id, number: s.n, title: s.title, excerpt: s.desc, status: s.status, origin: 'manual', department: s.dept, category: null, priority: P[s.prio],
     place_text: s.placeText, device_name: s.device ?? '', created_by: { id: 'u-ronit', name: 'רונית לוי' }, created_at: ago(s.hours + 2), last_activity_at: ago(s.hours),
-    assignee: s.who ? { kind: s.who.includes('טק') ? 'contact' : 'user', id: `a-${s.n}`, name: s.who, since: ago(s.hours + 1), acknowledged_at: null } : null,
+    assignee: s.who ? { kind: s.who.includes('טק') ? 'contact' : 'user', id: who(s.who), name: s.who, since: ago(s.hours + 1), acknowledged_at: null } : null,
     last_assignee_name: null, eta_at: null, waiting_on: s.group === 'waiting' ? 'manager' : s.group === 'closed' ? 'none' : 'assignee', waiting_reason: s.waiting ?? null,
     reopen_count: 0, external_stale: false, closed_at: s.closedH !== undefined ? ago(s.closedH) : null, revision: 2, view: 'full',
     group: s.group, stuck: s.stuck ? { kind: s.stuck.kind, level: 2, reminders: 2, since: ago(s.stuck.since) } : null,
-    sla: s.group === 'closed' ? null : { kind: 'stuck', at: ago(-5), over: false }, place_keys: s.place, assignee_key: s.who ? `user:a-${s.n}` : 'none',
+    sla: s.group === 'closed' ? null : { kind: 'stuck', at: ago(-5), over: false }, place_keys: s.place, assignee_key: s.who ? `${s.who.includes('טק') ? 'contact' : 'user'}:${who(s.who)}` : 'none',
     auto_close_at: s.auto !== undefined ? ago(s.auto) : null, manager: true,
   };
 }
