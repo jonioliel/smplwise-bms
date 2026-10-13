@@ -1,0 +1,122 @@
+"""CR-038 section 18: `create_ticket()` - the ONE code path every ticket is created by (manual creation in slice 1, device creation
+in slice 3, and phase 2's rule action). A rule or an automation (phase 2) adds an actor of its own and `dedupe_key`
+"rule:<rule id>:<entity|camera>": an OPEN ticket with the same key absorbs the repeat (a timeline row) instead of a new ticket.
+
+Slice 1 creates placeless manual tickets only: `entity_id` (a device's ticket: place resolution and the 24 h history snapshot) is
+slice 3's (services/tickets/place.py, device_context.py) and refused here until then."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+from ...audit import audit
+from ...db import new_id, now_iso
+from ...errors import ApiError
+from . import access, model, notify_bridge, service, store
+from .access import Viewer, text
+
+
+@dataclass(frozen=True)
+class AssigneeRef:
+    kind: Literal["user", "contact"]
+    id: str
+
+
+@dataclass(frozen=True)
+class TicketSpec:
+    department_id: str
+    title: str
+    description: str = ""
+    category_id: str | None = None
+    priority_id: str | None = None
+    priority_key: str | None = None
+    entity_id: str | None = None  # slice 3: a device's ticket
+    origin: Literal["manual", "device", "rule", "inbound"] = "manual"
+    rule_ref: str | None = None
+    dedupe_key: str | None = None
+    assign_to: AssigneeRef | None = None
+    assign_note: str = ""
+    assign_note_external: bool = True
+
+
+@dataclass(frozen=True)
+class CreateResult:
+    kind: Literal["created", "absorbed"]
+    ticket_id: str
+    number: int
+
+
+def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = None) -> CreateResult:
+    """Validate and create one ticket as `viewer` (a signed-in person in slice 1). Raises ApiError (403 audited, 422 field problems)."""
+    dept = store.department(conn, spec.department_id) if spec.department_id else None
+    if dept is None or not dept["active"]:
+        raise service.invalid(conn, model.Invalid([model.Problem("department_id", "unknown")]))
+    if not viewer.can_create_in(dept):
+        audit(conn, actor=viewer.principal, action="ticket.create", decision="denied", resource_type="ticket_department", resource_id=dept["id"],
+              reason="create_not_allowed", request_id=rid)
+        raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפתוח {tickets} במחלקה הזו."), details={"permission": access.CREATE, "department_id": dept["id"]})
+    if spec.entity_id:
+        raise service.invalid(conn, model.Invalid([model.Problem("entity_id", "not_supported")]))
+    if spec.origin not in ("manual", "rule", "inbound", "device"):
+        raise service.invalid(conn, model.Invalid([model.Problem("origin", "unknown")]))
+    try:
+        title = model.text_field(spec.title, "title", required=True, max_len=model.TITLE_MAX)
+        description = model.text_field(spec.description, "description", required=False, max_len=model.DESCRIPTION_MAX, multiline=True)
+        assign_note = model.text_field(spec.assign_note, "assign_note", required=False, max_len=model.NOTE_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise service.invalid(conn, exc) from None
+    category = None
+    if spec.category_id:
+        category = store.category(conn, spec.category_id)
+        if category is None or category["department_id"] != dept["id"] or not category["active"]:
+            raise service.invalid(conn, model.Invalid([model.Problem("category_id", "unknown")]))
+    priority = None
+    if spec.priority_id:
+        priority = store.priority(conn, spec.priority_id)
+    elif spec.priority_key:
+        priority = store.priority_by_key(conn, dept["id"], spec.priority_key)
+    elif category and category.get("default_priority_id"):
+        priority = store.priority(conn, category["default_priority_id"])
+    else:
+        priority = store.default_priority(conn, dept["id"])
+    if priority is None or priority["department_id"] != dept["id"] or not priority["active"]:
+        raise service.invalid(conn, model.Invalid([model.Problem("priority_id", "unknown")]))
+    if spec.assign_to is not None:
+        # everything the assignment needs is checked BEFORE anything is written: an API error commits the request's transaction
+        # (the audit row of a refusal survives), so a refused assignment must not leave a half-made ticket behind
+        if not viewer.manages_department(dept["id"]) or access.VIEW not in viewer.anywhere:
+            audit(conn, actor=viewer.principal, action="ticket.assign", decision="denied", resource_type="ticket_department", resource_id=dept["id"],
+                  reason="not_manager", request_id=rid)
+            raise ApiError(403, "forbidden", text(conn, "רק מנהל המחלקה מעביר {tickets} לטיפול."), details={"reason": "not_manager"})
+        if spec.assign_to.kind == "contact":
+            if access.EXTERNAL not in viewer.anywhere:
+                raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.EXTERNAL})
+            raise ApiError(409, "public_link_unavailable", text(conn, "שליחה לגורם חיצוני עדיין אינה זמינה בהתקנה זו."))
+        if spec.assign_to.kind != "user" or not any(u["id"] == spec.assign_to.id for u in service.eligible_assignees(conn, dept["id"], None)):
+            raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את ה{ticket} למשתמש הזה (הוא אינו חבר במחלקה או אינו רשאי לצפות ב{tickets})."))
+    if spec.dedupe_key:
+        existing = access.visible_open_by_dedupe_key(viewer, spec.dedupe_key)
+        if existing is not None:
+            store.insert_event(conn, existing.row["id"], "note", actor_kind="system", actor_name="", data={"absorbed": True, "rule_ref": spec.rule_ref})
+            store.update_ticket(conn, existing.row["id"], {"last_activity_at": now_iso()}, bump=False)
+            return CreateResult("absorbed", existing.row["id"], existing.row["number"])
+    now = now_iso()
+    ticket_id = new_id()
+    number = store.next_number(conn)
+    waiting_on, waiting_reason = model.waiting_for("new")
+    store.insert_ticket(conn, {
+        "id": ticket_id, "number": number, "department_id": dept["id"], "category_id": category["id"] if category else None,
+        "priority_id": priority["id"], "title": title, "description": description, "status": "new", "origin": spec.origin,
+        "place_text": "", "created_by": viewer.uid, "created_by_name": service.actor_name(viewer), "last_activity_at": now,
+        "waiting_on": waiting_on, "waiting_reason": waiting_reason, "rule_ref": spec.rule_ref, "dedupe_key": spec.dedupe_key,
+        "revision": 1, "created_at": now, "updated_at": now,
+    })
+    store.insert_event(conn, ticket_id, "created", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
+                       to_status="new", data={"origin": spec.origin}, at=now)
+    audit(conn, actor=viewer.principal, action="ticket.create", decision="allowed", resource_type="ticket", resource_id=ticket_id, request_id=rid,
+          details={"number": number, "department_id": dept["id"], "origin": spec.origin})
+    notify_bridge.ticket_created(conn, ticket_id)
+    if spec.assign_to is not None:
+        seen = access.require_visible(viewer, ticket_id)  # checked above: the manager holds tickets.view and the ticket is placeless
+        service.assign(conn, viewer, seen, spec.assign_to.kind, spec.assign_to.id, assign_note, spec.assign_note_external, seen.row["revision"], rid)
+    return CreateResult("created", ticket_id, number)
