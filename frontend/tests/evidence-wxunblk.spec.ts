@@ -31,12 +31,12 @@ async function boot(page: Page, m: BlocksMock, o: { skin?: string; scheme?: 'lig
   return errors;
 }
 
-async function shot(page: Page, info: TestInfo, name: string, target: string) {
+async function shot(page: Page, info: TestInfo, name: string, target: string, width = 1440, suffix = info.project.name, settle = true) {
   fs.mkdirSync(EVIDENCE, { recursive: true });
   // the card is taller than a laptop screen and the page scrolls inside the shell: a tall window shows it whole
-  if (target === CARD) await page.setViewportSize({ width: 1440, height: 2600 });
-  await settlePage(page);
-  await page.locator(target).first().screenshot({ path: path.join(EVIDENCE, `${name}-${info.project.name}.png`) });
+  if (target === CARD) await page.setViewportSize({ width, height: 2600 });
+  if (settle) await settlePage(page); // a state that is waiting for an answer must not wait for the network to go quiet
+  await page.locator(target).first().screenshot({ path: path.join(EVIDENCE, `${name}-${suffix}.png`) });
 }
 
 const toggle = (page: Page, id: string) => page.locator(`${row(id)} sw-toggle[data-door-block-toggle]`);
@@ -254,6 +254,30 @@ test.describe('WXUNBLK: the blocks card in Settings', () => {
     await page.locator('sw-door-blocks sw-chip[data-door-blocks-filter="blocked"]').click();
     await expect(page.locator('sw-door-blocks [data-door-block]')).toHaveCount(0);
     await shot(page, info, 'door-blocks-filtered', CARD);
+  });
+
+  test('the states of the card - nothing to block, a failed read, loading - and the card and its question on a phone (390 px)', async ({ page }, info) => {
+    // nothing to block
+    await boot(page, newBlocksMock({ present: false }));
+    await shot(page, info, 'door-blocks-empty', CARD);
+    // a failed read
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await boot(page, newBlocksMock({ getStatus: 500 }), { ready: false });
+    await expect(page.locator('sw-door-blocks sw-state-panel[data-door-blocks-state="error"]')).toBeVisible({ timeout: 30_000 });
+    await shot(page, info, 'door-blocks-error', 'sw-door-blocks sw-state-panel[data-door-blocks-state="error"]');
+    // the phone: the list, and the question of a release
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await boot(page, newBlocksMock({ released: { 'light.hall': { note: 'מנורה רגילה של הדייר', by: 'יוני', at: '2026-10-12T07:00:00Z' } } }));
+    await shot(page, info, 'door-blocks-list', CARD, 390, '390');
+    await toggle(page, 'switch.gate').click();
+    await expect(page.locator(DIALOG)).toHaveAttribute('open', '');
+    await shot(page, info, 'door-blocks-release-dialog', `${DIALOG} .box`, 390, '390');
+    // loading: the list read is held (last, the held read is never answered)
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await boot(page, newBlocksMock({ getDelay: 120_000 }), { ready: false });
+    const loading = 'sw-door-blocks sw-state-panel[data-door-blocks-state="loading"]';
+    await expect(page.locator(loading)).toBeVisible({ timeout: 30_000 });
+    await shot(page, info, 'door-blocks-loading', loading, 1440, info.project.name, false);
   });
 
   test('only a system administrator is offered the card', async ({ page }) => {

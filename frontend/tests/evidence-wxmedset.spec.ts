@@ -74,6 +74,13 @@ test.describe('WXMEDSET: the live video and talk row in Settings', () => {
     await expect(save).toHaveAttribute('disabled', '');
   });
 
+  test('the card with the row on a phone (390 px)', async ({ page }, info) => {
+    await bootSettings(page);
+    await page.setViewportSize({ width: 390, height: 2000 });
+    await expect(page.locator(MEDIA)).toBeVisible();
+    await shot(page, info, 'media-row-phone', `${DISPLAY} sw-card`);
+  });
+
   test('the server\'s value is shown; an unreadable one reads as off', async ({ page }) => {
     await bootSettings(page, { settings: { 'access.station_media': 'video' } });
     await expect(page.locator(MEDIA)).toHaveValue('video');

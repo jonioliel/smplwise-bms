@@ -64,6 +64,8 @@ export interface BlocksMock {
   puts: { entity_id: string; body: Record<string, unknown> }[];
   /** The list read answers with this status instead (a failure to look at). */
   getStatus: number | null;
+  /** A delay (ms) before the list read answers (the loading state to look at). */
+  getDelay: number;
   /** The next write answers with this (once), instead of the normal answer. */
   putFail: { status: number; code: string; message: string } | null;
   /** A delay (ms) before a write answers. */
@@ -79,6 +81,7 @@ export const newBlocksMock = (over: Partial<BlocksMock> = {}): BlocksMock => ({
   gets: 0,
   puts: [],
   getStatus: null,
+  getDelay: 0,
   putFail: null,
   putDelay: 0,
   ...over,
@@ -166,6 +169,7 @@ export async function installBlocksMock(page: Page, m: BlocksMock): Promise<Bloc
     // the new card
     if (p === 'doors/blocks' && req.method() === 'GET') {
       m.gets += 1;
+      if (m.getDelay) await new Promise((r) => setTimeout(r, m.getDelay));
       if (!admin) return json(ENVELOPE('forbidden', 'אין הרשאה'), 403);
       if (m.getStatus) return json(ENVELOPE('internal', 'הקריאה נכשלה (בדיקה)'), m.getStatus);
       return json(listing(m));

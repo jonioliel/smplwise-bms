@@ -47,6 +47,15 @@ test.describe('WXSCH: the schedules link in the stations drawer', () => {
     await shot(page, info, 'drawer-schedules-link');
   });
 
+  test('the drawer with the links on a phone (390 px): both are full 44 px targets', async ({ page }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openDrawer(page, 'lobby', 'admin', { 'access.ui.schedules': 'smplwise', 'access.ui.events': 'smplwise' });
+    const links = page.locator(`${DRAWER} .evlink wk-action-button`);
+    await expect(links).toHaveCount(2);
+    for (const b of await links.all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await shot(page, info, 'drawer-schedules-link-phone');
+  });
+
   test('beside the entry-log link when that is offered too, and clicking it opens the schedules address', async ({ page }) => {
     await openDrawer(page, 'lobby', 'admin', { 'access.ui.schedules': 'smplwise', 'access.ui.events': 'smplwise' });
     await expect(page.locator(`${DRAWER} .evlink wk-action-button`)).toHaveCount(2);

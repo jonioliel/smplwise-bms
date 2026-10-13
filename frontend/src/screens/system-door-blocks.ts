@@ -117,6 +117,10 @@ export class SwDoorBlocks extends LitElement {
         flex: 1 1 260px;
         min-inline-size: 0;
       }
+      /* a device's switch and badge stay on the row of its name on a phone (the card is ~366 px wide there) */
+      .ent .who {
+        flex-basis: 180px;
+      }
       .name {
         font-weight: var(--sw-fw-medium);
         color: var(--sw-text);
