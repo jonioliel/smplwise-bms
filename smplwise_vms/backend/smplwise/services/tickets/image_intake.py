@@ -55,6 +55,10 @@ DRAFT_MIN_SIDE = 1536
 JPEG_QUALITY = 82
 DECODE_CONCURRENCY = 1
 DECODE_WAIT_S = 5.0
+# A progressive JPEG is decoded scan by scan; a small file with thousands of tiny scans makes libjpeg decode for a very long
+# time (Pillow sets no scan limit). Phones write 1 (baseline) to ~12 scans. Byte stuffing guarantees FF DA appears in a JPEG
+# only as a start-of-scan marker, so counting it bounds the scans before any decode.
+JPEG_MAX_SCANS = 100
 STORAGE_CAP_BYTES = 2 * GiB
 STORAGE_REFRESH_S = 60.0
 PHOTOS_PER_ASSIGNMENT = 30
@@ -211,6 +215,8 @@ def reencode(data: bytes, *, max_pixels: int = MAX_PIXELS, wait_s: float = DECOD
         w, h = png_scan(bytes(data))
         if w <= 0 or h <= 0 or w * h > max_pixels or max(w, h) > MAX_SIDE_IN:
             raise IntakeError("too_many_pixels", 422, max_pixels=max_pixels)
+    elif bytes(data).count(b"\xff\xda") > JPEG_MAX_SCANS:
+        raise IntakeError("image_invalid", 422)
     from PIL import Image, ImageOps
 
     from .. import image_guard  # noqa: F401 - imported for its effect: the process-wide bomb threshold is set once there

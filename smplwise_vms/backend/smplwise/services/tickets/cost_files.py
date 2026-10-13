@@ -37,8 +37,14 @@ PDF_MAX_BYTES = 10 * MiB
 PDF_TAIL = 1 * KiB
 ACTIVE_NAMES = frozenset({b"JavaScript", b"JS", b"Launch", b"EmbeddedFile", b"RichMedia", b"XFA", b"OpenAction", b"AA", b"Encrypt"})
 # a PDF name: a solidus and every regular character up to the next whitespace or delimiter (ISO 32000-1, 7.2.2 / 7.3.5)
-_NAME_RE = re.compile(rb"/([^\x00\t\n\x0c\r ()<>\[\]{}/%]*)")
+_DELIM = rb"\x00\t\n\x0c\r ()<>\[\]{}/%"
+# the plain spellings, as WHOLE names, in one C-level search (a 10 MiB file is scanned in milliseconds whatever it holds)
+_PLAIN_RE = re.compile(rb"/(?:" + b"|".join(re.escape(n) for n in sorted(ACTIVE_NAMES, key=len, reverse=True)) +
+                       rb")(?=[" + _DELIM + rb"]|\Z)")
+# names written with #xx escapes (`/J#61vaScript`): decoded one by one - bounded, a file made of escapes is refused
+_ESCAPED_RE = re.compile(rb"/[^" + _DELIM + rb"]*#[^" + _DELIM + rb"]*")
 _HEX_ESCAPE_RE = re.compile(rb"#([0-9A-Fa-f]{2})")
+MAX_ESCAPED_NAMES = 2000
 
 MAX_DOCUMENTS = 3
 MAX_PAGES = 10
@@ -59,14 +65,18 @@ def _decoded_name(raw: bytes) -> bytes:
 
 
 def active_markers(data: bytes) -> set[str]:
-    """The refused names (decoded) that appear as PDF name tokens anywhere in `data`."""
-    found: set[str] = set()
-    for m in _NAME_RE.finditer(data):
-        name = m.group(1)
-        if b"#" in name:
-            name = _decoded_name(name)
-        if name in ACTIVE_NAMES:
-            found.add(name.decode("ascii"))
+    """The refused names that appear as whole PDF name tokens anywhere in `data` - plainly or with `#xx` escapes. A file with
+    more than MAX_ESCAPED_NAMES escaped names answers {"(escapes)"} (no invoice needs that many; scanning them all would let a
+    crafted file buy seconds of CPU per upload)."""
+    found = {m.group(0)[1:].decode("ascii") for m in _PLAIN_RE.finditer(data)}
+    if b"#" in data:
+        for i, m in enumerate(_ESCAPED_RE.finditer(data)):
+            if i >= MAX_ESCAPED_NAMES:
+                found.add("(escapes)")
+                break
+            name = _decoded_name(m.group(0)[1:])
+            if name in ACTIVE_NAMES:
+                found.add(name.decode("ascii", "replace"))
     return found
 
 

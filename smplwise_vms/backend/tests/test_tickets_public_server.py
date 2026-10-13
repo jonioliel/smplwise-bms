@@ -256,6 +256,27 @@ def test_a_slow_request_head_is_closed(serve):
     assert world.app.stats.snapshot()["counters"].get("slow_heads_closed", 0) >= 2
 
 
+def test_connection_lifetime_cap_applies_between_requests(tmp_path):
+    world = build_world(tmp_path)
+    lst = ps.PublicListener("tickets-public-lifetime")
+    assert lst.start(world.app, host="127.0.0.1", port=0, max_connection_s=1.0)
+    try:
+        with socket.create_connection(("127.0.0.1", lst.port), timeout=5) as s:
+            s.sendall(b"GET /t/healthz HTTP/1.1\r\nHost: t.example\r\n\r\n")
+            assert read_response(s)[0] == 200
+            time.sleep(1.2)
+            s.sendall(b"GET /t/healthz HTTP/1.1\r\nHost: t.example\r\n\r\n")  # answered or closed - never cut halfway
+            try:
+                status = read_response(s)[0]
+            except OSError:
+                status = 0
+            assert status in (200, 0)
+            assert closed_by_server(s, within=3.0)
+        assert world.app.stats.snapshot()["counters"].get("lifetime_closed", 0) >= 1
+    finally:
+        lst.stop()
+
+
 def test_a_trickling_body_meets_the_read_deadline(serve):
     world, lst = serve()  # the test rules give /t/api/redeem a 1 s deadline (10 s in production)
     with socket.create_connection(("127.0.0.1", lst.port), timeout=5) as s:

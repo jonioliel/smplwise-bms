@@ -257,6 +257,16 @@ def test_png_structure_errors():
     refuse(png_with(chunk(b"tEXt", b"x"), w=0), "too_many_pixels", 422)
 
 
+def test_progressive_jpeg_is_fine_and_a_scan_bomb_is_refused_before_decoding():
+    progressive = jpeg(640, 480, noise=True, progressive=True)
+    assert 1 < progressive.count(b"\xff\xda") <= ii.JPEG_MAX_SCANS
+    assert ii.reencode(progressive).width == 640
+    bomb = jpeg(16, 16)[:-2] + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00" * (ii.JPEG_MAX_SCANS + 1) + b"\xff\xd9"
+    t0 = time.monotonic()
+    refuse(bomb, "image_invalid", 422)
+    assert time.monotonic() - t0 < 1.0
+
+
 def test_truncated_jpeg_is_one_clean_refusal():
     data = jpeg(800, 600, noise=True)
     refuse(data[: len(data) // 2], "image_invalid", 422)

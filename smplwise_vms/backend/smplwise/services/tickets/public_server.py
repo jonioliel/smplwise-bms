@@ -16,8 +16,9 @@ Isolation rules of spec 10.1 (review R1 / T17 / C1), and how each is met here:
 - `load()` keeps the app unwrapped: no ProxyHeadersMiddleware, and no MessageLoggerMiddleware even if someone sets the
   uvicorn log level to TRACE (it would log request bodies);
 - slow clients: a request head must arrive within HEAD_TIMEOUT_S (uvicorn has no header-read timeout - a slowloris on headers
-  would otherwise hold one of the 16 connections forever), a connection lives at most MAX_CONNECTION_S, keep-alive idles 5 s;
-  the body read deadline (10 s JSON / 60 s upload) is the edge's (public_http);
+  would otherwise hold one of the 16 connections forever), a connection is closed between requests once it is older than
+  MAX_CONNECTION_S (and in any case LIFETIME_GRACE_S later), keep-alive idles 5 s; the body read deadline (10 s JSON / 60 s
+  upload) is the edge's (public_http);
 - a malformed request gets uvicorn's 400 rebuilt with the public security headers and a JSON body;
 - signals: none. `uvicorn.Server.capture_signals` already skips signal capture off the main thread (uvicorn 0.53; asserted by
   a test), and PublicServer overrides it to a no-op anyway - the add-on's SIGTERM stays the main server's;
@@ -54,6 +55,7 @@ MAX_INCOMPLETE_EVENT_SIZE = 16 * 1024
 THREADPOOL_TOKENS = 4
 HEAD_TIMEOUT_S = 10.0
 MAX_CONNECTION_S = 300.0
+LIFETIME_GRACE_S = 120.0  # past MAX_CONNECTION_S + this, a connection closes even mid-request (an upload's own deadline is 60 s)
 GRACEFUL_SHUTDOWN_S = 3
 STOP_JOIN_S = 5.0
 BACKLOG = 64
@@ -101,8 +103,11 @@ class PublicH11Protocol(H11Protocol):
             return
         self._note_cycle()
         now = self.loop.time()
-        too_slow = self._waiting_for_head() and self._head_since is not None and now - self._head_since > self._head_timeout
-        if too_slow or now - self._born > self._max_connection:
+        idle = self._waiting_for_head()
+        too_slow = idle and self._head_since is not None and now - self._head_since > self._head_timeout
+        # the lifetime cap is applied between requests (never in the middle of an upload), with an absolute backstop
+        too_old = (idle and now - self._born > self._max_connection) or now - self._born > self._max_connection + LIFETIME_GRACE_S
+        if too_slow or too_old:
             stats = getattr(self.logger, "stats", None)
             if stats is not None:  # counted for health, never a log line per connection (a flood would fill the log)
                 stats.bump("slow_heads_closed" if too_slow else "lifetime_closed")
