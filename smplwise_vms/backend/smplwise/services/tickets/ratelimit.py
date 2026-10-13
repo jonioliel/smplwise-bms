@@ -27,10 +27,21 @@ Three parts:
    - a token: 60 requests / minute (recorded only once the token proved valid: unknown tokens create no key); writes
      20 / hour, photos 10 / hour, invoice files 40 / hour - checked at admission, SPENT only once the effect happened;
    - the e-mail redeem route: 10 / minute per network (on top of the failure caps);
-   - the static shell, the health route and unmatched paths: 120 / minute per network.
+   - the static shell, the health route and unmatched paths: 120 / minute per network; hashed (immutable) page assets
+     300 / minute per network (code review V26: one page load is the shell + ~5 assets);
+   - photo reads (`GET /t/api/photo/<id>`): their own per-token window, 120 / minute (V26: a ticket with 40 photos must not
+     spend the token's 60 / minute on one page load).
    The keys only valid tokens create (per-token windows and budgets, per-recipient code counts, the global failure counts)
    are never evicted to make room in the key table. The per-link verification-code caps (1 / minute, 3 / hour, 6 / day) live
-   in codes.py over the code rows; the per-recipient one (6 / hour across links) uses this limiter too."""
+   in codes.py over the code rows; the per-recipient one (6 / hour across links) uses this limiter too.
+
+4. `RequestCost` (code review 5.1, 2026-10-13) - what ONE request costs, decided explicitly on every exit path. The two High
+   findings of that review (V1, V2) were both "an exit path that costs nothing"; the edge (public_http) opens one cost per
+   request at admission (`PublicRateGate.open`) and every exit calls one of: `proved` (the one lookup found a live link),
+   `unknown` (it did not), `refused_early` (413 / 415 / a malformed shape before any lookup - one network failure unless the
+   token is known good), `body_phase` (an UPLOAD starts reading its body: one unit of its budget NOW, whatever follows - a
+   trickled 408, a 413, a disconnect, a replay, a refusal after the body, the stored photo), `effect` (a write's effect
+   happened: one unit, unless the body phase already paid)."""
 from __future__ import annotations
 
 import collections
@@ -87,7 +98,10 @@ class ScopedRateLimiter:
 
     # ---------------------------------------------------------------- the hot path (memory only)
 
-    def _queue(self, key: str, now: float, create: bool) -> collections.deque[float] | None:
+    def _queue(self, key: str, now: float, create: bool, keep_s: float | None = None) -> collections.deque[float] | None:
+        """The key's instants, pruned to `keep_s` (the longest window of the limits the caller uses with this key - every key
+        prefix has ONE set of limits) or the scope's horizon: a key of a 60 s window keeps one minute of instants, not an
+        hour (code review V9: the per-key memory follows the key's own window)."""
         q = self._hits.get(key)
         if q is None:
             if not create:
@@ -95,9 +109,14 @@ class ScopedRateLimiter:
             q = self._hits[key] = collections.deque(maxlen=self.max_events)
         else:
             self._hits.move_to_end(key)
-        while q and now - q[0] > self.horizon_s:
+        keep = self.horizon_s if keep_s is None else min(self.horizon_s, keep_s)
+        while q and now - q[0] > keep:
             q.popleft()
         return q
+
+    @staticmethod
+    def _keep(limits: Sequence[tuple[float, int]]) -> float | None:
+        return max((w for w, _ in limits), default=None)
 
     @staticmethod
     def _count(q: collections.deque[float], now: float, window: float) -> int:
@@ -134,7 +153,7 @@ class ScopedRateLimiter:
         """Record one attempt; False (and nothing recorded) when any window is already full."""
         now = self.clock()
         with self._lock:
-            q = self._queue(key, now, create=True)
+            q = self._queue(key, now, create=True, keep_s=self._keep(limits))
             assert q is not None
             if self._wait(q, now, limits) > 0.0:
                 return False
@@ -146,13 +165,13 @@ class ScopedRateLimiter:
         """Seconds until the next attempt would pass (0.0 = it passes now). Records nothing."""
         now = self.clock()
         with self._lock:
-            return self._wait(self._queue(key, now, create=False), now, limits)
+            return self._wait(self._queue(key, now, create=False, keep_s=self._keep(limits)), now, limits)
 
     def record(self, key: str, limits: Sequence[tuple[float, int]]) -> None:
         """Count one event whatever the windows say (a failure). Hammering past a cap keeps the window full - the lock slides."""
         now = self.clock()
         with self._lock:
-            q = self._queue(key, now, create=True)
+            q = self._queue(key, now, create=True, keep_s=self._keep(limits))
             assert q is not None
             q.append(now)
             self._note(key, (self._count(q, now, w) for w, _ in limits), limits)
@@ -269,13 +288,19 @@ class ScopedRateLimiter:
         write lock at all when nothing changed."""
         if not self._dirty:
             return 0
-        with db.connection(label=f"rate_limiter.{self.scope}.flush") as conn:
-            n = self.flush(conn)
-            try:
-                conn.execute("DELETE FROM block_counters WHERE scope = ? AND expires_at <= ?", (self.scope, self.clock()))
-            except sqlite3.OperationalError:
-                pass
-            return n
+        try:
+            with db.connection(label=f"rate_limiter.{self.scope}.flush") as conn:
+                n = self.flush(conn)
+                try:
+                    conn.execute("DELETE FROM block_counters WHERE scope = ? AND expires_at <= ?", (self.scope, self.clock()))
+                except sqlite3.OperationalError:
+                    pass
+                return n
+        except sqlite3.OperationalError:
+            # the write gate itself was busy (`BEGIN IMMEDIATE` under another writer) - raised before flush() was entered, or
+            # at commit: nothing was written for sure, the dirty set is intact or put back; the next janitor tick retries.
+            # Never an exception out of the janitor step (W15).
+            return 0
 
     def restore_from(self, db: Any) -> int:
         with db.connection(mode="read", label=f"rate_limiter.{self.scope}.restore") as conn:
@@ -343,10 +368,42 @@ def client_network(peer: str | None, forwarded: Sequence[str], trusted: Sequence
     return network_key(client_address(peer, forwarded, trusted))
 
 
+CLIENT_IP_HEADERS = ("cf-connecting-ip", "x-forwarded-for")
+
+
+def forwarded_values(header: str, values: Sequence[str]) -> list[str]:
+    """The client-address candidates of the trusted header (`tickets.settings.public.client_ip_header`, code review V3):
+    `cf-connecting-ip` (the default, cloudflared) as sent - exactly one value is believed; `x-forwarded-for` (another reverse
+    proxy) - only the LAST hop of all its lines, the address the trusted proxy itself saw (every earlier hop is whatever the
+    client wrote)."""
+    if header == "x-forwarded-for":
+        hops = [h.strip() for h in ",".join(values).split(",")]
+        return [hops[-1]] if hops and hops[-1] else []
+    return list(values)
+
+
+def classify_client(peer: str | None, forwarded: Sequence[str], trusted: Sequence[Network]) -> tuple[str, str]:
+    """(network key, source) - `source` says where the address came from, for the health counters (V3): `header` (a trusted
+    peer and one usable header value), `trusted_no_header` (a trusted peer WITHOUT one: if most requests are keyed this way,
+    every client shares the proxy's bucket - the proxy is not sending the header, or it is not the expected proxy), `peer`
+    (an untrusted peer, keyed by itself; its header ignored), `unknown` (no usable peer address)."""
+    p = parse_address(peer)
+    if p is None:
+        return "unknown", "unknown"
+    if any(p in net for net in trusted if net.version == p.version):
+        if len(forwarded) == 1:
+            f = parse_address(forwarded[0])
+            if f is not None:
+                return network_key(f), "header"
+        return network_key(p), "trusted_no_header"
+    return network_key(p), "peer"
+
+
 # ---------------------------------------------------------------- the policy of the public listener
 
-ROUTE_KINDS = ("static", "health", "token_read", "token_write", "photo", "claim_file", "code", "redeem")
-TOKEN_KINDS = frozenset({"token_read", "token_write", "photo", "claim_file", "code"})
+ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "token_write", "photo", "claim_file", "code", "redeem")
+TOKEN_KINDS = frozenset({"token_read", "photo_read", "token_write", "photo", "claim_file", "code"})
+UPLOAD_KINDS = frozenset({"photo", "claim_file"})  # their body phase is paid when it starts (RequestCost.body_phase)
 
 
 @dataclass(frozen=True)
@@ -354,10 +411,12 @@ class PublicLimits:
     """The numbers of spec 10.2 / 10.5 / 11A.6 (constants, not settings)."""
 
     static_per_network: Limits = ((60.0, 120),)
+    asset_per_network: Limits = ((60.0, 300),)  # hashed, immutable page assets (V26); Cloudflare's cache absorbs repeats
     unknown_per_network: Limits = ((60.0, 20),)
     unknown_global: Limits = ((60.0, 300),)  # failed LOOKUPS of well-formed tokens, installation-wide
     redeem_global: Limits = ((60.0, 300),)  # failed redeem releases, installation-wide (its own: a token flood never blocks e-mail links)
     token_requests: Limits = ((60.0, 60),)
+    token_photo_reads: Limits = ((60.0, 120),)  # GET /t/api/photo/<id>: its own window (V26)
     token_writes: Limits = ((3600.0, 20),)
     token_photos: Limits = ((3600.0, 10),)
     token_claim_files: Limits = ((3600.0, 40),)
@@ -365,20 +424,28 @@ class PublicLimits:
     code_per_recipient: Limits = ((3600.0, 6),)
     known_good_ttl_s: float = 86400.0
 
+    WINDOW_NAMES = ("static_per_network", "asset_per_network", "unknown_per_network", "unknown_global", "redeem_global",
+                    "token_requests", "token_photo_reads", "token_writes", "token_photos", "token_claim_files",
+                    "redeem_per_network", "code_per_recipient")
+
     @property
     def horizon_s(self) -> float:
-        windows = [w for lim in (self.static_per_network, self.unknown_per_network, self.unknown_global, self.redeem_global,
-                                 self.token_requests, self.token_writes, self.token_photos, self.token_claim_files,
-                                 self.redeem_per_network, self.code_per_recipient) for w, _ in lim]
-        return max(windows)
+        return max(w for name in self.WINDOW_NAMES for w, _ in getattr(self, name))
+
+    @property
+    def max_cap(self) -> int:
+        return max(cap for name in self.WINDOW_NAMES for _w, cap in getattr(self, name))
 
 
 # the per-token budgets a route SPENDS once its effect happened (PublicRateGate.spend): checked before the lookup, recorded after
 SPEND = {"token_write": ("w:", "token_writes", "write_rate"), "photo": ("p:", "token_photos", "photo_rate"),
          "claim_file": ("c:", "token_claim_files", "claim_file_rate")}
+# per-token request windows of their own (prefix of the token key, limits); every other token kind uses the token key itself
+# with token_requests
+WINDOWS = {"photo_read": ("pr:", "token_photo_reads")}
 # keys only valid tokens / links create: never evicted from the key table (only expired), so an address-rotating flood of
 # per-network keys cannot reset a vendor's budgets or a recipient's code count
-PROTECTED_PREFIXES = ("t:", "w:", "p:", "c:", "cr:", "fail:*", "fail:redeem")
+PROTECTED_PREFIXES = ("t:", "pr:", "w:", "p:", "c:", "cr:", "fail:*", "fail:redeem")
 
 
 @dataclass(frozen=True)
@@ -435,10 +502,7 @@ class PublicRateGate:
         self.limits = limits or PublicLimits()
         if limiter.horizon_s < self.limits.horizon_s:
             raise ValueError("the limiter's horizon is shorter than the longest window of the public limits")
-        caps = [cap for name in ("static_per_network", "unknown_per_network", "unknown_global", "redeem_global", "token_requests",
-                                 "token_writes", "token_photos", "token_claim_files", "redeem_per_network", "code_per_recipient")
-                for _w, cap in getattr(self.limits, name)]
-        if max(caps) >= limiter.max_events:
+        if self.limits.max_cap >= limiter.max_events:
             raise ValueError("a cap of the public limits does not fit the limiter's per-key event memory")
         limiter.protect(PROTECTED_PREFIXES)
         self.good = good or ScopedRateLimiter("tickets_good", horizon_s=self.limits.known_good_ttl_s, clock=limiter.clock, max_events=4)
@@ -456,12 +520,20 @@ class PublicRateGate:
     def known_good(self, token_key: str | None) -> bool:
         return bool(token_key) and self.good.count("g:" + str(token_key), self.limits.known_good_ttl_s) > 0
 
-    def success(self, token_key: str, *, counted: bool = True) -> None:
+    def window(self, kind: str, token_key: str) -> tuple[str, Limits]:
+        """The per-token request window of a route kind: (key, limits)."""
+        spec = WINDOWS.get(kind)
+        if spec is None:
+            return token_key, self.limits.token_requests
+        prefix, name = spec
+        return prefix + token_key, getattr(self.limits, name)
+
+    def success(self, token_key: str, *, counted: bool = True, kind: str = "token_read") -> None:
         """The token resolved to a live link: "known good" for known_good_ttl_s, and - when admission only checked it - its
-        request is counted now."""
+        request is counted now (in the window of its route kind)."""
         self.good.record("g:" + token_key, ((self.limits.known_good_ttl_s, 1),))
         if not counted:
-            self.limiter.record(token_key, self.limits.token_requests)
+            self.limiter.record(*self.window(kind, token_key))
 
     def failure(self, net: str, token_key: str | None = None, *, lookup: bool = True, kind: str = "token") -> None:
         """A refused credential: one failure for the client network; when a lookup was made (`lookup`), one against the
@@ -509,6 +581,8 @@ class PublicRateGate:
         request carries none or a malformed one)."""
         if kind in ("static", "health"):
             return self._hit(f"s:{net}", self.limits.static_per_network, "static_rate") or Decision(True)
+        if kind == "asset":
+            return self._hit(f"a:{net}", self.limits.asset_per_network, "asset_rate") or Decision(True)
         if kind == "redeem":
             return (self._locks(net, "fail:redeem", self.limits.redeem_global)
                     or self._hit(f"r:{net}", self.limits.redeem_per_network, "redeem_rate") or Decision(True))
@@ -519,17 +593,23 @@ class PublicRateGate:
             # already locked, which it learns first
             return self._locks(net, None, ()) or Decision(False, "no_token", 0)
         good = self.known_good(token_key)
+        wkey, wlimits = self.window(kind, token_key)
         if not good:
             locked = self._locks(net, "fail:*", self.limits.unknown_global)
             if locked is not None:
                 return locked
-            refused = self._check(token_key, self.limits.token_requests, "token_rate")
+            refused = self._check(wkey, wlimits, "token_rate")
         else:
-            refused = self._hit(token_key, self.limits.token_requests, "token_rate")
+            refused = self._hit(wkey, wlimits, "token_rate")
         if refused is None and kind in SPEND:
             prefix, name, reason = SPEND[kind]
             refused = self._check(prefix + token_key, getattr(self.limits, name), reason)
         return refused or Decision(True, counted=good)
+
+    def open(self, kind: str, net: str, token_key: str | None = None) -> "RequestCost":
+        """Admission (`admit`) wrapped in the request's cost object - the edge's entry point."""
+        decision = self.admit(kind, net, token_key)
+        return RequestCost(self, kind, net, token_key, decision, known_good=decision.ok and decision.counted)
 
     def trips(self, minutes: int = MinuteCounter.SLOTS) -> dict[str, int]:
         """Refusals per reason over the last `minutes` (health: "rate-limit trips last 24 h")."""
@@ -544,6 +624,78 @@ class PublicRateGate:
         return self.limiter.restore_from(db) + self.good.restore_from(db)
 
 
+class RequestCost:
+    """What ONE request costs (see the module docstring, part 4). Every method is idempotent; a request belongs to one
+    coroutine, so no lock (the limiter underneath is thread safe). `charges` lists what was charged, for the request log."""
+
+    __slots__ = ("gate", "kind", "net", "token_key", "decision", "known_good", "link_id", "proved_valid", "failed", "early",
+                 "body_spent", "effect_spent")
+
+    def __init__(self, gate: PublicRateGate, kind: str, net: str, token_key: str | None, decision: Decision, *,
+                 known_good: bool = False) -> None:
+        self.gate = gate
+        self.kind = kind
+        self.net = net
+        self.token_key = token_key
+        self.decision = decision
+        self.known_good = known_good
+        self.link_id: str | None = None
+        self.proved_valid = False
+        self.failed = False
+        self.early = False
+        self.body_spent = False
+        self.effect_spent = False
+
+    @property
+    def trusted(self) -> bool:
+        """The token proved valid (now or within known_good_ttl_s): only such a request may make an early answer wait for its
+        small body (code review V1 - everything else is answered at once and the connection closes)."""
+        return self.known_good or self.proved_valid
+
+    def proved(self, link_id: str | None = None) -> None:
+        if self.proved_valid or not self.token_key:
+            return
+        self.proved_valid = True
+        self.link_id = link_id
+        self.gate.success(self.token_key, counted=self.decision.counted, kind=self.kind)
+
+    def unknown(self) -> None:
+        if self.failed:
+            return
+        self.failed = True
+        self.gate.failure(self.net, self.token_key)
+
+    def refused_early(self) -> None:
+        """A refusal before any lookup (a wrong content type, a body over the cap, a body on a GET, no token): one failure for
+        the client network - unless the token is known good. Never against the installation-wide budget (no lookup made)."""
+        if self.early or self.trusted:
+            return
+        self.early = True
+        self.gate.failure(self.net, None, lookup=False)
+
+    def body_phase(self) -> None:
+        """An upload (photo, invoice file) starts reading its body: one unit of its budget, whatever happens next (V2)."""
+        if self.body_spent or self.kind not in UPLOAD_KINDS:
+            return
+        self.body_spent = True
+        self.gate.spend(self.kind, self.token_key)
+
+    def effect(self) -> None:
+        """A route's effect happened (a write stored): one unit of its budget - unless the body phase already paid."""
+        if self.effect_spent or self.body_spent:
+            return
+        self.effect_spent = True
+        self.gate.spend(self.kind, self.token_key)
+
+    @property
+    def charges(self) -> str:
+        parts = [name for name, on in (("good", self.known_good), ("proved", self.proved_valid), ("unknown", self.failed),
+                                       ("early", self.early), ("body", self.body_spent), ("effect", self.effect_spent)) if on]
+        return "+".join(parts) or "none"
+
+
 def new_public_limiter(clock: Callable[[], float] = time.time, limits: PublicLimits | None = None) -> ScopedRateLimiter:
-    """The limiter of the public listener: scope `tickets_link`, horizon = the longest public window."""
-    return ScopedRateLimiter("tickets_link", horizon_s=(limits or PublicLimits()).horizon_s, clock=clock)
+    """The limiter of the public listener: scope `tickets_link`, horizon = the longest public window, per-key memory = twice
+    the largest cap (code review V9: 600 instants, not 1024)."""
+    lim = limits or PublicLimits()
+    return ScopedRateLimiter("tickets_link", horizon_s=lim.horizon_s, clock=clock, max_events=2 * lim.max_cap)

@@ -8,7 +8,13 @@ Built here (the parts that need no ticket table; slice 4 implements the ports of
 - `POST /t/api/redeem` (the e-mail form of a link: at most 3 token releases per redeem id within 24 h);
 - `POST /t/api/code/send`, `POST /t/api/code/verify` (option B, codes.CodeEngine);
 - `POST /t/api/photo` (the hostile-image pipeline, one upload in flight per link, the photo quotas, the storage cap BEFORE the
-  body is read, idempotent by `client_request_id`) and `GET /t/api/photo/<id>` (a re-encoded photo of the link's ticket);
+  body is read, idempotent by `client_request_id`) and `GET /t/api/photo/<id>` (a re-encoded photo of the link's ticket).
+  Upload resources (code review V2): the memory bound is BYTES - UPLOAD_MEMORY_BYTES (32 MiB) shared by the declared bodies
+  in flight (a chunked body counts as the cap) - taken before the body is read, refused `busy` after UPLOAD_SLOT_WAIT_S
+  without cost; once the body phase starts, the upload pays one unit of the link's photo budget whatever follows (a trickle
+  cut at 408, a 413, a disconnect, a replay, a refusal - RequestCost.body_phase), so a link holder trickling bodies spends
+  10 attempts an hour, not nothing; and at most PROCESSING_SLOTS (2) uploads use worker threads at once (quota read,
+  decode, store, record), so with THREADPOOL_TOKENS (6) at least four threads always remain for token lookups;
 - `link_context()`, the dependency every token route uses: ONE lookup by the token hash, after the edge's rate gate; unknown /
   expired / revoked / past the grace / ticket purged -> a counted failure and the uniform 404 (same bytes, same headers,
   same code path); read-only during the grace; the code session when the link requires one;
@@ -51,11 +57,16 @@ from .ratelimit import DEFAULT_TRUSTED_PROXY_CIDRS, Network, PublicLimits, Publi
 
 REDEEM_MAX_USES = 3
 CRID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-# uploads in their body / storage / record phase at once (each holds at most one 8 MiB + 64 KiB body in memory). Fewer than the
-# listener's 4 worker threads: uploads blocked on a slow disk (fsync), the shared SQLite write gate or the storage walk can never
-# take every thread a token lookup needs.
-UPLOAD_SLOTS = 2
+# upload bodies held in memory at once, in BYTES of their declared length (a chunked body counts as PHOTO_MAX): four
+# full-size photos. Taken before the body is read; waiting for it costs nothing and ends `busy` after UPLOAD_SLOT_WAIT_S.
+UPLOAD_MEMORY_BYTES = 32 * 1024 * 1024
 UPLOAD_SLOT_WAIT_S = 5.0
+# uploads using worker threads at once (quota read, decode, store, record). Fewer than the listener's THREADPOOL_TOKENS (6):
+# uploads blocked on a slow disk (fsync), the shared SQLite write gate or the decoder can never take the threads a token
+# lookup needs (four always remain).
+PROCESSING_SLOTS = 2
+PROCESSING_WAIT_S = 30.0
+PROBE_RE = re.compile(r"[A-Za-z0-9_-]{16,64}")
 SHELL_FILE = "index.html"
 _ASSET_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*\.(js|css|svg|png|ico)")
 _HASHED_RE = re.compile(r".+[-.][A-Za-z0-9_-]{8,}\.[a-z0-9]+")
@@ -110,8 +121,12 @@ class PublicDeps:
     extra_routers: Sequence[APIRouter] = ()
     rules: Sequence[RouteRule] = ROUTES
     decode_wait_s: float = image_intake.DECODE_WAIT_S
-    upload_slots: int = UPLOAD_SLOTS
+    upload_memory_bytes: int = UPLOAD_MEMORY_BYTES
     upload_slot_wait_s: float = UPLOAD_SLOT_WAIT_S
+    processing_slots: int = PROCESSING_SLOTS
+    processing_wait_s: float = PROCESSING_WAIT_S
+    # where a TRUSTED proxy puts the client address (V3): cf-connecting-ip (cloudflared) or x-forwarded-for (last hop)
+    client_ip_header: str = "cf-connecting-ip"
 
 
 @dataclass(frozen=True)
@@ -131,11 +146,17 @@ def public_request(request: Request) -> PublicRequest:
 
 
 def spend_budget(request: Request) -> None:
-    """For a route of slice 4 / 9 once its effect is stored (a status, a note, an ETA, a return, a claim, a claim file): spend
-    one unit of the per-token budget of the route's kind (writes 20 / hour, invoice files 40 / hour). The edge only CHECKED the
-    budget; a refused, replayed or failed request never spends it."""
-    pr = public_request(request)
-    request.app.state.gate.spend(pr.rule.kind, pr.token_key)
+    """For a route of slice 4 / 9 once its effect is stored (a status, a note, an ETA, a return, a claim): spend one unit of the
+    per-token budget of the route's kind (writes 20 / hour). The edge only CHECKED the budget; a refused, replayed or failed
+    JSON write never spends it. An UPLOAD route (claim file) calls `begin_body(request)` instead, before reading its body."""
+    public_request(request).cost.effect()
+
+
+def begin_body(request: Request) -> None:
+    """An upload route (photo, invoice file) is about to read its body: from here on the upload costs one unit of its budget
+    whatever happens (code review V2; RequestCost.body_phase). Call it AFTER the slot / memory wait (a `busy` refusal costs
+    nothing) and BEFORE the first read."""
+    public_request(request).cost.body_phase()
 
 
 def link_context(*, write: bool = False, need_code: bool = True) -> Callable[[Request], Awaitable[LinkContext]]:
@@ -145,16 +166,15 @@ def link_context(*, write: bool = False, need_code: bool = True) -> Callable[[Re
 
     async def dep(request: Request) -> LinkContext:
         deps: PublicDeps = request.app.state.deps
-        gate: PublicRateGate = request.app.state.gate
         pr = public_request(request)
         if pr.token_hash is None or pr.token_key is None:
             raise unavailable()
         link = await run_in_threadpool(deps.links.lookup, pr.token_hash)
         now = deps.clock()
         if link is None or not link.available(now):
-            gate.failure(pr.net, pr.token_key)
+            pr.cost.unknown()
             raise unavailable()
-        gate.success(pr.token_key, counted=pr.counted)
+        pr.cost.proved(link.link_id)
         read_only = link.read_only(now)
         code_ok = not link.require_code
         if link.require_code and deps.codes is not None and pr.session:
@@ -239,8 +259,14 @@ def parse_client_request_id(value: object) -> str:
     raise PublicError(422, "invalid", fields=[{"field": "client_request_id", "code": "uuid"}])
 
 
+def idempotency_scope(link: LinkRecord) -> str:
+    """Spec 10.3: `client_request_id` is unique per link GENERATION (`link:<link_id>:<generation>`, code review V19): an id
+    reused after "new link" is a new request, not a replay of the old message's answer."""
+    return f"link:{link.link_id}:{link.generation}"
+
+
 class Idempotency:
-    """Spec 10.3: `client_request_id` per link (`scope = "link:<link_id>"`), stored 24 h by the RequestLog."""
+    """Spec 10.3: `client_request_id` per link generation (idempotency_scope), stored 24 h by the RequestLog."""
 
     def __init__(self, log: RequestLog | None) -> None:
         self.log = log
@@ -310,6 +336,12 @@ class PublicApp:
         self.gate = gate
         self.stats = stats
 
+    @property
+    def trusted(self) -> tuple[Network, ...]:
+        """The trusted proxy networks (public_server's per-network connection budget exempts them: cloudflared carries every
+        client over its own connections)."""
+        return tuple(self.deps.trusted_proxies)
+
     async def __call__(self, scope: dict[str, Any], receive: Callable, send: Callable) -> None:
         await self.edge(scope, receive, send)
 
@@ -338,7 +370,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
     api.state.gate = gate
     in_flight = InFlight()
     idempotency = Idempotency(deps.requests)
-    slots: dict[str, asyncio.Semaphore] = {}  # per running loop (the listener has one; tests may run several)
+    slots: dict[str, Any] = {}  # per running loop (the listener has one; tests may run several)
 
     @api.exception_handler(PublicError)
     async def _public(_request: Request, exc: PublicError) -> Response:
@@ -422,7 +454,12 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         return FileResponse(p, media_type=ASSET_TYPES[m.group(1)], headers={"Cache-Control": cache})
 
     @api.get("/t/healthz")
-    async def healthz() -> dict[str, bool]:
+    async def healthz(request: Request) -> dict[str, bool]:
+        pr = public_request(request)
+        client = request.scope.get("client")
+        nonce = request.headers.get("x-ticket-probe")
+        stats.note_probe(peer=client[0] if isinstance(client, (list, tuple)) and client else None, source=pr.source,
+                         nonce=nonce if nonce is not None and PROBE_RE.fullmatch(nonce) else None)
         return {"ok": True}
 
     # ---------------------------------------------------------------- the e-mail redeem link (spec 10.2)
@@ -438,7 +475,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         released = await run_in_threadpool(deps.redeems.release, links.redeem_hash(rid), now, REDEEM_MAX_USES) if rid else None
         link = await run_in_threadpool(deps.links.by_id, released[0]) if released else None
         if released is None or link is None or link.generation != released[1] or not link.available(now):
-            gate.failure(pr.net, kind="redeem", lookup=rid is not None)
+            gate.failure(pr.net, kind="redeem", lookup=rid is not None)  # the redeem route's own exit cost
             raise unavailable()
         try:
             token = links.derive_token(deps.key(link.key_id), link.link_id, link.generation)
@@ -496,26 +533,43 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
 
     # ---------------------------------------------------------------- photos (spec 10.6)
 
-    @contextlib.asynccontextmanager
-    async def loop_slot(name: str, size: int, wait_s: float):
-        """An asyncio semaphore of this app on the running loop: `upload` bounds the upload bodies held in memory at once;
-        `decode` lets at most one upload at a time wait for the decoder IN A WORKER THREAD - without it, uploads waiting
-        for the (process-wide) decode slot could hold all four worker threads and stall every token lookup meanwhile."""
+    def _per_loop(name: str, make: Callable[[], Any]) -> Any:
         key = f"{name}:{id(asyncio.get_running_loop())}"
-        sem = slots.get(key)
-        if sem is None:
-            sem = slots.setdefault(key, asyncio.Semaphore(max(1, size)))
+        obj = slots.get(key)
+        if obj is None:
+            obj = slots.setdefault(key, make())
+        return obj
+
+    @contextlib.asynccontextmanager
+    async def loop_slot(name: str, size: int, wait_s: float, *, status: int = 429):
+        """An asyncio semaphore of this app on the running loop: `processing` bounds the uploads using worker threads,
+        `decode` lets at most one upload at a time wait for the decoder IN A WORKER THREAD - without it, uploads waiting for
+        the (process-wide) decode slot could hold every worker thread and stall every token lookup meanwhile."""
+        sem = _per_loop(name, lambda: asyncio.Semaphore(max(1, size)))
         try:
             await asyncio.wait_for(sem.acquire(), wait_s)
         except asyncio.TimeoutError:
-            raise IntakeError("busy", 429, retry_after_s=5) from None
+            raise IntakeError("busy", status, retry_after_s=5) from None
         try:
             yield
         finally:
             sem.release()
 
-    def upload_slot():
-        return loop_slot("upload", deps.upload_slots, deps.upload_slot_wait_s)
+    @contextlib.asynccontextmanager
+    async def upload_memory(need: int, link_id: str):
+        """`need` bytes of the upload memory budget (UPLOAD_MEMORY_BYTES) for the request's life; `busy` after the wait."""
+        budget: _ByteBudget = _per_loop("memory", lambda: _ByteBudget(deps.upload_memory_bytes))
+        n = max(1, min(int(need), budget.total))
+        if not await budget.acquire(n, deps.upload_slot_wait_s):
+            stats.note_link(link_id, "busy")
+            raise IntakeError("busy", 429, retry_after_s=5)
+        try:
+            yield
+        finally:
+            await budget.release(n)
+
+    def processing():
+        return loop_slot("processing", deps.processing_slots, deps.processing_wait_s, status=503)
 
     def decode_admission():
         return loop_slot("decode", 1, deps.decode_wait_s)
@@ -526,12 +580,13 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         if photos is None or root is None:
             raise unavailable()
         link = ctx.link
-        with in_flight.claim(link.link_id):
-            async with upload_slot():
+        with in_flight.claim(link.link_id, on_busy=lambda: stats.note_link(link.link_id, "busy")):
+            async with upload_memory(ctx.request.content_length or PHOTO_MAX, link.link_id):
                 if deps.storage is not None:  # spec 10.6: the installation cap BEFORE the body is read
                     await run_in_threadpool(deps.storage.admit, ctx.request.content_length or PHOTO_MAX)
+                begin_body(request)  # V2: from here on this upload costs one unit of the photo budget, whatever follows
                 # the body into ONE buffer of ours (request.body() would keep a second, cached copy for the request's life);
-                # the edge bounds its size and the time it may take
+                # the edge bounds its size, the time it may take and the pauses between its chunks
                 raw = bytearray()
                 async for chunk in request.stream():
                     raw += chunk
@@ -546,24 +601,25 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
                 del form
 
                 async def work() -> tuple[int, Mapping[str, Any]]:
-                    # the quotas inside the idempotent part: a retry of an upload that reached the 30th photo is its replay
-                    image_intake.check_photo_quota(await run_in_threadpool(photos.counts, link))
-                    async with decode_admission():
-                        image = await run_in_threadpool(image_intake.reencode, data, wait_s=deps.decode_wait_s)
-                    stored = await run_in_threadpool(image_intake.store_image, root, link.ticket_id, image)
-                    if deps.storage is not None:
-                        deps.storage.note(stored.bytes)
-                    try:
-                        answer = await run_in_threadpool(photos.record, link, stored, crid)
-                    except Exception:
-                        image_intake.remove_stored(root, stored.rel_path)
+                    async with processing():
+                        # the quotas inside the idempotent part: a retry of an upload that reached the 30th photo is its replay
+                        image_intake.check_photo_quota(await run_in_threadpool(photos.counts, link))
+                        async with decode_admission():
+                            image = await run_in_threadpool(image_intake.reencode, data, wait_s=deps.decode_wait_s)
+                        stats.observe_decode(image.decode_ms)
+                        stored = await run_in_threadpool(image_intake.store_image, root, link.ticket_id, image)
                         if deps.storage is not None:
-                            deps.storage.note(-stored.bytes)
-                        raise
-                    gate.spend("photo", ctx.request.token_key)  # a NEW photo: retries, replays and refusals spend nothing
+                            deps.storage.note(stored.bytes)
+                        try:
+                            answer = await run_in_threadpool(photos.record, link, stored, crid)
+                        except Exception:
+                            image_intake.remove_stored(root, stored.rel_path)
+                            if deps.storage is not None:
+                                deps.storage.note(-stored.bytes)
+                            raise
                     return 201, answer
 
-                return await idempotency.run(f"link:{link.link_id}", crid, "/t/api/photo", work)
+                return await idempotency.run(idempotency_scope(link), crid, "/t/api/photo", work)
 
     @api.get("/t/api/photo/{attachment_id}")
     async def photo_get(attachment_id: str, ctx: LinkContext = Depends(link_context())) -> Response:
@@ -588,5 +644,29 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
     for router in deps.extra_routers:
         api.include_router(router)
 
-    edge = PublicEdge(api, switch=deps.switch, gate=gate, trusted=deps.trusted_proxies, stats=stats, rules=deps.rules)
+    edge = PublicEdge(api, switch=deps.switch, gate=gate, trusted=deps.trusted_proxies, stats=stats, rules=deps.rules,
+                      client_ip_header=deps.client_ip_header)
     return PublicApp(edge, api, deps, gate, stats)
+
+
+class _ByteBudget:
+    """An asyncio byte semaphore (code review 5.3: bytes, not slots, for upload memory). One per loop."""
+
+    def __init__(self, total: int) -> None:
+        self.total = max(1, int(total))
+        self.free = self.total
+        self._cond = asyncio.Condition()
+
+    async def acquire(self, n: int, wait_s: float) -> bool:
+        async with self._cond:
+            try:
+                await asyncio.wait_for(self._cond.wait_for(lambda: self.free >= n), wait_s)
+            except asyncio.TimeoutError:
+                return False
+            self.free -= n
+            return True
+
+    async def release(self, n: int) -> None:
+        async with self._cond:
+            self.free += n
+            self._cond.notify_all()

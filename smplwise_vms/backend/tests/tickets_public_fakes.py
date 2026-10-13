@@ -220,10 +220,13 @@ class FakeSender:
 
 
 class FakePhotos:
-    """PhotoSink: rows in a dict; counts per assignment / ticket; `fail_record` makes `record` raise (the file must then go)."""
+    """PhotoSink: rows in a dict; counts per assignment / ticket; `fail_record` makes `record` raise (the file must then go).
+    With `requests` set, `record` also writes the request row (scope link:<id>:<generation>, route /t/api/photo, 201, the
+    answer) under the same lock - the "same transaction" contract of PhotoSink.record (W5)."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, requests: "FakeRequests | None" = None) -> None:
         self.root = root
+        self.requests = requests
         self.rows: dict[str, dict[str, Any]] = {}
         self.extra_ticket = 0
         self.fail_record = False
@@ -243,7 +246,12 @@ class FakePhotos:
             self.n += 1
             aid = f"{self.n:016x}"
             self.rows[aid] = {"ticket_id": link.ticket_id, "assignment_id": link.assignment_id, "rel": image.rel_path, "visible_external": 1}
-        return {"id": aid, "width": image.width, "height": image.height}
+            answer = {"id": aid, "width": image.width, "height": image.height}
+            if self.requests is not None:  # one transaction with the photo row
+                with self.requests.lock:
+                    self.requests.rows.setdefault((f"link:{link.link_id}:{link.generation}", client_request_id),
+                                                  StoredResponse("/t/api/photo", 201, dict(answer)))
+        return answer
 
     def open(self, link: LinkRecord, attachment_id: str) -> PhotoFile | None:
         with self.lock:
@@ -287,7 +295,8 @@ class World:
 
 
 def build_world(tmp_path: Path, *, now: float | None = None, storage_cap: int | None = None, routers: tuple = (), rules: tuple | None = None,
-                shell_dir: Path | None = None, trusted: tuple[str, ...] | None = None, decode_wait_s: float = 5.0) -> World:
+                shell_dir: Path | None = None, trusted: tuple[str, ...] | None = None, decode_wait_s: float = 5.0,
+                client_ip_header: str = "cf-connecting-ip") -> World:
     from smplwise.services.tickets.codes import CodeEngine
     from smplwise.services.tickets.image_intake import StorageMeter
     from smplwise.services.tickets.public_app import PublicDeps, create_public_app
@@ -304,10 +313,12 @@ def build_world(tmp_path: Path, *, now: float | None = None, storage_cap: int | 
     world = World(clock=clock, links=fl, switch=FakeSwitch(True), redeems=FakeRedeems(), requests=FakeRequests(), codes=codes,
                   engine=engine, sender=FakeSender(), photos=FakePhotos(root), root=root,
                   storage=StorageMeter(root, cap_bytes=storage_cap or 2 * 1024 ** 3), app=None)
+    world.photos.requests = world.requests  # the PhotoSink.record contract: the request row in the same transaction (W5)
     deps = PublicDeps(links=fl, switch=world.switch, key=fake_key,
                       trusted_proxies=parse_trusted_cidrs(trusted or DEFAULT_TRUSTED_PROXY_CIDRS),
                       requests=world.requests, redeems=world.redeems, codes=engine, code_sender=world.sender, photos=world.photos,
                       attachments_root=root, storage=world.storage, shell_dir=shell_dir, limiter=limiter, clock=clock,
-                      extra_routers=routers, rules=rules or ROUTES, decode_wait_s=decode_wait_s)
+                      extra_routers=routers, rules=rules or ROUTES, decode_wait_s=decode_wait_s,
+                      client_ip_header=client_ip_header)
     world.app = create_public_app(deps)
     return world

@@ -18,8 +18,9 @@ from pydantic import BaseModel, ConfigDict
 
 from smplwise.services.tickets import codes as cd
 from smplwise.services.tickets import links
-from smplwise.services.tickets.public_app import (FALLBACK_SHELL, Idempotency, LinkContext, PublicError, link_context,
-                                                  parse_client_request_id, parse_json_object, read_json)
+from smplwise.services.tickets.public_app import (FALLBACK_SHELL, Idempotency, LinkContext, PublicError, idempotency_scope,
+                                                  link_context, parse_client_request_id, parse_json_object, read_json,
+                                                  spend_budget)
 from smplwise.services.tickets.public_http import CSP, JSON_MAX, ROUTES, SECURITY_HEADERS, RouteRule
 from smplwise.services.tickets.text_hygiene import clean_str
 from tests.tickets_public_fakes import KEY, build_world
@@ -53,9 +54,10 @@ def slice4_router(world_box: dict) -> APIRouter:
 
         async def work():
             notes.append(body.text)
+            spend_budget(request)  # W18: after the effect, inside the idempotent part (a replay never spends)
             return 200, {"ok": True, "text": body.text}
 
-        return await world_box["idem"].run(f"link:{ctx.link.link_id}", crid, "/t/api/note", work)
+        return await world_box["idem"].run(idempotency_scope(ctx.link), crid, "/t/api/note", work)
 
     @r.post("/t/api/test-crash")
     async def crash(ctx: LinkContext = Depends(link_context(write=True))) -> dict:
@@ -261,6 +263,44 @@ def test_per_token_request_cap(w):
     c = w.client()
     codes = [c.get("/t/api/ticket", headers={"x-ticket-token": tok}).status_code for _ in range(61)]
     assert codes.count(200) == 60 and codes[-1] == 429
+
+
+def test_the_proxy_assumption_is_visible_in_health(tmp_path):
+    """Code review V3 / W13: requests from a trusted peer WITHOUT a usable client-address header, and requests with no usable
+    peer address, are counted - if most traffic is keyed that way, every client shares one bucket. The health probe records
+    the peer it came from, the address source and its nonce, so the settings page can show where the proxy really connects
+    from."""
+    w = build_world(tmp_path, trusted=("198.51.100.0/24",))
+    c = w.client(peer="198.51.100.7")
+    assert c.get("/t/healthz", headers={"x-ticket-probe": "probe-0123456789abcdef"}).status_code == 200
+    snap = w.app.stats.snapshot()
+    assert snap["counters"].get("client_trusted_no_header") == 1
+    assert snap["last_probe"]["peer"] == "198.51.100.7" and snap["last_probe"]["source"] == "trusted_no_header"
+    assert snap["last_probe"]["nonce"] == "probe-0123456789abcdef"
+    c.get("/t/healthz", headers={"cf-connecting-ip": "203.0.113.5", "x-ticket-probe": "<script>"})
+    snap = w.app.stats.snapshot()
+    assert snap["last_probe"]["source"] == "header" and snap["last_probe"]["nonce"] is None  # a bad nonce is never kept
+    assert snap["counters"].get("client_trusted_no_header") == 1
+
+
+def test_x_forwarded_for_uses_the_last_hop_only(tmp_path):
+    from smplwise.services.tickets.ratelimit import classify_client, forwarded_values, parse_trusted_cidrs
+
+    trusted = parse_trusted_cidrs(["10.0.0.0/8"])
+    assert forwarded_values("x-forwarded-for", ["1.2.3.4, 203.0.113.9"]) == ["203.0.113.9"]
+    assert forwarded_values("x-forwarded-for", ["1.2.3.4", "198.51.100.3"]) == ["198.51.100.3"]  # the proxy's own line
+    assert forwarded_values("x-forwarded-for", ["1.2.3.4, "]) == []
+    assert classify_client("10.1.2.3", ["203.0.113.9"], trusted) == ("203.0.113.0/24", "header")
+    assert classify_client("10.1.2.3", [], trusted) == ("10.1.2.0/24", "trusted_no_header")
+    assert classify_client("192.0.2.1", ["203.0.113.9"], trusted) == ("192.0.2.0/24", "peer")
+    assert classify_client(None, ["203.0.113.9"], trusted) == ("unknown", "unknown")
+    w = build_world(tmp_path, trusted=("198.51.100.0/24",), client_ip_header="x-forwarded-for")
+    for i in range(20):  # the first hop is the client's own text: it cannot choose its bucket
+        w.client(peer="198.51.100.7").get("/t/api/photo/ffffffffffffffff", headers={"x-ticket-token": "Z" * 32,
+                                                                                      "x-forwarded-for": f"10.9.{i}.1, 203.0.113.77"})
+    assert w.app.gate.limiter.count("fail:203.0.113.0/24", 60) == 20
+    with pytest.raises(ValueError):
+        build_world(tmp_path / "bad", client_ip_header="x-real-ip")
 
 
 def test_cf_connecting_ip_counts_only_behind_a_trusted_peer(w):
@@ -591,18 +631,92 @@ def test_photo_get_ignores_range_and_conditional_requests(w):
         assert h not in full.headers
 
 
-def test_photo_uploads_spend_the_budget_only_when_a_photo_is_stored(w):
+def test_every_upload_that_reaches_its_body_pays_one_unit_of_the_photo_budget(w):
+    """Code review V2: an upload pays one unit of the link's photo budget (10 / hour) when its body phase starts, whatever
+    follows - a stored photo, a replay (it read a whole body too), a refusal after the body. A refusal BEFORE the body (the
+    budget already spent: 429 at admission) costs nothing more."""
     link, tok = w.links.add()
+    key = links.limiter_key(links.token_hash(tok))
     c = w.client()
     rid = crid()
-    assert upload(c, tok, rid=rid).status_code == 201
-    for _ in range(12):  # replays of the same upload: answered, never charged
-        assert upload(c, tok, rid=rid).status_code == 201
-    stored = 1
-    for _ in range(12):
-        if upload(c, tok).status_code == 201:
-            stored += 1
-    assert stored == 10  # 10 photos / hour per link
+    assert upload(c, tok, rid=rid).status_code == 201  # unit 1
+    replay = upload(c, tok, rid=rid)  # unit 2
+    assert replay.status_code == 201 and replay.headers.get("x-idempotent-replay") == "1"
+    assert upload(c, tok, b"not an image").json() == {"code": "unsupported_format"}  # unit 3: refused after its body
+    statuses = [upload(c, tok).status_code for _ in range(9)]
+    assert statuses == [201] * 7 + [429] * 2  # units 4..10, then the budget is spent: refused at admission, before the body
+    assert len(w.photos.rows) == 8 and w.app.gate.limiter.count("p:" + key, 3600) == 10
+
+
+def test_write_routes_spend_after_the_effect_only(w):
+    """W18: a write route spends its unit after the effect (spend_budget inside the idempotent part): N stored notes = N
+    units; a replay, a 422 and a refused write spend nothing."""
+    link, tok = w.links.add()
+    key = links.limiter_key(links.token_hash(tok))
+    c = w.client()
+    rid = crid()
+    for i in range(3):
+        assert note(c, tok, text=f"n{i}", rid=rid if i == 0 else None).status_code == 200
+    assert note(c, tok, rid=rid).headers.get("x-idempotent-replay") == "1"
+    assert note(c, tok, text=5).status_code == 422
+    assert w.app.gate.limiter.count("w:" + key, 3600) == 3
+
+
+def test_a_crash_between_the_effect_and_the_request_row_never_stores_twice(tmp_path):
+    """W5 / code review section 2: the request row is written by PhotoSink.record in the SAME transaction as the photo; when the
+    app's own RequestLog.put then fails (a crash, a busy database), a retry of the same client_request_id is the replay - no
+    second photo. The control world shows why the contract matters: without the in-transaction row a retry stores twice."""
+    for in_transaction, photos_after_retry in ((True, 1), (False, 2)):
+        world = build_world(tmp_path / str(in_transaction))
+        world.photos.requests = world.requests if in_transaction else None
+
+        def crash(*_a, **_k):
+            raise RuntimeError("the process died before the request row")
+
+        world.requests.put = crash  # type: ignore[assignment]
+        link, tok = world.links.add()
+        rid = crid()
+        first = upload(world.client(), tok, rid=rid)
+        assert first.status_code == 201  # the effect happened: the client gets its success, not a 500 to retry into
+        retry = upload(world.client(), tok, rid=rid)
+        assert retry.status_code == 201 and len(world.photos.rows) == photos_after_retry
+        if in_transaction:
+            assert retry.headers.get("x-idempotent-replay") == "1" and retry.json() == first.json()
+
+
+def test_idempotency_is_scoped_per_link_generation(w):
+    """Code review V19: a client_request_id reused after "new link" (a new generation) is a new request."""
+    link, tok = w.links.add()
+    rid = crid()
+    assert note(w.client(), tok, text="old", rid=rid).status_code == 200
+    w.links.by_hash.clear()
+    new_link, new_tok = w.links.add(link_id=link.link_id, generation=2)
+    again = note(w.client(), new_tok, text="new", rid=rid)
+    assert again.status_code == 200 and again.headers.get("x-idempotent-replay") is None and w.notes == ["old", "new"]
+
+
+def test_photo_reads_have_their_own_window(w):
+    """Code review V26: a ticket with 40 photos must not spend the token's 60 requests a minute on one page load - photo reads
+    count in a window of their own (120 / minute) and leave the token's window alone."""
+    link, tok = w.links.add()
+    key = links.limiter_key(links.token_hash(tok))
+    c = w.client()
+    statuses = [c.get("/t/api/photo/ffffffffffffffff", headers={"x-ticket-token": tok}).status_code for _ in range(121)]
+    assert statuses == [404] * 120 + [429]
+    assert w.app.gate.limiter.count(key, 60) == 0  # the token's own window untouched
+    assert c.get("/t/api/ticket", headers={"x-ticket-token": tok}).status_code == 200
+
+
+def test_hashed_assets_have_a_wider_budget_than_the_shell(tmp_path):
+    shell_dir = tmp_path / "www-public"
+    (shell_dir / "assets").mkdir(parents=True)
+    (shell_dir / "index.html").write_bytes(b"<!doctype html>")
+    (shell_dir / "assets" / "main-AbCd1234.js").write_bytes(b"console.log(1)")
+    w = build_world(tmp_path, shell_dir=shell_dir)
+    c = w.client(peer="192.0.2.50")
+    assert [c.get("/t/").status_code for _ in range(121)][-1] == 429  # the shell: 120 / minute per network
+    assets = [c.get("/t/assets/main-AbCd1234.js").status_code for _ in range(301)]
+    assert assets == [200] * 300 + [429]  # hashed, immutable assets: 300 / minute (Cloudflare caches them)
 
 
 def test_photo_get_is_scoped_to_the_links_ticket_and_the_code(w):
