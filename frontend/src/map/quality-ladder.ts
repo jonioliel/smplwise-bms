@@ -66,6 +66,24 @@ export function probeVerdict(mode: QualityMode, drawn: Rung, fps: number, minFps
 /** The probe runs on every rung above schematic (level 1 is the floor; there is nothing to fall to inside the view). */
 export const probes = (r: Rung): boolean => r !== 'schematic';
 
+/** The dial `plan.view.dpr_cap` as shipped (api/plan-view.ts DEFAULT_VIEW; unit-plan-3d-pixel-ratio.spec.ts holds the two together):
+ * the cap of a view that was never told one. */
+export const DEFAULT_DPR_CAP = 1.25;
+
+/**
+ * The device pixel ratio each rung draws at (CR-029 section 3.5, LOOK_SPEC section 10) - one rule for every moment it can change:
+ * the first build of a view, a rung or level change, a change of the dial. Schematic and full draw at the device's own ratio
+ * (`base`, already limited to 2 by the view): their pictures are the committed baselines and do not move with the dial. The lite
+ * rung is pinned at 1 (the phone / integrated-GPU rung). The realistic rung draws at the person's `dpr_cap` and never above the
+ * device's own ratio. A cap that is not a positive finite number is the dial's default; a device ratio that is not, 1.
+ */
+export function pixelRatioFor(rung: Rung, base: number, cap: number): number {
+  const device = Number.isFinite(base) && base > 0 ? base : 1;
+  if (rung === 'lite') return Math.min(device, 1);
+  if (rung === 'realistic') return Math.min(device, Number.isFinite(cap) && cap > 0 ? cap : DEFAULT_DPR_CAP);
+  return device;
+}
+
 // ---- CR-029 S3 (stills): the ladder below the live view, the host's view mode and the wall display's choice
 /*
  * The quality ladder of the plan view (CR-029 section 3.4, LOOK_SPEC section 4, S3 notes section 6) as pure decisions, so the

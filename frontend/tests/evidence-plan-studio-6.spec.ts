@@ -274,16 +274,10 @@ const harnessLampShadow = (el: Locator, on: boolean) =>
     return casting;
   }, on);
 
-/** Apply a DPR cap on the realistic rung. The cap is read when the rung's renderer state is applied (scene-three
- * applyQuality), so the harness applies it with a lite -> realistic round trip (see the S7 notes: a cap changed while the
- * realistic rung already draws does not reach the renderer until the next rung change). */
+/** Apply a DPR cap on the realistic rung. Since ST7DPR the cap reaches the canvas and the post chain at once (scene-three
+ * setRealSettings -> applyPixelRatio); the S7 harness used to go lite -> realistic to make the renderer read it (PORT-NOTES P21). */
 async function applyDprCap(el: Locator, page: Page, cap: number): Promise<void> {
-  await el.evaluate((n, c) => {
-    const v = (n as unknown as Probe).view;
-    v.setRealSettings({ dprCap: c });
-    v.setRealSettings({ rung: 'lite' });
-    v.setRealSettings({ rung: 'realistic' });
-  }, cap);
+  await el.evaluate((n, c) => { (n as unknown as Probe).view.setRealSettings({ dprCap: c }); }, cap);
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 120_000 }).toBe(0);
   await page.waitForTimeout(300);
 }
@@ -574,12 +568,10 @@ test.describe('functional and determinism (always)', () => {
       console.log(`S7 levers: DPR cap ${cap} -> pixel ratio ${ratio} (base ${base}), canvas ${px} px for ${Math.round(css)} css px`);
       expect(ratio).toBe(Math.min(base, cap));
     }
-    // observation for the S7 report (not asserted): a cap changed while the realistic rung already draws is not applied
-    // until the next rung / level change (meaningful where the base ratio is above 1: the mobile project)
+    // a cap changed while the realistic rung already draws is applied at once (ST7DPR; it used to wait for the next rung or
+    // level change - PORT-NOTES P21; meaningful where the base ratio is above 1: the mobile project)
     await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ dprCap: 2 }));
-    await page.waitForTimeout(300);
-    const stale = await el.evaluate((n) => (n as unknown as Probe).view.renderer.getPixelRatio());
-    console.log(`S7 observation: dprCap 2 set while realistic draws (last applied cap 1) -> pixel ratio ${stale}; min(base, cap) would be ${Math.min(base, 2)}`);
+    expect(await el.evaluate((n) => (n as unknown as Probe).view.renderer.getPixelRatio())).toBe(Math.min(base, 2));
     // back on the lite rung: DPR 1 although the cap is 2
     await el.locator(CHIP['3-lite']).click();
     await expect(el).toHaveAttribute('data-rung', 'lite');
