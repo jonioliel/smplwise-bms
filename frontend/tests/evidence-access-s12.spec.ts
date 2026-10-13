@@ -196,7 +196,10 @@ test.describe('S12: the parity report and the side-by-side checklist', () => {
   test('the checklist: per switched screen the two ways to look and what to compare; ticks stay in this browser', async ({ page }, info) => {
     await boot(page);
     const item = page.locator(`${PARITY} input[data-parity-item="people:item_sample_person"]`);
-    await expect(page.locator(`${PARITY} [data-parity-checklist]`)).toHaveCount(4); // overview, stations, people, events (schedules joins with its switch)
+    // overview, stations, people, events and - with S9 merged (integ-249), whose switch is access.ui.schedules - schedules
+    await expect(page.locator(`${PARITY} [data-parity-checklist]`)).toHaveCount(5);
+    // schedules is not switched on in the mock and has no tab of its own in the embedded panel: listed, without a link
+    await expect(page.locator(`${PARITY} [data-parity-checklist="schedules"] a`)).toHaveCount(0);
     await expect(page.locator(`${PARITY} [data-parity-checklist="events"] a[data-parity-open="native"]`)).toHaveAttribute('href', '#/wiskey/events');
     await expect(page.locator(`${PARITY} [data-parity-checklist="stations"] a[data-parity-open="native"]`)).toHaveCount(0);
     await expect(page.locator(`${PARITY} [data-parity-checklist="stations"] a[data-parity-open="classic"]`)).toHaveAttribute('href', '#/wiskey/devices?classic=1');
