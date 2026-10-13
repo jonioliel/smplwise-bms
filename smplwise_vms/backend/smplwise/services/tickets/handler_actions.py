@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ...db import get_setting, new_id
-from . import handler_links, model, naming, notify_bridge, settings_doc, store, store_links
+from . import handler_links, model, naming, notify_bridge, settings_doc, sla, store, store_links
 from .public_ports import LinkRecord, StoredImage
 from .public_store import audit_link, fold
 
@@ -163,6 +163,7 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     store.update_ticket(conn, f.ticket["id"], fields)
     _event(conn, f, "status", now, from_status=frm, to_status=to, body=note or None)
     _progress(conn, f, now, client_key)
+    sla.refresh(conn, f.ticket["id"])  # slice 2: the dues follow every change of a ticket
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
     notify_bridge.ticket_status(conn, f.ticket["id"], frm, to)
     return _finish(conn, f.link, crid, 200, {"ok": True, "status": to})
@@ -178,6 +179,7 @@ def add_note(conn, link: LinkRecord, *, text: str, crid: str, now: dt.datetime, 
     eid = _event(conn, f, "note", now, body=text)
     store.update_ticket(conn, f.ticket["id"], {"last_activity_at": at, "last_external_activity_at": at}, bump=False)
     _progress(conn, f, now, client_key)
+    sla.refresh(conn, f.ticket["id"])
     audit_link(conn, f.link, "ticket.note")
     return _finish(conn, f.link, crid, 200, {"ok": True, "id": eid})
 
@@ -198,6 +200,7 @@ def set_eta(conn, link: LinkRecord, *, eta_at: str | None, crid: str, now: dt.da
     store.update_ticket(conn, f.ticket["id"], {"eta_at": value, "last_activity_at": at, "last_external_activity_at": at})
     _event(conn, f, "eta", now, data={"eta_at": value})
     _progress(conn, f, now, client_key)
+    sla.refresh(conn, f.ticket["id"])  # a future ETA suppresses "stuck" until it passes (13.2)
     audit_link(conn, f.link, "ticket.eta", cleared=value is None)
     return _finish(conn, f.link, crid, 200, {"ok": True, "eta_at": value})
 
@@ -226,6 +229,7 @@ def give_back(conn, link: LinkRecord, *, kind: str, reason: str, crid: str, now:
     handler_links.revoke(conn, f.row, "not_mine" if kind == "not_mine" else "returned", now)
     store_links.note_update(conn, f.link.link_id)
     store_links.insert_access(conn, f.link.link_id, at, "update", client_key)
+    sla.refresh(conn, f.ticket["id"])  # unassigned again: the first-response clock restarts
     audit_link(conn, f.link, "ticket.return", kind=kind)
     notify_bridge.ticket_returned(conn, f.ticket["id"], kind)
     return _finish(conn, f.link, crid, 200, {"ok": True, "status": "returned", "kind": kind, "number": f.ticket["number"]})
@@ -256,6 +260,7 @@ def record_photo(conn, link: LinkRecord, image: StoredImage, crid: str, *, now: 
                                    "uploaded_by_kind": "contact", "uploaded_by": f.link.contact_id, "visible_external": 1, "created_at": at})
     store.update_ticket(conn, f.ticket["id"], {"last_activity_at": at, "last_external_activity_at": at}, bump=False)
     _progress(conn, f, when, client_key)
+    sla.refresh(conn, f.ticket["id"])
     audit_link(conn, f.link, "ticket.photo", attachment_id=att_id, bytes=image.bytes)
     answer = {"id": att_id, "width": image.width, "height": image.height}
     store_links.finish_request(conn, _scope(f.link), crid, 201, answer)

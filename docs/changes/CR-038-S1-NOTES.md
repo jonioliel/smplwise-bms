@@ -138,10 +138,18 @@ a planted line proves the lint catches one. The evidence spec renames the module
 - **Slice 6 (board, notifications):** fill `notify_bridge.py`; the list route already returns `waiting_on` / `waiting_reason`; the
   board is a new screen beside `screens/tickets-list.ts` (add its tab to `TICKETS_TABS`).
 
-## 5. Tests (local; the runner gate is NOT_RUN by instruction)
+## 5. Tests (local, one process at a time; the runner gate is NOT_RUN by instruction)
 
-See the slice report for the counts. Backend: `tests/test_tickets_*.py` (model, naming, module gate, visibility, API, admin,
-attachments, migration) and the existing suites touched by the shared files. Frontend: `unit-tickets-naming.spec.ts`,
-`unit-tickets-model.spec.ts`, the updated `unit-tabs-config.spec.ts`, the token / menu lints, `evidence-tickets.spec.ts` (desktop 1440 and
-phone 390, light / dark, classic / domus) and `layout-tickets.spec.ts` (five skins x two themes x widths 320-1440). Evidence images:
-`docs/design/evidence/tickets-s1/`.
+| Suite | Result |
+|---|---|
+| Backend `tests/test_tickets_*.py` (model, naming, module gate, visibility, API, admin, attachments, migration) + `test_migrations.py` | 153 passed, 1 skipped (the naming lint's case for `naming.py`, the home of the defaults) |
+| Backend: the 36 existing suites the shared files touch (access, roles, delegation, doors, groups, settings, backup, body limit, me, nav order, migrations lists, presence, media ...) | 749 passed (run after the shared-file changes; none of them changed afterwards) |
+| Frontend unit: tickets naming + model, tabs config, token / menu lints, settings index and the other nav-related specs | 107 passed |
+| Frontend unit sweep (all 165 `unit-*.spec.ts` under the node-only config) | 1805 passed, 9 skipped, 67 failed - only page-based specs that need the preview server; 8 of those files re-run under the browser config: 38 passed, 4 skipped (the 3D plan specs were not re-run locally: NOT_RUN) |
+| `evidence-tickets.spec.ts` (desktop 1440 + phone 390) | 17 passed, 1 skipped (a phone-only test on desktop) |
+| `layout-tickets.spec.ts` (5 skins x 2 themes x 10 widths 320-1440 x 11 screens = 1100 checks) | 0 escape / overflow / clipped findings, 0 page errors; target / floating findings are reported, not asserted (the shared controls of the automations area are 44 px on phones and touch pointers only, as on the automations screens) |
+| `evidence-shell.spec.ts` (desktop + phone; the stored order now ends with "tickets", the demo shows the area) | 36 passed, 2 skipped |
+| Runner gate (tier L) | NOT_RUN - no runner job by instruction |
+
+Evidence images: `docs/design/evidence/tickets-s1/` (list, drawer, full screen, create sheet and dialog, close dialog, empty, off, renamed
+module, settings general / departments / permissions / off, the phone dock with every area).

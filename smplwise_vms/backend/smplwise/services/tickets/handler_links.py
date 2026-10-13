@@ -3,7 +3,8 @@ with its cap, the read-only grace after close, revocation, a new generation, and
 
 Rules (spec 10.2):
 - durations: `links.sliding_days` (1-90, default 14), `links.cap_days` (7-365, default 90, never below the sliding window),
-  `links.grace_hours` (0-168, default 24) from `tickets.settings`, each overridable per department (NULL = installation);
+  `links.grace_hours` (0-168, default 24) from `tickets.settings`, each overridable per department (NULL = installation) - read
+  through slice 2's department policy (policy.effective), the one place that resolves them;
 - at mint: cap_at = now + cap_days; expires_at = min(cap_at, now + max(sliding_days, resolve_within(priority) + 1 day)) - the first
   expiry always covers the priority's resolve window (review C10); an empty resolve threshold counts as 0;
 - sliding: an action of the handler through the link, a manager's resend and a reminder move expires_at to
@@ -11,7 +12,10 @@ Rules (spec 10.2):
 - close / cancel: grace_until = now + grace_hours (read-only page); grace 0 revokes at once;
 - revoked at once (no grace): reassign, return / "לא שלי", manual revoke, key rotation, a contact's phone / e-mail change, a
   contact's erase, a new generation (the old token dies by the hash change);
-- a LOWER cap setting pulls the cap (and the expiry) of live links in at once; a higher one applies to new links only.
+- a LOWER cap (installation or department) pulls the cap (and the expiry) of live links in at once, counted from the start of
+  the link's current generation (`generation_at`); a higher one applies to new links only.
+`sent_at` / `sent_via` say when and how the current generation first left (the manager's copy here; slice 5b's outbox through
+`mark_sent`) - slice 6's "link not opened" (`link_unopened_min`) counts from `sent_at`.
 Tokens are derived, never stored (links.derive_token under the link's key, `ticket_links.key_id`)."""
 from __future__ import annotations
 
@@ -19,12 +23,9 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
-from . import links, settings_doc, store_links
+from . import links, policy, settings_doc, store, store_links
 from .keyring import KEYS
 
-SLIDING_RANGE = (1, 90)
-CAP_RANGE = (7, 365)
-GRACE_RANGE = (0, 168)
 UTC = dt.timezone.utc
 
 
@@ -52,22 +53,15 @@ class Durations:
     grace_hours: int
 
 
-def _bounded(value: Any, lo: int, hi: int) -> int | None:
-    if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
-        return None
-    return value
+def _of_policy(p: policy.DepartmentPolicy) -> Durations:
+    return Durations(sliding_days=p.link_sliding_days, cap_days=max(p.link_cap_days, p.link_sliding_days), grace_hours=p.link_grace_hours)
 
 
-def durations(conn, department_id: str | None) -> Durations:
-    """The effective D5 durations of a department: its override when set and in range, else the installation's value."""
-    doc = settings_doc.read(conn)["links"]
-    dept = store_links.department_link_overrides(conn, department_id) if department_id else None
-    sliding = (_bounded(dept["link_sliding_days"], *SLIDING_RANGE) if dept else None) or doc["sliding_days"]
-    cap = (_bounded(dept["link_cap_days"], *CAP_RANGE) if dept else None) or doc["cap_days"]
-    grace = _bounded(dept["link_grace_hours"], *GRACE_RANGE) if dept else None
-    if grace is None:
-        grace = doc["grace_hours"]
-    return Durations(sliding_days=sliding, cap_days=max(cap, sliding), grace_hours=grace)
+def durations(conn, department_id: str | None, *, installation: dict[str, Any] | None = None) -> Durations:
+    """The effective D5 durations of a department (its override when set and in range, else the installation's value)."""
+    inst = installation if installation is not None else settings_doc.read(conn)
+    dept = (store.department_any(conn, department_id) if department_id else None) or {}
+    return _of_policy(policy.resolve(inst, dept))
 
 
 def resolve_window_min(conn, department_id: str, priority_id: str) -> int:
@@ -109,7 +103,8 @@ def mint(conn, *, ticket: dict[str, Any], assignment_id: str, contact_id: str, r
     expires, cap = first_expiry(now, d, resolve_window_min(conn, ticket["department_id"], ticket["priority_id"]))
     row = {"id": link_id, "ticket_id": ticket["id"], "assignment_id": assignment_id, "contact_id": contact_id, "generation": 1,
            "key_id": key_id, "token_hash": links.token_hash(token), "require_code": 1 if require_code else 0, "sent_via": None,
-           "created_at": iso(now), "expires_at": iso(expires), "cap_at": iso(cap), "open_count": 0, "update_count": 0}
+           "created_at": iso(now), "generation_at": iso(now), "expires_at": iso(expires), "cap_at": iso(cap), "open_count": 0,
+           "update_count": 0}
     store_links.insert_link(conn, row)
     return store_links.link(conn, link_id) or row
 
@@ -166,29 +161,34 @@ def new_generation(conn, link_row: dict[str, Any], ticket: dict[str, Any], at: d
     d = durations(conn, ticket["department_id"])
     expires, cap = first_expiry(at, d, resolve_window_min(conn, ticket["department_id"], ticket["priority_id"]))
     store_links.update_link(conn, link_row["id"], {
-        "generation": gen, "key_id": key_id, "token_hash": links.token_hash(token), "expires_at": iso(expires), "cap_at": iso(cap),
-        "grace_until": None, "revoked_at": None, "revoked_reason": None,
+        "generation": gen, "key_id": key_id, "token_hash": links.token_hash(token), "generation_at": iso(at), "expires_at": iso(expires),
+        "cap_at": iso(cap), "grace_until": None, "revoked_at": None, "revoked_reason": None, "sent_via": None, "sent_at": None,
     })
     store_links.drop_sessions(conn, link_row["id"])
     return store_links.link(conn, link_row["id"]) or link_row
 
 
-def pull_in_caps(conn, cap_days: int, *, department_id: str | None = None) -> int:
-    """A LOWER cap: every live link of the affected tickets gets cap_at = min(cap_at, created_at + cap_days) at once. With
-    `department_id` None: the departments that use the installation value."""
+def mark_sent(conn, link_id: str, via: str, at: dt.datetime) -> None:
+    """The current generation left by `via` ('manual' = the manager's copy here; 'whatsapp' / 'email' = slice 5b's outbox once a
+    message is accepted). `sent_at` keeps the FIRST time; a link that ever went by e-mail stays 'email' (the D6 rule: its code must
+    then go by WhatsApp - a later copy must not open the e-mail fallback)."""
+    store_links.mark_sent(conn, link_id, via, iso(at))
+
+
+def pull_in_caps(conn, *, department_id: str | None = None) -> int:
+    """A LOWER cap (installation or department): every live link - of one department, or all - gets
+    cap_at = min(cap_at, generation_at + effective cap days) and its expiry with it, at once. Never moves a cap later."""
+    inst = settings_doc.read(conn)
+    caps: dict[str, int] = {}
     pulls: dict[str, str] = {}
-    for row in store_links.live_links(conn):
-        dept = store_links.ticket_department_cap(conn, row["ticket_id"])
-        if dept is None:
+    for row in store_links.live_links_with_department(conn, department_id):
+        dept_id = row["department_id"]
+        if dept_id not in caps:
+            caps[dept_id] = durations(conn, dept_id, installation=inst).cap_days
+        start = parse(row.get("generation_at")) or parse(row["created_at"])
+        if start is None:
             continue
-        if department_id is not None and dept["department_id"] != department_id:
-            continue
-        if department_id is None and _bounded(dept["link_cap_days"], *CAP_RANGE) is not None:
-            continue  # a department with its own cap keeps it
-        created = parse(row["created_at"])
-        if created is None:
-            continue
-        pulls[row["id"]] = iso(created + dt.timedelta(days=cap_days))
+        pulls[row["id"]] = iso(start + dt.timedelta(days=caps[dept_id]))
     return store_links.pull_in_caps(conn, pulls)
 
 
@@ -231,6 +231,7 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
         "revoked_at": row.get("revoked_at"),
         "revoked_reason": row.get("revoked_reason"),
         "sent_via": row.get("sent_via"),
+        "sent_at": row.get("sent_at"),
         "first_opened_at": row.get("first_opened_at"),
         "last_opened_at": row.get("last_opened_at"),
         "open_count": int(row.get("open_count") or 0),

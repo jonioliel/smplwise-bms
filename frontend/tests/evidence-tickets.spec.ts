@@ -130,14 +130,15 @@ test.describe('tickets evidence', () => {
     await page.waitForSelector(`${L} [data-tickets-state="off"]`);
     await expect(page.locator(`${L} [data-open-settings]`)).toBeVisible();
     await shot(page, 'off');
-    const nav = await page.evaluate(() => [...(document.querySelector('sw-app')?.shadowRoot?.querySelectorAll('[data-area], [data-nav-id], a[href^="#/tickets"]') ?? [])].map((e) => e.getAttribute('href') ?? '').filter((h) => h.startsWith('#/tickets')));
-    expect(nav, 'the area is not offered while the module is off').toEqual([]);
+    await expect(page.locator('sw-app [data-nav="tickets"]'), 'the area is not offered while the module is off').toHaveCount(0);
+    await expect(page.locator('sw-app [data-nav="security"]').first()).toBeAttached(); // (the navigation itself is there)
   });
 
   test('D33: a renamed module - the title, the rail, the card chips and the settings tab carry the new name', async ({ page }) => {
     await go(page, '/tickets/mine', { name: { one: 'תקלה', many: 'תקלות', gender: 'f' } });
     await page.waitForSelector(`${L} ticket-card`);
     await expect(page.locator(`${L} [data-tickets-title]`)).toHaveText('תקלות');
+    await expect(page.locator('sw-app [data-nav="tickets"]').first()).toHaveAttribute('aria-label', 'תקלות');
     const texts = await page.evaluate(() => {
       const out: string[] = [];
       const walk = (root: ParentNode) => {
@@ -190,5 +191,9 @@ test.describe('tickets evidence', () => {
     await go(page, '/tickets/mine?t=0000000000000a04');
     await page.waitForSelector(`${L} ticket-detail [data-ticket-detail]`);
     await shot(page, 'drawer-returned');
+    // a user who is offered every area: the tickets area is the last of the dock, which still fits the phone's width
+    await go(page, '/tickets/mine', { persona: 'admin', extraPerms: ['media.read', 'access.read', 'energy.view', 'generator.view', 'video.live', 'events.read'] });
+    await page.waitForSelector(`${L} ticket-card`);
+    await shot(page, 'dock-every-area');
   });
 });

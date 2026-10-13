@@ -27,7 +27,7 @@ from typing import Any, Protocol
 
 from ...audit import audit
 from ...errors import ApiError
-from . import access, codes as codes_mod, handler_links, links, model, naming, notify_bridge, store, store_links
+from . import access, codes as codes_mod, handler_links, links, model, naming, notify_bridge, sla, store, store_links
 from .access import Seen, Viewer, text
 from .module_key import ModuleKeyError
 from .present import can_reopen
@@ -267,6 +267,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued"))})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "link": link_row["id"][:6], "generation": 1})
+    sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)
     notify_bridge.ticket_assigned(conn, row["id"], aid)
     return aid
 
@@ -304,7 +305,7 @@ def copy_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[
         raise _unavailable(conn) from None
     except ModuleKeyError:
         raise ApiError(409, "module_key_missing", text(conn, "מפתח המודול חסר (שחזור ללא secrets/). שחזרו את התיקייה מהגיבוי.")) from None
-    store_links.update_link(conn, link_row["id"], {"sent_via": "manual"})
+    handler_links.mark_sent(conn, link_row["id"], "manual", now)
     store.insert_event(conn, seen.row["id"], "link_copied", actor_kind="user", actor_user_id=viewer.uid,
                        actor_name=store.display_name(conn, viewer.uid), assignment_id=link_row["assignment_id"])
     audit(conn, actor=viewer.principal, action="ticket.link.copy", decision="allowed", resource_type="ticket", resource_id=seen.row["id"], request_id=rid,
