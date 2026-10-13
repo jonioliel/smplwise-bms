@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   BOARD_HREF, autoCloseLine, boardHref, floorChips, floorsLayout, fmtDur, groupingOn, nestTree, parseBoardRoute, sections, stripItems, stuckChip, waitingLabel,
 } from '../src/tickets/board-model';
@@ -134,6 +135,6 @@ test('the notification category and subject kind of the module (spec 13.4)', () 
 });
 
 test('the backend catalogue and the client catalogue of the ticket sources agree (keys and labels)', () => {
-  const py = readFileSync(path.resolve(__dirname, '../../smplwise_vms/backend/smplwise/services/tickets/notify_sources.py'), 'utf8');
+  const py = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../smplwise_vms/backend/smplwise/services/tickets/notify_sources.py'), 'utf8');
   for (const s of TICKET_SOURCES) expect(py, s.key).toContain(`{"key": "${s.key}", "label": "${s.label}"`);
 });

@@ -108,9 +108,9 @@ export function nestTree(nodes: readonly TreeNode[]): TreeBranch[] {
     else roots.push(b);
   }
   // a single site / building level above the floors says nothing - lift its children (the mock-up starts at the floors)
-  let level = roots;
+  let level = roots.filter((b) => b.node.kind !== 'none');
   while (level.length === 1 && level[0].children.length && (level[0].node.kind === 'site' || level[0].node.kind === 'building')) level = level[0].children;
-  return level.filter((b) => b.node.kind !== 'none').concat(roots.filter((b) => b.node.kind === 'none'));
+  return level.concat(roots.filter((b) => b.node.kind === 'none'));
 }
 
 /** The chips row: the floors (else the top places) with their counts, "none" last. */

@@ -101,7 +101,7 @@ test('the rail, the scope tabs, the settings tab and the settings index carry th
   const groups = visibleGroups(true, ALL);
   expect(searchSettings(groups, 'תקלות').map((r) => r.entry.href)).toContain(TICKETS_SETTINGS_HREF);
   expect(searchSettings(groups, 'מחלקות').map((r) => r.entry.href)).toContain('#/system/tickets?tab=departments');
-  expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['שלי', 'המחלקה', 'הכול']);
+  expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['שלי', 'המחלקה', 'לוח מנהל', 'הכול']); // slice 6 adds the manager board
 });
 
 test('the module switch: the area is hidden until the session says it is on; the settings tab stays (it is where the switch is)', () => {
