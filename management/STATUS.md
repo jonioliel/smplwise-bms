@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-10-13T08:57:37.831336+00:00
+Generated: 2026-10-13T13:04:13.077117+00:00
 
 Tasks: 197 | Requirements: 305 | Tests: 321 | Screens: 32
 
@@ -9,10 +9,10 @@ No VMS implementation or hardware test is implied by this planning registry.
 ## Status counts
 - BACKLOG: 134
 - BLOCKED: 11
-- DONE: 19
+- DONE: 26
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 24
+- REVIEW: 17
 
 ## Release scope counts
 - BETA: 20
@@ -227,11 +227,11 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WXN11](tasks/WXN11.md) | V1 | BACKLOG | WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification | WXN6 |
 | [WXW](tasks/WXW.md) | V2 | BACKLOG | WisKey new writes (including doors), allowed now by the owner decision | WXN11 |
 | [WXAV](tasks/WXAV.md) | V2 | BLOCKED | WisKey local live video and two-way audio (S18) | — |
-| [WKS9](tasks/WKS9.md) | V1 | REVIEW | WisKey native screens S9: read-only door schedules screen (access.ui.schedules) | — |
-| [WKS11](tasks/WKS11.md) | V1 | REVIEW | WisKey native screens S11: person and card writes on the station chain (archive, on/off, cards, photo, PIN, capture) | — |
-| [WKS12](tasks/WKS12.md) | V1 | REVIEW | WisKey native screens S12: stage-1 gap analysis, parity report, action-log filters, S13 suite manifest | — |
-| [WKS18](tasks/WKS18.md) | V1 | REVIEW | WisKey native screens S18: live video and push-to-talk in the station drawer (access.station_media) | — |
-| [WKWA](tasks/WKWA.md) | V1 | REVIEW | WisKey native screens WA: WhatsApp messages from the people screen, single and bulk | — |
-| [WXDINT](tasks/WXDINT.md) | V1 | REVIEW | WisKey CR-033: door path integrated on the 2.4.8 line (wave 1 + D6-D9 + review fixes + D5a/D5b/D10a/D11 on fakes) | — |
+| [WKS9](tasks/WKS9.md) | V1 | DONE | WisKey native screens S9: read-only door schedules screen (access.ui.schedules) | — |
+| [WKS11](tasks/WKS11.md) | V1 | DONE | WisKey native screens S11: person and card writes on the station chain (archive, on/off, cards, photo, PIN, capture) | — |
+| [WKS12](tasks/WKS12.md) | V1 | DONE | WisKey native screens S12: stage-1 gap analysis, parity report, action-log filters, S13 suite manifest | — |
+| [WKS18](tasks/WKS18.md) | V1 | DONE | WisKey native screens S18: live video and push-to-talk in the station drawer (access.station_media) | — |
+| [WKWA](tasks/WKWA.md) | V1 | DONE | WisKey native screens WA: WhatsApp messages from the people screen, single and bulk | — |
+| [WXDINT](tasks/WXDINT.md) | V1 | DONE | WisKey CR-033: door path integrated on the 2.4.8 line (wave 1 + D6-D9 + review fixes + D5a/D5b/D10a/D11 on fakes) | — |
 | [ST7DPR](tasks/ST7DPR.md) | V2 | REVIEW | Plan Studio 6: dpr_cap is the pixel ratio of the first realistic frame and moves at once (fix of the 2.4.7 known limit) | — |
-| [GATE248](tasks/GATE248.md) | V1 | REVIEW | Release gate: baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed | — |
+| [GATE248](tasks/GATE248.md) | V1 | DONE | Release gate: baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed | — |

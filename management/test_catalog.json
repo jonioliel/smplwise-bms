@@ -8554,14 +8554,16 @@
       "Runner: python private/runner/run_smart.py <backend|spec|preview|linux-pixel> pilot/WISKEY-native-s9-schedules ..."
     ],
     "expected": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "7b9b63e7",
+    "environment": "Linux test machine, release gate tier L, integ/249 @ 7b9b63e7 (2.4.9), backend + preview + dev + pixel + fixture suites (PASS in 104 min 24 s, 0 red, 0 flaky: backend 7070p, preview 8471p, dev 829p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
     "evidence": [
-      "2026-10-12 partial, not acceptance (REG-249): S9 built on fakes, branch pilot/WISKEY-native-s9-schedules @ e980f203; workstation results are in CR-036-S9-NOTES.md section 6; runner, preview-build and pixel baselines NOT_RUN."
+      "docs/release/2.4.9-INTEGRATION-NOTES.md",
+      "docs/release/2.4.9-RELEASE-NOTES.md",
+      "gate report gate_integ-249_7b9b63e7.md on the test machine"
     ],
-    "executed_at": null,
-    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+    "executed_at": "2026-10-13T12:55:03Z",
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run."
   },
   {
     "id": "AT317",
@@ -8583,14 +8585,16 @@
       "Parity matrix on the fake (CR-036 6.2 step 2): python scripts/wiskey_parity_report.py."
     ],
     "expected": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "7b9b63e7",
+    "environment": "Linux test machine, release gate tier L, integ/249 @ 7b9b63e7 (2.4.9), backend + preview + dev + pixel + fixture suites (PASS in 104 min 24 s, 0 red, 0 flaky: backend 7070p, preview 8471p, dev 829p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
     "evidence": [
-      "2026-10-12 partial, not acceptance (REG-249): S12 built on fakes, branch pilot/WISKEY-s12-gaps @ c58f15b8. S12 own specs: backend tests/test_intercom_parity.py tests/test_access_parity_wire.py tests/test_intercom_adapter.py; unit tests/unit-access-parity-logic.spec.ts tests/unit-wiskey-stations.spec.ts; evidence tests/evidence-access-s12.spec.ts tests/evidence-wiskey-stations.spec.ts; layout tests/layout-access-s12.spec.ts; pixel tests/pixel-access-s12.spec.ts; script scripts/wiskey_parity_report.py. NOT_RUN: runner, preview-build, pixel baselines, live fixture."
+      "docs/release/2.4.9-INTEGRATION-NOTES.md",
+      "docs/release/2.4.9-RELEASE-NOTES.md",
+      "gate report gate_integ-249_7b9b63e7.md on the test machine"
     ],
-    "executed_at": null,
-    "notes": "NOT_RUN."
+    "executed_at": "2026-10-13T12:55:03Z",
+    "notes": "NOT_RUN. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run. The parity matrix on the fake (scripts/wiskey_parity_report.py) ran on the workstation @ 7b9b63e7 (four identities, see the integration notes)."
   },
   {
     "id": "AT318",
@@ -8616,14 +8620,16 @@
       "Runner: python private/runner/run_smart.py <backend|spec|preview|linux-pixel> pilot/WISKEY-s11-writes ... (backend as parallel shards)"
     ],
     "expected": "WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "7b9b63e7",
+    "environment": "Linux test machine, release gate tier L, integ/249 @ 7b9b63e7 (2.4.9), backend + preview + dev + pixel + fixture suites (PASS in 104 min 24 s, 0 red, 0 flaky: backend 7070p, preview 8471p, dev 829p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
     "evidence": [
-      "2026-10-12 partial, not acceptance (REG-249): S11 built on fakes, branch pilot/WISKEY-s11-writes @ ae3fa325; workstation results in CR-036-S11-NOTES.md section 9; runner, preview-build and pixel baselines NOT_RUN; no live write."
+      "docs/release/2.4.9-INTEGRATION-NOTES.md",
+      "docs/release/2.4.9-RELEASE-NOTES.md",
+      "gate report gate_integ-249_7b9b63e7.md on the test machine"
     ],
-    "executed_at": null,
-    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+    "executed_at": "2026-10-13T12:55:03Z",
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run."
   },
   {
     "id": "AT319",
@@ -8650,14 +8656,16 @@
       "Live (owner lab, slice S14, after W10): NOT_RUN"
     ],
     "expected": "WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "7b9b63e7",
+    "environment": "Linux test machine, release gate tier L, integ/249 @ 7b9b63e7 (2.4.9), backend + preview + dev + pixel + fixture suites (PASS in 104 min 24 s, 0 red, 0 flaky: backend 7070p, preview 8471p, dev 829p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
     "evidence": [
-      "2026-10-12 partial, not acceptance (REG-249): S18 built on a fake descriptor, branch pilot/WISKEY-media-s18 @ bc87c448; no result counts in the notes; runner, pixel baselines and everything live NOT_RUN."
+      "docs/release/2.4.9-INTEGRATION-NOTES.md",
+      "docs/release/2.4.9-RELEASE-NOTES.md",
+      "gate report gate_integ-249_7b9b63e7.md on the test machine"
     ],
-    "executed_at": null,
-    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+    "executed_at": "2026-10-13T12:55:03Z",
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run. The live step (owner lab, slice S14, after W10) stays NOT_RUN; it is outside this acceptance's expected result (fakes only)."
   },
   {
     "id": "AT320",
@@ -8683,14 +8691,16 @@
       "Live (a real WisKey / WhatsApp account, slice S14 after W11): NOT_RUN"
     ],
     "expected": "WisKey native screens WA: WhatsApp messages from the people screen (single and bulk), consent, templates, quota: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "7b9b63e7",
+    "environment": "Linux test machine, release gate tier L, integ/249 @ 7b9b63e7 (2.4.9), backend + preview + dev + pixel + fixture suites (PASS in 104 min 24 s, 0 red, 0 flaky: backend 7070p, preview 8471p, dev 829p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
     "evidence": [
-      "2026-10-12 partial, not acceptance (REG-249): WA built on fakes, branch pilot/WISKEY-whatsapp @ 21399bc7; results in CR-036-WA-NOTES.md ('Tests' section); pixel baselines and live NOT_RUN."
+      "docs/release/2.4.9-INTEGRATION-NOTES.md",
+      "docs/release/2.4.9-RELEASE-NOTES.md",
+      "gate report gate_integ-249_7b9b63e7.md on the test machine"
     ],
-    "executed_at": null,
-    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+    "executed_at": "2026-10-13T12:55:03Z",
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run."
   },
   {
     "id": "AT321",
@@ -8715,14 +8725,16 @@
       "Live (door, bridge, key, station): NOT_RUN - needs the owner's task-specific approval"
     ],
     "expected": "WisKey CR-033: door path integrated on the 2.4.8 line with its review fixes and the fake-based gate: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
+    "status": "PASS",
+    "commit": "7b9b63e7",
+    "environment": "Linux test machine, release gate tier L, integ/249 @ 7b9b63e7 (2.4.9), backend + preview + dev + pixel + fixture suites (PASS in 104 min 24 s, 0 red, 0 flaky: backend 7070p, preview 8471p, dev 829p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
     "evidence": [
-      "2026-10-12 partial, not acceptance (REG-249): door path integrated on fakes, branch pilot/WXD-integration @ 5777be0e; local merged-tree run 848 passed / 1 failed (migrations contiguous, expected); T13 / T19 / T24 partly OPEN; everything live NOT_RUN."
+      "docs/release/2.4.9-INTEGRATION-NOTES.md",
+      "docs/release/2.4.9-RELEASE-NOTES.md",
+      "gate report gate_integ-249_7b9b63e7.md on the test machine"
     ],
-    "executed_at": null,
-    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+    "executed_at": "2026-10-13T12:55:03Z",
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run."
   },
   {
     "id": "AT322",
@@ -8745,11 +8757,15 @@
       "Refresh procedure: scripts/gate/INSTALL_ON_RUNNER.md"
     ],
     "expected": "Release gate: tier-L baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+    "status": "PASS",
+    "commit": "7b9b63e7",
+    "environment": "Linux test machine, release gate tier L, integ/249 @ 7b9b63e7 (2.4.9), backend + preview + dev + pixel + fixture suites (PASS in 104 min 24 s, 0 red, 0 flaky: backend 7070p, preview 8471p, dev 829p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no WisKey, station, door, bridge, phone, WhatsApp account or Home Assistant",
+    "evidence": [
+      "docs/release/2.4.9-INTEGRATION-NOTES.md",
+      "docs/release/2.4.9-RELEASE-NOTES.md",
+      "gate report gate_integ-249_7b9b63e7.md on the test machine"
+    ],
+    "executed_at": "2026-10-13T12:55:03Z",
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit. 2026-10-13 (integ-249): PASS rests on the tier-L gate of integ/249 @ 7b9b63e7, which contains this item; it is not an item-specific run. selftest_gate.py on the test machine: SELFTEST PASSED, 37 OK (2026-10-13); the seed was installed and used by this gate."
   }
 ]
