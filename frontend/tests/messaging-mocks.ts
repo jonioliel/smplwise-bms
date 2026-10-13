@@ -46,16 +46,16 @@ function baseView(o: WaMockOptions, manage: boolean) {
       shared_outside: false, removed: false, pacing: { ...PACE }, uses: [], sends_24h: 0, last_send_at: null, has_status_entity: false, account: manage ? '15555550197' : null, status_entity_id: null, connected_states: ['on'] },
   ];
   const uses = on && !o.empty ? [
-    { key: 'tickets.messages', module: 'tickets', label: 'הודעות קריאות', inherits: null, inherits_label: null, per_department: true, required: true, value: 'entry:01JFAKEOFFICE', resolved: 'entry:01JFAKEOFFICE', queued: o.queued ?? 0,
+    { key: 'tickets.messages', module: 'tickets', label: 'הודעות בקשות שירות', inherits: null, inherits_label: null, per_department: true, required: true, value: 'entry:01JFAKEOFFICE', resolved: 'entry:01JFAKEOFFICE', queued: o.queued ?? 0,
       departments: [
         { id: 'dept-maintenance', name: 'אחזקה', value: null, resolved: 'entry:01JFAKEOFFICE' },
         { id: 'dept-cleaning', name: 'ניקיון', value: 'entry:01JFAKEINTERC', resolved: 'entry:01JFAKEINTERC' },
         { id: 'dept-hr', name: 'משאבי אנוש', value: null, resolved: 'entry:01JFAKEOFFICE' },
       ] },
-    { key: 'tickets.codes', module: 'tickets', label: 'קודי אימות לקריאות', inherits: 'tickets.messages', inherits_label: 'הודעות קריאות', per_department: false, required: false, value: null, resolved: 'entry:01JFAKEOFFICE', queued: 0 },
+    { key: 'tickets.codes', module: 'tickets', label: 'קודי אימות לבקשות שירות', inherits: 'tickets.messages', inherits_label: 'הודעות בקשות שירות', per_department: false, required: false, value: null, resolved: 'entry:01JFAKEOFFICE', queued: 0 },
   ] : on ? [
-    { key: 'tickets.messages', module: 'tickets', label: 'הודעות קריאות', inherits: null, inherits_label: null, per_department: true, required: true, value: null, resolved: null, queued: 0, departments: [] },
-    { key: 'tickets.codes', module: 'tickets', label: 'קודי אימות לקריאות', inherits: 'tickets.messages', inherits_label: 'הודעות קריאות', per_department: false, required: false, value: null, resolved: null, queued: 0 },
+    { key: 'tickets.messages', module: 'tickets', label: 'הודעות בקשות שירות', inherits: null, inherits_label: null, per_department: true, required: true, value: null, resolved: null, queued: 0, departments: [] },
+    { key: 'tickets.codes', module: 'tickets', label: 'קודי אימות לבקשות שירות', inherits: 'tickets.messages', inherits_label: 'הודעות בקשות שירות', per_department: false, required: false, value: null, resolved: null, queued: 0 },
   ] : [];
   const warnings = on && !o.empty ? [
     { code: 'shared_outside', use: 'tickets.messages', department_id: 'dept-cleaning', account_key: 'entry:01JFAKEINTERC', severity: 'amber' },
@@ -66,7 +66,7 @@ function baseView(o: WaMockOptions, manage: boolean) {
     mapping: o.empty ? {} : { 'tickets.messages': 'entry:01JFAKEOFFICE', 'tickets.codes': null, 'tickets.messages@dept:dept-cleaning': 'entry:01JFAKEINTERC' },
     warnings,
     channels: [{ key: 'whatsapp', state: on ? (o.empty ? 'not_configured' : 'active') : 'idle' }, { key: 'email', state: 'active' }, { key: 'inapp', state: 'active' }, { key: 'sms', state: 'soon' }],
-    modules: { tickets: 'קריאות', access: 'בקרת כניסה' },
+    modules: { tickets: 'בקשות שירות', access: 'בקרת כניסה' },
     pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: false },
   };
 }
@@ -88,13 +88,13 @@ export async function installMessagingMock(page: Page, o: WaMockOptions = {}): P
         user: { id: 'u-ronit', username: 'ronit', display_name: 'רונית לוי', source: 'ingress' }, channel: 'local', remote: null,
         bindings: [{ id: 'b1', role_id: persona === 'admin' ? 'system_admin' : 'operator', role_name: persona === 'admin' ? 'מנהל מערכת' : 'מפעיל', scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה', effect: 'allow' }],
         permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done',
-        modules: { tickets: o.ticketsOn ?? true, tickets_name: { he: { one: 'קריאה', many: 'קריאות', gender: 'f' } } },
+        modules: { tickets: o.ticketsOn ?? true, tickets_name: { he: { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' } } },
       });
     }
     if (p === 'me/prefs') return json(route, { prefs: { 'nav.order': [] }, stored: [], updated_at: null });
     if (p === 'settings') return json(route, { settings: { 'ui.design': 'a', 'tickets.enabled': String(o.ticketsOn ?? true) }, can_edit: perms.includes('system.configure') });
     if (p.startsWith('notifications')) return json(route, { unread: 0, items: [] });
-    if (p === 'tickets/module') return json(route, { enabled: o.ticketsOn ?? true, public_ready: false, name: { he: { one: 'קריאה', many: 'קריאות', gender: 'f' } }, name_revision: 0, ui: {} });
+    if (p === 'tickets/module') return json(route, { enabled: o.ticketsOn ?? true, public_ready: false, name: { he: { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' } }, name_revision: 0, ui: {} });
     if (!p.startsWith('messaging/whatsapp')) return err(route, 404, 'not_found', 'לא נמצא');
     st.calls.push({ method, path: p, body });
     if (!perms.includes('system.configure') && !manage) return err(route, 403, 'forbidden', 'אין הרשאה');

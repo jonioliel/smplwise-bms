@@ -48,7 +48,7 @@ test.describe('messaging accounts evidence', () => {
     await expect(s.locator('[data-account="entry:01JFAKESPARE0"] [data-state="disconnected"]')).toHaveText('מנותק');
     await expect(s.locator('[data-account="entry:01JFAKEINTERC"] [data-shared]')).toBeVisible();
     await expect(s.locator('[data-account="entry:01JFAKEOFFICE"]')).toContainText('····0191');
-    await expect(s.locator('[data-use-pick="tickets.codes"] option').first()).toHaveText('כמו הודעות קריאות');
+    await expect(s.locator('[data-use-pick="tickets.codes"] option').first()).toHaveText('כמו הודעות בקשות שירות');
     await expect(s.locator('[data-channel="sms"]')).toHaveAttribute('aria-disabled', 'true');
     await expect(s.locator('[data-channel="sms"] [data-channel-state]')).toHaveText('בקרוב');
     await expect(s.locator('[data-test-send] button')).toBeDisabled();

@@ -15,6 +15,7 @@ from smplwise import db as dbmod
 from smplwise.db import Database, now_iso
 from smplwise.services import messaging_accounts as ma
 from smplwise.services import messaging_runtime as mr
+from smplwise.services.tickets import naming
 
 UTC = dt.timezone.utc
 T0 = dt.datetime(2026, 10, 13, 9, 0, tzinfo=UTC)
@@ -147,7 +148,7 @@ def test_worker_service_reads_fresh_and_follows_the_module_switch(database):
     svc = mr.accounts_service(database)
     with database.connection() as conn:
         conn.execute("INSERT INTO settings(key, value) VALUES ('tickets.enabled', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'")
-        mr.store_doc(conn, ma.MappingDoc(1, (ma.Account(KEY_A, "discovered", label="קריאות"),), {"tickets.messages": KEY_A}))
+        mr.store_doc(conn, ma.MappingDoc(1, (ma.Account(KEY_A, "discovered", label="משרד"),), {"tickets.messages": KEY_A}))
     assert svc.resolve("tickets.codes").key == KEY_A and svc.resolve("tickets.codes").value == ENTRY_A
     assert svc.status(KEY_A).state == "connected" and svc.mapped_keys("tickets") == {KEY_A}
     with database.connection() as conn:
@@ -172,7 +173,7 @@ def test_another_module_registers_a_use_and_a_shared_account_warns(database, mon
         mr.store_doc(conn, ma.MappingDoc(1, (), {"tickets.messages": KEY_A, "access.notices": KEY_A}))
         v = mr.view(conn, can_manage=True, now=T0)
     assert [u["key"] for u in v["uses"]] == ["tickets.messages", "tickets.codes", "access.notices"]
-    assert v["modules"] == {"access": "בקרת כניסה", "tickets": "קריאות"}
+    assert v["modules"] == {"access": "בקרת כניסה", "tickets": naming.DEFAULTS["he"]["many"]}
     shared = [w for w in v["warnings"] if w["code"] == "shared_module"]
     assert {(w["use"], w["module"]) for w in shared} >= {("tickets.messages", "access"), ("access.notices", "tickets")}
     acc = {a["key"]: a for a in v["accounts"]}
