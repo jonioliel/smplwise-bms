@@ -27,6 +27,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import io
+import logging
 import os
 import secrets
 import struct
@@ -60,6 +61,12 @@ PHOTOS_PER_ASSIGNMENT = 30
 PHOTOS_PER_TICKET = 60
 
 _DECODE = threading.BoundedSemaphore(DECODE_CONCURRENCY)  # THIS module's; never shared with an administrator's route
+
+# Pillow's TIFF / EXIF reader logs every tag VALUE at DEBUG ("Tag 270, Type: 2, Value: '...'") - GPS positions, camera serial
+# numbers, names typed into a photo's metadata - while exif_transpose reads them. With the add-on at log level "debug" every
+# anonymous upload's metadata would reach the add-on log (found by tests/test_tickets_public_logs.py). Pillow's own loggers
+# are kept at INFO for the whole process, the way main.py keeps httpx at WARNING.
+logging.getLogger("PIL").setLevel(logging.INFO)
 
 
 class IntakeError(Exception):

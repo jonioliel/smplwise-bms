@@ -132,6 +132,19 @@ def test_metadata_never_survives_gps_exif_icc_xmp_comment():
         assert needle not in out.data, needle
 
 
+def test_exif_values_never_reach_a_log_record_even_at_debug(caplog):
+    """Regression (found by the log scan): Pillow's TIFF reader logs every EXIF tag VALUE at DEBUG while exif_transpose reads
+    them; the module keeps Pillow's loggers at INFO so an add-on at log level "debug" never writes a photo's metadata."""
+    import logging
+
+    assert logging.getLogger("PIL").level == logging.INFO
+    exif = Image.Exif()
+    exif[0x010E] = "GPS 32.0853N 34.7818E exif-log-secret"
+    caplog.set_level(1)  # the root logger at its lowest level (restored by caplog)
+    ii.reencode(jpeg(120, 80, exif=exif.tobytes()))
+    assert "exif-log-secret" not in caplog.text
+
+
 def test_exif_orientation_is_applied_after_the_pixel_check():
     exif = Image.Exif()
     exif[0x0112] = 6  # rotate 90 on display
