@@ -6,7 +6,8 @@
 branch (no hit).
 
 **Status:** **APPROVED FOR BUILD by the owner on 2026-10-13** (spec r2.4 and the mock-up v2 served on port 8796 during the
-review). Still a design: no product code, no migration file, no test exists yet. Original r1 status: DESIGN ONLY. No product code, no migration file, no test exists yet. Branch `pilot/TICKETS-spec` (from `origin/main`
+review). Still a design: no product code, no migration file, no test exists yet. **D31 (vendor cost claims, section 11A)
+was added after the approval**; its four owner questions CQ1-CQ4 (section 22) have designed defaults. Branch `pilot/TICKETS-spec` (from `origin/main`
 at `b26c1b7d`, release 2.4.8). Nothing here has been run against a real Home Assistant, a real `ha-whatsapp` installation, a real
 phone or a real Cloudflare tunnel. Every claim about existing code below was read in the repository at that commit (or on the
 named branch) and cites the file; every claim about `ha-whatsapp` was read on its public documentation pages on 2026-10-13
@@ -34,6 +35,8 @@ for which only the hook is designed (section 18).
   question remains open (22).
 - r2.4 (2026-10-13): owner decision D30 (the board's area tree can be hidden per user). **Owner approval of the spec and
   of mock-up v2 (port 8796) for development.**
+- r2.5 (2026-10-13): owner requirement D31 - cost claims from external vendors (section 11A), migration 0083, two new
+  sensitive permissions, slice 9; owner questions CQ1-CQ4.
 
 **Related:** CR-018 (notification core: sources, recipients, escalation - the module's internal alerts ride on it), CR-008
 (remote access through a Cloudflare tunnel, the threat model of a public surface), CR-028 (the cast relay: the precedent for a
@@ -117,6 +120,7 @@ decision 2026-10-01: the database engine is decided when ticketing is specified 
 | D28 | Urgent tickets **pass the managers' quiet hours by default**; a setting with an installation default and a per-department override. | 7.1, 13.4, 14.1 |
 | D29 | The first assignment message outside vendor send hours **waits for the morning**; "שלח עכשיו" is available to **anyone holding `tickets.external`** who can see the ticket (also a user granted it individually), not only to managers. | 9.2, 8.1 |
 | D30 | The board's side **area tree is hideable by each user** (a hide / show control on the board, remembered per user) and can be turned **fully off** by the installation setting (`board_floors = chips`) - the tree is not relevant for every customer. Effort: negligible (inside slice 6). | 13.7 |
+| D31 | After an **external** vendor reports done, the vendor submits a **cost claim** (lines: labor hours x rate, parts, travel, other; currency default ILS; VAT handling; auto total; notes; invoice / receipt as photo or PDF; optional invoice number); the manager approves, approves with adjustment, or rejects back to the vendor; revisions never overwritten; status none / submitted / approved / rejected / paid with a manual "mark as paid"; no payment integration (hook only); reporting and CSV; a required claim blocks closing unless overridden with a reason; new sensitive permission(s), grantable per user. | 11A |
 
 D18-D22 (and D17) are **installation settings** under Settings › קריאות שירות › כללי (`system.configure`); the per-user
 choices of D24 (view, columns, density, sort, saved filters) are personal and stored per user.
@@ -387,10 +391,10 @@ reminder for a ticket closed meanwhile - are cancelled by the normal rules befor
 installation (its address, its WhatsApp numbers, its switch) and must neither travel in a project backup nor be restored into
 another installation.
 
-## 7. Data model (migrations 0079-0083)
+## 7. Data model (migrations 0079-0084)
 
 **Migration range:** highest on any remote ref is 0078 (`integ/249`) as of r1; re-check at implementation start. This CR
-reserves **0079-0083** and follows the repo rule: if another branch lands one of these numbers first, the tickets migrations
+reserves **0079-0084** and follows the repo rule: if another branch lands one of these numbers first, the tickets migrations
 are renumbered at integration (the files are additive and independent of each other's numbers).
 
 | File | Slice | Content |
@@ -399,7 +403,8 @@ are renumbered at integration (the files are additive and independent of each ot
 | `0080_ticket_contacts_links.sql` | 4 (+7) | contacts, contact-departments, links, link sessions, link codes, link failures, link access log, e-mail redeem ids |
 | `0081_ticket_messaging.sql` | 5b | outbox, inbound log |
 | `0082_messaging_accounts.sql` | 5a | the shared per-account send ledger (pacing across uses and modules) - **new in r2** (it used the r1 spare) |
-| `0083` | spare | reserved for a schema need found during build (none planned) |
+| `0083_ticket_costs.sql` | 9 | cost claims, revisions, decisions, files; cost columns on departments, contacts, tickets (11A.10) - **new in r2.5** |
+| `0084` | spare | reserved for a schema need found during build (none planned) |
 
 r2 schema changes against r1, in one list: `ticket_departments` gains the history default 0, `auto_close_after_days`
 (replaces `require_manager_close`), link-duration and send-hour overrides, `urgent_is_critical`; `ticket_sla_rules` gains
@@ -505,6 +510,7 @@ CREATE TABLE ticket_templates (
   department_id TEXT REFERENCES ticket_departments(id) ON DELETE CASCADE,   -- NULL = installation-wide
   kind          TEXT NOT NULL CHECK (kind IN ('ticket', 'message')),
   purpose       TEXT,           -- message: 'assign' | 'reminder' | 'code' | 'closed' | 'reassigned' | 'reopened' | 'update'
+                                --          | 'cost_rejected' | 'cost_approved' | 'cost_reopened' (11A)
   name          TEXT NOT NULL,
   title         TEXT NOT NULL DEFAULT '',        -- ticket: prefilled title
   body          TEXT NOT NULL DEFAULT '',        -- ticket: prefilled description; message: text with allow-listed placeholders
@@ -813,7 +819,7 @@ CREATE TABLE ticket_outbox (
   contact_id          TEXT,                          -- the phone / e-mail are read from the directory at send time, never copied here
   channel             TEXT NOT NULL CHECK (channel IN ('whatsapp', 'email')),
   purpose             TEXT NOT NULL CHECK (purpose IN ('assign', 'reminder', 'code', 'closed', 'reassigned', 'reopened',
-                                                       'update', 'test')),
+                                                       'update', 'cost_rejected', 'cost_approved', 'cost_reopened', 'test')),
   use_key             TEXT NOT NULL,                 -- 9.9: 'tickets.messages' | 'tickets.codes' (WhatsApp rows); 'email' otherwise
   department_id       TEXT,                          -- for the per-department account override (resolved at claim time)
   account_key         TEXT,                          -- 9.9: the WhatsApp account, written when the worker CLAIMS the row
@@ -914,7 +920,7 @@ Departments are deliberately **not** a new RBAC scope type: a new scope type tou
 delegation rules and every scope test (integ/249 shows the size of that change for stations); membership inside the module is
 local, matches the owner's model ("each department has its managers"), and is administered on the department page.
 
-**The six ticket permissions (D15 as drawn in the mock-up, plus `tickets.external` restored by D25):**
+**The eight ticket permissions (D15 as drawn in the mock-up, `tickets.external` restored by D25, the two cost permissions of D31):**
 
 | Permission | Label (Hebrew) | Meaning | Sensitive | Default built-in roles |
 |---|---|---|---|---|
@@ -924,6 +930,8 @@ local, matches the owner's model ("each department has its managers"), and is ad
 | `tickets.external` | שליחה לגורם חיצוני | **D25.** Send to outside contacts / vendors: with manager rights - assign to a contact, send / resend / new / copy handler links; on its own (any visible ticket) - "שלח עכשיו" for a message held by send hours (D29); see contacts' full phone numbers for the departments one manages | **yes** | site_admin, system_admin |
 | `tickets.all_departments` | כל המחלקות | `tickets.view` / `tickets.manage` apply in every department without membership | **yes** | system_admin |
 | `tickets.configure` | הגדרות קריאות | Departments, categories, priorities, SLA matrix, link-duration and send-hour overrides, message templates, members, **the contact / vendor directory** (create, edit, erase, export, "require verification code" - r1's `tickets.contacts.manage`) | **yes** (review T19) | system_admin |
+| `tickets.costs.view` | צפייה בעלויות | **D31** - see cost claims, amounts, invoice files, cost columns and reports (11A.8) | **yes** | site_admin, system_admin |
+| `tickets.costs` | אישור עלויות | **D31** - approve / adjust / reject claims, mark paid, claims on the vendor's behalf, close-gate override (11A.8) | **yes** | system_admin |
 
 Installation-level permissions used by the module (not ticket permissions):
 
@@ -933,8 +941,9 @@ Installation-level permissions used by the module (not ticket permissions):
 | `messaging.accounts.manage` (**new**, D9) | בחירת חשבונות וואטסאפ | Add / remove / label WhatsApp accounts and **map accounts to uses** (installation default, per-department override, codes, other modules' uses) | **yes** | system_admin |
 
 `viewer`, `kiosk`, `editor`, `door_opener`: none. Every new permission goes into `PERMISSION_LABELS`, `roles.json` (and
-`contracts/examples/role-catalog.design.json`), `sensitive_permissions_not_implied` for the four sensitive ones
-(`tickets.all_departments`, `tickets.external`, `tickets.configure`, `messaging.accounts.manage`), and the frontend permission
+`contracts/examples/role-catalog.design.json`), `sensitive_permissions_not_implied` for the six sensitive ones
+(`tickets.all_departments`, `tickets.external`, `tickets.configure`, `tickets.costs.view`, `tickets.costs`,
+`messaging.accounts.manage`), and the frontend permission
 labels.
 
 **What folding r1's two remaining extra permissions trades off (D15, recorded):** (1) being assignable is no longer a
@@ -1044,7 +1053,8 @@ building / floor / camera), with `effect` allow / deny, an optional `expires_at`
 sensitive permissions only by naming them explicitly, and never system permissions - the existing way to give one sensitive
 permission to one person is a custom role bound to that user (the `PERMISSION_LABELS` comment at l.54 says so).
 
-**Design (no new RBAC mechanism):** the module ships **six single-permission built-in roles** in `roles.json`:
+**Design (no new RBAC mechanism):** the module ships **eight single-permission built-in roles** in `roles.json` (the six below plus `tickets_costs_view` and
+`tickets_costs` of D31, 11A.8):
 `tickets_view` (צפייה בקריאות), `tickets_create` (פתיחת קריאות), `tickets_manage` (ניהול קריאות), `tickets_all_departments`
 (כל המחלקות בקריאות), `tickets_external` (שליחה לגורם חיצוני), `tickets_configure` (הגדרות קריאות). Giving one of them to a
 specific user = an ordinary **user binding** of that role at installation scope (or a site / building / floor scope, which then
@@ -1052,8 +1062,8 @@ limits it to tickets placed there - placeless tickets follow the "any held scope
 to whatever the user's roles already give; a deny binding still wins. Consequences:
 - **Audit** is the existing `rbac.bind` / `rbac.unbind` row (subject, role, scope, expiry, actor), plus the permission
   revision bump that already invalidates caches and the assignee-picker cache.
-- **Who may grant:** `rbac.assign` on the scope, as for any binding. The three sensitive single-permission roles
-  (`tickets_all_departments`, `tickets_external`, `tickets_configure`) are **not** in the default `rbac.delegable_roles`
+- **Who may grant:** `rbac.assign` on the scope, as for any binding. The sensitive single-permission roles
+  (`tickets_all_departments`, `tickets_external`, `tickets_configure`, `tickets_costs_view`, `tickets_costs`) are **not** in the default `rbac.delegable_roles`
   allow-list, so a delegated (site) administrator cannot hand them out unless the owner adds them; the three others are
   delegable by default.
 - **Where:** the existing user permissions screen (bindings) offers these roles like any other; Settings › קריאות שירות gains a
@@ -1689,7 +1699,7 @@ D12 and the duplicate flow need them; they are not on the main line.
 | open → `cancelled` | yes (reason; "כפולה" sets `duplicate_of` and writes a note on the original) | - | - | - | - |
 | `closed` → `assigned` / `new` (reopen) | yes, within `reopen_days` (`reopen_count + 1`; a reassignment to the same contact sends the `reopened` message, which names the ticket as reopened; the page then shows that contact's earlier external timeline of this ticket) | - | - | - | - |
 
-**Closed is manager-only (D10):** no assignee, link or inbound path can close; the only non-manager close is the department's
+**Closed is manager-only (D10):** a pending **required cost claim** blocks closing unless overridden with a reason (11A.3); no assignee, link or inbound path can close; the only non-manager close is the department's
 automatic close after N days, which is a setting a manager's department chose. While a `done` ticket waits for the automatic
 close it stays in "ממתין לי" with "ייסגר אוטומטית ב-<date>", so a manager can still reject it.
 
@@ -1706,6 +1716,315 @@ Creators may edit title/description while the ticket is `new`. Assignees edit no
 An edit of title, description, place or priority after the current assignment's message left sets `external_stale`; the
 ticket shows "נשלח לפני השינוי" with "שלח עדכון" (purpose `update`, the current text, respects send hours); the handler page
 always shows the current values anyway.
+
+## 11A. Cost claims from external vendors (D31, added after the approval of r2.4)
+
+A vendor (an external contact) who reports **done** then submits a **cost claim** (פירוט דרישת עלות) so the organisation can pay
+and the event is documented. Nothing in this section pays anyone: there is **no payment integration**; "paid" is a manual mark
+with a payment reference, and a clean hook is left for a later integration (11A.9). Owner questions this raises: CQ1-CQ4
+(section 22); each has a designed default below.
+
+### 11A.1 When a claim is asked for
+
+| Level | Setting | Values | Default |
+|---|---|---|---|
+| Installation | `tickets.settings.costs.mode` | `required` / `optional` / `off` | `required` (CQ1) |
+| Department | `ticket_departments.cost_claim` | same, NULL = installation | NULL |
+| Vendor / contact | `ticket_contacts.cost_claim` | same, NULL = department | NULL (e.g. `off` for a vendor on a fixed service contract) |
+
+The most specific non-NULL value wins. Only **external** assignments get a claim; internal users never do. A claim is asked
+after the assignment reaches `done`. After a return of kind "לא אוכל לטפל" (cannot handle) a claim is **optional** whatever the
+mode (a diagnosis visit may cost money); after "לא שלי" none is asked. A vendor can always declare **"ללא חיוב"** (no charge,
+e.g. warranty work): a claim with zero lines and `no_charge = 1`, reviewed like any other.
+
+### 11A.2 The vendor-page step after "done"
+
+After the vendor taps "בוצע", the page shows the claim form (required: the page stays on it, with "אשלים אחר כך" available;
+optional: a "הגשת דרישת עלות" card). Fields:
+- **Line items** (at most 30): `labor` - hours (0.25 steps, ≤ 200) x hourly rate (prefilled from the vendor's
+  `labor_rate_minor` when set); `parts` - description, quantity, unit price; `travel` - description, amount; `other` -
+  description (required), amount. Every description ≤ 120 characters, `Cc` / `Cf` stripped.
+- **Currency:** one per claim, ISO 4217 code from `costs.currencies` (default `["ILS"]`, so no picker is shown by default);
+  every line is in that currency.
+- **VAT** (CQ4): the installation's `costs.vat_mode` - `excluded` (the vendor enters amounts before VAT; VAT is added at
+  `costs.vat_rate_bp`, default 1800 = 18%), `included` (amounts include VAT; the VAT part is computed back) or `none`; a vendor
+  marked `vat_exempt` (עוסק פטור) always gets `none`. The form shows the subtotal, the VAT line and the total, **computed in the
+  browser for display only** - the server recomputes everything (11A.4) and its numbers are the record.
+- **Vendor reference / invoice number** (optional, ≤ 40 characters), **notes** (optional, ≤ 1000).
+- **Invoice / receipt files** (optional unless `costs.require_invoice` - default false): at most 3 per revision, each a photo
+  (the 10.6 validator) or a **PDF** (11A.6).
+- "שליחה" submits a **revision**. Until a manager decides, the vendor may submit a corrected revision (it supersedes the
+  pending one). After a rejection the page shows the manager's reason and the form prefilled from the rejected revision.
+  After approval it shows the approved total (and the adjustment reason when adjusted) read-only. The vendor never sees internal
+  notes, other assignments' claims or other vendors' costs.
+- Language and direction follow the contact's `lang` (D26); amounts use the contact language's number format with the currency
+  symbol; the page never converts currencies.
+
+### 11A.3 Lifecycle
+
+`none` → `submitted` → (`rejected` → `submitted`)* → `approved` → `paid`; `paid` → `approved` only by "ביטול סימון תשלום" with a
+reason. A required claim that has not been submitted shows on the ticket and the board as "ממתין לדרישת עלות" (`cost_status =
+'awaiting'`). `tickets.cost_status` and `cost_total_minor` are denormalised for the board (values `not_required`, `awaiting`,
+`submitted`, `rejected`, `approved`, `paid`).
+
+**Closing (D10 interaction):** while a **required** claim is not `approved` / `paid`, the ticket cannot move to `closed`: the
+manager's close gets 409 `cost_claim_pending` unless the manager overrides with a reason ("סגירה בלי דרישת עלות מאושרת",
+audited `ticket.close.override_claim`). The automatic close after N days skips such tickets and lists them in "ממתין לי". A claim
+may still be submitted and reviewed after an overridden close, inside the claim window (11A.5).
+
+### 11A.4 Amounts, rounding and caps (server rules)
+
+- All money is stored as **integers in minor units** (agorot for ILS), never floating point; inputs are decimal strings with at
+  most 2 decimals (`^\d{1,9}(\.\d{1,2})?$`).
+- Line total = quantity x unit price (labor: hours x rate), rounded half-up to the minor unit per line; subtotal = sum of lines;
+  VAT on the subtotal (`excluded`: subtotal x rate; `included`: total x rate / (1 + rate)), rounded half-up once; total = the
+  result. Per-kind totals (labor, parts, travel, other) are stored for reporting.
+- Values sent by the client for totals are ignored; the answer returns the server's computation, and the page shows it.
+- `costs.max_claim_total_minor` (default 1,000,000.00) - above it 422 `claim_too_large` (fat-finger / tampering guard);
+  `costs.review_flag_above_minor` (default 10,000.00) - above it the manager sees an amber "סכום גבוה" chip.
+- The VAT mode and rate in force at submission are stored in the revision; a later settings change never re-prices it.
+
+### 11A.5 Link access for the claim step (longer than the 24-hour grace)
+
+The claim step has its **own window**: `claim_until` = (the moment the assignment reached `done`, or the latest rejection)
++ `costs.claim_window_days` (default **14**, range 1-90, department override `ticket_departments.claim_window_days`). Until then
+the link opens in **claim mode** even if the ticket was closed (override), the link's sliding expiry or cap has passed, or the
+24-hour read-only grace ended: `GET /t/api/ticket` returns the minimal ticket card + the claim, and only the claim routes
+accept writes. A link revoked for any reason **other than** a "לא אוכל לטפל" return (reassign, "לא שלי", manual revoke,
+contact change, erase, key rotation, new generation) never opens claim mode; after a "cannot handle" return the link is dead for
+everything except the optional claim, inside its window. The verification code (10.5) applies to claim mode exactly as to the rest of the page.
+When `claim_until` passes without a claim, the ticket goes to "ממתין לי" (`claim_missing`); the manager can reopen the window
+once ("פתח שוב להגשה", new `claim_until`, the vendor gets a `cost_reopened` message with the link) or enter the claim on the
+vendor's behalf.
+
+### 11A.6 Invoice files (photos and PDFs)
+
+- Photos: exactly the 10.6 path (JPEG / PNG, 16 MP, re-encoded).
+- PDF (the review's hostile-upload rules, adapted - a PDF cannot be re-encoded without a renderer, which the add-on does not
+  have and will not add for this):
+  - magic bytes `%PDF-` at offset 0, and an `%%EOF` in the last 1 KiB; at most **10 MiB** (public and internal body-limit rows
+    `ticket_cost_file`: 10 MiB + 64 KiB);
+  - refused (422 `pdf_refused`) when a byte scan finds `/JavaScript`, `/JS`, `/Launch`, `/EmbeddedFile`, `/RichMedia`, `/XFA`,
+    `/OpenAction`, `/AA` or `/Encrypt` (encrypted files cannot be scanned). **Stated limit:** names inside compressed object
+    streams escape a byte scan; the scan is a filter, not a guarantee - the next two rules are the real control;
+  - stored under a random name in `<data>/tickets/<ticket_id>/costs/`, never parsed, rendered, thumbnailed or previewed by Arx;
+  - served **only as a download** to authorised internal users: `Content-Type: application/pdf`, `Content-Disposition:
+    attachment; filename="ticket-<number>-invoice-<n>.pdf"`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy:
+    sandbox`, `Cache-Control: private, no-store`; never inline in the app; the vendor page shows only name and size of its own
+    files and offers no re-download;
+  - SHA-256 recorded; the same file uploaded twice in one claim is refused (`duplicate_file`).
+- Upload flow: `POST /t/api/claim/file` stores a **pending** file (24 h; one upload in flight per link; 6 files per hour per
+  link) and returns an id; the submission references the ids; unreferenced pending files are purged by the janitor.
+- Storage: claim files count in the 2 GiB attachment cap (10.6).
+
+### 11A.7 Manager side
+
+- **Ticket page:** a "עלות" card: status chip, total with currency, per-kind breakdown, vendor reference, files (download),
+  revision history (every revision with who / when / total, decisions with reason), and actions by permission:
+  - **אישור** - approve the current revision as is;
+  - **אישור עם תיקון** - the reviewer edits lines or the total; this creates a **manager revision** (`source = 'manager'`,
+    `kind = 'adjustment'`, mandatory reason) referencing the vendor's revision, and approves it; the vendor sees the approved
+    total and the reason;
+  - **דחייה** - mandatory reason; sent back to the vendor (message purpose `cost_rejected`, with the link; send hours apply)
+    and `claim_until` restarts;
+  - **סימון כשולם** - payment reference (≤ 60) and payment date; **ביטול סימון** with a reason;
+  - **הזנת דרישה בשם הספק** - a holder of `tickets.costs` enters a claim (e.g. a paper invoice), `source = 'manager'`.
+- **Never overwrite:** revisions are immutable; decisions are rows of their own; a changed setting never changes a stored
+  revision.
+- **Notifications:** CR-018 source `ticket.cost_submitted` (to holders of `tickets.costs` who can see the ticket, category
+  tickets, severity info); `ticket.cost_missing` when `claim_until` passes on a required claim (to the department managers who
+  hold `tickets.costs.view`). Vendor messages: `cost_rejected` (always), `cost_approved` (setting `costs.notify_vendor_approved`,
+  default true; text "דרישת העלות לקריאה {number} אושרה" - no amount in WhatsApp).
+
+### 11A.8 Permissions (two new, both sensitive, both grantable per user - 8.2)
+
+| Permission | Label | Meaning | Sensitive | Default built-in roles |
+|---|---|---|---|---|
+| `tickets.costs.view` | צפייה בעלויות | see amounts, lines, files and revision history on tickets the user can see; cost columns, cost filters and cost reports / CSV | **yes** | site_admin, system_admin |
+| `tickets.costs` | אישור עלויות | approve / adjust / reject claims, mark paid / unmark, enter a claim on the vendor's behalf, reopen the claim window, override the close gate (with `tickets.manage`) | **yes** | system_admin |
+
+The approval routes check **both** `tickets.costs` and `tickets.costs.view` (a reviewer must see what they approve); the role
+editor warns when a role holds the first without the second. Without `tickets.costs.view` a user sees only the status chip ("הוגשה דרישת עלות"),
+never amounts, files or vendor rates (fields removed server-side, columns absent from the table and CSV). Cost permissions are
+checked on the ticket's place target and only for visible tickets (8); a finance user who reviews all departments holds
+`tickets.view` + `tickets.all_departments` + both cost permissions, without `tickets.manage`. Two more single-permission roles
+join 8.2: `tickets_costs_view`, `tickets_costs`.
+
+### 11A.9 Reporting and the payment hook
+
+- **Table / board (13.6):** columns "עלות" (approved total, else submitted total in grey) and "סטטוס עלות"; filter by cost
+  status; only for `tickets.costs.view` holders.
+- **Report** `GET /tickets/costs/report?group_by=vendor|department|device|room|month&from=&to=&status=&currency=`: sums of
+  approved and of submitted-pending amounts **per currency** (never summed across currencies, no FX conversion), count of
+  tickets and claims, per-kind totals; rows pass `visible()`; period by approval date (or submission date for pending). Screen:
+  tab "עלויות" in the tickets area (only with `tickets.costs.view`).
+- **CSV** `GET /tickets/costs/export.csv` (same filters; one row per claim or per line, chosen): the 13.6 rules - 5 000 rows,
+  1 per minute per user, UTF-8 with BOM, formula-injection prefix, installation time zone; amounts as plain decimals with a
+  separate currency column; no phone numbers, no internal notes, no file contents; audit `ticket.costs.export`.
+- **Payment hook (no integration in scope):** every approval, mark-paid and unmark writes a row to `ticket_cost_decisions`
+  and calls `services/tickets/costs.py emit_cost_event(kind, claim)` - in release 1 it only emits the CR-018 signal and nothing
+  else; a later payment / accounting integration subscribes there or reads "approved, not paid" through the report API.
+
+### 11A.10 Data model (migration `0083_ticket_costs.sql` - takes the spare; `0084` becomes the spare)
+
+```sql
+ALTER TABLE ticket_departments ADD COLUMN cost_claim TEXT CHECK (cost_claim IN ('required', 'optional', 'off'));
+ALTER TABLE ticket_departments ADD COLUMN claim_window_days INTEGER;
+ALTER TABLE ticket_contacts ADD COLUMN cost_claim TEXT CHECK (cost_claim IN ('required', 'optional', 'off'));
+ALTER TABLE ticket_contacts ADD COLUMN vat_exempt INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ticket_contacts ADD COLUMN labor_rate_minor INTEGER;          -- prefill of the hourly rate
+ALTER TABLE ticket_contacts ADD COLUMN rate_currency TEXT;
+ALTER TABLE tickets ADD COLUMN cost_status TEXT NOT NULL DEFAULT 'not_required';
+ALTER TABLE tickets ADD COLUMN cost_total_minor INTEGER;                  -- approved total, else latest submitted
+ALTER TABLE tickets ADD COLUMN cost_currency TEXT;
+
+CREATE TABLE ticket_cost_claims (
+  id                   TEXT PRIMARY KEY,
+  ticket_id            TEXT NOT NULL REFERENCES tickets(id),        -- no cascade: financial records outlive the ticket (11A.11)
+  assignment_id        TEXT NOT NULL UNIQUE,                        -- one claim per external assignment
+  contact_id           TEXT NOT NULL,
+  required             INTEGER NOT NULL,                            -- the effective mode at 'done' (snapshot)
+  status               TEXT NOT NULL CHECK (status IN ('awaiting', 'submitted', 'rejected', 'approved', 'paid')),
+  currency             TEXT NOT NULL,                               -- ISO 4217
+  no_charge            INTEGER NOT NULL DEFAULT 0,
+  current_revision_id  TEXT,
+  approved_revision_id TEXT,
+  approved_total_minor INTEGER,
+  approved_by          TEXT, approved_at TEXT,
+  paid_at              TEXT, paid_by TEXT, payment_ref TEXT, payment_date TEXT,
+  claim_until          TEXT,                                        -- 11A.5
+  snapshot_json        TEXT NOT NULL,                               -- number, title, department, place, device, vendor company /
+                                                                    -- name at 'done' - keeps the record readable after ticket purge
+  purge_after          TEXT,                                        -- 11A.11
+  revision             INTEGER NOT NULL DEFAULT 1,
+  created_at           TEXT NOT NULL,
+  updated_at           TEXT NOT NULL
+);
+CREATE INDEX idx_cost_claims_ticket ON ticket_cost_claims (ticket_id);
+CREATE INDEX idx_cost_claims_status ON ticket_cost_claims (status, updated_at);
+CREATE INDEX idx_cost_claims_contact ON ticket_cost_claims (contact_id, approved_at);
+
+CREATE TABLE ticket_cost_revisions (                 -- immutable once written
+  id              TEXT PRIMARY KEY,
+  claim_id        TEXT NOT NULL REFERENCES ticket_cost_claims(id),
+  seq             INTEGER NOT NULL,
+  source          TEXT NOT NULL CHECK (source IN ('vendor', 'manager')),
+  kind            TEXT NOT NULL CHECK (kind IN ('submission', 'adjustment', 'on_behalf')),
+  based_on        TEXT,                              -- the vendor revision an adjustment corrects
+  lines_json      TEXT NOT NULL,                     -- validated lines, minor units
+  labor_minor     INTEGER NOT NULL, parts_minor INTEGER NOT NULL, travel_minor INTEGER NOT NULL, other_minor INTEGER NOT NULL,
+  subtotal_minor  INTEGER NOT NULL,
+  vat_mode        TEXT NOT NULL CHECK (vat_mode IN ('excluded', 'included', 'none')),
+  vat_rate_bp     INTEGER NOT NULL,
+  vat_minor       INTEGER NOT NULL,
+  total_minor     INTEGER NOT NULL,
+  currency        TEXT NOT NULL,
+  vendor_ref      TEXT,
+  notes           TEXT,
+  reason          TEXT,                              -- mandatory for an adjustment
+  created_by_kind TEXT NOT NULL CHECK (created_by_kind IN ('contact', 'user')),
+  created_by      TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  UNIQUE (claim_id, seq)
+);
+
+CREATE TABLE ticket_cost_decisions (                 -- append-only
+  id           TEXT PRIMARY KEY,
+  claim_id     TEXT NOT NULL REFERENCES ticket_cost_claims(id),
+  revision_id  TEXT,
+  action       TEXT NOT NULL CHECK (action IN ('approve', 'adjust', 'reject', 'mark_paid', 'unmark_paid', 'reopen_window',
+                                               'override_close', 'superseded')),
+  reason       TEXT,
+  amount_minor INTEGER,
+  payment_ref  TEXT,
+  by_user      TEXT NOT NULL,
+  at           TEXT NOT NULL
+);
+CREATE INDEX idx_cost_decisions_claim ON ticket_cost_decisions (claim_id, at);
+
+CREATE TABLE ticket_cost_files (
+  id          TEXT PRIMARY KEY,
+  claim_id    TEXT REFERENCES ticket_cost_claims(id),   -- NULL while pending (uploaded, not yet submitted)
+  revision_id TEXT,
+  link_id     TEXT,                                     -- the uploader's link while pending
+  kind        TEXT NOT NULL CHECK (kind IN ('photo', 'pdf')),
+  path        TEXT NOT NULL,
+  sha256      TEXT NOT NULL,
+  bytes       INTEGER NOT NULL,
+  uploaded_by_kind TEXT NOT NULL CHECK (uploaded_by_kind IN ('contact', 'user')),
+  uploaded_by TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX idx_cost_files_claim ON ticket_cost_files (claim_id);
+CREATE INDEX idx_cost_files_pending ON ticket_cost_files (created_at) WHERE claim_id IS NULL;
+```
+
+`ticket_requests` (7.1) gives the claim routes their idempotency. Cost tables are operational data (not in a project backup).
+
+### 11A.11 Privacy and retention of financial data
+
+- Claims, revisions, decisions and files are kept for `costs.retention_days` after approval / payment (default **2555 days =
+  7 years**, CQ2 - the usual bookkeeping horizon), **independently of the ticket's own retention**: when the ticket is purged
+  (15.1), its claims stay with `snapshot_json` (no ticket link), and are deleted with their files at their own `purge_after`.
+  Unapproved claims of purged tickets follow the ticket.
+- **Contact erase (15.2):** the claim keeps the company name, vendor reference, amounts and files (a financial record the
+  organisation must keep); the person's name, phone and e-mail are removed from the snapshot as everywhere else; the guide says
+  this. Contact export (15.2) includes the person's claims.
+- Amounts, rates and files are visible only to `tickets.costs.view` holders; logs and audit carry ids, status and totals only -
+  never line descriptions, notes or file contents; audit actions `ticket.cost.submit|approve|adjust|reject|mark_paid|
+  unmark_paid|reopen_window|on_behalf|file_upload|file_download`, `ticket.close.override_claim`, `ticket.costs.export`,
+  `ticket.costs.report`.
+
+### 11A.12 API sketch
+
+Public (port 18093; token + code session when required; claim mode per 11A.5; `client_request_id` on writes):
+
+| Route | What |
+|---|---|
+| `GET /t/api/claim` | claim status, the vendor's own revisions (totals, lines, decision reasons visible to the vendor), the form settings (currency, VAT mode / rate / exempt, rate prefill, limits, `claim_until`) |
+| `POST /t/api/claim/file` | multipart, one photo or PDF → pending file id |
+| `POST /t/api/claim` | `{lines[], currency, vendor_ref?, notes?, no_charge?, file_ids[], client_request_id}` → the server-computed revision; 409 `claim_closed` after approval; 422 field problems |
+
+Internal (`/api/v1`):
+
+| Route | Gate | What |
+|---|---|---|
+| `GET /tickets/{id}/costs` | visible + `tickets.costs.view` (else status only) | claims, revisions, decisions, files list |
+| `POST /tickets/{id}/costs/{claim_id}/approve` / `adjust` / `reject` | `tickets.costs` (+ view) | `{revision_id, lines?, reason?, revision}` - optimistic `revision` of the claim (409 `claim_stale`) |
+| `POST /tickets/{id}/costs/{claim_id}/mark-paid` / `unmark-paid` | `tickets.costs` | `{payment_ref, payment_date}` / `{reason}` |
+| `POST /tickets/{id}/costs/{claim_id}/reopen-window` | `tickets.costs` | new `claim_until`, `cost_reopened` message |
+| `POST /tickets/{id}/costs` | `tickets.costs` | a claim on the vendor's behalf (multipart files allowed) |
+| `GET /tickets/{id}/costs/files/{file_id}` | `tickets.costs.view` | download only (11A.6) |
+| `GET /tickets/costs/report` / `GET /tickets/costs/export.csv` | `tickets.costs.view` | 11A.9 |
+| `POST /tickets/{id}/status {to: closed, override_claim_reason}` | manager + `tickets.costs` for the override | 11A.3 |
+
+### 11A.13 Threats added by cost claims
+
+| # | Threat | Mitigation | Residual |
+|---|---|---|---|
+| S21 | **Tampered amounts** (a forwarded-link holder, or a client that sends its own totals) | the server recomputes every total from lines; client totals ignored; integer minor units; caps and the "סכום גבוה" flag; immutable revisions and append-only decisions; every claim needs a human approval by a sensitive permission; adjustments need a reason; the vendor-page code (10.5) applies to claims | whoever holds a live link can submit a claim in the vendor's name - the reviewer is the control (CQ3 offers a second approver) |
+| S22 | **Claim after link expiry / revocation** | the separate claim window (11A.5) opens only the claim routes, only for links that were not revoked, and ends at `claim_until`; reopening is a manager action | - |
+| S23 | **Double submission** | `client_request_id` replay; one pending revision at a time (a new one supersedes, recorded); one claim per assignment (UNIQUE); duplicate files refused by hash | - |
+| S24 | **Currency confusion** | one ISO 4217 currency per claim from an allow-list (default ILS only); reports and CSV per currency, never summed across currencies, no FX; VAT mode and rate frozen in the revision | - |
+| S25 | **Hostile PDFs** | magic / trailer check, size cap, active-content byte scan, encrypted PDFs refused, never parsed or rendered by Arx, download-only with `CSP: sandbox` and `nosniff`, never shown on the vendor page | a malicious PDF can still reach a reviewer's own PDF viewer; the guide says to open invoices in an up-to-date viewer; rasterising PDFs is backlog (18A) |
+| S26 | **Cost data leaks** (to managers without the permission, to other vendors, into CSV / logs) | fields removed server-side without `tickets.costs.view`; the vendor sees only its own assignment's claim; CSV formula-injection prefix and no phones / notes; logs and audit carry ids and totals only | - |
+
+### 11A.14 Settings (`tickets.settings.costs`, `system.configure`; department and vendor overrides as in 11A.1)
+
+```json
+"costs": {
+  "mode": "required",                       // CQ1
+  "currencies": ["ILS"],                    // ISO 4217; the first is the default
+  "vat_mode": "excluded",                   // CQ4: excluded | included | none
+  "vat_rate_bp": 1800,                      // 18.00 %
+  "claim_window_days": 14,                  // 1-90; department override
+  "require_invoice": false,
+  "max_claim_total_minor": 100000000,       // 1,000,000.00
+  "review_flag_above_minor": 1000000,       // 10,000.00
+  "notify_vendor_approved": true,
+  "retention_days": 2555                    // CQ2; 730-3650
+}
+```
 
 ## 12. Device integration
 
@@ -1951,6 +2270,7 @@ The values reach every signed-in user through `GET /tickets/module` (`ui: {...}`
     "reply_window_h": 72
   },
   "urgent_is_critical": true,              // D28: installation default; ticket_departments.urgent_is_critical overrides
+  "costs": { ... },                        // D31: the block of 11A.14
   "device_long_press": "sheet",            // D17: "sheet" (default, today's behaviour) | "menu" (the mock-up's opaque menu)
   "ui": {                                  // D18-D22, section 13.7
     "detail": "drawer_fullscreen", "board_floors": "tree", "grouping": "no_status_filter",
@@ -2014,6 +2334,8 @@ installation value next to each override ("ברירת מחדל: 14 ימים").
 | Codes, link sessions, redeem ids | 1 day after expiry | delete |
 | Request idempotency rows (`ticket_requests`) | 24 h | delete |
 | Messaging ledger rows | 2 days | delete |
+| Cost claims, revisions, decisions, invoice files (D31) | `costs.retention_days` (default 2555 = 7 years) after approval / payment, independent of the ticket (11A.11) | delete rows + files |
+| Pending (unsubmitted) claim files | 24 h | delete |
 | Expired / revoked links | with their ticket | - |
 | Audit rows | existing 365 days | existing prune |
 | Contacts | while active; inactive (not assigned) for `contacts_inactive_days` → flagged "לבדיקה" in the directory | erased only by a person (15.2) |
@@ -2065,6 +2387,7 @@ both the internal app (which has no CSP under Ingress) and the public page.
 | S18 | **Retention / GDPR-like duties for external people** | retention table 15.1, erase and export (15.2), minimal fields, purpose-bound display | messages already delivered to WhatsApp cannot be recalled |
 | S19 [T20] | **Key compromise / backups** | `k_tickets`, `k_messaging` in `/data/secrets` (mode 600), not in DB or project backups; rotation revokes all links | an HA add-on backup holds keys + DB; a host-level compromise exposes everything anyway |
 | S20 | **Account mapping tampering** (redirecting ticket messages to another number) | `messaging.accounts.manage` is sensitive and system_admin-only by default; every change audited (keys before/after); a moved use shows the queued count before saving; `unknown` sends never re-routed | an administrator with the permission can choose any linked number - inside the trust boundary |
+| S21-S26 | **Cost claims** (tampered amounts, claim after expiry, double submission, currency confusion, hostile PDFs, cost data leaks) | section 11A.13 | 11A.13 |
 
 Physical-safety note: tickets never trigger device actions; a device ticket never controls the device. Nothing in this module
 calls an HA service other than the two WhatsApp send services.
@@ -2132,6 +2455,9 @@ created), and `dedupe_key = "rule:<rule_id>:<entity|camera>"`. Estimated 6-8 age
 | CSV export / monthly counts per department and vendor | review gap | release 1 has the text filter only |
 | Per-department notification matrix, daily digest of `done` / `closed` | review gap | release 1: `notify_new` for the first manager only, `urgent_is_critical` |
 | Separate handler and directory permissions | D15 trade-off | no data change needed |
+| Payment / accounting integration | D31 | subscribes to `emit_cost_event` or reads the report API (11A.9) |
+| Rasterising invoice PDFs to images (safe preview) | D31 | needs a sandboxed renderer the add-on does not have |
+| Two-person approval above an amount | CQ3 (b) | if the owner chooses it later |
 | More vendor-page languages | D26 | one catalogue file + templates per language |
 | Pacing shared with WisKey's own WhatsApp sends | 4, contradiction 3 | needs WisKey to report its sends; release 1 has the "used outside Arx" mark |
 
@@ -2145,8 +2471,9 @@ created), and `dedupe_key = "rule:<rule_id>:<entity|camera>"`. Estimated 6-8 age
 | Public app | route enumeration (only `/t/*`); main app 404 for `/t/*` on Ingress and `/arx`; listener answers 404 while the module is off; headers (CSP etc.) on every response; uniform 404 for unknown / expired / revoked / past grace / off / purged; rate limits (429 text) checked before any DB access (assert no query on an over-limit request); trusted-proxy rule for `CF-Connecting-IP`; JSON-only and size caps; body read deadline; one upload in flight per link; every write path with and without code session; idempotency replay and `request_id_reused`; return / "לא שלי" revoke at once; 422 envelope without `input`; server config values (`access_log`, `server_header`, `limit_concurrency`, `timeout_keep_alive`) and no signal capture off the main thread; stop joins the thread | pytest with an ASGI client + one real-socket test of the threaded server |
 | Uploads (hostile) | decompression bomb, 16 MP + 1 pixel, truncated JPEG, PNG with trailing ZIP, WebP refused, SVG/HTML renamed .jpg, HEIC, EXIF GPS present → stripped (assert re-read has no EXIF), 8 MiB + 1 byte, 61st photo, storage cap reached before decode, semaphore busy → 429 while an admin background upload is unaffected | pytest with generated files |
 | Channel / outbox | fake `ha-whatsapp` (`tests/fake_ha_whatsapp.py`: records `call_service` payloads incl. `account`, configurable outcomes incl. unknown-account errors, injects events with and without `entry_id`, exposes a registry fixture with one or two accounts); pacing per account; send hours; supersede; fallback to in-app / e-mail (fake SMTP, redeem link, never the fragment) / "waiting for manager"; code-protected fallback rule; account down/up signals; never retry or re-route `unknown` | pytest |
+| Cost claims (D31) | mode resolution (installation / department / vendor, done vs cannot-handle vs not-mine); server computation (minor units, per-line rounding, VAT excluded / included / none / exempt, caps, flag, client totals ignored); revisions immutable, supersede, reject → resubmit, adjust with reason, mark / unmark paid; close gate and override; auto close skips; claim window after close / expiry / grace, never after revocation, reopen; permission matrix (view vs approve, vendor sees only its own claim, fields stripped); hostile PDFs (JS, OpenAction, EmbeddedFile, encrypted, no trailer, oversize, wrong magic, duplicate hash) and download headers; report per currency; CSV gates and escaping; retention after ticket purge; Playwright: vendor claim step in he / ar (RTL) and en (LTR), manager review dialogs, table cost columns | pytest + Playwright |
 | Log hygiene | run the full send + inbound + public flows (both servers) with a capturing handler on the root, `uvicorn.*` and `smplwise.*` loggers; assert the test phone, token, redeem id, code and message text appear nowhere in logs or audit rows | pytest |
-| Migrations | 0079-0082 apply on an empty DB and on a 2.4.8 DB copy fixture; foreign keys; indexes exist | existing migration tests |
+| Migrations | 0079-0083 apply on an empty DB and on a 2.4.8 DB copy fixture; foreign keys; indexes exist | existing migration tests |
 | Frontend unit | tabs computation of `device-activity` (with / without activity, with / without permission, module off); the D17 long-press matrix row by row (module off, no permission, mode sheet / menu x tracked / other) and the menu items per permission; `activityTag` for non-tracked rows; text catalogue completeness; public page state reducer (grace, not-mine confirmation, busy, offline draft retry with the same request id) | node unit tests (`frontend/tests/unit-*`) |
 | Playwright (internal) | list (text filter), board (cards / table / kanban; sort, column chooser, saved view, multi-select + bulk with partial results, inline status and assignee, keyboard path, density, CSV download, phone compact list; each D18-D22 setting value), detail (delivery lines of D14, stale flag + "שלח עדכון"), create sheet (duplicate hint), assign dialog (preview, send hours, code, account line), device tab (area screen long press in both modes incl. the opaque menu in all five skins, menu item, map card "more" action + count chip), settings tabs incl. link durations, send hours, SLA grid, department overrides, WhatsApp accounts screen with warnings; desktop / tablet / mobile / RTL; loading / empty / error / ready; five skins; layout guards; visual baselines for new screens only | `--workers=1` locally; full runs on the runner |
 | Playwright (public page) | mobile 375 px + desktop; code flow; photo upload; "לא שלי" with required reason; grace page; redeem page; unavailable and busy pages; dark mode; no external requests (network assertion); bundle size budget | separate spec project against the public app |
@@ -2170,16 +2497,17 @@ brackets.
 | 6 | Stuck / escalation + board | SLA monitor in the janitor (incl. "link not opened", automatic close, link expiry), reminder ladder (send-hours aware, sliding extension), CR-018 sources / category / recipient rules / visibility branch incl. `contact_changed` and per-account `channel_down`, `urgent_is_critical`, `notify_new` first-manager default, manager board screen (cards view) with D19 floors tree / chips, D20 grouping, D21 state strip, facets route, one-tap "התקבל" deep link | 19-25 (14-18) | 2, 5b (external reminders) |
 | 6b | Board table + kanban (D24) | table view (sticky header, sort, column chooser, density, keyboard, inline status / assignee), kanban, phone compact list, saved views (`ticket_saved_views`, `user_prefs` key), list API sort / keyset pagination / short pages, bulk route + bar, CSV export route, tests incl. Playwright | 18-24 (new) | 6 |
 | 7 | Verification code (option B) | contact flag + per-assignment flag, code send/verify/lock through `tickets.codes`, D6 code-channel rule at assign and at send, code session, page states, lock card with one-tap new link | 10-13 (8-10) | 4, 5b |
+| 9 | Cost claims (D31) | migration 0083; `services/tickets/costs.py` (mode resolution, computation, lifecycle, close gate, claim window, decisions, payment hook); PDF / photo file path with the 11A.6 rules and body-limit rows; public claim routes + the vendor-page claim step (4 languages); manager cost card, review dialogs, revision history, on-behalf entry; the two permissions + roles; CR-018 sources and vendor messages; report screen, cost columns, CSV; retention; tests | 29-39 (new) | 4, 5b, 6b (columns) |
 | 8 | Guide + review + gate | DOCS.md section + Hebrew user guide (installer: dedicated number, pairing, 14-day rule, choosing accounts per use, tunnel route, **required**: recorder exclusion of `whatsapp_message_*` and the last-message sensor, Cloudflare rate-limit rule and script features off for `t-*`, HA backups are sensitive; manager: link durations, send hours, codes and forwarding), security review of the public surface, upstream watch entry (`FaserF/ha-whatsapp`), bilingual changelog lines, tier-L gate on the runner | 10-15 (8-12) (+ gate runtime) | all |
 
-**Total: 198-257 agent-hours** (r1: 120-156; **+78 to +101, about +65%**). r2.3 (D25-D29) added 9-10: `tickets.external` and the single-user grant roles + "הרשאות" sub-tab (+3 in slice 1), languages (+4-5 in slice 4, +2 in slice 5b), D28 / D29 inside slices 5b / 6. r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
+**Total: 227-296 agent-hours** (r1: 120-156; **+107 to +140, about +90%**). r2.5 (D31, cost claims) added slice 9 (29-39). Before it: 198-257. r2.3 (D25-D29) added 9-10: `tickets.external` and the single-user grant roles + "הרשאות" sub-tab (+3 in slice 1), languages (+4-5 in slice 4, +2 in slice 5b), D28 / D29 inside slices 5b / 6. r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
 link lifecycle and the redeem page (+12-16 in slice 4); the new WhatsApp accounts slice 5a (+12-15) and its effect on the
 channel (+4 in 5b); department-scoping and data-exposure fixes, duplicates, reopen, text filter (+5-6 in slice 1); settings
 for every threshold and the department overrides (+2-3); the owner's new items (automatic close, "link not opened", "לא שלי",
 D14 lines) about +4 spread over slices 1, 2, 4, 6. No open owner question changes it any more.
-Calendar: about **8 working days with 3 agents in parallel** after slice 1 (r1: 4-5). Phase 2 rule action: 6-8 more.
+Calendar: about **9-10 working days with 3 agents in parallel** after slice 1 (r1: 4-5). Phase 2 rule action: 6-8 more.
 
-**Recommended order:** 1 → (2 ∥ 5a) → (3 ∥ 4) → 5b → ((6 → 6b) ∥ 7) → 8. Slice 1 is the single owner of the shared files
+**Recommended order:** 1 → (2 ∥ 5a) → (3 ∥ 4) → 5b → ((6 → 6b → 9) ∥ 7) → 8. Slice 1 is the single owner of the shared files
 (`roles.json`, `routers/access.py PERMISSION_LABELS` - it also adds `messaging.accounts.manage` so 5a does not touch them -,
 `shell/nav.ts`, `router.ts`, `sw-app.ts`, `backup.SETTINGS_KEEP`, migration 0079); later slices touch shared CR-018 files
 (`notify_policy.py`, `notify.py`, `notify_visibility.py`) only in slice 6, `ha_sync.py` only in slice 5b, `body_limit.py` only
@@ -2219,14 +2547,19 @@ reviewed change).
 10. **Tunnel / hostname provisioning** per customer for the public page (owner or installer action; UNVERIFIED reachability of a
     second container port through `cloudflared`).
 11. **Personal data of non-users** (phones, names, photos): retention and erase must work from day one.
-12. **Parallel migration numbers** (0079-0083 may be taken by another branch first): renumber at integration.
+12. **Parallel migration numbers** (0079-0084 may be taken by another branch first): renumber at integration.
 
 ## 22. Open questions
 
-**No owner question is open.** All fourteen r1 questions are closed (Q6, Q7, Q8, Q12 by D10, D7, D3, D6; the other ten by
-D16), and the r2 questions OQ1-OQ5 by D25-D29 (separate external-send permission; languages; queued messages follow the new
-account; urgent passes quiet hours as an installation + department setting; first message waits with "send now" for
-`tickets.external` holders).
+All fourteen r1 questions are closed (Q6, Q7, Q8, Q12 by D10, D7, D3, D6; the other ten by D16), and the r2 questions
+OQ1-OQ5 by D25-D29. **Open: four questions raised by D31 (cost claims)**, each with a designed default so building can start:
+
+| # | Question | Options | Recommendation | Designed default |
+|---|---|---|---|---|
+| CQ1 | Is a cost claim required by default after an external vendor reports done? | (a) required, a department or vendor can turn it to optional / off (b) optional by default | (a) - the owner's wording ("must then submit"); fixed-contract vendors are set to off | (a) |
+| CQ2 | How long to keep cost claims and invoice files | (a) 7 years, independent of the ticket (b) the same as tickets (2 years) | (a) - the usual bookkeeping horizon in Israel; the ticket itself can still go after 2 years | (a) |
+| CQ3 | Who approves a claim | (a) one holder of the approval permission (b) a second approver above an amount (e.g. above 5,000 ₪) | (a) in release 1, with the "סכום גבוה" flag above 10,000 ₪; (b) as a later setting if needed | (a) |
+| CQ4 | How the vendor enters amounts | (a) before VAT, the system adds 18% (exempt vendors marked) (b) final amounts including VAT | (a) - matches an Israeli tax invoice (net + VAT lines) and keeps the VAT visible | (a) |
 
 **Still open - build-time verifications, not owner questions** (none blocks slice 1):
 1. `ha-whatsapp` on the owner's installed version: the connectivity sensor and its attributes, `account` = entry id, `entry_id`
@@ -2235,7 +2568,7 @@ account; urgent passes quiet hours as an installation + department setting; firs
 3. `return_response` shape of `send_message` over REST (9.3) - slice 5b's approved test send.
 4. Reachability of container port 18093 through `cloudflared` on the add-on network (10.1) - slice 4 with the owner.
 5. uvicorn 0.53 signal capture off the main thread (10.1) - a test in slice 4.
-6. Migration numbers 0079-0083 against the branches open at implementation start.
+6. Migration numbers 0079-0084 against the branches open at implementation start.
 7. Native-speaker review of the Arabic and Russian page strings and starter templates (D26) - slice 8.
 
 ## 23. Sources
