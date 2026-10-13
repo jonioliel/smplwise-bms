@@ -57,11 +57,12 @@ def _detail(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[st
 
 @open_router.get("/tickets/module")
 def module_state(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """`{enabled, public_ready, name, ui}` for every signed-in user: the shell's switch, the display name (D33) and the display
-    settings (D18 / D22). `public_ready` is false until the public handler page exists (slice 4)."""
+    """`{enabled, public_ready, name, name_revision, ui}` for every signed-in user: the shell's switch, the display name (D33; its
+    revision is what a rename in Settings sends back) and the display settings (D18 / D22). `public_ready` is false until the public
+    handler page exists (slice 4)."""
     name = naming.read(conn)
     return {"enabled": access.module_on(conn), "public_ready": access.public_ready(conn), "name": {k: name[k] for k in naming.LANGS},
-            "ui": settings_doc.read(conn)["ui"]}
+            "name_revision": name["revision"], "ui": settings_doc.read(conn)["ui"]}
 
 
 # ---------------------------------------------------------------- the caller's departments (filters, the create sheet)

@@ -115,7 +115,8 @@ def test_the_name_reaches_me_the_module_state_role_names_and_permission_labels(c
     assert c.put(f"{API}/tickets/name", json={"revision": 0, "he": NAME}).status_code == 200
     me = c.get(f"{API}/me").json()
     assert me["modules"] == {"tickets": True, "tickets_name": {**{k: naming.DEFAULTS[k] for k in naming.LANGS}, "he": NAME}}
-    assert c.get(f"{API}/tickets/module").json()["name"]["he"] == NAME
+    module = c.get(f"{API}/tickets/module").json()
+    assert module["name"]["he"] == NAME and module["name_revision"] == 1, "the revision the settings editor sends back with a rename"
     roles = c.get(f"{API}/access/roles").json()
     by_id = {r["id"]: r["name"] for r in roles["roles"]}
     assert by_id["tickets_view"] == "צפייה בתקלות" and by_id["tickets_create"] == "פתיחת תקלות" and by_id["tickets_configure"] == "הגדרות תקלות"
