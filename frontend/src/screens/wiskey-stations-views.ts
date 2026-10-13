@@ -88,6 +88,10 @@ export interface ViewCtx {
   stillError(id: string, bust: number): void;
   toggleDetail(): void;
   retryDetail(): void;
+  /** CR-036 S18: the drawer's own live view and talk; null / absent = the still and the classic panel, as before. */
+  liveArea?(s: AccessStation): TemplateResult | null;
+  /** CR-036 S18: the talk control where the classic-panel link would be; undefined = the link (when the policy offers it). */
+  talkControl?(s: AccessStation, large: boolean): TemplateResult | typeof nothing | undefined;
 }
 
 const zoneOf = (v: ViewCtx, s: AccessStation): DisplayZone | null => s.zone ?? v.defaultZone;
@@ -170,6 +174,13 @@ export function talkLink(v: ViewCtx, large = false): TemplateResult {
   >`;
 }
 
+/** The talk control of a place: the screen's native one when it has one (CR-036 S18), else the classic-panel link. */
+function talkSlot(v: ViewCtx, s: AccessStation, large: boolean): TemplateResult | typeof nothing {
+  const own = v.talkControl?.(s, large);
+  if (own !== undefined) return own;
+  return v.rights.talk ? talkLink(v, large) : nothing;
+}
+
 /** The call row: the call hint (no caller name) for everyone who sees the station, the controls for who may act on calls. */
 export function callRow(v: ViewCtx, s: AccessStation, big = false): TemplateResult | typeof nothing {
   const t = v.text;
@@ -184,7 +195,7 @@ export function callRow(v: ViewCtx, s: AccessStation, big = false): TemplateResu
     ${controls
       ? html`<span class="ctl">${phase === 'ringing'
           ? html`${callButton(v, s, 'answer', 'ok', 'phone', t.call.answer)}${callButton(v, s, 'reject', 'danger', 'close', t.call.reject)}`
-          : html`${v.rights.talk && !big ? talkLink(v) : nothing}${callButton(v, s, 'hangUp', 'danger', 'hangup', t.call.hangUp)}`}</span>`
+          : html`${!big ? talkSlot(v, s, false) : nothing}${callButton(v, s, 'hangUp', 'danger', 'hangup', t.call.hangUp)}`}</span>`
       : nothing}
   </div>`;
 }
@@ -463,12 +474,13 @@ export function drawerBody(v: ViewCtx, s: AccessStation): TemplateResult {
   const active = s.online && ['ringing', 'in_call', 'ending'].includes(s.call_state);
   const tts = v.actions.tts[s.id];
   const ttsState = tts ? ttsStateText(tts, t) : '';
+  const own = v.liveArea?.(s) ?? null;
   return html`
-    <div class="live ${s.online ? '' : 'off'}" data-wk-live data-still-state=${st}>
+    ${own ?? html`<div class="live ${s.online ? '' : 'off'}" data-wk-live data-still-state=${st}>
       ${st === 'image' ? html`<img src=${stillSrc(v, s)} alt=${fill(t.still.alt, { name: s.name })} decoding="async" @error=${() => v.stillError(s.id, v.poster)} />` : noPicture(v, s, st)}
       ${st === 'image' ? html`<span class="stamp"><bdi>${t.drawer.lastStill} · ${s.online ? stillTime(v.poster) : seenOf(v, s)}</bdi></span>` : nothing}
       <div class="ov"><span class="t"><sw-icon name="play" size=${16}></sw-icon>${t.drawer.liveClassic}</span><wk-action-button icon="window" href=${classicPanelHref()} data-wk-classic-link>${t.drawer.openClassic}</wk-action-button></div>
-    </div>
+    </div>`}
     <div class="meta">${place ? html`<span>${place}</span>` : nothing}<span>${t.seen.prefix} <bdi>${seenOf(v, s)}</bdi></span></div>
     ${eventsLink(s)}
     ${resultLine(v, s, true)}
@@ -476,7 +488,7 @@ export function drawerBody(v: ViewCtx, s: AccessStation): TemplateResult {
       ? html`<section class="dsec" data-wk-dsec="call">
           <h4>${wkIcon('phone', 14)}${t.drawer.call}</h4>
           ${active
-            ? html`${callRow(v, s, true)}${v.rights.talk && s.call_state === 'in_call' ? talkLink(v, true) : nothing}`
+            ? html`${callRow(v, s, true)}${s.call_state === 'in_call' ? talkSlot(v, s, true) : nothing}`
             : html`<div class="callrow"><span class="cs muted">${t.call.none}</span>${v.rights.call && s.online ? html`<wk-action-button tone="dashed" icon="phone" href=${classicPanelHref()} data-wk-dial>${t.call.dial}</wk-action-button>` : nothing}</div>`}
         </section>`
       : nothing}
