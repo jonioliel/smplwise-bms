@@ -100,9 +100,9 @@ def handler_url(conn, link_row: dict[str, Any]) -> str:
 
 
 def mint(conn, *, ticket: dict[str, Any], assignment_id: str, contact_id: str, require_code: bool, now: dt.datetime) -> dict[str, Any]:
-    """A new link (generation 1) for an external assignment, under the current module key (created now only when no row
-    depends on a key - keyring.py). Returns the row; the token is derived again whenever it is needed."""
-    key_id, key = KEYS.current(create=True)
+    """A new link (generation 1) for an external assignment, under the current module key (minted only by the "module on" path -
+    keyring.py, W12; a missing key here is ModuleKeyError). Returns the row; the token is derived again whenever it is needed."""
+    key_id, key = KEYS.current(create=False)
     link_id = links.new_link_id()
     token = links.derive_token(key, link_id, 1)
     d = durations(conn, ticket["department_id"])

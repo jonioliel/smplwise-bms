@@ -77,6 +77,8 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("organization_name",): ("", _org_name),
     ("public", "base_url"): ("", _base_url),
     ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
+    # where a trusted proxy puts the client address (code review V3): cloudflared's header, or another proxy's X-Forwarded-For
+    ("public", "client_ip_header"): ("cf-connecting-ip", _choice("cf-connecting-ip", "x-forwarded-for")),
     ("links", "sliding_days"): (14, _int_range(1, 90)),
     ("links", "cap_days"): (90, _int_range(7, 365)),
     ("links", "grace_hours"): (24, _int_range(0, 168)),

@@ -85,7 +85,7 @@ def _refuse(conn, viewer: Viewer, action: str, row: dict[str, Any], reason: str,
 
 
 def _not_allowed(conn) -> ApiError:
-    return ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את ה{ticket} לאיש הקשר הזה."))
+    return ApiError(409, "assignee_not_allowed", text(conn, "לא ניתן לשלוח לאיש הקשר הזה."))
 
 
 def _unavailable(conn) -> ApiError:
@@ -205,15 +205,15 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     status = row["status"]
     dept = store.department_any(conn, row["department_id"])
     if status == "closed" and not can_reopen(row, dept):
-        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את ה{ticket}."))
+        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן לפתיחה מחדש."))
     if status not in model.ASSIGN_FROM:
         raise ApiError(409, "invalid_transition", text(conn, "המעבר הזה אינו אפשרי במצב הנוכחי."), details={"from": status, "to": "assigned"})
     if row["revision"] != revision:
-        raise ApiError(409, "ticket_stale", text(conn, "ה{ticket} {f:השתנתה|m:השתנה} בינתיים. טענו מחדש."), details={"revision": row["revision"]})
+        raise ApiError(409, "ticket_stale", text(conn, "הנתונים השתנו בינתיים. טענו מחדש."), details={"revision": row["revision"]})
     contact, vendor = contact_for(conn, row, contact_id)
     current = row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
     if current and row.get("asg_kind") == "contact" and row.get("asg_contact_id") == contact_id:
-        raise ApiError(409, "already_assigned", text(conn, "ה{ticket} כבר אצל המטפל הזה."))
+        raise ApiError(409, "already_assigned", text(conn, "כבר נשלח למטפל הזה."))
     req = codes_mod.effective_require_code(contact_requires_code(contact, vendor), require_code)
     _code_check(conn, contact, req)
     hist = history_option(conn, row, contact, vendor)
@@ -248,7 +248,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                        "reopen_count": int(row.get("reopen_count") or 0) + 1})
         handler_links.on_reopened(conn, row["id"], now_dt)
     if not store.update_ticket(conn, row["id"], fields, expect_revision=revision):
-        raise ApiError(409, "ticket_stale", text(conn, "ה{ticket} {f:השתנתה|m:השתנה} בינתיים. טענו מחדש."), details={"revision": row["revision"]})
+        raise ApiError(409, "ticket_stale", text(conn, "הנתונים השתנו בינתיים. טענו מחדש."), details={"revision": row["revision"]})
     who = store.display_name(conn, viewer.uid) or viewer.principal.display_name or viewer.principal.username
     if reopened:
         store.insert_event(conn, row["id"], "reopened", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, from_status="closed", to_status="assigned")
@@ -279,7 +279,7 @@ def _current_link(conn, seen: Seen) -> dict[str, Any]:
     current = row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
     link_row = store_links.link_for_assignment(conn, current) if current and row.get("asg_kind") == "contact" else None
     if link_row is None:
-        raise ApiError(409, "no_link", text(conn, "ל{ticket} אין קישור פעיל של מטפל חיצוני."))
+        raise ApiError(409, "no_link", text(conn, "אין קישור פעיל של מטפל חיצוני."))
     return link_row
 
 

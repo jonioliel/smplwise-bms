@@ -5,7 +5,7 @@ Every write is ONE transaction (the request's `db.connection()`), and inside it,
 1. the link and its ticket are read AGAIN (the lookup that admitted the request ran before the write lock): a link that
    stopped serving meanwhile - revoked, returned, reassigned, past its expiry or grace - is the uniform 404; a read-only grace
    is 409 `read_only` (W2);
-2. the `ticket_requests` row of (`link:<id>`, client_request_id) is CLAIMED (W5, review T22): a repeat replays the first
+2. the `ticket_requests` row of (`link:<id>:<generation>`, client_request_id) is CLAIMED (W5, review T22): a repeat replays the first
    answer, the same id on another route is 409 `request_id_reused`;
 3. the effect: the ticket / assignment rows, the timeline row (`actor_kind = 'contact'`, `via = 'link'`, `visible_external = 1`),
    the audit row (actor `contact:<id>`, source `ticket_link`, an envelope only - never a note, a reason or a file);
@@ -92,7 +92,10 @@ def fresh(conn, link: LinkRecord, now: dt.datetime, *, write: bool = True) -> Fr
 
 
 def _scope(link: LinkRecord) -> str:
-    return f"link:{link.link_id}"
+    """The idempotency scope of the public app (`link:<link_id>:<generation>`, code review V19) - one rule for every route."""
+    from .public_app import idempotency_scope
+
+    return idempotency_scope(link)
 
 
 def claim(conn, link: LinkRecord, crid: str, route: str, now: dt.datetime) -> tuple[int, dict[str, Any]] | None:
@@ -342,6 +345,7 @@ def view(conn, link: LinkRecord, *, code_ok: bool, read_only: bool, now: dt.date
         "code_required": bool(link.require_code),
         "code_ok": bool(code_ok),
         "read_only": bool(read_only),
+        "read_only_until": iso(at_epoch(link.grace_until)) if read_only and link.grace_until else None,
         "expires_at": iso(at_epoch(link.expires_at)),
     }
     if link.require_code and not code_ok:

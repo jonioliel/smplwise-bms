@@ -33,7 +33,7 @@ from .public_app import PublicApp, PublicDeps, create_public_app
 from .public_ports import CachedSwitch
 from .public_server import SERVER
 from .public_store import NoCodeChannel, SqlCodeStore, SqlLinkStore, SqlPhotoSink, SqlRedeemStore, SqlRequestLog
-from .ratelimit import DEFAULT_TRUSTED_PROXY_CIDRS, new_public_limiter, parse_trusted_cidrs
+from .ratelimit import CLIENT_IP_HEADERS, DEFAULT_TRUSTED_PROXY_CIDRS, new_public_limiter, parse_trusted_cidrs
 
 log = logging.getLogger("smplwise.tickets.public")
 RETENTION_EVERY_S = 3600.0
@@ -65,6 +65,11 @@ class Runtime:
                 return store_links.any_keyed_row(conn)
 
         KEYS.configure(self.data_dir, has_keyed_rows)
+        try:  # the module is already on (an installation from before slice 4, a restart): its key exists or is minted now (W12)
+            if _module_on(db) and KEYS.ensure() is None:
+                log.error("tickets module key is %s and rows depend on a key: restore secrets/ from the backup", KEYS.status().get("state"))
+        except Exception:  # noqa: BLE001 - a database before the tickets migrations: nothing to key yet
+            pass
 
     def attachments_root(self) -> Path:
         root = (self.data_dir or Path(".")) / "tickets"
@@ -84,6 +89,8 @@ class Runtime:
         except ValueError:
             trusted = parse_trusted_cidrs(DEFAULT_TRUSTED_PROXY_CIDRS)
         limiter = new_public_limiter(clock) if clock is not None else new_public_limiter()
+        if limiter.scope != "tickets_link":  # W14: never the sign-in limiter or another module's scope
+            raise RuntimeError("the public listener needs its own limiter scope")
         root = self.attachments_root()
         engine_kw: dict[str, Any] = {"limiter": limiter}
         if clock is not None:
@@ -97,7 +104,7 @@ class Runtime:
             links=SqlLinkStore(db), switch=switch, key=KEYS, trusted_proxies=trusted, requests=SqlRequestLog(db), redeems=SqlRedeemStore(db),
             codes=codes, code_sender=NoCodeChannel(), photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
-            extra_routers=(build_router(db, clock=clock),), **deps_kw,
+            extra_routers=(build_router(db, clock=clock),), client_ip_header=doc["public"]["client_ip_header"], **deps_kw,
         )
         app = create_public_app(deps)
         try:
@@ -164,13 +171,11 @@ class Runtime:
         module key is minted when the module is turned on and nothing depends on a key yet (W12)."""
         if self.switch is not None:
             self.switch.set(on)
-        if on and KEYS.configured:
-            try:
-                KEYS.current(create=True)
-            except ModuleKeyError as exc:
-                log.error("tickets module key: %s", exc)
+        if on and KEYS.configured and KEYS.ensure() is None:
+            log.error("tickets module key is %s and rows depend on a key: restore secrets/ from the backup", KEYS.status().get("state"))
 
     def set_trusted(self, cidrs: list[str]) -> None:
+        """W13: a changed `public.trusted_proxy_cidrs` reaches the running edge at once (no listener restart)."""
         app = self.app
         if app is None:
             return
@@ -178,6 +183,13 @@ class Runtime:
             app.edge.trusted = tuple(parse_trusted_cidrs(cidrs))
         except ValueError:
             return
+
+    def set_client_ip_header(self, header: str) -> None:
+        """V3 / W13: where a trusted proxy puts the client address (`cf-connecting-ip` or `x-forwarded-for`, last hop)."""
+        app = self.app
+        if app is None or header not in CLIENT_IP_HEADERS:
+            return
+        app.edge.client_ip_header = header.encode("ascii")
 
     def ready(self, conn) -> bool:
         return self.option_on and self.listening and bool(settings_doc.read(conn)["public"]["base_url"])

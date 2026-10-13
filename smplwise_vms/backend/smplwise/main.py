@@ -180,6 +180,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # lab addresses. Keep them at WARNING regardless of the configured level.
     for noisy in ("httpx", "httpcore", "websockets"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+    # CR-038 S4 (public-core review V10): Pillow's TIFF / EXIF reader logs tag VALUES at DEBUG (GPS, serial numbers of an
+    # uploaded photo) - kept at INFO for the whole process whatever the add-on's log level
+    logging.getLogger("PIL").setLevel(logging.INFO)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.plans_dir.mkdir(parents=True, exist_ok=True)
 

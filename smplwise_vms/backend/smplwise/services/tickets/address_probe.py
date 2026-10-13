@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import collections
 import ipaddress
+import secrets
 import socket
 import ssl
 import threading
@@ -66,8 +67,9 @@ def _resolve(host: str) -> list[str]:
     return out
 
 
-def _fetch(addr: str, host: str, timeout_s: float) -> tuple[int, bytes]:
-    """(status, the first bytes of the body) of `GET /t/healthz` from `addr` with TLS for `host`."""
+def _fetch(addr: str, host: str, timeout_s: float, nonce: str) -> tuple[int, bytes]:
+    """(status, the first bytes of the body) of `GET /t/healthz` from `addr` with TLS for `host`; `X-Ticket-Probe: <nonce>` lets
+    the listener note which peer it came from and whether the client address came from the trusted header (W13)."""
     deadline = time.monotonic() + timeout_s
     raw = socket.create_connection((addr, 443), timeout=timeout_s)
     try:
@@ -75,7 +77,7 @@ def _fetch(addr: str, host: str, timeout_s: float) -> tuple[int, bytes]:
         with ctx.wrap_socket(raw, server_hostname=host) as tls:
             tls.settimeout(max(0.1, deadline - time.monotonic()))
             tls.sendall((f"GET /t/healthz HTTP/1.1\r\nHost: {host}\r\nUser-Agent: SmplWise-Arx-address-probe\r\n"
-                         "Accept: application/json\r\nConnection: close\r\n\r\n").encode("ascii"))
+                         f"Accept: application/json\r\nX-Ticket-Probe: {nonce}\r\nConnection: close\r\n\r\n").encode("ascii"))
             data = b""
             while len(data) < READ_MAX:
                 left = deadline - time.monotonic()
@@ -97,10 +99,19 @@ def _fetch(addr: str, host: str, timeout_s: float) -> tuple[int, bytes]:
     return status, body
 
 
-def probe(base_url: str, *, resolve: Callable[[str], list[str]] = _resolve,
-          fetch: Callable[[str, str, float], tuple[int, bytes]] = _fetch) -> dict[str, Any]:
+def probe(base_url: str, *, resolve: Callable[[str], list[str]] | None = None,
+          fetch: Callable[[str, str, float, str], tuple[int, bytes]] | None = None,
+          last_probe: Callable[[], dict[str, Any] | None] | None = None) -> dict[str, Any]:
     """{result: reachable | not_configured | invalid | unresolved | blocked_address | tls_error | unreachable | wrong_answer,
-    code?, status_class?}. Never the body, never the resolved addresses."""
+    code?, status_class?, listener?}. Never the body, never the resolved addresses.
+
+    `last_probe` reads the running listener's note of the last `/t/healthz` that carried a probe nonce
+    (public_server.SERVER.snapshot()["stats"]["last_probe"]): `listener.seen` says whether THIS installation's listener answered,
+    `listener.source` whether the client address came from the trusted header (`header`) - anything else means the rate limits
+    would key every vendor by the proxy (V3) and is a warning on the settings page; `listener.peer` is the proxy's address (for
+    `trusted_proxy_cidrs`)."""
+    resolve = resolve or _resolve
+    fetch = fetch or _fetch
     if not base_url:
         return {"result": "not_configured"}
     try:
@@ -116,12 +127,21 @@ def probe(base_url: str, *, resolve: Callable[[str], list[str]] = _resolve,
         return {"result": "unresolved"}
     if any(blocked(a) for a in addrs):
         return {"result": "blocked_address"}
+    nonce = secrets.token_urlsafe(24)
     try:
-        status, body = fetch(addrs[0], host, TIMEOUT_S)
+        status, body = fetch(addrs[0], host, TIMEOUT_S, nonce)
     except ssl.SSLError:
         return {"result": "tls_error"}
     except (OSError, ValueError):
         return {"result": "unreachable"}
-    if status == 200 and (b'"ok":true' in body or b'"ok": true' in body):
-        return {"result": "reachable"}
-    return {"result": "wrong_answer", "status_class": f"{status // 100}xx" if status else "none"}
+    if not (status == 200 and (b'"ok":true' in body or b'"ok": true' in body)):
+        return {"result": "wrong_answer", "status_class": f"{status // 100}xx" if status else "none"}
+    out: dict[str, Any] = {"result": "reachable"}
+    if last_probe is not None:
+        note = last_probe() or {}
+        if note.get("nonce") == nonce:
+            out["listener"] = {"seen": True, "source": note.get("source"), "peer": str(note.get("peer") or "")[:64],
+                               "header_ok": note.get("source") == "header"}
+        else:
+            out["listener"] = {"seen": False}
+    return out
