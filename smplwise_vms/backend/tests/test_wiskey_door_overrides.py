@@ -314,6 +314,33 @@ def test_a_template_lock_a_scene_member_and_a_button_follow_the_release_too(worl
         assert not r.resolve_actions([{"action": "switch.turn_on", "target": {"entity_id": "{{ states('input_text.x') }}"}}]).has_door, "every template switch is released"
 
 
+def test_schedules_and_launcher_buttons_are_listed_and_freed_like_scripts(world):
+    """The items of the list are every kind the door-path report covers: a schedule whose slot runs a template switch, and a home-screen
+    launcher button that runs a script that does - each blocked until the device is released, then freed; the schedule with a real
+    door step stays blocked."""
+    c, db = world["c"], world["db"]
+    rev = uuid.uuid4().hex[:16]
+    with db.connection() as conn:
+        for sid, name, actions in (
+            ("s_gate", "שער בבוקר", [{"service": "switch.turn_on", "entity_id": "switch.gate", "service_data": {}}]),
+            ("s_door", "כניסה בבוקר", [{"service": "lock.unlock", "entity_id": "lock.entrance", "service_data": {}}]),
+        ):
+            body = {"schedule_id": sid, "name": name, "weekdays": ["daily"], "repeat_type": "repeat", "timeslots": [{"start": "08:00:00", "stop": None, "actions": actions}]}
+            conn.execute("INSERT INTO schedule_cache(schedule_id, entity_id, revision, item_json, enabled, seen_at, changed_at) VALUES (?,?,?,?,?,?,?)",
+                         (sid, f"switch.schedule_{sid}", rev, json.dumps(body, ensure_ascii=False), 0, now_iso(), now_iso()))
+        set_setting(conn, "home.widgets", json.dumps({"launcher": {"on": True, "items": [{"kind": "script", "id": "script.via_switch", "label": "כפתור שער"}]}}))
+    items = _items(c)
+    assert {"schedule:s_gate", "schedule:s_door", "launcher:0"} <= set(items)
+    assert items["schedule:s_gate"]["kind"] == "schedule" and items["schedule:s_gate"]["blocked"] is True and items["schedule:s_gate"]["devices"] == [{"name": "שער", "state": "blocked"}]
+    assert items["launcher:0"]["name"] == "כפתור שער" and items["launcher:0"]["blocked"] is True
+    assert items["schedule:s_door"]["opens_door"] is True
+    _release(c, "switch.gate")
+    items = _items(c)
+    assert items["schedule:s_gate"]["blocked"] is False and items["launcher:0"]["blocked"] is False
+    assert items["schedule:s_gate"]["devices"] == [{"name": "שער", "state": "unblocked"}]
+    assert items["schedule:s_door"]["blocked"] is True and items["schedule:s_door"]["opens_door"] is True
+
+
 def test_the_editors_follow_the_release_but_still_refuse_a_new_real_door_step(world):
     c, db = world["c"], world["db"]
     new_step = {"alias": "x", "sequence": [TURN_ON_GATE]}
