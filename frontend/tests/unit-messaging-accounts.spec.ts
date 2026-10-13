@@ -113,7 +113,7 @@ test('the catalogue: every key has Hebrew text, no platform name, no default nam
     + readFileSync(path.join(SRC, 'messaging/accounts-model.ts'), 'utf8');
   const strings = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   expect(strings).not.toMatch(/Home Assistant|\bHA\b|Ingress/);
-  expect(strings).not.toMatch(/קריאה|קריאות|[Tt]ickets?'/);
+  expect(strings).not.toMatch(/קריא(ה|ות|ת)|בקש(ת|ות) שירות|ניהול השירות|[Tt]ickets?'/); // neither the old nor the 14.10 default name
 });
 
 test('the shell: one settings tab, both read permissions, installation scope only', () => {

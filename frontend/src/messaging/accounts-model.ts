@@ -148,7 +148,7 @@ export function warningText(w: WaWarning, modules: Record<string, string>): stri
   return wt(`w_${w.code}` as WaTextKey);
 }
 
-/** "הודעות קריאות · ניקיון" - the uses an account carries, in words. */
+/** "<the use label> · ניקיון" - the uses an account carries, in words. */
 export function usesText(view: WhatsappView, keys: string[]): string {
   return keys.map((k) => {
     const [base, dept] = k.split(DEPT_SEP);

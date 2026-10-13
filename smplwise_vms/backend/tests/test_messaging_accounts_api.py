@@ -17,6 +17,7 @@ from smplwise.db import Database, now_iso
 from smplwise.main import create_app
 from smplwise.services import ha_client
 from smplwise.services import messaging_runtime as mr
+from smplwise.services.tickets import naming
 from smplwise.services.tickets.channel import AccountRef
 
 API = "/api/v1"
@@ -109,10 +110,11 @@ def test_uses_carry_the_configured_module_name_d33(env):
     c, _, _ = env
     d = _doc(c)
     uses = {u["key"]: u for u in d["uses"]}
-    assert uses["tickets.messages"]["label"] == "הודעות קריאות" and uses["tickets.codes"]["label"] == "קודי אימות לקריאות"
-    assert uses["tickets.codes"]["inherits"] == "tickets.messages" and uses["tickets.codes"]["inherits_label"] == "הודעות קריאות"
+    many = naming.DEFAULTS["he"]["many"]  # the default name (owner 14.10: "בקשות שירות"), never written here
+    assert uses["tickets.messages"]["label"] == f"הודעות {many}" and uses["tickets.codes"]["label"] == f"קודי אימות ל{many}"
+    assert uses["tickets.codes"]["inherits"] == "tickets.messages" and uses["tickets.codes"]["inherits_label"] == f"הודעות {many}"
     assert [x["name"] for x in uses["tickets.messages"]["departments"]] == ["אחזקה"]
-    assert d["modules"] == {"tickets": "קריאות"}
+    assert d["modules"] == {"tickets": many}
     r = c.get(f"{API}/tickets/module").json()
     names = r["name"]
     names["he"] = {"one": "פנייה", "many": "פניות", "gender": "f"}

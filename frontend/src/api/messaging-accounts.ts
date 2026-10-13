@@ -138,17 +138,17 @@ function demoView(): WhatsappView {
         shared_outside: false, removed: false, pacing: { ...PACE }, uses: [], sends_24h: 0, last_send_at: null, has_status_entity: true, account: '15555550097', status_entity_id: 'binary_sensor.old_phone_online', connected_states: ['on'] },
     ],
     uses: [
-      { key: 'tickets.messages', module: 'tickets', label: 'הודעות קריאות', inherits: null, inherits_label: null, per_department: true, required: true, value: 'entry:01JDEMOOFFICE', resolved: 'entry:01JDEMOOFFICE', queued: 2,
+      { key: 'tickets.messages', module: 'tickets', label: 'הודעות בקשות שירות', inherits: null, inherits_label: null, per_department: true, required: true, value: 'entry:01JDEMOOFFICE', resolved: 'entry:01JDEMOOFFICE', queued: 2,
         departments: [
           { id: 'dept-maintenance', name: 'אחזקה', value: null, resolved: 'entry:01JDEMOOFFICE' },
           { id: 'dept-cleaning', name: 'ניקיון', value: 'entry:01JDEMOINTERC', resolved: 'entry:01JDEMOINTERC' },
         ] },
-      { key: 'tickets.codes', module: 'tickets', label: 'קודי אימות לקריאות', inherits: 'tickets.messages', inherits_label: 'הודעות קריאות', per_department: false, required: false, value: null, resolved: 'entry:01JDEMOOFFICE', queued: 0 },
+      { key: 'tickets.codes', module: 'tickets', label: 'קודי אימות לבקשות שירות', inherits: 'tickets.messages', inherits_label: 'הודעות בקשות שירות', per_department: false, required: false, value: null, resolved: 'entry:01JDEMOOFFICE', queued: 0 },
     ],
     mapping: { 'tickets.messages': 'entry:01JDEMOOFFICE', 'tickets.codes': null, 'tickets.messages@dept:dept-cleaning': 'entry:01JDEMOINTERC' },
     warnings: [{ code: 'shared_outside', use: 'tickets.messages', department_id: 'dept-cleaning', account_key: 'entry:01JDEMOINTERC', severity: 'amber' }],
     channels: [{ key: 'whatsapp', state: 'active' }, { key: 'email', state: 'active' }, { key: 'inapp', state: 'active' }, { key: 'sms', state: 'soon' }],
-    modules: { tickets: 'קריאות' },
+    modules: { tickets: 'בקשות שירות' },
     pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: false },
   };
 }
