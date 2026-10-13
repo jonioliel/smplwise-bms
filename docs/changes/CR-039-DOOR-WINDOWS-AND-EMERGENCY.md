@@ -39,6 +39,15 @@ confirmed by WisKey; **W?** unknown to Arx, asked of WisKey (section 3); **O** o
 
 The decided items are applied in 7.2, 13, 17 and the Hebrew summary; the three defaults stand until the owner says otherwise.
 
+### 0.2 Revision from slice W0 (2026-10-14, owner-approved)
+The fakes of slice W0 (`origin/pilot/DOORWIN-w0` @ 41a812fe, `CR-039-W0-NOTES.md` section 4) found ten points where the
+first draft was contradictory or untestable; each is applied in place and marked "W0 finding n": 4.3 (any enabled program
+needs pause + save-and-activate, also outside a window; the envelope never reaches WisKey), 4.4 (engine status only;
+revision re-read before each close retry; interaction with WisKey's own 15-s close retry), 4.5 (DST by WisKey's window
+token), 8.7 (the 30-doors-in-5-s target is conditional), 9.3 (the date-exception append is the two-step too), 16 (the
+fakes are the `fake_doorwin_*` files, `fake_wiskey.py` / `fake_trusted_bridge.py` untouched; `device_unavailable` is not
+in the pinned error catalog; what only the W9 lab can test), 3.3 (two W13 items added).
+
 ## 1. Goals and non-goals
 
 **Goals**
@@ -121,6 +130,9 @@ caller incl. the automation actor, W2 schemas, W4 lock mapping, W5 error codes) 
 (`doors/emergency_open {doors[], request_id, reason}`, `doors/emergency_release`, and `doors/emergency_secure`), or a
 statement that Arx must loop per door; (f) U7 error codes; (g) whether a program can be saved with `enabled:true` while
 inside a window without the pause step when the saved window equals the running one (needed by 9.4).
+Added 2026-10-14 from the W0 findings: (h) the real error code WisKey returns for a program save / action while the
+station is unreachable - `device_unavailable` is not in the pinned error catalog (U7); (i) whether a program hold is
+reflected in the WisKey `lock` entity (`unlocked` during the hold) or only in the program's execution status (4.4 step 2).
 
 ## 4. The core safety principle and the execution tiers
 
@@ -167,26 +179,43 @@ The spec therefore survives either answer.
   Arx reads `technical_program_list` and refuses the compile if WisKey's program for that door is **not Arx-named** (a
   program a person made in the WisKey panel is never overwritten; the screen says "the door has a program made in the
   intercom window" and offers "adopt" = read it into Arx as a rule, or "leave").
-- A change to a rule whose program is currently **owned** (the door is held right now) is a two-step write shown as such:
-  "pause (the door closes), then save-and-activate (the door re-opens within ~15 s if still inside a window)". The user sees
-  the sentence and confirms; a change outside a window is one save.
-- Every save, pause and action carries the CR-036 envelope (`client_request_id`, `expires_at`, `confirmed:true`), is sent
-  once, and after an unknown outcome is resolved only by re-reading `technical_program_list` (never by a repeated save).
-  Compare-and-set failures (`revision_conflict`) are shown as "the program changed meanwhile - reload".
+- **Every change to a live (enabled) Arx program is two writes: `pause`, then save-and-activate** - WisKey refuses an edit
+  of any *enabled* program (`hold_pause_before_edit`), owned or not (R; W0 finding 1, pinned by
+  `test_editing_an_enabled_program_needs_a_pause_even_outside_a_window`). Outside a window there is no physical effect
+  (two writes, two revisions); inside a window the door **closes and re-opens within ~15 s**. The preview sentence says which
+  of the two applies and the user confirms. The same two-step applies to the date-exception append of 9.3.
+- The CR-036 envelope (`client_request_id`, `expires_at`, `confirmed:true`) lives **only in Arx's own route**: the pinned
+  catalog (`docs/integrations/wiskey/catalog/rc37-contract.4/commands.static.json`) accepts no extra keys on the three
+  program commands (`additionalProperties: false`; rc.37 answers `invalid_format`), so nothing of it is sent to WisKey, and a
+  `request_id` reaches WisKey only once U2 is a yes (W0 finding 3). Every save and action is sent once; after an unknown
+  outcome it is resolved only by re-reading `technical_program_list` (never by a repeated save). Compare-and-set failures
+  (`revision_conflict`, in the pinned error catalog) are shown as "the program changed meanwhile - reload".
 
 ### 4.4 The relock watchdog (tier B; tier A as a cross-check)
 A background family in `services/notify_sources.py` style (its own module `services/door_windows_watch.py`), cadence 30 s
 while any occurrence is `active`, `ending` or `relock_unconfirmed`, otherwise idle:
 1. At `occurrence.end`: state `ending`. Read `technical_program_list` for the door (one read per station, cached 15 s).
-2. Confirmation rule: the program's `execution.status` is `idle` (owned false) **and** the lock entity's mirrored state is not
-   in `OPEN_STATES` (V `door_path.OPEN_STATES`; optimistic, so only a *negative* signal) -> `closed_confirmed`. The
-   confirmation words on screen: "חזרה למצב רגיל אושרה על ידי המערכת" (never "the door is closed": nobody measured it).
+2. Confirmation rule: **only the engine status counts** - the program's `execution.status` is `idle` and `owned` is false
+   -> `closed_confirmed`. The lock entity's mirrored state is used only as a *veto* (a state in `door_path.OPEN_STATES`
+   blocks the confirmation) and never as a confirmation: whether a program hold is reflected in WisKey's optimistic lock
+   entity at all is W? (the W0 default assumes it is not, so the entity reads `locked` throughout a hold; trap test
+   `test_a_watchdog_that_trusts_the_entity_alone_would_be_caught`). The confirmation words on screen: "חזרה למצב רגיל
+   אושרה על ידי המערכת" (never "the door is closed": nobody measured it).
 3. Not confirmed within `doors.windows.relock_grace_s` (default 120 s; the tick is 15 s and WisKey's `restoring` state may
    take one or two ticks) -> state `relock_unconfirmed`: critical notification `door.relock_unconfirmed` (11), the door's row
    and chip turn to the warning state, and the **close-direction retry** starts: `technical_program_action pause` on the
-   program (idempotent: a paused program stays paused; WisKey sends `close` on its immediate tick), at most
-   `doors.windows.relock_retries` (default 3) attempts with backoff 30 s / 60 s / 120 s, each attempt an audit row. A program
-   that Arx paused for a retry is re-activated at the next occurrence's compile (4.3), never immediately.
+   program, at most `doors.windows.relock_retries` (default 3) attempts with backoff 30 s / 60 s / 120 s, each attempt an
+   audit row. Two facts shape the retry (W0 findings 2 and 6):
+   - **WisKey retries on its own**: while it owns a door whose `close` failed, its executor re-sends `close` every 15 s (R).
+     Arx's `pause` is therefore *on top* of WisKey's loop, not the only retry; it changes the program's desired state so the
+     door is not re-opened and so WisKey's loop keeps the close direction after an HA restart. The backoff (30/60/120 s,
+     bounded to 3) is deliberately coarser than WisKey's 15 s so the two never form a storm: at most 3 Arx writes + WisKey's
+     own ticks per door, and never a write while the previous answer is outstanding.
+   - **`pause` is idempotent for the door, not for the record**: every `technical_program_action` bumps `revision` (R), so
+     each retry **re-reads the revision first** (from the same `technical_program_list` read the confirmation uses) and sends
+     that revision; a stale revision is `revision_conflict`, which counts as a *refused* attempt (nothing happened), not as
+     a success (pinned by `test_pause_is_idempotent_in_effect_but_bumps_the_revision`).
+   A program that Arx paused for a retry is re-activated at the next occurrence's compile (4.3), never immediately.
 4. After the retries: the state stays; the notification is re-raised every `doors.windows.reraise_min` (default 15 min)
    until resolved. Resolution: the engine reports idle (auto), or a person with `access.windows.cancel` or `.manage` presses
    "אימות ידני: הדלת סגורה" after looking (audited with the person; the UI asks "did you check the door or the camera?").
@@ -199,8 +228,11 @@ while any occurrence is `active`, `ending` or `relock_unconfirmed`, otherwise id
 ### 4.5 Clock and zone rules
 Occurrences are computed in the **station's** display zone (`clock.zone` from `overview`, V `intercom_sync`), stored as UTC
 instants plus the zone (AGENTS.md: no fixed offsets). A rule whose doors sit in different zones compiles per door. DST
-transitions: a window that would not exist (spring forward) is dropped for that day and noted; one that would occur twice
-(fall back) occurs once, by local wall time of the first pass. A station whose clock drifts more than 5 min from Arx's
+transitions follow **WisKey's window token, not Arx's own idea of the day** (W0 finding 8): WisKey's executor compares
+wall-clock strings in the program's zone, so a window that only partly overlaps the spring-forward gap (e.g. 01:30-02:30 on
+the change day) is executed for the part that exists, not dropped; Arx computes its occurrences with the same token
+function (the fake's `window_token` is the reference) so the plan and the engine never disagree. A window that would
+occur twice (fall back) occurs once - one token, one hold - as WisKey does. A station whose clock drifts more than 5 min from Arx's
 (`clock` in the health read, V) gets a warning on its doors' rows and the compile still proceeds (WisKey evaluates by HA's
 clock, not the station's, R).
 
@@ -493,9 +525,12 @@ the next step ("בדיקה במצלמה", "פתיחה ידנית"). Nothing is h
 ("7 מתוך 9 אושרו"). The list stays available from the strip for the incident's lifetime and in the audit afterwards.
 
 ### 8.7 Latency, feed and fail-safe
-- Target: first command out < 1 s after the final tap; all doors sent within 5 s for up to 30 doors (the action lane holds
-  2 slots, V `intercom_client` lanes - the emergency incident gets its **own lane** of 4 slots that only incidents use, so an
-  announcement or a card capture cannot delay it; the lane is sized under WisKey's 8 handlers with the other lanes).
+- Target: first command out < 1 s after the final tap. The emergency incident gets its **own lane** of 4 slots that only
+  incidents use (the action lane holds 2, V `intercom_client` lanes), so an announcement or a card capture cannot delay it;
+  the lane is sized under WisKey's 8 handlers with the other lanes. "All 30 doors sent within 5 s" is **conditional** (W0
+  finding 7): with per-door commands it holds only while WisKey answers each in under about 0.7 s (8 rounds of 4); with the
+  W13-e batch command it is one call. Real latency is unknown until W9; the status page shows the measured per-incident
+  "last door sent after N s" so the owner sees the real number.
 - Without a WisKey copy / feed not ready: an incident is still **started** (the door list comes from the last known copy,
   V `intercom_sync.SYNC.has_copy()`), and each door's result is `unknown` with the reason "אין חיבור למערכת האינטרקום";
   this is the one place Arx sends on a stale copy, because a stale list of exits is better than no evacuation command
@@ -541,12 +576,13 @@ and a `door.windows.storm` alert is raised (the automations storm rule precedent
 - With U3 (hold-until): `doors/hold_until {station, door, until, request_id}` through the trusted caller, one send, outcome
   `sent / refused / unknown`; the engine relocks at `until`; the watchdog confirms as in 4.4. Clean and preferred.
 - Without U3 (tier B only, 9.4): the occurrence becomes a **date exception** `{name:"Arx event", start: today, end: today,
-  periods:[{now, until}]}` appended to the door's Arx program by `technical_program_save`. If the program is currently
-  **owned** (the door is held by a weekly window right now) the event occurrence is a no-op *inside* that window and an
-  extension only if its end is later - and an extension of an owned program requires the pause step, which **closes the door
-  for ~15 s** (R: pause then save-and-activate). Arx refuses that extension by default (`doors.windows.event_extend_owned =
-  false`) and audits "would have extended"; the manager may allow it knowing the blink. W13-g asks WisKey to allow a save
-  without the pause when the running window is unchanged.
+  periods:[{now, until}]}` appended to the door's Arx program by `technical_program_save`. Because the program is enabled,
+  the append is **always** the two-step `pause` + save-and-activate of 4.3 (W0 finding 1) - outside a window that is two
+  writes and no physical effect; the door then opens on the next 15-s tick. If the program is currently **owned** (the door
+  is held by a weekly window right now) the event occurrence is a no-op *inside* that window and an extension only if its
+  end is later - and the pause step then **closes the door for ~15 s** (R). Arx refuses that extension by default
+  (`doors.windows.event_extend_owned = false`) and audits "would have extended"; the manager may allow it knowing the blink.
+  W13-g (E3 in the request document) asks WisKey to allow a save without the pause when the running window is unchanged.
 - After an unknown save outcome: re-read `technical_program_list`; if the exception is present -> `armed`; if not ->
   `refused` (safe) and alert. Never a second save (the compile sha prevents it).
 
@@ -723,10 +759,24 @@ each dependency is shown in plain words ("ממתין לממשק מצד מערכ�
 | T16 | The automation refusal lifted by a setting without the WisKey capability | fail closed: `doors.automation_actor` cannot be on without the reported capability (9.4), the `MIN_BRIDGE` precedent |
 
 ## 16. Test plan (fakes and models only; nothing live)
-- **Fakes:** `tests/fake_wiskey.py` gains `stations/technical_program_save / _action` with revision CAS, the execution
-  status machine driven by a fake clock (idle -> opening -> held_acknowledged -> restoring -> idle, plus scripted `unknown`,
-  `revision_conflict`, `hold_pause_before_edit`, `device_unavailable`), a foreign program fixture, the 64 KiB cap; a
-  `FakeEmergencyEngine` with a per-door script; `tests/fake_trusted_bridge.py` (V) extended for the automation actor DTO.
+- **Fakes (built in W0, `origin/pilot/DOORWIN-w0` @ 41a812fe, notes `docs/changes/CR-039-W0-NOTES.md`; 103 self-tests
+  passed locally on 2026-10-13 per the notes - NOT re-run for this revision):** new files only, `tests/fake_doorwin_*.py` -
+  `FakeDoorwinClock` / `DoorwinScheduler` (owner-tagged jobs; `cancel_owner("arx")` = an add-on restart), `FakeDoorBank`
+  (no position sensor, optimistic lock entity, per-door `power_behaviour` / `hold_survives_reboot` defaulting to the worst
+  case, `lock_entity_reflects_hold` default False), `FakeProgramEngine` (tier B: revision CAS, the execution status machine
+  idle -> opening -> held_acknowledged -> restoring -> idle, WisKey's own 15-s close retry, `hold_pause_before_edit` on any
+  enabled program, `invalid_format` for envelope keys, `window_token`, switches for U2 / U6 / U7, `ha_stop/start`, link
+  loss), `FakeStationScheduleEngine` (tier A, U1), `FakeHoldUntilEngine` (U3), `FakeEmergencyEngine` (per-door scripts,
+  latency, the 4-slot lane, `batch_command`, `for_drill`), `FakeHaEventSource` (forgeries, storms, duplicate delivery),
+  the assertion helpers (`assert_no_silent_open`, `assert_unknown_open_not_retried` for E-1, `assert_close_retries_bounded`,
+  `assert_no_secrets`) and `DoorwinWorld` (the U1-U7 / W13-e switches with worst-case defaults). **`fake_wiskey.py` and
+  `fake_trusted_bridge.py` are untouched**: the program commands are served through `FakeProgramEngine.attach(FakeWiskey)`
+  and the W1 automation-actor shape is validated inside `FakeProgramEngine` under U2; a later slice (W3) may move them into
+  the shared fakes - until then W3 / W4 / W5 extend the `fake_doorwin_*` files and the SR-1 pin lists (`PINNED`,
+  `ENGINE_WRITES` in `test_fake_doorwin_closed_rule_sr1.py`) in the commit that adds a site.
+- **Error codes:** every code the fakes use is in the pinned `errors.static.json` except `device_unavailable` (the extraction's
+  name for WisKey's mapping of Hikvision errors; the fake uses it for an enabled save while the station is away) - **U7 /
+  W5 must confirm the real code** before the refusal tables are written (W0 finding 4).
 - **Closed rules, one test each:** SR-1 (no Arx code path sends an open from a timer: a static test greps the services for
   `release_door` / `alwaysOpen` callers and pins the allowed set), SR-2, SR-3, SR-4, SR-5, SR-6 text, E-1 bounded to 3,
   T4 token, T5 loop, T6 scope, T16 fail-closed.
@@ -748,7 +798,11 @@ each dependency is shown in plain words ("ממתין לממשק מצד מערכ�
   read-only (unchanged), edit mode, override, unconfirmed card, the emergency sheet (hold, auto-close, partial list, strip,
   release), drill, five skins x light / dark, desktop / tablet / mobile; layout-guard and Linux pixel baselines; the
   `evidence-access-s12` checklist count.
-- **NOT_RUN by design:** anything against a real WisKey, station, door, bridge or HA - slice S9 with the owner, per action.
+- **Untestable on fakes - NOT_RUN by design, owned by the W9 owner lab session, per action** (W0 finding 9): U5 - what a real
+  relay does on power loss and whether a station reboot keeps `alwaysOpen`; real WisKey latency per command and its
+  deduplication of a repeated request; the real W13 request / response shapes (the fakes' method names are renamed to
+  match when WisKey answers; the switches stay); the lock entity's real behaviour during a program hold (does it read
+  `unlocked`?); and anything against a real WisKey, station, door, bridge or HA.
 
 ## 17. Slices, effort, order (agent-hours; model per the owner's routing rules)
 | # | Slice | Depends on | Effort | Can start now (fakes)? |
@@ -762,7 +816,7 @@ each dependency is shown in plain words ("ממתין לממשק מצד מערכ�
 | W6 | Emergency UX: the sheet (hold-to-confirm, scope picker, live list), the strip, home widget, phone sheet, five skins, evidence | W5 | 10-12 | yes |
 | W7 | Settings › permissions sub-tab, observability (status segment, parity rows, logs, health count), release notes draft (bilingual) | W1-W6 | 6-8 | yes |
 | W8 | Security review (a second Opus pass on W1, W3, W4, W5), gate on fakes, docs | all | 6 | - |
-| W9 | Lab verification with the owner, per action: one weekly window on one door, one override, one relock-unconfirmed drill (feed cut deliberately), LOCK-secure on one door; OPEN only after W13 and the attestation | W8, U2 | owner session | **no** |
+| W9 | Lab verification with the owner, per action: one weekly window on one door, one override, one relock-unconfirmed drill (feed cut deliberately), LOCK-secure on one door; OPEN only after W13 and the attestation. Also the measurements only a lab can give (16, last bullet): U5 power loss / reboot on one door the owner chooses, per-command latency and duplicate handling, the lock entity's state during a hold, the real W13 shapes | W8, U2 | owner session | **no** |
 
 Total **96-116 agent-hours** before the owner session. Recommended order: W0 -> W1 -> (W2 ‖ W3) -> W5 -> W6 -> W4 -> W7 -> W8.
 **Shared-file rule (build order vs tickets):** the tickets module's slice 1 (CR-038) owns the shared files `roles.json`,
