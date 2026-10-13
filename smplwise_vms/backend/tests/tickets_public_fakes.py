@@ -252,3 +252,54 @@ def wait_until(pred, timeout: float = 5.0, step: float = 0.01) -> bool:
             return True
         time.sleep(step)
     return pred()
+
+
+# ---------------------------------------------------------------- the harness: a public app over fakes
+
+
+@dataclasses.dataclass
+class World:
+    clock: Clock
+    links: FakeLinks
+    switch: FakeSwitch
+    redeems: FakeRedeems
+    requests: FakeRequests
+    codes: FakeCodes
+    engine: Any
+    sender: FakeSender
+    photos: FakePhotos
+    root: Path
+    storage: Any
+    app: Any
+
+    def client(self, peer: str = "198.51.100.7", **kw: Any):
+        from fastapi.testclient import TestClient
+
+        return TestClient(self.app, client=(peer, 50000), **kw)
+
+
+def build_world(tmp_path: Path, *, now: float | None = None, storage_cap: int | None = None, routers: tuple = (), rules: tuple | None = None,
+                shell_dir: Path | None = None, trusted: tuple[str, ...] | None = None, decode_wait_s: float = 5.0) -> World:
+    from smplwise.services.tickets.codes import CodeEngine
+    from smplwise.services.tickets.image_intake import StorageMeter
+    from smplwise.services.tickets.public_app import PublicDeps, create_public_app
+    from smplwise.services.tickets.public_http import ROUTES
+    from smplwise.services.tickets.ratelimit import DEFAULT_TRUSTED_PROXY_CIDRS, new_public_limiter, parse_trusted_cidrs
+
+    clock = Clock(now if now is not None else time.time())
+    fl = FakeLinks(clock)
+    root = tmp_path / "tickets"
+    root.mkdir(parents=True, exist_ok=True)
+    limiter = new_public_limiter(clock)
+    codes = FakeCodes()
+    engine = CodeEngine(codes, lambda: KEY, limiter=limiter, clock=clock)
+    world = World(clock=clock, links=fl, switch=FakeSwitch(True), redeems=FakeRedeems(), requests=FakeRequests(), codes=codes,
+                  engine=engine, sender=FakeSender(), photos=FakePhotos(root), root=root,
+                  storage=StorageMeter(root, cap_bytes=storage_cap or 2 * 1024 ** 3), app=None)
+    deps = PublicDeps(links=fl, switch=world.switch, key=lambda: KEY,
+                      trusted_proxies=parse_trusted_cidrs(trusted or DEFAULT_TRUSTED_PROXY_CIDRS),
+                      requests=world.requests, redeems=world.redeems, codes=engine, code_sender=world.sender, photos=world.photos,
+                      attachments_root=root, storage=world.storage, shell_dir=shell_dir, limiter=limiter, clock=clock,
+                      extra_routers=routers, rules=rules or ROUTES, decode_wait_s=decode_wait_s)
+    world.app = create_public_app(deps)
+    return world
