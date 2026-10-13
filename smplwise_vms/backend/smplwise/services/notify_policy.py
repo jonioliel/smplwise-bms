@@ -20,11 +20,11 @@ from ..db import now_iso
 
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
-CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security")
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator")  # generator: the routing saved on the generator screen (services/generator_alerts.py)
+CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee")  # ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py)
 CHANNELS_RESERVED = ("ha_mobile", "whatsapp")
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator")
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket")
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -113,6 +113,8 @@ def _generator_sources() -> tuple[Source, ...]:
 
 
 SOURCES = SOURCES + _generator_sources()
+from .tickets import notify_sources as _ticket_sources  # noqa: E402 - CR-038 slice 6: the tickets module's sources (plain data, no cycle)
+SOURCES = SOURCES + tuple(Source(**kw) for kw in _ticket_sources.source_kwargs())
 class _ByKey(dict):  # type: ignore[type-arg]
     """The catalogue by key. A per-generator source `generator.<type>@<generator id>` (CR-031: routing is per generator) resolves to its
     type's catalogue entry; its policy row is its own (`notify_policies.source` is the full key)."""
@@ -211,6 +213,8 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = {r["source"]: row_to_policy(r) for r in conn.execute("SELECT * FROM notify_policies").fetchall()}
     out = []
     for s in SOURCES:  # the catalogue's order; a stored row of a source this release no longer knows is not listed
+        if not _ticket_sources.listed(conn, s.key):  # CR-038: the tickets sources exist only while the module is on
+            continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
     return out
 

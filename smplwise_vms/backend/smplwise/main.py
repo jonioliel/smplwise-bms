@@ -425,6 +425,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(tickets_router.open_router, prefix=api, tags=["tickets"])  # GET /tickets/module: the only route that answers while the module is off
     app.include_router(tickets_admin_router.router, prefix=api, tags=["tickets"])  # settings, name, departments - BEFORE /tickets/{ticket_id}
+    from .routers import tickets_board as tickets_board_router  # CR-038 S6: the manager board + the facet counts, BEFORE /tickets/{ticket_id}
+    app.include_router(tickets_board_router.router, prefix=api, tags=["tickets"])
     app.include_router(tickets_router.router, prefix=api, tags=["tickets"])
 
     @app.on_event("startup")

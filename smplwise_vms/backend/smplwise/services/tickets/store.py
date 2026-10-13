@@ -516,3 +516,129 @@ def request_put(conn: sqlite3.Connection, scope: str, client_request_id: str, ro
 
 def prune_requests(conn: sqlite3.Connection, before: str) -> int:
     return conn.execute("DELETE FROM ticket_requests WHERE at < ?", (before,)).rowcount
+
+
+# ---------------------------------------------------------------- slice 6: the SLA monitor, the board, the notification bridge
+# The monitor is a SYSTEM actor (no principal): it reads the open tickets it must look at through `monitor_rows_system` - called only by
+# services/tickets/monitor.py (tests/test_tickets_monitor.py enforces that); people reach tickets through access.py as everywhere else.
+
+_OPEN_SQL = "('new', 'assigned', 'acknowledged', 'in_progress', 'waiting_part', 'done', 'returned')"
+
+
+def monitor_rows_system(conn: sqlite3.Connection, now: str, changed_since: str | None, limit: int) -> list[dict[str, Any]]:
+    """The open tickets the SLA monitor must look at: never looked at (`next_check_at` NULL), due (`next_check_at <= now`), or
+    changed since the monitor's previous run (`updated_at`, which every action moves - the monitor's own writes do not)."""
+    sql = _TICKET_SELECT + f" WHERE t.status IN {_OPEN_SQL} AND (t.next_check_at IS NULL OR t.next_check_at <= ?"
+    args: list[Any] = [now]
+    if changed_since:
+        sql += " OR t.updated_at >= ?"
+        args.append(changed_since)
+    sql += ") ORDER BY t.next_check_at IS NOT NULL, t.next_check_at, t.id LIMIT ?"
+    args.append(int(limit))
+    return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def ticket_row_system(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
+    """One ticket for a SYSTEM caller (the monitor, the notification bridge deciding recipients - who then pass access.visible per
+    recipient). Never for a person's request: tests/test_tickets_monitor.py lists the only callers."""
+    return _dict(conn.execute(_TICKET_SELECT + " WHERE t.id = ?", (ticket_id,)).fetchone())
+
+
+def open_notification_keys(conn: sqlite3.Connection, prefix: str) -> list[str]:
+    """Dedupe keys of the open notifications whose key starts with `prefix` (the bridge resolves a ticket's rows by prefix)."""
+    like = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    return [r[0] for r in conn.execute("SELECT DISTINCT dedupe_key FROM notifications WHERE state != 'resolved' AND dedupe_key LIKE ? ESCAPE '\\'", (like,)).fetchall()]
+
+
+def done_rows_system(conn: sqlite3.Connection, limit: int) -> list[dict[str, Any]]:
+    """`done` tickets of departments that close automatically (D10) - the monitor decides which are due."""
+    return [dict(r) for r in conn.execute(
+        _TICKET_SELECT + " JOIN ticket_departments d ON d.id = t.department_id WHERE t.status = 'done' AND t.done_at IS NOT NULL "
+        "AND d.auto_close_after_days IS NOT NULL AND d.auto_close_after_days > 0 ORDER BY t.done_at LIMIT ?", (int(limit),)).fetchall()]
+
+
+def sla_rule(conn: sqlite3.Connection, department_id: str, priority_id: str) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT * FROM ticket_sla_rules WHERE department_id = ? AND priority_id = ?", (department_id, priority_id)).fetchone())
+
+
+def set_sla_state(conn: sqlite3.Connection, ticket_id: str, fields: dict[str, Any]) -> None:
+    """The monitor's bookkeeping columns (stuck_kind, stuck_level, reminders_sent, next_check_at, waiting_on / waiting_reason). It moves
+    neither `revision` (a person editing the ticket never gets 409 because of the monitor) nor `updated_at` (that is the monitor's
+    own "changed since" signal)."""
+    allowed = ("stuck_kind", "stuck_level", "reminders_sent", "next_check_at", "waiting_on", "waiting_reason")
+    cols = [c for c in fields if c in allowed]
+    if cols:
+        conn.execute(f"UPDATE tickets SET {', '.join(f'{c} = ?' for c in cols)} WHERE id = ?", (*[fields[c] for c in cols], ticket_id))
+
+
+def ladder_marks(conn: sqlite3.Connection, ticket_id: str) -> tuple[dict[str, Any] | None, str | None]:
+    """(the data of the latest 'stuck' timeline row, the time of the latest 'reminder' row after it) - the ladder's memory."""
+    st = conn.execute("SELECT id, data_json FROM ticket_events WHERE ticket_id = ? AND kind = 'stuck' ORDER BY id DESC LIMIT 1", (ticket_id,)).fetchone()
+    if st is None:
+        return None, None
+    try:
+        data = json.loads(st["data_json"] or "{}")
+    except ValueError:
+        data = {}
+    rem = conn.execute("SELECT at FROM ticket_events WHERE ticket_id = ? AND kind = 'reminder' AND id > ? ORDER BY id DESC LIMIT 1", (ticket_id, st["id"])).fetchone()
+    return (data if isinstance(data, dict) else {}), (rem["at"] if rem else None)
+
+
+def unassigned_since(conn: sqlite3.Connection, ticket: dict[str, Any]) -> str:
+    """Since when nobody holds a `new` / `returned` ticket: the latest of its creation, the end of its last assignment and its reopen."""
+    best = ticket.get("created_at") or ""
+    r = conn.execute("SELECT MAX(ended_at) FROM ticket_assignments WHERE ticket_id = ?", (ticket["id"],)).fetchone()
+    if r and r[0] and r[0] > best:
+        best = r[0]
+    r = conn.execute("SELECT MAX(at) FROM ticket_events WHERE ticket_id = ? AND kind = 'reopened'", (ticket["id"],)).fetchone()
+    if r and r[0] and r[0] > best:
+        best = r[0]
+    return best
+
+
+def _has_table(conn: sqlite3.Connection, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+
+
+def current_link(conn: sqlite3.Connection, assignment_id: str | None) -> dict[str, Any] | None:
+    """The newest handler link of an external assignment (slice 4's table; None before migration 0080 exists)."""
+    if not assignment_id or not _has_table(conn, "ticket_links"):
+        return None
+    return _dict(conn.execute("SELECT * FROM ticket_links WHERE assignment_id = ? ORDER BY generation DESC, created_at DESC LIMIT 1", (assignment_id,)).fetchone())
+
+
+def has_event_since(conn: sqlite3.Connection, ticket_id: str, kind: str, since: str) -> bool:
+    return conn.execute("SELECT 1 FROM ticket_events WHERE ticket_id = ? AND kind = ? AND at >= ? LIMIT 1", (ticket_id, kind, since)).fetchone() is not None
+
+
+def place_names(conn: sqlite3.Connection, ids: dict[str, set[str]]) -> dict[str, dict[str, Any]]:
+    """Names (and the parent, the sort keys) of the places tickets point at: {'site:<id>': {...}, 'building:<id>': ..., 'floor:<id>': ...,
+    'zone:<id>': ..., 'area:<id>': ...}. Deleted places keep their name (a ticket keeps naming where it was filed)."""
+    out: dict[str, dict[str, Any]] = {}
+
+    def fetch(kind: str, sql: str, keys: set[str]) -> None:
+        keys = {k for k in keys if k}
+        if not keys:
+            return
+        for r in conn.execute(sql.format(q=", ".join("?" * len(keys))), tuple(keys)).fetchall():
+            out[f"{kind}:{r['id']}"] = dict(r)
+
+    fetch("site", "SELECT id, name, sort_order FROM sites WHERE id IN ({q})", ids.get("site", set()))
+    fetch("building", "SELECT id, name, site_id AS parent, sort_order FROM buildings WHERE id IN ({q})", ids.get("building", set()))
+    fetch("floor", "SELECT id, name, building_id AS parent, level, sort_order FROM floors WHERE id IN ({q})", ids.get("floor", set()))
+    fetch("zone", "SELECT id, name, floor_id AS parent FROM spatial_zones WHERE id IN ({q})", ids.get("zone", set()))
+    fetch("area", "SELECT area_id AS id, name, floor_id AS parent FROM ha_areas WHERE area_id IN ({q})", ids.get("area", set()))
+    return out
+
+
+def manager_member_ids(conn: sqlite3.Connection, dept_id: str, *, notify_new_only: bool = False) -> list[str]:
+    """User ids that are MANAGER members of a department (directly or through a group); `notify_new_only`: only rows with notify_new."""
+    out: list[str] = []
+    for m in members(conn, dept_id):
+        if m["member_role"] != "manager" or (notify_new_only and not m["notify_new"]):
+            continue
+        ids = [m["subject_id"]] if m["subject_kind"] == "user" else group_member_ids(conn, m["subject_id"])
+        for uid in ids:
+            if uid not in out:
+                out.append(uid)
+    return out

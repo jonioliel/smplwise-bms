@@ -13,7 +13,7 @@ import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
@@ -64,12 +64,16 @@ class UiPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     detail: Literal["drawer", "fullscreen", "drawer_fullscreen"] | None = None
     new_ticket: Literal["sheet", "dialog"] | None = None
+    board_floors: Literal["chips", "tree", "chips_tree"] | None = None  # D19 / D30 (slice 6)
+    grouping: Literal["always", "no_status_filter", "never"] | None = None  # D20 (slice 6)
+    closed_strip: Literal["week", "all", "hidden"] | None = None  # D21 (slice 6)
 
 
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
     ui: UiPatch | None = None
+    urgent_is_critical: StrictBool | None = None  # D28 (slice 6): a real boolean only
 
 
 @router.put("/tickets/settings")
@@ -83,6 +87,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         ui = {k: v for k, v in body.ui.model_dump().items() if v is not None}
         if ui:
             patch["ui"] = ui
+    if body.urgent_is_critical is not None:  # D28 (slice 6)
+        patch["urgent_is_critical"] = body.urgent_is_critical
     try:
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:

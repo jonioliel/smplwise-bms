@@ -25,9 +25,19 @@ def _choice(*allowed: str) -> Callable[[Any], str]:
     return check
 
 
+def _bool(v: Any) -> bool:  # slice 6
+    if not isinstance(v, bool):
+        raise ValueError("boolean")
+    return v
+
+
 SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail"): ("drawer_fullscreen", _choice("drawer", "fullscreen", "drawer_fullscreen")),  # D18
     ("ui", "new_ticket"): ("sheet", _choice("sheet", "dialog")),  # D22
+    ("ui", "board_floors"): ("tree", _choice("chips", "tree", "chips_tree")),  # D19 / D30 (slice 6)
+    ("ui", "grouping"): ("no_status_filter", _choice("always", "no_status_filter", "never")),  # D20 (slice 6)
+    ("ui", "closed_strip"): ("all", _choice("week", "all", "hidden")),  # D21 (slice 6)
+    ("urgent_is_critical",): (True, _bool),  # D28 installation default; ticket_departments.urgent_is_critical overrides (slice 6)
 }
 
 

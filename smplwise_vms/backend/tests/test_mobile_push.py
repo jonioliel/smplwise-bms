@@ -81,7 +81,7 @@ def test_push_registration_validation_mutes_and_unregister(w, relay):
     assert w.c.post(f"{API}/notifications/devices", json={"platform": "windows", "relay_token": "rt_0123456789abcdef0123"}, headers=tok).json()["code"] == "invalid_platform"
     assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_0123456789abcdef0123"}, headers=as_user("ops2")).status_code == 401  # device token only
     cats = w.c.get(f"{API}/notifications/categories", headers=tok).json()["categories"]
-    assert [c["id"] for c in cats] == ["safety", "alerts", "doors", "device_faults", "automations", "system", "security"] and cats[0] == {"id": "safety", "name": "בטיחות", "critical": True}
+    assert [c["id"] for c in cats] == ["safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets"] and cats[0] == {"id": "safety", "name": "בטיחות", "critical": True}
     assert w.c.get(f"{API}/notifications/categories", headers=as_user("ops2")).status_code == 200  # a session reads it too (the web app's device card)
     r = w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": ["automations", "system"]}, headers=tok)
     assert r.status_code == 200 and r.json()["push"]["muted"] == ["automations", "system"]

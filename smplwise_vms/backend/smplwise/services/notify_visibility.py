@@ -171,6 +171,10 @@ class Reach:
             return n.get("initiator_user_id") == uid
         if kind == "system":
             return self._allowed("system.configure")
+        if kind == "ticket":  # CR-038: exactly who may see the ticket (services/tickets/access.visible - module on, place, department)
+            from .tickets import notify_bridge
+
+            return notify_bridge.can_see(self.conn, self.principal, sid)
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "session":
