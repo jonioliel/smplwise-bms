@@ -438,6 +438,17 @@ def account_status(key: str, doc: MappingDoc, discovered: Mapping[str, Discovere
     return AccountStatus(tracker.derived(key), "sends")
 
 
+DOWN_STATES = frozenset({DISCONNECTED, MISSING})
+
+
+def state_transitions(before: Mapping[str, AccountStatus], after: Mapping[str, AccountStatus], mapped: Iterable[str]) -> dict[str, list[str]]:
+    """For the CR-018 signal `ticket.channel_down` (dedupe `ticket-channel:<account_key>`, slice 6): mapped accounts that turned
+    disconnected / missing since the last look (`down`), and those that came back connected (`up`, resolves the signal)."""
+    keys = sorted(set(mapped))
+    down = [k for k in keys if k in after and after[k].state in DOWN_STATES and (k not in before or before[k].state not in DOWN_STATES)]
+    up = [k for k in keys if k in before and before[k].state in DOWN_STATES and k in after and after[k].state == CONNECTED]
+    return {"down": down, "up": up}
+
 # ---------------------------------------------------------------- validation of a PUT, warnings
 
 def manual_value_problems(value: str, discovered: Mapping[str, Discovered], doc: MappingDoc) -> tuple[list[str], list[str]]:

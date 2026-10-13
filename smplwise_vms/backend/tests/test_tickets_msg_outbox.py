@@ -13,7 +13,6 @@ from tickets_msg_fakes import (ENTRY_A, ENTRY_B, KEY_A, KEY_B, PHONE_VENDOR, T0,
 
 from smplwise.services import messaging_accounts as ma
 from smplwise.services.tickets import outbox as ob
-from smplwise.services.tickets.channel import SendResult
 
 UTC = dt.timezone.utc
 
@@ -594,3 +593,66 @@ def test_outbox_thread_recovers_drains_and_ticks():
         assert drained and env.row(fresh.id).state == "sent"
     finally:
         th.stop()
+
+def test_codes_jump_the_queue():
+    env = make_env()
+    for c in ("c1", "c2", "c3"):
+        env.directory.add(c)
+    reminder = assign(env, contact="c2", link="L2", assignment="A2", purpose="reminder")
+    a = assign(env, contact="c3", link="L3", assignment="A3")
+    code = env.outbox.enqueue(purpose="code", now=env.clock.now(), contact_id="c1", link_id="L2", code="909090")
+    rec = recorded(env)
+    env.drain()
+    assert rec.ids == [code.id, a.id, reminder.id]
+
+
+def test_two_threads_ticking_never_put_two_messages_in_flight_on_one_account():
+    import threading
+
+    env = make_env()
+    for i in range(3):
+        env.directory.add(f"c{i}")
+        assign(env, contact=f"c{i}", link=f"L{i}", assignment=f"A{i}")
+    inflight, peak = [0], [0]
+    original = env.fake.call
+    gate = threading.Lock()
+
+    def counting(*a, **k):
+        with gate:
+            inflight[0] += 1
+            peak[0] = max(peak[0], inflight[0])
+        threading.Event().wait(0.05)
+        with gate:
+            inflight[0] -= 1
+        return original(*a, **k)
+
+    env.fake.call = counting
+    threads = [threading.Thread(target=env.tick) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(5)
+    assert peak[0] == 1 and len(env.fake.calls) == 1
+
+
+@pytest.mark.parametrize("ago_s,count,ok,reason", [
+    ([], 0, True, None), ([30], 1, False, "code_wait"), ([90], 1, True, None), ([90, 600, 1200], 3, False, "code_hour"),
+    ([4000, 8000, 12000, 16000, 20000, 24000], 6, False, "code_day"), ([4000, 8000, 12000, 16000, 20000], 5, True, None)])
+def test_code_request_limits_per_link(ago_s, count, ok, reason):
+    now = T0
+    got = ob.code_request_check([now - dt.timedelta(seconds=s) for s in ago_s], now)
+    assert got[0] is ok and got[2] == reason and len(ago_s) == count
+    if not ok:
+        assert got[1] >= 1
+
+
+def test_timeline_kinds():
+    env = make_env()
+    row = assign(env)
+    env.tick()
+    assert ob.timeline_kind(env.row(row.id)) == "link_sent"
+    assert ob.timeline_kind(dataclasses.replace(env.row(row.id), state="unknown")) == "message_unknown"
+    assert ob.timeline_kind(dataclasses.replace(env.row(row.id), state="refused")) == "message_failed"
+    assert ob.timeline_kind(dataclasses.replace(env.row(row.id), purpose="code")) == "code_sent"
+    assert ob.timeline_kind(env.row(row.id), fallback_step="email") == "message_fallback"
+    assert ob.timeline_kind(dataclasses.replace(env.row(row.id), ticket_id=None)) is None

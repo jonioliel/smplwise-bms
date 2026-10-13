@@ -311,6 +311,43 @@ def assignment_code_check(*, whatsapp_ok: bool, codes_whatsapp_ok: bool, email_o
     return code_route(link_sent_via=planned, whatsapp_ok=codes_whatsapp_ok, email_ok=email_ok) is not None
 
 
+# ---------------------------------------------------------------- code requests per link (10.5) and timeline kinds (7.1 / D14)
+
+CODE_LIMITS = ((dt.timedelta(seconds=60), 1, "code_wait"), (dt.timedelta(hours=1), 3, "code_hour"), (dt.timedelta(days=1), 6, "code_day"))
+
+
+def code_request_check(previous: Iterable[dt.datetime], now: dt.datetime) -> tuple[bool, int | None, str | None]:
+    """`POST /t/api/code/send` limits per LINK (10.5): 1 per 60 s, 3 per hour, 6 per day. (The 6-per-hour-per-recipient cap across
+    links is the pacing gate's; codes never count against the per-recipient MESSAGE cap.) Returns (ok, retry_after_s, reason)."""
+    now = now.astimezone(UTC)
+    times = sorted(t.astimezone(UTC) for t in previous)
+    for span, limit, reason in CODE_LIMITS:
+        inside = [t for t in times if now - t < span]
+        if len(inside) >= limit:
+            wait = inside[len(inside) - limit] + span - now
+            return False, max(1, int(wait.total_seconds() + 0.999)), reason
+    return True, None, None
+
+
+_SENT_KIND = {"assign": "link_sent", "reopened": "link_sent", "update": "update_sent", "reminder": "reminder", "code": "code_sent"}
+
+
+def timeline_kind(row: OutboxRow, *, fallback_step: str | None = None) -> str | None:
+    """The `ticket_events.kind` a final row writes (the D14 lines are rendered from it by the UI): sent -> link_sent /
+    update_sent / reminder / code_sent; unknown -> message_unknown ("ייתכן שנשלח"); not_sent / refused -> message_failed;
+    a fallback step -> message_fallback. None for rows without a ticket line of their own (notices, tests, cost messages)."""
+    if fallback_step:
+        return "message_fallback"
+    if row.ticket_id is None:
+        return None
+    if row.state == SENT:
+        return _SENT_KIND.get(row.purpose)
+    if row.state == UNKNOWN:
+        return "message_unknown"
+    if row.state in (NOT_SENT, REFUSED):
+        return "message_failed"
+    return None
+
 # ---------------------------------------------------------------- the outbox
 
 @dataclass
@@ -333,7 +370,8 @@ class Ports:
 class Outbox:
     def __init__(self, ports: Ports) -> None:
         self.p = ports
-        self._lock = threading.RLock()
+        self._lock = threading.RLock()  # row state: enqueue / cancel / release / the decisions of a tick
+        self._tick_lock = threading.Lock()  # one tick at a time: with the provider call outside `_lock`, this keeps one in flight per account
 
     # ------------------------------------------------------------ enqueue side
 
@@ -470,7 +508,7 @@ class Outbox:
         """One pass over the open rows; returns the number of provider calls made. Thread-safe; the worker thread calls it."""
         now = now.astimezone(UTC)
         calls = 0
-        with self._lock:
+        with self._tick_lock, self._lock:
             if not self.p.context.module_on():
                 for row in self.p.store.open_rows():
                     if not (row.state == "held" and row.held_reason == "module_off"):

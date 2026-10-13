@@ -356,3 +356,12 @@ def test_ref_for_the_test_send():
     svc = service(FakeHaWhatsapp([PairedAccount(ENTRY_A, "1")]), default_doc())
     assert svc.ref(KEY_A) == AccountRef(KEY_A, ENTRY_A, "קריאות ····0001")
     assert svc.ref("entry:UNSEEN") is None and svc.ref("manual:none") is None
+
+
+def test_state_transitions_for_the_channel_down_signal():
+    S = ma.AccountStatus
+    before = {KEY_A: S("connected", "entity"), KEY_B: S("disconnected", "entity")}
+    after = {KEY_A: S("missing", "registry"), KEY_B: S("connected", "entity"), "entry:X": S("disconnected", "entity")}
+    assert ma.state_transitions(before, after, [KEY_A, KEY_B]) == {"down": [KEY_A], "up": [KEY_B]}
+    assert ma.state_transitions({}, after, ["entry:X"]) == {"down": ["entry:X"], "up": []}
+    assert ma.state_transitions(after, after, [KEY_A, KEY_B, "entry:X"]) == {"down": [], "up": []}  # no repeat
