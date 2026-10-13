@@ -27,6 +27,10 @@ for which only the hook is designed (section 18).
 - r2.1 (2026-10-13): owner decision D17 - two long-press behaviours selectable in Settings (12.1).
 - r2.2 (2026-10-13): owner decisions D18-D24 - display settings of the tickets screens, three-level control of device
   history for vendors, and a first-class board table view (13.6); open questions now OQ1-OQ5.
+- r2.3 (2026-10-13): owner decisions D25-D29 close OQ1-OQ5: `tickets.external` restored as a separate sensitive
+  permission, grantable to one specific user (8.2); vendor-page languages; queued messages follow an account change; urgent
+  quiet-hours bypass as an installation + department setting; "send now" for holders of `tickets.external`. No owner
+  question remains open (22).
 
 **Related:** CR-018 (notification core: sources, recipients, escalation - the module's internal alerts ride on it), CR-008
 (remote access through a Cloudflare tunnel, the threat model of a public surface), CR-028 (the cast relay: the precedent for a
@@ -94,7 +98,7 @@ decision 2026-10-01: the database engine is decided when ticketing is specified 
 | D12 | The handler page has a **"לא שלי" (not mine)** button: it returns the ticket to the manager and revokes the link, and it **requires a free-text reason**. | 10.3, 10.7, 11.2 |
 | D13 | Fallback when WhatsApp is down: in-app notification (internal users and the managers), e-mail for contacts with an address, "copy link" for the others. **SMS is a future work item** (not in release 1); the channel interface is ready for it. | 9.5, 18A |
 | D14 | The timeline shows "נשלח - מסירה לא ידועה" (sent, delivery unknown) and "הקישור נפתח ב-<time>" (link opened at). | 9.7, 14.2 |
-| D15 | Permissions **as drawn in the mock-up**: view (also gates the device tab), create, manage, see all departments, settings. r1's `tickets.handle`, `tickets.external` and `tickets.contacts.manage` are folded into these five (section 8 records how and what that trades off). The WhatsApp account mapping (D9) is a separate, installation-level messaging permission, not a ticket permission. | 8 |
+| D15 | Permissions as drawn in the mock-up: view (also gates the device tab), create, manage, see all departments, settings; r1's `tickets.handle` and `tickets.contacts.manage` are folded into them (section 8). **The folding of `tickets.external` is reversed by D25.** The WhatsApp account mapping (D9) is a separate, installation-level messaging permission. | 8 |
 | D16 | All other earlier mock-up / r1 questions keep the recommended defaults: own menu area (Q1), dedicated address and listener (Q2), long press opens the device window with the "קריאות" tab (Q3; refined by D17), internal users sign in (Q4), dedicated WhatsApp number recommended (Q5), replies change only received / in progress + notes (Q9), keep closed tickets 2 years (Q10), same database behind a storage layer (Q11), one running number (Q13), no automatic replies (Q14). | 22 |
 | D17 | Long press on a device has **two behaviours, chosen in Settings** (installation setting, Settings › קריאות שירות › כללי): (a) **default = today's behaviour** - the long press opens the device window (activity sheet) whose last tab is "קריאות" with the create action; (b) the mock-up's behaviour - the long press opens a small **opaque** menu: "פתיחת קריאה", "הקריאות של הרכיב", "פתיחת המכשיר", "היסטוריה". Nothing changes for customers who do not use the module. Refines Q3 / D16. | 12.1, 14.1 |
 | D18 | Ticket details open in a **drawer with an "open full screen" button** (default). Setting: drawer / full screen / drawer + full-screen button. | 13.7, 14.1 `ui.detail` |
@@ -104,6 +108,11 @@ decision 2026-10-01: the database engine is decided when ticketing is specified 
 | D22 | New ticket opens in a **side sheet** (default). Setting: side sheet / centred dialog. | 13.7, 14.1 `ui.new_ticket` |
 | D23 | Device history for the vendor has **three control levels**: per department (default off), per vendor, and a per-ticket checkbox in the assign dialog; **never** for lock / alarm panel / cover / camera. | 12.3, 7.1, 7.2 |
 | D24 | The board's **table view is first-class**: views cards (default) / table / kanban, remembered per user; sortable columns, sticky header, column chooser, saved filters, multi-select with bulk actions (assign, remind, change priority, close), inline status / assignee change, CSV export, keyboard navigation, density toggle, compact list on a phone; server-side sort / filter / pagination through the single `visible()` gate. | 13.6, 8.1, 20 (slice 6b) |
+| D25 | Sending a ticket to an **external** contact / vendor is a **separate sensitive permission** `tickets.external` (restored; r2's folding into manage reversed). Every `tickets.*` permission (view, create, manage, all departments, external, settings) can be given to **one specific user**, in addition to roles, with audit. | 8, 8.2 |
+| D26 | Vendor page and messages in **Hebrew, English, Arabic or Russian**, chosen per contact. | 7.1, 7.2, 9.7, 10.7 |
+| D27 | Messages still queued when the ticket WhatsApp account changes **leave from the new account**; an `unknown` outcome is never re-sent silently. | 9.9.4 |
+| D28 | Urgent tickets **pass the managers' quiet hours by default**; a setting with an installation default and a per-department override. | 7.1, 13.4, 14.1 |
+| D29 | The first assignment message outside vendor send hours **waits for the morning**; "שלח עכשיו" is available to **anyone holding `tickets.external`** who can see the ticket (also a user granted it individually), not only to managers. | 9.2, 8.1 |
 
 D18-D22 (and D17) are **installation settings** under Settings › קריאות שירות › כללי (`system.configure`); the per-user
 choices of D24 (view, columns, density, sort, saved filters) are personal and stored per user.
@@ -124,7 +133,7 @@ N = nice-to-have (review 4.2). "Adopted" = in release 1; "Backlog" = recorded in
 | R1 / T17 / C1 - listener resources | Adopted: own thread + own event loop + own threadpool limiter; `access_log=False`, `server_header=False`, `limit_concurrency=16`, `timeout_keep_alive=5`, no signal capture; body read deadline; rate limit before any DB read; one in-flight upload per link; Cloudflare rate-limit rule as a required install step | 5, 10.1, 10.2 |
 | R1 / T7 / C2 - uploads | Adopted: own decode semaphore in `attachments.py`; 16 MP budget; JPEG via `draft()`; 8 MiB cap; **no WebP**; whole decode in `try/except`; storage cap checked before decode; data volume | 10.6 |
 | R2 / T18 / C7 - visibility | Adopted: placeless tickets authorised on "any held scope" (`rbac.permissions_anywhere`); internal notes member/manager-only; `by-entity` requires `devices.read` on the entity; assignee picker visibility stated | 8 |
-| R2 / T19 / C17 - escalation | Adopted: `tickets.configure` (the "settings" permission, which after D15 also manages the contact directory) sensitive; member edits only in departments one already manages (or with `tickets.all_departments`); template edits audited with a diff; contact assignment refused for a contact row with `user_id` (409 `assignee_not_allowed`); a contact's phone change revokes its live links and signals managers | 8, 8.1, 15.2 |
+| R2 / T19 / C17 - escalation | Adopted: `tickets.configure` (the "settings" permission, which also manages the contact directory) sensitive; `tickets.external` sensitive (D25); member edits only in departments one already manages (or with `tickets.all_departments`); template edits audited with a diff; contact assignment refused for a contact row with `user_id` (409 `assignee_not_allowed`); a contact's phone change revokes its live links and signals managers | 8, 8.1, 15.2 |
 | R3 / T14 - device history | Adopted as D3 | 12.3 |
 | R3 / T15 - photo visibility | Adopted: `ticket_attachments.visible_external` (manager uploads internal by default, the assignee's own external) | 7.1, 10.3 |
 | R3 / T13 - PII | Adopted: ambiguous reply text shown only after a manager claims it; the assign dialog previews the exact outgoing text; `tickets.enabled`, `tickets.settings`, `messaging.whatsapp` in `backup.SETTINGS_KEEP`; `{department}` next to the number | 9.6, 9.7, 7.4 |
@@ -160,8 +169,8 @@ N = nice-to-have (review 4.2). "Adopted" = in release 1; "Backlog" = recorded in
 | G - duplicates | Adopted: create sheet shows open tickets of the device; `duplicate_of` | 7.1, 14.2 |
 | G - vendor documents | Adopted (text only): the page says documents go to the manager by the usual way; PDF is backlog | 10.7, 18A |
 | G - offline | Adopted: draft note kept in `sessionStorage`, retried with the same `client_request_id` | 10.7 |
-| G - page language | **Open question OQ2** (section 22); schema column added now | 7.2 |
-| G - notification fatigue | Partly adopted: `notify_new` on for the first manager only; department flag `urgent_is_critical` (default on - open question OQ4); digest and per-department matrix are backlog | 7.1, 13.4 |
+| G - page language | Adopted (D26): he / en / ar / ru per contact | 7.2, 9.7, 10.7 |
+| G - notification fatigue | Partly adopted: `notify_new` on for the first manager only; `urgent_is_critical` (D28: installation default on + department override); digest and per-department matrix are backlog | 7.1, 13.4 |
 | G - "who is the manager" | Adopted: the page shows the assigner's display name; the "ask the manager" note type is backlog | 10.7 |
 | G - search / reporting | Adopted: text filter in the list; CSV export is backlog | 8.1 |
 | G - edits after sending | Adopted: "נשלח לפני השינוי" flag + "שלח עדכון" | 7.1, 11.3 |
@@ -180,7 +189,8 @@ N = nice-to-have (review 4.2). "Adopted" = in release 1; "Backlog" = recorded in
   routes with multipart parsing; a uvicorn server on its own thread and event loop gives the same isolation from the main loop
   with the existing FastAPI validation (section 10.1).
 - `urgent_is_critical` default: the review suggested default off; this CR keeps urgent tickets `critical` by default (so a
-  flood or a stuck lift reaches a manager during quiet hours) behind a per-department switch, and asks the owner (OQ4).
+  flood or a stuck lift reaches a manager during quiet hours) behind an installation setting with a per-department override
+  - the owner's decision D28.
 
 ## 2. Goals and non-goals
 
@@ -414,8 +424,9 @@ CREATE TABLE ticket_departments (
                                                        -- close N days after 'done' unless a manager acted first
   share_history_external INTEGER NOT NULL DEFAULT 0,   -- D3/D23: the department's DEFAULT for the per-ticket checkbox (12.3);
                                                        -- never for lock / alarm_control_panel / cover / camera, whatever this says
-  urgent_is_critical    INTEGER NOT NULL DEFAULT 1,    -- 1: priorities with notify_severity 'critical' keep it; 0: capped at 'alert'
-                                                       -- (no quiet-hours bypass, no CR-018 escalation) - open question OQ4
+  urgent_is_critical    INTEGER,                       -- D28 override; NULL = installation value (14.1, default true). 1: priorities
+                                                       -- with notify_severity 'critical' keep it; 0: capped at 'alert' (no
+                                                       -- quiet-hours bypass, no CR-018 escalation)
   link_sliding_days     INTEGER,                       -- D5 per-department overrides; NULL = installation value (14.1)
   link_cap_days         INTEGER,
   link_grace_hours      INTEGER,
@@ -495,6 +506,7 @@ CREATE TABLE ticket_templates (
   body          TEXT NOT NULL DEFAULT '',        -- ticket: prefilled description; message: text with allow-listed placeholders
   category_id   TEXT REFERENCES ticket_categories(id),
   priority_key  TEXT,
+  lang          TEXT NOT NULL DEFAULT 'he' CHECK (lang IN ('he', 'en', 'ar', 'ru')),   -- D26: message templates per language
   active        INTEGER NOT NULL DEFAULT 1,
   revision      INTEGER NOT NULL DEFAULT 1,
   updated_by    TEXT,
@@ -692,7 +704,7 @@ CREATE TABLE ticket_contacts (
   require_code     INTEGER NOT NULL DEFAULT 0,           -- option B (section 10.5)
   share_history    INTEGER,                              -- D23: per-vendor default for the history checkbox; NULL = the department's
   lang             TEXT NOT NULL DEFAULT 'he' CHECK (lang IN ('he', 'en', 'ar', 'ru')),   -- page + message language;
-                                                         -- only 'he' is selectable unless open question OQ2 is answered (b)
+                                                         -- D26: all four selectable; he / ar render RTL, en / ru LTR
   notes            TEXT NOT NULL DEFAULT '',             -- internal only, <= 1000
   active           INTEGER NOT NULL DEFAULT 1,
   created_by       TEXT NOT NULL,
@@ -898,13 +910,14 @@ Departments are deliberately **not** a new RBAC scope type: a new scope type tou
 delegation rules and every scope test (integ/249 shows the size of that change for stations); membership inside the module is
 local, matches the owner's model ("each department has its managers"), and is administered on the department page.
 
-**The five ticket permissions (D15, as drawn in the mock-up):**
+**The six ticket permissions (D15 as drawn in the mock-up, plus `tickets.external` restored by D25):**
 
 | Permission | Label (Hebrew) | Meaning | Sensitive | Default built-in roles |
 |---|---|---|---|---|
 | `tickets.view` | צפייה בקריאות | See tickets (own, assigned to me, my departments'); the nav area and the device tab "קריאות" exist only with it; **a member of a department who holds it can be assigned as an internal handler** and updates the tickets assigned to them (r1's `tickets.handle`) | no | operator, site_admin, system_admin |
 | `tickets.create` | פתיחת קריאות | Open a ticket (screen, device) in a department the user is a member of, or any active department that allows "anyone may open" (department flag, default on) | no | operator, site_admin, system_admin |
-| `tickets.manage` | ניהול קריאות | Manager actions in departments where the user is a **manager member**: assign (internal users **and directory contacts / vendors** - r1's `tickets.external`), reassign, close, cancel, reopen, edit, internal notes, send / resend / revoke / copy handler links, resolve unmatched replies, read the contact directory with full phone numbers of contacts allowed for those departments | no | site_admin, system_admin |
+| `tickets.manage` | ניהול קריאות | Manager actions in departments where the user is a **manager member**: assign (internal users; directory contacts / vendors **only together with `tickets.external`**), reassign, close, cancel, reopen, edit, internal notes, revoke handler links, resolve unmatched replies, read the contact directory (masked phones) for those departments | no | site_admin, system_admin |
+| `tickets.external` | שליחה לגורם חיצוני | **D25.** Send to outside contacts / vendors: with manager rights - assign to a contact, send / resend / new / copy handler links; on its own (any visible ticket) - "שלח עכשיו" for a message held by send hours (D29); see contacts' full phone numbers for the departments one manages | **yes** | site_admin, system_admin |
 | `tickets.all_departments` | כל המחלקות | `tickets.view` / `tickets.manage` apply in every department without membership | **yes** | system_admin |
 | `tickets.configure` | הגדרות קריאות | Departments, categories, priorities, SLA matrix, link-duration and send-hour overrides, message templates, members, **the contact / vendor directory** (create, edit, erase, export, "require verification code" - r1's `tickets.contacts.manage`) | **yes** (review T19) | system_admin |
 
@@ -916,15 +929,14 @@ Installation-level permissions used by the module (not ticket permissions):
 | `messaging.accounts.manage` (**new**, D9) | בחירת חשבונות וואטסאפ | Add / remove / label WhatsApp accounts and **map accounts to uses** (installation default, per-department override, codes, other modules' uses) | **yes** | system_admin |
 
 `viewer`, `kiosk`, `editor`, `door_opener`: none. Every new permission goes into `PERMISSION_LABELS`, `roles.json` (and
-`contracts/examples/role-catalog.design.json`), `sensitive_permissions_not_implied` for the three sensitive ones
-(`tickets.all_departments`, `tickets.configure`, `messaging.accounts.manage`), and the frontend permission labels.
+`contracts/examples/role-catalog.design.json`), `sensitive_permissions_not_implied` for the four sensitive ones
+(`tickets.all_departments`, `tickets.external`, `tickets.configure`, `messaging.accounts.manage`), and the frontend permission
+labels.
 
-**What folding r1's three extra permissions trades off (D15, recorded):** (1) every department manager can send a ticket to an
-outside contact; r1 made that a separate sensitive permission. Control left: a contact is offered only to the departments it is
-allowed for (`ticket_contact_departments`), and every link mint / send / copy is audited. (2) Being assignable is no longer a
-separate grant: any member of the department with `tickets.view` is assignable; a department's member list is the control.
-(3) Directory editing (phones, "require code") sits with the sensitive settings permission, which keeps review T19(4) intact.
-If a customer needs the finer split later, the three permissions can be reintroduced without a data change. The external-send part is re-asked as **OQ1** (section 22).
+**What folding r1's two remaining extra permissions trades off (D15, recorded):** (1) being assignable is no longer a
+separate grant: any member of the department with `tickets.view` is assignable; the department's member list is the control.
+(2) Directory editing (phones, "require code") sits with the sensitive settings permission, which keeps review T19(4)
+intact. External sending is **not** folded (D25).
 
 **Escalation rules (review T19):**
 - Member edits: `tickets.configure` **and** (manager member of that department **or** `tickets.all_departments`). Nobody can
@@ -983,13 +995,14 @@ department therefore learns the names of that department's members only (review 
 | `PATCH /tickets/{id}` | manager (or creator while `new`) | editable fields of 11.3; `revision` required (409 `ticket_stale`) |
 | `POST /tickets/{id}/status` | per 11.2 | `{to, note?, revision}` |
 | `POST /tickets/{id}/assign/preview` | manager | `{assignee, template_id?, note?}` → the **exact outgoing text** with the link shown as "[קישור]", the account label and channel that will be used, the send-hours outcome ("יישלח ב-07:00") and any refusal (`code_channel_unavailable`, `public_link_unavailable`) - review T13-3; no side effect |
-| `POST /tickets/{id}/assign` | manager | `{assignee: {kind: user\|contact, id}, channel?, template_id?, note?, note_external?, require_code?, send_now?, revision}`; ends the current assignment, revokes its link, mints a link for a contact, queues the message; 409 `assignee_not_allowed` for a contact row with `user_id`; 409 `code_channel_unavailable` (D6) |
+| `POST /tickets/{id}/assign` | manager; **+ `tickets.external` for a contact** (D25) | `{assignee: {kind: user\|contact, id}, channel?, template_id?, note?, note_external?, require_code?, share_history?, send_now?, revision}`; ends the current assignment, revokes its link, mints a link for a contact, queues the message; 409 `assignee_not_allowed` for a contact row with `user_id`; 409 `code_channel_unavailable` (D6) |
 | `POST /tickets/{id}/notes` | visible + (member / manager \| current assignee \| creator) | `{text, external: bool}` (`external` only for managers; default false in the timeline box) |
 | `POST /tickets/{id}/attachments` / `GET .../attachments/{aid}` / `DELETE ...` | as notes / visible per the "what a visible ticket shows" rule / manager or uploader within 10 min | multipart image (10.6); `external` flag as for notes; `body_limit.LIMITS` gains the row `ticket_attachment` (8 MiB + 64 KiB, review C3) |
 | `POST /tickets/{id}/eta` | current internal assignee or manager | `{eta_at}` |
 | `POST /tickets/{id}/return` | current internal assignee | `{kind: cannot_handle\|not_mine, reason}` (reason required, 1-500) |
 | `POST /tickets/{id}/send-update` | manager | re-sends the current text (purpose `update`) after an edit; clears `external_stale` |
-| `POST /tickets/{id}/link/resend` / `.../link/new` / `.../link/revoke` / `.../link/copy` | manager | resend the current link (extends the sliding expiry) / new generation (new cap) / revoke / return the URL once (audited) |
+| `POST /tickets/{id}/link/resend` / `.../link/new` / `.../link/revoke` / `.../link/copy` | manager; resend / new / copy also need `tickets.external` | resend the current link (extends the sliding expiry) / new generation (new cap) / revoke / return the URL once (audited) |
+| `POST /tickets/{id}/outbox/{outbox_id}/send-now` | visible + `tickets.external` (D29; not necessarily a manager) | releases a message `held` by send hours (`held_reason = 'send_hours'`) for immediate sending; audited `ticket.message.send_now`; refused for other hold reasons |
 | `GET /tickets/facets?<same filters as the list>` | `tickets.view` | counts per status (state strip, D21), per floor / area (tree, D19), per department, per stuck kind - over the visible set (13.6) |
 | `POST /tickets/bulk` | manager (checked per ticket) | D24 bulk actions (13.6) |
 | `GET /tickets/export.csv?<filters>&columns=` | `tickets.manage` (any department) | D24 CSV export of visible rows (13.6) |
@@ -999,7 +1012,7 @@ department therefore learns the names of that department's members only (review 
 | `GET /tickets/assignees?department_id=` | manager | 8 |
 | `GET /tickets/by-entity/{entity_id}` | `tickets.view` **and** `devices.read` on the entity | the device tab list (by `registry_id`, then `entity_id`) + `can_create` |
 | `GET/POST/PATCH/DELETE /tickets/admin/departments[...]`, `.../categories`, `.../priorities`, `.../sla`, `.../templates`, `.../members` | `tickets.configure` (members: + the escalation rule above) | revision-checked documents, 422 field problems |
-| `GET/POST/PATCH /tickets/contacts[...]`, `POST .../{id}/erase`, `GET .../{id}/export` | write / erase / export: `tickets.configure`; list read: `tickets.manage` (contacts allowed for the caller's departments, full phone) | directory |
+| `GET/POST/PATCH /tickets/contacts[...]`, `POST .../{id}/erase`, `GET .../{id}/export` | write / erase / export: `tickets.configure`; list read: `tickets.manage` (contacts allowed for the caller's departments; full phone only with `tickets.external`) | directory |
 | `GET/PUT /tickets/settings`, `POST /tickets/address/probe`, `POST /tickets/channel/test`, `GET /tickets/health`, `POST /tickets/key/rotate`, `PUT /settings` `tickets.enabled` | `system.configure` | 14.1, 17; `address/probe` and `channel/test` are in `remote_channel.BLOCKED_ON_REMOTE` (local only, review T11) |
 | `GET /messaging/whatsapp` | `system.configure` or `messaging.accounts.manage` | accounts (masked labels, state), registered uses and their mapping, warnings (9.9) |
 | `PUT /messaging/whatsapp` / `POST /messaging/whatsapp/refresh` | `messaging.accounts.manage` | revision-checked mapping document; `refresh` re-reads the entity mirror and the on-demand labels (9.9) |
@@ -1015,6 +1028,36 @@ notification does not acknowledge the ticket - the page says nothing about it, t
 directory entry linked by `ticket_contacts.user_id` with a phone, the WhatsApp message carries a deep link to `#/tickets/<id>`
 on the remote address (sign-in required, no token). No handler-page token is ever minted for an internal user (enforced by the
 409 above, not only by this text).
+
+### 8.2 Giving a ticket permission to one specific user (D25)
+
+**How RBAC works today (read in code):** there are no direct per-permission grants. A **binding** (`bindings` table, 0001 /
+0032) gives a **role** to a subject - `subject_kind = 'user'` (one user) or `'group'` - at a scope (installation / site /
+building / floor / camera), with `effect` allow / deny, an optional `expires_at`, `assigned_by` and `revoked_at`;
+`rbac.authorize` (l.138) walks the subject's active bindings and the role's permission list. Bindings are created through
+`POST /access/bindings` after `routers/access.py validate_binding` (l.803: `rbac.assign` on the scope, delegation limits
+`check_delegation`, no duplicate) and audited `rbac.bind` / `rbac.unbind` (l.863 / 896). Custom roles (0011) may carry
+sensitive permissions only by naming them explicitly, and never system permissions - the existing way to give one sensitive
+permission to one person is a custom role bound to that user (the `PERMISSION_LABELS` comment at l.54 says so).
+
+**Design (no new RBAC mechanism):** the module ships **six single-permission built-in roles** in `roles.json`:
+`tickets_view` (צפייה בקריאות), `tickets_create` (פתיחת קריאות), `tickets_manage` (ניהול קריאות), `tickets_all_departments`
+(כל המחלקות בקריאות), `tickets_external` (שליחה לגורם חיצוני), `tickets_configure` (הגדרות קריאות). Giving one of them to a
+specific user = an ordinary **user binding** of that role at installation scope (or a site / building / floor scope, which then
+limits it to tickets placed there - placeless tickets follow the "any held scope" rule of 8), optionally with an expiry. It adds
+to whatever the user's roles already give; a deny binding still wins. Consequences:
+- **Audit** is the existing `rbac.bind` / `rbac.unbind` row (subject, role, scope, expiry, actor), plus the permission
+  revision bump that already invalidates caches and the assignee-picker cache.
+- **Who may grant:** `rbac.assign` on the scope, as for any binding. The three sensitive single-permission roles
+  (`tickets_all_departments`, `tickets_external`, `tickets_configure`) are **not** in the default `rbac.delegable_roles`
+  allow-list, so a delegated (site) administrator cannot hand them out unless the owner adds them; the three others are
+  delegable by default.
+- **Where:** the existing user permissions screen (bindings) offers these roles like any other; Settings › קריאות שירות gains a
+  sub-tab **"הרשאות"** listing the users who hold any `tickets.*` permission and through what (role / group / direct grant), with
+  "הוספת הרשאה למשתמש" (user, permission, scope, optional expiry) that calls the same binding route - one mechanism, one audit.
+- Department membership (8) is still needed for department-scoped actions: a user granted `tickets_manage` must also be a
+  manager member of a department (or hold `tickets.all_departments`) to manage its tickets; `tickets_external` alone allows
+  only "שלח עכשיו" on tickets the user can see (D29).
 
 ## 9. The ticket message channel and WhatsApp
 
@@ -1058,8 +1101,9 @@ outbox `channel` CHECK and the fallback order (9.5) are the only places that nam
   - `reminder`, `closed`, `reassigned`, `reopened`, `update` are `held` (`held_reason = 'send_hours'`, `not_before` = the next
     opening) - **also for `critical` priorities** (review T21); the manager alerts of CR-018 are not affected;
   - `code` is never held (the vendor asked for it a second ago);
-  - `assign`: see open question OQ5 - designed default: held until the opening, with the assign dialog showing "יישלח ב-07:00"
-    and a "שלח עכשיו" choice (`send_now`), preselected for priorities whose severity is `critical`.
+  - `assign` (D29): held until the opening; the assign dialog shows "יישלח ב-07:00" and a "שלח עכשיו" choice (`send_now`),
+    preselected for priorities whose severity is `critical`; later, anyone holding `tickets.external` who can see the ticket can
+    release the held message from the ticket page ("שלח עכשיו", `send-now` route).
   - The CR-018 quiet-hours rule of r1 for reminders is replaced by this window (one rule for vendors, one for users).
 - **Held while the module is off** (`held_reason = 'module_off'`): the worker does not send; on re-enable the normal
   supersede / cancel rules run first.
@@ -1136,7 +1180,7 @@ Order per recipient (D13), decided when a send ends `not_sent` after retries, `r
    (the codes account is connected and the contact has a phone); otherwise skip to step 3.
 3. **Nobody reachable:** the ticket goes to "waiting for manager" with reason `send_failed`; the ticket page shows one line
    "ההודעה לא נשלחה" and two actions: "העתק קישור" (copies the handler URL so the manager can send it himself - the only place
-   a link is shown in the UI, manager only, audited `ticket.link.copy`; `ticket_links.sent_via = 'manual'`) and "שלח שוב".
+   a link is shown in the UI, manager with `tickets.external`, audited `ticket.link.copy`; `ticket_links.sent_via = 'manual'`) and "שלח שוב".
 4. (future, 18A) SMS slots in between 1 and 2 when built; nothing in release 1 refers to it.
 
 Nothing is ever re-sent on WhatsApp after a fallback succeeded, even if the account reconnects (one delivery path per message).
@@ -1205,7 +1249,10 @@ placeholders, Unicode `Cc` / `Cf` characters (control, bidi, zero-width - review
 1000 rendered characters → 422 field problems. `{link}` is mandatory in `assign` / `reminder` / `reopened` / `update`
 templates for contacts; `{code}` is mandatory in, and allowed only in, the `code` template, and the code message contains **no
 link and no ticket title** (separate channel discipline: forwarding the link message alone is not enough). Starter templates
-ship for each purpose. Times (`{eta}`) render in the installation's `time.zone` (review C12). `{department}` sits next to the
+ship for each purpose. Times (`{eta}`) render in the installation's `time.zone` (review C12). **Languages (D26):** each purpose has a template per
+language (`ticket_templates.lang`); the contact's `lang` picks it, falling back to Hebrew when a department has no template in
+that language; starter templates ship in he / en / ar / ru (the ar / ru starters need a native speaker's review before the
+release - a build item of slice 8, not an owner question). `{department}` sits next to the
 number in every starter template so "#1042" is never ambiguous (review Q13). Default `assign` text:
 
 ```
@@ -1347,7 +1394,7 @@ The outbox resolves the account **when the worker claims a row** (`queued` → `
 
 | Situation | `queued` / `held` rows | `sending` (in flight) | `sent` | `unknown` | Replies |
 |---|---|---|---|---|---|
-| Use moved to another account | leave from the **new** account at their turn (they never left, so this is not a resend; designed default - open question OQ3); the timeline line of each such message names the account label it left from | finishes on the account it was claimed with; its outcome stands | unchanged | **stays `unknown`**; never re-sent; "שלח שוב" (a manager's act) creates a new row on the current mapping | accepted from the **old** account for `reply_window_h` (the row's `account_key` is the reference) |
+| Use moved to another account | leave from the **new** account at their turn (they never left, so this is not a resend; owner decision D27); the timeline line of each such message names the account label it left from | finishes on the account it was claimed with; its outcome stands | unchanged | **stays `unknown`**; never re-sent; "שלח שוב" (a manager's act) creates a new row on the current mapping | accepted from the **old** account for `reply_window_h` (the row's `account_key` is the reference) |
 | Account `disconnected` / `unknown` | `held` (`channel_down`) up to `hold_when_down_min`, then fallback (9.5); **no automatic switch** to another account | the request either returns (outcome stands) or times out (`unknown`) | unchanged | stays `unknown` | n/a |
 | Account reconnects | still-held rows leave normally; rows that already fell back are **not** sent again on WhatsApp | - | - | stays `unknown` | resume |
 | Account `missing` (config entry gone, e.g. re-paired as a new entry) | as disconnected; the use keeps pointing at the missing key (so nothing is silently re-routed); `ticket.channel_down` tells administrators to map the new account | as above | unchanged | stays `unknown` | until `reply_window_h` |
@@ -1593,8 +1640,9 @@ Times on the page are shown in the installation's time zone (`time_zone` from th
 shown only when the browser's zone differs; the ETA picker works in that zone. **Offline / bad reception:** a typed note and a
 picked photo are kept as a draft in `sessionStorage`; a failed write is retried with the **same** `client_request_id` (no
 duplicates) with the line "נשמר במכשיר, יישלח כשתהיה קליטה"; no service worker. The page fetches the ticket on load and on
-`visibilitychange` to visible - no polling. Works without cookies; no third-party resources. Language: Hebrew RTL in release 1;
-per-contact language (`ticket_contacts.lang`) depends on open question OQ2.
+`visibilitychange` to visible - no polling. Works without cookies; no third-party resources.
+Language (D26): the contact's `lang` - Hebrew and Arabic RTL, English and Russian LTR; the page's ~40 strings and the
+status names exist in all four (a small catalogue inside the public bundle, still within the 60 KB budget).
 
 ## 11. Ticket lifecycle
 
@@ -1785,7 +1833,7 @@ passed its expiry or cap.
 | `ticket.channel_down` | a WhatsApp account mapped to a ticket use went disconnected / missing, or a required use is unmapped | `managers` (system) + `system.configure` + `messaging.accounts.manage` | alert | `ticket-channel:<account_key>` / resolved on reconnect / remap |
 
   The ticket's priority maps to the signal severity (`ticket_priorities.notify_severity`); with the department's
-  `urgent_is_critical = 1` (default; open question OQ4) urgent tickets pass the managers' quiet hours (`critical`) and get CR-018's
+  `urgent_is_critical` true (D28: installation setting, default true, per-department override) urgent tickets pass the managers' quiet hours (`critical`) and get CR-018's
   own escalation to administrators if nobody acknowledges (CR-018 §8.3); with 0 the severity is capped at `alert`. The
   administrator can also turn escalation off per source in the existing matrix. Notification text names the place and the
   ticket number only. `notify_new` is on only for each department's first manager by default (review: notification fatigue);
@@ -1850,7 +1898,7 @@ Dragging a card calls the same status route; drop zones of transitions the calle
 - **Bulk** (`POST /tickets/bulk {action, items: [{id, revision}], params, client_request_id}`): at most 50 tickets; each item
   is checked separately (visible, manager rights in its department, allowed transition, revision) and runs in its **own**
   transaction - the answer lists `ok | stale | forbidden | invalid_transition | not_found` per id (not all-or-nothing, stated in
-  the UI: "בוצע ב-12 מתוך 14"). `assign` to a contact queues one message per ticket (normal pacing and send hours; the
+  the UI: "בוצע ב-12 מתוך 14"). `assign` to a contact needs `tickets.external` and queues one message per ticket (normal pacing and send hours; the
   confirmation says how many messages will leave); `remind` = internal signal or a `reminder` message, at most one manual
   reminder per ticket per hour; `priority` takes a priority **key** mapped per department; `close` requires a note. Audit: one
   row per ticket plus one `ticket.bulk` row (action, counts).
@@ -1898,6 +1946,7 @@ The values reach every signed-in user through `GET /tickets/module` (`ui: {...}`
     "use_buttons": false,
     "reply_window_h": 72
   },
+  "urgent_is_critical": true,              // D28: installation default; ticket_departments.urgent_is_critical overrides
   "device_long_press": "sheet",            // D17: "sheet" (default, today's behaviour) | "menu" (the mock-up's opaque menu)
   "ui": {                                  // D18-D22, section 13.7
     "detail": "drawer_fullscreen", "board_floors": "tree", "grouping": "no_status_filter",
@@ -1969,7 +2018,7 @@ installation value next to each override ("ברירת מחדל: 14 ימים").
 
 - Stored about a non-user: name, company, phone, e-mail, language, notes, which tickets they handled, what they wrote and
   uploaded. Purpose: handling the organization's tickets. Shown only to holders of the ticket permissions; the full phone to
-  `tickets.configure` and to managers of the departments the contact is allowed for (D15).
+  `tickets.configure` and to holders of `tickets.external` who manage a department the contact is allowed for (D25).
 - **Erase** (`tickets.configure`, confirmation, audited `ticket.contact.erase`): replaces name with "איש קשר שנמחק", clears
   phone, phone_key, e-mail, notes; revokes live links (`contact_erased`); queued and held messages cancelled; the timeline keeps
   the frozen `assignee_name` / `actor_name` unless "מחק גם מההיסטוריה" is chosen, which rewrites those to the tombstone name
@@ -2003,7 +2052,7 @@ both the internal app (which has no CSP under Ingress) and the public page.
 | S9 [T10] | **Session / CSRF on the public app** | no cookies; token and code session in custom headers; no CORS; JSON-only writes | - |
 | S10 [T5] | **Code brute force; lock-out as DoS** | 6 digits (fixed); 10-min expiry; 5 attempts per link per 15 min → 30-min lock; 3 codes/h per link; single use; HMAC; constant-time compare; one-tap new link for the manager | ~5/10^6 per window; a link holder can lock the vendor out for 30 min |
 | S11 [T21] | **Channel abuse → number ban; night messages** | sends only from authenticated manager actions, the SLA monitor and code requests; per-account pacing shared by all uses; send hours for vendor-bound messages; no auto-replies; test sends capped; dedicated number recommended; shared-account warnings | Baileys ban risk remains (unofficial client) |
-| S12 [T18, T19] | **Privilege leaks and escalation between departments** | one `visible()` function (placeless tickets on any held scope; internal content for members / managers only; device tab requires `devices.read`); `tickets.configure` sensitive; member edits only where one already manages; template diffs audited; no token for internal users; contact changes revoke links; account mapping behind a sensitive permission | D15 folds external sending into `tickets.manage` (section 8 records the trade-off) |
+| S12 [T18, T19] | **Privilege leaks and escalation between departments** | one `visible()` function (placeless tickets on any held scope; internal content for members / managers only; device tab requires `devices.read`); `tickets.configure` sensitive; member edits only where one already manages; template diffs audited; no token for internal users; contact changes revoke links; account mapping behind a sensitive permission | any member with `tickets.view` is assignable (D15); single-user grants (8.2) are visible only in the bindings lists - the "הרשאות" sub-tab shows them in one place |
 | S13 [T17] | **DoS on the shared process / public listener as a pivot** | own thread + event loop + threadpool limiter; concurrency 16; keep-alive 5 s; body deadlines; rate limit before DB; one upload per link; own decode semaphore; separate app object with only `/t/*`; route-enumeration test; Cloudflare rate-limit rule | the SQLite write gate and the GIL are still shared (public writes are rate-limited) |
 | S14 [T11] | **SSRF** | the address probe validates the target, connects to the validated address (no second resolution), never follows redirects, never shows the body; local-only; inbound `media_url` never fetched; the public app has no redirect parameter | - |
 | S15 [T16] | **Log and error leaks** | no access log; route-template logging; invalid-request records filtered; public 422 without `input`; `httpx` at WARNING | - |
@@ -2078,8 +2127,8 @@ created), and `dedupe_key = "rule:<rule_id>:<entity|camera>"`. Estimated 6-8 age
 | "Ask the manager" note type on the page | review gap | raises `waiting_on = manager` (reason `question`) |
 | CSV export / monthly counts per department and vendor | review gap | release 1 has the text filter only |
 | Per-department notification matrix, daily digest of `done` / `closed` | review gap | release 1: `notify_new` for the first manager only, `urgent_is_critical` |
-| Vendor-page languages | review gap | **open question OQ2** - release 1 if answered (b) |
-| Finer permission split (separate external-send, handler and directory permissions) | D15 trade-off | no data change needed |
+| Separate handler and directory permissions | D15 trade-off | no data change needed |
+| More vendor-page languages | D26 | one catalogue file + templates per language |
 | Pacing shared with WisKey's own WhatsApp sends | 4, contradiction 3 | needs WisKey to report its sends; release 1 has the "used outside Arx" mark |
 
 ## 19. Test plan by layer
@@ -2108,23 +2157,23 @@ brackets.
 
 | # | Slice | Contents | Effort (r1) | Depends on |
 |---|---|---|---|---|
-| 1 | Skeleton + internal tickets | module switch + `/me` flag + `SETTINGS_KEEP`; D18 / D22 display settings (drawer / full screen, sheet / dialog); migration 0079 (all core tables incl. r2 columns and `ticket_requests`, one seeded "אחזקה" department with priorities + default SLA); `services/tickets` store/model/access/create; visibility rule with placeless any-scope and internal-content split; internal routes (CRUD, timeline, status incl. return kinds, notes / photos with the external flag, assign to internal users, assignee picker, text filter, duplicate hint + `duplicate_of`, reopen count, send-update flag); the five permissions + labels + sensitive list; Cc/Cf text hygiene; internal attachment body-limit row; audit; nav area + list + detail + create sheet; i18n catalogue; demo store | 29-37 (22-28) | - |
+| 1 | Skeleton + internal tickets | module switch + `/me` flag + `SETTINGS_KEEP`; the six permissions incl. `tickets.external` and the six single-permission roles + delegation defaults (D25, 8.2); D18 / D22 display settings (drawer / full screen, sheet / dialog); migration 0079 (all core tables incl. r2 columns and `ticket_requests`, one seeded "אחזקה" department with priorities + default SLA); `services/tickets` store/model/access/create; visibility rule with placeless any-scope and internal-content split; internal routes (CRUD, timeline, status incl. return kinds, notes / photos with the external flag, assign to internal users, assignee picker, text filter, duplicate hint + `duplicate_of`, reopen count, send-update flag); the five permissions + labels + sensitive list; Cc/Cf text hygiene; internal attachment body-limit row; audit; nav area + list + detail + create sheet; i18n catalogue; demo store | 32-40 (22-28) | - |
 | 2 | Departments + SLA | settings screens (departments, categories, priorities, the full SLA grid incl. "link not opened", members with the escalation rule, ticket templates with diff audit; department flags: automatic close, history to the handler, urgent as critical, link-duration and send-hour overrides); revision-checked admin routes; SLA due computation on every change (no monitor yet); department scoping tests | 16-21 (14-18) | 1 |
 | 3 | Device tab | `device-activity` third tab, `activityTag` for all entities, the two long-press modes of D17 (setting, `/me` flag, opaque menu extending `renderMenu`), menu item, map card action + count chip, `place.py`, `device_context.py` (security-domain rule), device-originated creation, `by-entity` with `devices.read`, category preselect by domain; D23 history checkbox | 16-22 (12-16) | 1 (2 for category preselect) |
-| 4 | Public page + links + directory | migration 0080; contacts directory (screens, phone visibility, erase/export, phone-change revocation); `links.py` (sliding expiry, cap, grace, redeem ids); public app on 18093 on its own thread/loop with the isolation table of 10.1 + add-on option + port; trusted-proxy rate limiting (`RateLimiter` scope parameter); second Vite entry + page (grace, "לא שלי", "סיום", offline draft, time zone, busy page); public API incl. idempotency and the 422 envelope; uploads validator (16 MP, JPEG/PNG, own semaphore); headers and log filter; address probe with SSRF rules; assignment to contacts with channel `manual` (copy link); assign preview; per-vendor history default (D23); `docs/security/` note on token-authorised media | 35-45 (22-28) | 1, 2 |
+| 4 | Public page + links + directory | migration 0080; contacts directory (screens, phone visibility, erase/export, phone-change revocation); `links.py` (sliding expiry, cap, grace, redeem ids); public app on 18093 on its own thread/loop with the isolation table of 10.1 + add-on option + port; trusted-proxy rate limiting (`RateLimiter` scope parameter); second Vite entry + page (grace, "לא שלי", "סיום", offline draft, time zone, busy page); public API incl. idempotency and the 422 envelope; uploads validator (16 MP, JPEG/PNG, own semaphore); headers and log filter; address probe with SSRF rules; assignment to contacts with channel `manual` (copy link); assign preview; per-vendor history default (D23); page in he / en / ar / ru with RTL / LTR (D26); `docs/security/` note on token-authorised media | 39-50 (22-28) | 1, 2 |
 | 5a | WhatsApp accounts (installation-level) | migration 0082; `services/messaging_accounts.py` (discovery from the mirror, on-demand label read, states, use registry + resolution, mapping document + `SETTINGS_KEEP`, per-account pacing ledger, warnings); `messaging.accounts.manage`; routes; Settings › חשבונות וואטסאפ screen; read-only live check (owner-approved) | 12-15 (new) | 1 |
-| 5b | Ticket channel + inbound | migration 0081; channel interface, WhatsApp adapter (account from the mapping, exception split, unknown-account classification) + e-mail adapter (redeem link), outbox worker with per-account pacing, send hours, `held` states, account-change / disconnect behaviour of 9.9.4, fallbacks of D13 incl. the code-protected rule, message templates and preview, D14 timeline lines, settings tab, test send, `ha_sync` subscription with the account filter, inbound parser + matcher (late, LID / nonce-only, claim-before-reveal ambiguous queue), fake `ha-whatsapp`; live send/reply check (owner-approved) | 24-30 (20-26) | 4, 5a |
+| 5b | Ticket channel + inbound | migration 0081; channel interface, WhatsApp adapter (account from the mapping, exception split, unknown-account classification) + e-mail adapter (redeem link), outbox worker with per-account pacing, send hours, `held` states, account-change / disconnect behaviour of 9.9.4, fallbacks of D13 incl. the code-protected rule, message templates per language (D26) and preview, D14 timeline lines, "send now" route for `tickets.external` (D29), settings tab, test send, `ha_sync` subscription with the account filter, inbound parser + matcher (late, LID / nonce-only, claim-before-reveal ambiguous queue), fake `ha-whatsapp`; live send/reply check (owner-approved) | 26-32 (20-26) | 4, 5a |
 | 6 | Stuck / escalation + board | SLA monitor in the janitor (incl. "link not opened", automatic close, link expiry), reminder ladder (send-hours aware, sliding extension), CR-018 sources / category / recipient rules / visibility branch incl. `contact_changed` and per-account `channel_down`, `urgent_is_critical`, `notify_new` first-manager default, manager board screen (cards view) with D19 floors tree / chips, D20 grouping, D21 state strip, facets route, one-tap "התקבל" deep link | 19-25 (14-18) | 2, 5b (external reminders) |
 | 6b | Board table + kanban (D24) | table view (sticky header, sort, column chooser, density, keyboard, inline status / assignee), kanban, phone compact list, saved views (`ticket_saved_views`, `user_prefs` key), list API sort / keyset pagination / short pages, bulk route + bar, CSV export route, tests incl. Playwright | 18-24 (new) | 6 |
 | 7 | Verification code (option B) | contact flag + per-assignment flag, code send/verify/lock through `tickets.codes`, D6 code-channel rule at assign and at send, code session, page states, lock card with one-tap new link | 10-13 (8-10) | 4, 5b |
 | 8 | Guide + review + gate | DOCS.md section + Hebrew user guide (installer: dedicated number, pairing, 14-day rule, choosing accounts per use, tunnel route, **required**: recorder exclusion of `whatsapp_message_*` and the last-message sensor, Cloudflare rate-limit rule and script features off for `t-*`, HA backups are sensitive; manager: link durations, send hours, codes and forwarding), security review of the public surface, upstream watch entry (`FaserF/ha-whatsapp`), bilingual changelog lines, tier-L gate on the runner | 10-15 (8-12) (+ gate runtime) | all |
 
-**Total: 189-247 agent-hours** (r1: 120-156; **+69 to +91, about +58%**). r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
+**Total: 198-257 agent-hours** (r1: 120-156; **+78 to +101, about +65%**). r2.3 (D25-D29) added 9-10: `tickets.external` and the single-user grant roles + "הרשאות" sub-tab (+3 in slice 1), languages (+4-5 in slice 4, +2 in slice 5b), D28 / D29 inside slices 5b / 6. r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
 link lifecycle and the redeem page (+12-16 in slice 4); the new WhatsApp accounts slice 5a (+12-15) and its effect on the
 channel (+4 in 5b); department-scoping and data-exposure fixes, duplicates, reopen, text filter (+5-6 in slice 1); settings
 for every threshold and the department overrides (+2-3); the owner's new items (automatic close, "link not opened", "לא שלי",
-D14 lines) about +4 spread over slices 1, 2, 4, 6. If OQ1 is answered (b) (separate external-send permission) add **1-2**; if OQ2 is answered (b) (vendor-page languages) add **5-7**.
-Calendar: about **7-8 working days with 3 agents in parallel** after slice 1 (r1: 4-5). Phase 2 rule action: 6-8 more.
+D14 lines) about +4 spread over slices 1, 2, 4, 6. No open owner question changes it any more.
+Calendar: about **8 working days with 3 agents in parallel** after slice 1 (r1: 4-5). Phase 2 rule action: 6-8 more.
 
 **Recommended order:** 1 → (2 ∥ 5a) → (3 ∥ 4) → 5b → ((6 → 6b) ∥ 7) → 8. Slice 1 is the single owner of the shared files
 (`roles.json`, `routers/access.py PERMISSION_LABELS` - it also adds `messaging.accounts.manage` so 5a does not touch them -,
@@ -2157,8 +2206,9 @@ reviewed change).
    change should exclude `platform = 'whatsapp'` sensors of that kind from the mirror (not built here without approval).
 7. **Department scoping outside the RBAC scope model**: a second "where" dimension that every query must respect. Mitigated by
    one `visible()` function and a matrix of permission tests per path, including notifications and the device tab.
-8. **Folded permissions (D15)**: any department manager can send to outside contacts. Mitigated by per-contact department
-   lists and audit; the finer split stays possible.
+8. **Single-user grants** (D25, 8.2): six more built-in roles in the role picker and grants that live in bindings, not roles.
+   Mitigated by clear Hebrew names, the "הרשאות" sub-tab that lists every holder and how they hold it, the audit of every bind,
+   and the sensitive roles staying out of delegation by default.
 9. **Device window fragmentation**: four different device surfaces; only the activity sheet has tabs, and long press exists only
    on area/tile screens. The CR adds the tab there and a map-card action and chip; other surfaces (bubble skin sheet without the
    activity sheet, 3D) stay without a direct entry in release 1.
@@ -2167,30 +2217,22 @@ reviewed change).
 11. **Personal data of non-users** (phones, names, photos): retention and erase must work from day one.
 12. **Parallel migration numbers** (0079-0083 may be taken by another branch first): renumber at integration.
 
-## 22. Open questions (for the owner; recommendations marked)
+## 22. Open questions
 
-All fourteen r1 questions are closed: Q6, Q7, Q8 and Q12 by the owner's decisions of 2026-10-13 (D10, D7, D3, D6), the other
-ten by D16 (recommended defaults kept). Still open - each with a designed default so building can start (OQ1 re-asks the
-D15 trade-off at the coordinator's request):
+**No owner question is open.** All fourteen r1 questions are closed (Q6, Q7, Q8, Q12 by D10, D7, D3, D6; the other ten by
+D16), and the r2 questions OQ1-OQ5 by D25-D29 (separate external-send permission; languages; queued messages follow the new
+account; urgent passes quiet hours as an installation + department setting; first message waits with "send now" for
+`tickets.external` holders).
 
-| # | Question | Options | Recommendation | Designed default until answered |
-|---|---|---|---|---|
-| OQ1 | Sending tickets to outside contacts / vendors: a separate sensitive permission? | (a) no - part of "ניהול קריאות" (D15 as drawn) (b) yes - a separate sensitive permission "שליחה לגורם חיצוני", given by default to the same built-in roles as management (+1-2 agent-hours) | (b) - sending to an outsider is the module's main way data leaves the organisation; with (b) a custom role can manage tickets internally without being able to send links out; with the default roles nothing changes | (a), per D15 |
-| OQ2 | Language of the handler page and messages | (a) Hebrew only in release 1 (b) Hebrew, English, Arabic, Russian per contact (+5-7 agent-hours) | (b) - many contractors' technicians read Arabic or Russian; ~40 strings and 7 templates per language | (a); the `lang` column exists |
-| OQ3 | Messages still waiting in the queue when a ticket use is moved to another WhatsApp account | (a) leave from the new account at their turn (b) are held until a manager confirms each | (a) - they never left, so it is not a resend; the save dialog shows the count first | (a) |
-| OQ4 | Urgent tickets and the managers' quiet hours | (a) urgent passes quiet hours and escalates to administrators, per-department switch on by default (b) the same switch, off by default | (a) - a flood or a stuck lift at night must reach a manager; a department can turn it off | (a) |
-| OQ5 | The **first** assignment message to a vendor outside send hours (reminders always wait) | (a) waits until the window opens; the manager can press "שלח עכשיו" (preselected for urgent) (b) always leaves at once | (a) - the owner's send-hours decision protects vendors and the number; the manager keeps the override | (a) |
-
-OQ1-OQ5 are questions 1-5 of the Hebrew owner summary, in the same order.
-
-**Still open but not owner questions** (facts to settle during the build; none blocks slice 1):
+**Still open - build-time verifications, not owner questions** (none blocks slice 1):
 1. `ha-whatsapp` on the owner's installed version: the connectivity sensor and its attributes, `account` = entry id, `entry_id`
-   on inbound events, the REST shape of an unknown-account error (9.9.5) - slices 5a / 5b live checks, each owner-approved.
+   on inbound events, the REST shape of an unknown-account error (9.9.5) - slices 5a / 5b live checks, **each owner-approved**.
 2. What the integration's "last message" sensor puts in the general entity mirror today (risk 6) - read-only look in 5a.
 3. `return_response` shape of `send_message` over REST (9.3) - slice 5b's approved test send.
 4. Reachability of container port 18093 through `cloudflared` on the add-on network (10.1) - slice 4 with the owner.
 5. uvicorn 0.53 signal capture off the main thread (10.1) - a test in slice 4.
 6. Migration numbers 0079-0083 against the branches open at implementation start.
+7. Native-speaker review of the Arabic and Russian page strings and starter templates (D26) - slice 8.
 
 ## 23. Sources
 
