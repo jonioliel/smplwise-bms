@@ -32,8 +32,9 @@ export class SwPopover extends LitElement {
       z-index: var(--sw-z-drawer);
       inline-size: 268px;
       max-inline-size: calc(100% - 24px);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* a popover is a menu surface: opaque in every skin, scheme and glass screen, nothing blurred behind it (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 10px;

@@ -371,8 +371,8 @@ test.describe('the mockups\' per-skin notes', () => {
     expect(bub.radius).toBe(bub.rMd);
   });
 
-  test('the list surface: opaque in classic and Tesla, glass in Domus; the text style opens a list at least 240 px wide', async ({ page }) => {
-    for (const [skin, check] of [['classic', 'opaque'], ['tesla', 'opaque'], ['domus', 'glass']] as const) {
+  test('the list surface: opaque in EVERY skin (owner 2026-10-13: a list is a menu, never see-through - Domus used to be an 84 % glass sheet), nothing blurred behind it; the text style opens a list at least 240 px wide', async ({ page }) => {
+    for (const skin of ['classic', 'tesla', 'domus', 'bubble', 'crystal']) {
       await stage(page, skin);
       await mount(page, ['pill', 'text']);
       await chip(page, 'pill').click();
@@ -382,11 +382,8 @@ test.describe('the mockups\' per-skin notes', () => {
         return { bg: cs.backgroundColor, blur: cs.backdropFilter, w };
       });
       const alpha = /^rgba\(.*,\s*([\d.]+)\)$/.exec(r.bg)?.[1] ?? /\/\s*([\d.]+)\)$/.exec(r.bg)?.[1];
-      if (check === 'opaque') expect(alpha === undefined || Number(alpha) === 1, `${skin} list is opaque (${r.bg})`).toBe(true);
-      else {
-        expect(Number(alpha ?? 1), `${skin} list is the 84% glass (${r.bg})`).toBeLessThan(0.95);
-        expect(r.blur).toContain('blur');
-      }
+      expect(alpha === undefined || Number(alpha) === 1, `${skin} list is opaque (${r.bg})`).toBe(true);
+      expect(r.blur, `${skin} list has no blur`).toBe('none');
       await page.keyboard.press('Escape');
       await chip(page, 'text').click();
       expect((await popOf(page, 'text').evaluate((el) => el.getBoundingClientRect().width)), `${skin} text list width`).toBeGreaterThanOrEqual(240);

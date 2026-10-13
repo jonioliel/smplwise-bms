@@ -616,9 +616,10 @@ export class MediaPlayerCard extends LitElement {
     :host([data-skin='bubble']) .pop {
       border: 0;
       border-radius: var(--sw-r-lg);
-      background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha));
-      -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
-      backdrop-filter: var(--sw-glass-blur-sheet);
+      /* the player's menu is never see-through (owner 2026-10-13): the skin's opaque menu surface, nothing blurred behind it */
+      background: var(--sw-menu-surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
       box-shadow: var(--sw-shadow-3);
     }
     @media (max-width: 1100px) {

@@ -73,6 +73,9 @@ export class SwCastPicker extends LitElement {
       z-index: var(--sw-z-drawer);
       inline-size: min(380px, calc(100vw - 24px));
       max-block-size: min(70vh, 560px);
+      /* the anchored picker floats over the page like a menu: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border-color: var(--sw-menu-border);
     }
     .panel.list {
       inline-size: 100%;

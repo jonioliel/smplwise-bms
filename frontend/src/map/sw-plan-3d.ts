@@ -396,9 +396,9 @@ export class SwPlan3d extends LitElement {
       inline-size: min(280px, calc(100% - 24px));
       padding: 10px 12px;
       border-radius: 12px;
-      background: color-mix(in srgb, var(--sw-surface) 86%, transparent);
-      border: 1px solid var(--sw-border);
-      backdrop-filter: blur(14px);
+      /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it keeps its glass */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
       direction: rtl;
       font-size: var(--sw-fs-xs);

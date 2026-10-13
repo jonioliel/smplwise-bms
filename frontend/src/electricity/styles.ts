@@ -878,8 +878,8 @@ export const elecCss = css`
     flex-direction: column;
     gap: 2px;
     padding: 6px;
-    background: var(--sw-surface-solid);
-    border: 1px solid var(--sw-border-strong);
+    background: var(--sw-menu-surface);
+    border: 1px solid var(--sw-menu-border);
     border-radius: var(--sw-r-md);
     max-block-size: 260px;
     overflow: auto;

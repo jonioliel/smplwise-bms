@@ -265,9 +265,10 @@ export class NotifyCenter extends LitElement {
         inset-block-start: calc(100% + 6px);
         inset-inline-end: 0;
         min-inline-size: 250px;
-        background: var(--mm-sheet-surface);
-        -webkit-backdrop-filter: var(--mm-sheet-blur);
-        backdrop-filter: var(--mm-sheet-blur);
+        /* the source filter's menu is never see-through (owner 2026-10-13): the opaque menu surface, nothing blurred behind it */
+        background: var(--sw-menu-surface);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
       }
       .nbody {
         flex: 1;

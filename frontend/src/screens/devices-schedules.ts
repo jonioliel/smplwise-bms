@@ -443,7 +443,7 @@ export class DevicesSchedules extends LitElement {
       font-size: var(--sw-fs-2xl);
     }
     .acard .pop {
-      background: var(--dv-surface-solid, #fff);
+      background: var(--sw-menu-surface);
       inset-block-start: 52px;
       inset-inline-end: 12px;
       min-inline-size: 190px;

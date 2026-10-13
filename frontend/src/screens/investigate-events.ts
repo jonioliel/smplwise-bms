@@ -426,8 +426,9 @@ export class InvestigateEvents extends LitElement {
       z-index: var(--sw-z-popover, 40);
       inline-size: 372px;
       max-inline-size: calc(100vw - 32px);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border-strong);
+      /* a floating preview over the list is a popover: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3, var(--sw-shadow-2));
       padding: 8px;

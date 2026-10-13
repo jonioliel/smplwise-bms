@@ -549,11 +549,12 @@ export const mediaGlassControls = css`
     position: absolute;
     z-index: 25;
     min-inline-size: 230px;
-    /* a menu sits inside glass panels (a nested backdrop-filter cannot blur what lies beyond its parent): near-solid */
-    background: color-mix(in srgb, var(--dv-surface-solid) 96%, transparent);
+    /* a menu sits inside glass panels (a nested backdrop-filter cannot blur what lies beyond its parent), and it is never see-through
+       (owner 2026-10-13; it was 96 % of the solid twin): the opaque menu surface - the glass palette's solid twin here, the skin's own under Bubble */
+    background: var(--sw-menu-surface);
     max-block-size: min(60vh, 440px);
     overflow-y: auto;
-    border: 1px solid var(--dv-border);
+    border: 1px solid var(--sw-menu-border);
     border-radius: 18px;
     box-shadow: var(--dv-shadow-3);
     padding: 6px;
@@ -808,6 +809,8 @@ export const mediaBubbleKnobs = css`
     --sw-surface-3: inherit;
     --sw-border: inherit;
     --sw-border-strong: inherit;
+    --sw-menu-surface: inherit;
+    --sw-menu-border: inherit;
     --sw-overlay: inherit;
     --sw-text: inherit;
     --sw-heading: inherit;

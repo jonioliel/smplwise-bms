@@ -17,7 +17,7 @@ const FLOORS = [
   { id: 'f3', label: 'גג', icon: 'layers', count: 0 },
 ];
 
-/** A neutral page behind the capsule (some cards, so the translucent panel has something to blur), the capsule in the corner like the floor chip. */
+/** A neutral page behind the capsule (some cards, so the opaque panel visibly covers something), the capsule in the corner like the floor chip. */
 async function stage(page: Page, width: number, scheme: string, sizes: string[], skin = 'classic') {
   await page.setViewportSize({ width, height: width <= 480 ? 844 : 760 });
   await page.goto('about:blank');

@@ -47,8 +47,8 @@ export interface DropdownChange {
 const isOption = (it: DropdownItem | undefined): it is DropdownItem => !!it && !it.divider;
 
 /**
- * A compact dropdown for choosing ONE of a list (0.1.153, the tabs presentation modes): a 32 px chip with a 44 px hit area and a
- * translucent popover with a real listbox - `aria-haspopup="listbox"` / `aria-expanded` / `aria-controls` on the chip,
+ * A compact dropdown for choosing ONE of a list (0.1.153, the tabs presentation modes): a 32 px chip with a 44 px hit area and an
+ * opaque popover (owner 2026-10-13: never see-through, `--sw-menu-surface`) with a real listbox - `aria-haspopup="listbox"` / `aria-expanded` / `aria-controls` on the chip,
  * `role="listbox"` + `aria-activedescendant` on the popover, `role="option"` / `aria-selected` on the options (44 px each), groups as
  * `role="group"`. Keys: Arrow Up/Down move (wrapping), Home / End jump, typeahead jumps to the next option starting with the typed
  * text, Enter / Space choose, Esc closes and returns focus to the chip, Tab closes; an outside press closes. The chip opens with
@@ -208,12 +208,14 @@ export class SwDropdown extends LitElement {
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      border: 1px solid var(--sw-dd-border-soft, var(--sw-border));
+      /* a list is a menu, and a menu is never see-through (owner 2026-10-13): the opaque menu surface in every skin, scheme, palette and
+         glass screen, nothing blurred behind it (the dim scrim of the phone sheet, ::backdrop below, may stay translucent) */
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg);
       color: var(--sw-dd-text, var(--sw-text));
-      background: var(--sw-dd-pop-bg, var(--mm-sheet-surface, color-mix(in srgb, var(--sw-surface) 86%, transparent)));
-      -webkit-backdrop-filter: var(--sw-perf-blur, blur(40px) saturate(1.8));
-      backdrop-filter: var(--sw-perf-blur, blur(40px) saturate(1.8));
+      background: var(--sw-menu-surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
       box-shadow: var(--sw-shadow-3);
       outline: none;
       opacity: 1;
@@ -502,7 +504,7 @@ export class SwDropdown extends LitElement {
       align-items: center;
       gap: 6px;
       padding: 4px 6px 6px;
-      border-block-start: 1px solid var(--sw-dd-border-soft, var(--sw-border));
+      border-block-start: 1px solid var(--sw-menu-border);
     }
     .ft .st {
       flex: 1 1 auto;
@@ -589,10 +591,10 @@ export class SwDropdown extends LitElement {
     :host(:where(:not([dd-style='auto']))) .pop {
       border: 0;
       border-radius: var(--sw-r-lg);
-      background: var(--sw-dd-pop-bg, var(--sw-perf-glass-bg, var(--sw-surface-solid)));
-      box-shadow: 0 0 0 1px var(--sw-border), var(--sw-shadow-3);
-      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet));
-      backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet));
+      background: var(--sw-menu-surface);
+      box-shadow: 0 0 0 1px var(--sw-menu-border), var(--sw-shadow-3);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
     }
     :host(:where(:not([dd-style='auto']))) .opt {
       min-block-size: var(--_opt);
@@ -956,10 +958,10 @@ export class SwDropdown extends LitElement {
     }
     :host([dd-style='capsule']) .pop {
       border: 0;
-      background: var(--sw-dd-pop-bg, var(--sw-perf-glass-bg, color-mix(in srgb, var(--sw-surface-solid) 80%, transparent)));
-      -webkit-backdrop-filter: var(--sw-perf-blur, blur(28px) saturate(1.6));
-      backdrop-filter: var(--sw-perf-blur, blur(28px) saturate(1.6));
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--sw-border) 75%, transparent), 0 26px 56px -18px color-mix(in srgb, var(--sw-text) 34%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--sw-text) 18%, transparent);
+      background: var(--sw-menu-surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      box-shadow: 0 0 0 1px var(--sw-menu-border), 0 26px 56px -18px color-mix(in srgb, var(--sw-text) 34%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--sw-text) 18%, transparent);
     }
     :host([dd-style='capsule']) .lb {
       display: flex;
@@ -1036,21 +1038,15 @@ export class SwDropdown extends LitElement {
     .ci {
       display: none;
     }
-    @media (prefers-reduced-transparency: reduce) {
-      :host([dd-style='capsule']) .pop {
-        background: var(--sw-surface-solid);
-      }
-    }
     @media (forced-colors: active) {
       :host([dd-style='capsule']) .chip::before {
         border-color: ButtonText;
       }
     }
-    /* ---- the mockups' per-skin notes (docs/design/compare/dropdown-styles): the list surface and four small exceptions. The skin is mirrored on the host (data-skin). ---- */
-    /* classic and Tesla: an opaque list (the base above); Domus: the glass sheet (84 % of the solid surface under the blur); Bubble: its own sheet colour at the transparency dial (skins/bubble.ts) */
-    :host([data-skin='domus']:not([dd-style='auto'])) .pop {
-      background: var(--sw-dd-pop-bg, var(--sw-perf-glass-bg, color-mix(in srgb, var(--sw-surface-solid) 84%, transparent)));
-    }
+    /* ---- the mockups' per-skin notes (docs/design/compare/dropdown-styles): three small exceptions. The skin is mirrored on the host (data-skin).
+       The LIST surface is no longer one of them (owner 2026-10-13): every skin's list is the opaque menu surface of the base above - the glass sheet
+       of Domus, the sheet colour of Bubble at the transparency dial and the translucent list of the mockups are gone, the skin's own --sw-menu-surface
+       carries its colour. ---- */
     /* Tesla: the pill is a 6 px rectangle there, so it gets a hairline to read as a control; the text style's badge follows the square radius */
     :host([data-skin='tesla'][dd-style='pill']) .chip {
       border-color: var(--sw-border);
@@ -1070,15 +1066,6 @@ export class SwDropdown extends LitElement {
     }
     :host([dd-style='text']) .pop {
       min-inline-size: 240px;
-    }
-    @media (prefers-reduced-transparency: reduce) {
-      .pop {
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
-      }
-      :host([data-skin='domus']:not([dd-style='auto'])) .pop {
-        background: var(--sw-surface-solid);
-      }
     }
     @media (forced-colors: active) {
       :host(:where(:not([dd-style='auto']))) .chip {

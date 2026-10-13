@@ -705,7 +705,7 @@ export class DeviceActivity extends LitElement {
     .scrim { position: fixed; inset: 0; z-index: calc(var(--sw-z-modal) + 1); }
     .menu {
       position: fixed; z-index: calc(var(--sw-z-modal) + 2); min-inline-size: 176px; padding: var(--sw-s-1);
-      background: var(--sw-surface-solid); color: var(--sw-text); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-3);
+      background: var(--sw-menu-surface); color: var(--sw-text); border: 1px solid var(--sw-menu-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-3);
       display: grid; gap: 2px;
     }
     .menu button {

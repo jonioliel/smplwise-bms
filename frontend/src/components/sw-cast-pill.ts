@@ -94,8 +94,9 @@ export class SwCastPill extends LitElement {
       max-block-size: min(70vh, 520px);
       overflow: auto;
       box-sizing: border-box;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the tray hangs over the page like a menu: opaque, never see-through (owner 2026-10-13) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
       padding: 10px;

@@ -501,10 +501,11 @@ export abstract class AutomationEditorBase extends LitElement {
         inset-block-start: 110px;
         max-block-size: calc(100% - 130px);
         overflow: auto;
-        background: var(--ab-sheet);
-        -webkit-backdrop-filter: blur(40px) saturate(1.8);
-        backdrop-filter: blur(40px) saturate(1.8);
-        border: 1px solid var(--dv-border);
+        /* the step-type chooser is a menu: opaque, never see-through (owner 2026-10-13); the editor sheet around it keeps its glass */
+        background: var(--sw-menu-surface);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border: 1px solid var(--sw-menu-border);
         border-radius: var(--sw-r-2xl);
         box-shadow: var(--dv-shadow-3);
         padding: 10px;

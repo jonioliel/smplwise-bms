@@ -43,6 +43,14 @@
   מצב ("דולק", "פעיל") הוא תמיד **צורה + טקסט**, לא צבע בלבד.
 - חומר שקוף חייב `--sw-surface-solid` (fallback לדפדפן בלי `backdrop-filter` ול-`prefers-reduced-transparency`); שכבות צפות
   (דיאלוג, מגירה) משתמשות ב-solid.
+- **תפריט הוא תמיד אטום** (2026-10-13, בקשת הבעלים: תפריט המשתמש הציג את עץ הבניין מבעדו בסקינים הזכוכיתיים). כל מה שצף מעל
+  תוכן אחר כתפריט - תפריט המשתמש (ובטלפון הגיליון התחתון), רשימת dropdown, תפריט "...", כרטיס popover, רשימת תוצאות חיפוש, חלון
+  בחירה - צובע `background: var(--sw-menu-surface)` ומסגרת `var(--sw-menu-border)`, בלי `backdrop-filter`. כל סקין מגדיר את שני
+  הטוקנים בשתי הסכמות כצבעים **אטומים לגמרי** (`#rrggbb`, לא rgba): המשטח הוא ה-solid של הסקין והמסגרת הקו הדק שלו מחוּשב מעליו.
+  כלל סקין שצובע selector של תפריט (`:host(sw-popover)`, `:host(sw-dropdown) .pop`, `:host(sw-app) .searchpanel`) חייב להשתמש בטוקן
+  הזה, בלי blur, ובכלל משלו (לא ביחד עם דיאלוג או מגירה). כרטיסים ופאנלים שעל הדף נשארים זכוכית; דיאלוג, מגירה וגיליון ה-Bubble
+  אינם תפריטים. הרשימה המלאה: `frontend/src/styles/menu-surface.ts`; הבדיקות: `unit-menu-lint.spec.ts` (סטטית),
+  `evidence-menu-opaque.spec.ts` (בדפדפן, alpha ו-blur מחושבים לכל סקין x סכמה).
 - כיווניות לוגית בלבד (`inset-inline-start`, `margin-inline-*`); וידאו, מפה, ציר זמן ותלת-ממד תמיד LTR.
 - `prefers-reduced-motion`: משכי התנועה מתאפסים (`css.ts`), אין hover-lift.
 

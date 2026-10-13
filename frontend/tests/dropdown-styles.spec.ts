@@ -247,7 +247,7 @@ test.describe('every style renders (sw-dropdown inside sw-tabs)', () => {
     expect(opt32).toBe(32);
   });
 
-  test('the performance tier: no backdrop-filter on the list when --sw-perf-blur is none; today\'s auto look keeps its blur in full', async ({ page }) => {
+  test('the performance tier: no backdrop-filter on the list in ANY tier - a list is a menu and never blurs (owner 2026-10-13; the auto look kept its blur in full until then)', async ({ page }) => {
     await stage(page);
     await mount(page, ['pill', 'auto']);
     const blur = (s: string) =>
@@ -261,7 +261,8 @@ test.describe('every style renders (sw-dropdown inside sw-tabs)', () => {
         await new Promise((r) => setTimeout(r, 100));
         return v;
       }, s);
-    expect(await blur('auto')).toContain('blur');
+    expect(await blur('auto')).toBe('none');
+    expect(await blur('pill')).toBe('none');
     await page.evaluate(() => (document.querySelector('#stage') as HTMLElement).style.setProperty('--sw-perf-blur', 'none'));
     expect(await blur('auto')).toBe('none');
     expect(await blur('pill')).toBe('none');
