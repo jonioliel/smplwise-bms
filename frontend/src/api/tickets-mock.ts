@@ -4,8 +4,8 @@
  * table (services/tickets/model.py STATUS_MOVES) in a simplified form. Nothing here is a security rule - the server decides.
  */
 import type {
-  AdminDepartment, AssignBody, CreateAnswer, CreateBody, DepartmentBody, Eligible, HoldersResponse, ListPage, ListQuery, Meta, ModuleState,
-  NameDoc, NameEntries, PatchBody, ReturnAnswer, ReturnBody, SettingsDoc, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
+  AdminDepartment, AssignBody, CreateAnswer, CreateBody, DepartmentBody, Eligible, HoldersResponse, InstallationDefaults, ListPage, ListQuery, Meta, ModuleState,
+  NameDoc, NameEntries, PatchBody, PriorityKey, ReturnAnswer, ReturnBody, SettingsDoc, SlaRow, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
 } from './tickets';
 import { DEFAULT_TICKET_NAMES } from '../tickets/naming';
 
@@ -43,14 +43,52 @@ function prios(dept: string): AdminDepartment['priorities'] {
   ];
 }
 
+// slice 2: the section 13.1 defaults (minutes) and the installation values of section 14.1
+const SLA_DEFAULTS: Record<PriorityKey, number[]> = {
+  urgent: [15, 1440, 30, 60, 1440, 480, 30], high: [60, 1440, 120, 480, 4320, 2880, 240],
+  normal: [240, 1440, 1440, 4320, 10080, 10080, 1440], low: [1440, 1440, 4320, 10080, 20160, 43200, 4320],
+};
+let installation: InstallationDefaults = { links: { sliding_days: 14, cap_days: 90, grace_hours: 24 }, send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true };
+
+function slaRows(dept: string): SlaRow[] {
+  return prios(dept).map((p) => {
+    const [un, lo, ack, st, sw, rs, rm] = SLA_DEFAULTS[p.key as PriorityKey];
+    return { priority_id: p.id, priority_key: p.key as PriorityKey, priority_name: p.name, priority_active: true, unassigned_after_min: un, link_unopened_min: lo,
+      ack_within_min: ack, stuck_after_min: st, stuck_waiting_min: sw, resolve_within_min: rs, remind_every_min: rm, max_reminders: 2, manager_alert_after_steps: 1,
+      revision: 1, updated_at: null, updated_by: null };
+  });
+}
+
+/** The policy fields of a department (no overrides) - `effective` is recomputed on every read (withEffective). */
+function policyDefaults(dept: string): Pick<AdminDepartment, 'auto_close_after_days' | 'share_history_external' | 'overrides' | 'effective' | 'sla' | 'templates'> {
+  return {
+    auto_close_after_days: null, share_history_external: false,
+    overrides: { link_sliding_days: null, link_cap_days: null, link_grace_hours: null, send_hours: null, urgent_is_critical: null },
+    effective: null as unknown as AdminDepartment['effective'], sla: slaRows(dept), templates: [],
+  };
+}
+
+function withEffective(d: AdminDepartment): AdminDepartment {
+  const o = d.overrides;
+  const sliding = o.link_sliding_days ?? installation.links.sliding_days;
+  const overridden = Object.entries(o).filter(([, v]) => v !== null).map(([k]) => k);
+  d.effective = {
+    links: { sliding_days: sliding, cap_days: Math.max(o.link_cap_days ?? installation.links.cap_days, sliding), grace_hours: o.link_grace_hours ?? installation.links.grace_hours },
+    send_hours: o.send_hours ?? { ...installation.send_hours }, urgent_is_critical: o.urgent_is_critical ?? installation.urgent_is_critical,
+    auto_close_after_days: d.auto_close_after_days, share_history_external: d.share_history_external, reopen_days: d.reopen_days, overridden,
+  };
+  return d;
+}
+
 const departments: AdminDepartment[] = [
   {
     id: 'dept-maintenance', key: 'maintenance', name: 'אחזקה', description: '', icon: null, color: null, sort_order: 0, active: true, open_to_all: true, reopen_days: 14,
-    revision: 1, open_tickets: 0, can_edit_members: true, priorities: prios('dept-maintenance'),
+    revision: 1, open_tickets: 0, can_edit_members: true, priorities: prios('dept-maintenance'), ...policyDefaults('dept-maintenance'),
+    templates: [{ id: 'tpl-ac', kind: 'ticket', name: 'מזגן לא מקרר', title: 'מזגן לא מקרר', body: 'חדר:\nתיאור:', category_id: 'cat-hvac', priority_key: 'high', active: true, revision: 1, updated_at: ago(300) }],
     categories: [
-      { id: 'cat-hvac', name: 'מיזוג', parent_id: null, default_priority_id: null, sort_order: 0, active: true },
-      { id: 'cat-elec', name: 'חשמל', parent_id: null, default_priority_id: null, sort_order: 1, active: true },
-      { id: 'cat-plumb', name: 'אינסטלציה', parent_id: null, default_priority_id: null, sort_order: 2, active: true },
+      { id: 'cat-hvac', name: 'מיזוג', parent_id: null, default_priority_id: null, domains: ['climate', 'fan'], sort_order: 0, active: true },
+      { id: 'cat-elec', name: 'חשמל', parent_id: null, default_priority_id: null, domains: ['light', 'switch'], sort_order: 1, active: true },
+      { id: 'cat-plumb', name: 'אינסטלציה', parent_id: null, default_priority_id: null, domains: ['valve'], sort_order: 2, active: true },
     ],
     members: [
       { kind: 'user', id: 'demo', name: ME.name, role: 'manager', notify_new: true, added_at: ago(900) },
@@ -60,8 +98,8 @@ const departments: AdminDepartment[] = [
   },
   {
     id: 'dept-cleaning', key: 'cleaning', name: 'ניקיון', description: '', icon: null, color: null, sort_order: 1, active: true, open_to_all: true, reopen_days: 7,
-    revision: 1, open_tickets: 0, can_edit_members: true, priorities: prios('dept-cleaning'),
-    categories: [{ id: 'cat-lobby', name: 'לובי ושטחים משותפים', parent_id: null, default_priority_id: null, sort_order: 0, active: true }],
+    revision: 1, open_tickets: 0, can_edit_members: true, priorities: prios('dept-cleaning'), ...policyDefaults('dept-cleaning'),
+    categories: [{ id: 'cat-lobby', name: 'לובי ושטחים משותפים', parent_id: null, default_priority_id: null, domains: [], sort_order: 0, active: true }],
     members: [
       { kind: 'user', id: 'demo', name: ME.name, role: 'manager', notify_new: true, added_at: ago(900) },
       { kind: 'user', id: 'u-dana', name: 'דנה לוי', role: 'member', notify_new: false, added_at: ago(700) },
@@ -162,6 +200,7 @@ export const mockBackend: TicketsBackend = {
         id: d.id, key: d.key, name: d.name, icon: d.icon, color: d.color, my_role: 'manager', can_create: true, can_manage: true, open_to_all: d.open_to_all,
         categories: d.categories.filter((c) => c.active).map((c) => ({ id: c.id, name: c.name, parent_id: c.parent_id, default_priority_id: c.default_priority_id })),
         priorities: d.priorities.filter((p) => p.active).map((p) => ({ id: p.id, key: p.key, name: p.name, rank: p.rank, severity: p.severity, is_default: p.is_default })),
+        templates: d.templates.filter((t) => t.active).map((t) => ({ id: t.id, name: t.name, title: t.title, body: t.body, category_id: t.category_id, priority_key: t.priority_key })),
       })),
       can: { view: true, create: true, manage: true, all_departments: true, external: false, configure: true },
     };
@@ -299,13 +338,23 @@ export const mockBackend: TicketsBackend = {
   },
   async settings(): Promise<SettingsDoc> {
     await sleep(40);
-    return { revision: settingsRevision, ui: { ...ui } };
+    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation) };
   },
   async saveSettings(_revision, patch) {
     await sleep(80);
     ui = { ...ui, ...patch };
     settingsRevision += 1;
-    return { revision: settingsRevision, ui: { ...ui } };
+    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation) };
+  },
+  async saveInstallation(_revision, patch) {
+    await sleep(80);
+    if (patch.ui) ui = { ...ui, ...patch.ui };
+    installation = {
+      links: { ...installation.links, ...(patch.links ?? {}) }, send_hours: patch.send_hours ?? installation.send_hours,
+      urgent_is_critical: patch.urgent_is_critical ?? installation.urgent_is_critical,
+    };
+    settingsRevision += 1;
+    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation) };
   },
   async saveName(_revision, entries) {
     await sleep(80);
@@ -315,24 +364,29 @@ export const mockBackend: TicketsBackend = {
   async departments() {
     await sleep(60);
     deptCounts();
-    return { departments: clone(departments), all_departments: true };
+    return { departments: clone(departments.map(withEffective)), all_departments: true, installation: clone(installation) };
   },
   async createDepartment(body: DepartmentBody) {
     await sleep(80);
     const id = `dept-${body.key ?? nid()}`;
     const d: AdminDepartment = {
       id, key: body.key ?? id, name: body.name ?? '', description: '', icon: null, color: null, sort_order: departments.length, active: true, open_to_all: body.open_to_all ?? true,
-      reopen_days: 14, revision: 1, open_tickets: 0, categories: [], priorities: prios(id), members: [], can_edit_members: true,
+      reopen_days: 14, revision: 1, open_tickets: 0, categories: [], priorities: prios(id), members: [], can_edit_members: true, ...policyDefaults(id),
     };
     departments.push(d);
-    return clone(d);
+    return clone(withEffective(d));
   },
   async patchDepartment(id, body) {
     await sleep(80);
     const d = departments.find((x) => x.id === id)!;
-    Object.assign(d, Object.fromEntries(Object.entries(body).filter(([k, v]) => k !== 'revision' && v !== undefined)));
+    const OVERRIDES = ['link_sliding_days', 'link_cap_days', 'link_grace_hours', 'send_hours', 'urgent_is_critical'];
+    for (const [k, v] of Object.entries(body)) {
+      if (k === 'revision' || v === undefined) continue;
+      if (OVERRIDES.includes(k)) (d.overrides as unknown as Record<string, unknown>)[k] = v;
+      else (d as unknown as Record<string, unknown>)[k] = v;
+    }
     d.revision += 1;
-    return clone(d);
+    return clone(withEffective(d));
   },
   async deleteDepartment(id) {
     await sleep(80);
@@ -342,7 +396,7 @@ export const mockBackend: TicketsBackend = {
   async createCategory(departmentId, name) {
     await sleep(60);
     const d = departments.find((x) => x.id === departmentId)!;
-    d.categories.push({ id: nid(), name, parent_id: null, default_priority_id: null, sort_order: d.categories.length, active: true });
+    d.categories.push({ id: nid(), name, parent_id: null, default_priority_id: null, domains: [], sort_order: d.categories.length, active: true });
     return clone(d);
   },
   async patchCategory(id, body) {
@@ -364,11 +418,48 @@ export const mockBackend: TicketsBackend = {
     Object.assign(d.priorities.find((p) => p.id === id)!, { ...body, is_default: body.is_default ?? d.priorities.find((p) => p.id === id)!.is_default });
     return clone(d);
   },
-  async putMember(departmentId, kind, subjectId, role) {
+  async saveSla(departmentId, rows) {
+    await sleep(80);
+    const d = departments.find((x) => x.id === departmentId)!;
+    for (const r of rows) {
+      const row = d.sla.find((x) => x.priority_id === r.priority_id);
+      if (!row) continue;
+      const { priority_id: _p, revision: _r, ...fields } = r;
+      Object.assign(row, fields);
+      row.revision += 1;
+    }
+    return clone(withEffective(d));
+  },
+  async createTemplate(departmentId, body) {
+    await sleep(60);
+    const d = departments.find((x) => x.id === departmentId)!;
+    d.templates.push({ id: nid(), kind: 'ticket', name: body.name ?? '', title: body.title ?? '', body: body.body ?? '', category_id: body.category_id ?? null,
+      priority_key: body.priority_key ?? null, active: body.active ?? true, revision: 1, updated_at: new Date().toISOString() });
+    return clone(withEffective(d));
+  },
+  async patchTemplate(id, body) {
+    await sleep(60);
+    const d = departments.find((x) => x.templates.some((t) => t.id === id))!;
+    const t = d.templates.find((x) => x.id === id)!;
+    const { revision: _r, ...fields } = body;
+    Object.assign(t, fields);
+    t.revision += 1;
+    return clone(withEffective(d));
+  },
+  async deleteTemplate(id) {
+    await sleep(60);
+    const d = departments.find((x) => x.templates.some((t) => t.id === id))!;
+    d.templates = d.templates.filter((t) => t.id !== id);
+    return clone(withEffective(d));
+  },
+  async putMember(departmentId, kind, subjectId, role, notifyNew) {
     await sleep(60);
     const d = departments.find((x) => x.id === departmentId)!;
     const m = d.members.find((x) => x.kind === kind && x.id === subjectId);
-    if (m) m.role = role;
+    if (m) {
+      m.role = role;
+      if (notifyNew !== undefined) m.notify_new = notifyNew && role === 'manager';
+    }
     else d.members.push({ kind, id: subjectId, name: PEOPLE.find((p) => p.id === subjectId)?.name ?? subjectId, role, notify_new: false, added_at: new Date().toISOString() });
     return clone(d);
   },
@@ -396,6 +487,12 @@ export const mockBackend: TicketsBackend = {
         { id: 'u-dana', name: 'דנה לוי', active: true, grants: [grant('b3', 'tickets_manage', 'ניהול', ['tickets.manage'], 'grant')] },
       ],
       grant_roles: ['tickets_view', 'tickets_create', 'tickets_manage', 'tickets_all_departments', 'tickets_external', 'tickets_configure'],
+      roles: [
+        { id: 'viewer', name: 'צופה', builtin: true, permissions: [] },
+        { id: 'operator', name: 'מפעיל', builtin: true, permissions: ['tickets.view', 'tickets.create'] },
+        { id: 'site_admin', name: 'מנהל אתר', builtin: true, permissions: ['tickets.view', 'tickets.create', 'tickets.manage', 'tickets.external'] },
+        { id: 'system_admin', name: 'מנהל מערכת', builtin: true, permissions: ['tickets.view', 'tickets.create', 'tickets.manage', 'tickets.external', 'tickets.all_departments', 'tickets.configure'] },
+      ],
     };
   },
 };

@@ -12,7 +12,7 @@ from typing import Literal
 from ...audit import audit
 from ...db import new_id, now_iso
 from ...errors import ApiError
-from . import access, model, notify_bridge, service, store
+from . import access, model, notify_bridge, service, sla, store
 from .access import Viewer, text
 
 
@@ -115,6 +115,7 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
                        to_status="new", data={"origin": spec.origin}, at=now)
     audit(conn, actor=viewer.principal, action="ticket.create", decision="allowed", resource_type="ticket", resource_id=ticket_id, request_id=rid,
           details={"number": number, "department_id": dept["id"], "origin": spec.origin})
+    sla.refresh(conn, ticket_id)  # slice 2: the dues of the new ticket (section 13.1)
     notify_bridge.ticket_created(conn, ticket_id)
     if spec.assign_to is not None:
         seen = access.require_visible(viewer, ticket_id)  # checked above: the manager holds tickets.view and the ticket is placeless

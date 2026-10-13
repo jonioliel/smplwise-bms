@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import sqlite3
 from typing import Any, Callable
 
@@ -25,19 +26,26 @@ def _choice(*allowed: str) -> Callable[[Any], str]:
     return check
 
 
-def _int_range(lo: int, hi: int) -> Callable[[Any], int]:
+def int_range(lo: int, hi: int) -> Callable[[Any], int]:
     def check(v: Any) -> int:
-        if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError("integer")
+        if not lo <= v <= hi:
             raise ValueError("range")
         return v
 
     return check
 
 
-def _bool(v: Any) -> bool:
+def boolean(v: Any) -> bool:
     if not isinstance(v, bool):
         raise ValueError("boolean")
     return v
+
+
+# slice 4 / slice 5b used the private names; one implementation (slice 2's)
+_int_range = int_range
+_bool = boolean
 
 
 def _org_name(v: Any) -> str:
@@ -76,22 +84,54 @@ def _cidrs(v: Any) -> list[str]:
     return [str(n) for n in nets]
 
 
+_HHMM = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+def send_hours(v: Any) -> dict[str, str]:
+    """D4 / 14.1: a local-time window `{"from": "HH:MM", "to": "HH:MM"}`, every day, in the installation's time zone. `from` must be
+    earlier than `to`: a window across midnight is refused in release 1, and `from == to` (an empty window) too."""
+    if not isinstance(v, dict) or set(v) != {"from", "to"}:
+        raise ValueError("shape")
+    a, b = v["from"], v["to"]
+    if not isinstance(a, str) or not isinstance(b, str) or not _HHMM.match(a) or not _HHMM.match(b):
+        raise ValueError("time")
+    if a >= b:
+        raise ValueError("order")
+    return {"from": a, "to": b}
+
+
+# section 14.1 / D5: link lifetime ranges (shared with the per-department overrides, services/tickets/policy.py)
+SLIDING_DAYS = (1, 90)
+CAP_DAYS = (7, 365)
+GRACE_HOURS = (0, 168)
+
 SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail"): ("drawer_fullscreen", _choice("drawer", "fullscreen", "drawer_fullscreen")),  # D18
     ("ui", "new_ticket"): ("sheet", _choice("sheet", "dialog")),  # D22
-    # slice 4: the handler page (section 10 / 14.1) and the link lifetime D5 (department overrides live on the department row)
+    # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
+    ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5
+    ("links", "cap_days"): (90, int_range(*CAP_DAYS)),  # D5, >= sliding_days (checked across keys below)
+    ("links", "grace_hours"): (24, int_range(*GRACE_HOURS)),  # D5
+    ("send_hours",): ({"from": "07:00", "to": "21:00"}, send_hours),  # D4
+    ("urgent_is_critical",): (True, boolean),  # D28
+    # slice 4: the handler page (section 10 / 14.1)
     ("organization_name",): ("", _org_name),
     ("public", "base_url"): ("", _base_url),
     ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
-    ("links", "sliding_days"): (14, _int_range(1, 90)),
-    ("links", "cap_days"): (90, _int_range(7, 365)),
-    ("links", "grace_hours"): (24, _int_range(0, 168)),
     # slice 5b: the ticket message channel (9.3 / 9.5 / 9.6); the accounts and their pacing live in `messaging.whatsapp` (9.9)
-    ("whatsapp", "enabled"): (False, _bool),  # the master switch: OFF until an administrator turns it on
-    ("whatsapp", "use_buttons"): (False, _bool),  # 9.3: buttons may show as text only on multi-device clients - numbered replies
-    ("whatsapp", "reply_window_h"): (72, _int_range(1, 336)),  # 9.6: replies are matched to messages sent within this window
-    ("email_fallback",): (True, _bool),  # 9.5 / D13: a contact with an e-mail address gets the redeem link when WhatsApp fails
+    ("whatsapp", "enabled"): (False, boolean),  # the master switch: OFF until an administrator turns it on
+    ("whatsapp", "use_buttons"): (False, boolean),  # 9.3: buttons may show as text only on multi-device clients - numbered replies
+    ("whatsapp", "reply_window_h"): (72, int_range(1, 336)),  # 9.6: replies are matched to messages sent within this window
+    ("email_fallback",): (True, boolean),  # 9.5 / D13: a contact with an e-mail address gets the redeem link when WhatsApp fails
 }
+
+
+def _cross_problem(doc: dict[str, Any]) -> str | None:
+    """A rule over several keys: the link cap is never shorter than the sliding window (section 14.1)."""
+    links = doc.get("links") or {}
+    if links.get("cap_days", 0) < links.get("sliding_days", 0):
+        return "links.cap_days:below_sliding"
+    return None
 
 
 def _get(doc: dict[str, Any], path: tuple[str, ...]) -> Any:
@@ -136,6 +176,9 @@ def read(conn: sqlite3.Connection) -> dict[str, Any]:
         except ValueError:
             value = copy.deepcopy(default)
         _set(out, path, value)
+    if _cross_problem(out):  # a stored pair that breaks the cross-key rule reads as the default pair (fail safe)
+        for path in (("links", "sliding_days"), ("links", "cap_days")):
+            _set(out, path, SCHEMA[path][0])
     return out
 
 
@@ -165,6 +208,10 @@ def apply_patch(conn: sqlite3.Connection, patch: dict[str, Any]) -> tuple[dict[s
         if _get(current, path) != clean:
             changed.append(".".join(path))
         _set(stored, path, clean)
+        _set(current, path, clean)
+    problem = _cross_problem(current)
+    if problem:
+        raise ValueError(problem)
     stored["revision"] = current["revision"] + 1
     conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                  (SETTING_KEY, json.dumps(stored, ensure_ascii=False, separators=(",", ":"))))
