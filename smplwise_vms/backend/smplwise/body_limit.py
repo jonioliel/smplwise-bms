@@ -132,6 +132,13 @@ def _ui_background(_s: Settings) -> int:
     return ui_background.IMAGE_MAX_BYTES + MULTIPART_SLACK
 
 
+def _plan_ifc(_s: Settings) -> int:
+    """CR-037: the IFC import (services/plan_ifc_read.MAX_BYTES; the route reads at most that many bytes itself)."""
+    from .services import plan_ifc_read
+
+    return plan_ifc_read.MAX_BYTES + MULTIPART_SLACK
+
+
 def _const(n: int) -> Callable[[Settings], int]:
     return lambda _s: n
 
@@ -150,6 +157,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/plan-versions/{_ID}/detect/accept"), _const(LARGE_JSON_MAX), "detection_accept"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/plan-versions/{_ID}/package/(preview|import)"), _plan_package, "plan_package"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/plan-versions/{_ID}/import-ifc"), _plan_ifc, "plan_ifc"),
     (frozenset({"POST"}), re.compile(r"/api/v1/catalog/import"), _const(CATALOG_IMPORT_MAX), "catalog_import"),
     (frozenset({"POST"}), re.compile(r"/api/v1/csp-report"), _csp_report, "csp_report"),
 ]

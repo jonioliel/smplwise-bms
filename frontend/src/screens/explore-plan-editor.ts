@@ -29,12 +29,13 @@ import '../components/sw-share-members';
 import { proposeDoor } from '../api/geometry';
 import { packageDialogStyles, renderPackageImportDialog, type PackageImportState } from './plan-package-dialog';
 import { pkgT } from '../i18n/plan-package';
-import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportPlanPackage, exportUrl, geometryDiff, importPlanPackage, previewPlanPackage, type PackageMode, type PackageOrigin, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
+import { ifcT } from '../i18n/plan-ifc';
+import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportPlanPackage, exportUrl, geometryDiff, importIfcGeometry, importPlanPackage, previewPlanPackage, type PackageMode, type PackageOrigin, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
 import { getPlanAreas, type PlanArea } from '../api/plan-links';
 import { deleteFloorImage, floorImageUrl, getFloorImages, putFloorImageLayout, uploadFloorImage, type FloorImageVariant, type FloorImagesInfo } from '../api/floor-images';
 import { isDefaultCorners, type Corners } from '../map/floor-image';
 import '../map/sw-floor-image-align';
-import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
+import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandSource, type CandState } from '../map/candidates';
 import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
 import { cap } from '../api/session';
@@ -335,7 +336,7 @@ export class ExplorePlanEditor extends LitElement {
   @state() private detectRun: DetectRunState = { busy: false, startedAt: 0, elapsed: 0, error: '', timedOut: false, limitS: null };
   /** Every run takes a token; only the latest run's answer and counter are used. */
   private detectToken = 0;
-  @state() private cands: { set: CandidateSet; result: DetectResult; source: 'detect' | 'dxf' } | null = null;
+  @state() private cands: { set: CandidateSet; result: DetectResult; source: CandSource } | null = null;
   @state() private candStates: Record<string, CandState> = {};
   @state() private candSel: string | null = null;
   @state() private candEdits: Record<string, Partial<GeomWall>> = {};
@@ -4152,7 +4153,7 @@ export class ExplorePlanEditor extends LitElement {
 
   /** A fresh candidate set: detected metres follow the document's effective scale (the server may have assumed another
    * one); DXF metres come from the drawing's units and stay. Everything starts accepted. */
-  private showCandidates(r: DetectResult, source: 'detect' | 'dxf') {
+  private showCandidates(r: DetectResult, source: CandSource) {
     const doc = this.studio.doc;
     let set = fromResult(r);
     if (doc && source === 'detect') {
@@ -4509,7 +4510,7 @@ export class ExplorePlanEditor extends LitElement {
     return renderDetectPanel(
       {
         opts: this.detectOpts, run: this.detectRun,
-        cands: c ? { source: c.source, set: c.set, states: this.candStates, sel: this.candSel, hint: c.result.calibration_hint, existingAuto: this.replacedIn(doc, this.setSources(c.set)), elapsedMs: c.result.elapsed_ms ?? null, rooms: c.result.rooms?.length ?? 0 } : null,
+        cands: c ? { source: c.source, set: c.set, states: this.candStates, sel: this.candSel, hint: c.result.calibration_hint, existingAuto: this.replacedIn(doc, this.setSources(c.set)), elapsedMs: c.result.elapsed_ms ?? null, rooms: c.result.rooms?.length ?? 0, ifc: c.result.ifc ?? null } : null,
         acceptedCount: this.acceptedCandidateIds.length, objectsOn: this.candObjectsOn, hintApplied: this.hintApplied, canEstimate: this.canEstimate, busy: this.busy, narrow: this.narrow,
         estimated, showEstimates: this.showEstimates, scale,
         autoInDraft: doc.walls.filter((w) => w.source === 'auto').length + doc.openings.filter((o) => o.source === 'auto').length,
@@ -4564,6 +4565,35 @@ export class ExplorePlanEditor extends LitElement {
 
   /** Save the signed package of the draft: pending edits are saved first, so the package is what the editor shows.
    * `withDxf` (PLN2): the package also carries the DXF and the plan picture it references. */
+  /** CR-037: an IFC file's candidates for the current level, shown in the detect tool like the DXF import's; the
+   * server stores nothing until the accept. */
+  private async importIfc(file: File) {
+    const b = this.bundle;
+    if (!b?.planVersionId || this.busy) return;
+    const versionId = b.planVersionId;
+    this.busy = true;
+    this.error = '';
+    this.info = ifcT('reading');
+    try {
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      const r = await importIfcGeometry(versionId, file, { levelId: this.activeLevel ?? undefined });
+      if (this.bundle?.planVersionId !== versionId) return;
+      this.showCandidates(r, 'ifc');
+      this.pickTool('detect');
+      const n = r.walls.length + r.openings.length + (r.objects?.length ?? 0) + (r.rooms?.length ?? 0);
+      this.info = n ? ifcT('loaded') : ifcT('nothing');
+      setTimeout(() => (this.info = ''), 4000);
+    } catch (err) {
+      this.info = '';
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private async exportPackage(withDxf = false) {
     const b = this.bundle;
     if (!b?.planVersionId || this.busy) return;
@@ -4657,7 +4687,7 @@ export class ExplorePlanEditor extends LitElement {
         doc: this.geomPreview ?? doc, W: b.width, H: b.height, mode: compact ? 'select' : this.studioMode, wallDefaults: this.wallDefaults, glassDraw: this.glassDraw, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
         compact,
         conflict: this.studio.hasConflict,
-        issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), exportDxf: exportUrl(versionId, 'dxf', { draft: true }), busy: this.busy,
+        issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), exportDxf: exportUrl(versionId, 'dxf', { draft: true }), exportIfc: exportUrl(versionId, 'ifc', { draft: true }), busy: this.busy,
         showEstimates: this.showEstimates,
         levels: doc.levels,
         phone: this.phone.matches,
@@ -4727,6 +4757,7 @@ export class ExplorePlanEditor extends LitElement {
         exportJson: () => this.exportJson(),
         exportPackage: (withDxf) => void this.exportPackage(withDxf === true),
         importPackage: (file) => void this.startPackageImport(file),
+        importIfc: (file) => void this.importIfc(file),
         reload: () => void this.loadStudio(b, true),
         calibrate: () => this.pickTool('calibrate'),
         retry: async () => {
