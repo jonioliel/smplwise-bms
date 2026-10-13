@@ -7,6 +7,8 @@ the link (one indexed read), claims the link's single upload slot, then reads th
 the edge (public_http) - and hands it to `parse_form`, which allows exactly the fields the route names:
 - no preamble, no epilogue beyond one CRLF, the boundary of the Content-Type only (RFC 2046 characters, 1-70 long);
 - each part: a header block of at most 1 KiB and 4 headers; `Content-Disposition: form-data` with a plain ASCII `name`;
+  parameters are read by a small RFC 2045 tokeniser (code review V20): a quoted value may hold `;` or an escaped quote
+  (`filename="a;b.jpg"` is one parameter, as browsers send it);
 - every name at most once, unknown names refused, a file field must carry a `filename` (its value is never used), a text
   field must not, and is bounded and UTF-8;
 - the declared part Content-Type is ignored (the image pipeline sniffs the bytes).
@@ -52,45 +54,84 @@ class Part:
             raise MultipartError("encoding") from None
 
 
+def params_of(rest: str) -> list[tuple[str, str]] | None:
+    """The `; key=value` parameters of a header value (everything after its first token), keys lower-cased; a value is a token
+    or a quoted string in which `;` is plain text and a backslash escapes the next character. None when the syntax is broken
+    (a parameter without `=`, an empty key, an unterminated quote, text after a quoted value)."""
+    out: list[tuple[str, str]] = []
+    i, n = 0, len(rest)
+    ws = " \t"
+    while True:
+        while i < n and rest[i] in ws:
+            i += 1
+        if i >= n:
+            return out
+        if rest[i] != ";":
+            return None
+        i += 1
+        while i < n and rest[i] in ws:
+            i += 1
+        if i >= n:
+            return out  # a trailing ";" is tolerated
+        j = i
+        while j < n and rest[j] not in "=;" + ws:
+            j += 1
+        key = rest[i:j]
+        while j < n and rest[j] in ws:
+            j += 1
+        if not key or j >= n or rest[j] != "=":
+            return None
+        j += 1
+        while j < n and rest[j] in ws:
+            j += 1
+        if j < n and rest[j] == '"':
+            j += 1
+            buf: list[str] = []
+            while j < n and rest[j] != '"':
+                if rest[j] == "\\" and j + 1 < n:
+                    j += 1
+                buf.append(rest[j])
+                j += 1
+            if j >= n:
+                return None
+            j += 1
+            value = "".join(buf)
+        else:
+            k = j
+            while j < n and rest[j] not in ";" + ws:
+                j += 1
+            value = rest[k:j]
+        out.append((key.lower(), value))
+        i = j
+
+
 def boundary_of(content_type: str | None) -> bytes:
     """The boundary of a `multipart/form-data; boundary=...` header value, or MultipartError."""
     if not content_type or len(content_type) > 300:
         raise MultipartError("content_type")
-    media, _, params = content_type.partition(";")
+    media, semi, params = content_type.partition(";")
     if media.strip().lower() != "multipart/form-data":
         raise MultipartError("content_type")
-    boundary = None
-    for raw in params.split(";"):
-        key, sep, value = raw.strip().partition("=")
-        if sep and key.strip().lower() == "boundary":
-            if boundary is not None:
-                raise MultipartError("boundary")
-            value = value.strip()
-            if len(value) >= 2 and value[0] == value[-1] == '"':
-                value = value[1:-1]
-            boundary = value
-    if boundary is None or not _BOUNDARY_RE.fullmatch(boundary):
+    parsed = params_of(semi + params)
+    if parsed is None:
         raise MultipartError("boundary")
-    return boundary.encode("ascii")
+    found = [v for k, v in parsed if k == "boundary"]
+    if len(found) != 1 or not _BOUNDARY_RE.fullmatch(found[0]):
+        raise MultipartError("boundary")
+    return found[0].encode("ascii")
 
 
 def _disposition(value: str) -> tuple[str, bool]:
     """(name, has_filename) of a `form-data; name="x"[; filename="y"]` value."""
-    kind, _, rest = value.partition(";")
+    kind, semi, rest = value.partition(";")
     if kind.strip().lower() != "form-data":
+        raise MultipartError("disposition")
+    parsed = params_of(semi + rest)
+    if parsed is None:
         raise MultipartError("disposition")
     name: str | None = None
     has_filename = False
-    for raw in rest.split(";"):
-        key, sep, val = raw.strip().partition("=")
-        if not sep:
-            if raw.strip():
-                raise MultipartError("disposition")
-            continue
-        key = key.strip().lower()
-        val = val.strip()
-        if len(val) >= 2 and val[0] == val[-1] == '"':
-            val = val[1:-1]
+    for key, val in parsed:
         if key == "name":
             if name is not None or not _NAME_RE.fullmatch(val):
                 raise MultipartError("disposition")

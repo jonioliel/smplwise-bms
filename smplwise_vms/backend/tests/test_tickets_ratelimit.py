@@ -172,6 +172,83 @@ def test_a_busy_database_keeps_the_batch_for_the_next_flush():
     assert lim.flush(Busy()) == 0 and lim.dirty == 1  # type: ignore[arg-type]
 
 
+def test_flush_to_survives_a_write_lock_held_by_another_writer(tmp_path, monkeypatch):
+    """Code review section 2 / W15: another writer holds SQLite's write lock (BEGIN IMMEDIATE on another connection - a backup
+    tool, another process). The failure happens BEFORE flush() is entered (in db.connection's BEGIN IMMEDIATE); flush_to
+    answers 0, keeps every dirty key and the next janitor tick writes them - never an exception out of the janitor step."""
+    import smplwise.db as dbmod
+    from smplwise.db import Database
+
+    db = Database(tmp_path / "smplwise.db")
+    db.migrate()
+    monkeypatch.setattr(dbmod, "BUSY_TIMEOUT_S", 0.3)  # the real 10 s wait, shortened for the test
+    c = Clock()
+    gate = rl.PublicRateGate(rl.new_public_limiter(c))
+    for _ in range(12):
+        gate.limiter.record("fail:198.51.100.0/24", ((60.0, 20),))
+    gate.success("t:" + "a" * 24)
+    assert (gate.limiter.dirty, gate.good.dirty) == (1, 1)
+    other = sqlite3.connect(str(tmp_path / "smplwise.db"), isolation_level=None, timeout=0)
+    other.execute("BEGIN IMMEDIATE")
+    try:
+        assert gate.flush_to(db) == 0 and (gate.limiter.dirty, gate.good.dirty) == (1, 1)
+    finally:
+        other.execute("ROLLBACK")
+        other.close()
+    assert gate.flush_to(db) == 2 and (gate.limiter.dirty, gate.good.dirty) == (0, 0)
+
+
+def test_request_cost_decides_every_exit_explicitly():
+    """Code review 5.1: one cost object per request; every method idempotent; what each exit costs."""
+    c = Clock()
+    g = rl.PublicRateGate(rl.new_public_limiter(c))
+    net = "198.51.100.0/24"
+    tok = "t:" + "a" * 24
+    early = g.open("token_write", net, tok)  # an unknown token refused before any lookup (a 415, a 413)
+    assert early.decision.ok and not early.trusted
+    early.refused_early()
+    early.refused_early()
+    assert g.limiter.count(f"fail:{net}", 60) == 1 and g.limiter.count("fail:*", 60) == 0  # its network only
+    proved = g.open("token_write", net, tok)
+    proved.proved("0123456789abcdef0123456789abcdef")
+    proved.proved()
+    assert proved.trusted and g.known_good(tok) and g.limiter.count(tok, 60) == 1 and proved.link_id.startswith("0123")
+    proved.refused_early()  # a proved token never pays a network failure
+    assert g.limiter.count(f"fail:{net}", 60) == 1
+    proved.effect()
+    proved.effect()
+    assert g.limiter.count("w:" + tok, 3600) == 1
+    upload = g.open("photo", net, tok)  # known good now
+    assert upload.known_good and upload.trusted
+    upload.body_phase()
+    upload.body_phase()
+    upload.effect()  # already paid by its body phase
+    assert g.limiter.count("p:" + tok, 3600) == 1 and upload.charges == "good+body"
+    read = g.open("token_read", net, tok)
+    read.body_phase()  # not an upload kind: nothing
+    assert g.limiter.count("w:" + tok, 3600) == 1 and read.charges == "good"
+    stranger = g.open("token_read", net, "t:" + "b" * 24)
+    stranger.unknown()
+    stranger.unknown()
+    assert g.limiter.count("fail:*", 60) == 1 and g.limiter.count(f"fail:{net}", 60) == 2 and stranger.charges == "unknown"
+
+
+def test_public_limiter_memory_follows_each_keys_own_window():
+    """Code review V9: twice the largest cap per key (600, not 1024), and a key of a 60 s window keeps one minute of
+    instants, not the scope's hour."""
+    c = Clock()
+    lim = rl.new_public_limiter(c)
+    assert lim.max_events == 2 * rl.PublicLimits().max_cap == 600
+    for _ in range(100):
+        lim.record("fail:198.51.100.0/24", ((60.0, 20),))
+    c.advance(61)
+    lim.record("fail:198.51.100.0/24", ((60.0, 20),))
+    assert len(lim._hits["fail:198.51.100.0/24"]) == 1  # noqa: SLF001
+    for _ in range(700):
+        lim.record("fail:*", ((60.0, 300),))
+    assert len(lim._hits["fail:*"]) == 600  # noqa: SLF001
+
+
 def test_exact_counting_under_concurrency():
     c = Clock()
     lim = limiter(c)

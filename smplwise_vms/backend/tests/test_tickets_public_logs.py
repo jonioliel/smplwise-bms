@@ -1,11 +1,13 @@
 """CR-038 log hygiene of the public listener (spec 10.4 / 17 / 19, review T16): a live listener on 127.0.0.1 is driven with
 traffic full of secrets - a live token, an unknown token, a redeem id in the path, a code session, the six-digit code, a phone
 number in bodies, headers, a malformed request and an exception message, a client address in CF-Connecting-IP, a user-agent
-marker, EXIF metadata, an oversize head, a concurrency overflow, a handler crash - while EVERY relevant logger (root, uvicorn,
-uvicorn.error, uvicorn.access, uvicorn.asgi, smplwise.*, python_multipart, asyncio) is captured at the lowest level. None of
-the secrets may appear in any record (message, arguments, exception text), uvicorn.access must stay silent, and the request
-lines must name route templates only. The client libraries' own loggers (httpx / httpcore: this test's client side) are
-excluded from the scan. Every value is invented."""
+marker, EXIF metadata, PNG text and ICC chunks, a progressive JPEG, an oversize head, a connection-budget overflow, a handler
+crash - while EVERY relevant logger (root, uvicorn, uvicorn.error, uvicorn.access, uvicorn.asgi, smplwise.*, python_multipart,
+asyncio, PIL and its TIFF / PNG / JPEG readers, starlette, fastapi, anyio - code review V10) is captured at the lowest level.
+None of the secrets may appear in any record (message, arguments, exception text), uvicorn.access must stay silent, and the
+request lines must name route templates only. The client libraries' own loggers (httpx / httpcore: this test's client side)
+are excluded from the scan. The image corpus is built at import, BEFORE the capture lowers Pillow's levels (building EXIF
+logs it too). Every value is invented."""
 from __future__ import annotations
 
 import io
@@ -29,7 +31,38 @@ CLIENT_IP = "198.51.100.77"
 UA_MARK = "UA-MARKER-7f3a"
 EXIF_MARK = "EXIF-MARKER-c2d9"
 LOGGERS = ("", "uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi", "smplwise", "smplwise.tickets.public",
-           "smplwise.tickets.public.http", "python_multipart", "python_multipart.multipart", "asyncio")
+           "smplwise.tickets.public.http", "python_multipart", "python_multipart.multipart", "asyncio", "PIL", "PIL.Image",
+           "PIL.TiffImagePlugin", "PIL.PngImagePlugin", "PIL.JpegImagePlugin", "starlette", "fastapi", "anyio")
+
+
+def _corpus() -> dict[str, bytes]:
+    import struct
+    import zlib
+
+    def chunk(ctype: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + ctype + data + struct.pack(">I", zlib.crc32(ctype + data) & 0xFFFFFFFF)
+
+    exif = Image.Exif()
+    exif[0x010E] = f"{EXIF_MARK} {PHONE}"[:31]
+    exif[0x0112] = 6
+    out = {}
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 48)).save(buf, "JPEG", exif=exif.tobytes())
+    out["exif_jpeg"] = buf.getvalue()
+    buf = io.BytesIO()
+    Image.new("RGB", (96, 64), (5, 6, 7)).save(buf, "JPEG", progressive=True, exif=exif.tobytes())
+    out["progressive"] = buf.getvalue()
+    buf = io.BytesIO()
+    Image.new("RGB", (16, 12), (9, 9, 9)).save(buf, "PNG")
+    png = buf.getvalue()
+    meta = (chunk(b"tEXt", f"Comment\x00{PHONE} {EXIF_MARK}".encode()) +
+            chunk(b"iCCP", f"{EXIF_MARK}".encode() + b"\x00\x00" + zlib.compress(b"\x00" * 64)) +
+            chunk(b"eXIf", exif.tobytes()[6:]))
+    out["png"] = png[:33] + meta + png[33:]
+    return out
+
+
+CORPUS = _corpus()  # at import: Pillow's loggers are still at their pinned level
 
 
 class Capture(logging.Handler):
@@ -97,7 +130,7 @@ def test_no_secret_reaches_any_log_record(tmp_path, capture):
     unknown = links.derive_token(KEY, links.new_link_id(), 1)
     rid = world.redeems.add(plain_link, world.clock())
     lst = ps.PublicListener("tickets-public-logscan")
-    assert lst.start(world.app, host="127.0.0.1", port=0)
+    assert lst.start(world.app, host="127.0.0.1", port=0, max_connections=4)
     secrets_seen: list[str] = [token, plain_token, unknown, rid, PHONE, CLIENT_IP, UA_MARK, EXIF_MARK]
     try:
         base = f"http://127.0.0.1:{lst.port}"
@@ -122,13 +155,11 @@ def test_no_secret_reaches_any_log_record(tmp_path, capture):
                        headers={"x-ticket-token": plain_token})
             assert r.status_code == 422 and PHONE not in r.text
             assert c.post("/t/api/test-crash", json={}, headers={"x-ticket-token": plain_token}).status_code == 500
-            exif = Image.Exif()
-            exif[0x010E] = f"{EXIF_MARK} {PHONE}"
-            buf = io.BytesIO()
-            Image.new("RGB", (64, 48)).save(buf, "JPEG", exif=exif.tobytes())
-            up = c.post("/t/api/photo", headers={"x-ticket-token": plain_token}, data={"client_request_id": str(uuid.uuid4())},
-                        files={"file": (f"{PHONE}.jpg", buf.getvalue(), "image/jpeg")})
-            assert up.status_code == 201
+            for name in ("png", "progressive", "exif_jpeg"):
+                up = c.post("/t/api/photo", headers={"x-ticket-token": plain_token},
+                            data={"client_request_id": str(uuid.uuid4())},
+                            files={"file": (f"{PHONE}.jpg", CORPUS[name], "image/jpeg")})
+                assert up.status_code == 201, (name, up.text)
             assert c.get(f"/t/api/photo/{up.json()['id']}", headers={"x-ticket-token": plain_token}).status_code == 200
             for _ in range(25):  # a locked network: 429s
                 c.get("/t/api/photo/ffffffffffffffff", headers={"x-ticket-token": unknown})
@@ -139,7 +170,7 @@ def test_no_secret_reaches_any_log_record(tmp_path, capture):
                  b"X-Ticket-Token: " + token.encode() + b"\r\n\r\n{" + PHONE.encode())
         held = []
         try:
-            for _ in range(17):  # the concurrency limit: uvicorn's "Exceeded concurrency limit." goes through ProtocolLog
+            for _ in range(6):  # over the connection budget (4 in this test): 503 busy from the protocol layer
                 s = socket.create_connection(("127.0.0.1", lst.port), timeout=5)
                 s.sendall(b"GET /t/r/" + rid.encode() + b" HTTP/1.1\r\nHost: x\r\nUser-Agent: " + UA_MARK.encode() + b"\r\n\r\n")
                 s.recv(4096)
@@ -159,6 +190,7 @@ def test_no_secret_reaches_any_log_record(tmp_path, capture):
     lines = [r.getMessage() for r in capture.records if r.name == "smplwise.tickets.public" and r.getMessage().startswith("public ")]
     assert any("/t/r/{rid}" in ln for ln in lines) and any("/t/api/photo/{attachment_id}" in ln for ln in lines)
     assert any("unhandled error" in t and "ValueError" in t for t in texts)  # the crash is reported - as its type only
+    assert any(r.name.startswith("PIL") for r in capture.records)  # Pillow was really captured at its lowest level
     snap = world.app.stats.snapshot()
-    assert snap["counters"].get("invalid_requests", 0) >= 1 and snap["counters"].get("concurrency_refusals", 0) >= 1
+    assert snap["counters"].get("invalid_requests", 0) >= 1 and snap["counters"].get("connections_busy", 0) >= 1
     assert snap["rate_limited_24h"] >= 1 and snap["last_5xx_at"] is not None
