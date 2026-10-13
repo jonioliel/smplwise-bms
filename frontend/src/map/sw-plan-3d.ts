@@ -26,6 +26,7 @@ import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-vie
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
 import { pillInk } from './pill-ink';
+import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
 import { TIME_BAND_HE, hourLabel, resolveSite, siteInstant, siteLocal, timeBand, type ResolvedSite } from './sun';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
@@ -90,6 +91,11 @@ export interface StillsFallbackDetail {
 /** CR-029 S4: a stair to another floor was walked to its top - "continue to that floor" (a document load, not a walk). */
 export interface FloorRequestDetail {
   floorId: string;
+}
+/** What the element keeps in its top-end corner (owner 2026-10-13, map/hud-layout.ts): the time pill (the realistic level), the walk's minimap, or nothing.
+ * The host stacks its own corner blocks (the floor map's circuit buttons) below it. Sent when it changes, and once after the first render. */
+export interface HudCornerDetail {
+  corner: HudCorner;
 }
 /** CR-029 S5-B: the kiosk idle phase changed (`idle`: the slotted still is shown and the frame loop is stopped). */
 export interface KioskIdleDetail {
@@ -357,10 +363,12 @@ export class SwPlan3d extends LitElement {
     :host([data-style='dark']) .vignette {
       background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.4) 100%);
     }
+    /* the top-end corner (map/hud-layout.ts): the pill, its picker and the walk's minimap start past a docked list of the host (--hud-end), and the
+       host stacks its circuit buttons below them (this element reports what it keeps there: hud-corner) */
     .timepill {
       position: absolute;
-      inset-block-start: 12px;
-      inset-inline-end: 12px;
+      inset-block-start: ${HUD_EDGE}px;
+      inset-inline-end: var(--hud-end, ${HUD_EDGE}px);
       z-index: var(--sw-z-map-ui);
       display: flex;
       align-items: center;
@@ -395,12 +403,15 @@ export class SwPlan3d extends LitElement {
     }
     .timepop {
       position: absolute;
-      inset-block-start: 52px;
-      inset-inline-end: 12px;
-      z-index: var(--sw-z-map-ui);
+      inset-block-start: ${HUD_PILL_ROW - 4}px;
+      inset-inline-end: var(--hud-end, ${HUD_EDGE}px);
+      /* a menu: it opens over whatever stands under the pill (the host's circuit buttons, the level bar, the floor strip) and above all of it */
+      z-index: calc(var(--sw-z-map-ui) + 1);
       display: grid;
       gap: 6px;
+      box-sizing: border-box;
       inline-size: min(280px, calc(100% - 24px));
+      max-inline-size: calc(100% - var(--hud-end, ${HUD_EDGE}px) - ${HUD_EDGE}px);
       padding: 10px 12px;
       border-radius: 12px;
       /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it is opaque too (second report, same day) */
@@ -432,8 +443,11 @@ export class SwPlan3d extends LitElement {
     .timepop .muted {
       color: var(--sw-text-2);
     }
+    /* the slow-device notice: under the host's level bar when that has a row of its own (--hud-hint-top, set by the floor map), and above the
+       columns it may cross on a phone - a transient notice, with its own buttons, never hidden behind a chip */
     .pill.hint {
-      inset-block-start: 56px;
+      inset-block-start: var(--hud-hint-top, 56px);
+      z-index: calc(var(--sw-z-map-ui) + 1);
       display: flex;
       gap: 6px;
       align-items: center;
@@ -666,7 +680,7 @@ export class SwPlan3d extends LitElement {
     .toast {
       position: absolute;
       inset-block-start: 12px;
-      left: 50%; /* physical: centred whatever the direction */
+      left: calc(50% + (var(--hud-end, ${HUD_EDGE}px) - ${HUD_EDGE}px) / 2); /* physical: centred whatever the direction - in the free band, past a docked list of the host */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
@@ -708,10 +722,10 @@ export class SwPlan3d extends LitElement {
     }
     .minimap {
       position: absolute;
-      inset-block-start: 12px;
-      inset-inline-start: 12px;
-      inline-size: 160px;
-      block-size: 160px;
+      inset-block-start: ${HUD_EDGE}px;
+      inset-inline-start: var(--hud-end, ${HUD_EDGE}px);
+      inline-size: ${HUD_MINIMAP}px;
+      block-size: ${HUD_MINIMAP}px;
       border-radius: 10px;
       box-shadow: var(--sw-shadow-1);
       cursor: pointer;
@@ -720,7 +734,7 @@ export class SwPlan3d extends LitElement {
     }
     .pill {
       position: absolute;
-      left: 50%;
+      left: calc(50% + (var(--hud-end, ${HUD_EDGE}px) - ${HUD_EDGE}px) / 2); /* the free band's centre: past a docked list of the host */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
@@ -732,6 +746,10 @@ export class SwPlan3d extends LitElement {
       box-shadow: var(--sw-shadow-1);
       direction: rtl;
       white-space: nowrap;
+    }
+    /* the aim label hangs under the crosshair, which is the canvas's centre whatever a host list takes at the edge */
+    .pill.aim {
+      left: 50%;
     }
     .pill.walknote {
       inset-block-end: 64px;
@@ -763,10 +781,10 @@ export class SwPlan3d extends LitElement {
       -webkit-user-select: none;
       -webkit-touch-callout: none;
     }
-    @media (max-width: 640px) {
+    @media (max-width: ${HUD_PHONE_MAX}px) {
       .minimap {
-        inline-size: 112px;
-        block-size: 112px;
+        inline-size: ${HUD_MINIMAP_PHONE}px;
+        block-size: ${HUD_MINIMAP_PHONE}px;
       }
       /* above the bottom sheet's row */
       .pill.walknote {
@@ -886,6 +904,7 @@ export class SwPlan3d extends LitElement {
     this.themeObserver?.disconnect();
     this.themeObserver = undefined;
     this.realisticNotified = null;
+    this.cornerSent = undefined;
     this.ro?.disconnect();
     this.barRo?.disconnect();
     cancelAnimationFrame(this.thumbPass);
@@ -1032,6 +1051,7 @@ export class SwPlan3d extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>): void {
+    this.syncCorner();
     if (changed.has('sunAt')) this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
     this.syncKiosk(changed);
     if (!this.view) return;
@@ -1832,6 +1852,24 @@ export class SwPlan3d extends LitElement {
         </button>`;
       })}
     </div>`;
+  }
+
+  /** What this element keeps in its top-end corner: the walk's minimap while the walk is on, else the time pill (the realistic level has a sun, no
+   * screen owns the time, no kiosk hides it), else nothing. The same conditions renderTime() and renderWalk() draw by. */
+  private cornerKind(): HudCorner {
+    if (this.walkState === 'on') return this.walk ? 'minimap' : null;
+    return this.quality === 3 && this.sunShown && this.sunAt === null && !this.kiosk ? 'pill' : null;
+  }
+
+  private cornerSent: HudCorner | undefined = undefined;
+  /** Tell the host (once per change) what stands in the corner: it stacks its own blocks - the circuit buttons - below it (map/hud-layout.ts). */
+  private syncCorner(): void {
+    const corner = this.cornerKind();
+    if (corner === this.cornerSent) return;
+    this.cornerSent = corner;
+    if (corner) this.setAttribute('data-corner', corner);
+    else this.removeAttribute('data-corner');
+    this.dispatchEvent(new CustomEvent<HudCornerDetail>('hud-corner', { detail: { corner }, bubbles: true, composed: true }));
   }
 
   /** The time pill (LOOK_SPEC section 7): the band's glyph and the site's local time, "עכשיו" while the slider is in
