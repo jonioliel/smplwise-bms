@@ -103,16 +103,17 @@ export class TicketsList extends LitElement {
       .dh-det {
         gap: 10px;
       }
-      /* the state filter wraps to a second row on a phone (nothing hidden behind a scroll) */
+      /* the state filter is two rows of three on a phone (nothing hidden behind a scroll) */
       .dh-det .stf {
         order: 1;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         inline-size: 100%;
         box-sizing: border-box;
-        flex-wrap: wrap;
         border-radius: var(--sw-r-xl);
       }
       .dh-det .stf button {
-        flex: 1 0 auto;
+        padding-inline: 6px;
       }
       .dh-det .grow {
         display: none;
