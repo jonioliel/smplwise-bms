@@ -32,6 +32,10 @@ export interface Me {
   /** CR-027: what the required-sensors policy says about this caller on this channel; present once a policy was ever written,
    * null when it applies to nobody. `blocked` is what the shell acts on (the server refuses every other request too). */
   presence_gate?: import('./presence').PresenceGate | null;
+  /** CR-038 section 6: the optional modules the shell offers - the tickets module's switch (permissions decide the rest) and its
+   * display name per language (owner decision D33: every text that names the module is rendered through tickets/naming.ts). Absent on
+   * an older backend (= off). */
+  modules?: { tickets: boolean; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>> };
 }
 
 export interface Site {
