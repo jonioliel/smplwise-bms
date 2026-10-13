@@ -22,7 +22,11 @@ def sign(secret: str, body: dict[str, Any], ts: int | None = None, nonce: str | 
 
 
 class Verifier:
-    """Verifies signed messages and rejects stale timestamps and replayed nonces."""
+    """Verifies signed messages and rejects stale timestamps and replayed nonces.
+
+    0.8.1 (CR-040): ONE Verifier per config entry is shared by every signed service and by the trust services (trust.py), so the
+    bridge holds exactly one key at every instant - `secret` is replaced in one assignment by a rotation (the atomic switch) - and
+    one nonce cache: a nonce seen under one key is a replay under the next. A rotation never clears the cache."""
 
     def __init__(self, secret: str, window_s: int = SIGNATURE_WINDOW_S) -> None:
         self.secret = secret
@@ -42,10 +46,17 @@ class Verifier:
         expected = sign(self.secret, body, ts, nonce)["sig"]
         if not hmac.compare_digest(expected, sig):
             return "bad_signature"
+        if not self.check_nonce(nonce, now):
+            return "replay"
+        return None
+
+    def check_nonce(self, nonce: str, now: float) -> bool:
+        """Record `nonce`; False when it was already seen inside twice the window (a replay). Entries older than that are
+        dropped: a message that old is refused on its timestamp alone."""
         for n, t in list(self._seen.items()):
             if now - t > self.window_s * 2:
                 self._seen.pop(n, None)
         if nonce in self._seen:
-            return "replay"
+            return False
         self._seen[nonce] = now
-        return None
+        return True
