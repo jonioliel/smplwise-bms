@@ -8,7 +8,7 @@ import {
   toggleOne, togglePage, toggleSort, viewDoc,
 } from '../src/tickets/table-model';
 import { TABLE_TEXT_EN_KEYS, TABLE_TEXT_KEYS, tableTemplate, tbt } from '../src/tickets/table-text';
-import { setTicketNames } from '../src/tickets/naming';
+import { setTicketNames, ticketNames } from '../src/tickets/naming';
 import type { BulkAnswer, TableRow } from '../src/api/tickets-table';
 
 // CR-038 slice 6b (D24, section 13.6): the node-only checks of the board TABLE's pure logic (tickets/table-model.ts) and its text
@@ -144,11 +144,11 @@ test('the catalogue: complete in English, D33 tokens render the configured name 
   for (const k of TABLE_TEXT_KEYS) {
     for (const lang of ['he', 'en'] as const) {
       const s = tableTemplate(k, lang);
-      expect(s, `${lang}.${k}`).not.toMatch(/קריא(ה|ות|ת)|\bTickets?\b/);
+      expect(s, `${lang}.${k}`).not.toMatch(/קריא(ה|ות|ת)|בקש(ה|ת|ות) שירות|ניהול השירות|\bTickets?\b/);
       expect(s.trim(), `${lang}.${k}`).not.toBe('');
     }
   }
-  expect(tbt('count', { n: 12 })).toBe('12 קריאות');
+  expect(tbt('count', { n: 12 })).toBe(`12 ${ticketNames('he').many}`); // the configured (default) name, whatever it is
   setTicketNames({ he: { one: 'אירוע', many: 'אירועים', gender: 'm' } });
   expect(tbt('count', { n: 3 })).toBe('3 אירועים');
   expect(tbt('fStuck')).toBe('תקועים');
@@ -162,7 +162,7 @@ test('the D33 lint covers the slice-6b files (no default name in a string)', () 
   for (const f of files) {
     const code = readFileSync(path.join(SRC, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/(^|[^:'"`\\])\/\/.*$/, '$1'));
     code.forEach((line, i) => {
-      if (/קריא(ה|ות|ת)/.test(line) || /(['"`])(?:(?!\1).)*\bTickets?\b(?:(?!\1).)*\1/.test(line)) bad.push(`${f}:${i + 1}`);
+      if (/קריא(ה|ות|ת)|בקש(ה|ת|ות) שירות|ניהול השירות/.test(line) || /(['"`])(?:(?!\1).)*\bTickets?\b(?:(?!\1).)*\1/.test(line)) bad.push(`${f}:${i + 1}`);
     });
   }
   expect(bad).toEqual([]);

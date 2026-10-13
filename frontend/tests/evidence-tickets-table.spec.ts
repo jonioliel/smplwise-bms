@@ -295,6 +295,7 @@ test.describe('tickets table evidence', () => {
       walk(document);
       return out.join(' | ');
     });
-    expect(texts, 'the default name appears nowhere once renamed').not.toMatch(/קריא(ה|ות)/);
+    // the default name - the original one and the one of the owner's rename of 14.10 - appears nowhere once renamed
+    expect(texts, 'the default name appears nowhere once renamed').not.toMatch(/קריא(ה|ות)|בקש(ת|ות) שירות/);
   });
 });
