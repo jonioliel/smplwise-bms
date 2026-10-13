@@ -794,6 +794,10 @@ export function buildExterior(extent: { x0: number; x1: number; y0: number; z0: 
   const domeScene = new Scene();
   domeScene.add(new Mesh(domeGeo, dome.material));
   for (const m of [dome, band, disc, contact]) m.userData.ownMaterial = true;
+  // ST7-odd: the sky and the horizon stay out of the GTAO normal / depth pass (post-chain SkipAoPass) - a backdrop with a
+  // depth of its own gets an occlusion halo along every cut wall top; as background (depth 1) the pass leaves it alone
+  dome.userData.skipAO = true;
+  band.userData.skipAO = true;
   root.add(dome, band, disc, contact);
   return { root, dome, domeScene, disc, contact, band };
 }

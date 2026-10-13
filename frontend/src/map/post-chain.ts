@@ -11,10 +11,27 @@
  * blend is the style's. Thumbnails never go through it (a composer resize re-allocates GTAO's targets).
  */
 import { HalfFloatType, Vector2, WebGLRenderTarget, type Camera, type Plane, type Scene, type WebGLRenderer } from './three-bundle';
-import { EffectComposer, GTAOPass, OutputPass, RenderPass, SMAAPass, UnrealBloomPass } from './three-post';
+import { EffectComposer, GTAOPass, OutputPass, Pass, RenderPass, SMAAPass, UnrealBloomPass } from './three-post';
 import { LOOK_STYLES, bloomFor, type StyleId } from './look-style';
 
 export type PostRung = 'realistic' | 'lite';
+
+/** ST7-odd: hides (or shows again) the meshes marked `userData.skipAO` - the sky dome and the horizon band - around the
+ * GTAO pass, so its normal / depth render sees them as background (depth 1, which the AO shader leaves alone). A backdrop
+ * with a depth of its own took an occlusion halo along every cut wall top once the walls were cut in that pass. The beauty
+ * pass before and the bloom after see the scene whole; no buffer is swapped. */
+class SkipAoPass extends Pass {
+  constructor(private readonly scene: Scene, private readonly hide: boolean) {
+    super();
+    this.needsSwap = false;
+  }
+
+  render(): void {
+    this.scene.traverse((o) => {
+      if (o.userData.skipAO) o.visible = !this.hide;
+    });
+  }
+}
 
 export class PostChain {
   readonly composer: EffectComposer;
@@ -46,7 +63,9 @@ export class PostChain {
       gtao.updateGtaoMaterial({ radius: s.post.aoRadius, distanceExponent: 1, thickness: 1, distanceFallOff: 1, scale: 0.9, samples: 6 });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 6 });
       gtao.blendIntensity = s.post.aoBlend;
+      this.composer.addPass(new SkipAoPass(scene, true));
       this.composer.addPass(gtao);
+      this.composer.addPass(new SkipAoPass(scene, false));
       this.passes.push('gtao');
       this.gtao = gtao;
     } else this.gtao = null;

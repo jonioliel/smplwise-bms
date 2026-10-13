@@ -142,6 +142,14 @@ test('1+2: at level 3 the camera cones are cut by the section plane, like the wa
   await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('null');
   await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: true }));
   await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('[1.68]');
+  // the sky and the horizon are kept out of that pass (SkipAoPass: an occlusion halo along every cut wall top otherwise) and
+  // are back for the beauty pass after a drawn frame
+  const backdrop = await el.evaluate((n) => {
+    const out: { name: string; visible: boolean; skip: boolean }[] = [];
+    (n as unknown as Probe).view.scene.traverse((o) => { const name = String(o.name ?? ''); if (name === 'sky' || name === 'horizon' || name === 'ground') out.push({ name, visible: !!o.visible, skip: !!(o.userData as { skipAO?: boolean }).skipAO }); });
+    return out.sort((a, b) => (a.name < b.name ? -1 : 1));
+  });
+  expect(backdrop).toEqual([{ name: 'ground', visible: true, skip: false }, { name: 'horizon', visible: true, skip: true }, { name: 'sky', visible: true, skip: true }]);
   await el.locator('[data-quality-3-lite]').click();
   await expect(el).toHaveAttribute('data-rung', 'lite');
   // levels 1-2 never clip (their pictures do not move)
