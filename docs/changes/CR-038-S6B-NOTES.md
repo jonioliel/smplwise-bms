@@ -124,5 +124,16 @@ viewers, bulk partial failure and own savepoints, per-ticket manager rights, ass
 duplicates and idempotency, CSV gate / BOM / zone / no invisible row / formula injection / 5,000 cap / rate / renamed header,
 saved views privacy and caps, the preference, the static guards). Frontend: `tests/unit-tickets-table.spec.ts`,
 `tests/evidence-tickets-table.spec.ts` (desktop 1440 + phone 390, light / dark, classic / domus; images in
-`docs/design/evidence/tickets-s6b/`), `tests/layout-tickets-table.spec.ts` (5 skins x 2 schemes x widths 320-1440). Results: the
-slice report.
+`docs/design/evidence/tickets-s6b/`), `tests/layout-tickets-table.spec.ts` (5 skins x 2 schemes x widths 320-1440).
+
+Runner results (2026-10-14): backend `test_tickets_*` (all ten files) + `test_user_prefs` + `test_me_permissions` + `test_generator`
+@ `dec47163`: 260 passed, 1 skipped, 1 failed - `test_tickets_api.py::test_assignment_rules` (slice 1's test, not touched here: two
+assignments made in the same second are ordered by `assigned_at, id` and the id is random - a pre-existing flake; it passed in the
+run @ `55c355f6`, 354 passed / 1 skipped incl. `test_remote_access`, `test_body_limit`, `test_raw_body_order`). tsc ok and the node
+unit specs (`unit-tickets-table`, `unit-tickets-naming`, `unit-token-lint`, `unit-menu-lint`) 30 passed @ `3ee399f9`;
+`evidence-tickets-table` desktop + mobile 20 passed / 8 skipped by design @ `82f15a5b`; `layout-tickets-table` 5 skins x 2 schemes x
+10 widths x 9 screens: 0 findings @ `ac6ebf59`. The filters evidence images still show "1" with the plural (fixed after them, in
+`3ee399f9`).
+
+Runner note: a spec run leaves NEW evidence images untracked in the runner worktree; once a commit tracks the same files the next
+checkout aborts and the runner silently tests the OLD head (it happened here once) - remove them from the runner worktree first.
