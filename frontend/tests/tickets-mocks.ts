@@ -27,6 +27,8 @@ export interface TicketsMockOptions {
   ui?: { detail?: 'drawer' | 'fullscreen' | 'drawer_fullscreen'; new_ticket?: 'sheet' | 'dialog' };
   /** the list answers 500 */
   failList?: boolean;
+  /** permissions beyond the persona's (the other areas of the rail, for the phone dock evidence) */
+  extraPerms?: string[];
 }
 
 export interface TicketsMock {
@@ -157,7 +159,7 @@ function adminDept(d: (typeof DEPTS)[number], open: number) {
 
 export async function installTicketsMock(page: Page, o: TicketsMockOptions = {}): Promise<TicketsMock> {
   const persona = o.persona ?? 'manager';
-  const perms = PERMS[persona];
+  const perms = [...PERMS[persona], ...(o.extraPerms ?? [])];
   const enabled = o.enabled ?? true;
   const st: TicketsMock = { calls: [] };
   let rows: Row[] = o.empty ? [] : ROWS.map((r) => ({ ...r }));
