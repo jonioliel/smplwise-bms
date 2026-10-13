@@ -8,6 +8,7 @@ import './system-access-status';
 import './system-access-audit';
 import './system-access-groups';
 import './system-access-policy';
+import './system-access-messaging';
 import type { TabItem } from '../components/sw-tabs';
 import type { SyncMeta } from '../api/access-status';
 import type { DisplayZone } from '../api/intercom';
@@ -19,8 +20,9 @@ import { ACCESS_CONTROL_SETTINGS_HREF, tabStyleOf } from '../shell/nav';
 import { UTC_ZONE } from './wiskey-format';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { st } from '../i18n/access-status';
+import { mt } from '../i18n/access-messaging';
 
-export type AccessSegment = 'status' | 'audit' | 'groups' | 'policy';
+export type AccessSegment = 'status' | 'audit' | 'groups' | 'policy' | 'messaging';
 
 /**
  * CR-036 S10: the Settings page "בקרת כניסה" (#/system/access-control[/audit|/groups]) - the technical truth of the access-control
@@ -29,9 +31,9 @@ export type AccessSegment = 'status' | 'audit' | 'groups' | 'policy';
  * shows a station-scoped administrator only their stations); the action log and the conflicts are installation-wide in the
  * integration, so they are offered to an installation-wide administrator only; the groups need `access.people.read`.
  * The subtitle names the integration, whether it is connected and when it was last asked (a Settings page keeps the technical truth);
- * the refresh button reads every card again - nothing here asks a device. The one thing the page writes is the four administrator
- * settings of the policy segment (`system.configure`); the display switch of the access-control screens (CR-036 S12) joins as another
- * segment later.
+ * the refresh button reads every card again - nothing here asks a device. The page writes the four administrator settings of the
+ * policy segment and the message settings and templates of the "הודעות" segment (CR-036 WA) - both `system.configure`; the display
+ * switch of the access-control screens (CR-036 S12) joins as another segment later.
  */
 @customElement('system-access-control')
 export class SystemAccessControl extends LitElement {
@@ -97,6 +99,7 @@ export class SystemAccessControl extends LitElement {
     if (this.wide) out.push({ id: 'audit', label: st('segAudit') });
     if (this.people || this.wide) out.push({ id: 'groups', label: st('segGroups') });
     if (this.configure) out.push({ id: 'policy', label: st('segPolicy') });
+    if (this.configure) out.push({ id: 'messaging', label: mt('segment') }); // CR-036 WA: the message settings and templates (system.configure)
     return out;
   }
 
@@ -135,7 +138,9 @@ export class SystemAccessControl extends LitElement {
             ? html`<system-access-groups .rev=${this.rev} @access-meta=${this.onMeta}></system-access-groups>`
             : active === 'policy'
               ? html`<system-access-policy .rev=${this.rev}></system-access-policy>`
-              : html`<system-access-status .rev=${this.rev} @access-meta=${this.onMeta}></system-access-status>`}
+              : active === 'messaging'
+                ? html`<system-access-messaging .rev=${this.rev}></system-access-messaging>`
+                : html`<system-access-status .rev=${this.rev} @access-meta=${this.onMeta}></system-access-status>`}
       </div>
     </sw-page>`;
   }

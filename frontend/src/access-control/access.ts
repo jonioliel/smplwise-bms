@@ -10,6 +10,7 @@
  *   people        access.people.read      people: names, station assignments, groups, validity
  *   sensitive     access.people.sensitive employee number, photo / portrait, phone, profile values (sensitive)
  *   manage        access.people.manage    the person editor (sensitive)
+ *   message       access.people.message   a WhatsApp message to a person / a selection (sensitive; CR-036 WA)
  *   call          access.call             answer / reject / hang up, spoken announcement (sensitive; endpoints move in S11)
  *   admin         access.admin.read       Settings: health, sync, alerts, the intercom's own action log
  *   capture       access.cards.capture    reading a card at a station's reader (sensitive; with manage)
@@ -24,6 +25,7 @@ export const ACCESS_CONTROL_PERMISSIONS = [
   'access.events.export',
   'access.people.read',
   'access.people.sensitive',
+  'access.people.message',
   'access.call',
   'access.admin.read',
   'access.schedules.manage',
@@ -40,6 +42,7 @@ export const ACCESS_CONTROL_PERMISSION_LABELS: Record<AccessControlPermission, s
   'access.events.export': 'בקרת כניסה: ייצוא יומן הכניסות לקובץ',
   'access.people.read': 'בקרת כניסה: צפייה באנשים (שמות, שיוך לעמדות, קבוצות ותוקף)',
   'access.people.sensitive': 'בקרת כניסה: פרטים רגישים של אנשים (מספר עובד, תמונה, טלפון, שדות פרופיל)',
+  'access.people.message': 'בקרת כניסה: שליחת הודעות וואטסאפ לאנשים',
   'access.call': 'בקרת כניסה: מענה לשיחה מעמדה והכרזה קולית',
   'access.admin.read': 'בקרת כניסה: מצב מערכת, סנכרון, התראות ויומן פעולות האינטרקום',
   'access.schedules.manage': 'בקרת כניסה: עריכת לוחות זמנים של דלתות',
@@ -59,6 +62,7 @@ export interface AccessControlAccess {
   people: boolean;
   sensitive: boolean;
   manage: boolean;
+  message: boolean;
   call: boolean;
   admin: boolean;
   /** S11: card capture from a station reader (access.cards.capture) and PIN generation (access.pin.generate), at any scope. */
@@ -69,7 +73,7 @@ export interface AccessControlAccess {
 /** The caller's permissions at any scope (a station-scoped binding counts): what a screen offers. Without a backend (static
  * preview) everything is offered; the demo data carries nothing real. */
 export function accessControlAccess(): AccessControlAccess {
-  if (!isApi()) return { read: true, stations: true, events: true, export: true, people: true, sensitive: true, manage: true, call: true, admin: true, capture: true, pin: true };
+  if (!isApi()) return { read: true, stations: true, events: true, export: true, people: true, sensitive: true, manage: true, message: true, call: true, admin: true, capture: true, pin: true };
   return {
     read: canAnywhere('access.read'),
     stations: canAnywhere('access.stations.read'),
@@ -78,6 +82,7 @@ export function accessControlAccess(): AccessControlAccess {
     people: canAnywhere('access.people.read'),
     sensitive: canAnywhere('access.people.sensitive'),
     manage: canAnywhere('access.people.manage'),
+    message: canAnywhere('access.people.message'),
     call: canAnywhere('access.call'),
     admin: canAnywhere('access.admin.read'),
     capture: canAnywhere('access.cards.capture'),

@@ -330,6 +330,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
 
     app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
+
+    app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])

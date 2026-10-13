@@ -1,0 +1,251 @@
+{
+ "_comment": "CR-036 WA: the wire replies of the message routes (routers/access_control_messaging.py) as the Playwright specs' mock answers them (tests/wiskey-people-mock.ts, tests/wiskey-messaging-settings.ts). The backend test test_intercom_messaging.py::test_the_mock_replies_have_the_shape_of_the_real_routes asks the REAL routes (over the fake WisKey) and checks every reply here has exactly the keys and value types the server produces - so the mock cannot drift. Values are invented.",
+ "sync": {
+  "state": "ready",
+  "connected": true,
+  "last_error": null,
+  "reconnects": 0,
+  "started_at": "2026-09-27T05:00:00Z",
+  "fetched_at": "2026-09-27T10:29:40Z",
+  "refreshes": 4,
+  "sequence": 4,
+  "wiskey_version": "4.37.0"
+ },
+ "config": {
+  "state": "ready",
+  "configured": true,
+  "last_error": null,
+  "fetched_at": null,
+  "messaging": {
+   "feature": true,
+   "enabled": true,
+   "can_send": true,
+   "can_reveal_phone": true,
+   "free_text": true,
+   "bulk_max": 50,
+   "text_max": 1000,
+   "templates": [
+    {
+     "id": "card_ready",
+     "label": "כרטיס מוכן",
+     "body": "שלום {name}, כרטיס הכניסה שלך מוכן לאיסוף."
+    },
+    {
+     "id": "validity_reminder",
+     "label": "תזכורת תוקף",
+     "body": "שלום {name}, תוקף הכניסה שלך מסתיים בקרוב. נא לפנות למשרד."
+    },
+    {
+     "id": "closure",
+     "label": "הכניסה סגורה",
+     "body": "שלום {name}, הכניסה סגורה זמנית. נעדכן כשתיפתח שוב."
+    }
+   ],
+   "templates_revision": 3,
+   "quota": {
+    "limit": 60,
+    "used": 2,
+    "resets_in_s": 1980
+   },
+   "pace_ms": 2200
+  }
+ },
+ "recipients": {
+  "state": "ready",
+  "configured": true,
+  "last_error": null,
+  "fetched_at": null,
+  "recipients": [
+   {
+    "person_id": "p1",
+    "name": "דנה כהן",
+    "phone_masked": "••••••••01",
+    "has_phone": true,
+    "consent": "unknown",
+    "allowed": true
+   }
+  ]
+ },
+ "history": {
+  "state": "ready",
+  "configured": true,
+  "last_error": null,
+  "fetched_at": null,
+  "messages": [
+   {
+    "id": "0f3c5a9e7b2d4c18a6e1d9f0b3a47c52",
+    "at": "2026-10-12T08:21:00Z",
+    "by": "מנהל מערכת",
+    "kind": "template",
+    "template_id": "card_ready",
+    "template_label": "כרטיס מוכן",
+    "outcome": "sent",
+    "reason": null,
+    "bulk": false
+   },
+   {
+    "id": "7a1e0d4b9c3f48a2b5d6e8f1c0a93b47",
+    "at": "2026-10-11T16:02:00Z",
+    "by": "מנהל אתר",
+    "kind": "free",
+    "template_id": null,
+    "template_label": null,
+    "outcome": "refused",
+    "reason": "not_registered",
+    "bulk": true
+   }
+  ],
+  "opt_out": {
+   "at": "2026-10-10T09:00:00Z",
+   "by": "מנהל מערכת"
+  },
+  "consent": "declined"
+ },
+ "optout": {
+  "opt_out": {
+   "at": "2026-10-12T09:00:00Z",
+   "by": "מנהל מערכת"
+  },
+  "consent": "declined"
+ },
+ "sent": {
+  "state": "ready",
+  "configured": true,
+  "last_error": null,
+  "fetched_at": null,
+  "message": {
+   "id": "0f3c5a9e7b2d4c18a6e1d9f0b3a47c52",
+   "sent_at": "2026-10-12T08:21:00Z",
+   "outcome": "sent"
+  },
+  "quota": {
+   "limit": 60,
+   "used": 3,
+   "resets_in_s": 1980
+  }
+ },
+ "settings": {
+  "state": "ready",
+  "configured": true,
+  "last_error": null,
+  "fetched_at": null,
+  "settings": {
+   "revision": 3,
+   "enabled": true,
+   "free_text": true,
+   "bulk_max": 50,
+   "rate_per_hour": 60,
+   "organization": "מגדל הדגמה",
+   "account": "",
+   "templates": [
+    {
+     "id": "card_ready",
+     "label": "כרטיס מוכן",
+     "body": "שלום {name}, כרטיס הכניסה שלך מוכן לאיסוף."
+    },
+    {
+     "id": "validity_reminder",
+     "label": "תזכורת תוקף",
+     "body": "שלום {name}, תוקף הכניסה שלך מסתיים בקרוב. נא לפנות למשרד."
+    },
+    {
+     "id": "closure",
+     "label": "הכניסה סגורה",
+     "body": "שלום {name}, הכניסה סגורה זמנית. נעדכן כשתיפתח שוב."
+    }
+   ]
+  },
+  "limits": {
+   "templates_max": 20,
+   "label_max": 40,
+   "body_max": 600,
+   "text_max": 1000,
+   "organization_max": 60,
+   "bulk_max": [
+    1,
+    200
+   ],
+   "rate_per_hour": [
+    1,
+    1000
+   ],
+   "placeholders": [
+    "name",
+    "organization"
+   ],
+   "placeholders_max": 6
+  },
+  "service": {
+   "state": "ready",
+   "connected": true,
+   "accounts": [
+    {
+     "id": "wa-1",
+     "name": "Office line"
+    }
+   ],
+   "problem": null,
+   "last_error": null
+  }
+ },
+ "errors": {
+  "no_phone": {
+   "code": "message_no_phone",
+   "user_message": "לאדם הזה אין מספר טלפון בכרטיס.",
+   "retryable": false,
+   "correlation_id": "c0ffee",
+   "details": {
+    "outcome": "not_sent"
+   }
+  },
+  "rate_hour": {
+   "code": "message_rate_limited",
+   "user_message": "הגעתם למכסת ההודעות לשעה.",
+   "retryable": true,
+   "correlation_id": "c0ffee",
+   "details": {
+    "outcome": "not_sent",
+    "scope": "hour",
+    "retry_after_s": 1980,
+    "quota": {
+     "limit": 60,
+     "used": 2,
+     "resets_in_s": 1980
+    }
+   }
+  },
+  "uncertain": {
+   "code": "message_uncertain",
+   "user_message": "לא ידוע אם ההודעה נשלחה.",
+   "retryable": false,
+   "correlation_id": "c0ffee",
+   "details": {
+    "outcome": "unknown",
+    "wiskey_code": "whatsapp_send_uncertain"
+   }
+  },
+  "settings_invalid": {
+   "code": "message_settings_invalid",
+   "user_message": "הגדרות ההודעות אינן תקינות.",
+   "retryable": false,
+   "correlation_id": "c0ffee",
+   "details": {
+    "errors": [
+     {
+      "path": "templates.0.body",
+      "code": "credential"
+     }
+    ]
+   }
+  },
+  "settings_conflict": {
+   "code": "message_settings_conflict",
+   "user_message": "ההגדרות נשמרו בינתיים על ידי מישהו אחר - טענו מחדש.",
+   "retryable": false,
+   "correlation_id": "c0ffee",
+   "details": {
+    "revision": 4
+   }
+  }
+ }
+}

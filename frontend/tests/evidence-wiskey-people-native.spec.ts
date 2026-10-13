@@ -3,8 +3,8 @@ import { install, newMock, push, type PeopleMock, type Role } from './wiskey-peo
 
 // CR-036 S7: evidence for the NATIVE people screen (אנשים) against a mocked backend that answers like the typed reads of
 // routers/access_control_reads.py - level by level (see tests/wiskey-people-mock.ts). No Home Assistant, no WisKey, no device, no
-// phone: the message dialog runs against the DRAFT contract the mock implements (api/messaging-fake.ts); the real backend has no
-// message route. Three projects (desktop / tablet / mobile), five skins, light and dark for the main states; the functional
+// phone: the message dialog runs against the message routes the mock answers (tests/wiskey-people-mock.ts, shapes from
+// tests/fixtures/messaging_wire.json - checked against the real routes by the backend tests). Three projects (desktop / tablet / mobile), five skins, light and dark for the main states; the functional
 // specs (filters, search, sort, paging, selection, drawer, photo, states, messaging) run on desktop; the phone / tablet specific
 // ones on their own project. Screenshots go to the test's output folder (the committed pixel baselines are pixel-wiskey-people.spec.ts).
 //   npx playwright test tests/evidence-wiskey-people-native.spec.ts        (against the built preview, or SW_BASE_URL)
@@ -681,7 +681,7 @@ test.describe('the phone and the tablet', () => {
   });
 });
 
-test.describe('the message dialog (fakes only: the draft contract of the mock; no real send path exists)', () => {
+test.describe('the message dialog (the typed message routes, answered by the mock; the WisKey side behind them has only run against a fake)', () => {
   const dialog = (page: Page) => page.locator('wiskey-message-dialog');
   const line = (page: Page) => dialog(page).locator('[data-msg-line]');
   // the dialog's host has no box of its own (its box is a fixed layer): wait for what is inside it
@@ -697,31 +697,38 @@ test.describe('the message dialog (fakes only: the draft contract of the mock; n
     return dialog(page);
   }
 
-  test('the action exists only when the server offers messaging and the caller may send', async ({ page }, info) => {
+  test('the action exists only for a caller who may message, once an administrator switched messaging on', async ({ page }, info) => {
     desktopOnly(info);
-    const off = newMock('admin');
-    await open(page, off);
+    // no permission: no action, and the screen never even asks the message routes
+    const none = newMock('admin');
+    await open(page, none);
     await ready(page);
     await expect(page.locator(`${SCREEN} [data-person-message-row]`)).toHaveCount(0);
-    expect(off.hits.filter((h) => /messaging/.test(h))).toEqual([]);
+    expect(none.hits.filter((h) => /access-control\/messaging/.test(h))).toEqual([]);
+    // the permission, but the administrator's switch is off: the screen asks once and offers nothing
     const ctx = await page.context().browser()!.newContext({ baseURL: info.project.use.baseURL, locale: 'he-IL' });
     const p2 = await ctx.newPage();
-    const operator = newMock('operator');
-    operator.messaging = true; // offered, but this caller may not send (no sensitive level, no override)
-    await open(p2, operator);
+    const off = newMock('admin');
+    off.messaging = true;
+    off.msg.feature = false;
+    await open(p2, off);
     await ready(p2);
     await expect(p2.locator(`${SCREEN} [data-person-message-row]`)).toHaveCount(0);
+    expect(off.hits.filter((h) => /access-control\/messaging/.test(h))).toEqual(['GET access-control/messaging']);
+    await p2.locator(`${SCREEN} [data-person-row="p1"]`).click();
+    await expect(drawer(p2).locator('[data-person-section="details"]')).toBeVisible();
+    await expect(drawer(p2).locator('[data-person-message], [data-person-tab="messages"]')).toHaveCount(0);
     await ctx.close();
   });
 
-  test('one person: pick a template, send, "sent" never means "delivered", the quota moves', async ({ page }, info) => {
+  test('one person: pick a template, send, "sent" never means "delivered", the quota moves, the text is the server\'s', async ({ page }, info) => {
     desktopOnly(info);
     const st = newMock('admin');
     st.messaging = true;
     const d = await single(page, st);
     await expect(d.locator('[data-msg-recipient]')).toContainText('דנה כהן');
     await expect(d.locator('[data-msg-phone]')).toHaveText(/••.*01$/);
-    await expect(d.locator('[data-msg-consent="granted"]')).toBeVisible();
+    await expect(d.locator('[data-msg-consent="unknown"]')).toBeVisible();
     await disabled(d.locator('[data-msg-send]'));
     await d.locator('[data-msg-template="card_ready"]').click();
     await expect(d.locator('[data-msg-text]')).toHaveValue(/שלום דנה כהן/);
@@ -730,7 +737,12 @@ test.describe('the message dialog (fakes only: the draft contract of the mock; n
     await expect(line(page)).toHaveAttribute('data-msg-line', 'sent');
     await expect(line(page)).toContainText('אין אישור מסירה');
     await expect(line(page)).not.toContainText('נמסר');
-    expect(st.writes.filter((w) => /messages$/.test(w.path))).toHaveLength(1);
+    const sends = st.writes.filter((w) => /messages$/.test(w.path));
+    expect(sends).toHaveLength(1);
+    // a template send carries the template and the revision of the catalogue the sender saw - and NO text (the server renders its own)
+    expect(sends[0].body).toMatchObject({ template_id: 'card_ready', templates_revision: 3, confirmed: true });
+    expect(sends[0].body).not.toHaveProperty('text');
+    expect((sends[0].body as { client_request_id: string }).client_request_id).toMatch(/^[A-Za-z0-9-]{8,64}$/);
     expect(st.msg.quota!.used).toBe(2);
     expect(JSON.stringify(st.writes)).not.toMatch(/\d{4,}.{0,10}קוד|pin/i);
     await shot(page, info, 'msg-sent');
@@ -747,7 +759,8 @@ test.describe('the message dialog (fakes only: the draft contract of the mock; n
     await d.locator('[data-msg-send]').click();
     await expect(line(page)).toHaveAttribute('data-msg-line', 'sent');
     const sent = st.writes.filter((w) => /messages$/.test(w.path)).at(-1)!.body as { template_id: string | null; text: string };
-    expect(sent.template_id).toBeNull();
+    expect(sent.template_id).toBeUndefined(); // a free text names no template and carries no revision
+    expect(sent).not.toHaveProperty('templates_revision');
     expect(sent.text).toBe('שלום, אפשר לעבור במשרד?');
   });
 
@@ -844,8 +857,7 @@ test.describe('the message dialog (fakes only: the draft contract of the mock; n
   test('hidden-phone mode: a sender who may not see the number still sends; the number is never on screen', async ({ page }, info) => {
     desktopOnly(info);
     const st = newMock('operator');
-    st.messaging = true;
-    st.canSend = true;
+    st.messaging = true; // may message (the permission), may not see phone numbers (no sensitive level)
     const d = await single(page, st, 'p2');
     await expect(d.locator('[data-msg-phone="hidden"]')).toHaveText('מספר מוסתר');
     await d.locator('[data-msg-template="validity_reminder"]').click();
@@ -876,9 +888,24 @@ test.describe('the message dialog (fakes only: the draft contract of the mock; n
     await enabled(d.locator('[data-msg-send]'));
     await expect(d.locator('[data-msg-send]')).toContainText('שלח ל־2');
     await shot(page, info, 'msg-bulk');
+    // ONE confirmation before a run; nothing has been sent yet
     await d.locator('[data-msg-send]').click();
+    await expect(d.locator('[data-msg-line="confirm"]')).toContainText('לשלוח ל־2 אנשים?');
+    expect(st.writes.filter((w) => /messages$/.test(w.path))).toEqual([]);
+    await shot(page, info, 'msg-bulk-confirm');
+    await d.locator('[data-msg-confirm]').click();
     await expect(d.locator('[data-msg-line="bulk-done"]')).toContainText('נשלח ל־2');
-    expect(st.writes.filter((w) => /messages$/.test(w.path))).toHaveLength(2);
+    const sends = st.writes.filter((w) => /messages$/.test(w.path));
+    expect(sends).toHaveLength(2);
+    expect(new Set(sends.map((w) => (w.body as { bulk_id: string }).bulk_id)).size).toBe(1); // one run, one id
+    expect(sends.every((w) => (w.body as { bulk_total: number }).bulk_total === 2)).toBe(true);
+    // the per-recipient result table: everyone the sender picked, in the order they picked, with the reason for the ones that did not get it
+    const table = d.locator('[data-msg-results]');
+    await expect(table.locator('[data-msg-result]')).toHaveCount(4);
+    await expect(table.locator('[data-msg-result="p1"]')).toHaveAttribute('data-msg-outcome', 'sent');
+    await expect(table.locator('[data-msg-result="p2"]')).toHaveAttribute('data-msg-outcome', 'sent');
+    await expect(table.locator('[data-msg-result="p4"]')).toContainText('האדם ביקש לא לקבל הודעות');
+    await expect(table.locator('[data-msg-result="p5"]')).toContainText('אין מספר טלפון');
     await shot(page, info, 'msg-bulk-sent');
   });
 

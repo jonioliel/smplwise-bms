@@ -1,10 +1,13 @@
 import { test, expect } from '@playwright/test';
 import {
   bulkPlan,
+  bulkSummary,
   composerView,
   draftProblem,
   hasCredentialPlaceholder,
   looksLikeCredential,
+  newBulkId,
+  orderRows,
   quotaLeft,
   recipientBlock,
   renderTemplate,
@@ -16,14 +19,14 @@ import {
   type RecipientInfo,
   type SendResult,
 } from '../src/access-control/messaging-logic';
-import { sendFailureOf } from '../src/api/messaging-fake';
+import { sendFailureOf } from '../src/api/access-messaging';
 import { ApiError } from '../src/api/client';
 
-// CR-036 S7: the message dialog's pure logic. There is NO real send path in this build (WisKey ask W11 is open); everything here
-// is the dialog's rules against fakes. Node only.
+// CR-036 S7 / WA: the message dialog's pure logic. The WisKey side of the messaging (ask W11) is unanswered; everything here is the
+// dialog's rules against fakes. Node only.
 
 const config = (over: Partial<MessagingConfig> = {}): MessagingConfig => ({
-  enabled: true, can_send: true, can_reveal_phone: true, free_text: true, bulk_max: 10, text_max: 1000,
+  feature: true, enabled: true, can_send: true, can_reveal_phone: true, free_text: true, bulk_max: 10, text_max: 1000, templates_revision: 3, pace_ms: 0,
   templates: [{ id: 't1', label: 'Reminder', body: 'שלום {name}, תוקף הכניסה שלך מסתיים בקרוב.' }], quota: { limit: 5, used: 1, resets_in_s: 900 }, ...over,
 });
 const rcpt = (id: string, over: Partial<RecipientInfo> = {}): RecipientInfo => ({ person_id: id, name: `P ${id}`, phone_masked: '••••••••01', has_phone: true, consent: 'granted', ...over });
@@ -68,12 +71,13 @@ test.describe('the single composer', () => {
     expect(composerView(ok())).toEqual({ blocked: null, canSend: true, textDisabled: false, line: null });
   });
 
-  test('the service is not connected, the person has no phone, the person asked not to be messaged: calm, blocked, text dimmed', () => {
+  test('the service is not connected, the person has no phone, the person asked not to be messaged, the caller may not message them: calm, blocked, text dimmed', () => {
     for (const [over, reason] of [
       [{ config: config({ enabled: false }) }, 'no_service'],
       [{ recipient: rcpt('1', { has_phone: false, phone_masked: null }) }, 'no_phone'],
       [{ recipient: null }, 'no_phone'],
       [{ recipient: rcpt('1', { consent: 'declined' }) }, 'no_consent'],
+      [{ recipient: rcpt('1', { allowed: false }) }, 'forbidden'],
     ] as const) {
       const v = composerView(ok(over));
       expect(v.blocked).toBe(reason);
@@ -83,8 +87,9 @@ test.describe('the single composer', () => {
     }
   });
 
-  test('consent unknown does not block (it is shown, not enforced here)', () => {
+  test('consent unknown does not block (it is shown, not enforced here); a person the server did not look up is not blocked either', () => {
     expect(composerView(ok({ recipient: rcpt('1', { consent: 'unknown' }) })).canSend).toBe(true);
+    expect(composerView(ok({ recipient: rcpt('1', { has_phone: null, phone_masked: null }) })).canSend).toBe(true);
   });
 
   test('hidden-phone mode: a sender who may not see the number still sends', () => {
@@ -141,6 +146,12 @@ test.describe('the bulk plan', () => {
     expect(plan.overQuota).toBeNull();
   });
 
+  test('a person the server did not look up is sent to (decided as the message goes); one the caller may not message is skipped', () => {
+    const plan = bulkPlan([rcpt('1', { has_phone: null, phone_masked: null }), rcpt('2', { allowed: false })], config(), draft('שלום'));
+    expect(plan.send.map((r) => r.person_id)).toEqual(['1']);
+    expect(plan.skip.map((s) => [s.recipient.person_id, s.reason])).toEqual([['2', 'forbidden']]);
+  });
+
   test('more people than the administrator allows, more than the quota has left, nobody eligible, a bad text', () => {
     expect(bulkPlan(people, config({ bulk_max: 3 }), draft('x')).tooMany).toBe(true);
     expect(bulkPlan(people, config({ bulk_max: 3 }), draft('x')).canSend).toBe(false);
@@ -152,33 +163,104 @@ test.describe('the bulk plan', () => {
     expect(bulkPlan(people, config(), draft('PIN 1234')).canSend).toBe(false);
     expect(bulkPlan(people, config({ enabled: false }), draft('x')).send).toEqual([]);
   });
+});
 
-  test('sequential sends: a failure never stops the rest; progress is reported', async () => {
-    const plan = bulkPlan([rcpt('1'), rcpt('2'), rcpt('3')], config(), draft('x'));
+test.describe('a bulk run', () => {
+  const sleeps: number[] = [];
+  const sleep = async (ms: number) => {
+    sleeps.push(ms);
+  };
+  test.beforeEach(() => {
+    sleeps.length = 0;
+  });
+  const sent = (): SendResult => ({ ok: true, sent_at: '2026-10-12T08:21:00Z' });
+
+  test('sequential sends: a failure never stops the rest; progress is reported; the table has a row for everyone', async () => {
+    const plan = bulkPlan([rcpt('1'), rcpt('2'), rcpt('3'), rcpt('4', { has_phone: false, phone_masked: null })], config(), draft('x'));
     const calls: string[] = [];
     const progress: [number, number][] = [];
-    const out = await runBulk(plan, draft('x'), async (id) => {
+    const out = await runBulk(plan, draft('x'), async (id): Promise<SendResult> => {
       calls.push(id);
-      return id === '2' ? { ok: false, reason: 'not_registered' } : { ok: true, sent_at: 't' };
+      return id === '2' ? { ok: false, reason: 'not_registered' } : sent();
     }, (d, t) => progress.push([d, t]));
     expect(calls).toEqual(['1', '2', '3']);
-    expect(out).toEqual({ sent: ['1', '3'], failed: [{ id: '2', reason: 'not_registered' }] });
+    expect(out.sent).toEqual(['1', '3']);
+    expect(out.failed).toEqual([{ id: '2', reason: 'not_registered' }]);
     expect(progress).toEqual([[1, 3], [2, 3], [3, 3]]);
+    expect(out.rows.map((r) => [r.id, r.status, r.reason])).toEqual([['4', 'failed', 'no_phone'], ['1', 'sent', undefined], ['2', 'failed', 'not_registered'], ['3', 'sent', undefined]]);
+    expect(orderRows(['1', '2', '3', '4'], out.rows).map((r) => r.id)).toEqual(['1', '2', '3', '4']);
+    expect(bulkSummary(out)).toEqual({ sent: 2, failed: 2, unknown: 0 });
   });
 
-  test('a rate refusal stops the run (every later send would be refused the same way); the rest are reported as not sent for it', async () => {
+  test('the server\'s pace is kept between the sends - not before the first, not after the last', async () => {
+    const plan = bulkPlan([rcpt('1'), rcpt('2'), rcpt('3')], config(), draft('x'));
+    await runBulk(plan, draft('x'), async () => sent(), { paceMs: 2200, sleep });
+    expect(sleeps).toEqual([2200, 2200]);
+  });
+
+  test('the hour\'s allowance stops the run (every later send would be refused the same way); the rest are reported as not sent for it', async () => {
     const plan = bulkPlan([rcpt('1'), rcpt('2'), rcpt('3')], config(), draft('x'));
     const calls: string[] = [];
     const out = await runBulk(plan, draft('x'), async (id): Promise<SendResult> => {
       calls.push(id);
-      return id === '2' ? { ok: false, reason: 'rate', retry_after_s: 60 } : { ok: true, sent_at: 't' };
+      return id === '2' ? { ok: false, reason: 'rate', retry_after_s: 60 } : sent();
     });
     expect(calls).toEqual(['1', '2']);
     expect(out.sent).toEqual(['1']);
     expect(out.failed).toEqual([{ id: '2', reason: 'rate' }, { id: '3', reason: 'rate' }]);
   });
 
-  test('a send that throws is uncertain, never retried', async () => {
+  test('a service that is down, switched off, or a catalogue that changed stops the run too', async () => {
+    for (const reason of ['no_service', 'disabled', 'template_changed'] as const) {
+      const plan = bulkPlan([rcpt('1'), rcpt('2')], config(), draft('x'));
+      const calls: string[] = [];
+      const out = await runBulk(plan, draft('x'), async (id): Promise<SendResult> => {
+        calls.push(id);
+        return { ok: false, reason };
+      });
+      expect(calls, reason).toEqual(['1']);
+      expect(out.failed, reason).toEqual([{ id: '1', reason }, { id: '2', reason }]);
+    }
+  });
+
+  test('a burst refusal ("wait a moment") is waited out and the same person tried again - it provably sent nothing', async () => {
+    const plan = bulkPlan([rcpt('1'), rcpt('2')], config(), draft('x'));
+    let refusals = 2;
+    const calls: string[] = [];
+    const out = await runBulk(plan, draft('x'), async (id): Promise<SendResult> => {
+      calls.push(id);
+      if (id === '1' && refusals-- > 0) return { ok: false, reason: 'rate', transient: true, retry_after_s: 3 };
+      return sent();
+    }, { sleep });
+    expect(calls).toEqual(['1', '1', '1', '2']);
+    expect(out.sent).toEqual(['1', '2']);
+    expect(sleeps).toEqual([3000, 3000]);
+  });
+
+  test('a burst refusal that does not pass stops the run after three waits', async () => {
+    const plan = bulkPlan([rcpt('1'), rcpt('2')], config(), draft('x'));
+    const calls: string[] = [];
+    const out = await runBulk(plan, draft('x'), async (id): Promise<SendResult> => {
+      calls.push(id);
+      return { ok: false, reason: 'rate', transient: true, retry_after_s: 60 };
+    }, { sleep });
+    expect(calls).toEqual(['1', '1', '1', '1']);
+    expect(sleeps).toEqual([10000, 10000, 10000]);
+    expect(out.failed).toEqual([{ id: '1', reason: 'rate' }, { id: '2', reason: 'rate' }]);
+  });
+
+  test('the stop button ends the run after the message in flight; the rest are "stopped"', async () => {
+    const plan = bulkPlan([rcpt('1'), rcpt('2'), rcpt('3')], config(), draft('x'));
+    let stop = false;
+    const out = await runBulk(plan, draft('x'), async (id): Promise<SendResult> => {
+      if (id === '1') stop = true;
+      return sent();
+    }, { shouldStop: () => stop });
+    expect(out.sent).toEqual(['1']);
+    expect(out.failed).toEqual([{ id: '2', reason: 'stopped' }, { id: '3', reason: 'stopped' }]);
+  });
+
+  test('a send that throws is uncertain, never retried; the table says unknown, not failed', async () => {
     const plan = bulkPlan([rcpt('1'), rcpt('2')], config(), draft('x'));
     let n = 0;
     const out = await runBulk(plan, draft('x'), async () => {
@@ -187,10 +269,18 @@ test.describe('the bulk plan', () => {
     });
     expect(n).toBe(2);
     expect(out.failed).toEqual([{ id: '1', reason: 'uncertain' }, { id: '2', reason: 'uncertain' }]);
+    expect(out.rows.map((r) => r.status)).toEqual(['unknown', 'unknown']);
+    expect(bulkSummary(out)).toEqual({ sent: 0, failed: 0, unknown: 2 });
+  });
+
+  test('a run has its own id', () => {
+    const a = newBulkId();
+    expect(a).toMatch(/^bulk-[0-9a-f]{24}$/);
+    expect(newBulkId()).not.toBe(a);
   });
 });
 
-test.describe('the draft contract: server error codes -> what the dialog says', () => {
+test.describe('the routes\' error codes -> what the dialog says', () => {
   const err = (status: number, code: string, details: Record<string, unknown> = {}) => new ApiError(status, { code, user_message: 'x', retryable: false, correlation_id: '', details });
 
   test('known codes', () => {
@@ -198,10 +288,25 @@ test.describe('the draft contract: server error codes -> what the dialog says', 
     expect(sendFailureOf(err(409, 'message_no_consent')).reason).toBe('no_consent');
     expect(sendFailureOf(err(503, 'message_service_unavailable')).reason).toBe('no_service');
     expect(sendFailureOf(err(502, 'message_not_registered')).reason).toBe('not_registered');
-    expect(sendFailureOf(err(429, 'message_rate_limited', { retry_after_s: 840 }))).toEqual({ reason: 'rate', retry_after_s: 840 });
+    expect(sendFailureOf(err(429, 'message_rate_limited', { retry_after_s: 840, scope: 'hour' }))).toEqual({ ok: false, reason: 'rate', retry_after_s: 840, transient: false });
+    expect(sendFailureOf(err(429, 'message_rate_limited', { retry_after_s: 5, scope: 'burst' }))).toEqual({ ok: false, reason: 'rate', retry_after_s: 5, transient: true });
     expect(sendFailureOf(err(422, 'message_forbidden_content')).reason).toBe('credential');
     expect(sendFailureOf(err(403, 'message_free_text_disabled')).reason).toBe('free_text_off');
     expect(sendFailureOf(err(410, 'message_expired')).reason).toBe('expired');
+    expect(sendFailureOf(err(403, 'message_forbidden')).reason).toBe('forbidden');
+    expect(sendFailureOf(err(404, 'intercom_person_not_found')).reason).toBe('gone');
+    expect(sendFailureOf(err(409, 'message_template_changed', { templates_revision: 4 }))).toEqual({ ok: false, reason: 'template_changed', templates_revision: 4 });
+    expect(sendFailureOf(err(409, 'message_disabled')).reason).toBe('disabled');
+    expect(sendFailureOf(err(409, 'message_duplicate')).reason).toBe('duplicate');
+    expect(sendFailureOf(err(502, 'message_refused')).reason).toBe('refused');
+    expect(sendFailureOf(err(504, 'message_uncertain')).reason).toBe('uncertain');
+    expect(sendFailureOf(err(422, 'message_empty')).reason).toBe('empty');
+    expect(sendFailureOf(err(422, 'message_too_long')).reason).toBe('too_long');
+  });
+
+  test('the feed\'s own budget is a burst refusal too', () => {
+    expect(sendFailureOf(err(429, 'intercom_rate_limited'))).toMatchObject({ reason: 'rate', transient: true });
+    expect(sendFailureOf(err(429, 'intercom_busy'))).toMatchObject({ reason: 'rate', transient: true });
   });
 
   test('anything else: a server fault or a dropped connection is uncertain (no blind retry); a refusal we do not know is unknown', () => {

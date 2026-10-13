@@ -16,6 +16,12 @@ browser never names a WisKey command, and no channel is a generic proxy.
   and that the S4 source review found side-effect free (only in-memory busy markers; `technical_codes_get` reads the device
   and returns presence booleans only). Kept apart from `read` so the read channel's rule stays exact: no non-READ command.
   `stations/technical_relays` is on no list (it needs `stations: manage` and configures relays).
+- `messaging` (CR-036 WA): the three WhatsApp commands the people screen's message dialog needs (services/intercom_messaging.py):
+  `whatsapp/status` (is the messaging service connected, which accounts), `whatsapp/preview` (issues the one-use token that WisKey
+  binds a send to; its own message text - which WisKey builds with the person's PIN in it - is NEVER read) and `whatsapp/send` (the
+  text Arx rendered itself, confirmed). Not `whatsapp/history` (it returns chat content), `whatsapp/media` or the template commands
+  (the template catalogue is Arx's own, edited in Settings). Same socket and identity as `service`; the SEND is a write and runs in
+  the message lane of the feed (intercom_sync), the status read in the read lane.
 
 `subscribe`, `tts/engines` and `tts/start` have their own handlers in WisKey and are absent from the static catalog
 (docs/integrations/wiskey/catalog/<pin>/CONTRACT_DIFF.md); the contract tests check them separately.
@@ -62,9 +68,12 @@ READ = frozenset({
 TECHNICAL = frozenset({
     "stations/technical_program_list", "stations/technical_hold_get", "stations/technical_codes_get", "health/history",
 })
+# CR-036 WA: the message dialog's commands. All three are non-READ in the pinned catalog (so `api_contract` goes on every frame);
+# `whatsapp/preview` and `whatsapp/send` need `users: manage` in WisKey, `whatsapp/status` `users: view`.
+MESSAGING = frozenset({"whatsapp/status", "whatsapp/preview", "whatsapp/send"})
 
-ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL}
-ADAPTER_CHANNELS = ("read", "technical")  # the guards the service session builds for the adapter (intercom_sync on_ready)
+ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING}
+ADAPTER_CHANNELS = ("read", "technical", "messaging")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -73,6 +82,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "service": frozenset({"get_config", "subscribe_entities", "unsubscribe_events"}),
     "read": frozenset(),
     "technical": frozenset(),
+    "messaging": frozenset(),
 }
 
 
@@ -107,4 +117,5 @@ def describe() -> dict[str, Any]:
         "service": {"reads": sorted(SERVICE_READS), "writes": sorted(SERVICE_WRITES)},
         "read": {"commands": sorted(READ), "in_use": True},
         "technical": {"commands": sorted(TECHNICAL), "in_use": True},
+        "messaging": {"commands": sorted(MESSAGING), "in_use": True},
     }

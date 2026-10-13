@@ -146,6 +146,15 @@ CAPTURE_USER_BURST, CAPTURE_USER_RATE = 8.0, 1.0
 CAPTURE_GLOBAL_BURST, CAPTURE_GLOBAL_RATE = 10.0, 1.0
 CAPTURE_TIMEOUT_S = 20.0
 CAPTURE_SLOT_WAIT_S = 3.0
+# WhatsApp messages (CR-036 WA, services/intercom_messaging.py) have a fifth lane: ONE slot and buckets of their own, so a send that
+# WisKey's provider holds for tens of seconds can never take a door release's slot or a people save's. Slots 4 + 2 + 1 + 1 + 1 = 9
+# (+ the feed's own) is one over WisKey's AdminLimiter ceiling of 8 handlers per HA user: only if every lane is busy at once does
+# WisKey answer `rate_limited` - a clean pre-dispatch refusal, which the message flow reports as "not sent, try again". The refill
+# (0.5 a second) is what the dialog's pacing between the sends of a bulk run stays under. WisKey's own provider call has a 45 s limit.
+MESSAGE_INFLIGHT = 1
+MESSAGE_USER_BURST, MESSAGE_USER_RATE = 6.0, 0.5
+MESSAGE_GLOBAL_BURST, MESSAGE_GLOBAL_RATE = 6.0, 0.5
+MESSAGE_TIMEOUT_S = 50.0
 # review round 1 (M1): the capture poller never spends a user's or the lane's shared tokens - its status reads come
 # from a small bucket of their own, sized for WisKey's maximum of three sessions at the poller's own pace (one read per
 # session every 2 s, every 3 s once more than one is followed: at most 1/s in all). A cancel spends no token at all:
@@ -683,6 +692,7 @@ class IntercomSync:
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)  # physical actions: a lane of their own
         self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)  # people writes: a third lane (one slot)
         self._capture_inflight = threading.BoundedSemaphore(CAPTURE_INFLIGHT)  # card capture: a fourth lane (one slot)
+        self._message_inflight = threading.BoundedSemaphore(MESSAGE_INFLIGHT)  # WhatsApp sends: a fifth lane (one slot)
         self._bucket_lock = threading.Lock()
         self._tts_status: dict[str, dict[str, Any]] = {}  # station id -> its latest announcement's progress
         self._buckets_reset()
@@ -699,9 +709,11 @@ class IntercomSync:
             self._capture_global_bucket = TokenBucket(CAPTURE_GLOBAL_BURST, CAPTURE_GLOBAL_RATE)
             self._capture_user_buckets: dict[str, TokenBucket] = {}
             self._capture_poll_bucket = TokenBucket(CAPTURE_POLL_BURST, CAPTURE_POLL_RATE)
+            self._message_global_bucket = TokenBucket(MESSAGE_GLOBAL_BURST, MESSAGE_GLOBAL_RATE)
+            self._message_user_buckets: dict[str, TokenBucket] = {}
 
     def _spend_token(self, who: str, lane: str = "read") -> bool:
-        """One token from both the caller's and the shared bucket of `lane` (`read`, `action`, `config` or `capture`),
+        """One token from both the caller's and the shared bucket of `lane` (`read`, `action`, `config`, `capture` or `message`),
         or none at all (nothing is spent on a refusal). `capture_poll` (the capture poller) has one bucket of its own
         and no per-user one."""
         with self._bucket_lock:
@@ -716,6 +728,8 @@ class IntercomSync:
                 users, shared, burst, rate = self._config_user_buckets, self._config_global_bucket, CONFIG_USER_BURST, CONFIG_USER_RATE
             elif lane == "capture":
                 users, shared, burst, rate = self._capture_user_buckets, self._capture_global_bucket, CAPTURE_USER_BURST, CAPTURE_USER_RATE
+            elif lane == "message":
+                users, shared, burst, rate = self._message_user_buckets, self._message_global_bucket, MESSAGE_USER_BURST, MESSAGE_USER_RATE
             else:
                 users, shared, burst, rate = self._user_buckets, self._global_bucket, USER_BURST, USER_RATE
             mine = users.get(who)
@@ -777,6 +791,7 @@ class IntercomSync:
         self._action_inflight = threading.BoundedSemaphore(ACTION_INFLIGHT)
         self._config_inflight = threading.BoundedSemaphore(CONFIG_INFLIGHT)
         self._capture_inflight = threading.BoundedSemaphore(CAPTURE_INFLIGHT)
+        self._message_inflight = threading.BoundedSemaphore(MESSAGE_INFLIGHT)
         self._tts_status = {}
         self._buckets_reset()
         self._session_reset()
@@ -949,7 +964,7 @@ class IntercomSync:
             reply["sync"] = STATE.as_dict()
             settled()
             return reply, "not_sent"
-        slot = {"action": self._action_inflight, "config": self._config_inflight, "capture": self._capture_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
+        slot = {"action": self._action_inflight, "config": self._config_inflight, "capture": self._capture_inflight, "message": self._message_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
         acquired = slot.acquire(timeout=slot_wait) if slot_wait > 0 else slot.acquire(blocking=False)
         if not acquired:  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
@@ -1054,6 +1069,23 @@ class IntercomSync:
         if on_result is not None:
             on_result(reply, outcome)
         return reply, outcome
+
+    def message_send(
+        self,
+        settings: Settings,
+        key: str,
+        send: Callable[[intercom_client.Call], Awaitable[Any]],
+        project: Callable[[Any], dict[str, Any]],
+        who: str,
+        not_after: datetime.datetime | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        """CR-036 WA: one WhatsApp send (WisKey `whatsapp/preview` + `whatsapp/send` in ONE coroutine, so both ride the same slot and
+        the same token) in the message lane, on the `messaging` channel's guard - never queued, never retried. Unlike `action` it
+        does not turn a refused or unknown outcome into an ApiError: it returns `_execute`'s (reply, outcome) - `ok`, `not_sent`
+        (nothing reached WisKey), `refused` (WisKey answered with a proven pre-effect refusal, code in `reply["last_error"]`) or
+        `unknown` (sent, no usable answer: timeout, a dropped session, or a code that may come after the provider call) - because
+        the caller (services/intercom_messaging.py) has its own table of what each WisKey code means for a message."""
+        return self._execute(settings, key, send, project, who, MESSAGE_TIMEOUT_S, lane="message", not_after=not_after, channel="messaging")
 
     def capture_read(
         self,

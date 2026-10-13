@@ -36,6 +36,7 @@ DEFAULTS = {
     "access.events.export": {"site_admin", "system_admin"},
     "access.people.read": {"operator", "site_admin", "system_admin"},
     "access.people.sensitive": {"site_admin", "system_admin"},
+    "access.people.message": {"site_admin", "system_admin"},
     "access.call": {"site_admin", "system_admin"},
     "access.admin.read": {"site_admin", "system_admin"},
     "access.schedules.manage": {"system_admin"},
