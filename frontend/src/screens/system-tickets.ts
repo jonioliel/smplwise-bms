@@ -8,6 +8,8 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import '../tickets/settings-dept';
+import '../tickets/contacts-directory';
+import '../tickets/public-settings';
 import { ApiError, describeError, patch } from '../api/client';
 import { productSettings, invalidateSettings } from '../api/prefs';
 import { can, canAnywhere, isApi } from '../api/session';
@@ -28,8 +30,8 @@ import { intIn, windowProblem } from '../tickets/durations';
 import { ticketSettingsCss } from '../tickets/settings-styles';
 import { tt, type TicketTextKey } from '../tickets/text';
 
-type Tab = 'general' | 'departments' | 'permissions';
-const TABS: readonly Tab[] = ['general', 'departments', 'permissions'];
+type Tab = 'general' | 'departments' | 'contacts' | 'permissions';
+const TABS: readonly Tab[] = ['general', 'departments', 'contacts', 'permissions'];
 const PERMS = ['view', 'create', 'manage', 'external', 'all_departments', 'configure'] as const;
 type Perm = (typeof PERMS)[number];
 const SENSITIVE_PERMS: readonly Perm[] = ['external', 'all_departments', 'configure'];
@@ -166,6 +168,8 @@ export class SystemTickets extends LitElement {
       } else if (this.tab === 'departments') {
         await this.loadDepartments();
         if (!this.directory) this.directory = await ticketsApi().directory();
+      } else if (this.tab === 'contacts') {
+        // slice 4: <tickets-contacts> loads its own rows
       } else {
         this.holders = await ticketsApi().holders();
         if (!this.directory) this.directory = await ticketsApi().directory();
@@ -350,7 +354,9 @@ export class SystemTickets extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { new_ticket: v } })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
       </sw-card>
       ${this.linksCard(this.doc)}
-      ${this.hoursCard(this.doc)}` : nothing}
+      ${this.hoursCard(this.doc)}
+      <tickets-public-card .doc=${this.doc} ?busy=${this.busy} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}
+        @notice=${this.onNotice}></tickets-public-card>` : nothing}
     </div>`;
   }
 
@@ -525,10 +531,13 @@ export class SystemTickets extends LitElement {
   render() {
     const heading = tt('area');
     if (this.enabled === null) return html`<sw-page crumbs="הגדרות" heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    const contacts = !isApi() || can('tickets.configure') || canAnywhere('tickets.manage'); // slice 4: the directory (the server decides what each sees)
     const tabs = this.enabled ? html`<sw-tabs variant="underline" data-tickets-settings-tabs .items=${[
-      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') }, { id: 'permissions', label: tt('setTabPermissions') },
+      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') },
+      ...(contacts ? [{ id: 'contacts', label: tt('setTabContacts') }] : []), { id: 'permissions', label: tt('setTabPermissions') },
     ]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;
-    const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab() : this.permissionsTab();
+    const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
+      : this.tab === 'contacts' ? html`<tickets-contacts @notice=${this.onNotice}></tickets-contacts>` : this.permissionsTab();
     return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${tt('setSub')} data-tickets-settings data-tab=${this.tab}>
       ${tabs}
       ${this.error ? html`<div class="msg err" role="alert" data-tickets-settings-error>${this.error}</div>` : nothing}

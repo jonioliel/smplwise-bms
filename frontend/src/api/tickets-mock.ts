@@ -159,6 +159,12 @@ function canOf(t: TicketDetail): TicketDetail['can'] {
   };
 }
 
+// slice 4 (./tickets-s4-mock.ts): the outside-contact demo reads and changes demo tickets here and adds its parts to their views
+const viewExtras: ((t: TicketDetail) => TicketDetail)[] = [];
+export function extendMockView(fn: (t: TicketDetail) => TicketDetail): void {
+  viewExtras.push(fn);
+}
+
 function view(t: TicketDetail): TicketDetail {
   const dept = departments.find((d) => d.id === t.department?.id);
   const until = t.status === 'closed' && t.closed_at ? new Date(Date.parse(t.closed_at) + (dept?.reopen_days ?? 14) * 24 * HOUR).toISOString() : null;
@@ -169,8 +175,15 @@ function view(t: TicketDetail): TicketDetail {
     moves.set(to, (to === 'closed' && frm !== 'done') || to === 'cancelled');
   }
   const order: TicketStatus[] = ['new', 'assigned', 'acknowledged', 'in_progress', 'waiting_part', 'done', 'returned', 'closed', 'cancelled'];
-  return clone({ ...t, can: canOf(t), reopen_until: until, transitions: [...moves].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([to, note_required]) => ({ to, note_required })) });
+  const out = clone({ ...t, can: canOf(t), reopen_until: until, transitions: [...moves].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([to, note_required]) => ({ to, note_required })) });
+  return viewExtras.reduce((v, fn) => fn(v), out);
 }
+
+export const mockStore = { me: ME, all: () => tickets, find: (id: string) => find(id), view: (t: TicketDetail) => view(t), touch: (t: TicketDetail) => touch(t), event: ev };
+// slice 4: the handler page's installation keys of the settings document (organisation name, public address, proxies)
+let publicDoc: Pick<SettingsDoc, 'organization_name' | 'public'> = {
+  organization_name: 'מגדלי הדר', public: { base_url: 'https://t-demo.arx.example.test', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip' },
+};
 
 function find(id: string): TicketDetail {
   const t = tickets.find((x) => x.id === id);
@@ -338,13 +351,13 @@ export const mockBackend: TicketsBackend = {
   },
   async settings(): Promise<SettingsDoc> {
     await sleep(40);
-    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation) };
+    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation), ...clone(publicDoc) };
   },
   async saveSettings(_revision, patch) {
     await sleep(80);
     ui = { ...ui, ...patch };
     settingsRevision += 1;
-    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation) };
+    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation), ...clone(publicDoc) };
   },
   async saveInstallation(_revision, patch) {
     await sleep(80);
@@ -353,8 +366,9 @@ export const mockBackend: TicketsBackend = {
       links: { ...installation.links, ...(patch.links ?? {}) }, send_hours: patch.send_hours ?? installation.send_hours,
       urgent_is_critical: patch.urgent_is_critical ?? installation.urgent_is_critical,
     };
+    publicDoc = { organization_name: patch.organization_name ?? publicDoc.organization_name, public: { ...publicDoc.public!, ...(patch.public ?? {}) } }; // slice 4
     settingsRevision += 1;
-    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation) };
+    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation), ...clone(publicDoc) };
   },
   async saveName(_revision, entries) {
     await sleep(80);
