@@ -9701,7 +9701,7 @@
     "test_ids": [
       "AT323"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9715,10 +9715,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on pilot/FIX-menus-opaque @ f36bc24e; notes: the branch commit messages and docs/design/handoff/TOKEN_CONTRACT.md (menu surface). Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on pilot/FIX-menus-opaque @ f36bc24e; notes: the branch commit messages and docs/design/handoff/TOKEN_CONTRACT.md (menu surface). Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   },
   {
@@ -9740,7 +9741,7 @@
     "test_ids": [
       "AT324"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9754,10 +9755,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on pilot/WXPERM @ ca5514f6; notes: docs/changes/WXPERM-ACCESS-PERMISSIONS-NOTES.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on pilot/WXPERM @ ca5514f6; notes: docs/changes/WXPERM-ACCESS-PERMISSIONS-NOTES.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   },
   {
@@ -9779,7 +9781,7 @@
     "test_ids": [
       "AT325"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9793,10 +9795,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section A. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section A. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   },
   {
@@ -9818,7 +9821,7 @@
     "test_ids": [
       "AT326"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9832,10 +9835,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section B. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section B. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   },
   {
@@ -9857,7 +9861,7 @@
     "test_ids": [
       "AT327"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9871,10 +9875,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section C. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on pilot/WX-small-2410 @ 7f4cd4a6; notes: docs/changes/WX-SMALL-2410-NOTES.md section C. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   },
   {
@@ -9896,7 +9901,7 @@
     "test_ids": [
       "AT328"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9910,10 +9915,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on pilot/ST7-look-r3 @ a60239a7; notes: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 16 and docs/design/studio6/ROUND3_CRITIQUE.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on pilot/ST7-look-r3 @ a60239a7; notes: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 16 and docs/design/studio6/ROUND3_CRITIQUE.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   },
   {
@@ -9935,7 +9941,7 @@
     "test_ids": [
       "AT329"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9949,10 +9955,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on pilot/ST8-ifc @ ed1fd497; notes: docs/changes/CR-037-PLAN-STUDIO-8-IFC.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on pilot/ST8-ifc @ ed1fd497; notes: docs/changes/CR-037-PLAN-STUDIO-8-IFC.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   },
   {
@@ -9974,7 +9981,7 @@
     "test_ids": [
       "AT330"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9988,10 +9995,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): built on integ/2410 @ 52d442e9; notes: the commit message of 52d442e9 and docs/release/2.4.10-INTEGRATION-NOTES.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes."
+      "2026-10-13 (integ-2410): built on integ/2410 @ 52d442e9; notes: the commit message of 52d442e9 and docs/release/2.4.10-INTEGRATION-NOTES.md. Merged into integ/2410 (release 2.4.10). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2410 passes.",
+      "2026-10-13 (integ-2410): tier-L release gate PASS @ 240424e0; evidence docs/release/2.4.10-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "240424e0",
     "actual_cost_usd": null
   }
 ]
