@@ -40,6 +40,7 @@ for which only the hook is designed (section 18).
 - r2.6 (2026-10-13): owner answers on D31 (D32) - claim requirement chosen per assignment (default optional), 7-year
   retention, one approver with a configurable high-amount flag, VAT included / excluded chosen by the vendor per claim,
   camera capture of invoices on the vendor page (multi-page, client-side cleanup), OCR hook. No owner question is open.
+- r2.7 (2026-10-13): owner requirement D33 - the module's user-facing name is a setting (14.3); internal ids stay `tickets`.
 
 **Related:** CR-018 (notification core: sources, recipients, escalation - the module's internal alerts ride on it), CR-008
 (remote access through a Cloudflare tunnel, the threat model of a public surface), CR-028 (the cast relay: the precedent for a
@@ -125,6 +126,7 @@ decision 2026-10-01: the database engine is decided when ticketing is specified 
 | D30 | The board's side **area tree is hideable by each user** (a hide / show control on the board, remembered per user) and can be turned **fully off** by the installation setting (`board_floors = chips`) - the tree is not relevant for every customer. Effort: negligible (inside slice 6). | 13.7 |
 | D31 | After an **external** vendor reports done, the vendor submits a **cost claim** (lines: labor hours x rate, parts, travel, other; currency default ILS; VAT handling; auto total; notes; invoice / receipt as photo or PDF; optional invoice number); the manager approves, approves with adjustment, or rejects back to the vendor; revisions never overwritten; status none / submitted / approved / rejected / paid with a manual "mark as paid"; no payment integration (hook only); reporting and CSV; a required claim blocks closing unless overridden with a reason; new sensitive permission(s), grantable per user. | 11A |
 | D32 | Owner answers on D31: (1) **cost claim required / optional / off is chosen per assignment** by the manager in the assign dialog, preselected from vendor → department → installation default **optional**; (2) claims and invoices kept **7 years**; (3) **one approver**, high-amount flag above a configurable amount (default 10,000 ILS); (4) the **vendor chooses per claim** whether entered amounts include or exclude VAT (default from the vendor record), the server computes the other figure; the vendor can **photograph invoices with the phone camera** on the page (multi-page, retake, crop / rotate / contrast on the client, compressed images, server re-encode, assembled document view for the manager); OCR is a future task with a hook. | 11A |
+| D33 | The module's **user-facing name is configurable** (singular / plural per language, default "קריאה" / "קריאות"), edited in Settings with the settings permission; every user-facing text uses it; internal identifiers stay `tickets`. | 14.3 |
 
 D18-D22 (and D17) are **installation settings** under Settings › קריאות שירות › כללי (`system.configure`); the per-user
 choices of D24 (view, columns, density, sort, saved filters) are personal and stored per user.
@@ -1262,7 +1264,8 @@ Matching steps:
 
 Message templates (`ticket_templates kind='message'`) per purpose, department-specific or installation-wide, Hebrew, with an
 allow-list of placeholders: `{name}`, `{number}`, `{department}`, `{title}`, `{place}`, `{device}`, `{priority}`,
-`{organization}`, `{link}`, `{code}` (code template only), `{manager}`, `{eta}`. Saved templates are validated: unknown
+`{organization}`, `{link}`, `{code}` (code template only), `{manager}`, `{eta}`, `{module_name}`, `{module_name_plural}`
+(D33, 14.3). Saved templates are validated: unknown
 placeholders, Unicode `Cc` / `Cf` characters (control, bidi, zero-width - review T9), a URL that is not `{link}`, more than
 1000 rendered characters → 422 field problems. `{link}` is mandatory in `assign` / `reminder` / `reopened` / `update`
 templates for contacts; `{code}` is mandatory in, and allowed only in, the `code` template, and the code message contains **no
@@ -2319,6 +2322,7 @@ The values reach every signed-in user through `GET /tickets/module` (`ui: {...}`
     "use_buttons": false,
     "reply_window_h": 72
   },
+  "display_name": { ... },                 // D33: the block of 14.3
   "urgent_is_critical": true,              // D28: installation default; ticket_departments.urgent_is_critical overrides
   "costs": { ... },                        // D31: the block of 11A.14
   "device_long_press": "sheet",            // D17: "sheet" (default, today's behaviour) | "menu" (the mock-up's opaque menu)
@@ -2369,6 +2373,52 @@ installation value next to each override ("ברירת מחדל: 14 ימים").
   `ticket.channel_down`.
 - Five skins: the new screens use existing components (`sw-page`, `sw-card`, `sw-sheet`, `sw-tabs`, chips) and `--sw-*` tokens only;
   any skin-specific rule stays within each skin's 50-rule budget; layout-guard specs extended.
+
+### 14.3 The module's display name (D33)
+
+Internal identifiers stay `tickets` everywhere (routes, tables, permission ids, settings keys, CSS / element names). Every
+**user-facing** text takes the name from one setting, so the module can be renamed later without a code change.
+
+- **Setting** `tickets.settings.display_name` (edited in Settings › קריאות שירות › כללי by `tickets.configure`; audit
+  `tickets.display_name.update` with before / after):
+
+  ```json
+  "display_name": {
+    "he": { "one": "קריאה",   "many": "קריאות",  "gender": "f" },
+    "en": { "one": "ticket",  "many": "tickets", "gender": "n" },
+    "ar": { "one": "طلب",     "many": "طلبات",   "gender": "m" },
+    "ru": { "one": "заявка",  "many": "заявки",  "gender": "f",
+            "forms": { "acc_one": "заявку", "gen_one": "заявки", "gen_many": "заявок" } }
+  }
+  ```
+
+  Each value 1-30 characters, `Cc` / `Cf` stripped, no `{` `}`. `gender` exists because Hebrew, Arabic and Russian verbs and
+  adjectives agree with the noun ("קריאה נשלחה" / "אירוע נשלח"); Russian also needs a few case forms. The Settings form asks
+  only for the forms a language's catalogue uses and shows a live preview of five sample sentences per language.
+- **Helper:** frontend `tickets/module-name.ts` - `mn(form: 'one' | 'many' | string, lang?)` and a catalogue convention: strings
+  in `tickets/text.ts`, the public-page catalogue and the backend message catalogue write `{mn}` / `{mn_many}` / `{mn:acc_one}`
+  for the noun and `{g:f=...|m=...|n=...}` for an agreeing word; one formatter (`formatModuleText`) resolves both. Backend
+  `services/tickets/naming.py` - `module_name(conn, lang, form)` and the same formatter, used for notification texts, e-mails,
+  CSV headers, permission / role labels, outbox rendering and the public API's `labels`. The names reach the shell through
+  `GET /tickets/module` (`display_name`), the vendor page through `GET /t/api/ticket` (`labels` for the contact's language).
+- **Where it applies:** nav entry and area tabs, page titles, the device tab "קריאות" and its count, the long-press menu items
+  (D17), notifications (CR-018 texts are rendered at emit time - rows already delivered keep the old wording), permission and
+  role labels (`PERMISSION_LABELS` entries of `tickets.*` and the single-permission roles become label **templates** rendered
+  when the access screens list them; audit rows keep ids), Settings tabs and headings, board / table headings, CSV headers (in
+  the requester's language), e-mails, the vendor page in all four languages (D26), and the message templates.
+- **Message templates:** the starter templates use `{module_name}` / `{module_name_plural}` (e.g. "{module_name} {number}
+  ({department}): {title}"); the placeholders render in the **contact's** language. Templates an administrator already
+  edited keep their own text: a rename never rewrites them; the Settings form says "N תבניות כוללות את השם הקודם" with a link
+  to each.
+- **Lint / test (forbids hard-coding):** `test_tickets_module_name_lint` (backend) and `unit-tickets-module-name` (frontend)
+  scan the user-facing string sources of the module - `frontend/src/tickets/**`, `frontend/src/public-ticket/**`, the tickets
+  entries of `i18n/he.ts`, `services/tickets/**` message catalogues, starter templates, notification texts, permission labels,
+  CSV header maps - for the default words in the four languages (קריאה, קריאות, ticket, tickets, Ticket, Tickets, طلب, طلبات,
+  заявка, заявки and their listed case forms) and fail on any match outside `module-name` defaults and code identifiers. A
+  rename test sets a different name (e.g. "פנייה" / "פניות", masculine "אירוע" / "אירועים") and asserts the nav, the device tab,
+  a notification, a CSV header, an outbox render and the vendor page show it, with gender agreement in Hebrew.
+- **Effort:** about +2 agent-hours in slice 1 (helper, setting, lint, rename test); everything else is the normal cost of
+  writing those strings once.
 
 ## 15. Retention and privacy
 
@@ -2540,7 +2590,7 @@ brackets.
 
 | # | Slice | Contents | Effort (r1) | Depends on |
 |---|---|---|---|---|
-| 1 | Skeleton + internal tickets | module switch + `/me` flag + `SETTINGS_KEEP`; the six permissions incl. `tickets.external` and the six single-permission roles + delegation defaults (D25, 8.2); D18 / D22 display settings (drawer / full screen, sheet / dialog); migration 0079 (all core tables incl. r2 columns and `ticket_requests`, one seeded "אחזקה" department with priorities + default SLA); `services/tickets` store/model/access/create; visibility rule with placeless any-scope and internal-content split; internal routes (CRUD, timeline, status incl. return kinds, notes / photos with the external flag, assign to internal users, assignee picker, text filter, duplicate hint + `duplicate_of`, reopen count, send-update flag); the five permissions + labels + sensitive list; Cc/Cf text hygiene; internal attachment body-limit row; audit; nav area + list + detail + create sheet; i18n catalogue; demo store | 32-40 (22-28) | - |
+| 1 | Skeleton + internal tickets | module switch + `/me` flag + `SETTINGS_KEEP`; the six permissions incl. `tickets.external` and the six single-permission roles + delegation defaults (D25, 8.2); D18 / D22 display settings (drawer / full screen, sheet / dialog); migration 0079 (all core tables incl. r2 columns and `ticket_requests`, one seeded "אחזקה" department with priorities + default SLA); `services/tickets` store/model/access/create; visibility rule with placeless any-scope and internal-content split; internal routes (CRUD, timeline, status incl. return kinds, notes / photos with the external flag, assign to internal users, assignee picker, text filter, duplicate hint + `duplicate_of`, reopen count, send-update flag); the five permissions + labels + sensitive list; Cc/Cf text hygiene; internal attachment body-limit row; audit; nav area + list + detail + create sheet; i18n catalogue with the configurable module name, helper and lint (D33); demo store | 34-42 (22-28) | - |
 | 2 | Departments + SLA | settings screens (departments, categories, priorities, the full SLA grid incl. "link not opened", members with the escalation rule, ticket templates with diff audit; department flags: automatic close, history to the handler, urgent as critical, link-duration and send-hour overrides); revision-checked admin routes; SLA due computation on every change (no monitor yet); department scoping tests | 16-21 (14-18) | 1 |
 | 3 | Device tab | `device-activity` third tab, `activityTag` for all entities, the two long-press modes of D17 (setting, `/me` flag, opaque menu extending `renderMenu`), menu item, map card action + count chip, `place.py`, `device_context.py` (security-domain rule), device-originated creation, `by-entity` with `devices.read`, category preselect by domain; D23 history checkbox | 16-22 (12-16) | 1 (2 for category preselect) |
 | 4 | Public page + links + directory | migration 0080; contacts directory (screens, phone visibility, erase/export, phone-change revocation); `links.py` (sliding expiry, cap, grace, redeem ids); public app on 18093 on its own thread/loop with the isolation table of 10.1 + add-on option + port; trusted-proxy rate limiting (`RateLimiter` scope parameter); second Vite entry + page (grace, "לא שלי", "סיום", offline draft, time zone, busy page); public API incl. idempotency and the 422 envelope; uploads validator (16 MP, JPEG/PNG, own semaphore); headers and log filter; address probe with SSRF rules; assignment to contacts with channel `manual` (copy link); assign preview; per-vendor history default (D23); page in he / en / ar / ru with RTL / LTR (D26); `docs/security/` note on token-authorised media | 39-50 (22-28) | 1, 2 |
@@ -2552,7 +2602,7 @@ brackets.
 | 9 | Cost claims (D31) | migration 0083; `services/tickets/costs.py` (mode resolution, computation, lifecycle, close gate, claim window, decisions, payment hook); PDF / photo file path with the 11A.6 rules and body-limit rows; public claim routes + the vendor-page claim step (4 languages) incl. camera capture, page editor, multi-page documents (D32); manager cost card, review dialogs, revision history, on-behalf entry; the two permissions + roles; CR-018 sources and vendor messages; report screen, cost columns, CSV; per-assignment requirement in the assign dialog; assembled-PDF download; OCR hook; retention; tests | 36-48 (new) | 4, 5b, 6b (columns) |
 | 8 | Guide + review + gate | DOCS.md section + Hebrew user guide (installer: dedicated number, pairing, 14-day rule, choosing accounts per use, tunnel route, **required**: recorder exclusion of `whatsapp_message_*` and the last-message sensor, Cloudflare rate-limit rule and script features off for `t-*`, HA backups are sensitive; manager: link durations, send hours, codes and forwarding), security review of the public surface, upstream watch entry (`FaserF/ha-whatsapp`), bilingual changelog lines, tier-L gate on the runner | 10-15 (8-12) (+ gate runtime) | all |
 
-**Total: 234-305 agent-hours** (r1: 120-156; **+114 to +149, about +95%**). r2.5 / r2.6 (D31, D32 - cost claims with camera capture) added slice 9 (36-48; the camera, page editor and multi-page documents are +6-8, the per-assignment choice +1). Before it: 198-257. r2.3 (D25-D29) added 9-10: `tickets.external` and the single-user grant roles + "הרשאות" sub-tab (+3 in slice 1), languages (+4-5 in slice 4, +2 in slice 5b), D28 / D29 inside slices 5b / 6. r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
+**Total: 236-307 agent-hours** (r1: 120-156; **+116 to +151, about +97%**; D33 +2 in slice 1). r2.5 / r2.6 (D31, D32 - cost claims with camera capture) added slice 9 (36-48; the camera, page editor and multi-page documents are +6-8, the per-assignment choice +1). Before it: 198-257. r2.3 (D25-D29) added 9-10: `tickets.external` and the single-user grant roles + "הרשאות" sub-tab (+3 in slice 1), languages (+4-5 in slice 4, +2 in slice 5b), D28 / D29 inside slices 5b / 6. r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
 link lifecycle and the redeem page (+12-16 in slice 4); the new WhatsApp accounts slice 5a (+12-15) and its effect on the
 channel (+4 in 5b); department-scoping and data-exposure fixes, duplicates, reopen, text filter (+5-6 in slice 1); settings
 for every threshold and the department overrides (+2-3); the owner's new items (automatic close, "link not opened", "לא שלי",
