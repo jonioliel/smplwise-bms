@@ -2,7 +2,7 @@
 
 Status: BUILT ON FAKES (branch `pilot/WXROT-2411` from `origin/main` 19dbbbcc, 2.4.10). Nothing here touched a real key, bridge,
 Home Assistant, WisKey, station or door; every test runs against fakes with synthetic test keys. A live rotation is a separate,
-owner-approved step (section 12).
+owner-approved step (section 13).
 
 Sources: CR-034 (`origin/pilot/WISKEY-CRs`, design only), `WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md`, CR-033 and its
 integration notes, `services/trusted_door.py`, `services/door_authority.py`, `services/ha_bridge.py`, the bridge
@@ -211,7 +211,7 @@ length of them. Tests scan all of these after full runs.
 | T5 | Request in the middle executed twice or silently retried | gate refuses before signing; UNKNOWN resolved by status only; terminal rows cannot reopen (trigger) | an operator may start a NEW rotation after `not_rotated` (a new id) |
 | T6 | Key material leaks through audit, logs, screens, backups, fixtures | section 9; `bridge.trust.` settings never exported or restored; tests scan everything | the bridge's config entry and store (Home Assistant `.storage`, private) hold the current key, as before |
 | T7 | Unauthorised rotation (lock-out of the bridge as a denial of service) | `access.trust.rotate` (sensitive, installation scope, not delegable), interactive session, local only, explicit confirmation, audited | a holder can rotate repeatedly (each is audited; nothing breaks) |
-| T8 | Attacker who already holds `K_cur` AND observes the rotation call (salt) derives `K_next` | out of scope of rotation: in this deployment such access also exposes the config entry; for a suspected leak, re-pair with a fresh random key | stated limitation; no forward secrecy against a passive holder of the old key |
+| T8 | Attacker who already holds an older key AND later sees the rotation calls' data (the salts travel inside the service call; Home Assistant may keep service-call data on its event bus / recorder / debug log) derives every key after it | out of scope of a derived rotation: live access to that data usually comes with access to the config entry itself; for a suspected leak, re-pair with a fresh random key; the salt is never logged, audited or stored by Arx | stated limitation: no forward secrecy against a holder of an old key who also has Home Assistant's records. Follow-up (not built): a forward-secret exchange (ephemeral X25519 with the bridge's public share re-deliverable by the status read, so UNKNOWN stays resolvable) |
 | T9 | Discovery announcement reverts a switched bridge to the old code | announcement skipped while a row is open; the config flow does not reload on an unchanged key | none |
 | T10 | Desync after crash on either side | two-phase marker, persist-before-answer, status check with fence, start-up recovery | `neither_key` needs a re-pair (fail closed) |
 | T11 | Clock manipulation to replay or pre-date | 30 s lifetime, no forward skew, 2026 floor | the bridge trusts the host clock (as every signed path does) |
@@ -231,7 +231,20 @@ skins, light / dark, 320-1440 px). Counts and runs: the branch's final report.
 
 NOT_RUN by design: any live bridge, Home Assistant, WisKey or door; a live or lab rotation; capability survival after a rotation.
 
-## 12. Live use (not authorised by this CR)
+## 12. Contradictions and follow-ups recorded (not resolved here)
+
+1. CR-034's overlap protocol, modes, anchor eligibility, owner contacts, emergency notice and `bridge.key.rotate` are superseded by the
+   2026-10-13 decisions (section 0); CR-034 stays on its branch as history. Its task cards WXH0-WXH7 still say "deferred by the owner";
+   `management/tasks.json` is not edited by this branch (the lead re-states those rows at integration).
+2. Migration 0089 leaves 0079-0088 to the reserving branches; until they land, `test_release_check.py::test_repository_is_release_consistent`
+   ("migrations contiguous") fails on this branch alone. Not weakened; the lead renumbers at integration if the reservations move.
+3. Bridge 0.8.1: CR-033 had planned 0.8.1 for the `execute` block (D5a, not built). Whichever lands second takes 0.8.2.
+4. WisKey's reply (13.10) plans its own state table and fakes by 15.10; nothing in this CR depends on it, and no WisKey behaviour is assumed.
+5. The existing pairing route shows the current key to `system.configure` holders, also on the remote channel (T13): a follow-up should make
+   it local-only with an audited reveal.
+6. T8's forward-secret exchange is a candidate for a second version, together with any grace window the owner may later want.
+
+## 13. Live use (not authorised by this CR)
 
 First a lab copy of Home Assistant with the bridge 0.8.1 installed, then the owner's approval for the live bridge, each run approved
 on its own. Before it: the add-on with this CR released, the bridge 0.8.1 loaded (Home Assistant restart), its directory push showing
