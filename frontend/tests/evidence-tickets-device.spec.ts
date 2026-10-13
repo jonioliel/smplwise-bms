@@ -36,7 +36,9 @@ const menu = (page: Page) => page.locator('sw-app device-activity [data-activity
 const tabs = (page: Page) => page.locator('sw-app device-activity [role="tab"]');
 
 async function hold(page: Page, loc: Locator, ms = LONG) {
-  await loc.scrollIntoViewIfNeeded();
+  // the middle of the viewport: on a phone the edge of the scroller sits under the bottom dock, which would take the press
+  await loc.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+  await page.waitForTimeout(150);
   const b = (await loc.boundingBox())!;
   const x = b.x + b.width - 34;
   const y = b.y + 14;
