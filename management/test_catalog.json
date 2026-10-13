@@ -5015,7 +5015,8 @@
       "R177"
     ],
     "task_ids": [
-      "T089"
+      "T089",
+      "ST7DPR"
     ],
     "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 1",
     "kind": "integration/e2e",
@@ -5027,14 +5028,18 @@
     "procedure": [
       "npx playwright test tests/unit-plan-3d-realistic.spec.ts tests/unit-plan3d-real.spec.ts tests/unit-plan3d-sun.spec.ts tests/unit-plan3d-assets.spec.ts tests/unit-walk-controller.spec.ts tests/unit-plan-3d-walk.spec.ts tests/unit-material-resolve.spec.ts tests/evidence-plan-studio-6.spec.ts --project=<desktop|tablet|mobile> --workers=1 (or run_smart.py spec <branch> ... on the runner, sharded)",
       "Expect: level 3 additive and deterministic (same graph after a rebuild, same pixels twice), the sun deterministic by hour, the walk equal to the node model (walls, doors open / closed / stale / locked, stairs, Esc), the 1,000-object floor equal after a rebuild at levels 1, 2 and 3",
-      "Owner: PLAN_STUDIO_PHASE6_CHECKLIST_HE.md rows 1-3 (realistic look, time of day, the walk on the real floor) - pass / fail per row"
+      "Owner: PLAN_STUDIO_PHASE6_CHECKLIST_HE.md rows 1-3 (realistic look, time of day, the walk on the real floor) - pass / fail per row",
+      "ST7DPR (branch pilot/ST7-dpr-cap @ 8b674621; notes docs/changes/CR-029-ST7-PORT-NOTES.md P21), added to the set above:",
+      "npx playwright test tests/unit-plan-3d-pixel-ratio.spec.ts tests/evidence-plan-3d-dpr-cap.spec.ts --project=<desktop|tablet|mobile> --workers=1 (or run_smart.py spec <branch> ... on the runner)",
+      "Expect: the first drawn frame at the realistic rung is already at the person's dpr_cap (history map, event page, wall display, live floor map); a cap changed while the realistic rung draws applies at once; levels 1-2 and the lite rung are unchanged; tests/evidence-plan-studio-6.spec.ts no longer expects the old defect."
     ],
     "expected": "רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
     "evidence": [
-      "2026-10-12 partial, not acceptance (branch pilot/ST7-s7-perf): Runner (Ubuntu, SwiftShader, 2026-10-12, @ bdc364c9 / 43ebc7e2, same specs): the 3D set (unit-plan-3d*, unit-plan3d-assets / real / sun, unit-walk-controller, unit-material-resolve, unit-still-bake, unit-floor-map-3d, unit-anchor-3d, unit-three-chunk) plus evidence-plan-studio-6, 2 shards per project on the vite dev server: desktop 97 passed / 4 skipped / 2 failed, tablet 97 / 4 / 2, mobile 97 / 4 / 2; the 2 failures per project are unit-plan-3d.spec.ts's lazy-chunk assertions, which need the built UI (no assets/three-*.js under the dev server) - the preview job (npm run build + vite preview) ran unit-plan-3d.spec.ts on all three projects: 12 passed. Skips: the 256 px swap fixme, the 2 opt-in perf tests (not opted in), unit-three-chunk's dist test (no dist on the dev server). evidence-plan-studio-6 functional part: 4 passed per project; the dpr_cap defect reproduced on mobile (cap 2 set at cap 1 while realistic draws -> ratio stays 1, expected 2)."
+      "2026-10-12 partial, not acceptance (branch pilot/ST7-s7-perf): Runner (Ubuntu, SwiftShader, 2026-10-12, @ bdc364c9 / 43ebc7e2, same specs): the 3D set (unit-plan-3d*, unit-plan3d-assets / real / sun, unit-walk-controller, unit-material-resolve, unit-still-bake, unit-floor-map-3d, unit-anchor-3d, unit-three-chunk) plus evidence-plan-studio-6, 2 shards per project on the vite dev server: desktop 97 passed / 4 skipped / 2 failed, tablet 97 / 4 / 2, mobile 97 / 4 / 2; the 2 failures per project are unit-plan-3d.spec.ts's lazy-chunk assertions, which need the built UI (no assets/three-*.js under the dev server) - the preview job (npm run build + vite preview) ran unit-plan-3d.spec.ts on all three projects: 12 passed. Skips: the 256 px swap fixme, the 2 opt-in perf tests (not opted in), unit-three-chunk's dist test (no dist on the dev server). evidence-plan-studio-6 functional part: 4 passed per project; the dpr_cap defect reproduced on mobile (cap 2 set at cap 1 while realistic draws -> ratio stays 1, expected 2).",
+      "2026-10-12 partial, not acceptance (REG-249): dpr_cap fix on branch pilot/ST7-dpr-cap @ 8b674621: evidence-plan-3d-dpr-cap red on the 2.4.7 sources, green with the fix (desktop); tablet / mobile / runner NOT_RUN."
     ],
     "executed_at": null,
     "notes": "S7 prep: the automated part exists and runs; the quiet-window measurement and the owner's real-device rows are NOT_RUN. Gaps: docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23."
@@ -8531,7 +8536,8 @@
       "R300"
     ],
     "task_ids": [
-      "WXN6"
+      "WXN6",
+      "WKS9"
     ],
     "title": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups",
     "kind": "integration/e2e",
@@ -8539,15 +8545,23 @@
       "Build tied to a recorded commit"
     ],
     "procedure": [
-      "Run the tests named in the change request on fakes / fixtures; no live device."
+      "Run the tests named in the change request on fakes / fixtures; no live device.",
+      "WKS9 / S9 (branch pilot/WISKEY-native-s9-schedules @ e980f203; notes docs/changes/CR-036-S9-NOTES.md), fakes only:",
+      "Backend (smplwise_vms/backend): tests/test_access_control_wire.py tests/test_ui_settings.py tests/test_intercom_adapter.py",
+      "Frontend unit: tests/unit-access-schedules-logic.spec.ts tests/unit-wiskey-schedules-nav.spec.ts tests/unit-wiskey-stations-nav.spec.ts",
+      "Frontend evidence + layout guard: tests/evidence-access-schedules.spec.ts tests/layout-access-schedules.spec.ts (--workers=1, desktop / tablet / mobile)",
+      "Pixel (runner, Linux): tests/pixel-access-schedules.spec.ts - baselines not generated yet; NOT_RUN",
+      "Runner: python private/runner/run_smart.py <backend|spec|preview|linux-pixel> pilot/WISKEY-native-s9-schedules ..."
     ],
     "expected": "WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "2026-10-12 partial, not acceptance (REG-249): S9 built on fakes, branch pilot/WISKEY-native-s9-schedules @ e980f203; workstation results are in CR-036-S9-NOTES.md section 6; runner, preview-build and pixel baselines NOT_RUN."
+    ],
     "executed_at": null,
-    "notes": "NOT_RUN."
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
   },
   {
     "id": "AT317",
@@ -8555,7 +8569,8 @@
       "R301"
     ],
     "task_ids": [
-      "WXN11"
+      "WXN11",
+      "WKS12"
     ],
     "title": "WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification",
     "kind": "integration/e2e",
@@ -8571,7 +8586,9 @@
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "2026-10-12 partial, not acceptance (REG-249): S12 built on fakes, branch pilot/WISKEY-s12-gaps @ c58f15b8. S12 own specs: backend tests/test_intercom_parity.py tests/test_access_parity_wire.py tests/test_intercom_adapter.py; unit tests/unit-access-parity-logic.spec.ts tests/unit-wiskey-stations.spec.ts; evidence tests/evidence-access-s12.spec.ts tests/evidence-wiskey-stations.spec.ts; layout tests/layout-access-s12.spec.ts; pixel tests/pixel-access-s12.spec.ts; script scripts/wiskey_parity_report.py. NOT_RUN: runner, preview-build, pixel baselines, live fixture."
+    ],
     "executed_at": null,
     "notes": "NOT_RUN."
   },
@@ -8581,7 +8598,8 @@
       "R302"
     ],
     "task_ids": [
-      "WXW"
+      "WXW",
+      "WKS11"
     ],
     "title": "WisKey new writes (including doors), allowed now by the owner decision",
     "kind": "integration/e2e",
@@ -8589,15 +8607,23 @@
       "Build tied to a recorded commit"
     ],
     "procedure": [
-      "Run the tests named in the change request on fakes / fixtures; no live device."
+      "Run the tests named in the change request on fakes / fixtures; no live device.",
+      "WKS11 / S11 (branch pilot/WISKEY-s11-writes @ ae3fa325; notes docs/changes/CR-036-S11-NOTES.md), fakes only:",
+      "Backend (smplwise_vms/backend): tests/test_intercom_writes_s11.py tests/test_access_writes_wire.py tests/test_wiskey_contract.py tests/test_wiskey_channels.py tests/test_intercom_authority.py tests/test_intercom.py (fake: tests/fake_wiskey.py)",
+      "Frontend unit: tests/unit-people-writes-logic.spec.ts tests/unit-people-writes-wire.spec.ts (mock: tests/wiskey-writes-mock.ts)",
+      "Frontend evidence + layout guard: tests/evidence-wiskey-people-writes.spec.ts tests/layout-wiskey-people-writes.spec.ts (--workers=1)",
+      "Pixel (runner, Linux): tests/pixel-wiskey-people-writes.spec.ts, plus a refresh of S7's pixel-wiskey-people drawer baselines - not generated; NOT_RUN",
+      "Runner: python private/runner/run_smart.py <backend|spec|preview|linux-pixel> pilot/WISKEY-s11-writes ... (backend as parallel shards)"
     ],
     "expected": "WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
-    "evidence": [],
+    "evidence": [
+      "2026-10-12 partial, not acceptance (REG-249): S11 built on fakes, branch pilot/WISKEY-s11-writes @ ae3fa325; workstation results in CR-036-S11-NOTES.md section 9; runner, preview-build and pixel baselines NOT_RUN; no live write."
+    ],
     "executed_at": null,
-    "notes": "NOT_RUN."
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
   },
   {
     "id": "AT319",
@@ -8605,7 +8631,8 @@
       "R303"
     ],
     "task_ids": [
-      "WXAV"
+      "WXAV",
+      "WKS18"
     ],
     "title": "WisKey local live video and two-way audio (S18)",
     "kind": "integration/e2e",
@@ -8613,14 +8640,116 @@
       "Build tied to a recorded commit"
     ],
     "procedure": [
-      "Run the tests named in the change request on fakes / fixtures; no live device."
+      "Run the tests named in the change request on fakes / fixtures; no live device.",
+      "WKS18 / S18 (branch pilot/WISKEY-media-s18 @ bc87c448; notes docs/changes/CR-036-S18-MEDIA.md), fake descriptor and fake media stack only:",
+      "Backend (smplwise_vms/backend): tests/test_intercom_media.py",
+      "Frontend unit: tests/unit-wiskey-station-media.spec.ts (mock: tests/wiskey-station-media-mocks.ts)",
+      "Frontend evidence + layout guard: tests/evidence-wiskey-station-media.spec.ts tests/layout-wiskey-station-media.spec.ts (--workers=1)",
+      "Pixel (runner, Linux): tests/pixel-wiskey-station-media.spec.ts - baselines not generated; NOT_RUN",
+      "Runner: python private/runner/run_smart.py <backend|spec|preview|linux-pixel> pilot/WISKEY-media-s18 ...",
+      "Live (owner lab, slice S14, after W10): NOT_RUN"
     ],
     "expected": "WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
+    "evidence": [
+      "2026-10-12 partial, not acceptance (REG-249): S18 built on a fake descriptor, branch pilot/WISKEY-media-s18 @ bc87c448; no result counts in the notes; runner, pixel baselines and everything live NOT_RUN."
+    ],
+    "executed_at": null,
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+  },
+  {
+    "id": "AT320",
+    "requirement_ids": [
+      "R304"
+    ],
+    "task_ids": [
+      "WKWA"
+    ],
+    "title": "WisKey native screens WA: WhatsApp messages from the people screen (single and bulk), consent, templates, quota",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "WKWA / WA (branch pilot/WISKEY-whatsapp @ 21399bc7; notes docs/changes/CR-036-WA-NOTES.md), fakes only:",
+      "Backend (smplwise_vms/backend): tests/test_intercom_messaging.py tests/test_intercom_authority.py tests/test_wiskey_channels.py tests/test_migrations.py tests/test_media_api.py tests/test_media_players_api.py tests/test_notify_core.py (fake: tests/fake_wiskey_messaging.py); the migration-list tests must list the final migration set",
+      "Frontend unit: tests/unit-messaging-logic.spec.ts tests/unit-messaging-strings.spec.ts tests/unit-messaging-templates.spec.ts tests/unit-people-strings.spec.ts",
+      "Frontend evidence + layout guard: tests/evidence-wiskey-messaging.spec.ts tests/evidence-wiskey-messaging-settings.spec.ts tests/evidence-wiskey-people-native.spec.ts tests/evidence-access-status.spec.ts tests/layout-wiskey-messaging.spec.ts (--workers=1)",
+      "Pixel (runner, Linux): tests/pixel-wiskey-messaging.spec.ts plus refresh of the S7 people and S10 status baselines - not generated; NOT_RUN",
+      "Runner: python private/runner/run_smart.py <backend|spec|preview|linux-pixel> pilot/WISKEY-whatsapp ... (backend as parallel shards)",
+      "Live (a real WisKey / WhatsApp account, slice S14 after W11): NOT_RUN"
+    ],
+    "expected": "WisKey native screens WA: WhatsApp messages from the people screen (single and bulk), consent, templates, quota: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [
+      "2026-10-12 partial, not acceptance (REG-249): WA built on fakes, branch pilot/WISKEY-whatsapp @ 21399bc7; results in CR-036-WA-NOTES.md ('Tests' section); pixel baselines and live NOT_RUN."
+    ],
+    "executed_at": null,
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+  },
+  {
+    "id": "AT321",
+    "requirement_ids": [
+      "R305"
+    ],
+    "task_ids": [
+      "WXDINT"
+    ],
+    "title": "WisKey CR-033: door path integrated on the 2.4.8 line with its review fixes and the fake-based gate",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "WXDINT (branch pilot/WXD-integration @ 5777be0e; notes docs/changes/CR-033-INTEGRATION-NOTES.md), fakes only:",
+      "Backend (smplwise_vms/backend): tests/test_wiskey_door_gate.py tests/test_wiskey_door_signed.py tests/test_wiskey_door_enable.py tests/test_wiskey_door_path.py tests/test_wiskey_door_inventory.py tests/test_wiskey_d6_d8.py tests/test_security_review_wxd_fixes.py (fake: tests/fake_trusted_bridge.py)",
+      "Adjacent backend files touched: tests/test_intercom.py tests/test_ha.py tests/test_ha_authority.py tests/test_presence.py tests/test_schedules_scope.py and the four migration-list tests (test_migrations, test_media_api, test_media_players_api, test_notify_core); tests/test_release_check.py (migrations contiguous) needs the 0076 decision",
+      "Frontend unit: tests/unit-door-path.spec.ts tests/unit-door-settings.spec.ts",
+      "Runner: python private/runner/run_smart.py backend pilot/WXD-integration ... (parallel shards)",
+      "Live (door, bridge, key, station): NOT_RUN - needs the owner's task-specific approval"
+    ],
+    "expected": "WisKey CR-033: door path integrated on the 2.4.8 line with its review fixes and the fake-based gate: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [
+      "2026-10-12 partial, not acceptance (REG-249): door path integrated on fakes, branch pilot/WXD-integration @ 5777be0e; local merged-tree run 848 passed / 1 failed (migrations contiguous, expected); T13 / T19 / T24 partly OPEN; everything live NOT_RUN."
+    ],
+    "executed_at": null,
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
+  },
+  {
+    "id": "AT322",
+    "requirement_ids": [
+      "R306"
+    ],
+    "task_ids": [
+      "GATE248"
+    ],
+    "title": "Release gate: tier-L baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "GATE248 (branch pilot/GATE-dur-248 @ 6cb4ecb0), tooling only:",
+      "python scripts/gate/selftest_gate.py (on the runner; the author recorded 37 OK)",
+      "Check: scripts/gate/gate_baselines.json and scripts/gate/gate_durations.json load; release_gate.py prior_costs() falls back to the seed only for untimed files; a missing seed is harmless",
+      "Refresh procedure: scripts/gate/INSTALL_ON_RUNNER.md"
+    ],
+    "expected": "Release gate: tier-L baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed: built and verified on fakes and fixtures; no live device action.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "NOT_RUN."
+    "notes": "NOT_RUN: built on a branch against fakes; no gate or lab run is recorded against a merged commit."
   }
 ]

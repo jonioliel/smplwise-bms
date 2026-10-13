@@ -180,7 +180,7 @@ Generated from canonical registries; NOT_RUN does not mean passing.
 | R174 | V2 | T087 | AT174 | ה־3D נטען כ־chunk נפרד (עד 200KB gzip) רק לפי דרישה, עובד בטלפון ובכרטיס ה־Lovelace (לפחות 30fps עד 3,000 עצמים) ומייצא glTF; כיסוי המצלמות נעצר בקירות (מידע תכנוני) ודף המבנה מציג איזומטרי אמיתי. |
 | R175 | V2 | T088 | AT175 | ייצוא SVG/PNG דטרמיניסטי, DXF עם שכבות מוגדרות, וחבילת תוכנית חתומה (מקור, גאומטריה, חדרים, עוגנים, פריטים מותאמים ודוח) עם ייבוא שמשחזר את התוכנית כטיוטה ומדווח על ישויות חסרות. |
 | R176 | V2 | T088 | AT176 | round-trip: ייצוא וייבוא של חבילה מחזירים אותו hash גאומטרי; DXF מיוצא נקרא חזרה עם אותן ישויות; ייבוא JSON עובר ולידציה מלאה ונכנס כטיוטה. |
-| R177 | V2 | T089 | AT177 | רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות. |
+| R177 | V2 | T089, ST7DPR | AT177 | רמת 3D ריאליסטית (חומרים, צללים, שעה ביום) כמתג איכות, וסיור בגובה עין עם התנגשות בקירות ומעבר בדלתות פתוחות. |
 | R178 | V2 | T089 | AT178 | ביצועים: לפחות 30fps בטלפון בסצנה של 1,000 עצמים; ברירת המחדל נשארת סכמטית. |
 | R179 | V2 | T090 | AT179 | ייצוא IFC4 של הקומה בכותב עצמי: IfcBuildingStorey לכל מפלס, קירות, פתחים, חללים, עצמים לפי מחלקת IFC מהספרייה, מצלמות כ־IfcAudioVisualAppliance ומזהי HA ב־property set, עם GlobalId יציב בין ייצואים. |
 | R180 | V2 | T090 | AT180 | ייבוא IFC (קומות, קירות, פתחים, חללים, ריהוט) כמועמדים למסך האישור, אחרי בדיקת זמינות של IfcOpenShell (LGPL) על תמונת ה־add-on; ייבוא חלקי מדווח ואינו מתקבל בשקט. |
@@ -302,7 +302,10 @@ Generated from canonical registries; NOT_RUN does not mean passing.
 | R297 | V1 | WXN01 | AT313 | WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard: built and verified on fakes and fixtures; no live device action. |
 | R298 | V1 | WXN34 | AT314 | WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel: built and verified on fakes and fixtures; no live device action. |
 | R299 | V1 | WXN5 | AT315 | WisKey native screens S5: design of the station, people, schedule and status screens: built and verified on fakes and fixtures; no live device action. |
-| R300 | V1 | WXN6 | AT316 | WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action. |
-| R301 | V1 | WXN11 | AT317 | WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action. |
-| R302 | V2 | WXW | AT318 | WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action. |
-| R303 | V2 | WXAV | AT319 | WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action. |
+| R300 | V1 | WXN6, WKS9 | AT316 | WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups: built and verified on fakes and fixtures; no live device action. |
+| R301 | V1 | WXN11, WKS12 | AT317 | WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification: built and verified on fakes and fixtures; no live device action. |
+| R302 | V2 | WXW, WKS11 | AT318 | WisKey new writes (including doors), allowed now by the owner decision: built and verified on fakes and fixtures; no live device action. |
+| R303 | V2 | WXAV, WKS18 | AT319 | WisKey local live video and two-way audio (S18): built and verified on fakes and fixtures; no live device action. |
+| R304 | V1 | WKWA | AT320 | WisKey native screens WA: WhatsApp messages from the people screen (single and bulk), consent, templates, quota: built and verified on fakes and fixtures; no live device action. |
+| R305 | V1 | WXDINT | AT321 | WisKey CR-033: door path integrated on the 2.4.8 line with its review fixes and the fake-based gate: built and verified on fakes and fixtures; no live device action. |
+| R306 | V1 | GATE248 | AT322 | Release gate: tier-L baselines refreshed from the 2.4.8 gate and a tracked per-spec duration seed: built and verified on fakes and fixtures; no live device action. |
