@@ -91,8 +91,8 @@ export class SwFloorImageAlign extends LitElement {
       inset-inline-end: 8px;
       inset-block-end: 6px;
       font-size: 11px;
-      color: var(--sw-text-3);
-      background: color-mix(in srgb, var(--sw-surface) 85%, transparent);
+      color: var(--sw-text-2);
+      background: var(--sw-menu-surface);
       padding: 2px 6px;
       border-radius: 4px;
       direction: rtl;

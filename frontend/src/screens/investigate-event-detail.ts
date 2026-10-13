@@ -217,6 +217,10 @@ export class InvestigateEventDetail extends LitElement {
       z-index: var(--sw-z-map-ui);
       display: flex;
       gap: 6px;
+      /* the picture and 2D / 3D buttons float over the map with no box of their own: the shared buttons read --sw-surface, so here it is the opaque
+         menu surface (their hover fill its solid twin) - owner 2026-10-13, styles/menu-surface.ts */
+      --sw-surface: var(--sw-menu-surface);
+      --sw-surface-2: var(--sw-surface-2-solid);
     }
     .load3d {
       position: absolute;
@@ -224,7 +228,7 @@ export class InvestigateEventDetail extends LitElement {
       display: grid;
       place-items: center;
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
@@ -236,8 +240,8 @@ export class InvestigateEventDetail extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-sm);
       padding: 3px 8px;
       font-size: var(--sw-fs-xs);

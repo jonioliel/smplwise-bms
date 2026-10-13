@@ -24,6 +24,7 @@ import { WalkTouchUi } from './walk-touch-ui';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
+import { pillInk } from './pill-ink';
 import { t } from '../i18n/he';
 import { TIME_BAND_HE, hourLabel, resolveSite, siteInstant, siteLocal, timeBand, type ResolvedSite } from './sun';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
@@ -325,9 +326,10 @@ export class SwPlan3d extends LitElement {
     :host([data-night]) {
       background: linear-gradient(180deg, #060b18 0%, #152442 100%);
     }
+    /* the night sky is dark whatever the theme: the bar and the strip stand on its own opaque navy (a translucent backdrop showed the scene through the chips' row) */
     :host([data-night]) .bar,
     :host([data-night]) .strip {
-      background: color-mix(in srgb, #0f1729 80%, transparent);
+      background: #0f1729;
       color: #dfe7f5;
     }
     /* CR-029 S1 / S2, level 3: the sky behind the canvas follows the sun and the style (the element sets the stops), the
@@ -360,9 +362,9 @@ export class SwPlan3d extends LitElement {
       gap: 4px;
       padding: 3px;
       border-radius: 999px;
-      background: color-mix(in srgb, var(--sw-surface) 78%, transparent);
-      border: 1px solid color-mix(in srgb, var(--sw-surface) 60%, transparent);
-      backdrop-filter: blur(14px);
+      /* a HUD panel over the 3D canvas is opaque (owner 2026-10-13, styles/menu-surface.ts): the menu surface and its hairline, no blur */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
       direction: rtl;
     }
@@ -423,7 +425,7 @@ export class SwPlan3d extends LitElement {
       color: var(--sw-text);
     }
     .timepop .muted {
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
     }
     .pill.hint {
       inset-block-start: 56px;
@@ -457,6 +459,10 @@ export class SwPlan3d extends LitElement {
       flex-wrap: wrap;
       max-inline-size: calc(100% - 24px);
       direction: rtl;
+      /* the chips, the select and the export button float on the canvas with no box of their own: the shared controls read --sw-surface, so
+         here it is the opaque menu surface (and their hover fill its solid twin) - glass everywhere else (owner 2026-10-13) */
+      --sw-surface: var(--sw-menu-surface);
+      --sw-surface-2: var(--sw-surface-2-solid);
     }
     .bar select {
       font: inherit;
@@ -492,9 +498,9 @@ export class SwPlan3d extends LitElement {
       gap: 2px;
       padding: 4px;
       inline-size: 96px;
-      border: 1px solid var(--sw-border);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-sm);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       color: var(--sw-text-2);
       font: inherit;
       font-size: var(--sw-fs-xs);
@@ -538,7 +544,7 @@ export class SwPlan3d extends LitElement {
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
-      box-shadow: 0 0 0 1.5px var(--sw-surface);
+      box-shadow: 0 0 0 1.5px var(--sw-menu-surface);
     }
     .strip button .dots i[data-dot='presence'] {
       background: var(--sw-map-presence);
@@ -562,8 +568,8 @@ export class SwPlan3d extends LitElement {
       left: 0;
       top: 0;
       transform: translate(-50%, -50%);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-pill);
       padding: 1px 7px;
       font: inherit;
@@ -591,8 +597,8 @@ export class SwPlan3d extends LitElement {
       position: absolute;
       inset-inline-start: 12px;
       inset-block-start: 12px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-pill);
       padding: 1px 8px;
       font-size: var(--sw-fs-xs);
@@ -604,8 +610,8 @@ export class SwPlan3d extends LitElement {
       position: absolute;
       z-index: var(--sw-z-map-ui);
       pointer-events: none;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-sm);
       padding: 3px 8px;
       font-size: var(--sw-fs-xs);
@@ -622,8 +628,8 @@ export class SwPlan3d extends LitElement {
       z-index: var(--sw-z-map-ui);
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-pill);
       padding: 2px 8px;
       direction: rtl;
@@ -647,7 +653,7 @@ export class SwPlan3d extends LitElement {
       place-items: center;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
     }
     .toast {
       position: absolute;
@@ -655,12 +661,12 @@ export class SwPlan3d extends LitElement {
       left: 50%; /* physical: centred whatever the direction */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-pill);
       padding: 4px 12px;
       font-size: var(--sw-fs-xs);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       box-shadow: var(--sw-shadow-1);
       direction: rtl;
     }
@@ -709,8 +715,8 @@ export class SwPlan3d extends LitElement {
       left: 50%;
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-pill);
       padding: 4px 12px;
       font-size: var(--sw-fs-xs);
@@ -723,7 +729,7 @@ export class SwPlan3d extends LitElement {
       inset-block-end: 64px;
     }
     .pill.walknote[data-tone='warn'] {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .pill.cross-floor {
       inset-block-start: 12px;
@@ -1834,7 +1840,7 @@ export class SwPlan3d extends LitElement {
       ${this.overlays.length
         ? html`<div class="overlay">${this.overlays.map((p) => p.kind === 'chip'
             ? html`<span class="chip" aria-hidden="true" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id} data-3d-part=${p.id}>${p.text ?? ''}</span>`
-            : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: var(--sw-${p.color})`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
+            : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: ${pillInk(p.color)}`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
             ? html`<span class="more" data-3d-more=${this.hiddenPills} title="ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן">+${this.hiddenPills} ישויות</span>`
             : nothing}</div>`
         : nothing}
@@ -1860,7 +1866,7 @@ export class SwPlan3d extends LitElement {
         ${this.walkable
           ? html`<sw-chip data-walk-btn title="סיור בגובה עין: W A S D או החצים להליכה, Shift לריצה, גרירה להסתכלות, לחיצה על הרצפה להליכה לשם, Esc ליציאה" ?selected=${this.walkState !== 'off'} @click=${() => this.requestWalk()}>${this.walkState === 'requested' ? 'טוען סיור…' : 'סיור'}</sw-chip>`
           : nothing}
-        <sw-button size="sm" variant="ghost" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
+        <sw-button size="sm" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
       ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${fallbackHe(this.rung)}</div>` : nothing}
