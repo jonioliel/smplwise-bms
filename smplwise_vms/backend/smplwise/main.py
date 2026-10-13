@@ -425,6 +425,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(tickets_router.open_router, prefix=api, tags=["tickets"])  # GET /tickets/module: the only route that answers while the module is off
     app.include_router(tickets_admin_router.router, prefix=api, tags=["tickets"])  # settings, name, departments - BEFORE /tickets/{ticket_id}
+    from .routers import tickets_table as tickets_table_router  # CR-038 S6b: the board table (table, export.csv, bulk, views)
+    app.include_router(tickets_table_router.router, prefix=api, tags=["tickets"])  # CR-038 S6b - BEFORE /tickets/{ticket_id}
     app.include_router(tickets_router.router, prefix=api, tags=["tickets"])
 
     @app.on_event("startup")
