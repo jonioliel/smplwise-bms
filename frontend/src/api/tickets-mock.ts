@@ -78,7 +78,7 @@ const TRACKED = ['light', 'switch', 'input_boolean', 'climate', 'fan', 'humidifi
 /** Slice 3: the demo's 24 h history preview - a schedule and an automation, never a person's name. */
 function demoHistory(): HistorySummary {
   const at = (h: number) => new Date(Date.now() - h * HOUR).toISOString().replace(/\.\d+Z$/, 'Z');
-  const lines = [
+  const lines: HistorySummary['lines'] = [
     { at: at(0.5), kind: 'power', from: { state: 'cool' }, to: { state: 'off' }, changed: ['state'], actor: { type: 'person' } },
     { at: at(3), kind: 'value', from: { state: 'cool', temperature: 24 }, to: { state: 'cool', temperature: 22 }, changed: ['temperature'], actor: { type: 'schedule', name: 'קירור בוקר' } },
     { at: at(9), kind: 'power', from: { state: 'off' }, to: { state: 'cool' }, changed: ['state'], actor: { type: 'automation', name: 'הפעלה לפני הגעה' } },
