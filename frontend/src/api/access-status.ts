@@ -286,6 +286,11 @@ export interface AuditReply extends StatusHead {
 export interface AuditQuery {
   station_id?: string;
   action?: string;
+  /** CR-036 S12: one person's records (the integration's person id, from a record the page showed). */
+  user_id?: string;
+  /** CR-036 S12: the period, as aware ISO instants (`start` inclusive, `end` exclusive). */
+  start?: string;
+  end?: string;
   before?: number | null;
   limit?: number;
 }
@@ -296,6 +301,9 @@ export function auditQueryString(o: AuditQuery): string {
   const qs = new URLSearchParams();
   if (o.station_id) qs.set('station_id', o.station_id);
   if (o.action) qs.set('action', o.action);
+  if (o.user_id) qs.set('user_id', o.user_id);
+  if (o.start) qs.set('start', o.start);
+  if (o.end) qs.set('end', o.end);
   if (o.before) qs.set('before', String(o.before));
   qs.set('limit', String(o.limit ?? AUDIT_PAGE));
   return qs.toString();

@@ -575,6 +575,11 @@ export const stationsCss = css`
     color: var(--sw-text-3);
     font-size: var(--sw-fs-sm);
   }
+  /* CR-036 S12: the way to the entry log of this station */
+  .evlink {
+    display: flex;
+    justify-content: flex-start;
+  }
   .dsec {
     display: flex;
     flex-direction: column;

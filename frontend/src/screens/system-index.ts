@@ -100,7 +100,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'access-control', label: 'קבוצות ושדות', href: '#/system/access-control/groups', sub: true, keywords: 'קבוצה שדות פרופיל גרסאות מדיניות' },
       { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה' },
       { tab: 'general', label: 'גשר Home Assistant', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor' },
-      { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום' },
+      { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
       { tab: 'infra', label: 'תשתיות', href: '#/system/infra', keywords: 'חשמל מונים מחירים מע"מ תעריף גנרטור' },
       { tab: 'general', label: 'בריאות ועבודות', href: `${GEN}?tab=health`, keywords: 'דיאגנוסטיקה מצב רכיבים תור' },

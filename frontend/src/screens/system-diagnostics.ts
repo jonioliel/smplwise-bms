@@ -50,6 +50,8 @@ import './system-brand-colors'; // 2.4.4: הגדרות › כללי › צבעי
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
 import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › מתגי מסכי כניסה › WisKey רואה את Arx כ־
+import './system-access-display'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות (the four S6 display settings)
+import './system-access-parity'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › השוואה למסכי האינטרקום (the side-by-side check before a screen is switched)
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -1102,6 +1104,8 @@ export class SystemDiagnostics extends LitElement {
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`
           : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
+      <system-access-display></system-access-display>
+      ${!api || can('access.admin.read') ? html`<system-access-parity></system-access-parity>` : nothing}
       <system-wiskey-diagnostics></system-wiskey-diagnostics>
     </div>`;
   }

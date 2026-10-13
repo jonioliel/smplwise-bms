@@ -392,3 +392,39 @@ def schedules_plans(request: Request, auth: ia.Authority = Depends(_gate(ia.STAT
 def schedules_operations(request: Request, auth: ia.Authority = Depends(_gate(ia.STATIONS_READ))) -> dict[str, Any]:
     """The schedule operations (jobs, archive, journal, claims; `writes_enabled`). Reply as the library."""
     return adapter.ADAPTER.schedules(settings_of(request), auth, "operations", _rid(request))
+
+
+# ---------------------------------------------------------------- the parity report (CR-036 6.2, slice S12)
+
+@router.get("/access-control/parity")
+def parity_report(
+    request: Request,
+    auth: ia.Authority = Depends(_gate(ia.ADMIN_READ)),
+    as_user: str | None = Query(None, min_length=1, max_length=MAX_ID, pattern=ID_PATTERN),
+    hours: int = Query(24, ge=1, le=168),
+) -> dict[str, Any]:
+    """Side-by-side check of the native screens: per screen (stations, people, the entry log of the last `hours`, groups, the
+    schedule library, fleet alerts) the count and a keyed digest of what a direct unfiltered read of the same WisKey command
+    holds, what the native view holds, and the outcome (match / filtered by a named rule / mismatch / partial / not permitted /
+    unsupported / unavailable). Counts and digests only - never a name, an id or a value. The unfiltered side is installation-
+    wide: `access.admin.read` unrestricted (an audited 403 otherwise). `as_user` compares ANOTHER Arx user's native views and
+    needs `system.configure` at installation scope as well (audited refusal). Every report is audited (`intercom.parity.report`:
+    the subject, the window, the outcome per screen). One report at a time (409 `intercom_parity_busy`). Reply: `{state,
+    configured, last_error, fetched_at, parity: {window_hours, window, subject, screens, summary}, sync}`."""
+    from .. import rbac
+    from ..audit import audit
+    from ..services import intercom_parity
+
+    ia.require_unrestricted(auth, ia.ADMIN_READ, _rid(request))
+    subject = auth.principal
+    if as_user is not None and as_user != auth.principal.user_id:
+        rbac.require(auth.conn, auth.principal, "system.configure", rbac.INSTALLATION)
+        found = intercom_parity.principal_of(auth.conn, as_user)
+        if found is None:
+            raise ApiError(404, "user_not_found", "המשתמש לא נמצא.")
+        subject = found
+    body = intercom_parity.report(settings_of(request), auth, subject, hours=hours)
+    if body.get("parity") is not None:
+        audit(auth.conn, actor=auth.principal, action="intercom.parity.report", decision="allowed", resource_type="installation", resource_id="*",
+              request_id=_rid(request), details={"subject": subject.user_id, "hours": hours, "outcomes": {r["screen"]: r["outcome"] for r in body["parity"]["screens"]}})
+    return body

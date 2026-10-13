@@ -517,7 +517,7 @@ def test_the_reads_never_hold_the_write_lock_while_wiskey_answers():
     legacy = {("GET", "/intercom/events"), ("GET", "/intercom/people"), ("GET", "/intercom/people/{user_id}")}
     routes = [r for r in access_control_reads.router.routes if isinstance(r, APIRoute)]
     routes += [r for r in access_control.router.routes if isinstance(r, APIRoute) and any((m, r.path) in legacy for m in r.methods)]
-    assert len(routes) == 25 + 3
+    assert len(routes) == 25 + 1 + 3  # the 25 typed reads, the parity report (CR-036 S12), the three legacy reads
     for route in routes:
         deps = calls(route.dependant)
         assert get_read_conn in deps and get_conn not in deps, route.path

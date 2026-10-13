@@ -306,6 +306,25 @@ export const auditResult = (r: Pick<AuditRecord, 'reason_code'>): { kind: 'done'
 /** The fields an action changed, named (an empty or unknown field name is dropped). */
 export const auditFields = (r: Pick<AuditRecord, 'fields'>): string[] => r.fields.filter((f): f is string => typeof f === 'string' && f.length > 0);
 
+/** CR-036 S12: the action log's period filter - the last day, week or month up to now (an instant span: no zone question arises). */
+export const AUDIT_PERIODS = ['', '24h', '7d', '30d'] as const;
+export type AuditPeriod = (typeof AUDIT_PERIODS)[number];
+const PERIOD_HOURS: Record<Exclude<AuditPeriod, ''>, number> = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 };
+
+/** The `start` instant of a period (UTC, whole seconds), or undefined for "any time". */
+export function auditPeriodStart(period: AuditPeriod | string, now: Date): string | undefined {
+  const hours = PERIOD_HOURS[period as Exclude<AuditPeriod, ''>];
+  if (!hours) return undefined;
+  return new Date(Math.floor(now.getTime() / 1000) * 1000 - hours * 3_600_000).toISOString().replace('.000Z', 'Z');
+}
+
+/** The person a record can narrow the log to: the integration's id and a name for the chip; null when the record names nobody. */
+export function auditPersonOf(r: Pick<AuditRecord, 'person'>): { id: string; name: string } | null {
+  const p = r.person;
+  if (!p || typeof p.id !== 'string' || !p.id) return null;
+  return { id: p.id, name: p.display_name || p.employee_no || p.id };
+}
+
 // ---------------------------------------------------------------- groups and fields
 
 export type GroupRule = { kind: 'all' } | { kind: 'none' } | { kind: 'unknown' } | { kind: 'stations'; ids: string[] };
