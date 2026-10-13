@@ -174,7 +174,9 @@ def restorable(rel: str | None) -> bool:
     if not isinstance(rel, str) or not rel or rel.startswith("/") or "\\" in rel or ":" in rel or "\x00" in rel:
         return False
     parts = rel.split("/")
-    if any(p in ("", ".", "..") for p in parts) or any(p.lower() == "keys" for p in parts):
+    # `secrets/` (CR-038: the tickets module key `tickets_key.<id>`, the messaging key) is named here too, not only left out of
+    # RESTORABLE_ROOTS: a later root added to that list can never let an archive write a key (code review V16)
+    if any(p in ("", ".", "..") for p in parts) or any(p.lower() in ("keys", "secrets") for p in parts):
         return False
     if not rel.startswith(RESTORABLE_ROOTS):
         return False

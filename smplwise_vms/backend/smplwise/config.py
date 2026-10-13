@@ -83,6 +83,13 @@ class Settings:
     # CR-028: the cast relay (services/cast_relay.py) listens on container port 18092 only when this add-on option is on; config.yaml
     # maps 18092/tcp to null, so the owner also maps a host port before a TV can reach it. SW_CAST_RELAY=1 outside the add-on.
     cast_relay: bool = False
+    # CR-038 S4: the tickets module's public handler page (services/tickets/public_server.py) listens on container port 18093 only
+    # when this add-on option is on (config.yaml maps 18093/tcp to null; the Cloudflare tunnel reaches the container port). It runs
+    # even while the module is off and then answers the uniform 404 to everything. SW_TICKETS_PUBLIC=1 outside the add-on.
+    tickets_public: bool = False
+    # CR-038 S4: the handler page's own bundle (frontend/public-ticket.html -> smplwise_vms/www-public), NEVER inside www_dir (the
+    # main app mounts www_dir at / and would then serve /t/ under the Ingress / arx origin - code review W16).
+    www_public_dir: Path | None = None
 
     @property
     def plans_dir(self) -> Path:
@@ -156,6 +163,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
 
     downloads_raw = os.environ.get("SW_DOWNLOADS_DIR") or ("/app/downloads" if in_addon else None)
     downloads_dir = Path(downloads_raw) if downloads_raw else None
+    www_public_raw = os.environ.get("SW_WWW_PUBLIC_DIR") or ("/app/www-public" if in_addon else None)  # CR-038 S4: the handler page
+    www_public_dir = Path(www_public_raw) if www_public_raw else None
 
     # Supervisor Ingress proxies from a fixed address; anything else is refused unless dev mode is on.
     proxies = tuple(p.strip() for p in (os.environ.get("SW_TRUSTED_PROXIES") or "172.30.32.2").split(",") if p.strip())
@@ -193,6 +202,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         remote_access=_truthy(options["remote_access"]) if "remote_access" in options else _truthy(os.environ.get("SW_REMOTE_ACCESS", "")),
         db_write_gate=(_truthy(options["db_write_gate"]) if "db_write_gate" in options else True) and os.environ.get("SW_DB_WRITE_GATE", "1") != "0",
         cast_relay=_truthy(options["cast_relay"]) if "cast_relay" in options else _truthy(os.environ.get("SW_CAST_RELAY", "")),
+        tickets_public=_truthy(options["tickets_public"]) if "tickets_public" in options else _truthy(os.environ.get("SW_TICKETS_PUBLIC", "")),
+        www_public_dir=www_public_dir,
         remote_path=normalize_remote_path(_opt(options, "remote_path", "SW_REMOTE_PATH", DEFAULT_REMOTE_PATH)),
         # inside the add-on HA core is `homeassistant:<port>` on the Supervisor network (port / TLS from /core/info);
         # outside, the developer's HA (HA_CORE_URL, else HA_URL)

@@ -127,6 +127,8 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/recorders",)
 # may start / extend / switch / stop a cast (the playback runs on the LAN)
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/multimedia/cast/config", "/api/v1/multimedia/cast/origin", "/api/v1/multimedia/cast/screens",
                                          "/api/v1/multimedia/cast/test")
+# CR-038 S4 (review T11): the tickets handler page's address probe fetches an administrator-typed URL - local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/address/probe",)
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
 # What a client must send, machine-readable (the phone apps read `details` to pick the right message): the session cookie is only
 # accepted on a state-changing request that proves its origin. `reason` is one of csrf_reasons() below.

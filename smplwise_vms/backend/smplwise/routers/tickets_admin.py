@@ -66,10 +66,26 @@ class UiPatch(BaseModel):
     new_ticket: Literal["sheet", "dialog"] | None = None
 
 
+class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose CF-Connecting-IP is believed
+    model_config = ConfigDict(extra="forbid")
+    base_url: str | None = Field(default=None, max_length=300)
+    trusted_proxy_cidrs: list[str] | None = Field(default=None, max_length=8)
+
+
+class LinksPatch(BaseModel):  # slice 4 (D5): the link lifetime; per-department overrides live on the department
+    model_config = ConfigDict(extra="forbid")
+    sliding_days: int | None = Field(default=None, ge=1, le=90)
+    cap_days: int | None = Field(default=None, ge=7, le=365)
+    grace_hours: int | None = Field(default=None, ge=0, le=168)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
     ui: UiPatch | None = None
+    organization_name: str | None = Field(default=None, max_length=400)
+    public: PublicPatch | None = None
+    links: LinksPatch | None = None
 
 
 @router.put("/tickets/settings")
@@ -83,12 +99,32 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         ui = {k: v for k, v in body.ui.model_dump().items() if v is not None}
         if ui:
             patch["ui"] = ui
+    if body.organization_name is not None:
+        patch["organization_name"] = body.organization_name
+    for block in ("public", "links"):  # slice 4
+        sent = getattr(body, block)
+        if sent is not None:
+            values = {k: v for k, v in sent.model_dump().items() if v is not None}
+            if values:
+                patch[block] = values
+    links_after = {**current["links"], **patch.get("links", {})}
+    if links_after["cap_days"] < links_after["sliding_days"]:
+        raise _invalid(conn, "links.cap_days", "below_sliding_days")  # the cap is never shorter than the sliding window (14.1)
     try:
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:
         raise _invalid(conn, str(exc).split(":")[0], "invalid") from None
+    pulled = 0
+    if doc["links"]["cap_days"] < current["links"]["cap_days"]:  # D5: a LOWER cap shrinks the exposure of live links at once
+        from ..services.tickets import handler_links
+
+        pulled = handler_links.pull_in_caps(conn, doc["links"]["cap_days"])
+    if "public.trusted_proxy_cidrs" in changed:  # W13: the running listener follows without a restart
+        from ..services.tickets.public_runtime import RUNTIME
+
+        RUNTIME.set_trusted(doc["public"]["trusted_proxy_cidrs"])
     audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
-          request_id=_rid(request), details={"revision": doc["revision"], "changed": changed})
+          request_id=_rid(request), details={"revision": doc["revision"], "changed": changed, **({"links_capped": pulled} if pulled else {})})
     return doc
 
 
