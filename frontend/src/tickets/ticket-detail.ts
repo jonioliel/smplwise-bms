@@ -18,6 +18,7 @@ import { tt } from './text';
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
+import { codeLockSection, lockText, sendNewLink } from './code-lock';
 
 interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
 
@@ -579,6 +580,7 @@ export class TicketDetailView extends LitElement {
       ${this.flashRow()}
       ${this.sentence(t)}
       ${this.statusSection(t)}
+      ${codeLockSection(t, { busy: this.busy, onNew: () => void this.run(() => sendNewLink(t.id), lockText('done')) })}
       ${this.assigneeSection(t)}
       ${this.photosSection(t)}
       ${this.timelineSection(t)}
