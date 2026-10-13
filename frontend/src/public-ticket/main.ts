@@ -14,7 +14,7 @@ import { api, newRequestId, type ApiFailure, type Credentials, type TicketView }
 import { h, icon, img } from './dom';
 import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, planSend, statusChoices, validSession,
   type Draft, type Phase, type Step } from './state';
-import { CATALOGUES, isLang, LANGS, RTL, text, type Key, type Lang } from './strings';
+import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
 
 const STORE = { token: 'arx.t.token', session: 'arx.t.session', lang: 'arx.t.lang', draft: 'arx.t.draft' } as const;
@@ -63,6 +63,8 @@ class Page {
   start(): void {
     const saved = stored(STORE.lang);
     if (isLang(saved)) this.chosenLang = saved;
+    // before a ticket answers (an expired link, the redeem screen): the choice made here, else the browser's language
+    this.lang = this.chosenLang ?? preferredLang(typeof navigator !== 'undefined' ? navigator.languages : null) ?? 'he';
     const boot = bootFrom(window.location.hash, window.location.pathname, stored(STORE.token));
     if (boot.fromFragment || boot.rid) {
       try {
@@ -398,7 +400,7 @@ class Page {
       'data-code-input': true, dir: 'ltr' }, on: { input: (e) => { this.code.value = (e.target as HTMLInputElement).value; } } });
     input.value = this.code.value;
     return h('div', { class: 'page' }, this.header(), h('main', { class: 'col' },
-      h('section', { class: 'card' },
+      h('section', { class: 'card code' },
         h('div', { class: 'msg-icon' }, icon('lock')),
         h('h1', { class: 'msg-title' }, this.t('codeTitle')),
         h('p', { class: 'msg-body' }, this.t('codeBody')),
@@ -438,9 +440,10 @@ class Page {
         prio ? h('span', { class: `chip pr-${v.priority?.key ?? ''}` }, prio) : null,
         h('span', { class: 'spacer' }),
         v.created_at ? h('span', { class: 'muted small' }, this.t('openedAt', { when: formatDate(v.created_at, v.time_zone, this.lang) })) : null),
-      h('h2', { class: 'title' }, v.title ?? ''),
-      place.length ? h('div', { class: 'where' }, icon('pin'), h('span', null, place.join(' · '))) : null,
-      v.description ? h('p', { class: 'desc' }, v.description) : null,
+      // the ticket's own words keep their own direction (a Hebrew title on a Russian page reads right to left, its period last)
+      h('h2', { class: 'title', attrs: { dir: 'auto' } }, v.title ?? ''),
+      place.length ? h('div', { class: 'where' }, icon('pin'), h('span', { attrs: { dir: 'auto' } }, place.join(' · '))) : null,
+      v.description ? h('p', { class: 'desc', attrs: { dir: 'auto' } }, v.description) : null,
       v.history && v.history.length ? this.historyBlock(v) : null,
       v.assigned_by ? h('div', { class: 'muted small by' }, this.t('sentBy', { who: v.assigned_by })) : null);
   }
@@ -569,7 +572,15 @@ class Page {
         on: { click: () => { this.ret.kind = k; this.render(); } } }, this.t(k === 'not_mine' ? 'returnNotMine' : 'returnCannot')));
     }
     const ta = h('textarea', { class: 'input', attrs: { rows: 3, maxlength: this.view?.limits?.reason_max ?? 500, 'aria-label': this.t('returnReason'), dir: 'auto',
-      'data-return-reason': true, 'aria-invalid': String(!!this.ret.error) }, on: { input: (e) => { this.ret.reason = (e.target as HTMLTextAreaElement).value; } } });
+      'data-return-reason': true, 'aria-invalid': String(!!this.ret.error) }, on: { input: (e) => {
+        const field = e.target as HTMLTextAreaElement;
+        this.ret.reason = field.value;
+        if (this.ret.error) { // the "a reason is required" line goes as soon as one is typed - without a render that would take the caret away
+          this.ret.error = null;
+          field.setAttribute('aria-invalid', 'false');
+          field.parentElement?.querySelector('.field-error')?.remove();
+        }
+      } } });
     ta.value = this.ret.reason;
     return h('section', { class: 'card ret', attrs: { 'data-return': true } },
       h('h3', null, this.t('returnTitle')),
@@ -585,8 +596,10 @@ class Page {
   private footer(): HTMLElement {
     const v = this.view;
     const note = v ? zoneNote(v.time_zone) : null;
+    // in the read-only grace after close the link ends with the grace, not at its sliding expiry
+    const until = v ? (v.read_only && v.read_only_until ? this.when(v.read_only_until) : v.expires_at ? formatDate(v.expires_at, v.time_zone, this.lang) : '') : '';
     return h('footer', { class: 'foot' },
-      v?.expires_at ? h('div', null, this.t('linkFooter', { when: formatDate(v.expires_at, v.time_zone, this.lang) })) : null,
+      until ? h('div', null, this.t('linkFooter', { when: until })) : null,
       note ? h('div', null, this.t('timeZone', { zone: note })) : null,
       h('button', { class: 'linkish', attrs: { type: 'button', 'data-finish': true }, on: { click: () => this.finish() } }, this.t('finish')));
   }

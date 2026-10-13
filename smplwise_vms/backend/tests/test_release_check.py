@@ -23,6 +23,7 @@ def test_repository_is_release_consistent(tmp_path):
     assert by["bridge version consistent (manifest = const)"]["ok"]
     assert by["migrations contiguous"]["ok"]
     assert by["built UI present in the add-on (www)"]["ok"]
+    assert by["handler page bundle present in the add-on (www-public)"]["ok"], "CR-038 S4: the Dockerfile copies it"
     assert by["release package document present"]["ok"] and by["known-limits sources present"]["ok"]
     assert res["ok"] is True, "every required check passes on the current tree"
     out = tmp_path / "r.json"

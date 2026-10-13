@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { afterFailure, afterStep, bootFrom, codeMessage, parseDraft, phaseOf, planSend, statusChoices, validSession, type Draft } from '../src/public-ticket/state';
-import { CATALOGUES, LANGS, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
+import { CATALOGUES, LANGS, preferredLang, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
 import { etaFor, instantOf, isoToLocalInput, localInputToIso, zonedParts } from '../src/public-ticket/time';
 import type { ApiFailure, TicketView } from '../src/public-ticket/api';
 
@@ -125,34 +125,48 @@ test('every language has every key; RTL for Hebrew and Arabic only', () => {
   expect([...RTL].sort()).toEqual(['ar', 'he']);
 });
 
+test('before a ticket answers, the page speaks the browser\'s first language it knows (Hebrew otherwise)', () => {
+  expect(preferredLang(['ru-RU', 'en-US'])).toBe('ru');
+  expect(preferredLang(['fr-FR', 'ar-EG'])).toBe('ar');
+  expect(preferredLang(['iw-IL'])).toBe('he');
+  expect(preferredLang(['fr-FR', 'de'])).toBeNull();
+  expect(preferredLang(null)).toBeNull();
+});
+
 test('D33: the module name comes from the labels with gender agreement; the default words are never written', () => {
   const male = { one: 'אירוע', many: 'אירועים', gender: 'm' };
   expect(text('he', 'closedTitle', {}, male)).toBe('אירוע נסגר, תודה');
   expect(text('he', 'closedTitle', {}, { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' })).toBe('בקשת שירות נסגרה, תודה');
   expect(renderName('{ticket} {f:a|m:b|n:c}', { one: 'Заявка', many: 'Заявки', gender: 'n' })).toBe('Заявка c');
-  const defaults = /קריא[הות]|קריאת|\bTickets?\b|بلاغ|Заявк/;
+  // a word a person reads - not a protocol name like the X-Ticket-Token header or a type name like TicketView
+  const defaults = /קריא[הות]|קריאת|(?<![-\w])Tickets?(?![-\w])|بلاغ|Заявк/;
   for (const f of readdirSync(SRC).filter((x) => x.endsWith('.ts'))) {
-    const src = readFileSync(path.join(SRC, f), 'utf8').replace(/^\s*(\/\/|\*|\/\*\*).*$/gm, '');
-    expect(defaults.test(src), `${f} writes a default module word`).toBe(false);
+    expect(defaults.test(code(f)), `${f} writes a default module word`).toBe(false);
   }
 });
 
+/** A page source without its comments (the guards read the code, not the words that explain it). */
+function code(file: string): string {
+  return readFileSync(path.join(SRC, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
+}
+
 test('variables never become tokens: a typed title with braces stays text', () => {
-  expect(text('he', 'sentBy', { who: '{ticket} {f:x|m:y}' }, { one: 'X', many: 'Y', gender: 'f' })).toBe('נשלח על ידי {ticket} {f:x|m:y}');
+  expect(text('he', 'sentBy', { who: '{ticket} {f:x|m:y}' }, { one: 'X', many: 'Y', gender: 'f' })).toBe('נשלחה על ידי {ticket} {f:x|m:y}');
+  expect(text('he', 'sentBy', { who: 'יוני' }, { one: 'אירוע', many: 'אירועים', gender: 'm' })).toBe('נשלח על ידי יוני');
 });
 
 // ---------------------------------------------------------------- the bundle's guards (W16, W20, spec 5)
 
 test('the page builds DOM from text nodes only and never imports the app', () => {
   for (const f of readdirSync(SRC).filter((x) => x.endsWith('.ts'))) {
-    const src = readFileSync(path.join(SRC, f), 'utf8');
+    const src = code(f);
     expect(src, f).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|unsafeHTML|new Function|eval\(/);
     expect(src, f).not.toMatch(/from '\.\.\/(shell|api|components|screens|design|arx|pwa|i18n|tickets)\//);
     expect(src, f).not.toMatch(/localStorage|document\.cookie|serviceWorker/);
     expect(src, f).not.toMatch(/createElement\(['"]a['"]\)|h\(['"]a['"]/); // no link is ever built (W20: no auto-linkify)
   }
   const html = readFileSync(path.resolve(HERE, '../public-ticket.html'), 'utf8');
-  expect(html).not.toMatch(/<style|style=|on[a-z]+=|<script>(?!<\/script>)/i);
+  expect(html).not.toMatch(/<style|\sstyle=|\son[a-z]+=|<script>(?!<\/script>)/i);
   expect(html).toContain('<meta name="referrer" content="no-referrer" />');
 });
 
