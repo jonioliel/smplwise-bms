@@ -102,7 +102,8 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 spend_budget(request)  # W18: a stored effect spends one unit of the token's write budget, nothing else does
             return status, answer
 
-        return await idem.run(f"link:{ctx.link.link_id}", crid, route, work)
+        # one scope with public_app._scope and handler_actions._scope: per link GENERATION (code review V19; aligned in slice 5b)
+        return await idem.run(f"link:{ctx.link.link_id}:{ctx.link.generation}", crid, route, work)
 
     @r.get("/t/api/ticket")
     async def ticket(request: Request, ctx: LinkContext = Depends(link_context())) -> JSONResponse:

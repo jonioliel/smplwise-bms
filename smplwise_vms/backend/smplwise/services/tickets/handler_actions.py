@@ -92,7 +92,8 @@ def fresh(conn, link: LinkRecord, now: dt.datetime, *, write: bool = True) -> Fr
 
 
 def _scope(link: LinkRecord) -> str:
-    return f"link:{link.link_id}"
+    # per link GENERATION, the same scope as public_app._scope (code review V19): aligned in slice 5b after public-core's fix
+    return f"link:{link.link_id}:{link.generation}"
 
 
 def claim(conn, link: LinkRecord, crid: str, route: str, now: dt.datetime) -> tuple[int, dict[str, Any]] | None:

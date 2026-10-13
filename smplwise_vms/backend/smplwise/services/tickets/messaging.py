@@ -102,13 +102,7 @@ def send_window(conn, department_id: str | None) -> hours.SendWindow:
     """D4: the department's window (slice 2's `send_hours_json`), else the installation's (`tickets.settings.send_hours`, read
     tolerant: the key's editor is slice 2's), else 07:00-21:00. A corrupt value never opens the window wider than the default."""
     stored = settings_doc._stored(conn)
-    dept = None
-    if department_id:
-        try:
-            row = conn.execute("SELECT send_hours_json FROM ticket_departments WHERE id = ?", (department_id,)).fetchone()
-            dept = row[0] if row else None
-        except Exception:  # noqa: BLE001
-            dept = None
+    dept = obs.department_send_hours(conn, department_id) if department_id else None
     return hours.effective_window(stored.get("send_hours"), dept)
 
 
@@ -197,17 +191,8 @@ class DbLinks:
 
 def message_template_rows(conn, *, purpose: str | None = None, department_id: str | None = None, include_all_departments: bool = False,
                           include_inactive: bool = False) -> list[dict[str, Any]]:
-    sql = "SELECT * FROM ticket_templates WHERE kind = 'message' AND deleted_at IS NULL"
-    args: list[Any] = []
-    if purpose is not None:
-        sql += " AND purpose = ?"
-        args.append(purpose)
-    if not include_inactive:
-        sql += " AND active = 1"
-    if not include_all_departments:
-        sql += " AND (department_id IS NULL OR department_id = ?)"
-        args.append(department_id)
-    return [dict(r) for r in conn.execute(sql + " ORDER BY department_id, purpose, lang, updated_at", args).fetchall()]
+    return obs.message_templates(conn, purpose=purpose, department_id=department_id, include_all_departments=include_all_departments,
+                                 include_inactive=include_inactive)
 
 
 def template_text(r: Mapping[str, Any]) -> mt.TemplateText:
@@ -551,11 +536,7 @@ class MessagingRuntime:
 
     def _due(self, now: dt.datetime) -> bool:
         with obs.Access(self.db).read("tickets.outbox.due") as conn:
-            if not access.module_on(conn):
-                return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held') AND "
-                                    "(held_reason IS NULL OR held_reason != 'module_off') LIMIT 1").fetchone() is not None
-            return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held') AND (not_before <= ? OR held_reason IN "
-                                "('channel_down', 'account_unmapped', 'module_off')) LIMIT 1", (obs.iso(now),)).fetchone() is not None
+            return obs.due(conn, now, access.module_on(conn))
 
     # ------------------------------------------------------------ account states -> CR-018 `ticket.channel_down` (slice 6)
 

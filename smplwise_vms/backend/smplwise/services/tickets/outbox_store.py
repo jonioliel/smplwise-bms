@@ -375,6 +375,72 @@ def inbound_candidates(conn: sqlite3.Connection, sender_key: str, since: dt.date
         (iso(since), iso(since), iso(since), sender_key)).fetchall()]
 
 
+def due(conn: sqlite3.Connection, now: dt.datetime, module_on: bool) -> bool:
+    """Is there anything for the worker's next tick (so an idle installation never takes the write lock every 2 s)?"""
+    if not module_on:
+        return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held') AND "
+                            "(held_reason IS NULL OR held_reason != 'module_off') LIMIT 1").fetchone() is not None
+    return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held') AND (not_before <= ? OR held_reason IN "
+                        "('channel_down', 'account_unmapped', 'module_off')) LIMIT 1", (iso(now),)).fetchone() is not None
+
+
+def department_send_hours(conn: sqlite3.Connection, department_id: str) -> Any:
+    """A department's D4 override (slice 2's `send_hours_json`; NULL = the installation's window)."""
+    try:
+        row = conn.execute("SELECT send_hours_json FROM ticket_departments WHERE id = ?", (department_id,)).fetchone()
+    except sqlite3.Error:
+        return None
+    return row[0] if row else None
+
+
+# ---------------------------------------------------------------- message templates (ticket_templates kind 'message', D26)
+
+def message_templates(conn: sqlite3.Connection, *, purpose: str | None = None, department_id: str | None = None,
+                      include_all_departments: bool = False, include_inactive: bool = False) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM ticket_templates WHERE kind = 'message' AND deleted_at IS NULL"
+    args: list[Any] = []
+    if purpose is not None:
+        sql += " AND purpose = ?"
+        args.append(purpose)
+    if not include_inactive:
+        sql += " AND active = 1"
+    if not include_all_departments:
+        sql += " AND (department_id IS NULL OR department_id = ?)"
+        args.append(department_id)
+    return [dict(r) for r in conn.execute(sql + " ORDER BY department_id, purpose, lang, updated_at", args).fetchall()]
+
+
+def message_template(conn: sqlite3.Connection, template_id: str) -> dict[str, Any] | None:
+    r = conn.execute("SELECT * FROM ticket_templates WHERE id = ? AND kind = 'message' AND deleted_at IS NULL", (template_id,)).fetchone()
+    return dict(r) if r else None
+
+
+def message_template_clash(conn: sqlite3.Connection, purpose: str, lang: str, department_id: str | None) -> str | None:
+    r = conn.execute("SELECT id FROM ticket_templates WHERE kind = 'message' AND deleted_at IS NULL AND purpose = ? AND lang = ? AND "
+                     "department_id IS ?", (purpose, lang, department_id)).fetchone()
+    return r[0] if r else None
+
+
+def insert_message_template(conn: sqlite3.Connection, template_id: str, *, department_id: str | None, purpose: str, lang: str, body: str,
+                            active: bool, by: str, at: str) -> None:
+    conn.execute("INSERT INTO ticket_templates(id, department_id, kind, purpose, name, title, body, lang, active, revision, updated_by, updated_at) "
+                 "VALUES (?, ?, 'message', ?, ?, '', ?, ?, ?, 1, ?, ?)",
+                 (template_id, department_id, purpose, f"{purpose}/{lang}", body, lang, 1 if active else 0, by, at))
+
+
+def update_message_template(conn: sqlite3.Connection, template_id: str, fields: Mapping[str, Any], *, revision: int, by: str, at: str) -> bool:
+    cols = [c for c in fields if c in ("body", "active")]
+    if not cols:
+        return True
+    sets = ", ".join(f"{c} = ?" for c in cols)
+    return conn.execute(f"UPDATE ticket_templates SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ? AND revision = ?",
+                        (*[fields[c] for c in cols], by, at, template_id, revision)).rowcount == 1
+
+
+def delete_message_template(conn: sqlite3.Connection, template_id: str, *, by: str, at: str) -> None:
+    conn.execute("UPDATE ticket_templates SET deleted_at = ?, updated_by = ?, updated_at = ? WHERE id = ?", (at, by, at, template_id))
+
+
 def ticket_for_worker(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
     """The worker's read of one ticket (system side: no person's visibility applies - the worker acts for the module, like the
     public listener does through its link). Never used by a route that answers a person."""

@@ -150,7 +150,8 @@ def test_group_membership_counts_and_the_first_manager_is_told_about_new_tickets
 
 def test_display_settings_document(w, settings):
     doc = w.c.get(f"{API}/tickets/settings").json()
-    assert doc == {"revision": 0, "ui": {"detail": "drawer_fullscreen", "new_ticket": "sheet"}}
+    # the display block of D18 / D22 (later slices add their own blocks to the same document: links, public, whatsapp ...)
+    assert {k: doc[k] for k in ("revision", "ui")} == {"revision": 0, "ui": {"detail": "drawer_fullscreen", "new_ticket": "sheet"}}
     assert w.c.get(f"{API}/tickets/settings", headers=as_user("mona")).status_code == 403
     bind(w.c, settings, "cara", "tickets_configure", "installation", "*")
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 0, "ui": {"detail": "drawer"}}, headers=as_user("cara")).status_code == 403, \

@@ -375,10 +375,10 @@ def _check_body(conn: sqlite3.Connection, purpose: str, body: str) -> None:
 
 
 def _template(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
-    r = conn.execute("SELECT * FROM ticket_templates WHERE id = ? AND kind = 'message' AND deleted_at IS NULL", (template_id,)).fetchone()
+    r = obs.message_template(conn, template_id)
     if r is None:
         raise ApiError(404, "template_not_found", text(conn, "התבנית לא נמצאה."))
-    return dict(r)
+    return r
 
 
 @router.post("/tickets/admin/message-templates", status_code=201)
@@ -388,14 +388,12 @@ def create_template(body: TemplateCreate, request: Request, principal: Principal
     if body.department_id and store.department(conn, body.department_id) is None:
         raise _invalid(conn, [{"field": "department_id", "code": "unknown"}])
     _check_body(conn, body.purpose, body.body)
-    clash = conn.execute("SELECT id FROM ticket_templates WHERE kind = 'message' AND deleted_at IS NULL AND purpose = ? AND lang = ? AND "
-                         "department_id IS ?", (body.purpose, body.lang, body.department_id)).fetchone()
+    clash = obs.message_template_clash(conn, body.purpose, body.lang, body.department_id)
     if clash is not None:
-        raise ApiError(409, "template_exists", text(conn, "כבר קיימת תבנית למטרה ולשפה האלה."), details={"id": clash[0]})
+        raise ApiError(409, "template_exists", text(conn, "כבר קיימת תבנית למטרה ולשפה האלה."), details={"id": clash})
     tid, at = new_id(), now_iso()
-    conn.execute("INSERT INTO ticket_templates(id, department_id, kind, purpose, name, title, body, lang, active, revision, updated_by, updated_at) "
-                 "VALUES (?, ?, 'message', ?, ?, '', ?, ?, ?, 1, ?, ?)",
-                 (tid, body.department_id, body.purpose, f"{body.purpose}/{body.lang}", body.body, body.lang, 1 if body.active else 0, principal.user_id, at))
+    obs.insert_message_template(conn, tid, department_id=body.department_id, purpose=body.purpose, lang=body.lang, body=body.body,
+                                active=body.active, by=principal.user_id, at=at)
     after = _template(conn, tid)
     audit(conn, actor=principal, action="ticket.template.create", decision="allowed", resource_type="ticket_template", resource_id=tid,
           request_id=_rid(request), details={"kind": "message", "purpose": body.purpose, "lang": body.lang, "department_id": body.department_id,
@@ -423,10 +421,8 @@ def patch_template(body: TemplatePatch, request: Request, template_id: str = Pat
         fields["body"] = body.body
     if body.active is not None:
         fields["active"] = 1 if body.active else 0
-    if fields:
-        sets = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE ticket_templates SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ? AND revision = ?",
-                     (*fields.values(), principal.user_id, now_iso(), template_id, body.revision))
+    if fields and not obs.update_message_template(conn, template_id, fields, revision=body.revision, by=principal.user_id, at=now_iso()):
+        raise ApiError(409, "template_stale", text(conn, "התבנית השתנתה בינתיים. טענו מחדש."), details={"revision": before["revision"]})
     after = _template(conn, template_id)
     audit(conn, actor=principal, action="ticket.template.update", decision="allowed", resource_type="ticket_template", resource_id=template_id,
           request_id=_rid(request), details={"kind": "message", "purpose": before["purpose"], "lang": before["lang"],
@@ -439,7 +435,7 @@ def delete_template(request: Request, template_id: str = Path(..., pattern=ID), 
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, access.CONFIGURE, INSTALLATION)
     before = _template(conn, template_id)
-    conn.execute("UPDATE ticket_templates SET deleted_at = ?, updated_by = ?, updated_at = ? WHERE id = ?", (now_iso(), principal.user_id, now_iso(), template_id))
+    obs.delete_message_template(conn, template_id, by=principal.user_id, at=now_iso())
     audit(conn, actor=principal, action="ticket.template.delete", decision="allowed", resource_type="ticket_template", resource_id=template_id,
           request_id=_rid(request), details={"kind": "message", "purpose": before["purpose"], "lang": before["lang"],
                                              "diff": messaging.template_diff(before, None)})
