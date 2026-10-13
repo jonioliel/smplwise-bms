@@ -82,10 +82,15 @@ slice 1's display card). Personal: `/me/prefs` `tickets.board.tree_hidden` (hidd
 
 ## 2. Readings taken (spec vs code, the safest one each time)
 
-1. **No `sla.py`.** Section 5 names `sla.py`; slice 2 ("SLA due computation on every change") is built in parallel and will most likely
-   create it. To avoid a file clash the monitor is `stuck.py` (pure) + `monitor.py` (step). The monitor does NOT read or write
-   `ack_due_at` / `stuck_due_at` / `resolve_due_at` (slice 2's): it computes the dues itself from the rules. If slice 2 writes them, the
-   two must use the same formulas - `stuck.evaluate()` is the reference (slice 2 may call it). `next_check_at` is the monitor's.
+1. **Slice 2 merged (`origin/pilot/TICKETS-s2` @ 45208163).** Slice 2's `sla.py` stores the dues (`ack_due_at` / `stuck_due_at` /
+   `resolve_due_at`, and `next_check_at` = the earliest due) at every change; its `policy.py` is the effective department policy. The
+   monitor stays `stuck.py` (pure: the dues + "link not opened" + the reason + the ladder) and `monitor.py` (the step); a test proves
+   `stuck.evaluate()` and `sla.compute()` give the same dues for every status. Both write `next_check_at`: slice 2 at a change (the earliest
+   due - possibly already past, which only makes the monitor look sooner), the monitor after each look (the ladder's next step). The
+   monitor reads the send window, `urgent_is_critical` and the automatic close through `policy.effective()` only and calls
+   `sla.refresh()` after an automatic close. Conflicts resolved: `settings_doc.SCHEMA` (slice 2's `boolean` / links / send_hours + the
+   three board ui keys), `tickets_admin.SettingsBody` (slice 2's, incl. `urgent_is_critical`), `system-tickets.ts` (slice 2's cards + the
+   board rows in the display card; the D28 toggle is slice 2's, so the board rows carry none), `test_tickets_admin.py` (subset assertions).
 2. **External reminders.** The message channel is slice 5b. `monitor.EXTERNAL_REMINDER` is the port: `fn(conn, ticket_row, n, now) -> bool`
    (5b registers its outbox `reminder` enqueue - the outbox keeps pacing, send hours and the link's sliding expiry). While it is None an
    outside assignee cannot be reminded, so the managers are alerted at the crossing (never a silent nothing). The `unopened` threshold reads
