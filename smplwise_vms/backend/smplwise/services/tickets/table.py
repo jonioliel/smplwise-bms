@@ -20,9 +20,14 @@ from typing import Any
 
 from .model import STATUSES, clean_text
 
-SORT_KEYS: tuple[str, ...] = ("number", "title", "department", "priority", "status", "assignee", "place", "device", "created", "activity", "stuck", "sla")
+SORT_KEYS: tuple[str, ...] = ("number", "title", "department", "priority", "status", "assignee", "place", "device", "created", "activity", "stuck", "sla",
+                              "cost")
 # the table's columns (13.6) - the same keys as the sort, the CSV export takes them too; `number` and `title` are always shown
-COLUMNS: tuple[str, ...] = SORT_KEYS
+COLUMNS: tuple[str, ...] = SORT_KEYS + ("cost_status",)
+# slice 9 (11A.9): the cost columns, their sort and the cost-status filter exist only for tickets.costs.view holders - asking for
+# them without the permission is a 403 (the router checks `uses_costs`); a row whose place lacks the permission shows them blank
+COST_KEYS: tuple[str, ...] = ("cost", "cost_status")
+COST_STATUSES: tuple[str, ...] = ("not_required", "awaiting", "submitted", "rejected", "approved", "paid")
 DEFAULT_COLUMNS: tuple[str, ...] = ("number", "title", "department", "priority", "status", "assignee", "place", "activity")
 REQUIRED_COLUMNS: tuple[str, ...] = ("number", "title")
 DEFAULT_SORT: tuple[tuple[str, str], ...] = (("activity", "desc"),)
@@ -44,7 +49,8 @@ STUCK_KINDS: tuple[str, ...] = ("unassigned", "unopened", "ack", "stuck", "waiti
 MAX_LIST = 20
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _INSTANT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$")
-FILTER_KEYS: tuple[str, ...] = ("scope", "status", "department", "priority", "assignee", "floor", "area", "stuck", "waiting", "created_from", "created_to", "q")
+FILTER_KEYS: tuple[str, ...] = ("scope", "status", "department", "priority", "assignee", "floor", "area", "stuck", "waiting", "created_from", "created_to", "q",
+                                "cost_status")
 
 
 class TableError(ValueError):
@@ -71,6 +77,7 @@ class Filters:
     created_from: str = ""
     created_to: str = ""
     q: str = ""
+    cost_statuses: tuple[str, ...] = ()  # slice 9
 
     def as_dict(self) -> dict[str, Any]:
         """The canonical form (what a saved view stores and the export audit names): empty values left out."""
@@ -83,6 +90,8 @@ class Filters:
             v = getattr(self, k)
             if v:
                 out[k] = v
+        if self.cost_statuses:
+            out["cost_status"] = list(self.cost_statuses)
         return out
 
 
@@ -94,6 +103,12 @@ class Query:
     @property
     def sort_text(self) -> str:
         return sort_text(self.sort)
+
+    @property
+    def uses_costs(self) -> bool:
+        """Slice 9: the cost sort or the cost-status filter (tickets.costs.view at installation scope only - the order of the rows
+        must not leak amounts of tickets the caller may not see the costs of)."""
+        return bool(self.filters.cost_statuses) or any(k == "cost" for k, _d in self.sort)
 
 
 # ---------------------------------------------------------------- parsing
@@ -193,10 +208,13 @@ def parse_filters(raw: dict[str, Any]) -> Filters:
     q = raw.get("q") or ""
     if not isinstance(q, str) or len(q) > 80:
         raise TableError("q")
+    cost_statuses = _list(raw.get("cost_status"), "cost_status")
+    if any(c not in COST_STATUSES for c in cost_statuses):
+        raise TableError("cost_status")
     return Filters(
         scope=scope, statuses=statuses, status_text=status_text, departments=tuple(departments), priorities=tuple(priorities),
         assignee=assignee, floor=_id(raw.get("floor"), "floor"), area=_id(raw.get("area"), "area"), stuck=stuck, waiting=waiting,
-        created_from=created_from, created_to=created_to, q=clean_text(q),
+        created_from=created_from, created_to=created_to, q=clean_text(q), cost_statuses=tuple(cost_statuses),
     )
 
 

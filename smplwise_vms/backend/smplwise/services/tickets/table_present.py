@@ -52,4 +52,10 @@ def table_row(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: present.
         "transitions": present.transitions(viewer, seen, dept),
         "can": {"manage": seen.manager, "assign": bool(can["assign"]), "assign_external": bool(can["assign_external"])},
     })
+    # slice 9 (11A.9): "עלות" (approved total, else the submitted one - `approved` says which) and "סטטוס עלות", for
+    # tickets.costs.view holders on the ticket's place only; blank (None) for everyone else
+    costs_ok = seen.full and viewer.holds("tickets.costs.view", row)
+    out["cost"] = ({"total_minor": row.get("cost_total_minor"), "currency": row.get("cost_currency"),
+                    "approved": row.get("cost_status") in ("approved", "paid")} if costs_ok and row.get("cost_total_minor") is not None else None)
+    out["cost_status"] = (row.get("cost_status") or "not_required") if costs_ok else None
     return out

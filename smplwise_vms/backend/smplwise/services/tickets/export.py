@@ -28,9 +28,11 @@ _lock = threading.Lock()
 
 HEADERS: dict[str, dict[str, str]] = {
     "he": {"number": "מס׳ {ticket}", "title": "כותרת", "department": "מחלקה", "priority": "עדיפות", "status": "מצב", "assignee": "מטפל",
-           "place": "מיקום", "device": "התקן", "created": "נפתח", "activity": "עדכון אחרון", "stuck": "סיבת תקיעה", "sla": "יעד זמן"},
+           "place": "מיקום", "device": "התקן", "created": "נפתח", "activity": "עדכון אחרון", "stuck": "סיבת תקיעה", "sla": "יעד זמן",
+           "cost": "עלות", "cost_status": "סטטוס עלות"},
     "en": {"number": "{ticket} no.", "title": "Title", "department": "Department", "priority": "Priority", "status": "State", "assignee": "Handler",
-           "place": "Location", "device": "Device", "created": "Opened", "activity": "Last update", "stuck": "Stuck reason", "sla": "Due"},
+           "place": "Location", "device": "Device", "created": "Opened", "activity": "Last update", "stuck": "Stuck reason", "sla": "Due",
+           "cost": "Cost", "cost_status": "Cost status"},
 }
 STATUS_TEXT: dict[str, dict[str, str]] = {
     "he": {"new": "חדש", "assigned": "שויך", "acknowledged": "התקבל", "in_progress": "בטיפול", "waiting_part": "ממתין לחלק", "done": "הסתיים",
@@ -45,6 +47,18 @@ STUCK_TEXT: dict[str, dict[str, str]] = {
            "overdue": "Overdue"},
 }
 OVERDUE_TEXT = {"he": "חריגה", "en": "overdue"}
+COST_STATUS_TEXT: dict[str, dict[str, str]] = {  # slice 9
+    "he": {"not_required": "", "awaiting": "ממתין לדרישת עלות", "submitted": "הוגשה", "rejected": "נדחתה", "approved": "אושרה", "paid": "שולמה"},
+    "en": {"not_required": "", "awaiting": "Awaiting claim", "submitted": "Submitted", "rejected": "Rejected", "approved": "Approved", "paid": "Paid"},
+}
+
+
+def _cost_text(cost: dict[str, Any] | None) -> str:
+    if not cost:
+        return ""
+    from .money import format_minor
+
+    return f"{format_minor(int(cost['total_minor']))} {cost.get('currency') or ''}".strip()
 
 
 def rate_check(user_id: str, now: float | None = None) -> float:
@@ -94,6 +108,8 @@ def cell_values(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: presen
         "activity": _local(row.get("last_activity_at"), tz),
         "stuck": STUCK_TEXT[lang].get(stuck["kind"], stuck["kind"]) if stuck else "",
         "sla": (f"{_local(sla['due_at'], tz)}{' · ' + OVERDUE_TEXT[lang] if sla['overdue'] else ''}") if sla else "",
+        "cost": _cost_text(row.get("cost")),
+        "cost_status": COST_STATUS_TEXT[lang].get(row.get("cost_status") or "", "") if row.get("cost_status") else "",
     }
 
 

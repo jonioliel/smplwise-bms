@@ -151,6 +151,14 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         tickets_public.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others (W15)
         log.warning("tickets public janitor failed", exc_info=True)
+    try:  # CR-038 S9: the claim window's end, pending invoice files after 24 h, claims past their own retention (every 10 min inside)
+        from .services.tickets import costs_retention
+        from .services.tickets.public_runtime import RUNTIME as tickets_runtime
+
+        if tickets_runtime.data_dir is not None:
+            costs_retention.janitor(db, tickets_runtime.attachments_root())
+    except Exception:  # noqa: BLE001
+        log.warning("tickets cost janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
