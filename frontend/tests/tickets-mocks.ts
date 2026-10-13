@@ -122,10 +122,32 @@ function detail(r: Row, persona: Persona) {
   };
 }
 
+// slice 2: the section 13.1 defaults (minutes)
+const SLA: Record<string, number[]> = {
+  urgent: [15, 1440, 30, 60, 1440, 480, 30], high: [60, 1440, 120, 480, 4320, 2880, 240],
+  normal: [240, 1440, 1440, 4320, 10080, 10080, 1440], low: [1440, 1440, 4320, 10080, 20160, 43200, 4320],
+};
+const INSTALLATION = { links: { sliding_days: 14, cap_days: 90, grace_hours: 24 }, send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true };
+
+function slaRows(d: string) {
+  return PRIOS(d).map((p) => {
+    const [un, lo, ack, st, sw, rs, rm] = SLA[p.key];
+    return { priority_id: p.id, priority_key: p.key, priority_name: p.name, priority_active: true, unassigned_after_min: un, link_unopened_min: lo, ack_within_min: ack,
+      stuck_after_min: st, stuck_waiting_min: sw, resolve_within_min: rs, remind_every_min: rm, max_reminders: 2, manager_alert_after_steps: 1, revision: 1, updated_at: null, updated_by: null };
+  });
+}
+
 function adminDept(d: (typeof DEPTS)[number], open: number) {
+  const maint = d.id === 'dept-maintenance';
+  const overrides = { link_sliding_days: maint ? 30 : null, link_cap_days: null, link_grace_hours: null, send_hours: maint ? { from: '08:00', to: '18:00' } : null, urgent_is_critical: null };
   return {
+    auto_close_after_days: maint ? null : 3, share_history_external: maint, overrides,
+    effective: { links: { sliding_days: maint ? 30 : 14, cap_days: 90, grace_hours: 24 }, send_hours: overrides.send_hours ?? INSTALLATION.send_hours, urgent_is_critical: true,
+      auto_close_after_days: maint ? null : 3, share_history_external: maint, reopen_days: 14, overridden: maint ? ['link_sliding_days', 'send_hours'] : [] },
+    sla: slaRows(d.id),
+    templates: maint ? [{ id: 'tpl-ac', kind: 'ticket', name: 'מזגן לא מקרר', title: 'מזגן לא מקרר', body: 'חדר:\nתיאור:', category_id: 'cat-hvac', priority_key: 'high', active: true, revision: 1, updated_at: ago(300) }] : [],
     ...d, description: '', icon: null, color: null, sort_order: 0, active: true, open_to_all: d.id !== 'dept-hr', reopen_days: 14, revision: 2, open_tickets: open,
-    categories: (CATS[d.id] ?? []).map((c, i) => ({ ...c, parent_id: null, default_priority_id: null, sort_order: i, active: true })), priorities: PRIOS(d.id),
+    categories: (CATS[d.id] ?? []).map((c, i) => ({ ...c, parent_id: null, default_priority_id: null, domains: c.id === 'cat-hvac' ? ['climate', 'fan'] : [], sort_order: i, active: true })), priorities: PRIOS(d.id),
     members: d.id === 'dept-maintenance'
       ? [{ kind: 'user', id: 'u-ronit', name: 'רונית לוי', role: 'manager', notify_new: true, added_at: ago(900) }, { kind: 'user', id: 'u-avi', name: 'אבי כהן', role: 'member', notify_new: false, added_at: ago(800) }, { kind: 'group', id: 'g-tech', name: 'טכנאים', role: 'member', notify_new: false, added_at: ago(700) }]
       : [{ kind: 'user', id: 'u-dana', name: 'דנה פרץ', role: 'manager', notify_new: true, added_at: ago(900) }],
@@ -212,7 +234,7 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
     if (p === 'tickets/assignees') return json(route, { users: PEOPLE.slice(1).map((x, i) => ({ kind: 'user', id: x.id, name: x.name, member_role: i === 0 ? 'manager' : 'member' })), contacts: [] });
     if (p === 'tickets/settings') {
       if (method === 'PUT') ui = { ...ui, ...((body as { ui?: object })?.ui ?? {}) };
-      return json(route, { revision: 1, ui });
+      return json(route, { revision: 1, ui, ...INSTALLATION });
     }
     if (p === 'tickets/name' && method === 'PUT') {
       nameRevision += 1;
@@ -220,7 +242,12 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
       for (const lang of ['he', 'en', 'ar', 'ru'] as const) if (b[lang]) (names as Record<string, unknown>)[lang] = b[lang];
       return json(route, { ...names, revision: nameRevision });
     }
-    if (p === 'tickets/admin/departments') return json(route, { departments: DEPTS.map((d) => adminDept(d, rows.filter((r) => r.dept === d.id && OPEN.includes(r.status)).length)), all_departments: perms.includes('tickets.all_departments') });
+    if (p === 'tickets/admin/departments') return json(route, { departments: DEPTS.map((d) => adminDept(d, rows.filter((r) => r.dept === d.id && OPEN.includes(r.status)).length)), all_departments: perms.includes('tickets.all_departments'), installation: INSTALLATION });
+    // slice 2: every department write answers with the department (the mock does not keep the change)
+    const deptOf = (id: string) => adminDept(DEPTS.find((x) => x.id === id) ?? DEPTS[0], 0);
+    const dm = /^tickets\/admin\/departments\/([\w-]+)(?:\/(sla|templates|categories))?$/.exec(p);
+    if (dm && method !== 'GET') return json(route, deptOf(dm[1]), method === 'POST' ? 201 : 200);
+    if (/^tickets\/admin\/(templates|categories|priorities)\//.test(p)) return json(route, deptOf('dept-maintenance'));
     if (p === 'tickets/admin/directory') return json(route, { users: PEOPLE, groups: [{ id: 'g-tech', name: 'טכנאים' }] });
     if (p === 'tickets/admin/holders') {
       const g = (bid: string, role: string, roleName: string, ps: string[], via: string, group: string | null = null) => ({ binding_id: bid, permissions: ps, via, role_id: role, role_name: roleName, group_name: group, scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה', effect: 'allow', expires_at: null });
@@ -232,6 +259,13 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
           { id: 'u-yossi', name: 'יוסי מזרחי', active: true, grants: [g('b4', 'operator', 'מפעיל', ['tickets.view', 'tickets.create'], 'group', 'טכנאים')] },
         ],
         grant_roles: ['tickets_view', 'tickets_create', 'tickets_manage', 'tickets_all_departments', 'tickets_external', 'tickets_configure'],
+        roles: [
+          { id: 'viewer', name: 'צופה', builtin: true, permissions: [] },
+          { id: 'operator', name: 'מפעיל', builtin: true, permissions: ['tickets.view', 'tickets.create'] },
+          { id: 'site_admin', name: 'מנהל אתר', builtin: true, permissions: ['tickets.view', 'tickets.create', 'tickets.manage', 'tickets.external'] },
+          { id: 'system_admin', name: 'מנהל מערכת', builtin: true, permissions: ['tickets.view', 'tickets.create', 'tickets.manage', 'tickets.external', 'tickets.all_departments', 'tickets.configure'] },
+          { id: 'c-maint', name: 'רכז אחזקה', builtin: false, permissions: ['tickets.view', 'tickets.manage', 'tickets.configure'] },
+        ],
       });
     }
     const m = /^tickets\/([0-9a-f]{16})(?:\/(\w+))?/.exec(p);

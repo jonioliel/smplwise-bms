@@ -567,7 +567,8 @@ def events(conn: sqlite3.Connection, ticket_id: str) -> list[dict[str, Any]]:
 
 
 def assignments(conn: sqlite3.Connection, ticket_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_assignments WHERE ticket_id = ? ORDER BY assigned_at, id", (ticket_id,)).fetchall()]
+    # rowid breaks a tie inside one second (random ids made two same-second assignments come back in either order)
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_assignments WHERE ticket_id = ? ORDER BY assigned_at, rowid", (ticket_id,)).fetchall()]
 
 
 def assignment(conn: sqlite3.Connection, assignment_id: str | None) -> dict[str, Any] | None:
