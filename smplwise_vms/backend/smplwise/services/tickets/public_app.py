@@ -93,7 +93,7 @@ class PublicDeps:
 
     links: LinkStore
     switch: ModuleSwitch
-    key: Callable[[], bytes]
+    key: Callable[[str | None], bytes]  # ModuleKey: the key of a row's key_id (None = the current key)
     trusted_proxies: Sequence[Network] = field(default_factory=lambda: parse_trusted_cidrs(DEFAULT_TRUSTED_PROXY_CIDRS))
     requests: RequestLog | None = None
     redeems: RedeemStore | None = None
@@ -441,7 +441,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
             gate.failure(pr.net, kind="redeem", lookup=rid is not None)
             raise unavailable()
         try:
-            token = links.derive_token(deps.key(), link.link_id, link.generation)
+            token = links.derive_token(deps.key(link.key_id), link.link_id, link.generation)
         except ModuleKeyError:
             raise unavailable() from None  # no key (a /data restored without secrets/): fail closed, say nothing
         gate.success(links.limiter_key(links.token_hash(token)), counted=True)  # its first API call passes a flood

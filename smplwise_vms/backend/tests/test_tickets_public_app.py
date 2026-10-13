@@ -442,7 +442,7 @@ def test_code_routes_refuse_cleanly(w):
     assert r.status_code == 503 and r.json() == {"code": "code_unavailable"}
     w.sender.channel, w.sender.ok = "whatsapp", False  # the outbox refused the row: the issued code is withdrawn
     r = c.post("/t/api/code/send", json={}, headers={"x-ticket-token": tok2})
-    assert r.status_code == 503 and w.codes.latest_code(link.link_id).expires_at <= w.clock()
+    assert r.status_code == 503 and w.codes.latest_code(link.link_id, link.generation).expires_at <= w.clock()
     assert c.post("/t/api/code/verify", json={"code": 123456}, headers={"x-ticket-token": tok2}).status_code == 422  # strict: a string
 
 

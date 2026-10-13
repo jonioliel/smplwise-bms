@@ -15,14 +15,14 @@ import pytest
 from smplwise.services.tickets import codes as cd
 from smplwise.services.tickets import links
 from smplwise.services.tickets.ratelimit import new_public_limiter
-from tests.tickets_public_fakes import KEY, Clock, FakeCodes, FakeLinks
+from tests.tickets_public_fakes import KEY, Clock, FakeCodes, FakeLinks, fake_key
 
 
 @pytest.fixture()
 def env():
     clock = Clock()
     store = FakeCodes()
-    engine = cd.CodeEngine(store, lambda: KEY, limiter=new_public_limiter(clock), clock=clock)
+    engine = cd.CodeEngine(store, fake_key, limiter=new_public_limiter(clock), clock=clock)
     fl = FakeLinks(clock)
     link, _ = fl.add(require_code=True)
     return clock, store, engine, link, fl
@@ -44,9 +44,11 @@ def test_code_is_six_digits_derived_and_stored_only_as_the_spec_hmac(env):
     issued = engine.issue(link, "whatsapp")
     code = the_code(issued)
     assert len(code) == 6 and code.isdigit()
-    rec = store.latest_code(link.link_id)
+    rec = store.latest_code(link.link_id, link.generation)
     assert rec.id == issued.code_id and rec.channel == "whatsapp" and rec.expires_at == clock() + 600
-    assert rec.code_hash == cd.code_hash(KEY, link.link_id, code) and code not in rec.code_hash
+    assert rec.generation == link.generation
+    assert rec.code_hash == cd.code_hash(KEY, link.link_id, link.generation, code) and code not in rec.code_hash
+    assert rec.code_hash != cd.code_hash(KEY, link.link_id, link.generation + 1, code)  # V8: the generation is in the hash
     assert code not in repr(rec)
 
 
@@ -103,7 +105,7 @@ def test_send_caps_one_a_minute_three_an_hour_six_a_day(env):
                 clock.advance(61)
         except cd.CodeRefused:
             pass
-    assert len(store.code_times_since(link.link_id, clock() - 86400)) <= 6
+    assert len(store.code_times_since(link.link_id, link.generation, clock() - 86400)) <= 6
 
 
 def test_a_new_code_invalidates_the_previous_one(env):
@@ -232,8 +234,8 @@ def test_malformed_values_and_guesses_without_a_live_code_are_not_counted(env):
         with pytest.raises(cd.CodeRefused) as e:
             engine.verify(link, "123456")
         assert e.value.reason == "expired"
-    assert store.failures(link.link_id) is None and engine.locked_for(link) == 0
-    assert store.latest_code(link.link_id).id == issued.code_id
+    assert store.failures(link.link_id, link.generation) is None and engine.locked_for(link) == 0
+    assert store.latest_code(link.link_id, link.generation).id == issued.code_id
 
 
 def test_reset_after_a_lock_is_the_managers_new_link(env):
@@ -243,8 +245,10 @@ def test_reset_after_a_lock_is_the_managers_new_link(env):
         with pytest.raises(cd.CodeRefused):
             engine.verify(link, wrong(code))
     assert engine.locked_for(link) > 0
-    engine.reset(link.link_id)
+    engine.reset(link)  # same generation (a reset without a bump): the window clears
+    assert engine.locked_for(link) == 0
     new_link = dataclasses.replace(link, generation=link.generation + 1)
+    engine.reset(new_link)
     assert engine.locked_for(new_link) == 0
     clock.advance(61)
     assert engine.verify(new_link, the_code(engine.issue(new_link, "whatsapp"))).session
@@ -304,7 +308,7 @@ def test_parallel_guesses_are_counted_exactly_and_never_pass(env):
         t.join()
     assert "ok" not in results
     assert results.count("invalid") == 4 and results.count("locked") == 36
-    assert store.latest_code(link.link_id).attempts == 5
+    assert store.latest_code(link.link_id, link.generation).attempts == 5
 
 
 def test_two_parallel_correct_codes_get_one_session(env):
