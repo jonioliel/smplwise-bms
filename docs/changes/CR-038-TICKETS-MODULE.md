@@ -7,7 +7,7 @@ branch (no hit).
 
 **Status:** **APPROVED FOR BUILD by the owner on 2026-10-13** (spec r2.4 and the mock-up v2 served on port 8796 during the
 review). Still a design: no product code, no migration file, no test exists yet. **D31 (vendor cost claims, section 11A)
-was added after the approval**; its four owner questions CQ1-CQ4 (section 22) have designed defaults. Branch `pilot/TICKETS-spec` (from `origin/main`
+was added after the approval** and the owner answered its four questions the same day (D32). Branch `pilot/TICKETS-spec` (from `origin/main`
 at `b26c1b7d`, release 2.4.8). Nothing here has been run against a real Home Assistant, a real `ha-whatsapp` installation, a real
 phone or a real Cloudflare tunnel. Every claim about existing code below was read in the repository at that commit (or on the
 named branch) and cites the file; every claim about `ha-whatsapp` was read on its public documentation pages on 2026-10-13
@@ -37,6 +37,9 @@ for which only the hook is designed (section 18).
   of mock-up v2 (port 8796) for development.**
 - r2.5 (2026-10-13): owner requirement D31 - cost claims from external vendors (section 11A), migration 0083, two new
   sensitive permissions, slice 9; owner questions CQ1-CQ4.
+- r2.6 (2026-10-13): owner answers on D31 (D32) - claim requirement chosen per assignment (default optional), 7-year
+  retention, one approver with a configurable high-amount flag, VAT included / excluded chosen by the vendor per claim,
+  camera capture of invoices on the vendor page (multi-page, client-side cleanup), OCR hook. No owner question is open.
 
 **Related:** CR-018 (notification core: sources, recipients, escalation - the module's internal alerts ride on it), CR-008
 (remote access through a Cloudflare tunnel, the threat model of a public surface), CR-028 (the cast relay: the precedent for a
@@ -121,6 +124,7 @@ decision 2026-10-01: the database engine is decided when ticketing is specified 
 | D29 | The first assignment message outside vendor send hours **waits for the morning**; "שלח עכשיו" is available to **anyone holding `tickets.external`** who can see the ticket (also a user granted it individually), not only to managers. | 9.2, 8.1 |
 | D30 | The board's side **area tree is hideable by each user** (a hide / show control on the board, remembered per user) and can be turned **fully off** by the installation setting (`board_floors = chips`) - the tree is not relevant for every customer. Effort: negligible (inside slice 6). | 13.7 |
 | D31 | After an **external** vendor reports done, the vendor submits a **cost claim** (lines: labor hours x rate, parts, travel, other; currency default ILS; VAT handling; auto total; notes; invoice / receipt as photo or PDF; optional invoice number); the manager approves, approves with adjustment, or rejects back to the vendor; revisions never overwritten; status none / submitted / approved / rejected / paid with a manual "mark as paid"; no payment integration (hook only); reporting and CSV; a required claim blocks closing unless overridden with a reason; new sensitive permission(s), grantable per user. | 11A |
+| D32 | Owner answers on D31: (1) **cost claim required / optional / off is chosen per assignment** by the manager in the assign dialog, preselected from vendor → department → installation default **optional**; (2) claims and invoices kept **7 years**; (3) **one approver**, high-amount flag above a configurable amount (default 10,000 ILS); (4) the **vendor chooses per claim** whether entered amounts include or exclude VAT (default from the vendor record), the server computes the other figure; the vendor can **photograph invoices with the phone camera** on the page (multi-page, retake, crop / rotate / contrast on the client, compressed images, server re-encode, assembled document view for the manager); OCR is a future task with a hook. | 11A |
 
 D18-D22 (and D17) are **installation settings** under Settings › קריאות שירות › כללי (`system.configure`); the per-user
 choices of D24 (view, columns, density, sort, saved filters) are personal and stored per user.
@@ -1008,7 +1012,7 @@ department therefore learns the names of that department's members only (review 
 | `PATCH /tickets/{id}` | manager (or creator while `new`) | editable fields of 11.3; `revision` required (409 `ticket_stale`) |
 | `POST /tickets/{id}/status` | per 11.2 | `{to, note?, revision}` |
 | `POST /tickets/{id}/assign/preview` | manager | `{assignee, template_id?, note?}` → the **exact outgoing text** with the link shown as "[קישור]", the account label and channel that will be used, the send-hours outcome ("יישלח ב-07:00") and any refusal (`code_channel_unavailable`, `public_link_unavailable`) - review T13-3; no side effect |
-| `POST /tickets/{id}/assign` | manager; **+ `tickets.external` for a contact** (D25) | `{assignee: {kind: user\|contact, id}, channel?, template_id?, note?, note_external?, require_code?, share_history?, send_now?, revision}`; ends the current assignment, revokes its link, mints a link for a contact, queues the message; 409 `assignee_not_allowed` for a contact row with `user_id`; 409 `code_channel_unavailable` (D6) |
+| `POST /tickets/{id}/assign` | manager; **+ `tickets.external` for a contact** (D25) | `{assignee: {kind: user\|contact, id}, channel?, template_id?, note?, note_external?, require_code?, share_history?, cost_claim?, send_now?, revision}`; ends the current assignment, revokes its link, mints a link for a contact, queues the message; 409 `assignee_not_allowed` for a contact row with `user_id`; 409 `code_channel_unavailable` (D6) |
 | `POST /tickets/{id}/notes` | visible + (member / manager \| current assignee \| creator) | `{text, external: bool}` (`external` only for managers; default false in the timeline box) |
 | `POST /tickets/{id}/attachments` / `GET .../attachments/{aid}` / `DELETE ...` | as notes / visible per the "what a visible ticket shows" rule / manager or uploader within 10 min | multipart image (10.6); `external` flag as for notes; `body_limit.LIMITS` gains the row `ticket_attachment` (8 MiB + 64 KiB, review C3) |
 | `POST /tickets/{id}/eta` | current internal assignee or manager | `{eta_at}` |
@@ -1721,21 +1725,27 @@ always shows the current values anyway.
 
 A vendor (an external contact) who reports **done** then submits a **cost claim** (פירוט דרישת עלות) so the organisation can pay
 and the event is documented. Nothing in this section pays anyone: there is **no payment integration**; "paid" is a manual mark
-with a payment reference, and a clean hook is left for a later integration (11A.9). Owner questions this raises: CQ1-CQ4
-(section 22); each has a designed default below.
+with a payment reference, and a clean hook is left for a later integration (11A.9). The owner's answers of the same day
+(D32) are applied below; no question about claims is open.
 
-### 11A.1 When a claim is asked for
+### 11A.1 When a claim is asked for (D32: per assignment)
 
-| Level | Setting | Values | Default |
+The choice is made **per assignment**, by the manager who sends the ticket to the external vendor: the assign dialog (and the
+bulk assign of 13.6) has "דרישת עלות: חובה / רשות / בלי", stored in `ticket_assignments.cost_claim`. Its preselection comes
+from the most specific default that is set:
+
+| Level | Default setting | Values | Default |
 |---|---|---|---|
-| Installation | `tickets.settings.costs.mode` | `required` / `optional` / `off` | `required` (CQ1) |
-| Department | `ticket_departments.cost_claim` | same, NULL = installation | NULL |
-| Vendor / contact | `ticket_contacts.cost_claim` | same, NULL = department | NULL (e.g. `off` for a vendor on a fixed service contract) |
+| Vendor / contact | `ticket_contacts.cost_claim` | `required` / `optional` / `off`, NULL = next level | NULL (e.g. `off` for a vendor on a fixed service contract) |
+| Department | `ticket_departments.cost_claim` | same | NULL |
+| Installation | `tickets.settings.costs.mode` | same | **`optional`** |
 
-The most specific non-NULL value wins. Only **external** assignments get a claim; internal users never do. A claim is asked
-after the assignment reaches `done`. After a return of kind "לא אוכל לטפל" (cannot handle) a claim is **optional** whatever the
-mode (a diagnosis visit may cost money); after "לא שלי" none is asked. A vendor can always declare **"ללא חיוב"** (no charge,
-e.g. warranty work): a claim with zero lines and `no_charge = 1`, reviewed like any other.
+The manager may change it in the dialog before sending, and later on the ticket while no claim was submitted (audited
+`ticket.cost.requirement`); the value at `done` is snapshotted into the claim (`ticket_cost_claims.required`). Only **external**
+assignments get a claim; internal users never do. A claim is asked after the assignment reaches `done`. After a return of kind
+"לא אוכל לטפל" (cannot handle) a claim is **optional** whatever was chosen (a diagnosis visit may cost money); after "לא שלי"
+none is asked. A vendor can always declare **"ללא חיוב"** (no charge, e.g. warranty work): a claim with zero lines and
+`no_charge = 1`, reviewed like any other.
 
 ### 11A.2 The vendor-page step after "done"
 
@@ -1746,13 +1756,17 @@ optional: a "הגשת דרישת עלות" card). Fields:
   description (required), amount. Every description ≤ 120 characters, `Cc` / `Cf` stripped.
 - **Currency:** one per claim, ISO 4217 code from `costs.currencies` (default `["ILS"]`, so no picker is shown by default);
   every line is in that currency.
-- **VAT** (CQ4): the installation's `costs.vat_mode` - `excluded` (the vendor enters amounts before VAT; VAT is added at
-  `costs.vat_rate_bp`, default 1800 = 18%), `included` (amounts include VAT; the VAT part is computed back) or `none`; a vendor
-  marked `vat_exempt` (עוסק פטור) always gets `none`. The form shows the subtotal, the VAT line and the total, **computed in the
-  browser for display only** - the server recomputes everything (11A.4) and its numbers are the record.
+- **VAT (D32):** the vendor chooses on each claim, with one toggle "הסכומים כוללים מע"מ / לפני מע"מ", whether the amounts
+  entered **include** or **exclude** VAT; the toggle's default comes from the vendor record (`ticket_contacts.vat_default`,
+  default `excluded`). The server computes the other figure at `costs.vat_rate_bp` (default 1800 = 18%): excluded → VAT =
+  subtotal x rate, total = subtotal + VAT; included → VAT = total x rate / (1 + rate), net = total - VAT. A vendor marked
+  `vat_exempt` (עוסק פטור) has no toggle: `none`. The form shows net, VAT and total, **computed in the browser for display
+  only** - the server recomputes everything (11A.4) and its numbers are the record.
 - **Vendor reference / invoice number** (optional, ≤ 40 characters), **notes** (optional, ≤ 1000).
-- **Invoice / receipt files** (optional unless `costs.require_invoice` - default false): at most 3 per revision, each a photo
-  (the 10.6 validator) or a **PDF** (11A.6).
+- **Invoice / receipt documents** (optional unless `costs.require_invoice` - default false): photographed with the phone
+  camera or picked from the gallery / files (11A.6A), or a PDF (11A.6). Limit per revision: **up to 3 documents**, each either
+  one PDF or **up to 10 photographed pages**, and at most **25 files** in total. (r2.5 allowed 3 files; raised because one
+  photographed invoice is often 2-4 pages and a page is a file - the document count, which is what a reviewer reads, stays 3.)
 - "שליחה" submits a **revision**. Until a manager decides, the vendor may submit a corrected revision (it supersedes the
   pending one). After a rejection the page shows the manager's reason and the form prefilled from the rejected revision.
   After approval it shows the approved total (and the adjustment reason when adjusted) read-only. The vendor never sees internal
@@ -1777,8 +1791,8 @@ may still be submitted and reviewed after an overridden close, inside the claim 
 - All money is stored as **integers in minor units** (agorot for ILS), never floating point; inputs are decimal strings with at
   most 2 decimals (`^\d{1,9}(\.\d{1,2})?$`).
 - Line total = quantity x unit price (labor: hours x rate), rounded half-up to the minor unit per line; subtotal = sum of lines;
-  VAT on the subtotal (`excluded`: subtotal x rate; `included`: total x rate / (1 + rate)), rounded half-up once; total = the
-  result. Per-kind totals (labor, parts, travel, other) are stored for reporting.
+  VAT per the vendor's toggle (`excluded`: subtotal x rate; `included`: the entered sum is the total and VAT = total x rate /
+  (1 + rate)), rounded half-up once; the other figure follows. Per-kind totals (labor, parts, travel, other) are stored for reporting.
 - Values sent by the client for totals are ignored; the answer returns the server's computation, and the page shows it.
 - `costs.max_claim_total_minor` (default 1,000,000.00) - above it 422 `claim_too_large` (fat-finger / tampering guard);
   `costs.review_flag_above_minor` (default 10,000.00) - above it the manager sees an amber "סכום גבוה" chip.
@@ -1813,9 +1827,40 @@ vendor's behalf.
     sandbox`, `Cache-Control: private, no-store`; never inline in the app; the vendor page shows only name and size of its own
     files and offers no re-download;
   - SHA-256 recorded; the same file uploaded twice in one claim is refused (`duplicate_file`).
-- Upload flow: `POST /t/api/claim/file` stores a **pending** file (24 h; one upload in flight per link; 6 files per hour per
-  link) and returns an id; the submission references the ids; unreferenced pending files are purged by the janitor.
+- Upload flow: `POST /t/api/claim/file` stores a **pending** file (24 h; one upload in flight per link; at most 40 files per
+  hour and 30 pending files per link - enough for 3 documents of 10 pages with retakes) with an optional `document_key` and
+  `page_no`, and returns an id; the submission references the ids and their order; unreferenced pending files are purged by the
+  janitor.
 - Storage: claim files count in the 2 GiB attachment cap (10.6).
+
+### 11A.6A Photographing an invoice on the vendor page (D32)
+
+- **Capture:** "צילום חשבונית" uses `<input type="file" accept="image/jpeg,image/png" capture="environment">`, which opens the
+  phone's own camera app; "בחירה מהגלריה / מקובץ" is the same input without `capture` (and the PDF picker). The page is served
+  only over HTTPS (the Cloudflare hostname), so it is a secure context; release 1 does **not** use a live in-page viewfinder
+  (`getUserMedia`): the native camera gives better focus and flash handling, needs no in-page camera permission, and the
+  public CSP / `Permissions-Policy: camera=()` stay unchanged. (A live viewfinder later would need `camera=(self)` and a
+  permission prompt - recorded, not built.)
+- **Camera refused or unavailable** (the OS or browser denies camera access to the browser app, a WhatsApp in-app browser that
+  ignores `capture`, a desktop): the input then shows the gallery / file picker or returns nothing; the page detects "no file
+  returned" and shows one line "לא ניתן לפתוח את המצלמה - אפשר לבחור תמונה מהגלריה או מקובץ" with the gallery button
+  focused, and "פתיחה בדפדפן" advice for in-app browsers. No retry loop, no permission nagging.
+- **Pages:** after each shot the page shows the page with "צילום מחדש", "סיבוב" (90°), "חיתוך" (a drag rectangle) and
+  "שיפור ניגודיות" (grayscale + auto-levels; a toggle, original kept until upload), then "הוספת עמוד" or "סיום מסמך". Pages
+  can be reordered and deleted before submitting. All editing is done on a `<canvas>` in the browser, one page in memory at a
+  time; the result is downscaled to 2048 px on the long side and compressed to JPEG quality 0.8 (typically 250-600 KB) before
+  upload, which also keeps uploads usable on poor reception (the 10.7 retry rules apply).
+- **Server:** every page is an ordinary image upload and goes through the 10.6 validator (magic bytes, 16 MP, re-encode to a
+  fresh JPEG, no EXIF / GPS) - client-side processing is a convenience, never a trust boundary. Pages carry `document_key`
+  and `page_no`.
+- **Manager view:** the claim card shows each document as one item; opening it shows a page viewer (pages in order,
+  thumbnails, zoom, rotate for viewing). "הורדה כ-PDF" assembles the re-encoded page images into one PDF on the server with
+  `fpdf2` (already a dependency) - images only, no text layer, no active content - served with the 11A.6 download headers.
+- **Bundle:** the capture / edit code is a lazily loaded chunk of the public bundle (≤ 25 KB gzip), fetched only on the claim
+  step; the initial page budget (60 KB) is unchanged; no third-party library.
+- **OCR - future task, hook only:** `ticket_cost_files.ocr_status` (NULL in release 1) and `services/tickets/costs.py
+  on_document_ready(document)` - called when a claim revision with documents is submitted; it does nothing in release 1. A later
+  OCR step could prefill lines or check totals against the invoice (18A).
 
 ### 11A.7 Manager side
 
@@ -1872,6 +1917,8 @@ ALTER TABLE ticket_departments ADD COLUMN cost_claim TEXT CHECK (cost_claim IN (
 ALTER TABLE ticket_departments ADD COLUMN claim_window_days INTEGER;
 ALTER TABLE ticket_contacts ADD COLUMN cost_claim TEXT CHECK (cost_claim IN ('required', 'optional', 'off'));
 ALTER TABLE ticket_contacts ADD COLUMN vat_exempt INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ticket_contacts ADD COLUMN vat_default TEXT NOT NULL DEFAULT 'excluded' CHECK (vat_default IN ('included', 'excluded'));
+ALTER TABLE ticket_assignments ADD COLUMN cost_claim TEXT CHECK (cost_claim IN ('required', 'optional', 'off'));   -- D32, per assignment
 ALTER TABLE ticket_contacts ADD COLUMN labor_rate_minor INTEGER;          -- prefill of the hourly rate
 ALTER TABLE ticket_contacts ADD COLUMN rate_currency TEXT;
 ALTER TABLE tickets ADD COLUMN cost_status TEXT NOT NULL DEFAULT 'not_required';
@@ -1914,7 +1961,7 @@ CREATE TABLE ticket_cost_revisions (                 -- immutable once written
   lines_json      TEXT NOT NULL,                     -- validated lines, minor units
   labor_minor     INTEGER NOT NULL, parts_minor INTEGER NOT NULL, travel_minor INTEGER NOT NULL, other_minor INTEGER NOT NULL,
   subtotal_minor  INTEGER NOT NULL,
-  vat_mode        TEXT NOT NULL CHECK (vat_mode IN ('excluded', 'included', 'none')),
+  vat_mode        TEXT NOT NULL CHECK (vat_mode IN ('excluded', 'included', 'none')),   -- the vendor's toggle (D32) or exempt
   vat_rate_bp     INTEGER NOT NULL,
   vat_minor       INTEGER NOT NULL,
   total_minor     INTEGER NOT NULL,
@@ -1948,6 +1995,9 @@ CREATE TABLE ticket_cost_files (
   revision_id TEXT,
   link_id     TEXT,                                     -- the uploader's link while pending
   kind        TEXT NOT NULL CHECK (kind IN ('photo', 'pdf')),
+  document_key TEXT,                                    -- groups photographed pages into one document (11A.6A)
+  page_no     INTEGER,
+  ocr_status  TEXT,                                     -- OCR hook, NULL in release 1
   path        TEXT NOT NULL,
   sha256      TEXT NOT NULL,
   bytes       INTEGER NOT NULL,
@@ -1964,7 +2014,7 @@ CREATE INDEX idx_cost_files_pending ON ticket_cost_files (created_at) WHERE clai
 ### 11A.11 Privacy and retention of financial data
 
 - Claims, revisions, decisions and files are kept for `costs.retention_days` after approval / payment (default **2555 days =
-  7 years**, CQ2 - the usual bookkeeping horizon), **independently of the ticket's own retention**: when the ticket is purged
+  7 years**, D32 - the usual bookkeeping horizon), **independently of the ticket's own retention**: when the ticket is purged
   (15.1), its claims stay with `snapshot_json` (no ticket link), and are deleted with their files at their own `purge_after`.
   Unapproved claims of purged tickets follow the ticket.
 - **Contact erase (15.2):** the claim keeps the company name, vendor reference, amounts and files (a financial record the
@@ -1982,8 +2032,8 @@ Public (port 18093; token + code session when required; claim mode per 11A.5; `c
 | Route | What |
 |---|---|
 | `GET /t/api/claim` | claim status, the vendor's own revisions (totals, lines, decision reasons visible to the vendor), the form settings (currency, VAT mode / rate / exempt, rate prefill, limits, `claim_until`) |
-| `POST /t/api/claim/file` | multipart, one photo or PDF → pending file id |
-| `POST /t/api/claim` | `{lines[], currency, vendor_ref?, notes?, no_charge?, file_ids[], client_request_id}` → the server-computed revision; 409 `claim_closed` after approval; 422 field problems |
+| `POST /t/api/claim/file` | multipart, one photo (a page) or PDF, optional `document_key` + `page_no` → pending file id |
+| `POST /t/api/claim` | `{lines[], currency, amounts_include_vat, vendor_ref?, notes?, no_charge?, documents: [{file_ids[] in page order}], client_request_id}` → the server-computed revision; 409 `claim_closed` after approval; 422 field problems |
 
 Internal (`/api/v1`):
 
@@ -2002,27 +2052,27 @@ Internal (`/api/v1`):
 
 | # | Threat | Mitigation | Residual |
 |---|---|---|---|
-| S21 | **Tampered amounts** (a forwarded-link holder, or a client that sends its own totals) | the server recomputes every total from lines; client totals ignored; integer minor units; caps and the "סכום גבוה" flag; immutable revisions and append-only decisions; every claim needs a human approval by a sensitive permission; adjustments need a reason; the vendor-page code (10.5) applies to claims | whoever holds a live link can submit a claim in the vendor's name - the reviewer is the control (CQ3 offers a second approver) |
+| S21 | **Tampered amounts** (a forwarded-link holder, or a client that sends its own totals) | the server recomputes every total from lines; client totals ignored; integer minor units; caps and the "סכום גבוה" flag; immutable revisions and append-only decisions; every claim needs a human approval by a sensitive permission; adjustments need a reason; the vendor-page code (10.5) applies to claims | whoever holds a live link can submit a claim in the vendor's name - the reviewer is the control (one approver, D32; a second approver above an amount is backlog) |
 | S22 | **Claim after link expiry / revocation** | the separate claim window (11A.5) opens only the claim routes, only for links that were not revoked, and ends at `claim_until`; reopening is a manager action | - |
 | S23 | **Double submission** | `client_request_id` replay; one pending revision at a time (a new one supersedes, recorded); one claim per assignment (UNIQUE); duplicate files refused by hash | - |
 | S24 | **Currency confusion** | one ISO 4217 currency per claim from an allow-list (default ILS only); reports and CSV per currency, never summed across currencies, no FX; VAT mode and rate frozen in the revision | - |
 | S25 | **Hostile PDFs** | magic / trailer check, size cap, active-content byte scan, encrypted PDFs refused, never parsed or rendered by Arx, download-only with `CSP: sandbox` and `nosniff`, never shown on the vendor page | a malicious PDF can still reach a reviewer's own PDF viewer; the guide says to open invoices in an up-to-date viewer; rasterising PDFs is backlog (18A) |
+| S27 | **Photographed pages** (client-side editing tampered with, huge or crafted images) | client processing is convenience only; every page passes the 10.6 validator and re-encode; per-link file caps; the assembled manager PDF contains only re-encoded images | - |
 | S26 | **Cost data leaks** (to managers without the permission, to other vendors, into CSV / logs) | fields removed server-side without `tickets.costs.view`; the vendor sees only its own assignment's claim; CSV formula-injection prefix and no phones / notes; logs and audit carry ids and totals only | - |
 
 ### 11A.14 Settings (`tickets.settings.costs`, `system.configure`; department and vendor overrides as in 11A.1)
 
 ```json
 "costs": {
-  "mode": "required",                       // CQ1
+  "mode": "optional",                       // D32: default of the per-assignment choice (vendor / department override first)
   "currencies": ["ILS"],                    // ISO 4217; the first is the default
-  "vat_mode": "excluded",                   // CQ4: excluded | included | none
   "vat_rate_bp": 1800,                      // 18.00 %
   "claim_window_days": 14,                  // 1-90; department override
   "require_invoice": false,
   "max_claim_total_minor": 100000000,       // 1,000,000.00
-  "review_flag_above_minor": 1000000,       // 10,000.00
+  "review_flag_above_minor": 1000000,       // 10,000.00 - D32: configurable high-amount flag, one approver
   "notify_vendor_approved": true,
-  "retention_days": 2555                    // CQ2; 730-3650
+  "retention_days": 2555                    // D32: 7 years; 730-3650
 }
 ```
 
@@ -2457,7 +2507,9 @@ created), and `dedupe_key = "rule:<rule_id>:<entity|camera>"`. Estimated 6-8 age
 | Separate handler and directory permissions | D15 trade-off | no data change needed |
 | Payment / accounting integration | D31 | subscribes to `emit_cost_event` or reads the report API (11A.9) |
 | Rasterising invoice PDFs to images (safe preview) | D31 | needs a sandboxed renderer the add-on does not have |
-| Two-person approval above an amount | CQ3 (b) | if the owner chooses it later |
+| Two-person approval above an amount | D32 (not chosen now) | a later setting |
+| OCR of photographed / PDF invoices | D32 | hook `on_document_ready`, column `ocr_status` (11A.6A) |
+| Live in-page camera viewfinder | D32 | needs `Permissions-Policy: camera=(self)` and a permission prompt |
 | More vendor-page languages | D26 | one catalogue file + templates per language |
 | Pacing shared with WisKey's own WhatsApp sends | 4, contradiction 3 | needs WisKey to report its sends; release 1 has the "used outside Arx" mark |
 
@@ -2471,7 +2523,7 @@ created), and `dedupe_key = "rule:<rule_id>:<entity|camera>"`. Estimated 6-8 age
 | Public app | route enumeration (only `/t/*`); main app 404 for `/t/*` on Ingress and `/arx`; listener answers 404 while the module is off; headers (CSP etc.) on every response; uniform 404 for unknown / expired / revoked / past grace / off / purged; rate limits (429 text) checked before any DB access (assert no query on an over-limit request); trusted-proxy rule for `CF-Connecting-IP`; JSON-only and size caps; body read deadline; one upload in flight per link; every write path with and without code session; idempotency replay and `request_id_reused`; return / "לא שלי" revoke at once; 422 envelope without `input`; server config values (`access_log`, `server_header`, `limit_concurrency`, `timeout_keep_alive`) and no signal capture off the main thread; stop joins the thread | pytest with an ASGI client + one real-socket test of the threaded server |
 | Uploads (hostile) | decompression bomb, 16 MP + 1 pixel, truncated JPEG, PNG with trailing ZIP, WebP refused, SVG/HTML renamed .jpg, HEIC, EXIF GPS present → stripped (assert re-read has no EXIF), 8 MiB + 1 byte, 61st photo, storage cap reached before decode, semaphore busy → 429 while an admin background upload is unaffected | pytest with generated files |
 | Channel / outbox | fake `ha-whatsapp` (`tests/fake_ha_whatsapp.py`: records `call_service` payloads incl. `account`, configurable outcomes incl. unknown-account errors, injects events with and without `entry_id`, exposes a registry fixture with one or two accounts); pacing per account; send hours; supersede; fallback to in-app / e-mail (fake SMTP, redeem link, never the fragment) / "waiting for manager"; code-protected fallback rule; account down/up signals; never retry or re-route `unknown` | pytest |
-| Cost claims (D31) | mode resolution (installation / department / vendor, done vs cannot-handle vs not-mine); server computation (minor units, per-line rounding, VAT excluded / included / none / exempt, caps, flag, client totals ignored); revisions immutable, supersede, reject → resubmit, adjust with reason, mark / unmark paid; close gate and override; auto close skips; claim window after close / expiry / grace, never after revocation, reopen; permission matrix (view vs approve, vendor sees only its own claim, fields stripped); hostile PDFs (JS, OpenAction, EmbeddedFile, encrypted, no trailer, oversize, wrong magic, duplicate hash) and download headers; report per currency; CSV gates and escaping; retention after ticket purge; Playwright: vendor claim step in he / ar (RTL) and en (LTR), manager review dialogs, table cost columns | pytest + Playwright |
+| Cost claims (D31) | mode resolution (installation / department / vendor, done vs cannot-handle vs not-mine); server computation (minor units, per-line rounding, VAT excluded / included / none / exempt, caps, flag, client totals ignored); revisions immutable, supersede, reject → resubmit, adjust with reason, mark / unmark paid; close gate and override; auto close skips; claim window after close / expiry / grace, never after revocation, reopen; permission matrix (view vs approve, vendor sees only its own claim, fields stripped); hostile PDFs (JS, OpenAction, EmbeddedFile, encrypted, no trailer, oversize, wrong magic, duplicate hash) and download headers; per-assignment requirement and its preselection chain; VAT toggle both ways and exempt; camera flow (Playwright with a fake file for `capture`, refused / no-file path, multi-page add / retake / rotate / crop / contrast, reorder, upload retry) and the assembled manager PDF; report per currency; CSV gates and escaping; retention after ticket purge; Playwright: vendor claim step in he / ar (RTL) and en (LTR), manager review dialogs, table cost columns | pytest + Playwright |
 | Log hygiene | run the full send + inbound + public flows (both servers) with a capturing handler on the root, `uvicorn.*` and `smplwise.*` loggers; assert the test phone, token, redeem id, code and message text appear nowhere in logs or audit rows | pytest |
 | Migrations | 0079-0083 apply on an empty DB and on a 2.4.8 DB copy fixture; foreign keys; indexes exist | existing migration tests |
 | Frontend unit | tabs computation of `device-activity` (with / without activity, with / without permission, module off); the D17 long-press matrix row by row (module off, no permission, mode sheet / menu x tracked / other) and the menu items per permission; `activityTag` for non-tracked rows; text catalogue completeness; public page state reducer (grace, not-mine confirmation, busy, offline draft retry with the same request id) | node unit tests (`frontend/tests/unit-*`) |
@@ -2497,15 +2549,15 @@ brackets.
 | 6 | Stuck / escalation + board | SLA monitor in the janitor (incl. "link not opened", automatic close, link expiry), reminder ladder (send-hours aware, sliding extension), CR-018 sources / category / recipient rules / visibility branch incl. `contact_changed` and per-account `channel_down`, `urgent_is_critical`, `notify_new` first-manager default, manager board screen (cards view) with D19 floors tree / chips, D20 grouping, D21 state strip, facets route, one-tap "התקבל" deep link | 19-25 (14-18) | 2, 5b (external reminders) |
 | 6b | Board table + kanban (D24) | table view (sticky header, sort, column chooser, density, keyboard, inline status / assignee), kanban, phone compact list, saved views (`ticket_saved_views`, `user_prefs` key), list API sort / keyset pagination / short pages, bulk route + bar, CSV export route, tests incl. Playwright | 18-24 (new) | 6 |
 | 7 | Verification code (option B) | contact flag + per-assignment flag, code send/verify/lock through `tickets.codes`, D6 code-channel rule at assign and at send, code session, page states, lock card with one-tap new link | 10-13 (8-10) | 4, 5b |
-| 9 | Cost claims (D31) | migration 0083; `services/tickets/costs.py` (mode resolution, computation, lifecycle, close gate, claim window, decisions, payment hook); PDF / photo file path with the 11A.6 rules and body-limit rows; public claim routes + the vendor-page claim step (4 languages); manager cost card, review dialogs, revision history, on-behalf entry; the two permissions + roles; CR-018 sources and vendor messages; report screen, cost columns, CSV; retention; tests | 29-39 (new) | 4, 5b, 6b (columns) |
+| 9 | Cost claims (D31) | migration 0083; `services/tickets/costs.py` (mode resolution, computation, lifecycle, close gate, claim window, decisions, payment hook); PDF / photo file path with the 11A.6 rules and body-limit rows; public claim routes + the vendor-page claim step (4 languages) incl. camera capture, page editor, multi-page documents (D32); manager cost card, review dialogs, revision history, on-behalf entry; the two permissions + roles; CR-018 sources and vendor messages; report screen, cost columns, CSV; per-assignment requirement in the assign dialog; assembled-PDF download; OCR hook; retention; tests | 36-48 (new) | 4, 5b, 6b (columns) |
 | 8 | Guide + review + gate | DOCS.md section + Hebrew user guide (installer: dedicated number, pairing, 14-day rule, choosing accounts per use, tunnel route, **required**: recorder exclusion of `whatsapp_message_*` and the last-message sensor, Cloudflare rate-limit rule and script features off for `t-*`, HA backups are sensitive; manager: link durations, send hours, codes and forwarding), security review of the public surface, upstream watch entry (`FaserF/ha-whatsapp`), bilingual changelog lines, tier-L gate on the runner | 10-15 (8-12) (+ gate runtime) | all |
 
-**Total: 227-296 agent-hours** (r1: 120-156; **+107 to +140, about +90%**). r2.5 (D31, cost claims) added slice 9 (29-39). Before it: 198-257. r2.3 (D25-D29) added 9-10: `tickets.external` and the single-user grant roles + "הרשאות" sub-tab (+3 in slice 1), languages (+4-5 in slice 4, +2 in slice 5b), D28 / D29 inside slices 5b / 6. r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
+**Total: 234-305 agent-hours** (r1: 120-156; **+114 to +149, about +95%**). r2.5 / r2.6 (D31, D32 - cost claims with camera capture) added slice 9 (36-48; the camera, page editor and multi-page documents are +6-8, the per-assignment choice +1). Before it: 198-257. r2.3 (D25-D29) added 9-10: `tickets.external` and the single-user grant roles + "הרשאות" sub-tab (+3 in slice 1), languages (+4-5 in slice 4, +2 in slice 5b), D28 / D29 inside slices 5b / 6. r2.1 (D17) added 2-3; r2.2 (D18-D24) added 25-33: the table / kanban slice 6b (18-24), board settings D19-D21 (+3-4 in slice 6), D18 / D22 (+2-3 in slice 1), D23 (+2 in slices 3 / 4). Where the increase comes from: listener isolation,
 link lifecycle and the redeem page (+12-16 in slice 4); the new WhatsApp accounts slice 5a (+12-15) and its effect on the
 channel (+4 in 5b); department-scoping and data-exposure fixes, duplicates, reopen, text filter (+5-6 in slice 1); settings
 for every threshold and the department overrides (+2-3); the owner's new items (automatic close, "link not opened", "לא שלי",
 D14 lines) about +4 spread over slices 1, 2, 4, 6. No open owner question changes it any more.
-Calendar: about **9-10 working days with 3 agents in parallel** after slice 1 (r1: 4-5). Phase 2 rule action: 6-8 more.
+Calendar: about **10 working days with 3 agents in parallel** after slice 1 (r1: 4-5). Phase 2 rule action: 6-8 more.
 
 **Recommended order:** 1 → (2 ∥ 5a) → (3 ∥ 4) → 5b → ((6 → 6b → 9) ∥ 7) → 8. Slice 1 is the single owner of the shared files
 (`roles.json`, `routers/access.py PERMISSION_LABELS` - it also adds `messaging.accounts.manage` so 5a does not touch them -,
@@ -2551,15 +2603,10 @@ reviewed change).
 
 ## 22. Open questions
 
-All fourteen r1 questions are closed (Q6, Q7, Q8, Q12 by D10, D7, D3, D6; the other ten by D16), and the r2 questions
-OQ1-OQ5 by D25-D29. **Open: four questions raised by D31 (cost claims)**, each with a designed default so building can start:
-
-| # | Question | Options | Recommendation | Designed default |
-|---|---|---|---|---|
-| CQ1 | Is a cost claim required by default after an external vendor reports done? | (a) required, a department or vendor can turn it to optional / off (b) optional by default | (a) - the owner's wording ("must then submit"); fixed-contract vendors are set to off | (a) |
-| CQ2 | How long to keep cost claims and invoice files | (a) 7 years, independent of the ticket (b) the same as tickets (2 years) | (a) - the usual bookkeeping horizon in Israel; the ticket itself can still go after 2 years | (a) |
-| CQ3 | Who approves a claim | (a) one holder of the approval permission (b) a second approver above an amount (e.g. above 5,000 ₪) | (a) in release 1, with the "סכום גבוה" flag above 10,000 ₪; (b) as a later setting if needed | (a) |
-| CQ4 | How the vendor enters amounts | (a) before VAT, the system adds 18% (exempt vendors marked) (b) final amounts including VAT | (a) - matches an Israeli tax invoice (net + VAT lines) and keeps the VAT visible | (a) |
+**No owner question is open.** All fourteen r1 questions are closed (Q6, Q7, Q8, Q12 by D10, D7, D3, D6; the other ten by
+D16), the r2 questions OQ1-OQ5 by D25-D29, and the cost-claim questions CQ1-CQ4 by D32 (per-assignment requirement with
+default optional; 7-year retention; one approver with a configurable high-amount flag; VAT included / excluded chosen by the
+vendor per claim).
 
 **Still open - build-time verifications, not owner questions** (none blocks slice 1):
 1. `ha-whatsapp` on the owner's installed version: the connectivity sensor and its attributes, `account` = entry id, `entry_id`
