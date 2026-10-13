@@ -31,6 +31,12 @@ _recent_nonces: dict[str, float] = {}
 
 
 def signing_key(conn: sqlite3.Connection) -> str | None:
+    """The pairing key every signed call (and every verification of a bridge push) takes. CR-040: while a trust-key rotation is
+    open, refused here - 409 `bridge_rotation_in_progress`, `details.outcome = not_sent` - so nothing is signed, sent, queued or
+    retried with a key that may no longer be the bridge's (services/bridge_trust.py)."""
+    from . import bridge_trust  # local import: bridge_trust signs through this module
+
+    bridge_trust.refuse_while_rotating(conn)
     return get_setting(conn, "bridge.secret")
 
 

@@ -1,8 +1,14 @@
 """Config flow: either discovered through the Supervisor (the add-on announces itself with the pairing code,
-the user only confirms) or entered by hand (add-on address + pairing code from the add-on's settings)."""
+the user only confirms) or entered by hand (add-on address + pairing code from the add-on's settings).
+
+0.8.1 (CR-040): every accepted pairing code that is NEW gets a fresh random `pairing_id` and trust epoch 1 - a re-pair starts the
+trust epoch again (trust.reconcile). A discovery that carries the key the bridge already holds (the add-on announces its current key
+at every start, also after a rotation) changes nothing and reloads nothing; only a different code is a re-pair."""
 from __future__ import annotations
 
 import datetime as dt
+import hmac
+import secrets
 from typing import Any
 
 import voluptuous as vol
@@ -11,15 +17,26 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
-from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, DEFAULT_ADDON_URL, DOMAIN, VERSION
+from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, CONF_PAIRING_ID, CONF_TRUST_EPOCH, DEFAULT_ADDON_URL, DOMAIN, VERSION
 from .signing import sign
+from .trust_service import current_key_of
+
+
+def new_pairing(code: str) -> dict[str, Any]:
+    """The config entry fields of a NEW pairing (0.8.1): the code, a fresh random pairing id (never derived from the code), epoch 1."""
+    return {CONF_PAIRING_CODE: code, CONF_PAIRING_ID: secrets.token_hex(8), CONF_TRUST_EPOCH: 1}
+
+
+def same_pairing(code: str, entry_code: Any, running_key: Any) -> bool:
+    """Whether a discovered code is the key this bridge already holds (the running one, or the config entry's). Constant time."""
+    return any(isinstance(k, str) and k and hmac.compare_digest(k.encode("utf-8"), code.encode("utf-8")) for k in (running_key, entry_code))
 
 
 class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self) -> None:
-        self._discovered: dict[str, str] | None = None
+        self._discovered: dict[str, Any] | None = None
         self._addon_name = "SmplWise Arx"
 
     @staticmethod
@@ -48,7 +65,7 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             code = user_input[CONF_PAIRING_CODE].strip()
             err = await self._try_pair(url, code)
             if err is None:
-                return self.async_create_entry(title="SMPLWISE Bridge", data={CONF_ADDON_URL: url, CONF_PAIRING_CODE: code})
+                return self.async_create_entry(title="SMPLWISE Bridge", data={CONF_ADDON_URL: url, **new_pairing(code)})
             errors["base"] = err
         schema = vol.Schema({vol.Required(CONF_ADDON_URL, default=DEFAULT_ADDON_URL): str, vol.Required(CONF_PAIRING_CODE): str})
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
@@ -61,9 +78,15 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not code:
             return self.async_abort(reason="invalid_discovery")
         await self.async_set_unique_id(DOMAIN)
-        # An existing entry takes the (possibly regenerated) pairing code and reloads; nothing is duplicated.
-        self._abort_if_unique_id_configured(updates={CONF_ADDON_URL: url, CONF_PAIRING_CODE: code})
-        self._discovered = {CONF_ADDON_URL: url, CONF_PAIRING_CODE: code}
+        # An existing entry takes a (regenerated) DIFFERENT pairing code as a re-pair - a new pairing id and epoch 1 - and reloads;
+        # the key it already holds changes nothing (0.8.1: the add-on re-announces its current key, also after a rotation). Nothing is duplicated.
+        updates: dict[str, Any] = {CONF_ADDON_URL: url}
+        existing = next(iter(self._async_current_entries()), None)
+        if existing is not None:
+            if not same_pairing(code, existing.data.get(CONF_PAIRING_CODE), current_key_of(self.hass)):
+                updates.update(new_pairing(code))
+        self._abort_if_unique_id_configured(updates=updates)
+        self._discovered = {CONF_ADDON_URL: url, **new_pairing(code)}
         self._addon_name = discovery_info.name or self._addon_name
         self.context["title_placeholders"] = {"addon": self._addon_name}
         return await self.async_step_hassio_confirm()

@@ -110,11 +110,26 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
     """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered)."""
     if not ha_client.supervisor_token():
         return False
+    from . import bridge_trust
+
+    def _blocked(c: sqlite3.Connection) -> bool:
+        # CR-040: while a key rotation is open the announcement (it carries the pairing code) is not sent - a bridge that already
+        # switched must never be pushed back to the previous key through its config flow
+        if bridge_trust.discovery_blocked(c):
+            STATE["last_error"] = "discovery:rotation_open"
+            log.warning("bridge discovery announcement skipped: a key rotation is open")
+            return True
+        return False
+
     if conn is not None:
+        if _blocked(conn):
+            return False
         ha_bridge.ensure_pairing(conn, False)
         secret = ha_bridge.signing_key(conn)
     else:
         with db.connection() as c:
+            if _blocked(c):
+                return False
             ha_bridge.ensure_pairing(c, False)
             secret = ha_bridge.signing_key(c)
     try:
