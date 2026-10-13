@@ -139,6 +139,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         alarm_codes_svc.janitor(db)
     except Exception:  # noqa: BLE001
         log.warning("alarm code counter janitor failed", exc_info=True)
+    try:  # CR-038: the tickets module's housekeeping (hourly inside; the request-idempotency rows after 24 h)
+        from .services.tickets import retention as tickets_retention
+
+        tickets_retention.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("tickets janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -415,6 +421,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services import announce_channel  # noqa: F401  (registers the `announce` notification channel)
 
     announcements_svc.attach(app.state.db, settings)  # a rule's announce action writes its log through this
+    from .routers import tickets as tickets_router, tickets_admin as tickets_admin_router  # CR-038 S1: the optional tickets module (its own lines)
+
+    app.include_router(tickets_router.open_router, prefix=api, tags=["tickets"])  # GET /tickets/module: the only route that answers while the module is off
+    app.include_router(tickets_admin_router.router, prefix=api, tags=["tickets"])  # settings, name, departments - BEFORE /tickets/{ticket_id}
+    app.include_router(tickets_router.router, prefix=api, tags=["tickets"])
 
     @app.on_event("startup")
     async def _start_janitor() -> None:

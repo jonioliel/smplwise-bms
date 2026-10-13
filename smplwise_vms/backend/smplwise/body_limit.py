@@ -139,6 +139,13 @@ def _plan_ifc(_s: Settings) -> int:
     return plan_ifc_read.MAX_BYTES + MULTIPART_SLACK
 
 
+def _ticket_attachment(_s: Settings) -> int:
+    """CR-038 section 10.6 (review C3): one photo of a ticket - 8 MiB (services/tickets/attachments.MAX_BYTES) + the framing."""
+    from .services.tickets import attachments
+
+    return attachments.MAX_BYTES + MULTIPART_SLACK
+
+
 def _const(n: int) -> Callable[[Settings], int]:
     return lambda _s: n
 
@@ -160,6 +167,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(rf"/api/v1/plan-versions/{_ID}/import-ifc"), _plan_ifc, "plan_ifc"),
     (frozenset({"POST"}), re.compile(r"/api/v1/catalog/import"), _const(CATALOG_IMPORT_MAX), "catalog_import"),
     (frozenset({"POST"}), re.compile(r"/api/v1/csp-report"), _csp_report, "csp_report"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/attachments"), _ticket_attachment, "ticket_attachment"),
 ]
 
 # the remote channel's paths that need no sign-in (routers/remote.py, the static /.well-known files)

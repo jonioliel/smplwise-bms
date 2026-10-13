@@ -68,7 +68,12 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # from an archive (an archive written while it was on - or before 2.4.4 - must not switch installing from Arx back on);
                  # the restore answer and its own `system.update.apply_enabled` audit row say what was kept and what the archive held.
                  "update.apply_enabled",
-                 "site.ha_location"}  # CR-029 S2: the home's location as last read (services/site_location.py) - re-read on connect, never carried
+                 "site.ha_location",  # CR-029 S2: the home's location as last read (services/site_location.py) - re-read on connect, never carried
+                 # CR-038 (review C4 / T13): the tickets module's switch, its settings document (public address, link durations, send
+                 # hours ...), its display name (D33) and the WhatsApp account mapping describe THIS installation - never exported in a
+                 # project backup and never restored from one. The module's tables are not project tables either (slice 1 notes,
+                 # docs/changes/CR-038-S1-NOTES.md: a replace restore must not delete departments that open tickets reference).
+                 "tickets.enabled", "tickets.settings", "tickets.name", "messaging.whatsapp"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
