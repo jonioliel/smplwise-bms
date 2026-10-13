@@ -332,6 +332,10 @@ export class SceneView {
   private placed = new Map<string, Placed>();
   /** The tint prisms by part id: each has its own material, so a fade step writes its opacity in place. */
   private tints = new Map<string, Mesh>();
+  /** The camera cone prisms: each has its own material, so the section cut of level 3 clips them like the walls
+   * (ST7-odd: a cone rises to the camera's mount height, above the cut, and showed as a translucent volume spilling past
+   * the cut walls in the orbit views and as white wisps over the wall tops). */
+  private cones: Mesh[] = [];
   /** How many times the parts were realised (tests: a fade step must not add one). */
   private builds = 0;
   private smallGroups: Object3D[] = [];
@@ -757,6 +761,9 @@ export class SceneView {
     const y = top ? top.elevation_m + top.ceiling_height_m * 0.6 : 0;
     this.clipPlane.constant = y;
     this.realMats.setClip(on ? [this.clipPlane] : null);
+    // the camera cones (level-2 illustrations kept at level 3) are cut with the walls: a cone stands from the floor to
+    // the camera's mount height, above the cut, and would otherwise show as a ghost volume over and past the cut walls
+    for (const c of this.cones) if (!Array.isArray(c.material)) c.material.clippingPlanes = on ? [this.clipPlane] : null;
     const caps = this.realBuilt?.caps;
     if (caps) for (const c of caps.children) c.visible = on && c.userData.level === top!.id && (!c.userData.edge || LOOK_STYLES[this.real.style].cut.edge !== null);
     this.renderer.shadowMap.needsUpdate = true;
@@ -1007,12 +1014,16 @@ export class SceneView {
       const geometry = prismGeometry(p.polygon ?? [], p.size[1]);
       if (!geometry) return null;
       const shared = this.material(p.color, p.opacity, true, roleOf(p));
-      // a tint owns its material: a fade step changes its opacity alone (a shared material would fade every room)
-      const material = p.kind === 'tint' ? shared.clone() : shared;
+      // a tint owns its material: a fade step changes its opacity alone (a shared material would fade every room);
+      // a cone owns its material: the section cut clips it (applyCut) without clipping whatever shares the colour
+      const material = p.kind === 'tint' || p.kind === 'cone' ? shared.clone() : shared;
       const mesh = new Mesh(geometry, material);
       if (p.kind === 'tint') {
         mesh.userData.ownMaterial = true;
         mesh.userData.state = this.stateOf(p.color); // R3 G2: a style switch recolours the clone too
+      } else if (p.kind === 'cone') {
+        mesh.userData.ownMaterial = true;
+        mesh.userData.cone = true;
       }
       mesh.position.set(p.position[0], p.position[1], p.position[2]);
       this.shadows(mesh, p);
@@ -1146,6 +1157,7 @@ export class SceneView {
     this.lookup.clear();
     this.placed.clear();
     this.tints.clear();
+    this.cones = [];
     this.smallGroups = [];
     this.cutAzimuth = null;
     this.cutNow.clear();
@@ -1218,7 +1230,8 @@ export class SceneView {
     }
     for (const child of [...built.root.children]) {
       this.root.add(child);
-      if (child instanceof Mesh && child.userData.ownMaterial) this.tints.set(child.name, child);
+      if (child instanceof Mesh && child.userData.cone) this.cones.push(child);
+      else if (child instanceof Mesh && child.userData.ownMaterial) this.tints.set(child.name, child);
     }
     this.lookup = built.lookup;
     this.placed = built.placed;
