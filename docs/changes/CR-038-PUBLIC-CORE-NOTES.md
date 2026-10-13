@@ -117,6 +117,9 @@ subdir="costs")`, `cost_files.check_pdf`, `check_pending_quota`, `assemble_docum
 7. **Bundle**: slice 4's second Vite entry builds `smplwise_vms/www-public/index.html` + `assets/*.{js,css,svg,png,ico}`
    (`shell_dir`); no inline script or style (CSP `script-src 'self'; style-src 'self'`), no fonts (`default-src 'none'`), photos
    shown through `blob:` URLs after a fetch with the token header. Until it exists, `/t/` serves a script-free fallback page.
+   The bundle must stay OUTSIDE `smplwise_vms/www`: the main app mounts that folder at `/` (StaticFiles, `html=True`), so a
+   `www/t/index.html` would make the main app serve `/t/` too (spec 5: the main app mounts none of the public routes; the test
+   `test_the_main_app_serves_no_public_route` runs without a `www` folder).
 8. **Backup**: `<data>/tickets/` joins `backup.RESTORABLE_ROOTS` (spec 7.4); `block_counters` is not a project table (counters do
    not travel); `secrets/tickets_key` never travels.
 9. **Security note** in `docs/security/` (slice 4, review C13): the token-authorised media exception (`GET /t/api/photo/{id}`).

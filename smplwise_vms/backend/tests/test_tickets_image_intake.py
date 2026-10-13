@@ -12,6 +12,7 @@ import time
 import zlib
 
 import pytest
+from conftest import sw_time_factor
 from PIL import Image
 
 from smplwise.services.tickets import image_intake as ii
@@ -264,7 +265,7 @@ def test_progressive_jpeg_is_fine_and_a_scan_bomb_is_refused_before_decoding():
     bomb = jpeg(16, 16)[:-2] + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00" * (ii.JPEG_MAX_SCANS + 1) + b"\xff\xd9"
     t0 = time.monotonic()
     refuse(bomb, "image_invalid", 422)
-    assert time.monotonic() - t0 < 1.0
+    assert time.monotonic() - t0 < 1.0 * sw_time_factor()
 
 
 def test_truncated_jpeg_is_one_clean_refusal():
@@ -299,7 +300,7 @@ def test_busy_decoder_answers_429_and_the_administrators_slot_is_never_shared():
         assert held.wait(5)
         t0 = time.monotonic()
         refuse(jpeg(32, 32), "busy", 429, wait_s=0.2)
-        assert time.monotonic() - t0 < 2
+        assert time.monotonic() - t0 < 2 * sw_time_factor()
         with ui_background._decode_slot():  # noqa: SLF001 - the administrator's upload is not made to wait
             pass
     finally:

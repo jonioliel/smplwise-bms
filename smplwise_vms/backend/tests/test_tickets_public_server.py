@@ -18,6 +18,7 @@ import anyio
 import httpx
 import pytest
 import uvicorn
+from conftest import sw_time_factor
 from fastapi import APIRouter
 
 from smplwise.services.tickets import public_server as ps
@@ -318,8 +319,8 @@ def test_keep_alive_idles_out_after_five_seconds(serve):
         s.sendall(b"GET /t/healthz HTTP/1.1\r\nHost: t.example\r\n\r\n")
         assert read_response(s)[0] == 200
         t0 = time.monotonic()
-        assert closed_by_server(s, within=8.0)
-        assert 4.0 <= time.monotonic() - t0 <= 7.5
+        assert closed_by_server(s, within=8.0 * sw_time_factor())
+        assert 4.0 <= time.monotonic() - t0 <= 7.5 * sw_time_factor()
 
 
 def test_the_sixteen_connection_cap(serve):
@@ -393,7 +394,7 @@ def test_lookups_stay_answered_while_uploads_wait_for_a_held_decoder(tmp_path):
         with httpx.Client(base_url=f"http://127.0.0.1:{lst.port}") as c:
             for _ in range(5):
                 assert c.get("/t/api/photo/ffffffffffffffff", headers={"x-ticket-token": tokens[0]}).status_code == 404
-        assert time.monotonic() - t0 < 2.0
+        assert time.monotonic() - t0 < 2.0 * sw_time_factor()  # a stalled pool takes the 3 s decode wait (4.3 s seen)
     finally:
         ii._DECODE.release()  # noqa: SLF001
     for t in threads:

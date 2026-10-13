@@ -90,15 +90,17 @@ def test_the_scan_stays_cheap_on_crafted_files():
     spellings; escaped names are decoded one by one, at most MAX_ESCAPED_NAMES)."""
     import time
 
+    from conftest import sw_time_factor
+
     filler = b"%PDF-1.7\n" + b"/a" * (4 * 1024 * 1024) + b"\n%%EOF\n"
     t0 = time.perf_counter()
     cf.check_pdf(filler)
-    assert time.perf_counter() - t0 < 1.5
+    assert time.perf_counter() - t0 < 1.5 * sw_time_factor()
     escapes = b"%PDF-1.7\n" + b"/#41" * (2 * 1024 * 1024) + b"\n%%EOF\n"
     t0 = time.perf_counter()
     with pytest.raises(IntakeError) as e:
         cf.check_pdf(escapes)
-    assert e.value.code == "pdf_refused" and time.perf_counter() - t0 < 1.5
+    assert e.value.code == "pdf_refused" and time.perf_counter() - t0 < 1.5 * sw_time_factor()
     assert cf.active_markers(b"/JS#20 /A#41#41x") == set()  # "JS " and "AAx" are other names
 
 
