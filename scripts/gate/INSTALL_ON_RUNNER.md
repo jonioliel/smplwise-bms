@@ -70,8 +70,13 @@ the engine's `GATE_SKIP_BACKEND=1` / `GATE_SKIP_DEV=1` (a skipped category is le
 When the release gate is green, refresh `scripts/gate/gate_baselines.json` from `baseline_candidate` of that gate's `.json`,
 commit it, and copy it to the runner. Refresh `gate_durations.json` from the same gate's `gate_<branch>_<sha>.logs/pw_*.json`
 (skip the `_retry_` files; per spec file sum `results[].duration` over all tests, in seconds, rounded to 0.1; drop files that sum to 0).
+Sum on the runner, or on Windows with `python -X utf8`: `prior_costs()` reads each report with the locale encoding and silently
+skips one it cannot decode (an unforced Windows run parsed 8 of 422 spec files).
 The engine already reads the last 10 gates' `pw_*.json` on the runner, so the seed only matters for a new runner, a cleaned logs
-directory, or specs added since those gates. The `gate_baselines.json` numbers are passed COUNTS, not times; there is no per-stage
+directory, or specs added since those gates. Unlike `gate_baselines.json`, the seed is read from the directory of the engine that
+runs (`~/`, `~/nightly-gate/`, or a per-release copy `~/gateNNN/` of `scripts/gate/`), never from the branch under test: the `~/` and
+`~/nightly-gate/` copies are replaced separately (idle runner only, backup first), and a release gate gets a new seed through the
+copy of `scripts/gate/` it is started from. The `gate_baselines.json` numbers are passed COUNTS, not times; there is no per-stage
 time baseline that the engine reads (the stage seconds are in each report's `phases`; the `source` line of the file and the refresh
 log below repeat them for the gate the numbers came from, for people only). The baseline is a tracked file on purpose: its history is the record of the suite size.
 
@@ -88,7 +93,7 @@ Refresh log (newest first):
 
 | Date | From gate | preview | dev | backend | pixel | fixture | Note |
 |---|---|---|---|---|---|---|---|
-| 2026-10-13 | integ/2410 @ 240424e0 (2.4.10, pass) | 8685 | 852 | 7133 | 188 | 15 | no flaky, no known; `gate_durations.json` regenerated whole from the same gate's 18 `pw_*.json` (301 spec files, about 8.9 h of summed test time over all projects: 39 specs added, 5 near-zero unit specs fell below 0.05 s and were dropped, the rest re-measured). Stage seconds (preview / dev / wall): 2.4.8 2592 / 2867 / 93 min 38 s, 2.4.9 3264 / 2834 / 104 min 24 s, 2.4.10 3275 / 2965 / 106 min 38 s (2.4.10 also: tsc 17, build 9, fixture 62, visual 63). The 2.4.9 gate (8471 / 829 / 7070 / 188 / 15) was never refreshed here |
+| 2026-10-13 | integ/2410 @ 240424e0 (2.4.10, pass) | 8685 | 852 | 7133 | 188 | 15 | no flaky, no known; `gate_durations.json` regenerated whole from the same gate's 18 `pw_*.json` (301 spec files, about 8.9 h of summed test time over all projects: 39 specs added, 5 near-zero unit specs fell below 0.05 s and were dropped, the rest re-measured). Stage seconds (preview / dev / wall): 2.4.8 2592 / 2867 / 93 min 38 s, 2.4.9 3264 / 2834 / 104 min 24 s, 2.4.10 3275 / 2965 / 106 min 38 s (2.4.10 also: tsc 17, build 9, fixture 62, visual 63). The 2.4.9 gate (8471 / 829 / 7070 / 188 / 15) was never refreshed here. Runner copies of both files in `~/` and `~/nightly-gate/` replaced 2026-10-13 18:19 UTC on an idle runner (backups `*.bak-20261013-1819`; the older `*.bak-20261013` backups were kept) |
 | 2026-10-12 | integ/248 @ 10620d30 (2.4.8, pass) | 7960 | 766 | 6738 | 108 | 15 | pixel = 107 + 1 flaky, dev = 765 + 1 flaky; adds `gate_durations.json` (267 spec files, about 7.5 h of summed test time over all projects). The 2.4.6 gate (6452 / 636 / 6307 / 16 / 15) was never refreshed; the repo file was still the 2.0.0 one |
 | 2026-10-05 | integ/200 @ f9576923 (2.0.0, pass) | 4928 | 582 | 5129 | 16 | 15 | BL1; the runner copy was still the 0.1.157 one (3917 / 218 / 3934 / 8 / 15) and was replaced too |
 | 2026-10-05 | integ/0163 @ 1cd6aa72 (0.1.163, pass) | 4848 | 582 | 5099 | 16 | 15 | repo file only |
