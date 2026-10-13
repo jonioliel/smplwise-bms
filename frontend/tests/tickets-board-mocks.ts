@@ -67,7 +67,7 @@ function item(s: Spec) {
     last_assignee_name: null, eta_at: null, waiting_on: s.group === 'waiting' ? 'manager' : s.group === 'closed' ? 'none' : 'assignee', waiting_reason: s.waiting ?? null,
     reopen_count: 0, external_stale: false, closed_at: s.closedH !== undefined ? ago(s.closedH) : null, revision: 2, view: 'full',
     group: s.group, stuck: s.stuck ? { kind: s.stuck.kind, level: 2, reminders: 2, since: ago(s.stuck.since) } : null,
-    sla: s.group === 'closed' ? null : { kind: 'stuck', at: ago(-5), over: false }, place_keys: s.place, assignee_key: s.who ? `${s.who.includes('טק') ? 'contact' : 'user'}:${who(s.who)}` : 'none',
+    sla_cell: s.group === 'closed' ? null : { kind: 'stuck', at: ago(-5), over: false }, place_keys: s.place, assignee_key: s.who ? `${s.who.includes('טק') ? 'contact' : 'user'}:${who(s.who)}` : 'none',
     auto_close_at: s.auto !== undefined ? ago(s.auto) : null, manager: true,
   };
 }

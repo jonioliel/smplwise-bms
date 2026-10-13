@@ -22,7 +22,8 @@ export const BOARD_UI_DEFAULTS: BoardUi = { board_floors: 'tree', grouping: 'no_
 export interface BoardItem extends TicketItem {
   group: BoardGroup;
   stuck: { kind: StuckKind; level: number; reminders: number; since: string | null } | null;
-  sla: { kind: StuckKind; at: string; over: boolean } | null;
+  /** the board's SLA cell: the nearest future due, else the crossed one (slice 2's `sla` carries the raw dues) */
+  sla_cell: { kind: StuckKind; at: string; over: boolean } | null;
   place_keys: string[];
   assignee_key: string;
   auto_close_at: string | null;
@@ -122,7 +123,7 @@ function demoItem(t: TicketItem, i: number, now: number): BoardItem {
   return {
     ...t, group, place_keys: places, manager: true,
     stuck: stuckKind ? { kind: stuckKind, level: 1, reminders: 1, since: new Date(now - (age - 1) * HOUR).toISOString() } : null,
-    sla: open ? { kind: 'stuck', at: new Date(now + 5 * HOUR).toISOString(), over: false } : null,
+    sla_cell: open ? { kind: 'stuck', at: new Date(now + 5 * HOUR).toISOString(), over: false } : null,
     assignee_key: t.assignee ? `user:${t.assignee.id}` : 'none',
     auto_close_at: null,
   };

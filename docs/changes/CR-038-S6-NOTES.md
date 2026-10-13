@@ -140,7 +140,7 @@ slice 1's display card). Personal: `/me/prefs` `tickets.board.tree_hidden` (hidd
 ## 4. For the next slices
 
 - **6b (table / kanban):** `GET /tickets/facets` is ready for the strip / tree counts of every view; `board.Filters` / `board.matches()` /
-  `board.board_item()` (stuck reason, `sla` cell = "בעוד 3 ש׳" / "חריגה 2 ימים", place keys, assignee key) are the row semantics to reuse
+  `board.board_item()` (stuck reason, `sla_cell` = "בעוד 3 ש׳" / "חריגה 2 ימים", place keys, assignee key) are the row semantics to reuse
   for the table's stuck / SLA columns and filters; `user_prefs` gets `tickets.board` beside `tickets.board.tree_hidden`; the view switch
   goes into the board header's title row (`screens/tickets-board.ts header()`); the board route parser `tickets/board-model.ts` takes the
   extra params.

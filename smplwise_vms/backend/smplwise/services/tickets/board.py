@@ -138,7 +138,7 @@ def board_item(conn, seen: Seen, lk: Lookups, now: dt.datetime) -> dict[str, Any
     item.update({
         "group": group_of(row) if row["status"] in stuck.OPEN_STATUSES else "closed",
         "stuck": reason,
-        "sla": stuck.nearest_due(ev, now) if row["status"] in stuck.OPEN_STATUSES else None,
+        "sla_cell": stuck.nearest_due(ev, now) if row["status"] in stuck.OPEN_STATUSES else None,
         "place_keys": _place_keys(row),
         "assignee_key": assignee_key(row),
         "auto_close_at": auto_close_at,

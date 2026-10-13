@@ -84,7 +84,7 @@ def test_sections_counts_and_chips_of_a_department_manager(w, scene):
     assert ids[scene["handling"]["id"]]["group"] == "handling"
     st = ids[scene["stuck"]["id"]]
     assert st["group"] == "stuck" and st["stuck"]["kind"] == "ack" and st["stuck"]["since"] == "2026-01-02T00:00:00Z"
-    assert st["sla"]["over"] is True
+    assert st["sla_cell"]["over"] is True
     assert r["counts"] == {"all": 3, "waiting": 1, "stuck": 1, "unassigned": 1, "closed_week": 1, "closed_all": 1}
     assert [c["id"] for c in r["closed"]] == [scene["closed"]["id"]]
     assert [it["id"] for it in r["items"]][0] == scene["new"]["id"], "waiting for me first, then stuck, then the rest"
