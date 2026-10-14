@@ -98,6 +98,9 @@ export interface TicketView {
   assigned_at?: string | null;
   created_at?: string;
   actions?: { statuses: string[]; note: boolean; eta: boolean; photo: boolean; return: boolean };
+  /** slice 9 (11A.2 / 11A.5): the vendor's cost claim of this assignment, and the claim mode of a link whose page no longer serves */
+  claim?: { status: string; required: boolean; writable: boolean; claim_until: string | null } | null;
+  claim_mode?: boolean;
   timeline?: TimelineItem[];
   photos?: { id: string; at: string; width: number; height: number; mine: boolean }[];
   history?: { at: string; from: string | null; to: string | null; actor: string }[] | null;
@@ -134,6 +137,13 @@ export const api = {
   codeVerify: (c: Credentials, code: string) => call<{ session: string; expires_in_s: number }>(c, 'POST', '/t/api/code/verify', { code }),
   redeem: (rid: string) => call<{ token: string }>({ token: null, session: null }, 'POST', '/t/api/redeem', { rid }),
 };
+
+/** Slice 9: the claim step's own I/O (claim/claim-step.ts gets these injected) - the same headers and fetch options as `call`. */
+export async function rawCall(c: Credentials, method: 'GET' | 'POST', path: string, body?: unknown, form?: FormData): Promise<{ status: number; body: unknown }> {
+  const r = await call<unknown>(c, method, path, body, form);
+  if (r.ok) return { status: 200, body: r.data };
+  return { status: r.error.offline ? 0 : r.error.status, body: { code: r.error.code, retry_after_s: r.error.retryAfter } };
+}
 
 /** A client request id (spec 10.3: a UUID; the server lower-cases it). */
 export function newRequestId(): string {

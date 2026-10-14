@@ -11,6 +11,7 @@
  * no style attributes (style-src 'self'): classes from claim.css only. Touch targets >= 44 px, one column, light / dark by
  * prefers-color-scheme (claim.css).
  */
+import './claim.css'; // the lazy chunk carries its own style sheet (a <link> to 'self' - the public CSP allows it)
 import {
   type ApiResult,
   type ClaimDocument,
