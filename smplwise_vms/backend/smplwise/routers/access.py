@@ -20,7 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, expand_legacy, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
+from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, expand_legacy, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_name, role_permissions, scope_name
 from ..services import ha_client, revocation
 from ..services import playback as pb
 from ..services.timeutil import parse_utc
@@ -276,13 +276,32 @@ PERMISSION_LABELS: dict[str, str] = {
     # alert routing (site_admin, system_admin). View and alerts only: there is NO command to the controller, so no control permission.
     "generator.view": "צפייה בגנרטור והתראותיו",
     "generator.manage": "ניהול הגנרטור: זיהוי, מיפוי חיישנים וניתוב התראות",
+    # CR-038 (the optional tickets module, docs/changes/CR-038-TICKETS-MODULE.md section 8; owner decisions D15 / D25): WHAT a person
+    # may do with tickets - WHERE is the ticket's place AND department membership (services/tickets/access.py visible()). view: see
+    # tickets (own, assigned to me, my departments') and be assignable in a department one is a member of (operator, site_admin,
+    # system_admin); create: open a ticket (same roles); manage: assign / close / edit in the departments one MANAGES (site_admin,
+    # system_admin); external: send to an outside contact or vendor (sensitive; site_admin, system_admin); all_departments: manage /
+    # view every department without membership (sensitive; system_admin); configure: departments, members, categories, the contact
+    # directory, the module's display name (sensitive; system_admin). Each is also a single-permission built-in role
+    # (tickets_<name>, roles.json) so it can be given to ONE person with an ordinary binding (D25, section 8.2).
+    # D33: the labels carry the module's display name as the token {tickets}; every place that serves them renders it
+    # (rendered_labels below) - never write the default name here.
+    "tickets.view": "{tickets}: צפייה",
+    "tickets.create": "{tickets}: פתיחה",
+    "tickets.manage": "{tickets}: ניהול המחלקות שבאחריותי (שיוך, עריכה וסגירה)",
+    "tickets.external": "{tickets}: שליחה לגורם חיצוני (ספקים ואנשי קשר)",
+    "tickets.all_departments": "{tickets}: כל המחלקות",
+    "tickets.configure": "{tickets}: הגדרות (מחלקות, חברים וספרייה)",
+    # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
+    # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
+    "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update"}  # rbac.assign is delegable (T082)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a
 # system permission or with rbac.assign itself (no delegating the delegation), a custom role with a sensitive grant.
-DEFAULT_DELEGABLE = ["viewer", "operator"]
+DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage"]  # CR-038 8.2: the three plain ticket grants
 NEVER_DELEGABLE = {"system_admin", "site_admin"}
 SENSITIVE: list[str] = list(json.loads((Path(__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8")).get("sensitive_permissions_not_implied", []))
 SCOPE_TABLES = {"site": "sites", "building": "buildings", "floor": "floors"}
@@ -291,6 +310,13 @@ STALE_S = 300  # the integration pushes the directory every 60 s
 
 def _rid(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
+
+
+def rendered_labels(conn: sqlite3.Connection) -> dict[str, str]:
+    """PERMISSION_LABELS as a screen shows them: a module's templated label rendered with its display name (CR-038 D33)."""
+    from ..services.tickets import naming
+
+    return naming.render_catalogue(conn, PERMISSION_LABELS)
 
 
 # ---------------------------------------------------------------- shaping
@@ -315,7 +341,7 @@ def _binding_dict(conn: sqlite3.Connection, b: sqlite3.Row, via_group: str | Non
         "subject_id": b["subject_id"],
         "subject_name": _subject_name(conn, b["subject_kind"], b["subject_id"]),
         "role_id": b["role_id"],
-        "role_name": ROLE_NAMES_HE.get(b["role_id"], b["role_id"]),
+        "role_name": role_name(conn, b["role_id"]),
         "scope_type": b["scope_type"],
         "scope_id": b["scope_id"],
         "scope_name": scope_name(conn, b["scope_type"], b["scope_id"]),
@@ -801,7 +827,7 @@ def list_roles(principal: Principal = Depends(current_principal), conn: sqlite3.
     roles = []
     for rid, perms in ROLES.items():
         roles.append({
-            "id": rid, "name": ROLE_NAMES_HE.get(rid, rid), "permissions": list(perms), "custom": False, "description": "", "revision": None, "delegable": rid in delegable,
+            "id": rid, "name": role_name(conn, rid), "permissions": list(perms), "custom": False, "description": "", "revision": None, "delegable": rid in delegable,
             "sensitive_included": [p for p in perms if p in SENSITIVE], "sensitive_missing": [p for p in SENSITIVE if p not in perms and p not in LEGACY_PERMISSIONS], "system_role": bool(set(perms) & SYSTEM_PERMISSIONS),
             "delegation_block": delegation_block(conn, rid),
         })
@@ -809,7 +835,7 @@ def list_roles(principal: Principal = Depends(current_principal), conn: sqlite3.
         roles.append(_custom_role_dict(conn, r))
     if delegated_only:
         roles = [r for r in roles if r["id"] in delegable]
-    return {"roles": roles, "labels": PERMISSION_LABELS, "sensitive": SENSITIVE, "system_permissions": sorted(SYSTEM_PERMISSIONS), "delegable_roles": delegable,
+    return {"roles": roles, "labels": rendered_labels(conn), "sensitive": SENSITIVE, "system_permissions": sorted(SYSTEM_PERMISSIONS), "delegable_roles": delegable,
             "legacy_permissions": LEGACY_PERMISSIONS,  # WXPERM: old name -> the permission it stands for (the editor hides an old name a role does not hold)
             "can_manage_roles": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed, "delegated": delegated_only or not full_authority(conn, principal)}
 
@@ -978,7 +1004,7 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
         "allowed": allowed,
         "denied": [p for p in PERMISSION_LABELS if p not in allowed],
         "limited_to_own": limited,
-        "labels": PERMISSION_LABELS,
+        "labels": rendered_labels(conn),
         # a delegated administrator previews inside their reach: the bindings listed are the ones there, too
         "bindings": [b for b in _user_bindings(conn, body.user_id) if not limited or delegated_sees(conn, principal, b)],
         "revision": permission_revision(conn),
@@ -1143,7 +1169,7 @@ def create_custom_role(body: CustomRoleBody, request: Request, principal: Princi
     require(conn, principal, "rbac.roles.manage", INSTALLATION)
     perms, sens = _validate_role_body(body.permissions, body.sensitive)
     _check_delegable_flag(body.delegable, perms, sens)
-    if body.name.strip() in ROLE_NAMES_HE.values() or conn.execute("SELECT 1 FROM custom_roles WHERE name_he = ? AND deleted_at IS NULL", (body.name.strip(),)).fetchone():
+    if body.name.strip() in {role_name(conn, r) for r in ROLE_NAMES_HE} or conn.execute("SELECT 1 FROM custom_roles WHERE name_he = ? AND deleted_at IS NULL", (body.name.strip(),)).fetchone():
         raise ApiError(409, "role_name_taken", "כבר קיים תפקיד בשם הזה.")
     rid = f"custom-{new_id()[:8]}"
     now = now_iso()
@@ -1163,7 +1189,7 @@ def preview_role_change(body: RolePreviewBody, principal: Principal = Depends(cu
     perms, sens = _validate_role_body(body.permissions, body.sensitive)
     if body.role_id and body.role_id not in all_roles(conn):
         raise ApiError(404, "not_found", "התפקיד לא נמצא.")
-    return {**_role_impact(conn, body.role_id, sorted(set(perms) | set(sens))), "labels": PERMISSION_LABELS}
+    return {**_role_impact(conn, body.role_id, sorted(set(perms) | set(sens))), "labels": rendered_labels(conn)}
 
 
 @router.patch("/access/roles/{role_id}")

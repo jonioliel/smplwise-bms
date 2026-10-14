@@ -13,7 +13,8 @@ from . import area_row, dd_style, home_config, look, media_layout, nav_size, tab
 # The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
 # overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
 # order at its default place by normalize_nav_order, so an older stored order never hides it.
-NAV_TAB_IDS: tuple[str, ...] = ("devices", "security", "explore", "multimedia", "wiskey", "infra")  # CR-023: "infra" = תשתיות (מוני חשמל), after WisKey
+# CR-038: "tickets" (the optional tickets module, offered only while it is on) is appended last, so no stored order moves
+NAV_TAB_IDS: tuple[str, ...] = ("devices", "security", "explore", "multimedia", "wiskey", "infra", "tickets")  # CR-023: "infra" = תשתיות (מוני חשמל), after WisKey
 MAX_LIST = 32
 MAX_ID = 32
 

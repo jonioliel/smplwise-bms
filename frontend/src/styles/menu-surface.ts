@@ -99,6 +99,7 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
   { file: 'screens/system-nav.ts', selector: ':host([compact]) .results', what: 'the settings search result list (in the flow, a card with a shadow)' },
   { file: 'screens/system-nav.ts', selector: '.results', what: 'the same list on a tablet' },
   { file: 'electricity/styles.ts', selector: '.menu', what: 'the meter menu of the formula editor' },
+  { file: 'tickets/styles.ts', selector: '.pop', what: 'the ticket card "..." menu (CR-038)' },
 ];
 
 /** A HUD panel over the plan canvas or the 3D canvas: how it is made opaque (see "WHAT IS A HUD PANEL" above). */

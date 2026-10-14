@@ -1,0 +1,262 @@
+import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-drawer';
+import '../components/sw-dialog';
+import { automationsStyles } from '../styles/automations-glass';
+import { applyAutomationsGlass } from '../api/automations-demo';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
+import { bidi } from '../i18n/bidi';
+import { describeError } from '../api/client';
+import { newRequestId, ticketsApi, type Eligible, type Meta, type NewTicketMode, type TicketDetail, type TicketItem } from '../api/tickets';
+import { listHref, priorityTone, ticketHref, type TicketsRoute } from './model';
+import { tt } from './text';
+import { tIcon } from './icons';
+import { ticketDetailStyles, ticketFormStyles } from './styles';
+import { onTicketNames } from './naming';
+
+/**
+ * CR-038 `<ticket-create .open .meta mode="sheet|dialog">`: the create form (D22: a side sheet - the automation builder's 620 px sheet - or a
+ * centred dialog), in the approved mock-up's order: department and category, title, priority (chips), description, photos (uploaded right
+ * after the ticket exists, through the one validator), and for a manager of the department the handler ("assign later" by default). While
+ * the title is typed, open tickets with a similar title are listed (the duplicate hint; slice 3 lists the device's open tickets first).
+ * The request carries a client request id, so a retry after a lost answer never opens the ticket twice.
+ * Events: `created` {ticket, id, number, result, failedPhotos}, `close`.
+ */
+@customElement('ticket-create')
+export class TicketCreate extends LitElement {
+  readonly bubbleSkin = new SkinController(this);
+  @property({ type: Boolean }) open = false;
+  @property({ attribute: false }) meta: Meta | null = null;
+  @property() mode: NewTicketMode = 'sheet';
+  @property() scope: TicketsRoute['scope'] = 'mine';
+  /** D18: where a similar ticket opens */
+  @property() detailMode: 'drawer' | 'fullscreen' | 'drawer_fullscreen' = 'drawer_fullscreen';
+  @state() private dept = '';
+  @state() private category = '';
+  @state() private priority = '';
+  /** the title being typed (not `title`: that is the element's own tooltip attribute) */
+  @state() private ttl = '';
+  @state() private description = '';
+  @state() private files: File[] = [];
+  @state() private assignTo = '';
+  @state() private eligible: Eligible[] | null = null;
+  @state() private similar: TicketItem[] = [];
+  @state() private busy = false;
+  @state() private error = '';
+  @state() private tried = false;
+  private requestId = newRequestId();
+  private similarTimer = 0;
+  private offNames: (() => void) | null = null;
+  private previews = new Map<File, string>();
+
+  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, css`
+    sw-drawer {
+      --sw-drawer-modal-w: 620px;
+    }
+    sw-dialog {
+      --sw-surface: var(--dv-surface-solid);
+      --sw-glass-blur: none;
+    }
+  `];
+
+  connectedCallback() {
+    super.connectedCallback();
+    applyAutomationsGlass(this);
+    this.offNames = onTicketNames(() => this.requestUpdate());
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.clearTimeout(this.similarTimer);
+    this.offNames?.();
+    this.dropPreviews();
+  }
+
+  protected willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('open') && this.open) this.reset();
+    if ((changed.has('meta') || changed.has('open')) && this.open && !this.dept) {
+      const first = this.creatable()[0];
+      if (first) this.pickDepartment(first.id);
+    }
+  }
+
+  private creatable(): Meta['departments'] {
+    return (this.meta?.departments ?? []).filter((d) => d.can_create);
+  }
+
+  private reset(): void {
+    this.dept = '';
+    this.category = '';
+    this.priority = '';
+    this.ttl = '';
+    this.description = '';
+    this.dropPreviews();
+    this.files = [];
+    this.assignTo = '';
+    this.eligible = null;
+    this.similar = [];
+    this.error = '';
+    this.tried = false;
+    this.requestId = newRequestId();
+  }
+
+  private dropPreviews(): void {
+    for (const url of this.previews.values()) URL.revokeObjectURL(url);
+    this.previews.clear();
+  }
+
+  private pickDepartment(id: string): void {
+    this.dept = id;
+    const d = this.meta?.departments.find((x) => x.id === id);
+    this.category = '';
+    this.priority = d?.priorities.find((p) => p.is_default)?.id ?? d?.priorities[0]?.id ?? '';
+    this.assignTo = '';
+    this.eligible = null;
+    if (d?.can_manage) void ticketsApi().assignees(id).then((r) => { if (this.dept === id) this.eligible = r.users; }).catch(() => (this.eligible = []));
+  }
+
+  private pickCategory(id: string): void {
+    this.category = id;
+    const d = this.meta?.departments.find((x) => x.id === this.dept);
+    const c = d?.categories.find((x) => x.id === id);
+    if (c?.default_priority_id) this.priority = c.default_priority_id;
+  }
+
+  private onTitle(v: string): void {
+    this.ttl = v;
+    this.error = '';
+    window.clearTimeout(this.similarTimer);
+    const q = v.trim();
+    if (q.length < 4) {
+      this.similar = [];
+      return;
+    }
+    this.similarTimer = window.setTimeout(() => {
+      void ticketsApi().list({ scope: 'visible', status: 'open', q, limit: 3 }).then((r) => { if (this.ttl.trim() === q) this.similar = r.items; }).catch(() => undefined);
+    }, 350);
+  }
+
+  private onFiles(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const picked = [...(input.files ?? [])].filter((f) => /^image\/(jpeg|png)$/.test(f.type) || /\.(jpe?g|png)$/i.test(f.name));
+    input.value = '';
+    this.files = [...this.files, ...picked].slice(0, 10);
+  }
+
+  private removeFile(f: File): void {
+    const url = this.previews.get(f);
+    if (url) URL.revokeObjectURL(url);
+    this.previews.delete(f);
+    this.files = this.files.filter((x) => x !== f);
+  }
+
+  private previewOf(f: File): string {
+    let url = this.previews.get(f);
+    if (!url) {
+      url = URL.createObjectURL(f);
+      this.previews.set(f, url);
+    }
+    return url;
+  }
+
+  private async submit(): Promise<void> {
+    this.tried = true;
+    if (!this.ttl.trim() || !this.dept || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      const answer = await ticketsApi().create({
+        department_id: this.dept, category_id: this.category || null, priority_id: this.priority || null, title: this.ttl.trim(),
+        description: this.description.trim(), assign: this.assignTo ? { kind: 'user', id: this.assignTo } : null, client_request_id: this.requestId,
+      });
+      let ticket: TicketDetail | null = 'events' in answer ? (answer as TicketDetail) : null;
+      let failed = 0;
+      if (ticket && answer.result === 'created') {
+        for (const f of this.files) {
+          try {
+            ticket = await ticketsApi().upload(ticket.id, f, false);
+          } catch {
+            failed += 1;
+          }
+        }
+      }
+      this.dispatchEvent(new CustomEvent('created', { detail: { ticket, id: answer.id, number: answer.number, result: answer.result, failedPhotos: failed }, bubbles: true, composed: true }));
+    } catch (e) {
+      this.error = describeError(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private close(): void {
+    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
+  }
+
+  private hrefOf(id: string): string {
+    return this.detailMode === 'fullscreen' ? ticketHref(id) : listHref(this.scope, undefined, { t: id });
+  }
+
+  private form(): TemplateResult {
+    const depts = this.creatable();
+    const d = this.meta?.departments.find((x) => x.id === this.dept);
+    if (!this.meta) return html`<div class="form" aria-busy="true"><span class="skl" style="block-size:44px"></span><span class="skl" style="block-size:44px"></span><span class="skl" style="block-size:120px"></span></div>`;
+    if (!depts.length) return html`<div class="statebox glass" role="status" data-create-state="no-department"><span class="ring">${tIcon('ticket')}</span><b>${tt('createNoDepartment')}</b></div>`;
+    const titleMissing = this.tried && !this.ttl.trim();
+    return html`<div class="form" data-create-form>
+      <div class="two">
+        <label class="fld"><span>${tt('fDepartment')}</span>
+          <select class="inp" data-create-department @change=${(e: Event) => this.pickDepartment((e.target as HTMLSelectElement).value)}>${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === this.dept}>${x.name}</option>`)}</select></label>
+        <label class="fld"><span>${tt('fCategory')}</span>
+          <select class="inp" data-create-category @change=${(e: Event) => this.pickCategory((e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!this.category}>${tt('fNoCategory')}</option>
+            ${(d?.categories ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.category}>${c.name}</option>`)}
+          </select></label>
+      </div>
+      <label class="fld"><span>${tt('fTitle')} <b class="req">*</b></span>
+        <input class="inp" maxlength="120" autocomplete="off" data-create-title placeholder=${tt('fTitlePh')} aria-invalid=${String(titleMissing)} .value=${this.ttl} @input=${(e: Event) => this.onTitle((e.target as HTMLInputElement).value)} />
+        ${titleMissing ? html`<span class="err" role="alert">${tt('createNeed')}</span>` : nothing}</label>
+      ${this.similar.length ? html`<div class="similar" data-similar><b>${tt('similar')}</b>${this.similar.map((s) => html`<a href=${this.hrefOf(s.id)} data-similar-item=${s.id}>#${s.number} · ${s.title}</a>`)}</div>` : nothing}
+      ${d?.priorities.length ? html`<div class="fld"><span>${tt('fPriority')}</span><div class="prio" role="radiogroup" aria-label=${tt('fPriority')}>
+        ${d.priorities.map((p) => html`<button type="button" class="rc" role="radio" aria-checked=${String(p.id === this.priority)} data-create-priority=${p.key} @click=${() => (this.priority = p.id)}><i class=${`dot ${priorityTone(p) === 'bad' ? 'bad' : priorityTone(p) === 'info' ? 'run' : ''}`}></i>${p.name}</button>`)}
+      </div></div>` : nothing}
+      <label class="fld"><span>${tt('fDescription')}</span>
+        <textarea class="inp" maxlength="4000" data-create-description placeholder=${tt('fDescriptionPh')} .value=${this.description} @input=${(e: Event) => (this.description = (e.target as HTMLTextAreaElement).value)}></textarea></label>
+      <div class="fld"><span>${tt('fPhotos')}</span>
+        <div class="thumbs">
+          ${this.files.map((f, i) => html`<figure class="ph" style="margin:0" data-create-photo><img src=${this.previewOf(f)} alt=${tt('photoAlt', { n: i + 1 })} /><button type="button" class="rm" aria-label=${tt('removePhoto')} @click=${() => this.removeFile(f)}>${tIcon('trash')}</button></figure>`)}
+          <label class="ph add" data-create-photo-add>${tIcon('plus')}<span>${tt('addPhoto')}</span><input type="file" accept="image/jpeg,image/png" multiple aria-label=${tt('addPhoto')} @change=${this.onFiles} /></label>
+        </div>
+      </div>
+      ${d?.can_manage ? html`<div class="fld" data-create-assignee><span>${tt('fAssignee')}</span>
+        ${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : html`<div class="pick" role="radiogroup" aria-label=${tt('fAssignee')}>
+          <label><input type="radio" name="asg" .checked=${!this.assignTo} @change=${() => (this.assignTo = '')} />${tt('fAssignLater')}</label>
+          ${this.eligible.map((u) => html`<label data-eligible=${u.id}><input type="radio" name="asg" .checked=${this.assignTo === u.id} @change=${() => (this.assignTo = u.id)} />${bidi(u.name)}</label>`)}
+        </div>`}
+      </div>` : nothing}
+      ${this.error ? html`<div class="banner bad" role="alert" data-create-error>${tIcon('warning')}<div>${this.error}</div></div>` : nothing}
+    </div>`;
+  }
+
+  private footer(): TemplateResult {
+    return html`<div slot="footer" class="sheetfoot">
+      <button type="button" class="btn primary" data-create-submit ?disabled=${this.busy || !this.creatable().length} @click=${() => void this.submit()}>${tIcon('check')}${tt('createSubmit')}</button>
+      <button type="button" class="btn quiet" data-create-cancel @click=${() => this.close()}>${tt('cancel')}</button>
+      ${!this.ttl.trim() ? html`<span class="hint">${tt('createNeed')}</span>` : this.files.length ? html`<span class="hint">${tt('photosAfter')}</span>` : nothing}
+    </div>`;
+  }
+
+  render() {
+    const d = this.meta?.departments.find((x) => x.id === this.dept);
+    if (this.mode === 'dialog') {
+      return html`<sw-dialog .open=${this.open} wide heading=${tt('newTitle')} subheading=${d?.name ?? ''} data-create="dialog" @close=${() => this.close()}>${this.open ? this.form() : nothing}${this.open ? this.footer() : nothing}</sw-dialog>`;
+    }
+    return html`<sw-drawer modal .open=${this.open} heading=${tt('newTitle')} subheading=${d?.name ?? ''} data-create="sheet" @close=${() => this.close()}>${this.open ? this.form() : nothing}${this.open ? this.footer() : nothing}</sw-drawer>`;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'ticket-create': TicketCreate;
+  }
+}

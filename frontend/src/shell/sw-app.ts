@@ -52,6 +52,9 @@ import '../screens/system-multimedia';
 import '../screens/infra-generator'; // CR-031: תשתיות › גנרטור (live, charts, alerts, history)
 import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
 import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
+import '../screens/tickets-list'; // CR-038: the tickets area (the list, the drawer, the create sheet)
+import '../screens/tickets-detail'; // CR-038 D18: a ticket on the full screen (#/tickets/<id>)
+import '../screens/system-tickets'; // CR-038: the tickets module's settings
 import '../screens/security-alarm';
 import '../screens/schedule-editor';
 import '../screens/live-overview';
@@ -94,13 +97,15 @@ import { navigate, onRouteChange, type RouteState, parseRoute } from '../router'
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { refreshInfraVisibility } from '../electricity/visibility';
 import { refreshGeneratorVisibility } from '../generator/access'; // CR-031: the generator tab under תשתיות
+import { onTicketNames, setTicketNames } from '../tickets/naming'; // CR-038 D33: the tickets module's configurable name
+import { isTicketId } from '../tickets/model';
 import { can, canNav, isApi, loadSession, onRemote, onSession, watchPermissions, type Session } from '../api/session';
 import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sensors a required-sensors gate names
 import { productSettings } from '../api/prefs';
@@ -199,6 +204,7 @@ export class SwApp extends LitElement {
   /** Bubble foundation: the skin in force (the bubble skin's phone shell is a dock row: pill stack + home button). */
   @state() private skin = currentSkin();
   private stopDesign?: () => void;
+  private stopTicketNames?: () => void;
   @state() private pickerOpen = false;
   @state() private pickerTree: DeviceTree | null = null;
   @state() private pickerCollapsed = new Set<string>();
@@ -1453,6 +1459,7 @@ export class SwApp extends LitElement {
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopUpdateMark = onUpdateState(() => { this.updateMark = updateAvailable(); this.restartMark = restartRequired(); });
     this.stopDesign = onDesign(() => (this.skin = currentSkin())); // the bubble skin renders the phone dock (its own row)
+    this.stopTicketNames = onTicketNames(() => this.requestUpdate()); // CR-038 D33: the rail, the tabs and the crumbs follow a rename at once
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
@@ -1462,6 +1469,9 @@ export class SwApp extends LitElement {
     this.stopSession = onSession((s) => {
       this.session = s;
       applyCapabilities(s.mode === 'api' ? s.capabilities : null); // NN1: what the installation has decides which areas are offered (nav-capabilities.ts)
+      // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (the static demo shows it)
+      applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'true' : String(!!s.me?.modules?.tickets) });
+      setTicketNames(s.me?.modules?.tickets_name);
       // CR-013: this user's tab order (cached copy at once, the server's copy when it answers) and open alerts
       const who = s.mode === 'demo' ? 'demo' : s.me?.user.id ?? null;
       if (who && who !== this.navOrderUser) {
@@ -1507,6 +1517,7 @@ export class SwApp extends LitElement {
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
+          applyTicketsHidden(ps as unknown as Record<string, unknown>); // tickets.enabled (CR-038): the optional tickets area
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
@@ -1647,6 +1658,7 @@ export class SwApp extends LitElement {
     this.bannerObs?.disconnect();
     super.disconnectedCallback();
     this.stopDesign?.();
+    this.stopTicketNames?.();
     this.stopRouter?.();
     this.stopSession?.();
     this.stopPermissions?.();
@@ -2069,6 +2081,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
+        if (s[1] === 'tickets') return html`<system-tickets></system-tickets>`; // CR-038: the tickets module (its label is the configured name, D33)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
         if (s[1] === 'access-control') return html`<system-access-control .view=${s[2] ?? ''}></system-access-control>`; // הגדרות › בקרת כניסה (CR-036 S10, access.admin.read)
@@ -2131,6 +2144,15 @@ export class SwApp extends LitElement {
         // CR-023: #/infra/electricity/<page> (meters, accounts, bills, customers); #/infra opens the meters page
         if (!s[1] || s[1] !== 'electricity' || !s[2]) queueMicrotask(() => window.location.replace('#/infra/electricity/meters'));
         return html`<infra-electricity .route=${r}></infra-electricity>`;
+      case 'tickets':
+        // CR-038: #/tickets/<id> is a ticket on the full screen (D18); #/tickets/<mine|department|all> the list with its drawer (?t=) and the
+        // create form (?new=1). #/tickets opens this user's first visible scope tab. The screens answer "the module is off" themselves.
+        if (isTicketId(s[1])) return keyed(s[1], html`<tickets-detail .ticketId=${s[1]}></tickets-detail>`);
+        if (!s[1] || !['mine', 'department', 'all'].includes(s[1])) {
+          const first = visibleTabs(AREA_TABS.tickets, this.session.mode === 'api', canNav)[0]?.href ?? '#/tickets/mine';
+          queueMicrotask(() => window.location.replace(first));
+        }
+        return html`<tickets-list .route=${r}></tickets-list>`;
       case 'multimedia':
         // CR-015 / CR-016: the screens page, the players page and the groups page (`?player=<key>` opens a player's panel)
         if (s[1] === 'players') return html`<multimedia-players .playerKey=${r.params.get('player') ?? ''}></multimedia-players>`;

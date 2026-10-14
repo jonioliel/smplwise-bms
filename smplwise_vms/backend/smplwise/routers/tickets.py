@@ -1,0 +1,372 @@
+"""CR-038 slice 1 - the tickets API (docs/changes/CR-038-TICKETS-MODULE.md section 8.1): the module state, the caller's departments,
+the list, one ticket with its timeline, creation, edit, status (close / cancel / reopen), assignment to an internal user, return by
+the assignee, notes, ETA and photos.
+
+Order of every gated route: the signed-in principal -> the module switch (404 `feature_disabled` while `tickets.enabled` is off -
+a router-level dependency, so a route added later is gated too; `GET /tickets/module` is the one route that answers while off) ->
+the permission -> the visibility rule (services/tickets/access.py: an invisible ticket is the same 404 `ticket_not_found` as an
+unknown id). Errors use the ApiError envelope with Hebrew messages that carry the module's display name (D33)."""
+from __future__ import annotations
+
+import json
+import sqlite3
+from typing import Any, Literal
+
+from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+
+from ..audit import audit
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..db import unlocked
+from ..errors import ApiError
+from ..rbac import Principal
+from ..services.tickets import access, attachments, create, model, naming, present, service, settings_doc, store
+from ..services.tickets.access import Viewer, text
+
+ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+STATUS_FILTER = r"^(open|unassigned|handling|done|closed|all|new|assigned|acknowledged|in_progress|waiting_part|returned|cancelled)$"
+
+
+def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> None:
+    """Every gated tickets route: a signed-in caller first (401), then the module switch (the uniform 404 while it is off)."""
+    access.require_module(conn)
+
+
+open_router = APIRouter()  # GET /tickets/module only
+router = APIRouter(dependencies=[Depends(module_gate)])
+
+
+def _rid(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
+
+
+def _need_any(conn: sqlite3.Connection, viewer: Viewer, *permissions: str) -> None:
+    """At least one of the permissions at any scope (the tickets' own scope rules apply per ticket); an audited 403 otherwise."""
+    if any(p in viewer.anywhere for p in permissions):
+        return
+    audit(conn, actor=viewer.principal, action=permissions[0], decision="denied", resource_type="installation", resource_id="*", reason="no_binding")
+    raise ApiError(403, "forbidden", text(conn, "אין הרשאה ל{tickets}."), details={"permission": permissions[0]})
+
+
+def _detail(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[str, Any]:
+    return present.ticket_detail(conn, viewer, access.require_visible(viewer, ticket_id))
+
+
+# ---------------------------------------------------------------- the module state (answers while the module is off)
+
+@open_router.get("/tickets/module")
+def module_state(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`{enabled, public_ready, name, name_revision, ui}` for every signed-in user: the shell's switch, the display name (D33; its
+    revision is what a rename in Settings sends back) and the display settings (D18 / D22). `public_ready` is false until the public
+    handler page exists (slice 4)."""
+    name = naming.read(conn)
+    return {"enabled": access.module_on(conn), "public_ready": access.public_ready(conn), "name": {k: name[k] for k in naming.LANGS},
+            "name_revision": name["revision"], "ui": settings_doc.read(conn)["ui"]}
+
+
+# ---------------------------------------------------------------- the caller's departments (filters, the create sheet)
+
+@router.get("/tickets/meta")
+def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    _need_any(conn, viewer, access.VIEW, access.CREATE)
+    all_depts = access.ALL_DEPARTMENTS in viewer.anywhere
+    out = []
+    for d in store.departments(conn, include_inactive=False):
+        role = viewer.role(d["id"])
+        can_create = viewer.can_create_in(d)
+        can_manage = viewer.manages_department(d["id"])
+        if not (role or can_create or all_depts):
+            continue
+        out.append({
+            "id": d["id"], "key": d["key"], "name": d["name"], "icon": d.get("icon"), "color": d.get("color"), "my_role": role,
+            "can_create": can_create, "can_manage": can_manage, "open_to_all": bool(d["open_to_all"]),
+            "categories": [{"id": c["id"], "name": c["name"], "parent_id": c.get("parent_id"), "default_priority_id": c.get("default_priority_id")}
+                           for c in store.categories(conn, d["id"], include_inactive=False)],
+            "priorities": [{"id": p["id"], "key": p["key"], "name": p["name"], "rank": p["rank"], "severity": p["notify_severity"], "is_default": bool(p["is_default"])}
+                           for p in store.priorities(conn, d["id"]) if p["active"]],
+        })
+    return {
+        "departments": out,
+        "can": {
+            "view": access.VIEW in viewer.anywhere,
+            "create": any(d["can_create"] for d in out),
+            "manage": any(d["can_manage"] for d in out),
+            "all_departments": all_depts,
+            "external": access.EXTERNAL in viewer.anywhere,
+            "configure": viewer.holds_installation(access.CONFIGURE),
+        },
+    }
+
+
+# ---------------------------------------------------------------- the list
+
+@router.get("/tickets")
+def list_tickets(
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    scope: str = Query("visible", pattern=r"^(visible|mine|department|all)$"),
+    status: str = Query("open", pattern=STATUS_FILTER),
+    department_id: str | None = Query(None, pattern=ID),
+    q: str = Query("", max_length=80),
+    limit: int = Query(access.PAGE_DEFAULT, ge=1, le=access.PAGE_MAX),
+    cursor: str | None = Query(None, max_length=200),
+) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    _need_any(conn, viewer, access.VIEW)
+    statuses = None if status == "all" else store.STATUS_GROUPS.get(status, (status,))
+    seen, next_cursor = access.visible_page(viewer, scope=scope, statuses=statuses, department_id=department_id,
+                                            query=model.clean_text(q), cursor=cursor, limit=limit)
+    lk = present.Lookups(conn)
+    last = store.last_assignee_names(conn, [s.row["id"] for s in seen if not s.row.get("current_assignment_id")])
+    return {"items": [present.ticket_item(conn, s, lk, last) for s in seen], "next_cursor": next_cursor}
+
+
+# ---------------------------------------------------------------- create
+
+class AssigneeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["user", "contact"]
+    id: str = Field(min_length=1, max_length=64, pattern=ID)
+
+
+class CreateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    department_id: str = Field(min_length=1, max_length=64, pattern=ID)
+    category_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    priority_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    title: str = Field(max_length=2000)  # the real limit (120 after cleaning) is the model's: a 422 names the field
+    description: str = Field(default="", max_length=20000)
+    assign: AssigneeBody | None = None
+    assign_note: str = Field(default="", max_length=20000)
+    assign_note_external: bool = True
+    client_request_id: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
+
+
+CREATE_ROUTE = "POST /tickets"
+
+
+@router.post("/tickets", status_code=201)
+def create_ticket(body: CreateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    viewer = Viewer(conn, principal)
+    _need_any(conn, viewer, access.CREATE)
+    scope = f"user:{principal.user_id}"
+    prev = store.request_get(conn, scope, body.client_request_id)
+    if prev is not None:  # a repeat of the same request (a retry after a lost answer): the first answer, nothing created twice
+        if prev["route"] != CREATE_ROUTE:
+            raise ApiError(409, "request_id_reused", text(conn, "מזהה הבקשה כבר שימש לפעולה אחרת."))
+        return JSONResponse(json.loads(prev["response_json"]), status_code=int(prev["status_code"]))
+    spec = create.TicketSpec(
+        department_id=body.department_id, title=body.title, description=body.description, category_id=body.category_id,
+        priority_id=body.priority_id, assign_to=create.AssigneeRef(body.assign.kind, body.assign.id) if body.assign else None,
+        assign_note=body.assign_note, assign_note_external=body.assign_note_external,
+    )
+    result = create.create_ticket(conn, spec, viewer, rid=_rid(request))
+    seen = access.visible_by_id(viewer, result.ticket_id)
+    answer: dict[str, Any] = present.ticket_detail(conn, viewer, seen) if seen else {"id": result.ticket_id, "number": result.number, "view": "none"}
+    answer["result"] = result.kind
+    store.request_put(conn, scope, body.client_request_id, CREATE_ROUTE, 201, answer)
+    return JSONResponse(answer, status_code=201)
+
+
+# ---------------------------------------------------------------- the assignee picker
+
+@router.get("/tickets/assignees")
+def assignees(
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    department_id: str = Query(..., pattern=ID),
+    ticket_id: str | None = Query(None, pattern=ID),
+) -> dict[str, Any]:
+    """Who a manager may assign in a department (section 8): its members with tickets.view where the ticket lies - names only.
+    A manager of one department therefore learns the names of that department's members only (review T18-5, stated)."""
+    viewer = Viewer(conn, principal)
+    row = None
+    if ticket_id:
+        seen = access.require_visible(viewer, ticket_id)
+        row = seen.row
+        if row["department_id"] != department_id:
+            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "department_id", "code": "mismatch"}]})
+        allowed = seen.manager
+    else:
+        allowed = viewer.manages_department(department_id)
+    if not allowed or store.department(conn, department_id) is None:
+        audit(conn, actor=principal, action="ticket.assignees", decision="denied", resource_type="ticket_department", resource_id=department_id, reason="not_manager")
+        raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"reason": "not_manager"})
+    return {"users": service.eligible_assignees(conn, department_id, row), "contacts": []}
+
+
+# ---------------------------------------------------------------- one ticket
+
+@router.get("/tickets/{ticket_id}")
+def get_ticket(ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    return _detail(conn, viewer, ticket_id)
+
+
+class PatchBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = Field(default=None, max_length=2000)
+    description: str | None = Field(default=None, max_length=20000)
+    category_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    priority_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    department_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    revision: int = Field(ge=1)
+
+
+@router.patch("/tickets/{ticket_id}")
+def patch_ticket(body: PatchBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    patch = {k: getattr(body, k) for k in body.model_fields_set if k != "revision"}
+    for k in ("title", "priority_id", "department_id"):
+        if k in patch and patch[k] is None:
+            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": k, "code": "required"}]})
+    service.edit(conn, viewer, seen, patch, body.revision, _rid(request))
+    return _detail(conn, viewer, ticket_id)
+
+
+class StatusBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    to: str = Field(pattern=r"^(new|assigned|acknowledged|in_progress|waiting_part|done|returned|closed|cancelled)$")
+    note: str | None = Field(default=None, max_length=20000)
+    duplicate_of: str | None = Field(default=None, max_length=64, pattern=ID)
+    revision: int = Field(ge=1)
+
+
+@router.post("/tickets/{ticket_id}/status")
+def post_status(body: StatusBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    service.change_status(conn, viewer, seen, body.to, body.note, body.revision, body.duplicate_of, _rid(request))
+    return _detail(conn, viewer, ticket_id)
+
+
+class AssignBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assignee: AssigneeBody
+    note: str | None = Field(default=None, max_length=20000)
+    note_external: bool = True
+    revision: int = Field(ge=1)
+
+
+@router.post("/tickets/{ticket_id}/assign")
+def post_assign(body: AssignBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    service.assign(conn, viewer, seen, body.assignee.kind, body.assignee.id, body.note, body.note_external, body.revision, _rid(request))
+    return _detail(conn, viewer, ticket_id)
+
+
+class ReturnBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["cannot_handle", "not_mine"]
+    reason: str = Field(max_length=5000)
+    revision: int = Field(ge=1)
+
+
+@router.post("/tickets/{ticket_id}/return")
+def post_return(body: ReturnBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    service.return_ticket(conn, viewer, seen, body.kind, body.reason, body.revision, _rid(request))
+    seen_after = access.visible_by_id(viewer, ticket_id)  # a non-member assignee loses the ticket the moment it is returned
+    return present.ticket_detail(conn, viewer, seen_after) if seen_after else {"id": ticket_id, "view": "none", "status": "returned"}
+
+
+class NoteBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(max_length=20000)
+    external: bool = False
+
+
+@router.post("/tickets/{ticket_id}/notes", status_code=201)
+def post_note(body: NoteBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    service.add_note(conn, viewer, seen, body.text, body.external, _rid(request))
+    return _detail(conn, viewer, ticket_id)
+
+
+class EtaBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    eta_at: str | None = Field(default=None, max_length=40)
+
+
+@router.post("/tickets/{ticket_id}/eta")
+def post_eta(body: EtaBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    service.set_eta(conn, viewer, seen, body.eta_at, _rid(request))
+    return _detail(conn, viewer, ticket_id)
+
+
+# ---------------------------------------------------------------- photos (section 10.6; body_limit row `ticket_attachment`)
+
+def _refused(exc: attachments.Refused) -> ApiError:
+    return ApiError(exc.status, exc.code, exc.message, retryable=exc.status == 429, details=dict(exc.details))
+
+
+@router.post("/tickets/{ticket_id}/attachments", status_code=201)
+def post_attachment(request: Request, ticket_id: str = Path(..., pattern=ID), file: UploadFile = File(...), external: str = Form("false"),
+                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    vis = service.check_attach(conn, viewer, seen, external == "true", _rid(request))
+    data = file.file.read(attachments.MAX_BYTES + 1)
+    data_dir = settings_of(request).data_dir
+    try:
+        with unlocked(conn):  # the decode never holds the database write lock
+            stored = attachments.store(data_dir, ticket_id, data)
+    except attachments.Refused as exc:
+        audit(conn, actor=principal, action="ticket.photo", decision="denied", resource_type="ticket", resource_id=ticket_id, reason=exc.code,
+              request_id=_rid(request))
+        raise _refused(exc) from None
+    # the write lock was released for the decode: the ticket is read again (it may have been closed or moved meanwhile)
+    seen = access.visible_by_id(viewer, ticket_id)
+    try:
+        if seen is None:
+            raise access.not_found(conn)
+        vis = service.check_attach(conn, viewer, seen, external == "true", _rid(request))
+    except ApiError:
+        attachments.remove(data_dir, stored.rel_path)
+        raise
+    service.record_attachment(conn, viewer, seen, stored, vis, _rid(request))
+    return _detail(conn, viewer, ticket_id)
+
+
+@router.get("/tickets/{ticket_id}/attachments/{attachment_id}")
+def get_attachment(request: Request, ticket_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    att = store.attachment(conn, ticket_id, attachment_id)
+    if att is None or not access.attachment_visible(seen, att, viewer.uid):
+        raise ApiError(404, "not_found", text(conn, "התמונה לא נמצאה."))
+    try:
+        path = attachments.path_of(settings_of(request).data_dir, att["path"])
+    except ValueError:
+        raise ApiError(404, "not_found", text(conn, "התמונה לא נמצאה.")) from None
+    if not path.is_file():
+        raise ApiError(404, "not_found", text(conn, "התמונה לא נמצאה."))
+    return FileResponse(path, media_type="image/jpeg", headers={
+        "Content-Disposition": f'inline; filename="ticket-{seen.row["number"]}.jpg"',
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+    })
+
+
+@router.delete("/tickets/{ticket_id}/attachments/{attachment_id}")
+def delete_attachment(request: Request, ticket_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                      principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    service.delete_attachment(conn, viewer, seen, attachment_id, settings_of(request).data_dir, _rid(request))
+    return _detail(conn, viewer, ticket_id)

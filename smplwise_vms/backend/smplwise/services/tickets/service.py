@@ -1,0 +1,421 @@
+"""CR-038: the ticket actions of slice 1 - edit, status (incl. close / cancel / reopen), assignment to an internal user, return by
+the assignee ("לא שלי" / "לא אוכל לטפל"), notes, ETA and photos. Each runs inside the request's write transaction and writes, together:
+the ticket row (revision-checked where the caller sent a revision: 409 `ticket_stale`), its timeline row(s) and an audit row.
+
+Audit rows carry the ENVELOPE only (ticket id and number, statuses, field NAMES, assignee ids) - never a title, description, note,
+reason or file content (the spec's "no PII bodies"). Who may make which move is model.STATUS_MOVES; who is a manager or the current
+assignee is access.Viewer / access.Seen."""
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any
+
+from ...audit import audit
+from ...db import now_iso
+from ...errors import ApiError
+from ...rbac import Principal
+from . import access, attachments, model, notify_bridge, store
+from .access import Seen, Viewer, text
+from .present import DELETE_OWN_PHOTO_S, can_reopen
+
+PURGE_DAYS = 730  # section 15.1 default of `retention.closed_days`; the retention setting and the purge janitor belong to a later slice
+EDITABLE_BY_MANAGER = ("title", "description", "category_id", "priority_id", "department_id")
+EDITABLE_BY_CREATOR_WHILE_NEW = ("title", "description")
+
+
+# ---------------------------------------------------------------- shared answers
+
+def invalid(conn, exc: model.Invalid) -> ApiError:
+    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": p.field, "code": p.code} for p in exc.problems]})
+
+
+def stale(conn, row: dict[str, Any]) -> ApiError:
+    return ApiError(409, "ticket_stale", text(conn, "ה{ticket} {f:השתנתה|m:השתנה} בינתיים. טענו מחדש."), details={"revision": row["revision"]})
+
+
+def bad_move(conn, frm: str, to: str) -> ApiError:
+    return ApiError(409, "invalid_transition", text(conn, "המעבר הזה אינו אפשרי במצב הנוכחי."), details={"from": frm, "to": to})
+
+
+def refuse(conn, viewer: Viewer, action: str, row: dict[str, Any] | None, reason: str, rid: str | None = None, **details: Any) -> ApiError:
+    """An audited 403 for a membership- or role-based refusal (rbac.require audits the plain permission refusals itself)."""
+    audit(conn, actor=viewer.principal, action=action, decision="denied", resource_type="ticket", resource_id=(row or {}).get("id"),
+          reason=reason, request_id=rid, details={"number": (row or {}).get("number"), **details})
+    return ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"reason": reason, **details})
+
+
+def _audit(conn, viewer: Viewer, action: str, row: dict[str, Any], rid: str | None, **details: Any) -> None:
+    audit(conn, actor=viewer.principal, action=action, decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
+          details={"number": row["number"], **details})
+
+
+def actor_name(viewer: Viewer) -> str:
+    return store.display_name(viewer.conn, viewer.uid) or viewer.principal.display_name or viewer.principal.username
+
+
+def _plus_days(at: str, days: int) -> str:
+    base = dt.datetime.fromisoformat(at.replace("Z", "+00:00"))
+    return (base + dt.timedelta(days=days)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _active_assignment(row: dict[str, Any]) -> str | None:
+    return row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
+
+
+# ---------------------------------------------------------------- edit (section 11.3)
+
+def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int, rid: str | None = None) -> list[str]:
+    """Edit the fields the caller may edit; returns the names of the fields that changed."""
+    row = seen.row
+    if row["status"] in model.FINAL:
+        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}; פתחו {f:אותה|m:אותו} מחדש כדי לערוך."))
+    creator = row["created_by"] == viewer.uid
+    allowed = set(EDITABLE_BY_MANAGER) if seen.manager else set(EDITABLE_BY_CREATOR_WHILE_NEW) if creator and row["status"] == "new" else set()
+    asked = set(patch)
+    if not asked:
+        return []
+    if asked - allowed:
+        raise refuse(conn, viewer, "ticket.edit", row, "field_not_editable", rid, fields=sorted(asked - allowed))
+    if row["revision"] != revision:
+        raise stale(conn, row)
+    fields: dict[str, Any] = {}
+    try:
+        if "title" in patch:
+            fields["title"] = model.text_field(patch["title"], "title", required=True, max_len=model.TITLE_MAX)
+        if "description" in patch:
+            fields["description"] = model.text_field(patch["description"], "description", required=False, max_len=model.DESCRIPTION_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise invalid(conn, exc) from None
+    dept_id = row["department_id"]
+    moved = False
+    if "department_id" in patch and patch["department_id"] != row["department_id"]:
+        target = store.department(conn, str(patch["department_id"] or ""))
+        if target is None or not target["active"]:
+            raise invalid(conn, model.Invalid([model.Problem("department_id", "unknown")]))
+        if not viewer.is_manager({**row, "department_id": target["id"]}):
+            raise refuse(conn, viewer, "ticket.edit", row, "not_manager_of_target", rid, department_id=target["id"])
+        fields["department_id"] = dept_id = target["id"]
+        moved = True
+    if "category_id" in patch:
+        cid = patch["category_id"]
+        if cid:
+            cat = store.category(conn, str(cid))
+            if cat is None or cat["department_id"] != dept_id or not cat["active"]:
+                raise invalid(conn, model.Invalid([model.Problem("category_id", "unknown")]))
+        fields["category_id"] = cid or None
+    elif moved:
+        fields["category_id"] = None
+    if "priority_id" in patch:
+        prio = store.priority(conn, str(patch["priority_id"] or ""))
+        if prio is None or prio["department_id"] != dept_id or not prio["active"]:
+            raise invalid(conn, model.Invalid([model.Problem("priority_id", "unknown")]))
+        fields["priority_id"] = prio["id"]
+    elif moved:
+        old = store.priority(conn, row["priority_id"])
+        same = store.priority_by_key(conn, dept_id, old["key"]) if old else None
+        fields["priority_id"] = (same or store.default_priority(conn, dept_id) or {}).get("id") or row["priority_id"]
+    changed = [k for k, v in fields.items() if row.get(k) != v]
+    if not changed:
+        return []
+    now = now_iso()
+    update = {k: fields[k] for k in changed}
+    update["last_activity_at"] = now
+    if row.get("asg_kind") == "contact" and _active_assignment(row) and set(changed) & {"title", "description", "priority_id"}:
+        update["external_stale"] = 1  # the vendor got the old text ("נשלח לפני השינוי", slice 5b sends the update)
+    ended = None
+    if moved and row.get("asg_kind") == "user" and _active_assignment(row) and row.get("asg_user_id") not in store.department_user_ids(conn, dept_id):
+        ended = _active_assignment(row)
+        store.update_assignment(conn, ended, {"ended_at": now, "end_reason": "reassigned"})
+        update.update({"current_assignment_id": None, "status": "new", "eta_at": None})
+        update["waiting_on"], update["waiting_reason"] = model.waiting_for("new")
+    if not store.update_ticket(conn, row["id"], update, expect_revision=revision):
+        raise stale(conn, row)
+    data: dict[str, Any] = {"fields": changed}
+    if moved:
+        data.update({"from_department": row["department_id"], "to_department": dept_id})
+    if ended:
+        data["assignment_ended"] = True
+    store.insert_event(conn, row["id"], "edited", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer), data=data)
+    _audit(conn, viewer, "ticket.edit", row, rid, fields=changed, **({"department_id": dept_id} if moved else {}))
+    return changed
+
+
+# ---------------------------------------------------------------- status (section 11.2)
+
+def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, revision: int, duplicate_of: str | None = None,
+                  rid: str | None = None) -> None:
+    row = seen.row
+    frm = row["status"]
+    if to not in model.STATUSES:
+        raise invalid(conn, model.Invalid([model.Problem("to", "unknown")]))
+    actor = None
+    if seen.assignee and model.may_move("assignee", frm, to):
+        actor = "assignee"
+    elif seen.manager and model.may_move("manager", frm, to):
+        actor = "manager"
+    if actor is None:
+        if not (seen.assignee or seen.manager):
+            raise refuse(conn, viewer, "ticket.status", row, "not_allowed", rid, to=to)
+        raise bad_move(conn, frm, to)
+    if row["revision"] != revision:
+        raise stale(conn, row)
+    reopen = (frm, to) == ("closed", "new")
+    dept = store.department_any(conn, row["department_id"])
+    if reopen and not can_reopen(row, dept):
+        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את ה{ticket}."))
+    try:
+        note_text = model.text_field(note, "note", required=actor == "manager" and model.note_required(frm, to), max_len=model.NOTE_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise invalid(conn, exc) from None
+    original = None
+    if duplicate_of:
+        if to != "cancelled":
+            raise invalid(conn, model.Invalid([model.Problem("duplicate_of", "only_with_cancel")]))
+        original = access.visible_by_id(viewer, duplicate_of)
+        if original is None or original.row["id"] == row["id"]:
+            raise invalid(conn, model.Invalid([model.Problem("duplicate_of", "unknown")]))
+    now = now_iso()
+    fields: dict[str, Any] = {"status": to, "last_activity_at": now}
+    fields["waiting_on"], fields["waiting_reason"] = model.waiting_for(to)
+    asg = _active_assignment(row)
+    if to == "done":
+        fields["done_at"] = now
+    elif frm == "done" and to != "closed":
+        fields["done_at"] = None
+    if to in model.FINAL:
+        fields.update({"closed_at": now, "closed_by": viewer.uid, "close_note": note_text or None, "current_assignment_id": None,
+                       "purge_after": _plus_days(now, PURGE_DAYS)})
+        if original is not None:
+            fields["duplicate_of"] = original.row["id"]
+        if asg:
+            store.update_assignment(conn, asg, {"ended_at": now, "end_reason": "closed" if to == "closed" else "cancelled"})
+    if reopen:
+        fields.update({"closed_at": None, "closed_by": None, "close_note": None, "purge_after": None, "done_at": None,
+                       "reopen_count": int(row.get("reopen_count") or 0) + 1})
+    if asg and to == "acknowledged" and not row.get("asg_ack_at"):
+        store.update_assignment(conn, asg, {"acknowledged_at": now})
+    if asg and actor == "assignee":
+        store.update_assignment(conn, asg, {"last_update_at": now})
+    if not store.update_ticket(conn, row["id"], fields, expect_revision=revision):
+        raise stale(conn, row)
+    kind = "closed" if to == "closed" else "cancelled" if to == "cancelled" else "reopened" if reopen else "status"
+    on_behalf = actor == "manager" and model.may_move("assignee", frm, to) and bool(asg)
+    data: dict[str, Any] = {"on_behalf": True} if on_behalf else {}
+    if original is not None:
+        data["duplicate_of"] = {"id": original.row["id"], "number": original.row["number"]}
+    store.insert_event(conn, row["id"], kind, actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer), assignment_id=asg,
+                       from_status=frm, to_status=to, body=note_text or None, data=data, visible_external=actor == "assignee")
+    if original is not None:
+        store.insert_event(conn, original.row["id"], "duplicate", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
+                           data={"ticket_id": row["id"], "number": row["number"]})
+    action = {"closed": "ticket.close", "cancelled": "ticket.cancel", "reopened": "ticket.reopen"}.get(kind, "ticket.status")
+    _audit(conn, viewer, action, row, rid, **{"from": frm, "to": to, "actor": actor, **({"duplicate_of": original.row["id"]} if original else {})})
+    notify_bridge.ticket_status(conn, row["id"], frm, to)
+
+
+# ---------------------------------------------------------------- assignment to an internal user
+
+def _user_viewer(conn, user_id: str) -> Viewer:
+    u = conn.execute("SELECT username, display_name, source FROM users WHERE id = ?", (user_id,)).fetchone()
+    return Viewer(conn, Principal(user_id=user_id, username=u["username"] if u else "", display_name=u["display_name"] if u else "", source=u["source"] if u else "ingress"))
+
+
+def eligible_assignees(conn, department_id: str, row: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Who may be assigned in a department (section 8, "assignee picker"): active users who are members of the department (directly
+    or through a group) and hold tickets.view where the ticket lies (at any scope for a placeless ticket). Names only."""
+    out: list[dict[str, Any]] = []
+    for uid, role in store.department_user_ids(conn, department_id).items():
+        if not store.user_is_active(conn, uid):
+            continue
+        if not _user_viewer(conn, uid).holds(access.VIEW, row):
+            continue
+        out.append({"kind": "user", "id": uid, "name": store.display_name(conn, uid), "member_role": role})
+    return sorted(out, key=lambda r: (r["member_role"] != "manager", r["name"]))
+
+
+def assign(conn, viewer: Viewer, seen: Seen, kind: str, assignee_id: str, note: str | None, note_external: bool, revision: int,
+           rid: str | None = None) -> str:
+    row = seen.row
+    if not seen.manager:
+        raise refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
+    if kind == "contact":
+        if not viewer.holds(access.EXTERNAL, row):
+            raise refuse(conn, viewer, "ticket.assign", row, "external_permission_missing", rid, permission=access.EXTERNAL)
+        # contacts, handler links and the public page arrive in slice 4: until then nothing can leave to an outside party
+        raise ApiError(409, "public_link_unavailable", text(conn, "שליחה לגורם חיצוני עדיין אינה זמינה בהתקנה זו."))
+    if kind != "user":
+        raise invalid(conn, model.Invalid([model.Problem("assignee.kind", "unknown")]))
+    status = row["status"]
+    dept = store.department_any(conn, row["department_id"])
+    if status == "closed" and not can_reopen(row, dept):
+        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את ה{ticket}."))
+    if status not in model.ASSIGN_FROM:
+        raise bad_move(conn, status, "assigned")
+    if row["revision"] != revision:
+        raise stale(conn, row)
+    if not any(u["id"] == assignee_id for u in eligible_assignees(conn, row["department_id"], row)):
+        raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את ה{ticket} למשתמש הזה (הוא אינו חבר במחלקה או אינו רשאי לצפות ב{tickets})."))
+    current = _active_assignment(row)
+    if current and row.get("asg_kind") == "user" and row.get("asg_user_id") == assignee_id:
+        raise ApiError(409, "already_assigned", text(conn, "ה{ticket} כבר אצל המטפל הזה."))
+    try:
+        note_text = model.text_field(note, "note", required=False, max_len=model.NOTE_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise invalid(conn, exc) from None
+    now = now_iso()
+    name = store.display_name(conn, assignee_id)
+    previous = row.get("asg_name") if current else None
+    if current:
+        store.update_assignment(conn, current, {"ended_at": now, "end_reason": "reassigned"})
+    aid = store.insert_assignment(conn, {"ticket_id": row["id"], "assignee_kind": "user", "user_id": assignee_id, "assignee_name": name,
+                                         "channel": "inapp", "assigned_by": viewer.uid, "assigned_at": now})
+    fields: dict[str, Any] = {"status": "assigned", "current_assignment_id": aid, "assigner_user_id": viewer.uid, "last_activity_at": now,
+                              "eta_at": None, "done_at": None, "external_stale": 0}
+    fields["waiting_on"], fields["waiting_reason"] = model.waiting_for("assigned")
+    reopened = status == "closed"
+    if reopened:
+        fields.update({"closed_at": None, "closed_by": None, "close_note": None, "purge_after": None, "reopen_count": int(row.get("reopen_count") or 0) + 1})
+    if not store.update_ticket(conn, row["id"], fields, expect_revision=revision):
+        raise stale(conn, row)
+    who = actor_name(viewer)
+    if reopened:
+        store.insert_event(conn, row["id"], "reopened", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, from_status="closed", to_status="assigned")
+    store.insert_event(conn, row["id"], "reassigned" if current else "assigned", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, assignment_id=aid,
+                       from_status=status, to_status="assigned", data={"assignee": name, "assignee_kind": "user", **({"previous": previous} if previous else {})})
+    if note_text:
+        store.insert_event(conn, row["id"], "note", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, assignment_id=aid, body=note_text,
+                           visible_external=bool(note_external))
+    _audit(conn, viewer, "ticket.assign", row, rid, assignee_kind="user", assignee_id=assignee_id, reassign=bool(current), reopened=reopened)
+    notify_bridge.ticket_assigned(conn, row["id"], aid)
+    return aid
+
+
+# ---------------------------------------------------------------- return by the assignee (D12)
+
+def return_ticket(conn, viewer: Viewer, seen: Seen, kind: str, reason: str | None, revision: int, rid: str | None = None) -> None:
+    row = seen.row
+    if not seen.assignee:
+        raise refuse(conn, viewer, "ticket.return", row, "not_assignee", rid)
+    if kind not in model.RETURN_KINDS:
+        raise invalid(conn, model.Invalid([model.Problem("kind", "unknown")]))
+    if row["status"] not in model.RETURN_FROM:
+        raise bad_move(conn, row["status"], "returned")
+    try:
+        reason_text = model.text_field(reason, "reason", required=True, max_len=model.REASON_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise invalid(conn, exc) from None
+    if row["revision"] != revision:
+        raise stale(conn, row)
+    now = now_iso()
+    asg = _active_assignment(row)
+    if asg:
+        store.update_assignment(conn, asg, {"ended_at": now, "end_reason": "returned", "return_kind": kind, "return_reason": reason_text, "last_update_at": now})
+    fields: dict[str, Any] = {"status": "returned", "current_assignment_id": None, "last_activity_at": now, "eta_at": None}
+    fields["waiting_on"], fields["waiting_reason"] = model.waiting_for("returned", kind)
+    if not store.update_ticket(conn, row["id"], fields, expect_revision=revision):
+        raise stale(conn, row)
+    store.insert_event(conn, row["id"], "returned", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer), assignment_id=asg,
+                       from_status=row["status"], to_status="returned", body=reason_text, data={"kind": kind}, visible_external=True)
+    _audit(conn, viewer, "ticket.return", row, rid, kind=kind)
+    notify_bridge.ticket_returned(conn, row["id"], kind)
+
+
+# ---------------------------------------------------------------- notes, ETA
+
+def _may_write(viewer: Viewer, seen: Seen) -> bool:
+    return seen.full or seen.assignee or seen.row["created_by"] == viewer.uid
+
+
+def add_note(conn, viewer: Viewer, seen: Seen, body: str | None, external: bool, rid: str | None = None) -> int:
+    row = seen.row
+    if not _may_write(viewer, seen):
+        raise refuse(conn, viewer, "ticket.note", row, "not_allowed", rid)
+    if external and not seen.manager:
+        raise refuse(conn, viewer, "ticket.note", row, "external_needs_manager", rid)
+    if row["status"] in model.FINAL:
+        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}."))
+    try:
+        note_text = model.text_field(body, "text", required=True, max_len=model.NOTE_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise invalid(conn, exc) from None
+    vis = bool(external) if seen.manager else seen.assignee
+    now = now_iso()
+    asg = _active_assignment(row)
+    eid = store.insert_event(conn, row["id"], "note", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
+                             assignment_id=asg if seen.assignee else None, body=note_text, visible_external=vis, at=now)
+    store.update_ticket(conn, row["id"], {"last_activity_at": now}, bump=False)  # a note is progress, not an edit of the ticket
+    if seen.assignee and asg:
+        store.update_assignment(conn, asg, {"last_update_at": now})
+    _audit(conn, viewer, "ticket.note", row, rid, external=vis)
+    return eid
+
+
+def set_eta(conn, viewer: Viewer, seen: Seen, eta_at: str | None, rid: str | None = None) -> None:
+    row = seen.row
+    if not (seen.assignee or seen.manager):
+        raise refuse(conn, viewer, "ticket.eta", row, "not_allowed", rid)
+    if row["status"] not in model.HANDLING:
+        raise ApiError(409, "invalid_state", text(conn, "צפי מוגדר רק בזמן הטיפול."), details={"status": row["status"]})
+    try:
+        value = model.parse_eta(eta_at)
+    except model.Invalid as exc:
+        raise invalid(conn, exc) from None
+    now = now_iso()
+    store.update_ticket(conn, row["id"], {"eta_at": value, "last_activity_at": now})
+    asg = _active_assignment(row)
+    if seen.assignee and asg:
+        store.update_assignment(conn, asg, {"last_update_at": now})
+    store.insert_event(conn, row["id"], "eta", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
+                       assignment_id=asg, data={"eta_at": value}, visible_external=seen.assignee)
+    _audit(conn, viewer, "ticket.eta", row, rid, cleared=value is None)
+
+
+# ---------------------------------------------------------------- photos (the validator: attachments.py)
+
+def check_attach(conn, viewer: Viewer, seen: Seen, external: bool, rid: str | None = None) -> bool:
+    """Everything that is decided BEFORE a picture is decoded; returns its `visible_external` flag."""
+    row = seen.row
+    if not _may_write(viewer, seen):
+        raise refuse(conn, viewer, "ticket.photo", row, "not_allowed", rid)
+    if external and not seen.manager:
+        raise refuse(conn, viewer, "ticket.photo", row, "external_needs_manager", rid)
+    if row["status"] in model.FINAL:
+        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}."))
+    if store.attachment_count(conn, row["id"]) >= attachments.PER_TICKET_MAX:
+        raise ApiError(409, "too_many_photos", text(conn, "הגעתם למספר התמונות המרבי ל{ticket}."), details={"max": attachments.PER_TICKET_MAX})
+    return bool(external) if seen.manager else seen.assignee
+
+
+def record_attachment(conn, viewer: Viewer, seen: Seen, stored: attachments.Stored, vis: bool, rid: str | None = None) -> str:
+    row = seen.row
+    now = now_iso()
+    from ...db import new_id
+
+    att_id = new_id()
+    eid = store.insert_event(conn, row["id"], "photo", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
+                             data={"attachment_id": att_id}, visible_external=vis, at=now)
+    store.insert_attachment(conn, {"id": att_id, "ticket_id": row["id"], "event_id": eid, "kind": "photo", "path": stored.rel_path, "sha256": stored.sha256,
+                                   "bytes": stored.bytes, "width": stored.width, "height": stored.height, "uploaded_by_kind": "user",
+                                   "uploaded_by": viewer.uid, "visible_external": 1 if vis else 0, "created_at": now})
+    store.update_ticket(conn, row["id"], {"last_activity_at": now}, bump=False)
+    _audit(conn, viewer, "ticket.photo", row, rid, attachment_id=att_id, external=vis, bytes=stored.bytes)
+    return att_id
+
+
+def delete_attachment(conn, viewer: Viewer, seen: Seen, attachment_id: str, data_dir, rid: str | None = None) -> None:
+    row = seen.row
+    att = store.attachment(conn, row["id"], attachment_id)
+    if att is None or not access.attachment_visible(seen, att, viewer.uid):
+        raise ApiError(404, "not_found", text(conn, "התמונה לא נמצאה."))
+    mine = att["uploaded_by_kind"] == "user" and att["uploaded_by"] == viewer.uid
+    try:
+        age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(att["created_at"].replace("Z", "+00:00"))).total_seconds()
+    except ValueError:
+        age = DELETE_OWN_PHOTO_S + 1
+    if not (seen.manager or (mine and age <= DELETE_OWN_PHOTO_S)):
+        raise refuse(conn, viewer, "ticket.photo.delete", row, "not_allowed", rid, attachment_id=attachment_id)
+    store.soft_delete_attachment(conn, attachment_id, viewer.uid)
+    attachments.remove(data_dir, att["path"])
+    store.insert_event(conn, row["id"], "photo_removed", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
+                       data={"attachment_id": attachment_id}, visible_external=bool(att["visible_external"]))
+    _audit(conn, viewer, "ticket.photo.delete", row, rid, attachment_id=attachment_id)

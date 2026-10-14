@@ -1,4 +1,5 @@
 import { AREA_TABS, SECURITY_SETTINGS_TABS, visibleTabs } from '../shell/nav';
+import { tt } from '../tickets/text';
 import type { IconName } from '../components/sw-icon';
 import type { RouteState } from '../router';
 
@@ -104,6 +105,10 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
       { tab: 'infra', label: 'תשתיות', href: '#/system/infra', keywords: 'חשמל מונים מחירים מע"מ תעריף גנרטור' },
+      // CR-038: the optional tickets module - its labels and search words carry the configured name (D33: getters, read at render time)
+      { tab: 'tickets', get label() { return tt('settingsTab'); }, href: '#/system/tickets', get keywords() { return tt('settingsKeywords'); } },
+      { tab: 'tickets', get label() { return tt('setTabDepartments'); }, href: '#/system/tickets?tab=departments', sub: true },
+      { tab: 'tickets', get label() { return tt('setTabPermissions'); }, href: '#/system/tickets?tab=permissions', sub: true },
       { tab: 'general', label: 'בריאות ועבודות', href: `${GEN}?tab=health`, keywords: 'דיאגנוסטיקה מצב רכיבים תור' },
       { tab: 'general', label: 'גיבוי ושחזור', href: `${GEN}?tab=backup`, keywords: 'backup restore שחזור קובץ zip' },
       { tab: 'storage', label: 'אחסון', href: '#/system/storage', keywords: 'דיסק הקלטות נפח' },
@@ -167,6 +172,10 @@ export function routeHref(r: RouteState | null): string {
   if (s[1] === 'multimedia') {
     const tab = p.get('tab');
     return tab && tab !== 'main' ? `#/system/multimedia?tab=${tab}` : '#/system/multimedia';
+  }
+  if (s[1] === 'tickets') {
+    const tab = p.get('tab');
+    return tab && tab !== 'general' ? `#/system/tickets?tab=${tab}` : '#/system/tickets';
   }
   if (s[1] === 'security') return s[2] ? `#/system/security/${s[2]}` : '#/system/security';
   if (s[1] === 'access-control') return s[2] ? `#/system/access-control/${s[2]}` : '#/system/access-control'; // CR-036 S10 segments

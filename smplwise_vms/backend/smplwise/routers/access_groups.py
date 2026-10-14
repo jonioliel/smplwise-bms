@@ -35,7 +35,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_permissions, require, scope_name
 from ..services import revocation
 from .access import (
-    PERMISSION_LABELS, BindingBody, active_user_ids, keep_an_admin, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _rid, _scope_exists,
+    BindingBody, active_user_ids, keep_an_admin, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _rid, _scope_exists, rendered_labels,
     _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority,
     delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding,
 )
@@ -443,7 +443,7 @@ def group_impact(group_id: str, body: ImpactBody, principal: Principal = Depends
         "revision": g["revision"],
         "scopes": [{"scope_type": s[0], "scope_id": s[1], "scope_name": scope_name(conn, *s)} for s in scopes],
         "users": rows,
-        "labels": PERMISSION_LABELS,
+        "labels": rendered_labels(conn),  # CR-038 D33: a module's templated label carries its display name
     }
 
 

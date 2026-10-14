@@ -344,6 +344,10 @@ DEFAULTS: dict[str, str] = {
     # refused (409 self_update_disabled) and the Updates page says so. The check, the interval, the platform restart and an update
     # installed by hand in the platform's own add-on store are never affected (docs/security/CR021_SELF_UPDATE_SECURITY_NOTES.md).
     "update.apply_enabled": "true",
+    # CR-038 section 6: the optional tickets module - OFF by default. While off every /api/v1/tickets* route but GET /tickets/module
+    # answers 404 feature_disabled, the area and the device tab are hidden, and the module's data is kept. Turning it on or off is
+    # audited as tickets.module.enable / tickets.module.disable. Installation identity: kept out of project backups (SETTINGS_KEEP).
+    "tickets.enabled": "false",
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
@@ -741,6 +745,7 @@ class SettingsPatch(BaseModel):
     automations_phone_filter: str | None = Field(default=None, pattern="^(fold|rows)$", alias="automations.phone_filter")
     automations_sensitive_chip: str | None = Field(default=None, pattern="^(amber|red)$", alias="automations.sensitive_chip")
     update_apply_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="update.apply_enabled")  # 2.4.4: CR-021 self-update switch
+    tickets_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="tickets.enabled")  # CR-038: the tickets module switch
 
     model_config = {"populate_by_name": True}
 
@@ -901,6 +906,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         current_switch = get_setting(conn, "update.apply_enabled", DEFAULTS["update.apply_enabled"]) or DEFAULTS["update.apply_enabled"]
         if changes["update.apply_enabled"] != ("false" if current_switch == "false" else "true"):
             update_switch = changes["update.apply_enabled"]
+    tickets_switch = None  # CR-038: the module switch gets its own audit row when it actually changes
+    if "tickets.enabled" in changes:
+        current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]
+        if changes["tickets.enabled"] != ("true" if current_tickets == "true" else "false"):
+            tickets_switch = changes["tickets.enabled"]
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
     forced = False
     if changes.get("schedules.shabbat_sensor"):
@@ -973,6 +983,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     if update_switch is not None:
         audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
               request_id=getattr(request.state, "correlation_id", None), details={"to": update_switch == "true"})
+    if tickets_switch is not None:
+        audit(conn, actor=principal, action="tickets.module.enable" if tickets_switch == "true" else "tickets.module.disable", decision="allowed",
+              resource_type="installation", resource_id="tickets", request_id=getattr(request.state, "correlation_id", None))
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}
