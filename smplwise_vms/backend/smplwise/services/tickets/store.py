@@ -170,6 +170,16 @@ def soft_delete_department(conn: sqlite3.Connection, dept_id: str) -> None:
     conn.execute("UPDATE ticket_departments SET deleted_at = ?, active = 0, revision = revision + 1, updated_at = ? WHERE id = ?", (now, now, dept_id))
 
 
+def restore_department(conn: sqlite3.Connection, dept_id: str, key: str) -> None:
+    """Undo a soft delete (owner 2026-10-14): the department row only; nothing under it was changed by the delete."""
+    conn.execute("UPDATE ticket_departments SET deleted_at = NULL, active = 1, key = ?, revision = revision + 1, updated_at = ? WHERE id = ?",
+                 (key, now_iso(), dept_id))
+
+
+def deleted_departments(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_departments WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC").fetchall()]
+
+
 def open_ticket_count(conn: sqlite3.Connection, dept_id: str) -> int:
     return int(conn.execute("SELECT COUNT(*) FROM tickets WHERE department_id = ? AND status NOT IN ('closed', 'cancelled')", (dept_id,)).fetchone()[0])
 

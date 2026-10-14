@@ -280,7 +280,10 @@ def list_departments(principal: Principal = Depends(current_principal_ro), conn:
     inst = settings_doc.read(conn)
     return {"departments": [_department_dict(conn, viewer, d, inst) for d in store.departments(conn)],
             "all_departments": viewer.holds_installation(access.ALL_DEPARTMENTS),
-            "installation": _installation_defaults(inst)}
+            "installation": _installation_defaults(inst),
+            # owner 2026-10-14: the soft-deleted departments, for "מחלקות שנמחקו" and its restore action
+            "deleted": [{"id": d["id"], "name": d["name"], "deleted_at": d["deleted_at"], "tickets": store.ticket_count(conn, d["id"])}
+                        for d in store.deleted_departments(conn)]}
 
 
 class DepartmentBody(BaseModel):
@@ -355,8 +358,7 @@ def _policy_fields(conn: sqlite3.Connection, body: DepartmentBody, sent: set[str
 def _department_fields(conn: sqlite3.Connection, body: DepartmentBody, *, creating: bool, current: dict[str, Any] | None = None) -> dict[str, Any]:
     sent = body.model_fields_set - {"revision"}
     fields: dict[str, Any] = {}
-    if creating and not body.key:
-        raise _invalid(conn, "key", "required")
+    # owner 2026-10-14: the new-department form asks for a name only - a missing key is made from the name (create_department)
     if "key" in sent and body.key:
         fields["key"] = body.key
     if creating or "name" in sent:
@@ -376,10 +378,41 @@ def _department_fields(conn: sqlite3.Connection, body: DepartmentBody, *, creati
     return fields
 
 
+# owner 2026-10-14: the department's identifier is made from its name (the form no longer asks for it). Hebrew is transliterated, then
+# slugged to KEY; a name that leaves nothing usable gets "dept-" + 6 hex; a taken key gets "-2", "-3", ... (unique among live rows).
+_HEB = {"א": "a", "ב": "b", "ג": "g", "ד": "d", "ה": "h", "ו": "v", "ז": "z", "ח": "ch", "ט": "t", "י": "y", "כ": "k", "ך": "k", "ל": "l",
+        "מ": "m", "ם": "m", "נ": "n", "ן": "n", "ס": "s", "ע": "a", "פ": "p", "ף": "p", "צ": "tz", "ץ": "tz", "ק": "k", "ר": "r", "ש": "sh",
+        "ת": "t"}
+
+
+def slug_key(name: str) -> str:
+    """A KEY-shaped slug of a name ('' when nothing usable is left)."""
+    import re
+    import unicodedata
+
+    s = "".join(_HEB.get(ch, ch) for ch in (name or "").strip().lower())
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    s = re.sub(r"^[^a-z]+", "", s)[:28].strip("-")
+    return s if re.fullmatch(KEY, s) else ""
+
+
+def department_key_for(conn: sqlite3.Connection, name: str, *, except_id: str | None = None) -> str:
+    import secrets
+
+    base = slug_key(name) or f"dept-{secrets.token_hex(3)}"
+    key, n = base, 2
+    while store.department_key_taken(conn, key, except_id=except_id):
+        key, n = f"{base[:28]}-{n}", n + 1
+    return key
+
+
 @router.post("/tickets/admin/departments", status_code=201)
 def create_department(body: DepartmentBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = _configurer(conn, principal)
     fields = _department_fields(conn, body, creating=True)
+    if not fields.get("key"):
+        fields["key"] = department_key_for(conn, fields["name"])
     if store.department_key_taken(conn, fields["key"]):
         raise ApiError(409, "department_key_taken", text(conn, "כבר קיימת מחלקה עם המזהה הזה."), details={"key": fields["key"]})
     dept_id = store.insert_department(conn, fields)
@@ -439,6 +472,35 @@ def delete_department(request: Request, dept_id: str = Path(..., pattern=ID), pr
     store.soft_delete_department(conn, dept_id)
     audit(conn, actor=principal, action="ticket.department.delete", decision="allowed", resource_type="ticket_department", resource_id=dept_id, request_id=_rid(request))
     return {"deleted": dept_id}
+
+
+class RestoreBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: str | None = Field(default=None, pattern=KEY)
+
+
+@router.post("/tickets/admin/departments/{dept_id}/restore")
+def restore_department(request: Request, body: RestoreBody | None = None, dept_id: str = Path(..., pattern=ID),
+                       principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Owner request 2026-10-14 (his only department was deleted by mistake): a soft-deleted department comes back as it was - the
+    delete only marked the department row, so its categories, priorities, members, SLA rules, templates and tickets were never
+    touched and are in force again. Its identifier must be free among live departments: an explicit `key` that is taken answers 409;
+    without one, a taken identifier is replaced by a free one made from the name (the form no longer shows identifiers)."""
+    viewer = _configurer(conn, principal)
+    d = store.department_any(conn, dept_id)
+    if d is None or not d.get("deleted_at"):
+        raise ApiError(404, "not_found", text(conn, "המחלקה לא נמצאה."))
+    key = (body.key if body else None) or d["key"]
+    if store.department_key_taken(conn, key, except_id=dept_id):
+        if body and body.key:
+            raise ApiError(409, "department_key_taken", text(conn, "כבר קיימת מחלקה עם המזהה הזה."), details={"key": key})
+        key = department_key_for(conn, d["name"], except_id=dept_id)
+    store.restore_department(conn, dept_id, key)
+    audit(conn, actor=principal, action="ticket.department.restore", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
+          request_id=_rid(request), details={"key": key, "key_changed": key != d["key"]})
+    out = _department_dict(conn, viewer, store.department(conn, dept_id) or {})
+    out["key_changed"] = key != d["key"]
+    return out
 
 
 # ---------------------------------------------------------------- categories and priorities
