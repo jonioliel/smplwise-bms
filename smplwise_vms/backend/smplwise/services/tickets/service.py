@@ -14,7 +14,7 @@ from ...audit import audit
 from ...db import now_iso
 from ...errors import ApiError
 from ...rbac import Principal
-from . import access, attachments, handler_links, model, notify_bridge, store
+from . import access, attachments, handler_links, model, notify_bridge, sla, store
 from .access import Seen, Viewer, text
 from .present import DELETE_OWN_PHOTO_S, can_reopen
 
@@ -136,6 +136,7 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
     if ended:
         data["assignment_ended"] = True
     store.insert_event(conn, row["id"], "edited", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer), data=data)
+    sla.refresh(conn, row["id"])  # a priority or department change recomputes the dues from the creation time (11.3)
     _audit(conn, viewer, "ticket.edit", row, rid, fields=changed, **({"department_id": dept_id} if moved else {}))
     return changed
 
@@ -212,6 +213,7 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
                            data={"ticket_id": row["id"], "number": row["number"]})
     action = {"closed": "ticket.close", "cancelled": "ticket.cancel", "reopened": "ticket.reopen"}.get(kind, "ticket.status")
     _audit(conn, viewer, action, row, rid, **{"from": frm, "to": to, "actor": actor, **({"duplicate_of": original.row["id"]} if original else {})})
+    sla.refresh(conn, row["id"])
     notify_bridge.ticket_status(conn, row["id"], frm, to)
 
 
@@ -290,6 +292,7 @@ def assign(conn, viewer: Viewer, seen: Seen, kind: str, assignee_id: str, note: 
         store.insert_event(conn, row["id"], "note", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, assignment_id=aid, body=note_text,
                            visible_external=bool(note_external))
     _audit(conn, viewer, "ticket.assign", row, rid, assignee_kind="user", assignee_id=assignee_id, reassign=bool(current), reopened=reopened)
+    sla.refresh(conn, row["id"])
     notify_bridge.ticket_assigned(conn, row["id"], aid)
     return aid
 
@@ -321,6 +324,7 @@ def return_ticket(conn, viewer: Viewer, seen: Seen, kind: str, reason: str | Non
     store.insert_event(conn, row["id"], "returned", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer), assignment_id=asg,
                        from_status=row["status"], to_status="returned", body=reason_text, data={"kind": kind}, visible_external=True)
     _audit(conn, viewer, "ticket.return", row, rid, kind=kind)
+    sla.refresh(conn, row["id"])
     notify_bridge.ticket_returned(conn, row["id"], kind)
 
 
@@ -350,6 +354,7 @@ def add_note(conn, viewer: Viewer, seen: Seen, body: str | None, external: bool,
     store.update_ticket(conn, row["id"], {"last_activity_at": now}, bump=False)  # a note is progress, not an edit of the ticket
     if seen.assignee and asg:
         store.update_assignment(conn, asg, {"last_update_at": now})
+    sla.refresh(conn, row["id"])
     _audit(conn, viewer, "ticket.note", row, rid, external=vis)
     return eid
 
@@ -371,6 +376,7 @@ def set_eta(conn, viewer: Viewer, seen: Seen, eta_at: str | None, rid: str | Non
         store.update_assignment(conn, asg, {"last_update_at": now})
     store.insert_event(conn, row["id"], "eta", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                        assignment_id=asg, data={"eta_at": value}, visible_external=seen.assignee)
+    sla.refresh(conn, row["id"])  # a future ETA suppresses "stuck" until it passes (13.2)
     _audit(conn, viewer, "ticket.eta", row, rid, cleared=value is None)
 
 
@@ -402,6 +408,7 @@ def record_attachment(conn, viewer: Viewer, seen: Seen, stored: attachments.Stor
                                    "bytes": stored.bytes, "width": stored.width, "height": stored.height, "uploaded_by_kind": "user",
                                    "uploaded_by": viewer.uid, "visible_external": 1 if vis else 0, "created_at": now})
     store.update_ticket(conn, row["id"], {"last_activity_at": now}, bump=False)
+    sla.refresh(conn, row["id"])
     _audit(conn, viewer, "ticket.photo", row, rid, attachment_id=att_id, external=vis, bytes=stored.bytes)
     return att_id
 

@@ -89,6 +89,27 @@ def test_a_static_shell_fetch_without_the_token_counts_nothing(s4):
 # ---------------------------------------------------------------- writes
 
 
+def test_the_handlers_writes_recompute_the_dues_like_every_other_change(s4):
+    """Slice 2 computes the SLA dues at every change of a ticket; the handler's writes through the link are changes too."""
+    t, token = s4.sent()
+    tid = t["id"]
+
+    def dues() -> tuple[str | None, str | None]:
+        with s4.db.connection(mode="read") as conn:
+            row = conn.execute("SELECT ack_due_at, stuck_due_at FROM tickets WHERE id = ?", (tid,)).fetchone()
+        return row[0], row[1]
+
+    ack, stuck = dues()
+    assert ack is not None and stuck is None, "assigned outside: the acknowledgement clock runs from the assignment"
+    client, _ = s4.public(Clock(time.time()))
+    assert client.post("/t/api/status", headers=hdr(token), json={"status": "acknowledged", "client_request_id": crid()}).status_code == 200
+    ack, stuck = dues()
+    assert ack is None and stuck is not None, "acknowledged: no first-response due, the stuck clock runs"
+    assert client.post("/t/api/return", headers=hdr(token), json={"kind": "not_mine", "reason": "לא באזור שלי", "client_request_id": crid()}).status_code == 200
+    ack, stuck = dues()
+    assert ack is not None and stuck is None, "returned: unassigned again"
+
+
 def test_status_note_eta_flow_moves_the_ticket_and_extends_the_link(s4):
     t, token = s4.sent()
     tid = t["id"]

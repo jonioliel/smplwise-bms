@@ -6,14 +6,30 @@ Anonymous uploads reach this code from the public listener (review T7 / R1), so 
 2. type by magic bytes only (the declared type and the file name are ignored): JPEG and PNG. WebP is refused on purpose (a
    large decoder attack surface - CVE-2023-4863 - and phones send JPEG), HEIC with its own code (the page asks for "most
    compatible"), everything else as unsupported;
-3. a PNG's chunk structure is walked BEFORE Pillow sees it: IHDR first, only known critical chunks, bounded ancillary chunks
-   (text / ICC / EXIF sizes and counts - Pillow inflates compressed text and ICC chunks while opening), no animation chunks;
+3. the file's structure is walked BEFORE Pillow sees it, and Pillow is handed a METADATA-FREE copy (code review V10 / V6,
+   2026-10-13):
+   - PNG: IHDR first, only known critical chunks, bounded ancillary chunks, no animation chunks, no 16-bit samples, at most
+     PNG_MAX_PIXELS (8 MP: phones send JPEG; a PNG is a screenshot); the decoder gets IHDR / PLTE / tRNS / IDAT / IEND only -
+     never a text, ICC or EXIF chunk (Pillow inflates compressed text and ICC chunks while opening, and logs an ICC profile's
+     NAME at DEBUG);
+   - JPEG: the segments before the first scan are walked; only 8-bit baseline / extended / progressive Huffman frames are
+     accepted (lossless, hierarchical and arithmetic-coded frames are refused); the decoder gets SOI, the frame and its
+     tables (DQT, DHT, DRI), APP0 (JFIF) and APP14 (Adobe colour transform) and the primary image's scans up to its EOI -
+     never EXIF, XMP, ICC, MPF, Photoshop or comment segments, nor the secondary images and payloads after the primary EOI.
+     Pillow's TIFF reader therefore never parses an upload's EXIF (it logs tag VALUES at DEBUG - GPS, names, serial numbers -
+     whatever level the logger is at), and the EXIF orientation is read here by a 30-line bounded IFD0 reader;
+   - the scans of the primary image are counted (byte stuffing guarantees FF DA there is a start of scan): at most
+     SEQUENTIAL_MAX_SCANS (4) for a sequential frame, JPEG_MAX_SCANS (32) for a progressive one, whose size is also capped at
+     PROGRESSIVE_MAX_PIXELS (8 MP: libjpeg keeps a progressive image's whole coefficient buffer, the reduced `draft` scale does
+     not shrink it);
 4. the image is opened lazily (header only) with Pillow restricted to the sniffed decoder, and its declared width x height is
    checked against MAX_PIXELS (16 MP - not the administrator's 40 MP budget, review T7-1) and each side against MAX_SIDE_IN;
-5. a JPEG is decoded at a reduced scale (`draft`, the ui_background.reencode pattern) so a 16 MP photo decodes at about 4 MP;
+5. a JPEG is decoded at a reduced scale (`draft`, the ui_background.reencode pattern) so a 16 MP baseline photo decodes at about
+   4 MP;
 6. the decode runs under this module's OWN semaphore (one decode at a time, DECODE_WAIT_S wait, then 429 `busy`) - never the
    router-private `ui_background._decode_slot`, so anonymous uploads never make an administrator's upload wait (review C2);
-7. EXIF orientation is applied AFTER the pixel check (review T7-4), the picture is flattened to RGB (transparency onto white),
+7. the EXIF orientation read in step 3 is applied AFTER the pixel check (review T7-4), the picture is flattened to RGB
+   (transparency onto white),
    scaled to at most 2048 px on the long side and written into a FRESH image, saved as a new JPEG (quality 82): no EXIF (GPS),
    ICC, XMP, comments, thumbnails or appended bytes survive - a polyglot's payload is gone;
 8. the whole decode is wrapped: any exception is one answer, 422 `image_invalid` (review T7-4);
@@ -56,9 +72,13 @@ JPEG_QUALITY = 82
 DECODE_CONCURRENCY = 1
 DECODE_WAIT_S = 5.0
 # A progressive JPEG is decoded scan by scan; a small file with thousands of tiny scans makes libjpeg decode for a very long
-# time (Pillow sets no scan limit). Phones write 1 (baseline) to ~12 scans. Byte stuffing guarantees FF DA appears in a JPEG
-# only as a start-of-scan marker, so counting it bounds the scans before any decode.
-JPEG_MAX_SCANS = 100
+# time (Pillow sets no scan limit). Phones write 1 (baseline) to ~12 scans; a sequential frame has one scan per component at
+# most. Byte stuffing guarantees FF DA appears in entropy-coded data only as a start-of-scan marker, so counting it in the
+# primary image bounds the scans before any decode.
+JPEG_MAX_SCANS = 32  # progressive
+SEQUENTIAL_MAX_SCANS = 4
+PROGRESSIVE_MAX_PIXELS = 8_000_000  # code review V6: the coefficient buffer of a progressive decode is full size
+PNG_MAX_PIXELS = 8_000_000  # code review V6: phones send JPEG; a PNG is a screenshot (16 MP RGBA16 would decode to 128 MB)
 STORAGE_CAP_BYTES = 2 * GiB
 STORAGE_REFRESH_S = 60.0
 PHOTOS_PER_ASSIGNMENT = 30
@@ -67,9 +87,9 @@ PHOTOS_PER_TICKET = 60
 _DECODE = threading.BoundedSemaphore(DECODE_CONCURRENCY)  # THIS module's; never shared with an administrator's route
 
 # Pillow's TIFF / EXIF reader logs every tag VALUE at DEBUG ("Tag 270, Type: 2, Value: '...'") - GPS positions, camera serial
-# numbers, names typed into a photo's metadata - while exif_transpose reads them. With the add-on at log level "debug" every
-# anonymous upload's metadata would reach the add-on log (found by tests/test_tickets_public_logs.py). Pillow's own loggers
-# are kept at INFO for the whole process, the way main.py keeps httpx at WARNING.
+# numbers, names typed into a photo's metadata (found by tests/test_tickets_public_logs.py). The real control is step 3: the
+# decoder never receives an upload's metadata, so nothing can be logged whatever the level. Belt and braces: Pillow's loggers
+# are kept at INFO for the process (the wiring checklist moves this line next to httpx's in main.py, the logging owner).
 logging.getLogger("PIL").setLevel(logging.INFO)
 
 
@@ -90,6 +110,7 @@ class Reencoded:
     width: int
     height: int
     sha256: str
+    decode_ms: int = 0  # the Pillow part (open .. save), for the health histogram
 
 
 # ---------------------------------------------------------------- type by content
@@ -131,13 +152,39 @@ PNG_MAX_ANCILLARY = 64
 PNG_MAX_TEXT_CHUNKS = 8
 
 
+_PNG_DECODE_KEEP = frozenset({b"IHDR", b"PLTE", b"tRNS", b"IDAT", b"IEND"})
+
+
+@dataclass(frozen=True)
+class Layout:
+    """What the structure walk learned: the declared size, the facts that bound the decode, the EXIF orientation (1..8), and
+    `clean` - the metadata-free bytes the decoder is given."""
+
+    width: int
+    height: int
+    clean: bytes
+    orientation: int = 1
+    bit_depth: int = 8
+    progressive: bool = False
+    scans: int = 1
+
+
 def png_scan(data: bytes) -> tuple[int, int]:
-    """(width, height) from IHDR after a walk of the chunk layout; IntakeError otherwise. Bytes after IEND are ignored (the
-    re-encode drops them)."""
+    """(width, height) from IHDR after a walk of the chunk layout; IntakeError otherwise (see png_layout)."""
+    layout = png_layout(data)
+    return layout.width, layout.height
+
+
+def png_layout(data: bytes) -> Layout:
+    """Walk the chunk layout (IntakeError on anything outside the rules of the module docstring) and keep IHDR / PLTE / tRNS /
+    IDAT / IEND verbatim (their CRCs included). Bytes after IEND are dropped."""
     pos = 8
     first = True
     ancillary = text = 0
     size = (0, 0)
+    depth = 8
+    orientation = 1
+    kept: list[bytes] = [b"\x89PNG\r\n\x1a\n"]
     n = len(data)
     while True:
         if pos + 12 > n:
@@ -148,7 +195,7 @@ def png_scan(data: bytes) -> tuple[int, int]:
         if first:
             if ctype != b"IHDR" or length != 13:
                 raise IntakeError("image_invalid", 422)
-            w, h = struct.unpack(">II", data[pos + 8:pos + 16])
+            w, h, depth = struct.unpack(">IIB", data[pos + 8:pos + 17])
             size = (w, h)
             first = False
         elif ctype in _PNG_ANIMATION:
@@ -162,9 +209,114 @@ def png_scan(data: bytes) -> tuple[int, int]:
                 text += 1
             if ancillary > PNG_MAX_ANCILLARY or text > PNG_MAX_TEXT_CHUNKS or length > _PNG_LIMITS.get(ctype, _PNG_ANCILLARY_DEFAULT):
                 raise IntakeError("image_invalid", 422)
+            if ctype == b"eXIf":
+                block = data[pos + 8:pos + 8 + length]
+                orientation = exif_orientation(block[6:] if block.startswith(b"Exif\x00\x00") else block)
+        if ctype in _PNG_DECODE_KEEP:
+            kept.append(data[pos:pos + 12 + length])
         pos += 12 + length
         if ctype == b"IEND":
-            return size
+            return Layout(size[0], size[1], b"".join(kept), orientation=orientation, bit_depth=depth)
+
+
+# ---------------------------------------------------------------- JPEG structure walk (before Pillow)
+
+_JPEG_FRAMES = {0xC0: False, 0xC1: False, 0xC2: True}  # 8-bit Huffman: baseline, extended sequential, progressive
+_JPEG_REFUSED_FRAMES = frozenset({0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF})  # lossless, hierarchical, arithmetic
+_JPEG_DECODE_KEEP = frozenset({0xC0, 0xC1, 0xC2, 0xC4, 0xDB, 0xDD, 0xE0, 0xEE})  # frame, DHT, DQT, DRI, JFIF, Adobe
+_JPEG_MAX_SEGMENTS = 256
+
+
+def jpeg_layout(data: bytes) -> Layout:
+    """Walk the segments before the first scan (IntakeError outside the rules of the module docstring) and build the clean copy:
+    SOI + the kept segments + the primary image from its first scan to its EOI. The scans of the primary image are counted."""
+    n = len(data)
+    if n < 4 or data[0] != 0xFF or data[1] != 0xD8:
+        raise IntakeError("image_invalid", 422)
+    kept: list[bytes] = [b"\xff\xd8"]
+    pos = 2
+    frame: tuple[int, int, bool] | None = None
+    orientation = 1
+    for _ in range(_JPEG_MAX_SEGMENTS):
+        if pos >= n or data[pos] != 0xFF:
+            raise IntakeError("image_invalid", 422)
+        while pos + 1 < n and data[pos + 1] == 0xFF:  # fill bytes: the last FF starts the marker
+            pos += 1
+        if pos + 1 >= n:
+            raise IntakeError("image_invalid", 422)
+        start, marker = pos, data[pos + 1]
+        pos += 2
+        if marker == 0xDA:  # the first scan: from here on the primary image's entropy-coded data, tables and scans
+            if frame is None:
+                raise IntakeError("image_invalid", 422)
+            eoi = data.find(b"\xff\xd9", start)
+            if eoi < 0:
+                raise IntakeError("image_invalid", 422)
+            body = data[start:eoi + 2]
+            w, h, progressive = frame
+            return Layout(w, h, b"".join(kept) + body, orientation=orientation, progressive=progressive,
+                          scans=body.count(b"\xff\xda"))
+        if marker in (0xD8, 0xD9, 0x01) or 0xD0 <= marker <= 0xD7 or pos + 2 > n:
+            raise IntakeError("image_invalid", 422)
+        length = (data[pos] << 8) | data[pos + 1]
+        if length < 2 or pos + length > n:
+            raise IntakeError("image_invalid", 422)
+        seg = data[pos + 2:pos + length]
+        if marker in _JPEG_REFUSED_FRAMES:
+            raise IntakeError("unsupported_format", 415)
+        if marker in _JPEG_FRAMES:
+            if frame is not None or len(seg) < 6:
+                raise IntakeError("image_invalid", 422)
+            precision, h, w, comps = seg[0], (seg[1] << 8) | seg[2], (seg[3] << 8) | seg[4], seg[5]
+            if precision != 8:
+                raise IntakeError("unsupported_format", 415)
+            if comps not in (1, 3, 4):
+                raise IntakeError("image_invalid", 422)
+            frame = (w, h, _JPEG_FRAMES[marker])
+        elif marker == 0xE1 and seg.startswith(b"Exif\x00\x00"):
+            orientation = exif_orientation(seg[6:])
+        if marker in _JPEG_DECODE_KEEP:
+            kept.append(data[start:pos + length])
+        pos += length
+    raise IntakeError("image_invalid", 422)  # more segments before a scan than any camera writes
+
+
+def exif_orientation(tiff: bytes) -> int:
+    """Tag 0x0112 (Orientation) of IFD0 of an EXIF / TIFF block: 1..8, anything else 1. Reads one directory of at most 64
+    entries; never raises, never follows another offset."""
+    try:
+        if len(tiff) < 8:
+            return 1
+        e = "<" if tiff[:2] == b"II" else ">" if tiff[:2] == b"MM" else ""
+        if not e or struct.unpack(e + "H", tiff[2:4])[0] != 42:
+            return 1
+        off = struct.unpack(e + "I", tiff[4:8])[0]
+        if off < 8 or off + 2 > len(tiff):
+            return 1
+        count = struct.unpack(e + "H", tiff[off:off + 2])[0]
+        for i in range(min(count, 64)):
+            p = off + 2 + 12 * i
+            if p + 12 > len(tiff):
+                return 1
+            tag, typ, cnt = struct.unpack(e + "HHI", tiff[p:p + 8])
+            if tag == 0x0112:
+                if typ != 3 or cnt != 1:
+                    return 1
+                v = struct.unpack(e + "H", tiff[p + 8:p + 10])[0]
+                return v if 1 <= v <= 8 else 1
+        return 1
+    except struct.error:
+        return 1
+
+
+def _orient(im: Any, orientation: int) -> Any:
+    """The EXIF orientation applied (the mapping of PIL.ImageOps.exif_transpose, without its EXIF parsing)."""
+    from PIL import Image
+
+    method = {2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180, 4: Image.Transpose.FLIP_TOP_BOTTOM,
+              5: Image.Transpose.TRANSPOSE, 6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE,
+              8: Image.Transpose.ROTATE_90}.get(orientation)
+    return im.transpose(method) if method is not None else im
 
 
 # ---------------------------------------------------------------- the decode slot
@@ -211,28 +363,39 @@ def reencode(data: bytes, *, max_pixels: int = MAX_PIXELS, wait_s: float = DECOD
         raise IntakeError("heic_refused", 415)
     if kind not in ("jpeg", "png"):
         raise IntakeError("unsupported_format", 415)
+    raw = bytes(data)
     if kind == "png":
-        w, h = png_scan(bytes(data))
-        if w <= 0 or h <= 0 or w * h > max_pixels or max(w, h) > MAX_SIDE_IN:
-            raise IntakeError("too_many_pixels", 422, max_pixels=max_pixels)
-    elif bytes(data).count(b"\xff\xda") > JPEG_MAX_SCANS:
-        raise IntakeError("image_invalid", 422)
-    from PIL import Image, ImageOps
+        layout = png_layout(raw)
+        if layout.bit_depth == 16:
+            raise IntakeError("unsupported_format", 415)  # V6: 16-bit samples double every buffer of the decode
+        cap = min(max_pixels, PNG_MAX_PIXELS)
+    else:
+        layout = jpeg_layout(raw)
+        if layout.scans > (JPEG_MAX_SCANS if layout.progressive else SEQUENTIAL_MAX_SCANS):
+            raise IntakeError("image_invalid", 422)
+        cap = min(max_pixels, PROGRESSIVE_MAX_PIXELS) if layout.progressive else max_pixels
+    w, h = layout.width, layout.height
+    if w <= 0 or h <= 0 or w * h > cap or max(w, h) > MAX_SIDE_IN:
+        raise IntakeError("too_many_pixels", 422, max_pixels=cap)
+    del raw
+    from PIL import Image
 
     from .. import image_guard  # noqa: F401 - imported for its effect: the process-wide bomb threshold is set once there
 
     with decode_slot(wait_s, semaphore):
+        t0 = time.monotonic()
         try:
-            im = Image.open(io.BytesIO(bytes(data)), formats=["JPEG"] if kind == "jpeg" else ["PNG"])  # header only
-            if image_guard.check_pixels(im, max_pixels) is None or max(im.size) > MAX_SIDE_IN:
-                raise IntakeError("too_many_pixels", 422, max_pixels=max_pixels)
+            # the metadata-free copy, header only, with Pillow restricted to the sniffed decoder
+            im = Image.open(io.BytesIO(layout.clean), formats=["JPEG"] if kind == "jpeg" else ["PNG"])
+            if image_guard.check_pixels(im, cap) is None or max(im.size) > MAX_SIDE_IN or im.size != (w, h):
+                raise IntakeError("too_many_pixels", 422, max_pixels=cap)
             if kind == "jpeg":
                 w, h = im.size
                 longest = max(w, h)
                 # the smallest decode whose long side still reaches DRAFT_MIN_SIDE: the decoder downsamples by 1/2 .. 1/8
                 im.draft("RGB", (max(1, w * DRAFT_MIN_SIDE // longest), max(1, h * DRAFT_MIN_SIDE // longest)))
             im.load()
-            im = ImageOps.exif_transpose(im)
+            im = _orient(im, layout.orientation)
             im = _flatten(im)
             if max(im.size) > OUT_MAX_SIDE:
                 im.thumbnail((OUT_MAX_SIDE, OUT_MAX_SIDE), Image.Resampling.LANCZOS, reducing_gap=3.0)
@@ -246,8 +409,9 @@ def reencode(data: bytes, *, max_pixels: int = MAX_PIXELS, wait_s: float = DECOD
             raise IntakeError("too_many_pixels", 422, max_pixels=max_pixels) from None
         except Exception:  # noqa: BLE001 - review T7-4: a broken or hostile file is one answer, whatever failed inside Pillow
             raise IntakeError("image_invalid", 422) from None
+        ms = int((time.monotonic() - t0) * 1000)
     out = buf.getvalue()
-    return Reencoded(out, clean.width, clean.height, hashlib.sha256(out).hexdigest())
+    return Reencoded(out, clean.width, clean.height, hashlib.sha256(out).hexdigest(), decode_ms=ms)
 
 
 # ---------------------------------------------------------------- storage (confined paths, atomic writes)
@@ -393,11 +557,15 @@ class InFlight:
         self._lock = threading.Lock()
 
     @contextlib.contextmanager
-    def claim(self, key: str) -> Iterator[None]:
+    def claim(self, key: str, on_busy: Callable[[], None] | None = None) -> Iterator[None]:
         with self._lock:
-            if key in self._held:
-                raise IntakeError("busy", 429, retry_after_s=5)
-            self._held.add(key)
+            busy = key in self._held
+            if not busy:
+                self._held.add(key)
+        if busy:
+            if on_busy is not None:
+                on_busy()
+            raise IntakeError("busy", 429, retry_after_s=5)
         try:
             yield
         finally:

@@ -1,8 +1,11 @@
 """CR-038 log hygiene of the public listener (spec 10.4 / 17, review T16) and its health counters.
 
 What the public listener writes to the add-on log, and nothing else:
-- `smplwise.tickets.public` - one line per request: method, ROUTE TEMPLATE (`/t/r/{rid}`, never the path: the redeem id is in
-  the path), status, duration. DEBUG for answers below 500, WARNING for a 5xx. Never a header, a body, a query string, a
+- `smplwise.tickets.public` - the request line, one stable schema (code review 5.7): `public request method=GET
+  route=/t/r/{rid} status=404 ms=3 cost=unknown drain_ms=0 body_ms=0` - the ROUTE TEMPLATE, never the path (the redeem id
+  is in the path), and what the request cost (ratelimit.RequestCost.charges). Written at INFO for every 4xx and 1 in
+  SAMPLE_EVERY 2xx / 3xx, at WARNING for a 5xx, at DEBUG otherwise - and never more than LINES_PER_MINUTE INFO / WARNING
+  lines a minute (a flood is counted in `log_lines_suppressed`, not written). Never a header, a body, a query string, a
   client address, a token, a code, a session value or a phone number.
 - `smplwise.tickets.public.http` - what uvicorn's protocol layer of THIS listener reports, through `ProtocolLog`, which the
   listener's protocol class uses instead of the process-wide `uvicorn.error` logger:
@@ -40,6 +43,9 @@ CONCURRENCY = "Exceeded concurrency limit."
 EXCEPTION = "Exception in ASGI application"
 UPGRADE_NOTICES = ("Unsupported upgrade request.", "No supported WebSocket library detected")
 CONCURRENCY_NOTE_EVERY_S = 60.0
+SAMPLE_EVERY = 100  # 1 in N successful requests is written at INFO
+LINES_PER_MINUTE = 60  # INFO / WARNING request lines at most per minute
+LINK_TROUBLE_KEYS = 32  # links tracked in the health counters (busy / wasted uploads)
 
 
 def exception_summary(exc: BaseException | None) -> str:
@@ -64,6 +70,37 @@ class PublicStats:
         self.last_5xx_at: float | None = None
         self.started_at: float | None = None
         self.rate_limited = MinuteCounter(clock)
+        self.links: dict[str, collections.Counter[str]] = {}
+        self.last_probe: dict[str, Any] | None = None
+        self.decode_ms: collections.Counter[str] = collections.Counter()
+
+    DECODE_BUCKETS = (100, 300, 1000, 3000)
+
+    def observe_decode(self, ms: int) -> None:
+        """One image decode's duration into a coarse histogram (code review V6: the decode cost per upload is visible)."""
+        label = next((f"<{b}" for b in self.DECODE_BUCKETS if ms < b), f">={self.DECODE_BUCKETS[-1]}")
+        with self._lock:
+            self.decode_ms[label] += 1
+
+    def note_link(self, link_id: str, what: str) -> None:
+        """Per-link trouble for the health page (code review V2: which link's uploads are refused `busy`, which link pays for
+        uploads that store nothing - a trickler). At most LINK_TROUBLE_KEYS links; the quietest is dropped for a new one."""
+        key = str(link_id)[:12]
+        with self._lock:
+            c = self.links.get(key)
+            if c is None:
+                if len(self.links) >= LINK_TROUBLE_KEYS:
+                    quietest = min(self.links, key=lambda k: sum(self.links[k].values()))
+                    del self.links[quietest]
+                c = self.links[key] = collections.Counter()
+            c[what] += 1
+
+    def note_probe(self, *, peer: str | None, source: str, nonce: str | None) -> None:
+        """What the last `GET /t/healthz` saw (code review V3 / W13): the TCP peer and whether the client address came from the
+        trusted header. The settings route's address probe fetches the public URL with a random nonce and reads this back:
+        it then knows where cloudflared really connects from, and whether the trusted-proxy rule holds."""
+        with self._lock:
+            self.last_probe = {"at": self._clock(), "peer": (peer or "")[:64], "source": source, "nonce": nonce}
 
     def request(self, status: int) -> None:
         now = self._clock()
@@ -84,13 +121,57 @@ class PublicStats:
         with self._lock:
             return {"requests": self.requests, "by_class": dict(self.by_class), "counters": dict(self.counters),
                     "last_request_at": self.last_request_at, "last_5xx_at": self.last_5xx_at, "started_at": self.started_at,
-                    "rate_limited_24h": self.rate_limited.total()}
+                    "rate_limited_24h": self.rate_limited.total(),
+                    "links": {k: dict(v) for k, v in self.links.items()},
+                    "last_probe": dict(self.last_probe) if self.last_probe else None,
+                    "decode_ms": dict(self.decode_ms)}
 
 
-def log_request(method: str, template: str, status: int, duration_ms: float) -> None:
-    level = logging.WARNING if status >= 500 else logging.DEBUG
+class _LineBudget:
+    """The request-line sampler: 1 in SAMPLE_EVERY successes, every 4xx / 5xx, at most LINES_PER_MINUTE a minute."""
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._seen = 0
+        self._minute = -1
+        self._used = 0
+
+    def admit(self, status: int) -> bool:
+        with self._lock:
+            if status < 400:
+                self._seen += 1
+                if self._seen % SAMPLE_EVERY != 1:
+                    return False
+            minute = int(self._clock() // 60)
+            if minute != self._minute:
+                self._minute, self._used = minute, 0
+            if self._used >= LINES_PER_MINUTE:
+                return False
+            self._used += 1
+            return True
+
+
+_LINES = _LineBudget()
+
+
+def log_request(method: str, template: str, status: int, duration_ms: float, *, cost: str = "none", drain_ms: int = 0,
+                body_ms: int = 0, stats: PublicStats | None = None) -> None:
+    """The request line (see the module docstring). Every argument is ours: a method (8 characters at most), a route
+    TEMPLATE, numbers and RequestCost.charges - nothing the client chose."""
+    level = logging.WARNING if status >= 500 else logging.INFO
+    args = (method, template, status, int(duration_ms), cost, int(drain_ms), int(body_ms))
     if REQUEST_LOG.isEnabledFor(level):
-        REQUEST_LOG.log(level, "public %s %s -> %d (%d ms)", method, template, status, int(duration_ms))
+        if _LINES.admit(status):
+            REQUEST_LOG.log(level, _LINE, *args)
+            return
+        if status >= 400 and stats is not None:
+            stats.bump("log_lines_suppressed")
+    if REQUEST_LOG.isEnabledFor(logging.DEBUG):
+        REQUEST_LOG.debug(_LINE, *args)
+
+
+_LINE = "public request method=%s route=%s status=%d ms=%d cost=%s drain_ms=%d body_ms=%d"
 
 
 class ProtocolLog:

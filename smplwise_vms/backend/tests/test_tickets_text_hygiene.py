@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import random
+import unicodedata
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -12,7 +13,7 @@ from pydantic import BaseModel, ValidationError
 from smplwise.services.tickets import text_hygiene as th
 
 BIDI = ["‪", "‫", "‬", "‭", "‮", "⁦", "⁧", "⁨", "⁩", "‎", "‏", "؜"]
-ZERO_WIDTH = ["​", "‌", "‍", "⁠", "﻿", "­"]
+ZERO_WIDTH = ["​", "‍", "⁠", "﻿", "­"]  # U+200C ZWNJ is spelling: kept (V11)
 
 
 def test_bidi_overrides_and_zero_width_characters_are_removed():
@@ -48,7 +49,7 @@ def test_niqqud_stays_and_stacked_marks_are_cut():
     assert th.clean_text(pointed) == pointed
     zalgo = "a" + "́" * 50 + "b"
     out = th.clean_text(zalgo)
-    assert out == "a" + "́" * th.MAX_COMBINING + "b"
+    assert out == unicodedata.normalize("NFC", "a" + "́" * th.MAX_COMBINING + "b")  # the cap, then NFC (a + U+0301 = U+00E1)
 
 
 def test_enclosing_and_class_zero_marks_are_capped_too():
@@ -58,6 +59,24 @@ def test_enclosing_and_class_zero_marks_are_capped_too():
     for mark in ("⃝", "҉", "ަ", "ः"):
         out = th.clean_text("x" + mark * 60 + "y")
         assert out == "x" + mark * th.MAX_COMBINING + "y", hex(ord(mark))
+
+
+def test_spelling_format_characters_are_kept_and_the_text_is_nfc():
+    """Code review V11: ZWNJ (Persian / Urdu spelling) and the prepended number signs stay - they have no bidi or hiding
+    effect; the Arabic letter mark U+061C is a bidi control and goes. The result is NFC: precomposed and decomposed niqqud
+    give one string."""
+    persian = "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645"  # "I want", with its required ZWNJ
+    assert th.clean_text(persian) == persian
+    year = "\u0600\u0661\u0664\u0664\u0667"  # the Arabic number sign over a year
+    assert th.clean_text(year) == year
+    for ch in sorted(th.KEEP_FORMAT):
+        assert th.clean_text(f"a{ch}b") == f"a{ch}b", hex(ord(ch))
+        assert not th.is_hidden(ch) and th.hidden_characters(f"a{ch}b") == []
+    assert th.clean_text("a\u061cb") == "ab"
+    decomposed = "e\u0301"  # e + combining acute
+    assert th.clean_text(decomposed) == "\u00e9"
+    shin = "\u05e9\u05c1"  # shin + shin dot: NFC keeps it as two code points (excluded from composition), one form
+    assert th.clean_text(shin) == th.clean_text("\ufb2a") == "\u05e9\u05c1"
 
 
 def test_emoji_joiners_fall_apart_as_accepted_by_the_spec():

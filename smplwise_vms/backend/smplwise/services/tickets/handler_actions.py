@@ -5,7 +5,7 @@ Every write is ONE transaction (the request's `db.connection()`), and inside it,
 1. the link and its ticket are read AGAIN (the lookup that admitted the request ran before the write lock): a link that
    stopped serving meanwhile - revoked, returned, reassigned, past its expiry or grace - is the uniform 404; a read-only grace
    is 409 `read_only` (W2);
-2. the `ticket_requests` row of (`link:<id>`, client_request_id) is CLAIMED (W5, review T22): a repeat replays the first
+2. the `ticket_requests` row of (`link:<id>:<generation>`, client_request_id) is CLAIMED (W5, review T22): a repeat replays the first
    answer, the same id on another route is 409 `request_id_reused`;
 3. the effect: the ticket / assignment rows, the timeline row (`actor_kind = 'contact'`, `via = 'link'`, `visible_external = 1`),
    the audit row (actor `contact:<id>`, source `ticket_link`, an envelope only - never a note, a reason or a file);
@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ...db import get_setting, new_id
-from . import handler_links, model, naming, notify_bridge, settings_doc, store, store_links
+from . import handler_links, model, naming, notify_bridge, settings_doc, sla, store, store_links
 from .public_ports import LinkRecord, StoredImage
 from .public_store import audit_link, fold
 
@@ -92,7 +92,10 @@ def fresh(conn, link: LinkRecord, now: dt.datetime, *, write: bool = True) -> Fr
 
 
 def _scope(link: LinkRecord) -> str:
-    return f"link:{link.link_id}"
+    """The idempotency scope of the public app (`link:<link_id>:<generation>`, code review V19) - one rule for every route."""
+    from .public_app import idempotency_scope
+
+    return idempotency_scope(link)
 
 
 def claim(conn, link: LinkRecord, crid: str, route: str, now: dt.datetime) -> tuple[int, dict[str, Any]] | None:
@@ -160,6 +163,7 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     store.update_ticket(conn, f.ticket["id"], fields)
     _event(conn, f, "status", now, from_status=frm, to_status=to, body=note or None)
     _progress(conn, f, now, client_key)
+    sla.refresh(conn, f.ticket["id"])  # slice 2: the dues follow every change of a ticket
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
     notify_bridge.ticket_status(conn, f.ticket["id"], frm, to)
     return _finish(conn, f.link, crid, 200, {"ok": True, "status": to})
@@ -175,6 +179,7 @@ def add_note(conn, link: LinkRecord, *, text: str, crid: str, now: dt.datetime, 
     eid = _event(conn, f, "note", now, body=text)
     store.update_ticket(conn, f.ticket["id"], {"last_activity_at": at, "last_external_activity_at": at}, bump=False)
     _progress(conn, f, now, client_key)
+    sla.refresh(conn, f.ticket["id"])
     audit_link(conn, f.link, "ticket.note")
     return _finish(conn, f.link, crid, 200, {"ok": True, "id": eid})
 
@@ -195,6 +200,7 @@ def set_eta(conn, link: LinkRecord, *, eta_at: str | None, crid: str, now: dt.da
     store.update_ticket(conn, f.ticket["id"], {"eta_at": value, "last_activity_at": at, "last_external_activity_at": at})
     _event(conn, f, "eta", now, data={"eta_at": value})
     _progress(conn, f, now, client_key)
+    sla.refresh(conn, f.ticket["id"])  # a future ETA suppresses "stuck" until it passes (13.2)
     audit_link(conn, f.link, "ticket.eta", cleared=value is None)
     return _finish(conn, f.link, crid, 200, {"ok": True, "eta_at": value})
 
@@ -223,6 +229,7 @@ def give_back(conn, link: LinkRecord, *, kind: str, reason: str, crid: str, now:
     handler_links.revoke(conn, f.row, "not_mine" if kind == "not_mine" else "returned", now)
     store_links.note_update(conn, f.link.link_id)
     store_links.insert_access(conn, f.link.link_id, at, "update", client_key)
+    sla.refresh(conn, f.ticket["id"])  # unassigned again: the first-response clock restarts
     audit_link(conn, f.link, "ticket.return", kind=kind)
     notify_bridge.ticket_returned(conn, f.ticket["id"], kind)
     return _finish(conn, f.link, crid, 200, {"ok": True, "status": "returned", "kind": kind, "number": f.ticket["number"]})
@@ -253,6 +260,7 @@ def record_photo(conn, link: LinkRecord, image: StoredImage, crid: str, *, now: 
                                    "uploaded_by_kind": "contact", "uploaded_by": f.link.contact_id, "visible_external": 1, "created_at": at})
     store.update_ticket(conn, f.ticket["id"], {"last_activity_at": at, "last_external_activity_at": at}, bump=False)
     _progress(conn, f, when, client_key)
+    sla.refresh(conn, f.ticket["id"])
     audit_link(conn, f.link, "ticket.photo", attachment_id=att_id, bytes=image.bytes)
     answer = {"id": att_id, "width": image.width, "height": image.height}
     store_links.finish_request(conn, _scope(f.link), crid, 201, answer)
@@ -342,6 +350,7 @@ def view(conn, link: LinkRecord, *, code_ok: bool, read_only: bool, now: dt.date
         "code_required": bool(link.require_code),
         "code_ok": bool(code_ok),
         "read_only": bool(read_only),
+        "read_only_until": iso(at_epoch(link.grace_until)) if read_only and link.grace_until else None,
         "expires_at": iso(at_epoch(link.expires_at)),
     }
     if link.require_code and not code_ok:

@@ -8,7 +8,8 @@ The engine (codes.CodeEngine) decides; this module connects it to the store, the
     cannot AND the link itself did not leave by e-mail (it went by WhatsApp or was copied by the manager); otherwise None ->
     `code/send` answers 503 `code_unavailable`.
   * `send(link, code_id, channel)`: re-reads the link inside one write transaction (still serving, same generation), derives
-    the six digits from the code row id (codes.derive_code) and hands them to the dispatcher's `queue_code` IN MEMORY - the
+    the six digits from the code row id under the link's own key (codes.derive_code; key ids, review V4) and hands them
+    to the dispatcher's `queue_code` IN MEMORY - the
     outbox row keeps the code row id only, never the digits (code review W9; the msg-core outbox holds a code in
     TransientSecrets until the row is final). The code row learns its `outbox_id`. Audit `ticket.link.code_send` (channel only).
     Any failure answers False: the engine withdraws the code and the page shows "code unavailable".
@@ -80,7 +81,7 @@ def _live(conn, link: LinkRecord, t: float) -> tuple[LinkRecord, dict[str, Any]]
 
 
 class SqlCodeSender:
-    def __init__(self, db: Database, key: Callable[[], bytes], *, dispatch=None, clock: Callable[[], float] | None = None) -> None:
+    def __init__(self, db: Database, key: Callable[[str | None], bytes], *, dispatch=None, clock: Callable[[], float] | None = None) -> None:
         self.db = db
         self._key = key
         self._dispatch = dispatch
@@ -98,7 +99,6 @@ class SqlCodeSender:
         if channel not in codes_mod.CHANNELS:
             return False
         try:
-            key = self._key()
             with self.db.connection(label="tickets.public.code_send") as conn:
                 live = _live(conn, link, self._clock())
                 if live is None:
@@ -114,7 +114,7 @@ class SqlCodeSender:
                 queue = getattr(self.dispatch(), "queue_code", None)
                 if queue is None:
                     return False
-                result = queue(conn, ticket=ticket, link=link_row, contact=contact, code=codes_mod.derive_code(key, code_id),
+                result = queue(conn, ticket=ticket, link=link_row, contact=contact, code=codes_mod.derive_code(self._key(link_row.get("key_id")), code_id),
                                code_id=code_id, channel=channel, requested_by=f"contact:{rec.contact_id}")
                 if not isinstance(result, dict) or not result.get("queued"):
                     return False

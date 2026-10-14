@@ -27,7 +27,7 @@ from typing import Any, Protocol
 
 from ...audit import audit
 from ...errors import ApiError
-from . import access, codes as codes_mod, handler_links, links, model, naming, notify_bridge, store, store_links
+from . import access, codes as codes_mod, handler_links, links, model, naming, notify_bridge, sla, store, store_links
 from .access import Seen, Viewer, text
 from .module_key import ModuleKeyError
 from .present import can_reopen
@@ -98,7 +98,7 @@ def _refuse(conn, viewer: Viewer, action: str, row: dict[str, Any], reason: str,
 
 
 def _not_allowed(conn) -> ApiError:
-    return ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את ה{ticket} לאיש הקשר הזה."))
+    return ApiError(409, "assignee_not_allowed", text(conn, "לא ניתן לשלוח לאיש הקשר הזה."))
 
 
 def _unavailable(conn) -> ApiError:
@@ -192,7 +192,7 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     d = handler_links.durations(conn, row["department_id"])
     now = handler_links.now_utc()
     expires, cap = handler_links.first_expiry(now, d, handler_links.resolve_window_min(conn, row["department_id"], row["priority_id"]))
-    return {
+    out = {
         "channel": DISPATCH.channel(conn, contact),
         "lang": lang,
         "text": render_message(conn, row, contact, LINK_PLACEHOLDER[lang]),
@@ -204,6 +204,10 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
                  "expires_at": handler_links.iso(expires), "cap_at": handler_links.iso(cap)},
         "refusals": refusals,
     }
+    extra = getattr(DISPATCH, "preview_extra", None)  # slice 5b: the template text, the account, the send-hours line, "send now"
+    if extra is not None:
+        out.update(extra(conn, row, contact))
+    return out
 
 
 def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: str | None, note_external: bool, require_code: bool | None,
@@ -218,15 +222,15 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     status = row["status"]
     dept = store.department_any(conn, row["department_id"])
     if status == "closed" and not can_reopen(row, dept):
-        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את ה{ticket}."))
+        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן לפתיחה מחדש."))
     if status not in model.ASSIGN_FROM:
         raise ApiError(409, "invalid_transition", text(conn, "המעבר הזה אינו אפשרי במצב הנוכחי."), details={"from": status, "to": "assigned"})
     if row["revision"] != revision:
-        raise ApiError(409, "ticket_stale", text(conn, "ה{ticket} {f:השתנתה|m:השתנה} בינתיים. טענו מחדש."), details={"revision": row["revision"]})
+        raise ApiError(409, "ticket_stale", text(conn, "הנתונים השתנו בינתיים. טענו מחדש."), details={"revision": row["revision"]})
     contact, vendor = contact_for(conn, row, contact_id)
     current = row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
     if current and row.get("asg_kind") == "contact" and row.get("asg_contact_id") == contact_id:
-        raise ApiError(409, "already_assigned", text(conn, "ה{ticket} כבר אצל המטפל הזה."))
+        raise ApiError(409, "already_assigned", text(conn, "כבר נשלח למטפל הזה."))
     req = codes_mod.effective_require_code(contact_requires_code(contact, vendor), require_code)
     _code_check(conn, contact, req)
     hist = history_option(conn, row, contact, vendor)
@@ -261,7 +265,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                        "reopen_count": int(row.get("reopen_count") or 0) + 1})
         handler_links.on_reopened(conn, row["id"], now_dt)
     if not store.update_ticket(conn, row["id"], fields, expect_revision=revision):
-        raise ApiError(409, "ticket_stale", text(conn, "ה{ticket} {f:השתנתה|m:השתנה} בינתיים. טענו מחדש."), details={"revision": row["revision"]})
+        raise ApiError(409, "ticket_stale", text(conn, "הנתונים השתנו בינתיים. טענו מחדש."), details={"revision": row["revision"]})
     who = store.display_name(conn, viewer.uid) or viewer.principal.display_name or viewer.principal.username
     if reopened:
         store.insert_event(conn, row["id"], "reopened", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, from_status="closed", to_status="assigned")
@@ -280,6 +284,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued"))})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "link": link_row["id"][:6], "generation": 1})
+    sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)
     notify_bridge.ticket_assigned(conn, row["id"], aid)
     return aid
 
@@ -292,7 +297,7 @@ def _current_link(conn, seen: Seen) -> dict[str, Any]:
     current = row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
     link_row = store_links.link_for_assignment(conn, current) if current and row.get("asg_kind") == "contact" else None
     if link_row is None:
-        raise ApiError(409, "no_link", text(conn, "ל{ticket} אין קישור פעיל של מטפל חיצוני."))
+        raise ApiError(409, "no_link", text(conn, "אין קישור פעיל של מטפל חיצוני."))
     return link_row
 
 
@@ -317,7 +322,7 @@ def copy_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[
         raise _unavailable(conn) from None
     except ModuleKeyError:
         raise ApiError(409, "module_key_missing", text(conn, "מפתח המודול חסר (שחזור ללא secrets/). שחזרו את התיקייה מהגיבוי.")) from None
-    store_links.update_link(conn, link_row["id"], {"sent_via": "manual"})
+    handler_links.mark_sent(conn, link_row["id"], "manual", now)
     store.insert_event(conn, seen.row["id"], "link_copied", actor_kind="user", actor_user_id=viewer.uid,
                        actor_name=store.display_name(conn, viewer.uid), assignment_id=link_row["assignment_id"])
     audit(conn, actor=viewer.principal, action="ticket.link.copy", decision="allowed", resource_type="ticket", resource_id=seen.row["id"], request_id=rid,

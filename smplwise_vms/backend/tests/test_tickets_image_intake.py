@@ -6,10 +6,13 @@ the one-upload-per-link guard. Every file is synthesised; no real photo is used.
 from __future__ import annotations
 
 import io
+import os
 import struct
+import sys
 import threading
 import time
 import zlib
+from pathlib import Path
 
 import pytest
 from conftest import sw_time_factor
@@ -133,17 +136,36 @@ def test_metadata_never_survives_gps_exif_icc_xmp_comment():
         assert needle not in out.data, needle
 
 
-def test_exif_values_never_reach_a_log_record_even_at_debug(caplog):
-    """Regression (found by the log scan): Pillow's TIFF reader logs every EXIF tag VALUE at DEBUG while exif_transpose reads
-    them; the module keeps Pillow's loggers at INFO so an add-on at log level "debug" never writes a photo's metadata."""
+def test_metadata_never_reaches_a_log_record_whatever_pillows_log_level(caplog):
+    """Regression (found by the log scan) and code review V10: Pillow's TIFF reader logs EXIF tag VALUES at DEBUG and its PNG
+    reader an ICC profile's NAME. The decoder never receives an upload's metadata (the structure walk hands it a clean copy),
+    so nothing leaks even with every Pillow logger at its lowest level - the INFO pin on `PIL` is belt and braces only."""
     import logging
 
-    assert logging.getLogger("PIL").level == logging.INFO
+    assert logging.getLogger("PIL").level == logging.INFO  # the pin is still there ...
+    pil = [logging.getLogger(n) for n in ("PIL", "PIL.Image", "PIL.TiffImagePlugin", "PIL.PngImagePlugin", "PIL.JpegImagePlugin")]
+    saved = [lg.level for lg in pil]
     exif = Image.Exif()
-    exif[0x010E] = "GPS 32.0853N 34.7818E exif-log-secret"
-    caplog.set_level(1)  # the root logger at its lowest level (restored by caplog)
-    ii.reencode(jpeg(120, 80, exif=exif.tobytes()))
-    assert "exif-log-secret" not in caplog.text
+    exif[0x010E] = "exif-log-secret"  # short: Pillow logs values of up to 32 bytes in full
+    exif[0x0112] = 6
+    photo = jpeg(120, 80, exif=exif.tobytes())  # built BEFORE the levels drop: building EXIF logs it too
+    iccp = chunk(b"iCCP", b"iccp-name-secret\x00\x00" + zlib.compress(b"\x00" * 128))
+    text = chunk(b"tEXt", b"Comment\x00text-log-secret")
+    ztxt = chunk(b"zTXt", b"Author\x00\x00" + zlib.compress(b"ztxt-log-secret"))
+    screenshot = png_with(iccp, text, ztxt, chunk(b"eXIf", exif.tobytes()))
+    try:
+        for lg in pil:
+            lg.setLevel(1)  # ... and does not matter: someone debugging Pillow cannot re-open the leak
+        caplog.set_level(1)
+        out = ii.reencode(photo)
+        assert reopen(out).size == (80, 120)  # the orientation was still applied
+        assert reopen(ii.reencode(screenshot)).size == (8, 8)
+    finally:
+        for lg, level in zip(pil, saved):
+            lg.setLevel(level)
+    assert caplog.records, "nothing captured: the capture is not wired"
+    for secret in ("exif-log-secret", "iccp-name-secret", "text-log-secret", "ztxt-log-secret"):
+        assert secret not in caplog.text, secret
 
 
 def test_exif_orientation_is_applied_after_the_pixel_check():
@@ -151,6 +173,36 @@ def test_exif_orientation_is_applied_after_the_pixel_check():
     exif[0x0112] = 6  # rotate 90 on display
     out = ii.reencode(jpeg(200, 100, exif=exif.tobytes()))
     assert reopen(out).size == (100, 200)
+
+
+@pytest.mark.parametrize("orientation", range(1, 9))
+def test_the_own_orientation_reader_matches_pillows_exif_transpose(orientation):
+    """The bounded IFD0 reader + transpose give exactly what PIL.ImageOps.exif_transpose gives (big- and little-endian EXIF)."""
+    from PIL import ImageOps
+
+    src = Image.frombytes("RGB", (6, 4), bytes(range(72)))
+    exif = Image.Exif()
+    exif[0x0112] = orientation
+    for endian in ("<", ">"):
+        block = exif.tobytes()
+        if endian == ">":  # re-pack as a big-endian TIFF block
+            le = Image.Exif()
+            le[0x0112] = orientation
+            block = b"MM\x00\x2a\x00\x00\x00\x08\x00\x01" + struct.pack(">HHIHH", 0x0112, 3, 1, orientation, 0) + b"\x00" * 4
+        assert ii.exif_orientation(block[6:] if block.startswith(b"Exif") else block) == orientation
+    buf = io.BytesIO()
+    src.save(buf, "PNG", exif=exif.tobytes())
+    out = reopen(ii.reencode(buf.getvalue()))
+    expected = ImageOps.exif_transpose(Image.open(io.BytesIO(buf.getvalue())))
+    assert out.size == expected.size
+
+
+@pytest.mark.parametrize("block", [b"", b"II", b"XX*\x00\x08\x00\x00\x00", b"II*\x00\xff\xff\xff\xff",
+                                   b"II*\x00\x08\x00\x00\x00\xff\xff" + b"\x00" * 12,
+                                   b"II*\x00\x08\x00\x00\x00\x01\x00\x12\x01\x04\x00\x01\x00\x00\x00\x06\x00\x00\x00",
+                                   b"II*\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00\x09\x00\x00\x00"])
+def test_a_broken_or_odd_exif_block_means_no_rotation(block):
+    assert ii.exif_orientation(block) == 1
 
 
 @pytest.mark.parametrize("payload", [b"<html><script>alert(document.cookie)</script></html>", b"PK\x03\x04" + b"\x14\x00" * 20 + b"evil.js"])
@@ -175,14 +227,25 @@ def test_palette_and_grayscale_and_cmyk_inputs():
     assert reopen(ii.reencode(buf.getvalue())).mode == "RGB"
 
 
-def test_sixteen_bit_png_is_either_converted_or_refused_cleanly():
+def test_sixteen_bit_png_is_refused_before_any_decode():
+    """Code review V6: 16-bit samples double every buffer of a PNG decode (16 MP RGBA16 = 128 MB); refused from IHDR."""
     buf = io.BytesIO()
     Image.new("I;16", (40, 40), 30000).save(buf, "PNG")
-    try:
-        out = ii.reencode(buf.getvalue())
-        assert reopen(out).mode == "RGB"
-    except ii.IntakeError as exc:
-        assert (exc.code, exc.status) == ("image_invalid", 422)
+    assert ii.png_layout(buf.getvalue()).bit_depth == 16
+    t0 = time.monotonic()
+    refuse(buf.getvalue(), "unsupported_format", 415)
+    rgb16 = png_with(w=8, h=8).replace(struct.pack(">IIBB", 8, 8, 8, 2), struct.pack(">IIBB", 8, 8, 16, 2))
+    rgb16 = rgb16[:8] + chunk(b"IHDR", struct.pack(">IIBBBBB", 8, 8, 16, 2, 0, 0, 0)) + rgb16[33:]
+    refuse(rgb16, "unsupported_format", 415)
+    assert time.monotonic() - t0 < 0.5 * sw_time_factor()
+
+
+def test_png_over_8_megapixels_is_refused_and_8_passes():
+    refuse(patch_png_size(png(10, 10), 4000, 2001), "too_many_pixels", 422)
+    with pytest.raises(ii.IntakeError) as e:
+        ii.reencode(patch_png_size(png(10, 10), 4000, 2001))
+    assert e.value.details == {"max_pixels": ii.PNG_MAX_PIXELS}
+    assert reopen(ii.reencode(png(4000, 2000))).size == (2048, 1024)
 
 
 # ---------------------------------------------------------------- refused by type (magic bytes, never the name)
@@ -227,15 +290,46 @@ def test_jpeg_pixel_bomb_and_16mp_plus_one_are_refused_from_the_header():
     refuse(patch_jpeg_size(jpeg(16, 16), 10001, 16), "too_many_pixels", 422)
 
 
-def test_zlib_text_bomb_stays_bounded():
-    bomb = zlib.compress(b"\x00" * (60 * 1024 * 1024), 9)  # ~60 KiB that inflate to 60 MB
+def test_zlib_text_bomb_never_reaches_the_decoder():
+    """A 60 KiB zTXt chunk that inflates to 60 MB: the structure walk keeps it out of the decoder (Pillow would inflate it while
+    opening), so the image is accepted quickly with the text gone - not refused by luck of Pillow's own text limit."""
+    bomb = zlib.compress(b"\x00" * (60 * 1024 * 1024), 9)
     assert len(bomb) < 64 * 1024
     data = png_with(chunk(b"zTXt", b"Comment\x00\x00" + bomb))
-    try:
-        out = ii.reencode(data)
-        assert b"Comment" not in out.data  # accepted only with the text dropped
-    except ii.IntakeError as exc:
-        assert exc.code == "image_invalid"
+    assert b"zTXt" not in ii.png_layout(data).clean
+    t0 = time.monotonic()
+    out = ii.reencode(data)
+    assert time.monotonic() - t0 < 1.0 * sw_time_factor()
+    assert b"Comment" not in out.data and reopen(out).size == (8, 8)
+
+
+def test_the_decoder_gets_a_metadata_free_copy():
+    exif = Image.Exif()
+    exif[0x010E] = "walk-secret"
+    data = insert_after_soi(jpeg(64, 48, exif=exif.tobytes(), icc_profile=b"ICC-WALK" * 8),
+                            jpeg_segment(0xFE, b"com-walk"), jpeg_segment(0xED, b"Photoshop 3.0\x00psd-walk"))
+    data = data + jpeg(32, 32) + b"trailing-walk"  # an MPF-style secondary image and a payload after the primary EOI
+    layout = ii.jpeg_layout(data)
+    assert (layout.width, layout.height, layout.progressive, layout.scans) == (64, 48, False, 1)
+    for needle in (b"walk-secret", b"ICC-WALK", b"com-walk", b"psd-walk", b"trailing-walk", b"Exif"):
+        assert needle not in layout.clean, needle
+    assert layout.clean.endswith(b"\xff\xd9") and layout.clean.count(b"\xff\xd8") == 1
+    assert reopen(ii.reencode(data)).size == (64, 48)
+
+
+@pytest.mark.parametrize("marker,code,status", [(0xC3, "unsupported_format", 415), (0xC9, "unsupported_format", 415),
+                                                (0xCA, "unsupported_format", 415), (0xC5, "unsupported_format", 415)])
+def test_lossless_hierarchical_and_arithmetic_frames_are_refused(marker, code, status):
+    data = jpeg(16, 16)
+    i = data.index(b"\xff\xc0")
+    refuse(data[:i + 1] + bytes([marker]) + data[i + 2:], code, status)
+
+
+def test_twelve_bit_and_odd_component_frames_are_refused():
+    data = jpeg(16, 16)
+    i = data.index(b"\xff\xc0")
+    refuse(data[:i + 4] + b"\x0c" + data[i + 5:], "unsupported_format", 415)  # 12-bit samples
+    refuse(data[:i + 9] + b"\x02" + data[i + 10:], "image_invalid", 422)  # two components
 
 
 @pytest.mark.parametrize("extra,code,status", [
@@ -260,12 +354,27 @@ def test_png_structure_errors():
 
 def test_progressive_jpeg_is_fine_and_a_scan_bomb_is_refused_before_decoding():
     progressive = jpeg(640, 480, noise=True, progressive=True)
-    assert 1 < progressive.count(b"\xff\xda") <= ii.JPEG_MAX_SCANS
+    layout = ii.jpeg_layout(progressive)
+    assert layout.progressive and 1 < layout.scans <= ii.JPEG_MAX_SCANS
     assert ii.reencode(progressive).width == 640
-    bomb = jpeg(16, 16)[:-2] + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00" * (ii.JPEG_MAX_SCANS + 1) + b"\xff\xd9"
     t0 = time.monotonic()
-    refuse(bomb, "image_invalid", 422)
+    sequential_bomb = jpeg(16, 16)[:-2] + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00" * ii.SEQUENTIAL_MAX_SCANS + b"\xff\xd9"
+    refuse(sequential_bomb, "image_invalid", 422)
+    progressive_bomb = progressive[:-2] + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00" * ii.JPEG_MAX_SCANS + b"\xff\xd9"
+    refuse(progressive_bomb, "image_invalid", 422)
     assert time.monotonic() - t0 < 1.0 * sw_time_factor()
+
+
+def test_a_progressive_jpeg_over_8_megapixels_is_refused_from_the_header():
+    """Code review V6: libjpeg keeps a progressive image's whole coefficient buffer whatever the draft scale - 8 MP for
+    progressive, 16 MP stays for baseline."""
+    progressive = jpeg(64, 48, progressive=True)
+    i = progressive.index(b"\xff\xc2")
+    big = progressive[:i + 5] + struct.pack(">HH", 2001, 4000) + progressive[i + 9:]
+    with pytest.raises(ii.IntakeError) as e:
+        ii.reencode(big)
+    assert (e.value.code, e.value.status, e.value.details) == ("too_many_pixels", 422, {"max_pixels": ii.PROGRESSIVE_MAX_PIXELS})
+    assert ii.jpeg_layout(patch_jpeg_size(jpeg(16, 16), 4000, 4000)).width == 4000  # a baseline 16 MP header passes the walk
 
 
 def test_truncated_jpeg_is_one_clean_refusal():
@@ -442,3 +551,36 @@ def test_one_upload_in_flight_per_link():
     for t in threads:
         t.join(5)
     assert len(wins) == 1
+
+
+@pytest.mark.skipif(not (os.environ.get("SW_MEASURE_RSS") == "1" and sys.platform.startswith("linux")),
+                    reason="a measurement: Linux (the add-on image) and SW_MEASURE_RSS=1 only")
+@pytest.mark.parametrize("case", ["baseline_16mp", "progressive_8mp", "png_rgba_8mp"])
+def test_peak_rss_of_one_decode_per_path(tmp_path, case):
+    """Code review V6: the peak memory of ONE upload's decode, per path, in a fresh interpreter (ru_maxrss before / after the
+    reencode call). A measurement with a loose bound, run on the runner on demand: SW_MEASURE_RSS=1 pytest -k peak_rss -s."""
+    import subprocess
+
+    if case == "baseline_16mp":
+        data = jpeg(4000, 4000, noise=True)
+    elif case == "progressive_8mp":
+        data = jpeg(4000, 2000, noise=True, progressive=True)
+    else:
+        buf = io.BytesIO()
+        Image.frombytes("RGBA", (4000, 2000), bytes((i * 31) % 251 for i in range(4000 * 2000 * 4))).save(buf, "PNG")
+        data = buf.getvalue()
+    src = tmp_path / "upload.bin"
+    src.write_bytes(data)
+    code = ("import resource, sys; from pathlib import Path\n"
+            "from smplwise.services.tickets import image_intake as ii\n"
+            f"data = Path({str(src)!r}).read_bytes()\n"
+            "before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
+            "ii.reencode(data)\n"
+            "after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
+            "print(before, after)\n")
+    out = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+                         timeout=120, check=True).stdout.split()
+    before_kb, after_kb = int(out[0]), int(out[1])
+    peak_mb = (after_kb - before_kb) / 1024
+    print(f"peak RSS growth of one decode, {case}: {peak_mb:.0f} MB")
+    assert peak_mb < 400

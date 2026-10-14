@@ -47,3 +47,5 @@ smplwise_vms/downloads/*
 
 # M074 visual-diff artifacts
 frontend/visual-out/
+# CR-038 S4: the handler page's local build (the add-on's copy is smplwise_vms/www-public/, committed at release)
+dist-public/

@@ -33,7 +33,9 @@ class LinkRecord:
     `revoked`: `revoked_at` is set (reassign, return / "לא שלי", manual, key rotation, contact change / erase, new generation,
     module key) OR the assignment is no longer the ticket's current one - slice 4 folds both into this flag.
     `grace_until`: set at close / cancel (spec 10.2, D5): until then the page is read-only; afterwards the link is unavailable.
-    `recipient_key`: the contact's `phone_key` (per-recipient code caps across links), None when the contact has no phone."""
+    `recipient_key`: the contact's `phone_key` (per-recipient code caps across links), None when the contact has no phone.
+    `key_id`: `ticket_links.key_id` - the module key (module_key ids) that derived this link's token; its codes are hashed and
+    derived under the same key (code review V4: every row that depends on the key names the key)."""
 
     link_id: str
     generation: int
@@ -42,6 +44,7 @@ class LinkRecord:
     contact_id: str
     require_code: bool
     expires_at: float
+    key_id: str
     grace_until: float | None = None
     revoked: bool = False
     recipient_key: str | None = None
@@ -146,18 +149,19 @@ class RequestLog(Protocol):
 class CodeRecord:
     id: str
     link_id: str
+    generation: int  # `ticket_link_codes.generation` (code review V8): a code belongs to one generation of its link
     code_hash: str
     channel: str  # 'whatsapp' | 'email'
     created_at: float
     expires_at: float
     attempts: int = 0
     consumed_at: float | None = None
-    generation: int = 1  # the link generation the code belongs to (code review V8)
 
 
 @dataclass(frozen=True)
 class FailureRecord:
-    """`ticket_link_failures`: the wrong-code window of a link (the second_factor._Failures pattern)."""
+    """`ticket_link_failures`: the wrong-code window of one link GENERATION (the second_factor._Failures pattern; keyed by
+    (link_id, generation) since code review V8)."""
 
     window_start: float
     failures: int
@@ -175,17 +179,19 @@ class SessionRecord:
 
 @runtime_checkable
 class CodeStore(Protocol):
-    """Every per-link read and the wrong-code window are scoped to the link GENERATION (code review V8): a code, its send caps
-    and its lock belong to one generation, so the manager's "new link" starts clean by construction."""
+    """Every read and window is per (link_id, generation) (code review V8): a code, a failure window and the send caps of one
+    generation never reach another. Index `ticket_link_codes(link_id, generation, created_at)` and key `ticket_link_failures`
+    by (link_id, generation)."""
 
     def latest_code(self, link_id: str, generation: int) -> CodeRecord | None:
-        """The newest code of the link's generation in any state (consumed, expired, invalidated by a newer one)."""
+        """The newest code of that link generation in any state (consumed, expired, invalidated by a newer one)."""
 
     def code_times_since(self, link_id: str, generation: int, since: float) -> list[float]:
-        """`created_at` of every code of the link's generation created at or after `since`, ascending (the per-link send caps)."""
+        """`created_at` of every code of that link generation created at or after `since`, ascending (the send caps)."""
 
     def replace_code(self, record: CodeRecord, now: float) -> None:
-        """Insert `record`; every older unconsumed code of the same link stops being valid at `now` (expires_at = now)."""
+        """Insert `record`; every older unconsumed code of the same LINK (any generation) stops being valid at `now`
+        (expires_at = now) - in the same transaction as the insert (W7)."""
 
     def expire_code(self, code_id: str, now: float) -> None:
         """The code could not be handed to a channel: it stops being valid (it still counts against the send caps)."""
@@ -194,7 +200,7 @@ class CodeStore(Protocol):
         """Count one wrong attempt on this code; returns the new count."""
 
     def consume(self, code_id: str, now: float) -> bool:
-        """Mark the code used; True only for the first caller (compare-and-set on `consumed_at IS NULL`)."""
+        """Mark the code used; True only for the first caller (compare-and-set on `consumed_at IS NULL`, check rowcount)."""
 
     def failures(self, link_id: str, generation: int) -> FailureRecord | None:
         ...
@@ -222,16 +228,17 @@ class CodeSender(Protocol):
     def send(self, link: LinkRecord, code_id: str, channel: str) -> bool:
         """Queue the code message (the `code` template: no link, no title) for the code row `code_id`. False = it could not be
         queued. The code itself is never stored, queued or logged: the outbox row keeps `code_id` only and the worker derives
-        the six digits at render time with `codes.derive_code(k_tickets, code_id)` - exactly as it derives the link URL from
-        (link_id, generation). (Spec gap resolved here: 7.3 forbids `{code}` in `params_json` and 10.5 stores only an HMAC.)"""
+        the six digits at render time with `codes.derive_code(key(link.key_id), code_id)` - exactly as it derives the link
+        URL from (link_id, generation) under the link's key. (Spec gap resolved here: 7.3 forbids `{code}` in `params_json`
+        and 10.5 stores only an HMAC.)"""
 
 
 @runtime_checkable
 class CodeEvents(Protocol):
-    """What the module records around the public code routes (slice 7, spec 10.5 / 7.2): the access rows the manager sees
-    (`code_ok`, `code_bad`, `locked`), the timeline (`code_verified`, `code_locked`), the audit envelope, the sliding expiry of a
-    verified code and the ticket's "waiting for the manager" (`code_locked`) when a guess starts a lock. Never receives a code,
-    a hash or a session value. A failure here never changes the public answer (the code engine already decided)."""
+    """What the module records around `code/verify` (slice 7, spec 10.5 / 7.2): the access rows the manager sees (`code_ok`,
+    `code_bad`, `locked`), the timeline (`code_verified`, `code_locked`), the audit envelope, the sliding expiry of a verified code
+    and the ticket's "waiting for the manager" (`code_locked`) when a guess starts a lock. Never receives a code, a hash or a
+    session value. A failure here never changes the public answer (the code engine already decided)."""
 
     def verified(self, link: LinkRecord, client_key: str) -> None:
         ...

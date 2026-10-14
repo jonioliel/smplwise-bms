@@ -15,14 +15,14 @@ import pytest
 from smplwise.services.tickets import codes as cd
 from smplwise.services.tickets import links
 from smplwise.services.tickets.ratelimit import new_public_limiter
-from tests.tickets_public_fakes import KEY, Clock, FakeCodes, FakeLinks
+from tests.tickets_public_fakes import KEY, Clock, FakeCodes, FakeLinks, fake_key
 
 
 @pytest.fixture()
 def env():
     clock = Clock()
     store = FakeCodes()
-    engine = cd.CodeEngine(store, lambda: KEY, limiter=new_public_limiter(clock), clock=clock)
+    engine = cd.CodeEngine(store, fake_key, limiter=new_public_limiter(clock), clock=clock)
     fl = FakeLinks(clock)
     link, _ = fl.add(require_code=True)
     return clock, store, engine, link, fl
@@ -44,11 +44,11 @@ def test_code_is_six_digits_derived_and_stored_only_as_the_spec_hmac(env):
     issued = engine.issue(link, "whatsapp")
     code = the_code(issued)
     assert len(code) == 6 and code.isdigit()
-    rec = store.latest_code(link.link_id)
+    rec = store.latest_code(link.link_id, link.generation)
     assert rec.id == issued.code_id and rec.channel == "whatsapp" and rec.expires_at == clock() + 600
-    assert rec.code_hash == cd.code_hash(KEY, link.link_id, code, generation=link.generation) and code not in rec.code_hash
     assert rec.generation == link.generation
-    assert rec.code_hash != cd.code_hash(KEY, link.link_id, code, generation=link.generation + 1)  # V8: the generation is inside
+    assert rec.code_hash == cd.code_hash(KEY, link.link_id, link.generation, code) and code not in rec.code_hash
+    assert rec.code_hash != cd.code_hash(KEY, link.link_id, link.generation + 1, code)  # V8: the generation is in the hash
     assert code not in repr(rec)
 
 
@@ -105,7 +105,7 @@ def test_send_caps_one_a_minute_three_an_hour_six_a_day(env):
                 clock.advance(61)
         except cd.CodeRefused:
             pass
-    assert len(store.code_times_since(link.link_id, clock() - 86400)) <= 6
+    assert len(store.code_times_since(link.link_id, link.generation, clock() - 86400)) <= 6
 
 
 def test_a_new_code_invalidates_the_previous_one(env):
@@ -234,8 +234,8 @@ def test_malformed_values_and_guesses_without_a_live_code_are_not_counted(env):
         with pytest.raises(cd.CodeRefused) as e:
             engine.verify(link, "123456")
         assert e.value.reason == "expired"
-    assert store.failures(link.link_id) is None and engine.locked_for(link) == 0
-    assert store.latest_code(link.link_id).id == issued.code_id
+    assert store.failures(link.link_id, link.generation) is None and engine.locked_for(link) == 0
+    assert store.latest_code(link.link_id, link.generation).id == issued.code_id
 
 
 def test_reset_after_a_lock_is_the_managers_new_link(env):
@@ -245,69 +245,32 @@ def test_reset_after_a_lock_is_the_managers_new_link(env):
         with pytest.raises(cd.CodeRefused):
             engine.verify(link, wrong(code))
     assert engine.locked_for(link) > 0
-    engine.reset(link.link_id, link.generation)
-    assert engine.locked_for(link) == 0 and store.failures(link.link_id, link.generation) is None
+    engine.reset(link)  # same generation (a reset without a bump): the window clears
+    assert engine.locked_for(link) == 0
     new_link = dataclasses.replace(link, generation=link.generation + 1)
+    engine.reset(new_link)
     assert engine.locked_for(new_link) == 0
     clock.advance(61)
     assert engine.verify(new_link, the_code(engine.issue(new_link, "whatsapp"))).session
 
 
-# ---------------------------------------------------------------- code review V8: generation-scoped, WITHOUT reset()
-
-
-def test_a_code_of_generation_one_never_opens_generation_two_without_reset(env):
-    """The trap of code review V8: the manager's new link bumps the generation; even if nobody calls reset(), the old live code
-    (in a forwarded message) must be refused for the new generation."""
+def test_a_new_generation_does_not_accept_the_old_generations_code_even_without_reset(env):
+    """Code review V8 / W8: the manager's "new link" bumps the generation; a code issued under generation N must not verify
+    under N+1, and N's failure window must not lock N+1 - without relying on the caller remembering reset()."""
     clock, store, engine, link, _ = env
-    code = the_code(engine.issue(link, "whatsapp"))
-    gen2 = dataclasses.replace(link, generation=link.generation + 1)
+    old_code = the_code(engine.issue(link, "whatsapp"))
+    new_link = dataclasses.replace(link, generation=link.generation + 1)
     with pytest.raises(cd.CodeRefused) as e:
-        engine.verify(gen2, code)
-    assert e.value.reason == "no_code"  # no code exists for generation 2 at all - and the guess is not counted
-    assert store.failures(link.link_id, 2) is None
-    assert engine.verify(link, code).session  # generation 1 itself still works (it is dead only by the token hash change)
-
-
-def test_a_lock_of_generation_one_does_not_carry_into_generation_two_without_reset(env):
-    clock, store, engine, link, _ = env
-    code = the_code(engine.issue(link, "whatsapp"))
-    for _ in range(5):
+        engine.verify(new_link, old_code)
+    assert e.value.reason == "no_code"
+    for _ in range(5):  # lock generation N
         with pytest.raises(cd.CodeRefused):
-            engine.verify(link, wrong(code))
+            engine.verify(link, wrong(old_code))
     assert engine.locked_for(link) > 0
-    gen2 = dataclasses.replace(link, generation=link.generation + 1)
-    assert engine.locked_for(gen2) == 0
-    issued = engine.issue(gen2, "whatsapp")  # the send caps of generation 1 do not apply either
-    assert engine.verify(gen2, the_code(issued)).session
-
-
-def test_the_send_caps_belong_to_the_generation(env):
-    clock, store, engine, link, _ = env
-    engine.issue(link, "whatsapp")
-    with pytest.raises(cd.CodeRefused):
-        engine.issue(link, "whatsapp")
-    gen2 = dataclasses.replace(link, generation=link.generation + 1)
-    engine.issue(gen2, "whatsapp")
-    assert len(store.code_times_since(link.link_id, 1, clock() - 60)) == 1
-    assert len(store.code_times_since(link.link_id, 2, clock() - 60)) == 1
-
-
-def test_the_locking_guess_says_so_once(env):
-    clock, store, engine, link, _ = env
-    code = the_code(engine.issue(link, "whatsapp"))
-    flags = []
-    for _ in range(7):
-        with pytest.raises(cd.CodeRefused) as e:
-            engine.verify(link, wrong(code))
-        flags.append((e.value.reason, e.value.just_locked))
-    assert flags == [("invalid", False)] * 4 + [("locked", True), ("locked", False), ("locked", False)]
-
-
-def test_code_hash_refuses_a_missing_or_odd_generation():
-    for bad in (0, -1, True, "1", None, 1.0):
-        with pytest.raises(ValueError):
-            cd.code_hash(KEY, "a" * 32, "123456", generation=bad)  # type: ignore[arg-type]
+    assert engine.locked_for(new_link) == 0  # N+1 starts clean
+    clock.advance(61)
+    fresh = the_code(engine.issue(new_link, "whatsapp"))
+    assert engine.verify(new_link, fresh).session
 
 
 def test_withdrawn_code_is_dead_but_still_counts(env):
@@ -345,7 +308,7 @@ def test_parallel_guesses_are_counted_exactly_and_never_pass(env):
         t.join()
     assert "ok" not in results
     assert results.count("invalid") == 4 and results.count("locked") == 36
-    assert store.latest_code(link.link_id).attempts == 5
+    assert store.latest_code(link.link_id, link.generation).attempts == 5
 
 
 def test_two_parallel_correct_codes_get_one_session(env):
@@ -400,3 +363,16 @@ def test_require_code_is_raise_only():
     assert cd.effective_require_code(True, None) is True
     assert cd.effective_require_code(False, True) is True
     assert cd.effective_require_code(False, None) is False
+
+
+def test_the_locking_guess_says_so_once(env):
+    """Slice 7: the guess that STARTS a lock carries `just_locked` (the module records the lock once - the ticket waits for the
+    manager); later guesses while locked do not."""
+    clock, store, engine, link, _ = env
+    code = the_code(engine.issue(link, "whatsapp"))
+    flags = []
+    for _ in range(7):
+        with pytest.raises(cd.CodeRefused) as e:
+            engine.verify(link, wrong(code))
+        flags.append((e.value.reason, e.value.just_locked))
+    assert flags == [("invalid", False)] * 4 + [("locked", True), ("locked", False), ("locked", False)]

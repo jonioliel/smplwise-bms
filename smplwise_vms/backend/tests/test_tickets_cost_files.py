@@ -1,7 +1,8 @@
 """CR-038 invoice files (services/tickets/cost_files.py, spec 11A.6 / 11A.6A): the PDF acceptance checks exactly as the spec
 lists them (magic, trailer, size, the active-content / encryption names - matched as PDF name tokens, `#xx` escapes decoded),
-the stated known limit (compressed object streams are invisible), the document grouping limits (3 documents, 10 pages, 25
-files, duplicates) and the download / inline headers. Every PDF here is hand-written and harmless."""
+FlateDecode streams inflated within a bound and scanned too (code review V7), the remaining stated limit (other filters are
+not decoded), the document grouping limits (3 documents, 10 pages, 25 files, duplicates) and the download / inline headers.
+Every PDF here is hand-written and harmless."""
 from __future__ import annotations
 
 import zlib
@@ -41,7 +42,8 @@ def test_encrypted_pdfs_are_refused():
     assert e.value.code == "pdf_refused"
 
 
-@pytest.mark.parametrize("spelling", [b"/J#61vaScript", b"/#4A#53", b"/Open#41ction", b"/#41#41", b"/Encr#79pt", b"/JS\n", b"/JS(", b"/AA<<"])
+@pytest.mark.parametrize("spelling", [b"/J#61vaScript", b"/#4A#53", b"/Open#41ction", b"/#41#41", b"/Encr#79pt", b"/JS\n", b"/JS(", b"/AA<<",
+                                      b"/J#avaScript", b"/#JS", b"/JS#"])
 def test_hex_escaped_and_delimiter_adjacent_names_are_caught(spelling):
     with pytest.raises(IntakeError) as e:
         cf.check_pdf(pdf(b"<< /S " + spelling + b" (x) >>"))
@@ -73,14 +75,64 @@ def test_magic_trailer_and_size_rules():
             cf.check_pdf(not_pdf)
 
 
-def test_known_limit_names_inside_a_compressed_object_stream_are_not_seen():
-    """Pinned on purpose (spec 11A.6 'stated limit'): a byte scan cannot see inside a FlateDecode object stream. This file
-    carries an /OpenAction /JavaScript dictionary only in compressed form and IS accepted - the real controls are that Arx
-    never parses or renders a PDF and serves it only as a sandboxed download. If this test starts failing because the check
-    got stronger, update the notes and the spec's 'stated limit' together."""
+def _stream(content: bytes, filt: bytes = b"/FlateDecode", eol: bytes = b"\n") -> bytes:
+    return (b"<< /Type /ObjStm /N 1 /First 4 /Filter " + filt + b" /Length " + str(len(content)).encode() + b" >>\nstream" + eol +
+            content + b"\nendstream")
+
+
+def test_names_inside_a_compressed_object_stream_are_found():
+    """Code review V7: PDF 1.5+ writers put every object in compressed object streams; the FlateDecode streams are inflated
+    (bounded) and scanned like the file - the case the earlier byte scan pinned as invisible is now refused."""
     hidden = zlib.compress(b"<< /Type /Catalog /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >>")
-    objstm = b"<< /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length " + str(len(hidden)).encode() + b" >>\nstream\n" + hidden + b"\nendstream"
-    data = pdf(objstm)
+    for eol in (b"\n", b"\r\n"):
+        data = pdf(_stream(hidden, eol=eol))
+        assert b"JavaScript" not in data
+        with pytest.raises(IntakeError) as e:
+            cf.check_pdf(data)
+        assert (e.value.code, e.value.status) == ("pdf_refused", 422)
+    escaped = zlib.compress(b"<< /S /J#61vaScript >>")
+    with pytest.raises(IntakeError):
+        cf.check_pdf(pdf(_stream(escaped)))
+
+
+def test_a_real_looking_compressed_invoice_is_accepted():
+    content = zlib.compress(b"BT /F1 11 Tf 72 720 Td (Invoice 2026-0042  total 1,250.00) Tj ET\n" * 400)
+    font = zlib.compress(bytes(range(256)) * 200)
+    data = pdf(b"<< /Type /Page /Contents 4 0 R >>", _stream(content), _stream(font), _stream(b"\xff\xd8\xff\xe0 jpeg", b"/DCTDecode"))
+    assert cf.check_pdf(data).bytes == len(data)
+
+
+def test_an_inflate_bomb_is_refused_quickly():
+    import time
+
+    from conftest import sw_time_factor
+
+    bomb = zlib.compress(b"\x00" * (64 * 1024 * 1024), 9)  # ~64 KiB that inflate to 64 MiB
+    data = pdf(_stream(bomb))
+    t0 = time.perf_counter()
+    with pytest.raises(IntakeError) as e:
+        cf.check_pdf(data)
+    assert e.value.code == "pdf_refused" and time.perf_counter() - t0 < 1.5 * sw_time_factor()
+    many = pdf(*[_stream(zlib.compress(b"x")) for _ in range(cf.MAX_STREAMS + 1)])
+    with pytest.raises(IntakeError):
+        cf.check_pdf(many)
+
+
+def test_a_corrupt_stream_is_scanned_as_far_as_it_inflates():
+    payload = zlib.compress(b"<< /OpenAction 5 0 R >>" + bytes(range(256)) * 64, 0)  # stored blocks: corruption stays local
+    corrupt = payload[:-40] + b"\x00" * 40
+    with pytest.raises(IntakeError):
+        cf.check_pdf(pdf(_stream(corrupt)))
+    assert b"OpenAction" in b"".join(cf.inflated_streams(pdf(_stream(corrupt))))
+
+
+def test_known_limit_other_filters_are_not_decoded():
+    """Pinned on purpose (spec 11A.6 'stated limit', narrowed by code review V7): streams under filters other than FlateDecode
+    (here ASCIIHex) are not decoded; such a file IS accepted - the real controls are that Arx never parses or renders a PDF and
+    serves it only as a sandboxed download. If this test starts failing because the check got stronger, update the notes and
+    the spec's 'stated limit' together."""
+    hidden = b"<< /OpenAction << /S /JavaScript >> >>".hex().encode() + b">"
+    data = pdf(_stream(hidden, b"/ASCIIHexDecode"))
     assert b"JavaScript" not in data
     cf.check_pdf(data)
 
@@ -102,6 +154,7 @@ def test_the_scan_stays_cheap_on_crafted_files():
         cf.check_pdf(escapes)
     assert e.value.code == "pdf_refused" and time.perf_counter() - t0 < 1.5 * sw_time_factor()
     assert cf.active_markers(b"/JS#20 /A#41#41x") == set()  # "JS " and "AAx" are other names
+    assert cf.active_markers(b"/J#avaScript") == {"(escape)"}  # a malformed escape: some readers are lenient
 
 
 def test_claim_file_kind_by_content():
