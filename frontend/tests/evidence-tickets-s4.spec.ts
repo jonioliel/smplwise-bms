@@ -5,14 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url } from './tickets-mocks';
 import { installS4Mock, serveBuiltApp, type S4Mock, type S4MockOptions } from './tickets-s4-mocks';
 
-// CR-038 slice 4 evidence: the internal screens of outside contacts from the REAL build against the mock layer (fake data) - Settings ›
-// the module › "ספקים ואנשי קשר" (the directory and its editor), the "דף המטפלים" card on the general tab, sending a ticket outside
+// CR-038 slice 4 evidence: the internal screens of outside contacts from the REAL build against the mock layer (fake data) - the
+// directory and its editor (since the owner's request of 2026-10-14 on the area's "מטפלים וספקים" page, one segment per kind), the "דף המטפלים" card on the general tab, sending a ticket outside
 // from the assign dialog (the kind switch, the contact picker, the preview's text and refusals) and the link panel of a ticket sent
 // outside (copy once, new link, revoke behind a confirmation). Desktop 1440 and phone 390, light and dark, classic and domus. The
 // module's Hebrew name is the owner's (2026-10-14). Also asserts what the screens send.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/evidence-tickets-s4.spec.ts --project=desktop --project=mobile --workers=1
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/tickets-s4');
 const S = 'sw-app system-tickets';
+const HP = 'sw-app tickets-handlers'; // owner 2026-10-14: the directory left Settings for this page
 const L = 'sw-app tickets-list';
 const NAME = { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' };
 const SENT = '0000000000000a01';
@@ -48,10 +49,10 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
   });
 
   test('the directory: the list and a vendor\'s card - light / dark x classic / domus; an edit sends only what changed', async ({ page }) => {
-    const C = `${S} tickets-contacts`;
+    const C = `${HP} tickets-contacts`;
     for (const skin of ['classic', 'domus'])
       for (const scheme of ['light', 'dark'] as const) {
-        await go(page, '/system/tickets?tab=contacts', {}, scheme, skin);
+        await go(page, '/tickets/handlers?seg=vendors', {}, scheme, skin);
         await page.waitForSelector(`${C} [data-contacts-list]`);
         await page.locator(`${C} [data-contact-item="c000000000000v01"]`).click();
         await page.waitForSelector(`${C} [data-card="contact-editor"]`);
@@ -61,7 +62,7 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
           await shot(page, 'contacts-editor', scheme, skin);
         }
       }
-    const mock = await go(page, '/system/tickets?tab=contacts');
+    const mock = await go(page, '/tickets/handlers?seg=contacts');
     await page.locator(`${C} [data-contact-item="c000000000000p01"]`).click();
     await page.locator(`${C} [data-field="company"]`).fill('טכנאי בכיר');
     await page.locator(`${C} [data-field="lang"]`).selectOption('ru');
@@ -84,8 +85,8 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
   });
 
   test('a manager without the settings right reads the list with masked phones and edits nothing', async ({ page }) => {
-    const C = `${S} tickets-contacts`;
-    await go(page, '/system/tickets?tab=contacts', { persona: 'manager' });
+    const C = `${HP} tickets-contacts`;
+    await go(page, '/tickets/handlers?seg=contacts', { persona: 'manager' });
     await page.waitForSelector(`${C} [data-contacts-list]`);
     await expect(page.locator(`${C} [data-contact-new]`)).toHaveCount(0);
     await page.locator(`${C} [data-contact-item="c000000000000p01"]`).click();

@@ -37,7 +37,7 @@ export interface TicketsMock {
 
 const NOW = Date.parse('2026-10-13T10:42:00Z');
 const ago = (h: number) => new Date(NOW - h * 3_600_000).toISOString().replace(/\.\d+Z$/, 'Z');
-const DEPTS = [
+export const DEPTS = [
   { id: 'dept-maintenance', key: 'maintenance', name: 'אחזקה' },
   { id: 'dept-cleaning', key: 'cleaning', name: 'ניקיון' },
   { id: 'dept-hr', key: 'hr', name: 'משאבי אנוש' },
@@ -53,7 +53,7 @@ const CATS: Record<string, { id: string; name: string }[]> = {
   'dept-cleaning': [{ id: 'cat-lobby', name: 'לובי' }],
   'dept-hr': [{ id: 'cat-onboard', name: 'קליטה' }],
 };
-const PEOPLE = [{ id: 'u-ronit', name: 'רונית לוי' }, { id: 'u-avi', name: 'אבי כהן' }, { id: 'u-yossi', name: 'יוסי מזרחי' }, { id: 'u-dana', name: 'דנה פרץ' }];
+export const PEOPLE = [{ id: 'u-ronit', name: 'רונית לוי' }, { id: 'u-avi', name: 'אבי כהן' }, { id: 'u-yossi', name: 'יוסי מזרחי' }, { id: 'u-dana', name: 'דנה פרץ' }];
 
 interface Row {
   id: string; number: number; title: string; description: string; status: string; dept: string; cat: string | null; prio: string; hours: number;
@@ -129,7 +129,7 @@ const SLA: Record<string, number[]> = {
   urgent: [15, 1440, 30, 60, 1440, 480, 30], high: [60, 1440, 120, 480, 4320, 2880, 240],
   normal: [240, 1440, 1440, 4320, 10080, 10080, 1440], low: [1440, 1440, 4320, 10080, 20160, 43200, 4320],
 };
-const INSTALLATION = { links: { sliding_days: 14, cap_days: 90, grace_hours: 24 }, send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true };
+export const INSTALLATION = { links: { sliding_days: 14, cap_days: 90, grace_hours: 24 }, send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true };
 
 function slaRows(d: string) {
   return PRIOS(d).map((p) => {
@@ -139,7 +139,7 @@ function slaRows(d: string) {
   });
 }
 
-function adminDept(d: (typeof DEPTS)[number], open: number) {
+export function adminDept(d: (typeof DEPTS)[number], open: number) {
   const maint = d.id === 'dept-maintenance';
   const overrides = { link_sliding_days: maint ? 30 : null, link_cap_days: null, link_grace_hours: null, send_hours: maint ? { from: '08:00', to: '18:00' } : null, urgent_is_critical: null };
   return {

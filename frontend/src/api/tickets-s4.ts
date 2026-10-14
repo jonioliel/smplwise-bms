@@ -14,7 +14,8 @@ import { isApi } from './session';
 import { s4Mock } from './tickets-s4-mock';
 import type { Eligible, PublicSettings, TicketDetail } from './tickets';
 
-export type ContactKind = 'person' | 'vendor';
+/** 'employee' (owner request 2026-10-14, migration 0084): an employee WITHOUT an account - assigned through a handler link like a contact. */
+export type ContactKind = 'person' | 'vendor' | 'employee';
 export type ContactChannel = 'whatsapp' | 'email' | 'manual';
 export type ContactLang = 'he' | 'en' | 'ar' | 'ru';
 export const CONTACT_LANGS: readonly ContactLang[] = ['he', 'en', 'ar', 'ru'];
@@ -94,7 +95,21 @@ export interface ExternalAssignee {
   share_history: boolean | null;
   lang: ContactLang;
 }
-export interface AssigneesAnswer { users: Eligible[]; contacts?: ExternalAssignee[]; external?: boolean; public_ready?: boolean }
+/** What sending outside still needs (GET tickets/readiness, and `readiness` of GET tickets/assignees): booleans and counts only. */
+export interface Readiness {
+  public_page: boolean;
+  public_option: boolean;
+  base_url: boolean;
+  module_key: boolean;
+  public_ready: boolean;
+  public_missing: string[];
+  master_switch: boolean;
+  account_mapped: boolean;
+  email_fallback: boolean;
+  email_configured: boolean;
+  contacts_count: { employee: number; vendor: number; person: number };
+}
+export interface AssigneesAnswer { users: Eligible[]; contacts?: ExternalAssignee[]; external?: boolean; public_ready?: boolean; readiness?: Readiness }
 
 export type Refusal = 'public_link_unavailable' | 'code_channel_unavailable' | string;
 export interface AssignPreview {
@@ -172,6 +187,7 @@ export interface TicketsS4Backend {
   health(): Promise<TicketsHealth>;
   probe(baseUrl?: string): Promise<ProbeAnswer>;
   rotateKey(): Promise<{ rotated: boolean; links_revoked: number; contacts_rekeyed: number }>;
+  readiness(departmentId?: string): Promise<Readiness>;
 }
 
 const T = 'tickets';
@@ -204,6 +220,7 @@ const rest: TicketsS4Backend = {
   health: () => get<TicketsHealth>(`${T}/health`),
   probe: (baseUrl) => post<ProbeAnswer>(`${T}/address/probe`, baseUrl === undefined ? {} : { base_url: baseUrl }),
   rotateKey: () => post<{ rotated: boolean; links_revoked: number; contacts_rekeyed: number }>(`${T}/key/rotate`, { confirm: true }),
+  readiness: (departmentId) => get<Readiness>(`${T}/readiness${qs({ department_id: departmentId })}`),
 };
 
 /** The backend in force: REST with a server, the demo store without one. */

@@ -557,13 +557,16 @@ export class TicketDetailView extends LitElement {
       </sw-dialog>`;
     }
     if (d.kind === 'assign') {
-      const outside = this.ext.kind !== 'user'; // slice 4: an outside contact / vendor (tickets/external-assign.ts)
+      // slice 4 + owner 2026-10-14: three groups always shown - handlers, employees without an account, vendors and contacts; a group
+      // that cannot be used says why in one line with the link to its setting (tickets/external-assign.ts, tickets/readiness-model.ts)
+      const outside = this.ext.kind !== 'user';
+      const usersWhy = this.eligible === null ? null : this.ext.blocked(t, 'user', this.eligible.length);
       return html`<sw-dialog open heading=${tt('assignTitle')} data-dialog="assign" @close=${this.onDialogClose}>
         <div class="form">
-          ${this.ext.renderKinds(t)}
+          ${this.ext.renderKinds(t, this.eligible?.length ?? null)}
           ${outside ? this.ext.renderPicker(t) : this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
             ? html`<div class="pick" role="radiogroup" aria-label=${tt('fAssignee')}>${this.eligible.map((u) => html`<label data-eligible=${u.id}><input type="radio" name="asg" .checked=${this.dlgPick === u.id} @change=${() => { this.dlgPick = u.id; this.dlgError = ''; }} />${bidi(u.name)}${u.member_role === 'manager' ? html`<small>${tt('depManager')}</small>` : nothing}</label>`)}</div>`
-            : html`<div class="muted" data-eligible-none>${tt('assignNone')}</div>`}
+            : html`<div data-eligible-none>${usersWhy ? this.ext.reasonLine(usersWhy) : nothing}</div>`}
           ${text(tt('assignNote'), false)}
           ${outside || marksInternal(t) ? html`<label class="chk"><input type="checkbox" .checked=${this.dlgFlag} @change=${(e: Event) => (this.dlgFlag = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
           ${err}</div>

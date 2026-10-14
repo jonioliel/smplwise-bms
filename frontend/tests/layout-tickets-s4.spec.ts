@@ -27,11 +27,30 @@ interface Screen {
 }
 const D = 'sw-app tickets-list ticket-detail';
 const SCREENS: Screen[] = [
+  // owner 2026-10-14: the directory moved to the area's "מטפלים וספקים" page (one segment per kind); the handlers segment carries the
+  // department members card and the employees without an account
   {
-    name: 'settings-contacts', hash: '/system/tickets?tab=contacts', wait: 'sw-app system-tickets tickets-contacts [data-contacts-list]', within: 'system-tickets',
+    name: 'handlers-contacts', hash: '/tickets/handlers?seg=contacts', wait: 'sw-app tickets-handlers tickets-contacts [data-contacts-list]', within: 'tickets-handlers',
     prep: async (p) => {
-      await p.locator('sw-app system-tickets tickets-contacts [data-contact-item="c000000000000p01"]').click();
-      await p.waitForSelector('sw-app system-tickets tickets-contacts [data-card="contact-editor"]');
+      await p.locator('sw-app tickets-handlers tickets-contacts [data-contact-item="c000000000000p01"]').click();
+      await p.waitForSelector('sw-app tickets-handlers tickets-contacts [data-card="contact-editor"]');
+    },
+  },
+  {
+    name: 'handlers-members', hash: '/tickets/handlers', wait: 'sw-app tickets-handlers tickets-handlers-members [data-handlers-members]', within: 'tickets-handlers',
+    mock: { readiness: { master_switch: false }, publicReady: false },
+    prep: async (p) => {
+      await p.waitForSelector('sw-app tickets-handlers tickets-contacts[kind="employee"] [data-contacts-list]');
+      await p.locator('sw-app tickets-handlers tickets-contacts[kind="employee"] [data-contact-new]').click();
+      await p.waitForSelector('sw-app tickets-handlers tickets-contacts[kind="employee"] [data-card="contact-editor"]');
+    },
+  },
+  {
+    name: 'assign-nobody', hash: '/tickets/mine?t=0000000000000a02', wait: 'sw-app tickets-list ticket-detail [data-ticket-detail]', within: 'tickets-list',
+    mock: { empty: true, publicReady: false },
+    prep: async (p) => {
+      await p.locator('sw-app tickets-list ticket-detail [data-assign]').click();
+      await p.waitForSelector('sw-app tickets-list ticket-detail [data-eligible-none] [data-blocked]');
     },
   },
   {
@@ -45,7 +64,7 @@ const SCREENS: Screen[] = [
     name: 'assign-outside', hash: '/tickets/mine?t=0000000000000a02', wait: `${D} [data-ticket-detail]`, within: 'tickets-list',
     prep: async (p) => {
       await p.locator(`${D} [data-assign]`).click();
-      await p.locator(`${D} [data-assign-kind="vendor"]`).click();
+      await p.locator(`${D} [data-assign-kind="person"]`).click(); // vendors and contacts are one group (owner 2026-10-14)
       await p.locator(`${D} [data-contact="c000000000000v01"] input`).check();
       await p.waitForSelector(`${D} [data-assign-preview]`);
       await p.locator(`${D} [data-preview-toggle]`).click();

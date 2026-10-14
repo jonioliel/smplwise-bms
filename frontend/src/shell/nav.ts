@@ -580,11 +580,13 @@ export const TICKETS_DEPARTMENT_HREF = '#/tickets/department';
 export const TICKETS_ALL_HREF = '#/tickets/all';
 export const TICKETS_BOARD_HREF = '#/tickets/board'; // CR-038 slice 6
 export const TICKETS_SETTINGS_HREF = '#/system/tickets';
+export const TICKETS_HANDLERS_HREF = '#/tickets/handlers'; // owner request 2026-10-14: "מטפלים וספקים" (out of Settings)
 export const TICKETS_TABS: TabItem[] = [
   { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
   { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
   { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
   { id: 'all', get label() { return tt('tabAll'); }, href: TICKETS_ALL_HREF },
+  { id: 'handlers', get label() { return tt('hdTitle'); }, href: TICKETS_HANDLERS_HREF }, // the fifth entry: handlers, employees, vendors, contacts
 ];
 const isTicketsAreaHref = (href: string) => href === '#/tickets' || href.startsWith('#/tickets/');
 
@@ -764,7 +766,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return s[1] === 'generator' ? 'generator' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'department' || s[1] === 'all' || s[1] === 'board' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      return s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -922,6 +924,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [TICKETS_DEPARTMENT_HREF]: ['tickets.view'],
   [TICKETS_ALL_HREF]: ['tickets.all_departments'],
   [TICKETS_BOARD_HREF]: ['tickets.manage'], // slice 6: the manager board (the server also needs a manager membership or all departments)
+  // "מטפלים וספקים": the directory's readers (tickets.configure edits; a department manager reads his departments' rows, masked phones)
+  [TICKETS_HANDLERS_HREF]: ['tickets.configure', 'tickets.manage'],
   [TICKETS_SETTINGS_HREF]: ['system.configure', 'tickets.configure'],
   '#/system/messaging-accounts': ['system.configure', 'messaging.accounts.manage'], // CR-038 S5a (installation scope)
   // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)

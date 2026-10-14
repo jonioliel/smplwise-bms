@@ -8,7 +8,7 @@ import { extendMockView, mockStore } from './tickets-mock';
 import { tn } from '../tickets/naming';
 import type { TicketDetail } from './tickets';
 import type {
-  AssignPreview, AssigneesAnswer, Contact, ContactBody, ContactExport, ExternalAssignee, LinkBlock, ProbeAnswer, TicketWithLink, TicketsHealth,
+  AssignPreview, AssigneesAnswer, Contact, ContactBody, ContactExport, ExternalAssignee, LinkBlock, ProbeAnswer, Readiness, TicketWithLink, TicketsHealth,
   TicketsS4Backend,
 } from './tickets-s4';
 
@@ -40,6 +40,7 @@ const contacts: Contact[] = [
   row({ kind: 'person', display_name: 'יוסי חשמל', company: 'חשמלאי מוסמך', phone: '050-000-0045', has_phone: true, require_code: true, preferred_channel: 'whatsapp' }),
   row({ kind: 'person', display_name: 'John Smith', company: 'Lift service', phone: '050-000-0060', has_phone: true, lang: 'en', preferred_channel: 'email', email: 'john@lift.example.test' }),
   row({ kind: 'vendor', display_name: 'ברק ניקיון ואחזקה', company: 'ניקיון', phone: '050-000-0071', has_phone: true, departments: ['dept-cleaning'], active: false }),
+  row({ kind: 'employee', display_name: 'אבי לוי', phone: '050-000-0080', has_phone: true, departments: ['dept-maintenance'] }), // an employee without an account
 ];
 
 interface DemoLink { ticketId: string; contactId: string; generation: number; createdAt: number; generationAt: number; expiresAt: number; capAt: number; graceUntil: number | null;
@@ -217,7 +218,7 @@ export const s4Mock: TicketsS4Backend = {
       return { kind: 'contact', id: c.id, contact_kind: c.kind, name: c.display_name, company: c.company, vendor_name: vendor?.display_name ?? null, phone: c.phone, has_phone: c.has_phone,
         has_email: !!c.email, preferred_channel: c.preferred_channel, require_code: c.require_code || !!vendor?.require_code, share_history: c.share_history, lang: c.lang };
     });
-    return { users: [], contacts: list, external: true, public_ready: true };
+    return { users: [], contacts: list, external: true, public_ready: true, readiness: demoReadiness() };
   },
   async preview(ticketId, contactId, requireCode): Promise<AssignPreview> {
     await sleep(80);
@@ -306,4 +307,18 @@ export const s4Mock: TicketsS4Backend = {
     for (const l of linksByTicket.values()) if (!l.revokedAt) { l.revokedAt = Date.now(); l.reason = 'module_key'; n += 1; }
     return { rotated: true, links_revoked: n, contacts_rekeyed: contacts.filter((c) => c.has_phone && !c.erased).length };
   },
+  async readiness(): Promise<Readiness> {
+    await sleep(40);
+    return demoReadiness();
+  },
 };
+
+/** The demo installation is ready to send outside (the WhatsApp switch on, an account chosen). */
+function demoReadiness(): Readiness {
+  const live = contacts.filter((c) => !c.erased && c.active);
+  return {
+    public_page: true, public_option: true, base_url: true, module_key: true, public_ready: true, public_missing: [], master_switch: true, account_mapped: true,
+    email_fallback: true, email_configured: false,
+    contacts_count: { employee: live.filter((c) => c.kind === 'employee').length, vendor: live.filter((c) => c.kind === 'vendor').length, person: live.filter((c) => c.kind === 'person').length },
+  };
+}

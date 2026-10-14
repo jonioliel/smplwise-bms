@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-card';
 import '../components/sw-toggle';
@@ -28,9 +28,9 @@ interface Draft {
   cost_claim: CostMode | ''; vat_exempt: boolean; vat_default: 'included' | 'excluded'; labor_rate: string; rate_currency: string;
 }
 
-function draftOf(c: Contact | null): Draft {
+function draftOf(c: Contact | null, kind: ContactKind = 'person'): Draft {
   return {
-    kind: c?.kind ?? 'person', display_name: c?.display_name ?? '', company: c?.company ?? '', vendor_id: c?.vendor_id ?? '',
+    kind: c?.kind ?? kind, display_name: c?.display_name ?? '', company: c?.company ?? '', vendor_id: c?.vendor_id ?? '',
     phone: c?.phone_full ? c.phone ?? '' : '', email: c?.phone_full ? c.email ?? '' : '', preferred_channel: c?.preferred_channel ?? 'whatsapp',
     require_code: c?.require_code ?? false, share_history: c?.share_history === null || c?.share_history === undefined ? 'default' : c.share_history ? 'on' : 'off',
     lang: c?.lang ?? 'he', notes: c?.notes ?? '', active: c?.active ?? true, departments: [...(c?.departments ?? [])],
@@ -45,11 +45,18 @@ function draftOf(c: Contact | null): Draft {
  * Editing, erasing and exporting need `tickets.configure` (the server's `can_edit`); a department manager reads the rows allowed in
  * the departments they manage, with the full phone only when they may send outside (the server masks it otherwise - `phone_full`).
  * A phone or e-mail change revokes the contact's live links (the server says how many). Events: `notice` {ok | error}.
+ * Owner request 2026-10-14: the directory moved out of Settings into the area's "מטפלים וספקים" page, one segment per kind - `kind`
+ * locks the list and the new row to one kind (employee / vendor / person); an employee without an account keeps only the fields that
+ * matter for him (name, phone, e-mail, channel, language, departments, notes).
  */
 @customElement('tickets-contacts')
 export class TicketsContacts extends LitElement {
   readonly bubbleSkin = new SkinController(this);
+  /** one kind only (the handlers page's segments); '' = every kind with the kind filter (the old settings tab) */
+  @property() kind: ContactKind | '' = '';
   @state() private rows: Contact[] | null = null;
+  /** the vendors a person may work for, when the list itself is locked to persons */
+  @state() private vendorRows: Contact[] = [];
   @state() private canEdit = false;
   @state() private query = '';
   @state() private filter: KindFilter = 'all';
@@ -64,6 +71,7 @@ export class TicketsContacts extends LitElement {
   @state() private liveLinks = 0;
   @state() private denied = false;
   private searchTimer = 0;
+  private loadedKind: ContactKind | '' = '';
 
   static styles = [settingsStyles, ticketSettingsCss, css`
     :host {
@@ -156,15 +164,31 @@ export class TicketsContacts extends LitElement {
     window.clearTimeout(this.searchTimer);
   }
 
+  protected updated(changed: Map<string, unknown>): void {
+    // the same element moved to another kind: a fresh list, nothing open
+    if (changed.has('kind') && this.kind !== this.loadedKind && this.isConnected) {
+      this.selected = '';
+      this.creating = false;
+      this.draft = null;
+      this.rows = null;
+      void this.load();
+    }
+  }
+
   private notice(detail: { ok?: string; error?: string }): void {
     this.dispatchEvent(new CustomEvent('notice', { detail, bubbles: true, composed: true }));
   }
 
   private async load(): Promise<void> {
     try {
-      const page = await ticketsS4Api().contacts({ q: this.query, kind: this.filter === 'all' ? undefined : this.filter });
+      this.loadedKind = this.kind;
+      const kind = this.kind || (this.filter === 'all' ? undefined : this.filter);
+      const page = await ticketsS4Api().contacts({ q: this.query, kind });
       this.rows = page.contacts;
       this.canEdit = page.can_edit;
+      if (this.kind === 'person' && page.can_edit && !this.vendorRows.length) {
+        void ticketsS4Api().contacts({ kind: 'vendor' }).then((v) => (this.vendorRows = v.contacts)).catch(() => undefined);
+      }
       this.denied = false;
       if (this.selected && !page.contacts.some((c) => c.id === this.selected)) this.selected = '';
     } catch (e) {
@@ -183,7 +207,7 @@ export class TicketsContacts extends LitElement {
   private open(c: Contact | null): void {
     this.selected = c?.id ?? '';
     this.creating = !c;
-    this.draft = this.canEdit ? draftOf(c) : null;
+    this.draft = this.canEdit ? draftOf(c, this.kind || 'person') : null;
     this.erasing = false;
     this.eraseHistory = false;
     this.problem = '';
@@ -201,7 +225,7 @@ export class TicketsContacts extends LitElement {
     const d = this.draft;
     if (!d) return null;
     const out: ContactBody = {};
-    const before = draftOf(c);
+    const before = draftOf(c, this.kind || 'person');
     if (!c || d.kind !== before.kind) out.kind = d.kind;
     if (!c || d.display_name.trim() !== before.display_name) out.display_name = d.display_name.trim();
     if (d.company.trim() !== before.company) out.company = d.company.trim();
@@ -292,14 +316,16 @@ export class TicketsContacts extends LitElement {
 
   private listCard(): TemplateResult {
     const rows = this.rows ?? [];
-    const filters: KindFilter[] = ['all', 'vendor', 'person'];
-    return html`<sw-card heading=${tt('ctTitle')} subheading=${tt('ctSub')} data-card="contacts">
+    const filters: KindFilter[] = ['all', 'vendor', 'person', 'employee'];
+    const locked = this.kind;
+    const heading = locked === 'employee' ? tt('hdEmployees') : locked === 'vendor' ? tt('hdSeg_vendors') : locked === 'person' ? tt('hdSeg_contacts') : tt('ctTitle');
+    return html`<sw-card heading=${heading} subheading=${locked ? '' : tt('ctSub')} data-card="contacts" data-contacts-kind=${locked || 'all'}>
       <div class="tools">
         <input class="in" type="search" maxlength="60" data-contacts-search aria-label=${tt('ctSearch')} placeholder=${tt('ctSearch')} .value=${this.query}
           @input=${(e: Event) => this.search((e.target as HTMLInputElement).value)} />
-        <span class="seg" role="radiogroup" aria-label=${tt('ctColKind')}>${filters.map((f) => html`<button type="button" role="radio" aria-checked=${String(this.filter === f)}
-          aria-pressed=${String(this.filter === f)} data-contacts-filter=${f} @click=${() => { this.filter = f; void this.load(); }}>${f === 'all' ? tt('tabAll') : tt(`ctKind_${f}` as TicketTextKey)}</button>`)}</span>
-        ${this.canEdit ? html`<sw-button size="sm" variant="primary" icon="plus" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${tt('ctNew')}</sw-button>` : nothing}
+        ${locked ? nothing : html`<span class="seg" role="radiogroup" aria-label=${tt('ctColKind')}>${filters.map((f) => html`<button type="button" role="radio" aria-checked=${String(this.filter === f)}
+          aria-pressed=${String(this.filter === f)} data-contacts-filter=${f} @click=${() => { this.filter = f; void this.load(); }}>${f === 'all' ? tt('tabAll') : tt(`ctKind_${f}` as TicketTextKey)}</button>`)}</span>`}
+        ${this.canEdit ? html`<sw-button size="sm" variant="primary" icon="plus" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${locked ? tt(`ctNew_${locked}` as TicketTextKey) : tt('ctNew')}</sw-button>` : nothing}
       </div>
       ${this.rows === null ? html`<sw-state-panel state="loading"></sw-state-panel>` : rows.length ? html`<div class="dlist" role="list" data-contacts-list>
         ${repeat(rows, (c) => c.id, (c) => html`<button type="button" role="listitem" class=${`ditem ${c.active ? '' : 'off'}`} aria-current=${String(c.id === this.selected)}
@@ -308,10 +334,10 @@ export class TicketsContacts extends LitElement {
             <span class="sub">${bidi([c.vendor_name ?? c.company, c.phone].filter(Boolean).join(' · ') || '–')}</span></span>
           ${c.require_code ? html`<span class="tag">${tt('lkCode')}</span>` : nothing}
           ${c.open_tickets ? html`<span class="tag acc" data-open-tickets>${c.open_tickets} ${tt('ctColOpen')}</span>` : nothing}
-          <span class=${`tag kind ${c.kind === 'vendor' ? 'acc' : ''}`}>${tt(`ctKind_${c.kind}` as TicketTextKey)}</span>
+          ${locked ? nothing : html`<span class=${`tag kind ${c.kind === 'vendor' ? 'acc' : ''}`}>${tt(`ctKind_${c.kind}` as TicketTextKey)}</span>`}
           ${c.active ? nothing : html`<span class="tag">${tt('depInactive')}</span>`}
         </button>`)}</div>`
-        : html`<sw-state-panel state="empty" heading=${this.query || this.filter !== 'all' ? tt('ctNone') : tt('ctEmpty')}></sw-state-panel>`}
+        : html`<sw-state-panel state="empty" heading=${this.query || this.filter !== 'all' ? tt('ctNone') : locked ? tt(`ctEmpty_${locked}` as TicketTextKey) : tt('ctEmpty')}></sw-state-panel>`}
     </sw-card>`;
   }
 
@@ -352,16 +378,19 @@ export class TicketsContacts extends LitElement {
 
   private editorCard(c: Contact | null): TemplateResult {
     const d = this.draft!;
-    const vendors = (this.rows ?? []).filter((x) => x.kind === 'vendor' && x.id !== c?.id && !x.erased);
+    const vendors = (this.kind === 'person' ? this.vendorRows : this.rows ?? []).filter((x) => x.kind === 'vendor' && x.id !== c?.id && !x.erased);
+    const employee = d.kind === 'employee'; // an employee without an account: name, phone, e-mail, channel, language, departments, notes
+    const kinds: readonly ContactKind[] = this.kind ? [] : ['person', 'vendor', 'employee'];
     const seg = <T extends string>(label: string, values: readonly T[], current: T, text: (v: T) => string, on: (v: T) => void, attr: string) => html`
       <div class="fld"><span>${label}</span><span class="seg" role="radiogroup" aria-label=${label}>${values.map((v) => html`<button type="button" role="radio"
         aria-checked=${String(current === v)} aria-pressed=${String(current === v)} data-field=${`${attr}:${v}`} @click=${() => on(v)}>${text(v)}</button>`)}</span></div>`;
-    return html`<sw-card heading=${c ? c.display_name : tt('ctFormNew')} subheading=${c ? tt(`ctKind_${c.kind}` as TicketTextKey) : ''} data-card="contact-editor" data-contact=${c?.id ?? 'new'}>
+    const fresh = this.kind ? tt(`ctNew_${this.kind}` as TicketTextKey) : tt('ctFormNew');
+    return html`<sw-card heading=${c ? c.display_name : fresh} subheading=${c && !this.kind ? tt(`ctKind_${c.kind}` as TicketTextKey) : ''} data-card="contact-editor" data-contact=${c?.id ?? 'new'} data-contact-kind=${d.kind}>
       <div class="form">
-        ${seg(tt('ctColKind'), ['person', 'vendor'] as const, d.kind, (v) => tt(`ctKind_${v}` as TicketTextKey), (v) => this.set({ kind: v, vendor_id: v === 'vendor' ? '' : d.vendor_id }), 'kind')}
+        ${kinds.length ? seg(tt('ctColKind'), kinds, d.kind, (v) => tt(`ctKind_${v}` as TicketTextKey), (v) => this.set({ kind: v, vendor_id: v === 'person' ? d.vendor_id : '' }), 'kind') : nothing}
         <label class="fld"><span>${tt('ctName')} *</span><input class="in" maxlength="80" data-field="display_name" aria-invalid=${String(!!this.problem && !d.display_name.trim())}
           .value=${d.display_name} @input=${(e: Event) => this.set({ display_name: (e.target as HTMLInputElement).value })} /></label>
-        <label class="fld"><span>${tt('ctCompany')}</span><input class="in" maxlength="80" data-field="company" .value=${d.company} @input=${(e: Event) => this.set({ company: (e.target as HTMLInputElement).value })} /></label>
+        ${employee ? nothing : html`<label class="fld"><span>${tt('ctCompany')}</span><input class="in" maxlength="80" data-field="company" .value=${d.company} @input=${(e: Event) => this.set({ company: (e.target as HTMLInputElement).value })} /></label>`}
         ${d.kind === 'person' ? html`<label class="fld"><span>${tt('ctVendor')}</span><select class="in" data-field="vendor_id" @change=${(e: Event) => this.set({ vendor_id: (e.target as HTMLSelectElement).value })}>
           <option value="" ?selected=${!d.vendor_id}>${tt('ctVendorNone')}</option>
           ${vendors.map((v) => html`<option value=${v.id} ?selected=${v.id === d.vendor_id}>${v.display_name}</option>`)}</select></label>` : nothing}
@@ -375,11 +404,11 @@ export class TicketsContacts extends LitElement {
         ${seg(tt('ctChannel'), CONTACT_CHANNELS, d.preferred_channel, (v) => tt(`ch_${v}` as TicketTextKey), (v) => this.set({ preferred_channel: v }), 'channel')}
         <label class="fld"><span>${tt('ctLang')}</span><select class="in" data-field="lang" @change=${(e: Event) => this.set({ lang: (e.target as HTMLSelectElement).value as ContactLang })}>
           ${CONTACT_LANGS.map((l) => html`<option value=${l} ?selected=${l === d.lang}>${LANG_NAMES[l]}</option>`)}</select></label>
-        ${seg(tt('ctHistory'), ['default', 'on', 'off'] as const, d.share_history, (v) => tt(`hist_${v}` as TicketTextKey), (v) => this.set({ share_history: v }), 'history')}
+        ${employee ? nothing : html`${seg(tt('ctHistory'), ['default', 'on', 'off'] as const, d.share_history, (v) => tt(`hist_${v}` as TicketTextKey), (v) => this.set({ share_history: v }), 'history')}
         <div class="row wide"><span class="lbl">${tt('ctRequireCode')}<span class="muted">${tt('ctRequireCodeSub')}</span></span>
           <sw-toggle label=${tt('ctRequireCode')} labelHidden .checked=${d.require_code} data-field="require_code" @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ require_code: e.detail.checked })}></sw-toggle></div>
-        ${this.costFields(d)}
-        <div class="fld wide"><span>${tt('ctDepartments')}</span>
+        ${this.costFields(d)}`}
+        <div class="fld wide"><span>${employee ? tt('ctDepartmentsOf') : tt('ctDepartments')}</span>
           <span class="chipsrow" data-field="departments">
             <button type="button" class="rc" aria-pressed=${String(!d.departments.length)} @click=${() => this.set({ departments: [] })}>${tt('ctDepartmentsAll')}</button>
             ${this.departments.map((dep) => html`<button type="button" class="rc" aria-pressed=${String(d.departments.includes(dep.id))} data-dept=${dep.id}

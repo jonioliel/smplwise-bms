@@ -3,7 +3,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { describeError } from '../api/client';
 import { isApi } from '../api/session';
 import type { TicketDetail } from '../api/tickets';
-import { ticketsS4Api, type AssignPreview, type AssigneesAnswer, type ExternalAssignee, type TicketWithLink } from '../api/tickets-s4';
+import { ticketsS4Api, type AssignPreview, type AssigneesAnswer, type ExternalAssignee, type Readiness, type TicketWithLink } from '../api/tickets-s4';
 import type { AssignPreviewExtra } from '../api/tickets-messages';
 import { bidi } from '../i18n/bidi';
 import { tIcon } from './icons';
@@ -11,10 +11,12 @@ import { assignLines } from './message-lines';
 import { mtt } from './messages-text';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { ct, type CostTextKey } from './cost-text'; // slice 9
+import { outsideBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
 
 type CostModeChoice = 'required' | 'optional' | 'off';
 
-export type AssignKind = 'user' | 'person' | 'vendor';
+/** The dialog's three groups (owner 2026-10-14): handlers with an account, employees without one, vendors and contacts. */
+export type AssignKind = 'user' | 'employee' | 'person';
 
 /** A refusal the preview names, in words (an unknown code - a newer server - shows the general line). */
 export function refusalText(code: string): string {
@@ -44,6 +46,8 @@ export class ExternalAssign implements ReactiveController {
   /** whether the caller may send outside at all (tickets.external where the ticket lies) */
   external = false;
   publicReady = false;
+  /** what sending outside still needs (absent on the demo store / an older server) */
+  readiness: Readiness | null = null;
   pick = '';
   query = '';
   requireCode = false;
@@ -69,6 +73,7 @@ export class ExternalAssign implements ReactiveController {
     this.contacts = null;
     this.external = false;
     this.publicReady = false;
+    this.readiness = null;
     this.pick = '';
     this.query = '';
     this.requireCode = false;
@@ -87,6 +92,7 @@ export class ExternalAssign implements ReactiveController {
       this.contacts = r.contacts ?? [];
       this.external = !!r.external;
       this.publicReady = !!r.public_ready;
+      this.readiness = r.readiness ?? null;
       this.host.requestUpdate();
       return;
     }
@@ -95,13 +101,32 @@ export class ExternalAssign implements ReactiveController {
       this.contacts = x.contacts ?? [];
       this.external = !!x.external;
       this.publicReady = !!x.public_ready;
+      this.readiness = x.readiness ?? null;
       this.host.requestUpdate();
     }).catch(() => undefined);
   }
 
-  /** Whether the dialog shows the kind switch at all (a caller without `tickets.external` sees the user list only, as before). */
-  offered(t: TicketDetail): boolean {
-    return t.can.assign_external || (this.external && (this.contacts?.length ?? 0) > 0);
+  /** Whether the caller may send this ticket outside (tickets.external where the ticket lies). */
+  private mayExternal(t: TicketDetail): boolean {
+    return t.can.assign_external || this.external;
+  }
+
+  /** The rows of an outside group the dialog may offer for this ticket. */
+  private groupRows(k: 'employee' | 'person'): ExternalAssignee[] {
+    return (this.contacts ?? []).filter((c) => (k === 'employee' ? c.contact_kind === 'employee' : c.contact_kind !== 'employee'));
+  }
+
+  /** Why a group cannot be used now (one short reason with the link to its setting), or null. `users` = the handlers the server listed. */
+  blocked(t: TicketDetail, k: AssignKind, users: number | null): ReadyItem | null {
+    if (k === 'user') return users === null ? null : usersBlock(users);
+    if (this.contacts === null && this.mayExternal(t)) return null; // still loading
+    return outsideBlock(k, { external: this.mayExternal(t), readiness: this.readiness, publicReady: this.publicReady || !isApi(), count: this.groupRows(k).length });
+  }
+
+  /** One reason line: the words and the link to the exact setting. */
+  reasonLine(item: ReadyItem, kind = 'block'): TemplateResult {
+    return html`<div class=${`xreason ${kind}`} data-blocked=${item.key}>${tIcon(kind === 'note' ? 'warning' : 'lock')}<span>${tt(item.text)}</span>
+      <a href=${item.href} data-blocked-link=${item.key}>${tt(item.link)}</a></div>`;
   }
 
   private setKind(k: AssignKind): void {
@@ -137,39 +162,54 @@ export class ExternalAssign implements ReactiveController {
   }
 
   private matches(c: ExternalAssignee): boolean {
-    const want = this.kind === 'vendor' ? 'vendor' : 'person';
-    if (c.contact_kind !== want) return false;
+    if ((this.kind === 'employee') !== (c.contact_kind === 'employee')) return false;
     const q = this.query.trim().toLowerCase();
     return !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || (c.vendor_name ?? '').toLowerCase().includes(q);
   }
 
-  /** The segmented switch at the top of the dialog. */
-  renderKinds(t: TicketDetail): TemplateResult | typeof nothing {
-    if (!this.offered(t)) return nothing;
-    const item = (k: AssignKind, label: TicketTextKey, sub: TicketTextKey) => html`<button type="button" role="radio" aria-checked=${String(this.kind === k)}
-      data-assign-kind=${k} @click=${() => this.setKind(k)}><b>${tt(label)}</b><small>${tt(sub)}</small></button>`;
+  /** The three groups at the top of the dialog - ALWAYS shown (owner 2026-10-14): a group that cannot be used now is dimmed and its
+   * second line says why; choosing it shows the reason with the link to the setting. `users` = how many handlers the server listed. */
+  renderKinds(t: TicketDetail, users: number | null): TemplateResult {
+    const item = (k: AssignKind, label: TicketTextKey, sub: TicketTextKey) => {
+      const why = this.blocked(t, k, users);
+      return html`<button type="button" role="radio" aria-checked=${String(this.kind === k)} class=${why ? 'off' : ''} data-assign-kind=${k}
+        data-kind-blocked=${why?.key ?? ''} @click=${() => this.setKind(k)}><b>${tt(label)}</b><small>${tt(why ? why.text : sub)}</small></button>`;
+    };
     return html`<div class="seg xkinds" role="radiogroup" aria-label=${tt('fAssignee')} data-assign-kinds>
-      ${item('user', 'asgInside', 'asgInsideSub')}${item('person', 'asgContact', 'asgContactSub')}${item('vendor', 'asgVendor', 'asgVendorSub')}
+      ${item('user', 'asgInside', 'asgInsideSub')}${item('employee', 'asgGroupEmployees', 'asgEmployeesSub')}${item('person', 'asgOutside', 'asgOutsideSub')}
     </div>`;
   }
 
-  /** The contact picker and its options (only for kind person / vendor). */
+  private row(t: TicketDetail, c: ExternalAssignee): TemplateResult {
+    return html`<label data-contact=${c.id} data-contact-kind=${c.contact_kind}>
+      <input type="radio" name="asgc" .checked=${this.pick === c.id} @change=${() => this.choose(t, c)} />
+      <span class="xtx"><span class="xnm">${bidi(c.name)}</span>
+        <span class="xsub">${bidi([c.vendor_name ?? c.company, c.phone].filter(Boolean).join(' · '))}</span></span>
+      ${c.require_code ? html`<small>${tIcon('lock')}${tt('lkCode')}</small>` : nothing}</label>`;
+  }
+
+  /** The picker of an outside group (employees / vendors and contacts) and the chosen row's options. */
   renderPicker(t: TicketDetail): TemplateResult {
-    if (!t.can.assign_external && !this.external) return html`<div class="banner warn" data-external-locked>${tIcon('lock')}<div>${tt('asgExternalLocked')}</div></div>`;
-    if (!this.publicReady && isApi()) return html`<div class="banner warn" data-public-not-ready>${tIcon('warning')}<div>${tt('asgPublicNotReady')}</div></div>`;
+    const k = this.kind === 'employee' ? 'employee' : 'person';
+    const why = this.blocked(t, k, null);
+    if (why) return this.reasonLine(why);
     if (this.contacts === null) return html`<span class="skl" style="block-size:44px"></span>`;
     const list = this.contacts.filter((c) => this.matches(c));
     const chosen = this.contacts.find((c) => c.id === this.pick) ?? null;
     const p = this.preview;
+    const wa = whatsappNote(this.readiness);
+    // vendors and contacts in one group, each under its own small heading when both are there
+    const vendors = k === 'person' ? list.filter((c) => c.contact_kind === 'vendor') : [];
+    const others = k === 'person' ? list.filter((c) => c.contact_kind !== 'vendor') : list;
+    const headed = vendors.length > 0 && others.length > 0;
     return html`
+      ${wa ? this.reasonLine(wa, 'note') : nothing}
       <label class="fld"><span class="vh">${tt('asgSearch')}</span><input class="inp" type="search" maxlength="60" data-contact-search placeholder=${tt('asgSearch')}
         .value=${this.query} @input=${(e: Event) => { this.query = (e.target as HTMLInputElement).value; this.host.requestUpdate(); }} /></label>
-      ${list.length ? html`<div class="pick xpick" role="radiogroup" aria-label=${tt('fAssignee')}>${repeat(list, (c) => c.id, (c) => html`<label data-contact=${c.id}>
-          <input type="radio" name="asgc" .checked=${this.pick === c.id} @change=${() => this.choose(t, c)} />
-          <span class="xtx"><span class="xnm">${bidi(c.name)}</span>
-            <span class="xsub">${bidi([c.vendor_name ?? c.company, c.phone].filter(Boolean).join(' · '))}</span></span>
-          ${c.require_code ? html`<small>${tIcon('lock')}${tt('lkCode')}</small>` : nothing}</label>`)}</div>`
-        : html`<div class="muted" data-contacts-none>${tt('asgNoContacts')}</div>`}
+      ${list.length ? html`<div class="pick xpick" role="radiogroup" aria-label=${tt('fAssignee')}>
+          ${headed ? html`<span class="xgh" data-group="vendors">${tt('hdSeg_vendors')}</span>` : nothing}${repeat(vendors, (c) => c.id, (c) => this.row(t, c))}
+          ${headed ? html`<span class="xgh" data-group="contacts">${tt('hdSeg_contacts')}</span>` : nothing}${repeat(others, (c) => c.id, (c) => this.row(t, c))}</div>`
+        : html`<div class="muted" data-contacts-none>${tt('ctNone')}</div>`}
       ${chosen ? html`<div class="xopts" data-contact-options>
         <label class="chk"><input type="checkbox" data-require-code .checked=${this.requireCode} ?disabled=${chosen.require_code || this.lend.busy()}
           @change=${(e: Event) => { this.requireCode = (e.target as HTMLInputElement).checked; void this.loadPreview(t); }} />${tt('asgRequireCode')}</label>
@@ -290,6 +330,43 @@ export const externalAssignStyles = css`
     .xkinds small {
       text-align: end;
     }
+  }
+  /* a group that cannot be used now: dimmed, its second line says why (owner 2026-10-14) */
+  .xkinds button.off b {
+    color: var(--dv-text-3);
+  }
+  .xkinds button.off small {
+    color: var(--sw-warning, var(--dv-text-3));
+  }
+  .xreason {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--dv-border);
+    border-radius: var(--sw-r-lg);
+    background: var(--dv-surface);
+    font-size: var(--sw-fs-sm);
+    overflow-wrap: anywhere;
+  }
+  .xreason.note {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--dv-text-3);
+  }
+  .xreason a {
+    color: var(--dv-accent-text, var(--dv-accent));
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .xgh {
+    padding-block: 6px 0;
+    font-size: var(--sw-fs-xs);
+    font-weight: 600;
+    color: var(--dv-text-3);
   }
   .xpick .xtx {
     display: flex;

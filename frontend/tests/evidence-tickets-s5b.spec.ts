@@ -294,7 +294,7 @@ test.describe('tickets message channel evidence (slice 5b)', () => {
     const calls = await go(page, `/tickets/${TID}`);
     await page.waitForSelector(`${D} [data-ticket-page]`);
     await page.locator(`${D} [data-assign]`).first().click();
-    await page.locator(`${D} [data-assign-kind="vendor"]`).click();
+    await page.locator(`${D} [data-assign-kind="person"]`).click(); // vendors and contacts are one group of the dialog (owner 2026-10-14)
     await page.locator(`${D} [data-contact="c-gates"] input`).check();
     const P = `${D} [data-assign-preview]`;
     await expect(page.locator(`${P} [data-assign-channel="whatsapp"]`)).toContainText(ACCOUNT_LABEL);
@@ -302,7 +302,6 @@ test.describe('tickets message channel evidence (slice 5b)', () => {
     await expect(page.locator(`${P} [data-assign-send-now]`)).toBeChecked(); // a critical priority preselects it (D29)
     await expect(page.locator(`${P} [data-assign-down]`)).toHaveCount(0);
     await shot(page, 'assign-outside', 'light', 'classic', false);
-    await page.locator(`${D} [data-assign-kind="person"]`).click();
     await page.locator(`${D} [data-contact="c-elec"] input`).check();
     await expect(page.locator(`${P} [data-assign-down]`)).toContainText('יהיה צריך להעתיק את הקישור');
     await page.locator(`${P} [data-assign-send-now]`).uncheck();

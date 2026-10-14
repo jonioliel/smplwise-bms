@@ -2,7 +2,7 @@ import type { Page, Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mockTicketDetail, type Persona } from './tickets-mocks';
+import { DEPTS, INSTALLATION, adminDept, mockTicketDetail, type Persona } from './tickets-mocks';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
 const TYPES: Record<string, string> = {
@@ -40,13 +40,21 @@ export interface S4MockOptions {
   publicReady?: boolean;
   /** the "waiting for a part" ticket (1042) already went to the vendor's technician, with a live link */
   sentTicket?: boolean;
+  /** owner 2026-10-14 (the state he found after installing 2.5.0): no department members, no directory rows */
+  empty?: boolean;
+  /** the readiness the server reports (merged over "everything ready"); the handler page part follows `publicReady` */
+  readiness?: Partial<Readiness>;
+}
+export interface Readiness {
+  public_page: boolean; public_option: boolean; base_url: boolean; module_key: boolean; public_ready: boolean; public_missing: string[];
+  master_switch: boolean; account_mapped: boolean; email_fallback: boolean; email_configured: boolean; contacts_count: { employee: number; vendor: number; person: number };
 }
 export interface S4Mock {
   calls: { method: string; path: string; body: unknown }[];
 }
 
 interface Contact {
-  id: string; kind: 'person' | 'vendor'; vendor_id: string | null; display_name: string; company: string; phone: string | null; email: string | null;
+  id: string; kind: 'person' | 'vendor' | 'employee'; vendor_id: string | null; display_name: string; company: string; phone: string | null; email: string | null;
   preferred_channel: 'whatsapp' | 'email' | 'manual'; require_code: boolean; share_history: boolean | null; lang: 'he' | 'en' | 'ar' | 'ru'; notes: string; active: boolean;
   departments: string[]; open_tickets: number; revision: number;
 }
@@ -61,6 +69,9 @@ const CONTACTS: Contact[] = [
     require_code: false, share_history: null, lang: 'ru', notes: '', active: true, departments: [], open_tickets: 0, revision: 1 },
   { id: 'c000000000000v02', kind: 'vendor', vendor_id: null, display_name: 'ברק ניקיון ואחזקה', company: 'ניקיון', phone: '050-000-0071', email: null, preferred_channel: 'manual',
     require_code: false, share_history: null, lang: 'he', notes: '', active: false, departments: ['dept-cleaning'], open_tickets: 0, revision: 1 },
+  // owner 2026-10-14: an employee without an account (gets the handler link like a vendor)
+  { id: 'c000000000000e01', kind: 'employee', vendor_id: null, display_name: 'אבי לוי', company: '', phone: '050-000-0080', email: null, preferred_channel: 'whatsapp',
+    require_code: false, share_history: null, lang: 'he', notes: '', active: true, departments: ['dept-maintenance'], open_tickets: 0, revision: 1 },
 ];
 
 function present(c: Contact, full: boolean, configure: boolean) {
@@ -83,7 +94,19 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
   const external = persona === 'admin';
   const ready = o.publicReady ?? true;
   const st: S4Mock = { calls: [] };
-  const contacts = CONTACTS.map((c) => ({ ...c, departments: [...c.departments] }));
+  const contacts = o.empty ? [] : CONTACTS.map((c) => ({ ...c, departments: [...c.departments] }));
+  // slice 2's members, kept per department so the handlers page's writes show (the base mock answers without keeping them)
+  const members = new Map<string, ReturnType<typeof adminDept>['members']>(DEPTS.map((d) => [d.id, o.empty ? [] : adminDept(d, 0).members]));
+  const dept = (id: string) => ({ ...adminDept(DEPTS.find((x) => x.id === id) ?? DEPTS[0], 0), members: members.get(id) ?? [] });
+  const readiness = (): Readiness => {
+    const live = contacts.filter((c) => c.active);
+    return {
+      public_page: ready, public_option: ready, base_url: ready, module_key: true, public_ready: ready, public_missing: ready ? [] : ['option', 'address'],
+      master_switch: true, account_mapped: true, email_fallback: true, email_configured: false,
+      contacts_count: { employee: live.filter((c) => c.kind === 'employee').length, vendor: live.filter((c) => c.kind === 'vendor').length, person: live.filter((c) => c.kind === 'person').length },
+      ...(o.readiness ?? {}),
+    };
+  };
   const links = new Map<string, Link>();
   if (o.sentTicket) links.set('0000000000000a01', { contact: contacts[1], generation: 1, state: 'live', reason: null, sent: true, opens: 3 });
   let publicDoc = { organization_name: 'מגדלי הדר', public: { base_url: ready ? 'https://t-demo.arx.example.test' : '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip' } };
@@ -127,6 +150,33 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
     const body: unknown = method === 'GET' || method === 'DELETE' ? null : (() => { try { return req.postDataJSON(); } catch { return null; } })();
     const mine = () => st.calls.push({ method, path: p + url.search, body });
 
+    if (p === 'tickets/readiness') {
+      mine();
+      if (!configure && persona !== 'manager') return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');
+      return json(route, readiness());
+    }
+    if (p === 'tickets/admin/departments' && method === 'GET') {
+      mine();
+      if (!configure) return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');
+      return json(route, { departments: DEPTS.map((d) => dept(d.id)), all_departments: true, installation: INSTALLATION });
+    }
+    const mm = /^tickets\/admin\/departments\/([\w-]+)\/members\/(user|group)\/([\w-]+)$/.exec(p);
+    if (mm && (method === 'PUT' || method === 'DELETE')) {
+      mine();
+      const list = members.get(mm[1]) ?? [];
+      const idx = list.findIndex((m) => m.kind === mm[2] && m.id === mm[3]);
+      if (method === 'DELETE') {
+        if (idx >= 0) list.splice(idx, 1);
+      } else {
+        const b = body as { role: 'manager' | 'member'; notify_new?: boolean };
+        const names: Record<string, string> = { 'u-ronit': 'רונית לוי', 'u-avi': 'אבי כהן', 'u-yossi': 'יוסי מזרחי', 'u-dana': 'דנה פרץ', 'g-tech': 'טכנאים' };
+        const row = { kind: mm[2] as 'user', id: mm[3], name: names[mm[3]] ?? mm[3], role: b.role, notify_new: b.role === 'manager' && (b.notify_new ?? (idx >= 0 ? list[idx].notify_new : false)), added_at: at(0) };
+        if (idx >= 0) list[idx] = row;
+        else list.push(row);
+      }
+      members.set(mm[1], list);
+      return json(route, dept(mm[1]));
+    }
     if (p === 'tickets/contacts' && method === 'GET') {
       mine();
       if (!configure && persona !== 'manager') return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');
@@ -168,13 +218,13 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
     }
     if (p === 'tickets/assignees') {
       mine();
-      const users = [{ kind: 'user', id: 'u-avi', name: 'אבי כהן', member_role: 'manager' }, { kind: 'user', id: 'u-yossi', name: 'יוסי מזרחי', member_role: 'member' }];
+      const users = o.empty ? [] : [{ kind: 'user', id: 'u-avi', name: 'אבי כהן', member_role: 'manager' }, { kind: 'user', id: 'u-yossi', name: 'יוסי מזרחי', member_role: 'member' }];
       const outside = external ? contacts.filter((c) => c.active && (!c.departments.length || c.departments.includes('dept-maintenance'))).map((c) => {
         const vendor = c.vendor_id ? contacts.find((v) => v.id === c.vendor_id) : undefined;
         return { kind: 'contact', id: c.id, contact_kind: c.kind, name: c.display_name, company: c.company, vendor_name: vendor?.display_name ?? null, phone: c.phone,
           has_phone: !!c.phone, has_email: !!c.email, preferred_channel: c.preferred_channel, require_code: c.require_code || !!vendor?.require_code, share_history: c.share_history, lang: c.lang };
       }) : [];
-      return json(route, { users, contacts: outside, external, public_ready: ready });
+      return json(route, { users, contacts: outside, external, public_ready: ready, readiness: readiness() });
     }
     if (p === 'tickets/settings') {
       if (method === 'PUT') {
