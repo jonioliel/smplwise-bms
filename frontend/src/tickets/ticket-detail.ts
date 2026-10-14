@@ -25,6 +25,8 @@ import { messageEventLine, messagesBlock } from './ticket-messages'; // slice 5b
 import { ExternalAssign, externalAssignStyles } from './external-assign';
 import { LinkPanel, linkPanelStyles } from './link-panel';
 import { deviceBlockStyles, historySection } from './ticket-device-context'; // CR-038 slice 3: the frozen device history
+import './delete-dialog'; // owner 14.10: full deletion (tickets.delete)
+import { dlt } from './delete-text';
 
 interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
 
@@ -76,6 +78,7 @@ export class TicketDetailView extends LitElement {
   @state() private dlgFlag = true;
   @state() private dlgReturnKind: 'cannot_handle' | 'not_mine' = 'cannot_handle';
   @state() private eligible: Eligible[] | null = null;
+  @state() private deleting = false; // owner 14.10: the deletion dialog is open
   @state() private meta: Meta | null = null;
   @state() private edit: EditForm | null = null;
   private loadedFor = '';
@@ -418,6 +421,27 @@ export class TicketDetailView extends LitElement {
     this.dispatchEvent(new CustomEvent('drawer-close', { bubbles: true, composed: true }));
   }
 
+  /** Owner 14.10: the ticket was deleted - the drawer closes and the list refreshes (`ticket-gone`); the page returns to the list. */
+  private onDeleted = (): void => {
+    const id = this.ticketId;
+    this.deleting = false;
+    this.t = null;
+    this.gone = true;
+    this.dispatchEvent(new CustomEvent('ticket-gone', { detail: { id, deleted: true }, bubbles: true, composed: true }));
+    if (this.mode === 'page') window.location.href = listHref(this.scope);
+  };
+
+  private deleteButton(t: TicketDetail, cls: string): TemplateResult | typeof nothing {
+    if (!t.can.delete) return nothing;
+    return html`<button type="button" class=${cls} data-delete-ticket ?disabled=${this.busy} @click=${() => (this.deleting = true)}>${tIcon('trash')}${dlt('action')}</button>`;
+  }
+
+  private deleteDialog(t: TicketDetail): TemplateResult | typeof nothing {
+    if (!t.can.delete) return nothing;
+    return html`<tickets-delete-dialog .targets=${[{ id: t.id, number: t.number }]} ?open=${this.deleting}
+      @delete-close=${() => (this.deleting = false)} @ticket-deleted=${this.onDeleted}></tickets-delete-dialog>`;
+  }
+
   // ---------------------------------------------------------------- render pieces
 
   private sentence(t: TicketDetail): TemplateResult {
@@ -646,14 +670,16 @@ export class TicketDetailView extends LitElement {
   private drawer(): TemplateResult {
     const t = this.t;
     const sub = t ? [`#${t.number}`, statusLabel(t.status), t.priority?.name].filter(Boolean).join(' · ') : '';
-    const footer = t && (t.can.edit_fields.length || this.detailMode === 'drawer_fullscreen');
+    const footer = t && (t.can.edit_fields.length || this.detailMode === 'drawer_fullscreen' || t.can.delete);
     return html`<sw-drawer modal .open=${this.open} heading=${t?.title ?? ''} subheading=${sub} data-ticket-drawer @close=${(e: Event) => { if (e.target === e.currentTarget) this.close(); }}>
       ${t && this.detailMode === 'drawer_fullscreen' ? html`<a slot="action" class="btn sm quiet" href=${ticketHref(t.id)} data-full-screen aria-label=${tt('fullScreen')}>${tIcon('expand')}</a>` : nothing}
       ${t ? this.body(t) : this.stateBox()}
       ${footer && t ? html`<div slot="footer" class="foot2">
         ${t.can.edit_fields.length ? html`<button type="button" class="btn sm" data-edit ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'edit' })}>${tIcon('edit')}${tt('edit')}</button>` : nothing}
+        ${this.deleteButton(t, 'btn sm quiet dz')}
       </div>` : nothing}
       ${this.dialogs()}
+      ${t ? this.deleteDialog(t) : nothing}
     </sw-drawer>`;
   }
 
@@ -671,6 +697,7 @@ export class TicketDetailView extends LitElement {
           ${t.can.note ? html`<button type="button" class="btn" @click=${() => { this.composing = true; this.renderRoot.querySelector('#timeline')?.scrollIntoView({ block: 'start' }); }}>${tIcon('note')}${tt('note')}</button>` : nothing}
           ${t.can.edit_fields.length ? html`<button type="button" class="btn" data-edit ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'edit' })}>${tIcon('edit')}${tt('edit')}</button>` : nothing}
           ${this.detailMode === 'drawer_fullscreen' ? html`<a class="btn" href=${listHref(this.scope, undefined, { t: t.id })} data-to-drawer>${tIcon('shrink')}${tt('toDrawer')}</a>` : nothing}
+          ${this.deleteButton(t, 'btn quiet dz')}
         </div>
       </div>
       <div class="pmeta">${tIcon('layers')}${bidi(meta)}</div>
@@ -680,6 +707,7 @@ export class TicketDetailView extends LitElement {
         <div class="stack">${this.assigneeSection(t)}${this.messagesSection(t)}${this.photosSection(t)}${historySection(t.device_context)}</div>
       </div>
       ${this.dialogs()}
+      ${this.deleteDialog(t)}
     </div>`;
   }
 

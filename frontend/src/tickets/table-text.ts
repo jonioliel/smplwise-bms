@@ -134,6 +134,7 @@ const he = {
   r_forbidden: 'אין הרשאה',
   r_invalid_transition: 'לא במצב שמאפשר',
   r_not_found: 'לא {f:נמצאו|m:נמצאו}',
+  r_cost_claim_approved: 'עם עלות מאושרת (נדרשת הרשאת עלויות)', // owner 14.10: bulk deletion's cost guard
   r_assignee_not_allowed: 'המטפל לא שייך למחלקה',
   r_unavailable: 'לא זמין עדיין',
   r_too_soon: 'כבר נשלחה תזכורת בשעה האחרונה',
@@ -261,6 +262,7 @@ const en: Partial<Record<TableTextKey, string>> = {
   r_forbidden: 'No permission',
   r_invalid_transition: 'Not in a state that allows it',
   r_not_found: 'Not found',
+  r_cost_claim_approved: 'With an approved cost (needs the cost permission)',
   r_assignee_not_allowed: 'The handler is not in the department',
   r_unavailable: 'Not available yet',
   r_too_soon: 'A reminder was sent in the last hour',

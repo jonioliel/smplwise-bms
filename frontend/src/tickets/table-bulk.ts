@@ -15,6 +15,9 @@ import { tbIcon } from './table-icons';
 import { tIcon } from './icons';
 import { ticketTableStyles } from './table-styles';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
+import { canAnywhere, isApi } from '../api/session';
+import './delete-dialog'; // owner 14.10: full deletion of the selection (tickets.delete; its own dialog and route)
+import { dlt } from './delete-text';
 
 /**
  * CR-038 slice 6b `<tickets-table-bulk .rows .meta>`: the bulk bar of the board table while rows are selected - "3 נבחרו", assign,
@@ -54,6 +57,11 @@ export class TicketsTableBulk extends LitElement {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
+  /** Owner 14.10: "מחיקה" in the bar only for a holder of tickets.delete (the server checks every ticket again). */
+  private get mayDelete(): boolean {
+    return !isApi() || canAnywhere('tickets.delete');
+  }
+
   private open(action: BulkAction): void {
     this.dialog = action;
     this.error = '';
@@ -79,7 +87,7 @@ export class TicketsTableBulk extends LitElement {
 
   private async run(): Promise<void> {
     const action = this.dialog;
-    if (!action) return;
+    if (!action || action === 'delete') return;
     if (action === 'assign' && !this.pick) return;
     if (action === 'close' && !this.note.trim()) {
       this.error = tbt('required');
@@ -120,6 +128,10 @@ export class TicketsTableBulk extends LitElement {
   private dialogEl(): TemplateResult | typeof nothing {
     const a = this.dialog;
     if (!a) return nothing;
+    if (a === 'delete') {
+      return html`<tickets-delete-dialog open .targets=${this.rows.map((r) => ({ id: r.id, number: r.number }))} @delete-close=${() => (this.dialog = null)}
+        @bulk-done=${() => (this.dialog = null)}></tickets-delete-dialog>`;
+    }
     const n = this.rows.length;
     const heading = a === 'assign' ? tbt('bulkAssignTitle', { n }) : a === 'priority' ? tbt('bulkPriorityTitle', { n }) : a === 'close' ? tbt('bulkCloseTitle', { n }) : tbt('bulkRemindTitle');
     const disabled = this.busy || (a === 'assign' && !this.pick);
@@ -140,6 +152,7 @@ export class TicketsTableBulk extends LitElement {
     return html`<div class="bulk" role="toolbar" aria-label=${tbt('bulkActions')} data-bulk-bar>
       <span class="sel" data-bulk-count>${tIcon('check')}${tbt('selected', { n })}</span>
       ${actions.map(([a, icon, label]) => html`<button type="button" class="btn sm" data-bulk=${a} @click=${() => this.open(a)}>${icon}${label}</button>`)}
+      ${this.mayDelete ? html`<button type="button" class="btn sm dz" data-bulk="delete" @click=${() => this.open('delete')}>${tIcon('trash')}${dlt('bulkAction')}</button>` : nothing}
       <span class="grow"></span>
       <button type="button" class="btn sm quiet" data-bulk-clear @click=${() => this.emit('bulk-clear', {})}>${tIcon('x')}${tbt('clearSelection')}</button>
     </div>

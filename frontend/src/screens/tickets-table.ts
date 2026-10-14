@@ -207,6 +207,14 @@ export class TicketsTable extends LitElement {
   }
 
   /** A ticket changed elsewhere (the drawer): its row follows (the host calls this). */
+  /** Owner 14.10: a ticket was deleted from its drawer - its row leaves at once and the page reloads quietly. */
+  dropTicket(id: string): void {
+    if (this.rows) this.rows = this.rows.filter((r) => r.id !== id);
+    const sel = new Set(this.selected);
+    if (sel.delete(id)) this.selected = sel;
+    void this.load(false, true);
+  }
+
   patchTicket(d: TicketDetail): void {
     if (!this.rows) return;
     this.rows = this.rows.map((r) => (r.id === d.id ? this.merged(r, d) : r));
