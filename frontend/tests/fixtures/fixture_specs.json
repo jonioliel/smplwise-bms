@@ -1,5 +1,6 @@
 {
   "_comment": "Single source for the Playwright specs that need a live fixture backend. Read by scripts/gate/release_gate.py (only specs with gate=true: FIXTURE_SPECS) and by scripts/fixture_job.py (the `fixture` job of private/runner/run_smart.py). Do not change a gate flag without noting it in docs/operations/RUNNER_FIXTURE_JOB.md.",
+  "_hud_layout": "the layout guard of the HUD over the floor map reads every skin at 390 / 768 / 1440 px (~18 min on the runner): two specs / groups (evidence-hud-layout-live.spec.ts: classic, domus, tesla; -b: bubble, crystal) keep each under the fixture job's 20-minute group limit; SW_HUD_SHOTS=1 also writes the pictures into docs/design/evidence/hud-layout/ (untracked on the runner; copy them back, look at them, commit the ones that are evidence)",
   "groups": {
     "devices": {
       "script": "frontend/tests/fixtures/devices_fake_ha.py",
@@ -12,11 +13,26 @@
         "evidence-plan-glass.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass-entity.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-floorstrip.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
+        "evidence-hud-opaque-live.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-lat1-instant-toggle.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-home-polish.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},
         "evidence-area-nav.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-area-redesign.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]}
+      }
+    },
+    "hud_layout": {
+      "script": "frontend/tests/fixtures/devices_fake_ha.py",
+      "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_HUD_SHOTS": "1", "SW_HUD_TAG": "after", "SW_HUD_SHOT_SKINS": "classic,domus,tesla", "SW_HUD_SHOT_SCHEMES": "light,dark"},
+      "specs": {
+        "evidence-hud-layout-live.spec.ts": {"gate": false, "projects": ["desktop"]}
+      }
+    },
+    "hud_layout_b": {
+      "script": "frontend/tests/fixtures/devices_fake_ha.py",
+      "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_HUD_SHOTS": "1", "SW_HUD_TAG": "after", "SW_HUD_SHOT_SKINS": "bubble,crystal", "SW_HUD_SHOT_SCHEMES": "light,dark"},
+      "specs": {
+        "evidence-hud-layout-live-b.spec.ts": {"gate": false, "projects": ["desktop"]}
       }
     },
     "devices_floor": {

@@ -3,11 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SKIN_IDS } from '../src/design/skins';
+import { alphaOf } from './menu-opaque-harness';
 
 // Owner report 2026-10-11: on the floor map with the 3D on screen, the floor switcher showed twice - the large floor strip
-// (short name, floor name, state dots) and, under its translucent card in the same corner, the 2D quick floor buttons as a
+// (short name, floor name, state dots) and, under its card (then translucent) in the same corner, the 2D quick floor buttons as a
 // second smaller set bleeding through. One switcher at a time: the 3D shows only the strip, the 2D only the quick
-// buttons. Checked in every skin and both schemes, on the desktop and the phone: the visible floor buttons are exactly the
+// buttons. Since 2026-10-13 (second report: every HUD panel over the plan is opaque, tests/evidence-hud-opaque-live.spec.ts) the strip's card
+// is also the opaque menu surface, so nothing under it can show through whatever is rendered there: the spec reads its computed alpha too. Checked in every skin and both schemes, on the desktop and the phone: the visible floor buttons are exactly the
 // building's floors, no two of them overlap, and each one is the element painted at its own centre. The spec builds its
 // own site / building / three floors with generated plan pictures and removes them.
 // Runs only with SW_LIVE=1 (a backend behind the preview proxy; SW_API_PORT picks a throwaway instance).
@@ -134,6 +136,8 @@ test.describe.serial('one floor switcher on the floor map (owner 2026-10-11)', (
         check(await floorButtons(page), 'quick', `${label} 2D`);
         await to3d(page);
         check(await floorButtons(page), 'strip', `${label} 3D`);
+        const card = await page.locator(`${MAP} [data-floor-strip]`).evaluate((el) => getComputedStyle(el).backgroundColor);
+        expect.soft(alphaOf(card), `${label} 3D: the strip's card is opaque (${card})`).toBe(1);
         // the strip keeps its names (the large set the owner wants) and marks the floor on screen
         await expect.soft(page.locator(`${MAP} [data-strip-floor="${start}"]`)).toHaveAttribute('aria-pressed', 'true');
         const corner = page.locator(`${MAP} [data-floor-strip]`);

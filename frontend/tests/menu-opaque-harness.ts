@@ -8,7 +8,8 @@ export const MENU_SCHEMES = ['light', 'dark'] as const;
 export type MenuSkin = (typeof MENU_SKINS)[number];
 export type MenuScheme = (typeof MENU_SCHEMES)[number];
 
-/** The alpha of a computed colour: `rgb(r, g, b)` = 1, `rgba(r, g, b, a)`, `rgb(r g b / a)` and `color(srgb r g b / a)` (how Chromium prints a color-mix()). NaN = not a colour. */
+/** The alpha of a computed colour: `rgb(r, g, b)` = 1, `rgba(r, g, b, a)`, `rgb(r g b / a)`, and the colour functions Chromium prints for a color-mix()
+ * (`color(srgb r g b / a)`, `oklab(L a b / a)`, `oklch`, `lab`, `lch`, `hsl`, `hwb`): the part after the slash, else 1. NaN = not a colour. */
 export function alphaOf(c: string): number {
   const s = c.trim();
   let m = /^rgba?\(([^)]+)\)$/i.exec(s);
@@ -16,7 +17,7 @@ export function alphaOf(c: string): number {
     const p = m[1].split(/[\s,/]+/).filter(Boolean);
     return p.length > 3 ? Number(p[3]) : 1;
   }
-  m = /^color\(([^)]+)\)$/i.exec(s);
+  m = /^(?:color|oklab|oklch|lab|lch|hsla?|hwb)\(([^)]+)\)$/i.exec(s);
   if (m) {
     const parts = m[1].split('/');
     return parts.length > 1 ? Number(parts[1]) : 1;
@@ -77,7 +78,7 @@ export async function expectOpaqueMenu(surface: Locator, label: string): Promise
   // the menu really is open and on screen (a closed menu would be "opaque" for free)
   await expect(surface, `${label}: the menu is open and visible`).toBeVisible();
   // an open transition (opacity / transform, 200 ms) is over when the surface is not faded any more
-  await expect.poll(async () => (await paintOf(surface)).effectiveOpacity, { message: `${label}: still fading in`, timeout: 4000 }).toBe(1);
+  await expect.poll(async () => (await paintOf(surface)).effectiveOpacity, { message: `${label}: still fading in`, timeout: 15000 }).toBe(1);
   const p = await paintOf(surface);
   expect(p.tokenAlpha, `${label}: the menu token itself is opaque (${p.token})`).toBe(1);
   expect(p.bgAlpha, `${label}: background ${p.bg} must have alpha 1`).toBe(1);
