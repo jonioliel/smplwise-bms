@@ -286,7 +286,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
         store.insert_event(conn, row["id"], "reopened", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, from_status="closed", to_status="assigned")
     store.insert_event(conn, row["id"], "reassigned" if current else "assigned", actor_kind="user", actor_user_id=viewer.uid, actor_name=who,
                        assignment_id=aid, from_status=status, to_status="assigned",
-                       data={"assignee": name, "assignee_kind": "contact", "contact_kind": contact["kind"], "channel": channel,
+                       data={"assignee": name, "assignee_kind": "contact", "contact_kind": "employee" if contact.get("employee") else contact["kind"], "channel": channel,
                              "require_code": req, **({"previous": previous} if previous else {})})
     if note_text:
         store.insert_event(conn, row["id"], "note", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, assignment_id=aid, body=note_text,

@@ -29,7 +29,7 @@ from .access import Viewer, text
 from .keyring import KEYS
 from .module_key import ModuleKeyError
 
-KINDS = ("person", "vendor")
+KINDS = ("person", "vendor", "employee")  # "employee" (0084): stored as kind 'person' with employee = 1 - see api_kind()
 CHANNELS = ("whatsapp", "email", "manual")
 LANGS = ("he", "en", "ar", "ru")
 NAME_MAX = 80
@@ -108,6 +108,11 @@ def display_phone(digits: str | None) -> str | None:
     return "+" + digits
 
 
+def api_kind(row: dict[str, Any]) -> str:
+    """The kind the API speaks: 'employee' for an employee without an account (0084: a person row with employee = 1)."""
+    return "employee" if row.get("kind") == "person" and row.get("employee") else row["kind"]
+
+
 def phone_key_for(digits: str | None) -> tuple[str | None, str | None]:
     """(phone_key, key_id) under the current module key (minted by the "module on" path only - keyring.py, W12)."""
     if not digits:
@@ -163,7 +168,7 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
     phone = row.get("phone_e164")
     return {
         "id": row["id"],
-        "kind": row["kind"],
+        "kind": api_kind(row),
         "vendor_id": row.get("vendor_id"),
         "vendor_name": (vendors or {}).get(row.get("vendor_id") or "") if row.get("vendor_id") else None,
         "user_linked": bool(row.get("user_id")),
@@ -236,12 +241,13 @@ def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any
         if share is None and vendor is not None:
             share = vendor.get("share_history")
         out.append({
-            "kind": "contact", "id": r["id"], "contact_kind": r["kind"], "name": r["display_name"], "company": r.get("company") or "",
+            "kind": "contact", "id": r["id"], "contact_kind": api_kind(r), "name": r["display_name"], "company": r.get("company") or "",
             "vendor_name": vendor["display_name"] if vendor else None, "phone": display_phone(r.get("phone_e164")),
             "has_phone": bool(r.get("phone_e164")), "has_email": bool(r.get("email")), "preferred_channel": r["preferred_channel"],
             "require_code": require, "share_history": None if share is None else bool(share), "lang": r["lang"],
         })
-    return sorted(out, key=lambda c: (c["contact_kind"] != "vendor", c["name"]))
+    order = {"employee": 0, "vendor": 1, "person": 2}  # the dialog groups them: employees, vendors, contacts
+    return sorted(out, key=lambda c: (order.get(c["contact_kind"], 3), c["name"]))
 
 
 # ---------------------------------------------------------------- writes
@@ -253,7 +259,9 @@ def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, An
         if creating or "kind" in body:
             if body.get("kind") not in KINDS:
                 raise ContactInvalid("kind", "choice")
-            f["kind"] = body["kind"]
+            # 0084: the API kind "employee" is a person row with employee = 1; every other kind clears the flag
+            f["kind"] = "person" if body["kind"] == "employee" else body["kind"]
+            f["employee"] = 1 if body["kind"] == "employee" else 0
         if creating or "display_name" in body:
             f["display_name"] = model.text_field(body.get("display_name"), "display_name", required=True, max_len=NAME_MAX)
         if "company" in body:
@@ -283,15 +291,16 @@ def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, An
                 raise ContactInvalid("share_history", "type")
             f["share_history"] = None if v is None else (1 if v else 0)
         kind = f.get("kind") or (current or {}).get("kind")
+        employee = bool(f["employee"] if "employee" in f else (current or {}).get("employee"))
         if "vendor_id" in body:
             vid = body.get("vendor_id") or None
             if vid is not None:
                 vendor = store_links.contact(conn, vid)
-                if kind != "person" or vendor is None or vendor["kind"] != "vendor" or vendor.get("erased_at") or vid == (current or {}).get("id"):
+                if kind != "person" or employee or vendor is None or vendor["kind"] != "vendor" or vendor.get("erased_at") or vid == (current or {}).get("id"):
                     raise ContactInvalid("vendor_id", "unknown")
             f["vendor_id"] = vid
-        elif kind == "vendor" and (current or {}).get("vendor_id"):
-            f["vendor_id"] = None
+        elif (kind == "vendor" or employee) and (current or {}).get("vendor_id"):
+            f["vendor_id"] = None  # a vendor or an employee works for no vendor
         # S9 (11A.1 / 11A.2, D32): the claim requirement default, VAT handling and the hourly-rate prefill
         if "cost_claim" in body:
             if body["cost_claim"] not in (None, "required", "optional", "off"):
@@ -319,9 +328,13 @@ def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, An
             f["rate_currency"] = cur if f["labor_rate_minor"] is not None else None
         if "user_id" in body:
             uid = body.get("user_id") or None
+            if uid is not None and employee:
+                raise ContactInvalid("user_id", "employee")  # an employee without an account never names an internal user
             if uid is not None and uid not in store.active_user_ids(conn):
                 raise ContactInvalid("user_id", "unknown")
             f["user_id"] = uid
+        elif employee and (current or {}).get("user_id"):
+            raise ContactInvalid("kind", "user_linked")  # a row that names a user cannot become an employee without an account
     except model.Invalid as exc:
         raise ContactInvalid(exc.problems[0].field, exc.problems[0].code) from None
     return f
@@ -362,7 +375,7 @@ def create(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -
     if depts:
         store_links.set_contact_departments(conn, cid, depts)
     audit(conn, actor=viewer.principal, action="ticket.contact.create", decision="allowed", resource_type="ticket_contact", resource_id=cid,
-          request_id=rid, details={"kind": fields["kind"], "departments": len(depts or []), "has_phone": bool(fields.get("phone_e164")),
+          request_id=rid, details={"kind": api_kind(fields), "departments": len(depts or []), "has_phone": bool(fields.get("phone_e164")),
                                    "has_email": bool(fields.get("email")), "require_code": bool(fields.get("require_code"))})
     return one(conn, viewer, cid)
 
@@ -486,7 +499,7 @@ def export(conn, viewer: Viewer, contact_id: str, rid: str | None = None) -> dic
     keep = ("id", "kind", "display_name", "company", "phone_e164", "email", "preferred_channel", "require_code", "share_history", "lang",
             "notes", "active", "created_at", "updated_at", "last_assigned_at", "erased_at")
     return {
-        "contact": {k: row.get(k) for k in keep},
+        "contact": {**{k: row.get(k) for k in keep}, "kind": api_kind(row)},
         "departments": store_links.contact_departments(conn, contact_id),
         "assignments": [{"ticket_number": a["number"], "assigned_at": a["assigned_at"], "ended_at": a.get("ended_at"), "end_reason": a.get("end_reason"),
                          "return_kind": a.get("return_kind"), "return_reason": a.get("return_reason")} for a in store_links.contact_assignments(conn, contact_id)],

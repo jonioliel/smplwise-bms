@@ -30,7 +30,7 @@ def _rid(request: Request) -> str | None:
 
 class ContactBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["person", "vendor"] | None = None
+    kind: Literal["person", "vendor", "employee"] | None = None  # "employee": an employee without an account (0084)
     display_name: str | None = Field(default=None, max_length=400)
     company: str | None = Field(default=None, max_length=400)
     vendor_id: str | None = Field(default=None, max_length=64, pattern=ID)
@@ -65,7 +65,7 @@ def _body(body: ContactBody) -> dict[str, Any]:
 
 @router.get("/tickets/contacts")
 def list_contacts(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
-                  q: str = Query("", max_length=60), kind: Literal["person", "vendor"] | None = Query(None),
+                  q: str = Query("", max_length=60), kind: Literal["person", "vendor", "employee"] | None = Query(None),
                   department_id: str | None = Query(None, pattern=ID), include_inactive: bool = Query(True)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     if not (contacts.may_configure(viewer) or access.MANAGE in viewer.anywhere):
