@@ -112,6 +112,9 @@ with ONE `PacingGate` per process as 5a asked.
     time of the generation stays (slice 6's "link not opened" counts from it) and a link that ever went by e-mail stays `email` (D6).
 16. **"שלח קישור שוב"** (slice 4's `POST /tickets/{id}/link/resend`) queues a new `assign` message for the current link; an older open
     `assign` row of the same assignment is superseded (never two pending copies).
+17. **Dues**: a WhatsApp reply (status or note) and an attached reply refresh slice 2's stored dues like every other change; a message
+    outcome alone (sent / failed / fallback) does not touch them (it changes `waiting_on` only).
+18. **The idle worker** never takes the write lock: the minute's full tick runs only while a message is open (queued / held / sending).
 
 ## 5. Not built in 5b (and why)
 
