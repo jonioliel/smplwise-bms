@@ -60,6 +60,15 @@ export class TicketsInboundChip extends LitElement {
       gap: var(--sw-s-1);
       align-items: center;
     }
+    .chipin .n {
+      font-variant-numeric: tabular-nums;
+    }
+    /* a phone keeps the header to one row: the icon and the count (the full words stay in aria-label) */
+    @media (max-width: 599px) {
+      .chipin .lbl {
+        display: none;
+      }
+    }
   `];
 
   connectedCallback(): void {
@@ -121,7 +130,8 @@ export class TicketsInboundChip extends LitElement {
 
   render() {
     if (!this.items.length) return nothing;
-    return html`<button type="button" class="btn sm" data-inbound-chip @click=${() => (this.open = true)}>${tIcon('note')}${mtt('inbChip', { n: this.items.length })}</button>
+    return html`<button type="button" class="btn sm chipin" data-inbound-chip aria-label=${mtt('inbChip', { n: this.items.length })} @click=${() => (this.open = true)}>
+        ${tIcon('note')}<span class="lbl">${mtt('inbTitle')}</span><b class="n">${this.items.length}</b></button>
       ${this.open ? html`<sw-dialog open heading=${mtt('inbTitle')} data-dialog="inbound" @close=${() => (this.open = false)}>
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <div class="list">${this.items.map((it) => html`<div class="item" data-inbound=${it.id}>

@@ -77,7 +77,7 @@ export class TicketsChannelSettings extends LitElement {
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: var(--sw-s-2);
     }
-    .num {
+    .tile {
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -85,7 +85,7 @@ export class TicketsChannelSettings extends LitElement {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-sm);
     }
-    .num b {
+    .tile b {
       font-size: var(--sw-fs-lg);
     }
     input.in.short {
@@ -217,10 +217,10 @@ export class TicketsChannelSettings extends LitElement {
     const oldestText = oldest == null ? '-' : oldest < 3600 ? `${Math.max(1, Math.round(oldest / 60))}′` : `${Math.round(oldest / 3600)}h`;
     return html`<sw-card heading=${mtt('chHealthCard')} data-card="channel-health">
       <div class="nums">
-        <div class="num" data-health="waiting"><span class="muted">${mtt('chWaiting')}</span><b>${depth}</b></div>
-        <div class="num" data-health="oldest"><span class="muted">${mtt('chOldest')}</span><b>${oldestText}</b></div>
-        <div class="num" data-health="replies"><span class="muted">${mtt('chReplies')}</span><b>${replies}</b></div>
-        <div class="num" data-health="listen"><span class="muted">${mtt('chReplyListen')}</span><b>${v.inbound.wanted ? mtt('chOn') : mtt('chOff')}</b></div>
+        <div class="tile" data-health="waiting"><span class="muted">${mtt('chWaiting')}</span><b>${depth}</b></div>
+        <div class="tile" data-health="oldest"><span class="muted">${mtt('chOldest')}</span><b>${oldestText}</b></div>
+        <div class="tile" data-health="replies"><span class="muted">${mtt('chReplies')}</span><b>${replies}</b></div>
+        <div class="tile" data-health="listen"><span class="muted">${mtt('chReplyListen')}</span><b>${v.inbound.wanted ? mtt('chOn') : mtt('chOff')}</b></div>
       </div>
     </sw-card>`;
   }

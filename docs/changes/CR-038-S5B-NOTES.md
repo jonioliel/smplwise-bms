@@ -55,7 +55,8 @@ a code or a text (a test asserts it). The migration-list tests know 0081 (`test_
 | `tickets/settings-message-templates.ts` | Settings › the module › "תבניות הודעה" |
 | `tickets/inbound-queue.ts` | `<tickets-inbound-chip>`: one chip in the list header while unmatched replies wait (managers), opening the claim / attach / dismiss dialog |
 | `tickets/messages-text.ts` | the texts (Hebrew + English; the module name through tokens only) |
-| `tickets/ticket-detail.ts`, `screens/system-tickets.ts`, `screens/tickets-list.ts` | one-line wiring each (the block, the two tabs, the chip) |
+| `tickets/ticket-detail.ts`, `screens/system-tickets.ts`, `screens/tickets-list.ts` | one-line wiring each (the block, the two tabs - each shown to the permission that can use it, the chip) |
+| slice 4's `tickets/external-assign.ts`, `tickets/link-panel.ts`, `api/tickets-s4.ts` | the assign dialog for a contact shows the channel and account, a warning when the account cannot send now (the message waits, then falls back), the send-hours line with "שלח עכשיו" (D29, preselected for critical priorities) and sends `send_now`; the link panel offers "שלח קישור שוב" when the server allows it (`can.resend`) |
 
 ## 2. Registrations (each a module attribute set by `messaging.RUNTIME.configure`)
 
@@ -107,6 +108,10 @@ with ONE `PacingGate` per process as 5a asked.
     same change; the merge took its `idempotency_scope`).
 14. **Settings shape**: the `PUT /tickets/settings` body combines slice 2 (links, send hours, urgent as critical) and slice 4 (organization,
     public); the channel keys have their own route (`PUT /tickets/channel`) so slice 1/2's body stays as it is.
+15. **A link "sent"**: the outbox marks it through slice 4's `handler_links.mark_sent` once a link message is handed over - the first send
+    time of the generation stays (slice 6's "link not opened" counts from it) and a link that ever went by e-mail stays `email` (D6).
+16. **"שלח קישור שוב"** (slice 4's `POST /tickets/{id}/link/resend`) queues a new `assign` message for the current link; an older open
+    `assign` row of the same assignment is superseded (never two pending copies).
 
 ## 5. Not built in 5b (and why)
 
@@ -114,9 +119,6 @@ with ONE `PacingGate` per process as 5a asked.
   route would be a second way to send a typed number.
 - 9.6 step 7 (an internal user with a directory phone gets WhatsApp deep links): internal assignees get CR-018 in-app only; no outbox
   row is ever written for an internal user, so no reply can match one.
-- The assign dialog for CONTACTS (preview text, account line, send-hours line, "send now", "require code") is slice 4's screen; the
-  preview route already answers every line (`channel`, `text`, `account`, `send_hours.{open_now, next_opening, send_now_default}`,
-  `fallback`).
 - CR-018 `ticket.send_failed` / `ticket.reply_unmatched` / `ticket.channel_down` signals: slice 6's notify bridge (called when present).
 
 ## 6. When slice 7 is merged (verification codes)
@@ -136,8 +138,8 @@ end in the same `queue_code`. `ticket_link_codes.outbox_id` is set by `queue_cod
 
 ## 8. Tests
 
-Backend: `tests/test_tickets_s5b_channel.py` (29) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
-preview, send hours + "send now" (403 without tickets.external), the switch off (manual; and queued rows held), unknown never retried +
+Backend: `tests/test_tickets_s5b_channel.py` (30) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
+preview (and its warning when the account cannot send), the link panel's "send the link again", send hours + "send now" (403 without tickets.external), the switch off (manual; and queued rows held), unknown never retried +
 "send again", retries then the e-mail fallback with the redeem link (never the fragment), disconnected -> hold -> nobody -> waiting for
 the manager -> no resend on reconnect, unmapped -> remapped (D27), the D6 refusal, a code request from the public page (the row keeps the
 code id only), inbound status / note / late / ambiguous claim-before-reveal / account filter / LID button nonce / switch off, message
