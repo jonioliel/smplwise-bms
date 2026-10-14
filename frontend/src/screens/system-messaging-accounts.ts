@@ -50,6 +50,8 @@ export class SystemMessagingAccounts extends LitElement {
   @state() private openDepts: Record<string, boolean> = {};
   @state() private pacingOpen = false;
   @state() private testTarget = '';
+  /** owner 2026-10-14: the test send is open to messaging.accounts.manage holders - one confirm before a real message leaves */
+  @state() private testConfirm = false;
   @state() private fieldErrors: Record<string, string> = {};
   private okTimer = 0;
 
@@ -519,7 +521,7 @@ export class SystemMessagingAccounts extends LitElement {
       <div class="row stack"><span class="lbl">${wt('testTitle')}${view.test_send.enabled ? nothing : html`<span class="muted" data-test-off>${wt('testOff')}</span>`}</span>
         <div class="actions"><input class="in ltr" dir="ltr" inputmode="tel" maxlength="20" data-test-target aria-label=${wt('testTarget')} placeholder=${wt('testTarget')} .value=${this.testTarget}
           ?disabled=${!view.test_send.enabled || !ed} @input=${(e: Event) => (this.testTarget = (e.target as HTMLInputElement).value)} />
-          <sw-button size="sm" data-test-send ?disabled=${!view.test_send.enabled || !ed || !this.testTarget.trim()} @click=${() => void this.test()}>${wt('testSend')}</sw-button></div></div>
+          <sw-button size="sm" data-test-send ?disabled=${!view.test_send.enabled || !ed || !this.testTarget.trim()} @click=${() => (this.testConfirm = true)}>${wt('testSend')}</sw-button></div></div>
       ${removable ? html`<div class="row"><span class="lbl">${inUse ? html`<span class="muted">${wt('removeInUse')}</span>` : nothing}</span>
         <sw-button size="sm" variant="danger" data-remove ?disabled=${inUse || this.busy} @click=${() => this.removeAccount(key)}>${wt('remove')}</sw-button></div>` : nothing}
     </sw-card>`;
@@ -536,6 +538,14 @@ export class SystemMessagingAccounts extends LitElement {
       </div>
       <sw-button slot="footer" variant="ghost" @click=${() => (this.manualOpen = false)}>${wt('cancel')}</sw-button>
       <sw-button slot="footer" variant="primary" data-manual-ok ?disabled=${!this.manual.value.trim()} @click=${() => this.addManual()}>${wt('add')}</sw-button>
+    </sw-dialog>`;
+  }
+
+  private testDialog(): TemplateResult {
+    return html`<sw-dialog heading=${wt('testTitle')} .open=${this.testConfirm} data-test-dialog @close=${() => (this.testConfirm = false)}>
+      <p>${wt('testConfirmLine', { target: this.testTarget.trim() })}</p>
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.testConfirm = false)}>${wt('cancel')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-test-confirm ?disabled=${this.busy} @click=${() => { this.testConfirm = false; void this.test(); }}>${wt('testSend')}</sw-button>
     </sw-dialog>`;
   }
 
@@ -568,7 +578,7 @@ export class SystemMessagingAccounts extends LitElement {
         <sw-button size="sm" variant="ghost" data-discard ?disabled=${!dirty || this.busy} @click=${() => this.view && this.take(this.view)}>${wt('discard')}</sw-button>
         <sw-button size="sm" variant="primary" data-save ?disabled=${!dirty || this.busy} @click=${() => void this.save()}>${wt('save')}</sw-button>
       </div>` : html`<p class="muted" data-read-only>${wt('readOnly')}</p>`}
-      ${this.manualDialog()}${this.confirmDialog()}
+      ${this.manualDialog()}${this.confirmDialog()}${this.testDialog()}
     </sw-page>`;
   }
 }

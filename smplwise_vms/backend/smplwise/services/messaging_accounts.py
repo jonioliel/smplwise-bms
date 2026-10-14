@@ -39,7 +39,7 @@ LABEL_MAX = 40
 
 LEDGER_KINDS = ("message", "code", "test")
 CODE_RECIPIENT_HOUR = 6  # 10.5: at most 6 codes per hour to one recipient across links (and accounts)
-TEST_ACCOUNT_HOUR = 3  # 9.3: test sends, 3 / hour per account
+TEST_ACCOUNT_HOUR = 5  # 9.3: test sends per hour per account (owner 2026-10-14: 5)
 LEDGER_KEEP = dt.timedelta(days=2)  # 15.1: the longest pacing window is one day
 
 # disconnect detection for an account without a status entity: these not_sent codes mean "this account cannot send"
