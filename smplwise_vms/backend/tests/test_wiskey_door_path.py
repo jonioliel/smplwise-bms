@@ -299,7 +299,9 @@ def test_d3_grant_card_switches_users_groups_and_custom_roles(world):
     assert gil["granted"] is False and gil["other"] == []
     hila = next(u for u in card["users"] if u["id"] == "dev-hila")
     assert hila["granted"] is False and [o["role_name"] for o in hila["other"]] == ["מנהל אתר / מבנה / קומה"]
-    assert {r["id"]: r["answer"] for r in card["roles"] if not r["custom"]} == {"viewer": "never", "kiosk": "never", "operator": "per_user", "editor": "per_user", "site_admin": "yes", "system_admin": "yes"}
+    assert {r["id"]: r["answer"] for r in card["roles"] if not r["custom"]} == {"viewer": "never", "kiosk": "never", "operator": "per_user", "editor": "per_user", "site_admin": "yes", "system_admin": "yes",
+        # CR-038: the eight single-purpose tickets roles hold no door permission - a door switch is per user, as for operator / editor
+        **{r: "per_user" for r in ("tickets_view", "tickets_create", "tickets_manage", "tickets_external", "tickets_all_departments", "tickets_configure", "tickets_costs", "tickets_costs_view")}}
     assert all(not r["editable"] for r in card["roles"] if not r["custom"]), "built-in roles are read-only"
     # one switch on: a door_opener binding at installation scope, audited, the revision moves
     sw = {"subject_kind": "user", "subject_id": "dev-gil", "enabled": True}
