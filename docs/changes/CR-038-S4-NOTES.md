@@ -142,8 +142,11 @@ Runner backend (`run_smart.py backend`, full suite, 2 shards, at dfdeaa8d): shar
 lower case now) and `test_remote_access::test_every_route_needs_a_remote_session` (the test's local-only set now lists the probe
 route) fixed and passing locally; `test_tickets_public_server::test_one_upload_in_flight_per_link_at_the_socket` passes locally (a
 timing test, the runner was at load 20-48); `test_wiskey_door_path::test_d3_grant_card_switches_users_groups_and_custom_roles` fails
-because slice 1's six single-permission ticket roles appear in the WisKey door card's role list - not this slice's change. Shard 1
-was stopped by the 2.4.11 gate hold (the lead's instruction); its files closest to this slice's shared edits ran locally.
+because slice 1's six single-permission ticket roles appear in the WisKey door card's role list - not this slice's change (it fails
+the same way on `pilot/TICKETS-s1` 11f21002). Shard 1 was stopped by the 2.4.11 gate hold and run again after it, at 065a7968,
+with the four shard-2 failures: 4143 passed, 1 failed (that WisKey door-card test), 5 skipped.
+
+`origin/main` 8cc06b66 (release 2.4.11) is merged in (clean: HUD / Studio 6 / menu files, version, www).
 
 ## 5. For the next slices
 
