@@ -18,6 +18,8 @@ import { SKIN_IDS } from '../src/design/skins';
 //   4. layout guard: no horizontal overflow of the window and the menu inside the viewport from 320 to 1440 px.
 //   5. evidence -> docs/design/evidence/tickets-s3/: desktop 1440 + phone 390, light / dark, classic / domus.
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/tickets-s3');
+// a second copy under test-results: the runner restores the tracked docs/ after a job, the test results stay until the next run
+const EVIDENCE_COPY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../test-results/evidence-tickets-s3');
 const LONG = 650;
 
 async function open(page: Page, query = '&skin=classic') {
@@ -243,7 +245,11 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
     test.setTimeout(8 * 60_000);
     const tag = info.project.name === 'mobile' ? '390' : '1440';
     fs.mkdirSync(EVIDENCE, { recursive: true });
-    const shot = (name: string) => page.screenshot({ path: path.join(EVIDENCE, `${name}-${tag}.png`) });
+    fs.mkdirSync(EVIDENCE_COPY, { recursive: true });
+    const shot = async (name: string) => {
+      const buf = await page.screenshot({ path: path.join(EVIDENCE, `${name}-${tag}.png`) });
+      fs.writeFileSync(path.join(EVIDENCE_COPY, `${name}-${tag}.png`), buf);
+    };
     for (const skin of ['classic', 'domus'] as const) {
       for (const scheme of ['light', 'dark'] as const) {
         const q = `&skin=${skin}&scheme=${scheme}`;
