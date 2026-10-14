@@ -362,6 +362,10 @@ export const externalAssignStyles = css`
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+  /* the list scrolls at its max height: its rows keep their own height (a squeezed row cut its two-line text) */
+  .xpick > * {
+    flex-shrink: 0;
+  }
   .xgh {
     padding-block: 6px 0;
     font-size: var(--sw-fs-xs);
