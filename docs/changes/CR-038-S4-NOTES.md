@@ -146,7 +146,8 @@ because slice 1's six single-permission ticket roles appear in the WisKey door c
 the same way on `pilot/TICKETS-s1` 11f21002). Shard 1 was stopped by the 2.4.11 gate hold and run again after it, at 065a7968,
 with the four shard-2 failures: 4143 passed, 1 failed (that WisKey door-card test), 5 skipped.
 
-`origin/main` 8cc06b66 (release 2.4.11) is merged in (clean: HUD / Studio 6 / menu files, version, www).
+`origin/main` 8cc06b66 (release 2.4.11) is merged in (clean: HUD / Studio 6 / menu files, version, www). At the merged head the
+runner ran slices 1 / 2 / 4 evidence, the handler page specs, the unit specs and both layout guards: 56 passed, 0 layout findings.
 
 ## 5. For the next slices
 
