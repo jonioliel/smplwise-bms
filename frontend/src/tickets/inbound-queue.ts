@@ -63,7 +63,14 @@ export class TicketsInboundChip extends LitElement {
     .chipin .n {
       font-variant-numeric: tabular-nums;
     }
-    /* a phone keeps the header to one row: the icon and the count (the full words stay in aria-label) */
+    /* the list header's phone layout (tickets-list.ts, < 768 px) orders the search row 2: the chip sits there too (the host is
+       display: contents, so the button is the header's flex item) */
+    @media (max-width: 767px) {
+      .chipin {
+        order: 2;
+      }
+    }
+    /* a narrow phone keeps that row to one line: the icon and the count (the full words stay in aria-label) */
     @media (max-width: 599px) {
       .chipin .lbl {
         display: none;
