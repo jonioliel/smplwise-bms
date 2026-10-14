@@ -117,6 +117,8 @@ def can_block(viewer: Viewer, seen: Seen, dept: dict[str, Any] | None) -> dict[s
         "eta": (seen.assignee or seen.manager) and status in model.HANDLING,
         "return": seen.assignee and status in model.RETURN_FROM,
         "manage": seen.manager,
+        # owner 14.10: full deletion - manager rights here AND tickets.delete where the ticket lies (services/tickets/deletion.py)
+        "delete": seen.manager and viewer.holds("tickets.delete", row),
     }
 
 

@@ -167,6 +167,8 @@ def _route_requests(t_id: str, att_id: str) -> dict[tuple[str, str], dict]:
         ("POST", "/tickets/{ticket_id}/attachments"): {"files": {"file": ("a.jpg", _jpeg(), "image/jpeg")}},
         ("GET", "/tickets/{ticket_id}/attachments/{attachment_id}"): {},
         ("DELETE", "/tickets/{ticket_id}/attachments/{attachment_id}"): {},
+        # owner 14.10: full deletion (the visibility check comes before the permission, the number and the reason)
+        ("POST", "/tickets/{ticket_id}/delete"): {"json": {"reason": "x", "confirm_number": 1001, "client_request_id": "vis-delete-0001"}},
     }
 
 

@@ -50,4 +50,10 @@ def janitor(db: Database, root: Path, *, force: bool = False, now: dt.datetime |
             cost_storage.remove(root, rel)
         except Exception as exc:  # noqa: BLE001 - an orphan file is retried by nothing; the storage meter re-walks anyway
             log.warning("cost file was not removed (%s)", type(exc).__name__)
+    try:  # owner 14.10: the folders of deleted tickets whose removal failed after the commit (deletion.sweep_orphans)
+        from . import deletion
+
+        out["orphan_folders"] = deletion.sweep_orphans(db, root)
+    except Exception as exc:  # noqa: BLE001 - never stops the tick
+        log.warning("ticket folder sweep failed (%s)", type(exc).__name__)
     return out

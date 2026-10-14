@@ -3,6 +3,7 @@
     GET    /tickets/table          a visibility-filtered page with server-side sort, filters and keyset pagination (tickets.view)
     GET    /tickets/export.csv     the table's rows as CSV (tickets.manage in at least one department; 5,000 rows; 1 per minute)
     POST   /tickets/bulk           assign / remind / change priority / close up to 50 tickets, each checked and saved on its own
+    POST   /tickets/bulk-delete    owner 14.10: full deletion of up to 50 tickets (tickets.delete; services/tickets/deletion.py)
     GET    /tickets/views          the caller's saved filters / layouts (tickets.view; own rows only)
     POST   /tickets/views          save one (at most 20)
     PATCH  /tickets/views/{view_id}
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import sqlite3
 from typing import Any, Literal
 
@@ -213,6 +215,83 @@ def post_bulk(body: BulkBody, request: Request, principal: Principal = Depends(c
     params = bulk.validate(conn, body.action, items, raw)
     answer = bulk.run(conn, viewer, body.action, items, params, rid)
     store.request_put(conn, scope, body.client_request_id, BULK_ROUTE, 200, answer)
+    return answer
+
+
+class BulkDeleteBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[str] = Field(max_length=200)  # the real cap (50) is the service's: a 422 that names it
+    reason: str = Field(max_length=2000)
+    confirm_count: int = Field(ge=0)  # the number of selected tickets as the manager typed it
+    client_request_id: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
+
+
+BULK_DELETE_ROUTE = "POST /tickets/bulk-delete"
+
+
+@router.post("/tickets/bulk-delete")
+def post_bulk_delete(body: BulkDeleteBody, request: Request, principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """Owner 14.10: delete up to 50 tickets, each checked on its own exactly as the single route (services/tickets/deletion.py) and
+    removed in its own savepoint: `{total, done, counts, results: [{id, number?, result}]}`, result ok | not_found | forbidden |
+    cost_claim_approved. The whole request: an interactive session, tickets.delete held somewhere, the typed count equal to the number
+    of ids, a reason, and room for all of them in the hour's budget (429 `delete_rate` otherwise)."""
+    from ..db import commit_now
+    from ..auth import settings_of
+    from ..services.tickets import attachments, deletion
+
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    deletion.require_interactive(conn, viewer, rid)
+    _need(conn, viewer, access.DELETE, rid)
+    scope = f"user:{principal.user_id}"
+    prev = store.request_get(conn, scope, body.client_request_id)
+    if prev is not None:
+        if prev["route"] != BULK_DELETE_ROUTE:
+            raise ApiError(409, "request_id_reused", text(conn, "מזהה הבקשה כבר שימש לפעולה אחרת."))
+        return JSONResponse(json.loads(prev["response_json"]), status_code=int(prev["status_code"]))
+    problems: list[model.Problem] = []
+    if not body.ids:
+        problems.append(model.Problem("ids", "required"))
+    elif len(body.ids) > deletion.BULK_MAX:
+        problems.append(model.Problem("ids", "too_many"))
+    elif len(set(body.ids)) != len(body.ids) or any(not re.fullmatch(ID, i) for i in body.ids):
+        problems.append(model.Problem("ids", "invalid"))
+    elif body.confirm_count != len(body.ids):
+        problems.append(model.Problem("confirm_count", "mismatch"))
+    if problems:
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": p.field, "code": p.code} for p in problems]})
+    reason = deletion.clean_reason(conn, body.reason)
+    deletion.require_rate(conn, viewer, len(body.ids), rid)
+    results: list[dict[str, Any]] = []
+    deleted: list[str] = []
+    for ticket_id in body.ids:
+        seen = access.visible_by_id(viewer, ticket_id)
+        if seen is None:
+            audit(conn, actor=principal, action=deletion.ACTION, decision="denied", resource_type="ticket", resource_id=ticket_id, reason="not_found",
+                  request_id=rid, details={"bulk": True})
+            results.append({"id": ticket_id, "result": "not_found"})
+            continue
+        chk = deletion.check(viewer, seen)
+        if chk.result != "ok":
+            deletion.refuse(conn, viewer, seen, chk, rid, bulk=True)
+            results.append({"id": ticket_id, "number": seen.row["number"], "result": chk.result})
+            continue
+        with store.item_transaction(conn, "ticket_delete"):
+            done = deletion.delete(conn, viewer, seen, chk, reason, rid, bulk=True)
+        deletion.rate_mark(principal.user_id)
+        deleted.append(done.ticket_id)
+        results.append({"id": ticket_id, "number": done.number, "result": "ok"})
+    counts: dict[str, int] = {}
+    for r in results:
+        counts[r["result"]] = counts.get(r["result"], 0) + 1
+    audit(conn, actor=principal, action="ticket.bulk", decision="allowed", resource_type="ticket", resource_id="*", request_id=rid,
+          details={"action": "delete", "total": len(body.ids), "counts": counts})
+    answer = {"action": "delete", "total": len(body.ids), "done": counts.get("ok", 0), "counts": counts, "results": results}
+    store.request_put(conn, scope, body.client_request_id, BULK_DELETE_ROUTE, 200, answer)
+    commit_now(conn, keep_reading=False)
+    if deleted:
+        deletion.remove_files(settings_of(request).data_dir / attachments.DIR, deleted)
     return answer
 
 
