@@ -4,7 +4,7 @@
  * (tests/unit-tickets-messages.spec.ts) read it directly. The product never says "delivered" or "read" (D14).
  */
 import type { TicketEvent } from '../api/tickets';
-import type { TicketMessage } from '../api/tickets-messages';
+import type { AssignPreviewExtra, TicketMessage } from '../api/tickets-messages';
 import { shortDateTime, statusLabel, type EventLine } from './model';
 import { mtt, type MessageTextKey } from './messages-text';
 
@@ -54,6 +54,29 @@ const PURPOSE_KEYS: Record<string, MessageTextKey> = {
 
 export function purposeLabel(p: string): string {
   return PURPOSE_KEYS[p] ? mtt(PURPOSE_KEYS[p]) : p;
+}
+
+export interface AssignLines {
+  /** "יישלח בוואטסאפ · <account>" / "יישלח במייל" */
+  via: string;
+  /** the WhatsApp account cannot send now: the message waits, then falls back (9.9.4) - '' when it can (or the server did not say) */
+  down: string;
+  /** outside the send hours: when it would leave - '' inside them */
+  hours: string;
+  /** "שלח עכשיו" preselected (a critical priority, D29) */
+  sendNowDefault: boolean;
+}
+
+/** The assign dialog's lines for a message to an outside contact (slice 4's dialog, the preview's slice-5b fields); null for the
+ * manager's own copy (slice 4 shows its line). `account` undefined = a server without these fields: no warning. */
+export function assignLines(p: { channel: string } & AssignPreviewExtra, now: Date = new Date()): AssignLines | null {
+  if (p.channel !== 'whatsapp' && p.channel !== 'email') return null;
+  const acc = p.account;
+  const via = p.channel === 'email' ? mtt('asgEmail') : acc ? mtt('asgWhatsapp', { account: acc.label }) : mtt('asgWhatsappPlain');
+  const down = p.channel === 'whatsapp' && acc !== undefined && (!acc || !acc.sendable) ? mtt(p.fallback === 'email' ? 'asgDownEmail' : 'asgDownManual') : '';
+  const sh = p.send_hours;
+  const out = !!sh && !sh.open_now;
+  return { via, down, hours: out ? mtt('asgHours', { when: when(sh?.next_opening, now) }) : '', sendNowDefault: out && !!sh?.send_now_default };
 }
 
 /** The rows the ticket page shows: newest first (the server's order), no test sends, at most 6 (the timeline keeps the history). */

@@ -7,7 +7,7 @@ import { ticketsS4Api, type AssignPreview, type AssigneesAnswer, type ExternalAs
 import type { AssignPreviewExtra } from '../api/tickets-messages';
 import { bidi } from '../i18n/bidi';
 import { tIcon } from './icons';
-import { when } from './message-lines';
+import { assignLines } from './message-lines';
 import { mtt } from './messages-text';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 
@@ -185,22 +185,19 @@ export class ExternalAssign implements ReactiveController {
   /** Slice 5b: the message this assignment queues - its channel and account, a WhatsApp account that cannot send now (the message
    * waits, then falls back, 9.9.4) and, outside the send hours, when it leaves with the "send now" choice (D29). */
   private channelLines(p: AssignPreview): TemplateResult | typeof nothing {
-    const x = p as AssignPreview & AssignPreviewExtra;
-    const acc = x.account; // undefined: a server without the slice-5b fields (no warning); null: no account chosen for the messages
-    const sh = x.send_hours;
-    const down = p.channel === 'whatsapp' && acc !== undefined && (!acc || !acc.sendable);
-    const via = p.channel === 'email' ? mtt('asgEmail') : acc ? mtt('asgWhatsapp', { account: bidi(acc.label) }) : mtt('asgWhatsappPlain');
-    return html`<span class="muted" data-assign-channel=${p.channel}>${tIcon(p.channel === 'email' ? 'note' : 'send')}${via}</span>
-      ${down ? html`<span class="muted" data-assign-down>${tIcon('warning')}${mtt(x.fallback === 'email' ? 'asgDownEmail' : 'asgDownManual')}</span>` : nothing}
-      ${sh && !sh.open_now ? html`<span class="muted" data-assign-hours>${tIcon('clock')}${mtt('asgHours', { when: when(sh.next_opening) })}</span>
-        <label class="chk"><input type="checkbox" data-assign-send-now .checked=${this.sendNow ?? sh.send_now_default} ?disabled=${this.lend.busy()}
+    const l = assignLines(p as AssignPreview & AssignPreviewExtra);
+    if (!l) return nothing;
+    return html`<span class="muted" data-assign-channel=${p.channel}>${tIcon(p.channel === 'email' ? 'note' : 'send')}${l.via}</span>
+      ${l.down ? html`<span class="muted" data-assign-down>${tIcon('warning')}${l.down}</span>` : nothing}
+      ${l.hours ? html`<span class="muted" data-assign-hours>${tIcon('clock')}${l.hours}</span>
+        <label class="chk"><input type="checkbox" data-assign-send-now .checked=${this.sendNow ?? l.sendNowDefault} ?disabled=${this.lend.busy()}
           @change=${(e: Event) => { this.sendNow = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />${mtt('sendNow')}</label>` : nothing}`;
   }
 
   /** The "send now" the assignment carries: only outside the send hours, the person's choice or the preview's default. */
   private sendNowChoice(): boolean {
-    const sh = (this.preview as (AssignPreview & AssignPreviewExtra) | null)?.send_hours;
-    return !!sh && !sh.open_now && (this.sendNow ?? sh.send_now_default);
+    const l = this.preview ? assignLines(this.preview as AssignPreview & AssignPreviewExtra) : null;
+    return !!l && !!l.hours && (this.sendNow ?? l.sendNowDefault);
   }
 
   /** Whether the dialog's OK button may be pressed for an outside contact. */

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { messageEventLine, messageLine, purposeLabel, visibleMessages, when } from '../src/tickets/message-lines';
+import { assignLines, messageEventLine, messageLine, purposeLabel, visibleMessages, when } from '../src/tickets/message-lines';
 import { MESSAGE_TEXT_EN_KEYS, MESSAGE_TEXT_KEYS, mtt } from '../src/tickets/messages-text';
 import type { TicketEvent } from '../src/api/tickets';
 
@@ -67,6 +67,21 @@ test('timeline lines of the message, reply and link events (D14, 9.6)', () => {
   expect(inboundStatus?.text).toContain('דרך וואטסאפ (שולח לא מאומת)');
   expect(messageEventLine(ev('status', { actor: { kind: 'user', name: 'x', me: false }, to: 'acknowledged' }))).toBeNull();
   expect(messageEventLine(ev('created'))).toBeNull();
+});
+
+test('the assign dialog lines: channel and account, a warning only when the server says the account cannot send, the send hours (D29)', () => {
+  const account = { key: 'entry:01JFAKE', label: 'שירות ····0191', state: 'connected', sendable: true };
+  const open = { window: { from: '07:00', to: '21:00' }, open_now: true, next_opening: null, send_now_default: false };
+  expect(assignLines({ channel: 'manual' }, NOW)).toBeNull();
+  expect(assignLines({ channel: 'whatsapp', account, send_hours: open, fallback: 'email' }, NOW))
+    .toEqual({ via: 'יישלח בוואטסאפ · שירות ····0191', down: '', hours: '', sendNowDefault: false });
+  expect(assignLines({ channel: 'whatsapp', account: { ...account, state: 'disconnected', sendable: false }, fallback: 'email' }, NOW)?.down)
+    .toBe('וואטסאפ לא זמין כרגע - אם לא יחזור, ההודעה תישלח במייל');
+  expect(assignLines({ channel: 'whatsapp', account: null, fallback: 'manual' }, NOW)).toMatchObject({ via: 'יישלח בוואטסאפ', down: 'וואטסאפ לא זמין כרגע - אם לא יחזור, יהיה צריך להעתיק את הקישור' });
+  expect(assignLines({ channel: 'whatsapp' }, NOW)?.down).toBe(''); // an older server: no account field, no warning
+  expect(assignLines({ channel: 'email', send_hours: open }, NOW)?.via).toBe('יישלח במייל');
+  const night = { ...open, open_now: false, next_opening: at(7, 0, 15), send_now_default: true };
+  expect(assignLines({ channel: 'whatsapp', account, send_hours: night }, NOW)).toMatchObject({ hours: 'מחוץ לשעות השליחה · יישלח ב-07:00 15/10', sendNowDefault: true });
 });
 
 test('every Hebrew text has an English column', () => {
