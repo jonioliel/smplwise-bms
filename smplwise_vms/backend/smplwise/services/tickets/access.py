@@ -61,11 +61,11 @@ def text(conn: sqlite3.Connection, template: str) -> str:
 def require_module(conn: sqlite3.Connection) -> None:
     """The uniform answer of every tickets route while the module is off (the `multimedia` precedent)."""
     if not module_on(conn):
-        raise ApiError(404, "feature_disabled", text(conn, "מודול ה{tickets} כבוי בהגדרות המערכת."))
+        raise ApiError(404, "feature_disabled", text(conn, "מודול {the_tickets} כבוי בהגדרות המערכת."))
 
 
 def not_found(conn: sqlite3.Connection) -> ApiError:
-    return ApiError(404, "ticket_not_found", text(conn, "ה{ticket} לא {f:נמצאה|m:נמצא}."))
+    return ApiError(404, "ticket_not_found", text(conn, "{the_ticket} לא {f:נמצאה|m:נמצא}."))
 
 
 def place_target(row: dict[str, Any]) -> tuple[str, str] | None:

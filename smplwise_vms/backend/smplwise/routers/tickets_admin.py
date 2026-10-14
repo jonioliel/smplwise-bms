@@ -189,6 +189,7 @@ class NameEntry(BaseModel):
     one: str = Field(max_length=200)
     many: str = Field(max_length=200)
     gender: str = Field(default="", max_length=2)
+    module: str | None = Field(default=None, max_length=200)  # owner rename 2026-10-14: the module's own name (optional)
 
 
 class NameBody(BaseModel):

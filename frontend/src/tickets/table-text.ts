@@ -73,7 +73,7 @@ const he = {
   keyboardHelp: 'חצים למעלה ולמטה עוברים בין השורות, Enter פותח, רווח בוחר, Ctrl+A בוחר את העמוד, Esc מבטל את הבחירה',
 
   // the table
-  tableLabel: 'טבלת ה{tickets}',
+  tableLabel: 'טבלת {the_tickets}',
   selectRow: 'בחירת {ticket} {n}',
   selectPage: 'בחירת כל העמוד',
   sortBy: 'מיון לפי {col}',
@@ -88,13 +88,13 @@ const he = {
   confirm: 'אישור',
   required: 'חובה',
   changed: 'נשמר',
-  staleReloaded: 'ה{ticket} {f:השתנתה|m:השתנה} בינתיים ונטענ{f:ה|m:} מחדש',
+  staleReloaded: '{the_ticket} {f:השתנתה|m:השתנה} בינתיים ונטענ{f:ה|m:} מחדש',
   failed: 'הפעולה לא בוצעה',
   empty: 'אין {tickets} להצגה',
   emptyFiltered: 'לא נמצאו {tickets}',
-  loadFailed: 'לא ניתן לטעון את ה{tickets}',
+  loadFailed: 'לא ניתן לטעון את {the_tickets}',
   retry: 'נסו שוב',
-  compactList: 'רשימת ה{tickets}',
+  compactList: 'רשימת {the_tickets}',
 
   // relative times of the age and SLA columns
   t_now: 'עכשיו',

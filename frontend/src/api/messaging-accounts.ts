@@ -148,7 +148,7 @@ function demoView(): WhatsappView {
     mapping: { 'tickets.messages': 'entry:01JDEMOOFFICE', 'tickets.codes': null, 'tickets.messages@dept:dept-cleaning': 'entry:01JDEMOINTERC' },
     warnings: [{ code: 'shared_outside', use: 'tickets.messages', department_id: 'dept-cleaning', account_key: 'entry:01JDEMOINTERC', severity: 'amber' }],
     channels: [{ key: 'whatsapp', state: 'active' }, { key: 'email', state: 'active' }, { key: 'inapp', state: 'active' }, { key: 'sms', state: 'soon' }],
-    modules: { tickets: 'בקשות שירות' },
+    modules: { tickets: 'ניהול השירות' },
     pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: false },
   };
 }

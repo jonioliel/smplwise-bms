@@ -116,7 +116,7 @@ def test_pydantic_field_type_reports_codes_only():
 
 
 def test_hidden_characters_lists_what_a_template_must_not_hold():
-    assert th.hidden_characters("שלום {name}\n\tקריאה") == []
+    assert th.hidden_characters("שלום {name}\n\tבקשה") == []
     assert th.hidden_characters("a‮b\rc") == [(1, "U+202E"), (3, "U+000D")]
 
 

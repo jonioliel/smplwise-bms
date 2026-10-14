@@ -139,7 +139,7 @@ test('D33: the module name comes from the labels with gender agreement; the defa
   expect(text('he', 'closedTitle', {}, { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' })).toBe('בקשת שירות נסגרה, תודה');
   expect(renderName('{ticket} {f:a|m:b|n:c}', { one: 'Заявка', many: 'Заявки', gender: 'n' })).toBe('Заявка c');
   // a word a person reads - not a protocol name like the X-Ticket-Token header or a type name like TicketView
-  const defaults = /קריא[הות]|קריאת|(?<![-\w])Tickets?(?![-\w])|بلاغ|Заявк/;
+  const defaults = /קריא[הות]|קריאת|בקש(?:ת|ות) ה?שירות|ניהול השירות|(?<![-\w])Tickets?(?![-\w])|بلاغ|Заявк/;
   for (const f of readdirSync(SRC).filter((x) => x.endsWith('.ts'))) {
     expect(defaults.test(code(f)), `${f} writes a default module word`).toBe(false);
   }

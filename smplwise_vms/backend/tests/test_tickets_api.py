@@ -338,7 +338,7 @@ def test_the_list_filters(w):
 
 
 def test_keyset_pagination_is_stable_and_complete(w):
-    made = [w.create("tom", f"קריאה-בדיקה {i}")["number"] for i in range(7)]
+    made = [w.create("tom", f"בקשה-בדיקה {i}")["number"] for i in range(7)]
     seen: list[int] = []
     cursor = None
     while True:

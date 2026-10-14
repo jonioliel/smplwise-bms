@@ -30,7 +30,7 @@ def invalid(conn, exc: model.Invalid) -> ApiError:
 
 
 def stale(conn, row: dict[str, Any]) -> ApiError:
-    return ApiError(409, "ticket_stale", text(conn, "ה{ticket} {f:השתנתה|m:השתנה} בינתיים. טענו מחדש."), details={"revision": row["revision"]})
+    return ApiError(409, "ticket_stale", text(conn, "{the_ticket} {f:השתנתה|m:השתנה} בינתיים. טענו מחדש."), details={"revision": row["revision"]})
 
 
 def bad_move(conn, frm: str, to: str) -> ApiError:
@@ -68,7 +68,7 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
     """Edit the fields the caller may edit; returns the names of the fields that changed."""
     row = seen.row
     if row["status"] in model.FINAL:
-        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}; פתחו {f:אותה|m:אותו} מחדש כדי לערוך."))
+        raise ApiError(409, "ticket_closed", text(conn, "{the_ticket} {f:סגורה|m:סגור}; פתחו {f:אותה|m:אותו} מחדש כדי לערוך."))
     creator = row["created_by"] == viewer.uid
     allowed = set(EDITABLE_BY_MANAGER) if seen.manager else set(EDITABLE_BY_CREATOR_WHILE_NEW) if creator and row["status"] == "new" else set()
     asked = set(patch)
@@ -163,7 +163,7 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
     reopen = (frm, to) == ("closed", "new")
     dept = store.department_any(conn, row["department_id"])
     if reopen and not can_reopen(row, dept):
-        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את ה{ticket}."))
+        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את {the_ticket}."))
     try:
         note_text = model.text_field(note, "note", required=actor == "manager" and model.note_required(frm, to), max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
@@ -294,16 +294,16 @@ def assign(conn, viewer: Viewer, seen: Seen, kind: str, assignee_id: str, note: 
     status = row["status"]
     dept = store.department_any(conn, row["department_id"])
     if status == "closed" and not can_reopen(row, dept):
-        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את ה{ticket}."))
+        raise ApiError(409, "reopen_window_passed", text(conn, "חלף הזמן שבו אפשר לפתוח מחדש את {the_ticket}."))
     if status not in model.ASSIGN_FROM:
         raise bad_move(conn, status, "assigned")
     if row["revision"] != revision:
         raise stale(conn, row)
     if not any(u["id"] == assignee_id for u in eligible_assignees(conn, row["department_id"], row)):
-        raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את ה{ticket} למשתמש הזה (הוא אינו חבר במחלקה או אינו רשאי לצפות ב{tickets})."))
+        raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את {the_ticket} למשתמש הזה (הוא אינו חבר במחלקה או אינו רשאי לצפות ב{tickets})."))
     current = _active_assignment(row)
     if current and row.get("asg_kind") == "user" and row.get("asg_user_id") == assignee_id:
-        raise ApiError(409, "already_assigned", text(conn, "ה{ticket} כבר אצל המטפל הזה."))
+        raise ApiError(409, "already_assigned", text(conn, "{the_ticket} כבר אצל המטפל הזה."))
     try:
         note_text = model.text_field(note, "note", required=False, max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
@@ -383,7 +383,7 @@ def add_note(conn, viewer: Viewer, seen: Seen, body: str | None, external: bool,
     if external and not seen.manager:
         raise refuse(conn, viewer, "ticket.note", row, "external_needs_manager", rid)
     if row["status"] in model.FINAL:
-        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}."))
+        raise ApiError(409, "ticket_closed", text(conn, "{the_ticket} {f:סגורה|m:סגור}."))
     try:
         note_text = model.text_field(body, "text", required=True, max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
@@ -432,7 +432,7 @@ def check_attach(conn, viewer: Viewer, seen: Seen, external: bool, rid: str | No
     if external and not seen.manager:
         raise refuse(conn, viewer, "ticket.photo", row, "external_needs_manager", rid)
     if row["status"] in model.FINAL:
-        raise ApiError(409, "ticket_closed", text(conn, "ה{ticket} {f:סגורה|m:סגור}."))
+        raise ApiError(409, "ticket_closed", text(conn, "{the_ticket} {f:סגורה|m:סגור}."))
     if store.attachment_count(conn, row["id"]) >= attachments.PER_TICKET_MAX:
         raise ApiError(409, "too_many_photos", text(conn, "הגעתם למספר התמונות המרבי ל{ticket}."), details={"max": attachments.PER_TICKET_MAX})
     return bool(external) if seen.manager else seen.assignee

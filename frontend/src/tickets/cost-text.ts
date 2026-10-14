@@ -156,7 +156,7 @@ const he = {
   views: 'תצוגה',
   emptyReport: 'אין דרישות עלות בסינון הזה',
   forbidden: 'אין הרשאה לצפות בעלויות',
-  moduleOff: 'ה{tickets} {f:כבויות|m:כבויים}',
+  moduleOff: '{the_tickets} {f:כבויות|m:כבויים}',
   clearFilters: 'ניקוי סינון',
   noLabel: 'ללא',
 

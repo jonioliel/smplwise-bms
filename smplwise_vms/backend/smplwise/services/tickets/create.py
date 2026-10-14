@@ -109,7 +109,7 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
                 raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.EXTERNAL})
             raise ApiError(409, "public_link_unavailable", text(conn, "שליחה לגורם חיצוני עדיין אינה זמינה בהתקנה זו."))
         if spec.assign_to.kind != "user" or not any(u["id"] == spec.assign_to.id for u in service.eligible_assignees(conn, dept["id"], None)):
-            raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את ה{ticket} למשתמש הזה (הוא אינו חבר במחלקה או אינו רשאי לצפות ב{tickets})."))
+            raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את {the_ticket} למשתמש הזה (הוא אינו חבר במחלקה או אינו רשאי לצפות ב{tickets})."))
     if spec.dedupe_key:
         existing = access.visible_open_by_dedupe_key(viewer, spec.dedupe_key)
         if existing is not None:

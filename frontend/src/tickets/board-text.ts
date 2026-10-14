@@ -11,7 +11,7 @@ import { ticketsLang } from './text';
 const he = {
   tabBoard: 'לוח מנהל',
   kindTicket: '{ticket}',
-  openTicket: 'פתיחת ה{ticket}',
+  openTicket: 'פתיחת {the_ticket}',
 
   // the state strip (D21)
   stAll: 'הכול',

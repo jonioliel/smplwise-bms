@@ -92,7 +92,7 @@ def _tickets_label(conn: sqlite3.Connection, text: str) -> str:
 
 
 def _tickets_module_label(conn: sqlite3.Connection) -> str:
-    return _tickets_label(conn, "{tickets}")
+    return _tickets_label(conn, "{module}")  # owner rename 2026-10-14: the module's own name
 
 
 def _register_builtin() -> None:

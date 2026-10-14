@@ -163,7 +163,7 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
   const enabled = o.enabled ?? true;
   const st: TicketsMock = { calls: [] };
   let rows: Row[] = o.empty ? [] : ROWS.map((r) => ({ ...r }));
-  const nameHe = o.name ?? { one: 'קריאה', many: 'קריאות', gender: 'f' };
+  const nameHe = o.name ?? { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f', module: 'ניהול השירות' };
   const names = { he: nameHe, en: { one: 'Ticket', many: 'Tickets', gender: '' }, ar: { one: 'بلاغ', many: 'بلاغات', gender: 'm' }, ru: { one: 'Заявка', many: 'Заявки', gender: 'f' } };
   let ui = { detail: o.ui?.detail ?? 'drawer_fullscreen', new_ticket: o.ui?.new_ticket ?? 'sheet' };
   let nameRevision = o.name ? 1 : 0;
@@ -256,7 +256,7 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
       return json(route, {
         users: [
           { id: 'u-avi', name: 'אבי כהן', active: true, grants: [g('b2', 'operator', 'מפעיל', ['tickets.view', 'tickets.create'], 'role')] },
-          { id: 'u-dana', name: 'דנה פרץ', active: true, grants: [g('b3', 'tickets_manage', 'ניהול קריאות', ['tickets.manage'], 'grant')] },
+          { id: 'u-dana', name: 'דנה פרץ', active: true, grants: [g('b3', 'tickets_manage', 'ניהול בקשות שירות', ['tickets.manage'], 'grant')] },
           { id: 'u-ronit', name: 'רונית לוי', active: true, grants: [g('b1', 'system_admin', 'מנהל מערכת', ['tickets.view', 'tickets.create', 'tickets.manage', 'tickets.external', 'tickets.all_departments', 'tickets.configure'], 'role')] },
           { id: 'u-yossi', name: 'יוסי מזרחי', active: true, grants: [g('b4', 'operator', 'מפעיל', ['tickets.view', 'tickets.create'], 'group', 'טכנאים')] },
         ],

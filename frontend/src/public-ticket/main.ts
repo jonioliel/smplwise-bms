@@ -277,7 +277,8 @@ class Page {
       this.render();
       return;
     }
-    this.code = { sent: true, value: '', message: { key: 'codeSent' } };
+    // the code's lifetime is a setting (slice 7, code.ttl_min): the server says it in expires_in_s
+    this.code = { sent: true, value: '', message: { key: 'codeSent', n: Math.max(1, Math.round((r.data.expires_in_s || 600) / 60)) } };
     this.render();
   }
 

@@ -40,7 +40,7 @@ test.describe('tickets evidence', () => {
       for (const scheme of ['light', 'dark'] as const) {
         await go(page, '/tickets/mine', {}, scheme, skin);
         await page.waitForSelector(`${L} ticket-card`);
-        await expect(page.locator(`${L} [data-tickets-title]`)).toHaveText('קריאות');
+        await expect(page.locator(`${L} [data-tickets-title]`)).toHaveText('ניהול השירות');
         await shot(page, 'list', scheme, skin);
       }
     const cards = page.locator(`${L} ticket-card`);
@@ -82,9 +82,9 @@ test.describe('tickets evidence', () => {
     await d.locator('sw-dialog[data-dialog="move"] [data-dialog-ok]').click();
     await expect(d.locator('[data-dialog-error]')).toBeVisible();
     await shot(page, 'dialog-close');
-    await d.locator('sw-dialog[data-dialog="move"] [data-dialog-text]').fill('כפילות של קריאה אחרת');
+    await d.locator('sw-dialog[data-dialog="move"] [data-dialog-text]').fill('כפילות של בקשה אחרת');
     await d.locator('sw-dialog[data-dialog="move"] [data-dialog-ok]').click();
-    await expect.poll(() => mock.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/status')).at(-1)?.body).toMatchObject({ to: 'closed', note: 'כפילות של קריאה אחרת' });
+    await expect.poll(() => mock.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/status')).at(-1)?.body).toMatchObject({ to: 'closed', note: 'כפילות של בקשה אחרת' });
   });
 
   test('full screen (D18): #/tickets/<id>', async ({ page }) => {

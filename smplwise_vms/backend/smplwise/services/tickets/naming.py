@@ -5,9 +5,17 @@ setting `tickets.name` through this module (server) and `frontend/src/tickets/na
 
 THE CONTRACT (every slice that adds text naming the module follows it):
 - write the text as a TEMPLATE with tokens, never with the default word:
-    {ticket}            the singular        ("קריאה")
-    {tickets}           the plural          ("קריאות")
+    {ticket}            the singular        ("בקשת שירות")
+    {tickets}           the plural          ("בקשות שירות")
+    {the_ticket}        the singular with the Hebrew article ("בקשת השירות" - write it instead of "ה" + {ticket})
+    {the_tickets}       the plural with the Hebrew article ("בקשות השירות")
+    {module}            the module's own name ("ניהול השירות": the area, the page titles, the settings tab, permission labels)
     {f:<text>|m:<text>} a word that agrees with the name's gender ("חדשה" / "חדש"); Russian may add |n:<text>
+Owner rename 2026-10-14: the default Hebrew name is the module "ניהול השירות" and the item "בקשת שירות" / "בקשות שירות"
+(feminine). A Hebrew name of several words is a construct ("בקשת שירות"), so "ה" + {ticket} would read "הבקשת שירות": the article
+tokens put "ה" before the LAST word ("בקשת השירות"; a last word that already starts with "ה" is kept), a one-word name gets it in
+front ("ההזמנה"). A name without Hebrew letters is returned as it is. `module` is optional in the stored document: absent, it is
+the default module name while the singular and plural are the defaults, else the plural.
 - render it with `render(text, names)` (a resolved language entry) or `render_for(conn, text, lang)`;
 - permission labels and built-in role names carry the tokens in routers/access.py / roles.json and are rendered wherever they are
   served (`rendered_labels`, `rbac.role_name`); notification texts (slice 6), WhatsApp templates and the vendor page (slices 4 / 5b)
@@ -31,16 +39,16 @@ SETTING_KEY = "tickets.name"
 LANGS: tuple[str, ...] = ("he", "en", "ar", "ru")
 GENDERS: dict[str, tuple[str, ...]] = {"he": ("f", "m"), "ar": ("f", "m"), "ru": ("f", "m", "n"), "en": ("",)}
 DEFAULTS: dict[str, dict[str, str]] = {
-    "he": {"one": "קריאה", "many": "קריאות", "gender": "f"},
-    "en": {"one": "Ticket", "many": "Tickets", "gender": ""},
-    "ar": {"one": "بلاغ", "many": "بلاغات", "gender": "m"},
-    "ru": {"one": "Заявка", "many": "Заявки", "gender": "f"},
+    "he": {"one": "בקשת שירות", "many": "בקשות שירות", "gender": "f", "module": "ניהול השירות"},
+    "en": {"one": "Ticket", "many": "Tickets", "gender": "", "module": "Tickets"},
+    "ar": {"one": "بلاغ", "many": "بلاغات", "gender": "m", "module": "بلاغات"},
+    "ru": {"one": "Заявка", "many": "Заявки", "gender": "f", "module": "Заявки"},
 }
 NAME_MIN, NAME_MAX = 1, 30
 # letters and marks of any script, digits, spaces and a few typographic signs (Hebrew geresh / gershayim, apostrophe, quotes,
 # hyphen, period, parentheses); nothing that is markup or a template token (< > { } [ ] & $ ` | \ / @ # % ^ * = + ~ ; :)
 _ALLOWED_PUNCT = set(" -'\"׳״.()")
-_TOKEN = re.compile(r"\{(tickets|ticket)\}|\{f:([^{}|]*)\|m:([^{}|]*)(?:\|n:([^{}|]*))?\}")
+_TOKEN = re.compile(r"\{(the_tickets|the_ticket|tickets|ticket|module)\}|\{f:([^{}|]*)\|m:([^{}|]*)(?:\|n:([^{}|]*))?\}")
 
 
 class NameInvalid(ValueError):
@@ -86,7 +94,32 @@ def _entry(lang: str, raw: Any) -> dict[str, str]:
     gender = raw.get("gender", base["gender"])
     if gender not in GENDERS[lang]:
         gender = base["gender"]
-    return {"one": one, "many": many, "gender": gender}
+    try:
+        module = clean_name(raw.get("module"), f"{lang}.module") if raw.get("module") is not None else _module_default(lang, one, many)
+    except NameInvalid:
+        module = _module_default(lang, one, many)
+    return {"one": one, "many": many, "gender": gender, "module": module}
+
+
+def _module_default(lang: str, one: str, many: str) -> str:
+    """The module's name when none is stored: the default while the item names are the defaults, else the plural."""
+    d = DEFAULTS[lang]
+    return d["module"] if (one, many) == (d["one"], d["many"]) else many
+
+
+_HEBREW = re.compile(r"[א-ת]")
+
+
+def definite(name: str) -> str:
+    """The Hebrew definite form of a display name: "ה" before the last word of a construct ("בקשת שירות" -> "בקשת השירות"), in front of
+    a single word ("הזמנה" -> "ההזמנה"); a last word that already starts with "ה" and a name without Hebrew letters are kept."""
+    if not _HEBREW.search(name):
+        return name
+    words = name.split(" ")
+    if len(words) > 1 and words[-1].startswith("ה"):
+        return name
+    words[-1] = "ה" + words[-1]
+    return " ".join(words)
 
 
 def read(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -111,7 +144,7 @@ def names_for(conn: sqlite3.Connection, lang: str = "he") -> dict[str, str]:
 
 
 def validate(body: dict[str, Any]) -> dict[str, dict[str, str]]:
-    """The languages a save sends (each one complete: one, many, gender), validated. Raises NameInvalid on the first problem."""
+    """The languages a save sends (each one complete: one, many, gender; `module` optional), validated. Raises NameInvalid on the first problem."""
     out: dict[str, dict[str, str]] = {}
     for lang in LANGS:
         if lang not in body or body[lang] is None:
@@ -124,7 +157,8 @@ def validate(body: dict[str, Any]) -> dict[str, dict[str, str]]:
         gender = raw.get("gender", DEFAULTS[lang]["gender"])
         if gender not in GENDERS[lang]:
             raise NameInvalid(f"{lang}.gender", "choice")
-        out[lang] = {"one": one, "many": many, "gender": gender}
+        module = clean_name(raw.get("module"), f"{lang}.module") if raw.get("module") not in (None, "") else _module_default(lang, one, many)
+        out[lang] = {"one": one, "many": many, "gender": gender, "module": module}
     return out
 
 
@@ -143,10 +177,17 @@ def render(text: str, names: dict[str, str]) -> str:
     """Replace the tokens of a template with one language's names (see the module docstring)."""
 
     def sub(m: re.Match[str]) -> str:
-        if m.group(1) == "tickets":
+        word = m.group(1)
+        if word == "tickets":
             return names["many"]
-        if m.group(1) == "ticket":
+        if word == "ticket":
             return names["one"]
+        if word == "the_tickets":
+            return definite(names["many"])
+        if word == "the_ticket":
+            return definite(names["one"])
+        if word == "module":
+            return names.get("module") or names["many"]
         gender = names.get("gender") or "f"
         if gender == "m":
             return m.group(3)

@@ -284,19 +284,19 @@ PERMISSION_LABELS: dict[str, str] = {
     # view every department without membership (sensitive; system_admin); configure: departments, members, categories, the contact
     # directory, the module's display name (sensitive; system_admin). Each is also a single-permission built-in role
     # (tickets_<name>, roles.json) so it can be given to ONE person with an ordinary binding (D25, section 8.2).
-    # D33: the labels carry the module's display name as the token {tickets}; every place that serves them renders it
+    # D33: the labels carry the module's display name as the token {module} (owner rename 2026-10-14); every place that serves them renders it
     # (rendered_labels below) - never write the default name here.
-    "tickets.view": "{tickets}: צפייה",
-    "tickets.create": "{tickets}: פתיחה",
-    "tickets.manage": "{tickets}: ניהול המחלקות שבאחריותי (שיוך, עריכה וסגירה)",
-    "tickets.external": "{tickets}: שליחה לגורם חיצוני (ספקים ואנשי קשר)",
-    "tickets.all_departments": "{tickets}: כל המחלקות",
-    "tickets.configure": "{tickets}: הגדרות (מחלקות, חברים וספרייה)",
+    "tickets.view": "{module}: צפייה",
+    "tickets.create": "{module}: פתיחה",
+    "tickets.manage": "{module}: ניהול המחלקות שבאחריותי (שיוך, עריכה וסגירה)",
+    "tickets.external": "{module}: שליחה לגורם חיצוני (ספקים ואנשי קשר)",
+    "tickets.all_departments": "{module}: כל המחלקות",
+    "tickets.configure": "{module}: הגדרות (מחלקות, חברים וספרייה)",
     # CR-038 D31 (slice 9, section 11A.8): cost claims of external vendors - both sensitive, each also a single-permission role.
     # costs.view: see amounts, lines, invoice files, cost columns and reports (site_admin, system_admin); costs: approve / adjust /
     # reject, mark paid, enter a claim on the vendor's behalf, reopen the window, override the close gate (system_admin).
-    "tickets.costs.view": "{tickets}: צפייה בעלויות (סכומים, חשבוניות ודוחות)",
-    "tickets.costs": "{tickets}: אישור עלויות (אישור, תיקון, דחייה וסימון תשלום)",
+    "tickets.costs.view": "{module}: צפייה בעלויות (סכומים, חשבוניות ודוחות)",
+    "tickets.costs": "{module}: אישור עלויות (אישור, תיקון, דחייה וסימון תשלום)",
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",

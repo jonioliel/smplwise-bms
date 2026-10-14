@@ -11,7 +11,7 @@
 export type Lang = 'he' | 'en' | 'ar' | 'ru';
 export const LANGS: readonly Lang[] = ['he', 'en', 'ar', 'ru'];
 export const RTL: ReadonlySet<Lang> = new Set<Lang>(['he', 'ar']);
-export interface Labels { one: string; many: string; gender: string }
+export interface Labels { one: string; many: string; gender: string; module?: string }
 
 const he = {
   langName: 'עברית',
@@ -101,7 +101,7 @@ const he = {
   codeBody: 'כדי לעדכן יש להזין קוד בן 6 ספרות שיישלח לטלפון שלכם.',
   codeSend: 'שלחו לי קוד',
   codeResend: 'שליחת קוד חדש',
-  codeSent: 'הקוד נשלח. הוא בתוקף 10 דקות.',
+  codeSent: 'הקוד נשלח. הוא בתוקף {n} דקות.',
   codeInput: 'הקוד',
   codeVerify: 'אישור',
   codeWrong: 'הקוד שגוי. נותרו {n} ניסיונות.',
@@ -228,7 +228,7 @@ const en: Catalogue = {
   codeBody: 'To update this {ticket}, enter the 6-digit code that will be sent to your phone.',
   codeSend: 'Send me a code',
   codeResend: 'Send a new code',
-  codeSent: 'The code was sent. It is valid for 10 minutes.',
+  codeSent: 'The code was sent. It is valid for {n} minutes.',
   codeInput: 'Code',
   codeVerify: 'Confirm',
   codeWrong: 'Wrong code. {n} attempts left.',
@@ -352,7 +352,7 @@ const ar: Catalogue = {
   codeBody: 'لتحديث {ticket} أدخل رمزًا من 6 أرقام سيُرسل إلى هاتفك.',
   codeSend: 'أرسل لي رمزًا',
   codeResend: 'إرسال رمز جديد',
-  codeSent: 'أُرسل الرمز. صالح لمدة 10 دقائق.',
+  codeSent: 'أُرسل الرمز. صالح لمدة {n} دقائق.',
   codeInput: 'الرمز',
   codeVerify: 'تأكيد',
   codeWrong: 'رمز خاطئ. تبقت {n} محاولات.',
@@ -476,7 +476,7 @@ const ru: Catalogue = {
   codeBody: 'Для обновления введите 6-значный код, который придёт на ваш телефон.',
   codeSend: 'Прислать код',
   codeResend: 'Новый код',
-  codeSent: 'Код отправлен. Он действует 10 минут.',
+  codeSent: 'Код отправлен. Срок действия (мин.): {n}.',
   codeInput: 'Код',
   codeVerify: 'Подтвердить',
   codeWrong: 'Неверный код. Осталось попыток: {n}.',
@@ -514,13 +514,25 @@ const ru: Catalogue = {
 
 export const CATALOGUES: Readonly<Record<Lang, Catalogue>> = { he, en, ar, ru };
 
-const TOKEN = /\{(tickets|ticket)\}|\{f:([^{}|]*)\|m:([^{}|]*)(?:\|n:([^{}|]*))?\}/g;
+const TOKEN = /\{(the_tickets|the_ticket|tickets|ticket|module)\}|\{f:([^{}|]*)\|m:([^{}|]*)(?:\|n:([^{}|]*))?\}/g;
+
+/** The Hebrew definite form of a name (the twin of tickets/naming.ts `definite`; the page bundle stays separate from the app). */
+function definite(name: string): string {
+  if (!/[א-ת]/.test(name)) return name;
+  const words = name.split(' ');
+  if (words.length > 1 && words[words.length - 1].startsWith('ה')) return name;
+  words[words.length - 1] = `ה${words[words.length - 1]}`;
+  return words.join(' ');
+}
 
 /** D33: the module-name tokens rendered with the names the server sent for the contact's language (`labels`). */
 export function renderName(template: string, n: Labels | null): string {
   return template.replace(TOKEN, (_m, word: string | undefined, f: string | undefined, m: string | undefined, neuter: string | undefined) => {
     if (word === 'tickets') return n?.many ?? '';
     if (word === 'ticket') return n?.one ?? '';
+    if (word === 'the_tickets') return definite(n?.many ?? '');
+    if (word === 'the_ticket') return definite(n?.one ?? '');
+    if (word === 'module') return n?.module || (n?.many ?? '');
     const g = n?.gender ?? 'f';
     if (g === 'm') return m ?? '';
     if (g === 'n' && neuter !== undefined) return neuter;

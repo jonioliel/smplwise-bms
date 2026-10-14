@@ -114,7 +114,7 @@ def test_uses_carry_the_configured_module_name_d33(env):
     assert uses["tickets.messages"]["label"] == f"הודעות {many}" and uses["tickets.codes"]["label"] == f"קודי אימות ל{many}"
     assert uses["tickets.codes"]["inherits"] == "tickets.messages" and uses["tickets.codes"]["inherits_label"] == f"הודעות {many}"
     assert [x["name"] for x in uses["tickets.messages"]["departments"]] == ["אחזקה"]
-    assert d["modules"] == {"tickets": many}
+    assert d["modules"] == {"tickets": naming.DEFAULTS["he"]["module"]}  # the module's own name ("ניהול השירות")
     r = c.get(f"{API}/tickets/module").json()
     names = r["name"]
     names["he"] = {"one": "פנייה", "many": "פניות", "gender": "f"}

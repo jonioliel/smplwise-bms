@@ -56,6 +56,9 @@ export const ticketSettingsCss = css`
     align-items: start;
     inline-size: 100%;
   }
+  .names > :first-child {
+    grid-column: 1 / -1; /* the module's own name (owner rename 2026-10-14) takes its own row */
+  }
   .names label,
   .fld {
     display: flex;

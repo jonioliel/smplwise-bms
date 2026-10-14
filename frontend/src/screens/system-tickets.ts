@@ -28,7 +28,7 @@ import {
   ticketsApi, type AdminDepartment, type DetailMode, type HoldersResponse, type InstallationDefaults, type NameEntries, type NewTicketMode, type SettingsDoc,
   type SettingsPatch,
 } from '../api/tickets';
-import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
+import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
 import { intIn, windowProblem } from '../tickets/durations';
 import { ticketSettingsCss } from '../tickets/settings-styles';
 import { tt, type TicketTextKey } from '../tickets/text';
@@ -232,8 +232,9 @@ export class SystemTickets extends LitElement {
     }
   }
 
-  private nameError(lang: TicketLang, field: 'one' | 'many'): string {
+  private nameError(lang: TicketLang, field: 'one' | 'many' | 'module'): string {
     const v = this.draft?.[lang][field] ?? '';
+    if (field === 'module' && !v.trim()) return ''; // optional: empty = derived from the item names
     const code = nameProblem(v);
     return code ? tt(`nameErr_${code}` as TicketTextKey) : '';
   }
@@ -246,7 +247,7 @@ export class SystemTickets extends LitElement {
   private async saveName(): Promise<void> {
     const d = this.draft;
     if (!d || this.busy) return;
-    for (const lang of TICKET_LANGS) if (this.nameError(lang, 'one') || this.nameError(lang, 'many')) return;
+    for (const lang of TICKET_LANGS) if (this.nameError(lang, 'one') || this.nameError(lang, 'many') || this.nameError(lang, 'module')) return;
     this.busy = true;
     try {
       const doc = await ticketsApi().saveName(this.names?.revision ?? 0, d);
@@ -300,8 +301,10 @@ export class SystemTickets extends LitElement {
     const editable = !isApi() || can('tickets.configure');
     const oneErr = this.nameError(lang, 'one');
     const manyErr = this.nameError(lang, 'many');
+    const moduleErr = this.nameError(lang, 'module');
     const genders = TICKET_GENDERS[lang].filter(Boolean);
     return html`<div class="names" data-name-lang=${lang} dir=${lang === 'en' || lang === 'ru' ? 'ltr' : 'rtl'}>
+      <label>${tt('setNameModule')}<input class="in" maxlength="30" data-name-module=${lang} aria-invalid=${String(!!moduleErr)} ?disabled=${!editable} .value=${e.module ?? ''} @input=${(ev: Event) => this.setName(lang, { module: (ev.target as HTMLInputElement).value })} />${moduleErr ? html`<span class="field-error">${moduleErr}</span>` : nothing}</label>
       <label>${tt('setNameOne')}<input class="in" maxlength="30" data-name-one=${lang} aria-invalid=${String(!!oneErr)} ?disabled=${!editable} .value=${e.one} @input=${(ev: Event) => this.setName(lang, { one: (ev.target as HTMLInputElement).value })} />${oneErr ? html`<span class="field-error">${oneErr}</span>` : nothing}</label>
       <label>${tt('setNameMany')}<input class="in" maxlength="30" data-name-many=${lang} aria-invalid=${String(!!manyErr)} ?disabled=${!editable} .value=${e.many} @input=${(ev: Event) => this.setName(lang, { many: (ev.target as HTMLInputElement).value })} />${manyErr ? html`<span class="field-error">${manyErr}</span>` : nothing}</label>
       ${genders.length ? html`<label>${tt('setNameGender')}<span class="seg" role="radiogroup" aria-label=${tt('setNameGender')}>${genders.map((g) => html`<button type="button" role="radio" aria-pressed=${String(e.gender === g)} aria-checked=${String(e.gender === g)} data-name-gender=${`${lang}:${g}`} ?disabled=${!editable} @click=${() => this.setName(lang, { gender: g })}>${tt(`setGender_${g}` as TicketTextKey)}</button>`)}</span></label>` : html`<span></span>`}
@@ -358,7 +361,9 @@ export class SystemTickets extends LitElement {
     const mayName = !isApi() || can('tickets.configure');
     const he = this.draft?.he ?? DEFAULT_TICKET_NAMES.he;
     const dirty = !!this.draft && !!this.names && TICKET_LANGS.some((l) => JSON.stringify(this.draft?.[l]) !== JSON.stringify(this.names?.[l]));
-    const preview = ['{tickets}', '{ticket} {f:חדשה|m:חדש}', 'ה{tickets} {f:פתוחות|m:פתוחים}'].map((tpl) => renderName(tpl, { one: he.one || DEFAULT_TICKET_NAMES.he.one, many: he.many || DEFAULT_TICKET_NAMES.he.many, gender: he.gender }));
+    const heOne = he.one || DEFAULT_TICKET_NAMES.he.one;
+    const heMany = he.many || DEFAULT_TICKET_NAMES.he.many;
+    const preview = ['{module}', '{ticket} {f:חדשה|m:חדש}', '{the_tickets} {f:פתוחות|m:פתוחים}'].map((tpl) => renderName(tpl, { one: heOne, many: heMany, gender: he.gender, module: he.module?.trim() || moduleDefault('he', heOne, heMany) }));
     return html`<div class="stack">
       <sw-card heading=${tt('setModuleCard')} data-card="module">
         <div class="row"><span class="lbl">${tt('setModuleSwitch')}<span class="muted">${tt('setModuleSwitchSub')}</span></span>

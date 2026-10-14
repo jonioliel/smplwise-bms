@@ -66,7 +66,7 @@ function baseView(o: WaMockOptions, manage: boolean) {
     mapping: o.empty ? {} : { 'tickets.messages': 'entry:01JFAKEOFFICE', 'tickets.codes': null, 'tickets.messages@dept:dept-cleaning': 'entry:01JFAKEINTERC' },
     warnings,
     channels: [{ key: 'whatsapp', state: on ? (o.empty ? 'not_configured' : 'active') : 'idle' }, { key: 'email', state: 'active' }, { key: 'inapp', state: 'active' }, { key: 'sms', state: 'soon' }],
-    modules: { tickets: 'בקשות שירות', access: 'בקרת כניסה' },
+    modules: { tickets: 'ניהול השירות', access: 'בקרת כניסה' },
     pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: false },
   };
 }
