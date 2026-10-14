@@ -515,6 +515,8 @@ def _approve(conn, claim: Mapping[str, Any], revision_id: str, by: str, at: dt.d
     fresh = store_costs.claim(conn, claim["id"]) or dict(claim)
     refresh_ticket(conn, claim.get("ticket_id"))
     _clear_claim_missing(conn, claim.get("ticket_id"))
+    if claim.get("ticket_id"):
+        notify_bridge.cost_resolved(conn, claim["ticket_id"], claim["id"])
     emit_cost_event("approved", fresh)
     if cost_settings(conn).notify_vendor_approved:
         vendor_message(conn, fresh, "cost_approved", requested_by=by)
@@ -556,6 +558,8 @@ def reject(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_i
     store_costs.insert_decision(conn, {"claim_id": claim["id"], "revision_id": revision_id, "action": "reject", "reason": why, "by_user": by, "at": now})
     fresh = store_costs.claim(conn, claim["id"]) or dict(claim)
     refresh_ticket(conn, claim.get("ticket_id"))
+    if claim.get("ticket_id"):
+        notify_bridge.cost_resolved(conn, claim["ticket_id"], claim["id"])
     vendor_message(conn, fresh, "cost_rejected", requested_by=by)
     return fresh
 

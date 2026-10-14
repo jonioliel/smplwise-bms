@@ -31,6 +31,8 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     {"key": "ticket.send_failed", "label": "הודעה למטפל לא נשלחה", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
     {"key": "ticket.contact_changed", "label": "פרטי איש קשר השתנו", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
     {"key": "ticket.channel_down", "label": "חשבון וואטסאפ מנותק", "severity": "alert", "who": "managers", "resolves": True, "subject": "system"},
+    {"key": "ticket.cost_submitted", "label": "הוגשה דרישת עלות", "severity": "info", "who": RULE_MANAGERS, "resolves": True},  # S9b: audience `costs`
+    {"key": "ticket.cost_missing", "label": "לא הוגשה דרישת עלות", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},  # S9b: audience `costs`
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 

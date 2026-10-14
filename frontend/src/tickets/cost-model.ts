@@ -321,3 +321,33 @@ export function costEventText(kind: string, data: Record<string, unknown>): stri
 export function effectiveMode(own: CostMode | null | undefined, preselected: CostMode): CostMode {
   return own ?? preselected;
 }
+
+// ---------------------------------------------------------------- settings drafts
+
+export type CostField = 'vat' | 'window' | 'max' | 'flag' | 'retention';
+
+/** The validation of one numeric draft; the ranges are the server's (routers/tickets_admin.CostsPatch). Pure, so the unit spec can run it. */
+export function costFieldValue(field: CostField, text: string): number | null {
+  const t = text.trim();
+  switch (field) {
+    case 'vat': {
+      const bp = percentToBp(t);
+      return bp !== null && bp <= 5000 ? bp : null;
+    }
+    case 'max': {
+      const m = decimalToMinor(t);
+      return m !== null && m >= 100 && m <= 99_999_999_999 ? m : null;
+    }
+    case 'flag': {
+      const m = decimalToMinor(t);
+      return m !== null && m <= 99_999_999_999 ? m : null;
+    }
+    case 'window':
+    case 'retention': {
+      if (!/^\d{1,5}$/.test(t)) return null;
+      const n = Number(t);
+      const [lo, hi] = field === 'window' ? [1, 90] : [730, 3650];
+      return n >= lo && n <= hi ? n : null;
+    }
+  }
+}
