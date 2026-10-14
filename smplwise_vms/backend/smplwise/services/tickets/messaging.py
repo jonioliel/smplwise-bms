@@ -383,6 +383,7 @@ class MessagingRuntime:
         self.email_sender: Callable[[Any, str, Any], None] | None = None  # tests pass a fake SMTP
         self.counters: collections.Counter[str] = collections.Counter()
         self.inbound_wanted = False  # read by the ha_sync websocket thread: no database read there
+        self._sub_want: bool | None = None  # what the reply subscription was last told (follow_subscription)
         self._accounts: ma.AccountsService | None = None
         self._whatsapp: WhatsAppChannel | None = None
         self._last_full = 0.0
@@ -551,14 +552,14 @@ class MessagingRuntime:
             return
         with obs.Access(self.db).read() as conn:
             if not access.module_on(conn) or not channel_settings(conn)["whatsapp"]["enabled"]:
-                self.inbound_wanted = False
+                self.follow_subscription(False)
                 return
         svc = self.accounts()
         mapped = svc.mapped_keys("tickets")
         after = svc.statuses()
         moves = ma.state_transitions(self._states, after, mapped)
         self._states = after
-        self.inbound_wanted = bool(mapped)
+        self.follow_subscription(bool(mapped))
         if not (moves["down"] or moves["up"]):
             return
         doc = svc.doc()
@@ -569,6 +570,21 @@ class MessagingRuntime:
             for key in moves["up"]:
                 acc = doc.account(key)
                 _notify("channel_state", conn, key, (acc.label if acc else "") or key, down=False)
+
+    def follow_subscription(self, want: bool) -> None:
+        """The ha_sync reply subscription follows the module switch, the WhatsApp master switch and the ticket uses' account mapping -
+        each may change on another screen (Settings › the module, Settings › ערוץ ההודעות): the worker's minute watch and the
+        channel route call this; on the live session it is idempotent, and a new session's on_ready subscribes from the database."""
+        self.inbound_wanted = want
+        if want == self._sub_want:
+            return
+        self._sub_want = want
+        try:
+            from .. import ha_sync
+
+            ha_sync.SYNC.tickets_inbound_switched(want)
+        except Exception:  # noqa: BLE001 - the next session subscribes from the database anyway
+            log.warning("ticket reply subscription follow failed", exc_info=True)
 
     # ------------------------------------------------------------ inbound (9.6)
 

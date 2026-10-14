@@ -422,6 +422,23 @@ def test_a_reply_without_the_switch_or_subscription_is_not_taken(env):
     assert messaging.submit_inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock())) is False
 
 
+def test_the_reply_subscription_follows_the_mapping_changed_on_another_screen(env, monkeypatch):
+    from smplwise.services import ha_sync
+
+    told: list = []
+    monkeypatch.setattr(ha_sync.SYNC, "tickets_inbound_switched", lambda want: told.append(want))
+    env.rt._sub_want = None
+    env.mapping({"tickets.messages": None})  # Settings › ערוץ ההודעות: no account for the ticket messages any more
+    env.tick()
+    assert told == [False] and messaging.submit_inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock())) is False
+    env.mapping({"tickets.messages": KEY_A})  # mapped again: the worker's watch subscribes without a restart
+    env.tick()
+    env.tick()
+    assert told == [False, True], "told once per change"
+    env.channel(whatsapp={"enabled": False})
+    assert told == [False, True, False]
+
+
 # ---------------------------------------------------------------- message templates (D26) and the update / notices
 
 def test_message_templates_per_language_validate_preview_and_render(env):

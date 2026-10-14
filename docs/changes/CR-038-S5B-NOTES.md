@@ -25,8 +25,8 @@ a code or a text (a test asserts it). The migration-list tests know 0081 (`test_
 | `services/tickets/messaging.py` | the runtime: `DbOutbox`, the ports (directory, links, templates, context, hooks), the channels, `OutboxDispatch` (= `external.DISPATCH`), `OutboxCodeSender`, the inbound processor wiring and `apply_decision`, the worker pass (`run_once`), the account-state watch, retention, health, the registrations below |
 | `services/tickets/channel_email.py` | the e-mail adapter: the contact's own address, the product's SMTP (`notify_email.smtp_send`), the redeem link, outcome classes |
 | `services/tickets/message_templates.py` | the message core's `templates.py`, RENAMED (slice 2 owns `services/tickets/templates.py`, ticket templates - the two files would have collided at integration) |
-| `routers/tickets_messages.py` | the routes of section 2 below (mounted before `/tickets/{ticket_id}`) |
-| `services/ha_sync.py` | `TICKET_EVENTS` subscribed only while wanted (module on, switch on, a ticket use mapped), unsubscribed when not; the frame is handed to a bounded queue (never written or logged on the websocket thread; `media_url` never read) |
+| `routers/tickets_messages.py` | the routes below (mounted before `/tickets/{ticket_id}`) |
+| `services/ha_sync.py` | `TICKET_EVENTS` subscribed only while wanted (module on, switch on, a ticket use mapped), unsubscribed when not - the channel route and the worker's minute watch (`follow_subscription`) follow a change made on any screen; the frame is handed to a bounded queue (never written or logged on the websocket thread; `media_url` never read) |
 | `main.py` | `configure` at app creation, the `tickets-outbox` thread in `_start_janitor` / `_stop_janitor`, a guarded janitor step (retention) |
 | `services/tickets/settings_doc.py` | `whatsapp.enabled` (false), `whatsapp.use_buttons` (false), `whatsapp.reply_window_h` (72, 1-336), `email_fallback` (true) |
 | `services/tickets/handler_links.py` | hooks `NOTICE` (closed / reassigned notices) and `CHANNEL_OK` (the link block's `can.resend`) |
@@ -138,11 +138,11 @@ end in the same `queue_code`. `ticket_link_codes.outbox_id` is set by `queue_cod
 
 ## 8. Tests
 
-Backend: `tests/test_tickets_s5b_channel.py` (31) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
+Backend: `tests/test_tickets_s5b_channel.py` (32) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
 preview (and its warning when the account cannot send), the link panel's "send the link again", send hours + "send now" (403 without tickets.external), the switch off (manual; and queued rows held), unknown never retried +
 "send again", retries then the e-mail fallback with the redeem link (never the fragment), disconnected -> hold -> nobody -> waiting for
 the manager -> no resend on reconnect, unmapped -> remapped (D27), the D6 refusal, a code request from the public page (the row keeps the
-code id only), inbound status / note / late / ambiguous claim-before-reveal / account filter / LID button nonce / switch off, message
+code id only), inbound status / note / late / ambiguous claim-before-reveal / account filter / LID button nonce / switch off, the reply subscription following a mapping changed on another screen, message
 templates (validation, preview, rendering, English starter), send-update + the closed notice, reassigned notice, the test send (the typed
 number never in the database file), the channel settings gate, the uniform 404 of the new ticket routes, an unbound write refused, crash
 recovery (`sending` -> `unknown`), the lock order under a slow provider, an idle installation never takes the write lock, log / row hygiene, migration 0081. The message core's tests

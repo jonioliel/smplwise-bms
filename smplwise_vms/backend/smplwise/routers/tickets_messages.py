@@ -116,11 +116,7 @@ def put_channel(body: ChannelBody, request: Request, principal: Principal = Depe
         raise _invalid(conn, [{"field": str(exc).split(":")[0], "code": "invalid"}]) from None
     audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"revision": doc["revision"], "changed": changed})
-    want = messaging.wants_inbound_conn(conn)
-    messaging.RUNTIME.inbound_wanted = want
-    from ..services import ha_sync
-
-    ha_sync.SYNC.tickets_inbound_switched(want)  # the reply subscription follows the switch on the live session
+    messaging.RUNTIME.follow_subscription(messaging.wants_inbound_conn(conn))  # the reply subscription follows at once
     return channel_view(conn)
 
 
