@@ -28,7 +28,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import messaging_runtime as mr
-from ..services.tickets import access, handler_links, messaging, model, outbox_store as obs, settings_doc, store, store_links
+from ..services.tickets import access, handler_links, messaging, model, outbox_store as obs, settings_doc, sla, store, store_links
 from ..services.tickets import message_templates as mt
 from ..services.tickets.access import Viewer, text
 from ..services.tickets.outbox import OutboxError
@@ -310,6 +310,7 @@ def attach_inbound(body: AttachBody, request: Request, inbound_id: str = Path(..
                        assignment_id=(asg or {}).get("id"), body=(r.get("content") or "")[:model.NOTE_MAX] or None,
                        data={"inbound_id": inbound_id, "unverified": True, "attached_by": store.display_name(conn, viewer.uid)}, via="whatsapp", at=at)
     store.update_ticket(conn, seen.row["id"], {"last_activity_at": at}, bump=False)
+    sla.refresh(conn, seen.row["id"])  # slice 2: the dues follow every change
     obs.handle_inbound(conn, inbound_id, viewer.uid, at, "attached", seen.row["id"])
     messaging._notify("reply_unmatched", conn, inbound_id, _candidates(r)["tickets"], resolved=True)
     audit(conn, actor=principal, action="ticket.inbound.attach", decision="allowed", resource_type="ticket", resource_id=seen.row["id"],

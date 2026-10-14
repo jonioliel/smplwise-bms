@@ -45,7 +45,7 @@ from ...audit import audit
 from ...db import Database, get_setting, unlocked
 from .. import messaging_accounts as ma
 from .. import messaging_runtime as mr
-from . import access, handler_links, hours, model, naming, notify_bridge, outbox_store as obs, settings_doc, store, store_links
+from . import access, handler_links, hours, model, naming, notify_bridge, outbox_store as obs, settings_doc, sla, store, store_links
 from . import codes as codes_mod
 from . import inbound as inbound_mod
 from . import links as links_mod
@@ -1127,6 +1127,7 @@ def _apply_status(conn, d: inbound_mod.InboundDecision, iid: str, now: dt.dateti
     store.update_ticket(conn, t["id"], fields)
     store.insert_event(conn, t["id"], "status", actor_kind="inbound", actor_name=_assignee_name(conn, d.assignment_id), assignment_id=d.assignment_id,
                        from_status=frm, to_status=to, data={"inbound_id": iid, "outbox_id": d.outbox_id, **UNVERIFIED_MARK}, via="whatsapp", at=at)
+    sla.refresh(conn, t["id"])  # slice 2: the dues follow every change (an acknowledgement stops the first-response clock)
     notify_bridge.ticket_status(conn, t["id"], frm, to)
 
 
@@ -1143,6 +1144,7 @@ def _apply_note(conn, d: inbound_mod.InboundDecision, iid: str, now: dt.datetime
     if late and t["status"] not in model.FINAL:
         fields.update({"waiting_on": "manager", "waiting_reason": "late_reply"})
     store.update_ticket(conn, t["id"], fields, bump=False)
+    sla.refresh(conn, t["id"])  # the handler's activity moves the "stuck" clock
     if late:
         _notify("reply_unmatched", conn, iid, [t["id"]])
 

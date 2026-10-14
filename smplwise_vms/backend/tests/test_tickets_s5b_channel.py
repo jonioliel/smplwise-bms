@@ -353,11 +353,12 @@ def test_a_code_request_on_the_page_queues_the_code_row_id_never_the_digits(env)
 # ---------------------------------------------------------------- inbound (9.6)
 
 def test_a_reply_1_acknowledges_and_a_free_text_reply_is_an_unverified_note(env):
-    t, _ = _sent_ticket(env)
+    t, before = _sent_ticket(env)
     env.tick()
     env.inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock(), entry_id=ENTRY_A))
     d = env.s4.w.detail(t["id"])
     assert d["status"] == "acknowledged"
+    assert before["sla"]["ack_due_at"] and d["sla"]["ack_due_at"] is None, "slice 2's dues follow the reply (the first-response clock stops)"
     st = [e for e in d["events"] if e["kind"] == "status" and e["actor"]["kind"] == "inbound"]
     assert st and st[0]["via"] == "whatsapp" and st[0]["data"]["unverified"] is True
     env.clock.advance(seconds=30)
