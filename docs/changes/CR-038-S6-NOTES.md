@@ -162,4 +162,20 @@ external-reminder port, the system-reader guard), `tests/test_tickets_board.py` 
 counts / chips / tree / filters / state strip, deny binding and floor scope removing rows from every count, facets per caller, the
 display settings incl. 409 / 422 / 403, the personal tree choice). Frontend: `tests/unit-tickets-board.spec.ts`,
 `tests/evidence-tickets-board.spec.ts` (evidence images in `docs/design/evidence/tickets-s6/`), `tests/layout-tickets-board.spec.ts` (five
-skins x two themes x widths 320-1440). Results: see the slice report (runner).
+skins x two themes x widths 320-1440).
+
+Results (all on the runner, 2026-10-13/14):
+- before the slice-2 merge, full backend suite @ 01bcd1b2: 7344 passed, 3 failed - `test_tickets_admin::test_display_settings_document`
+  (fixed: subset assertions), `test_tickets_api::test_assignment_rules` (passes on the merged head), and
+  `test_wiskey_door_path::test_d3_grant_card_switches_users_groups_and_custom_roles` (see below);
+- merged head @ f772045a: tsc ok; tickets + touched backend suites (16 files) 291 passed, 1 failed (the same WisKey test); frontend unit
+  specs (7 files) 119 passed; `evidence-tickets-board` desktop + phone 17 passed (1 phone skip: the tree is never drawn on a phone) and
+  `layout-tickets-board` five skins x two themes x ten widths, all passed.
+- **Not slice 6's:** `test_wiskey_door_path.py:302` asserts the exact built-in role list of the door-grant card; slice 1's six
+  single-permission roles `tickets_*` (roles.json) appear there. It fails on slice 1's base too - for the integrator / slice 1.
+
+Owner rename of 14.10 ("בקשת שירות" / "בקשות שירות", "ניהול השירות"): slice 6 writes no default noun in any visible text - every text
+that names the module is a `{ticket}` / `{tickets}` template (board-text.ts, notify_bridge.py). The only places that still show the OLD
+default are inherited: slice 1's `naming.DEFAULTS` / `DEFAULT_TICKET_NAMES` (used by `mobile_push.categories()` for the phone category
+name) and slice 1's test mocks (`tests/tickets-mocks.ts` `/me` names), which the evidence images of this slice therefore still show in
+the rail and the title. The board's own mock (`tests/tickets-board-mocks.ts`) uses the new noun.
