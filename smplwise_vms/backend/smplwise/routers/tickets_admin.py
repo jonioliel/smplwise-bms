@@ -67,6 +67,9 @@ class UiPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     detail: Literal["drawer", "fullscreen", "drawer_fullscreen"] | None = None
     new_ticket: Literal["sheet", "dialog"] | None = None
+    board_floors: Literal["chips", "tree", "chips_tree"] | None = None  # D19 / D30 (slice 6)
+    grouping: Literal["always", "no_status_filter", "never"] | None = None  # D20 (slice 6)
+    closed_strip: Literal["week", "all", "hidden"] | None = None  # D21 (slice 6)
 
 
 class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose client-address header is believed

@@ -465,6 +465,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import tickets_messages as tickets_messages_router  # CR-038 S5b (its own lines)
 
     app.include_router(tickets_messages_router.router, prefix=api, tags=["tickets"])  # channel, outbox, inbound, message templates - BEFORE /tickets/{ticket_id}
+    from .routers import tickets_board as tickets_board_router  # CR-038 S6: the manager board + the facet counts, BEFORE /tickets/{ticket_id}
+    app.include_router(tickets_board_router.router, prefix=api, tags=["tickets"])
     app.include_router(tickets_router.router, prefix=api, tags=["tickets"])
     from .services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the module key and the public listener's wiring
 

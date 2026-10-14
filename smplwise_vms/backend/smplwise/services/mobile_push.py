@@ -68,7 +68,9 @@ def configured() -> bool:
 
 
 def categories() -> list[dict[str, Any]]:
-    return [{"id": c, "name": CATEGORY_NAMES_HE.get(c, c), "critical": c in CRITICAL_CATEGORIES} for c in CATEGORIES]
+    from .tickets.naming import DEFAULTS as _ticket_names  # CR-038: the tickets category carries the module's (default) plural, D33
+
+    return [{"id": c, "name": CATEGORY_NAMES_HE.get(c) or (_ticket_names["he"]["many"] if c == "tickets" else c), "critical": c in CRITICAL_CATEGORIES} for c in CATEGORIES]
 
 
 def server_id(conn: sqlite3.Connection) -> str:

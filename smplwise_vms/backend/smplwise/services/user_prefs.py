@@ -129,6 +129,9 @@ DEFAULTS["plan.quality"] = None
 # object (services/tickets/table_prefs.py); null = the defaults. Presentation only: no permission needed.
 VALIDATORS["tickets.board"] = tickets_table_prefs.normalize
 DEFAULTS["tickets.board"] = None
+# `tickets.board.tree_hidden` (CR-038 D30): the user hid the manager board's side area tree (null = shown). Presentation only.
+VALIDATORS["tickets.board.tree_hidden"] = _choice("tickets.board.tree_hidden", ("hidden", "shown"))
+DEFAULTS["tickets.board.tree_hidden"] = None
 
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
