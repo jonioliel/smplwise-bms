@@ -20,6 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
 from ..errors import ApiError
+from ..remote_channel import is_remote
 from ..rbac import INSTALLATION, ROLES, Principal, all_roles, require, role_permissions, scope_name
 from ..services.tickets import access, model, naming, policy, settings_doc, sla, store, templates
 from ..services.tickets.access import Viewer, text
@@ -141,6 +142,10 @@ def _problem(exc: ValueError) -> tuple[str, str]:
 @router.put("/tickets/settings")
 def put_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
+    if body.public is not None and is_remote(request):
+        # security review 2026-10-14 (2.5.1): the handler page's public address, trusted proxies and client-address header decide who
+        # the listener believes - changed from a local session only (like the address probe)
+        raise ApiError(403, "local_only", text(conn, "את כתובת דף המטפלים משנים מחיבור מקומי בלבד."), details={"field": "public"})
     current = settings_doc.read(conn)
     if body.revision != current["revision"]:
         raise ApiError(409, "settings_stale", text(conn, "ההגדרות השתנו בינתיים. טענו מחדש."), details={"revision": current["revision"]})

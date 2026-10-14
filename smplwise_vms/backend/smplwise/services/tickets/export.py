@@ -3,7 +3,7 @@
 The rows are the caller's VISIBLE set for the table's filter and sort (access.visible_export_rows: every row through visible()), at
 most 5,000 (more -> 413 `export_too_large`); only the table's columns - never a phone number, an internal note or a link; UTF-8 with a
 BOM (Excel and Hebrew), every cell quoted, CRLF; times in the installation's zone (`time.zone`); every cell through the shared
-formula guard (intercom_adapter.csv_cell: a cell starting with = + - @, a tab or a line break is prefixed with an apostrophe).
+formula guard (text_hygiene.csv_cell: a cell starting with = + - @, a tab or a line break is prefixed with an apostrophe).
 Column headers name the module with its configured name (D33). Columns a limited viewer may not see (stuck reason, SLA) are blank
 on their rows, exactly as on the screen."""
 from __future__ import annotations
@@ -17,7 +17,7 @@ import time
 from typing import Any, Iterator
 
 from ...db import get_setting
-from ..intercom_adapter import csv_cell
+from .text_hygiene import csv_cell
 from ..timeutil import parse_utc, zone
 from . import naming, present, store, table_present
 from .access import Seen, Viewer

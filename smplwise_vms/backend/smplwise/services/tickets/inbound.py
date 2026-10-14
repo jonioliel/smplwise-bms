@@ -223,6 +223,10 @@ class TicketAccountFilter:
             return True
         return account_key in set(self._recent(now - dt.timedelta(hours=self._window())))
 
+    def account_count(self, now: dt.datetime) -> int:
+        """How many accounts the module listens to now (mapped to a ticket use, or sent within the reply window)."""
+        return len(set(self._mapped()) | set(self._recent(now - dt.timedelta(hours=self._window()))))
+
 
 class MemoryDedupe:
     def __init__(self) -> None:
@@ -307,6 +311,13 @@ class InboundProcessor:
         if msg.sender_is_group:
             return InboundDecision("ignored", True, **base, reason="group")
         nonce_match = NONCE_ID.match(msg.selected_id or "")
+        # security review 2026-10-14 (2.5.1): a reply WITHOUT entry_id cannot be told apart when more than one account is linked -
+        # fail closed: an ignored row with the reason only (no content), never matched by sender. A button carries its own nonce
+        # (bound to one outbox row and its recipient), so it stays matchable.
+        if not nonce_match and not msg.account_key and self._filter is not None:
+            count = getattr(self._filter, "account_count", None)
+            if count is not None and count(now) > 1:
+                return InboundDecision("ignored", True, **{**base, "sender_key": None}, reason="account_unknown")
         if msg.content_too_long:
             return InboundDecision("ignored", True, **base, reason="too_long")
         if not msg.content and not nonce_match:

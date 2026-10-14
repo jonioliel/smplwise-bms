@@ -308,3 +308,19 @@ def test_filter_reads_the_account_mapping():
                              registry=ma.UseRegistry(ma.tickets_uses(lambda: True)))
     f = ib.TicketAccountFilter(lambda: svc.mapped_keys("tickets"), lambda since: set())
     assert f.accepts(KEY_A, T0) and f.accepts(KEY_B, T0) and not f.accepts("entry:INTERCOM", T0)
+
+
+# ---------------------------------------------------------------- security review 2026-10-14 (2.5.1): fail closed without entry_id
+
+def test_an_event_without_entry_id_fails_closed_when_more_than_one_account_is_linked():
+    p, _ = proc(mapped=(KEY_A, KEY_B))
+    d = p.process(recv(PHONE_VENDOR, "1", at=T0), T0)
+    assert (d.result, d.reason, d.record) == ("ignored", "account_unknown", True)
+    assert d.content is None and d.sender_key is None and d.ticket_id is None, "no content, no sender, never matched"
+    d = p.process(button(PHONE_VENDOR, f"t:{NONCE}:ack", at=T0, message_id="3EB0Y"), T0)
+    assert d.reason != "account_unknown", "a button carries its own nonce: still matchable"
+    # one linked account (mapped or recent): the event is unambiguous and goes on as before
+    one, _ = proc(mapped=(KEY_A,))
+    assert one.process(recv(PHONE_VENDOR, "1", at=T0), T0).reason != "account_unknown"
+    recent, _ = proc(mapped=(KEY_A,), recent=(KEY_B,))
+    assert recent.process(recv(PHONE_VENDOR, "1", at=T0), T0).reason == "account_unknown"
