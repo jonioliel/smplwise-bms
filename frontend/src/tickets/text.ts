@@ -743,7 +743,9 @@ export function template(key: TicketTextKey, lang: 'he' | 'en' = ticketsLang()):
 /** A text of the tickets screens: the template in the document's language, the module's name rendered (D33), then `{var}`s. */
 export function tt(key: TicketTextKey, vars?: Record<string, string | number>): string {
   const lang = ticketsLang();
-  const named = tn(template(key, lang), lang as TicketLang);
+  const raw = template(key, lang);
+  if (raw === undefined) return String(key); // an unknown key (a newer server's code) never breaks a render (2.5.0: the הרשאות tab)
+  const named = tn(raw, lang as TicketLang);
   return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
 }
 

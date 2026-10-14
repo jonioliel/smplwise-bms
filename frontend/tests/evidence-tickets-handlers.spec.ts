@@ -175,6 +175,35 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await expect(page.locator(`${S} [data-card="dept-deleted"]`)).toHaveCount(0);
   });
 
+  test('2.5.0 regression: the הרשאות tab renders the real holders shapes (cost permissions, no scope name, no user name); a failed load offers "try again"', async ({ page }) => {
+    const S = 'sw-app system-tickets';
+    await go(page, '/system/tickets?tab=permissions');
+    const g = (perms: string[], via: string, extra: Record<string, unknown> = {}) => ({ binding_id: `b-${via}-${perms.length}`, permissions: perms, via, role_id: 'system_admin',
+      role_name: 'מנהל מערכת', group_name: via === 'group' ? 'טכנאים' : null, scope_type: 'floor', scope_id: 'f-gone', scope_name: null, effect: 'allow', expires_at: '2026-12-31T21:59:59Z', ...extra });
+    const ALL = ['tickets.view', 'tickets.create', 'tickets.manage', 'tickets.external', 'tickets.all_departments', 'tickets.configure', 'tickets.costs.view', 'tickets.costs'];
+    let fail = true;
+    await page.route('**/api/v1/tickets/admin/holders', (route) => (fail
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ code: 'internal', user_message: 'שגיאה', details: {} }) })
+      : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        users: [
+          { id: 'u-ronit', name: 'רונית לוי', active: true, grants: [g(ALL, 'role', { scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה', expires_at: null })] },
+          { id: 'u-gone', name: null, active: false, grants: [g(['tickets.costs.view'], 'grant'), g(['tickets.view'], 'group')] },
+        ],
+        grant_roles: ['tickets_view', 'tickets_create', 'tickets_manage', 'tickets_all_departments', 'tickets_external', 'tickets_configure', 'tickets_costs_view', 'tickets_costs'],
+        roles: [{ id: 'system_admin', name: 'מנהל מערכת', builtin: true, permissions: ALL }, { id: 'viewer', name: 'צופה', builtin: true, permissions: [] },
+          { id: 'tickets_costs', name: null, builtin: true, permissions: ['tickets.costs'] }],
+      }) })));
+    await page.goto(url('/system/tickets?tab=permissions', 'classic', 'light'));
+    await expect(page.locator(`${S} [data-perms-error]`)).toBeVisible(); // a failed load: an error state, not a spinner
+    fail = false;
+    await page.locator(`${S} [data-perms-retry]`).click();
+    await expect(page.locator(`${S} [data-card="holders"]`)).toBeVisible();
+    await expect(page.locator(`${S} [data-card="matrix"]`)).toContainText('אישור עלויות');
+    await expect(page.locator(`${S} [data-holder="u-ronit"]`)).toContainText('צפייה בעלויות');
+    await expect(page.locator(`${S} [data-holder="u-gone"]`)).toBeVisible();
+    await shot(page, 'permissions-tab', 'light', 'classic', false);
+  });
+
   test('the assign dialog, the owner\'s state (nobody, nothing set up): three groups, each says why with a link', async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) {
       await go(page, `/tickets/mine?t=${FRESH}`, { empty: true, publicReady: false }, scheme);

@@ -6,6 +6,8 @@ import { HANDLERS_HREF, SETTINGS_HREF, handlersHref, missingItems, outsideBlock,
 import { S4_EN, S4_HE } from '../src/tickets/text-s4';
 import { TAB_PERMISSIONS, TICKETS_HANDLERS_HREF, TICKETS_TABS, activeAreaTab, areaOf } from '../src/shell/nav';
 import type { Readiness } from '../src/api/tickets-s4';
+import { ticketPermLabel } from '../src/tickets/perm-label';
+import { tt } from '../src/tickets/text';
 
 // CR-038 owner request 2026-10-14: the "מטפלים וספקים" page and the assign dialog's readiness - the fifth entry of the area's view menu,
 // what sending outside still needs (one reason per group, each with the link to its exact setting), and the texts (Hebrew and English
@@ -58,6 +60,15 @@ test('the assign dialog: one reason per outside group, in order - permission, th
   expect(whatsappNote(READY)).toBeNull();
   expect(usersBlock(0)).toMatchObject({ key: 'no_members', href: '#/tickets/handlers' });
   expect(usersBlock(2)).toBeNull();
+});
+
+test('2.5.0 regression (the הרשאות tab loading forever): every ticket permission has words, an unknown key never throws', () => {
+  expect(ticketPermLabel('tickets.costs.view')).toBe('צפייה בעלויות');
+  expect(ticketPermLabel('tickets.costs')).toBe('אישור עלויות');
+  expect(ticketPermLabel('tickets.configure')).toBe('הגדרות');
+  expect(ticketPermLabel('tickets.something_new')).toBe('tickets.something_new');
+  expect(() => tt('p_costs.view' as never)).not.toThrow();
+  expect(tt('p_costs.view' as never)).toBe('p_costs.view');
 });
 
 test('the texts: Hebrew and English complete for the new keys, and never the old words', () => {

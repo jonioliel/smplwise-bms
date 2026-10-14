@@ -209,6 +209,9 @@ export const S4_HE = {
   depDeletedList: 'מחלקות שנמחקו',
   depRestore: 'שחזור',
   depRestored: 'המחלקה שוחזרה',
+  // the הרשאות tab (2.5.0, 14.10): a failed load or render is an error state, never a spinner forever
+  permLoadFailed: 'לא ניתן להציג את ההרשאות',
+  permRetry: 'נסה שוב',
 };
 
 export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
@@ -405,4 +408,6 @@ export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
   depDeletedList: 'Deleted departments',
   depRestore: 'Restore',
   depRestored: 'The department was restored',
+  permLoadFailed: 'The permissions cannot be shown',
+  permRetry: 'Try again',
 };

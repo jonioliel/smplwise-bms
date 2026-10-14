@@ -33,6 +33,7 @@ import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, name
 import { intIn, windowProblem } from '../tickets/durations';
 import { ticketSettingsCss } from '../tickets/settings-styles';
 import { tt, type TicketTextKey } from '../tickets/text';
+import { ticketPermLabel } from '../tickets/perm-label';
 import '../tickets/board-settings'; // CR-038 slice 6: the D19-D21 rows of the display card
 import type { BoardSettingsDoc } from '../api/tickets-board';
 import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
@@ -81,6 +82,7 @@ export class SystemTickets extends LitElement {
   @state() private directory: { users: { id: string; name: string }[]; groups: { id: string; name: string }[] } | null = null;
   @state() private holders: HoldersResponse | null = null;
   @state() private holdersBy: 'person' | 'perm' = 'person';
+  @state() private permsFailed = false;
   @state() private grantUser = '';
   @state() private grantScope = 'installation:*';
   @state() private grantUntil = '';
@@ -213,11 +215,16 @@ export class SystemTickets extends LitElement {
       } else if (this.tab === 'channel' || this.tab === 'messages' || this.tab === 'costs') {
         // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
+        this.permsFailed = false;
         this.holders = await ticketsApi().holders();
         if (!this.directory) this.directory = await ticketsApi().directory();
         if (!this.scopes) void this.loadScopes();
       }
     } catch (e) {
+      if (this.tab === 'permissions') {
+        this.permsFailed = true; // the tab shows an error state with "try again" instead of loading forever
+        console.error('tickets permissions tab: load failed', e instanceof ApiError ? `api ${e.status}` : e instanceof Error ? e.name : typeof e);
+      }
       if (e instanceof ApiError && e.status === 403) this.error = tt('setNoPermission');
       else this.fail(e);
     }
@@ -561,27 +568,27 @@ export class SystemTickets extends LitElement {
       <div class="gridwrap" data-perm-matrix>
         <table class="matrix">
           <thead><tr><th>${tt('permMatrixRole')}</th>${PERMS.map((p) => html`<th>${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? html`<br /><span class="tag warn">${tt('sensitive')}</span>` : nothing}</th>`)}</tr></thead>
-          <tbody>${roles.map((r) => html`<tr data-role=${r.id}><td>${bidi(r.name)}${r.builtin ? nothing : html` <span class="tag">${tt('permCustom')}</span>`}</td>
+          <tbody>${roles.map((r) => html`<tr data-role=${r.id}><td>${bidi(r.name ?? r.id)}${r.builtin ? nothing : html` <span class="tag">${tt('permCustom')}</span>`}</td>
             ${PERMS.map((p) => r.permissions.includes(`tickets.${p}`) ? html`<td class="yes" aria-label=${tt('yes')}>✓</td>` : html`<td class="no" aria-label=${tt('no')}>–</td>`)}</tr>`)}</tbody>
         </table>
       </div>
-      <div class="pcards">${roles.map((r) => html`<div class="pcard" data-role-card=${r.id}><h4>${bidi(r.name)}</h4>
-        <div class="chipsrow">${r.permissions.length ? r.permissions.map((p) => html`<span class="tag">${tt(`p_${p.replace(/^tickets\./, '')}` as TicketTextKey)}</span>`) : html`<span class="muted">–</span>`}</div></div>`)}</div>
+      <div class="pcards">${roles.map((r) => html`<div class="pcard" data-role-card=${r.id}><h4>${bidi(r.name ?? r.id)}</h4>
+        <div class="chipsrow">${(r.permissions ?? []).length ? (r.permissions ?? []).map((p) => html`<span class="tag">${ticketPermLabel(p)}</span>`) : html`<span class="muted">–</span>`}</div></div>`)}</div>
       <div class="foot"><a href="#/system/access" data-to-roles>${tt('permToRoles')}</a></div>
     </sw-card>`;
   }
 
   private holdersCard(): TemplateResult {
     const h = this.holders!;
-    const label = (p: string) => tt(`p_${p.replace(/^tickets\./, '')}` as TicketTextKey);
+    const label = ticketPermLabel; // 2.5.0: the cost permissions have their words in the cost catalogue
     const byPerson = html`${h.users.length ? html`<div class="people">${repeat(h.users, (u) => u.id, (u) => html`<div class="person" data-holder=${u.id}>
-        <span class="who">${bidi(u.name)}${u.active ? nothing : html` <span class="tag warn">${tt('permInactive')}</span>`}</span>
+        <span class="who">${bidi(u.name ?? u.id)}${u.active ? nothing : html` <span class="tag warn">${tt('permInactive')}</span>`}</span>
         ${u.grants.map((g) => html`<span class="chipsrow">${g.permissions.map((p) => html`<span class=${`tag ${SENSITIVE_PERMS.includes(p.replace(/^tickets\./, '') as Perm) ? 'warn' : ''}`}>${label(p)}</span>`)}${g.effect === 'deny' ? html`<span class="tag warn">${tt('permDeny')}</span>` : nothing}<span class="via">${this.viaText(g)}</span></span>`)}
       </div>`)}</div>` : html`<span class="muted">${tt('permNone')}</span>`}`;
     const byPerm = html`<div class="people">${PERMS.map((p) => {
       const who = h.users.filter((u) => u.grants.some((g) => g.effect === 'allow' && g.permissions.includes(`tickets.${p}`)));
       return html`<div class="person" data-holder-perm=${p}><span class="who">${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? html` <span class="tag warn">${tt('sensitive')}</span>` : nothing}</span>
-        <span class="chipsrow">${who.length ? who.map((u) => html`<span class="tag">${bidi(u.name)}</span>`) : html`<span class="muted">${tt('permNobody')}</span>`}</span></div>`;
+        <span class="chipsrow">${who.length ? who.map((u) => html`<span class="tag">${bidi(u.name ?? u.id)}</span>`) : html`<span class="muted">${tt('permNobody')}</span>`}</span></div>`;
     })}</div>`;
     return html`<sw-card heading=${tt('permPeople')} data-card="holders">
       <div class="row"><span class="lbl"></span><span class="seg" role="radiogroup" aria-label=${tt('permPeople')}>
@@ -617,8 +624,21 @@ export class SystemTickets extends LitElement {
   }
 
   private permissionsTab(): TemplateResult {
+    // 2.5.0 (14.10): never a spinner forever - a failed load or a render error is a clean error state with "try again"
+    if (this.permsFailed) return this.permsError();
     if (!this.holders) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    return html`<div class="stack">${this.matrixCard()}${this.holdersCard()}${this.grantCard()}</div>`;
+    try {
+      return html`<div class="stack">${this.matrixCard()}${this.holdersCard()}${this.grantCard()}</div>`;
+    } catch (e) {
+      console.error('tickets permissions tab: render failed', e instanceof Error ? e.name : typeof e);
+      return this.permsError();
+    }
+  }
+
+  private permsError(): TemplateResult {
+    return html`<sw-state-panel state="error" heading=${tt('permLoadFailed')} data-perms-error>
+      <sw-button size="sm" data-perms-retry @click=${() => { this.permsFailed = false; this.holders = null; void this.loadTab(); }}>${tt('permRetry')}</sw-button>
+    </sw-state-panel>`;
   }
 
   // ---------------------------------------------------------------- page
