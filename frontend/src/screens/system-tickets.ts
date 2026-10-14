@@ -26,7 +26,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import {
-  ticketsApi, type AdminDepartment, type DetailMode, type HoldersResponse, type InstallationDefaults, type NameEntries, type NewTicketMode, type SettingsDoc,
+  ticketsApi, type AdminDepartment, type DeletedDepartment, type DetailMode, type HoldersResponse, type InstallationDefaults, type NameEntries, type NewTicketMode, type SettingsDoc,
   type SettingsPatch,
 } from '../api/tickets';
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
@@ -75,6 +75,7 @@ export class SystemTickets extends LitElement {
   @state() private draft: NameEntries | null = null;
   @state() private moreLangs = false;
   @state() private departments: AdminDepartment[] | null = null;
+  @state() private deletedDepts: DeletedDepartment[] = [];
   @state() private installation: InstallationDefaults | null = null;
   @state() private selected = '';
   @state() private directory: { users: { id: string; name: string }[]; groups: { id: string; name: string }[] } | null = null;
@@ -95,6 +96,13 @@ export class SystemTickets extends LitElement {
   static styles = [settingsStyles, ticketSettingsCss, css`
     sw-tabs {
       margin-block-end: var(--sw-s-3);
+    }
+    details[data-dept-deleted] summary {
+      cursor: pointer;
+      min-block-size: 36px;
+      display: flex;
+      align-items: center;
+      font-weight: var(--sw-fw-medium);
     }
     .btnlink {
       display: inline-flex;
@@ -186,6 +194,7 @@ export class SystemTickets extends LitElement {
   private async loadDepartments(): Promise<void> {
     const r = await ticketsApi().departments();
     this.departments = r.departments;
+    this.deletedDepts = r.deleted ?? [];
     this.installation = r.installation ?? null;
     if (!r.departments.some((d) => d.id === this.selected)) this.selected = r.departments[0]?.id ?? '';
   }
@@ -423,15 +432,12 @@ export class SystemTickets extends LitElement {
   // ---------------------------------------------------------------- departments (slice 2: list + editor)
 
   private async addDepartment(): Promise<void> {
+    // owner 2026-10-14: a name only - the server makes the identifier from it
     const name = this.newDept.name.trim();
-    const key = this.newDept.key.trim().toLowerCase();
-    if (!name || !/^[a-z][a-z0-9_-]{1,31}$/.test(key) || this.busy) {
-      this.error = tt('depKeySub');
-      return;
-    }
+    if (!name || this.busy) return;
     this.busy = true;
     try {
-      const d = await ticketsApi().createDepartment({ name, key });
+      const d = await ticketsApi().createDepartment({ name });
       this.departments = [...(this.departments ?? []), d];
       this.selected = d.id;
       this.newDept = { name: '', key: '' };
@@ -452,7 +458,35 @@ export class SystemTickets extends LitElement {
   private onDeptDeleted = (e: CustomEvent<{ id: string }>) => {
     this.departments = (this.departments ?? []).filter((x) => x.id !== e.detail.id);
     this.selected = this.departments[0]?.id ?? '';
+    void this.loadDepartments().catch(() => undefined); // the deleted one joins "מחלקות שנמחקו"
   };
+
+  /** owner 2026-10-14: a deleted department back with everything under it (tickets.configure; the server audits it). */
+  private async restoreDepartment(id: string): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const d = await ticketsApi().restoreDepartment(id);
+      await this.loadDepartments();
+      this.selected = d.id;
+      this.say(tt('depRestored'));
+    } catch (e) {
+      this.fail(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private deletedCard(): TemplateResult | typeof nothing {
+    if (!this.deletedDepts.length) return nothing;
+    return html`<sw-card data-card="dept-deleted"><details data-dept-deleted>
+      <summary>${tt('depDeletedList')} · ${this.deletedDepts.length}</summary>
+      <div class="people">${repeat(this.deletedDepts, (d) => d.id, (d) => html`<div class="person" data-dept-deleted-item=${d.id}>
+        <span class="who">${bidi(d.name)} <span class="muted">${new Date(d.deleted_at).toLocaleDateString('he-IL')}</span></span>
+        <sw-button size="sm" data-dept-restore=${d.id} ?disabled=${this.busy} @click=${() => void this.restoreDepartment(d.id)}>${tt('depRestore')}</sw-button>
+      </div>`)}</div>
+    </details></sw-card>`;
+  }
 
   private onNotice = (e: CustomEvent<{ ok?: string; error?: string }>) => {
     if (e.detail.error) this.fail(e.detail.error);
@@ -472,11 +506,12 @@ export class SystemTickets extends LitElement {
             ${d.active ? nothing : html`<span class="tag">${tt('depInactive')}</span>`}</button>`)}</div>`
             : html`<sw-state-panel state="empty" heading=${tt('depNone')}></sw-state-panel>`}
           <div class="foot">
-            <input class="in" maxlength="40" data-dept-new-name placeholder=${tt('depName')} aria-label=${tt('depAdd')} .value=${this.newDept.name} @input=${(e: Event) => (this.newDept = { ...this.newDept, name: (e.target as HTMLInputElement).value })} />
-            <input class="in" maxlength="32" dir="ltr" data-dept-new-key placeholder=${tt('depKey')} title=${tt('depKeySub')} aria-label=${tt('depKey')} .value=${this.newDept.key} @input=${(e: Event) => (this.newDept = { ...this.newDept, key: (e.target as HTMLInputElement).value })} />
-            <sw-button size="sm" variant="primary" icon="plus" data-dept-add ?disabled=${this.busy || !this.newDept.name.trim() || !this.newDept.key.trim()} @click=${() => void this.addDepartment()}>${tt('depNewShort')}</sw-button>
+            <input class="in" maxlength="40" data-dept-new-name placeholder=${tt('depName')} aria-label=${tt('depAdd')} .value=${this.newDept.name} @input=${(e: Event) => (this.newDept = { ...this.newDept, name: (e.target as HTMLInputElement).value })}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.addDepartment(); }} />
+            <sw-button size="sm" variant="primary" icon="plus" data-dept-add ?disabled=${this.busy || !this.newDept.name.trim()} @click=${() => void this.addDepartment()}>${tt('depNewShort')}</sw-button>
           </div>
         </sw-card>
+        ${this.deletedCard()}
       </div>
       ${sel ? html`<tickets-dept-editor .dept=${sel} .directory=${this.directory} .installation=${this.installation}
         @dept-changed=${this.onDeptChanged} @dept-deleted=${this.onDeptDeleted} @notice=${this.onNotice} @dept-reload=${() => void this.loadDepartments()}></tickets-dept-editor>` : nothing}

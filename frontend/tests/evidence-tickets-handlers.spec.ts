@@ -142,6 +142,39 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await page.waitForSelector(`${H} tickets-contacts[kind="vendor"] [data-contacts-list]`);
   });
 
+  test('departments: a name only; the delete says what it affects (blocked with open requests); a deleted one is restored', async ({ page }) => {
+    const S = 'sw-app system-tickets';
+    const E = `${S} tickets-dept-editor`;
+    const mock = await go(page, '/system/tickets?tab=departments');
+    await page.waitForSelector(`${S} [data-dept-item="dept-maintenance"]`);
+    await expect(page.locator(`${S} [data-dept-new-key]`)).toHaveCount(0);
+    await page.locator(`${S} [data-dept-new-name]`).fill('חניון');
+    await expect(page.locator(`${S} [data-dept-add]`)).toBeEnabled();
+    await page.locator(`${S} [data-dept-add]`).click();
+    await expect.poll(() => last(mock, 'POST', /^tickets\/admin\/departments$/)?.body).toEqual({ name: 'חניון' });
+    // maintenance holds open requests: the confirm says so and offers no delete
+    await page.locator(`${S} [data-dept-item="dept-maintenance"]`).click();
+    await page.locator(`${E} [data-dept-delete]`).click();
+    await expect(page.locator(`${E} [data-dept-delete-blocked]`)).toContainText('3');
+    await expect(page.locator(`${E} [data-dept-delete-ok]`)).toHaveCount(0);
+    await shot(page, 'dept-delete-blocked', 'light', 'classic', false);
+    await page.locator(`${E} [data-dept-delete-cancel]`).click();
+    // cleaning: the members are counted, it can be restored; deleted -> listed -> restored
+    await page.locator(`${S} [data-dept-item="dept-cleaning"]`).click();
+    await page.locator(`${E} [data-dept-delete]`).click();
+    await expect(page.locator(`${E} [data-dept-delete-confirm]`)).toHaveAttribute('data-members', '1');
+    await expect(page.locator(`${E} [data-dept-delete-confirm]`)).toContainText('מחלקות שנמחקו');
+    await page.locator(`${E} [data-dept-delete-ok]`).click();
+    await expect.poll(() => last(mock, 'DELETE', /^tickets\/admin\/departments\/dept-cleaning$/)).toBeTruthy();
+    await page.locator(`${S} [data-dept-deleted] summary`).click();
+    await expect(page.locator(`${S} [data-dept-deleted-item="dept-cleaning"]`)).toBeVisible();
+    await shot(page, 'dept-deleted-list', 'light', 'classic', false);
+    await page.locator(`${S} [data-dept-restore="dept-cleaning"]`).click();
+    await expect.poll(() => last(mock, 'POST', /^tickets\/admin\/departments\/dept-cleaning\/restore$/)).toBeTruthy();
+    await expect(page.locator(`${S} [data-dept-item="dept-cleaning"]`)).toBeVisible();
+    await expect(page.locator(`${S} [data-card="dept-deleted"]`)).toHaveCount(0);
+  });
+
   test('the assign dialog, the owner\'s state (nobody, nothing set up): three groups, each says why with a link', async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) {
       await go(page, `/tickets/mine?t=${FRESH}`, { empty: true, publicReady: false }, scheme);

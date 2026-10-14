@@ -81,6 +81,9 @@ function withEffective(d: AdminDepartment): AdminDepartment {
   return d;
 }
 
+/** owner 2026-10-14: soft-deleted departments of the demo ("מחלקות שנמחקו" and its restore) */
+const deletedDepartments: { dept: AdminDepartment; at: string }[] = [];
+
 const departments: AdminDepartment[] = [
   {
     id: 'dept-maintenance', key: 'maintenance', name: 'אחזקה', description: '', icon: null, color: null, sort_order: 0, active: true, open_to_all: true, reopen_days: 14,
@@ -415,11 +418,12 @@ export const mockBackend: TicketsBackend = {
   async departments() {
     await sleep(60);
     deptCounts();
-    return { departments: clone(departments.map(withEffective)), all_departments: true, installation: clone(installation) };
+    return { departments: clone(departments.map(withEffective)), all_departments: true, installation: clone(installation),
+      deleted: deletedDepartments.map((x) => ({ id: x.dept.id, name: x.dept.name, deleted_at: x.at, tickets: 0 })) };
   },
   async createDepartment(body: DepartmentBody) {
     await sleep(80);
-    const id = `dept-${body.key ?? nid()}`;
+    const id = `dept-${body.key ?? nid()}`; // owner 2026-10-14: the server makes the key from the name; the demo keeps the id
     const d: AdminDepartment = {
       id, key: body.key ?? id, name: body.name ?? '', description: '', icon: null, color: null, sort_order: departments.length, active: true, open_to_all: body.open_to_all ?? true,
       reopen_days: 14, revision: 1, open_tickets: 0, categories: [], priorities: prios(id), members: [], can_edit_members: true, ...policyDefaults(id),
@@ -442,7 +446,16 @@ export const mockBackend: TicketsBackend = {
   async deleteDepartment(id) {
     await sleep(80);
     const i = departments.findIndex((x) => x.id === id);
-    if (i >= 0) departments.splice(i, 1);
+    if (i >= 0) deletedDepartments.push({ dept: departments.splice(i, 1)[0], at: new Date().toISOString() });
+  },
+  async restoreDepartment(id) {
+    await sleep(80);
+    const i = deletedDepartments.findIndex((x) => x.dept.id === id);
+    if (i < 0) throw Object.assign(new Error('המחלקה לא נמצאה.'), { status: 404 });
+    const d = deletedDepartments.splice(i, 1)[0].dept;
+    d.active = true;
+    departments.push(d);
+    return { ...clone(withEffective(d)), key_changed: false };
   },
   async createCategory(departmentId, name) {
     await sleep(60);

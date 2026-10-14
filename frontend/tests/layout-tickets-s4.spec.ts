@@ -54,6 +54,19 @@ const SCREENS: Screen[] = [
     },
   },
   {
+    // owner 2026-10-14: the new-department form (a name only), the delete confirm and the deleted departments
+    name: 'settings-departments', hash: '/system/tickets?tab=departments', wait: 'sw-app system-tickets [data-dept-item="dept-cleaning"]', within: 'system-tickets',
+    prep: async (p) => {
+      await p.locator('sw-app system-tickets [data-dept-item="dept-cleaning"]').click();
+      await p.locator('sw-app system-tickets tickets-dept-editor [data-dept-delete]').click();
+      await p.locator('sw-app system-tickets tickets-dept-editor [data-dept-delete-ok]').click();
+      await p.locator('sw-app system-tickets [data-dept-deleted] summary').click();
+      await p.locator('sw-app system-tickets [data-dept-item="dept-maintenance"]').click();
+      await p.locator('sw-app system-tickets tickets-dept-editor [data-dept-delete]').click();
+      await p.waitForSelector('sw-app system-tickets tickets-dept-editor [data-dept-delete-blocked]');
+    },
+  },
+  {
     name: 'settings-public', hash: '/system/tickets', wait: 'sw-app system-tickets tickets-public-card [data-public-state]', within: 'system-tickets',
     prep: async (p) => {
       await p.locator('sw-app system-tickets tickets-public-card [data-public-advanced]').click();

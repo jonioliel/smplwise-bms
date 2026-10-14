@@ -48,6 +48,7 @@ export class TicketsDeptEditor extends LitElement {
   @state() private tplOpen = '';
   @state() private tplDraft: TplDraft | null = null;
   @state() private busy = false;
+  @state() private deleting = false;
 
   static styles = [settingsStyles, ticketSettingsCss, css`
     :host {
@@ -56,11 +57,22 @@ export class TicketsDeptEditor extends LitElement {
       gap: var(--sw-s-3);
       min-inline-size: 0;
     }
+    .danger {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-danger-soft, var(--sw-stale-soft));
+      font-size: var(--sw-fs-sm);
+      overflow-wrap: anywhere;
+    }
   `, bubbleChrome];
 
   protected willUpdate(changed: PropertyValues<this>): void {
     const prev = changed.get('dept') as AdminDepartment | undefined;
     if (prev && prev.id !== this.dept.id) {
+      this.deleting = false;
       this.dr = {};
       this.catSel = '';
       this.tplOpen = '';
@@ -123,12 +135,28 @@ export class TicketsDeptEditor extends LitElement {
           <sw-button size="sm" ?disabled=${this.busy || Number(days) === d.reopen_days || Number.isNaN(intIn(days, 1, 90))} @click=${() => void this.patchDept({ reopen_days: Number(days) }, () => this.set({ reopen_days: undefined }))}>${tt('save')}</sw-button></span></div>
       ${this.categoriesRow()}
       ${this.membersRow()}
-      ${d.open_tickets === 0 ? html`<div class="row"><span class="lbl"></span><sw-button size="sm" variant="danger" data-dept-delete ?disabled=${this.busy} @click=${() => void this.removeDepartment()}>${tt('depDelete')}</sw-button></div>` : nothing}
+      <div class="row"><span class="lbl"></span><sw-button size="sm" variant="danger" data-dept-delete ?disabled=${this.busy || this.deleting} @click=${() => (this.deleting = true)}>${tt('depDelete')}</sw-button></div>
+      ${this.deleting ? this.deleteConfirm(d) : nothing}
     </sw-card>`;
   }
 
+  /** Owner 2026-10-14: the delete says what it affects - open tickets block it (the server refuses too), members are counted, and the
+   * department can be restored from "מחלקות שנמחקו". */
+  private deleteConfirm(d: AdminDepartment): TemplateResult {
+    const blocked = d.open_tickets > 0;
+    return html`<div class="danger" role="group" data-dept-delete-confirm data-open=${d.open_tickets} data-members=${d.members.length}>
+      <b>${tt('depDeleteAsk', { name: d.name })}</b>
+      ${blocked ? html`<span data-dept-delete-blocked>${tt('depDeleteBlocked', { n: d.open_tickets })}</span>`
+        : html`<span>${tt('depDeleteMembers', { n: d.members.length })}</span><span>${tt('depDeleteRestorable')}</span>`}
+      <span class="chipsrow">
+        ${blocked ? nothing : html`<sw-button size="sm" variant="danger" data-dept-delete-ok ?disabled=${this.busy} @click=${() => void this.removeDepartment()}>${tt('depDelete')}</sw-button>`}
+        <sw-button size="sm" variant="ghost" data-dept-delete-cancel @click=${() => (this.deleting = false)}>${tt('ctCancel')}</sw-button></span>
+    </div>`;
+  }
+
   private async removeDepartment(): Promise<void> {
-    if (this.busy || !window.confirm(`${tt('deleteConfirm')} ${this.dept.name}`)) return;
+    if (this.busy) return;
+    this.deleting = false;
     this.busy = true;
     try {
       await ticketsApi().deleteDepartment(this.dept.id);

@@ -61,7 +61,7 @@ test('the assign dialog: one reason per outside group, in order - permission, th
 });
 
 test('the texts: Hebrew and English complete for the new keys, and never the old words', () => {
-  const fresh = Object.keys(S4_HE).filter((k) => /^(hd|rdy|ctNew_|ctEmpty_|ctKind_employee|ctDepartmentsOf|setHandlers|asg(Group|Nobody|Manage|Employees|Outside))/.test(k));
+  const fresh = Object.keys(S4_HE).filter((k) => /^(hd|rdy|ctNew_|ctEmpty_|ctKind_employee|ctDepartmentsOf|setHandlers|asg(Group|Nobody|Manage|Employees|Outside)|dep(Delete|Restore))/.test(k));
   expect(fresh.length).toBeGreaterThan(30);
   for (const k of fresh) expect(S4_EN[k as keyof typeof S4_EN], k).toBeTruthy();
   const he = Object.values(S4_HE).join('\n');

@@ -201,6 +201,14 @@ export const S4_HE = {
   rdy_no_contacts: 'אין עדיין ספקים או אנשי קשר',
   rdyOpen: 'להגדרה',
   rdyStrip: 'חסר לשליחה החוצה',
+  // departments (owner 2026-10-14): a name only, a confirmed delete that says what it affects, restore
+  depDeleteAsk: 'למחוק את המחלקה {name}?',
+  depDeleteMembers: '{n} חברים במחלקה',
+  depDeleteRestorable: 'אפשר לשחזר אותה מ"מחלקות שנמחקו"',
+  depDeleteBlocked: 'יש במחלקה {n} {tickets} {f:פתוחות|m:פתוחים}. העבירו או סגרו אותן קודם.',
+  depDeletedList: 'מחלקות שנמחקו',
+  depRestore: 'שחזור',
+  depRestored: 'המחלקה שוחזרה',
 };
 
 export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
@@ -390,4 +398,11 @@ export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
   rdy_no_contacts: 'No vendors or contacts yet',
   rdyOpen: 'Open',
   rdyStrip: 'Missing for sending outside',
+  depDeleteAsk: 'Delete the department {name}?',
+  depDeleteMembers: '{n} members in the department',
+  depDeleteRestorable: 'It can be restored from "Deleted departments"',
+  depDeleteBlocked: 'The department has {n} open {tickets}. Move or close them first.',
+  depDeletedList: 'Deleted departments',
+  depRestore: 'Restore',
+  depRestored: 'The department was restored',
 };

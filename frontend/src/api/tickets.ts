@@ -274,7 +274,9 @@ export interface DepartmentBody {
   auto_close_after_days?: number | null; share_history_external?: boolean; urgent_is_critical?: boolean | null;
   link_sliding_days?: number | null; link_cap_days?: number | null; link_grace_hours?: number | null; send_hours?: SendHours | null;
 }
-export interface DepartmentsResponse { departments: AdminDepartment[]; all_departments: boolean; installation?: InstallationDefaults }
+/** A soft-deleted department (owner 2026-10-14: "מחלקות שנמחקו" with its restore action). */
+export interface DeletedDepartment { id: string; name: string; deleted_at: string; tickets: number }
+export interface DepartmentsResponse { departments: AdminDepartment[]; all_departments: boolean; installation?: InstallationDefaults; deleted?: DeletedDepartment[] }
 /** slice 2: a row of the "who may" matrix (a role and the ticket permissions it carries). */
 export interface RoleRow { id: string; name: string; builtin: boolean; permissions: string[] }
 export interface Holder {
@@ -317,6 +319,8 @@ export interface TicketsBackend {
   createDepartment(body: DepartmentBody): Promise<AdminDepartment>;
   patchDepartment(id: string, body: DepartmentBody): Promise<AdminDepartment>;
   deleteDepartment(id: string): Promise<void>;
+  /** owner 2026-10-14: a soft-deleted department back with everything under it (a taken key is replaced: `key_changed`) */
+  restoreDepartment(id: string): Promise<AdminDepartment & { key_changed?: boolean }>;
   createCategory(departmentId: string, name: string): Promise<AdminDepartment>;
   patchCategory(id: string, body: { name?: string; active?: boolean; default_priority_id?: string | null; parent_id?: string | null; domains?: string[] }): Promise<AdminDepartment>;
   deleteCategory(id: string): Promise<AdminDepartment>;
@@ -372,6 +376,7 @@ const rest: TicketsBackend = {
   createDepartment: (body) => post<AdminDepartment>(`${T}/admin/departments`, body),
   patchDepartment: (id, body) => patch<AdminDepartment>(`${T}/admin/departments/${enc(id)}`, body),
   deleteDepartment: (id) => del<void>(`${T}/admin/departments/${enc(id)}`),
+  restoreDepartment: (id) => post<AdminDepartment & { key_changed?: boolean }>(`${T}/admin/departments/${enc(id)}/restore`, {}),
   createCategory: (departmentId, name) => post<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/categories`, { name }),
   patchCategory: (id, body) => patch<AdminDepartment>(`${T}/admin/categories/${enc(id)}`, body),
   deleteCategory: (id) => del<AdminDepartment>(`${T}/admin/categories/${enc(id)}`),

@@ -97,7 +97,14 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
   const contacts = o.empty ? [] : CONTACTS.map((c) => ({ ...c, departments: [...c.departments] }));
   // slice 2's members, kept per department so the handlers page's writes show (the base mock answers without keeping them)
   const members = new Map<string, ReturnType<typeof adminDept>['members']>(DEPTS.map((d) => [d.id, o.empty ? [] : adminDept(d, 0).members]));
-  const dept = (id: string) => ({ ...adminDept(DEPTS.find((x) => x.id === id) ?? DEPTS[0], 0), members: members.get(id) ?? [] });
+  // owner 2026-10-14: departments created / soft-deleted / restored on the page (maintenance holds open tickets: its delete is refused)
+  const depts = DEPTS.map((d) => ({ ...d }));
+  const deletedAt = new Map<string, string>();
+  const OPEN: Record<string, number> = { 'dept-maintenance': 3 };
+  const dept = (id: string) => {
+    const base = depts.find((x) => x.id === id) ?? depts[0];
+    return { ...adminDept(base, OPEN[id] ?? 0), id: base.id, key: base.key, name: base.name, members: members.get(id) ?? [] };
+  };
   const readiness = (): Readiness => {
     const live = contacts.filter((c) => c.active);
     return {
@@ -158,7 +165,31 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
     if (p === 'tickets/admin/departments' && method === 'GET') {
       mine();
       if (!configure) return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');
-      return json(route, { departments: DEPTS.map((d) => dept(d.id)), all_departments: true, installation: INSTALLATION });
+      return json(route, {
+        departments: depts.filter((d) => !deletedAt.has(d.id)).map((d) => dept(d.id)), all_departments: true, installation: INSTALLATION,
+        deleted: depts.filter((d) => deletedAt.has(d.id)).map((d) => ({ id: d.id, name: d.name, deleted_at: deletedAt.get(d.id), tickets: 0 })),
+      });
+    }
+    if (p === 'tickets/admin/departments' && method === 'POST') {
+      mine();
+      const b = body as { name: string; key?: string };
+      const id = `dept-x${String(depts.length).padStart(2, '0')}`;
+      depts.push({ id, key: b.key ?? id.slice(5), name: b.name });
+      members.set(id, []);
+      return json(route, dept(id), 201);
+    }
+    const dd = /^tickets\/admin\/departments\/([\w-]+)(\/restore)?$/.exec(p);
+    if (dd && method === 'DELETE') {
+      mine();
+      if (OPEN[dd[1]]) return err(route, 409, 'department_in_use', 'במחלקה יש בקשות שירות פתוחות.', { open_tickets: OPEN[dd[1]] });
+      deletedAt.set(dd[1], at(0));
+      return json(route, { deleted: dd[1] });
+    }
+    if (dd && dd[2] && method === 'POST') {
+      mine();
+      if (!deletedAt.has(dd[1])) return err(route, 404, 'not_found', 'המחלקה לא נמצאה.');
+      deletedAt.delete(dd[1]);
+      return json(route, { ...dept(dd[1]), key_changed: false });
     }
     const mm = /^tickets\/admin\/departments\/([\w-]+)\/members\/(user|group)\/([\w-]+)$/.exec(p);
     if (mm && (method === 'PUT' || method === 'DELETE')) {
