@@ -176,7 +176,7 @@ function view(t: TicketDetail): TicketDetail {
     moves.set(to, (to === 'closed' && frm !== 'done') || to === 'cancelled');
   }
   const order: TicketStatus[] = ['new', 'assigned', 'acknowledged', 'in_progress', 'waiting_part', 'done', 'returned', 'closed', 'cancelled'];
-  const out = clone({ ...t, can: canOf(t), reopen_until: until, cost: demoCostBlock(t.id, t.number, t.status), transitions: [...moves].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([to, note_required]) => ({ to, note_required })) });
+  const out: TicketDetail = clone({ ...t, can: canOf(t), reopen_until: until, cost: demoCostBlock(t.id, t.number, t.status), transitions: [...moves].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([to, note_required]) => ({ to, note_required })) });
   return viewExtras.reduce((v, fn) => fn(v), out);
 }
 

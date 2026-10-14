@@ -45,7 +45,7 @@ export interface TableFilters {
   cost_status: string[];
 }
 
-export interface TableRow extends Omit<TicketItem, 'excerpt'> {
+export interface TableRow extends Omit<TicketItem, 'excerpt' | 'sla'> {
   /** blank (null) for a limited viewer - management information */
   stuck: { kind: StuckKind; level: number; since: string | null; reminders: number } | null;
   sla: { kind: 'ack' | 'stuck' | 'resolve'; due_at: string; overdue: boolean } | null;
