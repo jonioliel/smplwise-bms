@@ -96,6 +96,13 @@ class HoursBody(BaseModel):
         return {"from": self.from_, "to": self.to}
 
 
+class CodePatch(BaseModel):  # slice 7 (10.5 / 14.1): option B codes; the length is fixed at 6 (D2) - never a field here
+    model_config = ConfigDict(extra="forbid")
+    ttl_min: int | None = Field(default=None, ge=1, le=30)
+    max_attempts: int | None = Field(default=None, ge=3, le=10)
+    lock_min: int | None = Field(default=None, ge=5, le=240)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -106,6 +113,7 @@ class SettingsBody(BaseModel):
     urgent_is_critical: StrictBool | None = None  # slice 2
     organization_name: str | None = Field(default=None, max_length=400)  # slice 4
     public: PublicPatch | None = None  # slice 4
+    code: CodePatch | None = None  # slice 7
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -128,7 +136,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public"):  # slice 2 / slice 4
+    for block in ("links", "public", "code"):  # slice 2 / slice 4 / slice 7
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None}

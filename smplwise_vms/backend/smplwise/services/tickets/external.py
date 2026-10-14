@@ -56,7 +56,17 @@ class LinkDispatch(Protocol):
         """Write the outbox row (inside the caller's transaction) and return {queued, channel, held?}. Never sends inline."""
 
     def code_ready(self, conn, contact: dict[str, Any]) -> tuple[bool, bool]:
-        """(WhatsApp can carry a code now, e-mail can carry a code now) for the D6 rule."""
+        """(WhatsApp can carry a code now, e-mail can carry a code now) for the D6 rule. WhatsApp means: the `tickets.codes`
+        use resolves to an account that is sendable (9.9.2); e-mail means: the e-mail fallback is on and SMTP is configured.
+        The contact's own phone / address is checked by the caller."""
+
+    def queue_code(self, conn, *, ticket: dict[str, Any], link: dict[str, Any], contact: dict[str, Any], code: str, code_id: str,
+                   channel: str, requested_by: str) -> dict[str, Any]:
+        """Slice 7: queue the verification-code message (purpose `code`, priority 0, never held by send hours, the `code`
+        template: no link, no title) inside the caller's transaction and return {queued, outbox_id?}. `code` (the six digits)
+        is held IN MEMORY only until the row is final - never in the row, its params, a log or an audit line (code review W9);
+        `code_id` names the `ticket_link_codes` row. With the msg-core outbox: `Outbox.enqueue(purpose='code', channel=channel,
+        code=code, contact_id=..., ticket_id=..., assignment_id=..., link_id=..., department_id=..., requested_by=...)`."""
 
 
 class ManualDispatch:
@@ -70,6 +80,9 @@ class ManualDispatch:
 
     def code_ready(self, conn, contact: dict[str, Any]) -> tuple[bool, bool]:
         return False, False
+
+    def queue_code(self, conn, **_kw: Any) -> dict[str, Any]:
+        return {"queued": False}
 
 
 DISPATCH: LinkDispatch = ManualDispatch()
@@ -329,6 +342,9 @@ def new_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[s
         raise _not_allowed(conn)
     if not access.public_ready(conn):
         raise _unavailable(conn)
+    # slice 7, D6: a code-protected link is useful only if its code can still leave on a channel the rule allows - refused
+    # BEFORE the generation moves (the old link keeps its state; the manager may revoke it or pick another contact)
+    _code_check(conn, contact, bool(link_row.get("require_code")))
     now = handler_links.now_utc()
     try:
         fresh = handler_links.new_generation(conn, link_row, seen.row, now)
@@ -339,9 +355,17 @@ def new_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[s
         store.update_ticket(conn, seen.row["id"], {"waiting_on": "assignee", "waiting_reason": None}, bump=False)
     store.insert_event(conn, seen.row["id"], "link_new", actor_kind="user", actor_user_id=viewer.uid, actor_name=store.display_name(conn, viewer.uid),
                        assignment_id=fresh["assignment_id"], data={"generation": int(fresh["generation"])})
+    # "שלח קישור חדש" (the one tap of the code-lock card): the new link leaves by the message channel when one exists; with
+    # none (slice 4's manual dispatch) the manager copies it
+    channel = DISPATCH.channel(conn, contact)
+    sent = {"queued": False, "channel": "manual"}
+    if channel != "manual":
+        sent = DISPATCH.queue(conn, purpose="assign", ticket=seen.row, assignment_id=fresh["assignment_id"], link=fresh, contact=contact,
+                              send_now=False, requested_by=viewer.uid)
     audit(conn, actor=viewer.principal, action="ticket.link.new", decision="allowed", resource_type="ticket", resource_id=seen.row["id"], request_id=rid,
-          details={"number": seen.row["number"], "link": fresh["id"][:6], "generation": int(fresh["generation"])})
-    return {"generation": int(fresh["generation"])}
+          details={"number": seen.row["number"], "link": fresh["id"][:6], "generation": int(fresh["generation"]),
+                   "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel})
+    return {"generation": int(fresh["generation"]), "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel}
 
 
 def _reset_codes(conn, link_row: dict[str, Any], now: dt.datetime) -> None:

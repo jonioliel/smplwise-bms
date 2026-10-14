@@ -363,3 +363,16 @@ def test_require_code_is_raise_only():
     assert cd.effective_require_code(True, None) is True
     assert cd.effective_require_code(False, True) is True
     assert cd.effective_require_code(False, None) is False
+
+
+def test_the_locking_guess_says_so_once(env):
+    """Slice 7: the guess that STARTS a lock carries `just_locked` (the module records the lock once - the ticket waits for the
+    manager); later guesses while locked do not."""
+    clock, store, engine, link, _ = env
+    code = the_code(engine.issue(link, "whatsapp"))
+    flags = []
+    for _ in range(7):
+        with pytest.raises(cd.CodeRefused) as e:
+            engine.verify(link, wrong(code))
+        flags.append((e.value.reason, e.value.just_locked))
+    assert flags == [("invalid", False)] * 4 + [("locked", True), ("locked", False), ("locked", False)]

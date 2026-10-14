@@ -32,13 +32,12 @@ from .module_key import ModuleKeyError
 from .public_app import PublicApp, PublicDeps, create_public_app
 from .public_ports import CachedSwitch
 from .public_server import SERVER
-from .public_store import NoCodeChannel, SqlCodeStore, SqlLinkStore, SqlPhotoSink, SqlRedeemStore, SqlRequestLog
+from .code_flow import SqlCodeEvents, SqlCodeSender
+from .codes import CodePolicy
+from .public_store import SqlCodeStore, SqlLinkStore, SqlPhotoSink, SqlRedeemStore, SqlRequestLog
 from .ratelimit import CLIENT_IP_HEADERS, DEFAULT_TRUSTED_PROXY_CIDRS, new_public_limiter, parse_trusted_cidrs
 
 log = logging.getLogger("smplwise.tickets.public")
-# Slice 5b: the verification code's way out (services/tickets/messaging.OutboxCodeSender, purpose `code` on the outbox, the code row
-# id only - W9). None = no message channel: `code/send` answers 503 `code_unavailable` (NoCodeChannel).
-CODE_SENDER: Any = None
 RETENTION_EVERY_S = 3600.0
 ACCESS_KEEP_DAYS = 90
 CODES_KEEP_DAYS = 1
@@ -95,7 +94,7 @@ class Runtime:
         if limiter.scope != "tickets_link":  # W14: never the sign-in limiter or another module's scope
             raise RuntimeError("the public listener needs its own limiter scope")
         root = self.attachments_root()
-        engine_kw: dict[str, Any] = {"limiter": limiter}
+        engine_kw: dict[str, Any] = {"limiter": limiter, "policy": code_policy_reader(db)}
         if clock is not None:
             engine_kw["clock"] = clock
         codes = CodeEngine(SqlCodeStore(db), KEYS, **engine_kw)
@@ -105,7 +104,9 @@ class Runtime:
             deps_kw["clock"] = clock
         deps = PublicDeps(
             links=SqlLinkStore(db), switch=switch, key=KEYS, trusted_proxies=trusted, requests=SqlRequestLog(db), redeems=SqlRedeemStore(db),
-            codes=codes, code_sender=CODE_SENDER() if CODE_SENDER is not None else NoCodeChannel(), photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
+            codes=codes, code_sender=SqlCodeSender(db, KEYS, clock=clock),  # slice 7: D6 at send, the digits in memory only (W9)
+            code_events=SqlCodeEvents(db, clock=clock),  # slice 7: access rows, timeline, sliding expiry, the lock -> the manager
+            photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
             extra_routers=(build_router(db, clock=clock),), client_ip_header=doc["public"]["client_ip_header"], **deps_kw,
         )
@@ -227,6 +228,30 @@ class Runtime:
 
 def _iso(at: dt.datetime) -> str:
     return at.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def code_policy_reader(db: Database, *, every_s: float = 30.0):
+    """The code engine's policy from `tickets.settings.code` (ttl_min, max_attempts, lock_min; out-of-range values read as the
+    defaults - codes.CodePolicy.from_settings), re-read at most every `every_s` seconds; a failing read keeps the last policy."""
+    state: dict[str, Any] = {"at": -1e18, "policy": CodePolicy()}
+    lock = threading.Lock()
+
+    def read() -> CodePolicy:
+        now = time.monotonic()
+        with lock:
+            if now - state["at"] < every_s:
+                return state["policy"]
+            state["at"] = now
+        try:
+            with db.connection(mode="read", label="tickets.public.code_policy") as conn:
+                pol = CodePolicy.from_settings(settings_doc.read(conn).get("code"))
+        except Exception:  # noqa: BLE001
+            return state["policy"]
+        with lock:
+            state["policy"] = pol
+        return pol
+
+    return read
 
 
 def _module_on(db: Database) -> bool:

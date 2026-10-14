@@ -171,13 +171,15 @@ class Verified:
 
 class CodeRefused(Exception):
     """`reason`: locked | rate_limited | malformed | no_code | expired | invalid. `retry_after_s` for locked / rate_limited,
-    `attempts_left` for invalid / locked. The message is the reason only - never a code or a hash."""
+    `attempts_left` for invalid / locked. `just_locked`: THIS guess started the lock (the caller records the lock once: the
+    ticket waits for the manager, slice 7). The message is the reason only - never a code or a hash."""
 
-    def __init__(self, reason: str, *, retry_after_s: float = 0.0, attempts_left: int | None = None) -> None:
+    def __init__(self, reason: str, *, retry_after_s: float = 0.0, attempts_left: int | None = None, just_locked: bool = False) -> None:
         super().__init__(reason)
         self.reason = reason
         self.retry_after_s = max(0.0, float(retry_after_s))
         self.attempts_left = attempts_left
+        self.just_locked = just_locked
 
 
 class CodeEngine:
@@ -279,7 +281,7 @@ class CodeEngine:
                 if n >= pol.max_attempts:
                     self.store.put_failures(link.link_id, link.generation, FailureRecord(now, 0, now + pol.lock_s))
                     self.store.expire_code(latest.id, now)
-                    raise CodeRefused("locked", retry_after_s=pol.lock_s, attempts_left=0)
+                    raise CodeRefused("locked", retry_after_s=pol.lock_s, attempts_left=0, just_locked=True)
                 self.store.put_failures(link.link_id, link.generation, FailureRecord(start, n, None))
                 raise CodeRefused("invalid", attempts_left=pol.max_attempts - n)
             if not self.store.consume(latest.id, now):

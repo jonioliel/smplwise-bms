@@ -117,6 +117,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("organization_name",): ("", _org_name),
     ("public", "base_url"): ("", _base_url),
     ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
+    # slice 7: option B verification codes (section 10.5 / 14.1); the length is fixed at 6 (D2) and is NOT a setting
+    ("code", "ttl_min"): (10, int_range(1, 30)),
+    ("code", "max_attempts"): (5, int_range(3, 10)),
+    ("code", "lock_min"): (30, int_range(5, 240)),
     # where a trusted proxy puts the client address (code review V3): cloudflared's header, or another proxy's X-Forwarded-For
     ("public", "client_ip_header"): ("cf-connecting-ip", _choice("cf-connecting-ip", "x-forwarded-for")),
     # slice 5b: the ticket message channel (9.3 / 9.5 / 9.6); the accounts and their pacing live in `messaging.whatsapp` (9.9)

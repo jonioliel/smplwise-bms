@@ -242,6 +242,9 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
     st = state(row, now)
     current = row["assignment_id"] == ticket.get("current_assignment_id") and ticket.get("status") not in ("closed", "cancelled")
     locked = bool(store_links.locked_links(conn, [row["id"]], iso(now)))
+    from .code_flow import lock_state  # slice 7: the lock card shows until when (the current generation's window)
+
+    locked_until = lock_state(conn, row, now) if locked else None
     return {
         "state": st,
         "current": current,
@@ -261,6 +264,7 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
         "update_count": int(row.get("update_count") or 0),
         "require_code": bool(row["require_code"]),
         "code_locked": locked,
+        "code_locked_until": locked_until,
         "can": {
             "copy": external and current and st == "live",
             "new": external and current and st in ("live", "expired", "revoked") and row.get("revoked_reason") not in ("contact_erased", "module_key"),

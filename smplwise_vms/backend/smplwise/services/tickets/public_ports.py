@@ -233,6 +233,20 @@ class CodeSender(Protocol):
         and 10.5 stores only an HMAC.)"""
 
 
+@runtime_checkable
+class CodeEvents(Protocol):
+    """What the module records around `code/verify` (slice 7, spec 10.5 / 7.2): the access rows the manager sees (`code_ok`,
+    `code_bad`, `locked`), the timeline (`code_verified`, `code_locked`), the audit envelope, the sliding expiry of a verified code
+    and the ticket's "waiting for the manager" (`code_locked`) when a guess starts a lock. Never receives a code, a hash or a
+    session value. A failure here never changes the public answer (the code engine already decided)."""
+
+    def verified(self, link: LinkRecord, client_key: str) -> None:
+        ...
+
+    def refused(self, link: LinkRecord, reason: str, client_key: str, *, just_locked: bool, locked_until: float | None) -> None:
+        ...
+
+
 # ---------------------------------------------------------------- photos (spec 10.6) and their quotas
 
 

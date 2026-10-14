@@ -489,9 +489,8 @@ class MessagingRuntime:
             pass
         handler_links.NOTICE = self.notice
         handler_links.CHANNEL_OK = self.channel_ok
-        from . import public_runtime
-
-        public_runtime.CODE_SENDER = lambda: OutboxCodeSender(self)
+        # The public page's CodeSender is slice 7's code_flow.SqlCodeSender (wired in public_runtime): it reaches the outbox through
+        # `external.DISPATCH.queue_code` (OutboxDispatch), so no CODE_SENDER hook is registered (OutboxCodeSender stays unused).
 
     def channel_ok(self, conn, link_row: dict[str, Any]) -> bool:
         contact = store_links.contact(conn, link_row.get("contact_id"))

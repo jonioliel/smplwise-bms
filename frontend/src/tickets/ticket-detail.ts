@@ -18,6 +18,7 @@ import { tt } from './text';
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
+import { codeLockSection, lockText, sendNewLink } from './code-lock';
 import { messageEventLine, messagesBlock } from './ticket-messages'; // slice 5b: the delivery lines (D14) and the message events
 import { ExternalAssign, externalAssignStyles } from './external-assign';
 import { LinkPanel, linkPanelStyles } from './link-panel';
@@ -602,6 +603,7 @@ export class TicketDetailView extends LitElement {
       ${this.flashRow()}
       ${this.sentence(t)}
       ${this.statusSection(t)}
+      ${codeLockSection(t, { busy: this.busy, onNew: () => void this.run(() => sendNewLink(t.id), lockText('done')) })}
       ${this.assigneeSection(t)}
       ${this.messagesSection(t)}
       ${this.photosSection(t)}
