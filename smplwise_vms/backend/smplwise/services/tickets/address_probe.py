@@ -77,7 +77,7 @@ def _fetch(addr: str, host: str, timeout_s: float, nonce: str) -> tuple[int, byt
         with ctx.wrap_socket(raw, server_hostname=host) as tls:
             tls.settimeout(max(0.1, deadline - time.monotonic()))
             tls.sendall((f"GET /t/healthz HTTP/1.1\r\nHost: {host}\r\nUser-Agent: SmplWise-Arx-address-probe\r\n"
-                         f"Accept: application/json\r\nX-Ticket-Probe: {nonce}\r\nConnection: close\r\n\r\n").encode("ascii"))
+                         f"Accept: application/json\r\nx-ticket-probe: {nonce}\r\nConnection: close\r\n\r\n").encode("ascii"))
             data = b""
             while len(data) < READ_MAX:
                 left = deadline - time.monotonic()

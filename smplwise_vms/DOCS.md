@@ -52,6 +52,12 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      address `http://<the HA host's LAN IP>:<the host port>`, press "בדוק", switch casting on and allow each screen. Needs
      bridge **0.7.0** (one platform restart). Only `smplwise_*` streams are ever relayed. See
      `docs/changes/CR-028-CAST-TO-SCREENS.md` section 12.
+   - `tickets_public` (default `false`, CR-038) — the service requests' handler page: outside contacts and vendors update a
+     request through a personal link, without an account. The page has its own listener on container port **18093/tcp**,
+     reached only through the Cloudflare tunnel - never map that port on the host. Off by default; to use it, turn the option
+     on, restart the add-on, route the tunnel's public hostname to the container port, then in הגדרות › the module › כללי
+     enter the public address in "דף המטפלים" and press "בדיקת כתובת". Sending to an outside contact stays unavailable until
+     all of this is in place. See `docs/changes/CR-038-TICKETS-MODULE.md` sections 10 and 14.
    - `log_level` (default `info`; `debug`, `info`, `warning`, `error`) — the add-on log verbosity; `debug` adds request-level
      detail and never prints secrets.
    - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on

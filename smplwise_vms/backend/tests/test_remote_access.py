@@ -510,7 +510,7 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/multimedia/cast/screens"), ("PUT", "/api/v1/multimedia/cast/screens/{key}"), ("POST", "/api/v1/multimedia/cast/test"),
                      # CR-038 S5a: the WhatsApp test send is local-only
                      ("POST", "/api/v1/messaging/whatsapp/test"),
-                     # CR-038 S4 (review T11): the handler page's address probe is local-only (added to this list in slice 5b)
+                     # CR-038 S4: the tickets handler page's address probe fetches an administrator-typed URL - local sessions only
                      ("POST", "/api/v1/tickets/address/probe")}
 
 
