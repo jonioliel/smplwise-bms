@@ -1,7 +1,7 @@
 /**
  * CR-038 slice 9 (spec 11A.6A): opening the phone's own camera app or the gallery / file picker from the vendor page.
  *
- * Release 1 uses `<input type="file" capture="environment">` (the native camera app) - never getUserMedia, so the public CSP and
+ * Release 1 uses `<input type="file" capture="environment">` (the native camera app) - never a live in-page camera stream, so the public CSP and
  * `Permissions-Policy: camera=()` stay as they are. This module is in the claim step's own chunk (NOT the lazy editor chunk): the
  * picker must be opened synchronously inside the tap's handler, before any `await`, or browsers drop the user activation.
  *
