@@ -218,6 +218,14 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
         "can": can_block(viewer, seen, dept),
         "transitions": transitions(viewer, seen, dept),
     })
+    # slice 4: the handler link of the current (or last) external assignment - managers only, never the token or the URL
+    from .handler_links import link_block
+
+    out["link"] = link_block(conn, row, manager=seen.manager, external=viewer.holds("tickets.external", row))
+    # slice 5b: the delivery lines of D14 (managers / tickets.external only) and their actions ("send now" D29, "send again")
+    from .messaging import ticket_messages
+
+    out["messages"] = ticket_messages(conn, viewer, seen)
     if seen.full:
         out["assignments"] = [
             {"id": a["id"], "kind": a["assignee_kind"], "name": a["assignee_name"], "channel": a["channel"], "assigned_at": a["assigned_at"],

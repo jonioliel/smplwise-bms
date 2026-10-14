@@ -99,6 +99,10 @@ def run_checks(root: Path) -> dict[str, Any]:
     www = addon / "www"
     built = (www / "index.html").exists() and any((www / "assets").glob("index-*.js")) if (www / "assets").exists() else False
     check("built UI present in the add-on (www)", built, str(www))
+    # CR-038 S4: the handler page's own bundle (the Dockerfile copies it; npm run build:addon builds it next to www)
+    pub = addon / "www-public"
+    pub_built = (pub / "index.html").exists() and any((pub / "assets").glob("public-ticket-*.js")) if (pub / "assets").exists() else False
+    check("handler page bundle present in the add-on (www-public)", pub_built, str(pub))
 
     # the bundled release APK (owner decision 2026-10-06): optional; when staged it must be valid, and no APK or signing key may be tracked
     dl = addon / "downloads"

@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc --noEmit && vite build",
-    "build:addon": "tsc --noEmit && vite build --outDir ../smplwise_vms/www --emptyOutDir",
+    "build:addon": "tsc --noEmit && vite build --outDir ../smplwise_vms/www --emptyOutDir && vite build -c vite.public.config.ts --outDir ../smplwise_vms/www-public --emptyOutDir",
+    "build:public": "vite build -c vite.public.config.ts",
+    "build:public:addon": "vite build -c vite.public.config.ts --outDir ../smplwise_vms/www-public --emptyOutDir",
+    "preview:public": "vite preview -c vite.public.config.ts --host 127.0.0.1 --port 4175",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "typecheck": "tsc --noEmit",
     "shots": "playwright test -c playwright.config.ts",

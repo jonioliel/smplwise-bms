@@ -83,6 +83,10 @@ BACKGROUND_ROOT = "ui_backgrounds/"
 # reference (FILE_COLUMNS), under these roots, never the key folder, a database file or the add-on options - whatever the
 # archive contains. The same rule drops an archive row whose file column points anywhere else (it could steer a later read).
 RESTORABLE_ROOTS = ("plans/", "ui_backgrounds/") + _energy_backup.RESTORABLE_ROOTS  # CR-023: stored bill PDFs and business logos (energy/bills/, energy/assets/); CRY: the background pictures
+# CR-038 S4 (spec 7.4, public-core notes wiring item 8, W11): the tickets attachments folder may be written by a restore - a root of
+# its own, disjoint from every other module's. The ticket tables are operational data and are not in PROJECT_TABLES, so a project
+# archive references no ticket file today: the root is what the spec asks, and it lets a later archive kind carry the photos.
+RESTORABLE_ROOTS = RESTORABLE_ROOTS + ("tickets/",)
 _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|-shm$|-journal$|\.key$)", re.IGNORECASE)
 # CR-020 S2C security review finding 4: runtime state of the multi-camera batches (the batch record with who started it and
 # the request id, its heartbeat, the device lock). Never exported, never restored, never deleted by a `replace` restore -
@@ -174,7 +178,9 @@ def restorable(rel: str | None) -> bool:
     if not isinstance(rel, str) or not rel or rel.startswith("/") or "\\" in rel or ":" in rel or "\x00" in rel:
         return False
     parts = rel.split("/")
-    if any(p in ("", ".", "..") for p in parts) or any(p.lower() == "keys" for p in parts):
+    # `secrets/` (CR-038: the tickets module key `tickets_key.<id>`, the messaging key) is named here too, not only left out of
+    # RESTORABLE_ROOTS: a later root added to that list can never let an archive write a key (code review V16)
+    if any(p in ("", ".", "..") for p in parts) or any(p.lower() in ("keys", "secrets") for p in parts):
         return False
     if not rel.startswith(RESTORABLE_ROOTS):
         return False

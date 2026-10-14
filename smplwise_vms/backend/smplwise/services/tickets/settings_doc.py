@@ -59,6 +59,42 @@ def send_hours(v: Any) -> dict[str, str]:
     return {"from": a, "to": b}
 
 
+def _org_name(v: Any) -> str:
+    """Slice 4: the organisation name the handler page shows at the top - plain text, controls / bidi marks stripped."""
+    from .text_hygiene import clean_text
+
+    if not isinstance(v, str):
+        raise ValueError("type")
+    text = clean_text(v)
+    if len(text) > 80 or "{" in text or "}" in text:
+        raise ValueError("invalid")
+    return text
+
+
+def _base_url(v: Any) -> str:
+    """Slice 4: the public address of the handler page (`https://<host>`, spec 14.1); empty = not configured."""
+    from .links import PublicUrlError, validate_public_base_url
+
+    if v == "":
+        return ""
+    try:
+        return validate_public_base_url(v)
+    except PublicUrlError as exc:
+        raise ValueError(exc.code) from None
+
+
+def _cidrs(v: Any) -> list[str]:
+    """Slice 4: the peers whose client-address header is believed (spec 10.2, review T1a); at most 8, none broader than /8."""
+    from .ratelimit import parse_trusted_cidrs
+
+    if not isinstance(v, list) or len(v) > 8 or not all(isinstance(x, str) and 0 < len(x) <= 64 for x in v):
+        raise ValueError("invalid")
+    nets = parse_trusted_cidrs(v)
+    if len(nets) != len(v):
+        raise ValueError("invalid")
+    return [str(n) for n in nets]
+
+
 # section 14.1 / D5: link lifetime ranges (shared with the per-department overrides, services/tickets/policy.py)
 SLIDING_DAYS = (1, 90)
 CAP_DAYS = (7, 365)
@@ -73,6 +109,17 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("links", "grace_hours"): (24, int_range(*GRACE_HOURS)),  # D5
     ("send_hours",): ({"from": "07:00", "to": "21:00"}, send_hours),  # D4
     ("urgent_is_critical",): (True, boolean),  # D28
+    # slice 4: the handler page (section 10 / 14.1)
+    ("organization_name",): ("", _org_name),
+    ("public", "base_url"): ("", _base_url),
+    ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
+    # where a trusted proxy puts the client address (code review V3): cloudflared's header, or another proxy's X-Forwarded-For
+    ("public", "client_ip_header"): ("cf-connecting-ip", _choice("cf-connecting-ip", "x-forwarded-for")),
+    # slice 5b: the ticket message channel (9.3 / 9.5 / 9.6); the accounts and their pacing live in `messaging.whatsapp` (9.9)
+    ("whatsapp", "enabled"): (False, boolean),  # the master switch: OFF until an administrator turns it on
+    ("whatsapp", "use_buttons"): (False, boolean),  # 9.3: buttons may show as text only on multi-device clients - numbered replies
+    ("whatsapp", "reply_window_h"): (72, int_range(1, 336)),  # 9.6: replies are matched to messages sent within this window
+    ("email_fallback",): (True, boolean),  # 9.5 / D13: a contact with an e-mail address gets the redeem link when WhatsApp fails
 }
 
 

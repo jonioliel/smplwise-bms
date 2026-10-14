@@ -14,7 +14,7 @@ from ...audit import audit
 from ...db import now_iso
 from ...errors import ApiError
 from ...rbac import Principal
-from . import access, attachments, model, notify_bridge, sla, store
+from . import access, attachments, handler_links, model, notify_bridge, sla, store
 from .access import Seen, Viewer, text
 from .present import DELETE_OWN_PHOTO_S, can_reopen
 
@@ -190,9 +190,11 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
             fields["duplicate_of"] = original.row["id"]
         if asg:
             store.update_assignment(conn, asg, {"ended_at": now, "end_reason": "closed" if to == "closed" else "cancelled"})
+        handler_links.on_final(conn, row["id"], asg, to, row["department_id"], handler_links.parse(now) or handler_links.now_utc())  # S4: read-only grace (D5)
     if reopen:
         fields.update({"closed_at": None, "closed_by": None, "close_note": None, "purge_after": None, "done_at": None,
                        "reopen_count": int(row.get("reopen_count") or 0) + 1})
+        handler_links.on_reopened(conn, row["id"], handler_links.parse(now) or handler_links.now_utc())  # S4: a grace link dies
     if asg and to == "acknowledged" and not row.get("asg_ack_at"):
         store.update_assignment(conn, asg, {"acknowledged_at": now})
     if asg and actor == "assignee":
@@ -240,11 +242,11 @@ def assign(conn, viewer: Viewer, seen: Seen, kind: str, assignee_id: str, note: 
     row = seen.row
     if not seen.manager:
         raise refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
-    if kind == "contact":
-        if not viewer.holds(access.EXTERNAL, row):
-            raise refuse(conn, viewer, "ticket.assign", row, "external_permission_missing", rid, permission=access.EXTERNAL)
-        # contacts, handler links and the public page arrive in slice 4: until then nothing can leave to an outside party
-        raise ApiError(409, "public_link_unavailable", text(conn, "שליחה לגורם חיצוני עדיין אינה זמינה בהתקנה זו."))
+    if kind == "contact":  # slice 4: an outside contact / vendor gets a handler link (services/tickets/external.py)
+        from . import external
+
+        return external.assign_contact(conn, viewer, seen, assignee_id, note=note, note_external=note_external, require_code=None,
+                                       share_history=None, send_now=False, revision=revision, rid=rid)
     if kind != "user":
         raise invalid(conn, model.Invalid([model.Problem("assignee.kind", "unknown")]))
     status = row["status"]
@@ -269,6 +271,7 @@ def assign(conn, viewer: Viewer, seen: Seen, kind: str, assignee_id: str, note: 
     previous = row.get("asg_name") if current else None
     if current:
         store.update_assignment(conn, current, {"ended_at": now, "end_reason": "reassigned"})
+        handler_links.revoke_for_assignment(conn, current, "reassigned", handler_links.parse(now) or handler_links.now_utc())  # S4: at once
     aid = store.insert_assignment(conn, {"ticket_id": row["id"], "assignee_kind": "user", "user_id": assignee_id, "assignee_name": name,
                                          "channel": "inapp", "assigned_by": viewer.uid, "assigned_at": now})
     fields: dict[str, Any] = {"status": "assigned", "current_assignment_id": aid, "assigner_user_id": viewer.uid, "last_activity_at": now,
@@ -277,6 +280,7 @@ def assign(conn, viewer: Viewer, seen: Seen, kind: str, assignee_id: str, note: 
     reopened = status == "closed"
     if reopened:
         fields.update({"closed_at": None, "closed_by": None, "close_note": None, "purge_after": None, "reopen_count": int(row.get("reopen_count") or 0) + 1})
+        handler_links.on_reopened(conn, row["id"], handler_links.parse(now) or handler_links.now_utc())  # S4: a grace link dies
     if not store.update_ticket(conn, row["id"], fields, expect_revision=revision):
         raise stale(conn, row)
     who = actor_name(viewer)
