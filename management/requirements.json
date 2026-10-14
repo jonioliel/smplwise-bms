@@ -6291,5 +6291,21 @@
     "test_ids": [
       "AT346"
     ]
+  },
+  {
+    "id": "R331",
+    "title": "Service management 2.5.1: WhatsApp test send without the env switch, guide hedging removed, 2.5.0 security review fixes",
+    "statement": "The test send works without SW_MESSAGING_TEST_SEND (confirm, 5/h/account, local only); key rotation and public settings are local-only; no self-approval of costs; the tickets CSV uses text_hygiene.csv_cell; inbound replies without entry_id fail closed when more than one account is linked.",
+    "task_ids": [
+      "TKS251"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT347"
+    ]
   }
 ]

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-14T04:46:16.811701+00:00
+Generated: 2026-10-14T05:48:00.126494+00:00
 
-Tasks: 221 | Requirements: 329 | Tests: 345 | Screens: 32
+Tasks: 222 | Requirements: 330 | Tests: 346 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 29
+- REVIEW: 30
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 127
+- V1: 128
 - V2: 29
 - V3: 2
 
@@ -259,3 +259,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKS8](tasks/TKS8.md) | V1 | REVIEW | Service management: add-on docs, Hebrew guide chapter, public-surface review checklist | — |
 | [TKS9](tasks/TKS9.md) | V1 | REVIEW | Service management: cost claims (vendor claim step, manager review, close gate) + costs settings, contact cost fields, cost notification sources (s9b) | — |
 | [TKRENAME](tasks/TKRENAME.md) | V1 | REVIEW | Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint | — |
+| [TKS251](tasks/TKS251.md) | V1 | REVIEW | Service management 2.5.1: WhatsApp test send without the env switch, guide hedging removed, 2.5.0 security review fixes | — |

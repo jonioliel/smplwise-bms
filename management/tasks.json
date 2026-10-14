@@ -10630,5 +10630,44 @@
     "owner": null,
     "commit": "a06ba53a",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKS251",
+    "title": "Service management 2.5.1: WhatsApp test send without the env switch, guide hedging removed, 2.5.0 security review fixes",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.1: WhatsApp test send without the env switch, guide hedging removed, 2.5.0 security review fixes: fakes only (integ/251); no live send."
+    ],
+    "requirement_ids": [
+      "R331"
+    ],
+    "test_ids": [
+      "AT347"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on integ/251",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-251): commits 62234d0f (security fixes) and ef2f16da (test send / guide). Status REVIEW until the integ/251 gate passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
   }
 ]

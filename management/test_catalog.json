@@ -9416,5 +9416,28 @@
     "expected": "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT347",
+    "requirement_ids": [
+      "R331"
+    ],
+    "task_ids": [
+      "TKS251"
+    ],
+    "title": "Service management 2.5.1: WhatsApp test send without the env switch, guide hedging removed, 2.5.0 security review fixes",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS251 (integ/251):",
+      "tests/test_tickets_251_security.py, tests/test_tickets_msg_inbound.py, tests/test_messaging_accounts_api.py, tests/test_tickets_s5b_channel.py, tests/evidence-messaging-accounts.spec.ts",
+      "the release gate of integ/251"
+    ],
+    "expected": "Service management 2.5.1: WhatsApp test send without the env switch, guide hedging removed, 2.5.0 security review fixes: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the gate of integ/251."
   }
 ]

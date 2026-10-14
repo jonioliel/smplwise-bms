@@ -1,5 +1,42 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.5.1 (pilot) — Service management: WhatsApp test send open, security fixes from the 2.5.0 review
+**After installing:** **no database migration** (the sequence stays 0001..0083). No bridge change. No new add-on option. Reload the
+installed web app once. The master switch "שליחה בוואטסאפ" stays **off** until you turn it on.
+- **עברית:** אחרי ההתקנה: **אין מיגרציה של מסד הנתונים** (הרצף נשאר 0001..0083). אין שינוי בגשר ואין אפשרות תוסף חדשה. טוענים מחדש
+  את האפליקציה פעם אחת. המתג הראשי "שליחה בוואטסאפ" נשאר **כבוי** עד שמדליקים אותו.
+
+### What is new - מה חדש
+- **English:** (1) **WhatsApp test send without a special switch** (owner decision 14.10): Settings › ערוץ ההודעות › the chosen account ›
+  "שליחת בדיקה" - type a number (yours or the account's own), press "שליחה" and confirm; one fixed text leaves; at most **5 per hour
+  per account**; holders of `messaging.accounts.manage`, local sessions only; it works before the master switch is on. The
+  environment switch `SW_MESSAGING_TEST_SEND` is no longer needed. (2) The guide and the add-on docs no longer mark the WhatsApp
+  account / entry shapes and the send path as unverified (verified live by the owner); the tunnel and real phones stay marked.
+- **עברית:** (1) **שליחת בדיקה בוואטסאפ בלי מתג מיוחד** (החלטת בעלים 14.10): הגדרות › ערוץ ההודעות › החשבון הנבחר › "שליחת בדיקה" -
+  מקלידים מספר (שלכם או של החשבון עצמו), לוחצים "שליחה" ומאשרים; יוצאת הודעה קבועה אחת; **עד 5 בשעה לכל חשבון**; למחזיקי
+  `messaging.accounts.manage`, מחיבור מקומי בלבד; עובד גם לפני שהמתג הראשי דולק. מתג הסביבה `SW_MESSAGING_TEST_SEND` כבר לא נדרש.
+  (2) המדריך ותיעוד התוסף כבר לא מסמנים את צורת החשבונות ונתיב השליחה כ"לא אומת" (נבדק חיה); המנהרה והטלפונים נשארים מסומנים.
+
+### Security fixes - תיקוני אבטחה
+- **English:** (a) the module key rotation and the handler page's public settings (address, trusted proxies, client-address header)
+  can be changed from a local session only; (b) nobody approves or adjusts a cost revision they entered themselves (409
+  `self_approval`: a second person decides); (c) the service-request CSV export uses the module's own spreadsheet-formula guard;
+  (d) an incoming WhatsApp reply without an account id is ignored ("account unknown", no content stored) while more than one account
+  is linked - a reply can no longer reach a request through the wrong number; buttons still match through their own code.
+- **עברית:** (א) החלפת מפתח המודול והגדרות הכתובת הציבורית של דף המטפלים (כתובת, פרוקסי מהימנים, כותרת כתובת הלקוח) משתנות מחיבור
+  מקומי בלבד; (ב) אי אפשר לאשר או לתקן הגשת עלות שהזנתם בעצמכם (409 - אדם אחר מאשר); (ג) ייצוא ה-CSV של בקשות השירות משתמש בהגנת
+  הנוסחאות של המודול; (ד) תשובת וואטסאפ נכנסת בלי מזהה חשבון לא משויכת לשום בקשה ("חשבון לא ידוע", בלי שמירת התוכן) כשמחוברים כמה
+  חשבונות; כפתורים ממשיכים להתאים לפי הקוד שלהם.
+
+### Known limits and next - מגבלות ידועות ומה הלאה
+- **English:** still to come: the cost report screen, Playwright evidence / layout specs for the cost screens, the link inside cost
+  messages; from the 2.5.0 security review: the message nonce bound to the link generation, inbound text through the module's text
+  hygiene with a per-event guard, the template URL rule, the ambiguous-claim lifetime, the bypass-guard pattern, SLA visibility, and
+  a closer look at the upload pipeline internals and the inbound parser / matcher.
+- **עברית:** עוד יגיעו: מסך דוח העלויות, בדיקות Playwright למסכי העלות, הקישור בתוך הודעות העלות; מסקירת האבטחה של 2.5.0: קשירת קוד
+  ההודעה לדור הקישור, ניקוי טקסט נכנס עם הגנה לכל אירוע, כלל הכתובות בתבניות, משך חיים לתביעה עמומה, תבנית שומר העקיפה, הרשאת
+  הצפייה ב-SLA, ובדיקה מעמיקה של שרשרת ההעלאה ושל מפענח ומתאם התשובות הנכנסות.
+
 ## 2.5.0 (pilot) — Service management (CR-038): a new optional module for service requests - internal requests, departments with SLA, the device tab, outside handlers through a public page, WhatsApp / e-mail messages, escalation and a manager board, a table view, verification codes and cost claims
 **After installing:** **five database migrations, applied automatically at start**: 0079 (the module core), 0080 (contacts and handler links), 0081 (the message channel), 0082 (messaging accounts) and 0083 (cost claims); the sequence is now 0001..0083 (**0084 stays unused**). **No bridge change** (0.8.0). **One new add-on option, `tickets_public` (default `false`)**: it starts the handler page's own listener on container port 18093; the port is declared but never mapped to the host. Reload the installed web app once. **The module is OFF by default: for an installation that does not switch it on nothing changes** (every `/api/v1/tickets*` route answers a uniform 404 and the area is hidden). **Nothing here was run against a real ha-whatsapp, Cloudflare tunnel, phone, SMTP server or Home Assistant: fakes and fixtures only; the items marked UNVERIFIED (below) need the owner's live checks.** No change to existing screens when the module is off.
 - **עברית:** אחרי ההתקנה: **חמש מיגרציות של מסד הנתונים, שרצות אוטומטית בהפעלה**: 0079 (ליבת המודול), 0080 (אנשי קשר וקישורי מטפלים), 0081 (ערוץ ההודעות), 0082 (חשבונות הודעות) ו־0083 (תביעות עלות); הרצף עכשיו 0001..0083 (**0084 נשאר ללא שימוש**). **אין שינוי בגשר** (0.8.0). **אפשרות תוסף חדשה אחת, `tickets_public` (ברירת מחדל `false`)**: היא מפעילה את השרת הנפרד של דף המטפלים בפורט 18093 של התוסף; הפורט מוגדר אך לא ממופה אל המארח. טוענים מחדש את אפליקציית הרשת פעם אחת. **המודול כבוי כברירת מחדל: בהתקנה שלא מפעילה אותו שום דבר לא משתנה** (כל נתיבי `/api/v1/tickets*` עונים 404 אחיד והאזור מוסתר). **שום דבר מכאן לא הורץ מול ha-whatsapp, מנהרת Cloudflare, טלפון, שרת דואר או Home Assistant אמיתיים: רק מערכות מדומות ונתוני בדיקה; הפריטים המסומנים "לא אומת" (למטה) דורשים את הבדיקות החיות של הבעלים.** כשהמודול כבוי אין שינוי במסכים הקיימים.
