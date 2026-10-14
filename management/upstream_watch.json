@@ -4141,6 +4141,68 @@
         "how": "Read the Workers changelog for deprecations, KV or Web Crypto changes and compatibility-date notes.",
         "cadence_days": 60
       }
+    },
+    {
+      "id": "ha-whatsapp",
+      "name": "ha-whatsapp (FaserF; unofficial WhatsApp add-on + HA integration, used by the tickets module)",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/FaserF/ha-whatsapp",
+        "releases": "https://github.com/FaserF/ha-whatsapp/releases",
+        "docs": "https://github.com/FaserF/ha-whatsapp#readme"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "FaserF/ha-whatsapp"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "installed as an add-on and an integration on the owner's Home Assistant (CR-038); the installed version is not recorded and the live checks of docs/changes/CR-038-S5A-NOTES.md and CR-038-S5B-NOTES.md (UNVERIFIED sections) have not been run",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/tickets/channel_whatsapp.py",
+        "smplwise_vms/backend/smplwise/services/tickets/inbound.py",
+        "smplwise_vms/backend/smplwise/services/messaging_accounts.py",
+        "docs/changes/CR-038-TICKETS-MODULE.md",
+        "docs/changes/CR-038-S5A-NOTES.md",
+        "docs/changes/CR-038-S5B-NOTES.md",
+        "docs/user-guide/he/46-tickets_HE.md"
+      ],
+      "watch_keywords": [
+        "send_message",
+        "send_buttons",
+        "account",
+        "config entry",
+        "entry_id",
+        "whatsapp_message_received",
+        "whatsapp_button_pressed",
+        "whatsapp_message_sent",
+        "return_response",
+        "message_id",
+        "sender_number",
+        "Mask Sensitive Data",
+        "unique_id",
+        "last message",
+        "ban",
+        "logged out",
+        "14 days",
+        "Baileys",
+        "breaking",
+        "removed",
+        "renamed"
+      ],
+      "ha_domains": [
+        "whatsapp"
+      ],
+      "note": "Unofficial WhatsApp client (Baileys): number bans, no delivery receipts, logout when the phone does not connect for 14 days. The tickets module calls only whatsapp.send_message and whatsapp.send_buttons with the account (config entry id) and listens to whatsapp_message_received / whatsapp_button_pressed; it reads the connectivity binary sensor (unique_id <entry_id>_connection) from the entity mirror. Every fact about it in CR-038 section 4.1 marked [WA-SRC] is unverified on the owner's installation until the live checks (private/planning/TICKETS_WHATSAPP_LIVE_CHECKS_HE.md) run. A change in the service fields, the event fields, the entity ids or the account resolution breaks the ticket message channel.",
+      "last_checked": null,
+      "last_seen_version": null
     }
   ]
 }
