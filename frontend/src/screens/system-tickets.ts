@@ -216,6 +216,7 @@ export class SystemTickets extends LitElement {
         // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
         this.permsFailed = false;
+        this.error = '';
         this.holders = await ticketsApi().holders();
         if (!this.directory) this.directory = await ticketsApi().directory();
         if (!this.scopes) void this.loadScopes();
@@ -556,7 +557,8 @@ export class SystemTickets extends LitElement {
 
   private viaText(g: Grant): string {
     const via = g.via === 'grant' ? tt('via_grant') : g.via === 'group' ? tt('via_group', { group: g.group_name ?? '' }) : tt('via_role', { role: g.role_name });
-    const scope = g.scope_type !== 'installation' ? ` · ${tt('permScope', { scope: g.scope_name })}` : '';
+    // 2.5.0: a scope whose place was removed has no name - its id stands in (never "null")
+    const scope = g.scope_type !== 'installation' ? ` · ${tt('permScope', { scope: g.scope_name || g.scope_id || '–' })}` : '';
     const until = g.expires_at ? ` · ${tt('permUntil', { date: new Date(g.expires_at).toLocaleDateString('he-IL') })}` : '';
     return via + scope + until;
   }

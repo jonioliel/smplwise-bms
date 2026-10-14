@@ -201,6 +201,8 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await expect(page.locator(`${S} [data-card="matrix"]`)).toContainText('אישור עלויות');
     await expect(page.locator(`${S} [data-holder="u-ronit"]`)).toContainText('צפייה בעלויות');
     await expect(page.locator(`${S} [data-holder="u-gone"]`)).toBeVisible();
+    await expect(page.locator(`${S} [data-holder="u-gone"]`)).not.toContainText('null');
+    await expect(page.locator(`${S} [data-tickets-settings-error]`)).toHaveCount(0); // the retry cleared the failed load's line
     await shot(page, 'permissions-tab', 'light', 'classic', false);
   });
 
