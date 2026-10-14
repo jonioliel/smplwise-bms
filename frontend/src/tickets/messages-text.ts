@@ -106,7 +106,6 @@ const he = {
   warn_shared_module: 'המספר משותף גם ל{module} - קצב שליחה משותף',
   saved: 'נשמר',
   save: 'שמירה',
-  readOnly: 'צפייה בלבד',
 
   // Settings › the module › תבניות הודעה (D26)
   tplPurpose: 'מטרה',
@@ -242,7 +241,6 @@ const en: Partial<Record<keyof typeof he, string>> = {
   warn_shared_module: 'The number is shared with {module} - one sending budget',
   saved: 'Saved',
   save: 'Save',
-  readOnly: 'Read only',
   tplPurpose: 'Purpose',
   tplLang: 'Language',
   tplDept: 'Department',

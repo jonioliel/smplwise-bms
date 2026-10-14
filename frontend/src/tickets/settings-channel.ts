@@ -226,7 +226,7 @@ export class TicketsChannelSettings extends LitElement {
   }
 
   render() {
-    if (this.forbidden) return html`<sw-state-panel state="empty" heading=${mtt('readOnly')}></sw-state-panel>`;
+    if (this.forbidden) return html`<sw-state-panel state="forbidden"></sw-state-panel>`;
     if (this.failed) return html`<sw-state-panel state="error" heading=${this.failed}></sw-state-panel>`;
     const v = this.view;
     if (!v) return html`<sw-state-panel state="loading"></sw-state-panel>`;
