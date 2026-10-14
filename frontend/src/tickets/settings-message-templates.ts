@@ -28,7 +28,7 @@ export class TicketsMessageTemplates extends LitElement {
   @state() private forbidden = false;
   @state() private failed = '';
   @state() private purpose: MessagePurpose = 'assign';
-  @state() private lang: MessageLang = 'he';
+  @state() private tplLang: MessageLang = 'he'; // not lang: that is HTMLElement's own attribute
   @state() private dept = '';
   @state() private draft: string | null = null;
   @state() private preview: TemplatePreview | null = null;
@@ -127,16 +127,16 @@ export class TicketsMessageTemplates extends LitElement {
   }
 
   private get current(): MessageTemplate | undefined {
-    return this.view?.items.find((t) => t.purpose === this.purpose && t.lang === this.lang && (t.department_id ?? '') === this.dept);
+    return this.view?.items.find((t) => t.purpose === this.purpose && t.lang === this.tplLang && (t.department_id ?? '') === this.dept);
   }
 
   private starter(): string {
-    return this.view?.starters[this.purpose]?.[this.lang] ?? this.view?.starters[this.purpose]?.he ?? '';
+    return this.view?.starters[this.purpose]?.[this.tplLang] ?? this.view?.starters[this.purpose]?.he ?? '';
   }
 
   private choose(patch: { purpose?: MessagePurpose; lang?: MessageLang; dept?: string }): void {
     if (patch.purpose) this.purpose = patch.purpose;
-    if (patch.lang) this.lang = patch.lang;
+    if (patch.lang) this.tplLang = patch.lang;
     if (patch.dept !== undefined) this.dept = patch.dept;
     this.draft = null;
     this.preview = null;
@@ -156,7 +156,7 @@ export class TicketsMessageTemplates extends LitElement {
     }
     const mine = ++this.seq;
     try {
-      const p = await messagesApi().previewTemplate({ purpose: this.purpose, lang: this.lang, body });
+      const p = await messagesApi().previewTemplate({ purpose: this.purpose, lang: this.tplLang, body });
       if (mine === this.seq) this.preview = p;
     } catch {
       if (mine === this.seq) this.preview = null;
@@ -201,7 +201,7 @@ export class TicketsMessageTemplates extends LitElement {
     const body = this.draft ?? '';
     const cur = this.current;
     void this.act(() => (cur ? messagesApi().patchTemplate(cur.id, { body, revision: cur.revision })
-      : messagesApi().createTemplate({ department_id: this.dept || null, purpose: this.purpose, lang: this.lang, body })));
+      : messagesApi().createTemplate({ department_id: this.dept || null, purpose: this.purpose, lang: this.tplLang, body })));
   }
 
   private problemText(code: string): string {
@@ -212,8 +212,8 @@ export class TicketsMessageTemplates extends LitElement {
     return html`<div class="pick" data-template-picker>
       <label class="fld">${mtt('tplPurpose')}<select class="in" data-template-purpose @change=${(e: Event) => this.choose({ purpose: (e.target as HTMLSelectElement).value as MessagePurpose })}>
         ${v.purposes.map((p) => html`<option value=${p} ?selected=${p === this.purpose}>${purposeLabel(p)}</option>`)}</select></label>
-      <span class="seg" role="radiogroup" aria-label=${mtt('tplLang')}>${v.langs.map((l) => html`<button type="button" role="radio" aria-pressed=${String(l === this.lang)}
-        aria-checked=${String(l === this.lang)} data-template-lang=${l} @click=${() => this.choose({ lang: l })}>${mtt(`lang_${l}` as MessageTextKey)}</button>`)}</span>
+      <span class="seg" role="radiogroup" aria-label=${mtt('tplLang')}>${v.langs.map((l) => html`<button type="button" role="radio" aria-pressed=${String(l === this.tplLang)}
+        aria-checked=${String(l === this.tplLang)} data-template-lang=${l} @click=${() => this.choose({ lang: l })}>${mtt(`lang_${l}` as MessageTextKey)}</button>`)}</span>
       <label class="fld">${mtt('tplDept')}<select class="in" data-template-dept @change=${(e: Event) => this.choose({ dept: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!this.dept}>${mtt('tplAllDepts')}</option>
         ${v.departments.map((d) => html`<option value=${d.id} ?selected=${d.id === this.dept}>${bidi(d.name)}</option>`)}</select></label>
@@ -224,10 +224,10 @@ export class TicketsMessageTemplates extends LitElement {
     const cur = this.current;
     const text = this.draft ?? cur?.body ?? this.starter();
     const editing = this.draft !== null;
-    const dir = this.lang === 'he' || this.lang === 'ar' ? 'rtl' : 'ltr';
+    const dir = this.tplLang === 'he' || this.tplLang === 'ar' ? 'rtl' : 'ltr';
     const p = this.preview;
     const problems = editing && p ? p.problems : [];
-    return html`<sw-card heading=${`${purposeLabel(this.purpose)} · ${mtt(`lang_${this.lang}` as MessageTextKey)}`} data-card="template-editor"
+    return html`<sw-card heading=${`${purposeLabel(this.purpose)} · ${mtt(`lang_${this.tplLang}` as MessageTextKey)}`} data-card="template-editor"
         data-template-state=${cur ? (cur.active ? 'custom' : 'inactive') : 'starter'}>
       <div class="row"><span class="lbl"><span class="badge">${cur ? (cur.active ? mtt('tplCustom') : mtt('tplInactive')) : mtt('tplStarter')}</span></span>
         ${cur && !editing ? html`<sw-toggle label=${mtt('tplCustom')} labelHidden .checked=${cur.active} ?disabled=${this.busy} data-template-active
