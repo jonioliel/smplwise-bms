@@ -1,9 +1,30 @@
 # CR-038 slice 9 - cost claims (D31 / D32): build notes
 
-Branch `pilot/TICKETS-s9` (from `pilot/TICKETS-s1` @ 11f21002, with `pilot/TICKETS-s4` and `pilot/TICKETS-s6b` merged). Spec:
-`docs/changes/CR-038-TICKETS-MODULE.md` section 11A (on `pilot/TICKETS-spec`). Frontend work happened on two sub-branches merged
-back here: `pilot/TICKETS-s9-public` (the vendor-page claim step) and `pilot/TICKETS-s9-ui` (the manager side) - their own notes:
-`CR-038-S9-PUBLIC-CLAIM-UI.md`, `CR-038-S9-MANAGER-UI.md`.
+Branch `pilot/TICKETS-s9` (from `pilot/TICKETS-s1` @ 11f21002; merged: `pilot/TICKETS-s4`, `pilot/TICKETS-s5a`, `pilot/TICKETS-s5b`
+@ 9d5c6af6 (with s2 and the reviewed public core), `pilot/TICKETS-s6b` @ 08b61cdf, `pilot/TICKETS-s6` @ fd558a8e). Spec:
+`docs/changes/CR-038-TICKETS-MODULE.md` section 11A (on `pilot/TICKETS-spec`). The manager UI was started on the sub-branch
+`pilot/TICKETS-s9-ui` (merged here); the vendor claim step was written in a scratch worktree and committed here directly.
+
+## 0. Frontend (what exists)
+
+| File | What |
+|---|---|
+| `frontend/src/public-ticket/claim/claim-model.ts` | pure: the server's arithmetic mirrored in minor units, validation, the documents / pages reducer, the upload queue (same request id on retry), the sessionStorage draft |
+| `frontend/src/public-ticket/claim/claim-text.ts` | the claim step in he / en / ar / ru (D26), the item name from the API's labels |
+| `frontend/src/public-ticket/claim/claim-step.ts` + `claim.css` | the step's DOM (textContent only, no HTML sinks), states loading / none / required / optional / submitted / rejected / approved / paid / window closed / code / busy / offline |
+| `frontend/src/public-ticket/claim/capture-editor.ts` + `pick.ts` | LAZY chunk: native camera input (`capture="environment"`, no getUserMedia), gallery / PDF picker, fallback line when nothing returns, rotate / crop / contrast on a canvas, 2048 px JPEG 0.8 |
+| `frontend/src/public-ticket/main.ts` | mounts the step (dynamic import) under the ticket card when `claim` exists or in claim mode; claim mode hides the timeline and the "closed" card |
+| `frontend/src/api/tickets-costs.ts` (+ `tickets-costs-mock.ts`) | the internal cost API and its demo store |
+| `frontend/src/tickets/ticket-cost-card.ts`, `cost-model.ts`, `cost-text.ts`, `cost-styles.ts`, `cost-icons.ts` | the manager's cost card: chip, totals, breakdown, documents (PDF download only, page viewer, assembled PDF), revision history, approve / adjust / reject / mark paid / unmark / reopen / on-behalf dialogs, per-assignment requirement |
+| `frontend/src/tickets/ticket-detail.ts` | the card under the assignee; the close dialog shows the gate (409 `cost_claim_pending`) and, with tickets.costs, the override reason |
+| `frontend/src/tickets/external-assign.ts`, `api/tickets-s4.ts` | "דרישת עלות: חובה / רשות / בלי" in the outside-contact assign dialog, preselected from the preview |
+| `frontend/src/tickets/table-model.ts`, `screens/tickets-table.ts`, `api/tickets-table.ts`, `table-toolbar.ts` | the table's cost column and cost-status filter (only with tickets.costs.view) |
+| tests | `unit-public-claim-model.spec.ts`, `unit-tickets-costs.spec.ts` (node, `playwright.unit.config.ts`) |
+
+NOT built (left): the report tab screen ("עלויות", the API and its client exist), the Settings section for the `costs`
+document and the department defaults (the routes exist), the contact editor's cost fields (the contacts screen of slice 4 must add
+them: `cost_claim`, `vat_exempt`, `vat_default`, `labor_rate`, `rate_currency`), Playwright evidence / layout specs for the new
+screens.
 
 ## 1. Module map (backend)
 
@@ -60,24 +81,23 @@ close gate), `external.assign_contact` / `preview` (`cost_claim`), `routers/tick
     AUD); a currency with another exponent needs its own input rule first.
 13. **V2 (code review) for claim files:** the per-token file budget is spent when an upload enters its body phase (refused,
     trickled or abandoned uploads cost the same as stored ones). The photo route keeps public-core's behaviour (not changed here).
-14. **V7 (code review):** `check_pdf` now inflates FlateDecode streams (bounded: 4 x the file, at most 32 MiB in total - past it
-    the file is refused) and scans them; the pinned "known limit" test became a refusal test. Other filters and streams that do not
-    inflate cleanly are still not looked into (stated in `cost_files.py`).
+14. **V7 (code review):** taken from the reviewed public core (bounded inflate of FlateDecode streams) - slice 9's own version was
+    dropped at the s5b merge.
 15. **Timeline rows of claims carry no amount** (`cost_submitted`, `cost_decision`, `cost_message` carry ids, sequence and action):
     members without `tickets.costs.view` read the timeline.
-16. **Vendor messages** (`cost_rejected`, `cost_approved`, `cost_reopened`) go through `external.DISPATCH.queue(purpose=...)` - the
-    slice-5b outbox seam. Until 5b replaces `ManualDispatch`, nothing is queued and the timeline records `cost_message` with
-    `queued: false`. No amount ever travels in a message.
+16. **Vendor messages** (`cost_rejected`, `cost_approved`, `cost_reopened`) go through slice 5b's outbox (`messaging.RUNTIME.enqueue`,
+    idempotency key per claim and decision count), with he / en / ar / ru starters in `message_templates.STARTERS` and the purposes in
+    `TEMPLATE_PURPOSES` / `PURPOSE_KEYS`. **Deviation:** the messages carry NO link (the spec's `cost_rejected` "with the link"): the
+    outbox renders `{link}` only for its LINK_PURPOSES and checks the link is live, which a claim-mode link is not; the text asks the
+    vendor to open the link it already received. Making the cost purposes link purposes with a claim-mode-aware URL check is a 5b
+    follow-up. No amount ever travels in a message. A `cost_message` timeline row records whether it was queued.
+17. **The automatic close** (slice 6 `monitor.auto_close`) skips a ticket while `costs.blocks_close()`.
 
 ## 3. Hand-over
 
-- **Slice 5b:** `DISPATCH.queue` receives the purposes `cost_rejected`, `cost_approved`, `cost_reopened` (spec 7.3 already lists
-  them in the outbox CHECK); templates per language (D26) - the approved text carries no amount.
-- **Slice 6:** fill `notify_bridge.cost_submitted` (holders of `tickets.costs` who can see the ticket; category tickets, severity
-  info) and `notify_bridge.cost_missing` (department managers holding `tickets.costs.view`); the automatic close must skip
-  `costs.blocks_close()` tickets and keep them in "waiting for me"; `waiting_reason = 'claim_missing'` is a new value.
-- **Slice 4 (page):** mount the claim step of `pilot/TICKETS-s9-public` (see its notes); `GET /t/api/ticket` carries `claim`
-  and the claim-mode card.
+- **Slice 5b:** the link in `cost_rejected` / `cost_reopened` (decision 16).
+- **Slice 6:** `notify_bridge.cost_submitted` / `cost_missing` are still no-ops (the CR-018 sources `ticket.cost_submitted` /
+  `ticket.cost_missing` need registering in notify_policy); `waiting_reason = 'claim_missing'` is a new value for the board.
 - **Slice 8 (guide):** the 7-year retention, invoices opened in an up-to-date PDF viewer (S25), claim mode, the close override.
 - **Integration:** migration lists in `test_media_api.py`, `test_media_players_api.py`, `test_migrations.py`, `test_notify_core.py`
   now end in `..., 79, 80, 83]` - 0081 / 0082 of slices 5a / 5b join at integration.
