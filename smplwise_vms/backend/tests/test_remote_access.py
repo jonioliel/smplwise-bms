@@ -507,7 +507,9 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("POST", "/api/v1/nvr/encoding-batches"), ("POST", "/api/v1/nvr/encoding-batches/preview"),
                      # CR-028: the cast administration (relay origin and its self-check, per-screen switches, the test cast) is local-only
                      ("GET", "/api/v1/multimedia/cast/config"), ("PUT", "/api/v1/multimedia/cast/config"), ("POST", "/api/v1/multimedia/cast/origin/check"),
-                     ("GET", "/api/v1/multimedia/cast/screens"), ("PUT", "/api/v1/multimedia/cast/screens/{key}"), ("POST", "/api/v1/multimedia/cast/test")}
+                     ("GET", "/api/v1/multimedia/cast/screens"), ("PUT", "/api/v1/multimedia/cast/screens/{key}"), ("POST", "/api/v1/multimedia/cast/test"),
+                     # CR-038 S4: the tickets handler page's address probe fetches an administrator-typed URL - local sessions only
+                     ("POST", "/api/v1/tickets/address/probe")}
 
 
 def test_every_route_needs_a_remote_session(arx):
