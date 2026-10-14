@@ -957,6 +957,93 @@ The remote sign-in page can offer one quiet download link (with version and SHA-
 - **Limit.** The current Android build is a **debug build** and is not for distribution. Do not publish a link until a signed
   release build exists.
 
+## Service management: tickets and handler links (CR-038)
+
+Hebrew name in the product: **ניהול השירות**; an item is a **בקשת שירות** (plural **בקשות שירות**). The name is configurable
+(Settings, decision D33, permission `tickets.configure`); internal identifiers stay `tickets`. Specification:
+`docs/changes/CR-038-TICKETS-MODULE.md`; per-slice notes `docs/changes/CR-038-*-NOTES.md`; Hebrew guide
+`docs/user-guide/he/46-tickets_HE.md` (installer part and manager part). Status of this section: written from the slice notes,
+not from a running system. Every statement about `ha-whatsapp`, the tunnel, real phones and the Linux image is **UNVERIFIED**
+until the live checks of `private/planning/TICKETS_WHATSAPP_LIVE_CHECKS_HE.md` and an owner-approved tunnel test have run.
+Slices 3, 6, 6b, 7 and 9 live on their own branches at the time of writing; the features below marked with those slices exist only
+in a build that contains them.
+
+- **Off by default.** `tickets.enabled` is false; while off, every `/api/v1/tickets*` route answers a uniform 404
+  `feature_disabled` (only `GET /tickets/module` answers) and the area is hidden. The switch is a product setting
+  (`system.configure`, audited). Nothing below happens until it is on.
+- **Internal tickets** (slices 1-2): departments with manager and member roles, categories, four priorities, a per-department SLA
+  grid (empty cell = off), opening templates, saved views. Visibility is decided in one function (`access.visible`): module on, then
+  `tickets.view` where the ticket lies, then department membership / `tickets.all_departments` / creator / current internal assignee.
+- **Permissions.** `tickets.view`, `tickets.create`, `tickets.manage`, and the sensitive `tickets.external` (send to an outside
+  contact), `tickets.all_departments`, `tickets.configure`; installation-level `messaging.accounts.manage` (sensitive: map WhatsApp
+  accounts to uses; `system.configure` holders see the mapping read-only). Six single-permission built-in roles `tickets_<name>` allow
+  giving one permission to one person through an ordinary binding. The cost permissions `tickets.costs.view` and `tickets.costs`
+  belong to slice 9 (cost claims).
+- **Handler links** (slice 4). Assigning a ticket to an outside contact or vendor mints a link (192-bit token in the URL
+  **fragment**, stored only as a hash). Durations (settings `links.*`, department overrides): sliding window 14 days (1-90), hard
+  cap 90 days (7-365, never below the sliding window), read-only grace after close 24 hours (0-168). The expiry slides on the
+  handler's actions, a resend and a reminder, never on an open. Reassign, return, "not mine", manual revoke, contact change and key
+  rotation revoke at once. Lowering a cap pulls live links in. Forwarding a plain link is the expected use; the manager sees opens
+  from distinct devices.
+- **Verification code (option B)** (slice 7). Per contact or per assignment (raise only). Six digits, sent as a separate message;
+  defaults: valid 10 minutes, 5 wrong codes lock that link generation for 30 minutes (`code.ttl_min` 1-30, `code.max_attempts` 3-10,
+  `code.lock_min` 5-240). Channel rule D6: the code never travels on the same channel as a link that went by e-mail; a code-protected
+  assignment that cannot deliver its code on another channel is refused (409 `code_channel_unavailable`). It protects against a
+  forwarded message, not against whoever holds the contact's phone.
+- **Message channel** (slices 5a-5b). Outbox with per-account pacing, vendor send hours (default 07:00-21:00 in `time.zone`, no
+  window across midnight; department override; "send now" needs `tickets.external`), retries (4 attempts within 30 minutes),
+  `unknown` outcomes never retried, e-mail fallback with a redeem link, and the manual "copy link" path. **The master switch
+  `tickets.settings.whatsapp.enabled` is off by default**: until an administrator turns it on, nothing leaves on WhatsApp. Buttons
+  are off by default; the reply window default is 72 hours (1-336). Message templates are per purpose x language x department
+  (he/en/ar/ru; the Arabic and Russian starter texts still need a native speaker's review).
+- **WhatsApp accounts per use** (Settings, tab "ערוץ ההודעות", `#/system/messaging-accounts`). Accounts are discovered read-only from
+  the entity mirror (platform `whatsapp`, grouped by config entry) or typed manually; only the last four digits are kept. Uses
+  (ticket messages, verification codes, per-department overrides) are mapped to accounts; the verification-code use follows the
+  message use by default. A change that moves queued messages asks for confirmation. A mapped account that disappears is marked
+  `missing` and is never silently re-routed. The per-account test send is off unless `SW_MESSAGING_TEST_SEND=1` **and** the owner
+  approved live sends.
+- **Replies.** Inbound replies are advisory: forward-only to "received" / "in progress", or a note marked "via WhatsApp (unverified
+  sender)"; never done, close or return. Unmatched replies wait in a queue where a manager claims one before its text is shown. The
+  module subscribes to `whatsapp_message_received` / `whatsapp_button_pressed` only while the module is on, the switch is on and a
+  ticket use is mapped.
+- **Board and table** (slices 6-6b). SLA monitor (unassigned, overdue, link not opened, acknowledge, stuck, waiting) with a reminder
+  ladder and manager alert, automatic close of "done" tickets after N days (department setting), CR-018 sources under the category
+  `tickets`, manager board `#/tickets/board`, table view with sort, filters, bulk actions (1-50 items), saved views and CSV export
+  (5,000 rows, one a minute per user). The phone-app category list needs the push relay Worker redeployed to know the new category.
+- **Cost claims** (slice 9). Vendor claims after "done": required / optional / off per assignment, one approver, immutable
+  revisions, 7-year retention, a required claim blocks closing unless overridden with a reason. The report screen and the Settings
+  section of the cost document were not built according to the slice-9 notes.
+
+### Installing the public handler page
+
+1. Add-on option `tickets_public` (default off) starts a separate listener on container port **18093/tcp**. The port is declared
+   but **must stay unmapped on the host**; only the tunnel reaches it. The page bundle is served from `www-public`, never from `www`.
+2. Create a hostname dedicated to the page (the specification calls it the `t-*` host) and route it through the tunnel to the
+   add-on's port 18093. Set `originRequest.keepAliveTimeout` **below 5 seconds** (for example 4) and
+   `originRequest.keepAliveConnections` **at most 8**. UNVERIFIED on a real tunnel: reachability of a second container port, the
+   source address cloudflared connects from, whether Cloudflare streams request bodies.
+3. In Settings, the module's "דף המטפלים" card: the public address (https, port 443 only), trusted proxies and the client-address
+   header (`cf-connecting-ip` by default). Run the **address probe** ("verify the peer"): it must report that the listener saw the
+   probe and that the client address came from the trusted header. The probe works only while the module is on.
+4. **Cloudflare, required:** a rate-limiting rule on `/t/api/*`, and every script-injecting feature off for that hostname (Rocket
+   Loader, e-mail obfuscation, Bot Fight Mode and similar): the page runs under `script-src 'self'; style-src 'self'` with no inline
+   code.
+5. **Home Assistant recorder, required:** exclude the `whatsapp_message_*` events and the integration's "last message" sensor from
+   the recorder (they carry message text and a recipient); see the Hebrew guide for the YAML. The exact entity id of that sensor is
+   UNVERIFIED. Arx's own entity mirror may still receive that sensor until the live check shows what it contains (slice 5a,
+   UNVERIFIED; no exclusion from the mirror was built).
+6. **Backups.** The add-on backup holds `/data`, including the module key (`secrets/tickets_key.*`) and the database: whoever holds
+   an HA backup can derive every live link token. Treat HA backups like the HA administrator password. Project backups never carry
+   the module settings, the WhatsApp mapping or `secrets/`; a restore without `secrets/` leaves existing links unusable (the health
+   state shows an error) and the module never creates a replacement key while links depend on one.
+7. **Pairing and the 14-day rule** (`ha-whatsapp`, an unofficial client): use a dedicated number, pair it in Home Assistant, and keep
+   the phone connecting at least every 14 days, otherwise all linked devices are logged out and the account turns `disconnected`.
+8. Key rotation exists as an API (`POST /tickets/key/rotate`, `system.configure` plus confirmation) and has no Settings button yet;
+   `GET /tickets/health` (`system.configure`) reports the listener, rate-limit trips and the key state.
+
+Security review of the public surface: `docs/security/TICKETS_PUBLIC_SURFACE_REVIEW_CHECKLIST.md` (a checklist only; no review has
+been recorded). Upstream watch: `ha-whatsapp` in `management/upstream_watch.json`.
+
 ## Security boundaries checked by tests
 
 - Permissions are evaluated per resource on the server: a camera is reachable only through a floor the user may
