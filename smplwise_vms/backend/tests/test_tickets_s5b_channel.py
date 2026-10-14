@@ -493,7 +493,7 @@ def test_send_update_after_an_edit_and_the_closed_notice(env):
 
 
 def test_the_test_send_of_slice_5a_is_wired_and_the_number_is_never_stored(env, monkeypatch):
-    monkeypatch.setenv(mr.TEST_SEND_ENV, "1")
+    monkeypatch.delenv(mr.TEST_SEND_ENV, raising=False)  # owner 2026-10-14: the switch is no longer needed
     r = env.c.post(f"{API}/messaging/whatsapp/test", json={"account_key": KEY_A, "target": "15555550199"})
     assert r.status_code in (200, 201, 202), r.text
     env.tick()

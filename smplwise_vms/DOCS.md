@@ -1000,8 +1000,10 @@ in a build that contains them.
   the entity mirror (platform `whatsapp`, grouped by config entry) or typed manually; only the last four digits are kept. Uses
   (ticket messages, verification codes, per-department overrides) are mapped to accounts; the verification-code use follows the
   message use by default. A change that moves queued messages asks for confirmation. A mapped account that disappears is marked
-  `missing` and is never silently re-routed. The per-account test send is off unless `SW_MESSAGING_TEST_SEND=1` **and** the owner
-  approved live sends.
+  `missing` and is never silently re-routed. The per-account test send (holders of `messaging.accounts.manage`, local sessions only)
+  sends one fixed text to a typed number after a confirm, at most 5 per hour per account; it works while the master switch
+  "שליחה בוואטסאפ" (default off) is still off. An inbound event without `entry_id` is ignored (`account_unknown`, no content)
+  while more than one account is linked.
 - **Replies.** Inbound replies are advisory: forward-only to "received" / "in progress", or a note marked "via WhatsApp (unverified
   sender)"; never done, close or return. Unmatched replies wait in a queue where a manager claims one before its text is shown. The
   module subscribes to `whatsapp_message_received` / `whatsapp_button_pressed` only while the module is on, the switch is on and a

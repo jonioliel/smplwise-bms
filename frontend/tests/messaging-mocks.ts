@@ -67,7 +67,7 @@ function baseView(o: WaMockOptions, manage: boolean) {
     warnings,
     channels: [{ key: 'whatsapp', state: on ? (o.empty ? 'not_configured' : 'active') : 'idle' }, { key: 'email', state: 'active' }, { key: 'inapp', state: 'active' }, { key: 'sms', state: 'soon' }],
     modules: { tickets: 'ניהול השירות', access: 'בקרת כניסה' },
-    pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: false },
+    pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: true },
   };
 }
 
@@ -101,7 +101,7 @@ export async function installMessagingMock(page: Page, o: WaMockOptions = {}): P
     if (p === 'messaging/whatsapp' && method === 'GET') return json(route, view);
     if (!manage) return err(route, 403, 'forbidden', 'אין הרשאה');
     if (p === 'messaging/whatsapp/refresh') return json(route, view);
-    if (p === 'messaging/whatsapp/test') return err(route, 409, 'test_send_off', 'שליחת בדיקה אינה זמינה עדיין.');
+    if (p === 'messaging/whatsapp/test') return json(route, { id: 'o-test', state: 'queued' });
     if (p === 'messaging/whatsapp' && method === 'PUT') {
       const b = body as { revision: number; uses: Record<string, string | null>; accounts: { key: string; label: string; kind: string; shared_outside: boolean }[]; confirm_queued?: boolean };
       if (b.revision !== view.revision) return err(route, 409, 'settings_stale', 'ההגדרות השתנו בינתיים. טענו מחדש.', { revision: view.revision });

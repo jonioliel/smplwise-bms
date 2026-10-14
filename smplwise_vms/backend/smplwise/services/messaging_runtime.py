@@ -37,7 +37,7 @@ UTC = dt.timezone.utc
 
 MANAGE = "messaging.accounts.manage"
 KEY_NAME = "messaging_key"
-TEST_SEND_ENV = "SW_MESSAGING_TEST_SEND"  # "1" = the owner approved live test sends (CLAUDE.md: each live action is approved)
+TEST_SEND_ENV = "SW_MESSAGING_TEST_SEND"  # retired 2026-10-14 (owner): no longer read; kept so old environments do not break
 JANITOR_EVERY = dt.timedelta(hours=1)
 
 # one process-wide tracker: the sends-derived state and the `missing` marks are shared by the routes and the outbox worker
@@ -264,9 +264,10 @@ def janitor(db: Any, now: dt.datetime | None = None) -> int:
 # ---------------------------------------------------------------- the test send switch
 
 def test_send_enabled() -> bool:
-    """The per-account test send needs the outbox (slice 5b registers TEST_SENDER) AND the owner's approval of live sends
-    (environment `SW_MESSAGING_TEST_SEND=1`). Off by default: no route of this slice sends anything."""
-    return TEST_SENDER is not None and os.environ.get(TEST_SEND_ENV) == "1"
+    """The per-account test send is available once the outbox is registered (slice 5b's TEST_SENDER). Owner decision 2026-10-14:
+    no environment switch any more (he verified live sending with the WisKey team); messaging.accounts.manage, a typed number,
+    a confirm in the screen, 5 / hour per account (messaging_accounts.TEST_ACCOUNT_HOUR), local sessions only."""
+    return TEST_SENDER is not None
 
 
 # ---------------------------------------------------------------- the Settings view

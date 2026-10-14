@@ -188,9 +188,9 @@ class TestBody(BaseModel):
 @router.post("/messaging/whatsapp/test")
 def test_send(body: TestBody, request: Request, principal: Principal = Depends(current_principal),
               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """9.3 "שליחת בדיקה": ONE fixed text from one account to a number the administrator types (purpose `test`, 3 / hour per
-    account through the shared pacing, audited). Refused 409 `test_send_off` until slice 5b registers the outbox AND the owner
-    approved live sends; the typed number is never stored, logged or audited."""
+    """9.3 "שליחת בדיקה": ONE fixed text from one account to a number the administrator types (purpose `test`, 5 / hour per
+    account through the shared pacing, audited). Refused 409 `test_send_off` only until slice 5b registers the outbox (owner
+    2026-10-14: no environment switch); the typed number is never stored, logged or audited."""
     require(conn, principal, MANAGE, INSTALLATION)
     if not mr.test_send_enabled() or mr.TEST_SENDER is None:
         raise ApiError(409, "test_send_off", "שליחת בדיקה אינה זמינה עדיין.")

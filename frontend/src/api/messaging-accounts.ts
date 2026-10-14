@@ -149,7 +149,7 @@ function demoView(): WhatsappView {
     warnings: [{ code: 'shared_outside', use: 'tickets.messages', department_id: 'dept-cleaning', account_key: 'entry:01JDEMOINTERC', severity: 'amber' }],
     channels: [{ key: 'whatsapp', state: 'active' }, { key: 'email', state: 'active' }, { key: 'inapp', state: 'active' }, { key: 'sms', state: 'soon' }],
     modules: { tickets: 'ניהול השירות' },
-    pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: false },
+    pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: true },
   };
 }
 
@@ -188,7 +188,8 @@ const demoBackend: MessagingAccountsBackend = {
     return structuredClone(demo);
   },
   async test() {
-    throw new ApiError(409, { code: 'test_send_off', user_message: 'שליחת בדיקה אינה זמינה עדיין.', retryable: false, correlation_id: 'demo', details: {} });
+    // demo: nothing leaves the browser - the answer of a queued test row
+    return { id: 'demo-test', state: 'queued' };
   },
 };
 

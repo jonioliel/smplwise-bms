@@ -100,7 +100,7 @@ def test_discovery_and_states_from_the_mirror(env):
     assert acc[KEY_B]["state"] == "disconnected"
     assert acc[KEY_A]["label"] == f"וואטסאפ {ENTRY_A[:6]}" and acc[KEY_A]["last4"] is None, "no number is known before the on-demand read"
     assert acc[KEY_A]["sends_24h"] == 0 and acc[KEY_A]["last_send_at"] is None
-    assert d["can_manage"] is True and d["revision"] == 0 and d["test_send"] == {"enabled": False}
+    assert d["can_manage"] is True and d["revision"] == 0 and d["test_send"] == {"enabled": mr.TEST_SENDER is not None}
     assert [ch["key"] for ch in d["channels"]] == ["whatsapp", "email", "inapp", "sms"]
     assert d["channels"][-1]["state"] == "soon" and d["channels"][0]["state"] == "not_configured"
     assert {"code": "required_unmapped", "use": "tickets.messages", "severity": "red"} in d["warnings"]
@@ -290,15 +290,15 @@ def test_a_move_with_queued_messages_needs_a_confirm(env, monkeypatch, settings)
     assert r.status_code == 200
 
 
-def test_test_send_is_off_until_the_outbox_and_the_owner_approve(env, monkeypatch, settings):
+def test_test_send_is_off_only_until_the_outbox_is_registered(env, monkeypatch, settings):
     c, _, _ = env
     body = {"account_key": KEY_A, "target": "+1 555 555 0199"}
+    monkeypatch.setattr(mr, "TEST_SENDER", None)
     r = c.post(f"{URL}/test", json=body)
     assert r.status_code == 409 and r.json()["code"] == "test_send_off"
     sent: list[tuple[AccountRef, str]] = []
     monkeypatch.setattr(mr, "TEST_SENDER", lambda _c, ref, digits, who: sent.append((ref, digits)) or {"id": "o1", "state": "queued"})
-    assert c.post(f"{URL}/test", json=body).status_code == 409, "the owner's approval is a separate switch"
-    monkeypatch.setenv(mr.TEST_SEND_ENV, "1")
+    # owner 2026-10-14: no environment switch any more - the registered outbox is enough
     assert _doc(c)["test_send"] == {"enabled": True}
     assert c.post(f"{URL}/test", json={**body, "account_key": "entry:NOPE"}).status_code == 404
     assert c.post(f"{URL}/test", json={**body, "target": "12"}).status_code == 422

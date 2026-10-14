@@ -51,8 +51,14 @@ test.describe('messaging accounts evidence', () => {
     await expect(s.locator('[data-use-pick="tickets.codes"] option').first()).toHaveText('כמו הודעות בקשות שירות');
     await expect(s.locator('[data-channel="sms"]')).toHaveAttribute('aria-disabled', 'true');
     await expect(s.locator('[data-channel="sms"] [data-channel-state]')).toHaveText('בקרוב');
-    await expect(s.locator('[data-test-send] button')).toBeDisabled();
-    await expect(s.locator('[data-test-off]')).toBeVisible();
+    await expect(s.locator('[data-test-send] button')).toBeDisabled(); // no number typed yet
+    await expect(s.locator('[data-test-off]')).toHaveCount(0); // owner 2026-10-14: open without an environment switch
+    // a typed number, one confirm, then the queued line (the mock answers; nothing leaves)
+    await s.locator('[data-test-target]').fill('+1 555 555 0199');
+    await s.locator('[data-test-send] button').click();
+    await expect(s.locator('[data-test-dialog]')).toHaveAttribute('open', '');
+    await s.locator('[data-test-confirm] button').click();
+    await expect(s).toContainText('הבדיקה נשלחה לתור');
     await expect(s.locator('[data-save] button')).toBeDisabled();
     const text = await s.evaluate((el) => el.shadowRoot?.textContent ?? '');
     expect(text).not.toMatch(/Home Assistant|Ingress/);
