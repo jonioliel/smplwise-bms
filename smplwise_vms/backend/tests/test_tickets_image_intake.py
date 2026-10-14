@@ -388,6 +388,17 @@ def test_garbage_after_a_valid_header_is_one_clean_refusal():
     refuse(png(10, 10)[:33] + chunk(b"IDAT", b"not zlib at all") + chunk(b"IEND", b""), "image_invalid", 422)
 
 
+def test_broken_data_is_refused_even_when_another_module_allows_truncated_images(monkeypatch):
+    """WeasyPrint (the bill PDFs) sets PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True at import; the intake decodes strictly anyway and
+    leaves the process-wide flag as it found it (found by the 2.5.0 gate)."""
+    from PIL import ImageFile
+
+    monkeypatch.setattr(ImageFile, "LOAD_TRUNCATED_IMAGES", True)
+    refuse(jpeg(64, 64)[:200] + b"\x00" * 5000, "image_invalid", 422)
+    refuse(png(10, 10)[:33] + chunk(b"IDAT", b"not zlib at all") + chunk(b"IEND", b""), "image_invalid", 422)
+    assert ImageFile.LOAD_TRUNCATED_IMAGES is True
+
+
 # ---------------------------------------------------------------- the own decode semaphore
 
 

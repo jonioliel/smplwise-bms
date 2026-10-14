@@ -394,7 +394,7 @@ def reencode(data: bytes, *, max_pixels: int = MAX_PIXELS, wait_s: float = DECOD
                 longest = max(w, h)
                 # the smallest decode whose long side still reaches DRAFT_MIN_SIDE: the decoder downsamples by 1/2 .. 1/8
                 im.draft("RGB", (max(1, w * DRAFT_MIN_SIDE // longest), max(1, h * DRAFT_MIN_SIDE // longest)))
-            im.load()
+            _load_strict(im)
             im = _orient(im, layout.orientation)
             im = _flatten(im)
             if max(im.size) > OUT_MAX_SIDE:
@@ -412,6 +412,25 @@ def reencode(data: bytes, *, max_pixels: int = MAX_PIXELS, wait_s: float = DECOD
         ms = int((time.monotonic() - t0) * 1000)
     out = buf.getvalue()
     return Reencoded(out, clean.width, clean.height, hashlib.sha256(out).hexdigest(), decode_ms=ms)
+
+
+_STRICT_LOCK = threading.Lock()
+
+
+def _load_strict(im: Any) -> None:
+    """Decode with truncated / broken data refused. `PIL.ImageFile.LOAD_TRUNCATED_IMAGES` is process-wide, and WeasyPrint (the bill
+    PDFs) sets it to True when it is imported - a broken upload would then decode into a half-grey picture. The flag is forced off
+    for this decode only (found by the 2.5.0 gate: the intake tests passed alone and failed after a WeasyPrint test in the same
+    process)."""
+    from PIL import ImageFile
+
+    with _STRICT_LOCK:
+        before = ImageFile.LOAD_TRUNCATED_IMAGES
+        ImageFile.LOAD_TRUNCATED_IMAGES = False
+        try:
+            im.load()
+        finally:
+            ImageFile.LOAD_TRUNCATED_IMAGES = before
 
 
 # ---------------------------------------------------------------- storage (confined paths, atomic writes)

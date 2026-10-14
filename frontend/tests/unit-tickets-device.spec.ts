@@ -6,7 +6,7 @@ import { deviceTicketsOn, directTab, menuItems, pressPlan, sheetTabs, type LongP
 import { activityTag, opensOnTap, parseTag } from '../src/components/device-activity-press';
 import { DEVICE_TEXT_EN_KEYS, DEVICE_TEXT_KEYS, deviceTemplate, dt } from '../src/tickets/device-text';
 import { historyNote, historyText } from '../src/tickets/ticket-device-context';
-import { DEFAULT_TICKET_NAMES, setTicketNames } from '../src/tickets/naming';
+import { setTicketNames } from '../src/tickets/naming';
 
 // CR-038 slice 3 (section 12.1, owner decision D17): the long-press / right-click / Alt+Enter matrix row by row, the device window's tabs,
 // the tag every catalogued row gets while the module is on, the device catalogue's completeness and the D33 rule, the history wording.
@@ -117,7 +117,7 @@ test.describe('texts (D33) and the history wording', () => {
     expect(dt('newBtn')).toBe('אירוע חדש');
     expect(dt('countChip', { n: 2 })).toBe('2 אירועים פתוחים');
     setTicketNames(null);
-    expect(dt('menuList')).toContain(DEFAULT_TICKET_NAMES.he.many);
+    expect(dt('menuList')).toBe('בקשות השירות של הרכיב'); // the article token: "ה" before the last word of the construct
   });
   test('history lines never carry a person name; automations keep theirs', () => {
     const person = historyText({ at: '2026-10-13T10:05:00Z', kind: 'power', from: { state: 'off' }, to: { state: 'on' }, changed: ['state'], actor: { type: 'person' } });

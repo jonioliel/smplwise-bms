@@ -94,6 +94,7 @@ export class TicketsContacts extends LitElement {
     .form .fld > .seg {
       align-self: flex-start;
       max-inline-size: 100%;
+      flex-wrap: wrap; /* the four cost-claim choices (slice 9b) wrap on a 320 px phone instead of leaving the card (2.5.0 gate) */
     }
     .form .seg button {
       white-space: nowrap;

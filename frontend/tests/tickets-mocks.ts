@@ -163,7 +163,7 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
   const enabled = o.enabled ?? true;
   const st: TicketsMock = { calls: [] };
   let rows: Row[] = o.empty ? [] : ROWS.map((r) => ({ ...r }));
-  const nameHe = o.name ?? { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f', module: 'ניהול השירות' };
+  const nameHe = o.name ?? { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' }; // module absent: derived ("ניהול השירות" while the item names are the defaults)
   const names = { he: nameHe, en: { one: 'Ticket', many: 'Tickets', gender: '' }, ar: { one: 'بلاغ', many: 'بلاغات', gender: 'm' }, ru: { one: 'Заявка', many: 'Заявки', gender: 'f' } };
   let ui = { detail: o.ui?.detail ?? 'drawer_fullscreen', new_ticket: o.ui?.new_ticket ?? 'sheet' };
   let nameRevision = o.name ? 1 : 0;
