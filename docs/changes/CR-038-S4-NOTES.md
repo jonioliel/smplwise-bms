@@ -131,6 +131,12 @@ interception; the handler page under the listener's real CSP, any CSP violation 
 `docs/design/evidence/tickets-s4/` (handler page he / en / ar / ru, desktop wrapper and phone, light / dark, every state; the internal
 screens in classic / domus, light / dark).
 
+Runner (Ubuntu, `run_smart.py spec`): slices 1 / 2 / 4 evidence, the unit specs and the handler page specs passed (121); the layout
+guards found two real problems - the assign dialog's kind tiles at 320-390 px in every skin, and the handler page card's closed
+`<details>` content measured outside the general tab - both fixed; the rerun of `layout-tickets.spec.ts` (slice 1's screens, now with
+the card) and the new `layout-tickets-s4.spec.ts` (the directory, the card, the dialog sending outside, the link panel) is clean in
+all five skins x light / dark x ten widths (0 findings).
+
 ## 5. For the next slices
 
 - **5b (messages)**: replace `external.DISPATCH` (`LinkDispatch`: `channel`, `queue` inside the caller's transaction, `code_ready`) and
