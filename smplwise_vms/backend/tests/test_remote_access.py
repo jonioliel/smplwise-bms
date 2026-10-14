@@ -509,7 +509,9 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/multimedia/cast/config"), ("PUT", "/api/v1/multimedia/cast/config"), ("POST", "/api/v1/multimedia/cast/origin/check"),
                      ("GET", "/api/v1/multimedia/cast/screens"), ("PUT", "/api/v1/multimedia/cast/screens/{key}"), ("POST", "/api/v1/multimedia/cast/test"),
                      # CR-038 S5a: the WhatsApp test send is local-only
-                     ("POST", "/api/v1/messaging/whatsapp/test")}
+                     ("POST", "/api/v1/messaging/whatsapp/test"),
+                     # CR-038 S4: the tickets handler page's address probe fetches an administrator-typed URL - local sessions only
+                     ("POST", "/api/v1/tickets/address/probe")}
 
 
 def test_every_route_needs_a_remote_session(arx):

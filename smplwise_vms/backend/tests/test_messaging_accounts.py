@@ -144,7 +144,7 @@ def test_corrupt_document_reads_as_empty():
 
 def test_parse_drops_bad_rows_and_round_trips():
     raw = {"revision": 3, "accounts": [
-        {"key": KEY_A, "kind": "discovered", "label": "קריאות‮ ····0001", "last4": "0001", "pacing": {"per_hour": 999}},
+        {"key": KEY_A, "kind": "discovered", "label": "שירות‮ ····0001", "last4": "0001", "pacing": {"per_hour": 999}},
         {"key": "manual:k3f9", "kind": "manual", "label": "ישן", "account": "15555550199"},
         {"key": "manual:zz", "kind": "manual", "account": "x"},  # key too short
         {"key": KEY_B, "kind": "manual", "account": "x"},  # kind does not match the key
@@ -152,7 +152,7 @@ def test_parse_drops_bad_rows_and_round_trips():
         "uses": {"tickets.messages": KEY_A, "tickets.codes": None, "bad": "not-a-key"}}
     doc = ma.parse_doc(json.dumps(raw))
     assert [a.key for a in doc.accounts] == [KEY_A, "manual:k3f9"]
-    assert doc.accounts[0].label == "קריאות ····0001" and doc.accounts[0].pacing == ma.Pacing()
+    assert doc.accounts[0].label == "שירות ····0001" and doc.accounts[0].pacing == ma.Pacing()
     assert dict(doc.uses) == {"tickets.messages": KEY_A, "tickets.codes": None}
     again = ma.parse_doc(json.dumps(ma.doc_to_json(doc)))
     assert again == doc
@@ -354,7 +354,7 @@ def test_sqlite_mirror_reader_reads_only_whatsapp_rows():
 
 def test_ref_for_the_test_send():
     svc = service(FakeHaWhatsapp([PairedAccount(ENTRY_A, "1")]), default_doc())
-    assert svc.ref(KEY_A) == AccountRef(KEY_A, ENTRY_A, "קריאות ····0001")
+    assert svc.ref(KEY_A) == AccountRef(KEY_A, ENTRY_A, "שירות ····0001")
     assert svc.ref("entry:UNSEEN") is None and svc.ref("manual:none") is None
 
 

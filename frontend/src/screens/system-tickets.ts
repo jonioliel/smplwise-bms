@@ -7,10 +7,17 @@ import '../components/sw-tabs';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import '../tickets/settings-dept';
+import '../tickets/contacts-directory';
+import '../tickets/public-settings';
+import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
+import '../tickets/settings-message-templates'; // slice 5b: תבניות הודעה (D26)
+import { mtt } from '../tickets/messages-text';
 import { ApiError, describeError, patch } from '../api/client';
 import { productSettings, invalidateSettings } from '../api/prefs';
 import { can, canAnywhere, isApi } from '../api/session';
 import { createBinding, revokeBinding } from '../api/access';
+import { loadTree } from '../api/catalog';
 import { replaceRoute } from '../router';
 import { applyTicketsHidden } from '../shell/nav';
 import { settingsStyles } from '../styles/settings';
@@ -18,30 +25,38 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import {
-  ticketsApi, type AdminDepartment, type DetailMode, type HoldersResponse, type NameEntries, type NewTicketMode, type SettingsDoc,
+  ticketsApi, type AdminDepartment, type DetailMode, type HoldersResponse, type InstallationDefaults, type NameEntries, type NewTicketMode, type SettingsDoc,
+  type SettingsPatch,
 } from '../api/tickets';
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
+import { intIn, windowProblem } from '../tickets/durations';
+import { ticketSettingsCss } from '../tickets/settings-styles';
 import { tt, type TicketTextKey } from '../tickets/text';
 
-type Tab = 'general' | 'departments' | 'permissions';
-/** The unsaved inputs of one department card. */
-interface DeptDraft { name?: string; reopen_days?: string; category?: string; member?: string; role?: 'manager' | 'member' }
-const TABS: readonly Tab[] = ['general', 'departments', 'permissions'];
+type Tab = 'general' | 'departments' | 'contacts' | 'channel' | 'messages' | 'permissions';
+const TABS: readonly Tab[] = ['general', 'departments', 'contacts', 'channel', 'messages', 'permissions'];
 const PERMS = ['view', 'create', 'manage', 'external', 'all_departments', 'configure'] as const;
 type Perm = (typeof PERMS)[number];
 const SENSITIVE_PERMS: readonly Perm[] = ['external', 'all_departments', 'configure'];
+type Grant = HoldersResponse['users'][number]['grants'][number];
+interface ScopeOption { type: string; id: string; label: string }
 
 /**
  * CR-038 Settings › the tickets module (`#/system/tickets?tab=general|departments|permissions`, section 14.2; the label is the module's
- * configured name, D33). Slice 1:
- *   כללי     the module switch (`tickets.enabled`, system.configure; off hides the area for everyone, the data is kept), the module's
- *            display name per language with its grammatical gender (D33, tickets.configure; validated here and on the server, applied
- *            live everywhere on save), and the display settings D18 / D22 (system.configure).
- *   מחלקות   departments with their categories, priorities and members (tickets.configure; a member edit also needs to manage the
- *            department or tickets.all_departments - the server's escalation rule). The SLA grid, templates and the department
- *            overrides are slice 2.
- *   הרשאות   who holds a ticket permission and through what (a role, a group, a personal grant), and the personal grants of D25 (one
- *            single-permission built-in role bound to one user through the ordinary binding route - rbac.assign decides).
+ * configured name, D33).
+ *   כללי     the module switch (`tickets.enabled`, system.configure), the module's display name (D33, tickets.configure), the display
+ *            settings D18 / D22 and - slice 2 - the installation values the departments fall back to: link lifetime (D5), vendor send
+ *            hours (D4) and urgent as critical (D28) (system.configure).
+ *   מחלקות   slice 2: the department list and the editor of the chosen one (tickets/settings-dept.ts: details, categories, members,
+ *            priorities, the department rules and overrides, the SLA grid, opening templates; tickets.configure - member edits also need
+ *            to manage the department or tickets.all_departments, the server's escalation rule).
+ *   ערוץ הודעות    slice 5b: the WhatsApp master switch, buttons, the reply window and the e-mail fallback (system.configure;
+ *                  tickets/settings-channel.ts); the ticket uses' accounts are shown read-only (Settings › the message channel owns them).
+ *   תבניות הודעה   slice 5b: message templates per purpose x language x department with a preview (D26, tickets.configure;
+ *                  tickets/settings-message-templates.ts).
+ *   הרשאות   "who may": every role with the ticket permissions it carries; the holders by person or by permission (a role, a group, a
+ *            personal grant); and the personal grants of D25 (one single-permission built-in role bound to one user through the ordinary
+ *            binding route, at a chosen scope and with an optional end date - rbac.assign and the delegation rules decide).
  * While the module is off only the switch is offered (every other tickets route answers 404 by design).
  */
 @customElement('system-tickets')
@@ -55,183 +70,26 @@ export class SystemTickets extends LitElement {
   @state() private draft: NameEntries | null = null;
   @state() private moreLangs = false;
   @state() private departments: AdminDepartment[] | null = null;
+  @state() private installation: InstallationDefaults | null = null;
+  @state() private selected = '';
   @state() private directory: { users: { id: string; name: string }[]; groups: { id: string; name: string }[] } | null = null;
   @state() private holders: HoldersResponse | null = null;
+  @state() private holdersBy: 'person' | 'perm' = 'person';
   @state() private grantUser = '';
+  @state() private grantScope = 'installation:*';
+  @state() private grantUntil = '';
+  @state() private scopes: ScopeOption[] | null = null;
   @state() private busy = false;
   @state() private error = '';
   @state() private ok = '';
   @state() private newDept = { name: '', key: '' };
-  @state() private deptDraft: Record<string, DeptDraft> = {};
+  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string } = {};
   private okTimer = 0;
   private offNames: (() => void) | null = null;
 
-  static styles = [settingsStyles, css`
-    .stack {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sw-s-3);
-      max-inline-size: 980px;
-      min-inline-size: 0;
-    }
+  static styles = [settingsStyles, ticketSettingsCss, css`
     sw-tabs {
       margin-block-end: var(--sw-s-3);
-    }
-    a {
-      color: var(--sw-accent-text);
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-medium);
-    }
-    /* a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
-    .row.stack .lbl {
-      flex: none;
-    }
-    .in {
-      box-sizing: border-box;
-      min-block-size: 36px;
-      padding-inline: 10px;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      min-inline-size: 0;
-    }
-    .in[aria-invalid='true'] {
-      border-color: var(--sw-danger);
-    }
-    .in.num {
-      inline-size: 84px;
-    }
-    .names {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: start;
-      inline-size: 100%;
-    }
-    .names label {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      min-inline-size: 0;
-    }
-    .lang {
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
-      margin-block-start: var(--sw-s-2);
-    }
-    .preview {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 10px;
-      border-radius: 999px;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      background: var(--sw-surface-3);
-      color: var(--sw-text-2);
-      white-space: nowrap;
-    }
-    .tag.ok {
-      background: var(--sw-success-soft);
-      color: var(--sw-success-text);
-    }
-    .tag.warn {
-      background: var(--sw-stale-soft);
-      color: var(--sw-warning-text);
-    }
-    .tag.acc {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-    }
-    .chipsrow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-    }
-    .rm {
-      border: 0;
-      background: transparent;
-      color: var(--sw-text-3);
-      font: inherit;
-      cursor: pointer;
-      padding: 0 2px;
-      min-block-size: 24px;
-    }
-    .rm:hover {
-      color: var(--sw-danger);
-    }
-    .rc {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-block-size: 36px;
-      padding-inline: 14px;
-      border-radius: 999px;
-      border: 1px solid var(--sw-border-strong);
-      background: var(--sw-surface);
-      color: var(--sw-text-2);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-    }
-    .rc[aria-pressed='true'] {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
-    }
-    .rc:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-    .people {
-      display: flex;
-      flex-direction: column;
-    }
-    .person {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px 10px;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
-    .person:last-child {
-      border-block-end: 0;
-    }
-    .person .who {
-      font-weight: var(--sw-fw-semibold);
-      min-inline-size: 140px;
-    }
-    .person .via {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-    }
-    .add {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    @media (max-width: 767px) {
-      .names {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      }
-      .names > :last-child {
-        grid-column: 1 / -1;
-      }
     }
   `, bubbleChrome];
 
@@ -278,7 +136,7 @@ export class SystemTickets extends LitElement {
 
   private fail(e: unknown): void {
     this.ok = '';
-    this.error = describeError(e);
+    this.error = typeof e === 'string' ? e : describeError(e);
   }
 
   // ---------------------------------------------------------------- loading
@@ -299,6 +157,13 @@ export class SystemTickets extends LitElement {
     if (this.enabled) await this.loadTab();
   }
 
+  private async loadDepartments(): Promise<void> {
+    const r = await ticketsApi().departments();
+    this.departments = r.departments;
+    this.installation = r.installation ?? null;
+    if (!r.departments.some((d) => d.id === this.selected)) this.selected = r.departments[0]?.id ?? '';
+  }
+
   private async loadTab(): Promise<void> {
     if (!this.enabled) return;
     try {
@@ -308,12 +173,16 @@ export class SystemTickets extends LitElement {
         if (!this.draft) this.draft = structuredClone(m.name);
         if (!isApi() || can('system.configure')) this.doc = await ticketsApi().settings();
       } else if (this.tab === 'departments') {
-        const r = await ticketsApi().departments();
-        this.departments = r.departments;
+        await this.loadDepartments();
         if (!this.directory) this.directory = await ticketsApi().directory();
+      } else if (this.tab === 'contacts') {
+        // slice 4: <tickets-contacts> loads its own rows
+      } else if (this.tab === 'channel' || this.tab === 'messages') {
+        // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
         this.holders = await ticketsApi().holders();
         if (!this.directory) this.directory = await ticketsApi().directory();
+        if (!this.scopes) void this.loadScopes();
       }
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) this.error = tt('setNoPermission');
@@ -321,7 +190,24 @@ export class SystemTickets extends LitElement {
     }
   }
 
-  // ---------------------------------------------------------------- the switch, the name, the display
+  private async loadScopes(): Promise<void> {
+    const out: ScopeOption[] = [{ type: 'installation', id: '*', label: tt('permScopeAll') }];
+    try {
+      const tree = await loadTree();
+      for (const s of tree.sites) {
+        out.push({ type: 'site', id: s.id, label: s.name });
+        for (const b of s.buildings ?? []) {
+          out.push({ type: 'building', id: b.id, label: `${s.name} › ${b.name}` });
+          for (const f of b.floors ?? []) out.push({ type: 'floor', id: f.id, label: `${s.name} › ${b.name} › ${f.name}` });
+        }
+      }
+    } catch {
+      // the installation scope alone (the tree is optional here)
+    }
+    this.scopes = out;
+  }
+
+  // ---------------------------------------------------------------- the switch, the name, the display, the installation values
 
   private async setEnabled(on: boolean): Promise<void> {
     this.switching = true;
@@ -348,9 +234,9 @@ export class SystemTickets extends LitElement {
     return code ? tt(`nameErr_${code}` as TicketTextKey) : '';
   }
 
-  private setName(lang: TicketLang, patch: Partial<TicketName>): void {
+  private setName(lang: TicketLang, p: Partial<TicketName>): void {
     if (!this.draft) return;
-    this.draft = { ...this.draft, [lang]: { ...this.draft[lang], ...patch } };
+    this.draft = { ...this.draft, [lang]: { ...this.draft[lang], ...p } };
   }
 
   private async saveName(): Promise<void> {
@@ -376,11 +262,12 @@ export class SystemTickets extends LitElement {
     }
   }
 
-  private async saveUi(patch: Partial<SettingsDoc['ui']>): Promise<void> {
+  private async saveDoc(p: SettingsPatch, after?: () => void): Promise<void> {
     if (!this.doc || this.busy) return;
     this.busy = true;
     try {
-      this.doc = await ticketsApi().saveSettings(this.doc.revision, patch);
+      this.doc = await ticketsApi().saveInstallation(this.doc.revision, p);
+      after?.();
       this.say(tt('setSaved'));
     } catch (e) {
       this.fail(e);
@@ -401,6 +288,51 @@ export class SystemTickets extends LitElement {
       <label>${tt('setNameMany')}<input class="in" maxlength="30" data-name-many=${lang} aria-invalid=${String(!!manyErr)} ?disabled=${!editable} .value=${e.many} @input=${(ev: Event) => this.setName(lang, { many: (ev.target as HTMLInputElement).value })} />${manyErr ? html`<span class="field-error">${manyErr}</span>` : nothing}</label>
       ${genders.length ? html`<label>${tt('setNameGender')}<span class="seg" role="radiogroup" aria-label=${tt('setNameGender')}>${genders.map((g) => html`<button type="button" role="radio" aria-pressed=${String(e.gender === g)} aria-checked=${String(e.gender === g)} data-name-gender=${`${lang}:${g}`} ?disabled=${!editable} @click=${() => this.setName(lang, { gender: g })}>${tt(`setGender_${g}` as TicketTextKey)}</button>`)}</span></label>` : html`<span></span>`}
     </div>`;
+  }
+
+  /** slice 2: the link lifetime card (D5) - the values every department without its own override uses. */
+  private linksCard(doc: SettingsDoc): TemplateResult {
+    const links = doc.links ?? { sliding_days: 14, cap_days: 90, grace_hours: 24 };
+    const d = this.instDraft;
+    const raw = { sliding: d.sliding ?? String(links.sliding_days), cap: d.cap ?? String(links.cap_days), grace: d.grace ?? String(links.grace_hours) };
+    const sliding = intIn(raw.sliding, 1, 90);
+    const cap = intIn(raw.cap, 7, 365);
+    const grace = intIn(raw.grace, 0, 168);
+    const err = Number.isNaN(sliding) || Number.isNaN(cap) || Number.isNaN(grace) ? 'range' : cap < sliding ? 'below_sliding' : null;
+    const dirty = sliding !== links.sliding_days || cap !== links.cap_days || grace !== links.grace_hours;
+    const row = (key: 'sliding' | 'cap' | 'grace', label: TicketTextKey, sub: TicketTextKey, unit: TicketTextKey, lo: number, hi: number, bad: boolean) => html`
+      <div class="row"><span class="lbl">${tt(label)}<span class="muted">${tt(sub)}</span></span>
+        <span class="unit"><input class="in num" type="number" min=${lo} max=${hi} data-inst-link=${key} aria-label=${tt(label)} aria-invalid=${String(bad)} .value=${raw[key]}
+          @input=${(e: Event) => (this.instDraft = { ...this.instDraft, [key]: (e.target as HTMLInputElement).value })} /><span class="muted">${tt(unit)}</span></span></div>`;
+    return html`<sw-card heading=${tt('setLinksCard')} data-card="links">
+      ${row('sliding', 'setLinksSliding', 'setLinksSlidingSub', 'unit_d', 1, 90, Number.isNaN(sliding) || err === 'below_sliding')}
+      ${row('cap', 'setLinksCap', 'setLinksCapSub', 'unit_d', 7, 365, Number.isNaN(cap) || err === 'below_sliding')}
+      ${row('grace', 'setLinksGrace', 'setLinksGraceSub', 'unit_h', 0, 168, Number.isNaN(grace))}
+      <div class="foot"><sw-button variant="primary" size="sm" data-inst-links-save ?disabled=${!dirty || !!err || this.busy}
+        @click=${() => void this.saveDoc({ links: { sliding_days: sliding, cap_days: cap, grace_hours: grace } }, () => (this.instDraft = { ...this.instDraft, sliding: undefined, cap: undefined, grace: undefined }))}>${tt('save')}</sw-button>
+        ${err ? html`<span class="field-error">${tt(`err_${err}` as TicketTextKey)}</span>` : nothing}</div>
+    </sw-card>`;
+  }
+
+  /** slice 2: vendor send hours (D4) and urgent as critical (D28). */
+  private hoursCard(doc: SettingsDoc): TemplateResult {
+    const hours = doc.send_hours ?? { from: '07:00', to: '21:00' };
+    const from = this.instDraft.from ?? hours.from;
+    const to = this.instDraft.to ?? hours.to;
+    const err = windowProblem(from, to);
+    const dirty = from !== hours.from || to !== hours.to;
+    return html`<sw-card heading=${tt('setHoursCard')} data-card="hours">
+      <div class="row"><span class="lbl">${tt('setHoursRow')}<span class="muted">${tt('setHoursRowSub')}</span></span>
+        <span class="end"><input class="in time" type="time" data-inst-hours="from" aria-label=${tt('setHoursRow')} aria-invalid=${String(!!err)} .value=${from} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, from: (e.target as HTMLInputElement).value })} />
+          <span class="muted">${tt('hoursTo')}</span>
+          <input class="in time" type="time" data-inst-hours="to" aria-label=${`${tt('setHoursRow')} · ${tt('hoursTo')}`} aria-invalid=${String(!!err)} .value=${to} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, to: (e.target as HTMLInputElement).value })} />
+          <sw-button size="sm" variant="primary" data-inst-hours-save ?disabled=${!dirty || !!err || this.busy}
+            @click=${() => void this.saveDoc({ send_hours: { from, to } }, () => (this.instDraft = { ...this.instDraft, from: undefined, to: undefined }))}>${tt('save')}</sw-button></span></div>
+      ${err ? html`<div class="row"><span class="field-error">${tt(`err_${err}` as TicketTextKey)}</span></div>` : nothing}
+      <div class="row"><span class="lbl">${tt('setUrgent')}<span class="muted">${tt('setUrgentSub')}</span></span>
+        <sw-toggle label=${tt('setUrgent')} labelHidden .checked=${doc.urgent_is_critical ?? true} ?disabled=${this.busy} data-inst-urgent
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ urgent_is_critical: e.detail.checked })}></sw-toggle></div>
+    </sw-card>`;
   }
 
   private generalTab(): TemplateResult {
@@ -426,42 +358,18 @@ export class SystemTickets extends LitElement {
       </sw-card>
       ${this.enabled && this.doc && mayConfigure ? html`<sw-card heading=${tt('setDisplayCard')} data-card="display">
         <div class="row"><span class="lbl">${tt('setDetail')}<span class="muted">${tt('setDetailSub')}</span></span>
-          <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.detail === v)} aria-checked=${String(this.doc?.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveUi({ detail: v })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
+          <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.detail === v)} aria-checked=${String(this.doc?.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { detail: v } })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
         <div class="row"><span class="lbl">${tt('setNewTicket')}<span class="muted">${tt('setNewTicketSub')}</span></span>
-          <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveUi({ new_ticket: v })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
-      </sw-card>` : nothing}
+          <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { new_ticket: v } })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
+      </sw-card>
+      ${this.linksCard(this.doc)}
+      ${this.hoursCard(this.doc)}
+      <tickets-public-card .doc=${this.doc} ?busy=${this.busy} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}
+        @notice=${this.onNotice}></tickets-public-card>` : nothing}
     </div>`;
   }
 
-  // ---------------------------------------------------------------- departments
-
-  private dd(id: string): DeptDraft {
-    return this.deptDraft[id] ?? {};
-  }
-
-  private setDd(id: string, patch: DeptDraft): void {
-    this.deptDraft = { ...this.deptDraft, [id]: { ...this.dd(id), ...patch } };
-  }
-
-  private replaceDept(d: AdminDepartment): void {
-    this.departments = (this.departments ?? []).map((x) => (x.id === d.id ? d : x));
-  }
-
-  private async act(fn: () => Promise<AdminDepartment | void>, after?: () => void): Promise<void> {
-    if (this.busy) return;
-    this.busy = true;
-    try {
-      const d = await fn();
-      if (d) this.replaceDept(d);
-      after?.();
-      this.say(tt('setSaved'));
-    } catch (e) {
-      this.fail(e);
-      if (e instanceof ApiError && e.status === 409) void this.loadTab();
-    } finally {
-      this.busy = false;
-    }
-  }
+  // ---------------------------------------------------------------- departments (slice 2: list + editor)
 
   private async addDepartment(): Promise<void> {
     const name = this.newDept.name.trim();
@@ -474,6 +382,7 @@ export class SystemTickets extends LitElement {
     try {
       const d = await ticketsApi().createDepartment({ name, key });
       this.departments = [...(this.departments ?? []), d];
+      this.selected = d.id;
       this.newDept = { name: '', key: '' };
       this.say(tt('setSaved'));
     } catch (e) {
@@ -483,83 +392,51 @@ export class SystemTickets extends LitElement {
     }
   }
 
-  private async removeDepartment(d: AdminDepartment): Promise<void> {
-    if (this.busy || !window.confirm(`${tt('deleteConfirm')} ${d.name}`)) return;
-    this.busy = true;
-    try {
-      await ticketsApi().deleteDepartment(d.id);
-      this.departments = (this.departments ?? []).filter((x) => x.id !== d.id);
-      this.say(tt('setSaved'));
-    } catch (e) {
-      this.fail(e);
-    } finally {
-      this.busy = false;
-    }
-  }
+  private onDeptChanged = (e: CustomEvent<{ dept: AdminDepartment; saved?: boolean }>) => {
+    const d = e.detail.dept;
+    this.departments = (this.departments ?? []).map((x) => (x.id === d.id ? d : x));
+    if (e.detail.saved) this.say(tt('setSaved'));
+  };
 
-  private deptCard(d: AdminDepartment): TemplateResult {
-    const dr = this.dd(d.id);
-    const name = dr.name ?? d.name;
-    const days = dr.reopen_days ?? String(d.reopen_days);
-    const memberOptions = [
-      ...(this.directory?.users ?? []).filter((u) => !d.members.some((m) => m.kind === 'user' && m.id === u.id)).map((u) => ({ v: `user:${u.id}`, label: u.name })),
-      ...(this.directory?.groups ?? []).filter((g) => !d.members.some((m) => m.kind === 'group' && m.id === g.id)).map((g) => ({ v: `group:${g.id}`, label: `${g.name} (${tt('depGroupTag')})` })),
-    ];
-    return html`<sw-card heading=${d.name} subheading=${`${d.key} · ${tt('depOpenTickets', { n: d.open_tickets })}`} data-dept=${d.id}>
-      <div class="row"><span class="lbl">${tt('depName')}</span>
-        <span class="end"><input class="in" maxlength="40" data-dept-name .value=${name} @input=${(e: Event) => this.setDd(d.id, { name: (e.target as HTMLInputElement).value })} />
-          <sw-button size="sm" ?disabled=${this.busy || !name.trim() || name.trim() === d.name} data-dept-rename @click=${() => void this.act(() => ticketsApi().patchDepartment(d.id, { name: name.trim(), revision: d.revision }), () => this.setDd(d.id, { name: undefined }))}>${tt('save')}</sw-button></span></div>
-      <div class="row"><span class="lbl">${tt('depActive')}</span>
-        <sw-toggle label=${tt('depActive')} labelHidden .checked=${d.active} ?disabled=${this.busy} data-dept-active @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().patchDepartment(d.id, { active: e.detail.checked, revision: d.revision }))}></sw-toggle></div>
-      <div class="row"><span class="lbl">${tt('depOpenToAll')}<span class="muted">${tt('depOpenToAllSub')}</span></span>
-        <sw-toggle label=${tt('depOpenToAll')} labelHidden .checked=${d.open_to_all} ?disabled=${this.busy} data-dept-open @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().patchDepartment(d.id, { open_to_all: e.detail.checked, revision: d.revision }))}></sw-toggle></div>
-      <div class="row"><span class="lbl">${tt('depReopenDays')}</span>
-        <span class="end"><input class="in num" type="number" min="1" max="90" data-dept-reopen .value=${days} @input=${(e: Event) => this.setDd(d.id, { reopen_days: (e.target as HTMLInputElement).value })} />
-          <sw-button size="sm" ?disabled=${this.busy || Number(days) === d.reopen_days || !(Number(days) >= 1 && Number(days) <= 90)} @click=${() => void this.act(() => ticketsApi().patchDepartment(d.id, { reopen_days: Number(days), revision: d.revision }), () => this.setDd(d.id, { reopen_days: undefined }))}>${tt('save')}</sw-button></span></div>
-      <div class="row stack"><span class="lbl">${tt('depCategories')}</span>
-        <div class="chipsrow" data-dept-categories>${d.categories.filter((c) => c.active).length ? d.categories.filter((c) => c.active).map((c) => html`<span class="tag">${bidi(c.name)}<button type="button" class="rm" aria-label=${`${tt('depRemove')} ${c.name}`} data-cat-remove=${c.id} ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteCategory(c.id))}>×</button></span>`) : html`<span class="muted">${tt('depCatNone')}</span>`}</div>
-        <div class="add"><input class="in" maxlength="60" data-cat-new placeholder=${tt('depCatAdd')} .value=${dr.category ?? ''} @input=${(e: Event) => this.setDd(d.id, { category: (e.target as HTMLInputElement).value })} />
-          <sw-button size="sm" icon="plus" ?disabled=${this.busy || !(dr.category ?? '').trim()} data-cat-add @click=${() => void this.act(() => ticketsApi().createCategory(d.id, (dr.category ?? '').trim()), () => this.setDd(d.id, { category: '' }))}>${tt('depMemberAdd')}</sw-button></div></div>
-      <div class="row stack"><span class="lbl">${tt('depPriorities')}</span>
-        <div class="chipsrow" data-dept-priorities>${d.priorities.filter((p) => p.active).map((p) => p.is_default
-          ? html`<span class="tag ok" data-prio-default=${p.key}>${bidi(p.name)} · ${tt('depDefault')}</span>`
-          : html`<button type="button" class="rc" title=${tt('depMakeDefault')} data-prio-make-default=${p.key} ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().patchPriority(p.id, { is_default: true }))}>${bidi(p.name)}</button>`)}</div></div>
-      <div class="row stack"><span class="lbl">${tt('depMembers')}${!d.can_edit_members ? html`<span class="muted">${tt('depMembersLocked')}</span>` : nothing}</span>
-        <div class="people" data-dept-members>${d.members.length ? repeat(d.members, (m) => `${m.kind}:${m.id}`, (m) => html`<div class="person" data-member=${`${m.kind}:${m.id}`}>
-          <span class="who">${bidi(m.name)}${m.kind === 'group' ? html` <span class="tag">${tt('depGroupTag')}</span>` : nothing}</span>
-          <span class="seg" role="radiogroup" aria-label=${m.name}>${(['manager', 'member'] as const).map((r) => html`<button type="button" role="radio" aria-pressed=${String(m.role === r)} aria-checked=${String(m.role === r)} ?disabled=${this.busy || !d.can_edit_members || m.role === r} data-member-role=${r} @click=${() => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r))}>${r === 'manager' ? tt('depManager') : tt('depMember')}</button>`)}</span>
-          ${d.can_edit_members ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
-        </div>`) : html`<span class="muted">${tt('depNoMembers')}</span>`}</div>
-        ${d.can_edit_members ? html`<div class="add">
-          <select class="in" data-member-pick aria-label=${tt('depMemberPick')} @change=${(e: Event) => this.setDd(d.id, { member: (e.target as HTMLSelectElement).value })}>
-            <option value="" ?selected=${!dr.member}>${tt('depMemberPick')}</option>
-            ${memberOptions.map((o) => html`<option value=${o.v} ?selected=${dr.member === o.v}>${o.label}</option>`)}
-          </select>
-          <select class="in" data-member-new-role aria-label=${tt('depMembers')} @change=${(e: Event) => this.setDd(d.id, { role: (e.target as HTMLSelectElement).value as 'manager' | 'member' })}>
-            <option value="member" ?selected=${(dr.role ?? 'member') === 'member'}>${tt('depMember')}</option>
-            <option value="manager" ?selected=${dr.role === 'manager'}>${tt('depManager')}</option>
-          </select>
-          <sw-button size="sm" icon="plus" ?disabled=${this.busy || !dr.member} data-member-add @click=${() => { const [kind, ...rest] = (dr.member ?? '').split(':'); void this.act(() => ticketsApi().putMember(d.id, kind as 'user' | 'group', rest.join(':'), dr.role ?? 'member'), () => this.setDd(d.id, { member: '' })); }}>${tt('depMemberAdd')}</sw-button>
-        </div>` : nothing}</div>
-      ${d.open_tickets === 0 ? html`<div class="row"><span class="lbl"></span><sw-button size="sm" variant="danger" data-dept-delete ?disabled=${this.busy} @click=${() => void this.removeDepartment(d)}>${tt('depDelete')}</sw-button></div>` : nothing}
-    </sw-card>`;
-  }
+  private onDeptDeleted = (e: CustomEvent<{ id: string }>) => {
+    this.departments = (this.departments ?? []).filter((x) => x.id !== e.detail.id);
+    this.selected = this.departments[0]?.id ?? '';
+  };
+
+  private onNotice = (e: CustomEvent<{ ok?: string; error?: string }>) => {
+    if (e.detail.error) this.fail(e.detail.error);
+    else if (e.detail.ok) this.say(e.detail.ok);
+  };
 
   private departmentsTab(): TemplateResult {
     if (!this.departments) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    return html`<div class="stack">
-      <sw-card heading=${tt('depAdd')} data-card="dept-new">
-        <div class="add">
-          <input class="in" maxlength="40" data-dept-new-name placeholder=${tt('depName')} .value=${this.newDept.name} @input=${(e: Event) => (this.newDept = { ...this.newDept, name: (e.target as HTMLInputElement).value })} />
-          <input class="in" maxlength="32" dir="ltr" data-dept-new-key placeholder=${tt('depKey')} title=${tt('depKeySub')} .value=${this.newDept.key} @input=${(e: Event) => (this.newDept = { ...this.newDept, key: (e.target as HTMLInputElement).value })} />
-          <sw-button size="sm" variant="primary" icon="plus" data-dept-add ?disabled=${this.busy || !this.newDept.name.trim() || !this.newDept.key.trim()} @click=${() => void this.addDepartment()}>${tt('depMemberAdd')}</sw-button>
-        </div>
-      </sw-card>
-      ${this.departments.length ? repeat(this.departments, (d) => d.id, (d) => this.deptCard(d)) : html`<sw-state-panel state="empty" heading=${tt('depNone')}></sw-state-panel>`}
+    const sel = this.departments.find((d) => d.id === this.selected) ?? null;
+    return html`<div class="split" data-dept-split>
+      <div class="stack">
+        <sw-card heading=${tt('depListTitle')} data-card="dept-list">
+          ${this.departments.length ? html`<div class="dlist" role="list">${repeat(this.departments, (d) => d.id, (d) => html`<button type="button" role="listitem" class=${`ditem ${d.active ? '' : 'off'}`}
+            aria-current=${String(d.id === this.selected)} data-dept-item=${d.id} @click=${() => (this.selected = d.id)}>
+            <span class="txt"><span class="nm">${bidi(d.name)}</span>
+              <span class="sub">${tt('depSummary', { c: d.categories.filter((c) => c.active).length, p: d.priorities.filter((p) => p.active).length, m: d.members.length })}</span></span>
+            ${d.active ? nothing : html`<span class="tag">${tt('depInactive')}</span>`}</button>`)}</div>`
+            : html`<sw-state-panel state="empty" heading=${tt('depNone')}></sw-state-panel>`}
+          <div class="foot">
+            <input class="in" maxlength="40" data-dept-new-name placeholder=${tt('depName')} aria-label=${tt('depAdd')} .value=${this.newDept.name} @input=${(e: Event) => (this.newDept = { ...this.newDept, name: (e.target as HTMLInputElement).value })} />
+            <input class="in" maxlength="32" dir="ltr" data-dept-new-key placeholder=${tt('depKey')} title=${tt('depKeySub')} aria-label=${tt('depKey')} .value=${this.newDept.key} @input=${(e: Event) => (this.newDept = { ...this.newDept, key: (e.target as HTMLInputElement).value })} />
+            <sw-button size="sm" variant="primary" icon="plus" data-dept-add ?disabled=${this.busy || !this.newDept.name.trim() || !this.newDept.key.trim()} @click=${() => void this.addDepartment()}>${tt('depNewShort')}</sw-button>
+          </div>
+        </sw-card>
+      </div>
+      ${sel ? html`<tickets-dept-editor .dept=${sel} .directory=${this.directory} .installation=${this.installation}
+        @dept-changed=${this.onDeptChanged} @dept-deleted=${this.onDeptDeleted} @notice=${this.onNotice} @dept-reload=${() => void this.loadDepartments()}></tickets-dept-editor>` : nothing}
     </div>`;
   }
 
   // ---------------------------------------------------------------- permissions (section 8.2)
+
+  private grantOf(uid: string, perm: Perm): Grant | undefined {
+    return this.holders?.users.find((u) => u.id === uid)?.grants.find((g) => g.via === 'grant' && g.role_id === `tickets_${perm}`);
+  }
 
   private async toggleGrant(perm: Perm, on: boolean): Promise<void> {
     const uid = this.grantUser;
@@ -567,9 +444,12 @@ export class SystemTickets extends LitElement {
     this.busy = true;
     try {
       const role = `tickets_${perm}`;
-      if (on) await createBinding({ subject_kind: 'user', subject_id: uid, role_id: role, scope_type: 'installation', scope_id: '*' });
-      else {
-        const grant = this.holders?.users.find((u) => u.id === uid)?.grants.find((g) => g.via === 'grant' && g.role_id === role);
+      if (on) {
+        const [scopeType, ...rest] = this.grantScope.split(':');
+        const until = this.grantUntil ? new Date(`${this.grantUntil}T23:59:59`).toISOString().replace(/\.\d+Z$/, 'Z') : null;
+        await createBinding({ subject_kind: 'user', subject_id: uid, role_id: role, scope_type: scopeType, scope_id: rest.join(':'), ...(until ? { expires_at: until } : {}) });
+      } else {
+        const grant = this.grantOf(uid, perm);
         if (grant) await revokeBinding(grant.binding_id);
       }
       this.holders = await ticketsApi().holders();
@@ -581,34 +461,78 @@ export class SystemTickets extends LitElement {
     }
   }
 
+  private viaText(g: Grant): string {
+    const via = g.via === 'grant' ? tt('via_grant') : g.via === 'group' ? tt('via_group', { group: g.group_name ?? '' }) : tt('via_role', { role: g.role_name });
+    const scope = g.scope_type !== 'installation' ? ` · ${tt('permScope', { scope: g.scope_name })}` : '';
+    const until = g.expires_at ? ` · ${tt('permUntil', { date: new Date(g.expires_at).toLocaleDateString('he-IL') })}` : '';
+    return via + scope + until;
+  }
+
+  private matrixCard(): TemplateResult {
+    const roles = this.holders?.roles ?? [];
+    if (!roles.length) return html``;
+    return html`<sw-card heading=${tt('permHolders')} data-card="matrix">
+      <div class="gridwrap" data-perm-matrix>
+        <table class="matrix">
+          <thead><tr><th>${tt('permMatrixRole')}</th>${PERMS.map((p) => html`<th>${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? html`<br /><span class="tag warn">${tt('sensitive')}</span>` : nothing}</th>`)}</tr></thead>
+          <tbody>${roles.map((r) => html`<tr data-role=${r.id}><td>${bidi(r.name)}${r.builtin ? nothing : html` <span class="tag">${tt('permCustom')}</span>`}</td>
+            ${PERMS.map((p) => r.permissions.includes(`tickets.${p}`) ? html`<td class="yes" aria-label=${tt('yes')}>✓</td>` : html`<td class="no" aria-label=${tt('no')}>–</td>`)}</tr>`)}</tbody>
+        </table>
+      </div>
+      <div class="pcards">${roles.map((r) => html`<div class="pcard" data-role-card=${r.id}><h4>${bidi(r.name)}</h4>
+        <div class="chipsrow">${r.permissions.length ? r.permissions.map((p) => html`<span class="tag">${tt(`p_${p.replace(/^tickets\./, '')}` as TicketTextKey)}</span>`) : html`<span class="muted">–</span>`}</div></div>`)}</div>
+      <div class="foot"><a href="#/system/access" data-to-roles>${tt('permToRoles')}</a></div>
+    </sw-card>`;
+  }
+
+  private holdersCard(): TemplateResult {
+    const h = this.holders!;
+    const label = (p: string) => tt(`p_${p.replace(/^tickets\./, '')}` as TicketTextKey);
+    const byPerson = html`${h.users.length ? html`<div class="people">${repeat(h.users, (u) => u.id, (u) => html`<div class="person" data-holder=${u.id}>
+        <span class="who">${bidi(u.name)}${u.active ? nothing : html` <span class="tag warn">${tt('permInactive')}</span>`}</span>
+        ${u.grants.map((g) => html`<span class="chipsrow">${g.permissions.map((p) => html`<span class=${`tag ${SENSITIVE_PERMS.includes(p.replace(/^tickets\./, '') as Perm) ? 'warn' : ''}`}>${label(p)}</span>`)}${g.effect === 'deny' ? html`<span class="tag warn">${tt('permDeny')}</span>` : nothing}<span class="via">${this.viaText(g)}</span></span>`)}
+      </div>`)}</div>` : html`<span class="muted">${tt('permNone')}</span>`}`;
+    const byPerm = html`<div class="people">${PERMS.map((p) => {
+      const who = h.users.filter((u) => u.grants.some((g) => g.effect === 'allow' && g.permissions.includes(`tickets.${p}`)));
+      return html`<div class="person" data-holder-perm=${p}><span class="who">${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? html` <span class="tag warn">${tt('sensitive')}</span>` : nothing}</span>
+        <span class="chipsrow">${who.length ? who.map((u) => html`<span class="tag">${bidi(u.name)}</span>`) : html`<span class="muted">${tt('permNobody')}</span>`}</span></div>`;
+    })}</div>`;
+    return html`<sw-card heading=${tt('permPeople')} data-card="holders">
+      <div class="row"><span class="lbl"></span><span class="seg" role="radiogroup" aria-label=${tt('permPeople')}>
+        ${(['person', 'perm'] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.holdersBy === v)} aria-checked=${String(this.holdersBy === v)} data-holders-by=${v} @click=${() => (this.holdersBy = v)}>${v === 'person' ? tt('permByPerson') : tt('permByPerm')}</button>`)}</span></div>
+      ${this.holdersBy === 'person' ? byPerson : byPerm}
+      <div class="foot"><a href="#/system/access" data-to-users>${tt('permToUsers')}</a></div>
+    </sw-card>`;
+  }
+
+  private grantCard(): TemplateResult {
+    const mayAssign = !isApi() || canAnywhere('rbac.assign');
+    const today = new Date().toISOString().slice(0, 10);
+    return html`<sw-card heading=${tt('permGrantCard')} data-card="grant">
+      ${mayAssign ? html`
+        <div class="row"><span class="lbl">${tt('permGrantUser')}</span>
+          <select class="in" data-grant-user aria-label=${tt('permGrantPick')} @change=${(e: Event) => (this.grantUser = (e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!this.grantUser}>${tt('permGrantPick')}</option>
+            ${(this.directory?.users ?? []).map((u) => html`<option value=${u.id} ?selected=${u.id === this.grantUser}>${u.name}</option>`)}
+          </select></div>
+        ${this.grantUser ? html`
+          <div class="row"><span class="lbl">${tt('permGrantScope')}</span>
+            <select class="in" data-grant-scope aria-label=${tt('permGrantScope')} @change=${(e: Event) => (this.grantScope = (e.target as HTMLSelectElement).value)}>
+              ${(this.scopes ?? [{ type: 'installation', id: '*', label: tt('permScopeAll') }]).map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${this.grantScope === `${s.type}:${s.id}`}>${s.label}</option>`)}
+            </select></div>
+          <div class="row"><span class="lbl">${tt('permGrantUntil')}</span>
+            <input class="in" type="date" min=${today} data-grant-until aria-label=${tt('permGrantUntil')} .value=${this.grantUntil} @input=${(e: Event) => (this.grantUntil = (e.target as HTMLInputElement).value)} /></div>
+          <div class="chipsrow" data-grant-perms>${PERMS.map((p) => {
+            const g = this.grantOf(this.grantUser, p);
+            return html`<button type="button" class="rc" aria-pressed=${String(!!g)} data-grant=${p} ?disabled=${this.busy} title=${g ? this.viaText(g) : ''} @click=${() => void this.toggleGrant(p, !g)}>${g ? '✓ ' : '+ '}${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? ` · ${tt('sensitive')}` : ''}</button>`;
+          })}</div>` : nothing}`
+        : html`<div class="row"><span class="muted">${tt('permGrantNoAssign')}</span><a href="#/system/access">${tt('permToUsers')}</a></div>`}
+    </sw-card>`;
+  }
+
   private permissionsTab(): TemplateResult {
     if (!this.holders) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    const mayAssign = !isApi() || canAnywhere('rbac.assign');
-    const label = (p: string) => tt(`p_${p.replace(/^tickets\./, '')}` as TicketTextKey);
-    const granted = (uid: string, perm: Perm) => this.holders?.users.find((u) => u.id === uid)?.grants.some((g) => g.via === 'grant' && g.role_id === `tickets_${perm}`) ?? false;
-    const viaText = (g: HoldersResponse['users'][number]['grants'][number]) => g.via === 'grant' ? tt('via_grant') : g.via === 'group' ? tt('via_group', { group: g.group_name ?? '' }) : tt('via_role', { role: g.role_name });
-    return html`<div class="stack">
-      <sw-card heading=${tt('permHolders')} data-card="holders">
-        ${this.holders.users.length ? html`<div class="people">${repeat(this.holders.users, (u) => u.id, (u) => html`<div class="person" data-holder=${u.id}>
-          <span class="who">${bidi(u.name)}${u.active ? nothing : html` <span class="tag warn">${tt('permInactive')}</span>`}</span>
-          ${u.grants.map((g) => html`<span class="chipsrow">${g.permissions.map((p) => html`<span class=${`tag ${SENSITIVE_PERMS.includes(p.replace(/^tickets\./, '') as Perm) ? 'warn' : ''}`}>${label(p)}</span>`)}<span class="via">${viaText(g)}${g.scope_type !== 'installation' ? ` · ${tt('permScope', { scope: g.scope_name })}` : ''}</span></span>`)}
-        </div>`)}</div>` : html`<span class="muted">${tt('permNone')}</span>`}
-        <div class="row"><span class="lbl"></span><a href="#/system/access" data-to-users>${tt('permToUsers')}</a></div>
-      </sw-card>
-      <sw-card heading=${tt('permGrantCard')} data-card="grant">
-        ${mayAssign ? html`
-          <div class="row"><span class="lbl">${tt('permGrantUser')}</span>
-            <select class="in" data-grant-user aria-label=${tt('permGrantPick')} @change=${(e: Event) => (this.grantUser = (e.target as HTMLSelectElement).value)}>
-              <option value="" ?selected=${!this.grantUser}>${tt('permGrantPick')}</option>
-              ${(this.directory?.users ?? []).map((u) => html`<option value=${u.id} ?selected=${u.id === this.grantUser}>${u.name}</option>`)}
-            </select></div>
-          ${this.grantUser ? html`<div class="chipsrow" data-grant-perms>${PERMS.map((p) => {
-            const on = granted(this.grantUser, p);
-            return html`<button type="button" class="rc" aria-pressed=${String(on)} data-grant=${p} ?disabled=${this.busy} @click=${() => void this.toggleGrant(p, !on)}>${on ? '✓ ' : '+ '}${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? ` · ${tt('sensitive')}` : ''}</button>`;
-          })}</div>` : nothing}`
-          : html`<div class="row"><span class="muted">${tt('permGrantNoAssign')}</span><a href="#/system/access">${tt('permToUsers')}</a></div>`}
-      </sw-card>
-    </div>`;
+    return html`<div class="stack">${this.matrixCard()}${this.holdersCard()}${this.grantCard()}</div>`;
   }
 
   // ---------------------------------------------------------------- page
@@ -616,10 +540,20 @@ export class SystemTickets extends LitElement {
   render() {
     const heading = tt('area');
     if (this.enabled === null) return html`<sw-page crumbs="הגדרות" heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    const contacts = !isApi() || can('tickets.configure') || canAnywhere('tickets.manage'); // slice 4: the directory (the server decides what each sees)
+    const channel = !isApi() || can('system.configure'); // slice 5b: the master switch and the e-mail fallback (PUT /tickets/channel)
+    const templates = !isApi() || can('tickets.configure'); // slice 5b: message templates (D26)
     const tabs = this.enabled ? html`<sw-tabs variant="underline" data-tickets-settings-tabs .items=${[
-      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') }, { id: 'permissions', label: tt('setTabPermissions') },
+      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') },
+      ...(contacts ? [{ id: 'contacts', label: tt('setTabContacts') }] : []),
+      ...(channel ? [{ id: 'channel', label: mtt('tabChannel') }] : []), ...(templates ? [{ id: 'messages', label: mtt('tabTemplates') }] : []), // slice 5b
+      { id: 'permissions', label: tt('setTabPermissions') },
     ]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;
-    const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab() : this.permissionsTab();
+    const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
+      : this.tab === 'contacts' ? html`<tickets-contacts @notice=${this.onNotice}></tickets-contacts>`
+      : this.tab === 'channel' ? html`<tickets-channel-settings @notice=${this.onNotice}></tickets-channel-settings>` // slice 5b
+      : this.tab === 'messages' ? html`<tickets-message-templates @notice=${this.onNotice}></tickets-message-templates>` // slice 5b
+      : this.permissionsTab();
     return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${tt('setSub')} data-tickets-settings data-tab=${this.tab}>
       ${tabs}
       ${this.error ? html`<div class="msg err" role="alert" data-tickets-settings-error>${this.error}</div>` : nothing}

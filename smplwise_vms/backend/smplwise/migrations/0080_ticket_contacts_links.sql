@@ -8,7 +8,9 @@
 -- module key names it (`key_id`, `phone_key_id`; code review V4: a key rotation re-derives under a staged key in one
 -- transaction and no crash point strands a row). Codes, their send caps and the wrong-code window are per link GENERATION
 -- (code review V8): the manager's "new link" starts clean by construction.
--- Times are UTC ISO-8601 `...Z` text like every other table of the module.
+-- Times are UTC ISO-8601 `...Z` text like every other table of the module. On a link, `generation_at` is when its current
+-- generation started (the base of the cap), `sent_at` / `sent_via` when and how that generation first left (the manager's copy,
+-- or slice 5b's outbox) - slice 6's "link not opened" counts from `sent_at`.
 
 CREATE TABLE ticket_contacts (
   id               TEXT PRIMARY KEY,
@@ -57,7 +59,9 @@ CREATE TABLE ticket_links (
   token_hash       TEXT NOT NULL UNIQUE,
   require_code     INTEGER NOT NULL CHECK (require_code IN (0, 1)),
   sent_via         TEXT CHECK (sent_via IN ('whatsapp', 'email', 'manual')),
+  sent_at          TEXT,
   created_at       TEXT NOT NULL,
+  generation_at    TEXT,
   expires_at       TEXT NOT NULL,
   cap_at           TEXT NOT NULL,
   grace_until      TEXT,

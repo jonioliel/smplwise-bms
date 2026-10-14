@@ -8,6 +8,7 @@ import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
 import { boardViewSwitch } from '../tickets/table-switch';
+import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (a chip only while the queue is not empty)
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -317,6 +318,7 @@ export class TicketsList extends LitElement {
           ${STATUS_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.status === s)} data-status-filter=${s} @click=${() => this.setFilters({ status: s })}>${filterLabel(s)}</button>`)}
         </div>
         <span class="grow"></span>
+        ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
         ${boardViewSwitch(this.view, (v) => this.setView(v))}

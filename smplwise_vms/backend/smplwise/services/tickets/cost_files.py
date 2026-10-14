@@ -7,11 +7,15 @@ PDFs (11A.6) - a PDF cannot be re-encoded without a renderer, which the add-on d
 - refused (422 `pdf_refused`) when its bytes name `/JavaScript`, `/JS`, `/Launch`, `/EmbeddedFile`, `/RichMedia`, `/XFA`,
   `/OpenAction`, `/AA` or `/Encrypt` (an encrypted file cannot be scanned at all). The scan reads every PDF NAME token of the
   file and compares it exactly after decoding `#xx` escapes - so `/J#61vaScript` is caught, and `/JSON` or `/AAPL` are not
-  mistaken for `/JS` / `/AA` as a plain substring search would;
-- FlateDecode streams (object streams of PDF 1.5+ included) are inflated with a bound (4 x the file, at most 32 MiB in total -
-  past it the file is refused) and scanned the same way (slice 9, code review V7). KNOWN LIMIT, stated plainly: other filters
-  (LZW, ASCII85 chains ...) and streams that do not inflate cleanly are not looked into. The scan is a FILTER, NOT A GUARANTEE.
-  The real controls are the next two rules;
+  mistaken for `/JS` / `/AA` as a plain substring search would; a name with a `#` that is not a two-digit escape
+  (`/J#avaScript`) is refused too - some readers are lenient about it;
+- every FlateDecode (zlib) stream is INFLATED, within a bound, and its bytes scanned the same way (code review V7: PDF 1.5+
+  writers - Word, Chrome, LibreOffice - put every object, an `/OpenAction` included, in compressed object streams, which a
+  byte scan alone never sees). The bound: all streams of a file together inflate to at most max(8 x the file, 4 MiB) and
+  never more than 32 MiB, at most 4000 streams - past it the file is refused (no invoice comes near it; an inflate bomb
+  buys no CPU or memory). A stream that is not valid zlib is scanned as far as it inflates;
+- KNOWN LIMIT, stated plainly: streams under other filters (LZW, ASCII85, ASCIIHex, RunLength) or filter chains are not
+  decoded. The scan is a FILTER, NOT A GUARANTEE. The real controls are the next two rules;
 - stored under a random name in `<data>/tickets/<ticket_id>/costs/`, and never parsed, rendered, thumbnailed or previewed by Arx;
 - served only as a DOWNLOAD to authorised internal users: `Content-Type: application/pdf`, `Content-Disposition: attachment`,
   `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`, `Cache-Control: private, no-store`
@@ -28,8 +32,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+import zlib
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Iterator, Mapping, Sequence
 
 from .image_intake import IntakeError, sniff
 
@@ -46,7 +51,14 @@ _PLAIN_RE = re.compile(rb"/(?:" + b"|".join(re.escape(n) for n in sorted(ACTIVE_
 # names written with #xx escapes (`/J#61vaScript`): decoded one by one - bounded, a file made of escapes is refused
 _ESCAPED_RE = re.compile(rb"/[^" + _DELIM + rb"]*#[^" + _DELIM + rb"]*")
 _HEX_ESCAPE_RE = re.compile(rb"#([0-9A-Fa-f]{2})")
+_BAD_ESCAPE_RE = re.compile(rb"#(?![0-9A-Fa-f]{2})")
 MAX_ESCAPED_NAMES = 2000
+# the bounded inflate of FlateDecode streams (code review V7)
+INFLATE_RATIO = 8
+INFLATE_MIN = 4 * MiB
+INFLATE_MAX = 32 * MiB
+MAX_STREAMS = 4000
+_STREAM_RE = re.compile(rb"stream(?:\r\n|\n)")
 
 MAX_DOCUMENTS = 3
 MAX_PAGES = 10
@@ -66,73 +78,78 @@ def _decoded_name(raw: bytes) -> bytes:
     return _HEX_ESCAPE_RE.sub(lambda m: bytes([int(m.group(1), 16)]), raw)
 
 
-def active_markers(data: bytes) -> set[str]:
-    """The refused names that appear as whole PDF name tokens anywhere in `data` - plainly or with `#xx` escapes. A file with
-    more than MAX_ESCAPED_NAMES escaped names answers {"(escapes)"} (no invoice needs that many; scanning them all would let a
-    crafted file buy seconds of CPU per upload)."""
+def active_markers(data: bytes, escapes: list[int] | None = None) -> set[str]:
+    """The refused names that appear as whole PDF name tokens anywhere in `data` - plainly or with `#xx` escapes - plus
+    "(escape)" for a name with a malformed `#` escape. More than MAX_ESCAPED_NAMES escaped names (counted across every call
+    that shares `escapes`, a one-element list: the whole file and its inflated streams) answers {"(escapes)"} (no invoice needs
+    that many; scanning them all would let a crafted file buy seconds of CPU per upload)."""
+    budget = escapes if escapes is not None else [MAX_ESCAPED_NAMES]
     found = {m.group(0)[1:].decode("ascii") for m in _PLAIN_RE.finditer(data)}
     if b"#" in data:
-        for i, m in enumerate(_ESCAPED_RE.finditer(data)):
-            if i >= MAX_ESCAPED_NAMES:
+        for m in _ESCAPED_RE.finditer(data):
+            if budget[0] <= 0:
                 found.add("(escapes)")
                 break
-            name = _decoded_name(m.group(0)[1:])
+            budget[0] -= 1
+            raw = m.group(0)[1:]
+            if _BAD_ESCAPE_RE.search(raw):
+                found.add("(escape)")
+                continue
+            name = _decoded_name(raw)
             if name in ACTIVE_NAMES:
                 found.add(name.decode("ascii", "replace"))
     return found
 
 
-# Slice 9 (code review V7): names inside FlateDecode streams - PDF 1.5+ object streams put EVERY object there - are inflated with
-# a bound and scanned too. The bound is on the TOTAL inflated bytes of the file: past it the file is refused (a deflate bomb buys
-# nothing). A stream that does not inflate cleanly is skipped (it is scanned as raw bytes already); this stays a filter.
-_STREAM_RE = re.compile(rb"stream\r?\n")
-_FLATE_RE = re.compile(rb"/FlateDecode(?=[" + _DELIM + rb"]|\Z)")
-INFLATE_FACTOR = 4
-INFLATE_MAX = 32 * MiB
-MAX_STREAMS = 4000
-_DICT_LOOKBACK = 2048
-
-
-def inflated_markers(data: bytes) -> set[str]:
-    """The refused names found inside the file's FlateDecode streams, after a bounded inflate; {"(inflate_bound)"} when the
-    streams inflate past min(4 x the file size, 32 MiB) and {"(streams)"} past MAX_STREAMS streams."""
-    import zlib
-
-    budget = min(INFLATE_FACTOR * len(data), INFLATE_MAX)
-    found: set[str] = set()
-    pos = 0
+def inflated_streams(data: bytes) -> Iterator[bytes]:
+    """The inflated bytes of every zlib (FlateDecode) stream of `data`, in order, within the bound of the module docstring
+    (IntakeError 422 `pdf_refused` past it). A stream is recognised by the `stream` keyword and a valid zlib header after it;
+    it ends at the next `endstream`. Corrupt zlib data yields what inflated before the error."""
+    budget = min(INFLATE_MAX, max(INFLATE_MIN, INFLATE_RATIO * len(data)))
     streams = 0
-    while True:
-        m = _STREAM_RE.search(data, pos)
-        if m is None:
-            break
+    n = len(data)
+    for m in _STREAM_RE.finditer(data):
         start = m.end()
-        end = data.find(b"endstream", start)
-        if end < 0:
+        if start + 2 > n:
             break
-        pos = end + 9
-        head = data[max(0, m.start() - _DICT_LOOKBACK):m.start()]
-        if b"<<" not in head or not _FLATE_RE.search(head[head.rfind(b"<<"):]):
-            continue
+        cmf, flg = data[start], data[start + 1]
+        if cmf & 0x0F != 8 or cmf >> 4 > 7 or (cmf * 256 + flg) % 31 != 0:
+            continue  # not a zlib stream (a JPEG image, a plain content stream, the `stream` of an `endstream`)
         streams += 1
         if streams > MAX_STREAMS:
-            return {"(streams)"}
-        d = zlib.decompressobj()
-        try:
-            out = d.decompress(data[start:end], budget + 1)
-        except zlib.error:
-            continue
+            raise IntakeError("pdf_refused", 422)
+        end = data.find(b"endstream", start)
+        out = _inflate(data[start:end if end >= 0 else n], budget)
+        if len(out) > budget:
+            raise IntakeError("pdf_refused", 422)  # an inflate bomb, or far more content than an invoice holds
         budget -= len(out)
-        if budget < 0 or d.unconsumed_tail:
-            return {"(inflate_bound)"}
-        found |= active_markers(out)
-    return found
+        yield out
+
+
+def _inflate(stream: bytes, limit: int) -> bytes:
+    """At most `limit` + 1 bytes of `stream` inflated (one more than the limit tells the caller it was exceeded; zlib's
+    max_length keeps a bomb from ever producing more). Corrupt data: what inflated before the corrupt piece - the stream is
+    fed again in 1 KiB pieces, so a lenient reader cannot see much more than the scan did."""
+    try:
+        return zlib.decompressobj().decompress(stream, limit + 1)
+    except zlib.error:
+        pass
+    d = zlib.decompressobj()
+    out = bytearray()
+    for i in range(0, len(stream), 1024):
+        try:
+            out += d.decompress(stream[i:i + 1024], limit + 1 - len(out))
+        except zlib.error:
+            break
+        if len(out) > limit or d.eof:
+            break
+    return bytes(out)
 
 
 def check_pdf(data: bytes) -> PdfInfo:
     """Accept a PDF per 11A.6, or IntakeError: 413 `too_large`, 415 `unsupported_format` (no `%PDF-` at offset 0), 422
-    `pdf_invalid` (no `%%EOF` in the last 1 KiB), 422 `pdf_refused` (an active-content or encryption name - in the raw bytes or
-    inside an inflated FlateDecode stream). See the module docstring for what this check can and cannot see."""
+    `pdf_invalid` (no `%%EOF` in the last 1 KiB), 422 `pdf_refused` (an active-content or encryption name). See the module
+    docstring for what this check can and cannot see."""
     if not isinstance(data, (bytes, bytearray)) or not data:
         raise IntakeError("unsupported_format", 415)
     if len(data) > PDF_MAX_BYTES:
@@ -142,8 +159,12 @@ def check_pdf(data: bytes) -> PdfInfo:
         raise IntakeError("unsupported_format", 415)
     if b"%%EOF" not in data[-PDF_TAIL:]:
         raise IntakeError("pdf_invalid", 422)
-    if active_markers(data) or inflated_markers(data):
+    escapes = [MAX_ESCAPED_NAMES]
+    if active_markers(data, escapes):
         raise IntakeError("pdf_refused", 422)
+    for inflated in inflated_streams(data):
+        if active_markers(inflated, escapes):
+            raise IntakeError("pdf_refused", 422)
     return PdfInfo(bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
 
 

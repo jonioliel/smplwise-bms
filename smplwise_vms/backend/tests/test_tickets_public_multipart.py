@@ -77,6 +77,24 @@ def test_refusals(bad, code):
     assert e.value.code == code
 
 
+@pytest.mark.parametrize("filename", ['"IMG;1234.jpg"', '"a\\"b.jpg"', '"x; name=evil"', "plain.jpg"])
+def test_quoted_parameters_may_hold_semicolons_and_escaped_quotes(filename):
+    """Code review V20: a `;` inside a quoted filename is part of the value (browsers send it so); a quoted `; name=...` cannot
+    smuggle a second name."""
+    block = (b"--" + B + b'\r\nContent-Disposition: form-data; name="file"; filename=' + filename.encode() +
+             b"\r\n\r\nx\r\n--" + B + b'\r\nContent-Disposition: form-data; name="client_request_id"\r\n\r\nid\r\n--' + B + b"--")
+    assert parse_form(block, B, RULES)["file"].data == b"x"
+
+
+@pytest.mark.parametrize("disposition", ['form-data; name="file"; filename="unterminated', 'form-data; name="file" filename="a"',
+                                         'form-data; name="file"; ="a"', "form-data; name"])
+def test_broken_parameter_syntax_is_refused(disposition):
+    block = (b"--" + B + b"\r\nContent-Disposition: " + disposition.encode() + b"\r\n\r\nx\r\n--" + B + b"--")
+    with pytest.raises(MultipartError) as e:
+        parse_form(block, B, RULES)
+    assert e.value.code == "disposition"
+
+
 def test_text_field_must_be_utf8():
     parts = parse_form(body(("file", b"x", "a.jpg"), ("client_request_id", b"\xff\xfe", None)), B, RULES)
     with pytest.raises(MultipartError) as e:

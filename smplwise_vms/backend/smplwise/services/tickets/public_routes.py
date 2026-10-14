@@ -27,7 +27,8 @@ from . import handler_actions, links
 from .handler_actions import ActionRefused, LinkGone
 from .keyring import KEYS
 from .module_key import ModuleKeyError
-from .public_app import Idempotency, LinkContext, PublicError, link_context, parse_client_request_id, read_json, spend_budget
+from .public_app import (Idempotency, LinkContext, PublicError, idempotency_scope, link_context, parse_client_request_id, read_json,
+                         spend_budget)
 from .text_hygiene import clean_str
 
 UTC = dt.timezone.utc
@@ -102,7 +103,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 spend_budget(request)  # W18: a stored effect spends one unit of the token's write budget, nothing else does
             return status, answer
 
-        return await idem.run(f"link:{ctx.link.link_id}", crid, route, work)
+        return await idem.run(idempotency_scope(ctx.link), crid, route, work)
 
     @r.get("/t/api/ticket")
     async def ticket(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True))) -> JSONResponse:

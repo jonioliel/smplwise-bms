@@ -24,7 +24,7 @@ from starlette.concurrency import run_in_threadpool
 from ...db import Database
 from . import cost_files, costs, store_costs, store_links
 from .handler_actions import claim as claim_request, _finish as finish_request
-from .public_app import ClaimFileSink, Idempotency, LinkContext, PublicError, link_context, parse_client_request_id, read_json, spend_budget
+from .public_app import ClaimFileSink, Idempotency, idempotency_scope, LinkContext, PublicError, link_context, parse_client_request_id, read_json, spend_budget
 from .public_ports import LinkRecord
 from .public_store import audit_link
 from .text_hygiene import clean_text
@@ -89,14 +89,14 @@ class SqlClaimFileSink(ClaimFileSink):
         label = clean_text(name or "")[:80]
         with self.db.connection(label="tickets.public.claim") as conn:
             claim = self._open_claim(conn, link, now)
-            prior = store_links.request_row(conn, f"link:{link.link_id}", crid)
+            prior = store_links.request_row(conn, idempotency_scope(link), crid)
             if prior is not None:
                 raise PublicError(409, "request_id_reused" if prior["route"] != FILE_ROUTE else "request_in_progress", retry_after_s=2)
             since = costs.iso(now - costs.PENDING_TTL)
             if store_costs.hash_in_claim_or_pending(conn, stored.sha256, claim_id=claim["id"], link_id=link.link_id, ticket_id=link.ticket_id,
                                                     user_id=None, since=since):
                 raise PublicError(409, "duplicate_file")
-            store_links.claim_request(conn, f"link:{link.link_id}", crid, FILE_ROUTE, costs.iso(now))
+            store_links.claim_request(conn, idempotency_scope(link), crid, FILE_ROUTE, costs.iso(now))
             fid = store_costs.insert_file(conn, {
                 "ticket_id": link.ticket_id, "link_id": link.link_id, "kind": stored.kind, "document_key": document_key, "page_no": page_no,
                 "name": label, "path": stored.rel_path, "sha256": stored.sha256, "bytes": stored.bytes, "width": stored.width,
@@ -104,7 +104,7 @@ class SqlClaimFileSink(ClaimFileSink):
             })
             audit_link(conn, link, "ticket.cost.file_upload", file_id=fid, kind=stored.kind, bytes=stored.bytes)
             answer = {"id": fid, "kind": stored.kind, "bytes": stored.bytes, "name": label, "document_key": document_key, "page_no": page_no}
-            store_links.finish_request(conn, f"link:{link.link_id}", crid, 201, answer)
+            store_links.finish_request(conn, idempotency_scope(link), crid, 201, answer)
             return answer
 
 
@@ -197,7 +197,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 spend_budget(request)
             return status, answer
 
-        return await idem.run(f"link:{ctx.link.link_id}", crid, CLAIM_ROUTE, work)
+        return await idem.run(idempotency_scope(ctx.link), crid, CLAIM_ROUTE, work)
 
     return r
 

@@ -82,7 +82,10 @@ def active_bindings(conn: sqlite3.Connection, now: str) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- departments, priorities, categories
 
-DEPARTMENT_FIELDS = ("key", "name", "description", "icon", "color", "sort_order", "active", "reopen_days", "open_to_all")
+DEPARTMENT_FIELDS = ("key", "name", "description", "icon", "color", "sort_order", "active", "reopen_days", "open_to_all",
+                     # slice 2: the department's policy overrides (services/tickets/policy.py)
+                     "auto_close_after_days", "share_history_external", "urgent_is_critical", "link_sliding_days", "link_cap_days",
+                     "link_grace_hours", "send_hours_json")
 PRIORITY_KEYS = ("urgent", "high", "normal", "low")
 # section 13.1 defaults (minutes): unassigned, link not opened, acknowledge, stuck, stuck while waiting, resolve, remind every
 SLA_DEFAULTS: dict[str, tuple[int, int, int, int, int, int, int]] = {
@@ -214,14 +217,15 @@ def category(conn: sqlite3.Connection, category_id: str) -> dict[str, Any] | Non
 def insert_category(conn: sqlite3.Connection, dept_id: str, fields: dict[str, Any]) -> str:
     cid = new_id()
     conn.execute(
-        "INSERT INTO ticket_categories(id, department_id, parent_id, name, default_priority_id, sort_order, active) VALUES (?,?,?,?,?,?,?)",
-        (cid, dept_id, fields.get("parent_id"), fields["name"], fields.get("default_priority_id"), int(fields.get("sort_order") or 0), int(fields.get("active", 1))),
+        "INSERT INTO ticket_categories(id, department_id, parent_id, name, default_priority_id, domains_json, sort_order, active) VALUES (?,?,?,?,?,?,?,?)",
+        (cid, dept_id, fields.get("parent_id"), fields["name"], fields.get("default_priority_id"), fields.get("domains_json", "[]"),
+         int(fields.get("sort_order") or 0), int(fields.get("active", 1))),
     )
     return cid
 
 
 def update_category(conn: sqlite3.Connection, category_id: str, fields: dict[str, Any]) -> None:
-    cols = [k for k in ("name", "parent_id", "default_priority_id", "sort_order", "active") if k in fields]
+    cols = [k for k in ("name", "parent_id", "default_priority_id", "domains_json", "sort_order", "active") if k in fields]
     if cols:
         conn.execute(f"UPDATE ticket_categories SET {', '.join(f'{k} = ?' for k in cols)} WHERE id = ?", (*[fields[k] for k in cols], category_id))
 
@@ -281,6 +285,131 @@ def department_user_ids(conn: sqlite3.Connection, dept_id: str) -> dict[str, str
             if out.get(uid) != "manager":
                 out[uid] = m["member_role"]
     return out
+
+
+# ---------------------------------------------------------------- SLA rules (slice 2: one row per department x priority, 13.1)
+
+SLA_COLUMNS = ("unassigned_after_min", "link_unopened_min", "ack_within_min", "stuck_after_min", "stuck_waiting_min", "resolve_within_min",
+               "remind_every_min", "max_reminders", "manager_alert_after_steps")
+
+
+def sla_rules(conn: sqlite3.Connection, dept_id: str) -> list[dict[str, Any]]:
+    """The department's rows with their priority (most urgent first). A priority without a row (never expected: rows are seeded
+    with the priorities) is listed with every threshold off and revision 0."""
+    out = []
+    for p in priorities(conn, dept_id):
+        row = sla_rule(conn, dept_id, p["id"])
+        out.append({"priority_id": p["id"], "priority_key": p["key"], "priority_name": p["name"], "priority_active": bool(p["active"]),
+                    **({c: row[c] for c in SLA_COLUMNS} if row else {c: None for c in SLA_COLUMNS}),
+                    "revision": row["revision"] if row else 0, "updated_at": row["updated_at"] if row else None,
+                    "updated_by": row["updated_by"] if row else None})
+    return out
+
+
+def sla_rule(conn: sqlite3.Connection, dept_id: str, priority_id: str) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT * FROM ticket_sla_rules WHERE department_id = ? AND priority_id = ?", (dept_id, priority_id)).fetchone())
+
+
+def write_sla_rule(conn: sqlite3.Connection, dept_id: str, priority_id: str, fields: dict[str, Any], expect_revision: int, by: str) -> bool:
+    """Write the fields of one row (revision-checked; revision 0 creates a missing row). False when the revision moved."""
+    now = now_iso()
+    if expect_revision == 0:
+        if sla_rule(conn, dept_id, priority_id) is not None:
+            return False
+        conn.execute("INSERT INTO ticket_sla_rules(department_id, priority_id, revision, updated_by, updated_at) VALUES (?,?,1,?,?)",
+                     (dept_id, priority_id, by, now))
+        expect_revision = 1
+    cols = [c for c in SLA_COLUMNS if c in fields]
+    sets = "".join(f"{c} = ?, " for c in cols)
+    cur = conn.execute(
+        f"UPDATE ticket_sla_rules SET {sets}revision = revision + 1, updated_by = ?, updated_at = ? WHERE department_id = ? AND priority_id = ? AND revision = ?",
+        (*[fields[c] for c in cols], by, now, dept_id, priority_id, expect_revision),
+    )
+    return cur.rowcount == 1
+
+
+def open_ticket_ids(conn: sqlite3.Connection, dept_id: str, *, priority_id: str | None = None, status: str | None = None) -> list[str]:
+    """Ids of the department's open tickets (to recompute their dues after a rule or policy change). Ids only: no content."""
+    sql = "SELECT id FROM tickets WHERE department_id = ? AND status NOT IN ('closed', 'cancelled')"
+    args: list[Any] = [dept_id]
+    if priority_id:
+        sql += " AND priority_id = ?"
+        args.append(priority_id)
+    if status:
+        sql += " AND status = ?"
+        args.append(status)
+    return [r[0] for r in conn.execute(sql, args).fetchall()]
+
+
+def sla_inputs(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
+    """The clock columns of one ticket for services/tickets/sla.py - no title, description or person: nothing to show, so not a
+    visibility bypass (the visibility guard lists the readers that return ticket content)."""
+    row = conn.execute(
+        """SELECT t.department_id, t.priority_id, t.status, t.created_at, t.last_activity_at, t.eta_at, t.done_at,
+                  a.assigned_at AS assigned_at,
+                  (SELECT MAX(ended_at) FROM ticket_assignments WHERE ticket_id = t.id) AS last_end,
+                  (SELECT MAX(at) FROM ticket_events WHERE ticket_id = t.id AND kind = 'reopened') AS last_reopen
+           FROM tickets t LEFT JOIN ticket_assignments a ON a.id = t.current_assignment_id AND a.ended_at IS NULL WHERE t.id = ?""",
+        (ticket_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    out = dict(row)
+    out["unassigned_since"] = max(x for x in (row["created_at"], row["last_end"], row["last_reopen"]) if x)
+    return out
+
+
+def set_sla_dues(conn: sqlite3.Connection, ticket_id: str, dues: dict[str, str | None]) -> None:
+    """The four derived clock columns only (the revision and `updated_at` do not move)."""
+    conn.execute("UPDATE tickets SET ack_due_at = ?, stuck_due_at = ?, resolve_due_at = ?, next_check_at = ? WHERE id = ?",
+                 (dues["ack_due_at"], dues["stuck_due_at"], dues["resolve_due_at"], dues["next_check_at"], ticket_id))
+
+
+# ---------------------------------------------------------------- templates (slice 2: ticket templates; message templates are slice 5b's)
+
+TEMPLATE_FIELDS = ("name", "title", "body", "category_id", "priority_key", "lang", "active", "purpose")
+
+
+def templates(conn: sqlite3.Connection, dept_id: str | None, *, kind: str | None = None, include_inactive: bool = True) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM ticket_templates WHERE deleted_at IS NULL AND " + ("department_id IS NULL" if dept_id is None else "department_id = ?")
+    args: list[Any] = [] if dept_id is None else [dept_id]
+    if kind:
+        sql += " AND kind = ?"
+        args.append(kind)
+    if not include_inactive:
+        sql += " AND active = 1"
+    return [dict(r) for r in conn.execute(sql + " ORDER BY name, id", args).fetchall()]
+
+
+def template(conn: sqlite3.Connection, template_id: str) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT * FROM ticket_templates WHERE id = ? AND deleted_at IS NULL", (template_id,)).fetchone())
+
+
+def insert_template(conn: sqlite3.Connection, dept_id: str | None, kind: str, fields: dict[str, Any], by: str) -> str:
+    tid = new_id()
+    cols = [k for k in TEMPLATE_FIELDS if k in fields]
+    conn.execute(
+        f"INSERT INTO ticket_templates(id, department_id, kind, {''.join(c + ', ' for c in cols)}revision, updated_by, updated_at) "
+        f"VALUES (?, ?, ?, {''.join('?, ' for _ in cols)}1, ?, ?)",
+        (tid, dept_id, kind, *[fields[c] for c in cols], by, now_iso()),
+    )
+    return tid
+
+
+def update_template(conn: sqlite3.Connection, template_id: str, fields: dict[str, Any], expect_revision: int, by: str) -> bool:
+    cols = [k for k in TEMPLATE_FIELDS if k in fields]
+    sets = "".join(f"{c} = ?, " for c in cols)
+    cur = conn.execute(
+        f"UPDATE ticket_templates SET {sets}revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ? AND revision = ? AND deleted_at IS NULL",
+        (*[fields[c] for c in cols], by, now_iso(), template_id, expect_revision),
+    )
+    return cur.rowcount == 1
+
+
+def soft_delete_template(conn: sqlite3.Connection, template_id: str, by: str) -> None:
+    now = now_iso()
+    conn.execute("UPDATE ticket_templates SET deleted_at = ?, active = 0, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?",
+                 (now, by, now, template_id))
 
 
 # ---------------------------------------------------------------- tickets
@@ -438,7 +567,8 @@ def events(conn: sqlite3.Connection, ticket_id: str) -> list[dict[str, Any]]:
 
 
 def assignments(conn: sqlite3.Connection, ticket_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_assignments WHERE ticket_id = ? ORDER BY assigned_at, id", (ticket_id,)).fetchall()]
+    # rowid breaks a tie inside one second (random ids made two same-second assignments come back in either order)
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_assignments WHERE ticket_id = ? ORDER BY assigned_at, rowid", (ticket_id,)).fetchall()]
 
 
 def assignment(conn: sqlite3.Connection, assignment_id: str | None) -> dict[str, Any] | None:

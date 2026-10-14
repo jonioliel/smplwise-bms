@@ -167,7 +167,7 @@ export function runLine(t: Pick<TicketItem, 'last_activity_at' | 'assignee'>, no
 }
 
 export interface EventLine {
-  icon: 'plus' | 'edit' | 'check' | 'user' | 'refresh' | 'note' | 'clock' | 'image' | 'trash' | 'copy' | 'lock' | 'x';
+  icon: 'plus' | 'edit' | 'check' | 'user' | 'refresh' | 'note' | 'clock' | 'image' | 'trash' | 'copy' | 'lock' | 'x' | 'link' | 'eye' | 'warning';
   text: string;
 }
 
@@ -212,6 +212,17 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
       return { icon: 'trash', text: tt('e_photoRemoved') };
     case 'duplicate':
       return { icon: 'copy', text: tt('e_duplicate', { n: Number(d.number ?? 0) }) };
+    // slice 4: the handler link
+    case 'link_opened':
+      return { icon: 'eye', text: tt('ev_link_opened') };
+    case 'link_copied':
+      return { icon: 'copy', text: tt('ev_link_copied') };
+    case 'link_new':
+      return { icon: 'link', text: tt('ev_link_new') };
+    case 'link_revoked':
+      return { icon: 'x', text: tt('ev_link_revoked') };
+    case 'contact_changed':
+      return { icon: 'warning', text: tt('ev_contact_changed') };
     default:
       return { icon: 'note', text: e.kind };
   }

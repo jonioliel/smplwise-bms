@@ -171,8 +171,8 @@ def contact_assignments(conn: sqlite3.Connection, contact_id: str) -> list[dict[
 # ---------------------------------------------------------------- links
 
 LINK_COLUMNS = ("id", "ticket_id", "assignment_id", "contact_id", "generation", "key_id", "token_hash", "require_code", "sent_via",
-                "created_at", "expires_at", "cap_at", "grace_until", "revoked_at", "revoked_reason", "first_opened_at",
-                "last_opened_at", "open_count", "update_count")
+                "sent_at", "created_at", "generation_at", "expires_at", "cap_at", "grace_until", "revoked_at", "revoked_reason",
+                "first_opened_at", "last_opened_at", "open_count", "update_count")
 
 # ONE statement for the public lookup (W1): the unique index on token_hash drives it; the joins are primary-key lookups that
 # fold in the facts the listener needs - is the assignment still current, the ticket's number and status, the contact's phone key.
@@ -225,6 +225,24 @@ def live_links(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute("SELECT * FROM ticket_links WHERE revoked_at IS NULL").fetchall()]
 
 
+def live_links_with_department(conn: sqlite3.Connection, department_id: str | None = None) -> list[dict[str, Any]]:
+    """Live links with their ticket's department (a cap change pulls them in); one department, or every one."""
+    sql = ("SELECT l.id, l.created_at, l.generation_at, l.cap_at, t.department_id FROM ticket_links l JOIN tickets t ON t.id = l.ticket_id "
+           "WHERE l.revoked_at IS NULL")
+    args: list[Any] = []
+    if department_id is not None:
+        sql += " AND t.department_id = ?"
+        args.append(department_id)
+    return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def mark_sent(conn: sqlite3.Connection, link_id: str, via: str, at: str) -> None:
+    """The first send time of the current generation stays; 'email' is sticky (handler_links.mark_sent)."""
+    conn.execute(
+        "UPDATE ticket_links SET sent_via = CASE WHEN sent_via = 'email' THEN 'email' ELSE ? END, sent_at = COALESCE(sent_at, ?) WHERE id = ?",
+        (via, at, link_id))
+
+
 def any_link(conn: sqlite3.Connection) -> bool:
     return conn.execute("SELECT 1 FROM ticket_links LIMIT 1").fetchone() is not None
 
@@ -275,30 +293,20 @@ def note_open(conn: sqlite3.Connection, link_id: str, at: str) -> bool:
     return first
 
 
-def department_link_overrides(conn: sqlite3.Connection, department_id: str) -> dict[str, Any] | None:
-    """A department's D5 overrides (NULL = the installation value)."""
-    return _dict(conn.execute("SELECT link_sliding_days, link_cap_days, link_grace_hours FROM ticket_departments WHERE id = ?",
-                              (department_id,)).fetchone())
-
-
 def resolve_within_min(conn: sqlite3.Connection, department_id: str, priority_id: str) -> int | None:
     row = conn.execute("SELECT resolve_within_min FROM ticket_sla_rules WHERE department_id = ? AND priority_id = ?",
                        (department_id, priority_id)).fetchone()
     return row["resolve_within_min"] if row else None
 
 
-def ticket_department_cap(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
-    return _dict(conn.execute("SELECT t.department_id, d.link_cap_days FROM tickets t JOIN ticket_departments d ON d.id = t.department_id "
-                              "WHERE t.id = ?", (ticket_id,)).fetchone())
-
-
-def pull_in_caps(conn: sqlite3.Connection, ticket_ids_by_cap: Mapping[str, str]) -> int:
-    """A LOWER cap setting pulls the cap (and the expiry) of live links in at once: {link id: new cap ISO}."""
+def pull_in_caps(conn: sqlite3.Connection, caps_by_link: Mapping[str, str]) -> int:
+    """A LOWER cap setting pulls the cap (and the expiry) of live links in at once: {link id: candidate cap ISO}; a candidate
+    later than the link's cap changes nothing. Returns the links whose cap moved."""
     n = 0
-    for link_id, cap in ticket_ids_by_cap.items():
+    for link_id, cap in caps_by_link.items():
         n += conn.execute(
-            "UPDATE ticket_links SET cap_at = MIN(cap_at, ?), expires_at = MIN(expires_at, ?) WHERE id = ? AND revoked_at IS NULL",
-            (cap, cap, link_id)).rowcount
+            "UPDATE ticket_links SET cap_at = ?, expires_at = MIN(expires_at, ?) WHERE id = ? AND revoked_at IS NULL AND cap_at > ?",
+            (cap, cap, link_id, cap)).rowcount
     return n
 
 

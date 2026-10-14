@@ -109,10 +109,10 @@ def display_phone(digits: str | None) -> str | None:
 
 
 def phone_key_for(digits: str | None) -> tuple[str | None, str | None]:
-    """(phone_key, key_id) under the current module key - minted here only when nothing depends on a key yet (keyring.py)."""
+    """(phone_key, key_id) under the current module key (minted by the "module on" path only - keyring.py, W12)."""
     if not digits:
         return None, None
-    key_id, key = KEYS.current(create=True)
+    key_id, key = KEYS.current(create=False)
     return links.phone_key(key, digits), key_id
 
 

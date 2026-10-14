@@ -7,9 +7,7 @@ import base64
 import hashlib
 import hmac
 import random
-import statistics
 import string
-import time
 
 import pytest
 
@@ -159,61 +157,108 @@ def test_urls_carry_the_token_only_in_the_fragment_and_email_never_carries_it():
         links.handler_url("https://t-acme.example.com", "not-a-token")
 
 
-def test_hash_lookup_time_does_not_depend_on_the_token_characters():
-    """The listener never compares a presented token with a stored one: it hashes it and does one dict / index read. This
-    checks the property the timing argument rests on: hashing a token whose prefix matches a real one costs the same as
-    hashing an unrelated one (loose bound - a behavioural check, not a benchmark)."""
-    tok = links.derive_token(KEY, LINK, 1)
-    index = {links.token_hash(tok): "row"}
-    near = tok[:31] + ("A" if tok[31] != "A" else "B")
-    far = "Z" * 32
-
-    def timed(t: str) -> float:
-        samples = []
-        for _ in range(9):
-            t0 = time.perf_counter()
-            for _ in range(3000):
-                index.get(links.token_hash(t))
-            samples.append(time.perf_counter() - t0)
-        return min(samples)  # the least disturbed run is the intrinsic cost
-
-    from conftest import sw_time_factor
-
-    a, b = timed(near), timed(far)
-    assert max(a, b) / min(a, b) < 1.6 * sw_time_factor(), (a, b)
-    assert statistics.mean([a, b]) > 0
+# (The wall-clock "hash lookup time" test was dropped after the code review of 2026-10-13: hashing 32 characters is
+# constant-time by construction and a dict read is not slice 4's SQLite path - the property is W1, checked over the real store
+# with EXPLAIN QUERY PLAN, not with a stopwatch.)
 
 
-# ---------------------------------------------------------------- the module key file
+# ---------------------------------------------------------------- the module key files (key ids, code review V4 / W12)
 
 
-def test_key_is_created_once_with_32_bytes_and_read_back(tmp_path):
-    assert module_key.load(tmp_path, create=False) is None
-    k1 = module_key.load(tmp_path, create=True)
-    assert k1 is not None and len(k1) == 32
-    assert module_key.load(tmp_path, create=True) == k1
-    p = module_key.key_path(tmp_path)
-    assert p == tmp_path / "secrets" / "tickets_key" and p.read_bytes() == k1
-    assert not [x for x in p.parent.iterdir() if x.name.endswith(".tmp")]
+def _secrets(tmp_path):
+    return tmp_path / "secrets"
 
 
-def test_damaged_key_file_is_refused_not_replaced(tmp_path):
-    p = module_key.key_path(tmp_path)
-    p.parent.mkdir(parents=True)
-    p.write_bytes(b"short")
-    with pytest.raises(module_key.ModuleKeyError) as e:
-        module_key.load(tmp_path, create=True)
-    assert "short" not in str(e.value)
-    assert p.read_bytes() == b"short"
-
-
-def test_rotation_replaces_the_key_and_kills_every_derived_token(tmp_path):
-    mk = module_key.ModuleKey(tmp_path)
+def test_the_first_key_is_created_only_after_a_link_check_that_reports_none(tmp_path):
+    mk = module_key.ModuleKey(tmp_path)  # no has_links check at all: never creates
+    assert mk.status() == {"state": "absent", "current": None, "keys": 0}
     with pytest.raises(module_key.ModuleKeyError):
-        mk.get()
-    k1 = mk.get(create=True)
+        mk.current()
+    with pytest.raises(module_key.ModuleKeyError):
+        mk.current(create=True)
+    for check in (lambda: True, lambda: 1 / 0):  # links exist / the check itself fails: refused
+        with pytest.raises(module_key.ModuleKeyError):
+            module_key.ModuleKey(tmp_path, has_links=check).current(create=True)
+    assert not _secrets(tmp_path).exists() or not any(_secrets(tmp_path).iterdir())
+    mk = module_key.ModuleKey(tmp_path, has_links=lambda: False)
+    kid, k1 = mk.current(create=True)
+    assert module_key.is_key_id(kid) and len(k1) == 32
+    assert module_key.key_path(tmp_path, kid) == _secrets(tmp_path) / f"tickets_key.{kid}"
+    assert module_key.key_path(tmp_path, kid).read_bytes() == k1
+    assert module_key.pointer_path(tmp_path).read_bytes() == kid.encode()
+    assert not [x for x in _secrets(tmp_path).iterdir() if x.name.endswith(".tmp")]
+    again = module_key.ModuleKey(tmp_path)  # another process: reads, never creates
+    assert again.current() == (kid, k1) and again(kid) == k1 and again() == k1
+    assert again.status() == {"state": "ok", "current": kid, "keys": 1}
+    assert mk.current(create=True) == (kid, k1)  # create=True with a key present is a plain read
+
+
+def test_a_data_restore_without_secrets_is_refused_never_reminted(tmp_path):
+    """W12: links exist, the key files are gone (a /data restore without secrets/) - minting a new key would silently kill
+    every live link and every phone match; the class refuses and says what to do."""
+    kid, _k = module_key.ModuleKey(tmp_path, has_links=lambda: False).current(create=True)
+    for f in _secrets(tmp_path).iterdir():
+        f.unlink()
+    restored = module_key.ModuleKey(tmp_path, has_links=lambda: True)
+    with pytest.raises(module_key.ModuleKeyError) as e:
+        restored.current(create=True)
+    assert "restore secrets/" in str(e.value)
+    with pytest.raises(module_key.ModuleKeyError):
+        restored.get(kid)  # a row naming the lost key fails closed
+    assert restored.status()["state"] == "absent" and not any(_secrets(tmp_path).iterdir())
+
+
+def test_damaged_key_or_pointer_is_refused_not_replaced(tmp_path):
+    d = _secrets(tmp_path)
+    d.mkdir()
+    (d / "tickets_key.aaaaaaaaaaaa").write_bytes(b"short")
+    (d / "tickets_key.current").write_bytes(b"aaaaaaaaaaaa")
+    mk = module_key.ModuleKey(tmp_path, has_links=lambda: False)
+    with pytest.raises(module_key.ModuleKeyError) as e:
+        mk.current(create=True)
+    assert "short" not in str(e.value) and mk.status()["state"] == "damaged"
+    assert (d / "tickets_key.aaaaaaaaaaaa").read_bytes() == b"short"
+    (d / "tickets_key.current").write_bytes(b"../../etc/passwd")
+    with pytest.raises(module_key.ModuleKeyError):
+        module_key.ModuleKey(tmp_path, has_links=lambda: False).current(create=True)
+    (d / "tickets_key.current").write_bytes(b"bbbbbbbbbbbb")  # names a file that is not there
+    assert module_key.ModuleKey(tmp_path).status()["state"] == "missing"
+    with pytest.raises(module_key.ModuleKeyError):
+        module_key.ModuleKey(tmp_path).get("../secrets")
+
+
+def test_an_interrupted_first_creation_leaves_an_unused_file_and_creation_still_works(tmp_path):
+    d = _secrets(tmp_path)
+    d.mkdir()
+    (d / "tickets_key.cccccccccccc").write_bytes(bytes(32))  # key written, pointer never
+    assert module_key.ModuleKey(tmp_path).status() == {"state": "orphaned", "current": None, "keys": 1}
+    with pytest.raises(module_key.ModuleKeyError):
+        module_key.ModuleKey(tmp_path, has_links=lambda: True).current(create=True)
+    kid, _k = module_key.ModuleKey(tmp_path, has_links=lambda: False).current(create=True)
+    assert kid != "cccccccccccc" and set(module_key.list_ids(tmp_path)) == {kid, "cccccccccccc"}
+
+
+def test_rotation_with_ids_never_strands_a_row(tmp_path):
+    """stage -> (the DB transaction re-derives under the staged id) -> commit -> retire the old id once unreferenced. At every
+    step every id a row can name has its file: a crash between the file and the transaction strands nothing."""
+    mk = module_key.ModuleKey(tmp_path, has_links=lambda: False)
+    old, k1 = mk.current(create=True)
     tok = links.derive_token(k1, LINK, 1)
-    k2 = mk.rotate()
-    assert k2 != k1 and mk() == k2 and module_key.load(tmp_path, create=False) == k2
-    assert not links.verify_token(k2, LINK, 1, tok)
-    assert repr(mk) == "ModuleKey(loaded=True)"  # never key material in a repr (logs, tracebacks)
+    staged = mk.stage()
+    assert staged != old and mk.current_id() == old and mk.ids() == tuple(sorted((old, staged)))
+    assert mk.get(staged) != k1
+    crashed = module_key.ModuleKey(tmp_path)  # a restart between stage and commit: still the old key, both readable
+    assert crashed.current_id() == old and crashed.get(staged) == mk.get(staged)
+    mk.commit(staged)
+    assert mk.current_id() == staged and module_key.ModuleKey(tmp_path).current_id() == staged
+    assert links.verify_token(mk.get(old), LINK, 1, tok)  # a row still naming the old id keeps working until retired
+    assert not links.verify_token(mk.get(staged), LINK, 1, tok)
+    with pytest.raises(module_key.ModuleKeyError):
+        mk.retire(staged)  # never the current key
+    assert mk.retire(old) is True and mk.retire(old) is False
+    with pytest.raises(module_key.ModuleKeyError):
+        mk.get(old)
+    assert mk.ids() == (staged,)
+    with pytest.raises(module_key.ModuleKeyError):
+        mk.commit("dddddddddddd")  # a key that is not there is never made current
+    assert "\\x" not in repr(mk) and k1.hex() not in repr(mk) and repr(mk).startswith("ModuleKey(")

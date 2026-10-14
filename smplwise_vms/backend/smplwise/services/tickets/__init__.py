@@ -16,7 +16,7 @@ One package, one storage layer (section 5):
 
 Messaging core (built on pilot/TICKETS-msg-core, wired by slices 5a / 5b):
   channel.py, channel_whatsapp.py   the outbound channel abstraction and the ha-whatsapp adapter
-  outbox.py, hours.py, templates.py, inbound.py
+  outbox.py, hours.py, message_templates.py, inbound.py
 
 Slice 1 builds the skeleton and internal tickets; contacts, links, the public page, WhatsApp, SLA monitoring, the board,
 device integration and cost claims are later slices (section 20).

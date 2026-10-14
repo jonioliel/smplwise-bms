@@ -165,6 +165,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         messaging_runtime.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("messaging ledger janitor failed", exc_info=True)
+    try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
+        from .services.tickets.messaging import RUNTIME as tickets_messaging
+
+        tickets_messaging.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("tickets messaging janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -194,6 +200,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # lab addresses. Keep them at WARNING regardless of the configured level.
     for noisy in ("httpx", "httpcore", "websockets"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+    # CR-038 S4 (public-core review V10): Pillow's TIFF / EXIF reader logs tag VALUES at DEBUG (GPS, serial numbers of an
+    # uploaded photo) - kept at INFO for the whole process whatever the add-on's log level
+    logging.getLogger("PIL").setLevel(logging.INFO)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.plans_dir.mkdir(parents=True, exist_ok=True)
 
@@ -453,6 +462,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tickets_table_router.router, prefix=api, tags=["tickets"])  # CR-038 S6b - BEFORE /tickets/{ticket_id}
     from .routers import tickets_costs as tickets_costs_router  # CR-038 S9: cost claims (report, export, review, on-behalf, downloads)
     app.include_router(tickets_costs_router.router, prefix=api, tags=["tickets"])  # CR-038 S9 - BEFORE /tickets/{ticket_id}
+    from .routers import tickets_messages as tickets_messages_router  # CR-038 S5b (its own lines)
+
+    app.include_router(tickets_messages_router.router, prefix=api, tags=["tickets"])  # channel, outbox, inbound, message templates - BEFORE /tickets/{ticket_id}
     app.include_router(tickets_router.router, prefix=api, tags=["tickets"])
     from .services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the module key and the public listener's wiring
 
@@ -460,6 +472,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import messaging_accounts as messaging_accounts_router  # CR-038 S5a: WhatsApp accounts per use (installation-level, no module gate)
 
     app.include_router(messaging_accounts_router.router, prefix=api, tags=["messaging"])
+    from .services.tickets.messaging import RUNTIME as tickets_messaging  # CR-038 S5b: the ticket message channel (outbox, inbound)
+
+    tickets_messaging.configure(settings, app.state.db)
 
     @app.on_event("startup")
     async def _start_janitor() -> None:
@@ -584,6 +599,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             cast_relay.SERVER.start(cast_relay.go2rtc_fetch(settings))
         if settings.tickets_public:  # CR-038 S4: the handler page's listener - on the add-on option alone; its own thread, loop and pool
             await run_in_threadpool(tickets_public.start, app.state.db, settings)  # start() waits up to 5 s: never on the main loop (W14)
+        await run_in_threadpool(tickets_messaging.start)  # CR-038 S5b: the `tickets-outbox` worker (idle while the module is off)
 
         async def loop() -> None:
             while True:
@@ -613,6 +629,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from starlette.concurrency import run_in_threadpool as _stop_in_thread
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
+        await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
         for name in ("janitor", "remote_revalidation"):
             task = getattr(app.state, name, None)
             if task:

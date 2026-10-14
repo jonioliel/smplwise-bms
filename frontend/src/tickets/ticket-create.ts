@@ -123,6 +123,18 @@ export class TicketCreate extends LitElement {
     if (c?.default_priority_id) this.priority = c.default_priority_id;
   }
 
+  /** slice 2: a department's opening template prefills the form (title, description, category, priority); the person edits on. */
+  private applyTemplate(id: string): void {
+    const d = this.meta?.departments.find((x) => x.id === this.dept);
+    const t = d?.templates?.find((x) => x.id === id);
+    if (!d || !t) return;
+    if (t.category_id && d.categories.some((c) => c.id === t.category_id)) this.pickCategory(t.category_id);
+    const p = t.priority_key ? d.priorities.find((x) => x.key === t.priority_key) : undefined;
+    if (p) this.priority = p.id;
+    if (t.body) this.description = t.body;
+    if (t.title) this.onTitle(t.title);
+  }
+
   private onTitle(v: string): void {
     this.ttl = v;
     this.error = '';
@@ -213,6 +225,11 @@ export class TicketCreate extends LitElement {
             ${(d?.categories ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.category}>${c.name}</option>`)}
           </select></label>
       </div>
+      ${d?.templates?.length ? html`<label class="fld"><span>${tt('tplCard')}</span>
+        <select class="inp" data-create-template @change=${(e: Event) => this.applyTemplate((e.target as HTMLSelectElement).value)}>
+          <option value="">${tt('tplAny')}</option>
+          ${d.templates.map((t) => html`<option value=${t.id}>${t.name}</option>`)}
+        </select></label>` : nothing}
       <label class="fld"><span>${tt('fTitle')} <b class="req">*</b></span>
         <input class="inp" maxlength="120" autocomplete="off" data-create-title placeholder=${tt('fTitlePh')} aria-invalid=${String(titleMissing)} .value=${this.ttl} @input=${(e: Event) => this.onTitle((e.target as HTMLInputElement).value)} />
         ${titleMissing ? html`<span class="err" role="alert">${tt('createNeed')}</span>` : nothing}</label>

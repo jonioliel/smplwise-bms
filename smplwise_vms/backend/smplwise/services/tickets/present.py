@@ -153,6 +153,8 @@ def ticket_item(conn: sqlite3.Connection, seen: Seen, lk: Lookups, last_names: d
         "closed_at": row.get("closed_at"),
         "revision": row["revision"],
         "view": "full" if seen.full else "limited",
+        # slice 2: the SLA dues (services/tickets/sla.py; the board and the table of slices 6 / 6b show them)
+        "sla": {"ack_due_at": row.get("ack_due_at"), "stuck_due_at": row.get("stuck_due_at"), "resolve_due_at": row.get("resolve_due_at")},
     }
 
 
@@ -220,6 +222,10 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
     from .handler_links import link_block
 
     out["link"] = link_block(conn, row, manager=seen.manager, external=viewer.holds("tickets.external", row))
+    # slice 5b: the delivery lines of D14 (managers / tickets.external only) and their actions ("send now" D29, "send again")
+    from .messaging import ticket_messages
+
+    out["messages"] = ticket_messages(conn, viewer, seen)
     if seen.full:
         out["assignments"] = [
             {"id": a["id"], "kind": a["assignee_kind"], "name": a["assignee_name"], "channel": a["channel"], "assigned_at": a["assigned_at"],
