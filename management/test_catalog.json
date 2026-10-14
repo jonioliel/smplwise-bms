@@ -9140,5 +9140,281 @@
       "docs/release/2.4.11-RELEASE-NOTES.md",
       "gate report gate_integ-2411b_a06ba53a.md on the test machine"
     ]
+  },
+  {
+    "id": "AT335",
+    "requirement_ids": [
+      "R319"
+    ],
+    "task_ids": [
+      "TKS1"
+    ],
+    "title": "Service management: module skeleton, internal service requests, configurable name (D33)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS1 (pilot/TICKETS-s1 @ 11f21002):",
+      "tests/test_tickets_api.py, tests/test_tickets_naming.py, tests/unit-tickets-naming.spec.ts, tests/evidence-tickets.spec.ts",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: module skeleton, internal service requests, configurable name (D33): the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT336",
+    "requirement_ids": [
+      "R320"
+    ],
+    "task_ids": [
+      "TKS2"
+    ],
+    "title": "Service management: departments, SLA rules and ticket templates",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS2 (pilot/TICKETS-s2 @ 45208163):",
+      "tests/test_tickets_admin.py, tests/test_tickets_s2*.py",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: departments, SLA rules and ticket templates: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT337",
+    "requirement_ids": [
+      "R321"
+    ],
+    "task_ids": [
+      "TKS3"
+    ],
+    "title": "Service management: the device integration (device tab, long press, frozen device history)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS3 (pilot/TICKETS-s3 @ 6f7f75ed):",
+      "tests/test_tickets_devices*.py, unit device-text spec",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: the device integration (device tab, long press, frozen device history): the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT338",
+    "requirement_ids": [
+      "R322"
+    ],
+    "task_ids": [
+      "TKS4"
+    ],
+    "title": "Service management: contacts, handler links and the public handler page (port 18093, add-on option tickets_public)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS4 (pilot/TICKETS-s4 @ 7163825c (with the public core fdd48aa3)):",
+      "tests/test_tickets_links*.py, tests/test_tickets_public*.py, tests/evidence-public-ticket.spec.ts, tests/evidence-tickets-s4.spec.ts, tests/layout-tickets-s4.spec.ts",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: contacts, handler links and the public handler page (port 18093, add-on option tickets_public): the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT339",
+    "requirement_ids": [
+      "R323"
+    ],
+    "task_ids": [
+      "TKS5A"
+    ],
+    "title": "Service management: WhatsApp account selection per use",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS5A (pilot/TICKETS-s5a @ c4511980):",
+      "tests/test_messaging_accounts_api.py, tests/test_messaging_accounts_runtime.py, tests/evidence-messaging-accounts.spec.ts",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: WhatsApp account selection per use: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT340",
+    "requirement_ids": [
+      "R324"
+    ],
+    "task_ids": [
+      "TKS5B"
+    ],
+    "title": "Service management: the message channel (outbox, inbound replies, message templates)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS5B (pilot/TICKETS-s5b @ 9d5c6af6 (with msg-core 73d123db)):",
+      "tests/test_tickets_msg*.py, tests/test_tickets_outbox*.py",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: the message channel (outbox, inbound replies, message templates): the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT341",
+    "requirement_ids": [
+      "R325"
+    ],
+    "task_ids": [
+      "TKS6"
+    ],
+    "title": "Service management: stuck / escalation monitor, manager board and notifications",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS6 (pilot/TICKETS-s6 @ fd558a8e):",
+      "tests/test_tickets_monitor.py, tests/test_tickets_board*.py",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: stuck / escalation monitor, manager board and notifications: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT342",
+    "requirement_ids": [
+      "R326"
+    ],
+    "task_ids": [
+      "TKS6B"
+    ],
+    "title": "Service management: the board table view (sort, filters, CSV export, bulk actions, saved views)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS6B (pilot/TICKETS-s6b @ 08b61cdf):",
+      "tests/test_tickets_table*.py",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: the board table view (sort, filters, CSV export, bulk actions, saved views): the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT343",
+    "requirement_ids": [
+      "R327"
+    ],
+    "task_ids": [
+      "TKS7"
+    ],
+    "title": "Service management: verification codes (option B) and code settings",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS7 (pilot/TICKETS-s7 @ 99292a0e):",
+      "tests/test_tickets_codes.py, tests/test_tickets_s7_codes.py",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: verification codes (option B) and code settings: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT344",
+    "requirement_ids": [
+      "R328"
+    ],
+    "task_ids": [
+      "TKS8"
+    ],
+    "title": "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS8 (pilot/TICKETS-s8 @ bdd391cd):",
+      "docs only (guide chapter lint in tests/test_tickets_naming.py)",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT345",
+    "requirement_ids": [
+      "R329"
+    ],
+    "task_ids": [
+      "TKS9"
+    ],
+    "title": "Service management: cost claims (vendor claim step, manager review, close gate)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKS9 (pilot/TICKETS-s9 @ eebba323 (with s9-ui 392d0280)):",
+      "tests/test_tickets_cost*.py, tests/unit-tickets-costs.spec.ts, tests/unit-public-claim-model.spec.ts",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: cost claims (vendor claim step, manager review, close gate): the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT346",
+    "requirement_ids": [
+      "R330"
+    ],
+    "task_ids": [
+      "TKRENAME"
+    ],
+    "title": "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKRENAME (integ/250 @ 81076fe0):",
+      "tests/test_tickets_naming.py, tests/unit-tickets-naming.spec.ts, tests/unit-public-ticket.spec.ts",
+      "the tier-L release gate of integ/250"
+    ],
+    "expected": "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/250."
   }
 ]

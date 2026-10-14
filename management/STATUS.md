@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-14T03:21:05.923521+00:00
+Generated: 2026-10-14T04:34:28.380579+00:00
 
-Tasks: 209 | Requirements: 317 | Tests: 333 | Screens: 32
+Tasks: 221 | Requirements: 329 | Tests: 345 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 17
+- REVIEW: 29
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 115
+- V1: 127
 - V2: 29
 - V3: 2
 
@@ -247,3 +247,15 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [FIXHUDLAYOUT](tasks/FIXHUDLAYOUT.md) | V1 | DONE | Floor map HUD layout contract (map/hud-layout.ts): corner controls, docked list and level bar never collide | — |
 | [ST7ODD](tasks/ST7ODD.md) | V1 | DONE | Studio 6: the five 2.4.10 level-3 oddities (cones and GTAO cut with the walls, pill de-overlap, surfaced export control, test-house furniture) | — |
 | [GATE2411](tasks/GATE2411.md) | V1 | DONE | Release gate: baselines and per-spec duration seed refreshed from the 2.4.10 gate | — |
+| [TKS1](tasks/TKS1.md) | V1 | REVIEW | Service management: module skeleton, internal service requests, configurable name (D33) | — |
+| [TKS2](tasks/TKS2.md) | V1 | REVIEW | Service management: departments, SLA rules and ticket templates | — |
+| [TKS3](tasks/TKS3.md) | V1 | REVIEW | Service management: the device integration (device tab, long press, frozen device history) | — |
+| [TKS4](tasks/TKS4.md) | V1 | REVIEW | Service management: contacts, handler links and the public handler page (port 18093, add-on option tickets_public) | — |
+| [TKS5A](tasks/TKS5A.md) | V1 | REVIEW | Service management: WhatsApp account selection per use | — |
+| [TKS5B](tasks/TKS5B.md) | V1 | REVIEW | Service management: the message channel (outbox, inbound replies, message templates) | — |
+| [TKS6](tasks/TKS6.md) | V1 | REVIEW | Service management: stuck / escalation monitor, manager board and notifications | — |
+| [TKS6B](tasks/TKS6B.md) | V1 | REVIEW | Service management: the board table view (sort, filters, CSV export, bulk actions, saved views) | — |
+| [TKS7](tasks/TKS7.md) | V1 | REVIEW | Service management: verification codes (option B) and code settings | — |
+| [TKS8](tasks/TKS8.md) | V1 | REVIEW | Service management: add-on docs, Hebrew guide chapter, public-surface review checklist | — |
+| [TKS9](tasks/TKS9.md) | V1 | REVIEW | Service management: cost claims (vendor claim step, manager review, close gate) | — |
+| [TKRENAME](tasks/TKRENAME.md) | V1 | REVIEW | Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint | — |

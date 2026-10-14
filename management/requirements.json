@@ -6099,5 +6099,197 @@
     "test_ids": [
       "AT334"
     ]
+  },
+  {
+    "id": "R319",
+    "title": "Service management: module skeleton, internal service requests, configurable name (D33)",
+    "statement": "Service management: module skeleton, internal service requests, configurable name (D33) behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT335"
+    ]
+  },
+  {
+    "id": "R320",
+    "title": "Service management: departments, SLA rules and ticket templates",
+    "statement": "Service management: departments, SLA rules and ticket templates behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT336"
+    ]
+  },
+  {
+    "id": "R321",
+    "title": "Service management: the device integration (device tab, long press, frozen device history)",
+    "statement": "Service management: the device integration (device tab, long press, frozen device history) behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT337"
+    ]
+  },
+  {
+    "id": "R322",
+    "title": "Service management: contacts, handler links and the public handler page (port 18093, add-on option tickets_public)",
+    "statement": "Service management: contacts, handler links and the public handler page (port 18093, add-on option tickets_public) behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT338"
+    ]
+  },
+  {
+    "id": "R323",
+    "title": "Service management: WhatsApp account selection per use",
+    "statement": "Service management: WhatsApp account selection per use behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS5A"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT339"
+    ]
+  },
+  {
+    "id": "R324",
+    "title": "Service management: the message channel (outbox, inbound replies, message templates)",
+    "statement": "Service management: the message channel (outbox, inbound replies, message templates) behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS5B"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT340"
+    ]
+  },
+  {
+    "id": "R325",
+    "title": "Service management: stuck / escalation monitor, manager board and notifications",
+    "statement": "Service management: stuck / escalation monitor, manager board and notifications behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS6"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT341"
+    ]
+  },
+  {
+    "id": "R326",
+    "title": "Service management: the board table view (sort, filters, CSV export, bulk actions, saved views)",
+    "statement": "Service management: the board table view (sort, filters, CSV export, bulk actions, saved views) behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS6B"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT342"
+    ]
+  },
+  {
+    "id": "R327",
+    "title": "Service management: verification codes (option B) and code settings",
+    "statement": "Service management: verification codes (option B) and code settings behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT343"
+    ]
+  },
+  {
+    "id": "R328",
+    "title": "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist",
+    "statement": "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS8"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT344"
+    ]
+  },
+  {
+    "id": "R329",
+    "title": "Service management: cost claims (vendor claim step, manager review, close gate)",
+    "statement": "Service management: cost claims (vendor claim step, manager review, close gate) behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKS9"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT345"
+    ]
+  },
+  {
+    "id": "R330",
+    "title": "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint",
+    "statement": "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint behaves as specified in docs/changes/CR-038-TICKETS-MODULE.md and the slice notes; the module stays off by default.",
+    "task_ids": [
+      "TKRENAME"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT346"
+    ]
   }
 ]

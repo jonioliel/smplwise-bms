@@ -10161,5 +10161,473 @@
     "owner": null,
     "commit": "a06ba53a",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKS1",
+    "title": "Service management: module skeleton, internal service requests, configurable name (D33)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: module skeleton, internal service requests, configurable name (D33): built on fakes / mocked backends and fixtures (pilot/TICKETS-s1 @ 11f21002); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R319"
+    ],
+    "test_ids": [
+      "AT335"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s1)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s1 @ 11f21002; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS2",
+    "title": "Service management: departments, SLA rules and ticket templates",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: departments, SLA rules and ticket templates: built on fakes / mocked backends and fixtures (pilot/TICKETS-s2 @ 45208163); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R320"
+    ],
+    "test_ids": [
+      "AT336"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s2)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s2 @ 45208163; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS3",
+    "title": "Service management: the device integration (device tab, long press, frozen device history)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: the device integration (device tab, long press, frozen device history): built on fakes / mocked backends and fixtures (pilot/TICKETS-s3 @ 6f7f75ed); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R321"
+    ],
+    "test_ids": [
+      "AT337"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s3)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s3 @ 6f7f75ed; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS4",
+    "title": "Service management: contacts, handler links and the public handler page (port 18093, add-on option tickets_public)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: contacts, handler links and the public handler page (port 18093, add-on option tickets_public): built on fakes / mocked backends and fixtures (pilot/TICKETS-s4 @ 7163825c (with the public core fdd48aa3)); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R322"
+    ],
+    "test_ids": [
+      "AT338"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s4)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s4 @ 7163825c (with the public core fdd48aa3); notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS5A",
+    "title": "Service management: WhatsApp account selection per use",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: WhatsApp account selection per use: built on fakes / mocked backends and fixtures (pilot/TICKETS-s5a @ c4511980); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R323"
+    ],
+    "test_ids": [
+      "AT339"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s5a)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s5a @ c4511980; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS5B",
+    "title": "Service management: the message channel (outbox, inbound replies, message templates)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: the message channel (outbox, inbound replies, message templates): built on fakes / mocked backends and fixtures (pilot/TICKETS-s5b @ 9d5c6af6 (with msg-core 73d123db)); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R324"
+    ],
+    "test_ids": [
+      "AT340"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s5b)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s5b @ 9d5c6af6 (with msg-core 73d123db); notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS6",
+    "title": "Service management: stuck / escalation monitor, manager board and notifications",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: stuck / escalation monitor, manager board and notifications: built on fakes / mocked backends and fixtures (pilot/TICKETS-s6 @ fd558a8e); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R325"
+    ],
+    "test_ids": [
+      "AT341"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s6)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s6 @ fd558a8e; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS6B",
+    "title": "Service management: the board table view (sort, filters, CSV export, bulk actions, saved views)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: the board table view (sort, filters, CSV export, bulk actions, saved views): built on fakes / mocked backends and fixtures (pilot/TICKETS-s6b @ 08b61cdf); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R326"
+    ],
+    "test_ids": [
+      "AT342"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s6b)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s6b @ 08b61cdf; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS7",
+    "title": "Service management: verification codes (option B) and code settings",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: verification codes (option B) and code settings: built on fakes / mocked backends and fixtures (pilot/TICKETS-s7 @ 99292a0e); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R327"
+    ],
+    "test_ids": [
+      "AT343"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s7)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s7 @ 99292a0e; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS8",
+    "title": "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist: built on fakes / mocked backends and fixtures (pilot/TICKETS-s8 @ bdd391cd); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R328"
+    ],
+    "test_ids": [
+      "AT344"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s8)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s8 @ bdd391cd; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKS9",
+    "title": "Service management: cost claims (vendor claim step, manager review, close gate)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: cost claims (vendor claim step, manager review, close gate): built on fakes / mocked backends and fixtures (pilot/TICKETS-s9 @ eebba323 (with s9-ui 392d0280)); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R329"
+    ],
+    "test_ids": [
+      "AT345"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/TICKETS-s9)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s9 @ eebba323 (with s9-ui 392d0280); notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKRENAME",
+    "title": "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint: built on fakes / mocked backends and fixtures (integ/250 @ 81076fe0); no live device, WhatsApp or tunnel action; spec docs/changes/CR-038-TICKETS-MODULE.md."
+    ],
+    "requirement_ids": [
+      "R330"
+    ],
+    "test_ids": [
+      "AT346"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (integ/250)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): built on integ/250 @ 81076fe0; notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
   }
 ]
