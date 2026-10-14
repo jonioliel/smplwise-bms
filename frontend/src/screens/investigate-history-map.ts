@@ -196,8 +196,9 @@ export class InvestigateHistoryMap extends LitElement {
       z-index: var(--sw-z-map-ui);
       display: flex;
       gap: 12px;
-      background: rgba(255, 255, 255, 0.92);
-      border: 1px solid var(--sw-border);
+      /* the HUD panels over the plan are opaque (owner 2026-10-13, styles/menu-surface.ts): the legend was a white 92 % pill with the dark scheme's light ink on it */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 3px 10px;
       font-size: var(--sw-fs-xs);
@@ -208,8 +209,8 @@ export class InvestigateHistoryMap extends LitElement {
       inset-inline-start: 12px;
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 5px 10px;
       font-size: var(--sw-fs-sm);
@@ -223,10 +224,12 @@ export class InvestigateHistoryMap extends LitElement {
       inset-inline-end: 12px;
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
-      background: #f3e8ff;
-      color: var(--sw-purple);
+      /* the "historical state" tag: the opaque surface with a purple hairline and the body ink (purple text on a fixed lavender fill read at 2.4:1 in the dark scheme) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-purple);
+      color: var(--sw-text);
       border-radius: var(--sw-r-md);
-      padding: 4px 10px;
+      padding: 3px 9px; /* 4 / 10 minus the hairline: the tag keeps its size */
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }

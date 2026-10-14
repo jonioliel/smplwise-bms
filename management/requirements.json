@@ -6035,5 +6035,69 @@
     "test_ids": [
       "AT330"
     ]
+  },
+  {
+    "id": "R315",
+    "title": "Opaque HUD panels over the plan, the editor, the history map, the event page and the 3D view (menu surface, strong hairline, Tesla HUD fill)",
+    "statement": "Every registered HUD panel over the 2D plan, the plan editor, the history map, the event page and the 3D view paints the opaque menu surface with the strong hairline in every skin and scheme; its text meets 4.5:1 (3:1 large) on that surface; a lint refuses a registered panel with a weak edge.",
+    "task_ids": [
+      "FIXHUD"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT331"
+    ]
+  },
+  {
+    "id": "R316",
+    "title": "Floor map HUD layout contract (map/hud-layout.ts): corner controls, docked list and level bar never collide",
+    "statement": "On the floor map at 390, 768 and 1440 px in every skin the corner controls, the docked side list, the zoom dock and the level bar never overlap; a bar that does not fit wraps; the walk row stays free under the phone list sheet.",
+    "task_ids": [
+      "FIXHUDLAYOUT"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT332"
+    ]
+  },
+  {
+    "id": "R317",
+    "title": "Studio 6: the five 2.4.10 level-3 oddities (cones and GTAO cut with the walls, pill de-overlap, surfaced export control, test-house furniture)",
+    "statement": "At the realistic 3D level no camera-cone volume or occlusion wisp shows above the section cut, no entity pill covers another, the glTF export control has a surface; the 12 evidence-replay-3d Linux baselines match.",
+    "task_ids": [
+      "ST7ODD"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT333"
+    ]
+  },
+  {
+    "id": "R318",
+    "title": "Release gate: baselines and per-spec duration seed refreshed from the 2.4.10 gate",
+    "statement": "The release gate reads baselines and a duration seed refreshed from the 2.4.10 gate; selftest_gate.py passes; every count of the 2.4.11 gate is compared against the refreshed baselines.",
+    "task_ids": [
+      "GATE2411"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT334"
+    ]
   }
 ]

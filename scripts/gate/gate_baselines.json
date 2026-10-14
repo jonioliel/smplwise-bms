@@ -1,15 +1,15 @@
 {
   "_comment": "Per-category PASSED counts (pass + flaky) of the previous accepted release gate. The gate fails a category whose passed count is below GATE_DROP_THRESHOLD (default 70 percent) of its value here, unless it was started with --allow-count-drop \"<reason>\". Refresh from \"baseline_candidate\" of a GREEN gate report after each release. Only tier L has a baseline; S and M print a warning (the count-drop check is not applied).",
-  "source": "gate integ/248 @ 10620d30 (tier L, 2026-10-12, verdict pass, 0 failed, 0 known; the released 2.4.8). baseline_candidate copied unchanged: preview = 7960 pass, pixel = 107 pass + 1 flaky, dev = 765 pass + 1 flaky.",
+  "source": "gate integ/2410 @ 240424e0 (tier L, 2026-10-13, verdict pass, 0 failed, 0 flaky, 0 known; the released 2.4.10). baseline_candidate copied unchanged: preview = 8685 pass, pixel = 188 pass, dev = 852 pass, fixture = 15, backend = 7133. Wall 106 min 38 s; stage seconds: tsc 17, build 9, playwright-preview 3275, playwright-fixture 62, visual-matrix 63, playwright-dev 2965 (the backend shards ran beside the Playwright stages; backend-wait 0). Informational only: the engine reads the counts.",
   "tiers": {
     "L": {
       "tsc": 1,
       "build": 1,
-      "preview": 7960,
-      "pixel": 108,
-      "dev": 766,
+      "preview": 8685,
+      "pixel": 188,
+      "dev": 852,
       "fixture": 15,
-      "backend": 6738,
+      "backend": 7133,
       "release_check": 1
     }
   }

@@ -133,11 +133,11 @@ const rules = `
 /* tesla 4 - titles in medium weight, big numerals */
 :host(sw-page) h1, :host(sw-card) h3, :host(sw-dialog) h3 { font-weight: var(--sw-fw-medium); }
 :host(sw-kpi) .value { font-weight: var(--sw-fw-medium); font-variant-numeric: tabular-nums; }
-/* tesla 5 - flat, outlined controls */
+/* tesla 5 - flat, outlined controls (transparent on the page; a HUD bar over a canvas hands them an opaque fill through --hud-fill: styles/menu-surface.ts, owner 2026-10-13) */
 :host(sw-button) button { border-radius: var(--sw-r-md); box-shadow: none; }
 :host(sw-button[variant='primary']) button { box-shadow: none; }
-:host(sw-button[variant='secondary']) button, :host(sw-button[variant='danger']) button { background: transparent; }
-:host(sw-chip) button { background: transparent; border-radius: var(--sw-r-md); box-shadow: none; }
+:host(sw-button[variant='secondary']) button, :host(sw-button[variant='danger']) button { background: var(--hud-fill, transparent); }
+:host(sw-chip) button { background: var(--hud-fill, transparent); border-radius: var(--sw-r-md); box-shadow: none; }
 :host(sw-chip[selected]) button { background: var(--sw-text); border-color: var(--sw-text); color: var(--sw-text-inverse); }
 :host(sw-badge:not([onimage])) { background: transparent; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--sw-r-md); }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: transparent; border-radius: var(--sw-r-sm); }

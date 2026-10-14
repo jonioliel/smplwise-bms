@@ -120,10 +120,11 @@ const ROOMS: RoomM[] = [
 type ObjectM = [string, string, string, [number, number], number, [number, number, number], number, string?, string?, { kind: 'floor'; color_k: number; lumens: number }?];
 const OBJECTS: ObjectM[] = [
   // living
-  ['sofa', 'sofa.3', 'L0', [6.3, 3.9], 180, [2.3, 0.95, 0.85], 0],
-  ['coffee', 'table.side', 'L0', [6.3, 2.6], 0, [1.1, 0.6, 0.42], 0],
-  ['tvunit', 'cabinet.low', 'L0', [6.3, 0.95], 0, [1.8, 0.45, 0.55], 0],
-  ['tv', 'tv.wall', 'L0', [6.3, 0.72], 0, [1.4, 0.08, 0.8], 0.9],
+  // ST7-odd (2.4.10 oddity 4): the screen hangs on the west wall between the two doors, not over the north windows
+  ['sofa', 'sofa.3', 'L0', [6.0, 3.6], 270, [2.3, 0.95, 0.85], 0],
+  ['coffee', 'table.side', 'L0', [4.9, 3.6], 90, [1.1, 0.6, 0.42], 0],
+  ['tvunit', 'cabinet.low', 'L0', [3.8, 3.6], 90, [1.5, 0.45, 0.55], 0],
+  ['tv', 'tv.wall', 'L0', [3.62, 3.6], 90, [1.4, 0.08, 0.8], 0.9],
   ['dining', 'table.dining', 'L0', [9.6, 3.2], 0, [1.6, 0.9, 0.75], 0],
   ['dc1', 'chair.basic', 'L0', [9.1, 2.5], 0, [0.45, 0.45, 0.9], 0],
   ['dc2', 'chair.basic', 'L0', [10.1, 2.5], 0, [0.45, 0.45, 0.9], 0],
@@ -131,8 +132,8 @@ const OBJECTS: ObjectM[] = [
   ['dc4', 'chair.basic', 'L0', [10.1, 3.9], 180, [0.45, 0.45, 0.9], 0],
   ['armchair', 'armchair', 'L0', [4.4, 2.3], 90, [0.85, 0.85, 0.8], 0],
   ['plant1', 'bush', 'L0', [4.0, 5.5], 0, [0.55, 0.55, 1.1], 0],
-  ['rug', 'mat.gym', 'L0', [6.3, 3.2], 0, [3.0, 2.2, 0.02], 0, undefined, 'fabric_rug'],
-  ['lamp-liv-a', 'light.ceiling', 'L0', [6.3, 2.6], 0, [0.5, 0.5, 0.12], -0.3, 'light.living'],
+  ['rug', 'mat.gym', 'L0', [5.3, 3.6], 0, [3.0, 2.2, 0.02], 0, undefined, 'fabric_rug'],
+  ['lamp-liv-a', 'light.ceiling', 'L0', [5.3, 3.0], 0, [0.5, 0.5, 0.12], -0.3, 'light.living'],
   ['lamp-liv-b', 'light.ceiling', 'L0', [9.6, 3.2], 0, [0.5, 0.5, 0.12], -0.3, 'light.living'],
   ['lamp-floor', 'light.pole', 'L0', [4.1, 1.0], 0, [0.35, 0.35, 1.5], 0, 'light.living_floor', undefined, { kind: 'floor', color_k: 2700, lumens: 800 }],
   // hall / corridor / stairs
@@ -155,7 +156,7 @@ const OBJECTS: ObjectM[] = [
   ['desk', 'table.desk', 'L0', [5.5, 9.4], 0, [1.6, 0.8, 0.75], 0],
   ['dchair', 'chair.office', 'L0', [5.5, 8.6], 180, [0.6, 0.6, 1.1], 0],
   ['books', 'shelf.unit', 'L0', [3.75, 8.0], 90, [1.8, 0.35, 2.1], 0],
-  ['board', 'whiteboard', 'L0', [5.5, 10.1], 0, [1.8, 0.05, 1.2], 0.9],
+  ['board', 'whiteboard', 'L0', [7.44, 7.0], 270, [1.5, 0.05, 1.2], 0.9], // ST7-odd: on the kitchen wall, not over the south window
   ['printer-unit', 'cabinet.low', 'L0', [7.0, 9.6], 90, [0.8, 0.45, 0.75], 0],
   ['printer', 'printer.office', 'L0', [7.0, 9.6], 90, [0.5, 0.45, 0.4], 0.75],
   ['lamp-off', 'light.ceiling', 'L0', [5.5, 8.0], 0, [0.4, 0.4, 0.1], -0.3, 'light.office'],
@@ -180,7 +181,7 @@ const OBJECTS: ObjectM[] = [
   ['mc5', 'chair.basic', 'L1', [5.75, 3.1], 180, [0.45, 0.45, 0.9], 0],
   ['mc6', 'chair.basic', 'L1', [6.7, 3.1], 180, [0.45, 0.45, 0.9], 0],
   ['mtv', 'tv.wall', 'L1', [3.62, 2.25], 90, [1.2, 0.1, 0.7], 1.5],
-  ['mboard', 'whiteboard', 'L1', [5.75, 0.69], 0, [1.8, 0.05, 1.2], 0.9],
+  ['mboard', 'whiteboard', 'L1', [7.94, 2.25], 270, [1.8, 0.05, 1.2], 0.9], // ST7-odd: on the east wall, not over the north window
   ['lamp-meet-a', 'light.panel', 'L1', [4.9, 2.25], 0, [0.6, 0.6, 0.05], -0.05, 'light.meeting'],
   ['lamp-meet-b', 'light.panel', 'L1', [6.6, 2.25], 0, [0.6, 0.6, 0.05], -0.05, 'light.meeting'],
   // open office

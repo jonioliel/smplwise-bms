@@ -10,3 +10,4 @@ export { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 export { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 export { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 export { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+export { Pass } from 'three/addons/postprocessing/Pass.js';
