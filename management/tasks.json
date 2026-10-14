@@ -10001,5 +10001,165 @@
     "owner": null,
     "commit": "240424e0",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIXHUD",
+    "title": "Opaque HUD panels over the plan, the editor, the history map, the event page and the 3D view (menu surface, strong hairline, Tesla HUD fill)",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Opaque HUD panels over the plan, the editor, the history map, the event page and the 3D view (menu surface, strong hairline, Tesla HUD fill): built on fakes / mocked backends and fixtures (pilot/FIX-hud-opaque @ 2033522a); no live device action."
+    ],
+    "requirement_ids": [
+      "R315"
+    ],
+    "test_ids": [
+      "AT331"
+    ],
+    "status": "DONE",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/FIX-hud-opaque)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-2411b): built on pilot/FIX-hud-opaque @ 2033522a; notes: the branch commit messages, docs/design/handoff/TOKEN_CONTRACT.md section 3c and docs/design/evidence/hud-opaque/. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIXHUDLAYOUT",
+    "title": "Floor map HUD layout contract (map/hud-layout.ts): corner controls, docked list and level bar never collide",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Floor map HUD layout contract (map/hud-layout.ts): corner controls, docked list and level bar never collide: built on fakes / mocked backends and fixtures (pilot/FIX-hud-layout-2411 @ 157e5fb7); no live device action."
+    ],
+    "requirement_ids": [
+      "R316"
+    ],
+    "test_ids": [
+      "AT332"
+    ],
+    "status": "DONE",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/FIX-hud-layout-2411)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-2411b): built on pilot/FIX-hud-layout-2411 @ 157e5fb7 (then 4229099f, docs-only pictures); notes: the branch commit messages and docs/design/evidence/hud-layout/. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7ODD",
+    "title": "Studio 6: the five 2.4.10 level-3 oddities (cones and GTAO cut with the walls, pill de-overlap, surfaced export control, test-house furniture)",
+    "epic": "MAP",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Studio 6: the five 2.4.10 level-3 oddities (cones and GTAO cut with the walls, pill de-overlap, surfaced export control, test-house furniture): built on fakes / mocked backends and fixtures (pilot/ST7-odd-2411 @ 86700e62); no live device action."
+    ],
+    "requirement_ids": [
+      "R317"
+    ],
+    "test_ids": [
+      "AT333"
+    ],
+    "status": "DONE",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-odd-2411)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-2411b): built on pilot/ST7-odd-2411 @ 86700e62; notes: docs/design/studio6/ODD_2411.md and CR-029 section 17. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GATE2411",
+    "title": "Release gate: baselines and per-spec duration seed refreshed from the 2.4.10 gate",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "qa",
+    "requires_hardware": false,
+    "acceptance": [
+      "Release gate: baselines and per-spec duration seed refreshed from the 2.4.10 gate: built on fakes / mocked backends and fixtures (pilot/GATE-base-2411 @ 03927da0); no live device action."
+    ],
+    "requirement_ids": [
+      "R318"
+    ],
+    "test_ids": [
+      "AT334"
+    ],
+    "status": "DONE",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/GATE-base-2411)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-2411b): built on pilot/GATE-base-2411 @ 03927da0; notes: scripts/gate/INSTALL_ON_RUNNER.md (refresh log). Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
   }
 ]

@@ -42,7 +42,7 @@ import type { CatalogMaterialLookup } from '../map/material-resolve';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import { modeFromWire, type QualityMode } from '../map/quality-mode';
-import type { FloorRequestDetail, LevelSelectDetail, PartSelectDetail, RealisticChangeDetail, WalkChangeDetail } from '../map/sw-plan-3d';
+import type { FloorRequestDetail, HudCornerDetail, LevelSelectDetail, PartSelectDetail, RealisticChangeDetail, WalkChangeDetail } from '../map/sw-plan-3d';
 import { BAKE_BUTTON_HE, BAKE_TITLE_HE, autoBakeWanted, bakeStatus, hasStills, renderStills, runFloorBake, stillsLevel } from './floor-stills';
 import { isWallDisplay, viewMode } from '../map/quality-ladder';
 import { NO_PINS, applyWallParams, resolveWallPlan, type WallPins } from '../map/wall-plan-mode';
@@ -58,6 +58,7 @@ import { anchorOnLevel, initialLevel } from '../map/studio-ops';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { circuitAction } from '../map/circuit-action';
+import { HUD_BELOW_LIST, HUD_EDGE, HUD_GAP, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, HUD_WALK_SHEET, endItemWidth, hudBottom, hudEnd, listBottom, needsSecondRow, type HudCorner } from '../map/hud-layout';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
 import { CONTROL_STATES, controlDescription, controlSceneInput } from '../map/skin-control';
 import { getFloorSkins, uploadControlImage } from '../api/skins';
@@ -174,6 +175,9 @@ export class ExploreFloorMap extends LitElement {
   @state() private walk3d = false;
   /** CR-029 S1: the 3D draws the realistic level - the description carries its realistic part (realistic-change). */
   @state() private real3d = false;
+  /** What the 3D element keeps in the stage's top-end corner (its `hud-corner` event): the time pill, the walk's minimap, or nothing. The circuit
+   * buttons and the level bar's second row stand below it (map/hud-layout.ts). */
+  @state() private corner3d: HudCorner = null;
   private materials3d: CatalogMaterialLookup | null = null;
   /** The installation's 3D quality default (plan.quality), handed to the element so it builds once at the right level. */
   @state() private quality3d: QualityMode | null = null;
@@ -324,6 +328,10 @@ export class ExploreFloorMap extends LitElement {
       max-block-size: 60%;
       overflow: auto;
     }
+    /* HUD panels over the plan are opaque (owner 2026-10-13, tokens: styles/menu-surface.ts): the quick floor buttons, the floor chip, the
+       level bar, the circuit buttons, the selection bar, the side list, the legend and the floor strip paint the menu surface and the strong
+       hairline (Bubble's menu hairline is its own surface: no edge on the plan's ground), with no blur - a see-through panel overlaps its own
+       text with the drawing behind it */
     .floorbtns button {
       font: inherit;
       font-size: var(--sw-fs-xs);
@@ -331,8 +339,8 @@ export class ExploreFloorMap extends LitElement {
       min-inline-size: 38px;
       padding: 6px 8px;
       border-radius: var(--sw-r-sm);
-      border: 1px solid var(--sw-border);
-      background: var(--sw-surface);
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-menu-surface);
       color: var(--sw-text-2);
       cursor: pointer;
       box-shadow: var(--sw-shadow-1);
@@ -341,7 +349,7 @@ export class ExploreFloorMap extends LitElement {
     .floorbtns button.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: var(--sw-on-video);
+      color: var(--sw-text-inverse); /* the ink of an accent fill: white on the light schemes' blue, dark on the dark schemes' light blue (--sw-on-video was white on both: 2:1 on a dark Domus / Crystal) */
     }
     .jz {
       display: flex;
@@ -402,8 +410,8 @@ export class ExploreFloorMap extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 6px 10px;
       font-size: var(--sw-fs-sm);
@@ -411,37 +419,84 @@ export class ExploreFloorMap extends LitElement {
       box-shadow: var(--sw-shadow-1);
     }
     .floorchip sw-icon {
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
     }
+    /* The HUD layout contract (map/hud-layout.ts; owner 2026-10-13, the pictures of the opaque panels). The stage carries what the contract needs:
+         --hud-end         the inline-end inset of the free band (the edge inset, or past a docked side list / layers list); the corner's blocks
+                           here and in the 3D element and the 2D canvas start there
+         --hud-circuits-top  where the circuit buttons start: the edge inset, under the 3D time pill's row, or under the walk's minimap
+         --hud-bar-top / --hud-cols-top  the level bar's row when it has a row of its own (data-hud-row2), and where the columns start under it
+         --hud-bar-h       the bar's measured height (one line, or two when it wraps in its own row)
+         --hud-list-bottom how far above the bottom the docked side list stops (the 2D view: above the measured zoom buttons)
+         data-corner       what the 3D element keeps in the corner (its hud-corner event)
+         data-hud-row2     the level bar does not fit beside the floor chip and the corner's item (needsSecondRow)
+       They are written by syncHud(); without them (the first paint, the demo, a test that never mounts the stage) every var() falls back to the old edge. */
+    .stage {
+      --hud-circuits-top: ${HUD_EDGE}px;
+      --hud-bar-top: ${HUD_PILL_ROW}px;
+      --hud-cols-top: calc(var(--hud-bar-top) + var(--hud-bar-h, 38px) + ${HUD_GAP}px);
+      /* the 3D element's slow-device notice stands under the bar (a skin's chips make the bar taller: Bubble's is 54 px) */
+      --hud-hint-top: calc(${HUD_EDGE}px + var(--hud-bar-h, 38px) + ${HUD_GAP}px);
+    }
+    .stage[data-corner='pill'] {
+      --hud-circuits-top: ${HUD_PILL_ROW}px;
+    }
+    .stage[data-corner='minimap'] {
+      --hud-circuits-top: ${HUD_EDGE + HUD_MINIMAP + HUD_GAP}px;
+      --hud-bar-top: ${HUD_EDGE + HUD_MINIMAP + HUD_GAP}px;
+    }
+    @media (max-width: ${HUD_PHONE_MAX}px) {
+      .stage[data-corner='minimap'] {
+        --hud-circuits-top: ${HUD_EDGE + HUD_MINIMAP_PHONE + HUD_GAP}px;
+        --hud-bar-top: ${HUD_EDGE + HUD_MINIMAP_PHONE + HUD_GAP}px;
+      }
+    }
+    /* The level bar is centred in the free band: two logical insets (the start edge, and --hud-end) with auto margins and a fit-content size, so it
+       is centred in RTL and LTR alike. The old inset-inline-start: 50% + translateX(-50%) shifted it LEFT by half its own width in RTL, off the
+       canvas at 390 px and over the corner's blocks everywhere (the owner's pictures). One line; when the band is too narrow for it beside the floor
+       chip and the corner's item it takes a row of its own under them (data-hud-row2) and, if it is still wider than the band, wraps to a second line. */
     .levelbar {
       position: absolute;
-      inset-inline-start: 50%;
-      transform: translateX(-50%);
-      inset-block-start: 12px;
+      inset-block-start: ${HUD_EDGE}px;
+      inset-inline: ${HUD_EDGE}px var(--hud-end, ${HUD_EDGE}px);
+      margin-inline: auto;
+      inline-size: fit-content;
+      max-inline-size: calc(100% - ${HUD_EDGE}px - var(--hud-end, ${HUD_EDGE}px));
+      box-sizing: border-box;
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: 999px;
       padding: 4px 8px;
       box-shadow: var(--sw-shadow-1);
       display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      max-inline-size: 60%;
+      white-space: nowrap;
+    }
+    .stage[data-hud-row2] .levelbar {
+      inset-block-start: var(--hud-bar-top);
+      white-space: normal; /* wider than its band (a docked list, many levels): a second line, never a scrolling bar - every chip stays in view */
+      text-align: center;
     }
     .circuits {
       position: absolute;
-      inset-inline-end: 12px;
-      inset-block-start: 12px;
+      inset-inline-end: var(--hud-end, ${HUD_EDGE}px);
+      inset-block-start: var(--hud-circuits-top, ${HUD_EDGE}px);
       display: flex;
       flex-direction: column;
       gap: 4px;
       z-index: var(--sw-z-map-ui);
       max-inline-size: 260px;
     }
-    /* the layers panel and the side list sit in the same corner: the strip steps aside */
-    .circuits.shifted {
-      inset-inline-end: 296px;
+    /* the level bar's own row: the circuit buttons and the floor buttons of both columns start under it */
+    .stage[data-hud-row2] {
+      --hud-hint-top: var(--hud-cols-top);
+    }
+    .stage[data-hud-row2] .circuits {
+      inset-block-start: max(var(--hud-circuits-top), var(--hud-cols-top));
+    }
+    .stage[data-hud-row2] .floorbtns,
+    .stage[data-hud-row2] .floorstrip {
+      inset-block-start: var(--hud-cols-top);
     }
     .circuits .circuit {
       display: grid;
@@ -451,9 +506,9 @@ export class ExploreFloorMap extends LitElement {
       align-items: center;
       text-align: start;
       padding: 6px 10px;
-      border: 1px solid var(--sw-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       box-shadow: var(--sw-shadow-1);
       font: inherit;
       font-size: var(--sw-fs-sm);
@@ -483,21 +538,26 @@ export class ExploreFloorMap extends LitElement {
       box-shadow: none;
     }
     .circuits .circuit .cnote {
-      color: var(--sw-stale);
+      color: var(--sw-stale-text);
     }
+    /* a button that cannot be pressed now is dimmed by its ink and its dot, not by opacity on the box: a faded box would show the plan through it */
     .circuits .circuit:disabled {
       cursor: not-allowed;
-      opacity: 0.7;
+      color: var(--sw-text-2);
+    }
+    .circuits .circuit:disabled i {
+      opacity: 0.6;
     }
     .circuits .cstatus {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
-      padding: 4px 8px;
+      padding: 3px 7px; /* 4 / 8 minus the hairline: the box keeps its size */
     }
     .circuits .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     @media (max-width: 640px) {
       .circuits.shifted {
@@ -554,7 +614,7 @@ export class ExploreFloorMap extends LitElement {
     }
     .panel .prow .cnt {
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
       font-weight: var(--sw-fw-regular);
     }
     .panel .pnote {
@@ -586,7 +646,7 @@ export class ExploreFloorMap extends LitElement {
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       border: 1px solid var(--sw-accent);
       border-radius: var(--sw-r-md);
       padding: 8px 10px;
@@ -594,7 +654,7 @@ export class ExploreFloorMap extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .pickbar .hint {
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
     }
     .pickbar .grow {
@@ -626,7 +686,7 @@ export class ExploreFloorMap extends LitElement {
     }
     .pickbar .suggest sw-chip small {
       margin-inline-start: 4px;
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-regular);
     }
@@ -657,14 +717,17 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
     }
+    /* A docked list: it takes the end edge's column from the top to the row of the zoom buttons (--hud-list-bottom: the floor map measures their dock,
+       a skin's controls make it 90 px (Classic) or 144 px (Bubble) high; the 3D view has none: HUD_BELOW_LIST). It used to stop 56 px up and covered
+       two of the three buttons. The corner's blocks start past it (--hud-end), so nothing but the plan stands under it. A phone gets the bottom sheet below. */
     .sidelist {
       position: absolute;
-      inset-inline-end: 12px;
-      inset-block: 12px 56px;
+      inset-inline-end: ${HUD_EDGE}px;
+      inset-block: ${HUD_EDGE}px var(--hud-list-bottom, ${HUD_BELOW_LIST}px);
       inline-size: 236px;
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-2);
       display: flex;
@@ -690,7 +753,7 @@ export class ExploreFloorMap extends LitElement {
     .sidelist .grp {
       padding: 8px 10px 2px;
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
       text-transform: none;
     }
     .sidelist button.it {
@@ -730,7 +793,12 @@ export class ExploreFloorMap extends LitElement {
     }
     .sidelist .st {
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
+    }
+    /* the caption of the row under the pointer or selected stands on the row's own wash (surface-3): the body ink keeps it at 4.5:1 in every skin */
+    .sidelist button.it:hover .st,
+    .sidelist button.it.on .st {
+      color: var(--sw-text);
     }
     @media (max-width: 720px) {
       .sidelist {
@@ -743,7 +811,7 @@ export class ExploreFloorMap extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .pickbar .saved a {
-      color: var(--sw-accent);
+      color: var(--sw-accent-text);
     }
     .saveform {
       display: flex;
@@ -768,7 +836,8 @@ export class ExploreFloorMap extends LitElement {
       inset-inline: 12px;
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-stale-soft);
+      /* the soft state tone laid over the opaque surface: the amber reads, the plan does not show through the text */
+      background: linear-gradient(var(--sw-stale-soft), var(--sw-stale-soft)), var(--sw-menu-surface);
       border: 1px dashed var(--sw-stale);
       border-radius: var(--sw-r-md);
       color: var(--sw-text);
@@ -781,9 +850,10 @@ export class ExploreFloorMap extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       z-index: var(--sw-z-map-ui);
     }
+    /* the legend was a white 92 % pill with the light ink of the dark scheme on it (unreadable in dark) and a blur: the opaque surface, in the scheme's own ink */
     .legend {
       position: absolute;
       inset-inline-start: 12px;
@@ -791,13 +861,12 @@ export class ExploreFloorMap extends LitElement {
       z-index: var(--sw-z-map-ui);
       display: flex;
       gap: 10px;
-      background: rgba(255, 255, 255, 0.92);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 3px 10px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      backdrop-filter: var(--sw-perf-blur, blur(6px));
     }
     .legend span {
       display: inline-flex;
@@ -809,7 +878,7 @@ export class ExploreFloorMap extends LitElement {
       block-size: 9px;
       border-radius: 50%;
       background: var(--lg);
-      box-shadow: 0 0 0 1px #fff;
+      box-shadow: 0 0 0 1px var(--sw-menu-border);
     }
     .meta {
       display: grid;
@@ -992,6 +1061,10 @@ export class ExploreFloorMap extends LitElement {
       .sidelist.tall {
         block-size: 78%;
       }
+      /* the eye-level walk keeps its own bottom row (the phone's one-row sheet, the floating bar of a wider view): the list's sheet stands above it */
+      .stage[data-corner='minimap'] .sidelist {
+        inset-block-end: calc(${HUD_WALK_SHEET}px + env(safe-area-inset-bottom, 0px));
+      }
       .sidelist .grab {
         display: flex;
       }
@@ -1075,7 +1148,7 @@ export class ExploreFloorMap extends LitElement {
       gap: 8px;
     }
     .roomcard .rc-sub {
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
       margin-block-start: 2px;
     }
@@ -1100,8 +1173,8 @@ export class ExploreFloorMap extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      background: color-mix(in srgb, var(--sw-surface) 88%, transparent);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 4px;
       box-shadow: var(--sw-shadow-2);
@@ -1232,6 +1305,63 @@ export class ExploreFloorMap extends LitElement {
     this.fadeTimer = 0;
     this.stopWs?.();
     this.stopWs = null;
+    this.hudRo?.disconnect();
+    this.hudRo = null;
+    this.hudKey = '';
+  }
+
+  // ---- the HUD layout contract (map/hud-layout.ts)
+
+  private hudKey = '';
+  private hudRo: ResizeObserver | null = null;
+
+  /** Write what the HUD's CSS reads onto the stage (see the `.stage` rules): `--hud-end` (what a docked side list / layers list takes at the end
+   * edge), `--hud-bottom` (the phone's bottom sheet, which the zoom buttons stand above), `data-corner` (what the 3D element keeps in the top-end
+   * corner), `data-hud-row2` and `--hud-bar-h` (the level bar takes a row of its own, measured: needsSecondRow). Runs after every update, but measures
+   * only when something that decides it changed, and on every size change of the stage (the browser window, the shell's rail, a font that arrived). */
+  private syncHud(force = false): void {
+    const stage = this.stage;
+    if (!stage) return;
+    if (!this.hudRo && typeof ResizeObserver !== 'undefined') {
+      this.hudRo = new ResizeObserver(() => this.syncHud(true));
+      this.hudRo.observe(stage);
+    }
+    const b = this.bundle;
+    const viewport = window.innerWidth;
+    const corner: HudCorner = this.shows3d ? this.corner3d : null;
+    const listOn = this.sideList && b?.source === 'api';
+    const key = [viewport, corner ?? '-', this.shows3d, listOn, this.panel, this.sheetTall, b?.floorName ?? '', b?.levels.map((l) => `${l.name}${l.elevation_m}`).join(',') ?? '', Object.keys(b?.circuitStates ?? {}).length].join('|');
+    if (!force && key === this.hudKey) return;
+    this.hudKey = key;
+    const end = hudEnd({ sideList: listOn, panel: this.panel, viewport });
+    const bar = this.renderRoot.querySelector<HTMLElement>('.levelbar');
+    const chip = this.renderRoot.querySelector<HTMLElement>('[data-floorchip]');
+    const circuits = this.renderRoot.querySelector<HTMLElement>('[data-circuit-strip]');
+    if (bar) this.hudRo?.observe(bar); // its chips can change width on their own (levels renamed, a font arrived)
+    const row2 = !!bar && needsSecondRow({ stage: stage.clientWidth, end, bar: this.barLineWidth(bar), chip: chip?.offsetWidth ?? 0, endItem: endItemWidth(corner, circuits?.offsetWidth ?? 0) });
+    stage.toggleAttribute('data-hud-row2', row2);
+    if (corner) stage.setAttribute('data-corner', corner);
+    else stage.removeAttribute('data-corner');
+    if (end === HUD_EDGE) stage.style.removeProperty('--hud-end');
+    else stage.style.setProperty('--hud-end', `${end}px`);
+    const bottom = hudBottom({ sideList: listOn, viewport, tall: this.sheetTall });
+    if (bottom) stage.style.setProperty('--hud-bottom', bottom);
+    else stage.style.removeProperty('--hud-bottom');
+    if (bar) stage.style.setProperty('--hud-bar-h', `${Math.ceil(bar.offsetHeight)}px`); // after data-hud-row2: a wrapped bar is two lines tall
+    // the docked list stops above the zoom buttons (2D); the 3D view has none and keeps the constant
+    const zoom = !this.shows3d && listOn && end !== HUD_EDGE ? this.canvas?.zoomDockRect() ?? null : null;
+    if (zoom) stage.style.setProperty('--hud-list-bottom', `${listBottom(stage.getBoundingClientRect().top + stage.clientTop + stage.clientHeight - zoom.top)}px`);
+    else stage.style.removeProperty('--hud-list-bottom');
+  }
+
+  /** The level bar's width on one line. The bar in its own row wraps, and a wrapped bar reports its wrapped width: it is measured with the wrapping
+   * switched off for the moment (the decision must not depend on the state it decides). */
+  private barLineWidth(bar: HTMLElement): number {
+    const prev = bar.style.whiteSpace;
+    bar.style.whiteSpace = 'nowrap';
+    const w = bar.scrollWidth + 2; // + the hairline
+    bar.style.whiteSpace = prev;
+    return w;
   }
 
   /** Entity state pushes (scoped server-side to the floors this user may read). */
@@ -1256,6 +1386,7 @@ export class ExploreFloorMap extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
+    this.syncHud();
     this.scheduleFadeTick(this.bundle && this.layers.has('states') ? this.roomStateLayer : null);
     // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
     // of the last view existed before, and none is added: the toggle still switches for the visit)
@@ -1924,6 +2055,7 @@ export class ExploreFloorMap extends LitElement {
       .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d} .levelDots=${this.roomStateLayer?.levels ?? {}}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
       @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}
+      @hud-corner=${(e: CustomEvent<HudCornerDetail>) => { this.corner3d = e.detail.corner; }}
       .walkable=${true} @walk-change=${(e: CustomEvent<WalkChangeDetail>) => this.onWalkChange(e.detail.on)}
       @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) { this.real3d = e.detail.on; this.sceneDue = true; } }}
       .stillsAvailable=${stills} @stills-fallback=${() => { this.stillsFallback = true; }}
@@ -2637,7 +2769,9 @@ export class ExploreFloorMap extends LitElement {
   /** K88 3D round 2: the building's floors beside the 3D view with state dots (lit · presence · open); a tap switches
    * the floor and keeps the 3D view. The other floors' bundles load lazily, once per 3D opening. It replaces the 2D quick
    * floor buttons (`.floorbtns`), which are not rendered while the 3D is on screen: both stand in the same corner, and
-   * the buttons under the strip's translucent card showed through as a second, smaller set (owner report 2026-10-11). */
+   * the buttons under the strip's card showed through as a second, smaller set while that card was translucent (owner report
+   * 2026-10-11). The card is the opaque menu surface since 2026-10-13 (every HUD panel over the plan is - styles/menu-surface.ts), so
+   * nothing under it can show through; the two switchers are still never rendered together (evidence-floorstrip.spec.ts). */
   private renderFloorStrip() {
     const floors = this.buildingFloors;
     if (this.bundle?.source !== 'api' || floors.length < 2) return nothing;

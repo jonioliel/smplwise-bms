@@ -10,6 +10,7 @@ import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
 import { PHONE_STAGE_PX, PILL_CAP, PILL_CAP_PHONE } from './scene-frame';
+import { resolvePillOverlaps, type PillBox } from './pill-layout';
 import { FpsWatch, recoverFps } from './quality-mode';
 import { cachedOwnMode, loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { WalkSession } from './walk-session';
@@ -24,6 +25,8 @@ import { WalkTouchUi } from './walk-touch-ui';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
+import { pillInk } from './pill-ink';
+import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
 import { TIME_BAND_HE, hourLabel, resolveSite, siteInstant, siteLocal, timeBand, type ResolvedSite } from './sun';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
@@ -54,6 +57,8 @@ export const DEFAULT_MIN_FPS = 30;
 export { PILL_CAP } from './scene-frame';
 /** The pill's bottom edge sits this far above its point, so the object under it stays clickable from straight above. */
 const PILL_GAP_PX = 6;
+/** The clear space between two stacked pills (ST7-odd: a pill raised off another). */
+const PILL_STACK_GAP_PX = 2;
 
 export interface PartSelectDetail {
   id: string | null;
@@ -86,6 +91,11 @@ export interface StillsFallbackDetail {
 /** CR-029 S4: a stair to another floor was walked to its top - "continue to that floor" (a document load, not a walk). */
 export interface FloorRequestDetail {
   floorId: string;
+}
+/** What the element keeps in its top-end corner (owner 2026-10-13, map/hud-layout.ts): the time pill (the realistic level), the walk's minimap, or nothing.
+ * The host stacks its own corner blocks (the floor map's circuit buttons) below it. Sent when it changes, and once after the first render. */
+export interface HudCornerDetail {
+  corner: HudCorner;
 }
 /** CR-029 S5-B: the kiosk idle phase changed (`idle`: the slotted still is shown and the frame loop is stopped). */
 export interface KioskIdleDetail {
@@ -245,6 +255,8 @@ export class SwPlan3d extends LitElement {
    * camera (three draws no sprite for them). Derived in willUpdate from the description, never a second update. */
   private overlays: ScenePart[] = [];
   private overlayById = new Map<string, ScenePart>();
+  /** The measured size of every pill by part id and text (ST7-odd: the overlap pass of layoutOverlays). */
+  private pillSizes = new Map<string, { w: number; h: number }>();
   /** Pills left out by the cap (the "+N" hint). */
   private hiddenPills = 0;
   @state() private ready = false;
@@ -325,9 +337,10 @@ export class SwPlan3d extends LitElement {
     :host([data-night]) {
       background: linear-gradient(180deg, #060b18 0%, #152442 100%);
     }
+    /* the night sky is dark whatever the theme: the bar and the strip stand on its own opaque navy (a translucent backdrop showed the scene through the chips' row) */
     :host([data-night]) .bar,
     :host([data-night]) .strip {
-      background: color-mix(in srgb, #0f1729 80%, transparent);
+      background: #0f1729;
       color: #dfe7f5;
     }
     /* CR-029 S1 / S2, level 3: the sky behind the canvas follows the sun and the style (the element sets the stops), the
@@ -350,19 +363,21 @@ export class SwPlan3d extends LitElement {
     :host([data-style='dark']) .vignette {
       background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.4) 100%);
     }
+    /* the top-end corner (map/hud-layout.ts): the pill, its picker and the walk's minimap start past a docked list of the host (--hud-end), and the
+       host stacks its circuit buttons below them (this element reports what it keeps there: hud-corner) */
     .timepill {
       position: absolute;
-      inset-block-start: 12px;
-      inset-inline-end: 12px;
+      inset-block-start: ${HUD_EDGE}px;
+      inset-inline-end: var(--hud-end, ${HUD_EDGE}px);
       z-index: var(--sw-z-map-ui);
       display: flex;
       align-items: center;
       gap: 4px;
       padding: 3px;
       border-radius: 999px;
-      background: color-mix(in srgb, var(--sw-surface) 78%, transparent);
-      border: 1px solid color-mix(in srgb, var(--sw-surface) 60%, transparent);
-      backdrop-filter: blur(14px);
+      /* a HUD panel over the 3D canvas is opaque (owner 2026-10-13, styles/menu-surface.ts): the menu surface and the strong hairline, no blur */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
       direction: rtl;
     }
@@ -388,15 +403,18 @@ export class SwPlan3d extends LitElement {
     }
     .timepop {
       position: absolute;
-      inset-block-start: 52px;
-      inset-inline-end: 12px;
-      z-index: var(--sw-z-map-ui);
+      inset-block-start: ${HUD_PILL_ROW - 4}px;
+      inset-inline-end: var(--hud-end, ${HUD_EDGE}px);
+      /* a menu: it opens over whatever stands under the pill (the host's circuit buttons, the level bar, the floor strip) and above all of it */
+      z-index: calc(var(--sw-z-map-ui) + 1);
       display: grid;
       gap: 6px;
+      box-sizing: border-box;
       inline-size: min(280px, calc(100% - 24px));
+      max-inline-size: calc(100% - var(--hud-end, ${HUD_EDGE}px) - ${HUD_EDGE}px);
       padding: 10px 12px;
       border-radius: 12px;
-      /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it keeps its glass */
+      /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it is opaque too (second report, same day) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
@@ -423,10 +441,13 @@ export class SwPlan3d extends LitElement {
       color: var(--sw-text);
     }
     .timepop .muted {
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
     }
+    /* the slow-device notice: under the host's level bar when that has a row of its own (--hud-hint-top, set by the floor map), and above the
+       columns it may cross on a phone - a transient notice, with its own buttons, never hidden behind a chip */
     .pill.hint {
-      inset-block-start: 56px;
+      inset-block-start: var(--hud-hint-top, 56px);
+      z-index: calc(var(--sw-z-map-ui) + 1);
       display: flex;
       gap: 6px;
       align-items: center;
@@ -457,6 +478,13 @@ export class SwPlan3d extends LitElement {
       flex-wrap: wrap;
       max-inline-size: calc(100% - 24px);
       direction: rtl;
+      /* the chips, the select and the export button float on the canvas with no box of their own: the shared controls read --sw-surface, so
+         here it is the opaque menu surface, and their hover fill that surface washed 8 % towards the ink (an opaque mix of two tokens the glass
+         screens bridge, so it is right in every skin, scheme and glass palette) - glass everywhere else (owner 2026-10-13). Tesla draws its
+         chips and secondary buttons flat and transparent on the page: they take the fill from --hud-fill (skins/tesla.ts), so here too. */
+      --sw-surface: var(--sw-menu-surface);
+      --sw-surface-2: color-mix(in srgb, var(--sw-menu-surface) 92%, var(--sw-text));
+      --hud-fill: var(--sw-menu-surface);
     }
     .bar select {
       font: inherit;
@@ -492,9 +520,9 @@ export class SwPlan3d extends LitElement {
       gap: 2px;
       padding: 4px;
       inline-size: 96px;
-      border: 1px solid var(--sw-border);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
       color: var(--sw-text-2);
       font: inherit;
       font-size: var(--sw-fs-xs);
@@ -538,7 +566,7 @@ export class SwPlan3d extends LitElement {
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
-      box-shadow: 0 0 0 1.5px var(--sw-surface);
+      box-shadow: 0 0 0 1.5px var(--sw-menu-surface);
     }
     .strip button .dots i[data-dot='presence'] {
       background: var(--sw-map-presence);
@@ -562,8 +590,8 @@ export class SwPlan3d extends LitElement {
       left: 0;
       top: 0;
       transform: translate(-50%, -50%);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 1px 7px;
       font: inherit;
@@ -591,8 +619,8 @@ export class SwPlan3d extends LitElement {
       position: absolute;
       inset-inline-start: 12px;
       inset-block-start: 12px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 1px 8px;
       font-size: var(--sw-fs-xs);
@@ -604,8 +632,8 @@ export class SwPlan3d extends LitElement {
       position: absolute;
       z-index: var(--sw-z-map-ui);
       pointer-events: none;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       padding: 3px 8px;
       font-size: var(--sw-fs-xs);
@@ -622,8 +650,8 @@ export class SwPlan3d extends LitElement {
       z-index: var(--sw-z-map-ui);
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 2px 8px;
       direction: rtl;
@@ -647,20 +675,20 @@ export class SwPlan3d extends LitElement {
       place-items: center;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
-      background: var(--sw-surface);
+      background: var(--sw-menu-surface);
     }
     .toast {
       position: absolute;
       inset-block-start: 12px;
-      left: 50%; /* physical: centred whatever the direction */
+      left: calc(50% + (var(--hud-end, ${HUD_EDGE}px) - ${HUD_EDGE}px) / 2); /* physical: centred whatever the direction - in the free band, past a docked list of the host */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 4px 12px;
       font-size: var(--sw-fs-xs);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       box-shadow: var(--sw-shadow-1);
       direction: rtl;
     }
@@ -694,10 +722,10 @@ export class SwPlan3d extends LitElement {
     }
     .minimap {
       position: absolute;
-      inset-block-start: 12px;
-      inset-inline-start: 12px;
-      inline-size: 160px;
-      block-size: 160px;
+      inset-block-start: ${HUD_EDGE}px;
+      inset-inline-start: var(--hud-end, ${HUD_EDGE}px);
+      inline-size: ${HUD_MINIMAP}px;
+      block-size: ${HUD_MINIMAP}px;
       border-radius: 10px;
       box-shadow: var(--sw-shadow-1);
       cursor: pointer;
@@ -706,11 +734,11 @@ export class SwPlan3d extends LitElement {
     }
     .pill {
       position: absolute;
-      left: 50%;
+      left: calc(50% + (var(--hud-end, ${HUD_EDGE}px) - ${HUD_EDGE}px) / 2); /* the free band's centre: past a docked list of the host */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 4px 12px;
       font-size: var(--sw-fs-xs);
@@ -719,11 +747,15 @@ export class SwPlan3d extends LitElement {
       direction: rtl;
       white-space: nowrap;
     }
+    /* the aim label hangs under the crosshair, which is the canvas's centre whatever a host list takes at the edge */
+    .pill.aim {
+      left: 50%;
+    }
     .pill.walknote {
       inset-block-end: 64px;
     }
     .pill.walknote[data-tone='warn'] {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .pill.cross-floor {
       inset-block-start: 12px;
@@ -749,10 +781,10 @@ export class SwPlan3d extends LitElement {
       -webkit-user-select: none;
       -webkit-touch-callout: none;
     }
-    @media (max-width: 640px) {
+    @media (max-width: ${HUD_PHONE_MAX}px) {
       .minimap {
-        inline-size: 112px;
-        block-size: 112px;
+        inline-size: ${HUD_MINIMAP_PHONE}px;
+        block-size: ${HUD_MINIMAP_PHONE}px;
       }
       /* above the bottom sheet's row */
       .pill.walknote {
@@ -872,6 +904,7 @@ export class SwPlan3d extends LitElement {
     this.themeObserver?.disconnect();
     this.themeObserver = undefined;
     this.realisticNotified = null;
+    this.cornerSent = undefined;
     this.ro?.disconnect();
     this.barRo?.disconnect();
     cancelAnimationFrame(this.thumbPass);
@@ -1018,6 +1051,7 @@ export class SwPlan3d extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>): void {
+    this.syncCorner();
     if (changed.has('sunAt')) this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
     this.syncKiosk(changed);
     if (!this.view) return;
@@ -1048,6 +1082,7 @@ export class SwPlan3d extends LitElement {
     const view = this.view;
     if (!view || !this.overlays.length) return;
     const els = this.renderRoot.querySelectorAll<HTMLElement>('[data-3d-part]');
+    const shown: { el: HTMLElement; p: ScenePart; x: number; y: number }[] = [];
     els.forEach((el) => {
       const p = this.overlayById.get(el.getAttribute('data-3d-part') ?? '');
       const at = p ? view.projectPoint(p.position) : null;
@@ -1056,9 +1091,26 @@ export class SwPlan3d extends LitElement {
         return;
       }
       el.style.display = 'block';
-      // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
-      el.style.transform = p.kind === 'chip' ? `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -50%)` : `translate(${Math.round(at.x)}px, ${Math.round(at.y) - PILL_GAP_PX}px) translate(-50%, -100%)`;
+      shown.push({ el, p, x: Math.round(at.x), y: Math.round(at.y) });
     });
+    // ST7-odd: two pills whose points project close together never cover one another - the upper one is raised to a stack
+    // (pill-layout.ts). A pill's size is read once per text (one layout read for a new pill, none per frame).
+    const boxes: PillBox[] = [];
+    for (const s of shown) {
+      if (s.p.kind === 'chip') continue;
+      const key = `${s.p.id}|${s.p.text ?? ''}`;
+      let size = this.pillSizes.get(key);
+      if (!size) {
+        size = { w: s.el.offsetWidth, h: s.el.offsetHeight };
+        if (size.w > 0 && size.h > 0) this.pillSizes.set(key, size);
+      }
+      boxes.push({ id: s.p.id, x: s.x, y: s.y - PILL_GAP_PX, w: size.w, h: size.h });
+    }
+    const raised = boxes.length > 1 ? resolvePillOverlaps(boxes, PILL_STACK_GAP_PX) : null;
+    for (const { el, p, x, y } of shown) {
+      // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
+      el.style.transform = p.kind === 'chip' ? `translate(${x}px, ${y}px) translate(-50%, -50%)` : `translate(${x}px, ${y - PILL_GAP_PX + Math.round(raised?.get(p.id) ?? 0)}px) translate(-50%, -100%)`;
+    }
   }
 
   private apply(desc: SceneDescription): void {
@@ -1802,6 +1854,24 @@ export class SwPlan3d extends LitElement {
     </div>`;
   }
 
+  /** What this element keeps in its top-end corner: the walk's minimap while the walk is on, else the time pill (the realistic level has a sun, no
+   * screen owns the time, no kiosk hides it), else nothing. The same conditions renderTime() and renderWalk() draw by. */
+  private cornerKind(): HudCorner {
+    if (this.walkState === 'on') return this.walk ? 'minimap' : null;
+    return this.quality === 3 && this.sunShown && this.sunAt === null && !this.kiosk ? 'pill' : null;
+  }
+
+  private cornerSent: HudCorner | undefined = undefined;
+  /** Tell the host (once per change) what stands in the corner: it stacks its own blocks - the circuit buttons - below it (map/hud-layout.ts). */
+  private syncCorner(): void {
+    const corner = this.cornerKind();
+    if (corner === this.cornerSent) return;
+    this.cornerSent = corner;
+    if (corner) this.setAttribute('data-corner', corner);
+    else this.removeAttribute('data-corner');
+    this.dispatchEvent(new CustomEvent<HudCornerDetail>('hud-corner', { detail: { corner }, bubbles: true, composed: true }));
+  }
+
   /** The time pill (LOOK_SPEC section 7): the band's glyph and the site's local time, "עכשיו" while the slider is in
    * use, a click opens the slider and the date. */
   private renderTime() {
@@ -1835,7 +1905,7 @@ export class SwPlan3d extends LitElement {
       ${this.overlays.length
         ? html`<div class="overlay">${this.overlays.map((p) => p.kind === 'chip'
             ? html`<span class="chip" aria-hidden="true" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id} data-3d-part=${p.id}>${p.text ?? ''}</span>`
-            : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: var(--sw-${p.color})`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
+            : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: ${pillInk(p.color)}`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
             ? html`<span class="more" data-3d-more=${this.hiddenPills} title="ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן">+${this.hiddenPills} ישויות</span>`
             : nothing}</div>`
         : nothing}
@@ -1861,7 +1931,8 @@ export class SwPlan3d extends LitElement {
         ${this.walkable
           ? html`<sw-chip data-walk-btn title="סיור בגובה עין: W A S D או החצים להליכה, Shift לריצה, גרירה להסתכלות, לחיצה על הרצפה להליכה לשם, Esc ליציאה" ?selected=${this.walkState !== 'off'} @click=${() => this.requestWalk()}>${this.walkState === 'requested' ? 'טוען סיור…' : 'סיור'}</sw-chip>`
           : nothing}
-        <sw-button size="sm" variant="ghost" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
+        <!-- ST7-odd: a surface like the chips beside it - a ghost control over the rendered picture faded into whatever lay behind it -->
+        <sw-button size="sm" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
       ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${fallbackHe(this.rung)}</div>` : nothing}

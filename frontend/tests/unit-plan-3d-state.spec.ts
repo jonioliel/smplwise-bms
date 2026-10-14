@@ -4,6 +4,7 @@ import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription, type SceneZone } from '../src/map/scene-builder';
 import { tintOnlyChange } from '../src/map/scene-three';
 import { PILL_CAP } from '../src/map/scene-frame';
+import { PILL_INK } from '../src/map/pill-ink';
 import { roomStates, type RoomStateLayer, type StateEntity } from '../src/map/room-state';
 
 // CR-006 slice 1b, the 3D element in headless Chromium on the style guide's demo floor with descriptions built here
@@ -152,7 +153,7 @@ test('the state layer in 3D: lit and presence prisms in the state tokens, the op
   expect(lines.length).toBe(2); // the room prism and its name - not the lit prism, not the DOM chip
 });
 
-test('entity pills are DOM labels (slice 1c): no sprite in the scene, the state token as the colour, placed by part id, a click selects the entity', async ({ page }) => {
+test('entity pills are DOM labels (slice 1c): no sprite in the scene, the readable twin of the state token as the ink (map/pill-ink.ts: the pill is the opaque HUD surface, owner 2026-10-13), placed by part id, a click selects the entity', async ({ page }) => {
   test.setTimeout(120_000);
   const el = await openDemo(page);
   await setDescription(el, withStates);
@@ -166,13 +167,16 @@ test('entity pills are DOM labels (slice 1c): no sprite in the scene, the state 
     const lbl = el.locator(`[data-3d-label="${p.userData.id}"]`);
     await expect(lbl).toHaveText(p.text!);
     await expect(lbl).toHaveAttribute('data-3d-part', p.id);
-    expect(await lbl.evaluate((n) => getComputedStyle(n).color)).toBe(await el.evaluate((n, t) => { const s = document.createElement('span'); s.style.color = getComputedStyle(n).getPropertyValue(`--sw-${t}`).trim(); n.shadowRoot!.appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; }, p.color));
+    // the scene hands the pill a state token (`live`, `stale`, `text-3`); on the opaque pill its text is the readable twin of that token (a bare state colour is a dot colour)
+    expect(await lbl.evaluate((n) => getComputedStyle(n).color)).toBe(await el.evaluate((n, t) => { const s = document.createElement('span'); s.style.color = getComputedStyle(n).getPropertyValue(`--sw-${t}`).trim(); n.shadowRoot!.appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; }, PILL_INK[p.color] ?? p.color));
   }
   // each pill stands on its own part's projected point - bottom edge a small gap above it, so the object under it stays
   // clickable from straight above (matched by id: reversing the description's part order moves nothing); pills are no
-  // Tab stops (the list and the inspector select by keyboard)
-  const first = ents[0];
-  const at = await el.evaluate((n, id) => { const e = n as unknown as { toScreen: (p: number[]) => { x: number; y: number } | null; description: SceneDescription }; return e.toScreen(e.description.parts.find((x) => x.id === id)!.position); }, first.id);
+  // Tab stops (the list and the inspector select by keyboard). ST7-odd: a pill another pill would cover is raised above it
+  // (pill-layout.ts), so the one checked here is the lowest on the screen - it always keeps its place
+  const screen = await el.evaluate((n, ids) => { const e = n as unknown as { toScreen: (p: number[]) => { x: number; y: number } | null; description: SceneDescription }; return ids.map((id) => e.toScreen(e.description.parts.find((x) => x.id === id)!.position)); }, ents.map((p) => p.id));
+  const first = ents[screen.reduce((best, s, i) => (s && (!screen[best] || s.y > screen[best]!.y) ? i : best), 0)];
+  const at = screen[ents.indexOf(first)];
   const lbl = el.locator(`[data-3d-label="${first.userData.id}"]`);
   await expect(lbl).toHaveAttribute('tabindex', '-1');
   const box = (await lbl.boundingBox())!;

@@ -578,8 +578,10 @@ export class SwPlanCanvas extends LitElement {
     .marker.dimmed {
       opacity: 0.55;
     }
+    /* the label pills drawn over the plan (a device name, a room name, a temperature, a shared room, the tribune entry) are opaque (owner 2026-10-13,
+       styles/menu-surface.ts): they were glass or a white 92 % that carried the dark scheme's light ink */
     .marker .lbl-bg {
-      fill: var(--sw-surface);
+      fill: var(--sw-menu-surface);
       filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.18));
       pointer-events: none;
     }
@@ -639,7 +641,7 @@ export class SwPlanCanvas extends LitElement {
       pointer-events: none;
     }
     .zone .tchip rect {
-      fill: rgba(255, 255, 255, 0.94);
+      fill: var(--sw-menu-surface);
       stroke: var(--sw-map-temp);
       stroke-opacity: 0.35;
       stroke-width: 1;
@@ -687,7 +689,7 @@ export class SwPlanCanvas extends LitElement {
       fill-opacity: 0.07;
     }
     .shared-other rect {
-      fill: rgba(255, 255, 255, 0.92);
+      fill: var(--sw-menu-surface);
       stroke: var(--sw-accent);
       stroke-opacity: 0.5;
       stroke-width: 1;
@@ -706,7 +708,7 @@ export class SwPlanCanvas extends LitElement {
       stroke-width: 1.6;
     }
     .tribune-entry rect {
-      fill: rgba(255, 255, 255, 0.95);
+      fill: var(--sw-menu-surface);
       stroke: var(--sw-accent);
       stroke-opacity: 0.6;
       stroke-width: 1;
@@ -715,7 +717,7 @@ export class SwPlanCanvas extends LitElement {
       font-family: var(--sw-font);
       font-size: 10px;
       font-weight: 600;
-      fill: var(--sw-text-1, #1f2937);
+      fill: var(--sw-text);
       text-anchor: middle;
       direction: rtl;
       unicode-bidi: plaintext;
@@ -730,8 +732,8 @@ export class SwPlanCanvas extends LitElement {
       unicode-bidi: plaintext;
     }
     .zone .zchip rect {
-      fill: var(--zc);
-      fill-opacity: 0.14;
+      fill: color-mix(in srgb, var(--zc) 14%, var(--sw-menu-surface));
+      fill-opacity: 1;
       stroke: var(--zc);
       stroke-opacity: 0.6;
       stroke-width: 1;
@@ -747,7 +749,7 @@ export class SwPlanCanvas extends LitElement {
       unicode-bidi: plaintext;
     }
     .zone .zl-bg {
-      fill: rgba(255, 255, 255, 0.92);
+      fill: var(--sw-menu-surface);
       stroke: var(--zc);
       stroke-opacity: 0.55;
       stroke-width: 1;
@@ -1047,7 +1049,7 @@ export class SwPlanCanvas extends LitElement {
       stroke-dasharray: none;
     }
     .cand-score rect {
-      fill: var(--sw-surface);
+      fill: var(--sw-menu-surface);
       stroke: var(--sw-map-candidate);
     }
     .cand-score text {
@@ -1074,7 +1076,7 @@ export class SwPlanCanvas extends LitElement {
       stroke-dasharray: 5 3;
     }
     .ghost-note rect {
-      fill: var(--sw-surface);
+      fill: var(--sw-menu-surface);
       stroke: var(--sw-accent);
     }
     .ghost-note.warn rect {
@@ -1166,8 +1168,8 @@ export class SwPlanCanvas extends LitElement {
       stroke: var(--sw-accent);
     }
     .ruler rect {
-      fill: var(--sw-surface);
-      stroke: var(--sw-border);
+      fill: var(--sw-menu-surface);
+      stroke: var(--sw-border-strong);
     }
     .ruler text {
       fill: var(--sw-text);
@@ -1188,35 +1190,51 @@ export class SwPlanCanvas extends LitElement {
       fill: rgba(154, 163, 181, 0.14);
       stroke: var(--sw-offline);
     }
-    .controls {
+    /* the zoom buttons and the scale readout stand in one row at the bottom-end corner: the readout follows the buttons' real width (a skin's buttons
+       are 26, 36 or 44 px wide - Bubble's 52 px column lay 8 px over a readout fixed at 56 px). While the host's phone sheet (the side list) covers
+       the bottom of the plan they stand above it (--hud-bottom, set by the floor map: map/hud-layout.ts). */
+    .zoomdock {
       position: absolute;
       left: var(--sw-s-3);
-      bottom: var(--sw-s-3);
+      bottom: var(--hud-bottom, var(--sw-s-3));
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      z-index: var(--sw-z-map-ui);
+      pointer-events: none; /* the row's own gap takes no drag from the plan */
+    }
+    .zoomdock > * {
+      pointer-events: auto;
+    }
+    .controls {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      /* the zoom buttons and the readout float over the drawing: opaque (owner 2026-10-13, styles/menu-surface.ts) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: 10px;
       box-shadow: var(--sw-shadow-2);
       padding: 3px;
-      z-index: var(--sw-z-map-ui);
     }
     .scale {
-      position: absolute;
-      left: 56px;
-      bottom: var(--sw-s-3);
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
       padding: 2px 8px;
-      z-index: var(--sw-z-map-ui);
       font-family: var(--sw-font-mono);
       box-shadow: var(--sw-shadow-1);
     }
   `;
+
+  /** The zoom buttons' dock (the buttons and the scale readout) in viewport coordinates, or null when it is not laid out (the 3D view hides this canvas):
+   * the floor map stops its docked list above it (map/hud-layout.ts listBottom). */
+  zoomDockRect(): DOMRect | null {
+    const r = this.renderRoot.querySelector<HTMLElement>('.zoomdock')?.getBoundingClientRect();
+    return r && r.width > 0 && r.height > 0 ? r : null;
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -2816,12 +2834,14 @@ export class SwPlanCanvas extends LitElement {
           ${this.box ? svg`<rect class="box" data-box x=${this.box.x0.toFixed(1)} y=${this.box.y0.toFixed(1)} width=${(this.box.x1 - this.box.x0).toFixed(1)} height=${(this.box.y1 - this.box.y0).toFixed(1)} />` : nothing}
         </svg>
       </div>
-      <div class="controls" role="group" aria-label="זום">
-        <sw-button variant="ghost" size="sm" iconOnly icon="plus" label=${t('floor.zoomIn')} @click=${() => this.zoomBy(1.25)}></sw-button>
-        <sw-button variant="ghost" size="sm" iconOnly icon="minus" label=${t('floor.zoomOut')} @click=${() => this.zoomBy(0.8)}></sw-button>
-        <sw-button variant="ghost" size="sm" iconOnly icon="fit" label=${t('floor.fit')} @click=${() => { this.fitted = false; this.fit(); }}></sw-button>
+      <div class="zoomdock">
+        <div class="controls" role="group" aria-label="זום">
+          <sw-button variant="ghost" size="sm" iconOnly icon="plus" label=${t('floor.zoomIn')} @click=${() => this.zoomBy(1.25)}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="minus" label=${t('floor.zoomOut')} @click=${() => this.zoomBy(0.8)}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="fit" label=${t('floor.fit')} @click=${() => { this.fitted = false; this.fit(); }}></sw-button>
+        </div>
+        <div class="scale" aria-live="polite">${Math.round(this.scale * 100)}%</div>
       </div>
-      <div class="scale" aria-live="polite">${Math.round(this.scale * 100)}%</div>
     `;
   }
 }
