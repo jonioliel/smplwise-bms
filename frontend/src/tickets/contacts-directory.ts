@@ -54,6 +54,7 @@ export class TicketsContacts extends LitElement {
   @state() private erasing = false;
   @state() private eraseHistory = false;
   @state() private problem = '';
+  @state() private liveLinks = 0;
   @state() private denied = false;
   private searchTimer = 0;
 
@@ -178,6 +179,9 @@ export class TicketsContacts extends LitElement {
     this.erasing = false;
     this.eraseHistory = false;
     this.problem = '';
+    this.liveLinks = 0;
+    // how many live links a phone / e-mail change would revoke (the row of the list does not carry it)
+    if (c && this.canEdit) void ticketsS4Api().contact(c.id).then((full) => { if (this.selected === c.id) this.liveLinks = full.live_links ?? 0; }).catch(() => undefined);
   }
 
   private set(p: Partial<Draft>): void {
@@ -219,8 +223,9 @@ export class TicketsContacts extends LitElement {
     this.busy = true;
     try {
       const saved = c ? await ticketsS4Api().patchContact(c.id, { ...b, revision: c.revision }) : await ticketsS4Api().createContact(b);
-      const revoked = c && (c.live_links ?? 0) > 0 && saved.live_links === 0 && (b.phone !== undefined || b.email !== undefined);
-      this.notice({ ok: revoked ? `${tt('setSaved')} · ${tt('ctLinksRevoked', { n: c?.live_links ?? 0 })}` : tt('setSaved') });
+      const before = this.liveLinks;
+      const revoked = c && before > 0 && (saved.live_links ?? 0) < before ? before - (saved.live_links ?? 0) : 0;
+      this.notice({ ok: revoked ? `${tt('setSaved')} · ${tt('ctLinksRevoked', { n: revoked })}` : tt('setSaved') });
       await this.load();
       this.open(saved);
     } catch (e) {
@@ -321,7 +326,9 @@ export class TicketsContacts extends LitElement {
           ${vendors.map((v) => html`<option value=${v.id} ?selected=${v.id === d.vendor_id}>${v.display_name}</option>`)}</select></label>` : nothing}
         <label class="fld"><span>${tt('ctPhone')}</span><input class="in" type="tel" dir="ltr" maxlength="40" autocomplete="off" data-field="phone"
           placeholder=${c && c.has_phone && !c.phone_full ? c.phone ?? '' : ''} .value=${d.phone} @input=${(e: Event) => this.set({ phone: (e.target as HTMLInputElement).value })} />
-          <span class="hint">${tt('ctPhoneHint')}</span></label>
+          <span class="hint">${tt('ctPhoneHint')}</span>
+          ${c && this.liveLinks > 0 && (d.phone.trim() !== draftOf(c).phone || d.email.trim() !== draftOf(c).email)
+            ? html`<span class="err" role="status" data-contact-links-warning>${tt('ctChangeRevokes', { n: this.liveLinks })}</span>` : nothing}</label>
         <label class="fld"><span>${tt('ctEmail')}</span><input class="in" type="email" dir="ltr" maxlength="254" autocomplete="off" data-field="email" .value=${d.email}
           @input=${(e: Event) => this.set({ email: (e.target as HTMLInputElement).value })} /></label>
         ${seg(tt('ctChannel'), CONTACT_CHANNELS, d.preferred_channel, (v) => tt(`ch_${v}` as TicketTextKey), (v) => this.set({ preferred_channel: v }), 'channel')}

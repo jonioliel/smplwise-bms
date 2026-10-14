@@ -67,6 +67,10 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
     await page.locator(`${C} [data-field="lang"]`).selectOption('ru');
     await page.locator(`${C} [data-contact-save]`).click();
     await expect.poll(() => last(mock, 'PATCH', /^tickets\/contacts\/c000000000000p01$/)?.body).toEqual({ company: 'טכנאי בכיר', lang: 'ru', revision: 1 });
+    // a phone change of a contact holding a live link says what it will revoke before anything is saved (review T19-4)
+    await expect(page.locator(`${C} [data-contact-links-warning]`)).toHaveCount(0);
+    await page.locator(`${C} [data-field="phone"]`).fill('050-000-0099');
+    await expect(page.locator(`${C} [data-contact-links-warning]`)).toBeVisible();
     // a new contact: the name is required
     await page.locator(`${C} [data-contact-new]`).click();
     await page.locator(`${C} [data-contact-save]`).click();
