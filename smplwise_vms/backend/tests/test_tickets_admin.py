@@ -115,17 +115,23 @@ def test_nobody_makes_themself_a_manager_of_a_department_they_do_not_manage(w, s
     bind(w.c, settings, "tom", "tickets_configure", "installation", "*")  # tom: configure + only a MEMBER of maintenance
     r = w.c.put(f"{API}/tickets/admin/departments/{MAINT}/members/user/dev-tom", json={"role": "manager"}, headers=as_user("tom"))
     assert r.status_code == 403, "a member is not a manager: no member edits at all"
-    # joni sees every department, yet is not a manager member of cleaning: he may name others, never himself
+    # PENDING owner confirmation (2026-10-14): joni holds tickets.all_departments (system_admin) - he already sees and manages every
+    # department, so he may name others AND himself (directly or through a group he belongs to); the add is audited with self: true
     assert w.c.put(f"{API}/tickets/admin/departments/{w.cleaning}/members/user/dev-tom", json={"role": "manager"}).status_code == 200
     r = w.c.put(f"{API}/tickets/admin/departments/{w.cleaning}/members/user/dev-joni", json={"role": "manager"})
-    assert r.status_code == 403 and r.json()["details"]["reason"] == "self_escalation"
-    assert w.c.put(f"{API}/tickets/admin/departments/{w.cleaning}/members/user/dev-joni", json={"role": "member"}).status_code == 200
-    # ... nor through a group he belongs to
+    assert r.status_code == 200, r.text
     with w.c.app.state.db.connection() as conn:
         conn.execute("INSERT INTO groups(id, name, created_at) VALUES ('g-ops', 'צוות', '2026-10-13T00:00:00Z')")
         conn.execute("INSERT INTO group_members(group_id, user_id) VALUES ('g-ops', 'dev-joni')")
-    r = w.c.put(f"{API}/tickets/admin/departments/{w.cleaning}/members/group/g-ops", json={"role": "manager"})
-    assert r.status_code == 403 and r.json()["details"]["reason"] == "self_escalation"
+    assert w.c.put(f"{API}/tickets/admin/departments/{w.cleaning}/members/group/g-ops", json={"role": "manager"}).status_code == 200
+    with w.c.app.state.db.connection(mode="read") as conn:
+        selfs = [r[0] for r in conn.execute("SELECT details_json FROM audit_log WHERE action IN ('ticket.member.add', 'ticket.member.update') "
+                                             "AND details_json LIKE '%\"self\": true%'").fetchall()]
+    assert len(selfs) == 2, "both self-adds are audited as such"
+    # without tickets.all_departments a configurer still cannot touch a department he does not manage (himself included)
+    bind(w.c, settings, "cleo", "tickets_configure", "installation", "*")
+    r = w.c.put(f"{API}/tickets/admin/departments/{MAINT}/members/user/dev-cleo", json={"role": "manager"}, headers=as_user("cleo"))
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "not_manager_of_department"
     # a manager may promote another member and change their own membership within a department they already manage
     bind(w.c, settings, "cleo", "tickets_configure", "installation", "*")
     assert w.c.put(f"{API}/tickets/admin/departments/{w.cleaning}/members/user/dev-cleo", json={"role": "manager", "notify_new": False},
