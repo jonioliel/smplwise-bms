@@ -1,0 +1,318 @@
+/**
+ * CR-038 slice 9 (section 11A, owner decisions D31 / D32): the ONLY module of the frontend that talks to the cost-claim routes of
+ * smplwise_vms/backend/smplwise/routers/tickets_costs.py (and the `costs` block of `GET / PUT tickets/settings`, the assign preview's
+ * `cost_claim`). A separate file so slice 9 never edits slice 1's api/tickets.ts beyond the few typed fields it adds there. Without a
+ * backend (static preview, design review) every call is answered by the demo store in ./tickets-costs-mock.ts.
+ *
+ * MONEY: every amount is an INTEGER in minor units (agorot for ILS) as the server sends it; amounts the client sends are DECIMAL
+ * STRINGS (`"120.50"`), never numbers - the server parses and recomputes every figure (11A.4). Display formatting lives in
+ * tickets/cost-model.ts.
+ */
+import { ApiError, apiUrl, get, post, put, upload, type ApiErrorBody } from './client';
+import { isApi } from './session';
+import { mockCosts } from './tickets-costs-mock';
+
+export type CostMode = 'required' | 'optional' | 'off';
+export type CostStatus = 'not_required' | 'awaiting' | 'submitted' | 'rejected' | 'approved' | 'paid';
+export type ClaimStatus = Exclude<CostStatus, 'not_required'>;
+export type LineKind = 'labor' | 'parts' | 'travel' | 'other';
+export type VatMode = 'excluded' | 'included' | 'none';
+export const COST_MODES: readonly CostMode[] = ['required', 'optional', 'off'];
+export const LINE_KINDS: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
+/** money.CURRENCIES of the server: ISO 4217 codes with two minor digits (the only ones the input rule accepts). */
+export const CURRENCIES: readonly string[] = ['ILS', 'USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD'];
+
+/** `GET tickets/{id}` › `cost`: the chip for everyone who sees the ticket; the rest only with tickets.costs.view on its place. */
+export interface TicketCostBlock {
+  status: CostStatus;
+  can_view: boolean;
+  total_minor?: number | null;
+  currency?: string | null;
+  can_decide?: boolean;
+  can_set_requirement?: boolean;
+}
+
+/** A stored line of a revision (the server's `Line.as_json`). */
+export interface StoredLine {
+  kind: LineKind;
+  description: string;
+  total_minor: number;
+  hours?: string;
+  rate_minor?: number;
+  quantity?: string;
+  unit_minor?: number;
+  amount_minor?: number;
+}
+
+/** A line the client sends (decimal strings only; the server computes `total_minor`). */
+export type LineInput =
+  | { kind: 'labor'; description?: string; hours: string; rate: string }
+  | { kind: 'parts'; description: string; quantity: string; unit_price: string }
+  | { kind: 'travel' | 'other'; description?: string; amount: string };
+
+export interface CostPage { id: string; kind: 'photo' | 'pdf'; bytes: number; name: string; width?: number | null; height?: number | null }
+export interface CostDocument { no: number; kind: 'photo' | 'pdf'; pages: CostPage[] }
+
+export interface CostRevision {
+  id: string;
+  seq: number;
+  source: 'vendor' | 'manager';
+  kind: 'submission' | 'adjustment' | 'on_behalf';
+  based_on: string | null;
+  no_charge: boolean;
+  lines: StoredLine[];
+  labor_minor: number;
+  parts_minor: number;
+  travel_minor: number;
+  other_minor: number;
+  subtotal_minor: number;
+  vat_mode: VatMode;
+  vat_rate_bp: number;
+  vat_minor: number;
+  net_minor: number;
+  total_minor: number;
+  currency: string;
+  vendor_ref: string | null;
+  notes: string | null;
+  reason?: string | null;
+  created_at: string;
+  created_by_kind?: 'contact' | 'user';
+  created_by_name?: string;
+  documents: CostDocument[];
+}
+
+export type DecisionAction = 'approve' | 'adjust' | 'reject' | 'mark_paid' | 'unmark_paid' | 'reopen_window' | 'override_close' | 'superseded' | 'requirement';
+export interface CostDecision {
+  id: string;
+  action: DecisionAction;
+  revision_id: string | null;
+  reason: string | null;
+  amount_minor: number | null;
+  payment_ref: string | null;
+  /** the deciding user's name ('' for a vendor's own supersede) */
+  by: string;
+  at: string;
+}
+
+/** One claim (one per external assignment). Without tickets.costs.view only the first block of fields arrives. */
+export interface CostClaim {
+  id: string;
+  assignment_id: string;
+  status: ClaimStatus;
+  required: boolean;
+  claim_until: string | null;
+  window_open: boolean;
+  missing: boolean;
+  revision?: number;
+  currency?: string;
+  no_charge?: boolean;
+  current_revision_id?: string | null;
+  approved_revision_id?: string | null;
+  approved_total_minor?: number | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  paid_at?: string | null;
+  payment_ref?: string | null;
+  payment_date?: string | null;
+  /** the approved total once approved / paid, else the current revision's */
+  total_minor?: number | null;
+  high_amount?: boolean;
+  vendor?: string;
+  contact_name?: string;
+  labor_rate_minor?: number | null;
+  rate_currency?: string | null;
+  vat_exempt?: boolean;
+  reopen_used?: boolean;
+  revisions?: CostRevision[];
+  decisions?: CostDecision[];
+}
+
+export interface CostSettingsBrief { currencies: string[]; vat_rate_bp: number; review_flag_above_minor: number; max_claim_total_minor: number; require_invoice: boolean }
+export interface ExternalAssignment { id: string; name: string; assigned_at: string; ended_at: string | null; cost_claim: CostMode | null }
+
+/** `GET tickets/{id}/costs` (and the answer of every cost write). */
+export interface TicketCosts {
+  ticket_id: string;
+  number: number;
+  cost: TicketCostBlock;
+  claims: CostClaim[];
+  settings?: CostSettingsBrief;
+  external_assignments?: ExternalAssignment[];
+}
+
+export type DecisionKind = 'approve' | 'adjust' | 'reject' | 'mark-paid' | 'unmark-paid' | 'reopen-window';
+export interface DecisionBody {
+  /** the claim's optimistic revision (409 claim_stale when it moved) */
+  revision: number;
+  /** the claim's current_revision_id - approve / adjust / reject */
+  revision_id?: string;
+  reason?: string;
+  lines?: LineInput[];
+  payment_ref?: string;
+  /** YYYY-MM-DD */
+  payment_date?: string;
+}
+
+export interface OnBehalfBody {
+  assignment_id?: string;
+  lines: LineInput[];
+  currency?: string;
+  amounts_include_vat?: boolean;
+  vendor_ref?: string;
+  notes?: string;
+  no_charge?: boolean;
+  documents: { file_ids: string[] }[];
+}
+export interface PendingFile { id: string; kind: 'photo' | 'pdf'; bytes: number; width: number | null; height: number | null }
+
+// ---------------------------------------------------------------- the report (11A.9)
+
+export type ReportGroupBy = 'vendor' | 'department' | 'device' | 'room' | 'month';
+export type ReportStatus = 'submitted' | 'approved' | 'paid';
+export const REPORT_GROUPS: readonly ReportGroupBy[] = ['vendor', 'department', 'device', 'room', 'month'];
+export const REPORT_STATUSES: readonly ReportStatus[] = ['submitted', 'approved', 'paid'];
+export interface ReportQuery { group_by: ReportGroupBy; from?: string; to?: string; status?: ReportStatus[]; currency?: string }
+export interface ReportGroupRow {
+  key: string;
+  label: string;
+  currency: string;
+  approved_minor: number;
+  pending_minor: number;
+  claims: number;
+  tickets: number;
+  labor_minor: number;
+  parts_minor: number;
+  travel_minor: number;
+  other_minor: number;
+}
+export interface ReportTotal { currency: string; approved_minor: number; pending_minor: number; claims: number; tickets: number }
+export interface CostReport { group_by: ReportGroupBy; groups: ReportGroupRow[]; totals: ReportTotal[]; claims: number }
+
+// ---------------------------------------------------------------- settings (11A.14) and department defaults (11A.1)
+
+export interface CostsSettings {
+  mode: CostMode;
+  currencies: string[];
+  vat_rate_bp: number;
+  claim_window_days: number;
+  require_invoice: boolean;
+  max_claim_total_minor: number;
+  review_flag_above_minor: number;
+  notify_vendor_approved: boolean;
+  retention_days: number;
+}
+export interface CostsSettingsDoc { revision: number; costs: CostsSettings }
+export interface DepartmentCosts { id: string; key: string; name: string; active: boolean; cost_claim: CostMode | null; claim_window_days: number | null }
+export interface DepartmentCostsAnswer { departments: DepartmentCosts[]; installation: { mode: CostMode; claim_window_days: number } }
+
+/** `POST tickets/{id}/assign/preview` (slice 4) - only the part slice 9 reads; the rest belongs to slice 4's assign dialog. */
+export interface CostClaimOption { default: CostMode; from: 'contact' | 'vendor' | 'department' | 'installation'; choices: CostMode[] }
+export interface AssignPreview { channel?: string; text?: string; require_code?: boolean; refusals?: string[]; cost_claim: CostClaimOption; [k: string]: unknown }
+
+export interface CostsBackend {
+  get(ticketId: string): Promise<TicketCosts>;
+  decide(ticketId: string, claimId: string, action: DecisionKind, body: DecisionBody): Promise<TicketCosts>;
+  setRequirement(ticketId: string, assignmentId: string, mode: CostMode): Promise<TicketCosts>;
+  uploadFile(ticketId: string, file: File): Promise<PendingFile>;
+  onBehalf(ticketId: string, body: OnBehalfBody): Promise<TicketCosts>;
+  /** an invoice page as an inline image (`<img src>`) */
+  pageUrl(ticketId: string, fileId: string): string;
+  /** a PDF file (attachment) - a download, never shown inline (11A.6) */
+  downloadFile(ticketId: string, fileId: string): Promise<void>;
+  /** "הורדה כ-PDF": the photographed pages of one document assembled on the server (11A.6A) */
+  downloadDocument(ticketId: string, claimId: string, revisionId: string, docNo: number): Promise<void>;
+  report(q: ReportQuery): Promise<CostReport>;
+  exportCsv(q: ReportQuery, rows: 'claim' | 'line'): Promise<void>;
+  departments(): Promise<DepartmentCostsAnswer>;
+  saveDepartment(id: string, body: { cost_claim: CostMode | null; claim_window_days: number | null }): Promise<DepartmentCostsAnswer>;
+  settings(): Promise<CostsSettingsDoc>;
+  saveSettings(revision: number, costs: Partial<CostsSettings>): Promise<CostsSettingsDoc>;
+  assignPreview(ticketId: string, contactId: string, requireCode?: boolean): Promise<AssignPreview>;
+}
+
+const T = 'tickets';
+const enc = encodeURIComponent;
+
+/** The report / export query string (only what is set; the statuses comma-joined as the server reads them). */
+export function reportQs(q: ReportQuery, extra: Record<string, string> = {}): string {
+  const p = new URLSearchParams();
+  p.set('group_by', q.group_by);
+  if (q.from) p.set('from', q.from);
+  if (q.to) p.set('to', q.to);
+  if (q.status?.length) p.set('status', q.status.join(','));
+  if (q.currency) p.set('currency', q.currency);
+  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  return `?${p.toString()}`;
+}
+
+/** The file name of a `Content-Disposition` answer (or the fallback). */
+export function dispositionName(header: string | null, fallback: string): string {
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header ?? '');
+  try {
+    return m ? decodeURIComponent(m[1]) : fallback;
+  } catch {
+    return m ? m[1] : fallback;
+  }
+}
+
+/** Save a blob under a name through a temporary link (the browser's own download; nothing is rendered by the app). */
+export function saveBlob(blob: Blob, name: string): void {
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = name;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
+}
+
+/** GET a file route and save it; a refusal (429 export_rate, 413, 404, 403) is the usual ApiError with the server's message. */
+async function download(path: string, fallback: string): Promise<void> {
+  const res = await fetch(apiUrl(path), { credentials: 'same-origin' });
+  if (!res.ok) {
+    let body: ApiErrorBody | null = null;
+    try {
+      body = (await res.json()) as ApiErrorBody;
+    } catch {
+      body = null;
+    }
+    throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
+  }
+  saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), fallback));
+}
+
+const rest: CostsBackend = {
+  get: (id) => get<TicketCosts>(`${T}/${enc(id)}/costs`),
+  decide: (id, claimId, action, body) => post<TicketCosts>(`${T}/${enc(id)}/costs/${enc(claimId)}/${action}`, body),
+  setRequirement: (id, assignmentId, mode) => post<TicketCosts>(`${T}/${enc(id)}/costs/requirement`, { assignment_id: assignmentId, mode }),
+  uploadFile: (id, file) => {
+    const form = new FormData();
+    form.append('file', file, file.name || (file.type === 'application/pdf' ? 'invoice.pdf' : 'page.jpg'));
+    return upload<PendingFile>(`${T}/${enc(id)}/costs/files`, form);
+  },
+  onBehalf: (id, body) => post<TicketCosts>(`${T}/${enc(id)}/costs`, body),
+  pageUrl: (id, fileId) => apiUrl(`${T}/${enc(id)}/costs/files/${enc(fileId)}`),
+  downloadFile: (id, fileId) => download(`${T}/${enc(id)}/costs/files/${enc(fileId)}`, 'invoice.pdf'),
+  downloadDocument: (id, claimId, revisionId, docNo) => download(`${T}/${enc(id)}/costs/${enc(claimId)}/documents/${enc(revisionId)}/${docNo}.pdf`, `invoice-${docNo}.pdf`),
+  report: (q) => get<CostReport>(`${T}/costs/report${reportQs(q)}`),
+  exportCsv: (q, rows) => download(`${T}/costs/export.csv${reportQs(q, { rows })}`, 'costs.csv'),
+  departments: () => get<DepartmentCostsAnswer>(`${T}/costs/departments`),
+  saveDepartment: (id, body) => put<DepartmentCostsAnswer>(`${T}/costs/departments/${enc(id)}`, body),
+  settings: async () => {
+    const doc = await get<{ revision: number; costs: CostsSettings }>(`${T}/settings`);
+    return { revision: doc.revision, costs: doc.costs };
+  },
+  saveSettings: async (revision, costs) => {
+    const doc = await put<{ revision: number; costs: CostsSettings }>(`${T}/settings`, { revision, costs });
+    return { revision: doc.revision, costs: doc.costs };
+  },
+  assignPreview: (id, contactId, requireCode) => post<AssignPreview>(`${T}/${enc(id)}/assign/preview`, { contact_id: contactId, ...(requireCode === undefined ? {} : { require_code: requireCode }) }),
+};
+
+/** The backend in force: REST with a server, the demo store without one. */
+export function ticketCostsApi(): CostsBackend {
+  return isApi() ? rest : mockCosts;
+}

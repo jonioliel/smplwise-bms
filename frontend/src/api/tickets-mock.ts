@@ -8,6 +8,7 @@ import type {
   NameDoc, NameEntries, PatchBody, PriorityKey, ReturnAnswer, ReturnBody, SettingsDoc, SlaRow, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
 } from './tickets';
 import { DEFAULT_TICKET_NAMES } from '../tickets/naming';
+import { demoCloseGate, demoCostBlock } from './tickets-costs-mock'; // CR-038 slice 9: the demo cost status and close gate
 
 const ME = { id: 'demo', name: 'יוני' };
 const PEOPLE = [ME, { id: 'u-avi', name: 'אבי כהן' }, { id: 'u-dana', name: 'דנה לוי' }, { id: 'u-moshe', name: 'משה פרץ' }];
@@ -175,7 +176,7 @@ function view(t: TicketDetail): TicketDetail {
     moves.set(to, (to === 'closed' && frm !== 'done') || to === 'cancelled');
   }
   const order: TicketStatus[] = ['new', 'assigned', 'acknowledged', 'in_progress', 'waiting_part', 'done', 'returned', 'closed', 'cancelled'];
-  const out = clone({ ...t, can: canOf(t), reopen_until: until, transitions: [...moves].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([to, note_required]) => ({ to, note_required })) });
+  const out = clone({ ...t, can: canOf(t), reopen_until: until, cost: demoCostBlock(t.id, t.number, t.status), transitions: [...moves].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([to, note_required]) => ({ to, note_required })) });
   return viewExtras.reduce((v, fn) => fn(v), out);
 }
 
@@ -274,6 +275,7 @@ export const mockBackend: TicketsBackend = {
   async status(id, body: StatusBody) {
     await sleep();
     const t = find(id);
+    if (body.to === 'closed') demoCloseGate(t.id, body.override_claim_reason); // slice 9 (11A.3): a required claim not approved blocks the close
     const frm = t.status;
     t.status = body.to;
     const now = new Date().toISOString();

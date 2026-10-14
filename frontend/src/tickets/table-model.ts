@@ -6,6 +6,7 @@
  */
 import type { BoardPrefs, BulkAnswer, BulkResult, ColumnKey, Density, SortDir, SortKey, TableFilters, TableRow, ViewDoc } from '../api/tickets-table';
 import { tbt, type TableTextKey } from './table-text';
+import { ct } from './cost-text';
 
 export const COLUMN_KEYS: readonly ColumnKey[] = ['number', 'title', 'department', 'priority', 'status', 'assignee', 'place', 'device', 'created', 'activity', 'stuck', 'sla'];
 export const DEFAULT_COLUMNS: readonly ColumnKey[] = ['number', 'title', 'department', 'priority', 'status', 'assignee', 'place', 'activity'];
@@ -16,15 +17,31 @@ export const MAX_SORT_KEYS = 2;
 export const LIMITS: readonly number[] = [25, 50, 100, 200];
 export const DEFAULT_LIMIT = 50;
 export const PRIORITY_KEYS = ['urgent', 'high', 'normal', 'low'] as const;
+/** CR-038 slice 9 (11A.9): the cost columns - offered (chooser, sort, filter) only to holders of tickets.costs.view at the installation;
+ * the host turns them on with setCostColumns (the server answers 403 to a cost sort / filter otherwise). */
+export const COST_COLUMN_KEYS: readonly ColumnKey[] = ['cost', 'cost_status'];
+let COST_COLUMNS = false;
+export function setCostColumns(on: boolean): void {
+  COST_COLUMNS = on;
+}
+export function costColumnsOn(): boolean {
+  return COST_COLUMNS;
+}
+/** The columns this user may see: the slice-6b set, plus the cost columns when turned on. */
+export function knownColumns(): readonly ColumnKey[] {
+  return COST_COLUMNS ? [...COLUMN_KEYS, ...COST_COLUMN_KEYS] : COLUMN_KEYS;
+}
 /** columns whose first click sorts newest / most urgent first */
-const DESC_FIRST: ReadonlySet<ColumnKey> = new Set(['created', 'activity', 'stuck']);
+const DESC_FIRST: ReadonlySet<ColumnKey> = new Set(['created', 'activity', 'stuck', 'cost']);
 
-export const NO_TABLE_FILTERS: Pick<TableFilters, 'priority' | 'assignee' | 'stuck' | 'waiting' | 'created_from' | 'created_to'> = {
-  priority: [], assignee: '', stuck: '', waiting: '', created_from: '', created_to: '',
+export const NO_TABLE_FILTERS: Pick<TableFilters, 'priority' | 'assignee' | 'stuck' | 'waiting' | 'created_from' | 'created_to' | 'cost_status'> = {
+  priority: [], assignee: '', stuck: '', waiting: '', created_from: '', created_to: '', cost_status: [],
 };
 export type ExtraFilters = typeof NO_TABLE_FILTERS;
 
 export function columnLabel(c: ColumnKey): string {
+  if (c === 'cost') return ct('sCost');
+  if (c === 'cost_status') return ct('colCostStatus');
   return tbt(`col_${c}` as TableTextKey);
 }
 
@@ -34,7 +51,7 @@ export function columnLabel(c: ColumnKey): string {
 export function normalizeColumns(raw: unknown): ColumnKey[] {
   if (!Array.isArray(raw)) return [...DEFAULT_COLUMNS];
   const seen: ColumnKey[] = [];
-  for (const c of raw) if ((COLUMN_KEYS as readonly unknown[]).includes(c) && !seen.includes(c as ColumnKey)) seen.push(c as ColumnKey);
+  for (const c of raw) if ((knownColumns() as readonly unknown[]).includes(c) && !seen.includes(c as ColumnKey)) seen.push(c as ColumnKey);
   if (!seen.length) return [...DEFAULT_COLUMNS];
   return [...REQUIRED_COLUMNS.filter((c) => !seen.includes(c)), ...seen];
 }
@@ -57,7 +74,7 @@ export function moveColumn(cols: readonly ColumnKey[], c: ColumnKey, delta: -1 |
 
 /** The chooser's list: the shown columns in their order, then the hidden ones in the default order. */
 export function chooserOrder(cols: readonly ColumnKey[]): { key: ColumnKey; shown: boolean; required: boolean }[] {
-  return [...cols, ...COLUMN_KEYS.filter((c) => !cols.includes(c))].map((key) => ({ key, shown: cols.includes(key), required: REQUIRED_COLUMNS.includes(key) }));
+  return [...cols, ...knownColumns().filter((c) => !cols.includes(c))].map((key) => ({ key, shown: cols.includes(key), required: REQUIRED_COLUMNS.includes(key) }));
 }
 
 // ---------------------------------------------------------------- sort
@@ -67,7 +84,7 @@ export function parseSort(text: unknown): SortKey[] {
   const out: SortKey[] = [];
   for (const part of text.split(',')) {
     const [key, dir = 'asc'] = part.trim().split(':');
-    if (!(COLUMN_KEYS as readonly string[]).includes(key) || (dir !== 'asc' && dir !== 'desc') || out.some((k) => k.key === key)) return [...DEFAULT_SORT];
+    if (!(knownColumns() as readonly string[]).includes(key) || (dir !== 'asc' && dir !== 'desc') || out.some((k) => k.key === key)) return [...DEFAULT_SORT];
     out.push({ key: key as ColumnKey, dir });
   }
   return out.length && out.length <= MAX_SORT_KEYS ? out : [...DEFAULT_SORT];
@@ -112,6 +129,7 @@ export function tableFilters(base: BaseFilters, extra: ExtraFilters): TableFilte
   return {
     scope: base.scope, status: base.status || 'open', department: base.department ? [base.department] : [], priority: [...extra.priority], assignee: extra.assignee,
     floor: '', area: '', stuck: extra.stuck, waiting: extra.waiting, created_from: extra.created_from, created_to: extra.created_to, q: base.q.trim(),
+    cost_status: COST_COLUMNS ? [...extra.cost_status] : [],
   };
 }
 
@@ -119,7 +137,7 @@ export function tableFilters(base: BaseFilters, extra: ExtraFilters): TableFilte
 export function queryParams(f: TableFilters, sort: readonly SortKey[], extra: { limit?: number; cursor?: string | null; columns?: readonly ColumnKey[]; lang?: string } = {}): Record<string, string> {
   const p: Record<string, string> = {
     scope: f.scope, status: f.status, department: f.department.join(','), priority: f.priority.join(','), assignee: f.assignee, floor: f.floor, area: f.area,
-    stuck: f.stuck, waiting: f.waiting, created_from: f.created_from, created_to: f.created_to, q: f.q, sort: sortText(sort),
+    stuck: f.stuck, waiting: f.waiting, created_from: f.created_from, created_to: f.created_to, q: f.q, sort: sortText(sort), cost_status: (f.cost_status ?? []).join(','),
   };
   if (extra.limit) p.limit = String(extra.limit);
   if (extra.cursor) p.cursor = extra.cursor;
@@ -130,7 +148,7 @@ export function queryParams(f: TableFilters, sort: readonly SortKey[], extra: { 
 }
 
 export function activeExtraCount(e: ExtraFilters): number {
-  return (e.priority.length ? 1 : 0) + (e.assignee ? 1 : 0) + (e.stuck ? 1 : 0) + (e.waiting ? 1 : 0) + (e.created_from || e.created_to ? 1 : 0);
+  return (e.priority.length ? 1 : 0) + (e.cost_status.length ? 1 : 0) + (e.assignee ? 1 : 0) + (e.stuck ? 1 : 0) + (e.waiting ? 1 : 0) + (e.created_from || e.created_to ? 1 : 0);
 }
 
 // ---------------------------------------------------------------- saved views and the preference
@@ -163,7 +181,7 @@ export function applyView(doc: ViewDoc, current: TableLayout): { base: Omit<Base
     base: { status: asText(f.status) || 'open', department: asList(f.department)[0] ?? '', q: asText(f.q) },
     extra: {
       priority: asList(f.priority).filter((p) => (PRIORITY_KEYS as readonly string[]).includes(p)), assignee: asText(f.assignee), stuck: asText(f.stuck), waiting,
-      created_from: asText(f.created_from), created_to: asText(f.created_to),
+      created_from: asText(f.created_from), created_to: asText(f.created_to), cost_status: [],
     },
     layout: { ...current, columns: normalizeColumns(doc.columns), sort: parseSort(doc.sort), density: doc.density === 'compact' ? 'compact' : 'comfortable' },
   };

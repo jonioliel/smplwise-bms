@@ -14,8 +14,10 @@ import { ApiError, apiUrl, get, patch, post, put, api } from './client';
 import { isApi } from './session';
 import { mockBackend } from './tickets-mock';
 import type { TicketItem, TicketStatus } from './tickets';
+import type { CostStatus } from './tickets-costs';
 
-export type ColumnKey = 'number' | 'title' | 'department' | 'priority' | 'status' | 'assignee' | 'place' | 'device' | 'created' | 'activity' | 'stuck' | 'sla';
+export type ColumnKey = 'number' | 'title' | 'department' | 'priority' | 'status' | 'assignee' | 'place' | 'device' | 'created' | 'activity' | 'stuck' | 'sla'
+  | 'cost' | 'cost_status'; // CR-038 slice 9 (11A.9): tickets.costs.view at the installation only (tickets/table-model.ts setCostColumns)
 export type SortDir = 'asc' | 'desc';
 export interface SortKey { key: ColumnKey; dir: SortDir }
 export type Density = 'comfortable' | 'compact';
@@ -39,6 +41,8 @@ export interface TableFilters {
   created_from: string;
   created_to: string;
   q: string;
+  /** slice 9: cost statuses (tickets.costs.view at the installation; the server answers 403 otherwise) */
+  cost_status: string[];
 }
 
 export interface TableRow extends Omit<TicketItem, 'excerpt'> {
@@ -48,6 +52,9 @@ export interface TableRow extends Omit<TicketItem, 'excerpt'> {
   /** the status moves THIS caller may make now (POST tickets/<id>/status) */
   transitions: { to: TicketStatus; note_required: boolean }[];
   can: { manage: boolean; assign: boolean; assign_external: boolean };
+  /** slice 9 (11A.9): the approved total, else the submitted one (approved: false); null without tickets.costs.view on the row */
+  cost?: { total_minor: number; currency: string; approved: boolean } | null;
+  cost_status?: CostStatus | null;
 }
 
 export interface TablePage { items: TableRow[]; next_cursor: string | null; sort: string; limit: number }
@@ -149,6 +156,8 @@ function demoKey(r: TableRow, key: ColumnKey): string | number {
     case 'activity': return r.last_activity_at;
     case 'stuck': return r.stuck ? 1 + r.stuck.level : 0;
     case 'sla': return r.sla?.due_at ?? '9999';
+    case 'cost': return r.cost?.total_minor ?? -1;
+    case 'cost_status': return r.cost_status ?? '';
   }
 }
 
@@ -170,7 +179,9 @@ const mock: TableBackend = {
       if (q && !it.title.includes(q) && String(it.number) !== q.replace(/^#/, '')) continue;
       const d = await mockBackend.get(it.id);
       const { excerpt: _e, ...item } = it;
-      rows.push({ ...item, stuck: null, sla: null, transitions: d.transitions, can: { manage: d.can.manage, assign: d.can.assign, assign_external: false } });
+      if (params.cost_status && !params.cost_status.split(',').includes(d.cost?.status ?? '')) continue;
+      const cost = d.cost?.total_minor != null && d.cost.currency ? { total_minor: d.cost.total_minor, currency: d.cost.currency, approved: d.cost.status === 'approved' || d.cost.status === 'paid' } : null;
+      rows.push({ ...item, stuck: null, sla: null, transitions: d.transitions, can: { manage: d.can.manage, assign: d.can.assign, assign_external: false }, cost, cost_status: d.cost?.status ?? null });
     }
     const sort = (params.sort || 'activity:desc').split(',').map((p) => p.split(':') as [ColumnKey, SortDir]);
     rows.sort((a, b) => {
