@@ -523,10 +523,19 @@ def _approve(conn, claim: Mapping[str, Any], revision_id: str, by: str, at: dt.d
     return fresh
 
 
+def _not_self(conn, revision_id: str, by: str) -> None:
+    """Security review 2026-10-14 (2.5.1): nobody approves (or adjusts and approves) a revision they entered themselves (an
+    on-behalf entry) - a second person decides."""
+    rev = store_costs.revision(conn, revision_id) or {}
+    if rev.get("created_by_kind") == "user" and rev.get("created_by") == by:
+        raise CostRefused(409, "self_approval")
+
+
 def approve(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_id: str, at: dt.datetime) -> dict[str, Any]:
     if claim["status"] != "submitted":
         raise CostRefused(409, "claim_not_submitted")
     _expect(claim, revision, revision_id)
+    _not_self(conn, revision_id, by)
     return _approve(conn, claim, revision_id, by, at, "approve", None)
 
 
@@ -537,6 +546,7 @@ def adjust(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by: str, 
     if claim["status"] != "submitted":
         raise CostRefused(409, "claim_not_submitted")
     _expect(claim, revision, revision_id)
+    _not_self(conn, revision_id, by)
     why = _reason(reason)
     base = store_costs.revision(conn, revision_id) or {}
     d = draft(conn, claim, {**body, "currency": base.get("currency")}, vat_mode=base.get("vat_mode"))

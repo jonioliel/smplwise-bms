@@ -131,6 +131,9 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/multimedia/cast/config", "/api
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/address/probe",)
 # CR-038 S5a (section 20): the WhatsApp test send (a typed number, a real message) is local-only
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/messaging/whatsapp/test",)
+# CR-038 security review 2026-10-14 (2.5.1): the module key rotation revokes every live link - local sessions only. (The public
+# keys of PUT /tickets/settings - base_url, trusted proxies, client-address header - are refused remotely in routers/tickets_admin.py.)
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/key/rotate",)
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
 # What a client must send, machine-readable (the phone apps read `details` to pick the right message): the session cookie is only
 # accepted on a state-changing request that proves its origin. `reason` is one of csrf_reasons() below.
