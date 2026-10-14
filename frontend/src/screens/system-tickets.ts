@@ -8,6 +8,8 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import '../tickets/settings-dept';
+import '../tickets/contacts-directory';
+import '../tickets/public-settings';
 import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
 import '../tickets/settings-message-templates'; // slice 5b: תבניות הודעה (D26)
 import { mtt } from '../tickets/messages-text';
@@ -31,8 +33,8 @@ import { intIn, windowProblem } from '../tickets/durations';
 import { ticketSettingsCss } from '../tickets/settings-styles';
 import { tt, type TicketTextKey } from '../tickets/text';
 
-type Tab = 'general' | 'departments' | 'channel' | 'messages' | 'permissions';
-const TABS: readonly Tab[] = ['general', 'departments', 'channel', 'messages', 'permissions'];
+type Tab = 'general' | 'departments' | 'contacts' | 'channel' | 'messages' | 'permissions';
+const TABS: readonly Tab[] = ['general', 'departments', 'contacts', 'channel', 'messages', 'permissions'];
 const PERMS = ['view', 'create', 'manage', 'external', 'all_departments', 'configure'] as const;
 type Perm = (typeof PERMS)[number];
 const SENSITIVE_PERMS: readonly Perm[] = ['external', 'all_departments', 'configure'];
@@ -48,6 +50,10 @@ interface ScopeOption { type: string; id: string; label: string }
  *   מחלקות   slice 2: the department list and the editor of the chosen one (tickets/settings-dept.ts: details, categories, members,
  *            priorities, the department rules and overrides, the SLA grid, opening templates; tickets.configure - member edits also need
  *            to manage the department or tickets.all_departments, the server's escalation rule).
+ *   ערוץ הודעות    slice 5b: the WhatsApp master switch, buttons, the reply window and the e-mail fallback (system.configure;
+ *                  tickets/settings-channel.ts); the ticket uses' accounts are shown read-only (Settings › the message channel owns them).
+ *   תבניות הודעה   slice 5b: message templates per purpose x language x department with a preview (D26, tickets.configure;
+ *                  tickets/settings-message-templates.ts).
  *   הרשאות   "who may": every role with the ticket permissions it carries; the holders by person or by permission (a role, a group, a
  *            personal grant); and the personal grants of D25 (one single-permission built-in role bound to one user through the ordinary
  *            binding route, at a chosen scope and with an optional end date - rbac.assign and the delegation rules decide).
@@ -169,6 +175,8 @@ export class SystemTickets extends LitElement {
       } else if (this.tab === 'departments') {
         await this.loadDepartments();
         if (!this.directory) this.directory = await ticketsApi().directory();
+      } else if (this.tab === 'contacts') {
+        // slice 4: <tickets-contacts> loads its own rows
       } else if (this.tab === 'channel' || this.tab === 'messages') {
         // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
@@ -355,7 +363,9 @@ export class SystemTickets extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { new_ticket: v } })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
       </sw-card>
       ${this.linksCard(this.doc)}
-      ${this.hoursCard(this.doc)}` : nothing}
+      ${this.hoursCard(this.doc)}
+      <tickets-public-card .doc=${this.doc} ?busy=${this.busy} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}
+        @notice=${this.onNotice}></tickets-public-card>` : nothing}
     </div>`;
   }
 
@@ -530,11 +540,17 @@ export class SystemTickets extends LitElement {
   render() {
     const heading = tt('area');
     if (this.enabled === null) return html`<sw-page crumbs="הגדרות" heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    const contacts = !isApi() || can('tickets.configure') || canAnywhere('tickets.manage'); // slice 4: the directory (the server decides what each sees)
+    const channel = !isApi() || can('system.configure'); // slice 5b: the master switch and the e-mail fallback (PUT /tickets/channel)
+    const templates = !isApi() || can('tickets.configure'); // slice 5b: message templates (D26)
     const tabs = this.enabled ? html`<sw-tabs variant="underline" data-tickets-settings-tabs .items=${[
       { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') },
-      { id: 'channel', label: mtt('tabChannel') }, { id: 'messages', label: mtt('tabTemplates') }, { id: 'permissions', label: tt('setTabPermissions') },
+      ...(contacts ? [{ id: 'contacts', label: tt('setTabContacts') }] : []),
+      ...(channel ? [{ id: 'channel', label: mtt('tabChannel') }] : []), ...(templates ? [{ id: 'messages', label: mtt('tabTemplates') }] : []), // slice 5b
+      { id: 'permissions', label: tt('setTabPermissions') },
     ]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;
     const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
+      : this.tab === 'contacts' ? html`<tickets-contacts @notice=${this.onNotice}></tickets-contacts>`
       : this.tab === 'channel' ? html`<tickets-channel-settings @notice=${this.onNotice}></tickets-channel-settings>` // slice 5b
       : this.tab === 'messages' ? html`<tickets-message-templates @notice=${this.onNotice}></tickets-message-templates>` // slice 5b
       : this.permissionsTab();

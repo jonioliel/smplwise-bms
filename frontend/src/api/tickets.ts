@@ -235,8 +235,10 @@ export interface Holder {
     scope_type: string; scope_id: string; scope_name: string; effect: 'allow' | 'deny'; expires_at: string | null }[];
 }
 export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles?: RoleRow[] }
-export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean }
-export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean }
+/** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
+export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for' }
+export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings }
+export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings> }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;

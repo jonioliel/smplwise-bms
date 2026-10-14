@@ -43,9 +43,20 @@ def boolean(v: Any) -> bool:
     return v
 
 
-# slice 4 / slice 5b used the private names; one implementation (slice 2's)
-_int_range = int_range
-_bool = boolean
+_HHMM = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+def send_hours(v: Any) -> dict[str, str]:
+    """D4 / 14.1: a local-time window `{"from": "HH:MM", "to": "HH:MM"}`, every day, in the installation's time zone. `from` must be
+    earlier than `to`: a window across midnight is refused in release 1, and `from == to` (an empty window) too."""
+    if not isinstance(v, dict) or set(v) != {"from", "to"}:
+        raise ValueError("shape")
+    a, b = v["from"], v["to"]
+    if not isinstance(a, str) or not isinstance(b, str) or not _HHMM.match(a) or not _HHMM.match(b):
+        raise ValueError("time")
+    if a >= b:
+        raise ValueError("order")
+    return {"from": a, "to": b}
 
 
 def _org_name(v: Any) -> str:
@@ -73,7 +84,7 @@ def _base_url(v: Any) -> str:
 
 
 def _cidrs(v: Any) -> list[str]:
-    """Slice 4: the peers whose CF-Connecting-IP is believed (spec 10.2, review T1a); at most 8, none broader than /8 or /32."""
+    """Slice 4: the peers whose client-address header is believed (spec 10.2, review T1a); at most 8, none broader than /8."""
     from .ratelimit import parse_trusted_cidrs
 
     if not isinstance(v, list) or len(v) > 8 or not all(isinstance(x, str) and 0 < len(x) <= 64 for x in v):
@@ -82,22 +93,6 @@ def _cidrs(v: Any) -> list[str]:
     if len(nets) != len(v):
         raise ValueError("invalid")
     return [str(n) for n in nets]
-
-
-_HHMM = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
-
-
-def send_hours(v: Any) -> dict[str, str]:
-    """D4 / 14.1: a local-time window `{"from": "HH:MM", "to": "HH:MM"}`, every day, in the installation's time zone. `from` must be
-    earlier than `to`: a window across midnight is refused in release 1, and `from == to` (an empty window) too."""
-    if not isinstance(v, dict) or set(v) != {"from", "to"}:
-        raise ValueError("shape")
-    a, b = v["from"], v["to"]
-    if not isinstance(a, str) or not isinstance(b, str) or not _HHMM.match(a) or not _HHMM.match(b):
-        raise ValueError("time")
-    if a >= b:
-        raise ValueError("order")
-    return {"from": a, "to": b}
 
 
 # section 14.1 / D5: link lifetime ranges (shared with the per-department overrides, services/tickets/policy.py)

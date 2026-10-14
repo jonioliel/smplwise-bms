@@ -175,14 +175,15 @@ class DbLinks:
         return bool(row and row["require_code"])
 
     def note_sent(self, link_id: str, via: str, purpose: str, at: dt.datetime) -> None:
-        """How the link last left (`sent_via`, the D6 rule) and the sliding expiry: a reminder and a manager's update are activity
-        on the link (10.2); the first message is not (the mint set the first expiry)."""
+        """How the link left (`sent_via` / `sent_at` through slice 4's `mark_sent`: the first send time of the generation stays and
+        'email' is sticky - the D6 rule) and the sliding expiry: a reminder and a manager's update are activity on the link (10.2);
+        the first message is not (the mint set the first expiry)."""
         conn = self.io.write()
         row = store_links.link(conn, link_id)
         if row is None:
             return
         if purpose in LINK_PURPOSES:
-            store_links.update_link(conn, link_id, {"sent_via": via})
+            handler_links.mark_sent(conn, link_id, via, at)
         if purpose in ("reminder", "update"):
             t = obs.ticket_for_worker(conn, row["ticket_id"])
             if t is not None:
@@ -916,7 +917,7 @@ class OutboxDispatch:
                 ref = self.rt.accounts().resolve("tickets.messages", ticket["department_id"])
                 if ref is not None:
                     st = self.rt.accounts().status(ref.key)
-                    account = {"key": ref.key, "label": ref.label, "state": st.state}
+                    account = {"key": ref.key, "label": ref.label, "state": st.state, "sendable": bool(ref.value) and st.sendable}
             except Exception:  # noqa: BLE001 - a preview never fails on the account lookup
                 account = None
         out["account"] = account

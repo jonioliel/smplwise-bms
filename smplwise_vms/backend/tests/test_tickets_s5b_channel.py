@@ -158,9 +158,29 @@ def test_the_preview_shows_the_exact_text_the_account_and_the_send_hours(env):
     assert r.status_code == 200, r.text
     p = r.json()
     assert p["channel"] == "whatsapp" and "[קישור]" in p["text"] and "https://" not in p["text"]
-    assert p["account"]["key"] == KEY_A and p["account"]["state"] == "connected"
+    assert p["account"]["key"] == KEY_A and p["account"]["state"] == "connected" and p["account"]["sendable"] is True
     assert p["send_hours"]["open_now"] is True and p["send_hours"]["window"] == {"from": "07:00", "to": "21:00"}
     assert env.rows() == [], "a preview writes nothing"
+    env.set_connected(False)  # the dialog warns: the message would wait, then fall back (no e-mail here: the manager copies the link)
+    p = env.c.post(f"{API}/tickets/{t['id']}/assign/preview", json={"contact_id": env.s4.contact["id"]}).json()
+    assert p["account"]["sendable"] is False and p["fallback"] == "manual"
+
+
+def test_the_link_panel_sends_the_current_link_again_through_the_channel(env):
+    t, d = _sent_ticket(env)
+    assert d["link"]["can"]["resend"] is True
+    env.tick()
+    first = env.s4.link_row(t["id"])
+    assert first["sent_via"] == "whatsapp" and first["sent_at"], "slice 4's mark_sent: how and when the generation first left"
+    r = env.c.post(f"{API}/tickets/{t['id']}/link/resend")
+    assert r.status_code == 200, r.text
+    env.tick(seconds=30)
+    assert [(x.purpose, x.state) for x in env.rows(t["id"])] == [("assign", "sent"), ("assign", "sent")] and len(env.fake.calls) == 2
+    assert env.s4.link_row(t["id"])["sent_at"] == first["sent_at"], "the first send time of the generation stays"
+    env.channel(whatsapp={"enabled": False})  # no channel: the panel offers copy only and the route refuses
+    assert env.s4.w.detail(t["id"])["link"]["can"]["resend"] is False
+    r = env.c.post(f"{API}/tickets/{t['id']}/link/resend")
+    assert r.status_code == 409 and r.json()["code"] == "channel_unavailable"
 
 
 def test_outside_the_send_hours_the_message_waits_and_send_now_releases_it(env):

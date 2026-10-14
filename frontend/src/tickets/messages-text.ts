@@ -35,6 +35,15 @@ const he = {
   sendUpdate: 'שלח עדכון',
   staleLine: 'נשלח לפני השינוי',
   queuedNow: 'ההודעה בדרך',
+  lkResend: 'שלח קישור שוב',
+
+  // the assign dialog's lines for an outside contact (slice 4's dialog; the preview's slice-5b fields)
+  asgWhatsapp: 'יישלח בוואטסאפ · {account}',
+  asgWhatsappPlain: 'יישלח בוואטסאפ',
+  asgEmail: 'יישלח במייל',
+  asgDownEmail: 'וואטסאפ לא זמין כרגע - אם לא יחזור, ההודעה תישלח במייל',
+  asgDownManual: 'וואטסאפ לא זמין כרגע - אם לא יחזור, יהיה צריך להעתיק את הקישור',
+  asgHours: 'מחוץ לשעות השליחה · יישלח ב-{when}',
 
   // timeline lines (ticket_events kinds of slices 4 / 5b)
   e_sent_whatsapp: 'נשלח בוואטסאפ - מסירה לא ידועה',
@@ -168,6 +177,13 @@ const en: Partial<Record<keyof typeof he, string>> = {
   sendUpdate: 'Send update',
   staleLine: 'Sent before the change',
   queuedNow: 'On its way',
+  lkResend: 'Send the link again',
+  asgWhatsapp: 'Goes on WhatsApp · {account}',
+  asgWhatsappPlain: 'Goes on WhatsApp',
+  asgEmail: 'Goes by e-mail',
+  asgDownEmail: 'WhatsApp is unavailable now - if it does not return, the message goes by e-mail',
+  asgDownManual: 'WhatsApp is unavailable now - if it does not return, the link must be copied',
+  asgHours: 'Outside the send hours · leaves at {when}',
   e_sent_whatsapp: 'Sent on WhatsApp - delivery unknown',
   e_sent_email: 'Sent by e-mail - delivery unknown',
   e_update_sent: 'Update sent - delivery unknown',

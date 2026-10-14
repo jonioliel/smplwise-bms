@@ -237,6 +237,56 @@ def test_settings_validate_the_durations_and_a_lower_cap_pulls_live_links_in(s4)
     assert iso_dt(row["expires_at"]) <= iso_dt(row["cap_at"])
 
 
+def test_a_lower_department_cap_pulls_only_that_departments_live_links_in(s4):
+    t, _token = s4.sent()
+    dept = s4.c.get(f"{API}/tickets/admin/departments").json()["departments"]
+    maint = [d for d in dept if d["id"] == "dept-maintenance"][0]
+    before = s4.link_row(t["id"])
+    r = s4.c.patch(f"{API}/tickets/admin/departments/dept-maintenance", json={"link_cap_days": 120, "revision": maint["revision"]})
+    assert r.status_code == 200, r.text
+    assert s4.link_row(t["id"])["cap_at"] == before["cap_at"], "a HIGHER cap applies to new links only"
+    r = s4.c.patch(f"{API}/tickets/admin/departments/dept-maintenance", json={"link_cap_days": 10, "link_sliding_days": 5, "revision": r.json()["revision"]})
+    assert r.status_code == 200, r.text
+    row = s4.link_row(t["id"])
+    assert abs((iso_dt(row["cap_at"]) - iso_dt(row["generation_at"])) - dt.timedelta(days=10)) < dt.timedelta(minutes=1)
+    assert iso_dt(row["expires_at"]) <= iso_dt(row["cap_at"])
+    with s4.db.connection(mode="read") as conn:
+        details = conn.execute("SELECT details_json FROM audit_log WHERE action = 'ticket.department.update' ORDER BY rowid DESC LIMIT 1").fetchone()[0]
+    assert '"links_capped": 1' in details
+
+
+def test_a_new_generation_restarts_the_cap_base_and_the_send_marks(s4):
+    t, _token = s4.sent()
+    assert s4.copy(t["id"]).status_code == 200
+    first = s4.link_row(t["id"])
+    assert first["sent_via"] == "manual" and first["sent_at"] and first["generation_at"] == first["created_at"]
+    assert s4.w.detail(t["id"])["link"]["sent_at"] == first["sent_at"]
+    with s4.db.connection() as conn:  # the link was created long ago: a new generation counts its cap from ITS start
+        conn.execute("UPDATE ticket_links SET created_at = '2026-01-01T00:00:00Z', generation_at = '2026-01-01T00:00:00Z' WHERE id = ?", (first["id"],))
+    assert s4.c.post(f"{API}/tickets/{t['id']}/link/new").status_code == 200
+    fresh = s4.link_row(t["id"])
+    assert fresh["sent_via"] is None and fresh["sent_at"] is None, "the new generation has not left yet"
+    assert iso_dt(fresh["generation_at"]) > iso_dt(fresh["created_at"])
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    assert s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "links": {"cap_days": 30}}).status_code == 200
+    row = s4.link_row(t["id"])
+    assert abs((iso_dt(row["cap_at"]) - iso_dt(row["generation_at"])) - dt.timedelta(days=30)) < dt.timedelta(minutes=1), \
+        "the pull-in counts from the generation's start, not from the link's creation"
+    assert handler_links.state(row, handler_links.now_utc()) == "live"
+
+
+def test_mark_sent_keeps_the_first_time_and_an_email_send_stays_email(s4):
+    t, _token = s4.sent()
+    link_id = s4.link_row(t["id"])["id"]
+    t0 = dt.datetime(2026, 10, 14, 8, 0, tzinfo=dt.timezone.utc)
+    with s4.db.connection() as conn:
+        handler_links.mark_sent(conn, link_id, "email", t0)
+        handler_links.mark_sent(conn, link_id, "manual", t0 + dt.timedelta(hours=1))
+    row = s4.link_row(t["id"])
+    assert (row["sent_via"], row["sent_at"]) == ("email", "2026-10-14T08:00:00Z"), \
+        "D6: a link that went by e-mail needs its code on WhatsApp - a later copy must not open the e-mail fallback"
+
+
 @pytest.mark.parametrize("url", ["http://t.example.test", "https://10.0.0.5", "https://localhost", "https://t.example.test/x",
                                  "https://t.example.test:8443", "https://user@t.example.test", "https://homeassistant.local"])
 def test_the_public_address_is_validated(s4, url):

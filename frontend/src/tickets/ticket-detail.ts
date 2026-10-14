@@ -19,6 +19,8 @@ import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
 import { messageEventLine, messagesBlock } from './ticket-messages'; // slice 5b: the delivery lines (D14) and the message events
+import { ExternalAssign, externalAssignStyles } from './external-assign';
+import { LinkPanel, linkPanelStyles } from './link-panel';
 
 interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
 
@@ -73,8 +75,13 @@ export class TicketDetailView extends LitElement {
   private loadedFor = '';
   private flashTimer = 0;
   private offNames: (() => void) | null = null;
+  // slice 4: sending outside from the assign dialog, and the link panel of the handler block
+  private readonly ext = new ExternalAssign(this, { busy: () => this.busy, run: (fn, done) => this.run(fn, done) });
+  private readonly linkPanel = new LinkPanel(this, {
+    busy: () => this.busy, run: (fn, done) => this.run(fn, done || undefined), say: (m, tone) => this.say(m, tone), reload: () => void this.load(),
+  });
 
-  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, css`
     sw-drawer {
       --sw-drawer-modal-w: 480px;
     }
@@ -172,6 +179,7 @@ export class TicketDetailView extends LitElement {
       this.gone = false;
       this.dialog = null;
       this.composing = false;
+      this.linkPanel.reset();
       void this.load();
     }
   }
@@ -247,7 +255,8 @@ export class TicketDetailView extends LitElement {
     if (!t) return;
     if (d.kind === 'assign') {
       this.eligible = null;
-      void ticketsApi().assignees(t.department?.id ?? '', t.id).then((r) => (this.eligible = r.users)).catch((e) => { this.eligible = []; this.dlgError = describeError(e); });
+      this.ext.reset();
+      void ticketsApi().assignees(t.department?.id ?? '', t.id).then((r) => { this.eligible = r.users; this.ext.take(r, t); }).catch((e) => { this.eligible = []; this.dlgError = describeError(e); });
     }
     if (d.kind === 'eta') this.dlgText = toLocalInput(t.eta_at);
     if (d.kind === 'edit') {
@@ -290,6 +299,10 @@ export class TicketDetailView extends LitElement {
 
   private async submitAssign(): Promise<void> {
     const t = this.t;
+    if (t && this.ext.kind !== 'user') { // slice 4: an outside contact / vendor
+      if (await this.ext.submit(t, this.dlgText.trim(), this.dlgFlag)) this.closeDialog();
+      return;
+    }
     if (!t || !this.dlgPick) {
       this.dlgError = tt('required');
       return;
@@ -436,6 +449,7 @@ export class TicketDetailView extends LitElement {
           ${t.can.return ? html`<button type="button" class="btn sm quiet" data-return ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'return' })}>${tIcon('refresh')}${tt('giveBack')}</button>` : nothing}
         </div>
       </div>
+      ${this.linkPanel.render(t)}
     </section>`;
   }
 
@@ -520,15 +534,17 @@ export class TicketDetailView extends LitElement {
       </sw-dialog>`;
     }
     if (d.kind === 'assign') {
+      const outside = this.ext.kind !== 'user'; // slice 4: an outside contact / vendor (tickets/external-assign.ts)
       return html`<sw-dialog open heading=${tt('assignTitle')} data-dialog="assign" @close=${this.onDialogClose}>
         <div class="form">
-          ${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
+          ${this.ext.renderKinds(t)}
+          ${outside ? this.ext.renderPicker(t) : this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
             ? html`<div class="pick" role="radiogroup" aria-label=${tt('fAssignee')}>${this.eligible.map((u) => html`<label data-eligible=${u.id}><input type="radio" name="asg" .checked=${this.dlgPick === u.id} @change=${() => { this.dlgPick = u.id; this.dlgError = ''; }} />${bidi(u.name)}${u.member_role === 'manager' ? html`<small>${tt('depManager')}</small>` : nothing}</label>`)}</div>`
             : html`<div class="muted" data-eligible-none>${tt('assignNone')}</div>`}
           ${text(tt('assignNote'), false)}
-          ${marksInternal(t) ? html`<label class="chk"><input type="checkbox" .checked=${this.dlgFlag} @change=${(e: Event) => (this.dlgFlag = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
+          ${outside || marksInternal(t) ? html`<label class="chk"><input type="checkbox" .checked=${this.dlgFlag} @change=${(e: Event) => (this.dlgFlag = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
           ${err}</div>
-        ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || !this.dlgPick} @click=${() => void this.submitAssign()}>${tIcon('user')}${tt('assign')}</button>`)}
+        ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || (outside ? !this.ext.ready() : !this.dlgPick)} @click=${() => void this.submitAssign()}>${tIcon('user')}${tt('assign')}</button>`)}
       </sw-dialog>`;
     }
     if (d.kind === 'return') {

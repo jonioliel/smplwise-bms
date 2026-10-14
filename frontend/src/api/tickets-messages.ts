@@ -111,12 +111,23 @@ export interface TemplatesView {
 }
 export interface TemplatePreview { text: string; problems: { code: string; field: string }[]; length: number; max: number }
 
+/** The lines slice 5b adds to slice 4's assign preview (`POST tickets/{id}/assign/preview`, OutboxDispatch.preview_extra): the send
+ * hours with the "send now" default (D29), the WhatsApp account the message would leave from and what happens when WhatsApp cannot. */
+export interface AssignPreviewExtra {
+  send_hours?: { window: { from: string; to: string }; open_now: boolean; next_opening: string | null; send_now_default: boolean };
+  /** null: no account chosen for the ticket messages; `sendable` false: the worker would hold the message (9.9.4) */
+  account?: { key: string; label: string; state: string; sendable: boolean } | null;
+  fallback?: 'email' | 'manual' | null;
+}
+
 export interface MessagesBackend {
   channel(): Promise<ChannelView>;
   saveChannel(revision: number, patch: ChannelPatch): Promise<ChannelView>;
   sendNow(ticketId: string, outboxId: string): Promise<TicketWithMessages>;
   resend(ticketId: string, outboxId: string): Promise<TicketWithMessages>;
   sendUpdate(ticketId: string): Promise<TicketWithMessages>;
+  /** the link panel's "send the link again" through the channel (slice 4's `POST tickets/{id}/link/resend`) */
+  resendLink(ticketId: string): Promise<TicketWithMessages>;
   inbound(): Promise<{ items: InboundItem[] }>;
   claim(id: string): Promise<InboundItem>;
   attach(id: string, ticketId: string): Promise<TicketWithMessages>;
@@ -137,6 +148,7 @@ const rest: MessagesBackend = {
   sendNow: (ticketId, outboxId) => post<TicketWithMessages>(`${T}/${enc(ticketId)}/outbox/${enc(outboxId)}/send-now`, {}),
   resend: (ticketId, outboxId) => post<TicketWithMessages>(`${T}/${enc(ticketId)}/outbox/${enc(outboxId)}/resend`, {}),
   sendUpdate: (ticketId) => post<TicketWithMessages>(`${T}/${enc(ticketId)}/send-update`, {}),
+  resendLink: (ticketId) => post<TicketWithMessages>(`${T}/${enc(ticketId)}/link/resend`, {}),
   inbound: () => get<{ items: InboundItem[] }>(`${T}/inbound`),
   claim: (id) => post<InboundItem>(`${T}/inbound/${enc(id)}/claim`, {}),
   attach: (id, ticketId) => post<TicketWithMessages>(`${T}/inbound/${enc(id)}/attach`, { ticket_id: ticketId }),
@@ -191,6 +203,7 @@ const mock: MessagesBackend = {
   sendNow: async () => { throw new Error('demo'); },
   resend: async () => { throw new Error('demo'); },
   sendUpdate: async () => { throw new Error('demo'); },
+  resendLink: async () => { throw new Error('demo'); },
   inbound: async () => ({ items: [] }),
   claim: async () => { throw new Error('demo'); },
   attach: async () => { throw new Error('demo'); },

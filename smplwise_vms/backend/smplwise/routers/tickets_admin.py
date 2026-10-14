@@ -68,7 +68,7 @@ class UiPatch(BaseModel):
     new_ticket: Literal["sheet", "dialog"] | None = None
 
 
-class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose CF-Connecting-IP is believed
+class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose client-address header is believed
     model_config = ConfigDict(extra="forbid")
     base_url: str | None = Field(default=None, max_length=300)
     trusted_proxy_cidrs: list[str] | None = Field(default=None, max_length=8)
@@ -97,11 +97,11 @@ class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
     ui: UiPatch | None = None
-    organization_name: str | None = Field(default=None, max_length=400)  # slice 4
-    public: PublicPatch | None = None  # slice 4
     links: LinksPatch | None = None  # slice 2
     send_hours: HoursBody | None = None  # slice 2
     urgent_is_critical: StrictBool | None = None  # slice 2
+    organization_name: str | None = Field(default=None, max_length=400)  # slice 4
+    public: PublicPatch | None = None  # slice 4
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -122,30 +122,28 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         ui = {k: v for k, v in body.ui.model_dump().items() if v is not None}
         if ui:
             patch["ui"] = ui
-    if body.organization_name is not None:  # slice 4
-        patch["organization_name"] = body.organization_name
-    if body.public is not None:  # slice 4
-        public = {k: v for k, v in body.public.model_dump().items() if v is not None}
-        if public:
-            patch["public"] = public
-    if body.links is not None:
-        links = {k: v for k, v in body.links.model_dump().items() if v is not None}
-        if links:
-            patch["links"] = links
+    for block in ("links", "public"):  # slice 2 / slice 4
+        sent = getattr(body, block)
+        if sent is not None:
+            values = {k: v for k, v in sent.model_dump().items() if v is not None}
+            if values:
+                patch[block] = values
     if body.send_hours is not None:
         patch["send_hours"] = body.send_hours.window()
     if body.urgent_is_critical is not None:
         patch["urgent_is_critical"] = body.urgent_is_critical
+    if body.organization_name is not None:
+        patch["organization_name"] = body.organization_name
     try:
-        doc, changed = settings_doc.apply_patch(conn, patch)  # the cap >= sliding rule is settings_doc's (slice 2)
+        doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:
         raise _invalid(conn, *_problem(exc)) from None
     pulled = 0
     if doc["links"]["cap_days"] < current["links"]["cap_days"]:  # D5 (slice 4): a LOWER cap shrinks the exposure of live links at once
         from ..services.tickets import handler_links
 
-        pulled = handler_links.pull_in_caps(conn, doc["links"]["cap_days"])
-    if "public.trusted_proxy_cidrs" in changed or "public.client_ip_header" in changed:  # W13: the running listener follows at once
+        pulled = handler_links.pull_in_caps(conn)
+    if "public.trusted_proxy_cidrs" in changed or "public.client_ip_header" in changed:  # W13 (slice 4): the running listener follows at once
         from ..services.tickets.public_runtime import RUNTIME
 
         RUNTIME.set_trusted(doc["public"]["trusted_proxy_cidrs"])
@@ -385,8 +383,13 @@ def patch_department(body: DepartmentBody, request: Request, dept_id: str = Path
     values = {k: [d.get(k), fields[k]] for k in changed if k in POLICY_FIELDS}
     if "auto_close_after_days" in changed:
         sla.refresh_many(conn, store.open_ticket_ids(conn, dept_id, status="done"))  # D10: the close time of waiting "done" tickets moves
+    pulled = 0
+    if {"link_cap_days", "link_sliding_days"} & set(changed):  # D5 (slice 4): a LOWER effective cap pulls the department's live links in
+        from ..services.tickets import handler_links
+
+        pulled = handler_links.pull_in_caps(conn, department_id=dept_id)
     audit(conn, actor=principal, action="ticket.department.update", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
-          request_id=_rid(request), details={"fields": changed, **({"policy": values} if values else {})})
+          request_id=_rid(request), details={"fields": changed, **({"policy": values} if values else {}), **({"links_capped": pulled} if pulled else {})})
     return _department_dict(conn, viewer, store.department(conn, dept_id) or {})
 
 
