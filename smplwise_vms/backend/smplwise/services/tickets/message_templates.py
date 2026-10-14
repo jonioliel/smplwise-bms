@@ -113,19 +113,19 @@ STARTERS: dict[str, dict[str, str]] = {
         "he": "דרישת העלות ל{module_name} {number} ({department}) הוחזרה לתיקון. פתחו את הקישור שקיבלתם כדי לעיין בהערה ולהגיש מחדש.",
         "en": "The cost claim for {module_name} #{number} ({department}) was sent back for correction. Open the link you received to see the note and resubmit.",
         "ar": "أعيدت مطالبة التكلفة لـ {module_name} رقم {number} ({department}) للتصحيح. افتحوا الرابط الذي استلمتموه للاطلاع على الملاحظة وإعادة التقديم.",
-        "ru": "Заявка на оплату по {module_name} № {number} ({department}) возвращена на исправление. Откройте полученную ссылку, чтобы увидеть замечание и подать снова.",
+        "ru": "Счёт по {module_name} № {number} ({department}) возвращён на исправление. Откройте полученную ссылку, чтобы увидеть замечание и отправить снова.",
     },
     "cost_approved": {
         "he": "דרישת העלות ל{module_name} {number} ({department}) אושרה. תודה.",
         "en": "The cost claim for {module_name} #{number} ({department}) was approved. Thank you.",
         "ar": "تمت الموافقة على مطالبة التكلفة لـ {module_name} رقم {number} ({department}). شكرًا.",
-        "ru": "Заявка на оплату по {module_name} № {number} ({department}) одобрена. Спасибо.",
+        "ru": "Счёт по {module_name} № {number} ({department}) одобрен. Спасибо.",
     },
     "cost_reopened": {
         "he": "אפשר שוב להגיש דרישת עלות ל{module_name} {number} ({department}). פתחו את הקישור שקיבלתם כדי להגיש.",
         "en": "You can submit the cost claim for {module_name} #{number} ({department}) again. Open the link you received to submit it.",
         "ar": "يمكنكم مجددًا تقديم مطالبة التكلفة لـ {module_name} رقم {number} ({department}). افتحوا الرابط الذي استلمتموه للتقديم.",
-        "ru": "Вы снова можете подать заявку на оплату по {module_name} № {number} ({department}). Откройте полученную ссылку, чтобы подать её.",
+        "ru": "Вы снова можете отправить счёт по {module_name} № {number} ({department}). Откройте полученную ссылку, чтобы отправить его.",
     },
     "test": {
         "he": "הודעת בדיקה. אין צורך להשיב.",

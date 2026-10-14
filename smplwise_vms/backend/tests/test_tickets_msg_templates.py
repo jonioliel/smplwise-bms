@@ -181,10 +181,10 @@ def test_choose_prefers_language_then_department():
     assert tp.choose(items, purpose="assign", lang="en", department_id="D1").id == "starter:assign:en"  # inactive en: the English starter
     assert tp.choose(items, purpose="assign", lang="ar", department_id="D2").id == "starter:assign:ar"
     hebrew_only = [T("c-he", "cost_approved", "he", "x")]
-    assert tp.choose(hebrew_only, purpose="cost_approved", lang="ru", department_id=None).id == "c-he"  # no Russian starter: Hebrew
+    assert tp.choose(hebrew_only, purpose="cost_approved", lang="xx", department_id=None).id == "c-he"  # an unknown language: the Hebrew text
     assert tp.choose([], purpose="assign", lang="ar", department_id=None).id == "starter:assign:ar"
     assert tp.choose([], purpose="assign", lang="xx", department_id=None).id == "starter:assign:he"
-    assert tp.choose([], purpose="cost_approved", lang="he", department_id=None) is None
+    assert tp.choose([], purpose="cost_approved", lang="he", department_id=None).id == "starter:cost_approved:he"  # slice 9 ships starters
 
 
 def test_buttons_carry_the_nonce_and_the_contact_language():

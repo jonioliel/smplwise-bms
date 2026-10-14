@@ -13,7 +13,7 @@
     POST /tickets/{id}/costs/{claim_id}/unmark-paid    ... {revision, reason}
     POST /tickets/{id}/costs/{claim_id}/reopen-window  ... {revision}
     GET  /tickets/{id}/costs/files/{file_id}           tickets.costs.view: a PDF as a sandboxed DOWNLOAD (11A.6), a page as an image
-    GET  /tickets/{id}/costs/{claim_id}/documents/{revision_id}/{doc_no}.pdf   tickets.costs.view: the photographed pages as ONE PDF
+    GET  /tickets/{id}/costs/{claim_id}/documents/{revision_id}/{n}[.pdf]   tickets.costs.view: the photographed pages as ONE PDF
 
 Order of every route: signed in -> the module switch (router dependency) -> the ticket's visibility (the uniform 404) -> the cost
 permissions on the ticket's place (an audited 403). Every write is one transaction: the claim row, its revision / decision rows, the
@@ -325,13 +325,14 @@ def get_cost_file(request: Request, ticket_id: str = Path(..., pattern=ID), file
     return FileResponse(path, media_type=media, headers=headers)
 
 
-@router.get("/tickets/{ticket_id}/costs/{claim_id}/documents/{revision_id}/{doc_no}.pdf")
+@router.get("/tickets/{ticket_id}/costs/{claim_id}/documents/{revision_id}/{doc}")
 def get_document_pdf(request: Request, ticket_id: str = Path(..., pattern=ID), claim_id: str = Path(..., pattern=ID),
-                     revision_id: str = Path(..., pattern=ID), doc_no: int = Path(..., ge=1, le=3),
+                     revision_id: str = Path(..., pattern=ID), doc: str = Path(..., pattern=r"^[1-3](\.pdf)?$"),
                      principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
     """"הורדה כ-PDF" (11A.6A): the photographed pages of one document, assembled on the server from the re-encoded images."""
     viewer = Viewer(conn, principal)
     rid = _rid(request)
+    doc_no = int(doc[0])  # "1" or "1.pdf"
     seen = _need(conn, viewer, ticket_id, "ticket.cost.file_download", rid)
     claim = _claim(conn, seen, claim_id)
     rev = store_costs.revision(conn, revision_id)
