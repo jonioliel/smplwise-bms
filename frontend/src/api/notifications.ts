@@ -447,6 +447,8 @@ export const TICKET_SOURCES: readonly SourceInfo[] = [
   S('ticket.send_failed', 'הודעה למטפל לא נשלחה', 'tickets', 'alert', 'warning'),
   S('ticket.contact_changed', 'פרטי איש קשר השתנו', 'tickets', 'alert', 'ticket'),
   S('ticket.channel_down', 'חשבון וואטסאפ מנותק', 'tickets', 'alert', 'warning'),
+  S('ticket.cost_submitted', 'הוגשה דרישת עלות', 'tickets', 'info', 'ticket'),
+  S('ticket.cost_missing', 'לא הוגשה דרישת עלות', 'tickets', 'alert', 'warning'),
 ];
 const CATALOG_BY_KEY = new Map(SOURCE_CATALOG.map((s) => [s.key, s]));
 export const sourceInfo = (key: string): SourceInfo | undefined => CATALOG_BY_KEY.get(key);

@@ -12,6 +12,8 @@ import '../tickets/contacts-directory';
 import '../tickets/public-settings';
 import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
 import '../tickets/settings-message-templates'; // slice 5b: תבניות הודעה (D26)
+import '../tickets/settings-costs'; // slice 9b: costs (11A.14)
+import { ct } from '../tickets/cost-text';
 import { mtt } from '../tickets/messages-text';
 import { ApiError, describeError, patch } from '../api/client';
 import { productSettings, invalidateSettings } from '../api/prefs';
@@ -35,8 +37,8 @@ import { tt, type TicketTextKey } from '../tickets/text';
 import '../tickets/board-settings'; // CR-038 slice 6: the D19-D21 rows of the display card
 import type { BoardSettingsDoc } from '../api/tickets-board';
 
-type Tab = 'general' | 'departments' | 'contacts' | 'channel' | 'messages' | 'permissions';
-const TABS: readonly Tab[] = ['general', 'departments', 'contacts', 'channel', 'messages', 'permissions'];
+type Tab = 'general' | 'departments' | 'contacts' | 'channel' | 'messages' | 'costs' | 'permissions';
+const TABS: readonly Tab[] = ['general', 'departments', 'contacts', 'channel', 'messages', 'costs', 'permissions'];
 const PERMS = ['view', 'create', 'manage', 'external', 'all_departments', 'configure'] as const;
 type Perm = (typeof PERMS)[number];
 const SENSITIVE_PERMS: readonly Perm[] = ['external', 'all_departments', 'configure'];
@@ -179,7 +181,7 @@ export class SystemTickets extends LitElement {
         if (!this.directory) this.directory = await ticketsApi().directory();
       } else if (this.tab === 'contacts') {
         // slice 4: <tickets-contacts> loads its own rows
-      } else if (this.tab === 'channel' || this.tab === 'messages') {
+      } else if (this.tab === 'channel' || this.tab === 'messages' || this.tab === 'costs') {
         // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
         this.holders = await ticketsApi().holders();
@@ -546,16 +548,19 @@ export class SystemTickets extends LitElement {
     const contacts = !isApi() || can('tickets.configure') || canAnywhere('tickets.manage'); // slice 4: the directory (the server decides what each sees)
     const channel = !isApi() || can('system.configure'); // slice 5b: the master switch and the e-mail fallback (PUT /tickets/channel)
     const templates = !isApi() || can('tickets.configure'); // slice 5b: message templates (D26)
+    const costsTab = !isApi() || can('system.configure'); // slice 9b: the costs document (PUT /tickets/settings)
     const tabs = this.enabled ? html`<sw-tabs variant="underline" data-tickets-settings-tabs .items=${[
       { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') },
       ...(contacts ? [{ id: 'contacts', label: tt('setTabContacts') }] : []),
       ...(channel ? [{ id: 'channel', label: mtt('tabChannel') }] : []), ...(templates ? [{ id: 'messages', label: mtt('tabTemplates') }] : []), // slice 5b
+      ...(costsTab ? [{ id: 'costs', label: ct('setTab') }] : []), // slice 9b
       { id: 'permissions', label: tt('setTabPermissions') },
     ]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;
     const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
       : this.tab === 'contacts' ? html`<tickets-contacts @notice=${this.onNotice}></tickets-contacts>`
       : this.tab === 'channel' ? html`<tickets-channel-settings @notice=${this.onNotice}></tickets-channel-settings>` // slice 5b
       : this.tab === 'messages' ? html`<tickets-message-templates @notice=${this.onNotice}></tickets-message-templates>` // slice 5b
+      : this.tab === 'costs' ? html`<tickets-costs-settings @notice=${this.onNotice}></tickets-costs-settings>` // slice 9b
       : this.permissionsTab();
     return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${tt('setSub')} data-tickets-settings data-tab=${this.tab}>
       ${tabs}

@@ -504,3 +504,33 @@ def test_audit_rows_carry_ids_and_totals_never_descriptions(s4):
     with s4.db.connection(mode="read") as conn:
         rows = [r["details_json"] or "" for r in conn.execute("SELECT details_json FROM audit_log WHERE action LIKE 'ticket.cost.%'")]
     assert rows and not any("סוד" in r or "INV-SECRET" in r or "מדחס" in r for r in rows)
+
+
+# ---------------------------------------------------------------- CR-018 sources (slice 9b, 11A.7)
+
+def _notes(s4, source: str) -> list[dict]:
+    with s4.db.connection() as conn:
+        rows = [dict(r) for r in conn.execute("SELECT * FROM notifications WHERE source = ? ORDER BY created_at, id", (source,)).fetchall()]
+        for r in rows:
+            r["to"] = sorted(x[0] for x in conn.execute("SELECT user_id FROM notification_recipients WHERE notification_id = ?", (r["id"],)).fetchall())
+        return rows
+
+
+def test_cost_submitted_and_cost_missing_notify_managers_with_costs_view_without_amounts(s4):
+    t, token, client, _ = done(s4)
+    future = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=15)
+    with s4.db.connection() as conn:
+        assert costs.tick(conn, future) == 1
+    missing = _notes(s4, "ticket.cost_missing")
+    assert len(missing) == 1 and missing[0]["state"] != "resolved" and missing[0]["severity"] == "alert"
+    assert "mona" not in str(missing[0]["to"])
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_cost_claims SET claim_until = '2000-01-01T00:00:00Z'")
+    assert decide(s4, t["id"], "reopen-window").status_code == 200
+    assert submit(client, token).status_code == 201
+    sub = _notes(s4, "ticket.cost_submitted")
+    assert len(sub) == 1 and sub[0]["severity"] == "info" and sub[0]["state"] != "resolved"
+    assert "138709" not in str(sub) and "1387" not in str(sub), "no amount in a notification"
+    assert _notes(s4, "ticket.cost_missing")[0]["state"] == "resolved", "a submission ends the 'not submitted' row"
+    assert decide(s4, t["id"], "approve").status_code == 200
+    assert _notes(s4, "ticket.cost_submitted")[0]["state"] == "resolved", "the decision ends the review row"

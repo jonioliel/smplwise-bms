@@ -131,7 +131,7 @@ test('the notification category and subject kind of the module (spec 13.4)', () 
   expect(CATEGORY_LABEL.tickets).toBe('פניות');
   expect(VISIBILITY_PERMISSION.ticket).toBe('tickets.view');
   expect(TICKET_SOURCES.map((s) => s.key)).toEqual(['ticket.new_unassigned', 'ticket.assigned', 'ticket.reminder', 'ticket.stuck', 'ticket.returned', 'ticket.done',
-    'ticket.reply_unmatched', 'ticket.send_failed', 'ticket.contact_changed', 'ticket.channel_down']);
+    'ticket.reply_unmatched', 'ticket.send_failed', 'ticket.contact_changed', 'ticket.channel_down', 'ticket.cost_submitted', 'ticket.cost_missing']);
   for (const s of TICKET_SOURCES) expect(s.label).not.toMatch(/קריא(ה|ות|ת)|\bTickets?\b/);
 });
 

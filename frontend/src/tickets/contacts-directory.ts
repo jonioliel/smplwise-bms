@@ -12,7 +12,11 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi } from '../api/tickets';
 import { CONTACT_CHANNELS, CONTACT_LANGS, ticketsS4Api, type Contact, type ContactBody, type ContactChannel, type ContactKind, type ContactLang } from '../api/tickets-s4';
+import { canAnywhere, isApi } from '../api/session';
+import { CURRENCIES, type CostMode } from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
+import { ct } from './cost-text';
+import { decimalToMinor, minorToInput } from './cost-model';
 import { tt, type TicketTextKey } from './text';
 
 /** The languages by their own names (the page and the messages of a contact speak it). */
@@ -21,6 +25,7 @@ type KindFilter = 'all' | ContactKind;
 interface Draft {
   kind: ContactKind; display_name: string; company: string; vendor_id: string; phone: string; email: string; preferred_channel: ContactChannel;
   require_code: boolean; share_history: 'default' | 'on' | 'off'; lang: ContactLang; notes: string; active: boolean; departments: string[];
+  cost_claim: CostMode | ''; vat_exempt: boolean; vat_default: 'included' | 'excluded'; labor_rate: string; rate_currency: string;
 }
 
 function draftOf(c: Contact | null): Draft {
@@ -29,6 +34,8 @@ function draftOf(c: Contact | null): Draft {
     phone: c?.phone_full ? c.phone ?? '' : '', email: c?.phone_full ? c.email ?? '' : '', preferred_channel: c?.preferred_channel ?? 'whatsapp',
     require_code: c?.require_code ?? false, share_history: c?.share_history === null || c?.share_history === undefined ? 'default' : c.share_history ? 'on' : 'off',
     lang: c?.lang ?? 'he', notes: c?.notes ?? '', active: c?.active ?? true, departments: [...(c?.departments ?? [])],
+    cost_claim: c?.cost_claim ?? '', vat_exempt: c?.vat_exempt ?? false, vat_default: c?.vat_default ?? 'excluded',
+    labor_rate: minorToInput(c?.labor_rate_minor), rate_currency: c?.rate_currency ?? 'ILS',
   };
 }
 
@@ -207,6 +214,14 @@ export class TicketsContacts extends LitElement {
     if (d.lang !== before.lang) out.lang = d.lang;
     if (d.notes !== before.notes) out.notes = d.notes;
     if (d.active !== before.active) out.active = d.active;
+    // slice 9 (11A.1 / 11A.2): the cost defaults; the rate and its currency travel together
+    if (d.cost_claim !== before.cost_claim) out.cost_claim = d.cost_claim || null;
+    if (d.vat_exempt !== before.vat_exempt) out.vat_exempt = d.vat_exempt;
+    if (d.vat_default !== before.vat_default) out.vat_default = d.vat_default;
+    if (d.labor_rate.trim() !== before.labor_rate || (d.labor_rate.trim() && d.rate_currency !== before.rate_currency)) {
+      out.labor_rate = d.labor_rate.trim() || null;
+      out.rate_currency = d.rate_currency;
+    }
     if (JSON.stringify([...d.departments].sort()) !== JSON.stringify([...before.departments].sort())) out.departments = d.departments;
     return out;
   }
@@ -220,6 +235,10 @@ export class TicketsContacts extends LitElement {
       return;
     }
     if (c && !Object.keys(b).length) return;
+    if (d.labor_rate.trim() && decimalToMinor(d.labor_rate) === null) {
+      this.problem = ct('invalid');
+      return;
+    }
     this.busy = true;
     try {
       const saved = c ? await ticketsS4Api().patchContact(c.id, { ...b, revision: c.revision }) : await ticketsS4Api().createContact(b);
@@ -309,6 +328,27 @@ export class TicketsContacts extends LitElement {
     </sw-card>`;
   }
 
+  /** slice 9: the cost-claim defaults of the contact (11A.1 / 11A.2); the hourly rate only for holders of tickets.costs.view (11A.8). */
+  private costFields(d: Draft): TemplateResult {
+    const rates = !isApi() || canAnywhere('tickets.costs.view');
+    const modes: readonly (CostMode | '')[] = ['', 'required', 'optional', 'off'];
+    const rateBad = !!d.labor_rate.trim() && decimalToMinor(d.labor_rate) === null;
+    return html`<div class="fld wide" data-section="costs"><span>${ct('ctCostSection')}</span>
+      <span class="seg" role="radiogroup" aria-label=${ct('ctCostClaim')} data-field="cost_claim">${modes.map((m) => html`<button type="button" role="radio"
+        aria-checked=${String(d.cost_claim === m)} aria-pressed=${String(d.cost_claim === m)} data-field=${`cost_claim:${m || 'default'}`}
+        @click=${() => this.set({ cost_claim: m })}>${m ? ct(`m_${m}` as 'm_required') : ct('ctCostClaimDefault')}</button>`)}</span></div>
+      <div class="row wide"><span class="lbl">${ct('ctVatExempt')}</span>
+        <sw-toggle label=${ct('ctVatExempt')} labelHidden .checked=${d.vat_exempt} data-field="vat_exempt" @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ vat_exempt: e.detail.checked })}></sw-toggle></div>
+      ${d.vat_exempt ? nothing : html`<div class="fld wide"><span>${ct('ctVatDefault')}</span>
+        <span class="seg" role="radiogroup" aria-label=${ct('ctVatDefault')}>${(['excluded', 'included'] as const).map((v) => html`<button type="button" role="radio"
+          aria-checked=${String(d.vat_default === v)} aria-pressed=${String(d.vat_default === v)} data-field=${`vat_default:${v}`}
+          @click=${() => this.set({ vat_default: v })}>${v === 'excluded' ? ct('amountsExcl') : ct('amountsIncl')}</button>`)}</span></div>`}
+      ${rates ? html`<label class="fld"><span>${ct('ctRate')}</span><input class="in" inputmode="decimal" dir="ltr" maxlength="20" data-field="labor_rate"
+          aria-invalid=${String(rateBad)} .value=${d.labor_rate} @input=${(e: Event) => this.set({ labor_rate: (e.target as HTMLInputElement).value })} /></label>
+        <label class="fld"><span>${ct('ctRateCurrency')}</span><select class="in" data-field="rate_currency" ?disabled=${!d.labor_rate.trim()}
+          @change=${(e: Event) => this.set({ rate_currency: (e.target as HTMLSelectElement).value })}>${CURRENCIES.map((cur) => html`<option value=${cur} ?selected=${cur === d.rate_currency}>${cur}</option>`)}</select></label>` : nothing}`;
+  }
+
   private editorCard(c: Contact | null): TemplateResult {
     const d = this.draft!;
     const vendors = (this.rows ?? []).filter((x) => x.kind === 'vendor' && x.id !== c?.id && !x.erased);
@@ -337,6 +377,7 @@ export class TicketsContacts extends LitElement {
         ${seg(tt('ctHistory'), ['default', 'on', 'off'] as const, d.share_history, (v) => tt(`hist_${v}` as TicketTextKey), (v) => this.set({ share_history: v }), 'history')}
         <div class="row wide"><span class="lbl">${tt('ctRequireCode')}<span class="muted">${tt('ctRequireCodeSub')}</span></span>
           <sw-toggle label=${tt('ctRequireCode')} labelHidden .checked=${d.require_code} data-field="require_code" @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ require_code: e.detail.checked })}></sw-toggle></div>
+        ${this.costFields(d)}
         <div class="fld wide"><span>${tt('ctDepartments')}</span>
           <span class="chipsrow" data-field="departments">
             <button type="button" class="rc" aria-pressed=${String(!d.departments.length)} @click=${() => this.set({ departments: [] })}>${tt('ctDepartmentsAll')}</button>

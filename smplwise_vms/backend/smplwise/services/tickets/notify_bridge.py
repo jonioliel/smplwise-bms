@@ -48,6 +48,9 @@ T_DONE = ("{ticket} #{number}: הטיפול הסתיים", "{place} · ממתי�
 T_SEND_FAILED = ("ההודעה על {ticket} #{number} לא נשלחה", "{place}")
 T_CONTACT = ("פרטי המטפל ב{ticket} #{number} השתנו", "{place} · הקישור בוטל")
 T_UNMATCHED = ("תשובה שלא שויכה ל{ticket}", "לבדיקה בלוח המנהל")
+# S9b (11A.7): no amounts, no vendor text - the number and the place only
+T_COST_SUBMITTED = ("הוגשה דרישת עלות ל{ticket} #{number}", "{place}")
+T_COST_MISSING = ("לא הוגשה דרישת עלות ל{ticket} #{number}", "{place} · חלון ההגשה נסגר")
 T_CHANNEL = ("חשבון וואטסאפ מנותק", "{account} · הודעות {tickets} ממתינות")
 
 
@@ -98,7 +101,10 @@ def recipient_users(conn: sqlite3.Connection, rule: str, n: dict[str, Any]) -> l
         uid = origin.get("user_id")
         return [uid] if isinstance(uid, str) and uid else []
     if rule == RULE_MANAGERS:
-        return department_managers(conn, row, notify_new_only=origin.get("audience") == "notify_new")
+        managers = department_managers(conn, row, notify_new_only=origin.get("audience") == "notify_new")
+        if origin.get("audience") == "costs":  # S9b: only the managers who may see the costs where the ticket lies
+            managers = [uid for uid in managers if _viewer(conn, uid).holds("tickets.costs.view", row)]
+        return managers
     return []
 
 
@@ -178,7 +184,8 @@ def resolve_prefix(conn: sqlite3.Connection, ticket_id: str, part: str = "") -> 
 def source_of_key(key: str) -> str | None:
     part = key.split(":")[2] if key.count(":") >= 2 else ""
     return {"unassigned": "ticket.new_unassigned", "assign": "ticket.assigned", "remind": "ticket.reminder", "stuck": "ticket.stuck",
-            "returned": "ticket.returned", "done": "ticket.done", "send": "ticket.send_failed", "contact": "ticket.contact_changed"}.get(part)
+            "returned": "ticket.returned", "done": "ticket.done", "send": "ticket.send_failed", "contact": "ticket.contact_changed",
+            "costsub": "ticket.cost_submitted", "costmiss": "ticket.cost_missing"}.get(part)
 
 
 # ---------------------------------------------------------------- the action hooks (slice 1 calls them)
@@ -316,12 +323,27 @@ def channel_state(conn: sqlite3.Connection, account_key: str, account_label: str
 
 
 def cost_submitted(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> None:
-    """Slice 9 (11A.7): a vendor's claim (or one entered on its behalf) waits for review (slice 6: `ticket.cost_submitted` to the
-    holders of tickets.costs who can see the ticket; category tickets, severity info)."""
-    return None
+    """Slice 9 (11A.7): a vendor's claim (or one entered on its behalf) waits for review: `ticket.cost_submitted` (info) to the
+    department's managers who hold tickets.costs.view where the ticket lies. A "not submitted" row of the same claim is over."""
+    row = store.ticket_row_system(conn, ticket_id)
+    if row is None:
+        return
+    resolve(conn, "ticket.cost_missing", f"ticket:{ticket_id}:costmiss:{claim_id}")
+    _emit(conn, "ticket.cost_submitted", row, T_COST_SUBMITTED, dedupe=f"ticket:{ticket_id}:costsub:{claim_id}", severity="info",
+          origin={"audience": "costs", "claim_id": claim_id})
 
 
 def cost_missing(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> None:
-    """Slice 9 (11A.5 / 11A.7): the window of a REQUIRED claim passed without a submission (slice 6: `ticket.cost_missing` to the
-    department's managers who hold tickets.costs.view). Raised once per claim window."""
-    return None
+    """Slice 9 (11A.5 / 11A.7): the window of a REQUIRED claim passed without a submission: `ticket.cost_missing` (alert) to the
+    department's managers who hold tickets.costs.view. Raised once per claim window (the caller's `missing_at`)."""
+    row = store.ticket_row_system(conn, ticket_id)
+    if row is None:
+        return
+    _emit(conn, "ticket.cost_missing", row, T_COST_MISSING, dedupe=f"ticket:{ticket_id}:costmiss:{claim_id}", severity="alert",
+          origin={"audience": "costs", "claim_id": claim_id})
+
+
+def cost_resolved(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> None:
+    """A decision on the claim (approved / adjusted / rejected): the review row and the "not submitted" row are over."""
+    resolve(conn, "ticket.cost_submitted", f"ticket:{ticket_id}:costsub:{claim_id}")
+    resolve(conn, "ticket.cost_missing", f"ticket:{ticket_id}:costmiss:{claim_id}")

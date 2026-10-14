@@ -45,6 +45,12 @@ export interface Contact {
   last_assigned_at: string | null;
   revision: number;
   live_links?: number;
+  /** slice 9 (11A.1 / 11A.2): the cost-claim defaults; the rate only for tickets.costs.view holders */
+  cost_claim?: 'required' | 'optional' | 'off' | null;
+  vat_exempt?: boolean;
+  vat_default?: 'included' | 'excluded';
+  labor_rate_minor?: number | null;
+  rate_currency?: string | null;
   persons?: { id: string; display_name: string }[];
 }
 export interface ContactsPage { contacts: Contact[]; can_edit: boolean }
@@ -62,6 +68,12 @@ export interface ContactBody {
   notes?: string;
   active?: boolean;
   departments?: string[];
+  cost_claim?: 'required' | 'optional' | 'off' | null;
+  vat_exempt?: boolean;
+  vat_default?: 'included' | 'excluded';
+  /** a decimal text ('120', '120.50'); null / '' clears the rate */
+  labor_rate?: string | null;
+  rate_currency?: string | null;
   revision?: number;
 }
 export interface ContactExport { contact: Record<string, unknown>; departments: string[]; assignments: Record<string, unknown>[]; timeline: Record<string, unknown>[] }
