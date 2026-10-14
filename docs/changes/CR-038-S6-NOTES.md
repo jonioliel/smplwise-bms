@@ -177,5 +177,5 @@ Results (all on the runner, 2026-10-13/14):
 Owner rename of 14.10 ("בקשת שירות" / "בקשות שירות", "ניהול השירות"): slice 6 writes no default noun in any visible text - every text
 that names the module is a `{ticket}` / `{tickets}` template (board-text.ts, notify_bridge.py). The only places that still show the OLD
 default are inherited: slice 1's `naming.DEFAULTS` / `DEFAULT_TICKET_NAMES` (used by `mobile_push.categories()` for the phone category
-name) and slice 1's test mocks (`tests/tickets-mocks.ts` `/me` names), which the evidence images of this slice therefore still show in
-the rail and the title. The board's own mock (`tests/tickets-board-mocks.ts`) uses the new noun.
+name) and slice 1's test mocks (`tests/tickets-mocks.ts` `/me` names; on the board screens the module route of the board's own mock,
+`tests/tickets-board-mocks.ts`, already carries the new noun, so the slice-6 evidence shows "בקשות שירות").

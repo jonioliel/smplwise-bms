@@ -118,13 +118,23 @@ export class TicketsBoard extends LitElement {
       font-variant-numeric: tabular-nums;
       margin-inline-start: 6px;
     }
+    /* a floor's count is a small badge, never read as part of the floor's own number ("קומה 1" + 2) */
     .rc small {
+      display: inline-grid;
+      place-items: center;
+      min-inline-size: 18px;
+      block-size: 18px;
+      padding-inline: 5px;
+      box-sizing: border-box;
+      margin-inline-start: 8px;
+      border-radius: var(--sw-r-pill);
+      background: color-mix(in srgb, var(--dv-text) 8%, transparent);
       color: var(--dv-text-2);
-      font-size: var(--sw-fs-sm);
-      margin-inline-start: 10px;
-      font-weight: 600;
+      font-size: var(--sw-fs-xs, 11px);
+      font-weight: 700;
     }
     .rc[aria-pressed='true'] small {
+      background: color-mix(in srgb, currentColor 18%, transparent);
       color: inherit;
     }
     .sub {
