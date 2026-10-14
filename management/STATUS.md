@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-10-13T23:26:01.453040+00:00
+Generated: 2026-10-14T03:21:05.923521+00:00
 
 Tasks: 209 | Requirements: 317 | Tests: 333 | Screens: 32
 
@@ -9,10 +9,10 @@ No VMS implementation or hardware test is implied by this planning registry.
 ## Status counts
 - BACKLOG: 134
 - BLOCKED: 11
-- DONE: 34
+- DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 21
+- REVIEW: 17
 
 ## Release scope counts
 - BETA: 20
@@ -243,7 +243,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [ST7LOOK](tasks/ST7LOOK.md) | V1 | DONE | Studio 6 look-dev round 3: normals, ground disc, level-3 plates, ceilings, lamp pools, chair model, phone pill cap | — |
 | [ST8](tasks/ST8.md) | V1 | DONE | Plan Studio 8: IFC4 export and import in the plan editor (CR-037) | — |
 | [TTSLOG](tasks/TTSLOG.md) | V1 | DONE | Station announcements: the audit rows hold the envelope only, never the spoken text | — |
-| [FIXHUD](tasks/FIXHUD.md) | V1 | REVIEW | Opaque HUD panels over the plan, the editor, the history map, the event page and the 3D view (menu surface, strong hairline, Tesla HUD fill) | — |
-| [FIXHUDLAYOUT](tasks/FIXHUDLAYOUT.md) | V1 | REVIEW | Floor map HUD layout contract (map/hud-layout.ts): corner controls, docked list and level bar never collide | — |
-| [ST7ODD](tasks/ST7ODD.md) | V1 | REVIEW | Studio 6: the five 2.4.10 level-3 oddities (cones and GTAO cut with the walls, pill de-overlap, surfaced export control, test-house furniture) | — |
-| [GATE2411](tasks/GATE2411.md) | V1 | REVIEW | Release gate: baselines and per-spec duration seed refreshed from the 2.4.10 gate | — |
+| [FIXHUD](tasks/FIXHUD.md) | V1 | DONE | Opaque HUD panels over the plan, the editor, the history map, the event page and the 3D view (menu surface, strong hairline, Tesla HUD fill) | — |
+| [FIXHUDLAYOUT](tasks/FIXHUDLAYOUT.md) | V1 | DONE | Floor map HUD layout contract (map/hud-layout.ts): corner controls, docked list and level bar never collide | — |
+| [ST7ODD](tasks/ST7ODD.md) | V1 | DONE | Studio 6: the five 2.4.10 level-3 oddities (cones and GTAO cut with the walls, pill de-overlap, surfaced export control, test-house furniture) | — |
+| [GATE2411](tasks/GATE2411.md) | V1 | DONE | Release gate: baselines and per-spec duration seed refreshed from the 2.4.10 gate | — |

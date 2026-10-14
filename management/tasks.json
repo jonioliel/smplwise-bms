@@ -10021,7 +10021,7 @@
     "test_ids": [
       "AT331"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -10035,10 +10035,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-14 (integ-2411b): built on pilot/FIX-hud-opaque @ 2033522a; notes: the branch commit messages, docs/design/handoff/TOKEN_CONTRACT.md section 3c and docs/design/evidence/hud-opaque/. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes."
+      "2026-10-14 (integ-2411b): built on pilot/FIX-hud-opaque @ 2033522a; notes: the branch commit messages, docs/design/handoff/TOKEN_CONTRACT.md section 3c and docs/design/evidence/hud-opaque/. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "a06ba53a",
     "actual_cost_usd": null
   },
   {
@@ -10060,7 +10061,7 @@
     "test_ids": [
       "AT332"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -10074,10 +10075,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-14 (integ-2411b): built on pilot/FIX-hud-layout-2411 @ 157e5fb7; notes: the branch commit messages and docs/design/evidence/hud-layout/. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes."
+      "2026-10-14 (integ-2411b): built on pilot/FIX-hud-layout-2411 @ 157e5fb7 (then 4229099f, docs-only pictures); notes: the branch commit messages and docs/design/evidence/hud-layout/. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "a06ba53a",
     "actual_cost_usd": null
   },
   {
@@ -10099,7 +10101,7 @@
     "test_ids": [
       "AT333"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -10113,10 +10115,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-14 (integ-2411b): built on pilot/ST7-odd-2411 @ 86700e62; notes: docs/design/studio6/ODD_2411.md and CR-029 section 17. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes."
+      "2026-10-14 (integ-2411b): built on pilot/ST7-odd-2411 @ 86700e62; notes: docs/design/studio6/ODD_2411.md and CR-029 section 17. Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "a06ba53a",
     "actual_cost_usd": null
   },
   {
@@ -10138,7 +10141,7 @@
     "test_ids": [
       "AT334"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -10152,10 +10155,11 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-14 (integ-2411b): built on pilot/GATE-base-2411 @ 03927da0; notes: scripts/gate/INSTALL_ON_RUNNER.md (refresh log). Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes."
+      "2026-10-14 (integ-2411b): built on pilot/GATE-base-2411 @ 03927da0; notes: scripts/gate/INSTALL_ON_RUNNER.md (refresh log). Merged into integ/2411b (release 2.4.11). Fakes, mocked backends and fixtures only. Status REVIEW until the tier-L gate of integ/2411b passes.",
+      "2026-10-14 (integ-2411b): tier-L release gate PASS @ a06ba53a (run 2); evidence docs/release/2.4.11-INTEGRATION-NOTES.md. Fakes only; not yet on main (owner push)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "a06ba53a",
     "actual_cost_usd": null
   }
 ]

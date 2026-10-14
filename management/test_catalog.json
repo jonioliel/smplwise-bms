@@ -9037,8 +9037,16 @@
       "fixture job (outside the gate): evidence-hud-opaque-live.spec.ts and evidence-floorstrip.spec.ts (group devices)"
     ],
     "expected": "Every registered HUD panel over the 2D plan, the plan editor, the history map, the event page and the 3D view paints the opaque menu surface with the strong hairline in every skin and scheme; its text meets 4.5:1 (3:1 large) on that surface; a lint refuses a registered panel with a weak edge.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2411b runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2411b @ a06ba53a, which contains this item and runs its listed tests (the fixture-job specs evidence-hud-opaque-live / evidence-hud-layout-live(-b) are gate=false and were not run by the gate); it is not an item-specific run.",
+    "commit": "a06ba53a",
+    "environment": "Linux test machine, release gate tier L, integ/2411b @ a06ba53a (2.4.11), backend + preview + dev + pixel + fixture suites (PASS in 110 min 42 s, 0 red, 3 flaky passed alone: backend 7132p+1 flaky, preview 8869p+2 flaky, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no device, NVR, bridge, WisKey or Home Assistant",
+    "executed_at": "2026-10-14T03:19:30Z",
+    "evidence": [
+      "docs/release/2.4.11-INTEGRATION-NOTES.md",
+      "docs/release/2.4.11-RELEASE-NOTES.md",
+      "gate report gate_integ-2411b_a06ba53a.md on the test machine"
+    ]
   },
   {
     "id": "AT332",
@@ -9060,8 +9068,16 @@
       "fixture job (outside the gate): evidence-hud-layout-live.spec.ts (group hud_layout) and evidence-hud-layout-live-b.spec.ts (group hud_layout_b)"
     ],
     "expected": "On the floor map at 390, 768 and 1440 px in every skin the corner controls, the docked side list, the zoom dock and the level bar never overlap; a bar that does not fit wraps; the walk row stays free under the phone list sheet.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2411b runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2411b @ a06ba53a, which contains this item and runs its listed tests (the fixture-job specs evidence-hud-opaque-live / evidence-hud-layout-live(-b) are gate=false and were not run by the gate); it is not an item-specific run.",
+    "commit": "a06ba53a",
+    "environment": "Linux test machine, release gate tier L, integ/2411b @ a06ba53a (2.4.11), backend + preview + dev + pixel + fixture suites (PASS in 110 min 42 s, 0 red, 3 flaky passed alone: backend 7132p+1 flaky, preview 8869p+2 flaky, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no device, NVR, bridge, WisKey or Home Assistant",
+    "executed_at": "2026-10-14T03:19:30Z",
+    "evidence": [
+      "docs/release/2.4.11-INTEGRATION-NOTES.md",
+      "docs/release/2.4.11-RELEASE-NOTES.md",
+      "gate report gate_integ-2411b_a06ba53a.md on the test machine"
+    ]
   },
   {
     "id": "AT333",
@@ -9083,8 +9099,16 @@
       "evidence-replay-3d.spec.ts level-3 images (12 Linux baselines, desktop / tablet / mobile)"
     ],
     "expected": "At the realistic 3D level no camera-cone volume or occlusion wisp shows above the section cut, no entity pill covers another, the glTF export control has a surface; the 12 evidence-replay-3d Linux baselines match.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2411b runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2411b @ a06ba53a, which contains this item and runs its listed tests (the fixture-job specs evidence-hud-opaque-live / evidence-hud-layout-live(-b) are gate=false and were not run by the gate); it is not an item-specific run.",
+    "commit": "a06ba53a",
+    "environment": "Linux test machine, release gate tier L, integ/2411b @ a06ba53a (2.4.11), backend + preview + dev + pixel + fixture suites (PASS in 110 min 42 s, 0 red, 3 flaky passed alone: backend 7132p+1 flaky, preview 8869p+2 flaky, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no device, NVR, bridge, WisKey or Home Assistant",
+    "executed_at": "2026-10-14T03:19:30Z",
+    "evidence": [
+      "docs/release/2.4.11-INTEGRATION-NOTES.md",
+      "docs/release/2.4.11-RELEASE-NOTES.md",
+      "gate report gate_integ-2411b_a06ba53a.md on the test machine"
+    ]
   },
   {
     "id": "AT334",
@@ -9106,7 +9130,15 @@
       "the tier-L release gate of integ/2411b uses the refreshed gate_baselines.json / gate_durations.json"
     ],
     "expected": "The release gate reads baselines and a duration seed refreshed from the 2.4.10 gate; selftest_gate.py passes; every count of the 2.4.11 gate is compared against the refreshed baselines.",
-    "status": "NOT_RUN",
-    "notes": "NOT_RUN until the tier-L gate of integ/2411b runs against the merged commit."
+    "status": "PASS",
+    "notes": "PASS rests on the tier-L gate of integ/2411b @ a06ba53a, which contains this item and runs its listed tests (the fixture-job specs evidence-hud-opaque-live / evidence-hud-layout-live(-b) are gate=false and were not run by the gate); it is not an item-specific run.",
+    "commit": "a06ba53a",
+    "environment": "Linux test machine, release gate tier L, integ/2411b @ a06ba53a (2.4.11), backend + preview + dev + pixel + fixture suites (PASS in 110 min 42 s, 0 red, 3 flaky passed alone: backend 7132p+1 flaky, preview 8869p+2 flaky, dev 852p, pixel 188p, fixture 15p); fakes, mocked backends and fixtures only - no device, NVR, bridge, WisKey or Home Assistant",
+    "executed_at": "2026-10-14T03:19:30Z",
+    "evidence": [
+      "docs/release/2.4.11-INTEGRATION-NOTES.md",
+      "docs/release/2.4.11-RELEASE-NOTES.md",
+      "gate report gate_integ-2411b_a06ba53a.md on the test machine"
+    ]
   }
 ]
