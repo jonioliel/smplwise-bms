@@ -1,4 +1,4 @@
-# TKS9 — Service management: cost claims (vendor claim step, manager review, close gate)
+# TKS9 — Service management: cost claims (vendor claim step, manager review, close gate) + costs settings, contact cost fields, cost notification sources (s9b)
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 

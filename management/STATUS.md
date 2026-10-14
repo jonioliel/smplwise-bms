@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-10-14T04:34:28.380579+00:00
+Generated: 2026-10-14T04:46:16.811701+00:00
 
 Tasks: 221 | Requirements: 329 | Tests: 345 | Screens: 32
 
@@ -257,5 +257,5 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKS6B](tasks/TKS6B.md) | V1 | REVIEW | Service management: the board table view (sort, filters, CSV export, bulk actions, saved views) | — |
 | [TKS7](tasks/TKS7.md) | V1 | REVIEW | Service management: verification codes (option B) and code settings | — |
 | [TKS8](tasks/TKS8.md) | V1 | REVIEW | Service management: add-on docs, Hebrew guide chapter, public-surface review checklist | — |
-| [TKS9](tasks/TKS9.md) | V1 | REVIEW | Service management: cost claims (vendor claim step, manager review, close gate) | — |
+| [TKS9](tasks/TKS9.md) | V1 | REVIEW | Service management: cost claims (vendor claim step, manager review, close gate) + costs settings, contact cost fields, cost notification sources (s9b) | — |
 | [TKRENAME](tasks/TKRENAME.md) | V1 | REVIEW | Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint | — |

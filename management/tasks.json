@@ -10554,7 +10554,7 @@
   },
   {
     "id": "TKS9",
-    "title": "Service management: cost claims (vendor claim step, manager review, close gate)",
+    "title": "Service management: cost claims (vendor claim step, manager review, close gate) + costs settings, contact cost fields, cost notification sources (s9b)",
     "epic": "TICKETS",
     "phase": "V1",
     "dependencies": [],
@@ -10585,7 +10585,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-14 (integ-250): built on pilot/TICKETS-s9 @ eebba323 (with s9-ui 392d0280); notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes."
+      "2026-10-14 (integ-250): built on pilot/TICKETS-s9 @ eebba323 (with s9-ui 392d0280); notes docs/changes/CR-038-*-NOTES.md. Merged into integ/250 (release 2.5.0). Fakes only. Status REVIEW until the tier-L gate of integ/250 passes.",
+      "2026-10-14 (integ-250): pilot/TICKETS-s9b @ c9c9b2eb (costs settings tab, contact-editor cost fields, ticket.cost_submitted / ticket.cost_missing) merged as e4f6f290."
     ],
     "owner": null,
     "commit": "a06ba53a",
