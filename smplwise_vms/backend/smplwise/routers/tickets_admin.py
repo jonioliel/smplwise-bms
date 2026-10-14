@@ -786,8 +786,11 @@ def _member_guard(conn: sqlite3.Connection, viewer: Viewer, dept_id: str, kind: 
         raise deny("not_manager_of_department")
     me = viewer.uid
     concerns_me = (kind == "user" and subject_id == me) or (kind == "group" and subject_id in store.group_ids_of(conn, me))
-    if concerns_me and role == "manager" and viewer.role(dept_id) != "manager":
-        raise deny("self_escalation")  # nobody makes themself a manager of a department they do not already manage
+    # nobody makes themself a manager of a department they do not already manage - except a holder of tickets.all_departments at the
+    # installation (PENDING owner confirmation, 2026-10-14: a solo system administrator could not add himself as a manager). Such a
+    # holder already sees and manages every department; the add is audited as usual with `self: true` (put_member).
+    if concerns_me and role == "manager" and viewer.role(dept_id) != "manager" and not viewer.holds_installation(access.ALL_DEPARTMENTS):
+        raise deny("self_escalation")
 
 
 @router.put("/tickets/admin/departments/{dept_id}/members/{kind}/{subject_id}")
@@ -808,7 +811,8 @@ def put_member(body: MemberBody, request: Request, dept_id: str = Path(..., patt
     store.upsert_member(conn, dept_id, kind, subject_id, body.role, 1 if notify_new and body.role == "manager" else 0, principal.user_id)
     audit(conn, actor=principal, action="ticket.member.add" if before is None else "ticket.member.update", decision="allowed",
           resource_type="ticket_department", resource_id=dept_id, request_id=_rid(request),
-          details={"subject_kind": kind, "subject_id": subject_id, "role": body.role, "before": before["member_role"] if before else None})
+          details={"subject_kind": kind, "subject_id": subject_id, "role": body.role, "before": before["member_role"] if before else None,
+                   "self": (kind == "user" and subject_id == principal.user_id) or (kind == "group" and subject_id in store.group_ids_of(conn, principal.user_id))})
     return _department_dict(conn, Viewer(conn, principal), store.department(conn, dept_id) or {})
 
 
