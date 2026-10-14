@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-14T14:24:57.004605+00:00
+Generated: 2026-10-14T16:48:00.599531+00:00
 
-Tasks: 223 | Requirements: 331 | Tests: 347 | Screens: 32
+Tasks: 224 | Requirements: 332 | Tests: 348 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 31
+- REVIEW: 32
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 129
+- V1: 130
 - V2: 29
 - V3: 2
 
@@ -261,3 +261,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKRENAME](tasks/TKRENAME.md) | V1 | REVIEW | Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint | — |
 | [TKHARDEN](tasks/TKHARDEN.md) | V1 | REVIEW | Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off | — |
 | [TKHANDL](tasks/TKHANDL.md) | V1 | REVIEW | Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix | — |
+| [TKDEL](tasks/TKDEL.md) | V1 | REVIEW | Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers | — |

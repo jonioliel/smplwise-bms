@@ -6323,5 +6323,21 @@
     "test_ids": [
       "AT348"
     ]
+  },
+  {
+    "id": "R333",
+    "title": "Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers",
+    "statement": "A manager holding tickets.delete (system_admin, or the single-permission role tickets_delete) deletes a ticket fully (notes, photos, links, cost claims) through POST /tickets/{id}/delete or /tickets/bulk-delete with a typed number, a reason and an audit row; a holder of tickets.all_departments may add himself or others as department member or manager (audited, self:true).",
+    "task_ids": [
+      "TKDEL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT349"
+    ]
   }
 ]

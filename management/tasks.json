@@ -10708,5 +10708,44 @@
     "owner": null,
     "commit": "07bb27a2",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKDEL",
+    "title": "Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers: fakes only (integ/252); no live send."
+    ],
+    "requirement_ids": [
+      "R333"
+    ],
+    "test_ids": [
+      "AT349"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TICKETS-delete and pilot/TICKETS-handlers-selfadd",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ/252): pilot/TICKETS-delete @ d0cd1388 and pilot/TICKETS-handlers-selfadd @ 996cbbec merged (release 2.5.2). Fakes only. Status REVIEW until the tier-L gate of integ/252 passes."
+    ],
+    "owner": null,
+    "commit": "d0cd1388",
+    "actual_cost_usd": null
   }
 ]

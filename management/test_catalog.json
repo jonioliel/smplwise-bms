@@ -9462,5 +9462,28 @@
     "expected": "Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/251c."
+  },
+  {
+    "id": "AT349",
+    "requirement_ids": [
+      "R333"
+    ],
+    "task_ids": [
+      "TKDEL"
+    ],
+    "title": "Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKDEL (integ/252):",
+      "backend tests for the deletion (single, bulk, cost guard, rate, audit) and tests/test_tickets_admin.py (self-add), frontend delete dialog specs and tests/evidence-tickets-delete*.spec.ts",
+      "gate run of integ/252"
+    ],
+    "expected": "Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/252."
   }
 ]
