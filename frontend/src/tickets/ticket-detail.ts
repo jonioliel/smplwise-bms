@@ -21,6 +21,7 @@ import { onTicketNames } from './naming';
 import { messageEventLine, messagesBlock } from './ticket-messages'; // slice 5b: the delivery lines (D14) and the message events
 import { ExternalAssign, externalAssignStyles } from './external-assign';
 import { LinkPanel, linkPanelStyles } from './link-panel';
+import { deviceBlockStyles, historySection } from './ticket-device-context'; // CR-038 slice 3: the frozen device history
 
 interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
 
@@ -81,7 +82,7 @@ export class TicketDetailView extends LitElement {
     busy: () => this.busy, run: (fn, done) => this.run(fn, done || undefined), say: (m, tone) => this.say(m, tone), reload: () => void this.load(),
   });
 
-  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, deviceBlockStyles, css`
     sw-drawer {
       --sw-drawer-modal-w: 480px;
     }
@@ -604,6 +605,7 @@ export class TicketDetailView extends LitElement {
       ${this.assigneeSection(t)}
       ${this.messagesSection(t)}
       ${this.photosSection(t)}
+      ${historySection(t.device_context)}
       ${this.timelineSection(t)}
     </div>`;
   }
@@ -648,7 +650,7 @@ export class TicketDetailView extends LitElement {
       ${this.flashRow()}
       <div class="cols">
         <div class="stack">${this.sentence(t)}${this.statusSection(t)}<div class="glass card">${this.timelineSection(t)}</div></div>
-        <div class="stack">${this.assigneeSection(t)}${this.messagesSection(t)}${this.photosSection(t)}</div>
+        <div class="stack">${this.assigneeSection(t)}${this.messagesSection(t)}${this.photosSection(t)}${historySection(t.device_context)}</div>
       </div>
       ${this.dialogs()}
     </div>`;

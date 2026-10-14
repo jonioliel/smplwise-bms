@@ -106,6 +106,7 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "board_floors"): ("tree", _choice("chips", "tree", "chips_tree")),  # D19 / D30 (slice 6)
     ("ui", "grouping"): ("no_status_filter", _choice("always", "no_status_filter", "never")),  # D20 (slice 6)
     ("ui", "closed_strip"): ("all", _choice("week", "all", "hidden")),  # D21 (slice 6)
+    ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
     # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5
     ("links", "cap_days"): (90, int_range(*CAP_DAYS)),  # D5, >= sliding_days (checked across keys below)

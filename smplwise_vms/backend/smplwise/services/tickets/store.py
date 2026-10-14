@@ -1,7 +1,8 @@
 """CR-038: ALL SQL of the tickets module (section 5, data-store decision Q11 / D16: the main SQLite file behind one storage layer -
 a later move to another file or engine touches this module only).
 
-Visibility rule: a ticket row is read here only by services/tickets/access.py (`ticket_row_unchecked`, `candidate_rows`); every
+Visibility rule: a ticket row is read here only by services/tickets/access.py (`ticket_row_unchecked`, `candidate_rows`,
+`entity_ticket_rows_unchecked`); every
 router, screen and later slice reaches a ticket through access.require_visible() / access.visible_page(). The names say "unchecked"
 on purpose and tests/test_tickets_visibility.py fails when any other module calls them."""
 from __future__ import annotations
@@ -629,6 +630,91 @@ def insert_attachment(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
 
 def soft_delete_attachment(conn: sqlite3.Connection, attachment_id: str, by: str) -> None:
     conn.execute("UPDATE ticket_attachments SET deleted_at = ?, deleted_by = ? WHERE id = ?", (now_iso(), by, attachment_id))
+
+
+# ---------------------------------------------------------------- devices (slice 3: section 12 - place, history snapshot, the device tab)
+
+def entity_row(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any] | None:
+    """A catalogued entity (never a removed one): what a device ticket names and where HA put it. No attribute is read."""
+    return _dict(conn.execute(
+        "SELECT entity_id, registry_id, name, original_name, domain, device_class, area_id, area_name, ha_floor_name FROM ha_entities "
+        "WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone())
+
+
+def entity_anchors(conn: sqlite3.Connection, entity_id: str) -> list[dict[str, Any]]:
+    """The entity's CURRENT anchors on the maps (section 12.2), each with its floor, building and site (soft-deleted ones never), the
+    lowest floor level first (an entity placed on two floors: the first one is the ticket's place, the others are named)."""
+    return [dict(r) for r in conn.execute(
+        """SELECT a.floor_id, a.x, a.y, f.name AS floor_name, f.level AS floor_level, b.id AS building_id, b.name AS building_name, s.id AS site_id
+           FROM map_anchors a JOIN floors f ON f.id = a.floor_id JOIN buildings b ON b.id = f.building_id JOIN sites s ON s.id = b.site_id
+           WHERE a.resource_type = 'ha_entity' AND a.resource_id = ? AND a.effective_to IS NULL
+             AND f.deleted_at IS NULL AND b.deleted_at IS NULL AND s.deleted_at IS NULL
+           ORDER BY f.level, f.sort_order, a.updated_at DESC""",
+        (entity_id,),
+    ).fetchall()]
+
+
+def floor_zones(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute(
+        "SELECT id, name, polygon_json FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL", (floor_id,)).fetchall()]
+
+
+def zone_place(conn: sqlite3.Connection, zone_id: str) -> dict[str, Any] | None:
+    """A room with its floor, building and site (the fallback place of an entity without an anchor: the room linked to its HA area)."""
+    return _dict(conn.execute(
+        """SELECT z.id AS zone_id, z.name AS zone_name, f.id AS floor_id, f.name AS floor_name, b.id AS building_id, b.name AS building_name, s.id AS site_id
+           FROM spatial_zones z JOIN floors f ON f.id = z.floor_id JOIN buildings b ON b.id = f.building_id JOIN sites s ON s.id = b.site_id
+           WHERE z.id = ? AND z.deleted_at IS NULL AND f.deleted_at IS NULL AND b.deleted_at IS NULL AND s.deleted_at IS NULL""",
+        (zone_id,),
+    ).fetchone())
+
+
+def site_building_count(conn: sqlite3.Connection, site_id: str) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM buildings WHERE site_id = ? AND deleted_at IS NULL", (site_id,)).fetchone()[0])
+
+
+def state_history(conn: sqlite3.Connection, entity_id: str, since: str, limit: int) -> list[dict[str, Any]]:
+    """Source 2 of the snapshot (section 12.3): the 30-day state history of an entity that device_activity does not track, newest first."""
+    return [dict(r) for r in conn.execute(
+        "SELECT state, changed_at FROM ha_state_history WHERE entity_id = ? AND changed_at >= ? ORDER BY changed_at DESC, id DESC LIMIT ?",
+        (entity_id, since, int(limit)),
+    ).fetchall()]
+
+
+def insert_device_context(conn: sqlite3.Connection, ticket_id: str, row: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT INTO ticket_device_context(ticket_id, entity_id, captured_at, window_from, window_to, source, items_json, coverage_json, truncated, withheld)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (ticket_id, row["entity_id"], row["captured_at"], row["window_from"], row["window_to"], row["source"],
+         json.dumps(row.get("items") or [], ensure_ascii=False, separators=(",", ":")),
+         json.dumps(row.get("coverage") or {}, ensure_ascii=False, separators=(",", ":")), 1 if row.get("truncated") else 0, row.get("withheld")),
+    )
+
+
+def device_context(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
+    """The frozen snapshot of a ticket (later history changes never alter it)."""
+    row = conn.execute("SELECT * FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,)).fetchone()
+    if row is None:
+        return None
+    out = dict(row)
+    for key, empty in (("items_json", []), ("coverage_json", {})):
+        try:
+            out[key[:-5]] = json.loads(out.pop(key) or "null") or empty
+        except ValueError:
+            out[key[:-5]] = empty
+    return out
+
+
+def entity_ticket_rows_unchecked(conn: sqlite3.Connection, entity_id: str, registry_id: str | None, limit: int) -> list[dict[str, Any]]:
+    """The SUPERSET of a device's tickets (section 12.2 rename safety: by `registry_id` first, then `entity_id`): open ones first, newest
+    first. Visibility is NOT decided here - access.visible_for_entity() checks every row (unchecked on purpose)."""
+    where = "t.entity_id = ?"
+    args: list[Any] = [entity_id]
+    if registry_id:
+        where = "(t.registry_id = ? OR t.entity_id = ?)"
+        args = [registry_id, entity_id]
+    sql = (_TICKET_SELECT + f" WHERE {where} ORDER BY CASE WHEN t.status IN ('closed', 'cancelled') THEN 1 ELSE 0 END, t.created_at DESC, t.id DESC LIMIT ?")
+    return [dict(r) for r in conn.execute(sql, (*args, int(limit))).fetchall()]
 
 
 # ---------------------------------------------------------------- idempotency of writes (review T22)

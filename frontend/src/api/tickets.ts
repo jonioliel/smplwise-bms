@@ -50,6 +50,45 @@ export interface TicketItem {
   view: 'full' | 'limited';
   /** slice 2: the SLA dues (null = no threshold applies now / off) */
   sla?: { ack_due_at: string | null; stuck_due_at: string | null; resolve_due_at: string | null };
+  /** slice 3: a device's ticket */
+  entity_id?: string | null;
+}
+
+/** Slice 3 (section 12.3): one line of a device's 24 h history - no person name ever (the actor's type only, a name for an automation). */
+export interface HistoryItem {
+  at: string;
+  kind: string;
+  from: Record<string, string | number | boolean | null>;
+  to: Record<string, string | number | boolean | null>;
+  changed: string[];
+  actor: { type: string; name?: string };
+}
+export interface HistorySummary {
+  source: 'device_activity' | 'state_history' | 'none' | null;
+  window_hours: number;
+  window_from: string | null;
+  window_to: string | null;
+  count: number;
+  truncated: boolean;
+  withheld: string | null;
+  lines: HistoryItem[];
+}
+/** The frozen snapshot on a ticket's detail (internal content; present only when the viewer may read the device too). */
+export interface DeviceContext extends HistorySummary {
+  captured_at: string | null;
+  coverage: { from?: string | null; gaps?: { from: string; to: string }[]; availability?: string };
+  /** D3 / D23: whether it may EVER be shown to an outside handler (never for locks, alarm panels, covers, cameras) */
+  shareable: boolean;
+}
+/** GET tickets/by-entity/{entity_id} - the device window's tab. */
+export interface EntityTickets {
+  entity: { entity_id: string; name: string; domain: string; tracked: boolean };
+  items: TicketItem[];
+  open_count: number;
+  can_create: boolean;
+  place_text: string;
+  /** what a new ticket would carry (only with can_create) */
+  history: HistorySummary | null;
 }
 
 export interface TicketEvent {
@@ -117,6 +156,8 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   can: TicketCan;
   transitions: { to: TicketStatus; note_required: boolean }[];
   assignments: TicketAssignment[];
+  /** slice 3 */
+  device_context?: DeviceContext | null;
 }
 
 export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode }
@@ -136,7 +177,7 @@ export interface MetaDepartment {
   can_create: boolean;
   can_manage: boolean;
   open_to_all: boolean;
-  categories: { id: string; name: string; parent_id: string | null; default_priority_id: string | null }[];
+  categories: { id: string; name: string; parent_id: string | null; default_priority_id: string | null; domains?: string[] }[];
   priorities: { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean }[];
   /** slice 2: the department's active ticket templates (the create form prefills from them) */
   templates?: { id: string; name: string; title: string; body: string; category_id: string | null; priority_key: PriorityKey | null }[];
@@ -159,8 +200,10 @@ export interface CreateBody {
   assign_note?: string;
   assign_note_external?: boolean;
   client_request_id: string;
+  /** slice 3: a device's ticket - the server resolves the place and freezes the 24 h history */
+  entity_id?: string | null;
 }
-export type CreateAnswer = (TicketDetail | { id: string; number: number; view: 'none' }) & { result: 'created' | 'absorbed' };
+export type CreateAnswer = (TicketDetail | { id: string; number: number; view: 'none' }) & { result: 'created' | 'absorbed'; open_for_entity?: TicketItem[] };
 export interface PatchBody { title?: string; description?: string; category_id?: string | null; priority_id?: string; department_id?: string; revision: number }
 export interface StatusBody { to: TicketStatus; note?: string | null; duplicate_of?: string | null; revision: number }
 export interface AssignBody { assignee: { kind: 'user'; id: string }; note?: string | null; note_external?: boolean; revision: number }
@@ -237,8 +280,8 @@ export interface Holder {
 export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles?: RoleRow[] }
 /** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
 export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for' }
-export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings }
-export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings> }
+export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ }
+export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu' }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;
@@ -260,6 +303,8 @@ export interface TicketsBackend {
   saveSettings(revision: number, ui: Partial<UiSettings>): Promise<SettingsDoc>;
   /** slice 2: any installation key of the document (links, send hours, urgent as critical, ui) */
   saveInstallation(revision: number, patch: SettingsPatch): Promise<SettingsDoc>;
+  /** slice 3: the device window's tab */
+  byEntity(entityId: string): Promise<EntityTickets>;
   saveName(revision: number, names: Partial<NameEntries>): Promise<NameDoc>;
   departments(): Promise<DepartmentsResponse>;
   createDepartment(body: DepartmentBody): Promise<AdminDepartment>;
@@ -314,6 +359,7 @@ const rest: TicketsBackend = {
   settings: () => get<SettingsDoc>(`${T}/settings`),
   saveSettings: (revision, ui) => put<SettingsDoc>(`${T}/settings`, { revision, ui }),
   saveInstallation: (revision, body) => put<SettingsDoc>(`${T}/settings`, { revision, ...body }),
+  byEntity: (entityId) => get<EntityTickets>(`${T}/by-entity/${enc(entityId)}`),
   saveName: (revision, names) => put<NameDoc>(`${T}/name`, { revision, ...names }),
   departments: () => get<DepartmentsResponse>(`${T}/admin/departments`),
   createDepartment: (body) => post<AdminDepartment>(`${T}/admin/departments`, body),

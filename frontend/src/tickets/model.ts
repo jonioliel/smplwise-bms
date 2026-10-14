@@ -7,6 +7,7 @@ import { tt, type TicketTextKey } from './text';
 import { bt, type BoardTextKey } from './board-text';
 
 const BOARD_REASONS = ['unassigned', 'overdue', 'unopened', 'ack', 'stuck', 'waiting'];
+import { dt } from './device-text';
 
 export const TICKETS_ROOT = '#/tickets';
 export const SCOPES: readonly Exclude<ListScope, 'visible'>[] = ['mine', 'department', 'all'];
@@ -237,6 +238,8 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
       return { icon: 'lock', text: bt('e_auto_closed') };
     case 'link_expired':
       return { icon: 'x', text: bt('e_link_expired') };
+    case 'device_context': // slice 3: the 24 h history frozen at creation (counts only)
+      return { icon: 'clock', text: d.withheld || d.source === 'none' ? dt('historyNotAttached') : dt('historyAttached', { n: Number(d.count ?? 0) }) };
     default:
       return { icon: 'note', text: e.kind };
   }
