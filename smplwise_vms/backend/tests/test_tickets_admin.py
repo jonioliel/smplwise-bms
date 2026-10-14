@@ -44,8 +44,11 @@ def test_department_lifecycle(w):
     with w.c.app.state.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM ticket_sla_rules WHERE department_id = ?", (hr["id"],)).fetchone()[0] == 4
     assert w.c.post(f"{API}/tickets/admin/departments", json={"key": "hr", "name": "שוב"}).json()["code"] == "department_key_taken"
-    for body in ({"key": "HR!", "name": "x"}, {"key": "ok-key", "name": ""}, {"key": "ok-key", "name": "x", "color": "#ff0000"}, {"name": "בלי מפתח"}):
+    for body in ({"key": "HR!", "name": "x"}, {"key": "ok-key", "name": ""}, {"key": "ok-key", "name": "x", "color": "#ff0000"}):
         assert w.c.post(f"{API}/tickets/admin/departments", json=body).status_code == 422, body
+    # owner 2026-10-14: a name only - the key is made from it (test_tickets_departments_restore.py has the rules)
+    nokey = w.c.post(f"{API}/tickets/admin/departments", json={"name": "בלי מפתח"})
+    assert nokey.status_code == 201 and nokey.json()["key"] == "bly-mptch"
     r = w.c.patch(f"{API}/tickets/admin/departments/{hr['id']}", json={"name": "HR", "reopen_days": 30, "revision": hr["revision"]})
     assert r.status_code == 200 and r.json()["name"] == "HR" and r.json()["reopen_days"] == 30
     assert w.c.patch(f"{API}/tickets/admin/departments/{hr['id']}", json={"name": "x", "revision": hr["revision"]}).json()["code"] == "department_stale"
