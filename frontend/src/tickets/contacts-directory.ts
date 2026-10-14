@@ -76,12 +76,19 @@ export class TicketsContacts extends LitElement {
     }
     .form {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 12px;
       inline-size: 100%;
     }
     .form .wide {
       grid-column: 1 / -1;
+    }
+    .form .fld > .seg {
+      align-self: flex-start;
+      max-inline-size: 100%;
+    }
+    .form .seg button {
+      white-space: nowrap;
     }
     .fld .in,
     .fld select.in {
@@ -275,7 +282,7 @@ export class TicketsContacts extends LitElement {
           <span class="txt"><span class="nm">${bidi(c.display_name)}</span>
             <span class="sub">${bidi([c.vendor_name ?? c.company, c.phone].filter(Boolean).join(' · ') || '–')}</span></span>
           ${c.require_code ? html`<span class="tag">${tt('lkCode')}</span>` : nothing}
-          ${c.open_tickets ? html`<span class="tag acc">${c.open_tickets}</span>` : nothing}
+          ${c.open_tickets ? html`<span class="tag acc" data-open-tickets>${c.open_tickets} ${tt('ctColOpen')}</span>` : nothing}
           <span class=${`tag kind ${c.kind === 'vendor' ? 'acc' : ''}`}>${tt(`ctKind_${c.kind}` as TicketTextKey)}</span>
           ${c.active ? nothing : html`<span class="tag">${tt('depInactive')}</span>`}
         </button>`)}</div>`

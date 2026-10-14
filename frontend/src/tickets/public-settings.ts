@@ -40,8 +40,19 @@ export class TicketsPublicCard extends LitElement {
       display: block;
       min-inline-size: 0;
     }
-    .end .in {
+    .line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      inline-size: 100%;
+    }
+    .line .in {
       flex: 1 1 220px;
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
     }
     .state {
       display: flex;
@@ -135,7 +146,7 @@ export class TicketsPublicCard extends LitElement {
       <span class="state" data-public-state=${missing.length ? 'missing' : h ? 'ready' : 'unknown'}>
         ${h && !missing.length ? html`<span class="tag ok">${tt('pubReady')}</span>` : nothing}
         ${missing.map((m) => html`<span class="tag warn" data-missing=${m}>${tt(`pubMissing_${m}` as TicketTextKey)}</span>`)}
-        ${h ? html`<span class="tag" data-links-live>${tt('lk_live')}: ${h.links.live}</span>` : nothing}
+        ${h ? html`<span class="tag" data-links-live>${tt('pubLiveLinks', { n: h.links.live })}</span>` : nothing}
       </span></div>`;
   }
 
@@ -147,17 +158,17 @@ export class TicketsPublicCard extends LitElement {
     const cidrList = cidrs.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
     return html`<sw-card heading=${tt('pubCard')} subheading=${tt('pubSub')} data-card="public">
       ${this.stateRow()}
-      <div class="row"><span class="lbl">${tt('pubOrg')}</span>
-        <span class="end"><input class="in" maxlength="80" data-public-org aria-label=${tt('pubOrg')} .value=${org} @input=${(e: Event) => (this.org = (e.target as HTMLInputElement).value)} />
+      <div class="row stack"><span class="lbl">${tt('pubOrg')}</span>
+        <div class="line"><input class="in" maxlength="80" data-public-org aria-label=${tt('pubOrg')} .value=${org} @input=${(e: Event) => (this.org = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-public-org-save ?disabled=${this.busy || org.trim() === (this.doc?.organization_name ?? '')}
-            @click=${() => this.save({ organization_name: org.trim() })}>${tt('save')}</sw-button></span></div>
-      <div class="row"><span class="lbl">${tt('pubAddress')}<span class="muted" dir="ltr">${tt('pubAddressHint')}</span></span>
-        <span class="end"><input class="in" type="url" dir="ltr" maxlength="300" inputmode="url" autocomplete="off" data-public-address aria-label=${tt('pubAddress')} .value=${address}
-          @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />
+            @click=${() => this.save({ organization_name: org.trim() })}>${tt('save')}</sw-button></div></div>
+      <div class="row stack"><span class="lbl">${tt('pubAddress')}</span>
+        <div class="line"><input class="in" type="url" dir="ltr" maxlength="300" inputmode="url" autocomplete="off" data-public-address aria-label=${tt('pubAddress')}
+          placeholder=${tt('pubAddressHint')} .value=${address} @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />
           <sw-button size="sm" variant="primary" data-public-address-save ?disabled=${this.busy || address.trim() === p.base_url}
             @click=${() => this.save({ public: { base_url: address.trim() } })}>${tt('save')}</sw-button>
-          <sw-button size="sm" data-public-probe ?disabled=${this.probing || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></span></div>
-      ${this.probe ? html`<div class="row">${this.probeLine()}</div>` : nothing}
+          <sw-button size="sm" data-public-probe ?disabled=${this.probing || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></div>
+        ${this.probe ? this.probeLine() : nothing}</div>
       <details ?open=${this.advanced} @toggle=${(e: Event) => (this.advanced = (e.target as HTMLDetailsElement).open)} data-public-advanced>
         <summary>${tt('pubAdvanced')}</summary>
         <div class="row stack"><span class="lbl">${tt('pubTrusted')}</span>
