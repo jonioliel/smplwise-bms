@@ -221,6 +221,30 @@ export const externalAssignStyles = css`
     color: var(--dv-text-3);
     text-align: center;
   }
+  .xkinds b,
+  .xkinds small {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+  /* a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog) */
+  @media (max-width: 560px) {
+    .xkinds {
+      grid-template-columns: minmax(0, 1fr);
+      border-radius: var(--sw-r-xl);
+    }
+    .xkinds button {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 44px;
+      padding-inline: 14px;
+      border-radius: var(--sw-r-lg);
+    }
+    .xkinds small {
+      text-align: end;
+    }
+  }
   .xpick .xtx {
     display: flex;
     flex-direction: column;
