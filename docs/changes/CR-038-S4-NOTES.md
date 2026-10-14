@@ -137,6 +137,14 @@ guards found two real problems - the assign dialog's kind tiles at 320-390 px in
 the card) and the new `layout-tickets-s4.spec.ts` (the directory, the card, the dialog sending outside, the link panel) is clean in
 all five skins x light / dark x ten widths (0 findings).
 
+Runner backend (`run_smart.py backend`, full suite, 2 shards, at dfdeaa8d): shard 2 (test_nvr_stream_write_locks .. test_zones)
+3894 passed, 4 failed - `test_tickets_naming` (the D33 lint read the capitalised `X-Ticket-Probe` header as the module name: sent in
+lower case now) and `test_remote_access::test_every_route_needs_a_remote_session` (the test's local-only set now lists the probe
+route) fixed and passing locally; `test_tickets_public_server::test_one_upload_in_flight_per_link_at_the_socket` passes locally (a
+timing test, the runner was at load 20-48); `test_wiskey_door_path::test_d3_grant_card_switches_users_groups_and_custom_roles` fails
+because slice 1's six single-permission ticket roles appear in the WisKey door card's role list - not this slice's change. Shard 1
+was stopped by the 2.4.11 gate hold (the lead's instruction); its files closest to this slice's shared edits ran locally.
+
 ## 5. For the next slices
 
 - **5b (messages)**: replace `external.DISPATCH` (`LinkDispatch`: `channel`, `queue` inside the caller's transaction, `code_ready`) and
