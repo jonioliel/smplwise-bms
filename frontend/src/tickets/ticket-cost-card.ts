@@ -129,12 +129,12 @@ export class TicketCostCard extends LitElement {
     return c.revisions?.find((r) => r.id === c.current_revision_id);
   }
 
-  private lang(): 'he' | 'en' {
+  private uiLang(): 'he' | 'en' {
     return ticketsLang();
   }
 
   private money(minor: number | null | undefined, currency: string | null | undefined): string {
-    return formatMoney(minor, currency, this.lang());
+    return formatMoney(minor, currency, this.uiLang());
   }
 
   // ---------------------------------------------------------------- writes

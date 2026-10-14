@@ -88,7 +88,7 @@ function photoDoc(no: number, pages: number, vendor: string): CostRevision['docu
   };
 }
 
-function claimOf(t: DemoTicket, asgId: string, vendor: string, contact: string, status: ClaimStatus, required: boolean, until: number, revisions: CostRevision[], decisions: CostDecision[] = []): CostClaim {
+function claimOf(_t: DemoTicket, asgId: string, vendor: string, contact: string, status: ClaimStatus, required: boolean, until: number, revisions: CostRevision[], decisions: CostDecision[] = []): CostClaim {
   const current = revisions.at(-1);
   const approved = status === 'approved' || status === 'paid';
   return {
