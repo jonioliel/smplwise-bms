@@ -192,6 +192,12 @@ test.describe('the handler page (slice 4)', () => {
     // the words: the configured name, never a default one (Hebrew: the owner's "בקשת שירות")
     await open(page, view('he'));
     await expect(page.locator('body')).not.toContainText('קריא');
+    // W20: an address someone typed stays text - the page builds no link at all
+    const url = 'https://evil.example.test/pay';
+    const tl = (view('he').timeline as unknown[]).concat([{ id: 14, at: iso(Date.now() - HOUR), kind: 'note', mine: false, name: 'יוני', from: null, to: null, body: `לפרטים: ${url}` }]);
+    await open(page, view('he', { timeline: tl, description: `ראו ${url}` }));
+    await expect(page.locator('body')).toContainText(url);
+    await expect(page.locator('a')).toHaveCount(0);
   });
 
   test('an update chosen: a status, an ETA chip and a note, then "send" sends them with request ids', async ({ page }) => {
