@@ -40,8 +40,8 @@ export class TicketsDeleteDialog extends LitElement {
       gap: 10px;
       align-items: flex-start;
       padding: 10px 12px;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--dv-bad, #d93a3a) 10%, transparent);
+      border-radius: var(--sw-r-md);
+      background: color-mix(in srgb, var(--dv-danger) 10%, transparent);
       color: var(--dv-text);
       overflow-wrap: anywhere;
     }
