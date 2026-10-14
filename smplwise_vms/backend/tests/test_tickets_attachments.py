@@ -95,6 +95,17 @@ def test_webp_is_refused_even_when_pillow_could_read_it(w):
     assert r.status_code == 415 and r.json()["code"] == "webp_refused"
 
 
+def test_broken_images_are_422_even_when_truncated_images_are_allowed_process_wide(w, monkeypatch):
+    from PIL import ImageFile
+
+    monkeypatch.setattr(ImageFile, "LOAD_TRUNCATED_IMAGES", True)  # what WeasyPrint does at import (2.5.0 gate)
+    t = w.create("tom")
+    jpeg = _img(size=(800, 600))
+    r = _upload(w, t["id"], jpeg[: len(jpeg) // 3])
+    assert r.status_code == 422 and r.json()["code"] == "image_invalid"
+    assert ImageFile.LOAD_TRUNCATED_IMAGES is True
+
+
 def test_truncated_and_broken_images_are_422(w):
     t = w.create("tom")
     jpeg = _img(size=(800, 600))

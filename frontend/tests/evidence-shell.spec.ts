@@ -19,6 +19,8 @@ const TABS = ['ראשי', 'אבטחה', 'מפה', 'מולטימדיה', 'WisKey'
 const DEFAULT_ORDER = ['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra', 'tickets']; // the stored order: every tab, hidden ones included (CR-038: tickets last)
 /** What a user WITHOUT media.read and energy.view sees: the same order without the multimedia (CR-015) and infrastructure (CR-023) entries. */
 const VISIBLE_ORDER = DEFAULT_ORDER.filter((t) => t !== 'multimedia' && t !== 'infra' && t !== 'tickets'); // CR-038: the tickets area is off (this mock's /me has no modules)
+/** The static demo: every area but the tickets area (CR-038: off until switched on, the demo too). */
+const DEMO_ORDER = DEFAULT_ORDER.filter((t) => t !== 'tickets');
 
 function phone(info: { project: { name: string } }) {
   return info.project.name === 'mobile';
@@ -80,7 +82,7 @@ test.describe('CR-013 shell on the demo data', () => {
     const nav = page.locator(navSel(info));
     await expect(nav).toBeVisible();
     await expect(nav.locator('a[data-nav]')).toHaveText(TABS);
-    expect(await navTabs(page, info)).toEqual(DEFAULT_ORDER);
+    expect(await navTabs(page, info)).toEqual(DEMO_ORDER);
     await expect(nav.locator('a[data-nav="devices"]')).toHaveClass(/active/);
     await expect(nav.locator('a[data-nav="devices"]')).toHaveAttribute('aria-current', 'page');
     await expect(nav.locator('a[href^="#/system"]')).toHaveCount(0);
@@ -402,7 +404,7 @@ test.describe('CR-013 shell on the demo data', () => {
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'WisKey', 'ראשי', 'אבטחה', 'מולטימדיה', 'תשתיות']);
     await dlg.locator('[data-nav-order-reset]').click();
     await expect(dlg.locator('sw-dialog')).toBeHidden();
-    expect(await navTabs(page, info)).toEqual(DEFAULT_ORDER);
+    expect(await navTabs(page, info)).toEqual(DEMO_ORDER);
   });
 });
 

@@ -511,7 +511,9 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      # CR-038 S5a: the WhatsApp test send is local-only
                      ("POST", "/api/v1/messaging/whatsapp/test"),
                      # CR-038 S4: the tickets handler page's address probe fetches an administrator-typed URL - local sessions only
-                     ("POST", "/api/v1/tickets/address/probe")}
+                     ("POST", "/api/v1/tickets/address/probe"),
+                     # CR-038 security review 2026-10-14: the module key rotation revokes every live link - local sessions only
+                     ("POST", "/api/v1/tickets/key/rotate")}
 
 
 def test_every_route_needs_a_remote_session(arx):

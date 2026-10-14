@@ -114,6 +114,7 @@ def reencode(data: bytes) -> tuple[bytes, int, int]:
     from PIL import Image, ImageOps
 
     from ..image_guard import check_pixels
+    from .image_intake import _load_strict
 
     kind = sniff(data)
     try:
@@ -126,7 +127,7 @@ def reencode(data: bytes) -> tuple[bytes, int, int]:
         if not _DECODE.acquire(timeout=DECODE_WAIT_S):
             raise Refused(429, "busy", "העלאת תמונה אחרת מתבצעת כעת. נסו שוב בעוד רגע.", retry_after_s=5)
         try:
-            im.load()
+            _load_strict(im)  # 2.5.0 gate: never with LOAD_TRUNCATED_IMAGES on (WeasyPrint sets it process-wide)
             im = ImageOps.exif_transpose(im)  # after the pixel check (review T7-4)
             im = im.convert("RGB")
             if max(im.size) > LONG_SIDE:
