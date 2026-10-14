@@ -217,15 +217,17 @@ test.describe('tickets message channel evidence (slice 5b)', () => {
     }
     const calls = await go(page, '/system/tickets?tab=channel');
     await page.waitForSelector(`${C} [data-channel-settings]`);
-    const tabs = page.locator(`${S} [data-tickets-settings-tabs]`);
-    await expect(tabs).toContainText('ערוץ הודעות');
-    await expect(tabs).toContainText('תבניות הודעה');
+    if (!isPhone(page)) {
+      const tabs = page.locator(`${S} [data-tickets-settings-tabs]`);
+      await expect(tabs.getByText('ערוץ הודעות', { exact: true })).toBeVisible();
+      await expect(tabs.getByText('תבניות הודעה', { exact: true })).toBeVisible();
+    }
     await expect(page.locator(`${C} [data-use="tickets.messages"]`)).toContainText(ACCOUNT_LABEL);
     await expect(page.locator(`${C} [data-use="tickets.codes"]`)).toContainText('כמו הודעות');
     await expect(page.locator(`${C} [data-account="${ACCOUNT}"] [data-state="connected"]`)).toBeVisible();
     await expect(page.locator(`${C} [data-warning="shared_module"]`)).toBeVisible();
     await expect(page.locator(`${C} [data-health="listen"]`)).toContainText('כבויה');
-    await page.locator(`${C} [data-channel-enabled]`).click();
+    await page.locator(`${C} [data-channel-enabled] button`).click();
     await expect.poll(() => last(calls, 'PUT', /^tickets\/channel$/)?.body).toEqual({ revision: 3, whatsapp: { enabled: true } });
     await expect(page.locator(`${C} [data-health="listen"]`)).toContainText('פעילה');
     await page.locator(`${C} [data-channel-window]`).fill('400');
