@@ -124,6 +124,10 @@ PLAN_QUALITY_MODES: tuple[str, ...] = ("auto", "1", "2", "realistic", "lite")
 VALIDATORS["plan.quality"] = _choice("plan.quality", PLAN_QUALITY_MODES)
 DEFAULTS["plan.quality"] = None
 
+# `tickets.board.tree_hidden` (CR-038 D30): the user hid the manager board's side area tree (null = shown). Presentation only.
+VALIDATORS["tickets.board.tree_hidden"] = _choice("tickets.board.tree_hidden", ("hidden", "shown"))
+DEFAULTS["tickets.board.tree_hidden"] = None
+
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None

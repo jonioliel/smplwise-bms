@@ -30,6 +30,11 @@ const ICONS = {
   eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  // slice 6 (the board)
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  filter: '<path d="M4 5h16l-6 7.5V19l-4 1v-7.5z"/>',
+  tree: '<path d="M4 5h6M4 12h4M10 12h10M4 19h4M10 19h10M7 5v14"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
 } as const;
 
 export type TicketIconName = keyof typeof ICONS;

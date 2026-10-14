@@ -107,6 +107,7 @@ def _default_link(s: Signal) -> str:
         "entity": f"#/devices?entity={s.subject_id}" if s.subject_id else "#/devices", "area": "#/devices", "alarm_panel": "#/security/alarm", "door": "#/wiskey/overview",
         "schedule": f"#/devices/schedules/{s.subject_id}" if s.subject_id else "#/devices/schedules", "automation": "#/devices/schedules", "bulk_job": "#/devices",
         "system": "#/system/diagnostics", "session": "#/system/security",
+        "ticket": f"#/tickets/{s.subject_id}" if s.subject_id else "#/tickets",  # CR-038: the ticket (one-tap "received" for its assignee)
     }.get(s.subject_kind, "#/system/notifications")
 
 
@@ -169,6 +170,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from . import generator_alerts
 
         candidates = generator_alerts.recipient_users(conn, n)
+    elif rule in ("ticket_managers", "ticket_assignee"):  # CR-038: the ticket's department managers / its internal assignee
+        from .tickets import notify_bridge
+
+        candidates = notify_bridge.recipient_users(conn, rule, n)
     else:
         candidates = list(rec.get("user_ids") or [])
     out = []

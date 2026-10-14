@@ -22,14 +22,15 @@ import { ApiError, api, apiUrl, describeError, get, post, put, type ApiErrorBody
 import { commandId } from './request-id';
 import { isApi } from './session';
 import type { PushSupport } from '../pwa/push';
+import { tt } from '../tickets/text'; // CR-038 (spec 13.4 names this file): the `tickets` category's label is the module's configured name
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
 export type Severity = 'info' | 'alert' | 'critical';
-export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security';
+export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets'; // tickets: CR-038
 /** v1: inbox, webpush, email. Reserved (enum values only): ha_mobile (Companion step), whatsapp (WhatsApp step), app (CR-012). */
 export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
-export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator';
+export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket';
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
 export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 
@@ -253,9 +254,10 @@ export const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile', 'whatsapp'];
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   safety: 'בטיחות', device_faults: 'תקלות', system: 'מערכת', doors: 'דלתות וכניסה', automations: 'אוטומציות ותזמונים', security: 'אבטחת חשבון', alerts: 'מצלמות (חוקים)',
+  get tickets() { return tt('area'); }, // CR-038 D33: the tickets module's configured plural
 };
 /** The order of the source filter and of the settings matrix groups. */
-export const CATEGORY_ORDER: readonly Category[] = ['safety', 'device_faults', 'system', 'doors', 'automations', 'security', 'alerts'];
+export const CATEGORY_ORDER: readonly Category[] = ['safety', 'device_faults', 'system', 'doors', 'automations', 'security', 'alerts', 'tickets'];
 
 // ------------------------------------------------------------------------------------------------ errors (§4)
 
@@ -431,6 +433,20 @@ export const SOURCE_CATALOG: readonly SourceInfo[] = [
   S('camera.motion', 'תנועה', 'alerts', 'info', 'cam', true),
   S('camera.person', 'אדם', 'alerts', 'info', 'cam', true),
   S('camera.vehicle', 'רכב', 'alerts', 'info', 'cam', true),
+];
+/** CR-038 (slice 6): the tickets module's sources (services/tickets/notify_sources.py - the same labels, none names the module). The
+ * server lists their policies only while the module is on, so the settings matrix joins them to the catalog without a module check. */
+export const TICKET_SOURCES: readonly SourceInfo[] = [
+  S('ticket.new_unassigned', 'חדש וממתין למטפל', 'tickets', 'alert', 'ticket'),
+  S('ticket.assigned', 'הועבר לטיפולך', 'tickets', 'alert', 'ticket'),
+  S('ticket.reminder', 'תזכורת למטפל', 'tickets', 'alert', 'clock'),
+  S('ticket.stuck', 'חריגה מזמני הטיפול', 'tickets', 'alert', 'warning'),
+  S('ticket.returned', 'הוחזר למנהל', 'tickets', 'alert', 'ticket'),
+  S('ticket.done', 'טיפול הסתיים - ממתין לסגירה', 'tickets', 'info', 'ticket'),
+  S('ticket.reply_unmatched', 'תשובה שלא שויכה', 'tickets', 'info', 'ticket'),
+  S('ticket.send_failed', 'הודעה למטפל לא נשלחה', 'tickets', 'alert', 'warning'),
+  S('ticket.contact_changed', 'פרטי איש קשר השתנו', 'tickets', 'alert', 'ticket'),
+  S('ticket.channel_down', 'חשבון וואטסאפ מנותק', 'tickets', 'alert', 'warning'),
 ];
 const CATALOG_BY_KEY = new Map(SOURCE_CATALOG.map((s) => [s.key, s]));
 export const sourceInfo = (key: string): SourceInfo | undefined => CATALOG_BY_KEY.get(key);
@@ -1072,7 +1088,7 @@ export interface Viewer {
  * user). Schedules and automations: the owner of record is only known to the server, so the helper falls back to the view permission. */
 export const VISIBILITY_PERMISSION: Record<SubjectKind, string | null> = {
   camera: 'events.read', entity: 'devices.read', area: 'devices.read', alarm_panel: 'alarm.view', door: 'access.read', schedule: 'schedule.view', automation: 'schedule.view',
-  bulk_job: null, system: 'system.configure', session: null, generator: 'generator.view',
+  bulk_job: null, system: 'system.configure', session: null, generator: 'generator.view', ticket: 'tickets.view', // CR-038: the server's access.visible decides
 };
 /** Whether a row may be shown to this viewer NOW (the server re-checks at every read; this mirrors it for a permission change that arrives before the
  * next fetch). Owner-only kinds (bulk_job, session) are trusted: the server only returns the caller's own rows - except an account lockout, which

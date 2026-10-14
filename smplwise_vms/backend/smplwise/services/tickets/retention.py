@@ -20,6 +20,7 @@ _LAST: dict[str, float] = {}
 
 def janitor(db: Database, *, force: bool = False) -> int:
     """Returns the number of rows removed (0 when the step was throttled)."""
+    _sla_monitor(db)  # slice 6: the SLA monitor rides on this janitor step with its own once-a-minute throttle (monitor.py)
     key = str(db.path)
     now = time.monotonic()
     if not force and now - _LAST.get(key, -EVERY_S) < EVERY_S:
@@ -32,3 +33,12 @@ def janitor(db: Database, *, force: bool = False) -> int:
     except Exception:  # noqa: BLE001 - a housekeeping step never fails the tick
         log.warning("tickets retention step failed", exc_info=True)
         return 0
+
+
+def _sla_monitor(db: Database) -> None:
+    try:
+        from . import monitor
+
+        monitor.tick(db)
+    except Exception:  # noqa: BLE001 - the monitor never fails the retention step (it logs its own problems)
+        log.warning("tickets SLA monitor failed", exc_info=True)
