@@ -138,14 +138,14 @@ end in the same `queue_code`. `ticket_link_codes.outbox_id` is set by `queue_cod
 
 ## 8. Tests
 
-Backend: `tests/test_tickets_s5b_channel.py` (30) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
+Backend: `tests/test_tickets_s5b_channel.py` (31) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
 preview (and its warning when the account cannot send), the link panel's "send the link again", send hours + "send now" (403 without tickets.external), the switch off (manual; and queued rows held), unknown never retried +
 "send again", retries then the e-mail fallback with the redeem link (never the fragment), disconnected -> hold -> nobody -> waiting for
 the manager -> no resend on reconnect, unmapped -> remapped (D27), the D6 refusal, a code request from the public page (the row keeps the
 code id only), inbound status / note / late / ambiguous claim-before-reveal / account filter / LID button nonce / switch off, message
 templates (validation, preview, rendering, English starter), send-update + the closed notice, reassigned notice, the test send (the typed
 number never in the database file), the channel settings gate, the uniform 404 of the new ticket routes, an unbound write refused, crash
-recovery (`sending` -> `unknown`), the lock order under a slow provider, log / row hygiene, migration 0081. The message core's tests
+recovery (`sending` -> `unknown`), the lock order under a slow provider, an idle installation never takes the write lock, log / row hygiene, migration 0081. The message core's tests
 updated for the rename and the D26 reading; guards updated: `test_ticket_sql_lives_in_the_store` (the storage layer gains
 `outbox_store.py`), `test_remote_access` (slice 4's probe route in the local-only list), `test_display_settings_document`.
 Frontend: `tests/unit-tickets-messages.spec.ts` (node), the D33 lint (`unit-tickets-naming.spec.ts`) covers the new files.

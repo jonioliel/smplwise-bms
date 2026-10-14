@@ -384,6 +384,11 @@ def due(conn: sqlite3.Connection, now: dt.datetime, module_on: bool) -> bool:
                         "('channel_down', 'account_unmapped', 'module_off')) LIMIT 1", (iso(now),)).fetchone() is not None
 
 
+def any_open(conn: sqlite3.Connection) -> bool:
+    """Is there any row the worker may still move? None: the periodic full tick is skipped too (no write lock at all)."""
+    return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held', 'sending') LIMIT 1").fetchone() is not None
+
+
 def department_send_hours(conn: sqlite3.Connection, department_id: str) -> Any:
     """A department's D4 override (slice 2's `send_hours_json`; NULL = the installation's window)."""
     try:

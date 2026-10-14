@@ -530,14 +530,19 @@ class MessagingRuntime:
                 self.watch_states()
             except Exception:  # noqa: BLE001
                 log.warning("ticket channel state watch failed", exc_info=True)
-        if not force and not self._due(now) and mono - self._last_full < FULL_TICK_EVERY_S:
-            return 0
+        if not force:
+            due, open_rows = self._work(now)
+            if not open_rows:
+                return 0  # an idle installation never takes the write lock
+            if not due and mono - self._last_full < FULL_TICK_EVERY_S:
+                return 0
         self._last_full = mono
         return self.outbox.tick(now)
 
-    def _due(self, now: dt.datetime) -> bool:
+    def _work(self, now: dt.datetime) -> tuple[bool, bool]:
+        """(something is due now, any row is still open) - one short read."""
         with obs.Access(self.db).read("tickets.outbox.due") as conn:
-            return obs.due(conn, now, access.module_on(conn))
+            return obs.due(conn, now, access.module_on(conn)), obs.any_open(conn)
 
     # ------------------------------------------------------------ account states -> CR-018 `ticket.channel_down` (slice 6)
 

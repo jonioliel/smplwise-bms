@@ -532,6 +532,16 @@ def test_a_slow_provider_call_never_holds_the_write_lock(env):
     assert env.rows(t1["id"])[0].state == "sent"
 
 
+def test_an_idle_installation_never_takes_the_write_lock(env, monkeypatch):
+    ticks: list = []
+    monkeypatch.setattr(env.rt.outbox, "tick", lambda now: ticks.append(now) or 0)
+    env.rt._last_full = 0.0
+    assert env.rt.run_once(env.clock()) == 0 and ticks == [], "no open row: not even the minute's full tick"
+    _sent_ticket(env)
+    env.rt.run_once(env.clock())
+    assert len(ticks) == 1, "a queued row is due: the worker ticks"
+
+
 def test_logs_and_rows_never_carry_the_number_the_token_or_the_text(env, caplog):
     caplog.set_level(logging.DEBUG)
     t, _ = _sent_ticket(env)
