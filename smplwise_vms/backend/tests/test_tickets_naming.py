@@ -220,3 +220,14 @@ def test_the_rename_lint_catches_a_planted_line():
     assert DEFAULT_WORDS.search("פתיחת בקשת שירות") and DEFAULT_WORDS.search("ניהול השירות")
     for ok in ("{the_ticket} {f:נפתחה|m:נפתח}", "סגירת {the_ticket}", "פתיחה"):
         assert not OLD_WORDS.search(ok) and not DEFAULT_WORDS.search(ok), ok
+
+
+ARTICLE_BEFORE_TOKEN = re.compile(r"(?<![א-ת])ה\{tickets?\}")
+
+
+@pytest.mark.parametrize("path", _module_sources() + [BACKEND / "routers" / "access.py", BACKEND / "roles.json"], ids=lambda p: p.name)
+def test_no_text_puts_the_article_in_front_of_a_name_token(path):
+    """'ה' + {ticket} renders 'הבקשת שירות' with a two-word name: the article tokens {the_ticket} / {the_tickets} are the only way."""
+    hits = [f"{i}: {ln.strip()[:100]}" for i, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1) if ARTICLE_BEFORE_TOKEN.search(ln)]
+    assert not hits, f"{path.name}: write {{the_ticket}} / {{the_tickets}}: {hits}"
+    assert ARTICLE_BEFORE_TOKEN.search('"ה{ticket} נפתחה"') and not ARTICLE_BEFORE_TOKEN.search('"{the_ticket}"')

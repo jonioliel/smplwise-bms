@@ -192,3 +192,13 @@ test('owner rename 2026-10-14: the retired words are in no file of the module (t
   for (const p of ['הקריאות', "'קריאת שירות'"]) expect(OLD_WORDS.test(p), p).toBe(true);
   for (const p of ["const x = 'בקשת שירות חדשה';", "html`<b>ניהול השירות</b>`"]) expect(HE_DEFAULT.test(code(p)), p).toBe(true);
 });
+
+test('no text writes the article in front of a name token ("ה{ticket}" would read "הבקשת שירות"; {the_ticket} is the way)', () => {
+  const article = /(?<![א-ת])ה\{tickets?\}/;
+  const files = [...OWNED, ...SHARED, ...walk(path.join(SRC, 'public-ticket')).map(rel)];
+  const bad: string[] = [];
+  for (const r of files) readFileSync(path.join(SRC, r), 'utf8').split('\n').forEach((line, i) => { if (article.test(line)) bad.push(`${r}:${i + 1}`); });
+  expect(bad, bad.join('\n')).toEqual([]);
+  expect(article.test("'ה{ticket} נפתחה'")).toBe(true);
+  expect(article.test("'{the_ticket}'")).toBe(false);
+});
