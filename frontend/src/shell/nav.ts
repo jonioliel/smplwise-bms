@@ -1029,6 +1029,9 @@ export function visibleAreas(api: boolean, can?: Can, order: readonly string[] =
     // the security area stays while any section is visible (the live overview needs nothing; in the NVR-less mode only
     // the alarm section can keep it), and keeps its own #/security href - the shell opens the last used section
     if (api && !tabs.length) return [];
+    // CR-038: the tickets area is OFF until switched on - in the static demo too (2.5.0 gate: an always-on eighth area did not fit
+    // the 320 px phone bar and moved every demo screen); Settings › the module switches it on in the demo like on an installation
+    if (n.id === 'tickets' && !ticketsModuleOn()) return [];
     if (n.id === 'security') return [n];
     return [{ ...n, href: entryHref(n.href, tabs, n.id) }];
   });

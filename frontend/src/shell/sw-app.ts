@@ -1471,8 +1471,7 @@ export class SwApp extends LitElement {
     this.stopSession = onSession((s) => {
       this.session = s;
       applyCapabilities(s.mode === 'api' ? s.capabilities : null); // NN1: what the installation has decides which areas are offered (nav-capabilities.ts)
-      // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session. OFF by default, the demo
-      // too (2.5.0 gate: a demo with the area on changed every rail); the demo turns it on through Settings › the module like an installation
+      // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (OFF by default, the static demo too: shell/nav.ts visibleAreas)
       applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) });
       setTicketNames(s.me?.modules?.tickets_name);
       // CR-013: this user's tab order (cached copy at once, the server's copy when it answers) and open alerts
