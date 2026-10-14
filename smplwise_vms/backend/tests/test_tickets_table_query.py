@@ -18,7 +18,7 @@ def test_sort_whitelist_two_keys_and_default():
         with pytest.raises(table.TableError) as exc:
             table.parse_sort(bad)
         assert exc.value.field == "sort", bad
-    assert set(table.SORT_KEYS) == {"number", "title", "department", "priority", "status", "assignee", "place", "device", "created", "activity", "stuck", "sla"}
+    assert set(table.SORT_KEYS) == {"number", "title", "department", "priority", "status", "assignee", "place", "device", "created", "activity", "stuck", "sla", "cost"}
 
 
 @pytest.mark.parametrize("raw,field", [

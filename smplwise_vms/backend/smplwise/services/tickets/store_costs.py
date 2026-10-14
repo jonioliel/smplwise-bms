@@ -227,3 +227,25 @@ def department_cost_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 def set_department_costs(conn: sqlite3.Connection, dept_id: str, cost_claim: str | None, claim_window_days: int | None, now: str) -> bool:
     return conn.execute("UPDATE ticket_departments SET cost_claim = ?, claim_window_days = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
                         (cost_claim, claim_window_days, now, dept_id)).rowcount == 1
+
+
+# ---------------------------------------------------------------- the ticket row of a claim (the caller already resolved the ticket)
+
+def ticket_row(conn: sqlite3.Connection, ticket_id: str | None) -> dict[str, Any] | None:
+    """A ticket by id for the claim machinery - called only for the ticket of a claim, a link or a route that already passed the
+    visibility rule (never to list or find tickets)."""
+    if not ticket_id:
+        return None
+    return _dict(conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone())
+
+
+def set_ticket_cost(conn: sqlite3.Connection, ticket_id: str, status: str, total: int | None, currency: str | None) -> None:
+    conn.execute("UPDATE tickets SET cost_status = ?, cost_total_minor = ?, cost_currency = ? WHERE id = ?", (status, total, currency, ticket_id))
+
+
+def claims_of_contact(conn: sqlite3.Connection, contact_id: str) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_cost_claims WHERE contact_id = ? ORDER BY created_at", (contact_id,)).fetchall()]
+
+
+def set_snapshot(conn: sqlite3.Connection, claim_id: str, snapshot_json: str) -> None:
+    conn.execute("UPDATE ticket_cost_claims SET snapshot_json = ? WHERE id = ?", (snapshot_json, claim_id))

@@ -219,7 +219,7 @@ def test_ticket_sql_lives_in_the_store():
     offenders = []
     routers = [SMPLWISE / "routers" / n for n in ("tickets.py", "tickets_admin.py", "tickets_contacts.py", "tickets_links.py")]
     for path in list((SMPLWISE / "services" / "tickets").glob("*.py")) + [r for r in routers if r.is_file()]:
-        if path.name in ("store.py", "store_links.py"):  # the storage layer: the core tables (0079) + the directory and links (0080, slice 4)
+        if path.name in ("store.py", "store_links.py", "store_costs.py"):  # the storage layer: core (0079), directory and links (0080), cost claims (0083)
             continue
         if re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", path.read_text(encoding="utf-8")):
             offenders.append(path.name)

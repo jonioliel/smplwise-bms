@@ -192,7 +192,7 @@ def ensure_claim(conn, ticket: Mapping[str, Any], assignment: Mapping[str, Any],
 def on_assignment_done(conn, ticket_id: str, assignment_id: str | None, at: dt.datetime) -> None:
     """The hook in every path that reaches `done` (handler_actions.set_status, service.change_status on behalf)."""
     asg = store.assignment(conn, assignment_id)
-    t = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    t = store_costs.ticket_row(conn, ticket_id)
     if asg is None or t is None:
         return
     ensure_claim(conn, dict(t), asg, at=at)
@@ -203,7 +203,7 @@ def on_assignment_returned(conn, ticket_id: str, assignment_id: str | None, kind
     if kind != "cannot_handle":
         return
     asg = store.assignment(conn, assignment_id)
-    t = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    t = store_costs.ticket_row(conn, ticket_id)
     if asg is None or t is None:
         return
     ensure_claim(conn, dict(t), asg, at=at, cannot_handle=True)
@@ -246,7 +246,7 @@ def refresh_ticket(conn, ticket_id: str | None) -> None:
             if rev is not None:
                 totals[c["id"]] = (int(rev["total_minor"]), rev["currency"])
     status, total, currency = ticket_cost_state(claims, totals)
-    conn.execute("UPDATE tickets SET cost_status = ?, cost_total_minor = ?, cost_currency = ? WHERE id = ?", (status, total, currency, ticket_id))
+    store_costs.set_ticket_cost(conn, ticket_id, status, total, currency)
 
 
 # ---------------------------------------------------------------- the close gate (11A.3)
@@ -440,7 +440,7 @@ def _write_revision(conn, claim: Mapping[str, Any], d: Draft, *, source: str, ki
 def _clear_claim_missing(conn, ticket_id: str | None) -> None:
     if not ticket_id:
         return
-    t = conn.execute("SELECT status, waiting_reason FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    t = store_costs.ticket_row(conn, ticket_id)
     if t is not None and t["waiting_reason"] == "claim_missing":
         on, why = model.waiting_for(t["status"])
         store.update_ticket(conn, ticket_id, {"waiting_on": on, "waiting_reason": why}, bump=False)
@@ -683,7 +683,7 @@ def vendor_message(conn, claim: Mapping[str, Any], purpose: str, *, requested_by
 
     lk = store_links.link_for_assignment(conn, claim["assignment_id"])
     contact = store_links.contact(conn, claim["contact_id"])
-    ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (claim.get("ticket_id"),)).fetchone() if claim.get("ticket_id") else None
+    ticket = store_costs.ticket_row(conn, claim.get("ticket_id"))
     if lk is None or contact is None or ticket is None or contact.get("erased_at"):
         return {"queued": False, "channel": None}
     try:
@@ -726,7 +726,7 @@ def tick(conn, now: dt.datetime) -> int:
     for c in store_costs.windows_passed(conn, iso(now)):
         store_costs.update_claim(conn, c["id"], {"missing_at": iso(now)}, now=iso(now))
         if c.get("ticket_id"):
-            t = conn.execute("SELECT status FROM tickets WHERE id = ?", (c["ticket_id"],)).fetchone()
+            t = store_costs.ticket_row(conn, c["ticket_id"])
             if t is not None and t["status"] in ("done", "returned", "closed"):
                 store.update_ticket(conn, c["ticket_id"], {"waiting_on": "manager", "waiting_reason": "claim_missing"}, bump=False)
             notify_bridge.cost_missing(conn, c["ticket_id"], c["id"])
@@ -740,7 +740,7 @@ def on_contact_erased(conn, contact_id: str, tombstone: str) -> int:
     """11A.11: a claim is a financial record the organisation must keep - the company name, vendor reference, amounts and files
     stay; the PERSON's name leaves the snapshot (phone and e-mail were never in it)."""
     n = 0
-    for row in conn.execute("SELECT id, snapshot_json FROM ticket_cost_claims WHERE contact_id = ?", (contact_id,)).fetchall():
+    for row in store_costs.claims_of_contact(conn, contact_id):
         try:
             snap = json.loads(row["snapshot_json"] or "{}")
         except ValueError:
@@ -748,8 +748,7 @@ def on_contact_erased(conn, contact_id: str, tombstone: str) -> int:
         if snap.get("contact_kind") == "vendor":
             continue  # a vendor row is a company: its name is the record's
         snap["contact_name"] = tombstone
-        conn.execute("UPDATE ticket_cost_claims SET snapshot_json = ? WHERE id = ?",
-                     (json.dumps(snap, ensure_ascii=False, separators=(",", ":")), row["id"]))
+        store_costs.set_snapshot(conn, row["id"], json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
         n += 1
     return n
 
@@ -757,7 +756,7 @@ def on_contact_erased(conn, contact_id: str, tombstone: str) -> int:
 def contact_export(conn, contact_id: str) -> list[dict[str, Any]]:
     """15.2: the person's claims in the contact export - status and totals of each revision, never a file's content."""
     out = []
-    for c in conn.execute("SELECT * FROM ticket_cost_claims WHERE contact_id = ? ORDER BY created_at", (contact_id,)).fetchall():
+    for c in store_costs.claims_of_contact(conn, contact_id):
         try:
             snap = json.loads(c["snapshot_json"] or "{}")
         except ValueError:
