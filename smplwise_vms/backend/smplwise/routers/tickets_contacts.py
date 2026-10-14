@@ -74,6 +74,18 @@ def list_contacts(principal: Principal = Depends(current_principal_ro), conn: sq
     return contacts.list_for(viewer, query=q, kind=kind, department_id=department_id, include_inactive=include_inactive)
 
 
+@router.get("/tickets/readiness")
+def get_readiness(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+                  department_id: str | None = Query(None, pattern=ID)) -> dict[str, Any]:
+    """What sending outside still needs (the "מטפלים וספקים" page's strip): booleans and counts only, for the readers of the directory."""
+    from ..services.tickets import readiness
+
+    viewer = Viewer(conn, principal)
+    if not (contacts.may_configure(viewer) or access.MANAGE in viewer.anywhere):
+        raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.CONFIGURE})
+    return readiness.readiness(conn, department_id)
+
+
 @router.post("/tickets/contacts", status_code=201)
 def create_contact(body: ContactBody, request: Request, principal: Principal = Depends(current_principal),
                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:

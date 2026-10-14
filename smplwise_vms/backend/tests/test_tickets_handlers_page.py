@@ -75,9 +75,87 @@ def test_an_employee_is_offered_in_the_assign_dialog_and_assigned_through_a_hand
     assert res.json()["assignee"]["kind"] == "contact" and s4.link_row(t["id"])["contact_id"] == e["id"]
 
 
+# ---------------------------------------------------------------- readiness: what sending outside still needs (one object)
+
+
+def ready(s4, user: str = "joni", **q):
+    return s4.c.get(f"{API}/tickets/readiness", params=q, headers=s4.h(user))
+
+
+def test_the_readiness_object_and_who_may_read_it(s4):
+    r = ready(s4)
+    assert r.status_code == 200, r.text
+    x = r.json()
+    assert (x["public_page"], x["base_url"], x["public_ready"], x["public_missing"]) == (True, True, True, [])
+    assert (x["master_switch"], x["account_mapped"]) == (False, False), "the WhatsApp switch is off by default and no account is mapped"
+    assert x["contacts_count"] == {"employee": 0, "vendor": 1, "person": 1}
+    assert ready(s4, "mona").status_code == 200, "a department manager reads it (the directory's readers)"
+    assert ready(s4, "tom").status_code == 403
+    dump = r.text
+    assert "050" not in dump and "https://" not in dump, "booleans and counts only"
+
+
+def test_the_assign_dialog_carries_the_readiness(s4):
+    employee(s4)
+    t = s4.ticket()
+    x = s4.c.get(f"{API}/tickets/assignees", params={"department_id": "dept-maintenance", "ticket_id": t["id"]}).json()["readiness"]
+    assert x["contacts_count"]["employee"] == 1 and x["public_ready"] is True and x["master_switch"] is False
+
+
+def test_each_missing_prerequisite_is_named(s4, monkeypatch):
+    from smplwise.services.tickets.public_runtime import RUNTIME
+
+    monkeypatch.setattr(RUNTIME, "listening", False)
+    x = ready(s4).json()
+    assert x["public_page"] is False and x["public_option"] is True and x["public_missing"] == ["listener"]
+    monkeypatch.setattr(RUNTIME, "option_on", False)
+    x = ready(s4).json()
+    assert x["public_page"] is False and x["public_option"] is False and "option" in x["public_missing"]
+    monkeypatch.setattr(RUNTIME, "option_on", True)
+    monkeypatch.setattr(RUNTIME, "listening", True)
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    assert s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "public": {"base_url": ""}}).status_code == 200
+    x = ready(s4).json()
+    assert x["base_url"] is False and x["public_page"] is True and x["public_missing"] == ["address"]
+    # the outside assignment itself is refused for the same reason the dialog shows
+    t = s4.ticket()
+    assert s4.assign_contact(t["id"]).json()["code"] == "public_link_unavailable"
+
+
+def test_the_master_switch_and_the_account_are_told_apart(s4, monkeypatch):
+    from smplwise.services import messaging_accounts as ma
+    from smplwise.services import messaging_runtime as mr
+
+    rev = s4.c.get(f"{API}/tickets/channel").json()["revision"]
+    assert s4.c.put(f"{API}/tickets/channel", json={"revision": rev, "whatsapp": {"enabled": True}}).status_code == 200
+    x = ready(s4).json()
+    assert (x["master_switch"], x["account_mapped"]) == (True, False)
+    doc = ma.MappingDoc(1, (ma.Account("manual:k3f9", "manual", "", value="15555550199"),), {"tickets.messages": "manual:k3f9"})
+    monkeypatch.setattr(mr, "load_doc", lambda conn: doc)
+    x = ready(s4, department_id="dept-maintenance").json()
+    assert (x["master_switch"], x["account_mapped"]) == (True, True)
+
+
 def test_export_and_erase_of_an_employee(s4):
     e = employee(s4).json()
     x = s4.c.get(f"{API}/tickets/contacts/{e['id']}/export")
     assert x.status_code == 200 and x.json()["contact"]["kind"] == "employee"
     r = s4.c.post(f"{API}/tickets/contacts/{e['id']}/erase", json={"confirm": True})
     assert r.status_code == 200 and r.json()["erased"] is True
+
+
+# ---------------------------------------------------------------- everything ready: an employee gets the link by WhatsApp
+
+from test_tickets_s5b_channel import KEY_A, env  # noqa: E402,F401 - the slice-5b world (fake ha-whatsapp, mapped account, switch on)
+
+
+def test_when_everything_is_ready_an_employee_gets_the_link_by_whatsapp(env):
+    x = env.c.get(f"{API}/tickets/readiness", params={"department_id": "dept-maintenance"}).json()
+    assert (x["public_ready"], x["master_switch"], x["account_mapped"]) == (True, True, True)
+    e = env.c.post(f"{API}/tickets/contacts", json={"kind": "employee", "display_name": "יוסי טכנאי", "phone": "050-000-0077"}).json()
+    t = env.s4.ticket()
+    p = env.c.post(f"{API}/tickets/{t['id']}/assign/preview", json={"contact_id": e["id"]}).json()
+    assert p["channel"] == "whatsapp" and p["account"]["key"] == KEY_A and p["refusals"] == []
+    d = env.s4.assign_contact(t["id"], e["id"]).json()
+    assert [m["channel"] for m in d["messages"]] == ["whatsapp"], "the ticket's messages block shows the queued message"
+    assert env.tick() == 1 and env.fake.calls[0]["data"]["target"] == "972500000077"

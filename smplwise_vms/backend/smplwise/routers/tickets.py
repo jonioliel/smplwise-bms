@@ -251,10 +251,13 @@ def assignees(
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"reason": "not_manager"})
     # slice 4: the outside contacts allowed in the department - only for a caller who may send outside (D25)
     from ..services.tickets import contacts as contacts_svc
+    from ..services.tickets import readiness as readiness_svc
 
     outside = contacts_svc.assignable_for(viewer, row or {"department_id": department_id})
+    # owner request 2026-10-14: the dialog always shows its three groups and says in one line what stops the outside ones
     return {"users": service.eligible_assignees(conn, department_id, row), "contacts": outside,
-            "external": access.EXTERNAL in viewer.anywhere, "public_ready": access.public_ready(conn)}
+            "external": access.EXTERNAL in viewer.anywhere, "public_ready": access.public_ready(conn),
+            "readiness": readiness_svc.readiness(conn, department_id)}
 
 
 # ---------------------------------------------------------------- one ticket
