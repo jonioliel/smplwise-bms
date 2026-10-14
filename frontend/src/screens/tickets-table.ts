@@ -24,6 +24,10 @@ import { onTicketNames } from '../tickets/naming';
 import { ticketTableStyles } from '../tickets/table-styles';
 import { ticketDetailStyles, ticketFormStyles } from '../tickets/styles';
 import { ticketsLang } from '../tickets/text';
+import { can, isApi } from '../api/session';
+import { setCostColumns } from '../tickets/table-model';
+import { costCell, costStatusTone } from '../tickets/cost-model';
+import { ct, type CostTextKey } from '../tickets/cost-text';
 
 type Screen = 'loading' | 'ready' | 'error';
 type CellMenu = { id: string; kind: 'status' | 'assignee' } | null;
@@ -103,6 +107,8 @@ export class TicketsTable extends LitElement {
     this.offNames = onTicketNames(() => this.requestUpdate());
     window.addEventListener('pointerdown', this.onOutside, true);
     this.poll = window.setInterval(() => this.tick(), POLL_MS);
+    // CR-038 slice 9 (11A.9): the cost columns, sort and filter only for tickets.costs.view at the installation (the server's 403 rule)
+    setCostColumns(!isApi() || can('tickets.costs.view'));
     void this.boot();
   }
 
@@ -476,6 +482,12 @@ export class TicketsTable extends LitElement {
         const s = slaText(r.sla, this.now);
         return html`<td class="c-sla"><span class=${s.tone}>${s.text}</span></td>`;
       }
+      case 'cost': {
+        const k = costCell(r.cost, ticketsLang());
+        return html`<td class="c-cost" data-cost=${r.cost ? (r.cost.approved ? 'approved' : 'submitted') : ''}><span class=${k.muted ? 'muted' : ''}>${k.text}</span></td>`;
+      }
+      case 'cost_status':
+        return html`<td>${r.cost_status && r.cost_status !== 'not_required' ? html`<span class=${`chip ${costStatusTone(r.cost_status)}`} data-cost-status=${r.cost_status}>${ct(`cs_${r.cost_status}` as CostTextKey)}</span>` : nothing}</td>`;
     }
   }
 

@@ -13,6 +13,9 @@ import { tbIcon } from './table-icons';
 import { tIcon } from './icons';
 import { ticketTableStyles } from './table-styles';
 import { fromLocalInput, toLocalInput } from './model';
+import { costColumnsOn } from './table-model';
+import { COST_FILTER_STATUSES } from './cost-model';
+import { ct, type CostTextKey } from './cost-text';
 
 type Pop = 'columns' | 'views' | 'filters' | null;
 
@@ -217,6 +220,9 @@ export class TicketsTableToolbar extends LitElement {
         <button type="button" class="rc" aria-pressed=${String(e.waiting === 'manager')} data-f-waiting @click=${() => this.setExtra({ waiting: e.waiting ? '' : 'manager' })}>${tbt('fWaiting')}</button>
         <button type="button" class="rc" aria-pressed=${String(e.stuck === 'any')} data-f-stuck @click=${() => this.setExtra({ stuck: e.stuck ? '' : 'any' })}>${tbt('fStuck')}</button>
       </div>
+      ${costColumnsOn() ? html`<div class="hd">${ct('colCostStatus')}</div>
+      <div class="fgrp">${COST_FILTER_STATUSES.map((k) => html`<button type="button" class="rc" aria-pressed=${String(e.cost_status.includes(k))} data-f-cost-status=${k}
+        @click=${() => this.setExtra({ cost_status: e.cost_status.includes(k) ? e.cost_status.filter((x) => x !== k) : [...e.cost_status, k] })}>${ct(`cs_${k}` as CostTextKey)}</button>`)}</div>` : nothing}
       <div class="dates">
         <label>${tbt('fCreatedFrom')}<input class="inp" type="datetime-local" data-f-from .value=${toLocalInput(e.created_from)} @change=${(ev: Event) => this.setExtra({ created_from: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>
         <label>${tbt('fCreatedTo')}<input class="inp" type="datetime-local" data-f-to .value=${toLocalInput(e.created_to)} @change=${(ev: Event) => this.setExtra({ created_to: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>

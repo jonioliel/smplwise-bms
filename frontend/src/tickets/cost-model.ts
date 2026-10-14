@@ -285,12 +285,15 @@ export function totalsByCurrency(rows: readonly Pick<ReportGroupRow, 'currency' 
 
 // ---------------------------------------------------------------- the board table's cost columns (slice 6b wires them)
 
-/** The "עלות" cell (11A.9): the approved total, else the submitted total in grey (`muted`); '' without an amount. */
-export function costCell(row: { cost_status?: CostStatus | null; cost_total_minor?: number | null; cost_currency?: string | null }, lang: 'he' | 'en' = 'he'): { text: string; muted: boolean } {
-  if (row.cost_total_minor === null || row.cost_total_minor === undefined) return { text: '', muted: false };
-  const settled = row.cost_status === 'approved' || row.cost_status === 'paid';
-  return { text: formatMoney(row.cost_total_minor, row.cost_currency, lang), muted: !settled };
+/** The table's "עלות" cell (11A.9; GET tickets/table › `cost`): the approved total, else the submitted total in grey (`muted`); ''
+ * without an amount (no claim, or no tickets.costs.view on that row). */
+export function costCell(cost: { total_minor: number | null; currency: string | null; approved: boolean } | null | undefined, lang: 'he' | 'en' = 'he'): { text: string; muted: boolean } {
+  if (!cost || cost.total_minor === null || cost.total_minor === undefined) return { text: '', muted: false };
+  return { text: formatMoney(cost.total_minor, cost.currency, lang), muted: !cost.approved };
 }
+
+/** The cost statuses a table filter offers (the report's and the board's; `not_required` is not a claim). */
+export const COST_FILTER_STATUSES: readonly CostStatus[] = ['awaiting', 'submitted', 'rejected', 'approved', 'paid'];
 
 // ---------------------------------------------------------------- timeline rows of the cost events (no amount: every member reads the timeline)
 

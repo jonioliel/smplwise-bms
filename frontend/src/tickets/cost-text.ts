@@ -12,6 +12,7 @@ import { ticketsLang } from './text';
 const he = {
   // the card
   sCost: 'עלות',
+  colCostStatus: 'סטטוס עלות',
   cs_not_required: 'ללא דרישת עלות',
   cs_awaiting: 'ממתין לדרישת עלות',
   cs_submitted: 'הוגשה דרישת עלות',
@@ -196,6 +197,7 @@ export type CostTextKey = keyof typeof he;
 
 const en: Partial<Record<CostTextKey, string>> = {
   sCost: 'Cost',
+  colCostStatus: 'Cost status',
   cs_not_required: 'No cost claim',
   cs_awaiting: 'Waiting for a cost claim',
   cs_submitted: 'Cost claim submitted',
