@@ -100,7 +100,8 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
       await page.waitForSelector(`${P} [data-public-state="ready"]`);
       await page.locator(`${P} [data-public-probe]`).click();
       await expect(page.locator(`${P} [data-probe-result="reachable"]`)).toBeVisible();
-      await page.locator(`${P} [data-public-advanced] summary`).click();
+      await page.locator(`${P} [data-public-advanced]`).click();
+      await expect(page.locator(`${P} [data-public-cidrs]`)).toBeVisible();
       await page.locator(`${P} [data-card="public"]`).screenshot({ path: path.join(OUT, `public-card-${test.info().project.name}-${scheme}-classic.png`) });
       if (scheme === 'light') {
         await page.locator(`${P} [data-public-org]`).fill('מגדלי הדר - אגף צפון');

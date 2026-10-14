@@ -226,20 +226,22 @@ export const externalAssignStyles = css`
     min-inline-size: 0;
     overflow-wrap: anywhere;
   }
-  /* a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog) */
+  /* a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog). As specific as a
+     skin's segmented-control rule (and later in the host's sheet list), so a pill track never cuts the first and last rows' text */
   @media (max-width: 560px) {
-    .xkinds {
+    :host .seg.xkinds {
       grid-template-columns: minmax(0, 1fr);
-      border-radius: var(--sw-r-xl);
+      border-radius: var(--sw-r-lg);
+      padding: 4px;
     }
-    .xkinds button {
+    :host .seg.xkinds button {
       flex-direction: row;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
       min-block-size: 44px;
       padding-inline: 14px;
-      border-radius: var(--sw-r-lg);
+      border-radius: var(--sw-r-md);
     }
     .xkinds small {
       text-align: end;

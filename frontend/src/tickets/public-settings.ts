@@ -69,12 +69,28 @@ export class TicketsPublicCard extends LitElement {
     .probe.bad {
       color: var(--sw-warning-text);
     }
-    details > summary {
-      cursor: pointer;
+    .fold {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 36px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      font: inherit;
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
-      color: var(--sw-text-2);
-      padding-block: 8px;
+      cursor: pointer;
+    }
+    .fold::before {
+      content: '▸';
+    }
+    .fold:dir(rtl)::before {
+      content: '◂';
+    }
+    .fold[aria-expanded='true']::before {
+      content: '▾';
     }
     textarea.in {
       font-family: var(--sw-font-mono, ui-monospace, monospace);
@@ -169,8 +185,9 @@ export class TicketsPublicCard extends LitElement {
             @click=${() => this.save({ public: { base_url: address.trim() } })}>${tt('save')}</sw-button>
           <sw-button size="sm" data-public-probe ?disabled=${this.probing || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></div>
         ${this.probe ? this.probeLine() : nothing}</div>
-      <details ?open=${this.advanced} @toggle=${(e: Event) => (this.advanced = (e.target as HTMLDetailsElement).open)} data-public-advanced>
-        <summary>${tt('pubAdvanced')}</summary>
+      <div class="row"><button type="button" class="fold" aria-expanded=${String(this.advanced)} aria-controls="public-advanced" data-public-advanced
+        @click=${() => (this.advanced = !this.advanced)}>${tt('pubAdvanced')}</button></div>
+      ${this.advanced ? html`<div id="public-advanced" data-public-advanced-body>
         <div class="row stack"><span class="lbl">${tt('pubTrusted')}</span>
           <textarea class="in" dir="ltr" rows="3" data-public-cidrs aria-label=${tt('pubTrusted')} .value=${cidrs} @input=${(e: Event) => (this.cidrs = (e.target as HTMLTextAreaElement).value)}></textarea>
           <div class="foot"><sw-button size="sm" variant="primary" data-public-cidrs-save ?disabled=${this.busy || cidrList.length > 8 || cidrList.join(',') === p.trusted_proxy_cidrs.join(',')}
@@ -179,7 +196,7 @@ export class TicketsPublicCard extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('pubClientHeader')}>${HEADERS.map((hd) => html`<button type="button" role="radio" dir="ltr"
             aria-checked=${String(p.client_ip_header === hd)} aria-pressed=${String(p.client_ip_header === hd)} data-public-header=${hd} ?disabled=${this.busy}
             @click=${() => this.save({ public: { client_ip_header: hd } })}>${hd}</button>`)}</span></div>
-      </details>
+      </div>` : nothing}
     </sw-card>`;
   }
 }

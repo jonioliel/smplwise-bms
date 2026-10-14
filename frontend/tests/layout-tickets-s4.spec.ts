@@ -36,7 +36,10 @@ const SCREENS: Screen[] = [
   },
   {
     name: 'settings-public', hash: '/system/tickets', wait: 'sw-app system-tickets tickets-public-card [data-public-state]', within: 'system-tickets',
-    prep: async (p) => p.locator('sw-app system-tickets tickets-public-card [data-public-advanced] summary').click(),
+    prep: async (p) => {
+      await p.locator('sw-app system-tickets tickets-public-card [data-public-advanced]').click();
+      await p.waitForSelector('sw-app system-tickets tickets-public-card [data-public-cidrs]');
+    },
   },
   {
     name: 'assign-outside', hash: '/tickets/mine?t=0000000000000a02', wait: `${D} [data-ticket-detail]`, within: 'tickets-list',
