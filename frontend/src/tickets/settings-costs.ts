@@ -13,35 +13,9 @@ import { ApiError, describeError } from '../api/client';
 import { COST_MODES, CURRENCIES, ticketCostsApi, type CostMode, type CostsSettings, type CostsSettingsDoc, type DepartmentCosts, type DepartmentCostsAnswer } from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
 import { ct } from './cost-text';
-import { bpToPercent, decimalToMinor, minorToInput, percentToBp } from './cost-model';
+import { bpToPercent, costFieldValue, minorToInput, type CostField } from './cost-model';
 
-type Field = 'vat' | 'window' | 'max' | 'flag' | 'retention';
-
-/** The validation of one numeric draft; the ranges are the server's (routers/tickets_admin.CostsPatch). Pure, so the unit spec can run it. */
-export function costFieldValue(field: Field, text: string): number | null {
-  const t = text.trim();
-  switch (field) {
-    case 'vat': {
-      const bp = percentToBp(t);
-      return bp !== null && bp <= 5000 ? bp : null;
-    }
-    case 'max': {
-      const m = decimalToMinor(t);
-      return m !== null && m >= 100 && m <= 99_999_999_999 ? m : null;
-    }
-    case 'flag': {
-      const m = decimalToMinor(t);
-      return m !== null && m <= 99_999_999_999 ? m : null;
-    }
-    case 'window':
-    case 'retention': {
-      if (!/^\d{1,5}$/.test(t)) return null;
-      const n = Number(t);
-      const [lo, hi] = field === 'window' ? [1, 90] : [730, 3650];
-      return n >= lo && n <= hi ? n : null;
-    }
-  }
-}
+type Field = CostField;
 
 const RANGE: Record<Field, [string, string]> = { vat: ['0', '50'], window: ['1', '90'], max: ['1', '999999999'], flag: ['0', '999999999'], retention: ['730', '3650'] };
 

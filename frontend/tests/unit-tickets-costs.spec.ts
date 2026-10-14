@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  decimalToMinor, hoursToQuarters, lineTotal, minorToDecimal, previewTotals, quantityToMilli, sectionsByCurrency, vatModeFor, vatOf, blankLine,
+  costFieldValue, decimalToMinor, hoursToQuarters, lineTotal, minorToDecimal, previewTotals, quantityToMilli, sectionsByCurrency, vatModeFor, vatOf, blankLine,
 } from '../src/tickets/cost-model';
 import { COST_TEXT_EN_KEYS, COST_TEXT_KEYS } from '../src/tickets/cost-text';
 
@@ -58,8 +58,23 @@ test('the report is grouped per currency and never sums across currencies', () =
 test('the text catalogue is complete and keeps the owner rename (no old default noun)', () => {
   expect(COST_TEXT_KEYS.length).toBeGreaterThan(50);
   expect(COST_TEXT_EN_KEYS.every((k) => COST_TEXT_KEYS.includes(k))).toBe(true);
-  for (const f of ['tickets/cost-text.ts', 'tickets/ticket-cost-card.ts', 'tickets/cost-model.ts', 'public-ticket/claim/claim-text.ts', 'public-ticket/claim/claim-step.ts']) {
+  for (const f of ['tickets/cost-text.ts', 'tickets/ticket-cost-card.ts', 'tickets/cost-model.ts', 'tickets/settings-costs.ts', 'public-ticket/claim/claim-text.ts', 'public-ticket/claim/claim-step.ts']) {
     const src = readFileSync(path.join(SRC, f), 'utf8');
     expect(/קריא(ה|ות|ת)/.test(src), f).toBe(false);
   }
+});
+
+test('the settings drafts follow the server ranges and travel as minor units / basis points', () => {
+  expect(costFieldValue('vat', '18')).toBe(1800);
+  expect(costFieldValue('vat', '17.5')).toBe(1750);
+  expect(costFieldValue('vat', '51')).toBeNull();
+  expect(costFieldValue('window', '14')).toBe(14);
+  expect(costFieldValue('window', '0')).toBeNull();
+  expect(costFieldValue('window', '91')).toBeNull();
+  expect(costFieldValue('max', '1000000')).toBe(100000000);
+  expect(costFieldValue('max', '0.5')).toBeNull();
+  expect(costFieldValue('flag', '0')).toBe(0);
+  expect(costFieldValue('retention', '729')).toBeNull();
+  expect(costFieldValue('retention', '2555')).toBe(2555);
+  expect(costFieldValue('retention', 'abc')).toBeNull();
 });
