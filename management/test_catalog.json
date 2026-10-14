@@ -9416,5 +9416,28 @@
     "expected": "Service management: owner rename 2026-10-14 (module name, item noun, article tokens) and the rename lint: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/250."
+  },
+  {
+    "id": "AT347",
+    "requirement_ids": [
+      "R331"
+    ],
+    "task_ids": [
+      "TKHARDEN"
+    ],
+    "title": "Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKHARDEN (integ/250):",
+      "tests/test_tickets_251_security.py, tests/test_tickets_msg_inbound.py, tests/test_tickets_image_intake.py, tests/test_messaging_accounts_api.py, tests/test_tickets_s5b_channel.py, tests/evidence-messaging-accounts.spec.ts, tests/evidence-shell.spec.ts",
+      "gate run 2 of integ/250"
+    ],
+    "expected": "Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in gate run 2 of integ/250."
   }
 ]

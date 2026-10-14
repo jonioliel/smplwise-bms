@@ -10630,5 +10630,44 @@
     "owner": null,
     "commit": "a06ba53a",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKHARDEN",
+    "title": "Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off: fakes only (integ/250); no live send."
+    ],
+    "requirement_ids": [
+      "R331"
+    ],
+    "test_ids": [
+      "AT347"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on integ/250",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-250): c87b38a0, 163a5aba (gate run 1 reds), 2e16e9f9 (security fixes), 02883c54 (test send / guide), 02d9b678 (article lint). Status REVIEW until gate run 2 passes."
+    ],
+    "owner": null,
+    "commit": "a06ba53a",
+    "actual_cost_usd": null
   }
 ]

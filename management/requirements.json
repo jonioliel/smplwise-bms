@@ -6291,5 +6291,21 @@
     "test_ids": [
       "AT346"
     ]
+  },
+  {
+    "id": "R331",
+    "title": "Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off",
+    "statement": "Key rotation and public settings are local-only; no self-approval of costs; the tickets CSV uses text_hygiene.csv_cell; inbound replies without entry_id fail closed when more than one account is linked; uploads decode strictly whatever LOAD_TRUNCATED_IMAGES is; the test send needs no environment switch (confirm, 5/h/account, local only); the demo hides the tickets area until switched on.",
+    "task_ids": [
+      "TKHARDEN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT347"
+    ]
   }
 ]
