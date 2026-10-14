@@ -10,6 +10,9 @@ import { tIcon } from './icons';
 import { assignLines } from './message-lines';
 import { mtt } from './messages-text';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
+import { ct, type CostTextKey } from './cost-text'; // slice 9
+
+type CostModeChoice = 'required' | 'optional' | 'off';
 
 export type AssignKind = 'user' | 'person' | 'vendor';
 
@@ -45,6 +48,8 @@ export class ExternalAssign implements ReactiveController {
   query = '';
   requireCode = false;
   shareHistory = false;
+  /** slice 9 (D32): "דרישת עלות: חובה / רשות / בלי" - null = the preview's preselection (vendor -> department -> installation) */
+  costClaim: 'required' | 'optional' | 'off' | null = null;
   preview: AssignPreview | null = null;
   showText = false;
   error = '';
@@ -68,6 +73,7 @@ export class ExternalAssign implements ReactiveController {
     this.query = '';
     this.requireCode = false;
     this.shareHistory = false;
+    this.costClaim = null;
     this.preview = null;
     this.showText = false;
     this.error = '';
@@ -170,6 +176,7 @@ export class ExternalAssign implements ReactiveController {
         ${chosen.require_code ? html`<span class="muted xnote">${tt('asgRequireCodeLocked')}</span>` : this.requireCode ? html`<span class="muted xnote">${tt('asgRequireCodeNote')}</span>` : nothing}
         ${p?.share_history.available ? html`<label class="chk"><input type="checkbox" data-share-history .checked=${this.shareHistory}
           @change=${(e: Event) => { this.shareHistory = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />${tt('asgShareHistory')}</label>` : nothing}
+        ${this.costChoice()}
       </div>` : nothing}
       ${p ? html`<div class="xinfo" data-assign-preview>
         <span class="muted">${tIcon('link')}${tt('asgLinkLine', { days: p.link.cap_days, grace: p.link.grace_hours })}</span>
@@ -200,6 +207,16 @@ export class ExternalAssign implements ReactiveController {
     return !!l && !!l.hours && (this.sendNow ?? l.sendNowDefault);
   }
 
+  /** Slice 9 (D32): the claim requirement of this assignment, preselected from the preview (vendor -> department -> installation). */
+  private costChoice(): TemplateResult | typeof nothing {
+    const opt = (this.preview as unknown as { cost_claim?: { default: CostModeChoice; choices: CostModeChoice[] } } | null)?.cost_claim;
+    if (!opt) return nothing;
+    const value = this.costClaim ?? opt.default;
+    return html`<div class="fld" data-cost-claim=${value}><span>${ct('mode')}</span>
+      <span class="seg sm" role="radiogroup" aria-label=${ct('mode')}>${opt.choices.map((m) => html`<button type="button" role="radio" aria-checked=${String(value === m)}
+        data-cost-claim-mode=${m} ?disabled=${this.lend.busy()} @click=${() => { this.costClaim = m; this.host.requestUpdate(); }}>${ct(`m_${m}` as CostTextKey)}</button>`)}</span></div>`;
+  }
+
   /** Whether the dialog's OK button may be pressed for an outside contact. */
   ready(): boolean {
     return !!this.pick && !!this.preview && this.preview.refusals.length === 0;
@@ -214,6 +231,7 @@ export class ExternalAssign implements ReactiveController {
       requireCode: this.requireCode && !chosen?.require_code ? true : null,
       shareHistory: this.preview?.share_history.available ? this.shareHistory : null,
       sendNow: this.sendNowChoice() || null, // slice 5b (D29)
+      costClaim: this.costClaim, // slice 9 (D32)
     }) as Promise<TicketWithLink>, tt('saved'));
   }
 }

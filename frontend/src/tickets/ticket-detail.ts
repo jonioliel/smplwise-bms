@@ -1,4 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import './ticket-cost-card'; // slice 9 (11A.7): the cost card
+import { ct } from './cost-text';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-drawer';
@@ -64,6 +66,8 @@ export class TicketDetailView extends LitElement {
   @state() private uploading = 0;
   // dialog fields
   @state() private dlgText = '';
+  @state() private costGate: { canOverride: boolean } | null = null; // slice 9 (11A.3): the close met a pending required claim
+  @state() private dlgOverride = '';
   @state() private dlgNumber = '';
   @state() private dlgError = '';
   @state() private dlgPick = '';
@@ -221,6 +225,12 @@ export class TicketDetailView extends LitElement {
       if (done) this.say(done);
       return true;
     } catch (e) {
+      if (e instanceof ApiError && e.code === 'cost_claim_pending' && this.dialog?.kind === 'move') {
+        const details = (e.body as { details?: { can_override?: boolean } }).details;
+        this.costGate = { canOverride: !!details?.can_override };
+        this.dlgError = describeError(e);
+        return false;
+      }
       this.say(describeError(e), 'bad');
       if (e instanceof ApiError && (e.status === 409 || e.status === 404)) void this.load();
       return false;
@@ -250,6 +260,8 @@ export class TicketDetailView extends LitElement {
     this.dlgPick = '';
     this.dlgFlag = true;
     this.dlgReturnKind = 'cannot_handle';
+    this.costGate = null;
+    this.dlgOverride = '';
     this.dialog = d;
     const t = this.t;
     if (!t) return;
@@ -294,7 +306,13 @@ export class TicketDetailView extends LitElement {
       }
       duplicateOf = found.id;
     }
-    if (await this.run(() => ticketsApi().status(t.id, { to, note: note || null, duplicate_of: duplicateOf, revision: t.revision }), tt('saved'))) this.closeDialog();
+    const override = to === 'closed' && this.costGate?.canOverride ? this.dlgOverride.trim() : '';
+    if (to === 'closed' && this.costGate?.canOverride && !override) {
+      this.dlgError = tt('required');
+      return;
+    }
+    const body = { to, note: note || null, duplicate_of: duplicateOf, revision: t.revision, ...(override ? { override_claim_reason: override } : {}) };
+    if (await this.run(() => ticketsApi().status(t.id, body), tt('saved'))) this.closeDialog();
   }
 
   private async submitAssign(): Promise<void> {
@@ -528,6 +546,9 @@ export class TicketDetailView extends LitElement {
       const ok = d.to === 'closed' ? tt('closeAction') : d.to === 'cancelled' ? tt('cancelTicket') : tt('reopen');
       return html`<sw-dialog open heading=${heading} data-dialog="move" data-to=${d.to} @close=${this.onDialogClose}>
         <div class="form">${text(label, d.noteRequired || d.to === 'cancelled')}
+          ${d.to === 'closed' && this.costGate ? html`<div class="fld" data-cost-gate=${this.costGate.canOverride ? 'override' : 'blocked'}><b>${ct('gateTitle')}</b>
+            ${this.costGate.canOverride ? html`<label class="fld"><span>${ct('gateOverride')} - ${ct('gateReason')} <b class="req">*</b></span>
+              <textarea class="inp" maxlength="500" data-cost-override .value=${this.dlgOverride} @input=${(e: Event) => { this.dlgOverride = (e.target as HTMLTextAreaElement).value; this.dlgError = ''; }}></textarea></label>` : nothing}</div>` : nothing}
           ${d.to === 'cancelled' ? html`<label class="fld"><span>${tt('duplicateOf')}</span><input class="inp" inputmode="numeric" maxlength="12" data-dialog-number .value=${this.dlgNumber} @input=${(e: Event) => { this.dlgNumber = (e.target as HTMLInputElement).value; this.dlgError = ''; }} /></label>` : nothing}
           ${err}</div>
         ${foot(html`<button type="button" class=${`btn ${d.to === 'cancelled' ? 'danger' : 'primary'}`} data-dialog-ok ?disabled=${this.busy} @click=${() => void this.submitMove(d.to, d.noteRequired)}>${ok}</button>`)}
@@ -602,6 +623,7 @@ export class TicketDetailView extends LitElement {
       ${this.sentence(t)}
       ${this.statusSection(t)}
       ${this.assigneeSection(t)}
+      <ticket-cost-card .ticket=${t} @cost-changed=${() => void this.load()}></ticket-cost-card>
       ${this.messagesSection(t)}
       ${this.photosSection(t)}
       ${this.timelineSection(t)}
