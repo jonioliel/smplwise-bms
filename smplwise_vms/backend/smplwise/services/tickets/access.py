@@ -274,3 +274,92 @@ def visible_page(
             break
     next_cursor = None if exhausted or after is None else store.encode_cursor(*after)
     return out, next_cursor
+
+
+# ---------------------------------------------------------------- the board table (slice 6b, D24 - section 13.6; nothing above changed)
+
+EXPORT_MAX_ROWS = 5000  # the CSV export: more visible rows -> 413 export_too_large
+EXPORT_MAX_SCANNED = 50_000  # candidate rows an export may look at before it gives up the same way (a filter that is far too wide)
+
+
+class ExportTooLarge(Exception):
+    """More than EXPORT_MAX_ROWS visible rows (or EXPORT_MAX_SCANNED candidates) for the filter."""
+
+
+def _table_superset(viewer: Viewer, scope: str) -> tuple[list[str] | None, str | None] | None:
+    """The indexed superset of a table scope, exactly as visible_page() draws it: (department ids or None = every one, the caller's
+    own id or None); None when nothing can match. `all` needs tickets.all_departments (403)."""
+    all_depts = ALL_DEPARTMENTS in viewer.anywhere
+    member_depts = list(viewer.roles)
+    if scope == "all":
+        if not all_depts:
+            raise ApiError(403, "forbidden", text(viewer.conn, "אין הרשאה לכל המחלקות."), details={"permission": ALL_DEPARTMENTS})
+        return None, None
+    if scope == "department":
+        dept_ids, user_id = member_depts, None
+    elif scope == "mine":
+        dept_ids, user_id = [], viewer.uid
+    else:
+        dept_ids, user_id = (None if all_depts else member_depts), viewer.uid
+    if dept_ids is not None and not dept_ids and not user_id:
+        return None
+    return dept_ids, user_id
+
+
+def _table_scan(viewer: Viewer, query: Any, after: tuple[list[Any], str] | None, scan_cap: int, batch_size: int):
+    """Walk the candidates of a table query in its order from `after`, yielding (row, seen-or-None, position) - the caller stops.
+    `position` is the keyset of the row (its sort values and id)."""
+    superset = _table_superset(viewer, query.filters.scope)
+    if superset is None:
+        return
+    dept_ids, user_id = superset
+    scanned = 0
+    n = len(query.sort)
+    while scanned < scan_cap:
+        want = min(batch_size, scan_cap - scanned)
+        batch = store.table_rows_unchecked(viewer.conn, department_ids=dept_ids, user_id=user_id, me=viewer.uid, filters=query.filters,
+                                           sort=query.sort, after=after, limit=want)
+        for row in batch:
+            scanned += 1
+            after = ([row[f"_s{i}"] for i in range(n)], row["id"])
+            yield row, visible(viewer, row), after
+        if len(batch) < want:
+            return
+
+
+def visible_table_page(viewer: Viewer, query: Any, cursor_after: tuple[list[Any], str] | None, limit: int) -> tuple[list[Seen], tuple[list[Any], str] | None]:
+    """A page of the board table (section 13.6): `query` is a services/tickets/table.Query (whitelisted sort and filters); every row
+    passes visible(); at most SCAN_FACTOR x limit candidates are scanned - a page that did not fill comes back short WITH the position
+    to continue from (the client keeps loading). Returns (the visible rows, the keyset of the last row looked at or None at the end)."""
+    out: list[Seen] = []
+    position = cursor_after
+    cap = SCAN_FACTOR * limit
+    scanned = 0
+    exhausted = True
+    for _row, seen, pos in _table_scan(viewer, query, cursor_after, cap, limit):
+        scanned += 1
+        position = pos
+        if seen is not None:
+            out.append(seen)
+        if len(out) >= limit or scanned >= cap:
+            exhausted = False
+            break
+    if exhausted:
+        return out, None
+    return out, position
+
+
+def visible_export_rows(viewer: Viewer, query: Any) -> list[Seen]:
+    """Every visible row of a table query (the CSV export), in the table's order. Raises ExportTooLarge past EXPORT_MAX_ROWS visible
+    rows or EXPORT_MAX_SCANNED candidates."""
+    out: list[Seen] = []
+    scanned = 0
+    for _row, seen, _pos in _table_scan(viewer, query, None, EXPORT_MAX_SCANNED + 1, 500):
+        scanned += 1
+        if scanned > EXPORT_MAX_SCANNED:
+            raise ExportTooLarge()
+        if seen is not None:
+            out.append(seen)
+            if len(out) > EXPORT_MAX_ROWS:
+                raise ExportTooLarge()
+    return out

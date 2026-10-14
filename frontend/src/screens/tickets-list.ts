@@ -5,6 +5,10 @@ import '../tickets/ticket-card';
 import '../tickets/ticket-detail';
 import '../tickets/ticket-create';
 import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (a chip only while the queue is not empty)
+import './tickets-table'; // CR-038 S6b (D24): the board's table view
+import type { TicketsTable } from './tickets-table';
+import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
+import { boardViewSwitch } from '../tickets/table-switch';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -59,6 +63,7 @@ export class TicketsList extends LitElement {
   @state() private toast: { text: string; tone: 'ok' | 'bad' } | null = null;
   @state() private now = new Date();
   @state() private q = '';
+  @state() private view: BoardView = 'cards'; // CR-038 S6b (D24): cards | table, the user's tickets.board.view
   /** the text last typed into the search box, until the address carries it */
   private pendingQ: string | null = null;
   private listKey = '';
@@ -127,6 +132,9 @@ export class TicketsList extends LitElement {
       .dh-det .newbtn {
         order: 2;
       }
+      .dh-det .vsw {
+        order: 2;
+      }
       .flt {
         inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
       }
@@ -168,6 +176,7 @@ export class TicketsList extends LitElement {
   // ---------------------------------------------------------------- data
 
   private async boot(): Promise<void> {
+    void boardPrefs().then((p) => (this.view = p.view === 'table' ? 'table' : 'cards')); // CR-038 S6b
     try {
       const m = await ticketsApi().module();
       this.module = m;
@@ -270,7 +279,14 @@ export class TicketsList extends LitElement {
     const { description, events: _e, attachments: _a, close_note: _c, closed_by_name: _n, duplicate_of: _d, reopen_until: _u, can: _x, transitions: _t, assignments: _s, ...rest } = t;
     const item: TicketItem = { ...rest, excerpt: description.slice(0, 240) };
     this.items = this.items.map((x) => (x.id === t.id ? item : x));
+    (this.renderRoot.querySelector('tickets-table') as TicketsTable | null)?.patchTicket(t); // CR-038 S6b
   };
+
+  /** CR-038 S6b (D24): the cards or the table, remembered per user. */
+  private setView(v: BoardView): void {
+    this.view = v;
+    void saveBoardPrefs({ view: v });
+  }
 
   private onCreated = (e: CustomEvent<{ ticket: TicketDetail | null; id: string; number: number; result: 'created' | 'absorbed'; failedPhotos: number }>) => {
     const d = e.detail;
@@ -305,6 +321,7 @@ export class TicketsList extends LitElement {
         ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
+        ${boardViewSwitch(this.view, (v) => this.setView(v))}
       </div>` : nothing}
     </header>`;
   }
@@ -327,6 +344,12 @@ export class TicketsList extends LitElement {
         return this.stateBox('warning', tt('loadFailed'), 'error', html`${this.failed ? html`<span class="vh" data-error-detail>${this.failed}</span>` : nothing}<button type="button" class="btn sm" data-retry @click=${() => { this.screen = 'loading'; this.items = null; void this.boot(); }}>${tIcon('refresh')}${tt('retry')}</button>`);
       default:
         break;
+    }
+    if (this.view === 'table') {
+      // CR-038 S6b (D24): the table view - its own server-side sort / filters / pages over the same scope, state, department and text
+      const f = this.r.filters;
+      return html`<tickets-table .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
+        .picked=${this.r.ticketId} @table-filters=${(e: CustomEvent<Partial<ListFilters>>) => this.setFilters(e.detail as Partial<ListFilters>)}></tickets-table>`;
     }
     const rows = this.items ?? [];
     const f = this.r.filters;

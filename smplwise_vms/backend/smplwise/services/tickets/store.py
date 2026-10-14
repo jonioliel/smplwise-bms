@@ -768,3 +768,195 @@ def manager_member_ids(conn: sqlite3.Connection, dept_id: str, *, notify_new_onl
             if uid not in out:
                 out.append(uid)
     return out
+
+
+# ---------------------------------------------------------------- the board table (slice 6b, D24 - section 13.6)
+# Added by slice 6b; nothing above this line changed. The table's list and the CSV export read rows through
+# table_rows_unchecked(), which - like candidate_rows() - is called from services/tickets/access.py only
+# (tests/test_tickets_table.py guards it): it is the indexed SUPERSET, access.visible() decides every row.
+
+from contextlib import contextmanager  # noqa: E402 - slice 6b keeps its additions in one block at the end
+from typing import Iterator  # noqa: E402
+
+_STATUS_ORDER_SQL = ("CASE t.status WHEN 'new' THEN 0 WHEN 'assigned' THEN 1 WHEN 'acknowledged' THEN 2 WHEN 'in_progress' THEN 3 "
+                     "WHEN 'waiting_part' THEN 4 WHEN 'done' THEN 5 WHEN 'returned' THEN 6 WHEN 'closed' THEN 7 ELSE 8 END")
+_NO_DUE = "9999-12-31T23:59:59Z"
+# every expression is NOT NULL (a keyset comparison with NULL would drop rows): the sort key -> its SQL
+TABLE_SORT_SQL: dict[str, str] = {
+    "number": "t.number",
+    "title": "t.title",
+    "department": "COALESCE(d.name, '')",
+    "priority": "COALESCE(p.rank, 99)",
+    "status": _STATUS_ORDER_SQL,
+    "assignee": "COALESCE(CASE WHEN a.ended_at IS NULL THEN a.assignee_name END, '')",
+    "place": "COALESCE(t.place_text, '')",
+    "device": "COALESCE(t.device_name, '')",
+    "created": "t.created_at",
+    "activity": "t.last_activity_at",
+    "stuck": "CASE WHEN t.stuck_kind IS NULL THEN 0 ELSE 1 + COALESCE(t.stuck_level, 0) END",
+    "sla": (f"CASE WHEN t.status IN ('closed', 'cancelled') THEN '{_NO_DUE}' ELSE min(COALESCE(t.ack_due_at, '{_NO_DUE}'), "
+            f"COALESCE(t.stuck_due_at, '{_NO_DUE}'), COALESCE(t.resolve_due_at, '{_NO_DUE}')) END"),
+}
+_TABLE_FROM = (_TICKET_SELECT + " LEFT JOIN ticket_departments d ON d.id = t.department_id LEFT JOIN ticket_priorities p ON p.id = t.priority_id")
+
+
+def _like(q: str) -> str:
+    return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def table_rows_unchecked(
+    conn: sqlite3.Connection,
+    *,
+    department_ids: Iterable[str] | None,
+    user_id: str | None,
+    me: str,
+    filters: Any,
+    sort: tuple[tuple[str, str], ...],
+    after: tuple[list[Any], str] | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """The SUPERSET of a table page (section 13.6): department membership (`department_ids`; None = every department) OR the caller's
+    own tickets (`user_id`), the whitelisted `filters` (services/tickets/table.Filters), ordered by `sort` (keys of TABLE_SORT_SQL)
+    with the id as the last tie-breaker, keyset after `after` (the last row's sort values and id). Each row carries its sort values
+    as `_s0`, `_s1`... (the next cursor). Visibility is NOT decided here: access.visible_table_page() checks every row."""
+    where: list[str] = []
+    args: list[Any] = []
+    scope_parts: list[str] = []
+    if department_ids is not None:
+        ids = list(dict.fromkeys(department_ids))
+        if ids:
+            scope_parts.append(f"t.department_id IN ({', '.join('?' * len(ids))})")
+            args.extend(ids)
+    else:
+        scope_parts.append("1 = 1")
+    if user_id:
+        scope_parts.append("(t.created_by = ? OR (a.assignee_kind = 'user' AND a.user_id = ? AND a.ended_at IS NULL))")
+        args.extend([user_id, user_id])
+    if not scope_parts:
+        return []
+    where.append("(" + " OR ".join(scope_parts) + ")")
+    f = filters
+    if f.statuses is not None:
+        where.append(f"t.status IN ({', '.join('?' * len(f.statuses))})")
+        args.extend(f.statuses)
+    if f.departments:
+        where.append(f"t.department_id IN ({', '.join('?' * len(f.departments))})")
+        args.extend(f.departments)
+    if f.priorities:
+        where.append(f"p.key IN ({', '.join('?' * len(f.priorities))})")
+        args.extend(f.priorities)
+    if f.assignee == "none":
+        where.append("(t.current_assignment_id IS NULL OR a.id IS NULL OR a.ended_at IS NOT NULL)")
+    elif f.assignee:
+        kind, ident = ("user", me) if f.assignee == "me" else f.assignee.split(":", 1)
+        column = "a.user_id" if kind == "user" else "a.contact_id"
+        where.append(f"(a.assignee_kind = ? AND {column} = ? AND a.ended_at IS NULL)")
+        args.extend([kind, ident])
+    if f.floor:
+        where.append("t.floor_id = ?")
+        args.append(f.floor)
+    if f.area:
+        where.append("t.area_id = ?")
+        args.append(f.area)
+    if f.stuck == "any":
+        where.append("t.stuck_kind IS NOT NULL")
+    elif f.stuck:
+        where.append("t.stuck_kind = ?")
+        args.append(f.stuck)
+    if f.waiting == "manager":
+        where.append("t.waiting_on = 'manager'")
+    if f.created_from:
+        where.append("t.created_at >= ?")
+        args.append(f.created_from)
+    if f.created_to:
+        where.append("t.created_at <= ?")
+        args.append(f.created_to)
+    q = (f.q or "").strip()
+    if q:
+        digits = q.lstrip("#")
+        like = _like(q)
+        if digits.isdigit() and len(digits) <= 9:
+            where.append("(t.number = ? OR t.title LIKE ? ESCAPE '\\' OR t.device_name LIKE ? ESCAPE '\\')")
+            args.extend([int(digits), like, like])
+        else:
+            where.append("(t.title LIKE ? ESCAPE '\\' OR t.device_name LIKE ? ESCAPE '\\' OR t.place_text LIKE ? ESCAPE '\\')")
+            args.extend([like, like, like])
+    exprs = [(TABLE_SORT_SQL[k], d) for k, d in sort]
+    tie = exprs[0][1] if exprs else "desc"
+    keys = exprs + [("t.id", tie)]
+    if after is not None:
+        values, last_id = after
+        bound = [*values, last_id]
+        ors: list[str] = []
+        ors_args: list[Any] = []
+        for i, (expr, direction) in enumerate(keys):
+            parts = [f"{keys[j][0]} = ?" for j in range(i)] + [f"{expr} {'>' if direction == 'asc' else '<'} ?"]
+            ors.append("(" + " AND ".join(parts) + ")")
+            ors_args.extend(bound[: i + 1])
+        where.append("(" + " OR ".join(ors) + ")")
+        args.extend(ors_args)
+    select_keys = ", ".join(f"{expr} AS _s{i}" for i, (expr, _d) in enumerate(exprs))
+    sql = (_TABLE_FROM.replace("SELECT t.*,", f"SELECT {select_keys}, t.*,", 1) + " WHERE " + " AND ".join(where)
+           + " ORDER BY " + ", ".join(f"{expr} {direction.upper()}" for expr, direction in keys) + " LIMIT ?")
+    args.append(int(limit))
+    return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def last_manual_reminder_at(conn: sqlite3.Connection, ticket_id: str) -> str | None:
+    """When a manager last reminded the assignee by hand (bulk "remind": at most one manual reminder per ticket per hour)."""
+    row = conn.execute("SELECT MAX(at) FROM ticket_events WHERE ticket_id = ? AND kind = 'reminder' AND json_extract(data_json, '$.manual') = 1",
+                       (ticket_id,)).fetchone()
+    return row[0] if row else None
+
+
+@contextmanager
+def item_transaction(conn: sqlite3.Connection, name: str = "ticket_item") -> Iterator[None]:
+    """One bulk item in its OWN transaction inside the request's (a SAVEPOINT): everything the item wrote is undone when it raises,
+    the items before and after it are kept (bulk actions are not all-or-nothing, section 13.6)."""
+    conn.execute(f"SAVEPOINT {name}")
+    try:
+        yield
+    except BaseException:
+        conn.execute(f"ROLLBACK TO SAVEPOINT {name}")
+        conn.execute(f"RELEASE SAVEPOINT {name}")
+        raise
+    conn.execute(f"RELEASE SAVEPOINT {name}")
+
+
+# saved filters / layouts of the table (D24: private to the user, at most 20 each)
+
+def saved_views(conn: sqlite3.Connection, user_id: str) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_saved_views WHERE user_id = ? ORDER BY name, created_at, id", (user_id,)).fetchall()]
+
+
+def saved_view(conn: sqlite3.Connection, user_id: str, view_id: str) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT * FROM ticket_saved_views WHERE id = ? AND user_id = ?", (view_id, user_id)).fetchone())
+
+
+def saved_view_count(conn: sqlite3.Connection, user_id: str) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM ticket_saved_views WHERE user_id = ?", (user_id,)).fetchone()[0])
+
+
+def saved_view_name_taken(conn: sqlite3.Connection, user_id: str, name: str, except_id: str | None = None) -> bool:
+    row = conn.execute("SELECT id FROM ticket_saved_views WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
+    return row is not None and row["id"] != except_id
+
+
+def insert_saved_view(conn: sqlite3.Connection, user_id: str, name: str, view_json: str) -> str:
+    view_id = new_id()
+    now = now_iso()
+    conn.execute("INSERT INTO ticket_saved_views(id, user_id, name, view_json, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+                 (view_id, user_id, name, view_json, now, now))
+    return view_id
+
+
+def update_saved_view(conn: sqlite3.Connection, user_id: str, view_id: str, fields: dict[str, Any]) -> bool:
+    cols = [k for k in ("name", "view_json") if k in fields]
+    sets = ", ".join(f"{k} = ?" for k in cols)
+    cur = conn.execute(f"UPDATE ticket_saved_views SET {sets + ', ' if sets else ''}updated_at = ? WHERE id = ? AND user_id = ?",
+                       (*[fields[k] for k in cols], now_iso(), view_id, user_id))
+    return cur.rowcount == 1
+
+
+def delete_saved_view(conn: sqlite3.Connection, user_id: str, view_id: str) -> bool:
+    return conn.execute("DELETE FROM ticket_saved_views WHERE id = ? AND user_id = ?", (view_id, user_id)).rowcount == 1
