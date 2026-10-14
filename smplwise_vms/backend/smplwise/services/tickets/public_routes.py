@@ -106,14 +106,22 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         return await idem.run(idempotency_scope(ctx.link), crid, route, work)
 
     @r.get("/t/api/ticket")
-    async def ticket(request: Request, ctx: LinkContext = Depends(link_context())) -> JSONResponse:
+    async def ticket(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True))) -> JSONResponse:
         ck = client_key(ctx)
 
         def read() -> dict[str, Any]:
+            from . import costs, public_claims  # slice 9 (11A.5): the claim step
+
+            if ctx.claim_mode:  # the page no longer serves this link: the minimal card + the claim until `claim_until`
+                with db.connection(mode="read", label="tickets.public.claim") as conn:
+                    return public_claims.claim_card(conn, ctx.link, code_ok=ctx.code_ok, now=now())
             with db.connection(label="tickets.public.open") as conn:
                 when = now()
                 handler_actions.record_open(conn, ctx.link, when, ck)
-                return handler_actions.view(conn, ctx.link, code_ok=ctx.code_ok, read_only=ctx.read_only, now=when)
+                data = handler_actions.view(conn, ctx.link, code_ok=ctx.code_ok, read_only=ctx.read_only, now=when)
+                if ctx.code_ok or not ctx.link.require_code:
+                    data["claim"] = costs.public_summary(conn, ctx.link.assignment_id, when)
+                return data
 
         try:
             data = await run_in_threadpool(read)

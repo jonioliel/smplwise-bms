@@ -10,7 +10,7 @@
  * with the draft until confirmed, so a retry on bad reception never applies an update twice.
  */
 import './styles.css';
-import { api, newRequestId, type ApiFailure, type Credentials, type TicketView } from './api';
+import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
 import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, planSend, statusChoices, validSession,
   type Draft, type Phase, type Step } from './state';
@@ -41,6 +41,11 @@ interface ReturnForm { open: boolean; kind: 'not_mine' | 'cannot_handle'; reason
 class Page {
   private root: HTMLElement;
   private creds: Credentials = { token: null, session: null };
+  // slice 9 (11A.2): the cost-claim step - a persistent host (the page re-renders its DOM; the step keeps its own state) and the
+  // lazily loaded module (its chunk is fetched only when a claim exists)
+  private claimHost: HTMLElement | null = null;
+  private claimHandle: { refresh(): Promise<void>; destroy(): void } | null = null;
+  private claimLoading = false;
   private rid: string | null = null;
   private phase: Phase = 'loading';
   private view: TicketView | null = null;
@@ -420,15 +425,42 @@ class Page {
     const readOnly = this.phase === 'readonly';
     return h('div', { class: 'page' }, this.header(), h('main', { class: 'col' },
       this.bannerEl(),
-      readOnly ? h('section', { class: 'card closed', attrs: { 'data-readonly': true } },
+      readOnly && !v.claim_mode ? h('section', { class: 'card closed', attrs: { 'data-readonly': true } },
         h('div', { class: 'msg-icon ok' }, icon('done')),
         h('h1', { class: 'msg-title' }, this.t('closedTitle')),
         v.read_only_until ? h('p', { class: 'msg-body' }, this.t('closedBody', { when: this.when(v.read_only_until) })) : null) : null,
       this.ticketCard(v),
+      this.claimBlock(v),
       !readOnly && v.actions ? this.updateCard(v) : null,
-      this.timelineCard(v),
+      v.claim_mode ? null : this.timelineCard(v),
       !readOnly && v.actions?.return ? this.returnBlock() : null,
       this.footer()));
+  }
+
+  /** Slice 9: the claim step under the ticket card once a claim exists (or in claim mode); mounted once, refreshed on reloads. */
+  private claimBlock(v: TicketView): HTMLElement | null {
+    if (!v.claim && !v.claim_mode) return null;
+    if (!this.claimHost) {
+      this.claimHost = h('div', { class: 'claim-host', attrs: { 'data-claim-host': true } });
+    }
+    if (this.claimHandle) {
+      void this.claimHandle.refresh();
+    } else if (!this.claimLoading) {
+      this.claimLoading = true;
+      const host = this.claimHost;
+      void import('./claim/claim-step').then((m) => {
+        this.claimHandle = m.mountClaimStep(host, {
+          fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body),
+          uploadFile: (path, form) => rawCall(this.creds, 'POST', path, undefined, form),
+          lang: this.lang, dir: v.dir, labels: v.labels, number: v.number, timeZone: v.time_zone,
+          onCodeRequired: () => void this.load(),
+          onDone: () => void this.load(false),
+        });
+      }).catch(() => {
+        this.claimLoading = false;
+      });
+    }
+    return this.claimHost;
   }
 
   private ticketCard(v: TicketView): HTMLElement {

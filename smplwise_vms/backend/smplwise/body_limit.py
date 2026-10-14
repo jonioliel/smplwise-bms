@@ -146,6 +146,14 @@ def _ticket_attachment(_s: Settings) -> int:
     return attachments.MAX_BYTES + MULTIPART_SLACK
 
 
+def _ticket_cost_file(_s: Settings) -> int:
+    """CR-038 slice 9 (11A.6): one invoice file of a cost claim - a PDF of at most 10 MiB (services/tickets/cost_files.PDF_MAX_BYTES)
+    or a photographed page (8 MiB) + the framing. The route re-encodes a page and checks a PDF outside the write lock."""
+    from .services.tickets import cost_files
+
+    return cost_files.PDF_MAX_BYTES + MULTIPART_SLACK
+
+
 def _const(n: int) -> Callable[[Settings], int]:
     return lambda _s: n
 
@@ -168,6 +176,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(r"/api/v1/catalog/import"), _const(CATALOG_IMPORT_MAX), "catalog_import"),
     (frozenset({"POST"}), re.compile(r"/api/v1/csp-report"), _csp_report, "csp_report"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/attachments"), _ticket_attachment, "ticket_attachment"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/costs/files"), _ticket_cost_file, "ticket_cost_file"),
 ]
 
 # the remote channel's paths that need no sign-in (routers/remote.py, the static /.well-known files)

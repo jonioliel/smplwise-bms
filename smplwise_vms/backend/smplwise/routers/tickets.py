@@ -293,6 +293,7 @@ class StatusBody(BaseModel):
     to: str = Field(pattern=r"^(new|assigned|acknowledged|in_progress|waiting_part|done|returned|closed|cancelled)$")
     note: str | None = Field(default=None, max_length=20000)
     duplicate_of: str | None = Field(default=None, max_length=64, pattern=ID)
+    override_claim_reason: str | None = Field(default=None, max_length=5000)  # S9 (11A.3): close despite a pending required cost claim
     revision: int = Field(ge=1)
 
 
@@ -301,7 +302,8 @@ def post_status(body: StatusBody, request: Request, ticket_id: str = Path(..., p
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     seen = access.require_visible(viewer, ticket_id)
-    service.change_status(conn, viewer, seen, body.to, body.note, body.revision, body.duplicate_of, _rid(request))
+    service.change_status(conn, viewer, seen, body.to, body.note, body.revision, body.duplicate_of, _rid(request),
+                          override_claim_reason=body.override_claim_reason)
     return _detail(conn, viewer, ticket_id)
 
 
@@ -313,6 +315,7 @@ class AssignBody(BaseModel):
     require_code: bool | None = None  # slice 4: an outside contact only - raise only, never below the contact's own setting
     share_history: bool | None = None  # slice 4 (D23): only where a device snapshot exists, never for security domains
     send_now: bool = False  # slice 5b (D29): release the message outside the send hours
+    cost_claim: Literal["required", "optional", "off"] | None = None  # slice 9 (D32): an outside contact only; None = the preselection
     revision: int = Field(ge=1)
 
 
@@ -326,7 +329,7 @@ def post_assign(body: AssignBody, request: Request, ticket_id: str = Path(..., p
 
         external.assign_contact(conn, viewer, seen, body.assignee.id, note=body.note, note_external=body.note_external,
                                 require_code=body.require_code, share_history=body.share_history, send_now=body.send_now,
-                                revision=body.revision, rid=_rid(request))
+                                revision=body.revision, rid=_rid(request), cost_claim=body.cost_claim)
     else:
         service.assign(conn, viewer, seen, body.assignee.kind, body.assignee.id, body.note, body.note_external, body.revision, _rid(request))
     return _detail(conn, viewer, ticket_id)

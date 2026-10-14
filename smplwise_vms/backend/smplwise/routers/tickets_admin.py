@@ -31,7 +31,8 @@ KEY = r"^[a-z][a-z0-9_-]{1,31}$"
 ICON = r"^[a-z][a-zA-Z0-9_-]{0,31}$"
 COLOR = r"^--sw-[a-z0-9-]{1,40}$"
 DOMAIN = r"^[a-z][a-z0-9_]{0,39}$"
-GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure")
+GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure",
+               "tickets_costs_view", "tickets_costs")  # + S9 (D31, 11A.8)
 
 
 def _rid(request: Request) -> str | None:
@@ -103,6 +104,19 @@ class CodePatch(BaseModel):  # slice 7 (10.5 / 14.1): option B codes; the length
     lock_min: int | None = Field(default=None, ge=5, le=240)
 
 
+class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; department / vendor overrides live on their rows
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["required", "optional", "off"] | None = None
+    currencies: list[str] | None = Field(default=None, max_length=5)
+    vat_rate_bp: int | None = Field(default=None, ge=0, le=5000)
+    claim_window_days: int | None = Field(default=None, ge=1, le=90)
+    require_invoice: bool | None = None
+    max_claim_total_minor: int | None = Field(default=None, ge=100, le=99_999_999_999)
+    review_flag_above_minor: int | None = Field(default=None, ge=0, le=99_999_999_999)
+    notify_vendor_approved: bool | None = None
+    retention_days: int | None = Field(default=None, ge=730, le=3650)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -114,6 +128,7 @@ class SettingsBody(BaseModel):
     organization_name: str | None = Field(default=None, max_length=400)  # slice 4
     public: PublicPatch | None = None  # slice 4
     code: CodePatch | None = None  # slice 7
+    costs: CostsPatch | None = None  # slice 9
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -136,7 +151,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code"):  # slice 2 / slice 4 / slice 7
+    for block in ("links", "public", "code", "costs"):  # slice 2 / slice 4 / slice 7 / slice 9
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None}

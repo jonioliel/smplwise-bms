@@ -29,7 +29,8 @@ def _in(values: Iterable[str]) -> tuple[str, list[str]]:
 # ---------------------------------------------------------------- contacts
 
 CONTACT_FIELDS = ("kind", "vendor_id", "user_id", "display_name", "company", "phone_e164", "phone_key", "phone_key_id", "email",
-                  "preferred_channel", "require_code", "share_history", "lang", "notes", "active")
+                  "preferred_channel", "require_code", "share_history", "lang", "notes", "active",
+                  "cost_claim", "vat_exempt", "vat_default", "labor_rate_minor", "rate_currency")  # + S9 (0083)
 
 
 def insert_contact(conn: sqlite3.Connection, fields: Mapping[str, Any], created_by: str) -> str:

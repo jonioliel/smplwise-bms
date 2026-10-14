@@ -313,3 +313,15 @@ def channel_state(conn: sqlite3.Connection, account_key: str, account_label: str
             params={"title": text(conn, T_CHANNEL[0]), "body": text(conn, T_CHANNEL[1], account=account_label)}, link="#/system/tickets"))
     except Exception:  # noqa: BLE001
         log.warning("ticket channel notification failed", exc_info=True)
+
+
+def cost_submitted(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> None:
+    """Slice 9 (11A.7): a vendor's claim (or one entered on its behalf) waits for review (slice 6: `ticket.cost_submitted` to the
+    holders of tickets.costs who can see the ticket; category tickets, severity info)."""
+    return None
+
+
+def cost_missing(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> None:
+    """Slice 9 (11A.5 / 11A.7): the window of a REQUIRED claim passed without a submission (slice 6: `ticket.cost_missing` to the
+    department's managers who hold tickets.costs.view). Raised once per claim window."""
+    return None

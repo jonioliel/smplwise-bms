@@ -200,6 +200,7 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
         "require_code_locked": contact_req,
         "code_to_contact_phone": req,
         "share_history": history_option(conn, row, contact, vendor),
+        "cost_claim": _cost_option(conn, row, contact, vendor),
         "link": {"sliding_days": d.sliding_days, "cap_days": d.cap_days, "grace_hours": d.grace_hours,
                  "expires_at": handler_links.iso(expires), "cap_at": handler_links.iso(cap)},
         "refusals": refusals,
@@ -210,8 +211,16 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     return out
 
 
+def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dict[str, Any] | None) -> dict[str, Any]:
+    """S9 (D32): the assign dialog's "דרישת עלות: חובה / רשות / בלי" and where its preselection came from."""
+    from . import costs
+
+    mode, level = costs.preselected_mode(conn, contact=contact, vendor=vendor, department=store.department_any(conn, row["department_id"]))
+    return {"default": mode, "from": level, "choices": list(costs.MODES)}
+
+
 def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: str | None, note_external: bool, require_code: bool | None,
-                   share_history: bool | None, send_now: bool, revision: int, rid: str | None = None) -> str:
+                   share_history: bool | None, send_now: bool, revision: int, rid: str | None = None, cost_claim: str | None = None) -> str:
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
@@ -237,6 +246,11 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     if share_history and not hist["available"]:
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "share_history", "code": "not_allowed"}]})
     share = hist["default"] if share_history is None else bool(share_history)
+    from . import costs  # S9 (D32): the cost claim requirement of THIS assignment, preselected vendor -> department -> installation
+
+    if cost_claim is not None and cost_claim not in costs.MODES:
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "cost_claim", "code": "unknown"}]})
+    claim_mode = cost_claim or costs.preselected_mode(conn, contact=contact, vendor=vendor, department=dept)[0]
     try:
         note_text = model.text_field(note, "note", required=False, max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
@@ -251,7 +265,8 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
         handler_links.revoke_for_assignment(conn, current, "reassigned", now_dt)
     aid = store.insert_assignment(conn, {"ticket_id": row["id"], "assignee_kind": "contact", "contact_id": contact_id, "assignee_name": name,
                                          "channel": channel, "assigned_by": viewer.uid, "assigned_at": now,
-                                         "share_history": 1 if share else 0, "require_code": 1 if req else 0})
+                                         "share_history": 1 if share else 0, "require_code": 1 if req else 0,
+                                         "cost_claim": claim_mode})
     try:
         link_row = handler_links.mint(conn, ticket=row, assignment_id=aid, contact_id=contact_id, require_code=req, now=now_dt)
     except ModuleKeyError:
@@ -281,7 +296,8 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                                 send_now=bool(send_now), requested_by=viewer.uid)
     audit(conn, actor=viewer.principal, action="ticket.assign", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "assignee_kind": "contact", "contact_id": contact_id, "reassign": bool(current), "reopened": reopened,
-                   "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued"))})
+                   "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued")),
+                   "cost_claim": claim_mode})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "link": link_row["id"][:6], "generation": 1})
     sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)

@@ -158,7 +158,8 @@
         "tickets.view",
         "tickets.create",
         "tickets.manage",
-        "tickets.external"
+        "tickets.external",
+        "tickets.costs.view"
       ]
     },
     {
@@ -268,6 +269,8 @@
         "tickets.external",
         "tickets.all_departments",
         "tickets.configure",
+        "tickets.costs.view",
+        "tickets.costs",
         "messaging.accounts.manage"
       ]
     },
@@ -319,6 +322,20 @@
       "name_he": "הגדרות {tickets}",
       "permissions": [
         "tickets.configure"
+      ]
+    },
+    {
+      "id": "tickets_costs_view",
+      "name_he": "צפייה בעלויות {tickets}",
+      "permissions": [
+        "tickets.costs.view"
+      ]
+    },
+    {
+      "id": "tickets_costs",
+      "name_he": "אישור עלויות {tickets}",
+      "permissions": [
+        "tickets.costs"
       ]
     }
   ],
@@ -377,6 +394,8 @@
     "tickets.all_departments",
     "tickets.external",
     "tickets.configure",
+    "tickets.costs.view",
+    "tickets.costs",
     "messaging.accounts.manage"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."

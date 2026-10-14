@@ -10,6 +10,7 @@ import { api, apiUrl, get, patch, post, put, upload } from './client';
 import { isApi } from './session';
 import { mockBackend } from './tickets-mock';
 import type { TicketLang, TicketName } from '../tickets/naming';
+import type { CostMode, TicketCostBlock } from './tickets-costs';
 
 export type TicketStatus = 'new' | 'assigned' | 'acknowledged' | 'in_progress' | 'waiting_part' | 'done' | 'returned' | 'closed' | 'cancelled';
 export type StatusFilter = 'open' | 'unassigned' | 'handling' | 'done' | 'closed' | 'all';
@@ -130,6 +131,8 @@ export interface TicketAssignment {
   end_reason: string | null;
   return_kind: 'cannot_handle' | 'not_mine' | null;
   return_reason: string | null;
+  /** slice 9 (D32): the cost-claim requirement of an external assignment (null for an internal user) */
+  cost_claim?: CostMode | null;
 }
 
 export interface TicketCan {
@@ -158,6 +161,8 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   assignments: TicketAssignment[];
   /** slice 3 */
   device_context?: DeviceContext | null;
+  /** slice 9 (11A.3 / 11A.8): the cost status chip for everyone; amounts and actions only with tickets.costs.view */
+  cost?: TicketCostBlock;
 }
 
 export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode }
@@ -205,8 +210,10 @@ export interface CreateBody {
 }
 export type CreateAnswer = (TicketDetail | { id: string; number: number; view: 'none' }) & { result: 'created' | 'absorbed'; open_for_entity?: TicketItem[] };
 export interface PatchBody { title?: string; description?: string; category_id?: string | null; priority_id?: string; department_id?: string; revision: number }
-export interface StatusBody { to: TicketStatus; note?: string | null; duplicate_of?: string | null; revision: number }
-export interface AssignBody { assignee: { kind: 'user'; id: string }; note?: string | null; note_external?: boolean; revision: number }
+/** `override_claim_reason` (slice 9, 11A.3): close despite a pending REQUIRED cost claim (tickets.costs; else 409 cost_claim_pending) */
+export interface StatusBody { to: TicketStatus; note?: string | null; duplicate_of?: string | null; override_claim_reason?: string; revision: number }
+/** `kind: 'contact'` + `cost_claim` are slice 4 / slice 9 (D32: the claim requirement of THIS assignment; omitted = the preselection) */
+export interface AssignBody { assignee: { kind: 'user' | 'contact'; id: string }; note?: string | null; note_external?: boolean; cost_claim?: CostMode; revision: number }
 export interface ReturnBody { kind: 'cannot_handle' | 'not_mine'; reason: string; revision: number }
 export type ReturnAnswer = TicketDetail | { id: string; view: 'none'; status: 'returned' };
 export interface Eligible { kind: 'user'; id: string; name: string; member_role: 'manager' | 'member' }

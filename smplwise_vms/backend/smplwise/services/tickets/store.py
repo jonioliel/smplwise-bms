@@ -882,6 +882,7 @@ TABLE_SORT_SQL: dict[str, str] = {
     "stuck": "CASE WHEN t.stuck_kind IS NULL THEN 0 ELSE 1 + COALESCE(t.stuck_level, 0) END",
     "sla": (f"CASE WHEN t.status IN ('closed', 'cancelled') THEN '{_NO_DUE}' ELSE min(COALESCE(t.ack_due_at, '{_NO_DUE}'), "
             f"COALESCE(t.stuck_due_at, '{_NO_DUE}'), COALESCE(t.resolve_due_at, '{_NO_DUE}')) END"),
+    "cost": "COALESCE(t.cost_total_minor, -1)",  # slice 9 (0083): the approved / submitted total; no claim sorts first
 }
 _TABLE_FROM = (_TICKET_SELECT + " LEFT JOIN ticket_departments d ON d.id = t.department_id LEFT JOIN ticket_priorities p ON p.id = t.priority_id")
 
@@ -957,6 +958,9 @@ def table_rows_unchecked(
     if f.created_to:
         where.append("t.created_at <= ?")
         args.append(f.created_to)
+    if getattr(f, "cost_statuses", ()):  # slice 9 (0083)
+        where.append(f"t.cost_status IN ({', '.join('?' * len(f.cost_statuses))})")
+        args.extend(f.cost_statuses)
     q = (f.q or "").strip()
     if q:
         digits = q.lstrip("#")

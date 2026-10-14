@@ -96,7 +96,9 @@ export interface AssignPreview {
   link: { sliding_days: number; cap_days: number; grace_hours: number; expires_at: string; cap_at: string };
   refusals: Refusal[];
 }
-export interface AssignContactBody { contactId: string; note?: string | null; noteExternal?: boolean; requireCode?: boolean | null; shareHistory?: boolean | null; sendNow?: boolean | null; revision: number }
+export interface AssignContactBody { contactId: string; note?: string | null; noteExternal?: boolean; requireCode?: boolean | null; shareHistory?: boolean | null; sendNow?: boolean | null;
+  /** slice 9 (D32): the cost claim requirement of THIS assignment; null = the server's preselection */
+  costClaim?: 'required' | 'optional' | 'off' | null; revision: number }
 
 export type LinkState = 'live' | 'grace' | 'expired' | 'revoked';
 export type LinkRevokedReason = 'closed' | 'cancelled' | 'reassigned' | 'returned' | 'not_mine' | 'manual' | 'resent' | 'module_key' | 'contact_changed' | 'contact_erased';
@@ -182,6 +184,7 @@ const rest: TicketsS4Backend = {
     assignee: { kind: 'contact', id: b.contactId }, note: b.note ?? null, note_external: b.noteExternal ?? true, revision: b.revision,
     ...(b.requireCode !== undefined && b.requireCode !== null ? { require_code: b.requireCode } : {}),
     ...(b.shareHistory !== undefined && b.shareHistory !== null ? { share_history: b.shareHistory } : {}),
+    ...(b.costClaim ? { cost_claim: b.costClaim } : {}),
     ...(b.sendNow ? { send_now: true } : {}), // slice 5b (D29): the message leaves outside the send hours
   }),
   copyLink: (ticketId) => post<CopyAnswer>(`${T}/${enc(ticketId)}/link/copy`, {}),

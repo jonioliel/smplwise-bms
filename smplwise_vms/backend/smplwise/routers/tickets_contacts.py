@@ -44,6 +44,12 @@ class ContactBody(BaseModel):
     notes: str | None = Field(default=None, max_length=5000)
     active: bool | None = None
     departments: list[str] | None = Field(default=None, max_length=50)
+    # S9 (11A.1 / 11A.2, D32): cost-claim defaults of the contact / vendor
+    cost_claim: Literal["required", "optional", "off"] | None = None
+    vat_exempt: bool | None = None
+    vat_default: Literal["included", "excluded"] | None = None
+    labor_rate: str | None = Field(default=None, max_length=20)
+    rate_currency: str | None = Field(default=None, max_length=3)
     revision: int | None = Field(default=None, ge=1)
 
 
@@ -51,7 +57,7 @@ def _body(body: ContactBody) -> dict[str, Any]:
     """Only the fields the client sent (an explicit null clears a nullable field)."""
     sent = body.model_fields_set - {"revision"}
     out = {k: getattr(body, k) for k in sent}
-    for flag in ("require_code", "active"):
+    for flag in ("require_code", "active", "vat_exempt", "vat_default"):
         if flag in out and out[flag] is None:
             out.pop(flag)
     return out
