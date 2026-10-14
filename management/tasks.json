@@ -10669,5 +10669,44 @@
     "owner": null,
     "commit": "a06ba53a",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKHANDL",
+    "title": "Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix: fakes only (integ/251c); no live send."
+    ],
+    "requirement_ids": [
+      "R332"
+    ],
+    "test_ids": [
+      "AT348"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TICKETS-handlers",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-14 (integ-251c): pilot/TICKETS-handlers @ 07bb27a2 merged as the base of integ/251c (release 2.5.1). Fakes only. Status REVIEW until the tier-L gate of integ/251c passes."
+    ],
+    "owner": null,
+    "commit": "07bb27a2",
+    "actual_cost_usd": null
   }
 ]

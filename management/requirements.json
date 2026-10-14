@@ -6307,5 +6307,21 @@
     "test_ids": [
       "AT347"
     ]
+  },
+  {
+    "id": "R332",
+    "title": "Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix",
+    "statement": "A page 'Handlers and vendors' (fifth entry of the service-management area) lists handlers, employees without an account, vendors and contacts; contact kind 'employee' (migration 0084: ticket_contacts.employee); one readiness object (GET /tickets/readiness) feeds a strip and the assign dialog's three always-visible groups; a department needs a name only (key made by the server), deleted departments are listed and restored; the Permissions tab loads with the cost permissions.",
+    "task_ids": [
+      "TKHANDL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT348"
+    ]
   }
 ]

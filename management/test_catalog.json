@@ -9439,5 +9439,28 @@
     "expected": "Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in gate run 2 of integ/250."
+  },
+  {
+    "id": "AT348",
+    "requirement_ids": [
+      "R332"
+    ],
+    "task_ids": [
+      "TKHANDL"
+    ],
+    "title": "Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKHANDL (integ/251c):",
+      "tests/test_tickets_handlers_page.py, tests/test_tickets_departments_restore.py, tests/test_tickets_admin.py, tests/test_migrations.py, frontend tests/unit-tickets-handlers.spec.ts, tests/evidence-tickets-handlers.spec.ts, tests/layout-tickets-s4.spec.ts",
+      "gate run of integ/251c"
+    ],
+    "expected": "Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/251c."
   }
 ]
