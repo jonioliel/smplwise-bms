@@ -138,9 +138,9 @@ end in the same `queue_code`. `ticket_link_codes.outbox_id` is set by `queue_cod
 
 ## 8. Tests
 
-Backend: `tests/test_tickets_s5b_channel.py` (32) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
+Backend: `tests/test_tickets_s5b_channel.py` (33) over the real store with the fake `ha-whatsapp`: assignment -> outbox -> WhatsApp, the
 preview (and its warning when the account cannot send), the link panel's "send the link again", send hours + "send now" (403 without tickets.external), the switch off (manual; and queued rows held), unknown never retried +
-"send again", retries then the e-mail fallback with the redeem link (never the fragment), disconnected -> hold -> nobody -> waiting for
+"send again", retries then the e-mail fallback with the redeem link (never the fragment), a contact who prefers e-mail (WhatsApp off), disconnected -> hold -> nobody -> waiting for
 the manager -> no resend on reconnect, unmapped -> remapped (D27), the D6 refusal, a code request from the public page (the row keeps the
 code id only), inbound status / note / late / ambiguous claim-before-reveal / account filter / LID button nonce / switch off, the reply subscription following a mapping changed on another screen, message
 templates (validation, preview, rendering, English starter), send-update + the closed notice, reassigned notice, the test send (the typed

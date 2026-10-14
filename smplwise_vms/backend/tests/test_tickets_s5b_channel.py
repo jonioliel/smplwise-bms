@@ -251,6 +251,19 @@ def test_a_failed_send_is_retried_then_falls_back_to_email_with_the_redeem_link(
     assert env.s4.link_row(t["id"])["sent_via"] == "email"
 
 
+def test_a_contact_who_prefers_email_gets_the_redeem_link_by_email_even_with_whatsapp_off(env):
+    env.smtp()
+    env.channel(whatsapp={"enabled": False})
+    contact = env.s4.add_contact(display_name="דנה לוי", phone="050-000-0051", email="dana@vendor.example.test", preferred_channel="email").json()
+    t, d = _sent_ticket(env, contact_id=contact["id"])
+    assert [(m["channel"], m["state"]) for m in d["messages"]] == [("email", "queued")]
+    env.tick()
+    assert env.fake.calls == [] and env.rows(t["id"])[0].state == "sent", "nothing on WhatsApp"
+    to, rendered = env.mails[0]
+    assert to == "dana@vendor.example.test" and f"{BASE_URL}/t/r/" in rendered.text and "/t/#" not in rendered.text
+    assert env.s4.link_row(t["id"])["sent_via"] == "email"
+
+
 def test_a_disconnected_account_holds_the_message_then_nobody_can_be_reached(env):
     env.set_connected(False)
     t, _ = _sent_ticket(env)
