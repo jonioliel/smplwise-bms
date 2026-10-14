@@ -16,7 +16,7 @@ export interface Labels { one: string; many: string; gender: string }
 const he = {
   langName: 'עברית',
   pageTitle: '{ticket} לטיפול',
-  sentBy: 'נשלח על ידי {who}',
+  sentBy: '{f:נשלחה|m:נשלח} על ידי {who}',
   number: '{ticket} {number}',
   openedAt: '{f:נפתחה|m:נפתח} {when}',
   priority_urgent: 'דחופה',
@@ -85,7 +85,7 @@ const he = {
   returnReasonRequired: 'נא לכתוב סיבה',
   returnSend: 'החזרה למנהל',
   cancel: 'ביטול',
-  returnedTitle: 'נשלח בחזרה למנהל',
+  returnedTitle: '{f:הוחזרה|m:הוחזר} למנהל',
   returnedBody: 'תודה. הקישור הזה כבר אינו פעיל.',
   closedTitle: '{ticket} {f:נסגרה|m:נסגר}, תודה',
   closedBody: 'אפשר לראות כאן את העדכונים שלכם עד {when}.',
@@ -267,7 +267,7 @@ const en: Catalogue = {
 const ar: Catalogue = {
   langName: 'العربية',
   pageTitle: '{ticket} للمعالجة',
-  sentBy: 'أرسله {who}',
+  sentBy: '{f:أرسلها|m:أرسله} {who}',
   number: '{ticket} {number}',
   openedAt: '{f:فُتحت|m:فُتح} {when}',
   priority_urgent: 'عاجل',
@@ -537,4 +537,15 @@ export function text(lang: Lang, key: Key, vars: Record<string, string | number>
 
 export function isLang(value: unknown): value is Lang {
   return typeof value === 'string' && (LANGS as readonly string[]).includes(value);
+}
+
+/** The browser's first language the page speaks (`navigator.languages`), for the screens shown before any ticket answered - the
+ * "unavailable" screen of an expired link, the e-mail redeem screen. A ticket's answer (the contact's language) wins over it. */
+export function preferredLang(tags: readonly string[] | null | undefined): Lang | null {
+  for (const tag of tags ?? []) {
+    const primary = String(tag).toLowerCase().split(/[-_]/)[0];
+    const lang = primary === 'iw' ? 'he' : primary;
+    if (isLang(lang)) return lang;
+  }
+  return null;
 }

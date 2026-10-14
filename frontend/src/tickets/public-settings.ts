@@ -40,8 +40,19 @@ export class TicketsPublicCard extends LitElement {
       display: block;
       min-inline-size: 0;
     }
-    .end .in {
+    .line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      inline-size: 100%;
+    }
+    .line .in {
       flex: 1 1 220px;
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
     }
     .state {
       display: flex;
@@ -58,12 +69,28 @@ export class TicketsPublicCard extends LitElement {
     .probe.bad {
       color: var(--sw-warning-text);
     }
-    details > summary {
-      cursor: pointer;
+    .fold {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 36px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--sw-text-2);
+      font: inherit;
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
-      color: var(--sw-text-2);
-      padding-block: 8px;
+      cursor: pointer;
+    }
+    .fold::before {
+      content: '▸';
+    }
+    .fold:dir(rtl)::before {
+      content: '◂';
+    }
+    .fold[aria-expanded='true']::before {
+      content: '▾';
     }
     textarea.in {
       font-family: var(--sw-font-mono, ui-monospace, monospace);
@@ -135,7 +162,7 @@ export class TicketsPublicCard extends LitElement {
       <span class="state" data-public-state=${missing.length ? 'missing' : h ? 'ready' : 'unknown'}>
         ${h && !missing.length ? html`<span class="tag ok">${tt('pubReady')}</span>` : nothing}
         ${missing.map((m) => html`<span class="tag warn" data-missing=${m}>${tt(`pubMissing_${m}` as TicketTextKey)}</span>`)}
-        ${h ? html`<span class="tag" data-links-live>${tt('lk_live')}: ${h.links.live}</span>` : nothing}
+        ${h ? html`<span class="tag" data-links-live>${tt('pubLiveLinks', { n: h.links.live })}</span>` : nothing}
       </span></div>`;
   }
 
@@ -147,19 +174,20 @@ export class TicketsPublicCard extends LitElement {
     const cidrList = cidrs.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
     return html`<sw-card heading=${tt('pubCard')} subheading=${tt('pubSub')} data-card="public">
       ${this.stateRow()}
-      <div class="row"><span class="lbl">${tt('pubOrg')}</span>
-        <span class="end"><input class="in" maxlength="80" data-public-org aria-label=${tt('pubOrg')} .value=${org} @input=${(e: Event) => (this.org = (e.target as HTMLInputElement).value)} />
+      <div class="row stack"><span class="lbl">${tt('pubOrg')}</span>
+        <div class="line"><input class="in" maxlength="80" data-public-org aria-label=${tt('pubOrg')} .value=${org} @input=${(e: Event) => (this.org = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-public-org-save ?disabled=${this.busy || org.trim() === (this.doc?.organization_name ?? '')}
-            @click=${() => this.save({ organization_name: org.trim() })}>${tt('save')}</sw-button></span></div>
-      <div class="row"><span class="lbl">${tt('pubAddress')}<span class="muted" dir="ltr">${tt('pubAddressHint')}</span></span>
-        <span class="end"><input class="in" type="url" dir="ltr" maxlength="300" inputmode="url" autocomplete="off" data-public-address aria-label=${tt('pubAddress')} .value=${address}
-          @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />
+            @click=${() => this.save({ organization_name: org.trim() })}>${tt('save')}</sw-button></div></div>
+      <div class="row stack"><span class="lbl">${tt('pubAddress')}</span>
+        <div class="line"><input class="in" type="url" dir="ltr" maxlength="300" inputmode="url" autocomplete="off" data-public-address aria-label=${tt('pubAddress')}
+          placeholder=${tt('pubAddressHint')} .value=${address} @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />
           <sw-button size="sm" variant="primary" data-public-address-save ?disabled=${this.busy || address.trim() === p.base_url}
             @click=${() => this.save({ public: { base_url: address.trim() } })}>${tt('save')}</sw-button>
-          <sw-button size="sm" data-public-probe ?disabled=${this.probing || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></span></div>
-      ${this.probe ? html`<div class="row">${this.probeLine()}</div>` : nothing}
-      <details ?open=${this.advanced} @toggle=${(e: Event) => (this.advanced = (e.target as HTMLDetailsElement).open)} data-public-advanced>
-        <summary>${tt('pubAdvanced')}</summary>
+          <sw-button size="sm" data-public-probe ?disabled=${this.probing || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></div>
+        ${this.probe ? this.probeLine() : nothing}</div>
+      <div class="row"><button type="button" class="fold" aria-expanded=${String(this.advanced)} aria-controls="public-advanced" data-public-advanced
+        @click=${() => (this.advanced = !this.advanced)}>${tt('pubAdvanced')}</button></div>
+      ${this.advanced ? html`<div id="public-advanced" data-public-advanced-body>
         <div class="row stack"><span class="lbl">${tt('pubTrusted')}</span>
           <textarea class="in" dir="ltr" rows="3" data-public-cidrs aria-label=${tt('pubTrusted')} .value=${cidrs} @input=${(e: Event) => (this.cidrs = (e.target as HTMLTextAreaElement).value)}></textarea>
           <div class="foot"><sw-button size="sm" variant="primary" data-public-cidrs-save ?disabled=${this.busy || cidrList.length > 8 || cidrList.join(',') === p.trusted_proxy_cidrs.join(',')}
@@ -168,7 +196,7 @@ export class TicketsPublicCard extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('pubClientHeader')}>${HEADERS.map((hd) => html`<button type="button" role="radio" dir="ltr"
             aria-checked=${String(p.client_ip_header === hd)} aria-pressed=${String(p.client_ip_header === hd)} data-public-header=${hd} ?disabled=${this.busy}
             @click=${() => this.save({ public: { client_ip_header: hd } })}>${hd}</button>`)}</span></div>
-      </details>
+      </div>` : nothing}
     </sw-card>`;
   }
 }

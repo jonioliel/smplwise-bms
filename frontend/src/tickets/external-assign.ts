@@ -186,9 +186,9 @@ export class ExternalAssign implements ReactiveController {
    * waits, then falls back, 9.9.4) and, outside the send hours, when it leaves with the "send now" choice (D29). */
   private channelLines(p: AssignPreview): TemplateResult | typeof nothing {
     const x = p as AssignPreview & AssignPreviewExtra;
-    const acc = x.account ?? null;
+    const acc = x.account; // undefined: a server without the slice-5b fields (no warning); null: no account chosen for the messages
     const sh = x.send_hours;
-    const down = p.channel === 'whatsapp' && (!acc || !acc.sendable);
+    const down = p.channel === 'whatsapp' && acc !== undefined && (!acc || !acc.sendable);
     const via = p.channel === 'email' ? mtt('asgEmail') : acc ? mtt('asgWhatsapp', { account: bidi(acc.label) }) : mtt('asgWhatsappPlain');
     return html`<span class="muted" data-assign-channel=${p.channel}>${tIcon(p.channel === 'email' ? 'note' : 'send')}${via}</span>
       ${down ? html`<span class="muted" data-assign-down>${tIcon('warning')}${mtt(x.fallback === 'email' ? 'asgDownEmail' : 'asgDownManual')}</span>` : nothing}
@@ -249,6 +249,32 @@ export const externalAssignStyles = css`
     font-weight: 500;
     color: var(--dv-text-3);
     text-align: center;
+  }
+  .xkinds b,
+  .xkinds small {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+  /* a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog). As specific as a
+     skin's segmented-control rule (and later in the host's sheet list), so a pill track never cuts the first and last rows' text */
+  @media (max-width: 560px) {
+    :host .seg.xkinds {
+      grid-template-columns: minmax(0, 1fr);
+      border-radius: var(--sw-r-lg);
+      padding: 4px;
+    }
+    :host .seg.xkinds button {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 44px;
+      padding-inline: 14px;
+      border-radius: var(--sw-r-md);
+    }
+    .xkinds small {
+      text-align: end;
+    }
   }
   .xpick .xtx {
     display: flex;

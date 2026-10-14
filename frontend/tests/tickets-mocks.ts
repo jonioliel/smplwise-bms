@@ -290,5 +290,11 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
   return st;
 }
 
+/** slice 4 (tests/tickets-s4-mocks.ts): a pristine demo ticket's detail as a persona sees it, to add the outside-contact parts to. */
+export function mockTicketDetail(id: string, persona: Persona): Record<string, unknown> | null {
+  const r = ROWS.find((x) => x.id === id);
+  return r ? (detail({ ...r }, persona) as unknown as Record<string, unknown>) : null;
+}
+
 export const url = (hash: string, skin = 'classic', scheme: 'light' | 'dark' = 'light') => `/?design=a&skin=${skin}&scheme=${scheme}#${hash}`;
 export const SKINS = SKIN_IDS;

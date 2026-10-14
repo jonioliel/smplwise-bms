@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend/smplwise /app/smplwise
 COPY www /app/www
+# CR-038 S4: the handler page's own small bundle, served ONLY by the public listener (never inside www/, never by the main app).
+COPY www-public /app/www-public
 # CR-021 S4: the running version's `[platform-restart]` marker is read from the add-on's own notes (services/release_notes.py).
 COPY CHANGELOG.md /app/CHANGELOG.md
 # The bridge integration ships in the image and is copied into Home Assistant's custom_components at start-up.
@@ -28,6 +30,7 @@ COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
 ENV SW_WWW_DIR=/app/www \
+    SW_WWW_PUBLIC_DIR=/app/www-public \
     SW_DOWNLOADS_DIR=/app/downloads \
     SW_DATA_DIR=/data \
     SW_HOST=0.0.0.0 \
