@@ -679,19 +679,28 @@ def ensure_for_on_behalf(conn, ticket: Mapping[str, Any], assignment_id: str | N
 def vendor_message(conn, claim: Mapping[str, Any], purpose: str, *, requested_by: str) -> dict[str, Any]:
     """`cost_rejected` / `cost_approved` / `cost_reopened` to the vendor through the ticket message channel (external.DISPATCH -
     slice 5b's outbox; until it exists nothing is queued and the timeline says so). No amount ever travels in a message."""
-    from . import external
+    from . import messaging
 
     lk = store_links.link_for_assignment(conn, claim["assignment_id"])
     contact = store_links.contact(conn, claim["contact_id"])
     ticket = store_costs.ticket_row(conn, claim.get("ticket_id"))
     if lk is None or contact is None or ticket is None or contact.get("erased_at"):
         return {"queued": False, "channel": None}
+    result: dict[str, Any] = {"queued": False, "channel": None}
+    rt = messaging.RUNTIME
     try:
-        result = external.DISPATCH.queue(conn, purpose=purpose, ticket=dict(ticket), assignment_id=claim["assignment_id"], link=lk,
-                                         contact=contact, send_now=False, requested_by=requested_by)
-    except Exception:  # noqa: BLE001 - a message seam must never fail the decision it reports
+        channel = messaging.plan_channel(conn, contact, rt.data_dir)
+        if channel != "manual" and rt.outbox is not None:
+            n = store_costs.decision_count(conn, claim["id"], {"cost_rejected": "reject", "cost_approved": "approve",
+                                                                "cost_reopened": "reopen_window"}[purpose])
+            row = rt.enqueue(conn, purpose=purpose, contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=claim["assignment_id"],
+                             link_id=lk["id"], department_id=ticket["department_id"], params=messaging.message_params(conn, ticket, contact),
+                             channel=channel, requested_by=requested_by, idempotency_key=f"{purpose}:{claim['id']}:{n}")
+            result = {"queued": True, "channel": channel, "outbox_id": getattr(row, "id", None)}
+        else:
+            result = {"queued": False, "channel": channel}
+    except Exception:  # noqa: BLE001 - a message must never fail the decision it reports
         log.warning("cost message %s was not queued", purpose, exc_info=True)
-        result = {"queued": False, "channel": None}
     store.insert_event(conn, claim["ticket_id"], "cost_message", actor_kind="system", actor_name="", assignment_id=claim["assignment_id"],
                        data={"purpose": purpose, "queued": bool(result.get("queued")), "channel": result.get("channel")})
     return result

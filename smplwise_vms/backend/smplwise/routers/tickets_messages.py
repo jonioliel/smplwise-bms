@@ -36,7 +36,7 @@ from .tickets import ID, _detail, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 
-TEMPLATE_PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "update")
+TEMPLATE_PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "update", "cost_rejected", "cost_approved", "cost_reopened")
 LANG = Literal["he", "en", "ar", "ru"]
 
 

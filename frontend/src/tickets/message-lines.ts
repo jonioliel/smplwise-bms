@@ -49,7 +49,7 @@ export function messageLine(m: Pick<TicketMessage, 'state' | 'channel' | 'held_r
 
 const PURPOSE_KEYS: Record<string, MessageTextKey> = {
   assign: 'p_assign', reminder: 'p_reminder', code: 'p_code', closed: 'p_closed', reassigned: 'p_reassigned', reopened: 'p_reopened',
-  update: 'p_update', test: 'p_test',
+  update: 'p_update', test: 'p_test', cost_rejected: 'p_cost_rejected', cost_approved: 'p_cost_approved', cost_reopened: 'p_cost_reopened',
 };
 
 export function purposeLabel(p: string): string {

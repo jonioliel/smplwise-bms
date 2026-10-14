@@ -182,6 +182,10 @@ def auto_close(conn, ticket_id: str, now: dt.datetime) -> bool:
     done_at = stuck.parse(row["done_at"])
     if not days or int(days) <= 0 or done_at is None or done_at + dt.timedelta(days=int(days)) > now:
         return False
+    from . import costs  # slice 9 (11A.3): a REQUIRED cost claim not yet approved keeps the ticket open (it stays "waiting for me")
+
+    if costs.blocks_close(conn, ticket_id):
+        return False
     stamp = stuck.iso(now) or ""
     purge = stuck.iso(now + dt.timedelta(days=_purge_days(conn)))
     fields: dict[str, Any] = {"status": "closed", "closed_at": stamp, "closed_by": None, "current_assignment_id": None, "purge_after": purge,
