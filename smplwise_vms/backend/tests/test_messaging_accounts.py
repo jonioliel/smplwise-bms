@@ -288,7 +288,7 @@ def test_caps_per_hour_day_recipient_and_codes():
 def test_test_sends_are_capped_per_account():
     g, p = gate(), ma.Pacing(min_gap_s=5, jitter_s=0)
     t = T0
-    for _ in range(3):
+    for _ in range(ma.TEST_ACCOUNT_HOUR):  # 5 / hour (owner 2026-10-14)
         assert g.check(account_key=KEY_A, pacing=p, recipient_key="admin", kind="test", now=t).allowed
         g.record(account_key=KEY_A, use_key="tickets.messages", recipient_key="admin", kind="test", now=t)
         t += dt.timedelta(minutes=1)
