@@ -59,10 +59,11 @@ export interface TableRow extends Omit<TicketItem, 'excerpt' | 'sla'> {
 
 export interface TablePage { items: TableRow[]; next_cursor: string | null; sort: string; limit: number }
 
-export type BulkAction = 'assign' | 'remind' | 'priority' | 'close';
-export type BulkResult = 'ok' | 'unchanged' | 'stale' | 'forbidden' | 'invalid_transition' | 'not_found' | 'assignee_not_allowed' | 'unavailable' | 'too_soon' | 'invalid';
+export type BulkAction = 'assign' | 'remind' | 'priority' | 'close' | 'delete'; // 'delete': owner 14.10, its own route (api/tickets-delete.ts)
+export type BulkResult = 'ok' | 'unchanged' | 'stale' | 'forbidden' | 'invalid_transition' | 'not_found' | 'assignee_not_allowed' | 'unavailable' | 'too_soon' | 'invalid'
+  | 'cost_claim_approved';
 export interface BulkBody {
-  action: BulkAction;
+  action: Exclude<BulkAction, 'delete'>;
   items: { id: string; revision: number }[];
   params: { assignee?: { kind: 'user' | 'contact'; id: string }; priority_key?: string; note?: string };
   client_request_id: string;

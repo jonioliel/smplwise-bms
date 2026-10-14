@@ -297,6 +297,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # reject, mark paid, enter a claim on the vendor's behalf, reopen the window, override the close gate (system_admin).
     "tickets.costs.view": "{module}: צפייה בעלויות (סכומים, חשבוניות ודוחות)",
     "tickets.costs": "{module}: אישור עלויות (אישור, תיקון, דחייה וסימון תשלום)",
+    # Owner 14.10 (docs/changes/CR-038-DELETE-NOTES.md): full, irreversible deletion of a ticket with everything hanging off it
+    # (notes, photos, links, costs). Sensitive, not delegable, a single-permission role tickets_delete; system_admin only.
+    "tickets.delete": "{module}: מחיקה מלאה (כולל הערות, תמונות, קישורים ועלויות)",
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",

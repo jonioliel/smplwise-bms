@@ -1060,3 +1060,95 @@ def update_saved_view(conn: sqlite3.Connection, user_id: str, view_id: str, fiel
 
 def delete_saved_view(conn: sqlite3.Connection, user_id: str, view_id: str) -> bool:
     return conn.execute("DELETE FROM ticket_saved_views WHERE id = ? AND user_id = ?", (view_id, user_id)).rowcount == 1
+
+
+# ---------------------------------------------------------------- full deletion of ONE ticket (owner 14.10, services/tickets/deletion.py)
+# The caller decided visibility and permissions (access.require_visible + deletion.check); these functions only count and remove rows.
+
+def deletion_facts(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any]:
+    """What a deletion would remove, as numbers and stored file paths only (never text): notes, photos, links, cost claims and
+    their statuses, the files on disk (photos and invoice files, relative to the module's file root)."""
+    one = lambda sql: int(conn.execute(sql, (ticket_id,)).fetchone()[0])  # noqa: E731
+    photos = [r[0] for r in conn.execute("SELECT path FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,)).fetchall()]
+    cost_files = [r[0] for r in conn.execute("SELECT path FROM ticket_cost_files WHERE ticket_id = ? OR claim_id IN "
+                                             "(SELECT id FROM ticket_cost_claims WHERE ticket_id = ?)", (ticket_id, ticket_id)).fetchall()]
+    statuses = [r[0] for r in conn.execute("SELECT status FROM ticket_cost_claims WHERE ticket_id = ?", (ticket_id,)).fetchall()]
+    return {
+        "notes": one("SELECT COUNT(*) FROM ticket_events WHERE ticket_id = ? AND kind = 'note'"),
+        "events": one("SELECT COUNT(*) FROM ticket_events WHERE ticket_id = ?"),
+        "photos": len(photos),
+        "links": one("SELECT COUNT(*) FROM ticket_links WHERE ticket_id = ?"),
+        "live_links": one("SELECT COUNT(*) FROM ticket_links WHERE ticket_id = ? AND revoked_at IS NULL"),
+        "claims": len(statuses),
+        "claim_statuses": statuses,
+        "cost_files": len(cost_files),
+        "paths": photos + cost_files,
+    }
+
+
+def cancel_ticket_outbox(conn: sqlite3.Connection, ticket_id: str, at: str) -> int:
+    """Queued / held messages of the ticket never go out (the worker claims only 'queued' / 'held' rows)."""
+    return conn.execute("UPDATE ticket_outbox SET state = 'cancelled', updated_at = ? WHERE ticket_id = ? AND state IN ('queued', 'held')",
+                        (at, ticket_id)).rowcount
+
+
+def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
+    """Every row of the ticket and everything hanging off it, explicitly (not relying on ON DELETE CASCADE / SET NULL): the link
+    children, the links, the outbox and inbound rows, the cost files / revisions / decisions / claims, photos, device context,
+    events, assignments, the idempotency answers that carry its id, other tickets' `duplicate_of` pointing at it, then the ticket.
+    Returns the number of rows removed per table. The caller runs it inside one transaction (or a bulk item's savepoint)."""
+    out: dict[str, int] = {}
+
+    def run(table: str, sql: str, args: tuple[Any, ...]) -> None:
+        out[table] = out.get(table, 0) + conn.execute(sql, args).rowcount
+
+    links = "(SELECT id FROM ticket_links WHERE ticket_id = ?)"
+    for child in ("ticket_link_sessions", "ticket_link_codes", "ticket_link_failures", "ticket_link_access", "ticket_link_redeems"):
+        run(child, f"DELETE FROM {child} WHERE link_id IN {links}", (ticket_id,))
+    run("ticket_links", "DELETE FROM ticket_links WHERE ticket_id = ?", (ticket_id,))
+    run("ticket_outbox", "DELETE FROM ticket_outbox WHERE ticket_id = ?", (ticket_id,))
+    run("ticket_inbound", "DELETE FROM ticket_inbound WHERE ticket_id = ?", (ticket_id,))
+    claims = "(SELECT id FROM ticket_cost_claims WHERE ticket_id = ?)"
+    run("ticket_cost_revision_files", "DELETE FROM ticket_cost_revision_files WHERE file_id IN (SELECT id FROM ticket_cost_files WHERE ticket_id = ? "
+        f"OR claim_id IN {claims}) OR revision_id IN (SELECT id FROM ticket_cost_revisions WHERE claim_id IN {claims})",
+        (ticket_id, ticket_id, ticket_id))
+    run("ticket_cost_files", f"DELETE FROM ticket_cost_files WHERE ticket_id = ? OR claim_id IN {claims}", (ticket_id, ticket_id))
+    run("ticket_cost_decisions", f"DELETE FROM ticket_cost_decisions WHERE claim_id IN {claims}", (ticket_id,))
+    run("ticket_cost_revisions", f"DELETE FROM ticket_cost_revisions WHERE claim_id IN {claims}", (ticket_id,))
+    run("ticket_cost_claims", "DELETE FROM ticket_cost_claims WHERE ticket_id = ?", (ticket_id,))
+    run("ticket_attachments", "DELETE FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,))
+    run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
+    run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
+    conn.execute("UPDATE tickets SET current_assignment_id = NULL WHERE id = ?", (ticket_id,))
+    run("ticket_assignments", "DELETE FROM ticket_assignments WHERE ticket_id = ?", (ticket_id,))
+    like = "%" + ticket_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    run("ticket_requests", "DELETE FROM ticket_requests WHERE response_json LIKE ? ESCAPE '\\'", (like,))
+    conn.execute("UPDATE tickets SET duplicate_of = NULL WHERE duplicate_of = ?", (ticket_id,))
+    run("tickets", "DELETE FROM tickets WHERE id = ?", (ticket_id,))
+    return {k: v for k, v in out.items() if v}
+
+
+def folder_in_use(conn: sqlite3.Connection, ticket_id: str) -> bool:
+    """Whether a row still names the folder `<data>/tickets/<ticket_id>/`: the ticket, a photo, or an invoice file (a claim of a
+    purged ticket keeps its files there, 11A.11)."""
+    return any(conn.execute(sql, (ticket_id,)).fetchone() for sql in (
+        "SELECT 1 FROM tickets WHERE id = ?", "SELECT 1 FROM ticket_attachments WHERE ticket_id = ? LIMIT 1",
+        "SELECT 1 FROM ticket_cost_files WHERE ticket_id = ? LIMIT 1"))
+
+
+def ticket_rows_left(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
+    """Tests and the orphan sweep: rows still naming the ticket, per table (empty = nothing left)."""
+    checks = {
+        "tickets": "SELECT COUNT(*) FROM tickets WHERE id = ?",
+        "ticket_events": "SELECT COUNT(*) FROM ticket_events WHERE ticket_id = ?",
+        "ticket_assignments": "SELECT COUNT(*) FROM ticket_assignments WHERE ticket_id = ?",
+        "ticket_attachments": "SELECT COUNT(*) FROM ticket_attachments WHERE ticket_id = ?",
+        "ticket_device_context": "SELECT COUNT(*) FROM ticket_device_context WHERE ticket_id = ?",
+        "ticket_links": "SELECT COUNT(*) FROM ticket_links WHERE ticket_id = ?",
+        "ticket_outbox": "SELECT COUNT(*) FROM ticket_outbox WHERE ticket_id = ?",
+        "ticket_inbound": "SELECT COUNT(*) FROM ticket_inbound WHERE ticket_id = ?",
+        "ticket_cost_claims": "SELECT COUNT(*) FROM ticket_cost_claims WHERE ticket_id = ?",
+        "ticket_cost_files": "SELECT COUNT(*) FROM ticket_cost_files WHERE ticket_id = ?",
+    }
+    left = {t: int(conn.execute(sql, (ticket_id,)).fetchone()[0]) for t, sql in checks.items()}
+    return {t: n for t, n in left.items() if n}

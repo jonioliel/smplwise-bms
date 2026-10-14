@@ -146,6 +146,8 @@ export interface TicketCan {
   eta: boolean;
   return: boolean;
   manage: boolean;
+  /** owner 14.10: full deletion - manager rights here AND tickets.delete where the ticket lies (absent from older servers) */
+  delete?: boolean;
 }
 
 export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {

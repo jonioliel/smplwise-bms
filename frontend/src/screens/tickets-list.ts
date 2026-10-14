@@ -273,6 +273,15 @@ export class TicketsList extends LitElement {
 
   private closeDrawer = () => writeHref(listHref(this.r.scope, this.r.filters), false);
 
+  /** Returned by a non-member handler, or deleted (owner 14.10): the drawer closes, the cards and the table drop it and reload. */
+  private onTicketGone = (e: CustomEvent<{ id: string; deleted?: boolean }>) => {
+    this.closeDrawer();
+    if (e.detail?.deleted && this.items) this.items = this.items.filter((x) => x.id !== e.detail.id);
+    (this.renderRoot.querySelector('tickets-table') as TicketsTable | null)?.dropTicket(e.detail?.id ?? '');
+    this.listKey = '';
+    this.reloadIfNeeded(true);
+  };
+
   private onTicketChanged = (e: CustomEvent<{ ticket: TicketDetail }>) => {
     const t = e.detail.ticket;
     if (!this.items) return;
@@ -373,7 +382,7 @@ export class TicketsList extends LitElement {
       ${this.body()}
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${this.r.scope} .focusTimeline=${this.route?.params.get('view') === 'timeline'}
-      @drawer-close=${this.closeDrawer} @ticket-changed=${this.onTicketChanged} @ticket-gone=${() => { this.closeDrawer(); this.listKey = ''; this.reloadIfNeeded(true); }}></ticket-detail>` : nothing}
+      @drawer-close=${this.closeDrawer} @ticket-changed=${this.onTicketChanged} @ticket-gone=${this.onTicketGone}></ticket-detail>` : nothing}
     ${this.module?.enabled && this.meta?.can.create ? html`<ticket-create .open=${this.r.creating && this.screen === 'ready'} .meta=${this.meta} .mode=${ui?.new_ticket ?? 'sheet'} .scope=${this.r.scope} .detailMode=${ui?.detail ?? 'drawer_fullscreen'}
       @close=${() => writeHref(listHref(this.r.scope, this.r.filters), false)} @created=${this.onCreated}></ticket-create>` : nothing}
     ${this.toast ? html`<div class=${`banner flt ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-tickets-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div>${this.toast.text}</div></div>` : nothing}`;

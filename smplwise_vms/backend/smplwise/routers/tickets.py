@@ -446,3 +446,51 @@ def delete_attachment(request: Request, ticket_id: str = Path(..., pattern=ID), 
     seen = access.require_visible(viewer, ticket_id)
     service.delete_attachment(conn, viewer, seen, attachment_id, settings_of(request).data_dir, _rid(request))
     return _detail(conn, viewer, ticket_id)
+
+
+# ---------------------------------------------------------------- full deletion (owner 14.10, services/tickets/deletion.py)
+
+class DeleteBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(max_length=2000)  # the real limit (300 after cleaning) is the service's: a 422 names the field
+    confirm_number: int = Field(ge=1)  # the ticket's number as the manager typed it
+    client_request_id: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
+
+
+DELETE_ROUTE = "POST /tickets/{id}/delete"
+
+
+@router.post("/tickets/{ticket_id}/delete")
+def delete_ticket(body: DeleteBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                  conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """Delete the ticket and everything hanging off it: `{deleted: true, id, number, counts}`. 404 for an invisible / unknown / already
+    deleted ticket (the uniform answer), 403 without tickets.delete + manager rights or outside an interactive session, 409
+    `cost_claim_approved`, 422 for the reason or a typed number that does not match, 429 `delete_rate`."""
+    from ..db import commit_now
+    from ..services.tickets import deletion
+
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    deletion.require_interactive(conn, viewer, rid)
+    scope = f"user:{principal.user_id}"
+    prev = store.request_get(conn, scope, body.client_request_id)
+    if prev is not None:  # a retry after a lost answer: the first answer, nothing deleted twice
+        if prev["route"] != DELETE_ROUTE:
+            raise ApiError(409, "request_id_reused", text(conn, "מזהה הבקשה כבר שימש לפעולה אחרת."))
+        return JSONResponse(json.loads(prev["response_json"]), status_code=int(prev["status_code"]))
+    seen = access.require_visible(viewer, ticket_id)
+    chk = deletion.check(viewer, seen)
+    if chk.result != "ok":
+        raise deletion.refuse(conn, viewer, seen, chk, rid)
+    if body.confirm_number != int(seen.row["number"]):
+        raise ApiError(422, "validation", text(conn, "המספר שהוקלד אינו תואם את מספר {the_ticket}."),
+                       details={"fields": [{"field": "confirm_number", "code": "mismatch"}]})
+    reason = deletion.clean_reason(conn, body.reason)
+    deletion.require_rate(conn, viewer, 1, rid)
+    done = deletion.delete(conn, viewer, seen, chk, reason, rid)
+    deletion.rate_mark(principal.user_id)
+    answer = {"deleted": True, "id": done.ticket_id, "number": done.number, "counts": done.counts}
+    store.request_put(conn, scope, body.client_request_id, DELETE_ROUTE, 200, answer)
+    commit_now(conn, keep_reading=False)  # the rows are gone for good before any file is touched
+    deletion.remove_files(settings_of(request).data_dir / attachments.DIR, [done.ticket_id])
+    return answer
