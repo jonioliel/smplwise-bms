@@ -162,6 +162,29 @@ def test_a5_the_pending_quota_counts_bytes_as_well_as_files():
         assert (e.value.code, e.value.status) == ("file_limit", 409)
 
 
+# ---------------------------------------------------------------- B3: the migration (provisional number 0085)
+
+
+def test_b3_the_migration_adds_the_generation_column_with_a_check_and_no_transaction_of_its_own(settings):
+    import re
+    import sqlite3
+
+    from smplwise import db as dbmod
+
+    files = list(dbmod.MIGRATIONS_DIR.glob("*_ticket_outbox_link_generation.sql"))
+    assert len(files) == 1
+    sql = files[0].read_text(encoding="utf-8")
+    assert not re.search(r"^\s*(BEGIN|COMMIT)\b", sql, re.M | re.I)
+    database = dbmod.Database(settings.db_path)
+    database.migrate()
+    with database.connection() as conn:
+        cols = {r[1]: r for r in conn.execute("PRAGMA table_info(ticket_outbox)").fetchall()}
+        assert "link_generation" in cols and cols["link_generation"][3] == 0, "nullable: old rows may stay NULL"
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO ticket_outbox(id, recipient_kind, channel, purpose, use_key, state, not_before, created_at, updated_at, "
+                         "link_generation) VALUES ('x', 'contact', 'whatsapp', 'assign', 'tickets.messages', 'queued', 'a', 'a', 'a', 0)")
+
+
 # ---------------------------------------------------------------- B2: inbound content and sender name through clean_text
 
 

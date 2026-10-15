@@ -183,6 +183,9 @@ class NonceTarget:
     requires_code: bool
     ticket_status: str
     provider_message_id: str | None = None
+    # deep review B3: False when the message carried an earlier generation of the link ("new link" since) - its buttons are
+    # ignored (`link_superseded`). The database directory computes it; a directory that has no generations leaves it True.
+    generation_current: bool = True
 
 
 @dataclass(frozen=True)
@@ -356,6 +359,8 @@ class InboundProcessor:
             return InboundDecision("refused", True, **base, **ids, reason="message_mismatch")
         if not (target.link_live and target.assignment_current):
             return InboundDecision("ignored", True, **base, **ids, reason="assignment_ended")
+        if not target.generation_current:
+            return InboundDecision("ignored", True, **base, **ids, reason="link_superseded")
         word = msg.content or action
         if late:
             return InboundDecision("late", True, **base, **ids, note=word, content=word, waiting_reason="late_reply", reason="late")
