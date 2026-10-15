@@ -23,10 +23,11 @@ async function open(page: Page, prefix: string): Promise<void> {
     });
     await page.route(`**${prefix}api/v1/auth/session`, (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { id: 'u-ronit', username: 'ronit', display_name: 'Ronit L.' }, session_expires_in: 3600 }) }));
-    await page.addInitScript(([key, clientId]) => {
+    await page.addInitScript(([key, pfx]) => {
+      const clientId = `${window.location.origin}${pfx}`;
       const tokens = { hassUrl: 'https://ha.invalid', clientId, access_token: 'a', refresh_token: 'r', expires: Date.now() + 3_600_000, expires_in: 1800, user_id: 'u-ronit' };
       try { window.localStorage.setItem(key, JSON.stringify(tokens)); } catch { /* none */ }
-    }, ['arx.auth.v1', `${origin}${prefix}`]);
+    }, ['arx.auth.v1', prefix]);
   }
   await page.goto('about:blank');
   await page.goto(`${prefix || '/'}?design=a&skin=classic&scheme=light#/tickets/mine?t=${ID}`);
