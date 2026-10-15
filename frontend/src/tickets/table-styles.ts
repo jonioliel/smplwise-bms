@@ -200,7 +200,10 @@ export const ticketTableStyles = css`
     border: 1px solid var(--dv-border);
     border-radius: var(--sw-r-2xl);
     box-shadow: var(--dv-shadow-1);
-    overflow: auto;
+    /* 2.5.5: the height follows the rows (a few rows leave no empty box and no vertical bar); a tall list scrolls inside, the header stays */
+    overflow-x: auto;
+    overflow-y: auto;
+    block-size: auto;
     max-block-size: max(420px, calc(100dvh - 300px));
     overscroll-behavior: contain;
   }
@@ -336,13 +339,18 @@ export const ticketTableStyles = css`
     color: var(--au-warn-text);
     font-weight: 600;
   }
-  td.cellmenu {
-    position: relative;
-  }
-  td.cellmenu > .pop {
-    inset-block-start: calc(100% - 6px);
-    inset-inline-start: 6px;
+  /* 2.5.5: the status / handler menu is a top-layer popover rendered outside the scroll box (tickets/overlay-menu.ts places it: below or
+     above the trigger, its own scroll only when taller than the room) - never a child of the cell, so no ancestor can clip it */
+  .pop.ov {
+    position: fixed;
+    inset: auto;
+    margin: 0;
     z-index: 30;
+    min-inline-size: 190px;
+    max-inline-size: calc(100vw - 16px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--sw-menu-surface);
     border-color: var(--sw-menu-border);
   }

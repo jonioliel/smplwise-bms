@@ -96,6 +96,7 @@ export class TicketsDeptEditor extends LitElement {
       if (d) this.emit('dept-changed', { dept: d });
       after?.();
       this.emit('notice', { ok: tt('setSaved') });
+      this.emit('dept-reload'); // 2.5.5: the lists (members, categories, templates, counts) are re-read after every change, not patched by hand
     } catch (e) {
       this.emit('notice', { error: describeError(e) });
       if (e instanceof ApiError && e.status === 409) this.emit('dept-reload');

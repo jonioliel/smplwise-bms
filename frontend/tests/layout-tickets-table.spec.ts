@@ -37,6 +37,9 @@ const SCREENS: Screen[] = [
     prep: async (p) => p.locator(`${T} tickets-table-toolbar [data-open="views"]`).click() },
   { name: 'filters', wait: `${T} tbody tr`, prep: async (p) => p.locator(`${T} tickets-table-toolbar [data-open="filters"]`).click() },
   { name: 'status-menu', wait: `${T} tbody tr`, prep: async (p) => p.locator(`${T} tbody tr[data-row="0000000000000a03"] [data-menu-for^="status:"]`).click() },
+  { name: 'assignee-menu', wait: `${T} tbody tr`, mock: { ...TABLE, assignees: 12 }, prep: async (p) => p.locator(`${T} tbody tr[data-row="0000000000000a03"] [data-menu-for^="assignee:"]`).click() },
+  // 2.5.5: one row and a menu taller than the table (and than a short window): the overlay is placed and limited by the viewport, the table keeps its own height
+  { name: 'one-row-long-menu', wait: `${T} tbody tr`, mock: { ...TABLE, many: 1, assignees: 40 }, prep: async (p) => p.locator(`${T} tbody tr [data-menu-for^="assignee:"]`).click() },
   { name: 'dense', wait: `${T} tbody tr`, mock: { board: { view: 'table', density: 'compact', columns: ['number', 'title', 'department', 'priority', 'status', 'assignee', 'place', 'device', 'created', 'activity', 'stuck', 'sla'] } } },
   { name: 'empty', wait: `${T} [data-table-state="empty"]`, mock: { ...TABLE, empty: true } },
   { name: 'error', wait: `${T} [data-table-state="error"]`, mock: { ...TABLE, failTable: true } },

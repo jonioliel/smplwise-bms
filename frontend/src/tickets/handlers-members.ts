@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { LiveRefresh } from './live-refresh';
 import '../components/sw-card';
 import '../components/sw-toggle';
 import '../components/sw-button';
@@ -58,9 +59,19 @@ export class TicketsHandlersMembers extends LitElement {
     }
   `, bubbleChrome];
 
+  private live = new LiveRefresh(() => {
+    if (!this.busy && !this.hidden) void this.load();
+  });
+
   connectedCallback(): void {
     super.connectedCallback();
+    this.live.start();
     void this.load();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.live.stop();
   }
 
   private notice(detail: { ok?: string; error?: string }): void {
@@ -92,6 +103,7 @@ export class TicketsHandlersMembers extends LitElement {
       this.depts = (this.depts ?? []).map((x) => (x.id === d.id ? d : x));
       after?.();
       this.notice({ ok: tt('setSaved') });
+      void this.load(); // 2.5.5: re-read after every change
     } catch (e) {
       this.notice({ error: describeError(e) });
       if (e instanceof ApiError && e.status === 409) await this.load();

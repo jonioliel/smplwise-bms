@@ -170,7 +170,7 @@ test('the D33 lint covers the slice-6b files (no default name in a string)', () 
 
 test('every menu of the table is opaque: no popover without the menu surface', () => {
   const css = readFileSync(path.join(SRC, 'tickets/table-styles.ts'), 'utf8');
-  for (const sel of ['.anchor > .pop', 'td.cellmenu > .pop']) {
+  for (const sel of ['.anchor > .pop', '.pop.ov']) {
     const block = css.slice(css.indexOf(`${sel} {`), css.indexOf('}', css.indexOf(`${sel} {`)));
     expect(block, sel).toContain('background: var(--sw-menu-surface)');
   }

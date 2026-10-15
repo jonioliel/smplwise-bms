@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { LiveRefresh } from '../tickets/live-refresh';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-tabs';
@@ -130,6 +131,7 @@ export class SystemTickets extends LitElement {
     this.readTab();
     window.addEventListener('hashchange', this.onHash);
     this.offNames = onTicketNames(() => this.requestUpdate());
+    this.live.start();
     void this.load();
   }
 
@@ -137,8 +139,16 @@ export class SystemTickets extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('hashchange', this.onHash);
     window.clearTimeout(this.okTimer);
+    this.live.stop();
     this.offNames?.();
   }
+
+  /** 2.5.5: the departments and the holders are re-read quietly while the tab is open (a change made by someone else shows without a reload). */
+  private live = new LiveRefresh(() => {
+    if (!this.enabled || this.busy) return;
+    if (this.tab === 'departments') void this.loadDepartments().catch(() => undefined);
+    else if (this.tab === 'permissions' && this.holders) void ticketsApi().holders().then((h) => (this.holders = h)).catch(() => undefined);
+  });
 
   private onHash = () => {
     if (window.location.hash.startsWith('#/system/tickets')) {
@@ -454,6 +464,7 @@ export class SystemTickets extends LitElement {
       this.selected = d.id;
       this.newDept = { name: '', key: '' };
       this.say(tt('setSaved'));
+      void this.loadDepartments().catch(() => undefined); // 2.5.5: the list is re-read after the change
     } catch (e) {
       this.fail(e);
     } finally {
@@ -526,7 +537,7 @@ export class SystemTickets extends LitElement {
         ${this.deletedCard()}
       </div>
       ${sel ? html`<tickets-dept-editor .dept=${sel} .directory=${this.directory} .installation=${this.installation}
-        @dept-changed=${this.onDeptChanged} @dept-deleted=${this.onDeptDeleted} @notice=${this.onNotice} @dept-reload=${() => void this.loadDepartments()}></tickets-dept-editor>` : nothing}
+        @dept-changed=${this.onDeptChanged} @dept-deleted=${this.onDeptDeleted} @notice=${this.onNotice} @dept-reload=${() => void this.loadDepartments().catch(() => undefined)}></tickets-dept-editor>` : nothing}
     </div>`;
   }
 

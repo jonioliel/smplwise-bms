@@ -203,6 +203,15 @@ export const ticketCardStyles = css`
     inset-inline-end: 12px;
     min-inline-size: 190px;
   }
+  /* 2.5.5: placed by tickets/overlay-menu.ts in the top layer (a popover), never clipped by a scroll box or a blurred ancestor */
+  .pop.ov {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    max-inline-size: calc(100vw - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
   .pop button {
     display: flex;
     align-items: center;

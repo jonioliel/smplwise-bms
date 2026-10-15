@@ -1,3 +1,4 @@
+import { openOverlay, menuKey } from './overlay-menu';
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { automationsStyles } from '../styles/automations-glass';
@@ -39,12 +40,16 @@ export class TicketCard extends LitElement {
     applyAutomationsGlass(this);
     window.addEventListener('pointerdown', this.onOutside, true);
     window.addEventListener('keydown', this.onKey);
+    window.addEventListener('resize', this.placeMenu);
+    window.addEventListener('scroll', this.placeMenu, true);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('pointerdown', this.onOutside, true);
     window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('resize', this.placeMenu);
+    window.removeEventListener('scroll', this.placeMenu, true);
   }
 
   private onOutside = (e: PointerEvent) => {
@@ -58,6 +63,23 @@ export class TicketCard extends LitElement {
     this.toggleAttribute('data-menu', on);
     if (on) void this.updateComplete.then(() => (this.renderRoot.querySelector('.pop button') as HTMLButtonElement | null)?.focus());
   }
+  /** 2.5.5: the "..." menu is a top-layer popover placed beside its button (nothing around the card can clip it). */
+  protected updated(): void {
+    this.placeMenu();
+  }
+  private placeMenu = (): void => {
+    if (!this.menu) return;
+    const pop = this.renderRoot.querySelector('.pop.ov') as HTMLElement | null;
+    const btn = this.renderRoot.querySelector('[data-card-menu]') as HTMLElement | null;
+    if (pop && btn) openOverlay(pop, btn);
+  };
+  private onMenuKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      this.setMenu(false);
+      (this.renderRoot.querySelector('[data-card-menu]') as HTMLElement | null)?.focus();
+    } else menuKey(e, e.currentTarget as HTMLElement);
+  };
   private act(action: TicketCardAction) {
     this.setMenu(false);
     this.dispatchEvent(new CustomEvent('card-action', { detail: { item: this.item, action }, bubbles: true, composed: true }));
@@ -66,7 +88,7 @@ export class TicketCard extends LitElement {
   private menuItems(): TemplateResult {
     const row = (action: TicketCardAction, icon: Parameters<typeof tIcon>[0], label: string) =>
       html`<button type="button" role="menuitem" data-card-action=${action} @click=${() => this.act(action)}>${tIcon(icon)}${label}</button>`;
-    return html`<div class="pop" role="menu" aria-label=${tt('actions')}>
+    return html`<div class="pop ov" popover="manual" role="menu" aria-label=${tt('actions')} @keydown=${this.onMenuKey}>
       ${row('open', 'eye', tt('open'))}
       ${this.fullScreen ? row('full', 'expand', tt('fullScreen')) : nothing}
       ${row('copy', 'link', tt('copyLink'))}

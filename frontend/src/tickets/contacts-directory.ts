@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { LiveRefresh } from './live-refresh';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-card';
 import '../components/sw-toggle';
@@ -153,14 +154,21 @@ export class TicketsContacts extends LitElement {
     }
   `, bubbleChrome];
 
+  /** 2.5.5: the list is re-read quietly while nothing is open (no editor, no create form). */
+  private live = new LiveRefresh(() => {
+    if (!this.busy && !this.selected && !this.creating && !this.denied) void this.load();
+  });
+
   connectedCallback(): void {
     super.connectedCallback();
+    this.live.start();
     void this.load();
     void ticketsApi().meta().then((m) => (this.departments = m.departments.map((d) => ({ id: d.id, name: d.name })))).catch(() => undefined);
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.live.stop();
     window.clearTimeout(this.searchTimer);
   }
 

@@ -184,7 +184,7 @@ test.describe('tickets table evidence', () => {
     const row = page.locator(`${T} tbody tr[data-row="0000000000000a03"]`);
     await row.waitFor();
     await row.locator('[data-menu-for^="status:"]').click();
-    const menu = row.locator('td.cellmenu .pop[role="menu"]');
+    const menu = page.locator(`${T} .pop[data-overlay="status"]`);
     await expect(menu).toBeVisible();
     await shot(page, 'status-menu');
     await menu.locator('[data-move-to="in_progress"]').click();
@@ -201,6 +201,88 @@ test.describe('tickets table evidence', () => {
     await row2.locator('[data-menu-for^="assignee:"]').click();
     await row2.locator('[data-assign-to="u-avi"]').click();
     await expect.poll(() => lastCall(mock, 'tickets/0000000000000a02/assign', 'POST')?.body).toEqual({ assignee: { kind: 'user', id: 'u-avi' }, revision: 3 });
+  });
+
+  // 2.5.5: the inline menus are top-layer overlays - never clipped by the table's own scroll box
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`a one-row table: the handler menu (40 people) opens as an overlay, scrolls inside itself, the table shows no vertical bar [${scheme}]`, async ({ page }) => {
+      test.skip(isPhone(page), 'desktop');
+      await go(page, '/tickets/mine', { ...TABLE, many: 1, assignees: 40 }, scheme);
+      const row = page.locator(`${T} tbody tr`).first();
+      await row.waitFor();
+      const wrap = page.locator(`${T} [data-table-wrap]`);
+      const noBar = async (what: string) => expect(await wrap.evaluate((el) => el.scrollHeight - el.clientHeight), `${what}: the table box has no vertical scroll`).toBeLessThanOrEqual(1);
+      await noBar('closed');
+      await row.locator('[data-menu-for^="assignee:"]').click();
+      const menu = page.locator(`${T} .pop[data-overlay="assignee"]`);
+      await expect(menu).toBeVisible();
+      await expect(menu.locator('[data-assign-to]').first()).toBeVisible();
+      await noBar('open');
+      const m = await menu.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const w = el.closest('body')?.ownerDocument.defaultView as Window;
+        const tw = (el.getRootNode() as ShadowRoot).querySelector('[data-table-wrap]')!.getBoundingClientRect();
+        const bg = getComputedStyle(el).backgroundColor;
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vw: w.innerWidth, vh: w.innerHeight, twBottom: tw.bottom, popover: el.matches(':popover-open'), scrolls: el.scrollHeight > el.clientHeight + 1, bg };
+      });
+      expect(m.popover, 'top layer').toBe(true);
+      expect(m.top).toBeGreaterThanOrEqual(0);
+      expect(m.bottom).toBeLessThanOrEqual(m.vh);
+      expect(m.left).toBeGreaterThanOrEqual(0);
+      expect(m.right).toBeLessThanOrEqual(m.vw);
+      expect(m.bottom, 'it extends below the one-row table (not clipped by it)').toBeGreaterThan(m.twBottom);
+      expect(m.scrolls, 'taller than the room: its own scroll').toBe(true);
+      expect(m.bg, 'opaque').not.toMatch(/rgba\(.*, 0(\.\d+)?\)$/);
+      await shot(page, 'one-row-assignee-menu', scheme);
+      // the last person is reachable inside the menu, a pick posts and closes
+      await menu.locator('[data-assign-to="u-x39"]').scrollIntoViewIfNeeded();
+      await expect(menu.locator('[data-assign-to="u-x39"]')).toBeVisible();
+      // Escape closes and gives the focus back to the trigger; an outside click closes too
+      await page.keyboard.press('Escape');
+      await expect(menu).toHaveCount(0);
+      await expect(row.locator('[data-menu-for^="assignee:"]')).toBeFocused();
+      await row.locator('[data-menu-for^="assignee:"]').click();
+      await expect(menu).toBeVisible();
+      await page.locator(`${T} [data-table-wrap] thead th`).first().click({ position: { x: 4, y: 4 } });
+      await expect(menu).toHaveCount(0);
+    });
+  }
+
+  test('the status menu grows from the trigger edge (RTL: to the left) and stays on screen next to the last row', async ({ page }) => {
+    test.skip(isPhone(page), 'desktop');
+    await go(page, '/tickets/mine', { ...TABLE, many: 2 });
+    const row = page.locator(`${T} tbody tr`).last();
+    await row.waitFor();
+    const btn = row.locator('[data-menu-for^="status:"]');
+    await btn.click();
+    const menu = page.locator(`${T} .pop[data-overlay="status"]`);
+    await expect(menu).toBeVisible();
+    const [b, p, dir, vh] = await Promise.all([btn.boundingBox(), menu.boundingBox(), btn.evaluate((e) => getComputedStyle(e).direction), page.evaluate(() => window.innerHeight)]);
+    expect(p!.y + p!.height).toBeLessThanOrEqual(vh);
+    if (dir === 'rtl') expect(Math.abs(p!.x + p!.width - (b!.x + b!.width))).toBeLessThanOrEqual(2);
+    else expect(Math.abs(p!.x - b!.x)).toBeLessThanOrEqual(2);
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.locator('button').nth(1)).toBeFocused();
+  });
+
+  test('the card menu is an overlay too (also at phone width)', async ({ page }) => {
+    await go(page, '/tickets/mine', {}, 'dark');
+    const card = page.locator('sw-app tickets-list ticket-card').first();
+    await card.waitFor();
+    await card.locator('[data-card-menu]').click();
+    const menu = card.locator('.pop[role="menu"]');
+    await expect(menu).toBeVisible();
+    const m = await menu.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vw: window.innerWidth, vh: window.innerHeight, popover: el.matches(':popover-open') };
+    });
+    expect(m.popover).toBe(true);
+    expect(m.left).toBeGreaterThanOrEqual(0);
+    expect(m.right).toBeLessThanOrEqual(m.vw);
+    expect(m.top).toBeGreaterThanOrEqual(0);
+    expect(m.bottom).toBeLessThanOrEqual(m.vh);
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
   });
 
   test('keyboard: arrows move, Space selects, Ctrl+A the page, Esc clears, Enter opens, / goes to the search', async ({ page }) => {

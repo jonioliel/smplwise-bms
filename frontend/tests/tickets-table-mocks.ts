@@ -57,6 +57,8 @@ export interface TableMockOptions extends TicketsMockOptions {
   failTable?: boolean;
   /** POST bulk answers these results by id (default: ok for a manager in maintenance, forbidden elsewhere) */
   bulkResults?: Record<string, string>;
+  /** 2.5.5: the eligible-handlers list grows to this many people (a menu taller than a one-row table) */
+  assignees?: number;
 }
 
 export interface TableMock {
@@ -137,6 +139,9 @@ export async function installTableMock(page: Page, o: TableMockOptions = {}): Pr
         if ('tickets.board' in b) prefs = (b['tickets.board'] as Record<string, unknown> | null) ?? null;
       }
       return json(route, { prefs: { 'nav.order': [], 'tickets.board': prefs }, stored: prefs ? ['tickets.board'] : [], updated_at: null });
+    }
+    if (p === 'tickets/assignees' && o.assignees) {
+      return json(route, { users: Array.from({ length: o.assignees }, (_, i) => ({ kind: 'user', id: `u-x${i}`, name: `עובד מספר ${i + 1}`, member_role: 'member' })), contacts: [] });
     }
     if (p === 'tickets/table') {
       log();

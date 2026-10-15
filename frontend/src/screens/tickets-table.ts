@@ -25,6 +25,8 @@ import { onTicketNames } from '../tickets/naming';
 import { ticketTableStyles } from '../tickets/table-styles';
 import { ticketDetailStyles, ticketFormStyles } from '../tickets/styles';
 import { ticketsLang } from '../tickets/text';
+import { dlt } from '../tickets/delete-text';
+import { openOverlay, menuKey } from '../tickets/overlay-menu';
 import { can, isApi } from '../api/session';
 import { setCostColumns } from '../tickets/table-model';
 import { costCell, costStatusTone } from '../tickets/cost-model';
@@ -85,7 +87,10 @@ export class TicketsTable extends LitElement {
   private key = '';
   private booted = false;
   private phoneMq = window.matchMedia('(max-width: 767px)');
-  private onPhone = () => (this.phone = this.phoneMq.matches);
+  private onPhone = () => {
+    this.phone = this.phoneMq.matches;
+    if (this.phone) this.menu = null; // the phone shows the compact list: no cell menus
+  };
   private live = new LiveRefresh(() => this.tick()); // 2.5.4: the one shared poller (20 s, visible, focus)
   private toastTimer = 0;
   private offNames: (() => void) | null = null;
@@ -106,6 +111,8 @@ export class TicketsTable extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhone);
     this.offNames = onTicketNames(() => this.requestUpdate());
     window.addEventListener('pointerdown', this.onOutside, true);
+    window.addEventListener('resize', this.placeMenu);
+    window.addEventListener('scroll', this.placeMenu, true);
     this.live.start();
     // CR-038 slice 9 (11A.9): the cost columns, sort and filter only for tickets.costs.view at the installation (the server's 403 rule)
     setCostColumns(!isApi() || can('tickets.costs.view'));
@@ -117,9 +124,38 @@ export class TicketsTable extends LitElement {
     this.phoneMq.removeEventListener('change', this.onPhone);
     this.offNames?.();
     window.removeEventListener('pointerdown', this.onOutside, true);
+    window.removeEventListener('resize', this.placeMenu);
+    window.removeEventListener('scroll', this.placeMenu, true);
     this.live.stop();
     window.clearTimeout(this.toastTimer);
   }
+
+  /** 2.5.5: the open cell menu lives in the top layer, outside the table's scroll box: put it next to its trigger after every render. */
+  protected updated(): void {
+    this.placeMenu();
+  }
+
+  private placeMenu = (): void => {
+    if (!this.menu) return;
+    const pop = this.renderRoot.querySelector('.pop[data-overlay]') as HTMLElement | null;
+    const btn = this.renderRoot.querySelector(`[data-menu-for="${this.menu.kind}:${this.menu.id}"]`) as HTMLElement | null;
+    if (pop && btn) openOverlay(pop, btn);
+  };
+
+  private onMenuKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      const btn = this.menu ? (this.renderRoot.querySelector(`[data-menu-for="${this.menu.kind}:${this.menu.id}"]`) as HTMLElement | null) : null;
+      this.menu = null;
+      btn?.focus();
+      return;
+    }
+    if (e.key === 'Tab') {
+      this.menu = null;
+      return;
+    }
+    menuKey(e, e.currentTarget as HTMLElement);
+  };
 
   protected willUpdate(changed: PropertyValues<this>): void {
     if (this.booted && (changed.has('scope') || changed.has('base'))) this.reloadIfNeeded();
@@ -356,7 +392,7 @@ export class TicketsTable extends LitElement {
 
   private onOutside = (e: PointerEvent) => {
     if (!this.menu) return;
-    const pop = this.renderRoot.querySelector('td.cellmenu > .pop');
+    const pop = this.renderRoot.querySelector('.pop[data-overlay]');
     const btn = this.renderRoot.querySelector(`[data-menu-for="${this.menu.kind}:${this.menu.id}"]`);
     const path = e.composedPath();
     if ((pop && path.includes(pop)) || (btn && path.includes(btn))) return;
@@ -371,7 +407,7 @@ export class TicketsTable extends LitElement {
       return;
     }
     this.menu = { id: r.id, kind };
-    void this.updateComplete.then(() => (this.renderRoot.querySelector('td.cellmenu > .pop button') as HTMLElement | null)?.focus());
+    void this.updateComplete.then(() => (this.renderRoot.querySelector('.pop[data-overlay] button') as HTMLElement | null)?.focus());
     if (kind === 'assignee') {
       this.eligible = null;
       try {
@@ -432,12 +468,18 @@ export class TicketsTable extends LitElement {
     void this.act(r, () => ticketsApi().assign(r.id, { assignee: { kind: 'user', id: u.id }, revision: r.revision }));
   }
 
+  /** 2.5.5: one selected row deleted through the bulk bar ends as `ticket-deleted`, not `bulk-done`: its row leaves at once as well. */
+  private onOneDeleted = (e: CustomEvent<{ id: string }>) => {
+    this.say(dlt('deletedOne'));
+    this.dropTicket(e.detail?.id ?? '');
+  };
+
   private onBulkDone = (e: CustomEvent<{ answer: BulkAnswer }>) => {
     const a = e.detail.answer;
     const s = bulkSummary(a);
     this.say(s.head, s.rest || undefined, s.tone);
     if (a.action === 'delete' && this.rows) {
-      const gone = new Set(a.results.filter((r) => r.result === 'ok').map((r) => r.id)); // 2.5.4: the deleted rows leave at once
+      const gone = new Set(a.results.filter((r) => r.result === 'ok' || r.result === 'not_found').map((r) => r.id)); // the deleted rows (and the ones already gone) leave at once
       this.rows = this.rows.filter((r) => !gone.has(r.id));
     }
     this.selected = keepAfterBulk(a, this.ids());
@@ -468,9 +510,7 @@ export class TicketsTable extends LitElement {
         if (!r.transitions.length) return html`<td>${this.statusChip(r.status)}</td>`;
         return html`<td class="cellmenu"><button type="button" class="cbtn" aria-haspopup="menu" aria-expanded=${String(open)} data-menu-for=${`status:${r.id}`}
             aria-label=${tbt('statusMenu', { status: statusLabel(r.status) })} ?disabled=${this.busy} @click=${() => void this.openMenu(r, 'status')}>${this.statusChip(r.status)}${tbIcon('chevron', 'chev')}</button>
-          ${open ? html`<div class="pop" role="menu" aria-label=${tbt('statusMenu', { status: statusLabel(r.status) })}>
-            ${r.transitions.map((m) => html`<button type="button" role="menuitem" data-move-to=${m.to} @click=${() => this.pickMove(r, m.to, m.note_required)}>${statusLabel(m.to)}</button>`)}
-          </div>` : nothing}</td>`;
+          </td>`;
       }
       case 'assignee': {
         const name = r.assignee?.name || '';
@@ -479,11 +519,7 @@ export class TicketsTable extends LitElement {
         const open = this.menu?.id === r.id && this.menu.kind === 'assignee';
         return html`<td class="cellmenu"><button type="button" class="cbtn" aria-haspopup="menu" aria-expanded=${String(open)} data-menu-for=${`assignee:${r.id}`}
             aria-label=${tbt('assigneeMenu', { name: name || tbt('unassigned') })} ?disabled=${this.busy} @click=${() => void this.openMenu(r, 'assignee')}>${who}${tbIcon('chevron', 'chev')}</button>
-          ${open ? html`<div class="pop" role="menu" aria-label=${tbt('assigneeMenu', { name: name || tbt('unassigned') })}>
-            ${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
-              ? this.eligible.map((u) => html`<button type="button" role="menuitemradio" aria-checked=${String(r.assignee?.id === u.id)} data-assign-to=${u.id} @click=${() => this.pickAssignee(r, u)}>${tIcon('user')}${bidi(u.name)}</button>`)
-              : html`<div class="note">${tbt('noAssignees')}</div>`}
-          </div>` : nothing}</td>`;
+          </td>`;
       }
       case 'place':
         return html`<td><span class="cv">${r.place_text ? bidi(r.place_text) : ''}</span></td>`;
@@ -523,6 +559,24 @@ export class TicketsTable extends LitElement {
         </th>`;
       })}
     </tr></thead>`;
+  }
+
+  /** 2.5.5: the open status / handler menu - a sibling of the scroll box, in the top layer, so the box can never clip it. */
+  private cellMenu(): TemplateResult | typeof nothing {
+    const m = this.menu;
+    const r = m ? this.rows?.find((x) => x.id === m.id) : undefined;
+    if (!m || !r) return nothing;
+    if (m.kind === 'status') {
+      return html`<div class="pop ov" popover="manual" role="menu" data-overlay="status" aria-label=${tbt('statusMenu', { status: statusLabel(r.status) })} @keydown=${this.onMenuKey}>
+        ${r.transitions.map((t) => html`<button type="button" role="menuitem" data-move-to=${t.to} @click=${() => this.pickMove(r, t.to, t.note_required)}>${statusLabel(t.to)}</button>`)}
+      </div>`;
+    }
+    const name = r.assignee?.name || '';
+    return html`<div class="pop ov" popover="manual" role="menu" data-overlay="assignee" aria-label=${tbt('assigneeMenu', { name: name || tbt('unassigned') })} @keydown=${this.onMenuKey}>
+      ${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
+        ? this.eligible.map((u) => html`<button type="button" role="menuitemradio" aria-checked=${String(r.assignee?.id === u.id)} data-assign-to=${u.id} @click=${() => this.pickAssignee(r, u)}>${tIcon('user')}${bidi(u.name)}</button>`)
+        : html`<div class="note">${tbt('noAssignees')}</div>`}
+    </div>`;
   }
 
   private table(rows: TableRow[]): TemplateResult {
@@ -584,7 +638,7 @@ export class TicketsTable extends LitElement {
     const showBulk = this.canSelect() && picked.length > 0;
     return html`<div data-screen="tickets-table" data-view="table">
       ${showBulk
-        ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} @bulk-done=${this.onBulkDone} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>`
+        ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} @bulk-done=${this.onBulkDone} @ticket-deleted=${this.onOneDeleted} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>`
         : html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
             .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView}
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
@@ -593,6 +647,7 @@ export class TicketsTable extends LitElement {
       ${this.toast ? html`<div class=${`banner toast ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-table-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div><b>${this.toast.head}</b>${this.toast.rest ? html`<small>${this.toast.rest}</small>` : nothing}</div></div>` : nothing}
       ${this.body()}
     </div>
+    ${this.cellMenu()}
     ${this.move ? html`<sw-dialog open heading=${tbt('moveTitle', { status: statusLabel(this.move.to) })} data-dialog="table-move" @close=${() => (this.move = null)}>
       <div class="form"><label class="fld"><span>${tbt('moveReason')} <b class="req">*</b></span>
         <textarea class="inp" maxlength="2000" data-move-note .value=${this.moveNote} @input=${(e: Event) => { this.moveNote = (e.target as HTMLTextAreaElement).value; this.moveError = ''; }}></textarea></label>
