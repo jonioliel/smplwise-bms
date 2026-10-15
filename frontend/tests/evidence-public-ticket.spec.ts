@@ -216,7 +216,7 @@ test.describe('the handler page (slice 4)', () => {
 
   test('2.5.6: the part wait is a toggle under "in progress", not a step of its own; the vendor sets and clears it himself', async ({ page }) => {
     const s = await open(page, view('he', { status: 'in_progress', actions: { statuses: ['waiting_part', 'done'], note: true, eta: true, photo: true, return: true } }));
-    await expect(page.locator('[data-status-choice]')).toHaveCount(3);
+    await expect(page.locator('[data-status-choice]')).toHaveCount(2); // in progress (current) and done: the part wait is not a choice
     await expect(page.locator('[data-status-choice="waiting_part"]')).toHaveCount(0);
     await expect(page.locator('[data-status-choice="in_progress"]')).toHaveAttribute('aria-checked', 'true');
     const tg = page.locator('[data-waiting-toggle]');
