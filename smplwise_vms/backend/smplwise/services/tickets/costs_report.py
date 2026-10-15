@@ -19,9 +19,10 @@ import csv
 import datetime as dt
 import io
 import json
+import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterator
 
 from ...db import get_setting
@@ -53,11 +54,21 @@ class Filters:
     date_to: str | None = None  # UTC instant (start of the day AFTER the local `to`)
     statuses: tuple[str, ...] = STATUSES
     currency: str | None = None
+    vendor: str | None = None  # TK258: the vendor key of the "vendor" grouping (the vendor record's id, else the contact's)
+    department: str | None = None  # TK258: a department id
 
 
-def parse_filters(conn, *, group_by: str, date_from: str | None, date_to: str | None, status: str | None, currency: str | None) -> Filters:
+_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def parse_filters(conn, *, group_by: str, date_from: str | None, date_to: str | None, status: str | None, currency: str | None,
+                  vendor: str | None = None, department: str | None = None) -> Filters:
     if group_by not in GROUPS:
         raise ReportError("group_by")
+    if vendor and not _KEY_RE.match(vendor):
+        raise ReportError("vendor")
+    if department and not _KEY_RE.match(department):
+        raise ReportError("department")
     tz = zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
 
     def day(value: str | None, field: str, plus: int = 0) -> str | None:
@@ -80,7 +91,7 @@ def parse_filters(conn, *, group_by: str, date_from: str | None, date_to: str | 
     f, t = day(date_from, "from"), day(date_to, "to", plus=1)
     if f and t and f >= t:
         raise ReportError("to", "before_from")
-    return Filters(group_by=group_by, date_from=f, date_to=t, statuses=statuses, currency=currency)
+    return Filters(group_by=group_by, date_from=f, date_to=t, statuses=statuses, currency=currency, vendor=vendor or None, department=department or None)
 
 
 class _Gate:
@@ -119,8 +130,22 @@ def visible_rows(conn, viewer: Viewer, f: Filters) -> list[dict[str, Any]]:
             snap = {}
         r["snapshot"] = snap if isinstance(snap, dict) else {}
         r["ticket"] = t
+        if f.vendor is not None and vendor_key(r) != f.vendor:
+            continue
+        if f.department is not None and r["department_id"] != f.department:
+            continue
         out.append(r)
     return out
+
+
+def vendor_key(r: dict[str, Any]) -> str:
+    """The vendor of a claim row as the "vendor" grouping keys it (the vendor record, else the contact who claimed)."""
+    return str(r["snapshot"].get("vendor_id") or r["contact_id"] or "")
+
+
+def vendor_label(r: dict[str, Any]) -> str:
+    snap = r["snapshot"]
+    return str(snap.get("vendor") or snap.get("contact_name") or "")
 
 
 def _local_month(iso: str | None, tz) -> str:
@@ -135,7 +160,7 @@ def _local_month(iso: str | None, tz) -> str:
 def _group_key(r: dict[str, Any], group_by: str, tz) -> tuple[str, str]:
     snap, t = r["snapshot"], (r["ticket"] or {})
     if group_by == "vendor":
-        return (snap.get("vendor_id") or r["contact_id"], snap.get("vendor") or snap.get("contact_name") or "")
+        return (vendor_key(r), vendor_label(r))
     if group_by == "department":
         return (r["department_id"], snap.get("department") or "")
     if group_by == "device":
@@ -175,6 +200,46 @@ def report(conn, viewer: Viewer, f: Filters) -> dict[str, Any]:
 
     return {"group_by": f.group_by, "groups": sorted((done(g) for g in groups.values()), key=lambda g: (g["currency"], -g["approved_minor"] - g["pending_minor"], g["label"])),
             "totals": [done(t) for t in sorted(totals.values(), key=lambda t: t["currency"])], "claims": len(rows)}
+
+
+# ---------------------------------------------------------------- TK258: the vendors account screen ("חשבון ספקים")
+
+CLAIMS_MAX_ROWS = EXPORT_MAX_ROWS
+
+
+def claim_rows(conn, viewer: Viewer, f: Filters) -> dict[str, Any]:
+    """One row per claim (newest period first) for the vendors account screen: the counted amount in its own currency (never
+    converted), the claim's optimistic revision for "mark as paid" and whether this caller may mark it (tickets.costs on the
+    ticket's place). The vendor / department options come from the rows matched by the OTHER filters, so picking a vendor never
+    empties its own list. At most CLAIMS_MAX_ROWS rows (`truncated` says the filter matched more)."""
+    from .costs import COSTS
+
+    base = visible_rows(conn, viewer, replace(f, vendor=None, department=None))
+    vendors: dict[str, str] = {}
+    departments: dict[str, str] = {}
+    for r in base:
+        if f.department is None or r["department_id"] == f.department:
+            vendors.setdefault(vendor_key(r), vendor_label(r))
+        if f.vendor is None or vendor_key(r) == f.vendor:
+            departments.setdefault(r["department_id"], str(r["snapshot"].get("department") or ""))
+    rows = [r for r in base if (f.vendor is None or vendor_key(r) == f.vendor) and (f.department is None or r["department_id"] == f.department)]
+    rows.reverse()
+    out: list[dict[str, Any]] = []
+    for r in rows[:CLAIMS_MAX_ROWS]:
+        snap, t = r["snapshot"], r["ticket"]
+        settled = r["status"] in ("approved", "paid") and r["approved_total_minor"] is not None
+        out.append({
+            "claim_id": r["claim_id"], "ticket_id": r["ticket_id"], "number": (t or {}).get("number") or snap.get("number"),
+            "title": (t or {}).get("title") or snap.get("title") or "", "department_id": r["department_id"], "department": snap.get("department") or "",
+            "vendor_key": vendor_key(r), "vendor": vendor_label(r), "status": r["status"], "currency": r["currency"],
+            "amount_minor": int(r["approved_total_minor"] if settled else r["total_minor"]), "revision": int(r["claim_revision"]),
+            "submitted_at": r["submitted_at"], "approved_at": r["approved_at"], "paid_at": r["paid_at"], "payment_date": r["payment_date"],
+            "payment_ref": r.get("payment_ref"), "period_at": r["period_at"],
+            "can_mark_paid": bool(t) and r["status"] == "approved" and viewer.holds(COSTS, t),
+        })
+    return {"rows": out, "truncated": len(rows) > CLAIMS_MAX_ROWS,
+            "vendors": [{"key": k, "label": v} for k, v in sorted(vendors.items(), key=lambda kv: (kv[1], kv[0]))],
+            "departments": [{"id": k, "name": v} for k, v in sorted(departments.items(), key=lambda kv: (kv[1], kv[0]))]}
 
 
 # ---------------------------------------------------------------- CSV

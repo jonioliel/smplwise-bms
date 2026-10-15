@@ -586,6 +586,14 @@ def _payment_date(value: Any, at: dt.datetime) -> str:
     return day.isoformat()
 
 
+def check_payment(payment_ref: Any, payment_date: Any, at: dt.datetime) -> tuple[str, str]:
+    """The payment fields of "mark as paid" validated alone (TK258's bulk route checks them once for all its items)."""
+    ref = _text(payment_ref, "payment_ref", PAYMENT_REF_MAX)
+    if not ref:
+        raise CostRefused(422, "required", "payment_ref")
+    return ref, _payment_date(payment_date, at)
+
+
 def mark_paid(conn, claim: Mapping[str, Any], *, by: str, revision: int, payment_ref: Any, payment_date: Any, at: dt.datetime) -> dict[str, Any]:
     if claim["status"] != "approved":
         raise CostRefused(409, "claim_not_approved")
