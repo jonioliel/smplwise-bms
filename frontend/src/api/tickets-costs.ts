@@ -171,7 +171,8 @@ export type ReportGroupBy = 'vendor' | 'department' | 'device' | 'room' | 'month
 export type ReportStatus = 'submitted' | 'approved' | 'paid';
 export const REPORT_GROUPS: readonly ReportGroupBy[] = ['vendor', 'department', 'device', 'room', 'month'];
 export const REPORT_STATUSES: readonly ReportStatus[] = ['submitted', 'approved', 'paid'];
-export interface ReportQuery { group_by: ReportGroupBy; from?: string; to?: string; status?: ReportStatus[]; currency?: string }
+/** `vendor` (the vendor grouping's key) and `department` (an id): TK258's filters, also taken by the report and the export. */
+export interface ReportQuery { group_by: ReportGroupBy; from?: string; to?: string; status?: ReportStatus[]; currency?: string; vendor?: string; department?: string }
 export interface ReportGroupRow {
   key: string;
   label: string;
@@ -187,6 +188,49 @@ export interface ReportGroupRow {
 }
 export interface ReportTotal { currency: string; approved_minor: number; pending_minor: number; claims: number; tickets: number }
 export interface CostReport { group_by: ReportGroupBy; groups: ReportGroupRow[]; totals: ReportTotal[]; claims: number }
+
+// ---------------------------------------------------------------- TK258: the vendors account ("חשבון ספקים")
+
+/** One claim of `GET tickets/costs/claims`: the counted amount in ITS currency (approved total once approved / paid). */
+export interface AccountClaim {
+  claim_id: string;
+  ticket_id: string | null;
+  number: number | null;
+  title: string;
+  department_id: string;
+  department: string;
+  vendor_key: string;
+  vendor: string;
+  status: ReportStatus;
+  currency: string;
+  amount_minor: number;
+  /** the claim's optimistic revision (sent back with "mark as paid") */
+  revision: number;
+  submitted_at: string | null;
+  approved_at: string | null;
+  paid_at: string | null;
+  payment_date: string | null;
+  payment_ref: string | null;
+  period_at: string | null;
+  can_mark_paid: boolean;
+}
+export interface AccountClaims {
+  rows: AccountClaim[];
+  truncated: boolean;
+  vendors: { key: string; label: string }[];
+  departments: { id: string; name: string }[];
+  /** tickets.costs anywhere (the bulk action is offered at all) */
+  can_mark_paid: boolean;
+}
+export type AccountQuery = Omit<ReportQuery, 'group_by'>;
+export interface BulkPaidItem { ticket_id: string; claim_id: string; revision?: number }
+export type BulkPaidResult = 'paid' | 'already_paid' | 'not_found' | 'forbidden' | 'not_approved' | 'stale';
+export interface BulkPaidAnswer {
+  results: { ticket_id: string; claim_id: string; number?: number; result: BulkPaidResult; revision?: number }[];
+  paid: number;
+  already_paid: number;
+  failed: number;
+}
 
 // ---------------------------------------------------------------- settings (11A.14) and department defaults (11A.1)
 
@@ -223,6 +267,10 @@ export interface CostsBackend {
   downloadDocument(ticketId: string, claimId: string, revisionId: string, docNo: number): Promise<void>;
   report(q: ReportQuery): Promise<CostReport>;
   exportCsv(q: ReportQuery, rows: 'claim' | 'line'): Promise<void>;
+  /** TK258: the claims of the filters, one per row */
+  accountClaims(q: AccountQuery): Promise<AccountClaims>;
+  /** TK258: "סימון כשולם" for several approved claims (a result per item) */
+  markPaidBulk(items: BulkPaidItem[], paymentRef: string, paymentDate: string): Promise<BulkPaidAnswer>;
   departments(): Promise<DepartmentCostsAnswer>;
   saveDepartment(id: string, body: { cost_claim: CostMode | null; claim_window_days: number | null }): Promise<DepartmentCostsAnswer>;
   settings(): Promise<CostsSettingsDoc>;
@@ -234,15 +282,18 @@ const T = 'tickets';
 const enc = encodeURIComponent;
 
 /** The report / export query string (only what is set; the statuses comma-joined as the server reads them). */
-export function reportQs(q: ReportQuery, extra: Record<string, string> = {}): string {
+export function reportQs(q: ReportQuery | AccountQuery, extra: Record<string, string> = {}): string {
   const p = new URLSearchParams();
-  p.set('group_by', q.group_by);
+  if ('group_by' in q && q.group_by) p.set('group_by', q.group_by);
   if (q.from) p.set('from', q.from);
   if (q.to) p.set('to', q.to);
   if (q.status?.length) p.set('status', q.status.join(','));
   if (q.currency) p.set('currency', q.currency);
+  if (q.vendor) p.set('vendor', q.vendor);
+  if (q.department) p.set('department', q.department);
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
-  return `?${p.toString()}`;
+  const s = p.toString();
+  return s ? `?${s}` : '';
 }
 
 /** The file name of a `Content-Disposition` answer (or the fallback). */
@@ -299,6 +350,8 @@ const rest: CostsBackend = {
   downloadDocument: (id, claimId, revisionId, docNo) => download(`${T}/${enc(id)}/costs/${enc(claimId)}/documents/${enc(revisionId)}/${docNo}.pdf`, `invoice-${docNo}.pdf`),
   report: (q) => get<CostReport>(`${T}/costs/report${reportQs(q)}`),
   exportCsv: (q, rows) => download(`${T}/costs/export.csv${reportQs(q, { rows })}`, 'costs.csv'),
+  accountClaims: (q) => get<AccountClaims>(`${T}/costs/claims${reportQs(q)}`),
+  markPaidBulk: (items, paymentRef, paymentDate) => post<BulkPaidAnswer>(`${T}/costs/mark-paid`, { items, payment_ref: paymentRef, payment_date: paymentDate }),
   departments: () => get<DepartmentCostsAnswer>(`${T}/costs/departments`),
   saveDepartment: (id, body) => put<DepartmentCostsAnswer>(`${T}/costs/departments/${enc(id)}`, body),
   settings: async () => {

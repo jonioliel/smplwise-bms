@@ -7,10 +7,11 @@
  */
 import { ApiError } from './client';
 import type {
-  AssignPreview, ClaimStatus, CostClaim, CostDecision, CostMode, CostReport, CostRevision, CostsBackend, CostsSettings, DecisionBody, DecisionKind,
+  AccountClaim, AssignPreview, BulkPaidAnswer, ClaimStatus, CostClaim, CostDecision, CostMode, CostReport, CostRevision, CostsBackend, CostsSettings, DecisionBody, DecisionKind,
   DepartmentCosts, LineInput, OnBehalfBody, PendingFile, ReportGroupRow, ReportQuery, StoredLine, TicketCostBlock, TicketCosts, VatMode,
 } from './tickets-costs';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, minorToDecimal, quantityToMilli, vatOf } from '../tickets/cost-model';
+import { csvCell } from '../tickets/vendor-account-model';
 
 const sleep = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -201,6 +202,38 @@ function find(id: string): DemoTicket {
 
 const pending = new Map<string, PendingFile & { url: string }>();
 
+/** TK258: the demo vendors account - invented vendors and amounts, two currencies (never added up), every status. */
+let account: AccountClaim[] | null = null;
+function demoAccount(): AccountClaim[] {
+  if (account) return account;
+  const now = Date.now();
+  const mk = (i: number, vendor: [string, string], dept: [string, string], status: AccountClaim['status'], currency: string, minor: number, daysAgo: number, title: string): AccountClaim => {
+    const at = iso(now - daysAgo * DAY);
+    return {
+      claim_id: `clmdemo${String(i).padStart(9, '0')}`, ticket_id: `d0000000000000${String(i).padStart(2, '0')}`, number: 1100 + i, title, department_id: dept[0], department: dept[1],
+      vendor_key: vendor[0], vendor: vendor[1], status, currency, amount_minor: minor, revision: 3, submitted_at: at, approved_at: status === 'submitted' ? null : at,
+      paid_at: status === 'paid' ? at : null, payment_date: status === 'paid' ? at.slice(0, 10) : null, payment_ref: status === 'paid' ? 'העברה 55120' : null, period_at: at,
+      can_mark_paid: status === 'approved',
+    };
+  };
+  const north: [string, string] = ['v-north', 'קירור הצפון'];
+  const oren: [string, string] = ['v-oren', 'חשמל אורן'];
+  const atlas: [string, string] = ['v-atlas', 'Atlas Elevators'];
+  const m: [string, string] = ['dept-maintenance', 'אחזקה'];
+  const c: [string, string] = ['dept-cleaning', 'ניקיון'];
+  account = [
+    mk(1, north, m, 'approved', 'ILS', 138_709, 3, 'החלפת מסנן מזגן - חדר ישיבות'),
+    mk(2, north, m, 'approved', 'ILS', 42_480, 6, 'מזגן לא מקרר - חדר 102'),
+    mk(3, north, m, 'submitted', 'ILS', 21_240, 1, 'בדיקת מדחס'),
+    mk(4, oren, m, 'paid', 'ILS', 141_600, 9, 'נורה מהבהבת בלובי'),
+    mk(5, oren, m, 'approved', 'ILS', 35_400, 4, 'שקע שרוף במטבחון'),
+    mk(6, oren, c, 'submitted', 'ILS', 9_440, 2, 'תאורת חירום בחדר מדרגות'),
+    mk(7, atlas, m, 'approved', 'USD', 120_000, 5, 'טיפול תקופתי במעלית'),
+    mk(8, atlas, m, 'paid', 'USD', 80_000, 20, 'החלפת כבל מעלית'),
+  ];
+  return account;
+}
+
 export const mockCosts: CostsBackend = {
   async get(id) {
     await sleep();
@@ -368,10 +401,49 @@ export const mockCosts: CostsBackend = {
     await sleep(80);
     const r = await mockCosts.report(q);
     const lines = [rows === 'claim' ? 'group,currency,approved,pending,claims' : 'group,currency,kind,amount', ...r.groups.map((g) => rows === 'claim'
-      ? `"${g.label}",${g.currency},${minorToDecimal(g.approved_minor)},${minorToDecimal(g.pending_minor)},${g.claims}`
-      : `"${g.label}",${g.currency},labor,${minorToDecimal(g.labor_minor)}`)];
+      ? `${csvCell(g.label)},${g.currency},${minorToDecimal(g.approved_minor)},${minorToDecimal(g.pending_minor)},${g.claims}`
+      : `${csvCell(g.label)},${g.currency},labor,${minorToDecimal(g.labor_minor)}`)];
     const { saveBlob } = await import('./tickets-costs');
     saveBlob(new Blob([`﻿${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8' }), `costs-${rows}.csv`);
+  },
+  async accountClaims(q) {
+    await sleep(140);
+    const st = q.status?.length ? q.status : ['submitted', 'approved', 'paid'];
+    const day = (r: AccountClaim) => (r.period_at ?? '').slice(0, 10);
+    const base = demoAccount().filter((r) => st.includes(r.status) && (!q.currency || r.currency === q.currency) && (!q.from || day(r) >= q.from) && (!q.to || day(r) <= q.to));
+    const vendors = new Map<string, string>();
+    const departments = new Map<string, string>();
+    for (const r of base) {
+      if (!q.department || r.department_id === q.department) vendors.set(r.vendor_key, r.vendor);
+      if (!q.vendor || r.vendor_key === q.vendor) departments.set(r.department_id, r.department);
+    }
+    const rows = base.filter((r) => (!q.vendor || r.vendor_key === q.vendor) && (!q.department || r.department_id === q.department));
+    return {
+      rows: clone(rows), truncated: false, can_mark_paid: true,
+      vendors: [...vendors].map(([key, label]) => ({ key, label })).sort((a, b) => a.label.localeCompare(b.label)),
+      departments: [...departments].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  },
+  async markPaidBulk(items, paymentRef, paymentDate) {
+    await sleep(200);
+    if (!paymentRef.trim() || !paymentDate) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'payment_ref', code: 'required' }] });
+    const rows = demoAccount();
+    const results: BulkPaidAnswer['results'] = [];
+    for (const it of items) {
+      const r = rows.find((x) => x.claim_id === it.claim_id && x.ticket_id === it.ticket_id);
+      const out = { ticket_id: it.ticket_id, claim_id: it.claim_id, number: r?.number ?? undefined };
+      if (!r) results.push({ ...out, result: 'not_found' });
+      else if (r.status === 'paid') results.push({ ...out, result: 'already_paid', revision: r.revision });
+      else if (r.status !== 'approved') results.push({ ...out, result: 'not_approved', revision: r.revision });
+      else if (it.revision !== undefined && it.revision !== r.revision) results.push({ ...out, result: 'stale', revision: r.revision });
+      else {
+        Object.assign(r, { status: 'paid', paid_at: iso(Date.now()), payment_ref: paymentRef.trim(), payment_date: paymentDate, revision: r.revision + 1, can_mark_paid: false });
+        results.push({ ...out, result: 'paid', revision: r.revision });
+      }
+    }
+    const paid = results.filter((x) => x.result === 'paid').length;
+    const already = results.filter((x) => x.result === 'already_paid').length;
+    return { results, paid, already_paid: already, failed: results.length - paid - already };
   },
   async departments() {
     await sleep(60);
