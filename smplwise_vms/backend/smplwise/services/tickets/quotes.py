@@ -12,7 +12,7 @@ import json
 from typing import Any, Mapping
 
 from ...db import new_id
-from . import costs, model, store, store_costs
+from . import costs, model, store, store_costs, store_quotes
 from .costs import CostRefused, iso
 
 DEFAULT_KINDS: tuple[str, ...] = ("labor", "parts")
@@ -41,16 +41,15 @@ def allowed_kinds(assignment: Mapping[str, Any] | None, department: Mapping[str,
 # ---------------------------------------------------------------- storage
 
 def quotes_of_assignment(conn, assignment_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_cost_quotes WHERE assignment_id = ? ORDER BY seq", (assignment_id,)).fetchall()]
+    return store_quotes.of_assignment(conn, assignment_id)
 
 
 def quotes_of_ticket(conn, ticket_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_cost_quotes WHERE ticket_id = ? ORDER BY created_at, seq", (ticket_id,)).fetchall()]
+    return store_quotes.of_ticket(conn, ticket_id)
 
 
 def quote(conn, quote_id: str) -> dict[str, Any] | None:
-    row = conn.execute("SELECT * FROM ticket_cost_quotes WHERE id = ?", (quote_id,)).fetchone()
-    return dict(row) if row is not None else None
+    return store_quotes.get(conn, quote_id)
 
 
 def current(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -156,19 +155,17 @@ def submit(conn, assignment: Mapping[str, Any], ticket: Mapping[str, Any], body:
             raise CostRefused(422, "kind_not_allowed", f"lines.{i}.kind")
     notes = costs._text(body.get("notes"), "notes", NOTES_MAX, multiline=True)
     c = d.computed
-    seq = int(conn.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM ticket_cost_quotes WHERE assignment_id = ?", (assignment["id"],)).fetchone()[0])
+    seq = store_quotes.next_seq(conn, assignment["id"])
     for r in rows:
         if r["state"] in OPEN_STATES:
-            conn.execute("UPDATE ticket_cost_quotes SET state = 'superseded' WHERE id = ?", (r["id"],))
+            store_quotes.supersede(conn, r["id"])
     qid = new_id()
-    conn.execute(
-        "INSERT INTO ticket_cost_quotes(id, ticket_id, assignment_id, contact_id, seq, state, lines_json, labor_minor, parts_minor, travel_minor,"
-        " other_minor, subtotal_minor, vat_mode, vat_rate_bp, vat_minor, total_minor, currency, notes, created_at)"
-        " VALUES (?,?,?,?,?,'submitted',?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (qid, ticket["id"], assignment["id"], assignment["contact_id"], seq,
-         json.dumps([ln.as_json() for ln in c.lines], ensure_ascii=False, separators=(",", ":")),
-         c.by_kind["labor"], c.by_kind["parts"], c.by_kind["travel"], c.by_kind["other"], c.subtotal_minor, c.vat_mode, c.vat_rate_bp,
-         c.vat_minor, c.total_minor, d.currency, notes, iso(at)))
+    store_quotes.insert(conn, {
+        "id": qid, "ticket_id": ticket["id"], "assignment_id": assignment["id"], "contact_id": assignment["contact_id"], "seq": seq, "state": "submitted",
+        "lines_json": json.dumps([ln.as_json() for ln in c.lines], ensure_ascii=False, separators=(",", ":")),
+        "labor_minor": c.by_kind["labor"], "parts_minor": c.by_kind["parts"], "travel_minor": c.by_kind["travel"], "other_minor": c.by_kind["other"],
+        "subtotal_minor": c.subtotal_minor, "vat_mode": c.vat_mode, "vat_rate_bp": c.vat_rate_bp, "vat_minor": c.vat_minor, "total_minor": c.total_minor,
+        "currency": d.currency, "notes": notes, "created_at": iso(at)})
     return quote(conn, qid) or {}
 
 
@@ -183,6 +180,5 @@ def decide(conn, quote_id: str, action: str, *, by: str, reason: Any, at: dt.dat
         raise CostRefused(409, "invalid_state")
     reason_text = costs._reason(reason, required=action == "reject")
     new = "approved" if action == "approve" else "rejected"
-    conn.execute("UPDATE ticket_cost_quotes SET state = ?, reason = ?, decided_by = ?, decided_at = ? WHERE id = ?",
-                 (new, reason_text if action == "reject" else None, by, iso(at), quote_id))
+    store_quotes.decide(conn, quote_id, new, reason_text if action == "reject" else None, by, iso(at))
     return quote(conn, quote_id) or {}
