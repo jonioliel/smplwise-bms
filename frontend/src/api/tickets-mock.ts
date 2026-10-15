@@ -5,8 +5,9 @@
  */
 import type {
   AdminDepartment, AssignBody, AssigneesList, CreateAnswer, CreateBody, DepartmentBody, Eligible, EntityTickets, Handler, HistorySummary, HoldersResponse, InstallationDefaults, ListPage, ListQuery, Meta, ModuleState,
-  NameDoc, NameEntries, PatchBody, PriorityKey, ReturnAnswer, ReturnBody, SettingsDoc, SlaRow, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
+  NameDoc, NameEntries, PatchBody, PriorityKey, ReturnAnswer, ReturnBody, SettingsDoc, SlaRow, StaffMobile, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
 } from './tickets';
+import { ApiError } from './client';
 import { DEFAULT_TICKET_NAMES } from '../tickets/naming';
 import { demoCloseGate, demoCostBlock } from './tickets-costs-mock'; // CR-038 slice 9: the demo cost status and close gate
 
@@ -539,6 +540,23 @@ export const mockBackend: TicketsBackend = {
     const d = departments.find((x) => x.id === departmentId)!;
     d.members = d.members.filter((x) => !(x.kind === kind && x.id === subjectId));
     return clone(d);
+  },
+  async putStaffMobile(userId, body) {
+    await sleep(60);
+    const digits = body.phone === undefined ? undefined : (body.phone ?? '').replace(/[\s\-().]/g, '');
+    if (digits && !/^(\+|00)?[1-9]\d{7,14}$|^0\d{8,9}$/.test(digits)) {
+      throw new ApiError(422, { code: 'validation', user_message: 'ערך לא תקין.', retryable: false, correlation_id: 'demo', details: { fields: [{ field: 'phone', code: 'format' }] } });
+    }
+    let out: StaffMobile | null = null;
+    for (const d of departments) for (const m of d.members) {
+      if (m.kind !== 'user' || m.id !== userId) continue;
+      if (digits !== undefined) m.mobile = digits || null;
+      if (body.lang) m.lang = body.lang;
+      if (body.notify_whatsapp !== undefined) m.notify_whatsapp = body.notify_whatsapp;
+      out = { user_id: userId, contact_id: m.mobile ? `c-${userId}` : null, phone: m.mobile ?? null, has_phone: !!m.mobile,
+        notify_whatsapp: m.notify_whatsapp ?? true, lang: m.lang ?? 'he', active: true, live_links: 0 };
+    }
+    return out ?? { user_id: userId, contact_id: null, phone: null, has_phone: false, notify_whatsapp: true, lang: 'he', active: true, live_links: 0 };
   },
   async directory(q = '') {
     await sleep(40);

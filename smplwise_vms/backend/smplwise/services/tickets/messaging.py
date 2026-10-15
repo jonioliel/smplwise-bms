@@ -1045,7 +1045,9 @@ class DbMatchDirectory:
             outbox_id=r["outbox_id"], ticket_id=r["ticket_id"], ticket_number=int(r["number"]), department_id=r["department_id"],
             assignment_id=r["assignment_id"], contact_id=r.get("contact_id") or "", contact_phone_key=r.get("phone_key"), account_key=r.get("account_key"),
             link_live=_link_state(r, self.clock()) == "live", assignment_current=r.get("current_assignment_id") == r["assignment_id"] and not r.get("asg_ended_at"),
-            requires_code=bool(r.get("require_code")), ticket_status=r["status"], provider_message_id=r.get("provider_message_id"))
+            requires_code=bool(r.get("require_code")), ticket_status=r["status"], provider_message_id=r.get("provider_message_id"),
+            # deep review B3: the button acts only for the generation its message carried (NULL never matches - see 0085)
+            generation_current=r.get("link_generation") is not None and r.get("link_generation") == r.get("link_current_generation"))
 
     def candidates(self, sender_key: str, *, since: dt.datetime, account_key: str | None) -> list[inbound_mod.Candidate]:
         with self.io.read() as conn:

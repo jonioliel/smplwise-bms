@@ -262,7 +262,14 @@ export type SlaPatch = { priority_id: string; revision: number } & Partial<Recor
 export interface AdminTemplate { id: string; kind: 'ticket'; name: string; title: string; body: string; category_id: string | null; priority_key: PriorityKey | null; active: boolean; revision: number; updated_at: string }
 export interface TemplateBody { name?: string; title?: string; body?: string; category_id?: string | null; priority_key?: PriorityKey | null; active?: boolean; revision?: number }
 export interface AdminPriority { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean; active: boolean }
-export interface AdminMember { kind: 'user' | 'group'; id: string; name: string; role: 'manager' | 'member'; notify_new: boolean; added_at: string }
+export interface AdminMember {
+  kind: 'user' | 'group'; id: string; name: string; role: 'manager' | 'member'; notify_new: boolean; added_at: string;
+  /** TKSTAFF1: a user member's mobile for the no-login staff link (display form; null = none), its message language and the user's WhatsApp switch */
+  mobile?: string | null; notify_whatsapp?: boolean; lang?: 'he' | 'en' | 'ar' | 'ru';
+}
+/** TKSTAFF1: PUT /tickets/admin/staff/{user_id} (tickets.configure) - the mobile of an internal employee with an account */
+export interface StaffMobile { user_id: string; contact_id: string | null; phone: string | null; has_phone: boolean; notify_whatsapp: boolean; lang: 'he' | 'en' | 'ar' | 'ru'; active: boolean; live_links: number }
+export interface StaffMobileBody { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean }
 export interface AdminDepartment {
   id: string;
   key: string;
@@ -352,6 +359,8 @@ export interface TicketsBackend {
   deleteTemplate(id: string): Promise<AdminDepartment>;
   putMember(departmentId: string, kind: 'user' | 'group', subjectId: string, role: 'manager' | 'member', notifyNew?: boolean): Promise<AdminDepartment>;
   deleteMember(departmentId: string, kind: 'user' | 'group', subjectId: string): Promise<AdminDepartment>;
+  /** TKSTAFF1: the mobile (E.164 validated by the server), language and WhatsApp switch of a staff member with an account */
+  putStaffMobile(userId: string, body: StaffMobileBody): Promise<StaffMobile>;
   directory(q?: string): Promise<{ users: { id: string; name: string }[]; groups: { id: string; name: string }[] }>;
   holders(): Promise<HoldersResponse>;
 }
@@ -408,6 +417,7 @@ const rest: TicketsBackend = {
   putMember: (departmentId, kind, subjectId, role, notifyNew) =>
     put<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/members/${kind}/${enc(subjectId)}`, notifyNew === undefined ? { role } : { role, notify_new: notifyNew }),
   deleteMember: (departmentId, kind, subjectId) => del<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/members/${kind}/${enc(subjectId)}`),
+  putStaffMobile: (userId, body) => put<StaffMobile>(`${T}/admin/staff/${enc(userId)}`, body),
   directory: (q = '') => get<{ users: { id: string; name: string }[]; groups: { id: string; name: string }[] }>(`${T}/admin/directory${qs({ q })}`),
   holders: () => get<HoldersResponse>(`${T}/admin/holders`),
 };

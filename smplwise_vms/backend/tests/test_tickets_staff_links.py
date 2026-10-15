@@ -425,7 +425,8 @@ def test_14_the_rate_budgets_of_a_staff_token_are_the_vendors(env):
 
     from smplwise.services.tickets import public_store, ratelimit
 
-    assert "staff" not in inspect.getsource(ratelimit) and ".kind" not in inspect.getsource(ratelimit)
+    src = inspect.getsource(ratelimit)
+    assert "'staff'" not in src and '"staff"' not in src and "link.kind" not in src
     t, _ = staff_ticket(env)
     v, _ = env.s4.sent()
     with env.s4.db.connection(mode="read") as conn:

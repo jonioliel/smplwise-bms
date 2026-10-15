@@ -12,7 +12,7 @@ import pytest
 
 from smplwise import db as dbmod
 
-CR038 = range(79, 85)  # the numbers the spec reserves for CR-038 (section 7)
+CR038 = [*range(79, 86), 90]  # the numbers the spec reserves for CR-038 (section 7) + 0085 (deep review B3) and 0090 (TKSTAFF1), both PROVISIONAL numbers
 TABLES = {
     "ticket_departments", "ticket_department_members", "ticket_priorities", "ticket_categories", "ticket_sla_rules", "ticket_templates",
     "ticket_sequence", "tickets", "ticket_assignments", "ticket_events", "ticket_requests", "ticket_saved_views", "ticket_attachments",
@@ -46,7 +46,7 @@ def test_0079_is_the_highest_migration_of_the_branch():
     """0079 is the first of the CR-038 range; the later slices take their reserved numbers (0080 slice 4, 0081 slice 5b, 0082
     slice 5a, 0083 slice 9) - nothing of another change lives above 0079."""
     numbers = sorted(int(f.name.split("_", 1)[0]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert [n for n in numbers if n >= 79][0] == 79 and all(79 <= n <= 84 for n in numbers if n >= 79)
+    assert [n for n in numbers if n >= 79][0] == 79 and all(n in CR038 for n in numbers if n >= 79)
     assert (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").is_file()
     assert numbers.count(79) == 1
     sql = (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").read_text(encoding="utf-8")
