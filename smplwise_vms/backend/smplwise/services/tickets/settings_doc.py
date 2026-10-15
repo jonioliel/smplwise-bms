@@ -104,6 +104,18 @@ def _currencies(v: Any) -> list[str]:
         raise ValueError("invalid")
     return list(v)
 
+
+def line_kinds(v: Any) -> list[str]:
+    """TKDETAILBE (owner 15.10): the cost line kinds a vendor may use - a subset of money.LINE_KINDS that always holds `labor`,
+    no repeat, returned in the canonical order."""
+    from .money import LINE_KINDS
+
+    if not isinstance(v, list) or not v or not all(isinstance(x, str) and x in LINE_KINDS for x in v) or len(set(v)) != len(v):
+        raise ValueError("invalid")
+    if "labor" not in v:
+        raise ValueError("labor_required")
+    return [k for k in LINE_KINDS if k in v]
+
 # section 14.1 / D5: link lifetime ranges (shared with the per-department overrides, services/tickets/policy.py)
 SLIDING_DAYS = (1, 90)
 CAP_DAYS = (7, 365)
@@ -145,8 +157,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("costs", "require_invoice"): (False, boolean),
     ("costs", "max_claim_total_minor"): (100_000_000, int_range(100, 99_999_999_999)),
     ("costs", "review_flag_above_minor"): (1_000_000, int_range(0, 99_999_999_999)),
-    ("costs", "notify_vendor_approved"): (True, boolean),
+    # owner 15.10 evening (TKDETAILBE): an approval never sends a message silently - the manager confirms a draft; default OFF
+    ("costs", "notify_vendor_approved"): (False, boolean),
     ("costs", "retention_days"): (2555, int_range(730, 3650)),
+    ("costs", "allowed_line_kinds"): (["labor", "parts"], line_kinds),  # TKDETAILBE: request -> department -> this default
 }
 
 

@@ -89,8 +89,11 @@ def _answer(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[st
         out["settings"] = {"currencies": list(s.currencies), "vat_rate_bp": s.vat_rate_bp, "review_flag_above_minor": s.review_flag_above_minor,
                            "max_claim_total_minor": s.max_claim_total_minor, "require_invoice": s.require_invoice}
         out["external_assignments"] = [{"id": a["id"], "name": a["assignee_name"], "assigned_at": a["assigned_at"], "ended_at": a.get("ended_at"),
-                                        "cost_claim": a.get("cost_claim")}
+                                        "cost_claim": a.get("cost_claim"), "quote_mode": a.get("quote_mode") or "optional"}
                                        for a in store.assignments(conn, ticket_id) if a["assignee_kind"] == "contact"]
+    from ..services.tickets import quotes  # TKDETAILBE: quotes, the cost flow, the allowed kinds and the baseline (contract 4.4)
+
+    out.update(quotes.answer(conn, seen.row, full=full, can_decide=full and viewer.holds(costs.COSTS, seen.row)))
     return out
 
 
@@ -189,9 +192,10 @@ class DecisionBody(BaseModel):
     lines: list[dict[str, Any]] | None = Field(default=None, max_length=30)
     payment_ref: str | None = Field(default=None, max_length=500)
     payment_date: str | None = Field(default=None, max_length=10)
+    exceptional: Literal["include", "exclude"] | None = None  # TKDETAILBE (5.3): approve with / without the exceptional lines
 
 
-ACTIONS = ("approve", "adjust", "reject", "mark-paid", "unmark-paid", "reopen-window")
+ACTIONS =("approve", "adjust", "reject", "mark-paid", "unmark-paid", "reopen-window")
 AUDIT_ACTIONS = {"approve": "ticket.cost.approve", "adjust": "ticket.cost.adjust", "reject": "ticket.cost.reject", "mark-paid": "ticket.cost.mark_paid",
                  "unmark-paid": "ticket.cost.unmark_paid", "reopen-window": "ticket.cost.reopen_window"}
 
@@ -208,9 +212,12 @@ def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..
     needs_rev = action in ("approve", "adjust", "reject")
     if needs_rev and not body.revision_id:
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "revision_id", "code": "required"}]})
+    if body.exceptional is not None and action != "approve":
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "exceptional", "code": "only_with_approve"}]})
     try:
         if action == "approve":
-            fresh = costs.approve(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", at=at)
+            fresh = costs.approve(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", at=at,
+                                  exceptional=body.exceptional or "include", reason=body.reason)
         elif action == "adjust":
             fresh = costs.adjust(conn, claim, {"lines": body.lines or []}, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "",
                                  reason=body.reason, at=at)
@@ -225,10 +232,19 @@ def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..
     except costs.CostRefused as exc:
         raise _refused(conn, exc) from None
     _audit(conn, viewer, AUDIT_ACTIONS[action], seen, fresh, rid, revision_id=fresh.get("current_revision_id"),
-           total_minor=fresh.get("approved_total_minor"))
+           total_minor=fresh.get("approved_total_minor"), **({"exceptional": body.exceptional} if body.exceptional else {}))
     store.insert_event(conn, ticket_id, "cost_decision", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
                        assignment_id=fresh["assignment_id"], data={"claim_id": fresh["id"], "action": action.replace("-", "_")})
-    return _answer(conn, viewer, ticket_id)
+    out = _answer(conn, viewer, ticket_id)
+    draft = {"approve": "approved", "adjust": "approved", "reject": "rejected"}.get(action)
+    if draft is not None:  # TKDETAILBE (contract 7): the editable draft; a decision never sends it
+        from ..services.tickets import quotes
+        from .tickets_detail import claim_draft_object
+
+        if action == "approve" and body.exceptional == "exclude" and fresh.get("approved_revision_id") != body.revision_id:
+            draft = "approved_without_exceptional"
+        out["message_draft"] = quotes.draft_message(conn, seen.row, subject="claim", obj=claim_draft_object(conn, fresh), decision=draft)
+    return out
 
 
 # ---------------------------------------------------------------- on the vendor's behalf (a paper invoice): pending files, then the claim
@@ -360,6 +376,8 @@ class DepartmentCostsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     cost_claim: Literal["required", "optional", "off"] | None = None  # None = the installation's `costs.mode`
     claim_window_days: int | None = Field(default=None, ge=1, le=90)  # None = the installation's `costs.claim_window_days`
+    # TKDETAILBE: the department's default cost line kinds; null = the installation's; OMITTED = unchanged
+    allowed_line_kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)
 
 
 def _need_configure(conn, viewer: Viewer, action: str, rid: str | None) -> None:
@@ -376,7 +394,11 @@ def get_department_costs(request: Request, principal: Principal = Depends(curren
     viewer = Viewer(conn, principal)
     _need_configure(conn, viewer, "ticket.department.costs", _rid(request))
     s = costs.cost_settings(conn)
-    return {"departments": store_costs.department_cost_rows(conn), "installation": {"mode": s.mode, "claim_window_days": s.claim_window_days}}
+    from ..services.tickets import quotes, settings_doc
+
+    rows = [{**r, "allowed_line_kinds": quotes.kinds_json(r.get("allowed_line_kinds"))} for r in store_costs.department_cost_rows(conn)]
+    return {"departments": rows, "installation": {"mode": s.mode, "claim_window_days": s.claim_window_days,
+                                                  "allowed_line_kinds": settings_doc.read(conn)["costs"]["allowed_line_kinds"]}}
 
 
 @router.put("/tickets/costs/departments/{dept_id}")
@@ -385,8 +407,19 @@ def put_department_costs(body: DepartmentCostsBody, request: Request, dept_id: s
     viewer = Viewer(conn, principal)
     rid = _rid(request)
     _need_configure(conn, viewer, "ticket.department.costs", rid)
+    kinds_sent = "allowed_line_kinds" in body.model_fields_set
+    if kinds_sent:
+        from ..services.tickets import quotes, store_quotes
+
+        try:
+            kinds = quotes.parse_kinds(body.allowed_line_kinds, "allowed_line_kinds")
+        except costs.CostRefused as exc:
+            raise _refused(conn, exc) from None
     if not store_costs.set_department_costs(conn, dept_id, body.cost_claim, body.claim_window_days, costs.iso(costs.now_utc())):
         raise ApiError(404, "department_not_found", text(conn, "המחלקה לא נמצאה."))
+    if kinds_sent:
+        store_quotes.set_department_kinds(conn, dept_id, kinds)
     audit(conn, actor=principal, action="ticket.department.costs", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
-          request_id=rid, details={"cost_claim": body.cost_claim, "claim_window_days": body.claim_window_days})
+          request_id=rid, details={"cost_claim": body.cost_claim, "claim_window_days": body.claim_window_days,
+                                   **({"allowed_line_kinds": kinds} if kinds_sent else {})})
     return get_department_costs(request, principal, conn)

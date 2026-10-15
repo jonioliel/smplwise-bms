@@ -291,6 +291,9 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     if note_text:
         store.insert_event(conn, row["id"], "note", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, assignment_id=aid, body=note_text,
                            visible_external=bool(note_external))
+    from . import owners  # TKDETAILBE: the internal owner defaults to the internal handler of this moment (else the manager)
+
+    owners.on_handoff(conn, row, by=viewer.uid, actor_name=who, at=now)
     store_links.touch_contact_assigned(conn, contact_id, now)
     dispatched = DISPATCH.queue(conn, purpose="assign", ticket=row, assignment_id=aid, link=link_row, contact=contact,
                                 send_now=bool(send_now), requested_by=viewer.uid)

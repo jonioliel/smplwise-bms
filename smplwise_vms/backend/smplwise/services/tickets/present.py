@@ -242,6 +242,16 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
     else:
         out["assignments"] = []
     out["cost"] = cost_block(viewer, seen)
+    # TKDETAILBE (contract 8): the internal owner, "waiting for a part" as a sub-state of "in progress", the new abilities
+    from .owners import owner_block
+
+    out["internal_owner"] = owner_block(conn, row)
+    status = row["status"]
+    out["status_view"] = {"stage": "in_progress" if status == "waiting_part" else status, "sub_state": "waiting_part" if status == "waiting_part" else None}
+    open_ = status not in model.FINAL
+    asg_external = row.get("asg_kind") == "contact" and bool(row.get("current_assignment_id")) and not row.get("asg_ended_at")
+    out["can"]["change_owner"] = bool(seen.manager and open_)
+    out["can"]["vendor_message"] = bool(seen.manager and open_ and asg_external and viewer.holds("tickets.external", row))
     return out
 
 

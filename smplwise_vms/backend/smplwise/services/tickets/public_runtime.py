@@ -80,7 +80,7 @@ class Runtime:
 
     def build_app(self, db: Database, *, clock=None) -> PublicApp:
         """The public app over the real store (the public-core notes, wiring item 2)."""
-        from . import public_claims  # slice 9: the cost claim step (11A)
+        from . import public_claims, public_quotes  # slice 9: the cost claim step (11A); TKDETAILBE: the quote
         from .public_routes import build_router
 
         switch = CachedSwitch(lambda: _module_on(db))
@@ -109,7 +109,8 @@ class Runtime:
             code_events=SqlCodeEvents(db, clock=clock),  # slice 7: access rows, timeline, sliding expiry, the lock -> the manager
             photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
-            extra_routers=(build_router(db, clock=clock), public_claims.build_router(db, clock=clock)),
+            extra_routers=(build_router(db, clock=clock), public_claims.build_router(db, clock=clock),
+                           public_quotes.build_router(db, clock=clock)),  # TKDETAILBE: the quote before the work
             client_ip_header=doc["public"]["client_ip_header"], claim_window=public_claims.claim_window(db),
             claim_files=public_claims.SqlClaimFileSink(db, clock=clock), **deps_kw,
         )

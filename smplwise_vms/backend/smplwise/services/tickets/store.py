@@ -1116,6 +1116,11 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     run("ticket_cost_decisions", f"DELETE FROM ticket_cost_decisions WHERE claim_id IN {claims}", (ticket_id,))
     run("ticket_cost_revisions", f"DELETE FROM ticket_cost_revisions WHERE claim_id IN {claims}", (ticket_id,))
     run("ticket_cost_claims", "DELETE FROM ticket_cost_claims WHERE ticket_id = ?", (ticket_id,))
+    if _has_table(conn, "ticket_quotes"):  # TKDETAILBE (0087): quotes, their decisions and the owner history follow the ticket
+        run("ticket_quote_decisions", "DELETE FROM ticket_quote_decisions WHERE quote_id IN (SELECT id FROM ticket_quotes WHERE ticket_id = ?)",
+            (ticket_id,))
+        run("ticket_quotes", "DELETE FROM ticket_quotes WHERE ticket_id = ?", (ticket_id,))
+        run("ticket_owner_changes", "DELETE FROM ticket_owner_changes WHERE ticket_id = ?", (ticket_id,))
     run("ticket_attachments", "DELETE FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,))
     run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
@@ -1150,5 +1155,8 @@ def ticket_rows_left(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]
         "ticket_cost_claims": "SELECT COUNT(*) FROM ticket_cost_claims WHERE ticket_id = ?",
         "ticket_cost_files": "SELECT COUNT(*) FROM ticket_cost_files WHERE ticket_id = ?",
     }
+    if _has_table(conn, "ticket_quotes"):  # TKDETAILBE (0087)
+        checks["ticket_quotes"] = "SELECT COUNT(*) FROM ticket_quotes WHERE ticket_id = ?"
+        checks["ticket_owner_changes"] = "SELECT COUNT(*) FROM ticket_owner_changes WHERE ticket_id = ?"
     left = {t: int(conn.execute(sql, (ticket_id,)).fetchone()[0]) for t, sql in checks.items()}
     return {t: n for t, n in left.items() if n}
