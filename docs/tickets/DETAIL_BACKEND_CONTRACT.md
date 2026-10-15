@@ -1,6 +1,6 @@
 # Service-request detail - backend contract (TKDETAILBE)
 
-Status: **v1 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
+Status: **v1.1 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
 in the hand-off report. Source decisions: `private/planning/_mockups/ticket-detail-v3/DECISIONS.md` (owner, 15.10 and 15.10 evening)
 and `RFQ_SPEC_DRAFT.md` sections 1, 2, 5, 9. Backend only: no UI is part of this change.
 
@@ -186,7 +186,9 @@ At every submission (vendor, on behalf) and adjustment the server compares the l
 
 * with a baseline: a line whose kind is not among the baseline's approved line kinds is **exceptional** (`reason: not_in_quote`);
 * without a baseline: a line whose kind is outside the request's allowed kinds is exceptional (`reason: kind_not_allowed`);
-* an exceptional line needs a description (422 `exceptional_description_required`, field `lines.N.description`).
+* against a baseline an exceptional line needs a description (422 `exceptional_description_required`, field
+  `lines.N.description`); without a baseline the line is flagged only (a 2.5 demand with a travel line and no description stays
+  valid - backward compatibility).
 
 `claim.quote_id` is set at submission (the baseline in force then).
 
@@ -312,3 +314,8 @@ The task named `tickets.costs.approve`: no such permission exists - `tickets.cos
 ## 12. Change log of this contract
 
 * v1 (2026-10-16): first version.
+* v1.1 (2026-10-16, same day, after the implementation): 5.1 - the description of an exceptional line is required only against a
+  baseline; 4.4 - each quote answer also carries `can.reject`; 4.5 - `GET /t/api/quote` per quote carries `reason` (fix / reject) and
+  never `decision`; 6 - status items carry `stored_to` (the stored status, `waiting_part` included) beside the displayed `to`.
+  Unchanged on purpose: a demand REJECTION still queues the existing templated `cost_rejected` notification (it is not an approval;
+  the owner's rule names approvals) - the reject answer also returns a `message_draft` for a free-text explanation.

@@ -474,6 +474,21 @@ def test_every_draft_language_renders(s4):
         assert all(word not in v for v in quotes.DRAFTS["he"].values())
 
 
+def test_every_detail_route_answers_the_uniform_404_while_the_module_is_off(s4):
+    from fastapi.routing import APIRoute
+
+    from smplwise.routers import tickets_detail
+
+    t = s4.ticket()
+    assert s4.c.patch(f"{API}/settings", json={"tickets.enabled": "false"}).status_code == 200
+    routes = [(m, r.path) for r in tickets_detail.router.routes if isinstance(r, APIRoute) for m in r.methods]
+    assert len(routes) == 11
+    for method, path in routes:
+        url = API + path.replace("{ticket_id}", t["id"]).replace("{quote_id}", "q1").replace("{action}", "approve").replace("{event_id}", "1")
+        r = s4.c.request(method, url, json={})
+        assert r.status_code == 404 and r.json()["code"] == "feature_disabled", (method, path, r.text)
+
+
 # ---------------------------------------------------------------- the purge
 
 def test_the_purge_removes_quotes_decisions_and_owner_history(s4):
