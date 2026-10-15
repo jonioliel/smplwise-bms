@@ -197,10 +197,13 @@ def begin_body(request: Request) -> None:
     public_request(request).cost.body_phase()
 
 
-def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bool = False) -> Callable[[Request], Awaitable[LinkContext]]:
+def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bool = False,
+                 claim_surface: bool = False) -> Callable[[Request], Awaitable[LinkContext]]:
     """The dependency of every token route (see the module docstring). `write`: refuse during the read-only grace (409
     `read_only`); `need_code`: a link that requires a code needs a valid code session (403 `code_required`) - for writes; a
-    read route checks `code_ok` itself to decide what it may show (spec 10.5: number, department, organisation only)."""
+    read route checks `code_ok` itself to decide what it may show (spec 10.5: number, department, organisation only).
+    `claim_surface` (TKSTAFF1, security design R2): a route of the cost-claim step - a STAFF link (an internal employee's no-login
+    link) answers the uniform 404 there, whatever claim row exists; a staff link never enters claim mode either."""
 
     async def dep(request: Request) -> LinkContext:
         deps: PublicDeps = request.app.state.deps
@@ -210,7 +213,8 @@ def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bo
         link = await run_in_threadpool(deps.links.lookup, pr.token_hash)
         now = deps.clock()
         claim_mode = False
-        if link is not None and not link.available(now) and allow_claim and deps.claim_window is not None:
+        staff = link is not None and getattr(link, "kind", "external") == "staff"
+        if link is not None and not link.available(now) and allow_claim and deps.claim_window is not None and not staff:
             # slice 9 (11A.5): one more read, only for a token that matched a link row - nothing is learned without a real token
             until = await run_in_threadpool(deps.claim_window, link, now)
             if until is not None and now < until:
@@ -219,6 +223,8 @@ def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bo
         if link is None or not link.available(now):
             pr.cost.unknown()
             raise unavailable()
+        if claim_surface and staff:
+            raise unavailable()  # R2: byte-identical to an unknown token (no budget spent: nothing was stored)
         pr.cost.proved(link.link_id)
         read_only = link.read_only(now) or claim_mode
         code_ok = not link.require_code
@@ -711,7 +717,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
     # ---------------------------------------------------------------- invoice files of a cost claim (slice 9, spec 11A.6 / 11A.6A)
 
     @api.post("/t/api/claim/file")
-    async def claim_file(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True))) -> Response:
+    async def claim_file(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True, claim_surface=True))) -> Response:
         """One photographed page or one PDF of the vendor's claim, stored as a PENDING file (24 h) - the submission references it.
         The photo route's protections apply (one upload in flight per link, the upload memory budget, the storage cap before
         the body, V2's body-phase cost, the processing and decoder admission, idempotent by `client_request_id`); a

@@ -126,6 +126,7 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
     if moved and row.get("asg_kind") == "user" and _active_assignment(row) and row.get("asg_user_id") not in store.department_user_ids(conn, dept_id):
         ended = _active_assignment(row)
         store.update_assignment(conn, ended, {"ended_at": now, "end_reason": "reassigned"})
+        handler_links.revoke_for_assignment(conn, ended, "reassigned", handler_links.parse(now) or handler_links.now_utc())  # TKSTAFF1: a staff link dies
         update.update({"current_assignment_id": None, "status": "new", "eta_at": None})
         update["waiting_on"], update["waiting_reason"] = model.waiting_for("new")
     if not store.update_ticket(conn, row["id"], update, expect_revision=revision):
@@ -335,6 +336,9 @@ def assign(conn, viewer: Viewer, seen: Seen, kind: str, assignee_id: str, note: 
         store.insert_event(conn, row["id"], "note", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, assignment_id=aid, body=note_text,
                            visible_external=bool(note_external))
     _audit(conn, viewer, "ticket.assign", row, rid, assignee_kind="user", assignee_id=assignee_id, reassign=bool(current), reopened=reopened)
+    from . import staff_links  # TKSTAFF1: a WhatsApp message with the no-login staff link when the user has a mobile (R5..R12)
+
+    staff_links.on_user_assigned(conn, viewer, row, aid, assignee_id, rid=rid)
     sla.refresh(conn, row["id"])
     notify_bridge.ticket_assigned(conn, row["id"], aid)
     return aid

@@ -50,6 +50,8 @@ def _error(exc: costs.CostRefused) -> PublicError:
 
 def claim_window(db: Database) -> Callable[[LinkRecord, float], float | None]:
     def ask(link: LinkRecord, now: float) -> float | None:
+        if getattr(link, "kind", "external") == "staff":
+            return None  # TKSTAFF1 (R2): a staff link never enters claim mode
         with db.connection(mode="read", label="tickets.public.claim_window") as conn:
             until = costs.claim_mode_ok(conn, link.link_id, link.generation, _when(now))
         return until.timestamp() if until else None
@@ -75,6 +77,8 @@ class SqlClaimFileSink(ClaimFileSink):
         return claim
 
     def check_open(self, link: LinkRecord) -> None:
+        if getattr(link, "kind", "external") == "staff":
+            raise PublicError(404, "link_unavailable")  # TKSTAFF1 (R2): defence in depth behind link_context(claim_surface=True)
         with self.db.connection(mode="read", label="tickets.public.claim") as conn:
             self._open_claim(conn, link, _when(self._clock()))
 
@@ -147,7 +151,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         return _when(clock() if clock is not None else dt.datetime.now(UTC).timestamp())
 
     @r.get(CLAIM_ROUTE)
-    async def get_claim(ctx: LinkContext = Depends(link_context(allow_claim=True))) -> JSONResponse:
+    async def get_claim(ctx: LinkContext = Depends(link_context(allow_claim=True, claim_surface=True))) -> JSONResponse:
         if not ctx.code_ok:
             raise PublicError(403, "code_required")
 
@@ -160,7 +164,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         return JSONResponse(await run_in_threadpool(read))
 
     @r.post(CLAIM_ROUTE)
-    async def post_claim(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True))) -> JSONResponse:
+    async def post_claim(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True, claim_surface=True))) -> JSONResponse:
         body: ClaimIn = await read_json(request, ClaimIn)
         crid = parse_client_request_id(body.client_request_id)
         if not ctx.code_ok:

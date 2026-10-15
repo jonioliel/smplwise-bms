@@ -62,6 +62,13 @@ def tick(db: Database, *, force: bool = False) -> int:
 
             if not module_on(conn):
                 return 0
+            from . import staff_links  # TKSTAFF1 (R7 a / b): the safety net for group and binding changes made on other screens
+
+            try:
+                staff_links.recheck(conn, now)
+            except Exception:  # noqa: BLE001 - never stops the monitor
+                STATS["errors"] += 1
+                log.warning("tickets staff link recheck failed", exc_info=True)
             # after a restart, the changes of the last day are looked at once more (the in-memory "previous run" is gone)
             since = _LAST_RUN.get(key) or stuck.iso(now - dt.timedelta(days=1))
             ids = [r["id"] for r in store.monitor_rows_system(conn, stuck.iso(now) or "", since, BATCH)]

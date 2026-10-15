@@ -9,7 +9,8 @@ Who may do what (section 8, D15, D25, review T19):
   for (D25); everyone else sees the last four digits only;
 - a row that names an internal user (`user_id`: the phone / e-mail of a user) can never receive a handler link (409
   `assignee_not_allowed` at assignment, Q4 / D16);
-- a phone or e-mail change while the contact holds live links revokes those links at once (`contact_changed`), puts each
+- a phone or e-mail change (TKSTAFF1: or the row set inactive) while the contact holds live links revokes those links at once
+  (`contact_changed`; their queued messages are cancelled - handler_links.revoke), puts each
   ticket in "waiting for the manager" and tells the managers (review T19-4: a directory editor cannot redirect a live link to a
   phone of their choosing);
 - erase replaces the person's data by a tombstone and revokes the links (`contact_erased`); export returns the row and what
@@ -441,7 +442,8 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
         changed.append("departments")
     revoked = 0
     now = handler_links.now_utc()
-    if phone_changed or email_changed or fields.get("user_id"):
+    deactivated = fields.get("active") == 0 and bool(row["active"])  # TKSTAFF1 (security design R7 c): an inactive row holds no live link
+    if phone_changed or email_changed or fields.get("user_id") or deactivated:
         revoked = revoke_contact_links(conn, contact_id, "contact_changed", now, rid=rid)
     if fields.get("require_code") == 1 and not row["require_code"]:
         raise_code_requirement(conn, contact_id)

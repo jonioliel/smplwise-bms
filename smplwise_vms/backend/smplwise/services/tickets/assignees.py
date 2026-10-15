@@ -64,9 +64,13 @@ def may_send(viewer: access.Viewer, row: dict[str, Any], contact: dict[str, Any]
 
 
 def link_contact_is_staff(conn, ticket: dict[str, Any]) -> bool:
-    """Whether the ticket's current (or last) handler link belongs to a staff contact (the link panel's actions follow may_send)."""
+    """Whether the ticket's current (or last) handler link belongs to a staff contact (the link panel's actions follow may_send) -
+    or is a TKSTAFF1 staff link of an internal employee with an account (`ticket_links.kind = 'staff'`): its actions need manager
+    rights only, like the assignment that made it."""
     link = store_links.link_for_assignment(conn, ticket.get("current_assignment_id")) or store_links.latest_link_of_ticket(conn, ticket["id"])
-    return bool(link) and is_staff(store_links.contact(conn, link["contact_id"]))
+    if not link:
+        return False
+    return link.get("kind") == "staff" or is_staff(store_links.contact(conn, link["contact_id"]))
 
 
 def staff_for(conn, department_id: str) -> list[dict[str, Any]]:

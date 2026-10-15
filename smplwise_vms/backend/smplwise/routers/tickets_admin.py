@@ -80,6 +80,16 @@ class PublicPatch(BaseModel):  # slice 4: the handler page's address and the pee
     client_ip_header: Literal["cf-connecting-ip", "x-forwarded-for"] | None = None
 
 
+class StaffLinksPatch(BaseModel):
+    """TKSTAFF1 (R6 / R8): the staff link's lifetime (settings_doc `staff_links.*`, the same ranges and cap >= sliding rule) and the
+    code default."""
+    model_config = ConfigDict(extra="forbid")
+    sliding_days: StrictInt | None = None
+    cap_days: StrictInt | None = None
+    grace_hours: StrictInt | None = None
+    require_code: StrictBool | None = None
+
+
 class LinksPatch(BaseModel):
     """D5 installation values (ranges and the cap >= sliding rule: settings_doc.SCHEMA)."""
     model_config = ConfigDict(extra="forbid")
@@ -130,6 +140,7 @@ class SettingsBody(BaseModel):
     public: PublicPatch | None = None  # slice 4
     code: CodePatch | None = None  # slice 7
     costs: CostsPatch | None = None  # slice 9
+    staff_links: StaffLinksPatch | None = None  # TKSTAFF1
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -157,7 +168,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs"):  # slice 2 / slice 4 / slice 7 / slice 9
+    for block in ("links", "public", "code", "costs", "staff_links"):  # slice 2 / slice 4 / slice 7 / slice 9 / TKSTAFF1
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None}
@@ -178,6 +189,10 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         from ..services.tickets import handler_links
 
         pulled = handler_links.pull_in_caps(conn)
+    if doc["staff_links"]["cap_days"] < current["staff_links"]["cap_days"]:  # TKSTAFF1 (R6): the same rule for staff links only
+        from ..services.tickets import handler_links
+
+        pulled += handler_links.pull_in_caps(conn, kind="staff")
     if "public.trusted_proxy_cidrs" in changed or "public.client_ip_header" in changed:  # W13 (slice 4): the running listener follows at once
         from ..services.tickets.public_runtime import RUNTIME
 
@@ -229,11 +244,17 @@ def put_name(body: NameBody, request: Request, principal: Principal = Depends(cu
 # ---------------------------------------------------------------- departments
 
 def _member_dicts(conn: sqlite3.Connection, dept_id: str) -> list[dict[str, Any]]:
+    from ..services.tickets import staff_links
+
     out = []
     for m in store.members(conn, dept_id):
         name = store.display_name(conn, m["subject_id"]) if m["subject_kind"] == "user" else store.group_name(conn, m["subject_id"])
-        out.append({"kind": m["subject_kind"], "id": m["subject_id"], "name": name, "role": m["member_role"], "notify_new": bool(m["notify_new"]),
-                    "added_at": m["added_at"]})
+        item = {"kind": m["subject_kind"], "id": m["subject_id"], "name": name, "role": m["member_role"], "notify_new": bool(m["notify_new"]),
+                "added_at": m["added_at"]}
+        if m["subject_kind"] == "user":  # TKSTAFF1: the mobile for the no-login staff link (a tickets.configure screen: the full number)
+            sv = staff_links.view(conn, m["subject_id"])
+            item.update({"mobile": sv["phone"], "notify_whatsapp": sv["notify_whatsapp"], "lang": sv["lang"]})
+        out.append(item)
     return out
 
 
@@ -828,9 +849,33 @@ def delete_member(request: Request, dept_id: str = Path(..., pattern=ID), kind: 
     if before is None:
         raise ApiError(404, "not_found", text(conn, "החבר לא נמצא במחלקה."))
     store.delete_member(conn, dept_id, kind, subject_id)
+    from ..services.tickets import staff_links  # TKSTAFF1 (R7 b): a user who left the department holds no live staff link
+
+    staff_links.safe_recheck(conn)
     audit(conn, actor=principal, action="ticket.member.remove", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
           request_id=_rid(request), details={"subject_kind": kind, "subject_id": subject_id, "role": before["member_role"]})
     return _department_dict(conn, Viewer(conn, principal), store.department(conn, dept_id) or {})
+
+
+# ---------------------------------------------------------------- TKSTAFF1: a staff member's mobile (the no-login staff link)
+
+class StaffMobileBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    phone: str | None = Field(default=None, max_length=40)
+    lang: Literal["he", "en", "ar", "ru"] | None = None
+    notify_whatsapp: StrictBool | None = None
+
+
+@router.put("/tickets/admin/staff/{user_id}")
+def put_staff_mobile(body: StaffMobileBody, request: Request, user_id: str = Path(..., min_length=1, max_length=200),
+                     principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """"מטפלים וספקים" › מטפלים › "עם חשבון במערכת": the mobile (E.164), the message language and the user's WhatsApp switch of an
+    internal employee with an account (services/tickets/staff_links.set_mobile; tickets.configure; audited without the number)."""
+    from ..services.tickets import staff_links
+
+    viewer = _configurer(conn, principal)
+    sent = body.model_dump(exclude_unset=True)
+    return staff_links.set_mobile(conn, viewer, user_id, sent, _rid(request))
 
 
 # ---------------------------------------------------------------- pickers and the permissions overview (section 8.2)

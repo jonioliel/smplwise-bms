@@ -31,7 +31,8 @@ def _in(values: Iterable[str]) -> tuple[str, list[str]]:
 CONTACT_FIELDS = ("kind", "vendor_id", "user_id", "display_name", "company", "phone_e164", "phone_key", "phone_key_id", "email",
                   "preferred_channel", "require_code", "share_history", "lang", "notes", "active",
                   "cost_claim", "vat_exempt", "vat_default", "labor_rate_minor", "rate_currency",  # + S9 (0083)
-                  "employee")  # + 0084: an employee without an account (API kind "employee" = kind 'person' with employee = 1)
+                  "employee",  # + 0084: an employee without an account (API kind "employee" = kind 'person' with employee = 1)
+                  "notify_whatsapp")  # + TKSTAFF1 (0090): a user's own "WhatsApp for my assignments" switch on their directory row
 
 
 def insert_contact(conn: sqlite3.Connection, fields: Mapping[str, Any], created_by: str) -> str:
@@ -177,12 +178,12 @@ def contact_assignments(conn: sqlite3.Connection, contact_id: str) -> list[dict[
 
 LINK_COLUMNS = ("id", "ticket_id", "assignment_id", "contact_id", "generation", "key_id", "token_hash", "require_code", "sent_via",
                 "sent_at", "created_at", "generation_at", "expires_at", "cap_at", "grace_until", "revoked_at", "revoked_reason",
-                "first_opened_at", "last_opened_at", "open_count", "update_count")
+                "first_opened_at", "last_opened_at", "open_count", "update_count", "kind")
 
 # ONE statement for the public lookup (W1): the unique index on token_hash drives it; the joins are primary-key lookups that
 # fold in the facts the listener needs - is the assignment still current, the ticket's number and status, the contact's phone key.
 LOOKUP_SQL = (
-    "SELECT l.id, l.ticket_id, l.assignment_id, l.contact_id, l.generation, l.key_id, l.require_code, l.sent_via, l.expires_at, "
+    "SELECT l.id, l.ticket_id, l.assignment_id, l.contact_id, l.generation, l.key_id, l.require_code, l.sent_via, l.expires_at, l.kind, "
     "l.cap_at, l.grace_until, l.revoked_at, a.ended_at AS asg_ended_at, a.end_reason AS asg_end_reason, "
     "t.current_assignment_id AS t_current, t.status AS t_status, t.number AS t_number, c.phone_key AS c_phone_key "
     "FROM ticket_links l JOIN tickets t ON t.id = l.ticket_id JOIN ticket_assignments a ON a.id = l.assignment_id "
@@ -226,15 +227,41 @@ def live_links_of_contact(conn: sqlite3.Connection, contact_id: str) -> list[dic
         "SELECT * FROM ticket_links WHERE contact_id = ? AND revoked_at IS NULL ORDER BY created_at", (contact_id,)).fetchall()]
 
 
+def live_staff_links(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """TKSTAFF1 (R7): every live staff link with the user of its assignment and the ticket's department (the recheck)."""
+    return [dict(r) for r in conn.execute(
+        "SELECT l.*, a.user_id AS asg_user_id, a.ended_at AS asg_ended_at, t.department_id, t.status AS t_status FROM ticket_links l "
+        "JOIN ticket_assignments a ON a.id = l.assignment_id JOIN tickets t ON t.id = l.ticket_id "
+        "WHERE l.kind = 'staff' AND l.revoked_at IS NULL").fetchall()]
+
+
+def cancel_open_messages(conn: sqlite3.Connection, link_id: str, at: str, *, keep: Iterable[str] = ()) -> int:
+    """TKSTAFF1 (R7, spec 9.2 "a revoked link cancels its queued rows"): the queued / held outbox rows of a link become `cancelled`
+    (outcome `link_revoked`) in the caller's transaction - a message queued before a phone change or a new generation never leaves
+    with a dead (or another generation's) link. Rows in flight or final are never touched; purposes in `keep` (the notices that
+    TELL the holder their link ended) stay. A compare-and-set on the state, like the outbox store's own save."""
+    kept = list(keep)
+    marks = ", ".join("?" * len(kept))
+    sql = ("UPDATE ticket_outbox SET state = 'cancelled', outcome_code = 'link_revoked', held_reason = NULL, updated_at = ? "
+           "WHERE link_id = ? AND state IN ('queued', 'held')")
+    if kept:
+        sql += f" AND purpose NOT IN ({marks})"
+    return conn.execute(sql, (at, link_id, *kept)).rowcount
+
+
 def live_links(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute("SELECT * FROM ticket_links WHERE revoked_at IS NULL").fetchall()]
 
 
-def live_links_with_department(conn: sqlite3.Connection, department_id: str | None = None) -> list[dict[str, Any]]:
-    """Live links with their ticket's department (a cap change pulls them in); one department, or every one."""
-    sql = ("SELECT l.id, l.created_at, l.generation_at, l.cap_at, t.department_id FROM ticket_links l JOIN tickets t ON t.id = l.ticket_id "
+def live_links_with_department(conn: sqlite3.Connection, department_id: str | None = None, *, kind: str | None = None) -> list[dict[str, Any]]:
+    """Live links with their ticket's department (a cap change pulls them in); one department, or every one; one kind (TKSTAFF1:
+    'external' | 'staff') or both."""
+    sql = ("SELECT l.id, l.created_at, l.generation_at, l.cap_at, l.kind, t.department_id FROM ticket_links l JOIN tickets t ON t.id = l.ticket_id "
            "WHERE l.revoked_at IS NULL")
     args: list[Any] = []
+    if kind is not None:
+        sql += " AND l.kind = ?"
+        args.append(kind)
     if department_id is not None:
         sql += " AND t.department_id = ?"
         args.append(department_id)
