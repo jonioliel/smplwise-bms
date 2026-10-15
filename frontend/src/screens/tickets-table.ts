@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { LiveRefresh } from '../tickets/live-refresh';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
@@ -31,7 +32,6 @@ import { ct, type CostTextKey } from '../tickets/cost-text';
 
 type Screen = 'loading' | 'ready' | 'error';
 type CellMenu = { id: string; kind: 'status' | 'assignee' } | null;
-const POLL_MS = 30_000;
 
 /**
  * CR-038 slice 6b (D24, section 13.6) `<tickets-table>`: the board's first-class TABLE view, hosted by the tickets area
@@ -86,7 +86,7 @@ export class TicketsTable extends LitElement {
   private booted = false;
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
-  private poll = 0;
+  private live = new LiveRefresh(() => this.tick()); // 2.5.4: the one shared poller (20 s, visible, focus)
   private toastTimer = 0;
   private offNames: (() => void) | null = null;
 
@@ -106,7 +106,7 @@ export class TicketsTable extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhone);
     this.offNames = onTicketNames(() => this.requestUpdate());
     window.addEventListener('pointerdown', this.onOutside, true);
-    this.poll = window.setInterval(() => this.tick(), POLL_MS);
+    this.live.start();
     // CR-038 slice 9 (11A.9): the cost columns, sort and filter only for tickets.costs.view at the installation (the server's 403 rule)
     setCostColumns(!isApi() || can('tickets.costs.view'));
     void this.boot();
@@ -117,7 +117,7 @@ export class TicketsTable extends LitElement {
     this.phoneMq.removeEventListener('change', this.onPhone);
     this.offNames?.();
     window.removeEventListener('pointerdown', this.onOutside, true);
-    window.clearInterval(this.poll);
+    this.live.stop();
     window.clearTimeout(this.toastTimer);
   }
 
@@ -192,7 +192,12 @@ export class TicketsTable extends LitElement {
     }
   }
 
-  /** The 30 s refresh while the table is visible and nothing is open (one page loaded: it is re-read in place). */
+  /** 2.5.4: a quiet re-read after a change made elsewhere on the screen (the drawer). */
+  refresh(): void {
+    if (this.screen === 'ready' && this.pages <= 1) void this.load(false, true);
+  }
+
+  /** The 20 s refresh while the table is visible and nothing is open (one page loaded: it is re-read in place). */
   private tick(): void {
     this.now = new Date();
     if (document.visibilityState !== 'visible' || this.screen !== 'ready' || this.menu || this.move || this.pages > 1 || this.busy) return;
@@ -431,6 +436,10 @@ export class TicketsTable extends LitElement {
     const a = e.detail.answer;
     const s = bulkSummary(a);
     this.say(s.head, s.rest || undefined, s.tone);
+    if (a.action === 'delete' && this.rows) {
+      const gone = new Set(a.results.filter((r) => r.result === 'ok').map((r) => r.id)); // 2.5.4: the deleted rows leave at once
+      this.rows = this.rows.filter((r) => !gone.has(r.id));
+    }
     this.selected = keepAfterBulk(a, this.ids());
     void this.load(false, true);
   };

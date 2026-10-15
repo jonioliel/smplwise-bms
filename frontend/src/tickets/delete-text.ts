@@ -24,6 +24,7 @@ const he = {
   go: 'מחיקה סופית',
   cancel: 'ביטול',
   done: '{the_ticket} #{n} {f:נמחקה|m:נמחק}',
+  deletedOne: '{the_ticket} {f:נמחקה|m:נמחק}',
   p_delete: 'מחיקה מלאה', // the permission's words on the "הרשאות" tab (perm-label.ts)
 };
 
@@ -35,6 +36,7 @@ const en: Partial<Record<DeleteTextKey, string>> = {
   title: 'Delete {ticket} #{n}',
   bulkTitle: 'Delete {n} {tickets}',
   warn: 'Deleting is final and cannot be undone.',
+  deletedOne: 'Deleted',
   goes: 'Removed with it: notes, photos, outside links and costs.',
   bulkGoes: 'Every selected item is removed with its notes, photos, links and costs.',
   typeNumber: 'To confirm, type the number: {n}',

@@ -21,6 +21,8 @@ import { replaceRoute, type RouteState } from '../router';
 import { ticketsApi, type ListPage, type Meta, type ModuleState, type TicketDetail, type TicketItem } from '../api/tickets';
 import { NO_FILTERS, STATUS_FILTERS, filterLabel, listHref, parseTicketsRoute, rememberScope, ticketHref, type ListFilters, type TicketsRoute } from '../tickets/model';
 import { tt } from '../tickets/text';
+import { dlt } from '../tickets/delete-text';
+import { LiveRefresh } from '../tickets/live-refresh';
 import { tIcon } from '../tickets/icons';
 import { onTicketNames, setTicketNames } from '../tickets/naming';
 import type { TicketCardAction } from '../tickets/ticket-card';
@@ -72,6 +74,14 @@ export class TicketsList extends LitElement {
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private qTimer = 0;
   private toastTimer = 0;
+  private extraPages = 0;
+  /** 2.5.4: cards (and the table, which polls itself) refetch every 20 s while visible, on focus and after every mutation */
+  private live = new LiveRefresh(() => this.refreshQuiet());
+
+  private refreshQuiet(): void {
+    if (this.screen !== 'ready' || this.view !== 'cards' || this.extraPages > 0 || this.loadingMore) return;
+    void this.loadPage(false);
+  }
   private clock = 0;
   private offNames: (() => void) | null = null;
 
@@ -147,6 +157,7 @@ export class TicketsList extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhone);
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.clock = window.setInterval(() => (this.now = new Date()), 60_000);
+    this.live.start();
     void this.boot();
   }
 
@@ -155,6 +166,7 @@ export class TicketsList extends LitElement {
     this.phoneMq.removeEventListener('change', this.onPhone);
     this.offNames?.();
     window.clearInterval(this.clock);
+    this.live.stop();
     window.clearTimeout(this.qTimer);
     window.clearTimeout(this.toastTimer);
   }
@@ -216,8 +228,13 @@ export class TicketsList extends LitElement {
   private async loadPage(more: boolean): Promise<void> {
     const seq = ++this.seq;
     const f = this.r.filters;
-    if (more) this.loadingMore = true;
-    else if (this.items === null) this.screen = 'loading';
+    if (more) {
+      this.loadingMore = true;
+      this.extraPages++;
+    } else {
+      this.extraPages = 0;
+      if (this.items === null) this.screen = 'loading';
+    }
     try {
       const page: ListPage = await ticketsApi().list({ scope: this.r.scope, status: f.status, department_id: f.department || undefined, q: f.q, cursor: more ? this.next : null });
       if (seq !== this.seq) return;
@@ -276,6 +293,7 @@ export class TicketsList extends LitElement {
   /** Returned by a non-member handler, or deleted (owner 14.10): the drawer closes, the cards and the table drop it and reload. */
   private onTicketGone = (e: CustomEvent<{ id: string; deleted?: boolean }>) => {
     this.closeDrawer();
+    if (e.detail?.deleted) this.say(dlt('deletedOne'));
     if (e.detail?.deleted && this.items) this.items = this.items.filter((x) => x.id !== e.detail.id);
     (this.renderRoot.querySelector('tickets-table') as TicketsTable | null)?.dropTicket(e.detail?.id ?? '');
     this.listKey = '';
@@ -289,6 +307,8 @@ export class TicketsList extends LitElement {
     const item: TicketItem = { ...rest, excerpt: description.slice(0, 240) };
     this.items = this.items.map((x) => (x.id === t.id ? item : x));
     (this.renderRoot.querySelector('tickets-table') as TicketsTable | null)?.patchTicket(t); // CR-038 S6b
+    this.refreshQuiet(); // 2.5.4: a change can move the ticket between filters or reorder the list
+    (this.renderRoot.querySelector('tickets-table') as TicketsTable | null)?.refresh();
   };
 
   /** CR-038 S6b (D24): the cards or the table, remembered per user. */

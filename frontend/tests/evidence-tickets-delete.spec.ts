@@ -69,6 +69,8 @@ test.describe('tickets deletion evidence', () => {
     await expect.poll(() => mock.calls.at(-1)?.path).toBe(`tickets/${A02}/delete`);
     expect(mock.calls.at(-1)?.body).toMatchObject({ reason: 'כפילות', confirm_number: 1043 });
     await expect(page).not.toHaveURL(/t=0000000000000a02/);
+    await expect(page.locator(`${DLG} [data-delete-confirm]`)).toHaveCount(0); // 2.5.4: the dialog closes after the first answer
+    await expect(page.locator('sw-app tickets-list [data-tickets-toast]')).toContainText('נמחקה');
     if (!isPhone(page)) await expect(page.locator(`${T} tbody tr[data-row="${A02}"]`)).toHaveCount(0);
     await shot(page, 'after-delete');
   });

@@ -22,9 +22,10 @@ import { tIcon } from '../tickets/icons';
 import { onTicketNames, setTicketNames } from '../tickets/naming';
 import { autoCloseLine, ageOf, boardHref, floorChips, floorsLayout, groupingOn, parseBoardRoute, placeLabel, sections, stripItems, stuckChip, waitingLabel, type BoardRoute } from '../tickets/board-model';
 import type { TicketCardAction } from '../tickets/ticket-card';
+import { dlt } from '../tickets/delete-text';
+import { LiveRefresh } from '../tickets/live-refresh';
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
-const POLL_MS = 30_000;
 
 function writeHref(href: string, replace: boolean): void {
   if (!replace) {
@@ -69,13 +70,9 @@ export class TicketsBoard extends LitElement {
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private qTimer = 0;
-  private poll = 0;
+  private live = new LiveRefresh(() => { this.now = new Date(); if (this.screen === 'ready') void this.load(true); }); // 2.5.4: shared poller
   private toastTimer = 0;
   private offNames: (() => void) | null = null;
-  private onVisible = () => {
-    if (document.visibilityState === 'visible' && this.screen === 'ready') void this.load(true);
-  };
-
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
     .layout {
       display: grid;
@@ -234,21 +231,16 @@ export class TicketsBoard extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
-    document.addEventListener('visibilitychange', this.onVisible);
     this.offNames = onTicketNames(() => this.requestUpdate());
-    this.poll = window.setInterval(() => {
-      this.now = new Date();
-      if (document.visibilityState === 'visible' && this.screen === 'ready') void this.load(true);
-    }, POLL_MS);
+    this.live.start();
     void this.boot();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
-    document.removeEventListener('visibilitychange', this.onVisible);
     this.offNames?.();
-    window.clearInterval(this.poll);
+    this.live.stop();
     window.clearTimeout(this.qTimer);
     window.clearTimeout(this.toastTimer);
   }
@@ -365,6 +357,17 @@ export class TicketsBoard extends LitElement {
   };
 
   private closeDrawer = () => writeHref(boardHref(this.r), false);
+
+  /** 2.5.4: gone or deleted - the drawer closes, a deleted request leaves the board at once (confirmation shown), then a quiet re-read. */
+  private onGone = (e: CustomEvent<{ id: string; deleted?: boolean }>) => {
+    this.closeDrawer();
+    if (e.detail?.deleted) {
+      this.say(dlt('deletedOne'));
+      const id = e.detail.id;
+      if (this.data) this.data = { ...this.data, items: this.data.items.filter((x) => x.id !== id), closed: this.data.closed.filter((x) => x.id !== id) };
+    }
+    void this.load(true);
+  };
 
   private async setTreeHidden(hidden: boolean): Promise<void> {
     this.treeHidden = hidden;
@@ -513,7 +516,7 @@ export class TicketsBoard extends LitElement {
       ${this.body()}
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${'department'} .focusTimeline=${this.route?.params.get('view') === 'timeline'}
-      @drawer-close=${this.closeDrawer} @ticket-changed=${() => void this.load(true)} @ticket-gone=${() => { this.closeDrawer(); void this.load(false); }}></ticket-detail>` : nothing}
+      @drawer-close=${this.closeDrawer} @ticket-changed=${() => void this.load(true)} @ticket-gone=${this.onGone}></ticket-detail>` : nothing}
     ${this.module?.enabled && this.meta?.can.create ? html`<ticket-create .open=${this.r.creating && this.screen === 'ready'} .meta=${this.meta} .mode=${ui?.new_ticket ?? 'sheet'} .scope=${'department'} .detailMode=${ui?.detail ?? 'drawer_fullscreen'}
       @close=${() => writeHref(boardHref(this.r), false)} @created=${(e: CustomEvent<{ ticket: TicketDetail | null; id: string; number: number; result: 'created' | 'absorbed'; failedPhotos: number }>) => {
         const x = e.detail;

@@ -428,6 +428,7 @@ export class TicketDetailView extends LitElement {
     this.t = null;
     this.gone = true;
     this.dispatchEvent(new CustomEvent('ticket-gone', { detail: { id, deleted: true }, bubbles: true, composed: true }));
+    if (this.mode !== 'page') this.close();
     if (this.mode === 'page') window.location.href = listHref(this.scope);
   };
 

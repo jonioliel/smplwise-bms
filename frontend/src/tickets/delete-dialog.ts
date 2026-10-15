@@ -8,6 +8,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { describeError } from '../api/client';
 import { newRequestId } from '../api/tickets';
 import { deleteApi } from '../api/tickets-delete';
+import { ApiError } from '../api/client';
 import { BULK_DELETE_MAX, DELETE_REASON_MAX, deleteConfirmValue, deleteReady, type DeleteTarget } from './delete-model';
 import { dlt } from './delete-text';
 import { tIcon } from './icons';
@@ -20,6 +21,10 @@ import { ticketDetailStyles, ticketFormStyles } from './styles';
  * ticket again (tickets.delete + manager rights, the cost guard, the hourly rate) and its refusal is shown as it comes. Events (bubble,
  * composed): `ticket-deleted` {id, number} (one), `bulk-done` {answer} (several), `delete-close`.
  */
+/** 2.5.4: ids this session deleted - a second delete of one answers 404 and is treated as success (idempotent UX). */
+const DELETED = new Set<string>();
+export const wasDeletedHere = (id: string): boolean => DELETED.has(id);
+
 @customElement('tickets-delete-dialog')
 export class TicketsDeleteDialog extends LitElement {
   readonly bubbleSkin = new SkinController(this);
@@ -29,6 +34,8 @@ export class TicketsDeleteDialog extends LitElement {
   @state() private reason = '';
   @state() private error = '';
   @state() private busy = false;
+  /** 2.5.4: set after a successful delete - the dialog hides itself whatever the host does with the events */
+  @state() private done = false;
 
   static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, css`
     sw-dialog {
@@ -74,6 +81,7 @@ export class TicketsDeleteDialog extends LitElement {
       this.typed = '';
       this.reason = '';
       this.error = '';
+      this.done = false;
     }
   }
 
@@ -99,11 +107,25 @@ export class TicketsDeleteDialog extends LitElement {
       const reason = this.reason.trim();
       if (targets.length === 1) {
         const t = targets[0];
-        const out = await deleteApi().remove(t.id, { reason, confirm_number: t.number, client_request_id: newRequestId() });
-        this.emit('ticket-deleted', { id: out.id, number: out.number });
+        let id = t.id;
+        let number = t.number;
+        try {
+          const out = await deleteApi().remove(t.id, { reason, confirm_number: t.number, client_request_id: newRequestId() });
+          id = out?.id ?? t.id;
+          number = out?.number ?? t.number;
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 404 && DELETED.has(t.id))) throw e; // already deleted by this session: success
+        }
+        DELETED.add(id);
+        this.done = true;
+        this.emit('ticket-deleted', { id, number });
+        this.emit('delete-close', {});
       } else {
         const answer = await deleteApi().bulkRemove({ ids: targets.map((t) => t.id), reason, confirm_count: targets.length, client_request_id: newRequestId() });
+        for (const r of answer.results ?? []) if (r.result === 'ok' || (r.result === 'not_found' && DELETED.has(r.id))) DELETED.add(r.id);
+        this.done = true;
         this.emit('bulk-done', { answer });
+        this.emit('delete-close', {});
       }
     } catch (e) {
       this.error = describeError(e);
@@ -113,7 +135,7 @@ export class TicketsDeleteDialog extends LitElement {
   }
 
   render() {
-    if (!this.open) return nothing;
+    if (!this.open || this.done) return nothing;
     const targets = this.targets;
     const one = targets.length === 1;
     const value = deleteConfirmValue(targets);
