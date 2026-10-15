@@ -44,9 +44,9 @@ def _schema(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
 
 def test_0079_is_the_highest_migration_of_the_branch():
     """0079 is the first of the CR-038 range; the later slices take their reserved numbers (0080 slice 4, 0081 slice 5b, 0082
-    slice 5a, 0083 slice 9, 0084 employee contacts, 0085 TK257 quotes) - nothing of another change lives above 0079."""
+    slice 5a, 0083 slice 9, 0084 employee contacts, 0085 TK257 quotes, 0086 deep review B3) - nothing of another change lives above 0079."""
     numbers = sorted(int(f.name.split("_", 1)[0]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert [n for n in numbers if n >= 79][0] == 79 and all(79 <= n <= 85 for n in numbers if n >= 79)
+    assert [n for n in numbers if n >= 79][0] == 79 and all(79 <= n <= 86 for n in numbers if n >= 79)
     assert (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").is_file()
     assert numbers.count(79) == 1
     sql = (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").read_text(encoding="utf-8")
