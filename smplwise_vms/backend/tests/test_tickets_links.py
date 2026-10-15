@@ -113,6 +113,9 @@ def test_phone_key_and_client_key_are_keyed_digests():
     ("https://T-Acme.Example.COM/", "https://t-acme.example.com"),
     ("https://t-acme.example.com:443/", "https://t-acme.example.com"),
     ("https://xn--4dbrk0ce.example.co.il", "https://xn--4dbrk0ce.example.co.il"),
+    ("https://ecc.smplwise.com/support", "https://ecc.smplwise.com/support"),
+    ("https://ECC.smplwise.com/support/", "https://ecc.smplwise.com/support"),
+    ("https://ecc.smplwise.com:443/vendor-pages", "https://ecc.smplwise.com/vendor-pages"),
 ])
 def test_public_base_url_accepted_and_normalised(url, expected):
     assert links.validate_public_base_url(url) == expected
@@ -122,6 +125,22 @@ def test_public_base_url_accepted_and_normalised(url, expected):
     ("http://t-acme.example.com", "https_required"),
     ("https://user:pw@t-acme.example.com", "userinfo"),
     ("https://t-acme.example.com/t/", "path"),
+    ("https://t-acme.example.com/a/b", "path"),
+    ("https://t-acme.example.com/support/x", "path"),
+    ("https://t-acme.example.com/Support", "path"),
+    ("https://t-acme.example.com//", "path"),
+    ("https://t-acme.example.com//support", "path"),
+    ("https://t-acme.example.com/support//", "path"),
+    ("https://t-acme.example.com/support%2f", "path"),
+    ("https://t-acme.example.com/1support", "path"),
+    ("https://t-acme.example.com/" + "a" * 33, "path"),
+    ("https://t-acme.example.com/support?x=1", "query"),
+    ("https://t-acme.example.com/support#f", "query"),
+    ("https://t-acme.example.com:8443/support", "port"),
+    ("https://u:p@t-acme.example.com/support", "userinfo"),
+    ("http://t-acme.example.com/support", "https_required"),
+    ("https://192.0.2.10/support", "ip_literal"),
+    ("https://[2001:db8::1]/support", "ip_literal"),
     ("https://t-acme.example.com?x=1", "query"),
     ("https://t-acme.example.com#frag", "query"),
     ("https://t-acme.example.com:8443", "port"),
@@ -155,6 +174,31 @@ def test_urls_carry_the_token_only_in_the_fragment_and_email_never_carries_it():
     assert email_url == f"https://t-acme.example.com/t/r/{rid}" and tok not in email_url
     with pytest.raises(ValueError):
         links.handler_url("https://t-acme.example.com", "not-a-token")
+
+
+def test_prefixed_urls_replace_t_with_the_prefix_and_round_trip_to_the_listener_routes():
+    from urllib.parse import urlsplit
+
+    from smplwise.services.tickets import public_http
+
+    tok = links.derive_token(KEY, LINK, 1)
+    rid = links.new_redeem_id()
+    base = "https://ecc.smplwise.com/support"
+    url, email_url = links.handler_url(base, tok), links.redeem_url(base + "/", rid)
+    assert url == f"https://ecc.smplwise.com/support/#{tok}"
+    assert email_url == f"https://ecc.smplwise.com/support/r/{rid}" and tok not in email_url
+    assert urlsplit(url).fragment == tok and tok not in urlsplit(url).path
+    # the edge rewrite /support/* -> /t/* must land on a shell route of the (unchanged) listener
+    for u in (url, email_url):
+        path = urlsplit(u).path
+        assert path.startswith("/support/")
+        rewritten = "/t/" + path[len("/support/"):]
+        assert any(r.method == "GET" and r.regex.fullmatch(rewritten) for r in public_http.ROUTES), rewritten
+    # without a prefix nothing changes
+    assert links.handler_url("https://ecc.smplwise.com", tok) == f"https://ecc.smplwise.com/t/#{tok}"
+    assert links.redeem_url("https://ecc.smplwise.com/", rid) == f"https://ecc.smplwise.com/t/r/{rid}"
+    assert links.public_url(base, "healthz") == "https://ecc.smplwise.com/support/healthz"
+    assert links.public_url("https://ecc.smplwise.com", "healthz") == "https://ecc.smplwise.com/t/healthz"
 
 
 # (The wall-clock "hash lookup time" test was dropped after the code review of 2026-10-13: hashing 32 characters is

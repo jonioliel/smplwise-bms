@@ -10,6 +10,7 @@ import type { PublicSettings, SettingsDoc, SettingsPatch } from '../api/tickets'
 import { ticketsS4Api, type ProbeAnswer, type TicketsHealth } from '../api/tickets-s4';
 import { ticketSettingsCss } from './settings-styles';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
+import { sampleLink } from './public-address';
 
 const DEFAULT_PUBLIC: PublicSettings = { base_url: '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip' };
 const HEADERS: PublicSettings['client_ip_header'][] = ['cf-connecting-ip', 'x-forwarded-for'];
@@ -152,7 +153,7 @@ export class TicketsPublicCard extends LitElement {
     const p = this.probe;
     if (!p) return nothing;
     const ok = p.result === 'reachable' && (p.listener?.header_ok ?? true);
-    const key = `probe_${p.result}`;
+    const key = p.result === 'wrong_answer' && p.code === 'not_routed' ? 'probe_not_routed' : `probe_${p.result}`;
     const lines = [(TICKET_TEXT_KEYS as readonly string[]).includes(key) ? tt(key as TicketTextKey) : tt('probe_unreachable')];
     if (p.result === 'reachable' && p.listener && !p.listener.seen) lines.push(tt('probe_not_seen'));
     if (p.result === 'reachable' && p.listener && p.listener.seen && !p.listener.header_ok) lines.push(tt('probe_header_missing'));
@@ -188,6 +189,8 @@ export class TicketsPublicCard extends LitElement {
           <sw-button size="sm" variant="primary" data-public-address-save ?disabled=${this.busy || this.remote || address.trim() === p.base_url}
             @click=${() => this.save({ public: { base_url: address.trim() } })}>${tt('save')}</sw-button>
           <sw-button size="sm" data-public-probe ?disabled=${this.probing || this.remote || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></div>
+        <div class="hint" data-public-address-note>${tt('pubAddressNote')}</div>
+        ${sampleLink(address) ? html`<div class="hint" dir="ltr" data-public-sample>${tt('pubSampleLink', { url: sampleLink(address) })}</div>` : nothing}
         ${this.remote ? html`<div class="hint" data-public-local-only>${tt('pubLocalOnly')}</div>` : nothing}
         ${this.saveError ? html`<div class="probe bad" role="alert" data-public-save-error>${this.saveError}</div>` : nothing}
         ${this.probe ? this.probeLine() : nothing}</div>

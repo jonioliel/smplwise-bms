@@ -1,7 +1,7 @@
 """CR-038 slice 4, spec 14.2 "בדיקת כתובת" (review T11): does the configured public address reach this installation's handler
-page? `POST /tickets/address/probe` fetches `<base>/t/healthz` - the only administrator-typed URL the module ever fetches.
+page? `POST /tickets/address/probe` fetches `<base>/t/healthz` (`<base><prefix>/healthz` when the address has a prefix; the edge rewrites it to `/t/healthz`) - the only administrator-typed URL the module ever fetches.
 
-SSRF rules: the base URL passes links.validate_public_base_url (https, a DNS name - never an IP literal -, no path, port 443);
+SSRF rules: the base URL passes links.validate_public_base_url (https, a DNS name - never an IP literal -, at most one path prefix such as /support, port 443);
 the name is resolved ONCE and EVERY address must be public (not loopback, private / RFC 1918, link-local, CGNAT 100.64/10, the
 hassio network 172.30.32.0/23, multicast, reserved, unspecified; IPv4-mapped IPv6 judged as its IPv4 address); the connection
 goes to the validated address itself (no second resolution - DNS rebinding cannot swap it), TLS with the name as SNI and a
@@ -20,7 +20,7 @@ import time
 from typing import Any, Callable
 from urllib.parse import urlsplit
 
-from .links import PublicUrlError, validate_public_base_url
+from .links import PublicUrlError, split_base, validate_public_base_url
 
 TIMEOUT_S = 5.0
 READ_MAX = 4096
@@ -67,7 +67,7 @@ def _resolve(host: str) -> list[str]:
     return out
 
 
-def _fetch(addr: str, host: str, timeout_s: float, nonce: str) -> tuple[int, bytes]:
+def _fetch(addr: str, host: str, timeout_s: float, nonce: str, path: str = "/t/healthz") -> tuple[int, bytes]:
     """(status, the first bytes of the body) of `GET /t/healthz` from `addr` with TLS for `host`; `X-Ticket-Probe: <nonce>` lets
     the listener note which peer it came from and whether the client address came from the trusted header (W13)."""
     deadline = time.monotonic() + timeout_s
@@ -76,7 +76,7 @@ def _fetch(addr: str, host: str, timeout_s: float, nonce: str) -> tuple[int, byt
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(raw, server_hostname=host) as tls:
             tls.settimeout(max(0.1, deadline - time.monotonic()))
-            tls.sendall((f"GET /t/healthz HTTP/1.1\r\nHost: {host}\r\nUser-Agent: SmplWise-Arx-address-probe\r\n"
+            tls.sendall((f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: SmplWise-Arx-address-probe\r\n"
                          f"Accept: application/json\r\nx-ticket-probe: {nonce}\r\nConnection: close\r\n\r\n").encode("ascii"))
             data = b""
             while len(data) < READ_MAX:
@@ -100,7 +100,7 @@ def _fetch(addr: str, host: str, timeout_s: float, nonce: str) -> tuple[int, byt
 
 
 def probe(base_url: str, *, resolve: Callable[[str], list[str]] | None = None,
-          fetch: Callable[[str, str, float, str], tuple[int, bytes]] | None = None,
+          fetch: Callable[..., tuple[int, bytes]] | None = None,
           last_probe: Callable[[], dict[str, Any] | None] | None = None) -> dict[str, Any]:
     """{result: reachable | not_configured | invalid | unresolved | blocked_address | tls_error | unreachable | wrong_answer,
     code?, status_class?, listener?}. Never the body, never the resolved addresses.
@@ -119,6 +119,7 @@ def probe(base_url: str, *, resolve: Callable[[str], list[str]] | None = None,
     except PublicUrlError as exc:
         return {"result": "invalid", "code": exc.code}
     host = urlsplit(base).hostname or ""
+    path = f"{split_base(base)[1] or '/t'}/healthz"
     try:
         addrs = resolve(host)
     except (OSError, UnicodeError):
@@ -129,13 +130,16 @@ def probe(base_url: str, *, resolve: Callable[[str], list[str]] | None = None,
         return {"result": "blocked_address"}
     nonce = secrets.token_urlsafe(24)
     try:
-        status, body = fetch(addrs[0], host, TIMEOUT_S, nonce)
+        status, body = fetch(addrs[0], host, TIMEOUT_S, nonce, path)
     except ssl.SSLError:
         return {"result": "tls_error"}
     except (OSError, ValueError):
         return {"result": "unreachable"}
     if not (status == 200 and (b'"ok":true' in body or b'"ok": true' in body)):
-        return {"result": "wrong_answer", "status_class": f"{status // 100}xx" if status else "none"}
+        bad: dict[str, Any] = {"result": "wrong_answer", "status_class": f"{status // 100}xx" if status else "none"}
+        if status == 404:
+            bad["code"] = "not_routed"  # the tunnel route / Rewrite rule does not reach the handler page
+        return bad
     out: dict[str, Any] = {"result": "reachable"}
     if last_probe is not None:
         note = last_probe() or {}

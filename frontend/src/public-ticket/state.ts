@@ -9,7 +9,8 @@ import type { ApiFailure, TicketView } from './api';
 export type Phase = 'loading' | 'redeem' | 'code' | 'ready' | 'readonly' | 'returned' | 'unavailable' | 'busy' | 'error' | 'finished';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{32}$/;
-const RID_RE = /^\/t\/r\/([0-9a-f]{32})\/?$/;
+// 2.5.4: `/t/r/<rid>` or, behind an edge rewrite of a one-segment public prefix, `/<prefix>/r/<rid>` (the prefix shape of links.py)
+const RID_RE = /^\/(?:t|[a-z][a-z0-9-]{1,31})\/r\/([0-9a-f]{32})\/?$/;
 const SESSION_RE = /^[A-Za-z0-9_-]{43}$/;
 
 export interface Boot {

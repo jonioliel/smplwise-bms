@@ -9485,5 +9485,28 @@
     "expected": "Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/252."
+  },
+  {
+    "id": "AT350",
+    "requirement_ids": [
+      "R334"
+    ],
+    "task_ids": [
+      "TKFIX254"
+    ],
+    "title": "Service management 2.5.4: the public handler-page address may include one path prefix such as /support (vendor links built with it; Cloudflare rewrites it to /t)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFIX254 (integ/254):",
+      "backend tests/test_tickets_links.py and tests/test_tickets_s4_wiring.py (prefix validation, URL builders, probe), frontend unit specs unit-tickets-public-address and unit-public-ticket",
+      "gate run of integ/254"
+    ],
+    "expected": "Service management 2.5.4: the public handler-page address may include one path prefix such as /support (vendor links built with it; Cloudflare rewrites it to /t): the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/254."
   }
 ]

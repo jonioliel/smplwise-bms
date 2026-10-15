@@ -6339,5 +6339,21 @@
     "test_ids": [
       "AT349"
     ]
+  },
+  {
+    "id": "R334",
+    "title": "Service management 2.5.4: the public handler-page address may include one path prefix such as /support (vendor links built with it; Cloudflare rewrites it to /t)",
+    "statement": "The public address accepts https://<dns-name> with at most one path segment ^/[a-z][a-z0-9-]{1,31}$; vendor links (WhatsApp fragment link, e-mail redeem link) and the address probe use the prefix; without a prefix they are identical to 2.5.3; the listener still serves only /t/... (an edge rewrite maps the prefix).",
+    "task_ids": [
+      "TKFIX254"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT350"
+    ]
   }
 ]

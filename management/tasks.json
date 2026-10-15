@@ -10786,5 +10786,44 @@
     "owner": null,
     "commit": "369b10d8",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX254",
+    "title": "Service management 2.5.4: the public handler-page address may include one path prefix such as /support (vendor links built with it; Cloudflare rewrites it to /t)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.4: the public handler-page address may include one path prefix such as /support: fakes only (integ/254); no live send; rewrite-before-tunnel ordering UNVERIFIED."
+    ],
+    "requirement_ids": [
+      "R334"
+    ],
+    "test_ids": [
+      "AT350"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/FIX-support-path-254",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-15 (integ/254): pilot/FIX-support-path-254 (release 2.5.4). Fakes only. Status REVIEW until the tier-L gate of integ/254 passes."
+    ],
+    "owner": null,
+    "commit": "369b10d8",
+    "actual_cost_usd": null
   }
 ]

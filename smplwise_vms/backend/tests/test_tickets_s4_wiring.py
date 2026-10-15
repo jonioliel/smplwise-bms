@@ -347,7 +347,7 @@ def test_w21_the_probe_refuses_private_targets_before_connecting(addr):
 def test_w21_w13_the_probe_reports_the_listener_and_never_the_body():
     notes: dict = {}
 
-    def fetch(addr, host, timeout, nonce):
+    def fetch(addr, host, timeout, nonce, path="/t/healthz"):
         notes.update({"nonce": nonce, "source": "header", "peer": "172.30.33.7"})
         return 200, b'{"ok":true} SECRET BODY'
 
@@ -359,6 +359,22 @@ def test_w21_w13_the_probe_reports_the_listener_and_never_the_body():
     seen_other = address_probe.probe("https://t-x.example.test", resolve=lambda h: ["93.184.216.34"], fetch=lambda *a: (200, b'{"ok":true}'),
                                      last_probe=lambda: {"nonce": "someone-else"})
     assert seen_other["listener"] == {"seen": False}
+
+
+def test_254_the_probe_goes_to_the_prefixed_path_and_a_404_is_reported_as_not_routed():
+    seen: list = []
+
+    def fetch(addr, host, timeout, nonce, path="/t/healthz"):
+        seen.append((host, path))
+        return 200, b'{"ok":true}'
+
+    resolve = lambda h: ["93.184.216.34"]  # noqa: E731
+    assert address_probe.probe("https://ecc.example.test/support", resolve=resolve, fetch=fetch)["result"] == "reachable"
+    assert address_probe.probe("https://ecc.example.test", resolve=resolve, fetch=fetch)["result"] == "reachable"
+    assert seen == [("ecc.example.test", "/support/healthz"), ("ecc.example.test", "/t/healthz")]
+    miss = address_probe.probe("https://ecc.example.test/support", resolve=resolve, fetch=lambda *a: (404, b"nope"))
+    assert miss == {"result": "wrong_answer", "status_class": "4xx", "code": "not_routed"}
+    assert address_probe.probe("https://ecc.example.test/a/b", resolve=resolve, fetch=fetch) == {"result": "invalid", "code": "path"}
 
 
 def test_w21_the_probe_route_is_local_only_and_rate_limited(s4, monkeypatch):

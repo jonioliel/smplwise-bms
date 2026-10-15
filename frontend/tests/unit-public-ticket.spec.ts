@@ -184,3 +184,10 @@ test('a built bundle is outside www, script- and style-file only, and within the
   }
   expect(gz).toBeLessThanOrEqual(60 * 1024);
 });
+
+test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {
+  const rid = 'b'.repeat(32);
+  expect(bootFrom('', `/support/r/${rid}`, null)).toEqual({ token: null, rid, fromFragment: false });
+  expect(bootFrom('', `/support/r/${rid}/`, null).rid).toBe(rid);
+  for (const bad of [`/a/b/r/${rid}`, `/Support/r/${rid}`, `/x/r/${rid}`, `//r/${rid}`, `/support/r/${rid}x`]) expect(bootFrom('', bad, null).rid).toBeNull();
+});

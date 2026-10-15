@@ -72,7 +72,7 @@ def _org_name(v: Any) -> str:
 
 
 def _base_url(v: Any) -> str:
-    """Slice 4: the public address of the handler page (`https://<host>`, spec 14.1); empty = not configured."""
+    """Slice 4: the public address of the handler page (`https://<host>` with an optional single path prefix such as `/support`, spec 14.1); empty = not configured."""
     from .links import PublicUrlError, validate_public_base_url
 
     if v == "":

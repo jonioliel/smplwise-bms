@@ -157,6 +157,9 @@ def ua_family(user_agent: str | None) -> str:
 _LABEL_RE = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)")
 _TLD_RE = re.compile(r"(?:[a-z][a-z0-9-]*[a-z0-9]|[a-z]|xn--[a-z0-9-]+)")
 BLOCKED_HOSTS = frozenset({"localhost", "homeassistant", "supervisor", "hassio", "local"})
+# 2.5.4: ONE optional path prefix (`/support`) on the public address. The listener still serves only `/t/...`; an edge rewrite
+# (Cloudflare: `/support/*` -> `/t/*`) maps the prefix, so URLs built for vendors use the prefix and the listener never sees it.
+_PREFIX_RE = re.compile(r"/[a-z][a-z0-9-]{1,31}")
 
 
 class PublicUrlError(ValueError):
@@ -168,9 +171,10 @@ class PublicUrlError(ValueError):
 
 
 def validate_public_base_url(url: object) -> str:
-    """The normalised public base URL (`https://<host>`, lower case, no trailing slash) or PublicUrlError.
+    """The normalised public base URL (`https://<host>` or `https://<host>/<prefix>`, lower case, no trailing slash) or PublicUrlError.
 
-    Spec 14.1: https; a DNS hostname, never an IP literal; no path beyond `/`. Also refused: user info, a query or fragment,
+    Spec 14.1: https; a DNS hostname, never an IP literal; no path beyond `/` except (2.5.4) ONE optional prefix segment
+    `/[a-z][a-z0-9-]{1,31}` such as `/support` (a trailing `/` is dropped). Also refused: user info, a query or fragment,
     a port other than 443, a single-label or reserved name (localhost, homeassistant, supervisor), a numeric last label (the
     `0x7f.1` / `2130706433` spellings resolvers read as addresses). Whether the NAME resolves to a private address is the
     address probe's check (slice 4, review T11), not this one."""
@@ -189,8 +193,12 @@ def validate_public_base_url(url: object) -> str:
         raise PublicUrlError("userinfo")
     if parts.query or parts.fragment or "?" in url or "#" in url:
         raise PublicUrlError("query")
+    prefix = ""
     if parts.path not in ("", "/"):
-        raise PublicUrlError("path")
+        candidate = parts.path[:-1] if parts.path.endswith("/") else parts.path
+        if _PREFIX_RE.fullmatch(candidate) is None:
+            raise PublicUrlError("path")
+        prefix = candidate
     if port not in (None, 443):
         raise PublicUrlError("port")
     host = (parts.hostname or "").lower()
@@ -211,20 +219,31 @@ def validate_public_base_url(url: object) -> str:
         raise PublicUrlError("ip_literal")
     if labels[0] in BLOCKED_HOSTS or host in BLOCKED_HOSTS or labels[-1] in ("local", "localhost", "internal", "home", "lan"):
         raise PublicUrlError("reserved")
-    return f"https://{host}"
+    return f"https://{host}{prefix}"
+
+
+def split_base(base: str) -> tuple[str, str]:
+    """(`https://<host>`, prefix) of a validated base; the prefix is "" or `/support`-style."""
+    parts = urlsplit(base)
+    return f"{parts.scheme}://{parts.netloc}", parts.path
+
+
+def public_url(base_url: str, rest: str) -> str:
+    """`<origin><prefix>/<rest>`: `rest` is the part after the listener's `/t/` (the listener serves `/t/<rest>`; with a prefix the
+    edge rewrite maps `<prefix>/<rest>` to it; without one the URL keeps today's `/t/<rest>`)."""
+    origin, prefix = split_base(validate_public_base_url(base_url))
+    return f"{origin}{prefix or '/t'}/{rest}"
 
 
 def handler_url(base_url: str, token: str) -> str:
-    """The URL a WhatsApp message carries: the token in the fragment (`<base>/t/#<token>`)."""
-    base = validate_public_base_url(base_url)
+    """The URL a WhatsApp message carries: the token in the fragment (`<base>/t/#<token>`, or `<base><prefix>/#<token>`)."""
     if parse_token(token) is None:
         raise ValueError("not a handler-link token")
-    return f"{base}/t/#{token}"
+    return public_url(base_url, f"#{token}")
 
 
 def redeem_url(base_url: str, rid: str) -> str:
-    """The URL an e-mail carries instead (`<base>/t/r/<rid>`): no token anywhere in it."""
-    base = validate_public_base_url(base_url)
+    """The URL an e-mail carries instead (`<base>/t/r/<rid>`, or `<base><prefix>/r/<rid>`): no token anywhere in it."""
     if parse_redeem_id(rid) is None:
         raise ValueError("not a redeem id")
-    return f"{base}/t/r/{rid}"
+    return public_url(base_url, f"r/{rid}")

@@ -1030,6 +1030,14 @@ in a build that contains them.
 4. **Cloudflare, required:** a rate-limiting rule on `/t/api/*`, and every script-injecting feature off for that hostname (Rocket
    Loader, e-mail obfuscation, Bot Fight Mode and similar): the page runs under `script-src 'self'; style-src 'self'` with no inline
    code.
+   **Optional path prefix (2.5.4).** The public address may be `https://<host>` or `https://<host>/<prefix>` with exactly one prefix
+   segment (`/[a-z][a-z0-9-]{1,31}`, for example `https://ecc.smplwise.com/support`). Vendor links are then built as
+   `<host>/<prefix>/#<token>` (e-mail: `<host>/<prefix>/r/<rid>`); without a prefix they stay `<host>/t/...`. The listener still serves
+   only `/t/...`, so Cloudflare must rewrite the prefix at the edge: a Transform Rule "Rewrite URL" for host `ecc.smplwise.com` and path
+   starting `/support/` with the dynamic expression `concat("/t/", substring(http.request.uri.path, 9))`, plus a tunnel route
+   `^/t(/.*)?$` -> `http://<add-on host>:18093` (the page loads its assets and calls its API under `/t/` directly) placed BEFORE the
+   empty-path Home Assistant route. UNVERIFIED: rewrite-before-tunnel ordering, until the address probe passes on the owner's setup
+   (a 404 is reported as "not routed to the handler page").
 5. **Home Assistant recorder, required:** exclude the `whatsapp_message_*` events and the integration's "last message" sensor from
    the recorder (they carry message text and a recipient); see the Hebrew guide for the YAML. The exact entity id of that sensor is
    UNVERIFIED. Arx's own entity mirror may still receive that sensor until the live check shows what it contains (slice 5a,

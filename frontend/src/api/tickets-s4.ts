@@ -169,7 +169,7 @@ export interface TicketsHealth {
   attachments_bytes?: number | null;
 }
 export type ProbeResult = 'reachable' | 'not_configured' | 'invalid' | 'unresolved' | 'blocked_address' | 'tls_error' | 'unreachable' | 'wrong_answer' | 'not_seen';
-export interface ProbeAnswer { result: ProbeResult | string; listener?: { seen: boolean; source: string | null; peer: string | null; header_ok: boolean } }
+export interface ProbeAnswer { result: ProbeResult | string; code?: string; status_class?: string; listener?: { seen: boolean; source: string | null; peer: string | null; header_ok: boolean } }
 
 export interface TicketsS4Backend {
   contacts(q?: { q?: string; kind?: ContactKind; department_id?: string }): Promise<ContactsPage>;
