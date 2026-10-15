@@ -296,7 +296,7 @@ export const ticketDetailStyles = css`
   }
   .strip button .sub {
     display: block;
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     font-weight: 500;
     line-height: 1.2;
     opacity: 0.85;
