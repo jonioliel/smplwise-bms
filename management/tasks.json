@@ -10747,5 +10747,44 @@
     "owner": null,
     "commit": "d0cd1388",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX253",
+    "title": "Service management 2.5.3: the public handler-page address saves from a local session; a remote session saves the other settings and shows the address read-only",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.3: the public handler-page address saves from a local session; a remote session saves the other settings and shows the address read-only: fakes only (integ/253); no live send."
+    ],
+    "requirement_ids": [
+      "R333"
+    ],
+    "test_ids": [
+      "AT349"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/FIX-public-address-253",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-15 (integ/253): pilot/FIX-public-address-253 (release 2.5.3). Fakes only. Status REVIEW until the tier-L gate of integ/253 passes."
+    ],
+    "owner": null,
+    "commit": "369b10d8",
+    "actual_cost_usd": null
   }
 ]

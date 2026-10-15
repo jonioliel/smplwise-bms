@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-14T16:48:00.599531+00:00
+Generated: 2026-10-15T05:16:51.939382+00:00
 
-Tasks: 224 | Requirements: 332 | Tests: 348 | Screens: 32
+Tasks: 225 | Requirements: 332 | Tests: 348 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 32
+- REVIEW: 33
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 130
+- V1: 131
 - V2: 29
 - V3: 2
 
@@ -262,3 +262,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKHARDEN](tasks/TKHARDEN.md) | V1 | REVIEW | Service management hardening in 2.5.0: security review fixes, strict image decode, WhatsApp test send without the env switch, demo area off | — |
 | [TKHANDL](tasks/TKHANDL.md) | V1 | REVIEW | Service management handlers page (2.5.1): the 'Handlers and vendors' page, employee contact kind, assign-dialog readiness, department create without an identifier and restore, Permissions tab fix | — |
 | [TKDEL](tasks/TKDEL.md) | V1 | REVIEW | Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers | — |
+| [TKFIX253](tasks/TKFIX253.md) | V1 | REVIEW | Service management 2.5.3: the public handler-page address saves from a local session; a remote session saves the other settings and shows the address read-only | — |

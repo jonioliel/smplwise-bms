@@ -94,6 +94,22 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
     await expect(page.locator(`${C} [data-contact-save]`)).toHaveCount(0);
   });
 
+  test('the handler page card in a remote session: the address is read-only with one explanation, a failed save names the reason', async ({ page }) => {
+    const P = `${S} tickets-public-card`;
+    await go(page, '/system/tickets', {}, 'light');
+    await page.waitForSelector(`${P} [data-public-state="ready"]`);
+    await expect(page.locator(`${P} [data-public-local-only]`)).toHaveCount(0);
+    await page.locator(P).evaluate((el) => { (el as unknown as { remote: boolean; saveError: string }).remote = true; (el as unknown as { saveError: string }).saveError = 'שינוי כתובת הדף הציבורי אפשרי רק בגישה מקומית'; });
+    await expect(page.locator(`${P} [data-public-local-only]`)).toHaveText('זמין רק בגישה מקומית (דרך Home Assistant)');
+    await expect(page.locator(`${P} [data-public-address]`)).toHaveAttribute('readonly', '');
+    await expect(page.locator(`${P} [data-public-address-save]`)).toBeDisabled();
+    await expect(page.locator(`${P} [data-public-probe]`)).toBeDisabled();
+    await expect(page.locator(`${P} [data-public-save-error]`)).toContainText('בגישה מקומית');
+    await page.locator(`${P} [data-public-advanced]`).click();
+    await expect(page.locator(`${P} [data-public-header="x-forwarded-for"]`)).toBeDisabled();
+    await expect(page.locator(`${P} [data-public-org]`)).toBeEnabled(); // the other keys stay editable
+  });
+
   test('the handler page card: state, address with its check, proxies', async ({ page }) => {
     const P = `${S} tickets-public-card`;
     for (const scheme of ['light', 'dark'] as const) {

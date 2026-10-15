@@ -16,7 +16,7 @@ import { ct } from '../tickets/cost-text';
 import { mtt } from '../tickets/messages-text';
 import { ApiError, describeError, patch } from '../api/client';
 import { productSettings, invalidateSettings } from '../api/prefs';
-import { can, canAnywhere, isApi } from '../api/session';
+import { can, canAnywhere, isApi, onRemote } from '../api/session';
 import { createBinding, revokeBinding } from '../api/access';
 import { loadTree } from '../api/catalog';
 import { replaceRoute } from '../router';
@@ -89,6 +89,7 @@ export class SystemTickets extends LitElement {
   @state() private scopes: ScopeOption[] | null = null;
   @state() private busy = false;
   @state() private error = '';
+  @state() private publicError = ''; // 2.5.3: the failed save of a public-address key, shown in its own card too
   @state() private ok = '';
   @state() private newDept = { name: '', key: '' };
   @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string } = {};
@@ -307,12 +308,15 @@ export class SystemTickets extends LitElement {
   private async saveDoc(p: SettingsPatch, after?: () => void): Promise<void> {
     if (!this.doc || this.busy) return;
     this.busy = true;
+    const isPublic = p.public !== undefined;
+    if (isPublic) this.publicError = '';
     try {
       this.doc = await ticketsApi().saveInstallation(this.doc.revision, p);
       after?.();
       this.say(tt('setSaved'));
     } catch (e) {
       this.fail(e);
+      if (isPublic) this.publicError = this.error;
       if (e instanceof ApiError && e.status === 409) this.doc = await ticketsApi().settings().catch(() => this.doc);
     } finally {
       this.busy = false;
@@ -432,7 +436,7 @@ export class SystemTickets extends LitElement {
       </sw-card>
       ${this.linksCard(this.doc)}
       ${this.hoursCard(this.doc)}
-      <tickets-public-card .doc=${this.doc} ?busy=${this.busy} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}
+      <tickets-public-card .doc=${this.doc} ?busy=${this.busy} ?remote=${onRemote()} .saveError=${this.publicError} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}
         @notice=${this.onNotice}></tickets-public-card>` : nothing}
     </div>`;
   }

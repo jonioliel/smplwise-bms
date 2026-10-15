@@ -142,10 +142,11 @@ def _problem(exc: ValueError) -> tuple[str, str]:
 @router.put("/tickets/settings")
 def put_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
-    if body.public is not None and is_remote(request):
+    if body.public is not None and is_remote(request) and any(v is not None for v in body.public.model_dump().values()):
         # security review 2026-10-14 (2.5.1): the handler page's public address, trusted proxies and client-address header decide who
-        # the listener believes - changed from a local session only (like the address probe)
-        raise ApiError(403, "local_only", text(conn, "את כתובת דף המטפלים משנים מחיבור מקומי בלבד."), details={"field": "public"})
+        # the listener believes - changed from a local session only (like the address probe). 2.5.3: only these keys are refused (the
+        # whole PUT, no partial write); every other tickets setting saves normally through the remote channel.
+        raise ApiError(403, "local_only", text(conn, "שינוי כתובת הדף הציבורי אפשרי רק בגישה מקומית: פתחו את המערכת מתוך Home Assistant או ברשת המקומית"), details={"field": "public"})
     current = settings_doc.read(conn)
     if body.revision != current["revision"]:
         raise ApiError(409, "settings_stale", text(conn, "ההגדרות השתנו בינתיים. טענו מחדש."), details={"revision": current["revision"]})

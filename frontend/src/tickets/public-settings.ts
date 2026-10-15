@@ -27,6 +27,10 @@ export class TicketsPublicCard extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) doc: SettingsDoc | null = null;
   @property({ type: Boolean }) busy = false;
+  /** 2.5.3: a remote session (the tunnel) cannot change the public address, proxies or header - shown read-only with one line saying so. */
+  @property({ type: Boolean }) remote = false;
+  /** 2.5.3: the server's message when saving a public key failed (shown beside the field, not only in the page banner). */
+  @property({ attribute: false }) saveError = '';
   @state() private health: TicketsHealth | null = null;
   @state() private org: string | null = null;
   @state() private address: string | null = null;
@@ -180,21 +184,23 @@ export class TicketsPublicCard extends LitElement {
             @click=${() => this.save({ organization_name: org.trim() })}>${tt('save')}</sw-button></div></div>
       <div class="row stack"><span class="lbl">${tt('pubAddress')}</span>
         <div class="line"><input class="in" type="url" dir="ltr" maxlength="300" inputmode="url" autocomplete="off" data-public-address aria-label=${tt('pubAddress')}
-          placeholder=${tt('pubAddressHint')} .value=${address} @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />
-          <sw-button size="sm" variant="primary" data-public-address-save ?disabled=${this.busy || address.trim() === p.base_url}
+          placeholder=${tt('pubAddressHint')} ?readonly=${this.remote} .value=${address} @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />
+          <sw-button size="sm" variant="primary" data-public-address-save ?disabled=${this.busy || this.remote || address.trim() === p.base_url}
             @click=${() => this.save({ public: { base_url: address.trim() } })}>${tt('save')}</sw-button>
-          <sw-button size="sm" data-public-probe ?disabled=${this.probing || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></div>
+          <sw-button size="sm" data-public-probe ?disabled=${this.probing || this.remote || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></div>
+        ${this.remote ? html`<div class="hint" data-public-local-only>${tt('pubLocalOnly')}</div>` : nothing}
+        ${this.saveError ? html`<div class="probe bad" role="alert" data-public-save-error>${this.saveError}</div>` : nothing}
         ${this.probe ? this.probeLine() : nothing}</div>
       <div class="row"><button type="button" class="fold" aria-expanded=${String(this.advanced)} aria-controls="public-advanced" data-public-advanced
         @click=${() => (this.advanced = !this.advanced)}>${tt('pubAdvanced')}</button></div>
       ${this.advanced ? html`<div id="public-advanced" data-public-advanced-body>
         <div class="row stack"><span class="lbl">${tt('pubTrusted')}</span>
-          <textarea class="in" dir="ltr" rows="3" data-public-cidrs aria-label=${tt('pubTrusted')} .value=${cidrs} @input=${(e: Event) => (this.cidrs = (e.target as HTMLTextAreaElement).value)}></textarea>
-          <div class="foot"><sw-button size="sm" variant="primary" data-public-cidrs-save ?disabled=${this.busy || cidrList.length > 8 || cidrList.join(',') === p.trusted_proxy_cidrs.join(',')}
+          <textarea class="in" dir="ltr" rows="3" data-public-cidrs aria-label=${tt('pubTrusted')} ?readonly=${this.remote} .value=${cidrs} @input=${(e: Event) => (this.cidrs = (e.target as HTMLTextAreaElement).value)}></textarea>
+          <div class="foot"><sw-button size="sm" variant="primary" data-public-cidrs-save ?disabled=${this.busy || this.remote || cidrList.length > 8 || cidrList.join(',') === p.trusted_proxy_cidrs.join(',')}
             @click=${() => this.save({ public: { trusted_proxy_cidrs: cidrList } })}>${tt('save')}</sw-button></div></div>
         <div class="row"><span class="lbl">${tt('pubClientHeader')}</span>
           <span class="seg" role="radiogroup" aria-label=${tt('pubClientHeader')}>${HEADERS.map((hd) => html`<button type="button" role="radio" dir="ltr"
-            aria-checked=${String(p.client_ip_header === hd)} aria-pressed=${String(p.client_ip_header === hd)} data-public-header=${hd} ?disabled=${this.busy}
+            aria-checked=${String(p.client_ip_header === hd)} aria-pressed=${String(p.client_ip_header === hd)} data-public-header=${hd} ?disabled=${this.busy || this.remote}
             @click=${() => this.save({ public: { client_ip_header: hd } })}>${hd}</button>`)}</span></div>
       </div>` : nothing}
     </sw-card>`;

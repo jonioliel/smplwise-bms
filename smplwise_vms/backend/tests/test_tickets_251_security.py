@@ -33,6 +33,36 @@ def test_the_public_settings_are_refused_from_a_remote_session(s4, monkeypatch):
     assert r.status_code == 200, "the other keys stay editable remotely"
 
 
+def test_253_remote_put_without_public_keys_saves_and_the_settings_route_is_not_blocked(s4, monkeypatch):
+    assert not any(b.startswith("/api/v1/tickets/settings") for b in remote_channel.BLOCKED_ON_REMOTE)
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "links": {"sliding_days": 5}, "organization_name": "מגדלי הדר"})
+    assert r.status_code == 200, r.text
+    assert r.json()["organization_name"] == "מגדלי הדר"
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "public": {}})
+    assert r.status_code == 200, "an empty public block touches no key"
+
+
+def test_253_remote_put_with_a_public_key_is_refused_with_a_clean_message_and_no_partial_write(s4, monkeypatch):
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    for public in ({"base_url": "https://t-x.example.org"}, {"trusted_proxy_cidrs": ["10.0.0.0/8"]}, {"client_ip_header": "x-forwarded-for"}):
+        r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "organization_name": "שם חדש", "public": public})
+        assert r.status_code == 403 and r.json()["code"] == "local_only", r.text
+        assert "בגישה מקומית" in r.json()["user_message"]
+    after = s4.c.get(f"{API}/tickets/settings").json()
+    assert after["revision"] == doc["revision"] and after["organization_name"] == doc["organization_name"], "the whole PUT is refused"
+    assert after["public"] == doc["public"]
+
+
+def test_253_local_put_with_the_public_address_saves(s4):
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"base_url": "https://t-x.example.org"}})
+    assert r.status_code == 200, r.text
+    assert s4.c.get(f"{API}/tickets/settings").json()["public"]["base_url"] == "https://t-x.example.org"
+
+
 def test_nobody_approves_a_revision_they_entered(s4):
     t, *_ = done(s4)
     r = s4.c.post(f"{API}/tickets/{t['id']}/costs", json={"lines": [{"kind": "other", "description": "חשבונית נייר", "amount": "300"}],
