@@ -374,6 +374,10 @@ export class SwDrawer extends LitElement {
     // only the <dialog>'s own close - a nested confirmation's composed `close` bubbles through here too
     // `close` is queued as a task after dialog.close(): when the panel was closed and re-opened before it ran (a deep link replaced by another
     // one), the event is stale - the dialog is open again - and must not close the new panel. A real browser close leaves the dialog closed.
+    // TK260: a drawer taken out of the page (its screen was left, e.g. the expand arrow to #/tickets/<id>) closes its dialog from
+    // disconnectedCallback; that queued `close` is the screen going away, never the user closing the panel - raising `close` would let the old
+    // screen's handler rewrite the address back to its list.
+    if (!this.isConnected) return;
     if (e.target === e.currentTarget && this.open && !this.dialog?.open) this.close();
   };
 
