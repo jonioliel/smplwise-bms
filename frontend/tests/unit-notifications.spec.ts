@@ -90,8 +90,8 @@ test.describe('notifications client: severity, catalog, defaults', () => {
   test('the settings defaults: quiet hours, matrix (critical passes), escalation 5 x 2, type + place, 30 days, mail not configured', () => {
     const s = DEFAULT_SETTINGS();
     expect(s.quiet).toEqual({ enabled: true, from: '22:00', to: '07:00', days: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] });
-    expect(s.pass_through.critical).toEqual({ webpush: true, email: true, ha_mobile: true });
-    expect(s.pass_through.alert).toEqual({ webpush: false, email: false, ha_mobile: false });
+    expect(s.pass_through.critical).toEqual({ webpush: true, email: true, ha_mobile: true, whatsapp: true }); // NOTIFWA: the whatsapp column
+    expect(s.pass_through.alert).toEqual({ webpush: false, email: false, ha_mobile: false, whatsapp: false });
     expect(s.pass_through.info.webpush).toBe(false);
     expect(s.escalation).toEqual({ enabled: true, after_min: 5, steps: 2, to: 'managers' });
     expect(s).toMatchObject({ lockscreen: 'type_place', image_in_push: false, retention_days: 30, deliveries_retention_days: 14, companion: { critical_sound_safety: false } });
