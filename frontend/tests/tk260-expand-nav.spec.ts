@@ -14,11 +14,10 @@ async function open(page: Page, prefix: string): Promise<void> {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await installTicketsMock(page, {});
   if (prefix) {
-    const origin = new URL(test.info().project.use.baseURL ?? 'http://127.0.0.1:4173/').origin;
     await page.route(`**${prefix}**`, async (route) => {
       const u = new URL(route.request().url());
       if (u.pathname.includes('/api/v1/')) return route.fallback();
-      const r = await route.fetch({ url: origin + u.pathname.slice(prefix.length - 1) + u.search });
+      const r = await route.fetch({ url: u.origin + u.pathname.slice(prefix.length - 1) + u.search });
       await route.fulfill({ response: r });
     });
     await page.route(`**${prefix}api/v1/auth/session`, (route) =>
