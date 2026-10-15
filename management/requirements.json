@@ -6355,5 +6355,21 @@
     "test_ids": [
       "AT350"
     ]
+  },
+  {
+    "id": "R335",
+    "title": "Service management 2.5.5: table menus open above the table (no clipping), settings lists refresh after changes, one-row bulk delete drops the row",
+    "statement": "The status / handler menus of the table and the card menu open in the top layer beside their trigger (below or above, never clipped by the table box; a scroll only inside a menu taller than the screen); the table box takes the height of its rows; the departments, members, handlers / contacts and templates lists are re-read after their own changes and refresh on their own; deleting one row through the bulk bar removes it at once.",
+    "task_ids": [
+      "TKFIX255"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT351"
+    ]
   }
 ]

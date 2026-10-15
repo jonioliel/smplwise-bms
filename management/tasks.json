@@ -10825,5 +10825,44 @@
     "owner": null,
     "commit": "369b10d8",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX255",
+    "title": "Service management 2.5.5: table menus open above the table (no clipping), settings lists refresh after changes, one-row bulk delete drops the row",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.5: table and card menus are top-layer overlays; the table shows no vertical bar with few rows; settings lists refresh; fakes only (integ/255)."
+    ],
+    "requirement_ids": [
+      "R335"
+    ],
+    "test_ids": [
+      "AT351"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/FIX-table-menus-255",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-15 (integ/255): pilot/FIX-table-menus-255 (release 2.5.5). Fakes only. Status REVIEW until the tier-L gate of integ/255 passes."
+    ],
+    "owner": null,
+    "commit": "c117e9a9",
+    "actual_cost_usd": null
   }
 ]

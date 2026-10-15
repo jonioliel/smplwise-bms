@@ -9508,5 +9508,28 @@
     "expected": "Service management 2.5.4: the public handler-page address may include one path prefix such as /support (vendor links built with it; Cloudflare rewrites it to /t): the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/254."
+  },
+  {
+    "id": "AT351",
+    "requirement_ids": [
+      "R335"
+    ],
+    "task_ids": [
+      "TKFIX255"
+    ],
+    "title": "Service management 2.5.5: table menus open above the table (no clipping), settings lists refresh after changes, one-row bulk delete drops the row",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFIX255 (integ/255):",
+      "frontend unit specs unit-tickets-overlay-menu, unit-tickets-table, unit-menu-lint; evidence-tickets-table and layout-tickets-table (five skins x light / dark x 320-1440)",
+      "gate run of integ/255"
+    ],
+    "expected": "Service management 2.5.5: table and card menus overlay, no clipping or inner scrollbar, settings lists refresh, a one-row bulk delete drops the row: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/255."
   }
 ]

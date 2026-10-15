@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-15T07:43:24.651341+00:00
+Generated: 2026-10-15T12:21:53.700183+00:00
 
-Tasks: 226 | Requirements: 333 | Tests: 349 | Screens: 32
+Tasks: 227 | Requirements: 334 | Tests: 350 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 34
+- REVIEW: 35
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 132
+- V1: 133
 - V2: 29
 - V3: 2
 
@@ -264,3 +264,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKDEL](tasks/TKDEL.md) | V1 | REVIEW | Service management 2.5.2: full deletion of a ticket by a manager (tickets.delete, single + bulk) and self-add of tickets.all_departments holders as department members / managers | — |
 | [TKFIX253](tasks/TKFIX253.md) | V1 | REVIEW | Service management 2.5.3: the public handler-page address saves from a local session; a remote session saves the other settings and shows the address read-only | — |
 | [TKFIX254](tasks/TKFIX254.md) | V1 | REVIEW | Service management 2.5.4: the public handler-page address may include one path prefix such as /support (vendor links built with it; Cloudflare rewrites it to /t) | — |
+| [TKFIX255](tasks/TKFIX255.md) | V1 | REVIEW | Service management 2.5.5: table menus open above the table (no clipping), settings lists refresh after changes, one-row bulk delete drops the row | — |
