@@ -9531,5 +9531,29 @@
     "expected": "Service management 2.5.5: table and card menus overlay, no clipping or inner scrollbar, settings lists refresh, a one-row bulk delete drops the row: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/255."
+  },
+  {
+    "id": "AT352",
+    "requirement_ids": [
+      "R336"
+    ],
+    "task_ids": [
+      "TKFIX256"
+    ],
+    "title": "Service management 2.5.6: 'waiting for a part' is a sub-state of 'in progress' (status strip, chips, menus, vendor toggle), no API or stored-status change",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFIX256 (integ/256):",
+      "frontend unit specs unit-tickets-model, unit-public-ticket; evidence-tickets, evidence-tickets-table, evidence-public-ticket; layout guard specs (layout-tickets, layout-tickets-table)",
+      "backend test_tickets_s4_public.py (the part-wait round trip and the closed values of the public status route)",
+      "gate run of integ/256"
+    ],
+    "expected": "Service management 2.5.6: the status strip / chips / menus show six steps with the part wait as a sub-state, the toggles work for staff and vendor, the public status route stays strictly closed: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/256."
   }
 ]

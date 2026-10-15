@@ -6371,5 +6371,21 @@
     "test_ids": [
       "AT351"
     ]
+  },
+  {
+    "id": "R336",
+    "title": "Service management 2.5.6: 'waiting for a part' is a sub-state of 'in progress' (status strip, chips, menus, vendor toggle), no API or stored-status change",
+    "statement": "'Waiting for a part' is a sub-state of 'in progress' in the interface: the status strip, the table / card / device chips and the status menus show only the six steps (new, assigned, accepted, in progress, done, closed); a stored `waiting_part` shows 'in progress' active with a secondary label and chips read 'in progress · waiting for a part'; a toggle sets and clears it through the existing status route; the vendor page offers the same toggle in four languages through the existing public status action with strict closed validation; filters, facets, board sections and SLA dues are unchanged.",
+    "task_ids": [
+      "TKFIX256"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT352"
+    ]
   }
 ]

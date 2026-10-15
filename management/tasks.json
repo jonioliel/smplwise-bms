@@ -10864,5 +10864,44 @@
     "owner": null,
     "commit": "c117e9a9",
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX256",
+    "title": "Service management 2.5.6: 'waiting for a part' is a sub-state of 'in progress' (status strip, chips, menus, vendor toggle), no API or stored-status change",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.6: the part wait is a sub-state of 'in progress' in the status strip, chips and menus, with a toggle (staff and vendor); API and stored status unchanged; fakes only (integ/256)."
+    ],
+    "requirement_ids": [
+      "R336"
+    ],
+    "test_ids": [
+      "AT352"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/FIX-status-substate-256",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-15 (integ/256): pilot/FIX-status-substate-256 (release 2.5.6). Fakes only. Status REVIEW until the tier-L gate of integ/256 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
