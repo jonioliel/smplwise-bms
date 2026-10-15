@@ -727,3 +727,21 @@ def test_message_template(app):
     evaluate(db, T0 + 2000)
     evaluate(db, T0 + 2100)
     assert [r["body"] for r in rows(db, "SELECT body FROM notifications WHERE source LIKE 'generator.low_fuel@%' ORDER BY first_at")][-1] == "גנרטור ראשי: מפלס הדלק 5%."
+
+
+def test_review_notifwa_f7_adding_whatsapp_needs_notify_manage(app):
+    """NOTIFWA review F7: a site administrator (generator.manage, no notify.manage) cannot ADD the WhatsApp channel to a generator policy;
+    the system administrator (who holds notify.manage) can, and the site administrator may then edit the policy while it stays on."""
+    c, db, settings = app
+    g = _full(db)
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    a = as_user("adm")
+    url = f"{API}/devices/{g}/policies/low_fuel"
+    assert c.put(url, json={"channels": ["push"]}, headers=a).status_code == 200
+    r = c.put(url, json={"channels": ["push", "whatsapp"]}, headers=a)
+    assert r.status_code == 403, r.text
+    assert "whatsapp" not in json.loads(rows(db, "SELECT channels_json FROM generator_alert_policies WHERE alert_key = 'low_fuel'")[0]["channels_json"])
+    assert rows(db, "SELECT 1 FROM audit_log WHERE action = 'notify.manage' AND decision = 'denied'") or rows(db, "SELECT 1 FROM audit_log WHERE decision = 'denied'")
+    assert c.put(url, json={"channels": ["push", "whatsapp"]}).status_code == 200  # joni: system administrator
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "critical"}, headers=a).status_code == 200  # kept, not added
+    assert c.put(url, json={"channels": ["push"]}, headers=a).status_code == 200  # removing is always allowed

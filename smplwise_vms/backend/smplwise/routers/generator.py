@@ -362,6 +362,15 @@ def put_policy(device_id: str, alert_key: str, body: PolicyBody, principal: Prin
     _device(conn, device_id)
     if alert_key not in cat.TYPE_BY_KEY:
         raise not_found("סוג ההתראה לא נמצא.")
+    if body.channels is not None and "whatsapp" in body.channels:
+        # NOTIFWA review F7: WhatsApp is an external, budget-limited channel shared with the tickets module - ADDING it to a generator
+        # policy also needs notify.manage (keeping it while editing other fields, or removing it, does not)
+        before = alerts._policy_dict(alerts._policy_row(conn, device_id, alert_key))  # noqa: SLF001
+        if "whatsapp" not in ((before or {}).get("channels") or []):
+            from ..rbac import INSTALLATION, require
+            from ..services.notify_visibility import MANAGE
+
+            require(conn, principal, MANAGE, INSTALLATION)
     try:
         return alerts.save_policy(conn, principal, device_id, alert_key, body.model_dump(exclude_unset=True))
     except alerts.RoutingInvalid as exc:

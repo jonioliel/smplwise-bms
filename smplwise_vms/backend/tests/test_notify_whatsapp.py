@@ -90,9 +90,16 @@ class World:
         r = self.c.put(f"{API}/notify/policies/{source}", json=body)
         assert r.status_code == 200, r.text
 
+    def opt_in(self, username: str = "joni", on: bool = True):
+        """The user's OWN consent through the API (review F1): only the caller, bound to the number they confirm."""
+        r = self.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": on}, headers=as_user(username))
+        assert r.status_code == 200, r.text
+        return r.json()
+
     def ready(self, **switch) -> None:
         self.map_account()
         self.contact(self.joni)
+        self.opt_in()
         self.switch(True, **switch)
         self.policy()
 
@@ -246,22 +253,70 @@ def test_consent_follows_the_contacts_preferred_channel(w):
     assert w.fake.calls == []
 
 
-def test_own_opt_out_stops_and_allows_again(w):
+def test_own_opt_in_withdraw_and_confirm_again(w):
     w.ready()
     me = w.c.get(f"{API}/me/notify-whatsapp").json()
-    assert me == {"channel_enabled": True, "has_number": True, "masked": "····91", "source": "directory", "consent": "granted", "opted_out": False}
-    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_out": True})
-    assert r.status_code == 200 and r.json()["opted_out"] is True
+    assert me == {"channel_enabled": True, "has_number": True, "masked": "····91", "source": "directory", "opted_in": True, "number_changed": False,
+                  "directory_declined": False, "consent": "granted"}
+    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False})
+    assert r.status_code == 200 and r.json()["opted_in"] is False and r.json()["consent"] == "declined"
     nid = w.emit()
     w.outbox()
     assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "no_consent")]
-    assert w.audits("notify.whatsapp.optout")[-1]["resource_id"] == w.joni
-    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_out": "yes"}).status_code == 422
-    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_out": False, "phone": "1"}).status_code == 422  # no other field, never a number
-    w.c.put(f"{API}/me/notify-whatsapp", json={"opted_out": False})
+    assert w.audits("notify.whatsapp.optin")[-1]["resource_id"] == w.joni
+    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": "yes"}).status_code == 422
+    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "phone": "1"}).status_code == 422  # no other field, never a number
+    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "user_id": "x"}).status_code == 422  # never for someone else
+    assert w.opt_in()["opted_in"] is True
     nid2 = w.emit()
     w.outbox()
     assert [r["status"] for r in w.rows(nid2)] == ["sent"]
+    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_out": True}).json()["opted_in"] is False  # the old field still withdraws
+
+
+# ---------------------------------------------------------------- review F1: consent is the user's own, bound to the number
+
+def test_default_is_not_opted_in_even_when_the_directory_says_whatsapp(w):
+    w.map_account()
+    w.contact(w.joni)  # preferred channel WhatsApp, written by whoever manages the directory
+    w.switch(True)
+    w.policy()
+    nid = w.emit()
+    w.outbox()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "no_consent")]
+    assert w.fake.calls == []
+    assert w.c.get(f"{API}/notify/whatsapp").json()["reachable_users"] == 0
+
+
+def test_a_directory_editor_redirecting_the_number_gets_nothing_until_the_user_confirms(w):
+    w.ready()
+    with w.db.connection() as conn:  # a tickets.configure holder edits the contact row linked to this user
+        conn.execute("UPDATE ticket_contacts SET phone_e164 = ?, preferred_channel = 'whatsapp' WHERE user_id = ?", (SECOND_PHONE, w.joni))
+    nid = w.emit()
+    w.outbox()
+    assert [(r["status"], r["reason"], r["target_ref"]) for r in w.rows(nid)] == [("skipped", "no_consent", "····77")]
+    assert w.fake.calls == []  # nothing ever reaches the new number
+    me = w.c.get(f"{API}/me/notify-whatsapp").json()
+    assert me["number_changed"] is True and me["opted_in"] is False and me["masked"] == "····77"
+    w.opt_in()  # the user sees ····77 and confirms it themselves
+    nid2 = w.emit()
+    w.outbox()
+    assert [r["status"] for r in w.rows(nid2)] == ["sent"] and w.fake.calls[-1]["data"]["target"] == SECOND_PHONE
+
+
+def test_opt_in_is_only_the_callers_own_and_stores_no_number(w):
+    w.ready()
+    mallory = w.user_id("mallory")
+    bind(w.c, w.settings, "mallory", "tickets_configure", "installation", "*")
+    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True}, headers=as_user("mallory"))
+    assert r.status_code == 409 and r.json()["code"] == "no_address"  # mallory has no number; joni's consent is untouched
+    w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False}, headers=as_user("mallory"))
+    with w.db.connection(mode="read") as conn:
+        prefs = [dict(x) for x in conn.execute("SELECT * FROM user_prefs WHERE key = ?", (wa.OPT_IN_PREF,)).fetchall()]
+    assert [x["user_id"] for x in prefs] == [w.joni] and mallory not in json.dumps(prefs)
+    assert DIGITS not in json.dumps(prefs) and DIGITS[-4:] not in prefs[0]["value_json"]
+    assert len(json.loads(prefs[0]["value_json"])["h"]) == 64
+    assert w.c.get(f"{API}/me/notify-whatsapp").json()["opted_in"] is True
 
 
 def test_a_user_sees_only_their_own_masked_number(w):
@@ -277,11 +332,11 @@ def test_a_user_sees_only_their_own_masked_number(w):
 def test_opt_out_after_planning_is_honoured_before_the_send(w):
     w.ready()
     nid = w.emit()
-    orig = w.worker.submit  # the job is planned; the user opts out before the worker reaches it
+    orig = w.worker.submit  # the job is planned; the user withdraws before the worker reaches it
 
     def late_opt_out(jobs):
         with w.db.connection() as conn:
-            wa.set_opt_out(conn, w.joni, True)
+            wa.set_opt_in(conn, w.joni, None)
         return orig(jobs)
 
     w.worker.submit = late_opt_out  # type: ignore[method-assign]
@@ -507,7 +562,20 @@ def test_values_are_cleaned_against_template_injection():
 
 def test_clean_keeps_ordinary_text():
     assert wa.clean("חיישן 3.5 במטבח (קומה 2)", 80) == "חיישן 3.5 במטבח (קומה 2)"
-    assert wa.clean("ups.battery_level", 80) == "ups.battery_level"
+    assert wa.clean("גרסה v1.2 מוכנה", 80) == "גרסה v1.2 מוכנה"
+
+
+@pytest.mark.parametrize("value", ["evil.de/login", "arx-support.dev", "10.1.2.3:8123/auth", "http://x.y", "WWW.EVIL.COM", "pay.example.museum",
+                                   "a.b.c.zz/p?q=1", "ups.battery_level", "x.co"])
+def test_review_f6_any_link_looking_token_is_masked(value):
+    out = wa.clean(f"לפני {value} אחרי", 120)
+    assert out == "לפני […] אחרי", (value, out)
+
+
+def test_review_f6_whatsapp_markup_is_stripped():
+    assert wa.clean("_italic_ *bold* ~strike~ `mono`", 80) == "italic bold strike mono"
+    assert wa.clean("> a quote", 80) == "a quote"
+    assert wa.clean(">> nested", 80) == "nested"
 
 
 # ---------------------------------------------------------------- the resolver interface
@@ -554,7 +622,12 @@ def test_a_number_change_between_planning_and_sending_is_not_sent_to_the_old_num
 
 def test_settings_put_validates_and_audits(w):
     v = w.c.get(f"{API}/notify/whatsapp").json()
-    assert v["revision"] == 0 and v["ranges"] == {"per_user_hour": [1, 30], "dedupe_min": [0, 1440]}
+    assert v["revision"] == 0 and v["ranges"] == {"per_user_hour": [1, 30], "dedupe_min": [5, 1440], "budget_pct": [10, 100], "budget_critical_pct": [10, 100]}
+    assert (v["budget_pct"], v["budget_critical_pct"], v["detail"], v["detail_levels"]) == (50, 80, "type_place", ["generic", "type_place"])
+    assert w.c.put(f"{API}/notify/whatsapp", json={"dedupe_min": 0}).status_code == 422  # review F4: never without de-duplication
+    assert w.c.put(f"{API}/notify/whatsapp", json={"detail": "full"}).status_code == 422  # review F9: never the body
+    assert w.c.put(f"{API}/notify/whatsapp", json={"budget_pct": 60, "budget_critical_pct": 50}).status_code == 422
+    assert w.c.put(f"{API}/notify/whatsapp", json={"budget_pct": 101}).status_code == 422
     assert w.c.put(f"{API}/notify/whatsapp", json={"enabled": "true"}).status_code == 422
     assert w.c.put(f"{API}/notify/whatsapp", json={"per_user_hour": 0}).status_code == 422
     assert w.c.put(f"{API}/notify/whatsapp", json={"dedupe_min": 99999}).status_code == 422
@@ -598,13 +671,17 @@ def test_test_send_goes_only_to_the_callers_own_number(w):
     assert r.status_code == 409 and r.json()["code"] == "no_address"
     w.contact(w.joni)
     r = w.c.post(f"{API}/notify/whatsapp/test")
+    assert r.status_code == 409 and r.json()["code"] == "no_consent"  # the caller has not opted in for this number
+    w.opt_in()
+    r = w.c.post(f"{API}/notify/whatsapp/test")
     assert r.status_code == 409 and r.json()["code"] == "channel_unavailable"
     w.map_account()
+    wa._TEST_SENDS.clear()  # the three refusals above used the caller's three test slots of the hour (a refusal costs a slot too)
     r = w.c.post(f"{API}/notify/whatsapp/test", json={"to": SECOND_PHONE})  # a body is ignored: there is no target to choose
     assert r.status_code == 200 and r.json() == {"ok": True, "outcome": "sent", "code": None}, r.text
     assert w.fake.calls[-1]["data"]["target"] == DIGITS and w.fake.calls[-1]["data"]["message"] == wa.TEXTS["he"]["test"]
     a = w.audits("notify.whatsapp.test")
-    assert [x["decision"] for x in a] == ["denied", "denied", "allowed"] and DIGITS not in json.dumps(a)
+    assert [x["decision"] for x in a] == ["denied", "denied", "denied", "allowed"] and DIGITS not in json.dumps(a)
     with w.db.connection(mode="read") as conn:
         assert [r[0] for r in conn.execute("SELECT kind FROM messaging_send_ledger")] == ["test"]
 
@@ -612,6 +689,7 @@ def test_test_send_goes_only_to_the_callers_own_number(w):
 def test_test_send_is_rate_limited_and_admin_only(w):
     w.map_account()
     w.contact(w.joni)
+    w.opt_in()
     codes = []
     for _ in range(4):
         codes.append(w.c.post(f"{API}/notify/whatsapp/test").status_code)
@@ -624,6 +702,7 @@ def test_test_send_is_rate_limited_and_admin_only(w):
 def test_test_send_respects_the_account_gap(w):
     w.map_account()
     w.contact(w.joni)
+    w.opt_in()
     assert w.c.post(f"{API}/notify/whatsapp/test").status_code == 200
     r = w.c.post(f"{API}/notify/whatsapp/test")
     assert r.status_code == 429 and r.json()["code"] == "rate_limited" and int(r.headers["Retry-After"]) >= 1
@@ -638,3 +717,216 @@ def test_deliveries_route_filters_the_whatsapp_channel(w):
     assert [(r["notification_id"], r["channel"], r["target"]) for r in rows] == [(nid, "whatsapp", "····91")]
     stats = w.c.get(f"{API}/notify/stats").json()
     assert stats["channels"]["whatsapp"]["sent"] == 1
+
+
+# ---------------------------------------------------------------- review F3: the notifications share of the account budget
+
+def _seed_ledger(w, use: str, n: int, minutes_ago: int = 10) -> None:
+    at = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    with w.db.connection() as conn:
+        for i in range(n):
+            conn.execute("INSERT INTO messaging_send_ledger(account_key, use_key, recipient_key, kind, at) VALUES (?, ?, ?, 'message', ?)", (KEY, use, f"r{i}", at))
+
+
+def test_notifications_stop_at_their_share_and_leave_the_rest_to_tickets(w):
+    w.ready()
+    _seed_ledger(w, wa.USE_KEY, 15, minutes_ago=55)  # 50 % of the default 30 / hour already used by notifications; a slot frees in ~5 min
+    nid = w.emit(severity="alert")
+    w.outbox()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("retry", "budget")]  # held (within the 10-minute hold)
+    assert w.fake.calls == []
+    crit = w.emit(severity="critical")  # critical may use up to 80 % (24 / hour)
+    w.outbox()
+    assert [r["status"] for r in w.rows(crit)] == ["sent"]
+
+
+def test_ticket_sends_do_not_count_against_the_notifications_share(w):
+    w.ready()
+    _seed_ledger(w, "tickets.messages", 20)  # tickets used 20 of 30: notifications still have their own share
+    nid = w.emit(severity="alert")
+    w.outbox()
+    assert [r["status"] for r in w.rows(nid)] == ["sent"]
+
+
+def test_the_share_is_configurable(w):
+    w.ready(budget_pct=100, budget_critical_pct=100)
+    _seed_ledger(w, wa.USE_KEY, 15)
+    nid = w.emit(severity="alert")
+    w.outbox()
+    assert [r["status"] for r in w.rows(nid)] == ["sent"]
+
+
+def test_budget_hold_past_the_ceiling_is_rate_limited(w, monkeypatch):
+    w.ready()
+    _seed_ledger(w, wa.USE_KEY, 15)
+    monkeypatch.setattr(wa, "MAX_HOLD_S", 0.0)
+    nid = w.emit(severity="alert")
+    w.outbox()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "rate_limited")]
+
+
+# ---------------------------------------------------------------- review F4: replays never send twice
+
+def test_an_outbox_replay_of_a_pending_message_is_not_sent_again(w):
+    w.ready()
+    w.fake.queue("connect")
+    nid = w.emit()
+    w.outbox()
+    assert [r["status"] for r in w.rows(nid)] == ["retry"]
+    w.dispatch(nid, "new")  # the same outbox row replayed after a crash
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("retry", "ha_unavailable"), ("skipped", "deduped")]
+    assert len(w.fake.calls) == 1
+
+
+def test_a_replay_after_an_unknown_outcome_is_not_sent_again(w):
+    w.ready()
+    w.fake.queue("timeout")
+    nid = w.emit()
+    w.outbox()
+    w.dispatch(nid, "new")
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("failed", "unknown_outcome"), ("skipped", "deduped")]
+    assert len(w.fake.calls) == 1
+
+
+def test_an_unknown_outcome_counts_against_the_per_user_cap(w):
+    w.ready(per_user_hour=1)
+    w.fake.queue("timeout")
+    w.emit(severity="alert")
+    w.outbox()
+    w.age_ledger()
+    second = w.emit(severity="alert")
+    w.outbox()
+    assert [(r["status"], r["reason"]) for r in w.rows(second)] == [("skipped", "rate_limited")]
+
+
+def test_each_escalation_step_is_sent_once(w):
+    w.ready()
+    nid = w.emit(severity="critical")
+    w.outbox()
+    w.age_ledger()
+    w.dispatch(nid, "escalate", users=[w.joni], step=1)
+    w.age_ledger()
+    w.dispatch(nid, "escalate", users=[w.joni], step=1)  # a replay of step 1
+    w.age_ledger()
+    w.dispatch(nid, "escalate", users=[w.joni], step=2)
+    assert [(r["status"], r["mode"]) for r in w.rows(nid)] == [("sent", "new"), ("sent", "escalate"), ("skipped", "escalate"), ("sent", "escalate")]
+
+
+# ---------------------------------------------------------------- review F5: the orphan sweep never overwrites a finished row
+
+def test_orphan_sweep_leaves_a_sent_row_alone(w):
+    w.ready()
+    nid = w.emit()
+    with w.db.connection() as conn:
+        conn.execute("INSERT INTO notification_deliveries(id, notification_id, user_id, channel, target_ref, status, attempt, mode, created_at, sent_at) "
+                     "VALUES ('done', ?, ?, 'whatsapp', '····91', 'sent', 1, 'new', '2026-01-01T00:00:00Z', '2026-01-01T00:00:05Z')", (nid, w.joni))
+    assert wa.recover_orphans(w.db) == 0
+    with w.db.connection(mode="read") as conn:
+        assert tuple(conn.execute("SELECT status, reason FROM notification_deliveries WHERE id = 'done'").fetchone()) == ("sent", None)
+
+
+def test_orphan_sweep_race_with_a_finishing_worker(w, monkeypatch):
+    """The sweep read the row as `retry`; the worker finishes it `sent` before the sweep writes: the sent row stays."""
+    w.ready()
+    nid = w.emit()
+    with w.db.connection() as conn:
+        conn.execute("INSERT INTO notification_deliveries(id, notification_id, user_id, channel, target_ref, status, attempt, mode, created_at) "
+                     "VALUES ('race', ?, ?, 'whatsapp', '····91', 'retry', 1, 'new', '2026-01-01T00:00:00Z')", (nid, w.joni))
+    real = w.db.connection
+    state = {"n": 0}
+
+    def conn_hook(*a, **kw):
+        if kw.get("label") == "notify.whatsapp.orphans" and kw.get("mode") != "read" and state["n"] == 0:
+            state["n"] += 1
+            with real() as c:  # the worker's `sent` lands between the read and the write
+                c.execute("UPDATE notification_deliveries SET status = 'sent', reason = NULL WHERE id = 'race'")
+        return real(*a, **kw)
+
+    monkeypatch.setattr(w.db, "connection", conn_hook)
+    assert wa.recover_orphans(w.db) == 0
+    monkeypatch.setattr(w.db, "connection", real)
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT status FROM notification_deliveries WHERE id = 'race'").fetchone()[0] == "sent"
+
+
+# ---------------------------------------------------------------- review F8: re-checked at send time
+
+def _held_second(w):
+    """A second message to the same number, held by the account's gap (first one sent)."""
+    w.ready()
+    w.emit()
+    w.outbox()
+    nid = w.emit(severity="alert")
+    w.outbox()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("retry", "rate_limited")]
+    w.age_ledger()
+    return nid
+
+
+def test_acknowledged_while_held_is_not_sent(w):
+    nid = _held_second(w)
+    assert w.c.post(f"{API}/notifications/{nid}/ack").status_code == 200
+    w.tick()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "acknowledged")]
+    assert len(w.fake.calls) == 1
+
+
+def test_snoozed_while_held_is_not_sent(w):
+    nid = _held_second(w)
+    assert w.c.post(f"{API}/notifications/{nid}/snooze", json={"minutes": 60}).status_code == 200
+    w.tick()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "snoozed")]
+
+
+def test_quiet_hours_starting_while_held_hold_it(w):
+    nid = _held_second(w)
+    w.c.put(f"{API}/notify/settings", json={"quiet": {"enabled": True, "from": "00:00", "to": "23:59", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]}})
+    w.tick()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "quiet_hours")]
+
+
+def test_critical_passes_quiet_hours_at_plan_and_at_send(w):
+    w.ready()
+    w.c.put(f"{API}/notify/settings", json={"quiet": {"enabled": True, "from": "00:00", "to": "23:59", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]}})
+    crit = w.emit(severity="critical")
+    w.outbox()
+    assert [(r["status"], r["reason"]) for r in w.rows(crit)] == [("sent", None)]
+    assert "Arx · קריטי" in w.fake.calls[-1]["data"]["message"]
+
+
+# ---------------------------------------------------------------- review F9: the channel's own detail level
+
+def test_whatsapp_never_carries_the_body_even_at_the_full_lock_screen_level(w):
+    w.ready()
+    w.c.put(f"{API}/notify/settings", json={"lockscreen": "full"})
+    nid = w.emit(place="מטבח")
+    w.outbox()
+    text = w.fake.calls[-1]["data"]["message"]
+    assert "הגיבוי האוטומטי לא הסתיים" not in text and "הגיבוי נכשל" in text and "מטבח" in text
+    assert [r["status"] for r in w.rows(nid)] == ["sent"]
+
+
+def test_detail_generic_sends_only_the_generic_text(w):
+    w.ready(detail="generic")
+    w.emit(place="מטבח")
+    w.outbox()
+    assert w.fake.calls[-1]["data"]["message"] == wa.TEXTS["he"]["generic"]
+
+
+# ---------------------------------------------------------------- review F10: the waiting jobs are bounded
+
+def test_jobs_beyond_the_heap_cap_fail_unavailable(w, monkeypatch):
+    w.ready()
+    monkeypatch.setattr(wa, "HEAP_MAX", 1)
+    nid = w.emit()
+    with w.db.connection() as conn:
+        for did in ("j1", "j2"):
+            conn.execute("INSERT INTO notification_deliveries(id, notification_id, user_id, channel, target_ref, status, attempt, mode, created_at) "
+                         "VALUES (?, ?, ?, 'whatsapp', '····91', 'queued', 0, 'new', ?)", (did, nid, w.joni, now_iso()))
+    worker = w.worker
+    worker.schedule(3600.0, wa.Job("j1", nid, w.joni, DIGITS, "x"), new=True)
+    worker.schedule(0.0, wa.Job("j2", nid, w.joni, DIGITS, "x"), new=True)
+    with w.db.connection(mode="read") as conn:
+        got = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT id, status, reason FROM notification_deliveries WHERE id IN ('j1', 'j2')")}
+    assert got == {"j1": ("queued", None), "j2": ("failed", "unavailable")}
+    assert worker.pending() == 1

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { WaNotifyView } from '../src/api/notify-whatsapp';
+import type { WaMine, WaNotifyView } from '../src/api/notify-whatsapp';
 import { waLogic } from '../src/components/notify-whatsapp-logic';
 import { NWT_KEYS, NWT_TABLES, nwt } from '../src/i18n/notify-whatsapp';
 
@@ -12,7 +12,8 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 
 function view(over: Partial<WaNotifyView> = {}): WaNotifyView {
   return {
-    enabled: false, per_user_hour: 4, dedupe_min: 30, revision: 0, ranges: { per_user_hour: [1, 30], dedupe_min: [0, 1440] },
+    enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], revision: 0,
+    ranges: { per_user_hour: [1, 30], dedupe_min: [5, 1440], budget_pct: [10, 100], budget_critical_pct: [10, 100] },
     account: { mapped: true, label: 'וואטסאפ ····0191', state: 'connected' }, reachable_users: 2, accounts_href: '#/system/messaging-accounts',
     test: { own_number: true, masked: '····91' }, ...over,
   };
@@ -38,6 +39,27 @@ test.describe('notify-whatsapp section logic', () => {
   });
 });
 
+test.describe('notify-whatsapp review fixes', () => {
+  test('F3: the budget steppers clamp and keep critical >= normal', () => {
+    expect(waLogic.stepPct(view(), 'budget_pct', 10)).toEqual({ budget_pct: 60, budget_critical_pct: 80 });
+    expect(waLogic.stepPct(view({ budget_pct: 80 }), 'budget_pct', 10)).toEqual({ budget_pct: 90, budget_critical_pct: 90 });
+    expect(waLogic.stepPct(view(), 'budget_critical_pct', -40)).toEqual({ budget_pct: 40, budget_critical_pct: 40 });
+    expect(waLogic.stepPct(view({ budget_pct: 10, budget_critical_pct: 10 }), 'budget_pct', -10)).toEqual({ budget_pct: 10, budget_critical_pct: 10 });
+    expect(waLogic.stepPct(view({ budget_critical_pct: 100 }), 'budget_critical_pct', 10).budget_critical_pct).toBe(100);
+  });
+
+  test('F1 / F2: the own row - hidden while off, a changed number asks for a new confirmation', () => {
+    const m = (over: Partial<WaMine> = {}): WaMine => ({ channel_enabled: true, has_number: true, masked: '····91', source: 'directory', opted_in: false, number_changed: false, directory_declined: false, consent: 'declined', ...over });
+    expect(waLogic.mineState(null)).toBe('hidden');
+    expect(waLogic.mineState(m({ channel_enabled: false, opted_in: true }))).toBe('hidden');
+    expect(waLogic.mineState(m({ has_number: false, masked: null }))).toBe('none');
+    expect(waLogic.mineState(m())).toBe('off'); // the default is NOT opted in
+    expect(waLogic.mineState(m({ opted_in: true, consent: 'granted' }))).toBe('on');
+    expect(waLogic.mineState(m({ number_changed: true }))).toBe('changed');
+    expect(waLogic.mineState(m({ directory_declined: true, opted_in: true }))).toBe('declined');
+  });
+});
+
 test.describe('notify-whatsapp texts', () => {
   test('every language has every key; placeholders survive', () => {
     for (const lang of ['en', 'ar', 'ru'] as const) {
@@ -60,6 +82,9 @@ test.describe('notify-whatsapp texts', () => {
     const screen = readFileSync(path.join(SRC, 'screens/system-notifications.ts'), 'utf8');
     expect(screen).toContain('<notify-whatsapp-section');
     expect(screen).not.toContain('WhatsApp – בקרוב');
+    expect(screen).toContain('<notify-whatsapp-mine>');
+    const mine = readFileSync(path.join(SRC, 'components/notify-whatsapp-mine.ts'), 'utf8');
+    expect(mine).not.toMatch(/var\(--dv-/);
     const section = readFileSync(path.join(SRC, 'components/notify-whatsapp-section.ts'), 'utf8');
     expect(section).not.toMatch(/var\(--dv-/); // only --sw-* tokens in the new element
     expect(section).not.toMatch(/unsafeHTML/);

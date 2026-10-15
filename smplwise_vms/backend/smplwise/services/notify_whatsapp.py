@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime as dt
 import heapq
+import hmac
 import itertools
 import json
 import logging
@@ -52,16 +53,21 @@ CHANNEL = "whatsapp"
 USE_KEY = "notifications.whatsapp"
 MODULE = "notifications"
 SETTING_KEY = "notify.whatsapp"
-OPT_OUT_PREF = "notify.whatsapp.opt_out"      # user_prefs row of the user's own opt-out (not a VALIDATORS key: only this module reads it)
+OPT_IN_PREF = "notify.whatsapp.opt_in"        # user_prefs row of the user's OWN opt-in: {"h": HMAC of the number they confirmed} (review F1)
 
-DEFAULT_CONFIG = {"enabled": False, "per_user_hour": 4, "dedupe_min": 30}
-RANGES = {"per_user_hour": (1, 30), "dedupe_min": (0, 1440)}
+DEFAULT_CONFIG = {"enabled": False, "per_user_hour": 4, "dedupe_min": 30, "budget_pct": 50, "budget_critical_pct": 80, "detail": "type_place"}
+# dedupe_min has a floor (review F4: no 0); budget_* = the share of the ACCOUNT's hourly / daily budget notifications may use (review F3:
+# alerts never starve ticket messages or verification codes; owner to confirm the 50 / 80 defaults)
+RANGES = {"per_user_hour": (1, 30), "dedupe_min": (5, 1440), "budget_pct": (10, 100), "budget_critical_pct": (10, 100)}
+# review F9: WhatsApp has its OWN detail level, never the alert body (a chat history is kept on the phone, in its backups and in the add-on)
+DETAIL_LEVELS = ("generic", "type_place")
 
 RETRY_DELAYS_S = (60.0, 300.0, 900.0)         # a `not_sent` is tried again three times, then it fails
 DOWN_RECHECK_S = 60.0                         # a disconnected account is looked at again after this long
 MAX_HOLD_S = 600.0                            # pacing may hold a message this long ...
 MAX_HOLD_URGENT_S = 1800.0                    # ... a critical one or an escalation this long; then `rate_limited`
 QUEUE_MAX = 200
+HEAP_MAX = 500                                # jobs waiting in memory (review F10); beyond it a new job fails `unavailable`
 ORPHAN_GRACE_S = 120.0
 TEST_PER_HOUR = 3                             # POST /notify/whatsapp/test per user (plus the account's own 5 / hour)
 TEXT_MAX = 700
@@ -82,6 +88,9 @@ def load_config(conn: sqlite3.Connection) -> dict[str, Any]:
     for k, (lo, hi) in RANGES.items():
         v = raw.get(k)
         out[k] = v if isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi else DEFAULT_CONFIG[k]
+    out["detail"] = raw.get("detail") if raw.get("detail") in DETAIL_LEVELS else DEFAULT_CONFIG["detail"]
+    if out["budget_critical_pct"] < out["budget_pct"]:
+        out["budget_critical_pct"] = out["budget_pct"]
     out["revision"] = raw.get("revision") if isinstance(raw.get("revision"), int) and not isinstance(raw.get("revision"), bool) else 0
     return out
 
@@ -99,7 +108,7 @@ def update_config(conn: sqlite3.Connection, body: Any, expected_revision: int | 
     cur = load_config(conn)
     if expected_revision is not None and expected_revision != cur["revision"]:
         raise ConfigInvalid("settings_conflict", "ההגדרות השתנו בינתיים; טען מחדש.", 412, {"current_revision": cur["revision"], "sent_revision": expected_revision})
-    unknown = sorted(set(body) - {"enabled", "per_user_hour", "dedupe_min", "revision", "base_revision"})
+    unknown = sorted(set(body) - {*DEFAULT_CONFIG, "revision", "base_revision"})
     if unknown:
         raise ConfigInvalid("validation", "שדה לא מוכר.", details={"fields": unknown})
     new = {k: cur[k] for k in DEFAULT_CONFIG}
@@ -113,6 +122,12 @@ def update_config(conn: sqlite3.Connection, body: Any, expected_revision: int | 
             if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
                 raise ConfigInvalid("validation", "ערך מספרי מחוץ לטווח.", details={"field": k, "min": lo, "max": hi})
             new[k] = v
+    if "detail" in body:
+        if body["detail"] not in DETAIL_LEVELS:
+            raise ConfigInvalid("validation", "רמת פירוט לא מוכרת.", details={"field": "detail", "allowed": list(DETAIL_LEVELS)})
+        new["detail"] = body["detail"]
+    if new["budget_critical_pct"] < new["budget_pct"]:
+        raise ConfigInvalid("validation", "התקציב לקריטי לא יכול להיות קטן מהתקציב הרגיל.", details={"field": "budget_critical_pct"})
     changed = sorted(k for k in new if new[k] != cur[k])
     stored = {**new, "revision": cur["revision"] + 1}
     conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (SETTING_KEY, json.dumps(stored)))
@@ -129,7 +144,8 @@ class ResolvedNumber:
     digits: str = field(repr=False)
     lang: str = "he"
     source: str = ""                 # which resolver found it: "directory" today, "profile" with TKSTAFF1
-    consent: str = "granted"         # granted | declined (the resolver's own consent record)
+    consent: str = "granted"         # granted | declined. A resolver's own record can only DECLINE; `resolve_number` grants only with the user's own
+                                     # opt-in for exactly this number (review F1)
 
 
 class NumberResolver(Protocol):
@@ -171,27 +187,59 @@ def register_resolver(resolver: NumberResolver, *, first: bool = False) -> None:
     RESOLVERS.insert(0, resolver) if first else RESOLVERS.append(resolver)
 
 
-def opted_out(conn: sqlite3.Connection, user_id: str) -> bool:
+_PROCESS_KEY = os.urandom(32)
+_KEYS: dict[str, bytes] = {}
+
+
+def _conn_data_dir(conn: sqlite3.Connection) -> Path:
+    row = conn.execute("PRAGMA database_list").fetchone()
+    return Path(str(row[2])).parent
+
+
+def _consent_key(conn: sqlite3.Connection) -> bytes:
+    """`k_messaging` of this installation (the file the ledger keys use), read once per data directory."""
     try:
-        r = conn.execute("SELECT value_json FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, OPT_OUT_PREF)).fetchone()
+        d = str(_conn_data_dir(conn))
     except sqlite3.Error:
-        return False
+        return _PROCESS_KEY
+    if d not in _KEYS:
+        try:
+            _KEYS[d] = mr.messaging_key(Path(d)) or _PROCESS_KEY
+        except Exception:  # noqa: BLE001 - a damaged key file: no stored opt-in can match, everyone reads as declined (fail closed)
+            log.error("messaging key unreadable; whatsapp opt-ins cannot be verified")
+            _KEYS[d] = _PROCESS_KEY
+    return _KEYS[d]
+
+
+def number_hash(conn: sqlite3.Connection, digits: str) -> str:
+    """HMAC of a number under `k_messaging`, domain-separated from the ledger's recipient key. Never the number itself."""
+    return mr.recipient_key(_consent_key(conn), "notify-optin:" + digits)
+
+
+def opt_in_hash(conn: sqlite3.Connection, user_id: str) -> str | None:
     try:
-        return bool(r) and json.loads(r[0]) is True
+        r = conn.execute("SELECT value_json FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, OPT_IN_PREF)).fetchone()
+    except sqlite3.Error:
+        return None
+    try:
+        v = json.loads(r[0]) if r else None
     except ValueError:
-        return False
+        return None
+    h = v.get("h") if isinstance(v, dict) else None
+    return h if isinstance(h, str) and len(h) == 64 else None
 
 
-def set_opt_out(conn: sqlite3.Connection, user_id: str, value: bool) -> None:
-    if value:
+def set_opt_in(conn: sqlite3.Connection, user_id: str, digits: str | None) -> None:
+    """The user's OWN act (only `PUT /me/notify-whatsapp` calls it, for the caller): store the HMAC of the number they saw, or clear it."""
+    if digits:
         conn.execute("INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id, key) DO UPDATE SET value_json = excluded.value_json, "
-                     "updated_at = excluded.updated_at", (user_id, OPT_OUT_PREF, "true", now_iso()))
+                     "updated_at = excluded.updated_at", (user_id, OPT_IN_PREF, json.dumps({"h": number_hash(conn, digits)}), now_iso()))
     else:
-        conn.execute("DELETE FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, OPT_OUT_PREF))
+        conn.execute("DELETE FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, OPT_IN_PREF))
 
 
-def resolve_number(conn: sqlite3.Connection, user_id: str) -> ResolvedNumber | None:
-    """The first resolver's answer; the user's own opt-out turns any answer into `declined`."""
+def raw_number(conn: sqlite3.Connection, user_id: str) -> ResolvedNumber | None:
+    """The first resolver's answer, before the user's own consent is applied."""
     for r in RESOLVERS:
         try:
             found = r.resolve(conn, user_id)
@@ -199,10 +247,24 @@ def resolve_number(conn: sqlite3.Connection, user_id: str) -> ResolvedNumber | N
             log.warning("whatsapp number resolver %s failed", getattr(r, "name", "?"))
             continue
         if found is not None:
-            if found.consent == "granted" and opted_out(conn, user_id):
-                return ResolvedNumber(found.digits, found.lang, found.source, "declined")
             return found
     return None
+
+
+def opted_in_for(conn: sqlite3.Connection, user_id: str, digits: str) -> bool:
+    h = opt_in_hash(conn, user_id)
+    return h is not None and hmac.compare_digest(h, number_hash(conn, digits))
+
+
+def resolve_number(conn: sqlite3.Connection, user_id: str) -> ResolvedNumber | None:
+    """The number a user's notifications may go to. `granted` ONLY when the user opted in themselves for exactly this number (review F1):
+    the default is not opted in, and any change of the number (by whoever edits the directory row) reads as `declined` until the user
+    confirms the new one. A resolver's own record may still decline (the contact's preferred channel is not WhatsApp)."""
+    found = raw_number(conn, user_id)
+    if found is None:
+        return None
+    granted = found.consent == "granted" and opted_in_for(conn, user_id, found.digits)
+    return ResolvedNumber(found.digits, found.lang, found.source, "granted" if granted else "declined")
 
 
 def mask(digits: str) -> str:
@@ -232,8 +294,12 @@ TEXTS = {
            "new": "Arx · {severity}", "renotify": "Arx · {severity} · update", "escalate": "Arx · {severity} · not acknowledged yet", "resolved": "Arx · ended",
            "time": "at {time}", "footer": "Automatic message - do not reply.", "test": "Arx: test message. WhatsApp notifications will reach this number."},
 }
-_URL = re.compile(r"(?i)\b(?:[a-z][a-z0-9+.\-]{1,15}://|www\.)\S*|\b[a-z0-9\-]{1,63}(?:\.[a-z0-9\-]{1,63})*\.(?:com|net|org|io|co|me|ly|link|app|info|xyz|ru|il|online|site|top|club|biz)(?:/\S*)?\b")
-_MARKUP = re.compile(r"[*~`]")
+# review F6: ANY link-looking token - a scheme, `www.`, an IPv4 address (with a port / path), or a dotted name whose last label starts with
+# a letter (any TLD, also `.de`, `.dev`); a dotted identifier such as `ups.battery_level` is masked too (accepted)
+_URL = re.compile(r"(?i)(?:\b[a-z][a-z0-9+.\-]{1,15}://\S*|\bwww\.\S*|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:/\S*)?"
+                  r"|\b[\w\-]+(?:\.[\w\-]+)*\.[a-z][\w\-]{0,62}(?::\d+)?(?:/\S*)?)")
+_MARKUP = re.compile(r"[*~`_]")
+_QUOTE = re.compile(r"^[>\s]+")
 
 
 def clean(value: Any, limit: int) -> str:
@@ -242,6 +308,7 @@ def clean(value: Any, limit: int) -> str:
     text = one_line(value, limit * 2)
     text = _URL.sub("[…]", text)
     text = _MARKUP.sub("", text)
+    text = _QUOTE.sub("", text)  # a leading `>` would turn the line into a WhatsApp quote
     return " ".join(text.split())[:limit]
 
 
@@ -250,8 +317,8 @@ def lang_of(lang: str | None) -> str:
 
 
 def render(n: dict[str, Any], *, mode: str, level: str, lang: str, tz_name: str, now: dt.datetime) -> str:
-    """The message of one notification for one recipient. `level` is the administrator's lock-screen level: `generic` carries no
-    title, no place, no body; `type_place` the title, the place, the severity and the time; `full` also the body."""
+    """The message of one notification for one recipient. `level`: `generic` carries no title, no place, no body; `type_place` the
+    title, the place, the severity and the time; `full` also the body (kept for the renderer; the channel never asks for it - F9)."""
     t = TEXTS[lang_of(lang)]
     if level == "generic":
         return t["generic_resolved"] if mode == "resolved" else t["generic"]
@@ -316,9 +383,6 @@ def _messaging_key(db: Any) -> bytes:
         return _PROCESS_KEY
 
 
-_PROCESS_KEY = os.urandom(32)
-
-
 # ---------------------------------------------------------------- the worker (its own thread: HA calls and pacing waits never block push)
 
 @dataclass
@@ -359,16 +423,21 @@ class Worker:
 
     def submit(self, jobs: list[Job]) -> bool:
         try:
-            self.q.put_nowait(lambda w: [w.schedule(0.0, j) for j in jobs])
+            self.q.put_nowait(lambda w: [w.schedule(0.0, j, new=True) for j in jobs])
             return True
         except queue.Full:
             return False
 
-    def schedule(self, delay: float, job: Job) -> None:
+    def schedule(self, delay: float, job: Job, *, new: bool = False) -> None:
+        with self.lock:
+            full = new and len(self.heap) >= HEAP_MAX
+            if not full:
+                heapq.heappush(self.heap, (time.monotonic() + delay, 0 if job.urgent else 1, next(self.seq), job))
+        if full:  # review F10: the waiting jobs are bounded; a new one beyond the cap fails honestly
+            _finish(self.db, job, "failed", "unavailable", job.attempt + 1)
+            return
         with _LOCK:
             _LIVE.add(job.delivery_id)
-        with self.lock:
-            heapq.heappush(self.heap, (time.monotonic() + delay, 0 if job.urgent else 1, next(self.seq), job))
         self._wake()
 
     def make_due(self) -> None:
@@ -456,6 +525,10 @@ def worker_for(db: Any) -> Worker:
         new = _WORKER
     if w is not None:
         w.stop()
+        with w.lock:
+            stale = [j.delivery_id for _t, _p, _s, j in w.heap]
+        with _LOCK:  # review F10: the replaced worker's jobs are gone - their rows become orphans the housekeeping recovers
+            _LIVE.difference_update(stale)
     return new
 
 
@@ -466,15 +539,19 @@ def reset_state() -> None:
         w, _WORKER = _WORKER, None
         _LIVE.clear()
         _TEST_SENDS.clear()
+        _KEYS.clear()
     if w is not None:
         w.stop()
 
 
 def _finish(db: Any, job: Job, status: str, reason: str | None, attempt: int, *, account_key: str | None = None, outcome: str | None = None) -> None:
-    """Record a FINAL outcome: the delivery row (a failure also lands on the notification's timeline) and one content-free audit row."""
-    with _LOCK:
-        _LIVE.discard(job.delivery_id)
-    record_outcome(db, [job.delivery_id], status, reason, attempt, notification_id=job.nid, channel=CHANNEL)
+    """Record a FINAL outcome: the delivery row (a failure also lands on the notification's timeline) and one content-free audit row.
+    The row is written BEFORE the job leaves the live set (review F5: the orphan sweep never sees a finished job as dead)."""
+    try:
+        record_outcome(db, [job.delivery_id], status, reason, attempt, notification_id=job.nid, channel=CHANNEL)
+    finally:
+        with _LOCK:
+            _LIVE.discard(job.delivery_id)
     if status == "skipped":
         return
     try:
@@ -510,12 +587,47 @@ def still_wanted(conn: sqlite3.Connection, job: Job) -> str | None:
     p = principal_of(conn, job.user_id)
     if p is None or not Reach(conn, p).can_see(n):
         return "no_reach"
+    # review F8: what may have changed while the job waited (pacing holds up to 10 / 30 min) - acknowledgement, snooze, quiet hours
+    if job.mode in ("new", "renotify") and n["state"] == "acknowledged":
+        return "acknowledged"
+    if job.mode != "escalate":
+        rec = conn.execute("SELECT snoozed_until FROM notification_recipients WHERE notification_id = ? AND user_id = ?", (job.nid, job.user_id)).fetchone()
+        if rec is not None and rec["snoozed_until"] and rec["snoozed_until"] > iso_utc(notify.now_utc()):
+            return "snoozed"
+        from ..routers.settings import read_settings
+        from . import notify_settings as nsettings
+
+        st = nsettings.load(conn)
+        if nsettings.in_quiet_hours(st["quiet"], notify.now_utc(), read_settings(conn)["time.zone"]) \
+                and not st["pass_through"].get(n["severity"], {}).get(CHANNEL):
+            return "quiet_hours"
     found = resolve_number(conn, job.user_id)
     if found is None or found.digits != job.digits:
         return "no_address"
     if found.consent != "granted":
         return "no_consent"
     return None
+
+
+def _iso_ms(moment: dt.datetime) -> str:
+    return moment.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def budget_wait(db: Any, account_key: str, pacing: ma.Pacing, urgent: bool, now: dt.datetime) -> dt.datetime | None:
+    """Review F3: notifications may use only `budget_pct` (critical / escalation: `budget_critical_pct`) of the account's hourly and daily
+    budget, counted over THIS use's ledger rows; the rest stays for the tickets module (messages, verification codes). None = within the
+    share, else when a slot of the share frees."""
+    with db.connection(mode="read", label="notify.whatsapp.budget") as conn:
+        cfg = load_config(conn)
+        pct = cfg["budget_critical_pct"] if urgent else cfg["budget_pct"]
+        waits: list[dt.datetime] = []
+        for limit, span in ((pacing.per_hour, dt.timedelta(hours=1)), (pacing.per_day, dt.timedelta(days=1))):
+            cap = max(1, limit * pct // 100)
+            times = [r[0] for r in conn.execute("SELECT at FROM messaging_send_ledger WHERE account_key = ? AND use_key = ? AND at > ? ORDER BY at",
+                                                (account_key, USE_KEY, _iso_ms(now - span))).fetchall()]
+            if len(times) >= cap:
+                waits.append(dt.datetime.fromisoformat(times[len(times) - cap].replace("Z", "+00:00")) + span)
+    return max(waits) if waits else None
 
 
 def run_job(worker: Worker, job: Job) -> None:
@@ -548,6 +660,15 @@ def run_job(worker: Worker, job: Job) -> None:
     job.down_since = None
     rkey = mr.recipient_key(_messaging_key(db), job.digits)
     now = dt.datetime.now(dt.timezone.utc)
+    budget_until = budget_wait(db, account.key, svc.pacing(account.key), job.urgent, now)
+    if budget_until is not None:  # review F3: notifications have used their share of the account's budget - ticket messages keep the rest
+        wait = max(0.5, (budget_until - now).total_seconds())
+        if now_m + wait - job.created > (MAX_HOLD_URGENT_S if job.urgent else MAX_HOLD_S):
+            _finish(db, job, "skipped", "rate_limited", job.attempt, account_key=account.key)
+        else:
+            _set(db, job, "retry", "budget", job.attempt)
+            worker.schedule(wait, job)
+        return
     decision = worker.gate.check(account_key=account.key, pacing=svc.pacing(account.key), recipient_key=rkey, kind="message", now=now)
     if not decision.allowed:
         wait = max(0.5, (decision.not_before - now).total_seconds())
@@ -591,21 +712,47 @@ def recover_orphans(db: Any) -> int:
                             (CHANNEL, cutoff)).fetchall()
     with _LOCK:
         dead = [r for r in rows if r["id"] not in _LIVE]
-    for r in dead:
-        record_outcome(db, [r["id"]], "failed", "interrupted", int(r["attempt"] or 0), notification_id=r["notification_id"], channel=CHANNEL)
-    return len(dead)
+    n = 0
+    for r in dead:  # review F5: conditional - a row the worker finished meanwhile (sent / failed) is never overwritten
+        with db.connection(label="notify.whatsapp.orphans") as conn:
+            changed = conn.execute("UPDATE notification_deliveries SET status = 'failed', reason = 'interrupted' WHERE id = ? AND status IN ('queued', 'retry')",
+                                   (r["id"],)).rowcount
+            if changed:
+                conn.execute("INSERT INTO notification_events(notification_id, at, kind, channel) VALUES (?,?,?,?)", (r["notification_id"], now_iso(), "delivery_failed", CHANNEL))
+                n += 1
+    return n
 
 
 # ---------------------------------------------------------------- the channel
 
-def _recent_sent(conn: sqlite3.Connection, nid: str, uid: str, since: str) -> bool:
-    return conn.execute("SELECT 1 FROM notification_deliveries WHERE notification_id = ? AND user_id = ? AND channel = ? AND status = 'sent' AND COALESCE(sent_at, created_at) >= ? LIMIT 1",
-                        (nid, uid, CHANNEL, since)).fetchone() is not None
+# a row that may have left (or still will): counted by the de-duplication and the per-user cap (review F4)
+_MAY_LEAVE = "(status IN ('queued', 'retry', 'sent') OR (status = 'failed' AND reason IN ('unknown_outcome', 'interrupted')))"
+
+
+def _prior(conn: sqlite3.Connection, nid: str, uid: str, *, mode: str | None = None, since: str | None = None) -> int:
+    sql, args = f"SELECT COUNT(*) FROM notification_deliveries WHERE notification_id = ? AND user_id = ? AND channel = ? AND {_MAY_LEAVE}", [nid, uid, CHANNEL]
+    if mode is not None:
+        sql += " AND mode = ?"
+        args.append(mode)
+    if since is not None:
+        sql += " AND COALESCE(sent_at, created_at) >= ?"
+        args.append(since)
+    return int(conn.execute(sql, args).fetchone()[0])
 
 
 def _hour_count(conn: sqlite3.Connection, uid: str, since: str) -> int:
-    return int(conn.execute("SELECT COUNT(*) FROM notification_deliveries WHERE user_id = ? AND channel = ? AND status IN ('queued', 'retry', 'sent') AND created_at >= ?",
+    return int(conn.execute(f"SELECT COUNT(*) FROM notification_deliveries WHERE user_id = ? AND channel = ? AND {_MAY_LEAVE} AND created_at >= ?",
                             (uid, CHANNEL, since)).fetchone()[0])
+
+
+def _replayed(conn: sqlite3.Connection, d: Dispatch, uid: str, dedupe_since: str) -> bool:
+    """Review F4: an outbox replay (at-least-once) or a repeat inside the window is never a second send. `new` / `resolved` happen once per
+    notification and user; an escalation once per step; a renotify once per de-duplication window."""
+    if d.mode in ("new", "resolved"):
+        return _prior(conn, d.nid, uid, mode=d.mode) > 0
+    if d.mode == "escalate":
+        return _prior(conn, d.nid, uid, mode="escalate") >= int(d.item.get("step") or 1)
+    return _prior(conn, d.nid, uid, since=dedupe_since) > 0
 
 
 class WhatsAppNotifyChannel(Channel):
@@ -648,13 +795,15 @@ class WhatsAppNotifyChannel(Channel):
             if d.held(self.name):
                 out.append(Target(self.name, uid, ref, "skipped", "quiet_hours"))
                 continue
-            if d.mode in ("new", "renotify") and cfg["dedupe_min"] and _recent_sent(conn, d.nid, uid, dedupe_since):
+            if _replayed(conn, d, uid, dedupe_since):
                 out.append(Target(self.name, uid, ref, "skipped", "deduped"))
                 continue
             if d.severity not in URGENT and d.mode != "escalate" and _hour_count(conn, uid, hour_since) >= cfg["per_user_hour"]:
                 out.append(Target(self.name, uid, ref, "skipped", "rate_limited"))
                 continue
-            text = render(d.n, mode=d.mode, level=d.settings.get("lockscreen") or "type_place", lang=found.lang, tz_name=d.tz, now=d.now)
+            # review F9: the channel's own detail level (never the body); the lock-screen `generic` level is never loosened
+            level = "generic" if (cfg["detail"] == "generic" or d.settings.get("lockscreen") == "generic") else "type_place"
+            text = render(d.n, mode=d.mode, level=level, lang=found.lang, tz_name=d.tz, now=d.now)
             out.append(Target(self.name, uid, ref, "queued", None, {"digits": found.digits, "text": text}))
         return out
 
@@ -709,21 +858,20 @@ def reachable_count(conn: sqlite3.Connection) -> int:
 def admin_view(conn: sqlite3.Connection, caller_id: str) -> dict[str, Any]:
     cfg = load_config(conn)
     own = resolve_number(conn, caller_id)
-    return {**cfg, "ranges": {k: list(v) for k, v in RANGES.items()}, "account": account_view(conn), "reachable_users": reachable_count(conn),
+    return {**cfg, "ranges": {k: list(v) for k, v in RANGES.items()}, "detail_levels": list(DETAIL_LEVELS), "account": account_view(conn), "reachable_users": reachable_count(conn),
             "accounts_href": "#/system/messaging-accounts", "test": {"own_number": own is not None and own.consent == "granted", "masked": mask(own.digits) if own else None}}
 
 
 def my_view(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
-    found = None
-    for r in RESOLVERS:  # the resolver's own answer, before the user's opt-out is applied
-        try:
-            found = r.resolve(conn, user_id)
-        except Exception:  # noqa: BLE001
-            found = None
-        if found is not None:
-            break
+    """The caller's own status: the masked number, where it comes from, whether they opted in for THIS number, and `number_changed` when
+    an earlier opt-in no longer matches the number (it now reads as declined until they confirm again)."""
+    found = raw_number(conn, user_id)
+    stored = opt_in_hash(conn, user_id)
+    opted = bool(found) and opted_in_for(conn, user_id, found.digits)  # type: ignore[union-attr]
+    blocked = bool(found) and found.consent != "granted"  # type: ignore[union-attr]
     return {"channel_enabled": load_config(conn)["enabled"], "has_number": found is not None, "masked": mask(found.digits) if found else None,
-            "source": found.source if found else None, "consent": found.consent if found else None, "opted_out": opted_out(conn, user_id)}
+            "source": found.source if found else None, "opted_in": opted, "number_changed": bool(stored) and found is not None and not opted,
+            "directory_declined": blocked, "consent": "granted" if (opted and not blocked) else ("declined" if found else None)}
 
 
 def test_text(lang: str) -> str:

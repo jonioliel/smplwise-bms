@@ -523,6 +523,11 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(wa.locator('[data-wa-cap]')).toHaveText('5');
     await wa.locator('[data-wa-dedupe="60"]').click();
     await expect(wa.locator('[data-wa-dedupe="60"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(wa.locator('[data-wa-dedupe="5"]')).toBeVisible(); // review F4: no "without de-duplication" choice
+    await expect(wa.locator('[data-wa-detail="type_place"]')).toHaveAttribute('aria-pressed', 'true'); // review F9: never the body
+    await expect(wa.locator('[data-wa-budget="budget_pct"]')).toHaveText('50%');
+    await wa.locator('[data-wa-budget-step="budget_critical_pct:10"]').click();
+    await expect(wa.locator('[data-wa-budget="budget_critical_pct"]')).toHaveText('90%');
     await wa.locator('[data-wa-test]').click();
     await expect(wa.locator('[data-wa-test-result]')).toHaveAttribute('data-wa-test-result', 'ok');
     await shot(page, `notifwa-section-on-${vp(info)}-light`);
@@ -539,6 +544,18 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
       await expect(sec(page, 'quiet').locator('[data-pass="alert:whatsapp"]')).toHaveAttribute('aria-checked', 'false');
       await expect(sys(page)).not.toContainText('WhatsApp – בקרוב');
     }
+    // review F1 / F2: the administrator's OWN row - not opted in by default; the confirm is the user's own act
+    if (narrow(page, info)) await sys(page).locator('[data-set-nav="chan"]').click();
+    const mine = sys(page).locator('notify-whatsapp-mine [data-wa-mine]');
+    await expect(mine).toHaveAttribute('data-wa-mine-state', 'off');
+    await expect(mine.locator('[data-wa-mine-number]')).toHaveText('····91');
+    await mine.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await shot(page, `notifwa-mine-off-${vp(info)}-light`);
+    await mine.locator('[data-wa-mine-confirm]').click();
+    await expect(mine).toHaveAttribute('data-wa-mine-state', 'on');
+    await shot(page, `notifwa-mine-on-${vp(info)}-light`);
+    await mine.locator('[data-wa-mine-stop]').click();
+    await expect(mine).toHaveAttribute('data-wa-mine-state', 'off');
   });
 
   test('sources: switch off, severity, recipients, channels - saved at once through the revisioned PUT, and shown again after a reload', async ({ page }, info) => {

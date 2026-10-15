@@ -4,6 +4,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import '../components/sw-dialog';
 import '../pwa/notifications-settings';
 import '../components/notify-whatsapp-section'; // NOTIFWA: the WhatsApp section, one separable element
+import '../components/notify-whatsapp-mine'; // NOTIFWA review F2: the user's own number and consent
 import { waNotify, type WaNotifyView } from '../api/notify-whatsapp';
 import {
   CENTER_LAYOUTS, CENTER_LAYOUT_LABEL, CHANNEL_LABEL, DELIVERY_STATUS_LABEL, FAILURES_AUDIENCES, FAILURE_SOURCES, LOCKSCREEN_LABEL, LOCKSCREEN_LEVELS, RECIPIENT_LABEL, RETENTION_CHOICES,
@@ -1284,6 +1285,7 @@ export class SystemNotifications extends LitElement {
     return html`<div data-set-section="wa" id="sec-wa"><notify-whatsapp-section section-id="wa-inner" @notify-saved=${(e: CustomEvent<{ text: string }>) => {
       this.say(e.detail.text);
       void waNotify().view().then((v) => (this.wa = v)).catch(() => undefined);
+      this.renderRoot.querySelectorAll('notify-whatsapp-mine').forEach((el) => el.reload());
     }}></notify-whatsapp-section></div>`;
   }
 
@@ -1303,7 +1305,7 @@ export class SystemNotifications extends LitElement {
         <div class="chc soon" data-channel="ha_mobile"><span class="ring">${nIcon('phone')}</span><b>Companion</b><small>טלפונים לפי משתמש</small><span class="tag soon">בקרוב</span></div>
         <div class="chc" data-channel="whatsapp"><span class="ring">${nIcon('chat')}</span><b>WhatsApp</b><small>${wa.text}</small>${pill(wa.state, wa.text)}</div>
       </div>
-      <div class="devbox"><arx-notifications-settings devices-only embedded></arx-notifications-settings></div></section>`;
+      <div class="devbox"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></div></section>`;
   }
 
   private renderLog() {
@@ -1331,7 +1333,7 @@ export class SystemNotifications extends LitElement {
   private renderBody() {
     if (this.phase === 'loading') return html`<div class="skbox" data-set-state="loading" aria-busy="true"><span class="skl"></span><span class="skl"></span><span class="skl"></span></div>`;
     if (this.phase === 'error') return html`<div class="errbar" role="alert" data-set-state="error">${nIcon('warning')}<span>${this.error || 'לא ניתן לטעון את ההגדרות'}</span><button type="button" class="btn sm" data-set-retry @click=${() => void this.load()}>${nIcon('refresh')}נסה שוב</button></div>`;
-    if (this.phase === 'user') return html`<div class="secs" data-set-state="user"><section class="glass sec"><arx-notifications-settings devices-only embedded></arx-notifications-settings></section></div>`;
+    if (this.phase === 'user') return html`<div class="secs" data-set-state="user"><section class="glass sec"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></section></div>`;
     const sections: Record<SecId, () => TemplateResult> = { sources: () => this.renderSources(), quiet: () => this.renderQuiet(), esc: () => this.renderEsc(), lock: () => this.renderLock(), keep: () => this.renderKeep(), mail: () => this.renderMail(), wa: () => this.renderWa(), chan: () => this.renderChannels(), log: () => this.renderLog() };
     return html`<div class="set" data-set-state="ready"><nav class="glass setnav" aria-label="מדורים">${SECTIONS.map((x) => html`<button type="button" aria-current=${String(this.sec === x.id)} data-set-nav=${x.id} @click=${() => this.setSec(x.id)}>${nIcon(x.icon)}${x.label}</button>`)}</nav>
       <div class="secs">${this.phone ? sections[this.sec]() : SECTIONS.map((x) => sections[x.id]())}</div></div>`;

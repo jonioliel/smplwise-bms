@@ -5,8 +5,8 @@
 | GET  | /notify/whatsapp       | notify.manage | the master switch, the per-user hourly cap, the de-duplication window, the mapped account (label with the last four digits, state), how many users can be reached (a COUNT), whether the caller has a number of their own for the test |
 | PUT  | /notify/whatsapp       | notify.manage | change the switch / cap / window (revisioned; audited `notify.whatsapp.update` with the changed field names) |
 | POST | /notify/whatsapp/test  | notify.manage | one fixed test text to the CALLER's own number only (no number is ever typed); 3 / hour per user + the account's 5 / hour; audited `notify.whatsapp.test` |
-| GET  | /me/notify-whatsapp    | any signed-in user | the caller's own masked number (`····NN`), its source and consent, the own opt-out |
-| PUT  | /me/notify-whatsapp    | any signed-in user | `{opted_out}`: stop / allow WhatsApp notifications to the caller's own number; audited `notify.whatsapp.optout` |
+| GET  | /me/notify-whatsapp    | any signed-in user | the caller's own masked number (`····NN`), its source, the own opt-in and `number_changed` |
+| PUT  | /me/notify-whatsapp    | any signed-in user | `{opted_in}`: the caller's own consent, bound to the HMAC of the number they confirm (review F1); audited `notify.whatsapp.optin` |
 
 No route accepts a phone number and no answer carries one (masked to the last two digits, the caller's own only).
 """
@@ -86,11 +86,24 @@ def my_whatsapp(principal: Principal = Depends(current_principal_ro), conn: sqli
 
 
 @router.put("/me/notify-whatsapp")
-def set_my_whatsapp(request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    v = body.get("opted_out") if isinstance(body, dict) else None
-    if not isinstance(v, bool) or set(body) - {"opted_out"}:
-        raise ApiError(422, "validation", "opted_out: כן/לא בלבד.", details={"field": "opted_out"})
-    wa.set_opt_out(conn, principal.user_id, v)
-    audit(conn, actor=principal, action="notify.whatsapp.optout", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request),
-          details={"opted_out": v})
+def set_my_whatsapp(request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """The caller's OWN consent (review F1): `{opted_in: true}` confirms the number currently resolved for them (its HMAC is stored, so any
+    later change of the number reads as declined until they confirm again); `{opted_in: false}` (or `{opted_out: true}`) withdraws it.
+    Only ever for the caller - there is no user id in the request. 409 `no_address` when no number is resolved for the caller."""
+    keys = set(body) if isinstance(body, dict) else set()
+    if keys == {"opted_in"} and isinstance(body["opted_in"], bool):
+        want = body["opted_in"]
+    elif keys == {"opted_out"} and isinstance(body["opted_out"], bool):
+        want = not body["opted_out"]
+    else:
+        raise ApiError(422, "validation", "opted_in: כן/לא בלבד.", details={"field": "opted_in"})
+    digits = None
+    if want:
+        found = wa.raw_number(conn, principal.user_id)
+        if found is None:
+            raise ApiError(409, "no_address", "לא נמצא מספר וואטסאפ עבורך.")
+        digits = found.digits
+    wa.set_opt_in(conn, principal.user_id, digits)
+    audit(conn, actor=principal, action="notify.whatsapp.optin", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request),
+          details={"opted_in": want})  # never the number
     return wa.my_view(conn, principal.user_id)

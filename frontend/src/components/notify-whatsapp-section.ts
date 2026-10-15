@@ -1,14 +1,14 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ApiError } from '../api/client';
-import { waNotify, type WaNotifyView, type WaTestResult } from '../api/notify-whatsapp';
+import { waNotify, type WaDetail, type WaNotifyView, type WaTestResult } from '../api/notify-whatsapp';
 import { nwt, nwtLang } from '../i18n/notify-whatsapp';
 import { mediaGlassStyles } from '../styles/media-glass';
 import { notifyControls, notifyKnobs } from './notify-css';
 import { nIcon } from './notify-icons';
 import { waLogic } from './notify-whatsapp-logic';
 
-const DEDUPE_CHOICES = [0, 15, 30, 60] as const;
+const DEDUPE_CHOICES = [5, 15, 30, 60] as const; // review F4: never without de-duplication
 
 /**
  * NOTIFWA: the WhatsApp section of Settings › התראות - the master switch (OFF by default), the sending account (picked in Settings › ערוץ
@@ -152,7 +152,7 @@ export class NotifyWhatsappSection extends LitElement {
     return err instanceof ApiError ? err.body.user_message || err.code : nwt('error');
   }
 
-  private async save(patch: { enabled?: boolean; per_user_hour?: number; dedupe_min?: number }) {
+  private async save(patch: { enabled?: boolean; per_user_hour?: number; dedupe_min?: number; budget_pct?: number; budget_critical_pct?: number; detail?: WaDetail }) {
     const v = this.view;
     if (!v || this.busy) return;
     this.view = { ...v, ...patch }; // shown at once
@@ -207,7 +207,9 @@ export class NotifyWhatsappSection extends LitElement {
       <div class="frow"><div class="l"><b>${nwt('account')}</b>${v.account.mapped && v.account.label ? html`<small data-wa-account-label>${v.account.label}</small>` : nothing}</div><div class="r">${this.stateTag(v)}<a class="lnk" href=${v.accounts_href} data-wa-accounts-link>${nwt('accountPick')}</a></div></div>
       <div class="frow"><div class="l"><b>${nwt('reach')}</b><small>${nwt('reachHint')}</small></div><div class="r"><span class="tag" data-wa-reach><span class="n">${v.reachable_users}</span></span></div></div>
       <div class="frow ${off ? 'dis' : ''}"><div class="l"><b>${nwt('cap')}</b><small>${nwt('capHint')}</small></div><div class="r"><span class="stp"><button type="button" data-wa-cap-step="-1" aria-label=${nwt('less')} ?disabled=${this.busy} @click=${() => void this.save({ per_user_hour: waLogic.stepCap(v, -1) })}>${nIcon('minus')}</button><span class="vv" data-wa-cap><span class="n">${v.per_user_hour}</span></span><button type="button" data-wa-cap-step="1" aria-label=${nwt('more')} ?disabled=${this.busy} @click=${() => void this.save({ per_user_hour: waLogic.stepCap(v, 1) })}>${nIcon('plus')}</button></span></div></div>
-      <div class="frow ${off ? 'dis' : ''}"><div class="l"><b>${nwt('dedupe')}</b></div><div class="r"><div class="seg sm" role="group" aria-label=${nwt('dedupe')}>${DEDUPE_CHOICES.map((m) => html`<button type="button" aria-pressed=${String(v.dedupe_min === m)} data-wa-dedupe=${m} ?disabled=${this.busy} @click=${() => void this.save({ dedupe_min: m })}>${m === 0 ? '—' : html`<span class="n">${m}</span> ${nwt('minutes')}`}</button>`)}</div></div></div>
+      <div class="frow ${off ? 'dis' : ''}"><div class="l"><b>${nwt('dedupe')}</b></div><div class="r"><div class="seg sm" role="group" aria-label=${nwt('dedupe')}>${DEDUPE_CHOICES.map((m) => html`<button type="button" aria-pressed=${String(v.dedupe_min === m)} data-wa-dedupe=${m} ?disabled=${this.busy} @click=${() => void this.save({ dedupe_min: m })}><span class="n">${m}</span> ${nwt('minutes')}</button>`)}</div></div></div>
+      <div class="frow ${off ? 'dis' : ''}"><div class="l"><b>${nwt('detail')}</b><small>${nwt('detailHint')}</small></div><div class="r"><div class="seg sm" role="group" aria-label=${nwt('detail')}>${v.detail_levels.map((d) => html`<button type="button" aria-pressed=${String(v.detail === d)} data-wa-detail=${d} ?disabled=${this.busy} @click=${() => void this.save({ detail: d })}>${nwt(`detail_${d}` as 'detail_generic')}</button>`)}</div></div></div>
+      ${(['budget_pct', 'budget_critical_pct'] as const).map((k) => html`<div class="frow ${off ? 'dis' : ''}"><div class="l"><b>${nwt(k === 'budget_pct' ? 'budget' : 'budgetCritical')}</b><small>${nwt(k === 'budget_pct' ? 'budgetHint' : 'budgetCriticalHint')}</small></div><div class="r"><span class="stp"><button type="button" data-wa-budget-step=${`${k}:-10`} aria-label=${nwt('less')} ?disabled=${this.busy} @click=${() => void this.save(waLogic.stepPct(v, k, -10))}>${nIcon('minus')}</button><span class="vv" data-wa-budget=${k}><span class="n">${v[k]}</span><small>%</small></span><button type="button" data-wa-budget-step=${`${k}:10`} aria-label=${nwt('more')} ?disabled=${this.busy} @click=${() => void this.save(waLogic.stepPct(v, k, 10))}>${nIcon('plus')}</button></span></div></div>`)}
       <div class="frow"><div class="l"><b>${nwt('test')}</b><small data-wa-test-hint>${v.test.own_number ? nwt('testHint', { masked: `⁦${v.test.masked ?? ''}⁩` }) : nwt('testNoNumber')}</small></div><div class="r">${this.result ? html`<span class="tag ${this.result.ok ? 'ok' : 'bad'}" data-wa-test-result=${this.result.ok ? 'ok' : 'bad'}>${nIcon(this.result.ok ? 'check' : 'warning')}${this.result.text}</span>` : nothing}<button type="button" class="btn quiet" data-wa-test ?disabled=${this.busy || !waLogic.canTest(v)} @click=${() => void this.test()}>${nIcon(this.busy ? 'refresh' : 'send')}${this.busy ? nwt('testing') : nwt('test')}</button></div></div>
       ${this.error ? html`<div class="warn" role="alert" data-wa-error>${this.error}</div>` : nothing}
     </section>`;
