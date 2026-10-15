@@ -28,6 +28,10 @@ async function open(page: Page, prefix: string): Promise<void> {
       try { window.localStorage.setItem(key, JSON.stringify(tokens)); } catch { /* none */ }
     }, ['arx.auth.v1', prefix]);
   }
+  (globalThis as any).__diag = [];
+  page.on('console', (m) => (globalThis as any).__diag.push('c:' + m.text().slice(0, 150)));
+  page.on('requestfailed', (r) => (globalThis as any).__diag.push('f:' + r.url().slice(-60)));
+  page.on('response', (r) => { if (r.status() >= 400) (globalThis as any).__diag.push(r.status() + ':' + r.url().slice(-60)); });
   await page.goto('about:blank');
   await page.goto(`${prefix || '/'}?design=a&skin=classic&scheme=light#/tickets/mine?t=${ID}`);
 }
@@ -38,7 +42,7 @@ for (const prefix of ['', '/arx/']) {
     await open(page, prefix);
     const full = page.locator(`${L} tickets-list ticket-detail [data-full-screen]`);
     await full.waitFor({ timeout: 15000 }).catch(async (e) => {
-      throw new Error(`DIAG url=${page.url()} text=${await page.evaluate(() => document.body.innerText.slice(0, 300)).catch(() => '?')} ls=${await page.evaluate(() => Object.keys(localStorage).join(',')).catch(() => '?')} :: ${e.message}`);
+      throw new Error(`DIAG ${(globalThis as any).__diag.slice(0, 8).join(' | ')} url=${page.url()} text=${await page.evaluate(() => document.body.innerText.slice(0, 300)).catch(() => '?')} ls=${await page.evaluate(() => Object.keys(localStorage).join(',')).catch(() => '?')} :: ${e.message}`);
     });
     await full.click();
     await expect(page).toHaveURL(new RegExp(`${prefix || '/'}\\?[^#]*#/tickets/${ID}$`));
