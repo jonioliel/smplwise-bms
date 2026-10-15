@@ -12,7 +12,7 @@ import pytest
 
 from smplwise import db as dbmod
 
-CR038 = range(79, 86)  # the numbers the spec reserves for CR-038 (section 7)
+CR038 = range(79, 87)  # the numbers the spec reserves for CR-038 (section 7) + 0085 (TK257 quotes) + 0086 (deep review B3, renumbered at integration)
 TABLES = {
     "ticket_departments", "ticket_department_members", "ticket_priorities", "ticket_categories", "ticket_sla_rules", "ticket_templates",
     "ticket_sequence", "tickets", "ticket_assignments", "ticket_events", "ticket_requests", "ticket_saved_views", "ticket_attachments",
