@@ -194,7 +194,7 @@ def test_03_a_write_through_a_staff_link_is_the_contact_actor_never_the_users_pr
     token = env.s4.token_of(t["id"])
     client, _ = env.s4.public(Clock(time.time()))
     session = code_session(env, client, token, link)
-    r = client.post("/t/api/status", headers=hdr(token, session), json={"to": "in_progress", "client_request_id": crid()})
+    r = client.post("/t/api/status", headers=hdr(token, session), json={"status": "in_progress", "client_request_id": crid()})
     assert r.status_code == 200, r.text
     r = client.post("/t/api/note", headers=hdr(token, session), json={"text": "בדרך", "client_request_id": crid()})
     assert r.status_code == 200, r.text
