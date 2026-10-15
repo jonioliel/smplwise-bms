@@ -204,6 +204,27 @@ def test_photo_pages_and_a_pdf_become_documents(s4):
     assert assembled.headers["content-disposition"].startswith("attachment;")
 
 
+def test_pending_bytes_per_link_are_capped_next_to_the_count(s4, monkeypatch):
+    """Deep review A5: the pending quota counts bytes too (64 MiB per link; lowered here to the two files already held)."""
+    from smplwise.services.tickets import cost_files
+
+    _t, token, client, _ = done(s4)
+    held = 0
+    for i in range(2):
+        data = pdf(f"<< /Producer (vendor {i}) >>".encode())
+        r = client.post("/t/api/claim/file", headers=hdr(token), files={"file": ("a.pdf", data, "application/pdf")}, data={"client_request_id": crid()})
+        assert r.status_code == 201, r.text
+        held += r.json()["bytes"]
+    monkeypatch.setattr(cost_files, "MAX_PENDING_BYTES_PER_LINK", held)
+    r = client.post("/t/api/claim/file", headers=hdr(token), files={"file": ("b.pdf", pdf(b"<< /Producer (third) >>"), "application/pdf")},
+                    data={"client_request_id": crid()})
+    assert r.status_code == 409 and r.json()["code"] == "file_limit", r.text
+    monkeypatch.setattr(cost_files, "MAX_PENDING_BYTES_PER_LINK", held + 1)
+    r = client.post("/t/api/claim/file", headers=hdr(token), files={"file": ("b.pdf", pdf(b"<< /Producer (third) >>"), "application/pdf")},
+                    data={"client_request_id": crid()})
+    assert r.status_code == 201, r.text
+
+
 def test_hostile_pdfs_are_refused_on_the_public_route(s4):
     _t, token, client, _ = done(s4)
     hidden = zlib.compress(b"<< /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >>")

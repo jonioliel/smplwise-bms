@@ -33,7 +33,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Protocol
 
-from .channel import InboundMessage, keyed_hash, phone_digits, strip_controls
+from .channel import InboundMessage, keyed_hash, phone_digits
+from .text_hygiene import clean_text
 
 log = logging.getLogger("smplwise.tickets.inbound")
 UTC = dt.timezone.utc
@@ -106,12 +107,17 @@ def normalise(event: Mapping[str, Any]) -> InboundMessage | None:
     else:
         selected = _str(data.get("selected_id"), 80)
         msg_type = _str(data.get("type"), 40)
-    content = strip_controls(raw, multiline=True).strip() if isinstance(raw, str) else ""
-    too_long = len(content) > CONTENT_MAX
+    # deep review B2: the module's one text cleaner (text_hygiene.clean_text: Cc / Cf / Cs and noncharacters removed, NFC, the
+    # combining-mark cap, line breaks normalised) - a lone surrogate can no longer reach the dedupe hash's UTF-8 encoder. A raw
+    # text far past the limit is judged on a bounded prefix (it is refused as too long anyway).
+    raw_text = raw if isinstance(raw, str) else ""
+    bound = 4 * CONTENT_MAX + 64
+    content = clean_text(raw_text[:bound], multiline=True)
+    too_long = len(content) > CONTENT_MAX or len(raw_text) > bound
     entry = data.get("entry_id")
     return InboundMessage(
         event_type=etype, msg_type=msg_type, sender_digits=digits, sender_is_group=group,
-        sender_name=strip_controls(_str(data.get("sender_name"), 80) or "").strip(),
+        sender_name=clean_text(_str(data.get("sender_name"), 80) or "")[:80],
         content=content[:CONTENT_MAX], selected_id=selected, provider_at=parse_timestamp(data.get("timestamp")),
         entry_id=entry if isinstance(entry, str) and re.fullmatch(r"[A-Za-z0-9_\-]{1,64}", entry) else None,
         message_id=_str(data.get("message_id"), 128), content_too_long=too_long)
