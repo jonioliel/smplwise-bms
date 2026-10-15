@@ -1,7 +1,7 @@
 /*
  * CR-038 slice 9: the cost-claim step of the public handler page (claim-step.ts, capture-editor.ts).
  * Neutral styling with the product's token NAMES (--sw-*) and fallbacks - the public page has no skins (spec 10.7).
- * Light / dark by prefers-color-scheme. Mobile-first, one column, touch targets >= 44 px. No inline styles anywhere
+ * Light / dark follow the page's --sw-* tokens (data-theme, styles.css). Mobile-first, one column, touch targets >= 44 px. No inline styles anywhere
  * (style-src 'self'): every state is a class.
  */
 
@@ -28,22 +28,6 @@
   gap: var(--swc-gap);
   max-width: 640px;
   margin-inline: auto;
-}
-
-@media (prefers-color-scheme: dark) {
-  .swc {
-    --swc-bg: var(--sw-surface, #1b1f26);
-    --swc-bg-2: var(--sw-surface-2, #242a33);
-    --swc-text: var(--sw-text, #eef1f5);
-    --swc-text-2: var(--sw-text-2, #a9b3c1);
-    --swc-border: var(--sw-border, #3a4350);
-    --swc-accent: var(--sw-accent, #5b9dff);
-    --swc-on-accent: var(--sw-text-inverse, #0b0f14);
-    --swc-danger: var(--sw-danger, #ff6b6b);
-    --swc-warning: var(--sw-warning, #f0b45a);
-    --swc-success: var(--sw-success, #5cc77f);
-    --swc-focus: var(--sw-focus, #8bb8ff);
-  }
 }
 
 .swc * {
@@ -432,4 +416,93 @@
 
 .swc [hidden] {
   display: none !important;
+}
+
+/* TK257: the permanent quote / payment card (quote-card.ts) */
+.swq-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--sw-fs-xs, 12px);
+}
+
+.swq-flow li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--swc-bg-2);
+  color: var(--swc-text-2);
+}
+
+.swq-flow li.swq-done {
+  color: var(--swc-success);
+}
+
+.swq-flow li.swq-cur {
+  background: var(--swc-accent);
+  color: var(--swc-on-accent);
+  font-weight: 600;
+}
+
+.swq-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--swc-gap);
+}
+
+.swq-dim {
+  background: var(--swc-bg-2);
+}
+
+.swq-part-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.swq-part-title {
+  font-weight: 700;
+}
+
+.swq-pill {
+  margin-inline-start: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--swc-border);
+  font-size: var(--sw-fs-xs, 12px);
+  color: var(--swc-text-2);
+}
+
+.swq-pill.swq-ok {
+  color: var(--swc-success);
+  border-color: var(--swc-success);
+}
+
+.swq-pill.swq-bad {
+  color: var(--swc-danger);
+  border-color: var(--swc-danger);
+}
+
+.swq-pill.swq-acc {
+  color: var(--swc-accent);
+  border-color: var(--swc-accent);
+}
+
+.swq-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.swq-tr,
+.swc-delta {
+  font-size: var(--sw-fs-sm, 14px);
+}
+
+.swc-delta.swc-up {
+  color: var(--swc-warning);
 }

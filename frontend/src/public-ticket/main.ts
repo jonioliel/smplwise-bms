@@ -15,6 +15,7 @@ import { h, icon, img } from './dom';
 import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, lineOf, partToggle, planSend, statusChoices, validSession,
   type Draft, type Phase, type Step } from './state';
 import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
+import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, storedServerMode, type ThemeMode } from './theme';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
 
 const STORE = { token: 'arx.t.token', session: 'arx.t.session', lang: 'arx.t.lang', draft: 'arx.t.draft' } as const;
@@ -55,6 +56,7 @@ class Page {
   private view: TicketView | null = null;
   private lang: Lang = 'he';
   private chosenLang: Lang | null = null;
+  private theme: ThemeMode = 'light';
   private banner: { key: string; tone: 'ok' | 'bad' | 'info'; n?: number } | null = null;
   private draft: Draft = { ...EMPTY_DRAFT, crids: {} };
   private busy = false;
@@ -82,6 +84,8 @@ class Page {
         /* ignore */
       }
     }
+    this.theme = resolveMode(storedChoice(), storedServerMode());
+    applyMode(this.theme);
     this.draft = parseDraft(stored(STORE.draft));
     if (boot.token) {
       this.setToken(boot.token);
@@ -162,6 +166,9 @@ class Page {
       return;
     }
     this.view = r.data;
+    if (r.data.theme) saveServerMode(r.data.theme);
+    this.theme = resolveMode(storedChoice(), r.data.theme);
+    applyMode(this.theme);
     this.lang = this.chosenLang ?? (isLang(r.data.lang) ? r.data.lang : 'he');
     this.phase = phaseOf(r.data);
     if (this.phase === 'code' && (r.data.code_locked_s ?? 0) > 0) this.code.message = { key: 'codeLocked', n: Math.ceil((r.data.code_locked_s ?? 60) / 60) };
@@ -371,7 +378,14 @@ class Page {
         h('div', { class: 'who' },
           org ? h('div', { class: 'org' }, org) : null,
           v ? h('div', { class: 'sub' }, this.t('number', { number: v.number }), v.department ? ` · ${v.department}` : '') : null)),
-      this.langPicker());
+      h('div', { class: 'tools' }, this.themeToggle(), this.langPicker()));
+  }
+
+  /** TK259: one tap flips light / dark and is remembered in this browser (theme.ts). */
+  private themeToggle(): HTMLElement {
+    const dark = this.theme === 'dark' || (this.theme === 'auto' && prefersDark());
+    return h('button', { class: 'icon-btn', attrs: { type: 'button', 'data-theme-toggle': dark ? 'dark' : 'light', 'aria-label': this.t(dark ? 'themeToLight' : 'themeToDark') },
+      on: { click: () => { const c = nextChoice(this.theme, prefersDark()); saveChoice(c); this.theme = c; applyMode(c); this.render(); } } }, icon(dark ? 'sun' : 'moon'));
   }
 
   private langPicker(): HTMLElement {

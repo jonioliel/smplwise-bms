@@ -83,6 +83,8 @@ export interface TicketView {
   code_required: boolean;
   code_ok: boolean;
   read_only: boolean;
+  /** TK259: the installation's choice for the page's look (public.theme) */
+  theme?: 'light' | 'dark' | 'auto';
   /** the end of the read-only grace after close (D5), when read_only */
   read_only_until?: string | null;
   expires_at: string;
