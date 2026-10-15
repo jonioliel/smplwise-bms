@@ -209,7 +209,7 @@ def claim_card(conn, link: LinkRecord, *, code_ok: bool, now: dt.datetime) -> di
 
     shown = code_ok or not link.require_code
     full = handler_actions.view(conn, link, code_ok=shown, read_only=True, now=now)
-    keep = ["number", "department", "organization", "lang", "dir", "labels", "time_zone", "code_required", "code_ok"]
+    keep = ["number", "department", "organization", "lang", "dir", "labels", "time_zone", "code_required", "code_ok", "theme"]
     if shown:
         keep += ["title", "place_text", "device_name", "assigned_by"]
     out = {k: full.get(k) for k in keep}

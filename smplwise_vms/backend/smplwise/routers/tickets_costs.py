@@ -33,7 +33,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, service, store, store_costs
+from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, quotes, service, store, store_costs
 from ..services.tickets.access import Seen, Viewer, text
 from .tickets import ID, module_gate
 
@@ -88,6 +88,7 @@ def _answer(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[st
     if full:
         out["settings"] = {"currencies": list(s.currencies), "vat_rate_bp": s.vat_rate_bp, "review_flag_above_minor": s.review_flag_above_minor,
                            "max_claim_total_minor": s.max_claim_total_minor, "require_invoice": s.require_invoice}
+        out["quotes"] = quotes.present_for_manager(conn, quotes.quotes_of_ticket(conn, ticket_id))  # TK257: the vendors' quotes before the work
         out["external_assignments"] = [{"id": a["id"], "name": a["assignee_name"], "assigned_at": a["assigned_at"], "ended_at": a.get("ended_at"),
                                         "cost_claim": a.get("cost_claim")}
                                        for a in store.assignments(conn, ticket_id) if a["assignee_kind"] == "contact"]
@@ -228,6 +229,35 @@ def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..
            total_minor=fresh.get("approved_total_minor"))
     store.insert_event(conn, ticket_id, "cost_decision", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
                        assignment_id=fresh["assignment_id"], data={"claim_id": fresh["id"], "action": action.replace("-", "_")})
+    return _answer(conn, viewer, ticket_id)
+
+
+# ---------------------------------------------------------------- TK257: the quote before the work (migration 0085)
+
+class QuoteDecisionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str | None = Field(default=None, max_length=5000)
+
+
+@router.post("/tickets/{ticket_id}/costs/quotes/{quote_id}/{action}")
+def post_quote_decision(body: QuoteDecisionBody, request: Request, ticket_id: str = Path(..., pattern=ID), quote_id: str = Path(..., pattern=ID),
+                        action: Literal["approve", "reject"] = Path(...), principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Approve a vendor's quote, or send it back ("reject" = a correction request, reason required). tickets.costs on the ticket's place.
+    NOTHING is sent to the vendor from here - not on approval, not on a correction request: the manager's own message is a separate,
+    explicit action (owner decision of 2026-10-15)."""
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    name = f"ticket.quote.{action}"
+    seen = _need(conn, viewer, ticket_id, name, rid, decide=True)
+    row = quotes.quote(conn, quote_id)
+    if row is None or row["ticket_id"] != seen.row["id"]:
+        raise ApiError(404, "quote_not_found", text(conn, "ההצעה לא נמצאה."))
+    try:
+        fresh = quotes.decide(conn, quote_id, action, by=viewer.uid, reason=body.reason, at=costs.now_utc())
+    except costs.CostRefused as exc:
+        raise _refused(conn, exc) from None
+    _audit(conn, viewer, name, seen, None, rid, quote_id=quote_id, state=fresh["state"], total_minor=fresh["total_minor"])
     return _answer(conn, viewer, ticket_id)
 
 
