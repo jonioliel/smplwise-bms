@@ -120,9 +120,12 @@ def public_quote(conn, assignment_id: str, ticket_id: str) -> dict[str, Any]:
         rate = vendor.get("labor_rate_minor")
     rate_currency = contact.get("rate_currency") or (vendor or {}).get("rate_currency")
     currency = (cur or {}).get("currency") or (rate_currency if rate_currency in s.currencies else s.currencies[0])
+    mode = costs.assignment_mode(conn, ticket, asg) if ticket and asg.get("contact_id") else "off"
     return {
         "state": cur["state"] if cur else "none",
-        "writable": bool(ticket) and writable(ticket, rows),
+        # `enabled`: false when the assignment's cost mode is "off" (the department / vendor / request asks for no costs at all) - the page hides the card
+        "enabled": mode != "off" or cur is not None,
+        "writable": bool(ticket) and mode != "off" and writable(ticket, rows),
         "allowed_kinds": list(allowed_kinds(asg, dept)),
         "currency": currency,
         "quote": present(cur) if cur else None,
@@ -142,6 +145,8 @@ def submit(conn, assignment: Mapping[str, Any], ticket: Mapping[str, Any], body:
         raise CostRefused(409, "quote_closed")
     cur = current(rows)
     if cur is not None and cur["state"] == "approved":
+        raise CostRefused(409, "quote_closed")
+    if costs.assignment_mode(conn, ticket, assignment) == "off":
         raise CostRefused(409, "quote_closed")
     dept = store.department_any(conn, ticket["department_id"]) if ticket.get("department_id") else None
     allowed = allowed_kinds(assignment, dept)

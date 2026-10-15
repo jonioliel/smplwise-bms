@@ -46,6 +46,10 @@ class Page {
   private claimHost: HTMLElement | null = null;
   private claimHandle: { refresh(): Promise<void>; destroy(): void } | null = null;
   private claimLoading = false;
+  // TK257: the permanent quote / payment card (lazy chunk); it hosts the claim step in its payment part
+  private costHandle: { element: HTMLElement; update(ctx: { status: string | null; claim: { status: string } | null }): void; refresh(): Promise<void>;
+    ready: Promise<void>; approved(): { total_minor: number; currency: string } | null; destroy(): void } | null = null;
+  private costLoading = false;
   private rid: string | null = null;
   private phase: Phase = 'loading';
   private view: TicketView | null = null;
@@ -431,11 +435,39 @@ class Page {
         h('h1', { class: 'msg-title' }, this.t('closedTitle')),
         v.read_only_until ? h('p', { class: 'msg-body' }, this.t('closedBody', { when: this.when(v.read_only_until) })) : null) : null,
       this.ticketCard(v),
-      this.claimBlock(v),
+      this.costBlock(v),
       !readOnly && v.actions ? this.updateCard(v) : null,
       v.claim_mode ? null : this.timelineCard(v),
       !readOnly && v.actions?.return ? this.returnBlock() : null,
       this.footer()));
+  }
+
+  /**
+   * TK257: the quote / payment card, on the page from the first moment (the claim step lives inside it once a claim exists). In claim mode
+   * (the page no longer serves) it is the bare claim step, as before.
+   */
+  private costBlock(v: TicketView): HTMLElement | null {
+    if (v.claim_mode) return this.claimBlock(v);
+    if (!this.claimHost) this.claimHost = h('div', { class: 'claim-host', attrs: { 'data-claim-host': true } });
+    const ctx = { status: v.status ?? null, claim: v.claim ? { status: v.claim.status } : null };
+    if (this.costHandle) {
+      this.costHandle.update(ctx);
+    } else if (!this.costLoading) {
+      this.costLoading = true;
+      const slot = this.claimHost;
+      void import('./claim/quote-card').then((m) => {
+        this.costHandle = m.mountCostCard({
+          fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body),
+          lang: this.lang, dir: v.dir, labels: v.labels, demandSlot: slot, onCodeRequired: () => void this.load(),
+        });
+        this.costHandle.update(ctx);
+        this.render();
+      }).catch(() => {
+        this.costLoading = false;
+      });
+    }
+    if (v.claim) this.claimBlock(v);
+    return this.costHandle?.element ?? null;
   }
 
   /** Slice 9: the claim step under the ticket card once a claim exists (or in claim mode); mounted once, refreshed on reloads. */
@@ -449,8 +481,9 @@ class Page {
     } else if (!this.claimLoading) {
       this.claimLoading = true;
       const host = this.claimHost;
-      void import('./claim/claim-step').then((m) => {
+      void Promise.all([import('./claim/claim-step'), this.costHandle ? this.costHandle.ready : Promise.resolve()]).then(([m]) => {
         this.claimHandle = m.mountClaimStep(host, {
+          embedded: !v.claim_mode, quoteRef: () => this.costHandle?.approved() ?? null,
           fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body),
           uploadFile: (path, form) => rawCall(this.creds, 'POST', path, undefined, form),
           lang: this.lang, dir: v.dir, labels: v.labels, number: v.number, timeZone: v.time_zone,

@@ -78,6 +78,7 @@ class PublicPatch(BaseModel):  # slice 4: the handler page's address and the pee
     base_url: str | None = Field(default=None, max_length=300)
     trusted_proxy_cidrs: list[str] | None = Field(default=None, max_length=8)
     client_ip_header: Literal["cf-connecting-ip", "x-forwarded-for"] | None = None
+    theme: Literal["light", "dark", "auto"] | None = None  # TK259: the handler page's look (harmless: allowed from a remote session too)
 
 
 class LinksPatch(BaseModel):
@@ -142,7 +143,7 @@ def _problem(exc: ValueError) -> tuple[str, str]:
 @router.put("/tickets/settings")
 def put_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
-    if body.public is not None and is_remote(request) and any(v is not None for v in body.public.model_dump().values()):
+    if body.public is not None and is_remote(request) and any(v is not None for k, v in body.public.model_dump().items() if k != "theme"):
         # security review 2026-10-14 (2.5.1): the handler page's public address, trusted proxies and client-address header decide who
         # the listener believes - changed from a local session only (like the address probe). 2.5.3: only these keys are refused (the
         # whole PUT, no partial write); every other tickets setting saves normally through the remote channel.

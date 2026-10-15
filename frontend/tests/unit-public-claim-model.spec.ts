@@ -607,8 +607,8 @@ test('owner rule 14.10: the Hebrew strings never use the old word; the item is "
   for (const [k, v] of Object.entries(CLAIM_TEXT.he)) expect(OLD_WORD.test(v), `he.${k}: ${v}`).toBe(false);
   // the lint catches a planted line
   expect(OLD_WORD.test('ה' + String.fromCharCode(0x05e7, 0x05e8, 0x05d9, 0x05d0, 0x05d4) + ' נסגרה')).toBe(true);
-  expect(ct('he', 'heading_item', { number: 'T-12' })).toBe('דרישת עלות - בקשת שירות T-12');
-  expect(ct('he', 'heading_item', { number: 'T-12' }, itemLabels('he', { one: 'תקלה', many: 'תקלות', gender: 'f' }))).toBe('דרישת עלות - תקלה T-12');
+  expect(ct('he', 'heading_item', { number: 'T-12' })).toBe('דרישת תשלום - בקשת שירות T-12');
+  expect(ct('he', 'heading_item', { number: 'T-12' }, itemLabels('he', { one: 'תקלה', many: 'תקלות', gender: 'f' }))).toBe('דרישת תשלום - תקלה T-12');
   expect(itemLabels('he', null).one).toBe('בקשת שירות');
   expect(itemLabels('he', { one: '' })).toEqual(itemLabels('he', null));
   expect(renderItem('{f:חדשה|m:חדש} {ticket}', { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' })).toBe('חדשה בקשת שירות');
@@ -620,7 +620,7 @@ test('owner rule 14.10: the Hebrew strings never use the old word; the item is "
   expect(CLAIM_TEXT.he.saved_offline).toBe('נשמר במכשיר, יישלח כשתהיה קליטה');
   expect(CLAIM_TEXT.he.busy).toBe('יש עומס. נסו שוב בעוד דקה.');
   for (const k of ['no_charge', 'capture', 'gallery', 'retake', 'rotate', 'crop', 'contrast', 'add_page', 'finish_doc', 'submit', 'later', 'card_title'] as const) {
-    expect(CLAIM_TEXT.he[k]).toBe({ no_charge: 'ללא חיוב', capture: 'צילום חשבונית', gallery: 'בחירה מהגלריה / מקובץ', retake: 'צילום מחדש', rotate: 'סיבוב', crop: 'חיתוך', contrast: 'שיפור ניגודיות', add_page: 'הוספת עמוד', finish_doc: 'סיום מסמך', submit: 'שליחה', later: 'אשלים אחר כך', card_title: 'הגשת דרישת עלות' }[k]);
+    expect(CLAIM_TEXT.he[k]).toBe({ no_charge: 'ללא חיוב', capture: 'צילום חשבונית', gallery: 'בחירה מהגלריה / מקובץ', retake: 'צילום מחדש', rotate: 'סיבוב', crop: 'חיתוך', contrast: 'שיפור ניגודיות', add_page: 'הוספת עמוד', finish_doc: 'סיום מסמך', submit: 'שליחה', later: 'אשלים אחר כך', card_title: 'הגשת דרישת תשלום' }[k]);
   }
   // English text names the item only through the tokens
   for (const [k, v] of Object.entries(CLAIM_TEXT.en)) expect(/\bTickets?\b/.test(v), `en.${k}`).toBe(false);

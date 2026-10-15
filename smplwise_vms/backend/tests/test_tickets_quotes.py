@@ -162,6 +162,16 @@ def test_a_vendor_never_sees_another_vendors_quote(s4):
     assert client.get("/t/api/quote", headers=hdr(token1)).json()["quote"]["total_minor"] != client.get("/t/api/quote", headers=hdr(token2)).json()["quote"]["total_minor"]
 
 
+def test_a_request_with_costs_off_has_no_quote_card(s4):
+    _t, token, client = vendor_page(s4, cost_claim="off")
+    g = client.get("/t/api/quote", headers=hdr(token)).json()
+    assert g["enabled"] is False and g["writable"] is False and g["state"] == "none"
+    r = post_quote(client, token)
+    assert r.status_code == 409 and r.json()["code"] == "quote_closed"
+    _t2, token2, client2 = vendor_page(s4, cost_claim="optional")
+    assert client2.get("/t/api/quote", headers=hdr(token2)).json()["enabled"] is True
+
+
 def test_the_quote_closes_when_the_work_is_done(s4):
     t, token, client = vendor_page(s4)
     qid = post_quote(client, token).json()["quote"]["id"]
