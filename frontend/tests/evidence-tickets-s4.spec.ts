@@ -102,8 +102,8 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
     await page.locator(P).evaluate((el) => { (el as unknown as { remote: boolean; saveError: string }).remote = true; (el as unknown as { saveError: string }).saveError = 'שינוי כתובת הדף הציבורי אפשרי רק בגישה מקומית'; });
     await expect(page.locator(`${P} [data-public-local-only]`)).toHaveText('זמין רק בגישה מקומית (דרך Home Assistant)');
     await expect(page.locator(`${P} [data-public-address]`)).toHaveAttribute('readonly', '');
-    await expect(page.locator(`${P} [data-public-address-save]`)).toBeDisabled();
-    await expect(page.locator(`${P} [data-public-probe]`)).toBeDisabled();
+    await expect(page.locator(`${P} [data-public-address-save]`)).toHaveAttribute('disabled', '');
+    await expect(page.locator(`${P} [data-public-probe]`)).toHaveAttribute('disabled', '');
     await expect(page.locator(`${P} [data-public-save-error]`)).toContainText('בגישה מקומית');
     await page.locator(`${P} [data-public-advanced]`).click();
     await expect(page.locator(`${P} [data-public-header="x-forwarded-for"]`)).toBeDisabled();
