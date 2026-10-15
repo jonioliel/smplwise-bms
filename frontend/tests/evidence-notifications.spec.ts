@@ -690,7 +690,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     const c = sec(page, 'chan');
     await expect(c.locator('[data-channel="inbox"]')).toContainText('פעיל תמיד');
     await expect(c.locator('[data-channel="ha_mobile"]')).toContainText('בקרוב');
-    await expect(c.locator('[data-channel="whatsapp"]')).toContainText('בקרוב');
+    await expect(c.locator('[data-channel="whatsapp"]')).toContainText('כבוי'); // NOTIFWA: a real channel, its master switch off by default
     await expect(c.locator('[data-channel="email"]')).toContainText('פעיל');
     await expect(c.locator('arx-notifications-settings')).toHaveCount(1); // this device's registration lives here
     await c.locator('[data-layout="page"]').click();

@@ -273,7 +273,9 @@ def render(n: dict[str, Any], *, mode: str, level: str, lang: str, tz_name: str,
 # ---------------------------------------------------------------- the account use (Settings › ערוץ ההודעות)
 
 def _uses(conn: sqlite3.Connection) -> tuple[ma.UseSpec, ...]:
-    return (ma.UseSpec(USE_KEY, MODULE, "התראות המערכת"),)
+    """The use is shown in Settings › ערוץ ההודעות while the channel's master switch is on (like a module's uses follow its switch);
+    a mapping stored while it was off is kept and applies when it is switched on."""
+    return (ma.UseSpec(USE_KEY, MODULE, "התראות המערכת", active=lambda: load_config(conn)["enabled"]),)
 
 
 mr.register_uses(_uses)

@@ -175,6 +175,8 @@ def test_unmapped_use_is_channel_unavailable(w):
 
 
 def test_the_use_appears_in_the_account_mapping_screen(w):
+    assert wa.USE_KEY not in [u["key"] for u in w.c.get(f"{API}/messaging/whatsapp").json()["uses"]]  # hidden while the switch is off
+    w.switch(True)
     v = w.c.get(f"{API}/messaging/whatsapp").json()
     use = next(u for u in v["uses"] if u["key"] == wa.USE_KEY)
     assert use["module"] == "notifications" and use["label"] == "התראות המערכת" and use["required"] is False
