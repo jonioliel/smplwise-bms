@@ -24,8 +24,7 @@ def owner_block(conn, row: Mapping[str, Any]) -> dict[str, Any] | None:
     uid = row.get("internal_owner_user_id")
     if not uid:
         return None
-    last = conn.execute("SELECT at, source FROM ticket_owner_changes WHERE ticket_id = ? AND to_user_id = ? ORDER BY id DESC LIMIT 1",
-                        (row["id"], uid)).fetchone()
+    last = store_quotes.last_owner_change_to(conn, row["id"], uid)
     return {"id": uid, "name": _name(conn, uid), "since": last["at"] if last else None, "source": last["source"] if last else None,
             "active": store.user_is_active(conn, uid)}
 

@@ -90,6 +90,16 @@ def insert_owner_change(conn: sqlite3.Connection, row: Mapping[str, Any]) -> int
     return int(cur.lastrowid)
 
 
+def last_owner_change_to(conn: sqlite3.Connection, ticket_id: str, user_id: str) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT at, source FROM ticket_owner_changes WHERE ticket_id = ? AND to_user_id = ? ORDER BY id DESC LIMIT 1",
+                              (ticket_id, user_id)).fetchone())
+
+
+def event_of_ticket(conn: sqlite3.Connection, ticket_id: str, event_id: int) -> dict[str, Any] | None:
+    """One timeline row of a ticket the caller already resolved (the forward of an internal note)."""
+    return _dict(conn.execute("SELECT * FROM ticket_events WHERE id = ? AND ticket_id = ?", (event_id, ticket_id)).fetchone())
+
+
 def set_owner(conn: sqlite3.Connection, ticket_id: str, user_id: str | None) -> None:
     """The owner column only - never the ticket's revision (an owner is not an edit of the ticket's fields)."""
     conn.execute("UPDATE tickets SET internal_owner_user_id = ? WHERE id = ?", (user_id, ticket_id))

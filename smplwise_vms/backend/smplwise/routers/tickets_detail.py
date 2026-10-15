@@ -375,8 +375,7 @@ def post_forward(body: ForwardBody, request: Request, ticket_id: str = Path(...,
     rid = _rid(request)
     seen = access.require_visible(viewer, ticket_id)
     asg = _need_vendor_writer(conn, viewer, seen, "ticket.note.forward", rid)
-    ev = conn.execute("SELECT * FROM ticket_events WHERE id = ? AND ticket_id = ?", (event_id, ticket_id)).fetchone()
-    ev = dict(ev) if ev is not None else None
+    ev = store_quotes.event_of_ticket(conn, ticket_id, event_id)
     if ev is None or ev["kind"] != "note" or ev["actor_kind"] != "user":
         raise ApiError(404, "note_not_found", text(conn, "ההערה לא נמצאה."))
     if ev.get("visible_external"):
