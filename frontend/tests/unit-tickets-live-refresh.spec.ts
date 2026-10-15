@@ -7,12 +7,15 @@ function stubDom(visible = true) {
   const doc = { visibilityState: visible ? 'visible' : 'hidden', ls: new Map<string, Listener>(), addEventListener(n: string, f: Listener) { this.ls.set(n, f); }, removeEventListener(n: string) { this.ls.delete(n); } };
   const win = { ls: new Map<string, Listener>(), intervals: [] as { f: Listener; ms: number }[], addEventListener(n: string, f: Listener) { this.ls.set(n, f); }, removeEventListener(n: string) { this.ls.delete(n); },
     setInterval(f: Listener, ms: number) { this.intervals.push({ f, ms }); return this.intervals.length; }, clearInterval() { this.intervals.length = 0; } };
+  const saved = { document: (globalThis as Record<string, unknown>).document, window: (globalThis as Record<string, unknown>).window };
   Object.assign(globalThis, { document: doc, window: win });
-  return { doc, win };
+  const restore = () => { for (const k of ['document', 'window'] as const) { if (saved[k] === undefined) delete (globalThis as Record<string, unknown>)[k]; else (globalThis as Record<string, unknown>)[k] = saved[k]; } };
+  return { doc, win, restore };
 }
 
 test('the shared poller fires every 20 s while visible, on focus and on becoming visible, never while hidden, at most once a second', async () => {
-  const { doc, win } = stubDom();
+  const { doc, win, restore } = stubDom();
+  try {
   const { LiveRefresh, LIVE_REFRESH_MS } = await import('../src/tickets/live-refresh');
   expect(LIVE_REFRESH_MS).toBe(20_000);
   let t = 10_000;
@@ -39,6 +42,9 @@ test('the shared poller fires every 20 s while visible, on focus and on becoming
   live.stop();
   expect(win.intervals).toHaveLength(0);
   expect(doc.ls.size).toBe(0);
+  } finally {
+    restore();
+  }
 });
 
 test('the deletion confirmation names the request in one short line', () => {
