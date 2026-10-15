@@ -33,6 +33,8 @@ export class TicketsTableToolbar extends LitElement {
   @property({ attribute: false }) layout!: TableLayout;
   @property({ attribute: false }) extra: ExtraFilters = { ...NO_TABLE_FILTERS };
   @property({ attribute: false }) meta: Meta | null = null;
+  /** TKSTAFF2: the handler filter's people - whoever holds a loaded row (account holders and staff contacts alike; assignee-model.ts) */
+  @property({ attribute: false }) holders: { key: string; name: string }[] = [];
   /** what "save the current view" stores */
   @property({ attribute: false }) current: ViewDoc | null = null;
   @property({ type: Number }) count: number | null = null;
@@ -216,6 +218,7 @@ export class TicketsTableToolbar extends LitElement {
         @click=${() => this.setExtra({ priority: e.priority.includes(k) ? e.priority.filter((x) => x !== k) : [...e.priority, k] })}>${prioName(k)}</button>`)}</div>
       <div class="hd">${tbt('fAssignee')}</div>
       <div class="fgrp">${radio('', tbt('fAssigneeAny'))}${radio('none', tbt('fAssigneeNone'))}${radio('me', tbt('fAssigneeMe'))}</div>
+      ${this.holders.length ? html`<div class="fgrp" data-f-holders>${this.holders.map((h) => radio(h.key, h.name))}</div>` : nothing}
       <div class="fgrp">
         <button type="button" class="rc" aria-pressed=${String(e.waiting === 'manager')} data-f-waiting @click=${() => this.setExtra({ waiting: e.waiting ? '' : 'manager' })}>${tbt('fWaiting')}</button>
         <button type="button" class="rc" aria-pressed=${String(e.stuck === 'any')} data-f-stuck @click=${() => this.setExtra({ stuck: e.stuck ? '' : 'any' })}>${tbt('fStuck')}</button>

@@ -176,6 +176,7 @@ const mock: TableBackend = {
       if (prios.length && !prios.includes(it.priority?.key ?? '')) continue;
       if (params.assignee === 'none' && it.assignee) continue;
       if (params.assignee === 'me' && it.assignee?.id !== 'demo') continue;
+      if (params.assignee?.includes(':') && params.assignee !== `${it.assignee?.kind}:${it.assignee?.id}`) continue; // TKSTAFF2: user:<id> | contact:<id>
       if (params.waiting === 'manager' && it.waiting_on !== 'manager') continue;
       if (q && !it.title.includes(q) && String(it.number) !== q.replace(/^#/, '')) continue;
       const d = await mockBackend.get(it.id);
@@ -205,7 +206,7 @@ const mock: TableBackend = {
         number = t.number;
         if (t.revision !== item.revision) result = 'stale';
         else if (body.action === 'close') await mockBackend.status(item.id, { to: 'closed', note: body.params.note, revision: item.revision });
-        else if (body.action === 'assign' && body.params.assignee) await mockBackend.assign(item.id, { assignee: { kind: 'user', id: body.params.assignee.id }, revision: item.revision });
+        else if (body.action === 'assign' && body.params.assignee) await mockBackend.assign(item.id, { assignee: body.params.assignee, revision: item.revision });
         else if (body.action === 'priority') {
           const dept = (await mockBackend.meta()).departments.find((x) => x.id === t.department?.id);
           const p = dept?.priorities.find((x) => x.key === body.params.priority_key);

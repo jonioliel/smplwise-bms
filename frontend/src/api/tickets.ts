@@ -203,7 +203,7 @@ export interface CreateBody {
   priority_id?: string | null;
   title: string;
   description?: string;
-  assign?: { kind: 'user'; id: string } | null;
+  assign?: { kind: 'user' | 'contact'; id: string } | null; // TKSTAFF2: a handler of either kind (tickets/assignee-model.ts)
   assign_note?: string;
   assign_note_external?: boolean;
   client_request_id: string;
@@ -219,6 +219,24 @@ export interface AssignBody { assignee: { kind: 'user' | 'contact'; id: string }
 export interface ReturnBody { kind: 'cannot_handle' | 'not_mine'; reason: string; revision: number }
 export type ReturnAnswer = TicketDetail | { id: string; view: 'none'; status: 'returned' };
 export interface Eligible { kind: 'user'; id: string; name: string; member_role: 'manager' | 'member' }
+/**
+ * TKSTAFF2: one handler of the picker (`handlers` of GET tickets/assignees, services/tickets/assignees.py) - an account holder
+ * (`kind: 'user'`, `account: true`) or a staff contact without an account (`kind: 'contact'`, `account: false`: an employee of the
+ * directory; it gets the personal handler link). `key` is the board / table filter key (`user:<id>` / `contact:<id>`); the phone is
+ * masked unless the directory allows the full number.
+ */
+export interface Handler {
+  key: string;
+  kind: 'user' | 'contact';
+  id: string;
+  name: string;
+  account: boolean;
+  member_role: 'manager' | 'member' | null;
+  phone: string | null;
+  has_phone: boolean;
+  preferred_channel: string;
+}
+export interface AssigneesList { users: Eligible[]; handlers?: Handler[] }
 
 // ---------------------------------------------------------------- settings (the module's own screen)
 
@@ -309,7 +327,7 @@ export interface TicketsBackend {
   upload(id: string, file: File, external: boolean): Promise<TicketDetail>;
   removePhoto(id: string, attachmentId: string): Promise<TicketDetail>;
   photoUrl(att: TicketAttachment): string;
-  assignees(departmentId: string, ticketId?: string): Promise<{ users: Eligible[] }>;
+  assignees(departmentId: string, ticketId?: string): Promise<AssigneesList>;
   settings(): Promise<SettingsDoc>;
   saveSettings(revision: number, ui: Partial<UiSettings>): Promise<SettingsDoc>;
   /** slice 2: any installation key of the document (links, send hours, urgent as critical, ui) */
@@ -368,7 +386,7 @@ const rest: TicketsBackend = {
   },
   removePhoto: (id, attachmentId) => del<TicketDetail>(`${T}/${enc(id)}/attachments/${enc(attachmentId)}`),
   photoUrl: (att) => apiUrl(att.url),
-  assignees: (departmentId, ticketId) => get<{ users: Eligible[] }>(`${T}/assignees${qs({ department_id: departmentId, ticket_id: ticketId })}`),
+  assignees: (departmentId, ticketId) => get<AssigneesList>(`${T}/assignees${qs({ department_id: departmentId, ticket_id: ticketId })}`),
   settings: () => get<SettingsDoc>(`${T}/settings`),
   saveSettings: (revision, ui) => put<SettingsDoc>(`${T}/settings`, { revision, ui }),
   saveInstallation: (revision, body) => put<SettingsDoc>(`${T}/settings`, { revision, ...body }),

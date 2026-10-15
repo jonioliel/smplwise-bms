@@ -224,7 +224,10 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
 
 def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any]]:
     """The assign dialog's outside contacts for one ticket (section 8 "assignee picker"): active, not erased, not an internal
-    user's row, allowed in the ticket's department - only for a caller who may send outside (D25)."""
+    user's row, allowed in the ticket's department - only for a caller who may send outside (D25). TKSTAFF2: staff contacts
+    (employees without an account) are handlers, listed with the account holders by services/tickets/assignees.handlers."""
+    from . import assignees
+
     conn = viewer.conn
     if not viewer.holds(access.EXTERNAL, ticket):
         return []
@@ -234,6 +237,8 @@ def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any
     out = []
     for r in rows:
         if r.get("user_id") or not allowed_in(dmap.get(r["id"], []), ticket["department_id"]):
+            continue
+        if assignees.is_staff(r):
             continue
         vendor = vendors.get(r.get("vendor_id") or "")
         require = bool(r["require_code"]) or bool(vendor and vendor["require_code"])

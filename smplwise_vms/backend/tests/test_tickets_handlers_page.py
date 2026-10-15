@@ -68,8 +68,9 @@ def test_an_employee_is_offered_in_the_assign_dialog_and_assigned_through_a_hand
     e = employee(s4, departments=["dept-maintenance"]).json()
     t = s4.ticket()
     r = s4.c.get(f"{API}/tickets/assignees", params={"department_id": "dept-maintenance", "ticket_id": t["id"]})
-    kinds = [(c["contact_kind"], c["id"]) for c in r.json()["contacts"]]
-    assert kinds[0] == ("employee", e["id"]), "employees first, then vendors, then contacts"
+    # TKSTAFF2: an employee without an account is a handler (the `handlers` list, after the account holders), not an outside contact
+    assert [h["key"] for h in r.json()["handlers"] if not h["account"]] == [f"contact:{e['id']}"]
+    assert [c["contact_kind"] for c in r.json()["contacts"]] == ["vendor", "person"], "vendors, then contacts"
     res = s4.assign_contact(t["id"], e["id"])
     assert res.status_code == 200, res.text
     assert res.json()["assignee"]["kind"] == "contact" and s4.link_row(t["id"])["contact_id"] == e["id"]

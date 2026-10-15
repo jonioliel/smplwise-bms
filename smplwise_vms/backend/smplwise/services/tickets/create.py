@@ -14,14 +14,10 @@ from typing import Any, Literal
 from ...audit import audit
 from ...db import new_id, now_iso
 from ...errors import ApiError
-from . import access, device_context, model, notify_bridge, place, service, sla, store
+from . import access, assignees, device_context, model, notify_bridge, place, service, sla, store
 from .access import Viewer, text
 
-
-@dataclass(frozen=True)
-class AssigneeRef:
-    kind: Literal["user", "contact"]
-    id: str
+AssigneeRef = assignees.AssigneeRef  # TKSTAFF2: the module's one assignee reference (kind 'user' | 'contact', id)
 
 
 @dataclass(frozen=True)
@@ -104,12 +100,11 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
             audit(conn, actor=viewer.principal, action="ticket.assign", decision="denied", resource_type="ticket_department", resource_id=dept["id"],
                   reason="not_manager", request_id=rid)
             raise ApiError(403, "forbidden", text(conn, "רק מנהל המחלקה מעביר {tickets} לטיפול."), details={"reason": "not_manager"})
-        if spec.assign_to.kind == "contact":
-            if access.EXTERNAL not in viewer.anywhere:
-                raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.EXTERNAL})
-            raise ApiError(409, "public_link_unavailable", text(conn, "שליחה לגורם חיצוני עדיין אינה זמינה בהתקנה זו."))
-        if spec.assign_to.kind != "user" or not any(u["id"] == spec.assign_to.id for u in service.eligible_assignees(conn, dept["id"], None)):
+        # TKSTAFF2: one assignee abstraction - an account holder or a staff contact without an account (services/tickets/assignees.py);
+        # an outside contact stays refused here (it is sent from the ticket's assign dialog)
+        if spec.assign_to.kind not in assignees.KINDS:
             raise ApiError(409, "assignee_not_allowed", text(conn, "אי אפשר להעביר את {the_ticket} למשתמש הזה (הוא אינו חבר במחלקה או אינו רשאי לצפות ב{tickets})."))
+        assignees.check_new(conn, viewer, dept, assignees.AssigneeRef(spec.assign_to.kind, spec.assign_to.id))
     if spec.dedupe_key:
         existing = access.visible_open_by_dedupe_key(viewer, spec.dedupe_key)
         if existing is not None:

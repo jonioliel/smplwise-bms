@@ -69,6 +69,15 @@ export function outsideBlock(group: OutsideGroup, o: { external: boolean; readin
   return null;
 }
 
+/** TKSTAFF2: why the staff group (employees without an account) cannot be used now, or null. Staff are handlers: the outside
+ * permission is not asked (services/tickets/assignees.py); their personal link still needs the handler page. `count` is how many staff
+ * the server offered for this ticket. */
+export function staffBlock(o: { readiness?: Readiness | null; publicReady: boolean; count: number }): ReadyItem | null {
+  const pub = o.readiness ? publicItem(o.readiness) : o.publicReady ? null : item('page_off', SETTINGS_HREF.public);
+  if (pub) return pub;
+  return o.count === 0 ? item('no_employees', handlersHref('handlers'), 'asgManage') : null;
+}
+
 /** The note an usable outside group carries when WhatsApp cannot send (the link is then e-mailed or copied). */
 export function whatsappNote(r: Readiness | null | undefined): ReadyItem | null {
   return r ? whatsappItem(r) : null;
