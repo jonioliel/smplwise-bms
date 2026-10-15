@@ -1116,6 +1116,7 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     run("ticket_cost_decisions", f"DELETE FROM ticket_cost_decisions WHERE claim_id IN {claims}", (ticket_id,))
     run("ticket_cost_revisions", f"DELETE FROM ticket_cost_revisions WHERE claim_id IN {claims}", (ticket_id,))
     run("ticket_cost_claims", "DELETE FROM ticket_cost_claims WHERE ticket_id = ?", (ticket_id,))
+    run("ticket_cost_quotes", "DELETE FROM ticket_cost_quotes WHERE ticket_id = ?", (ticket_id,))  # TK257 (0085)
     run("ticket_attachments", "DELETE FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,))
     run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
