@@ -165,7 +165,7 @@ export interface TicketsHealth {
   error: string | null;
   rate_limit_trips: Record<string, number>;
   module_key: { state: string; [k: string]: unknown };
-  links: { live: number; grace: number; expired: number; revoked: number; locked: number };
+  links: { live: number; grace: number; expired: number; revoked: number; locked: number; /** TKSTAFF1 */ live_staff?: number };
   address_configured: boolean;
   missing: PublicMissing[];
   attachments_bytes?: number | null;

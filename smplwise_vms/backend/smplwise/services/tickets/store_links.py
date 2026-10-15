@@ -592,6 +592,10 @@ def link_state_counts(conn: sqlite3.Connection, now: str) -> dict[str, int]:
             out["expired"] += 0 if r["grace_until"] > now else 1
         else:
             out["live"] += 1
+    # TKSTAFF1 (security design checklist): the two populations counted apart - live staff links next to the live total
+    out["live_staff"] = int(conn.execute(
+        "SELECT COUNT(*) FROM ticket_links WHERE kind = 'staff' AND revoked_at IS NULL AND grace_until IS NULL AND MIN(expires_at, cap_at) > ?",
+        (now,)).fetchone()[0])
     out["locked"] = int(conn.execute(
         "SELECT COUNT(*) FROM ticket_link_failures f JOIN ticket_links l ON l.id = f.link_id AND l.generation = f.generation "
         "WHERE f.locked_until > ?", (now,)).fetchone()[0])

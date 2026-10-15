@@ -216,3 +216,30 @@ test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/
   expect(bootFrom('', `/support/r/${rid}/`, null).rid).toBe(rid);
   for (const bad of [`/a/b/r/${rid}`, `/Support/r/${rid}`, `/x/r/${rid}`, `//r/${rid}`, `/support/r/${rid}x`]) expect(bootFrom('', bad, null).rid).toBeNull();
 });
+
+// ---------------------------------------------------------------- TKSTAFF1: the staff link is the handler page unchanged (security design 6, items 17-20)
+
+test('TKSTAFF1 17: the page renders no link and no user identifier - a staff view is the external view', () => {
+  for (const f of readdirSync(SRC).filter((x) => x.endsWith('.ts'))) {
+    const src = code(f);
+    expect(src, f).not.toMatch(/\buser_id\b|\busername\b|\bactor_user_id\b|\bprincipal\b/);
+    expect(src, f).not.toMatch(/createElement\(['"]a['"]\)|\.href\s*=/);
+  }
+  // the staff view carries no claim block: the page then shows no claim step
+  const v = view({ actions: { statuses: ['acknowledged'], note: true, eta: false, photo: true, return: true } });
+  expect('claim' in v).toBe(false);
+  expect(phaseOf(v)).toBe('ready');
+});
+
+test('TKSTAFF1 18 / 19: a 404 forgets the token; "סיום" clears the token, the code session and the draft', () => {
+  expect(afterFailure(fail(404, 'link_unavailable'), 'ready').forget).toBe(true);
+  expect(afterFailure(fail(404, 'link_unavailable'), 'code').forget).toBe(true);
+  const main = code('main.ts');
+  const forget = main.slice(main.indexOf('private forget(): void {'), main.indexOf('private saveDraft(): void {'));
+  expect(forget).toContain('this.setToken(null)');
+  expect(forget).toContain('store(STORE.session, null)');
+  expect(forget).toContain('store(STORE.draft, null)');
+  const finish = main.slice(main.indexOf('private finish(): void {'), main.indexOf('private setLang('));
+  expect(finish).toContain('this.forget()');
+  expect(main).toMatch(/if \(next\.forget\) this\.forget\(\)|next\.forget/);
+});

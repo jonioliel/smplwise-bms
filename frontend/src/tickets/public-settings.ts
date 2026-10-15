@@ -168,6 +168,7 @@ export class TicketsPublicCard extends LitElement {
         ${h && !missing.length ? html`<span class="tag ok">${tt('pubReady')}</span>` : nothing}
         ${missing.map((m) => html`<span class="tag warn" data-missing=${m}>${tt(`pubMissing_${m}` as TicketTextKey)}</span>`)}
         ${h ? html`<span class="tag" data-links-live>${tt('pubLiveLinks', { n: h.links.live })}</span>` : nothing}
+        ${h && h.links.live_staff ? html`<span class="tag" data-links-live-staff>${tt('pubLiveStaff', { n: h.links.live_staff })}</span>` : nothing}
       </span></div>`;
   }
 

@@ -208,6 +208,24 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
       members.set(mm[1], list);
       return json(route, dept(mm[1]));
     }
+    // TKSTAFF1: a staff member's mobile (number / language / WhatsApp switch) - kept on every department row of that user
+    const sm = /^tickets\/admin\/staff\/([\w-]+)$/.exec(p);
+    if (sm && method === 'PUT') {
+      mine();
+      if (!configure) return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');
+      const b = (body ?? {}) as { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean };
+      if (b.phone && !/^[+0-9][0-9\s\-().]{7,30}$/.test(b.phone)) return err(route, 422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'phone', code: 'format' }] });
+      let out = { user_id: sm[1], contact_id: null as string | null, phone: null as string | null, has_phone: false, notify_whatsapp: true, lang: 'he', active: true, live_links: 0 };
+      for (const list of members.values()) for (const m of list as Array<Record<string, unknown>>) {
+        if (m.kind !== 'user' || m.id !== sm[1]) continue;
+        if (b.phone !== undefined) m.mobile = b.phone || null;
+        if (b.lang) m.lang = b.lang;
+        if (b.notify_whatsapp !== undefined) m.notify_whatsapp = b.notify_whatsapp;
+        out = { ...out, contact_id: m.mobile ? `c-${sm[1]}` : null, phone: (m.mobile as string | null) ?? null, has_phone: !!m.mobile,
+          notify_whatsapp: (m.notify_whatsapp as boolean | undefined) ?? true, lang: (m.lang as string | undefined) ?? 'he' };
+      }
+      return json(route, out);
+    }
     if (p === 'tickets/contacts' && method === 'GET') {
       mine();
       if (!configure && persona !== 'manager') return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');

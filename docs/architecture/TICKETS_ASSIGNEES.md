@@ -62,3 +62,15 @@ same submit over the `handlers` list; only "vendors and contacts" uses the outsi
   already carries them.
 - The internal-staff no-login link: build on `assignees.is_staff` / `may_send` and the `contact` handler kind; keep `handlers` the
   single picker list and `assigneeRef` the single reference so no screen grows a parallel path.
+
+## TKSTAFF1 (2026-10-16): the no-login staff link of an account holder
+
+- Built: `services/tickets/staff_links.py`. An account holder whose directory row (`ticket_contacts.user_id`) has a mobile gets,
+  when assigned (service.assign), a WhatsApp message with a scoped no-login link (`ticket_links.kind = 'staff'`); the assignment
+  stays `assignee_kind = 'user'` and its `contact_id` names that row (the inbound matcher and the page's "since first assigned"
+  rule work unchanged). The mobile, the message language and the user's own WhatsApp switch are edited in "מטפלים וספקים" ›
+  מטפלים › "עם חשבון במערכת" (`PUT /tickets/admin/staff/{user_id}`, `tickets.configure`). `handlers` now carries `phone` /
+  `has_phone` for account holders too (masked unless the caller configures the directory).
+- `notify_new` is unchanged: it decides who is told (in the app / by the notification engine, with a signed-in deep link) about NEW
+  tickets; the staff link goes only to the CURRENT assignee, gated by their mobile and `notify_whatsapp` (security design R11 / R12).
+- Security rules, revocation triggers and the spec amendment: CR-038 spec 8.1 (amendment 2026-10-16) and the module docstring.

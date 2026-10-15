@@ -94,6 +94,26 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await expect(page.locator(`${M} [data-handlers-members="dept-cleaning"]`)).toBeVisible();
   });
 
+  test('TKSTAFF1: a handler with an account gets a mobile line - number, language, WhatsApp on assignment', async ({ page }) => {
+    const M = `${H} tickets-handlers-members`;
+    const mock = await go(page, '/tickets/handlers');
+    await page.waitForSelector(`${M} [data-handlers-members="dept-maintenance"]`);
+    await page.locator(`${M} [data-member-pick]`).selectOption('user:u-yossi');
+    await page.locator(`${M} [data-member-add]`).click();
+    const line = `${M} [data-member-mobile="u-yossi"]`;
+    await page.waitForSelector(line);
+    await expect(page.locator(`${line} [data-member-whatsapp]`)).toHaveCount(0); // no number yet: no switch
+    await page.locator(`${line} [data-member-mobile-input]`).fill('050-000-0091');
+    await page.locator(`${line} [data-member-mobile-lang]`).selectOption('ar');
+    await page.locator(`${line} [data-member-mobile-save]`).click();
+    await expect.poll(() => last(mock, 'PUT', /^tickets\/admin\/staff\/u-yossi$/)?.body).toEqual({ phone: '050-000-0091', lang: 'ar' });
+    await expect(page.locator(`${line} [data-member-whatsapp]`)).toHaveCount(1);
+    await expect(page.locator(`${line} [data-member-mobile-input]`)).toHaveValue('050-000-0091');
+    await shot(page, 'handlers-mobile', 'light', 'classic', false);
+    await page.locator(`${line} [data-member-whatsapp]`).click();
+    await expect.poll(() => last(mock, 'PUT', /^tickets\/admin\/staff\/u-yossi$/)?.body).toEqual({ notify_whatsapp: false });
+  });
+
   test('an employee without an account: created from the page with only his fields', async ({ page }) => {
     const E = `${H} tickets-contacts[kind="employee"]`;
     const mock = await go(page, '/tickets/handlers');
