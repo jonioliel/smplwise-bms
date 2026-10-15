@@ -37,7 +37,9 @@ for (const prefix of ['', '/arx/']) {
     test.skip(info.project.name !== 'desktop');
     await open(page, prefix);
     const full = page.locator(`${L} tickets-list ticket-detail [data-full-screen]`);
-    await full.waitFor();
+    await full.waitFor({ timeout: 15000 }).catch(async (e) => {
+      throw new Error(`DIAG url=${page.url()} text=${await page.evaluate(() => document.body.innerText.slice(0, 300)).catch(() => '?')} ls=${await page.evaluate(() => Object.keys(localStorage).join(',')).catch(() => '?')} :: ${e.message}`);
+    });
     await full.click();
     await expect(page).toHaveURL(new RegExp(`${prefix || '/'}\\?[^#]*#/tickets/${ID}$`));
     await expect(page.locator(`${L} tickets-detail [data-to-drawer]`)).toBeVisible();
