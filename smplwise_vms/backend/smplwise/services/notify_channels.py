@@ -1,7 +1,7 @@
 """Channel delivery for notifications (CR-018): the outbox consumer that runs on the notifier thread (services/push.PushNotifier), and
 the `Channel` interface every delivery channel plugs into.
 
-THE CHANNEL INTERFACE (stable; the e-mail channel of S4 and the later Companion / WhatsApp channels implement it)
+THE CHANNEL INTERFACE (stable; the e-mail channel of S4, the WhatsApp channel of NOTIFWA and the later Companion channel implement it)
 ------------------------------------------------------------------------------------------------------------------
     class MyChannel(Channel):
         name = "email"                                   # the key of the source policy's `channels` and of the pass-through matrix
@@ -348,7 +348,7 @@ def dispatch(notifier: "push.PushNotifier", nid: str | None, item: dict[str, Any
             users = [r[0] for r in conn.execute("SELECT user_id FROM notification_recipients WHERE notification_id = ? ORDER BY added_at, user_id", (nid,)).fetchall()]
         d = Dispatch(nid, mode, n, policy, st, tz, now, nsettings.in_quiet_hours(st["quiet"], now, tz), list(dict.fromkeys(users)), item)
         d._conn = conn
-        for name in ("webpush", "email", "app", "announce"):  # the v1 channels, in the order they are shown; the reserved ones (ha_mobile, whatsapp) are never planned
+        for name in ("webpush", "email", "app", "announce", "whatsapp"):  # the channels, in the order they are shown; the reserved one (ha_mobile) is never planned
             if not policy["channels"].get(name):
                 continue
             ch = CHANNELS.get(name)
@@ -415,9 +415,12 @@ def housekeeping(db: Any) -> None:
     with db.connection(label="notify.retention") as conn:
         notify.retention_sweep(conn)
     notify_email.recover_orphans(db)  # e-mail rows left in `retry` by a process that is gone (CR-018 S4)
+    notify_whatsapp.recover_orphans(db)  # WhatsApp rows left `queued` / `retry` by a process that is gone (NOTIFWA): failed, never re-sent
 
 
 # the e-mail channel registers itself here (CR-018 S4); imported last because it uses the interface defined above
 from . import notify_email  # noqa: E402,F401
 # the phone app channel (CR-027): the SmplWise push relay
 from . import mobile_push  # noqa: E402,F401
+# the WhatsApp channel (NOTIFWA): the user's own number through the tickets module's WhatsApp infrastructure
+from . import notify_whatsapp  # noqa: E402,F401

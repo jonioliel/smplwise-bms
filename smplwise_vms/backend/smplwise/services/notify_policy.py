@@ -22,8 +22,8 @@ SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
 RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee")  # ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
-CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py)
-CHANNELS_RESERVED = ("ha_mobile", "whatsapp")
+CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
+CHANNELS_RESERVED = ("ha_mobile",)
 SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket")
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
@@ -167,7 +167,7 @@ def _clip(text: str, n: int) -> str:
 def default_row(s: Source) -> dict[str, Any]:
     return {
         "source": s.key, "enabled": s.enabled, "severity": s.severity, "category": s.category, "after_s": s.after_s, "dedupe_window_s": s.window_s,
-        "resolve_notice": s.resolve_notice, "recipients": {"rule": s.who}, "channels": {"inbox": True, "webpush": s.push, "email": s.email, "app": False, "announce": False, "ha_mobile": False, "whatsapp": False},
+        "resolve_notice": s.resolve_notice, "recipients": {"rule": s.who}, "channels": {"inbox": True, "webpush": s.push, "email": s.email, "app": False, "announce": False, "ha_mobile": False, "whatsapp": False},  # NOTIFWA: WhatsApp is never on by default
     }
 
 
@@ -202,7 +202,7 @@ def row_to_policy(r: sqlite3.Row) -> dict[str, Any]:
     return {
         "source": r["source"], "enabled": bool(r["enabled"]), "severity": r["severity"], "category": r["category"], "after_s": r["after_s"],
         "dedupe_window_s": r["dedupe_window_s"], "resolve_notice": bool(r["resolve_notice"]), "recipients": rec,
-        "channels": {"inbox": True, "webpush": bool(channels.get("webpush")), "email": bool(channels.get("email")), "app": bool(channels.get("app")), "announce": bool(channels.get("announce")), "ha_mobile": False, "whatsapp": False},
+        "channels": {"inbox": True, "webpush": bool(channels.get("webpush")), "email": bool(channels.get("email")), "app": bool(channels.get("app")), "announce": bool(channels.get("announce")), "ha_mobile": False, "whatsapp": bool(channels.get("whatsapp"))},
         "revision": r["revision"],
     }
 
@@ -270,7 +270,8 @@ class PolicyInvalid(ValueError):
 
 
 def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
-    """The columns a PUT may change, validated. `ha_mobile` / `whatsapp` true is refused (`channel_reserved`, v1)."""
+    """The columns a PUT may change, validated. `ha_mobile` true is refused (`channel_reserved`); `whatsapp` is a real channel since NOTIFWA
+    (it sends only while its own master switch is on and an account is mapped - services/notify_whatsapp.py)."""
     out: dict[str, Any] = {}
     for f in ("enabled", "resolve_notice"):  # real booleans only: the string "false" is truthy and must never silently switch something on
         if f in body and not isinstance(body[f], bool):
@@ -319,5 +320,5 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
                 raise PolicyInvalid("channel_reserved", "הערוץ הזה עדיין לא זמין.", {"channel": reserved})
         if ch.get("inbox") is False:
             raise PolicyInvalid("validation", "מרכז ההתראות פעיל תמיד.", {"field": "channels.inbox"})
-        out["channels_json"] = json.dumps({"inbox": True, "webpush": bool(ch.get("webpush")), "email": bool(ch.get("email")), "app": bool(ch.get("app")), "announce": bool(ch.get("announce")), "ha_mobile": False, "whatsapp": False})
+        out["channels_json"] = json.dumps({"inbox": True, "webpush": bool(ch.get("webpush")), "email": bool(ch.get("email")), "app": bool(ch.get("app")), "announce": bool(ch.get("announce")), "ha_mobile": False, "whatsapp": bool(ch.get("whatsapp"))})
     return out

@@ -395,6 +395,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(mobile_notifications_router.router, prefix=api, tags=["notifications"])  # CR-027: the phone app's push registration and message fetch - BEFORE /notifications/{nid}
     app.include_router(notifications.router, prefix=api, tags=["notifications"])  # CR-018: התראות - the inbox, the push action endpoint, administration (notify.manage)
+    from .routers import notify_whatsapp as notify_whatsapp_router
+
+    app.include_router(notify_whatsapp_router.router, prefix=api, tags=["notifications"])  # NOTIFWA: the WhatsApp channel - master switch, own-number test, own opt-out
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy

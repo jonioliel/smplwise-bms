@@ -27,8 +27,8 @@ HHMM = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
 SECRET_NAME = "notify_email"
 
 DEFAULT_QUIET = {"enabled": True, "from": "22:00", "to": "07:00", "days": list(DAYS_SUN_FIRST)}
-DEFAULT_PASS = {"info": {"webpush": False, "email": False, "ha_mobile": False}, "alert": {"webpush": False, "email": False, "ha_mobile": False},
-                "critical": {"webpush": True, "email": True, "ha_mobile": True}}
+DEFAULT_PASS = {"info": {"webpush": False, "email": False, "ha_mobile": False, "whatsapp": False}, "alert": {"webpush": False, "email": False, "ha_mobile": False, "whatsapp": False},
+                "critical": {"webpush": True, "email": True, "ha_mobile": True, "whatsapp": True}}  # NOTIFWA: a critical WhatsApp passes quiet hours like the other channels
 DEFAULT_ESCALATION = {"enabled": True, "after_min": 5, "steps": 2, "to": "managers"}
 
 
@@ -152,7 +152,7 @@ def _validate_pass(p: Any, current: dict[str, Any]) -> dict[str, Any]:
         raise SettingsInvalid("validation", "מטריצת המעבר לא תקינה.", details={"field": "pass_through"})
     out = json.loads(json.dumps(current))
     for sev, row in p.items():
-        if not isinstance(row, dict) or set(row) - {"webpush", "email", "ha_mobile"}:
+        if not isinstance(row, dict) or set(row) - {"webpush", "email", "ha_mobile", "whatsapp"}:
             raise SettingsInvalid("validation", "מטריצת המעבר לא תקינה.", details={"field": f"pass_through.{sev}"})
         if any(not isinstance(v, bool) for v in row.values()):
             raise SettingsInvalid("validation", "מטריצת המעבר: ערכי כן/לא בלבד.", details={"field": f"pass_through.{sev}"})

@@ -509,9 +509,13 @@ def test_policies_edit_revision_reserved_channels_and_failure_audience(w):
     q = r.json()
     assert (q["severity"], q["after_s"], q["dedupe_window_s"], q["recipients"], q["channels"]["webpush"], q["channels"]["email"], q["revision"]) == ("alert", 30, 120, {"rule": "managers"}, False, True, 2)
     assert w.c.put(f"{API}/notify/policies/sensor.leak", json={"enabled": False, "base_revision": 1}).json()["code"] == "settings_conflict"
-    for ch in ("ha_mobile", "whatsapp"):
-        r = w.c.put(f"{API}/notify/policies/sensor.leak", json={"channels": {ch: True}})
-        assert r.status_code == 422 and r.json()["code"] == "channel_reserved", ch
+    r = w.c.put(f"{API}/notify/policies/sensor.leak", json={"channels": {"ha_mobile": True}})
+    assert r.status_code == 422 and r.json()["code"] == "channel_reserved"
+    # NOTIFWA: whatsapp is no longer reserved - it is stored (and sends only while its own master switch is on)
+    r = w.c.put(f"{API}/notify/policies/sensor.leak", json={"channels": {"inbox": True, "whatsapp": True}})
+    assert r.status_code == 200 and r.json()["channels"]["whatsapp"] is True, r.text
+    r = w.c.put(f"{API}/notify/policies/sensor.leak", json={"channels": {"inbox": True, "email": True}})
+    assert r.status_code == 200 and r.json()["channels"]["whatsapp"] is False
     assert w.c.put(f"{API}/notify/policies/sensor.leak", json={"channels": {"inbox": False}}).status_code == 422
     assert w.c.put(f"{API}/notify/policies/sensor.leak", json={"severity": "urgent"}).status_code == 422
     assert w.c.put(f"{API}/notify/policies/sensor.leak", json={"recipients": {"rule": "users"}}).status_code == 422

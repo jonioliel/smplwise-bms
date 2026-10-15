@@ -438,7 +438,7 @@ def test_routing_starts_empty_then_delivers_only_what_was_saved(app):
     bind(c, settings, "ops", "operator", "installation", "*")
     bind(c, settings, "vera", "viewer", "installation", "*")
     pol = c.get(f"{API}/devices/{g}/policies").json()
-    assert all(i["policy"] is None for i in pol["items"]) and pol["channels_reserved"] == ["whatsapp", "ha_mobile"]
+    assert all(i["policy"] is None for i in pol["items"]) and pol["channels_reserved"] == ["ha_mobile"] and "whatsapp" in pol["channels"]  # NOTIFWA: whatsapp is a real channel
     set_state(db, "sensor.gen_fuel", "10")
     evaluate(db, T0)
     evaluate(db, T0 + 61)
@@ -466,7 +466,10 @@ def test_routing_validation(app):
     c, db, _ = app
     g = _full(db)
     url = f"{API}/devices/{g}/policies/low_fuel"
-    assert c.put(url, json={"channels": ["whatsapp"]}).status_code == 422
+    assert c.put(url, json={"channels": ["ha_mobile"]}).status_code == 422  # still reserved
+    r = c.put(url, json={"channels": ["whatsapp"]})  # NOTIFWA: mirrored onto the CR-018 policy (sends only while its master switch is on)
+    assert r.status_code == 200 and r.json()["channels"] == ["whatsapp"]
+    assert json.loads(rows(db, "SELECT channels_json FROM notify_policies WHERE source LIKE 'generator.low_fuel@%'")[0]["channels_json"])["whatsapp"] is True
     assert c.put(url, json={"channels": ["sms"]}).status_code == 422
     assert c.put(url, json={"recipients": {"roles": ["viewer"], "users": []}}).status_code == 422
     assert c.put(url, json={"recipients": {"roles": [], "users": ["ghost"]}}).status_code == 422
