@@ -110,6 +110,41 @@ def test_a2_the_xref_exemption_cannot_be_borrowed(dictionary):
     refused(pdf(stream(zlib.compress(b"1 0 << >>"), dictionary=dictionary)))
 
 
+@pytest.mark.parametrize("dictionary", [
+    # a fake object header inside a literal string must not cut the real dictionary (with its /Predictor) off
+    b"/Type /ObjStm /DecodeParms << /Predictor 12 /Columns 4 >> /Filter /FlateDecode /Note (1 0 obj /Type /XRef)",
+    b"/Type /ObjStm /DecodeParms << /Predictor 12 /Columns 4 >> /Filter /FlateDecode /Note (x 1 0 obj \\( /Type /XRef )",
+    b"/Type /ObjStm /DecodeParms << /Predictor 12 /Columns 4 >> /Filter /FlateDecode /Note ((1 0 obj /Type /XRef) )",
+])
+def test_a2_a_header_faked_inside_a_string_grants_no_exemption(dictionary):
+    refused(pdf(stream(zlib.compress(b"1 0 << >>"), dictionary=dictionary)))
+
+
+def test_a2_a_cross_reference_stream_with_literal_string_ids_keeps_its_predictor():
+    rows = b"".join(b"\x02" + bytes([1, 0, i, 0]) for i in range(4))
+    cf.check_pdf(pdf(stream(zlib.compress(rows), dictionary=b"/Type /XRef /W [1 2 1] /ID [(a\\)b) (c(d)e)] /Filter /FlateDecode "
+                                                         b"/DecodeParms << /Columns 4 /Predictor 12 >>")))
+
+
+@pytest.mark.parametrize("filler", [b"(" * 8000, b"1 " * 4000, b"/DecodeParms[" * 600, b"/Filter[" * 1000, b"9 " * 2000 + b"0 obj ",
+                                    b"\\(" * 4000, b"x obj " * 1300], ids=["parens", "numbers", "parms-arrays", "filter-arrays", "headers", "escapes", "obj-words"])
+def test_a2_the_dictionary_checks_stay_cheap_on_crafted_windows(filler):
+    """Every stream re-reads up to 8 KiB of dictionary: bounded patterns and a bounded string check keep a crafted 10 MiB file
+    (about a thousand such streams) under the same time budget as the other scan tests."""
+    import time
+
+    from conftest import sw_time_factor
+
+    one = b"9 0 obj\n<< " + filler + b" /Filter /FlateDecode /Length 9 >>\nstream\n" + zlib.compress(b"x") + b"\nendstream\nendobj\n"
+    data = b"%PDF-1.7\n" + one * max(1, (cf.PDF_MAX_BYTES - 1024) // len(one)) + b"%%EOF\n"
+    t0 = time.perf_counter()
+    try:
+        cf.check_pdf(data)
+    except IntakeError:
+        pass
+    assert time.perf_counter() - t0 < 1.5 * sw_time_factor()
+
+
 def test_a2_the_named_residual_other_filters_stay_undecoded():
     """Unchanged known limit (c): an ASCIIHex stream is not decoded (see test_tickets_cost_files)."""
     hidden = HIDDEN.hex().encode() + b">"

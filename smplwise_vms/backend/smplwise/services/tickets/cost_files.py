@@ -76,7 +76,10 @@ _ENDSTREAM_RE = re.compile(_WS + rb"{0,16}endstream")
 _PREDICTOR_RE = re.compile(rb"/Predictor(?=[" + _DELIM + rb"]|\Z)")
 _TYPE_RE = re.compile(rb"/Type" + _WS + rb"*/([^" + _DELIM + rb"]*)")
 _SUBTYPE_RE = re.compile(rb"/Subtype" + _WS + rb"*/([^" + _DELIM + rb"]*)")
-_OBJ_HEADER_RE = re.compile(rb"\d{1,10}" + _WS + rb"{1,16}\d{1,10}" + _WS + rb"{1,16}obj(?=[" + _DELIM + rb"]|\Z)")
+# `N G ` right before an `obj` keyword (searched in the 64 bytes before it, anchored at its end): the object header
+_HEADER_BEFORE_RE = re.compile(rb"[" + _DELIM + rb"]\d{1,10}" + _WS + rb"{1,16}\d{1,10}" + _WS + rb"{1,16}\Z")
+_DELIM_BYTES = frozenset(b"\x00\t\n\x0c\r ()<>[]{}/%")
+_MAX_HEADER_TRIES = 8
 # every pattern below is bounded (no unbounded repeat that can backtrack across a crafted 8 KiB window)
 _REF = rb"\d{1,10}" + _WS + rb"{1,16}\d{1,10}" + _WS + rb"{1,16}R(?=[" + _DELIM + rb"]|\Z)"
 _REF_RE = re.compile(_REF)
@@ -139,17 +142,65 @@ def _stream_dictionary(data: bytes, keyword_at: int) -> tuple[bytes, bool]:
     """(the stream's dictionary with `#xx` name escapes decoded - so `/Pr#65dictor` reads as `/Predictor` -, trusted). The
     dictionary is the text from the last object header (`N G obj`) within _DICT_WINDOW bytes before the `stream` keyword.
     No tokenizer runs here, so a header can be faked inside a literal string (`(1 0 obj)`) to cut the dictionary short: when
-    the text holds a parenthesis, or no header is found, the whole window is returned instead and marked untrusted (no
-    exemption is granted on it - a fake only makes the check stricter)."""
+    the text after the header does not balance its parentheses (backslash escapes honoured - a header faked inside a string
+    leaves that string's closing parenthesis unmatched after it), or no header is found, the whole window is returned instead
+    and marked untrusted (no exemption is granted on it - a fake only makes the check stricter). Balanced literal strings are
+    fine (some writers put `/ID [(..)(..)]` in a cross-reference stream's dictionary).
+    Residual, stated: a dictionary deliberately broken with BARE header tokens (`... /Predictor 12 >> 7 0 obj /Type /XRef`)
+    is read from the fake header on; only a real tokenizer would see through it. The download-only rule stays the control."""
     lo = max(0, keyword_at - _DICT_WINDOW)
-    last = None
-    for last in _OBJ_HEADER_RE.finditer(data, lo, keyword_at):
-        pass
-    if last is not None:
-        narrow = data[last.end():keyword_at]
-        if b"(" not in narrow and b")" not in narrow:
+    header_end = _last_header_end(data, lo, keyword_at)
+    if header_end >= 0:
+        narrow = data[header_end:keyword_at]
+        if _parens_balanced(narrow):
             return _decoded_name(narrow), True
     return _decoded_name(data[lo:keyword_at]), False
+
+
+def _last_header_end(data: bytes, lo: int, hi: int) -> int:
+    """The end of the last `N G obj` header in data[lo:hi], or -1. Searched BACKWARD from the `obj` keywords (a C-level rfind),
+    at most _MAX_HEADER_TRIES candidates - a window crafted full of numbers or `obj` words costs a few probes, then counts as
+    "no header" (untrusted: stricter, never looser)."""
+    pos = hi
+    for _ in range(_MAX_HEADER_TRIES):
+        pos = data.rfind(b"obj", lo, pos)
+        if pos < 0:
+            return -1
+        end = pos + 3
+        if (end == len(data) or data[end] in _DELIM_BYTES) and _HEADER_BEFORE_RE.search(data, max(lo, pos - 64), pos):
+            return end
+    return -1
+
+
+_STRING_BYTES_RE = re.compile(rb"[()\\]")
+_MAX_STRING_BYTES = 256  # more parentheses / backslashes than this in one stream dictionary: untrusted (bounds the loop)
+
+
+def _parens_balanced(text: bytes) -> bool:
+    """True when every literal string of `text` closes inside it (escape-aware) - so `text` did not begin inside a string.
+    A backslash outside a string is not PDF syntax and answers False (it could be the escape of a string begun earlier)."""
+    marks = text.count(b"(") + text.count(b")") + text.count(b"\\")
+    if not marks:
+        return True
+    if marks > _MAX_STRING_BYTES:
+        return False
+    depth = 0
+    skip_at = -1
+    for m in _STRING_BYTES_RE.finditer(text):
+        at, c = m.start(), text[m.start()]
+        if at == skip_at:
+            continue  # the byte a backslash escapes
+        if c == 0x5C:
+            if not depth:
+                return False
+            skip_at = at + 1
+        elif c == 0x28:
+            depth += 1
+        else:
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0
 
 
 def _predictor_exempt(d: bytes) -> bool:
