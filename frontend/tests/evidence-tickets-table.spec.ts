@@ -192,14 +192,14 @@ test.describe('tickets table evidence', () => {
     await expect(row).toHaveAttribute('data-status', 'in_progress');
     // a move that needs a reason asks for it first
     await row.locator('[data-menu-for^="status:"]').click();
-    await row.locator('[data-move-to="closed"]').click();
+    await page.locator(`${T} .pop[data-overlay="status"] [data-move-to="closed"]`).click();
     const dlg = page.locator(`${T} sw-dialog[data-dialog="table-move"]`);
     await dlg.locator('[data-move-note]').fill('כפילות');
     await dlg.locator('[data-move-ok]').click();
     await expect.poll(() => lastCall(mock, 'tickets/0000000000000a03/status', 'POST')?.body).toEqual({ to: 'closed', note: 'כפילות', revision: 4 });
     const row2 = page.locator(`${T} tbody tr[data-row="0000000000000a02"]`);
     await row2.locator('[data-menu-for^="assignee:"]').click();
-    await row2.locator('[data-assign-to="u-avi"]').click();
+    await page.locator(`${T} .pop[data-overlay="assignee"] [data-assign-to="u-avi"]`).click();
     await expect.poll(() => lastCall(mock, 'tickets/0000000000000a02/assign', 'POST')?.body).toEqual({ assignee: { kind: 'user', id: 'u-avi' }, revision: 3 });
   });
 
@@ -218,12 +218,12 @@ test.describe('tickets table evidence', () => {
       await expect(menu).toBeVisible();
       await expect(menu.locator('[data-assign-to]').first()).toBeVisible();
       await noBar('open');
+      await menu.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
       const m = await menu.evaluate((el) => {
         const r = el.getBoundingClientRect();
-        const w = el.closest('body')?.ownerDocument.defaultView as Window;
         const tw = (el.getRootNode() as ShadowRoot).querySelector('[data-table-wrap]')!.getBoundingClientRect();
         const bg = getComputedStyle(el).backgroundColor;
-        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vw: w.innerWidth, vh: w.innerHeight, twBottom: tw.bottom, popover: el.matches(':popover-open'), scrolls: el.scrollHeight > el.clientHeight + 1, bg };
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vw: window.innerWidth, vh: window.innerHeight, twBottom: tw.bottom, popover: el.matches(':popover-open'), scrolls: el.scrollHeight > el.clientHeight + 1, bg };
       });
       expect(m.popover, 'top layer').toBe(true);
       expect(m.top).toBeGreaterThanOrEqual(0);
@@ -257,6 +257,7 @@ test.describe('tickets table evidence', () => {
     await btn.click();
     const menu = page.locator(`${T} .pop[data-overlay="status"]`);
     await expect(menu).toBeVisible();
+    await menu.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
     const [b, p, dir, vh] = await Promise.all([btn.boundingBox(), menu.boundingBox(), btn.evaluate((e) => getComputedStyle(e).direction), page.evaluate(() => window.innerHeight)]);
     expect(p!.y + p!.height).toBeLessThanOrEqual(vh);
     if (dir === 'rtl') expect(Math.abs(p!.x + p!.width - (b!.x + b!.width))).toBeLessThanOrEqual(2);
