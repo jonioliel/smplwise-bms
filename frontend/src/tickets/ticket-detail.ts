@@ -14,7 +14,7 @@ import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type DetailMode, type Eligible, type Meta, type PatchBody, type TicketDetail, type TicketStatus } from '../api/tickets';
 import {
   FINAL, STATUS_LINE, actorName, eventLine, fromLocalInput, listHref, marksInternal, moveTo, priorityTone, relTime, shortDateTime, sideMoves,
-  statusLabel, statusTone, ticketHref, toLocalInput, type TicketsRoute,
+  chipLabel, isWaitingPart, lineStatus, statusLabel, statusTone, waitingToggle, ticketHref, toLocalInput, type TicketsRoute,
 } from './model';
 import { tt } from './text';
 import { tIcon } from './icons';
@@ -457,16 +457,19 @@ export class TicketDetailView extends LitElement {
 
   private statusSection(t: TicketDetail): TemplateResult {
     const side = sideMoves(t);
-    const onLine = (STATUS_LINE as readonly string[]).includes(t.status);
+    const shown = lineStatus(t.status);
+    const onLine = (STATUS_LINE as readonly string[]).includes(shown);
+    const toggle = waitingToggle(t);
     return html`<section class="sect" data-sect="status">
-      <h4><span class="tag t3">${tIcon('check')}</span>${tt('sStatus')}<span class=${`chip ${statusTone(t.status)}`} data-current-status>${statusLabel(t.status)}</span></h4>
+      <h4><span class="tag t3">${tIcon('check')}</span>${tt('sStatus')}<span class=${`chip ${statusTone(t.status)}`} data-current-status>${chipLabel(t.status)}</span></h4>
       ${onLine ? html`<div class="seg strip" role="group" aria-label=${tt('sStatus')} data-strip>
         ${STATUS_LINE.map((s) => {
           const m = moveTo(t, s);
-          const current = s === t.status;
-          return html`<button type="button" aria-pressed=${String(current)} ?disabled=${current || !m.allowed || this.busy} data-move=${s} @click=${() => this.move(s)}>${statusLabel(s)}</button>`;
+          const current = s === shown;
+          return html`<button type="button" aria-pressed=${String(current)} ?disabled=${current || !m.allowed || this.busy} data-move=${s} @click=${() => this.move(s)}>${statusLabel(s)}${current && isWaitingPart(t.status) ? html`<small class="sub" data-waiting-sub>${statusLabel('waiting_part')}</small>` : nothing}</button>`;
         })}
       </div>` : nothing}
+      ${onLine && toggle ? html`<div class="side"><button type="button" class="btn sm quiet" data-waiting-toggle=${toggle.to === 'waiting_part' ? 'mark' : 'back'} ?disabled=${this.busy} @click=${() => this.move(toggle.to)}>${tIcon(toggle.to === 'waiting_part' ? 'clock' : 'refresh')}${toggle.label}</button></div>` : nothing}
       ${side.cancel || side.reopen || (t.reopen_until && t.status === 'closed') ? html`<div class="side">
         ${side.reopen ? html`<button type="button" class="btn sm" data-reopen ?disabled=${this.busy} @click=${() => this.move('new')}>${tIcon('refresh')}${tt('reopen')}</button>` : nothing}
         ${side.cancel ? html`<button type="button" class="btn sm quiet dz" data-cancel ?disabled=${this.busy} @click=${() => this.move('cancelled')}>${tIcon('x')}${tt('cancelTicket')}</button>` : nothing}
@@ -670,7 +673,7 @@ export class TicketDetailView extends LitElement {
 
   private drawer(): TemplateResult {
     const t = this.t;
-    const sub = t ? [`#${t.number}`, statusLabel(t.status), t.priority?.name].filter(Boolean).join(' · ') : '';
+    const sub = t ? [`#${t.number}`, chipLabel(t.status), t.priority?.name].filter(Boolean).join(' · ') : '';
     const footer = t && (t.can.edit_fields.length || this.detailMode === 'drawer_fullscreen' || t.can.delete);
     return html`<sw-drawer modal .open=${this.open} heading=${t?.title ?? ''} subheading=${sub} data-ticket-drawer @close=${(e: Event) => { if (e.target === e.currentTarget) this.close(); }}>
       ${t && this.detailMode === 'drawer_fullscreen' ? html`<a slot="action" class="btn sm quiet" href=${ticketHref(t.id)} data-full-screen aria-label=${tt('fullScreen')}>${tIcon('expand')}</a>` : nothing}
@@ -692,7 +695,7 @@ export class TicketDetailView extends LitElement {
       <div class="phead">
         <a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a>
         <h1 data-ticket-title>${t.title}</h1>
-        <span class=${`chip ${statusTone(t.status)}`}>${statusLabel(t.status)}</span>
+        <span class=${`chip ${statusTone(t.status)}`}>${chipLabel(t.status)}</span>
         <div class="acts">
           ${t.can.assign ? html`<button type="button" class="btn primary" data-assign-top ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'assign' })}>${tIcon('user')}${t.assignee ? tt('reassign') : tt('assign')}</button>` : nothing}
           ${t.can.note ? html`<button type="button" class="btn" @click=${() => { this.composing = true; this.renderRoot.querySelector('#timeline')?.scrollIntoView({ block: 'start' }); }}>${tIcon('note')}${tt('note')}</button>` : nothing}

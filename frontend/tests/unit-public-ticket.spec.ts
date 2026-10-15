@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { afterFailure, afterStep, bootFrom, codeMessage, parseDraft, phaseOf, planSend, statusChoices, validSession, type Draft } from '../src/public-ticket/state';
+import { afterFailure, afterStep, bootFrom, codeMessage, lineOf, parseDraft, partToggle, phaseOf, planSend, statusChoices, validSession, type Draft } from '../src/public-ticket/state';
 import { CATALOGUES, LANGS, preferredLang, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
 import { etaFor, instantOf, isoToLocalInput, localInputToIso, zonedParts } from '../src/public-ticket/time';
 import type { ApiFailure, TicketView } from '../src/public-ticket/api';
@@ -96,8 +96,33 @@ test('a stored draft survives a reload; a tampered one is an empty draft', () =>
 test('the status buttons: the allowed moves plus the current one, in the line order', () => {
   expect(statusChoices(view())).toEqual(['acknowledged', 'in_progress']);
   expect(statusChoices(view({ status: 'in_progress', actions: { statuses: ['waiting_part', 'done'], note: true, eta: true, photo: true, return: true } })))
-    .toEqual(['in_progress', 'waiting_part', 'done']);
+    .toEqual(['in_progress', 'done']);
+  expect(statusChoices(view({ status: 'waiting_part', actions: { statuses: ['in_progress', 'done'], note: true, eta: true, photo: true, return: true } })))
+    .toEqual(['in_progress', 'done']);
   expect(statusChoices(view({ status: 'closed', actions: { statuses: [], note: false, eta: false, photo: false, return: false } }))).toEqual([]);
+});
+
+test('2.5.6: the part wait is a toggle under "in progress": on / off, the draft it sets, and nothing where the server does not allow it', () => {
+  const acts = (statuses: string[]) => ({ statuses, note: true, eta: true, photo: true, return: true });
+  expect(partToggle(view({ status: 'in_progress', actions: acts(['waiting_part', 'done']) }), null)).toEqual({ on: false, next: 'waiting_part' });
+  expect(partToggle(view({ status: 'in_progress', actions: acts(['waiting_part', 'done']) }), 'waiting_part')).toEqual({ on: true, next: null });
+  expect(partToggle(view({ status: 'waiting_part', actions: acts(['in_progress', 'done']) }), null)).toEqual({ on: true, next: 'in_progress' });
+  expect(partToggle(view({ status: 'waiting_part', actions: acts(['in_progress', 'done']) }), 'in_progress')).toEqual({ on: false, next: null });
+  expect(partToggle(view({ status: 'acknowledged', actions: acts(['in_progress', 'waiting_part', 'done']) }), null)).toBeNull();
+  expect(partToggle(view({ status: 'acknowledged', actions: acts(['in_progress', 'waiting_part', 'done']) }), 'in_progress')).toEqual({ on: false, next: 'waiting_part' });
+  expect(partToggle(view({ status: 'in_progress', actions: acts(['done']) }), null)).toBeNull();
+  expect(partToggle(view({ status: 'waiting_part', actions: acts([]) }), null)).toBeNull();
+  expect(partToggle(view({ status: 'done', actions: acts([]) }), null)).toBeNull();
+  expect(lineOf('waiting_part')).toBe('in_progress');
+  expect(lineOf('done')).toBe('done');
+  expect(lineOf(null)).toBeNull();
+});
+
+test('2.5.6: the toggle strings exist in all four languages; the part wait has no step button of its own', () => {
+  for (const lang of LANGS) {
+    for (const k of ['wait_mark', 'wait_back', 's_waiting_part'] as const) expect(CATALOGUES[lang][k], `${lang}.${k}`).toBeTruthy();
+    expect(Object.keys(CATALOGUES[lang])).not.toContain('btn_waiting_part');
+  }
 });
 
 // ---------------------------------------------------------------- the building's time (review C12)

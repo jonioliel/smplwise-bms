@@ -12,7 +12,7 @@
 import './styles.css';
 import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
-import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, planSend, statusChoices, validSession,
+import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, lineOf, partToggle, planSend, statusChoices, validSession,
   type Draft, type Phase, type Step } from './state';
 import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
@@ -469,7 +469,7 @@ class Page {
     const place = [v.place_text, v.device_name].filter(Boolean);
     return h('section', { class: 'card ticket', attrs: { 'data-ticket': v.number } },
       h('div', { class: 'chips' },
-        v.status ? h('span', { class: `chip st-${v.status}`, attrs: { 'data-status': v.status } }, this.t(`s_${v.status}`)) : null,
+        v.status ? h('span', { class: `chip st-${v.status}`, attrs: { 'data-status': v.status } }, v.status === 'waiting_part' ? `${this.t('s_in_progress')} · ${this.t('s_waiting_part')}` : this.t(`s_${v.status}`)) : null,
         prio ? h('span', { class: `chip pr-${v.priority?.key ?? ''}` }, prio) : null,
         h('span', { class: 'spacer' }),
         v.created_at ? h('span', { class: 'muted small' }, this.t('openedAt', { when: formatDate(v.created_at, v.time_zone, this.lang) })) : null),
@@ -497,18 +497,26 @@ class Page {
     const choices = statusChoices(v);
     if (choices.length) {
       const grid = h('div', { class: 'statuses', attrs: { role: 'radiogroup', 'aria-label': this.t('updateStatus') } });
-      const icons: Record<string, string> = { acknowledged: 'check', in_progress: 'wrench', waiting_part: 'box', done: 'done' };
+      const icons: Record<string, string> = { acknowledged: 'check', in_progress: 'wrench', done: 'done' };
+      const eff = this.draft.status ?? v.status;
       for (const s of choices) {
-        const current = v.status === s;
-        const chosen = (this.draft.status ?? v.status) === s;
+        const current = lineOf(v.status) === s;
+        const chosen = lineOf(eff) === s;
         const allowed = a.statuses.includes(s);
         grid.appendChild(h('button', {
           class: `status ${chosen ? 'on' : ''}`,
           attrs: { type: 'button', role: 'radio', 'aria-checked': String(chosen), disabled: !allowed && !current, 'data-status-choice': s },
-          on: { click: () => { if (!allowed) return; this.draft = { ...this.draft, status: current ? null : s }; this.saveDraft(); this.render(); } },
-        }, icon(icons[s] ?? 'check'), h('span', { class: 'st-name' }, this.t(`btn_${s}`)), h('span', { class: 'st-sub' }, this.t(`btn_${s}_sub`))));
+          on: { click: () => { if (!allowed && !current) return; this.draft = { ...this.draft, status: current ? null : s }; this.saveDraft(); this.render(); } },
+        }, icon(icons[s] ?? 'check'), h('span', { class: 'st-name' }, this.t(`btn_${s}`)),
+        h('span', { class: 'st-sub' }, this.t(`btn_${s}_sub`)),
+        s === 'in_progress' && eff === 'waiting_part' ? h('span', { class: 'st-wait', attrs: { 'data-waiting-sub': true } }, this.t('s_waiting_part')) : null));
       }
       card.appendChild(grid);
+      const tg = partToggle(v, this.draft.status);
+      if (tg) {
+        card.appendChild(h('button', { class: `pill wait ${tg.on ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(tg.on), 'data-waiting-toggle': tg.on ? 'back' : 'mark' },
+          on: { click: () => { this.draft = { ...this.draft, status: tg.next }; this.saveDraft(); this.render(); } } }, icon('box'), this.t(tg.on ? 'wait_back' : 'wait_mark')));
+      }
     }
     if (a.eta) card.appendChild(this.etaBlock(v));
     if (a.note) {

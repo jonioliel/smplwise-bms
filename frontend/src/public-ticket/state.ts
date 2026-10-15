@@ -168,10 +168,31 @@ export function parseDraft(raw: string | null): Draft {
   }
 }
 
-/** The statuses the page offers: the moves the server allows now, plus the current one (shown selected). */
+/** 2.5.6: "waiting for a part" is a sub-state of "in progress" (the stored status stays `waiting_part`), never a step of its own. */
+export function lineOf(status: string | null | undefined): string | null {
+  return status === 'waiting_part' ? 'in_progress' : status ?? null;
+}
+
+/** The statuses the page offers (the steps; the part wait is a toggle under "in progress"): the moves the server allows now, plus the current step (shown selected). */
 export function statusChoices(view: Pick<TicketView, 'status' | 'actions'>): string[] {
-  const order = ['acknowledged', 'in_progress', 'waiting_part', 'done'];
+  const order = ['acknowledged', 'in_progress', 'done'];
   const allowed = new Set(view.actions?.statuses ?? []);
-  if (view.status && order.includes(view.status)) allowed.add(view.status);
+  const line = lineOf(view.status);
+  if (line && order.includes(line)) allowed.add(line);
   return order.filter((s) => allowed.has(s));
+}
+
+/**
+ * The toggle under "in progress": `on` = the ticket is (or will be, per the draft) waiting for a part; `next` = the draft status a tap sets
+ * (null = back to the stored status, so nothing is sent). null when the in-progress step is not the one shown or the server does not allow the move.
+ */
+export function partToggle(view: Pick<TicketView, 'status' | 'actions'>, draftStatus: string | null): { on: boolean; next: string | null } | null {
+  const cur = view.status;
+  if (!cur) return null;
+  const eff = draftStatus ?? cur;
+  if (lineOf(eff) !== 'in_progress') return null;
+  const on = eff === 'waiting_part';
+  const target = on ? 'in_progress' : 'waiting_part';
+  if (target !== cur && !(view.actions?.statuses ?? []).includes(target)) return null;
+  return { on, next: target === cur ? null : target };
 }

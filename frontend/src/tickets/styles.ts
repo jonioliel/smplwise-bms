@@ -294,6 +294,13 @@ export const ticketDetailStyles = css`
     flex: 1 0 auto;
     padding-inline: 10px;
   }
+  .strip button .sub {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    opacity: 0.85;
+  }
   .strip button[disabled]:not([aria-pressed='true']) {
     color: var(--dv-text-3);
   }

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  NO_FILTERS, eventLine, isTicketId, listHref, marksInternal, moveTo, parseTicketsRoute, priorityTone, relTime, runLine, shortDateTime, sideMoves,
+  NO_FILTERS, STATUS_LINE, chipLabel, eventLine, isWaitingPart, lineStatus, menuMoves, waitingToggle, isTicketId, listHref, marksInternal, moveTo, parseTicketsRoute, priorityTone, relTime, runLine, shortDateTime, sideMoves,
   statusLabel, statusTone, ticketHref, whereLine,
 } from '../src/tickets/model';
 import { setTicketNames } from '../src/tickets/naming';
@@ -48,6 +48,28 @@ test('the shell: the tickets routes are their own area; the scope tab is active,
   expect(activeAreaTab(route('/tickets/all?status=closed'))).toBe('all');
   expect(activeAreaTab(route('/tickets'))).toBe('mine');
   expect(activeAreaTab(route('/tickets/0123456789abcdef'))).toBe('');
+});
+
+test('2.5.6: "waiting for a part" is a sub-state of "in progress", not a step of the flow', () => {
+  expect(STATUS_LINE.map(statusLabel)).toEqual(['חדש', 'שויך', 'התקבל', 'בטיפול', 'הסתיים', 'סגור']);
+  expect(STATUS_LINE).not.toContain('waiting_part');
+  expect(isWaitingPart('waiting_part')).toBe(true);
+  expect(isWaitingPart('in_progress')).toBe(false);
+  expect(lineStatus('waiting_part')).toBe('in_progress');
+  expect(lineStatus('done')).toBe('done');
+  expect(chipLabel('waiting_part')).toBe('בטיפול · ממתין לחלק');
+  expect(chipLabel('in_progress')).toBe('בטיפול');
+  const mv = (...to: TicketStatus[]) => to.map((x) => ({ to: x, note_required: false }));
+  // the toggle: mark from a handled step that may move there, return from the sub-state
+  expect(waitingToggle({ status: 'in_progress', transitions: mv('waiting_part', 'done') })).toEqual({ to: 'waiting_part', label: 'סמן: ממתין לחלק' });
+  expect(waitingToggle({ status: 'acknowledged', transitions: mv('in_progress', 'waiting_part') })?.to).toBe('waiting_part');
+  expect(waitingToggle({ status: 'waiting_part', transitions: mv('in_progress', 'done') })).toEqual({ to: 'in_progress', label: 'חזרה לטיפול' });
+  expect(waitingToggle({ status: 'assigned', transitions: mv('in_progress') })).toBeNull();
+  expect(waitingToggle({ status: 'in_progress', transitions: mv('done') })).toBeNull();
+  expect(waitingToggle({ status: 'done', transitions: mv('in_progress') })).toBeNull();
+  // the menus: no separate "waiting" status; leaving the sub-state reads "back to in progress"
+  expect(menuMoves('in_progress', mv('waiting_part', 'done', 'closed')).map((m) => m.label)).toEqual(['הסתיים', 'סגור']);
+  expect(menuMoves('waiting_part', mv('in_progress', 'done')).map((m) => m.label)).toEqual(['חזרה לטיפול', 'הסתיים']);
 });
 
 test('statuses and priorities: labels and chip tones', () => {

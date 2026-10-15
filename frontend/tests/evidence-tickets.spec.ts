@@ -58,8 +58,13 @@ test.describe('tickets evidence', () => {
         await shot(page, 'drawer', scheme, skin);
       }
     const d = page.locator(`${L} ticket-detail`);
-    await expect(d.locator('[data-strip] button[aria-pressed="true"]')).toHaveText('ממתין לחלק');
-    await expect(d.locator('[data-strip] [data-move="in_progress"]')).toBeEnabled();
+    // 2.5.6: the part wait is a sub-state of "in progress": six steps, the active one is "בטיפול" with a small secondary label
+    await expect(d.locator('[data-strip] button')).toHaveCount(6);
+    await expect(d.locator('[data-strip] [data-move="waiting_part"]')).toHaveCount(0);
+    await expect(d.locator('[data-strip] button[aria-pressed="true"]')).toContainText('בטיפול');
+    await expect(d.locator('[data-strip] [data-waiting-sub]')).toHaveText('ממתין לחלק');
+    await expect(d.locator('[data-current-status]')).toHaveText('בטיפול · ממתין לחלק');
+    await expect(d.locator('[data-waiting-toggle="back"]')).toHaveText('חזרה לטיפול');
     await expect(d.locator('[data-strip] [data-move="new"]')).toBeDisabled();
     await expect(d.locator('[data-timeline] li')).toHaveCount(5);
     await expect(d.locator('[data-full-screen]')).toHaveAttribute('href', '#/tickets/0000000000000a01');

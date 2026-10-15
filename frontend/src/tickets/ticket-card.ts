@@ -7,7 +7,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import type { TicketItem } from '../api/tickets';
-import { priorityTone, runLine, statusLabel, statusTone, whereLine } from './model';
+import { priorityTone, runLine, chipLabel, statusTone, whereLine } from './model';
 import { tt } from './text';
 import { tIcon } from './icons';
 import { ticketCardStyles } from './styles';
@@ -109,7 +109,7 @@ export class TicketCard extends LitElement {
           ${where.strong || where.rest ? html`<div class="where">${tIcon('layers')}${where.strong ? html`<b>${bidi(where.strong)}</b>` : nothing}${where.rest ? html`<span>${bidi(where.rest)}</span>` : nothing}</div>` : nothing}
         </div>
         <div class="ctl">
-          <span class=${`chip ${stone}`} data-card-status><i class=${`dot ${stone === 'ok' ? 'ok' : stone === 'info' ? 'run' : ''}`}></i>${statusLabel(t.status)}</span>
+          <span class=${`chip ${stone}`} data-card-status><i class=${`dot ${stone === 'ok' ? 'ok' : stone === 'info' ? 'run' : ''}`}></i>${chipLabel(t.status)}</span>
           <button type="button" class="more" aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${tt('moreOf', { title: t.title })} data-card-menu @click=${() => this.setMenu(!this.menu)}>${tIcon('dots')}</button>
         </div>
         ${this.menu ? this.menuItems() : nothing}

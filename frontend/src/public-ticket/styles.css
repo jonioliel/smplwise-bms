@@ -445,6 +445,19 @@ body {
   font-weight: 600;
 }
 
+.status .st-wait {
+  font-size: var(--sw-fs-xs);
+  font-weight: 700;
+  color: var(--sw-accent-text);
+}
+
+.pill.wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 10px;
+}
+
 .input {
   inline-size: 100%;
   min-block-size: 44px;

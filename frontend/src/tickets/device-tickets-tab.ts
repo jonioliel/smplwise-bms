@@ -6,7 +6,7 @@ import '../components/sw-button';
 import '../components/sw-state-panel';
 import { bidi } from '../i18n/bidi';
 import type { EntityTickets, TicketItem } from '../api/tickets';
-import { FINAL, lastScope, listHref, shortDateTime, statusLabel, statusTone } from './model';
+import { FINAL, lastScope, listHref, shortDateTime, chipLabel, statusTone } from './model';
 import { dt } from './device-text';
 import { onTicketNames } from './naming';
 
@@ -43,7 +43,7 @@ export class DeviceTicketsTab extends LitElement {
     const closed = (FINAL as readonly string[]).includes(t.status);
     return html`<a class="tr ${closed ? 'closed' : ''}" role="listitem" href=${listHref(lastScope(), undefined, { t: t.id })} data-device-ticket=${t.id} @click=${() => this.fire('leave', { id: t.id })}>
       <span class="tt"><b>${t.title}</b><small><bdi>#${t.number}</bdi> · ${shortDateTime(t.created_at)}${who ? html` · ${bidi(who)}` : nothing}</small></span>
-      <span class=${`chip ${statusTone(t.status)}`} data-status=${t.status}><i class="dot" aria-hidden="true"></i>${statusLabel(t.status)}</span>
+      <span class=${`chip ${statusTone(t.status)}`} data-status=${t.status}><i class="dot" aria-hidden="true"></i>${chipLabel(t.status)}</span>
     </a>`;
   }
 

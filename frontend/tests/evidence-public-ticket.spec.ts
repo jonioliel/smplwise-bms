@@ -214,6 +214,33 @@ test.describe('the handler page (slice 4)', () => {
     expect(s.calls.some((c) => c.path === '/t/api/eta')).toBe(true);
   });
 
+  test('2.5.6: the part wait is a toggle under "in progress", not a step of its own; the vendor sets and clears it himself', async ({ page }) => {
+    const s = await open(page, view('he', { status: 'in_progress', actions: { statuses: ['waiting_part', 'done'], note: true, eta: true, photo: true, return: true } }));
+    await expect(page.locator('[data-status-choice]')).toHaveCount(3);
+    await expect(page.locator('[data-status-choice="waiting_part"]')).toHaveCount(0);
+    await expect(page.locator('[data-status-choice="in_progress"]')).toHaveAttribute('aria-checked', 'true');
+    const tg = page.locator('[data-waiting-toggle]');
+    await expect(tg).toHaveAttribute('data-waiting-toggle', 'mark');
+    await tg.click();
+    await expect(page.locator('[data-waiting-sub]')).toHaveText('ממתין לחלק');
+    await expect(page.locator('[data-waiting-toggle]')).toHaveAttribute('data-waiting-toggle', 'back');
+    await page.locator('[data-send]').click();
+    await expect(page.locator('[data-banner="sent"]')).toBeVisible();
+    expect(s.calls.find((c) => c.path === '/t/api/status')?.body).toMatchObject({ status: 'waiting_part' });
+  });
+
+  test('2.5.6: a ticket waiting for a part reads "in progress" with the sub-state, and the toggle returns it to work', async ({ page }) => {
+    const s = await open(page, view('he', { status: 'waiting_part', actions: { statuses: ['in_progress', 'done'], note: true, eta: true, photo: true, return: true } }));
+    await expect(page.locator('[data-ticket] [data-status]')).toHaveText('בטיפול · ממתין לחלק');
+    await expect(page.locator('[data-status-choice="in_progress"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('[data-waiting-sub]')).toBeVisible();
+    await shot(page, 'public-waiting-he');
+    await page.locator('[data-waiting-toggle="back"]').click();
+    await page.locator('[data-send]').click();
+    await expect(page.locator('[data-banner="sent"]')).toBeVisible();
+    expect(s.calls.find((c) => c.path === '/t/api/status')?.body).toMatchObject({ status: 'in_progress' });
+  });
+
   test('the code screen, the read-only grace after close, and the uniform "unavailable"', async ({ page }) => {
     const code = { code_required: true, code_ok: false, title: undefined, description: undefined, actions: undefined, timeline: undefined, photos: undefined };
     for (const lang of ['he', 'en'] as Lang[]) {

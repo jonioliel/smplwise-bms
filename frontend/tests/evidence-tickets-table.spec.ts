@@ -178,6 +178,19 @@ test.describe('tickets table evidence', () => {
     await expect(page.locator(`${T} tickets-table-bulk [data-bulk-count]`)).toContainText(String(await page.locator(`${T} tbody tr`).count()));
   });
 
+  test('2.5.6: a row waiting for a part reads "in progress · waiting for a part"; its status menu has no separate waiting status', async ({ page }) => {
+    test.skip(isPhone(page), 'desktop');
+    await go(page, '/tickets/mine');
+    const row = page.locator(`${T} tbody tr[data-row="0000000000000a01"]`);
+    await row.waitFor();
+    await expect(row.locator('[data-menu-for^="status:"]')).toContainText('בטיפול · ממתין לחלק');
+    await row.locator('[data-menu-for^="status:"]').click();
+    const menu = page.locator(`${T} .pop[data-overlay="status"]`);
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('[data-move-to="waiting_part"]')).toHaveCount(0);
+    await expect(menu.locator('[data-move-to="in_progress"]')).toHaveText('חזרה לטיפול');
+  });
+
   test('inline status and handler changes post with the revision the row showed', async ({ page }) => {
     test.skip(isPhone(page), 'desktop');
     const mock = await go(page, '/tickets/mine');

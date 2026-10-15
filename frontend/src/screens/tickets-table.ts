@@ -13,7 +13,7 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type Eligible, type Meta, type TicketDetail, type TicketStatus } from '../api/tickets';
 import { boardPrefs, saveBoardPrefs, tableApi, type BulkAnswer, type ColumnKey, type SavedView, type TableRow } from '../api/tickets-table';
-import { priorityTone, relTime, statusLabel, statusTone } from '../tickets/model';
+import { chipLabel, menuMoves, priorityTone, relTime, statusLabel, statusTone } from '../tickets/model';
 import {
   activeExtraCount, ageText, applyView, ariaSort, bulkSummary, columnLabel, keepAfterBulk, layoutFromPrefs, nextIndex, NO_TABLE_FILTERS, pageState, queryParams,
   rangeSelect, slaText, sortMark, sortText, stuckText, tableFilters, toggleOne, togglePage, toggleSort, viewDoc, type BaseFilters, type ExtraFilters, type TableLayout,
@@ -490,7 +490,7 @@ export class TicketsTable extends LitElement {
 
   private statusChip(s: TicketStatus): TemplateResult {
     const tone = statusTone(s);
-    return html`<span class=${`chip ${tone}`}><i class=${`dot ${tone === 'ok' ? 'ok' : tone === 'info' ? 'run' : ''}`}></i>${statusLabel(s)}</span>`;
+    return html`<span class=${`chip ${tone}`}><i class=${`dot ${tone === 'ok' ? 'ok' : tone === 'info' ? 'run' : ''}`}></i>${chipLabel(s)}</span>`;
   }
 
   private cell(r: TableRow, c: ColumnKey): TemplateResult {
@@ -509,7 +509,7 @@ export class TicketsTable extends LitElement {
         const open = this.menu?.id === r.id && this.menu.kind === 'status';
         if (!r.transitions.length) return html`<td>${this.statusChip(r.status)}</td>`;
         return html`<td class="cellmenu"><button type="button" class="cbtn" aria-haspopup="menu" aria-expanded=${String(open)} data-menu-for=${`status:${r.id}`}
-            aria-label=${tbt('statusMenu', { status: statusLabel(r.status) })} ?disabled=${this.busy} @click=${() => void this.openMenu(r, 'status')}>${this.statusChip(r.status)}${tbIcon('chevron', 'chev')}</button>
+            aria-label=${tbt('statusMenu', { status: chipLabel(r.status) })} ?disabled=${this.busy} @click=${() => void this.openMenu(r, 'status')}>${this.statusChip(r.status)}${tbIcon('chevron', 'chev')}</button>
           </td>`;
       }
       case 'assignee': {
@@ -567,8 +567,8 @@ export class TicketsTable extends LitElement {
     const r = m ? this.rows?.find((x) => x.id === m.id) : undefined;
     if (!m || !r) return nothing;
     if (m.kind === 'status') {
-      return html`<div class="pop ov" popover="manual" role="menu" data-overlay="status" aria-label=${tbt('statusMenu', { status: statusLabel(r.status) })} @keydown=${this.onMenuKey}>
-        ${r.transitions.map((t) => html`<button type="button" role="menuitem" data-move-to=${t.to} @click=${() => this.pickMove(r, t.to, t.note_required)}>${statusLabel(t.to)}</button>`)}
+      return html`<div class="pop ov" popover="manual" role="menu" data-overlay="status" aria-label=${tbt('statusMenu', { status: chipLabel(r.status) })} @keydown=${this.onMenuKey}>
+        ${menuMoves(r.status, r.transitions).map(({ move: t, label }) => html`<button type="button" role="menuitem" data-move-to=${t.to} @click=${() => this.pickMove(r, t.to, t.note_required)}>${label}</button>`)}
       </div>`;
     }
     const name = r.assignee?.name || '';

@@ -13,7 +13,7 @@ export const TICKETS_ROOT = '#/tickets';
 export const SCOPES: readonly Exclude<ListScope, 'visible'>[] = ['mine', 'department', 'all'];
 export const STATUS_FILTERS: readonly StatusFilter[] = ['open', 'unassigned', 'handling', 'done', 'closed', 'all'];
 /** The main line of a ticket's life, as the detail's state strip shows it (returned / cancelled are side states). */
-export const STATUS_LINE: readonly TicketStatus[] = ['new', 'assigned', 'acknowledged', 'in_progress', 'waiting_part', 'done', 'closed'];
+export const STATUS_LINE: readonly TicketStatus[] = ['new', 'assigned', 'acknowledged', 'in_progress', 'done', 'closed'];
 export const FINAL: readonly TicketStatus[] = ['closed', 'cancelled'];
 export const HANDLING: readonly TicketStatus[] = ['assigned', 'acknowledged', 'in_progress', 'waiting_part'];
 
@@ -83,6 +83,33 @@ export function ticketHref(id: string): string {
 
 export function statusLabel(s: TicketStatus): string {
   return tt(`s_${s}` as TicketTextKey);
+}
+
+/** 2.5.6: "waiting for a part" is a sub-state of "in progress" (the stored status stays `waiting_part`), never a step of the flow. */
+export function isWaitingPart(s: TicketStatus): boolean {
+  return s === 'waiting_part';
+}
+
+/** The step of the flow a status shows as: `waiting_part` is the "in progress" step. */
+export function lineStatus(s: TicketStatus): TicketStatus {
+  return isWaitingPart(s) ? 'in_progress' : s;
+}
+
+/** The chip text of cards and the table: "בטיפול · ממתין לחלק" for the sub-state, the plain label otherwise. */
+export function chipLabel(s: TicketStatus): string {
+  return isWaitingPart(s) ? `${statusLabel('in_progress')} · ${statusLabel('waiting_part')}` : statusLabel(s);
+}
+
+/** The strip's toggle: mark the part wait (from a handled step that may move there) or return to treatment. null = not offered. */
+export function waitingToggle(t: Pick<TicketDetail, 'transitions' | 'status'>): { to: TicketStatus; label: string } | null {
+  if (isWaitingPart(t.status)) return t.transitions.some((x) => x.to === 'in_progress') ? { to: 'in_progress', label: tt('waitingBack') } : null;
+  if (t.status !== 'in_progress' && t.status !== 'acknowledged') return null;
+  return t.transitions.some((x) => x.to === 'waiting_part') ? { to: 'waiting_part', label: tt('waitingMark') } : null;
+}
+
+/** The moves a status menu offers: the sub-state is not a separate status there (the toggle sets it); leaving it reads "back to in progress". */
+export function menuMoves<T extends { to: TicketStatus }>(status: TicketStatus, moves: readonly T[]): { move: T; label: string }[] {
+  return moves.filter((m) => m.to !== 'waiting_part').map((m) => ({ move: m, label: isWaitingPart(status) && m.to === 'in_progress' ? tt('waitingBack') : statusLabel(m.to) }));
 }
 
 /** The chip tone of a status (styles: '' grey, info, warn, ok, bad). */

@@ -138,6 +138,40 @@ def test_status_note_eta_flow_moves_the_ticket_and_extends_the_link(s4):
     assert all("עובדים" not in (a["details_json"] or "") and "מדחס" not in (a["details_json"] or "") for a in audits), "audit = envelope"
 
 
+def test_the_handler_sets_and_clears_the_part_wait_himself_through_the_status_route(s4):
+    """2.5.6: 'waiting for a part' is a sub-state of 'in progress' in the UI; the stored status stays waiting_part and the route is the same."""
+    t, token = s4.sent()
+    tid = t["id"]
+    client, _ = s4.public(Clock(time.time()))
+    for to in ("acknowledged", "in_progress"):
+        assert client.post("/t/api/status", headers=hdr(token), json={"status": to, "client_request_id": crid()}).status_code == 200
+    v = client.get("/t/api/ticket", headers=hdr(token)).json()
+    assert v["status"] == "in_progress" and "waiting_part" in v["actions"]["statuses"], "offered from in progress"
+    r = client.post("/t/api/status", headers=hdr(token), json={"status": "waiting_part", "client_request_id": crid()})
+    assert r.status_code == 200 and r.json() == {"ok": True, "status": "waiting_part"}, r.text
+    d = s4.w.detail(tid)
+    assert d["status"] == "waiting_part" and d["waiting_on"] == "assignee" and d["waiting_reason"] is None
+    v = client.get("/t/api/ticket", headers=hdr(token)).json()
+    assert v["status"] == "waiting_part" and "in_progress" in v["actions"]["statuses"], "the way back is offered"
+    r = client.post("/t/api/status", headers=hdr(token), json={"status": "in_progress", "client_request_id": crid()})
+    assert r.status_code == 200 and s4.w.detail(tid)["status"] == "in_progress"
+    kinds = [(e["from"], e["to"]) for e in s4.w.detail(tid)["events"] if e["kind"] == "status" and e["actor"]["kind"] == "contact"]
+    assert ("in_progress", "waiting_part") in kinds and ("waiting_part", "in_progress") in kinds
+
+
+def test_the_status_route_stays_closed_to_other_values_after_the_part_wait_change(s4):
+    t, token = s4.sent()
+    client, _ = s4.public(Clock(time.time()))
+    for bad in ("waiting", "waiting_part ", "WAITING_PART", "returned", "cancelled", "closed", "", None, ["waiting_part"]):
+        r = client.post("/t/api/status", headers=hdr(token), json={"status": bad, "client_request_id": crid()})
+        assert r.status_code == 422, (bad, r.text)
+    r = client.post("/t/api/status", headers=hdr(token), json={"status": "waiting_part", "waiting_reason": "x", "client_request_id": crid()})
+    assert r.status_code == 422, "no extra fields"
+    r = client.post("/t/api/status", headers=hdr(token), json={"status": "waiting_part", "client_request_id": crid()})
+    assert r.status_code == 409 and r.json()["code"] == "invalid_transition", "not from 'assigned': the handler first takes it"
+    assert s4.w.detail(t["id"])["status"] == "assigned"
+
+
 def test_a_move_the_handler_may_not_make_is_409(s4):
     t, token = s4.sent()
     client, _ = s4.public(Clock(time.time()))
