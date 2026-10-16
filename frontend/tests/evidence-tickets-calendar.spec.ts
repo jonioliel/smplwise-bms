@@ -23,7 +23,7 @@ async function goCal(page: Page, o: TicketsMockOptions = {}, scheme: 'light' | '
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   const mock = await installTicketsMock(page, { schedule: true, ...o });
   await page.clock.setFixedTime(new Date(NOW));
-  await page.addInitScript(() => sessionStorage.setItem('sw.tickets.list.calendar', '1'));
+  await page.addInitScript(() => { try { sessionStorage.setItem('sw.tickets.list.calendar', '1'); } catch { /* about:blank has no storage */ } });
   await page.goto('about:blank');
   await page.goto(url(hash, skin, scheme));
   return mock;

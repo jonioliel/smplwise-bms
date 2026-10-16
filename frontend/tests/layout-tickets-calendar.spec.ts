@@ -44,7 +44,7 @@ test.describe('tickets calendar layout guard', () => {
     test(`every calendar screen, width and theme [${skin}]`, async ({ page }, info) => {
       test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.addInitScript(() => sessionStorage.setItem('sw.tickets.list.calendar', '1'));
+      await page.addInitScript(() => { try { sessionStorage.setItem('sw.tickets.list.calendar', '1'); } catch { /* about:blank has no storage */ } });
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(e.message));
       const results: Finding[] = [];
