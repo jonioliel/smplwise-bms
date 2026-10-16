@@ -577,12 +577,17 @@ export const ticketFormStyles = css`
   .similar a:hover {
     text-decoration: underline;
   }
+  /* TKUI7 (ONE scroll per surface): a picker list grows with its rows and the drawer / dialog / sheet body scrolls; only the searchable
+     vendor / contact list (.xpick, with its search field above it) keeps a capped box of its own */
   .pick {
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+  .pick.xpick {
     max-block-size: 280px;
     overflow: auto;
+    overscroll-behavior: contain;
   }
   .pick label {
     display: flex;

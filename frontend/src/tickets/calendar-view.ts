@@ -69,8 +69,8 @@ export class TicketsCalendar extends LitElement {
     .step {
       display: inline-grid;
       place-items: center;
-      inline-size: var(--sw-touch-desktop, 32px);
-      block-size: var(--sw-touch-desktop, 32px);
+      inline-size: var(--sw-touch-desktop);
+      block-size: var(--sw-touch-desktop);
       padding: 0;
       border-radius: var(--sw-r-pill);
       border: 1px solid var(--dv-border);

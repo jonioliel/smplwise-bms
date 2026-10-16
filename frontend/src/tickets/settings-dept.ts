@@ -63,7 +63,7 @@ export class TicketsDeptEditor extends LitElement {
       gap: 8px;
       padding: 10px 12px;
       border-radius: var(--sw-r-md);
-      background: var(--sw-danger-soft, var(--sw-stale-soft));
+      background: var(--sw-danger-soft);
       font-size: var(--sw-fs-sm);
       overflow-wrap: anywhere;
     }
