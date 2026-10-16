@@ -172,7 +172,7 @@ test.describe('TKUI1 drawer evidence', () => {
   });
 
   test('settings › display: the default tab, the drawer size, the phone sheet', async ({ page }) => {
-    const mock = await go(page, '/system/tickets', { persona: 'admin' });
+    const mock = await go(page, '/system/tickets?tab=display', { persona: 'admin' }); // TKUI6 moved the rows to the display tab
     const s = page.locator('sw-app system-tickets');
     await s.locator('[data-setting="detail_tab"]').waitFor();
     await s.locator('[data-setting="detail_tab"]').scrollIntoViewIfNeeded();

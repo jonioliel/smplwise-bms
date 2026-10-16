@@ -37,7 +37,7 @@ export function initialTab(o: { deepLink?: string | null; focusTimeline?: boolea
 
 /** What the tab badges read: the events (unread replies) and the cost block (an approval waiting for the viewer). */
 export interface TabTicket {
-  events?: readonly { kind: string; at: string; actor?: { me: boolean } }[];
+  events?: readonly { kind: string; at: string; actor?: { me: boolean; kind?: string } }[];
   cost?: { status: CostStatus; can_decide?: boolean } | null;
 }
 
@@ -45,7 +45,8 @@ export interface TabTicket {
 export function unreadReplies(t: TabTicket): number {
   const evs = t.events ?? [];
   const mine = evs.filter((e) => e.actor?.me).at(-1)?.at ?? '';
-  return evs.filter((e) => (e.kind === 'inbound' || e.kind === 'late_reply') && e.at > mine).length;
+  // TKUI2: a note the outside handler wrote on the handler page is a reply too (an incoming message of the "עם הספק" sub-tab)
+  return evs.filter((e) => (e.kind === 'inbound' || e.kind === 'late_reply' || (e.kind === 'note' && e.actor?.kind === 'contact')) && e.at > mine).length;
 }
 
 /** Items waiting for the viewer's approval in the Costs tab (today: one submitted payment demand per ticket). */

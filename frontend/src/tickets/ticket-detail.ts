@@ -16,15 +16,15 @@ import type { LinkBlock } from '../api/tickets-s4';
 import { messagesApi } from '../api/tickets-messages';
 import { assigneeRef, handlersOf } from './assignee-model';
 import {
-  actorName, eventLine, fromLocalInput, listHref, marksInternal, moveTo, priorityTone, shortDateTime,
-  ticketHref, toLocalInput, type TicketsRoute,
+  fromLocalInput, listHref, marksInternal, moveTo, priorityTone, ticketHref, toLocalInput, type TicketsRoute,
 } from './model';
 import { tt } from './text';
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
 import { codeLockSection, lockText, sendNewLink } from './code-lock';
-import { messageEventLine, messagesBlock } from './ticket-messages'; // slice 5b: the delivery lines (D14) and the message events
+import { ConversationTab, conversationStyles, type ConvTicket } from './conversation-tab'; // TKUI2: the שיחה tab (IA §4.2)
+import { HistoryTab, historyStyles } from './history-tab'; // TKUI2: the היסטוריה tab (IA §4.1)
 import { ExternalAssign, externalAssignStyles } from './external-assign';
 import { LinkPanel, linkPanelStyles } from './link-panel';
 import { deviceBlockStyles, historySection } from './ticket-device-context'; // CR-038 slice 3: the frozen device history
@@ -53,8 +53,6 @@ type Dialog =
 
 type Detail = TicketDetail & { link?: LinkBlock | null };
 
-/** The rows of the Conversation tab until TKUI2 splits it into "עם הספק" / "הצוות": notes, replies and messages. */
-const CONV_KINDS = new Set(['note', 'photo', 'inbound', 'late_reply', 'link_sent', 'update_sent', 'code_sent', 'message_unknown', 'message_failed', 'message_fallback']);
 /** The photos the Overview shows before "+N" (one row, IA §5). */
 const PHOTO_ROW = 4;
 const PHONE_QUERY = '(max-width: 767px)';
@@ -67,8 +65,8 @@ const PHONE_QUERY = '(max-width: 767px)';
  *     block.ts: one chip, the one-sentence status, one warning line, SLA only when near / crossed, ONE role-resolved primary + ≤ 1 quiet);
  *   - the tabs סקירה / שיחה / עלויות / היסטוריה (tickets/drawer-tabs.ts) - ONLY the active tab is rendered, inside the drawer body, so each
  *     tab is exactly one scroll container (tests/layout-tickets-drawer.spec.ts counts them);
- *   - Overview is complete (tickets/overview-tab.ts); שיחה / עלויות / היסטוריה are SLOTS that reuse the existing blocks (messages, notes and
- *     timeline; the cost card; the link audit and the timeline) until TKUI2 / TKUI3 rebuild them - look for `data-slot`.
+ *   - Overview is complete (tickets/overview-tab.ts); שיחה (tickets/conversation-tab.ts) and היסטוריה (tickets/history-tab.ts) are TKUI2's;
+ *     עלויות is a SLOT that reuses the cost card until TKUI3 rebuilds it - look for `data-slot`.
  * Every action calls the API and shows the server's answer; nothing is decided here. The default tab is the module setting (`ui.detail_tab`,
  * else Overview); a deep link may pass `?tab=` (`initialTab`) and the card's "ציר זמן" opens History.
  * Events (bubble, composed): `ticket-changed` {ticket}, `ticket-gone` {id} (returned by a non-member handler), `drawer-close`.
@@ -100,9 +98,6 @@ export class TicketDetailView extends LitElement {
   @state() private busy = false;
   @state() private dialog: Dialog = null;
   @state() private flash: { text: string; tone: 'ok' | 'bad' } | null = null;
-  @state() private composing = false;
-  @state() private noteText = '';
-  @state() private noteExternal = false;
   @state() private uploading = 0;
   @state() private tab: DrawerTab = 'overview';
   @state() private size: DrawerSize = 'wide';
@@ -134,9 +129,15 @@ export class TicketDetailView extends LitElement {
   private readonly linkPanel = new LinkPanel(this, {
     busy: () => this.busy, run: (fn, done) => this.run(fn, done || undefined), say: (m, tone) => this.say(m, tone), reload: () => void this.load(),
   });
+  // TKUI2: the Conversation tab (two sub-tabs, one composer each) and the History tab (filters, files, the link audit)
+  private readonly conv = new ConversationTab(this, {
+    busy: () => this.busy, run: (fn, done) => this.run(fn, done), upload: (files, external) => this.uploadFiles(files, external),
+    uploading: () => this.uploading, onTab: (tab) => this.selectTab(tab, false),
+  });
+  private readonly history = new HistoryTab(this);
 
   static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, deviceBlockStyles,
-    statusBlockStyles, drawerTabsStyles, overviewStyles, css`
+    statusBlockStyles, drawerTabsStyles, overviewStyles, conversationStyles, historyStyles, css`
     sw-drawer {
       --sw-drawer-modal-w: 640px;
     }
@@ -411,13 +412,14 @@ export class TicketDetailView extends LitElement {
       this.failed = '';
       this.gone = false;
       this.dialog = null;
-      this.composing = false;
       this.menu = false;
       this.descOpen = false;
       this.photosAll = false;
       this.tab = initialTab({ deepLink: this.initialTab, focusTimeline: this.focusTimeline, setting: this.defaultTab });
       this.sheet = parseSheet(this.sheetSetting) ?? 'full';
       this.linkPanel.reset();
+      this.conv.reset();
+      this.history.reset();
       void this.load();
     } else if (changed.has('initialTab') && this.initialTab && this.t) {
       this.tab = initialTab({ deepLink: this.initialTab, setting: this.defaultTab });
@@ -516,10 +518,8 @@ export class TicketDetailView extends LitElement {
       case 'costs':
       case 'conv':
         this.selectTab(a.tab ?? (a.kind === 'costs' ? 'costs' : 'conv'), false);
-        if (a.kind === 'conv' && t.can.note) {
-          this.composing = true;
-          void this.updateComplete.then(() => (this.renderRoot.querySelector('.composer textarea') as HTMLTextAreaElement | null)?.focus());
-        }
+        // TKUI2: "עדכון ל{name}" opens the composer of its sub-tab - the vendor's for an outside handler, the team's otherwise
+        if (a.kind === 'conv') this.conv.focusComposer(t as ConvTicket, t.assignee?.kind === 'contact' ? 'vendor' : 'team');
         return;
       case 'resend_link':
         void this.run(() => messagesApi().resendLink(t.id), dwt('a_resend'));
@@ -544,11 +544,10 @@ export class TicketDetailView extends LitElement {
 
   private selectTab(tab: DrawerTab, focus: boolean): void {
     this.tab = tab;
-    this.composing = tab === 'conv' ? this.composing : false;
     void this.updateComplete.then(() => {
       if (focus) (this.renderRoot.querySelector(`#${tabId(tab)}`) as HTMLElement | null)?.focus();
       const body = this.scrollBox();
-      if (body) body.scrollTop = 0;
+      if (body) body.scrollTop = tab === 'conv' ? body.scrollHeight : 0; // TKUI2: the conversation opens at its newest message and composer
     });
   }
 
@@ -743,27 +742,22 @@ export class TicketDetailView extends LitElement {
     if (await this.run(() => ticketsApi().eta(t.id, value), tt('saved'))) this.closeDialog();
   }
 
-  private async sendNote(): Promise<void> {
-    const t = this.t;
-    const text = this.noteText.trim();
-    if (!t || !text) return;
-    if (await this.run(() => ticketsApi().note(t.id, text, this.noteExternal))) {
-      this.noteText = '';
-      this.composing = false;
-    }
-  }
-
   private async onFiles(e: Event): Promise<void> {
     const input = e.target as HTMLInputElement;
     const files = [...(input.files ?? [])];
     input.value = '';
+    await this.uploadFiles(files, false);
+  }
+
+  /** Photos of the request: internal from Overview and the team composer, visible to the vendor from the vendor composer (TKUI2). */
+  private async uploadFiles(files: File[], external: boolean): Promise<void> {
     const t = this.t;
     if (!t || !files.length) return;
     let failed = 0;
     for (const f of files) {
       this.uploading += 1;
       try {
-        const next = await ticketsApi().upload(t.id, f, false);
+        const next = await ticketsApi().upload(t.id, f, external);
         this.t = next as Detail;
       } catch (err) {
         failed += 1;
@@ -862,11 +856,6 @@ export class TicketDetailView extends LitElement {
     </div>`;
   }
 
-  /** slice 5b: the messages to the outside handler (D14 lines, "send now" D29, "send again", "send update") - tickets/ticket-messages.ts */
-  private messagesSection(t: Detail): TemplateResult | typeof nothing {
-    return messagesBlock(t, { busy: this.busy, act: (fn, done) => void this.run(fn, done) });
-  }
-
   /** The photos: one row in Overview with "+N" (expands in place - never an inner scroll box); add / remove as before. */
   private photosSection(t: TicketDetail): TemplateResult | typeof nothing {
     if (!t.attachments.length && !t.can.attach) return nothing;
@@ -885,46 +874,6 @@ export class TicketDetailView extends LitElement {
         ${t.can.attach ? html`<label class="ph add" data-photo-add>${tIcon(this.uploading ? 'clock' : 'camera')}<span>${this.uploading ? tt('uploading') : tt('addPhoto')}</span>
           <input type="file" accept="image/jpeg,image/png" multiple ?disabled=${this.uploading > 0} aria-label=${tt('addPhoto')} @change=${this.onFiles} /></label>` : nothing}
       </div>
-    </section>`;
-  }
-
-  /** The note composer of the Conversation slot (TKUI2 replaces it with the two composers of IA §4.2). */
-  private composer(t: TicketDetail): TemplateResult | typeof nothing {
-    if (!t.can.note) return nothing;
-    const marks = marksInternal(t);
-    if (!this.composing) {
-      return html`<div class="side"><button type="button" class="btn sm" data-note-open @click=${() => { this.composing = true; void this.updateComplete.then(() => (this.renderRoot.querySelector('.composer textarea') as HTMLTextAreaElement | null)?.focus()); }}>${tIcon('note')}${tt('note')}</button></div>`;
-    }
-    return html`<div class="composer" data-composer>
-      <textarea class="inp" maxlength="2000" aria-label=${tt('addNote')} placeholder=${tt('notePlaceholder')} .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)}></textarea>
-      <div class="row">
-        ${t.can.note_external && marks ? html`<label class="chk"><input type="checkbox" .checked=${this.noteExternal} @change=${(e: Event) => (this.noteExternal = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
-        <span class="grow"></span>
-        <button type="button" class="btn sm" @click=${() => { this.composing = false; this.noteText = ''; }}>${tt('cancel')}</button>
-        <button type="button" class="btn sm primary" data-note-send ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.sendNote()}>${tIcon('send')}${tt('send')}</button>
-      </div>
-    </div>`;
-  }
-
-  /** The timeline (newest first). `only` limits it to some kinds (the Conversation slot); `id` anchors the card's "ציר זמן". */
-  private timeline(t: TicketDetail, opts: { only?: Set<string>; id?: string; sect: string }): TemplateResult {
-    const marks = marksInternal(t);
-    const rows = [...t.events].reverse().filter((e) => !opts.only || opts.only.has(e.kind));
-    return html`<section class="sect" data-sect=${opts.sect} id=${opts.id ?? nothing}>
-      <h4><span class="tag t1">${tIcon('clock')}</span>${tt('sTimeline')}<span class="cnt">${rows.length}</span></h4>
-      <ol class="tline" data-timeline>
-        ${repeat(rows, (e) => e.id, (e) => {
-          const line = messageEventLine(e) ?? eventLine(e, t.department ? { [t.department.id]: t.department.name } : {});
-          return html`<li data-kind=${e.kind} data-event=${e.id}>
-            <span class="ring">${tIcon(line.icon)}</span>
-            <div class="tx">
-              <span class="meta">${shortDateTime(e.at)} · ${bidi(actorName(e))}${marks && !e.external && (e.kind === 'note' || e.kind === 'photo') ? html` · <b>${tt('internal')}</b>` : nothing}</span>
-              <span class="line">${line.text}</span>
-              ${e.body ? html`<div class="body">${e.body}</div>` : nothing}
-            </div>
-          </li>`;
-        })}
-      </ol>
     </section>`;
   }
 
@@ -953,12 +902,8 @@ export class TicketDetailView extends LitElement {
   private tabContent(t: Detail): TemplateResult {
     switch (this.tab) {
       case 'conv':
-        // SLOT (TKUI2): the conversation of IA §4.2 replaces this - the delivery lines, the note composer and the message rows of today
-        return html`<div class="one" data-tab-content="conv" data-slot="conv">
-          ${this.messagesSection(t)}
-          ${this.composer(t)}
-          ${this.timeline(t, { only: CONV_KINDS, sect: 'conversation' })}
-        </div>`;
+        // TKUI2: the conversation of IA §4.2 - two sub-tabs, one composer (sticky at the bottom of this one scroller), tickets/conversation-tab.ts
+        return html`<div class="one" data-tab-content="conv" data-slot="conv">${this.conv.render(t as ConvTicket)}</div>`;
       case 'costs':
         // SLOT (TKUI3): the two-stage costs of IA §6.3 replace the claim card of slice 9
         return html`<div class="one" data-tab-content="costs" data-slot="costs">
@@ -966,11 +911,8 @@ export class TicketDetailView extends LitElement {
           <ticket-cost-card .ticket=${t} @cost-changed=${() => void this.load()}></ticket-cost-card>
         </div>`;
       case 'history':
-        // SLOT (TKUI2): the timeline, the files and the audit card of IA §4.1 - today's full timeline (the link panel stays under the
-        // handler card in Overview until the audit card exists: its copy / new / revoke are actions a manager needs one tap away)
-        return html`<div class="one" data-tab-content="history" data-slot="history">
-          ${this.timeline(t, { id: 'timeline', sect: 'timeline' })}
-        </div>`;
+        // TKUI2: the full timeline with its filters, the files and the audit card (the link panel and its audit rows), tickets/history-tab.ts
+        return html`<div class="one" data-tab-content="history" data-slot="history">${this.history.render(t, { link: this.linkPanel.render(t) })}</div>`;
       default:
         return html`${codeLockSection(t, { busy: this.busy, onNew: () => void this.run(() => sendNewLink(t.id), lockText('done')) })}${overviewTab(t, this.overviewCtx(t))}`;
     }
