@@ -220,11 +220,11 @@ def test_only_the_access_module_reads_ticket_rows_unchecked():
 def test_ticket_sql_lives_in_the_store():
     offenders = []
     routers = [SMPLWISE / "routers" / n for n in ("tickets.py", "tickets_admin.py", "tickets_contacts.py", "tickets_links.py", "tickets_messages.py",
-                                                  "tickets_detail.py")]
+                                                  "tickets_detail.py", "tickets_rfq.py")]
     for path in list((SMPLWISE / "services" / "tickets").glob("*.py")) + [r for r in routers if r.is_file()]:
         # the storage layer: core (0079), directory and links (0080, slice 4), outbox and inbound (0081, slice 5b), cost claims (0083, slice 9),
-        # quotes, owner history, allowed kinds (0087 TKDETAILBE; it replaced the 0085 TK257 quote table)
-        if path.name in ("store.py", "store_links.py", "outbox_store.py", "store_costs.py", "store_quotes.py"):
+        # quotes, owner history, allowed kinds (0087 TKDETAILBE; it replaced the 0085 TK257 quote table), requests for quotation (0089 TKRFQ1)
+        if path.name in ("store.py", "store_links.py", "outbox_store.py", "store_costs.py", "store_quotes.py", "store_rfq.py"):
             continue
         if re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", path.read_text(encoding="utf-8")):
             offenders.append(path.name)

@@ -31,6 +31,28 @@ export function bootFrom(hash: string, path: string, stored: string | null): Boo
   return { token: null, rid: null, fromFragment: false };
 }
 
+/** TKRFQVP (contract 15.1): `#q.<token>` is an RFQ link (`.` is not a base64url character, so it is never a ticket token). */
+export function rfqFragment(hash: string): string | null {
+  const f = hash.startsWith('#') ? hash.slice(1) : hash;
+  return f.startsWith('q.') && TOKEN_RE.test(f.slice(2)) ? f.slice(2) : null;
+}
+
+export type Mode = 'rfq' | 'ticket';
+
+/**
+ * TKRFQVP: which link the tab opens. A fragment wins and decides the mode (`#q.<token>` = RFQ, `#<token>` = ticket), then an e-mail
+ * redeem path (its answer names the kind), then the token this tab kept - the RFQ one first (each fragment entry clears the other
+ * kind's kept token, so only one is ever kept).
+ */
+export function pickMode(hash: string, path: string, storedTicket: string | null, storedRfq: string | null): { mode: Mode; token: string | null; rid: string | null; fromFragment: boolean } {
+  const q = rfqFragment(hash);
+  if (q) return { mode: 'rfq', token: q, rid: null, fromFragment: true };
+  const boot = bootFrom(hash, path, storedTicket);
+  if (boot.fromFragment || boot.rid) return { mode: 'ticket', ...boot };
+  if (storedRfq && TOKEN_RE.test(storedRfq)) return { mode: 'rfq', token: storedRfq, rid: null, fromFragment: false };
+  return { mode: 'ticket', ...boot };
+}
+
 export function validSession(value: string | null | undefined): string | null {
   return value && SESSION_RE.test(value) ? value : null;
 }

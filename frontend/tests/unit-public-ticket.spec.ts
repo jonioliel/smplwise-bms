@@ -202,13 +202,21 @@ test('a built bundle is outside www, script- and style-file only, and within the
   test.skip(!existsSync(path.join(out, 'index.html')), 'not built here (npm run build:public:addon)');
   const html = readFileSync(path.join(out, 'index.html'), 'utf8');
   expect(html).not.toMatch(/<style|style=|<script>(?!<\/script>)|<script(?![^>]*src=)/i);
+  // TKRFQVP: the vendor RFQ page is a lazy chunk (`rfq-page-*`) a ticket link never fetches - it has its own budget; the 60 KB stays
+  // the ticket page's
   let gz = 0;
+  let rfq = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
-    if (statSync(p).isFile() && /\.(js|css)$/.test(f)) gz += gzipSync(readFileSync(p)).length;
+    if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
+      const n = gzipSync(readFileSync(p)).length;
+      if (/^rfq-page[-.]/.test(f)) rfq += n;
+      else gz += n;
+    }
     expect(f).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]*\.(js|css|svg|png|ico)$/); // the listener's asset name rule
   }
   expect(gz).toBeLessThanOrEqual(60 * 1024);
+  expect(rfq).toBeLessThanOrEqual(20 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {

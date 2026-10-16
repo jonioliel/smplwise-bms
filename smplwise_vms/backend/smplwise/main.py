@@ -477,6 +477,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import tickets_map as tickets_map_router  # TKMAP1: the map element of a request
 
     app.include_router(tickets_map_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
+    from .routers import tickets_rfq as tickets_rfq_router  # TKRFQ1: requests for quotation (stage C1, the manager API)
+
+    app.include_router(tickets_rfq_router.router, prefix=api, tags=["tickets"])  # /tickets/rfqs... BEFORE /tickets/{ticket_id}
     from .routers import tickets_messages as tickets_messages_router  # CR-038 S5b (its own lines)
 
     app.include_router(tickets_messages_router.router, prefix=api, tags=["tickets"])  # channel, outbox, inbound, message templates - BEFORE /tickets/{ticket_id}

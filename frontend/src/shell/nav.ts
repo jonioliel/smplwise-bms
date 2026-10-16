@@ -10,6 +10,7 @@ import { onTicketNames } from '../tickets/naming';
 import { tt } from '../tickets/text';
 import { bt } from '../tickets/board-text'; // CR-038 slice 6: the board tab's label
 import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's label
+import { rt } from '../tickets/rfq-text'; // TKRFQ2: the requests-for-quotation tab's label
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -583,12 +584,14 @@ export const TICKETS_BOARD_HREF = '#/tickets/board'; // CR-038 slice 6
 export const TICKETS_SETTINGS_HREF = '#/system/tickets';
 export const TICKETS_HANDLERS_HREF = '#/tickets/handlers'; // owner request 2026-10-14: "מטפלים וספקים" (out of Settings)
 export const TICKETS_ACCOUNTS_HREF = '#/tickets/accounts'; // TK258: the vendors account
+export const TICKETS_RFQS_HREF = '#/tickets/rfqs'; // TKRFQ2 (2.6.1): requests for quotation (the manager UI)
 export const TICKETS_TABS: TabItem[] = [
   { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
   { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
   { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
   { id: 'all', get label() { return tt('tabAll'); }, href: TICKETS_ALL_HREF },
   { id: 'handlers', get label() { return tt('hdTitle'); }, href: TICKETS_HANDLERS_HREF }, // the fifth entry: handlers, employees, vendors, contacts
+  { id: 'rfqs', get label() { return rt('navTitle'); }, href: TICKETS_RFQS_HREF }, // TKRFQ2: requests for quotation
   { id: 'accounts', get label() { return ct('vaTitle'); }, href: TICKETS_ACCOUNTS_HREF }, // TK258: "חשבון ספקים" (tickets.costs.view)
 ];
 const isTicketsAreaHref = (href: string) => href === '#/tickets' || href.startsWith('#/tickets/');
@@ -769,7 +772,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return s[1] === 'generator' ? 'generator' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      return s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -930,6 +933,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // "מטפלים וספקים": the directory's readers (tickets.configure edits; a department manager reads his departments' rows, masked phones)
   [TICKETS_HANDLERS_HREF]: ['tickets.configure', 'tickets.manage'],
   [TICKETS_ACCOUNTS_HREF]: ['tickets.costs.view'], // TK258: the server also checks it on every row's place
+  // TKRFQ2: requests for quotation - whoever may open one (tickets.external) or decide on one (tickets.costs); the server's visibility rule narrows every row
+  [TICKETS_RFQS_HREF]: ['tickets.external', 'tickets.costs'],
   [TICKETS_SETTINGS_HREF]: ['system.configure', 'tickets.configure'],
   '#/system/messaging-accounts': ['system.configure', 'messaging.accounts.manage'], // CR-038 S5a (installation scope)
   // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)

@@ -155,6 +155,15 @@ ROUTES: tuple[RouteRule, ...] = (
     # TKDETAILBE (contract 4.5): the vendor's quote before the work - the same limits and kinds as the claim's JSON routes
     RouteRule("GET", r"/t/api/quote", "/t/api/quote", "token_read"),
     _json("/t/api/quote", "token_write", CLAIM_JSON_MAX),
+    # TKRFQVP (RFQ contract section 15): the vendor quote page of a request for quotation - the same kinds and limits as the quote
+    # routes; the token is looked up in `ticket_rfq_links` only (public_rfq.py)
+    RouteRule("GET", r"/t/api/rfq", "/t/api/rfq", "token_read"),
+    _json("/t/api/rfq/quote", "token_write", CLAIM_JSON_MAX),
+    _json("/t/api/rfq/withdraw", "token_write"),
+    _json("/t/api/rfq/decline", "token_write"),
+    _json("/t/api/rfq/message", "token_write"),
+    _json("/t/api/rfq/code/send", "code"),
+    _json("/t/api/rfq/code/verify", "code"),
 )
 
 

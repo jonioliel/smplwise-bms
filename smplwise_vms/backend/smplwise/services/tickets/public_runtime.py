@@ -86,7 +86,7 @@ class Runtime:
 
     def build_app(self, db: Database, *, clock=None) -> PublicApp:
         """The public app over the real store (the public-core notes, wiring item 2)."""
-        from . import public_claims, public_quotes  # slice 9: the cost claim step (11A); TK257: the quote before the work
+        from . import public_claims, public_quotes, public_rfq  # slice 9: the cost claim step (11A); TK257: the quote; TKRFQVP: RFQ vendor page
         from .public_routes import build_router
 
         switch = CachedSwitch(lambda: _module_on(db))
@@ -116,7 +116,9 @@ class Runtime:
             photos=SqlPhotoSink(db, root, clock=clock), attachments_root=root,
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
             extra_routers=(build_router(db, clock=clock), public_claims.build_router(db, clock=clock),
-                           public_quotes.build_router(db, clock=clock)),
+                           public_quotes.build_router(db, clock=clock),
+                           public_rfq.build_router(db, clock=clock, limiter=limiter, policy=engine_kw["policy"])),
+            rfq_redeem=public_rfq.redeem_releaser(db),
             client_ip_header=doc["public"]["client_ip_header"],
             path_prefix=links.effective_prefix(doc["public"]["base_url"], doc["public"]["path_prefix"]),  # TK255
             legacy_t_paths=doc["public"]["legacy_t_paths"], claim_window=public_claims.claim_window(db),
@@ -178,6 +180,12 @@ class Runtime:
             with db.connection(label="tickets.links.retention") as conn:
                 store_links.prune(conn, codes_before=_iso(stamp - dt.timedelta(days=CODES_KEEP_DAYS)),
                                   access_before=_iso(stamp - dt.timedelta(days=ACCESS_KEEP_DAYS)))
+                try:  # TKRFQVP: the RFQ links' codes, sessions and wrong-code windows (0089), the same one-day rule
+                    from . import store_rfq
+
+                    store_rfq.prune_codes(conn, _iso(stamp - dt.timedelta(days=CODES_KEEP_DAYS)))
+                except Exception:  # noqa: BLE001 - a database before 0089
+                    pass
                 in_use = store_links.key_ids_in_use(conn)
             if KEYS.configured and KEYS.can_rotate():
                 KEYS.retire_unused(in_use)  # a key file no live link and no phone key names any more (after a rotation)

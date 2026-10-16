@@ -46,6 +46,7 @@ from ...db import Database, get_setting, unlocked
 from .. import messaging_accounts as ma
 from .. import messaging_runtime as mr
 from . import access, handler_links, hours, model, naming, notify_bridge, outbox_store as obs, settings_doc, sla, store, store_links
+from . import rfq_links, store_rfq  # TKRFQ1: request-for-quotation vendor links and their outbox rows
 from . import codes as codes_mod
 from . import inbound as inbound_mod
 from . import links as links_mod
@@ -152,6 +153,8 @@ class DbLinks:
     def url(self, link_id: str, *, claim: bool = False) -> str | None:
         with self.io.read() as conn:
             row = store_links.link(conn, link_id)
+            if row is None:  # TKRFQ1: a request-for-quotation vendor link (its own table and token domain)
+                return rfq_links.url_of(conn, link_id, self.clock())
             if not self._serves(conn, row, self.clock(), claim):
                 return None
             try:
@@ -164,7 +167,9 @@ class DbLinks:
         conn = self.io.write()
         row = store_links.link(conn, link_id)
         now = self.clock()
-        if row is None or row.get("kind") == "staff" or not self._serves(conn, row, now, claim):
+        if row is None:  # TKRFQ1: the e-mail form of an RFQ vendor link (ticket_rfq_link_redeems)
+            return rfq_links.redeem_url(conn, link_id, now)
+        if row.get("kind") == "staff" or not self._serves(conn, row, now, claim):
             return None  # TKSTAFF1: a staff link never takes the e-mail redeem path (security design 2)
         base = handler_links.public_base_url(conn)
         if not base:
@@ -179,12 +184,12 @@ class DbLinks:
 
     def sent_via(self, link_id: str) -> str | None:
         with self.io.read() as conn:
-            row = store_links.link(conn, link_id)
+            row = store_links.link(conn, link_id) or store_rfq.link(conn, link_id)
         return row.get("sent_via") if row else None
 
     def requires_code(self, link_id: str) -> bool:
         with self.io.read() as conn:
-            row = store_links.link(conn, link_id)
+            row = store_links.link(conn, link_id) or store_rfq.link(conn, link_id)
         return bool(row and row["require_code"])
 
     def note_sent(self, link_id: str, via: str, purpose: str, at: dt.datetime) -> None:
@@ -194,6 +199,8 @@ class DbLinks:
         conn = self.io.write()
         row = store_links.link(conn, link_id)
         if row is None:
+            if store_rfq.link(conn, link_id) is not None:  # TKRFQ1: how an RFQ vendor link left (sent_via / sent_at, 'email' sticky)
+                rfq_links.note_sent(conn, link_id, via, purpose, at)
             return
         if purpose in LINK_PURPOSES or purpose in CLAIM_LINK_PURPOSES:  # TK251: a cost message carries the link too (D6)
             handler_links.mark_sent(conn, link_id, via, at)
@@ -306,8 +313,13 @@ class DbHooks:
                                      **({"fallback_of": row.fallback_of} if row.fallback_of else {}),
                                      **({"resend_of": row.resend_of} if row.resend_of else {})},
                                via="whatsapp" if row.channel == "whatsapp" else "email", at=obs.iso_s(now))
-        audit(conn, actor=None, action="ticket.message.send", decision="allowed", resource_type="ticket" if row.ticket_id else "installation",
-              resource_id=row.ticket_id or "tickets",
+        if row.rfq_id:  # TKRFQ1: the request's own timeline (ids and states only)
+            from . import rfq as rfq_mod
+
+            rfq_mod.on_outbox_outcome(conn, row, row.state, row.outcome_code, obs.iso_s(now))
+        audit(conn, actor=None, action="ticket.message.send", decision="allowed",
+              resource_type="ticket" if row.ticket_id else "ticket_rfq" if row.rfq_id else "installation",
+              resource_id=row.ticket_id or row.rfq_id or "tickets",
               details={"outbox_id": row.id, "channel": row.channel, "purpose": row.purpose, "outcome": result.outcome,
                        "code": result.outcome_code, "account": account.key if account else row.account_key,
                        **({"number": ticket["number"]} if ticket else {})})
@@ -325,6 +337,11 @@ class DbHooks:
 
     def fallback(self, row: OutboxRow, step: str, new_row: OutboxRow | None) -> None:
         conn = self._conn()
+        if conn is not None and row.rfq_id and not row.ticket_id:  # TKRFQ1
+            from . import rfq as rfq_mod
+
+            rfq_mod.on_outbox_fallback(conn, row, step, new_row.id if new_row else None, obs.iso_s(self.rt.clock()))
+            return
         if conn is None or not row.ticket_id:
             return
         ticket = obs.ticket_for_worker(conn, row.ticket_id)
@@ -344,6 +361,10 @@ class DbHooks:
     def still_relevant(self, row: OutboxRow) -> bool:
         """After the module was off: a reminder or a link for a ticket that was closed, or an assignment that ended, is not sent."""
         conn = self._conn()
+        if conn is not None and row.rfq_id and not row.ticket_id:  # TKRFQ1: a request that ended sends only its cancellation notice
+            from . import rfq as rfq_mod
+
+            return rfq_mod.outbox_still_relevant(conn, row)
         if conn is None or not row.ticket_id:
             return True
         ticket = obs.ticket_for_worker(conn, row.ticket_id)
@@ -484,7 +505,7 @@ class MessagingRuntime:
         if not row.code_id or not row.link_id:
             return None
         with obs.Access(self.db).read() as conn:
-            link = store_links.link(conn, row.link_id)
+            link = store_links.link(conn, row.link_id) or store_rfq.link(conn, row.link_id)  # TKRFQVP: an RFQ vendor link's code
         if link is None:
             return None
         try:

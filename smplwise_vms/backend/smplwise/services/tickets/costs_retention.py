@@ -47,6 +47,12 @@ def janitor(db: Database, root: Path, *, force: bool = False, now: dt.datetime |
             store_costs.delete_claim(conn, c["id"])
             doomed.extend(paths)
             out["claims"] += 1
+        try:  # TKRFQ1: requests for quotation - deadlines, link ids 30 days after closing, retention of quotes not selected
+            from . import rfq
+
+            out["rfq"] = rfq.retention(conn, at)
+        except Exception as exc:  # noqa: BLE001 - never stops the tick
+            log.warning("rfq retention failed (%s)", type(exc).__name__)
     for rel in doomed:
         try:
             cost_storage.remove(root, rel)
