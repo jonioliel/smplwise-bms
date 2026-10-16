@@ -97,6 +97,8 @@ class CreateBody(BaseModel):
     title: str = Field(max_length=2000)
     description: str | None = Field(default=None, max_length=20000)
     place_text: str | None = Field(default=None, max_length=2000)
+    location_id: str | None = Field(default=None, max_length=64, pattern=ID)  # CR-ORG-LOCATIONS: an active organisation location
+    location_nav: bool | None = None  # CR-ORG-LOCATIONS: the map link in this request's vendor messages (default off)
     floor_id: str | None = Field(default=None, max_length=64, pattern=ID)
     source_ticket_id: str | None = Field(default=None, max_length=64, pattern=ID)
     due_at: str | None = Field(default=None, max_length=40)
@@ -153,6 +155,8 @@ class EditBody(BaseModel):
     title: str | None = Field(default=None, max_length=2000)
     description: str | None = Field(default=None, max_length=20000)
     place_text: str | None = Field(default=None, max_length=2000)
+    location_id: str | None = Field(default=None, max_length=64, pattern=ID)  # CR-ORG-LOCATIONS (draft only); null clears
+    location_nav: bool | None = None
     floor_id: str | None = Field(default=None, max_length=64, pattern=ID)
     due_at: str | None = Field(default=None, max_length=40)
     work_from: str | None = Field(default=None, max_length=40)
@@ -250,6 +254,7 @@ class SendBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=1)
     channel: Literal["auto", "manual"] = "auto"
+    location_nav: bool | None = None  # CR-ORG-LOCATIONS: the preview dialog's "add the navigation link" switch (default off)
     client_request_id: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
 
 
@@ -266,7 +271,7 @@ def post_send(body: SendBody, request: Request, rfq_id: str = Path(..., pattern=
 
         out["sent"] = json.loads(prior["response_json"])
         return out
-    sent = rfq.send(conn, viewer, seen, body.revision, body.channel, _rid(request))
+    sent = rfq.send(conn, viewer, seen, body.revision, body.channel, _rid(request), location_nav=body.location_nav)
     store.request_put(conn, scope, body.client_request_id, "rfq.send", 200, sent)
     out = _detail(conn, viewer, rfq_id)
     out["sent"] = sent

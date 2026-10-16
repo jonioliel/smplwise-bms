@@ -11,6 +11,7 @@ import { isApi } from './session';
 import { mockBackend } from './tickets-mock';
 import type { TicketLang, TicketName } from '../tickets/naming';
 import type { CostMode, TicketCostBlock } from './tickets-costs';
+import type { RequestLocation } from './tickets-locations';
 
 export type TicketStatus = 'new' | 'assigned' | 'acknowledged' | 'in_progress' | 'waiting_part' | 'done' | 'returned' | 'closed' | 'cancelled';
 export type StatusFilter = 'open' | 'unassigned' | 'handling' | 'done' | 'closed' | 'all';
@@ -157,6 +158,8 @@ export interface InternalOwner { id: string; name: string; since: string; source
 
 export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   description: string;
+  /** CR-ORG-LOCATIONS: the organisation location named at creation (its snapshot; null / absent: none) */
+  location?: RequestLocation | null;
   events: TicketEvent[];
   attachments: TicketAttachment[];
   close_note: string | null;
@@ -227,6 +230,9 @@ export interface CreateBody {
   client_request_id: string;
   /** slice 3: a device's ticket - the server resolves the place and freezes the 24 h history */
   entity_id?: string | null;
+  /** CR-ORG-LOCATIONS: an active organisation location (reference + snapshot), or `place_text` = "other (free text)" */
+  location_id?: string;
+  place_text?: string;
 }
 export type CreateAnswer = (TicketDetail | { id: string; number: number; view: 'none' }) & { result: 'created' | 'absorbed'; open_for_entity?: TicketItem[] };
 export interface PatchBody { title?: string; description?: string; category_id?: string | null; priority_id?: string; department_id?: string; revision: number }

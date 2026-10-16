@@ -160,6 +160,10 @@ export interface RfqDraft {
   kinds: LineKind[];
   vendors: { contact_id: string; channel: RfqChannel; require_code: boolean }[];
   source_ticket_id: string;
+  /** CR-ORG-LOCATIONS: the picker's choice - a location id, '' (none) or OTHER ("other": `place_text` is the free text) */
+  location_pick?: string;
+  /** CR-ORG-LOCATIONS: the navigation link in the invitation (the send dialog's switch, default off) */
+  location_nav?: boolean;
 }
 
 export type DraftField = 'title' | 'description' | 'department' | 'due' | 'window' | 'vendors' | 'place';
@@ -170,7 +174,7 @@ export function draftProblems(d: RfqDraft, now: Date, forSend: boolean): Partial
   const title = d.title.trim();
   if (!title || [...title].length > TITLE_MAX) out.title = true;
   if ([...d.description].length > DESCRIPTION_MAX) out.description = true;
-  if ([...d.place_text].length > PLACE_MAX) out.place = true;
+  if ((d.location_pick === undefined || d.location_pick === '__other') && [...d.place_text].length > PLACE_MAX) out.place = true;
   if (!d.department_id) out.department = true;
   const due = localToIso(d.due_date, d.due_time || '12:00');
   if (!due || Date.parse(due) <= now.getTime()) out.due = true;

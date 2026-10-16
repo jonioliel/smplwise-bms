@@ -194,6 +194,8 @@ class CreateBody(BaseModel):
     assign_note_external: bool = True
     client_request_id: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
     entity_id: str | None = Field(default=None, max_length=255, pattern=ENTITY)  # slice 3: a device's ticket (place + history server-side)
+    location_id: str | None = Field(default=None, max_length=64, pattern=ID)  # CR-ORG-LOCATIONS: an active organisation location
+    place_text: str = Field(default="", max_length=2000)  # CR-ORG-LOCATIONS: "other (free text)"; the real limit (200) is the service's
 
 
 CREATE_ROUTE = "POST /tickets"
@@ -214,6 +216,7 @@ def create_ticket(body: CreateBody, request: Request, principal: Principal = Dep
         priority_id=body.priority_id, assign_to=create.AssigneeRef(body.assign.kind, body.assign.id) if body.assign else None,
         assign_note=body.assign_note, assign_note_external=body.assign_note_external,
         entity_id=body.entity_id, origin="device" if body.entity_id else "manual",
+        location_id=body.location_id, place_other=body.place_text,
     )
     result = create.create_ticket(conn, spec, viewer, rid=_rid(request))
     seen = access.visible_by_id(viewer, result.ticket_id)

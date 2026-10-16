@@ -212,7 +212,7 @@ const mock: MessagesBackend = {
   dismiss: async () => ({ ok: true }),
   templates: async () => ({
     purposes: ['assign', 'reminder', 'code', 'closed', 'reassigned', 'reopened', 'update'], langs: ['he', 'en', 'ar', 'ru'],
-    placeholders: ['name', 'number', 'department', 'title', 'place', 'device', 'priority', 'organization', 'link', 'code', 'manager', 'eta', 'module_name', 'module_name_plural'],
+    placeholders: ['name', 'number', 'department', 'title', 'place', 'device', 'priority', 'organization', 'link', 'code', 'manager', 'eta', 'module_name', 'module_name_plural', 'location'],
     rules: { link_required: ['assign', 'reminder', 'reopened', 'update'], code_only: ['code'], code_forbidden: ['device', 'link', 'place', 'title'], max_rendered: 1000 },
     items: structuredClone(demo.items), starters: DEMO_STARTERS, samples: {}, departments: [{ id: 'dept-maintenance', name: 'אחזקה' }],
   }),

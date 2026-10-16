@@ -28,6 +28,7 @@ import {
 } from './rfq-model';
 import { rfqError } from './rfq-new';
 import { tt, ticketsLang } from './text';
+import { lt } from './org-locations-text'; // CR-ORG-LOCATIONS: the navigation-link switch
 
 type Dlg =
   | { kind: 'remind'; ids: string[] }
@@ -61,6 +62,8 @@ export class TicketsRfqBoard extends LitElement {
   @state() private reason = '';
   @state() private notify = true;
   @state() private sendMode: 'auto' | 'manual' = 'auto';
+  /** CR-ORG-LOCATIONS: the send dialog's "add the navigation link" switch (default off) */
+  @state() private sendNav = false;
   @state() private contacts: Contact[] | null = null;
   @state() private picks = new Set<string>();
   /** TKRFQVP: vendors whose code the directory demands (the server answered 409 vendor_code_locked): the off-switch is disabled */
@@ -144,7 +147,8 @@ export class TicketsRfqBoard extends LitElement {
   private send(): Promise<boolean> {
     const d = this.d as RfqDetail;
     const manual = this.sendMode === 'manual';
-    return this.run(() => ticketsRfqApi().send(d.id, d.revision, this.sendMode, clientRequestId()), manual ? rt('sendMarked') : rt('sendDone'));
+    const nav = d.location?.map_url ? this.sendNav : undefined;
+    return this.run(() => ticketsRfqApi().send(d.id, d.revision, this.sendMode, clientRequestId(), nav), manual ? rt('sendMarked') : rt('sendDone'));
   }
 
   private async loadContacts(): Promise<void> {
@@ -213,7 +217,7 @@ export class TicketsRfqBoard extends LitElement {
 
   private header(d: RfqDetail): TemplateResult {
     const quotes = liveQuotes(d);
-    const sub = [d.ref, d.place.text, d.department.name].filter(Boolean).join(' · ');
+    const sub = [d.ref, d.place.text || d.location?.name, d.department.name].filter(Boolean).join(' · ');
     return html`<header class="dh" data-rfq-board-header>
       <div class="dh-row">
         <div class="titles">
@@ -230,7 +234,7 @@ export class TicketsRfqBoard extends LitElement {
         ${d.source_ticket ? html`<a class="chip info" href=${`#/tickets/${d.source_ticket.id}`} data-rfq-source>${tIcon('ticket')}${rt('sourceTicket', { number: d.source_ticket.number })}</a>` : nothing}
         <span class="grow"></span>
         ${d.can.see_amounts && quotes ? html`<a class="btn" href=${rfqHref({ id: d.id, view: 'compare' })} data-rfq-to-compare>${rIcon('columns')}${rt('compareN', { n: quotes })}</a>` : nothing}
-        ${d.can.send ? html`<button type="button" class="btn primary" data-rfq-send @click=${() => { this.sendMode = this.meta?.vendor_page === false || !d.vendor_page ? 'manual' : 'auto'; this.open({ kind: 'send' }); }}>${tIcon('send')}${rt('sendTo', { n: d.vendors.filter((v) => v.state === 'draft').length })}</button>` : nothing}
+        ${d.can.send ? html`<button type="button" class="btn primary" data-rfq-send @click=${() => { this.sendMode = this.meta?.vendor_page === false || !d.vendor_page ? 'manual' : 'auto'; this.sendNav = !!d.location_nav; this.open({ kind: 'send' }); }}>${tIcon('send')}${rt('sendTo', { n: d.vendors.filter((v) => v.state === 'draft').length })}</button>` : nothing}
         ${this.moreItems(d).length ? html`<button type="button" class="btn" data-rfq-more aria-haspopup="dialog" @click=${() => this.open({ kind: 'more' })}>${tIcon('dots')}${rt('more')}</button>` : nothing}
       </div>
     </header>`;
@@ -392,12 +396,16 @@ export class TicketsRfqBoard extends LitElement {
         const n = d.vendors.filter((v) => v.state === 'draft').length;
         const pageOff = !d.vendor_page || this.meta?.vendor_page === false;
         const first = d.vendors.find((v) => v.state === 'draft');
-        const pv = invitePreview({ name: first?.contact.name || rt('previewName'), number: String(d.number), title: d.title, place: d.place.text ?? '', due: dateTime(d.due_at),
+        const pv = invitePreview({ name: first?.contact.name || rt('previewName'), number: String(d.number), title: d.title,
+          place: d.place.text || [d.location?.message ?? '', this.sendNav ? d.location?.map_url ?? '' : ''].filter(Boolean).join(' · '), due: dateTime(d.due_at),
           window: windowText(d.work_from, d.work_to) || rt('previewFlexible'), link: rt('previewLink'), organization: '' }, ticketsLang());
         const opt = (m: 'auto' | 'manual', title: RfqTextKey, sub: RfqTextKey, disabled: boolean) => html`<label aria-disabled=${String(disabled)} data-rfq-send-mode=${m}>
           <input type="radio" name="bmode" .checked=${this.sendMode === m} ?disabled=${disabled || this.busy} @change=${() => (this.sendMode = m)} /><b>${rt(title)}</b><small>${disabled ? rt('sendPageOff') : rt(sub)}</small></label>`;
         return dlg(rt('sendTitle'), 'send', html`<p class="note">${rt('sendTo', { n })}</p>
           <div class="choice" role="radiogroup" aria-label=${rt('sendTitle')}>${opt('auto', 'sendAuto', 'sendAutoSub', pageOff)}${opt('manual', 'sendManual', 'sendManualSub', false)}</div>
+          ${this.sendMode === 'auto' && d.location ? html`<label class="chk" data-rfq-location-nav><input type="checkbox" .checked=${this.sendNav}
+            ?disabled=${this.busy || !d.location.map_url} @change=${(e: Event) => (this.sendNav = (e.target as HTMLInputElement).checked)} />
+            <span><b>${lt('navOn')}</b><small>${d.location.map_url ? lt('navOnSub') : lt('navNoCoords')}</small></span></label>` : nothing}
           ${this.sendMode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${pv}</pre>` : nothing}`,
           foot(rt('sendNow'), 'send', () => void this.send(), pageOff && this.sendMode === 'auto'), true);
       }

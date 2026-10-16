@@ -27,17 +27,18 @@ from .channel import CODE_PURPOSES, DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES
 
 PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "priority", "organization", "link", "code",
                 "manager", "eta", "module_name", "module_name_plural",
-                "due", "window")  # TKRFQ1: a request for quotation's deadline and wanted work window (local time, display text)
+                "due", "window",  # TKRFQ1: a request for quotation's deadline and wanted work window (local time, display text)
+                "location")  # CR-ORG-LOCATIONS: the request's organisation location (name · street, city; + the map link when switched on)
 SECRET_PLACEHOLDERS = frozenset({"link", "code"})  # never in params_json; passed at send time only
 PARAM_KEYS = frozenset(PLACEHOLDERS) - SECRET_PLACEHOLDERS - {"module_name", "module_name_plural"}
-CODE_FORBIDDEN = frozenset({"link", "title", "place", "device"})
+CODE_FORBIDDEN = frozenset({"link", "title", "place", "device", "location"})
 RENDERED_MAX = 1000
 BODY_MAX = 1500
 
 # per-placeholder caps: worst-case values at save time, hard caps at send time
 VALUE_MAX = {"name": 80, "number": 7, "department": 60, "title": 120, "place": 200, "device": 80, "priority": 30,
              "organization": 60, "link": 120, "code": 6, "manager": 80, "eta": 24, "module_name": 30, "module_name_plural": 30,
-             "due": 24, "window": 40}
+             "due": 24, "window": 40, "location": 200}
 SECRET_MAX = {"link": 400, "code": 6}  # send time (slice 5b): the real URL is system-made and never cut (a cut link is a dead link)
 
 # 14.3 defaults - ONE source (slice 5b unified the two naming schemes): slice 1's naming.DEFAULTS (`tickets.name`, tokens {ticket} /
