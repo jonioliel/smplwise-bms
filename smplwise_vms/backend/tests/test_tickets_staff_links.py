@@ -150,7 +150,11 @@ def test_01_a_staff_token_reaches_only_the_handler_routes_and_never_the_claim_su
     assert unknown.status_code == 404
     for method, path, kw in (("GET", "/t/api/claim", {}), ("POST", "/t/api/claim", {"json": {"client_request_id": crid()}}),
                              ("POST", "/t/api/claim/file", {"files": {"file": ("a.pdf", b"%PDF-1.4", "application/pdf")},
-                                                            "data": {"client_request_id": crid()}})):
+                                                            "data": {"client_request_id": crid()}}),
+                             # security review F1: the quote before the work (TK257) is a cost surface too
+                             ("GET", "/t/api/quote", {}),
+                             ("POST", "/t/api/quote", {"json": {"lines": [{"kind": "work", "description": "x", "quantity": "1", "unit_price": "100"}],
+                                                                "client_request_id": crid()}})):
         r = client.request(method, path, headers=hdr(token, session), **kw)
         assert r.status_code == 404 and r.content == unknown.content == UNIFORM_404, (method, path, r.status_code)
     r = client.get("/t/api/ticket", headers=hdr(token, session))
@@ -471,3 +475,34 @@ def test_20_the_staff_starters_carry_one_url_and_no_quick_reply_line_with_a_code
         assert out.count("https://") == 1 and "/t/#" in out
         assert ("1 = " in out) is quick
         assert mt.problems("assign", tpl.body) == []
+
+
+def test_01b_every_cost_route_closes_the_staff_link_by_construction():
+    """Security review F1: every `link_context(` of the claim and quote routers passes `claim_surface=True` (a new cost route that
+    forgets it fails here), and a user assignment is never read as an external one by the quote card (`assignee_kind`, not
+    `contact_id` - TKSTAFF1 sets `contact_id` on the staff member's own assignment)."""
+    import inspect
+    import re
+
+    from smplwise.services.tickets import public_claims, public_quotes, quotes
+
+    for mod in (public_claims, public_quotes):
+        calls = re.findall(r"link_context\(([^)]*)\)", inspect.getsource(mod).split("def build_router", 1)[-1])
+        assert calls and all("claim_surface=True" in c for c in calls), (mod.__name__, calls)
+    assert 'asg.get("contact_id")' not in inspect.getsource(quotes.public_quote)
+
+
+def test_01c_the_quote_card_and_submit_refuse_a_user_assignment(env):
+    from smplwise.services.tickets import costs, quotes, store
+
+    t, _ = staff_ticket(env)
+    link = staff_row(env, t["id"])
+    with env.s4.db.connection() as conn:
+        asg = store.assignment(conn, link["assignment_id"])
+        assert asg["assignee_kind"] == "user" and asg["contact_id"] == link["contact_id"]
+        card = quotes.public_quote(conn, asg["id"], t["id"])
+        assert card["enabled"] is False and card["writable"] is False
+        ticket = dict(conn.execute("SELECT * FROM tickets WHERE id = ?", (t["id"],)).fetchone())
+        with pytest.raises(costs.CostRefused):
+            quotes.submit(conn, asg, ticket, {"lines": [{"kind": "work", "description": "x", "quantity": "1", "unit_price": "100"}]},
+                          at=dt.datetime.now(dt.timezone.utc))
