@@ -1,7 +1,7 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.0 (implemented)** - 2026-10-16. Branch `pilot/TKRFQ1-core` (from `pilot/TKDETAILBE-backend`). Release
-target 2.6.1. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
+Status: **v1.1 (section 15 = the public vendor page, contract first)** - 2026-10-16. v1.0 implemented on `pilot/TKRFQ1-core`;
+v1.1 on `pilot/TKRFQVP` (from `integ/260`). Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
 (final)"), `docs/tickets/DETAIL_BACKEND_CONTRACT.md` v1.2 (the quote entity, money, drafts), the approved mock-up v5
 (`private/planning/_mockups/ticket-module-v4/rfq.js`: new request, vendors board, comparison, order). Backend only. Changes after this
 version are listed in section 14.
@@ -259,6 +259,146 @@ kinds default is DETAIL's (`costs.allowed_line_kinds` <- department <- the RFQ).
 Audit actions (ids, states, totals, counts - never a text): `ticket.rfq.create`, `.edit`, `.vendor_add`, `.vendor_remove`, `.send`,
 `.remind`, `.link_revoke`, `.quote_on_behalf`, `.quote_withdraw`, `.decline_on_behalf`, `.award`, `.award_confirm`, `.award_decline`,
 `.cancel`, `.close`, `.message`, `.delete`, `.department`.
+
+## 15. Public vendor page (stage C2, TKRFQVP)
+
+The screen a vendor opens from the invitation to read the request and fill in a quote. It lives on the EXISTING public listener (the
+ticket handler page's app, port 18093, the same edge, rate gate, security headers, uniform 404, TK255 prefix routing) and the existing
+page bundle (`frontend/src/public-ticket/`, `www-public`), in an RFQ mode. Nothing here is a staff surface; nothing is sent outward
+by the system from these routes (no WhatsApp / e-mail text, no free text); the only outbox row a vendor can cause is the verification
+`code` message (fixed template, no link, no title) when his link requires a code.
+
+### 15.1 The link, the URL and the e-mail form
+
+* Token: `links.derive_token(key, link_id, generation, domain="rfq")`, transported in the same `X-Ticket-Token` header as a ticket token.
+  The RFQ routes look the hash up ONLY in `ticket_rfq_links` (one indexed read, joined with the vendor, the request and the contact);
+  the ticket routes look it up ONLY in `ticket_links`. A ticket token on an RFQ route, an RFQ token on a ticket route, an unknown,
+  revoked or expired token: the uniform 404 `{"code":"link_unavailable"}` (same bytes, same headers), counted as an unknown token.
+* URL (WhatsApp): `<base>/<prefix>/#q.<token>` - the fragment `q.` marks an RFQ link (`.` is not a base64url character, so it can never
+  be a ticket token); the page reads it, keeps it in memory, removes the fragment from the address bar (as for a ticket link).
+* E-mail form: `<base>/<prefix>/r/<rid>` (the same shape as a ticket's; `ticket_rfq_link_redeems`, 3 releases in 24 h).
+  `POST /t/api/redeem {rid}` looks the id up in the ticket redeems and, when absent there, in the RFQ redeems; an RFQ answer is
+  `{"token": "...", "kind": "rfq"}` (a ticket answer stays `{"token": "..."}`). One failure is counted per unknown id, as before.
+* The link serves (`available`) when: not revoked; not past `min(expires_at, cap_at)`; the vendor is not `removed`; the contact is
+  not erased, still active, names no internal user (`user_id`) and is not an employee (`employee = 1`) - a contact that became staff
+  after the invitation is the uniform 404 (fail closed); a request that is `closed` / `cancelled` serves read-only until
+  `grace_until` and is the uniform 404 when no grace was recorded.
+
+### 15.2 Verification code (owner decision 16.10: OPTIONAL per vendor, OFF by default)
+
+* `ticket_rfq_vendors.require_code` decides: 0 by default; the directory's own demand (the contact's or its vendor's `require_code`)
+  turns it on and cannot be lowered for that vendor; otherwise the manager switches it per vendor (when he is sure the number is the
+  vendor's): at creation (`vendors[].require_code`), when adding a vendor, or later with the vendor-options route (15.6). A change
+  reaches the vendor's live link at once (`ticket_rfq_links.require_code`).
+* With the code required and no code session, `GET /t/api/rfq` answers the minimal card only (15.3) and every write answers 403
+  `code_required`. `POST /t/api/rfq/code/send {}` and `POST /t/api/rfq/code/verify {code}` behave exactly like the ticket routes
+  (`/t/api/code/send|verify`: the D6 channel rule, the six digits derived from the code row id at render time and never stored, the
+  per-link-generation codes / failures / lock, the per-recipient caps on the same limiter, `X-Ticket-Session` for the session) over
+  the RFQ tables `ticket_rfq_link_codes`, `ticket_rfq_link_failures`, `ticket_rfq_link_sessions`. Answers: `{"sent": true, "channel",
+  "expires_in_s"}`, `{"session", "expires_in_s"}`; errors 409 `code_not_required`, 503 `code_unavailable`, 422 `code_invalid` /
+  `code_expired` / `code_missing` / `code_malformed` (+ `attempts_left`), 429 `code_locked` / `rate_limited` (+ `retry_after_s`).
+* `send` refuses a vendor whose code is required when no channel can carry a code (409 `code_channel_unavailable`, before any write).
+
+### 15.3 `GET /t/api/rfq` - the request as the vendor may see it
+
+Counts as an open (vendor `sent` -> `opened`, `first_opened_at` / `last_opened_at` / `open_count` on the vendor and the link, the
+request `sent` -> `collecting`, an `opened` timeline row on the first open only; no revision bump). Answer:
+
+```json
+{"kind": "rfq", "ref": "RFQ-07", "organization": "...", "department": "...", "lang": "he", "dir": "rtl", "theme": "light",
+ "time_zone": "Asia/Jerusalem", "code_required": false, "code_ok": true, "code_locked_s": 0, "read_only": false,
+ "read_only_until": null,
+ "page_state": "open | due_passed | declined | awarded | closed | cancelled",
+ "rfq": {"title": "...", "description": "...", "place_text": "...", "due_at": "...", "work_from": "...", "work_to": "...",
+         "allowed_line_kinds": ["labor", "parts"], "attachments": []},
+ "quote": null | {"id", "version", "state": "submitted | withdrawn | awarded | partially_awarded", "lines": [{"index", "kind",
+         "description", "total_minor", "hours" + "rate_minor" (labor) | "quantity" + "unit_minor" (parts) | "amount_minor" (travel /
+         other)}], "currency", "vat_mode", "vat_rate_bp",
+         "subtotal_minor", "vat_minor", "total_minor", "net_minor", "work_from", "work_to", "in_window": true | false | null,
+         "valid_until", "note", "vendor_ref", "submitted_at", "approved": null | {"line_indexes", "subtotal_minor", "vat_minor",
+         "total_minor"}},
+ "declined": null | {"at", "reason"},
+ "messages": [{"id", "mine": true | false, "text", "at"}],
+ "form": {"currencies": ["ILS"], "allowed_kinds": ["labor", "parts"], "vat": {"exempt": false, "rate_bp": 1800,
+          "default": "excluded | included | none"}, "labor_rate_minor": null,
+          "limits": {"lines": 30, "description": 120, "note": 1000, "vendor_ref": 40, "message": 2000, "decline_reason": 200,
+                     "max_total_minor": 0}},
+ "can": {"quote": true, "withdraw": false, "decline": true, "ask": true}}
+```
+
+* Without a code session on a code-protected link: ONLY `kind`, `ref`, `organization`, `department`, `lang`, `dir`, `theme`,
+  `time_zone`, `code_required`, `code_ok`, `code_locked_s`, `read_only`, `read_only_until` (a forwarded link alone discloses nothing
+  beyond "a request exists").
+* `page_state` (the vendor's own view, computed at read time): `cancelled` - the request was cancelled; `closed` - the request is
+  `awarded` / `ordered` / `closed` and this vendor was not awarded (he never learns who was, at what price, or that anyone was);
+  `awarded` - an APPROVED award names this vendor (a pending second approval shows nothing yet); `due_passed` - the deadline passed
+  and the request is still deciding; `declined` - he marked "not interested" (he may still quote until the deadline); else `open`.
+* `quote` is the vendor's OWN latest live quote only (`submitted`, or the awarded one with its approved part); a withdrawn quote shows
+  as `state: withdrawn` until a new one. `not_awarded` is never shown (it reads as no special state: the page shows `closed`).
+* `messages`: the vendor's private thread - his questions (`mine: true`) and the organisation's answers (`mine: false`); no author
+  names, no internal ids beyond the message id.
+* `can.*` is false everywhere when `read_only`, when the deadline passed, or when `page_state` is not `open` / `declined`
+  (`withdraw` needs a `submitted` quote with no pending award, `decline` needs no live quote, `ask` needs fewer than 30 questions).
+* `attachments` is always `[]` in this version (requests carry no files yet); the page shows no upload either.
+
+### 15.4 Writes (JSON, strict models, `client_request_id` mandatory, replayed per link generation; the write budget is spent only
+by a NEW stored effect; read-only grace 409 `read_only`; no code session 403 `code_required`)
+
+| Route | Body | Answer | Refusals |
+|---|---|---|---|
+| `POST /t/api/rfq/quote` | `{lines[] (kind, description?, hours?, rate?, quantity?, unit_price?, amount? - the ticket quote's line), currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note?, vendor_ref?, base_version: int \| null, client_request_id}` | 201 `{ok, quote}` (the 15.3 shape) | 409 `rfq_due_passed`, 409 `quote_closed` (`reason`), 409 `quote_changed` (`version` = the current live version; `base_version` must name it, `null` when none), 422 `invalid` (`kind_not_allowed`, money / date fields) |
+| `POST /t/api/rfq/withdraw` | `{quote_id, client_request_id}` | 200 `{ok}` | 409 `rfq_due_passed`, `quote_closed`, `award_pending`; unknown / another vendor's quote 409 `quote_closed` |
+| `POST /t/api/rfq/decline` | `{reason? (<= 200), client_request_id}` | 200 `{ok}` | 409 `rfq_due_passed`, `quote_closed`, `quote_exists` (withdraw first) |
+| `POST /t/api/rfq/message` | `{text (1-2000), client_request_id}` | 201 `{ok, message}` | 409 `rfq_due_passed`, `quote_closed`, `message_limit` (30 per vendor) |
+
+Rules: a new quote supersedes the vendor's `submitted` one (version + 1; `source: vendor`, `created_by_kind: contact`); a quote after a
+"not interested" makes the vendor `quoted` again; the request moves `sent` -> `collecting`. `valid_until` is an instant (the page sends
+the end of the chosen day in the installation's zone), `> now` and within 366 days. Work dates may lie outside the wanted window (the
+page warns; `in_window` is computed on the server). Money is computed on the server only (money.py; client totals are refused by
+`extra = forbid`); only the request's allowed line kinds. All writes stop at the deadline (owner decision: no late quote; the
+manager may still enter one on the vendor's behalf). Every write records an RFQ timeline row (`quote_submitted` / `quote_withdrawn` /
+`declined` / `vendor_message`, actor `contact`, ids and versions only) and an audit row (`ticket.rfq.vendor_quote`,
+`.vendor_withdraw`, `.vendor_decline`, `.vendor_message`; actor `contact:<id>`, source `rfq_link`, ids / versions / totals - never a
+text). A vendor question is stored in the thread only; NOTHING is sent anywhere.
+
+### 15.5 Exposed fields (for the public-surface security review)
+
+| Field (vendor page) | Source | Shown when |
+|---|---|---|
+| `ref`, `organization`, `department` | `ticket_rfqs.number`, settings `organization_name`, department name | always (also before the code) |
+| `lang`, `dir`, `theme`, `time_zone` | the contact's language, settings | always |
+| `rfq.title`, `rfq.description`, `rfq.place_text` | the request (manager-written text meant for vendors) | after the code (or no code) |
+| `rfq.due_at`, `rfq.work_from`, `rfq.work_to`, `rfq.allowed_line_kinds` | the request | after the code |
+| `quote.*` | the vendor's OWN latest live `ticket_quotes` row (`rfq_vendor_id` = his) | after the code |
+| `declined` | his own vendor row (`declined_at`, `decline_reason`) | after the code |
+| `messages[].text/at/mine` | his own thread (`ticket_rfq_messages` of his vendor row) | after the code |
+| `form.vat`, `form.labor_rate_minor` | his own directory row (VAT default / exemption, his rate) | after the code |
+| `page_state` | derived (15.3) | after the code |
+
+NEVER exposed: other vendors (names, count, states, opens), other quotes or amounts, lowest / earliest, the comparison, awards of
+others, the second-approval threshold, internal notes, `cancel_reason`, the internal owner, the creator, who answered a question,
+the source ticket, the site / building / floor ids, the link's id / key id / expiry internals, outbox / delivery states, the token.
+
+### 15.6 Manager-side additions (the internal API)
+
+* `GET /tickets/rfqs/meta` adds `vendor_options: true`.
+* `POST /tickets/rfqs` `vendors[]` accepts `{contact_id, channel?: auto|whatsapp|email|manual (default auto), require_code?: bool}`;
+  `POST /tickets/rfqs/{id}/vendors` accepts the same two optional fields.
+* `POST /tickets/rfqs/{id}/vendors/{rv_id}/options` `{revision, require_code?, channel?}` (RFQ manager) -> the detail. `channel` only
+  for a `draft` vendor (else 409 `rfq_field_locked`); `require_code` until the vendor is awarded / removed; lowering a code the
+  directory demands is 409 `vendor_code_locked`. Audit `ticket.rfq.vendor_options` (field names and booleans only).
+* Detail `vendors[]` adds `require_code` (bool) and `channel_choice` (`auto` | `whatsapp` | `email` | `manual`, managers only).
+* `send` with `channel: auto` uses each vendor's `channel_choice` (`auto` = the contact's preferred channel, `manual` = no message for
+  that vendor); `channel: manual` on the send still means "nobody gets a message".
+* `rfq.VENDOR_PAGE = True`: invitations, reminders and the "new message" notice by WhatsApp / e-mail work when the public listener is
+  ready (`vendor_page_ready`), through the existing outbox purposes.
+
+### 15.7 Migration (no new number)
+
+0089 (still provisional, not released) gains, additively: `ticket_rfq_vendors.channel_choice` (TEXT NOT NULL DEFAULT 'auto'),
+`ticket_quotes.valid_until` (TEXT NULL), and `ticket_rfq_link_codes`, `ticket_rfq_link_failures`, `ticket_rfq_link_sessions` (the
+ticket code tables' columns; `link_id` -> `ticket_rfq_links(id)` ON DELETE CASCADE). Retention and full deletion remove them with
+the links.
 
 ## 14. Change log
 
