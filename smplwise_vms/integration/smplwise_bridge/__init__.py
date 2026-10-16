@@ -36,6 +36,10 @@ It does two things and nothing else:
    caller's own HA user. cast_policy.py decides independently of the add-on: the target's registry platform is `cast`, the URL is exactly
    `http://<host>:<port>/cast/<32 hex>/index.m3u8`, `<host>:<port>` is the origin the paired add-on announced (a signed `cast` block in its answer to the
    user-directory push) and the host is an address of THIS machine. `execute` still refuses every other `play_media` URL (media_policy.py, unchanged).
+11. The service identity (0.9.0, USR2 phase 3): every signed service first passes service_identity.screen - the signature is verified there once, and
+   a message carrying `on_behalf_of` (an Arx-only person) runs as the ONE non-administrator HA user an HA administrator configured in the options flow,
+   only for the features / items of service_identity.SERVICE_FEATURES (devices, alarm, media, cast, schedules); automations, the area write and the
+   stream source never. The person's id is attribution only. The configured id travels to the add-on with the directory push (its health check).
 """
 from __future__ import annotations
 
@@ -56,9 +60,9 @@ from homeassistant.helpers.event import async_track_time_interval
 
 from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
-from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM, SERVICE_CONFIG_ITEM,
-                    SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
-from . import media_policy
+from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
+                    SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
+from . import media_policy, service_identity
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .signing import Verifier, sign
@@ -129,6 +133,7 @@ STREAM_SOURCE_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("on_behalf_of"): dict,  # 0.9.0 (USR2 P3): judged by service_identity.screen
     },
     extra=vol.PREVENT_EXTRA,
 )
@@ -149,6 +154,7 @@ MEDIA_QUERY_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("on_behalf_of"): dict,  # 0.9.0 (USR2 P3): judged by service_identity.screen
     },
     extra=vol.PREVENT_EXTRA,
 )
@@ -190,6 +196,7 @@ CAST_STREAM_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("on_behalf_of"): dict,  # 0.9.0 (USR2 P3): judged by service_identity.screen
     },
     extra=vol.PREVENT_EXTRA,
 )
@@ -291,12 +298,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     verifier = Verifier(secret)
     session = async_get_clientsession(hass)
 
+    def service_user_id() -> Any:
+        """0.9.0 (USR2 P3): the service identity, read live from the options (an HA administrator sets it inside Home Assistant)."""
+        return entry.options.get(CONF_SERVICE_USER_ID)
+
+    async def screened(name: str, call: ServiceCall) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Verify the signature once and judge the service-identity rules (service_identity.screen)."""
+        return await service_identity.screen(hass, verifier, dict(call.data), name, service_user_id())
+
     async def execute(call: ServiceCall) -> ServiceResponse:
-        msg = dict(call.data)
-        reason = verifier.verify(msg)
-        if reason:
-            _LOGGER.warning("smplwise_bridge.execute refused: %s", reason)
-            return {"ok": False, "error": reason}
+        msg, refused = await screened(SERVICE_EXECUTE, call)
+        if refused is not None or msg is None:
+            return refused
         domain, service = msg["domain"], msg["service"]
         if (domain, service) not in ALLOWED_SERVICES:
             return {"ok": False, "error": "service_not_allowed"}
@@ -351,11 +364,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         per-user Context to check against; the VMS gates this itself (system.configure) and audits under the real
         actor before this is ever called - the signature and the fixed schema (area_id, and nothing else writable)
         are this side's own defence in depth."""
-        msg = dict(call.data)
-        reason = verifier.verify(msg)
-        if reason:
-            _LOGGER.warning("smplwise_bridge.set_entity_area refused: %s", reason)
-            return {"ok": False, "error": reason}
+        msg, refused = await screened(SERVICE_SET_AREA, call)  # 0.9.0: never on behalf of a local identity (not in any feature)
+        if refused is not None or msg is None:
+            return refused
         user = await hass.auth.async_get_user(msg["user_id"])
         if user is None or not user.is_active:
             return {"ok": False, "error": "unknown_user"}
@@ -377,21 +388,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def schedule(call: ServiceCall) -> ServiceResponse:
         """0.3.0 (CR-014): a signed write to the Scheduler component as the VMS user (see schedule_service.py)."""
-        return await async_handle_schedule(hass, verifier, dict(call.data))
+        msg, refused = await screened(SERVICE_SCHEDULE, call)
+        if refused is not None or msg is None:
+            return refused
+        return await async_handle_schedule(hass, service_identity.PREVERIFIED, msg)
 
     hass.services.async_register(DOMAIN, SERVICE_SCHEDULE, schedule, schema=SCHEDULE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
     async def stream_source(call: ServiceCall) -> ServiceResponse:
         """0.3.1: a signed READ-ONLY answer - the stream source Home Assistant reports for one camera entity (see
         stream_source_service.py). The URL leaves only in this response; it is never logged."""
-        return await async_handle_stream_source(hass, verifier, dict(call.data))
+        msg, refused = await screened(SERVICE_STREAM_SOURCE, call)
+        if refused is not None or msg is None:
+            return refused
+        return await async_handle_stream_source(hass, service_identity.PREVERIFIED, msg)
 
     hass.services.async_register(DOMAIN, SERVICE_STREAM_SOURCE, stream_source, schema=STREAM_SOURCE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
     async def media_query(call: ServiceCall) -> ServiceResponse:
         """0.5.0 (CR-016): a signed READ-ONLY answer about a speaker's music layer - its queue, or the library (see media_query_service.py). Trimmed; the
         Music Assistant config entry is found here and never a parameter."""
-        return await async_handle_media_query(hass, verifier, dict(call.data))
+        msg, refused = await screened(SERVICE_MEDIA_QUERY, call)
+        if refused is not None or msg is None:
+            return refused
+        return await async_handle_media_query(hass, service_identity.PREVERIFIED, msg)
 
     hass.services.async_register(DOMAIN, SERVICE_MEDIA_QUERY, media_query, schema=MEDIA_QUERY_SCHEMA, supports_response=SupportsResponse.ONLY)
 
@@ -401,7 +421,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def cast_stream(call: ServiceCall) -> ServiceResponse:
         """0.7.0 (CR-028): play / stop / off on ONE Cast media_player as the VMS user (see cast_service.py and cast_policy.py)."""
-        return await async_handle_cast_stream(hass, verifier, dict(call.data), _registry_platform)
+        msg, refused = await screened(SERVICE_CAST_STREAM, call)
+        if refused is not None or msg is None:
+            return refused
+        return await async_handle_cast_stream(hass, service_identity.PREVERIFIED, msg, _registry_platform)
 
     hass.services.async_register(DOMAIN, SERVICE_CAST_STREAM, cast_stream, schema=CAST_STREAM_SCHEMA, supports_response=SupportsResponse.ONLY)
 
@@ -411,7 +434,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def config_item(call: ServiceCall) -> ServiceResponse:
         """0.6.0 (CR-017): a signed write to / run of an automation, script or scene as the VMS user (see config_service.py)."""
-        return await async_handle_config_item(hass, verifier, dict(call.data), delegated=delegated)
+        msg, refused = await screened(SERVICE_CONFIG_ITEM, call)  # 0.9.0: a local identity is refused here (automation_write_requires_ha_identity)
+        if refused is not None or msg is None:
+            return refused
+        return await async_handle_config_item(hass, service_identity.PREVERIFIED, msg, delegated=delegated)
 
     hass.services.async_register(DOMAIN, SERVICE_CONFIG_ITEM, config_item, schema=CONFIG_ITEM_SCHEMA, supports_response=SupportsResponse.ONLY)
 
@@ -427,7 +453,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     break
             users.append({"id": u.id, "name": u.name, "username": username, "is_active": u.is_active, "is_admin": u.is_admin, "group_ids": [g.id for g in u.groups]})
         try:
-            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True}), timeout=10) as resp:
+            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
+                                                                                "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id())}), timeout=10) as resp:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
                     return 0

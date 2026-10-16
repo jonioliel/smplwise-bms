@@ -29,7 +29,7 @@ from typing import Any, Callable, Iterator, Protocol
 from ..audit import audit
 from ..db import Database, get_setting, set_setting, unlocked
 from ..errors import ApiError
-from . import ha_bridge, ha_client, ha_sync
+from . import ha_bridge, ha_client, ha_sync, service_identity
 from . import schedule_model as model
 from .timeutil import iso_utc, parse_utc
 
@@ -449,7 +449,9 @@ class Mirror:
                     return  # the original moved on (or is gone): nothing to complete blindly
                 target, entity, kind = meta["original"], original["entity_id"], "edit"
                 payload = {"weekdays": meta["remaining"], "start_date": meta.get("start_date"), "end_date": meta.get("end_date")}
-        body = {"user_id": op["principal_user_id"], "op": kind, "request_id": "adopt" + op["id"], "schedule_id": target, "schedule_entity_id": entity, "payload": payload, "name": None, "time": None,
+        with self._use(conn) as c:  # USR2 P3: a local user's follow-up runs through the service identity, while that user is still active
+            subj = service_identity.subject_for_user(c, op["principal_user_id"], "schedules", bridge_service="schedule", item=kind)
+        body = {**subj, "op": kind, "request_id": "adopt" + op["id"], "schedule_id": target, "schedule_entity_id": entity, "payload": payload, "name": None, "time": None,
                 "skip_conditions": False, "sensitive": sensitive}
         signed = ha_bridge.sign(secret or "", body)
         with (unlocked(conn) if conn is not None and not _read_only(conn) else nullcontext()):

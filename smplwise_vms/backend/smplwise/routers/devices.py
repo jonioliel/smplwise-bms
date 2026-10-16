@@ -40,6 +40,7 @@ from ..services import device_bulk as bulk
 from ..services import device_types
 from ..services import devices as svc
 from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
+from ..services import service_identity
 from ..services.timeutil import parse_utc
 
 router = APIRouter()
@@ -908,7 +909,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
         why = "אין בהיקף הזה התקן כבוי מהסוג הזה" if turning_on else "אין בהיקף הזה התקן פעיל מהסוג הזה"
         raise act.refuse(ApiError(409, "nothing_to_do", f"אין מה לשלוח: לפי הדיווח האחרון {why}.", details={"skipped": plan["skipped"]}))
     settings = settings_of(request)
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
+    if not service_identity.identity_ok(principal, settings):  # CR-008 + USR2 P3 (a local principal: the service identity's allow-list)
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):

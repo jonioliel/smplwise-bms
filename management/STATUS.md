@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-16T13:21:28.479823+00:00
+Generated: 2026-10-16T17:32:55.602011+00:00
 
-Tasks: 231 | Requirements: 339 | Tests: 355 | Screens: 32
+Tasks: 232 | Requirements: 341 | Tests: 357 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 39
+- REVIEW: 40
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 137
+- V1: 138
 - V2: 29
 - V3: 2
 
@@ -269,3 +269,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKFIX257](tasks/TKFIX257.md) | V1 | REVIEW | Service management 2.5.7: vendor page quote / payment-request card and light/dark setting (migration 0085), deep-review security hardening (migration 0086), expand-arrow fix | — |
 | [TKFIX258](tasks/TKFIX258.md) | V1 | REVIEW | Service management 2.5.8: assignable staff, vendor account screen, no-login staff link (migration 0087), WhatsApp notification channel, handler-page path, TK251 remainder hardening | — |
 | [USR2-P1](tasks/USR2-P1.md) | V1 | REVIEW | USR2 phases P0+P1: Arx-only identities (CR-USR2) - identity store, passwords, sign-in, sessions, brute-force tiers, administration, sign-in page mode, settings tab; behind security.local_identity (off) | — |
+| [USR2-P3](tasks/USR2-P3.md) | V1 | REVIEW | USR2 phase P3: the service identity - Arx-only users act in Home Assistant through ONE non-administrator HA user under a per-feature allow-list enforced by the add-on and the bridge (0.9.0); behind security.local_identity (off) | — |

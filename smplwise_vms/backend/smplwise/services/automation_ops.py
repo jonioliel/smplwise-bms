@@ -31,6 +31,7 @@ from . import automation_text as text
 from . import automation_transport as tr
 from . import automation_view as view
 from . import automations as store
+from . import service_identity
 from . import door_path_guard as guard
 from . import door_run_guard, ha_bridge, ha_sync
 
@@ -219,6 +220,7 @@ def bridge_error(resp: dict[str, Any], op: str | None = None) -> ApiError:
 def bridge_body(w: W, op: str, op_id: str, *, kind: str | None, item_id: str | None, base_revision: str | None, profile: str | None, config: dict[str, Any] | None,
                 preserved: list[str] | None, sensitive: bool, variables: dict[str, Any] | None, skip_condition: bool | None, entity_id: str | None) -> dict[str, Any]:
     """The message of one op with exactly the keys the bridge accepts for it (`config_policy.OP_KEYS`: any other key is refused as `invalid_payload`)."""
+    service_identity.refuse_automation_write(w.conn, w.principal, w.request_id)  # USR2 P3: never for a local identity (also refused in the router)
     body: dict[str, Any] = {"user_id": w.principal.user_id, "op": op, "request_id": op_id}
     if op == "apply_scene":
         body["entity_id"] = entity_id

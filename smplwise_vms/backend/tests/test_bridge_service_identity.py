@@ -1,0 +1,222 @@
+"""USR2 phase 3, the BRIDGE side (custom_components/smplwise_bridge/service_identity.py, bridge 0.9.0) - negative cases first.
+
+The bridge decides independently of the add-on: a message acting for an Arx-only person (`on_behalf_of`) runs only as the ONE service identity
+configured in the bridge's own options, never an administrator, only for the per-feature allow-list; automations, the area write and the
+stream source never; the service identity never acts as itself; a local id is never a Home Assistant user. The person's id is attribution
+only - forging it changes nothing about who acts. Fakes only: no Home Assistant is imported or contacted."""
+from __future__ import annotations
+
+import ast
+import asyncio
+from types import SimpleNamespace
+
+import pytest
+
+from bridge_loader import MIRROR, SRC, init_allowed_services, load
+
+si = load("service_identity")
+signing = load("signing")
+
+SECRET = "pairing-secret"
+SID = "a" * 32  # the service identity (32 hex)
+OTHER = "b" * 32  # another, regular HA user
+ADMIN = "c" * 32  # an HA administrator
+LID = "l_01JABCDEFGHJKMNPQRSTVWXYZ0"  # an Arx-only person (l_ + 26 Crockford base32)
+
+
+class FakeAuth:
+    def __init__(self, users):
+        self.users = users
+        self.asked: list[str] = []
+
+    async def async_get_user(self, user_id):
+        self.asked.append(user_id)
+        return self.users.get(user_id)
+
+
+def _hass(**over):
+    users = {
+        SID: SimpleNamespace(id=SID, is_active=True, is_admin=False, system_generated=False),
+        OTHER: SimpleNamespace(id=OTHER, is_active=True, is_admin=False, system_generated=False),
+        ADMIN: SimpleNamespace(id=ADMIN, is_active=True, is_admin=True, system_generated=False),
+    }
+    users.update(over)
+    return SimpleNamespace(auth=FakeAuth(users))
+
+
+def _signed(body: dict) -> dict:
+    return signing.sign(SECRET, body)
+
+
+def _obo(feature: str = "devices.control", **over) -> dict:
+    return {"kind": "local", "user_id": LID, "feature": feature, **over}
+
+
+def _execute(domain="light", service="turn_on", user_id=SID, obo=None, **extra) -> dict:
+    body = {"user_id": user_id, "domain": domain, "service": service, "data": {"entity_id": f"{domain}.x"}, "request_id": "r1", **extra}
+    if obo is not None:
+        body["on_behalf_of"] = obo
+    return _signed(body)
+
+
+def _screen(msg: dict, service: str = "execute", configured=SID, hass=None, verifier=None):
+    return asyncio.run(si.screen(hass or _hass(), verifier or signing.Verifier(SECRET), msg, service, configured))
+
+
+def _error(result) -> str | None:
+    msg, refused = result
+    return None if refused is None else refused["error"]
+
+
+# ---------------------------------------------------------------- refusals first
+
+def test_a_bad_signature_is_refused_before_anything_else():
+    msg = _execute(obo=_obo())
+    msg["on_behalf_of"] = _obo(user_id="l_01JABCDEFGHJKMNPQRSTVWXYZ1")  # tampered after signing: the forged person breaks the signature
+    hass = _hass()
+    assert _error(_screen(msg, hass=hass)) == "bad_signature"
+    assert hass.auth.asked == []
+
+
+def test_on_behalf_of_must_name_the_configured_service_identity():
+    assert _error(_screen(_execute(user_id=OTHER, obo=_obo()))) == "service_identity_refused"  # the add-on cannot pick another HA user
+    assert _error(_screen(_execute(user_id=ADMIN, obo=_obo()), configured=ADMIN)) == "service_identity_admin"  # an admin is refused even when configured
+    assert _error(_screen(_execute(obo=_obo()), configured=None)) == "service_identity_unconfigured"
+    assert _error(_screen(_execute(obo=_obo()), configured="not-an-id")) == "service_identity_unconfigured"
+
+
+@pytest.mark.parametrize("user", [None, SimpleNamespace(id=SID, is_active=False, is_admin=False, system_generated=False),
+                                  SimpleNamespace(id=SID, is_active=True, is_admin=False, system_generated=True),
+                                  SimpleNamespace(id=SID, is_active=True)])  # no is_admin attribute at all: treated as an administrator
+def test_the_service_user_must_exist_be_active_human_and_not_admin(user):
+    hass = _hass(**{SID: user})
+    assert _error(_screen(_execute(obo=_obo()), hass=hass)) in ("service_identity_unknown_user", "service_identity_admin")
+
+
+def test_the_service_identity_never_acts_as_itself_and_a_local_id_is_never_a_user():
+    assert _error(_screen(_execute(user_id=SID))) == "service_identity_refused"  # no on_behalf_of -> the allow-list cannot be bypassed
+    assert _error(_screen(_execute(user_id=LID))) == "service_identity_refused"
+    assert _error(_screen(_execute(user_id=LID), configured=None)) == "service_identity_refused"
+
+
+@pytest.mark.parametrize("obo", [
+    "local", ["local"], {}, _obo(kind="ha"), _obo(user_id=OTHER), _obo(user_id="l_short"), _obo(user_id="l_01jabcdefghjkmnpqrstvwxyz0"),
+    {**_obo(), "is_admin": True}, {**_obo(), "role": "system_admin"}, {"kind": "local", "user_id": LID},
+])
+def test_malformed_or_padded_on_behalf_of_is_refused(obo):
+    assert _error(_screen(_execute(obo=obo))) == "service_identity_refused"
+
+
+@pytest.mark.parametrize("feature,domain,service", [
+    ("devices.control", "lock", "unlock"),  # a door: kept refused
+    ("devices.control", "alarm_control_panel", "alarm_disarm"),  # the alarm is its own feature
+    ("alarm", "switch", "turn_on"),  # a zone bypass switch is not arm / disarm
+    ("alarm", "alarm_control_panel", "alarm_trigger"),
+    ("media", "light", "turn_on"),
+    ("automations", "automation", "trigger"),
+    ("system", "homeassistant", "restart"),
+    ("devices.area", "light", "turn_on"),  # the spec's area key is off by default
+])
+def test_items_outside_the_feature_allow_list_are_refused(feature, domain, service):
+    assert _error(_screen(_execute(domain=domain, service=service, obo=_obo(feature)))) == "service_identity_refused"
+
+
+def test_services_outside_every_feature_are_refused():
+    base = {"user_id": SID, "request_id": "r1", "on_behalf_of": _obo("devices.control")}
+    assert _error(_screen(_signed({**base, "op": "upsert", "kind": "automation"}), "config_item")) == "automation_write_requires_ha_identity"
+    assert _error(_screen(_signed({**base, "op": "trigger", "on_behalf_of": _obo("schedules")}), "config_item")) == "automation_write_requires_ha_identity"
+    assert _error(_screen(_signed({**base, "entity_id": "light.x", "area_id": "kitchen"}), "set_entity_area")) == "service_identity_refused"
+    assert _error(_screen(_signed({**base, "entity_id": "camera.x", "on_behalf_of": _obo("media")}), "stream_source")) == "service_identity_refused"
+    assert _error(_screen(_signed({**base, "op": "play", "entity_id": "media_player.tv", "on_behalf_of": _obo("media")}), "cast_stream")) == "service_identity_refused"
+    assert _error(_screen(_signed({**base, "op": ["play"], "entity_id": "media_player.tv", "on_behalf_of": _obo("cast")}), "cast_stream")) == "service_identity_refused"
+    assert _error(_screen(_signed({**base, "query": "secrets", "on_behalf_of": _obo("media")}), "media_query")) == "service_identity_refused"
+    assert _error(_screen(_signed({**base, "op": "purge", "on_behalf_of": _obo("schedules")}), "schedule")) == "service_identity_refused"
+
+
+# ---------------------------------------------------------------- what is allowed, and what reaches the handler
+
+@pytest.mark.parametrize("service,feature,body", [
+    ("execute", "devices.control", {"domain": "light", "service": "turn_on", "data": {"entity_id": "light.x"}}),
+    ("execute", "alarm", {"domain": "alarm_control_panel", "service": "alarm_arm_away", "data": {"entity_id": "alarm_control_panel.h"}}),
+    ("execute", "alarm", {"domain": "alarm_control_panel", "service": "alarm_disarm", "data": {"entity_id": "alarm_control_panel.h"}}),
+    ("execute", "media", {"domain": "media_player", "service": "volume_set", "data": {"entity_id": "media_player.x", "volume_level": 0.2}}),
+    ("media_query", "media", {"query": "queue", "entity_id": "media_player.x"}),
+    ("cast_stream", "cast", {"op": "stop", "entity_id": "media_player.tv"}),
+    ("schedule", "schedules", {"op": "add", "payload": {}}),
+])
+def test_allowed_items_pass_as_the_service_identity_without_the_attribution_block(service, feature, body):
+    msg = _signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body})
+    out, refused = _screen(msg, service)
+    assert refused is None
+    assert "on_behalf_of" not in out and out["user_id"] == SID  # the handler's strict key sets and Context(user_id) see the service identity only
+    assert {k: out[k] for k in body} == body
+
+
+def test_forged_attribution_never_changes_who_acts():
+    """Two signed messages that differ only in the person: both act as the service identity - nothing authorises by the attribution."""
+    a, _ = _screen(_execute(obo=_obo()))
+    b, _ = _screen(_execute(obo=_obo(user_id="l_01JZZZZZZZZZZZZZZZZZZZZZZZ")))
+    assert a["user_id"] == b["user_id"] == SID
+
+
+def test_ha_users_are_untouched():
+    out, refused = _screen(_execute(user_id=OTHER))
+    assert refused is None and out["user_id"] == OTHER and "on_behalf_of" not in out
+    out, refused = _screen(_execute(user_id=OTHER), configured=None)  # the bridge without a service identity behaves exactly as 0.8.0
+    assert refused is None and out["user_id"] == OTHER
+
+
+def test_the_signature_is_spent_once_and_the_handler_gets_preverified():
+    verifier = signing.Verifier(SECRET)
+    msg = _execute(obo=_obo())
+    assert _screen(msg, verifier=verifier)[1] is None
+    assert _error(_screen(msg, verifier=verifier)) == "replay"
+    assert si.PREVERIFIED.verify({"anything": 1}) is None
+
+
+def test_options_flow_check():
+    hass = _hass()
+    assert asyncio.run(si.options_error(hass, "")) is None
+    assert asyncio.run(si.options_error(hass, SID)) is None
+    assert asyncio.run(si.options_error(hass, ADMIN)) == "service_user_admin"
+    assert asyncio.run(si.options_error(hass, "d" * 32)) == "service_user_unknown"
+    assert asyncio.run(si.options_error(hass, "ABC")) == "service_user_format"
+    assert asyncio.run(si.options_error(hass, LID)) == "service_user_format"
+
+
+# ---------------------------------------------------------------- the tables, the wiring and the version
+
+def test_feature_tables_are_inside_the_execute_allow_list():
+    allowed = init_allowed_services()
+    assert si.DEVICE_PAIRS == allowed - {p for p in allowed if p[0] == "alarm_control_panel"} - {("lock", "unlock")}
+    assert si.ALARM_PAIRS <= allowed and ("alarm_control_panel", "alarm_trigger") not in si.ALARM_PAIRS
+    assert si.MEDIA_PAIRS <= si.DEVICE_PAIRS and all(d in si.MEDIA_DOMAINS for d, _ in si.MEDIA_PAIRS)
+    assert set(si.SERVICE_FEATURES) == {"devices.control", "alarm", "media", "cast", "schedules"}
+    assert not any(s in svc for svc in si.SERVICE_FEATURES.values() for s in ("config_item", "set_entity_area", "stream_source"))
+
+
+def test_every_signed_service_is_screened_and_no_handler_verifies_again():
+    """Every service registered in __init__.py goes through screen() first; the module handlers get PREVERIFIED (their own verify would answer
+    `replay`); the strict schemas accept the optional `on_behalf_of` block."""
+    text = (SRC / "__init__.py").read_text(encoding="utf-8")
+    for name in ("SERVICE_EXECUTE", "SERVICE_SET_AREA", "SERVICE_SCHEDULE", "SERVICE_STREAM_SOURCE", "SERVICE_MEDIA_QUERY", "SERVICE_CAST_STREAM", "SERVICE_CONFIG_ITEM"):
+        assert f"await screened({name}, call)" in text, name
+    assert "verifier.verify(msg)" not in text
+    assert text.count("service_identity.PREVERIFIED") == 5
+    assert text.count('vol.Optional("on_behalf_of"): dict') == 3  # the three PREVENT_EXTRA schemas (stream_source, media_query, cast_stream)
+    assert '"service_user_id": service_identity.configured_id(service_user_id())' in text  # the add-on's health check learns the bridge's copy
+    tree = ast.parse(text)
+    assert tree is not None
+
+
+def test_version_090_and_both_copies_identical():
+    import json
+
+    for root in (SRC, MIRROR):
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.0"
+        assert 'VERSION = "0.9.0"' in (root / "const.py").read_text(encoding="utf-8")
+        assert (root / "service_identity.py").read_bytes() == (SRC / "service_identity.py").read_bytes()
+    for name in ("strings.json", "translations/en.json", "translations/he.json"):
+        data = json.loads((SRC / name).read_text(encoding="utf-8"))
+        assert "service_user_id" in data["options"]["step"]["init"]["data"], name
+        assert set(data["options"]["error"]) == {"service_user_format", "service_user_unknown", "service_user_admin"}, name

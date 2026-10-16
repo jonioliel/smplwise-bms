@@ -240,8 +240,21 @@ def classify(domain: str, old: dict[str, Any], new: dict[str, Any]) -> tuple[str
 # ---------------------------------------------------------------- attribution
 
 def _user_name(conn: sqlite3.Connection, user_id: str) -> str | None:
+    if isinstance(user_id, str) and user_id.startswith("l_"):
+        # USR2 P3: an Arx-only person (acting through the service identity) is named from the Arx user row - never from the directory
+        r = conn.execute("SELECT display_name, username FROM users WHERE id = ?", (user_id,)).fetchone()
+        return ((r["display_name"] or r["username"]) if r else None) or None
     r = conn.execute("SELECT name, username FROM ha_users WHERE id = ?", (user_id,)).fetchone()
     return ((r["name"] or r["username"]) if r else None) or None
+
+
+def _service_user_id(conn: sqlite3.Connection) -> str | None:
+    """USR2 P3: the service identity's HA id (identity.service_user_id) - a change under its context is never attributed to "the service"."""
+    try:
+        r = conn.execute("SELECT value FROM settings WHERE key = 'identity.service_user_id'").fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return (r["value"] or None) if r else None
 
 
 def _entity_name(conn: sqlite3.Connection, entity_id: str) -> str | None:
@@ -271,6 +284,10 @@ def attribute(conn: sqlite3.Connection, kind: str, ctx: dict[str, Any]) -> dict[
         a = conn.execute("SELECT principal_user_id, principal_username FROM ha_actions WHERE context_id = ? ORDER BY requested_at DESC LIMIT 1", (cid,)).fetchone()
         if a:
             return {**base, "actor_type": "person", "actor_ref": a["principal_user_id"], "actor_name": _user_name(conn, a["principal_user_id"]) or a["principal_username"], "via": "arx", "confidence": "exact"}
+    if uid and uid == _service_user_id(conn):
+        # USR2 P3: done for an Arx-only person through the service identity, before the bridge's answer linked the context to that person
+        # (device_activity.link_context then rewrites the row to the person, exact) - never shown as the service user
+        return {**base, "actor_type": "person", "via": "arx", "confidence": "inferred"}
     if uid:
         return {**base, "actor_type": "person", "actor_ref": uid, "actor_name": _user_name(conn, uid), "via": "ha", "confidence": "exact"}
     if src:

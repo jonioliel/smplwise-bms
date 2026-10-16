@@ -24,7 +24,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from . import door_path_guard as guard
-from . import door_run_guard, ha_bridge, ha_sync
+from . import door_run_guard, ha_bridge, ha_sync, service_identity
 from . import schedule_model as model
 from . import schedule_policy as policy
 from . import schedule_view as view
@@ -335,7 +335,9 @@ def bridge_call(w: W, op: str, op_id: str, *, schedule_id: str | None = None, sc
     """One signed `smplwise_bridge.schedule` call, made with the request's write lock released. Never retried. A transport
     failure or an `ok: false` answer settles the op and raises (504 `scheduler_timeout` leaves it `unknown`)."""
     secret = ha_bridge.signing_key(w.conn)
-    body = {"user_id": w.principal.user_id, "op": op, "request_id": op_id, "schedule_id": schedule_id, "schedule_entity_id": schedule_entity_id, "payload": payload or {},
+    # USR2 P3: a local (Arx-only) principal acts through the service identity (`schedules` feature); refused = ApiError before the call
+    subj = service_identity.subject(w.conn, w.principal, "schedules", bridge_service="schedule", item=op, request_id=w.request_id)
+    body = {**subj, "op": op, "request_id": op_id, "schedule_id": schedule_id, "schedule_entity_id": schedule_entity_id, "payload": payload or {},
             "name": name, "time": time_, "skip_conditions": bool(skip_conditions), "sensitive": bool(sensitive)}
     signed = ha_bridge.sign(secret or "", body)
     tr = store.get_transport()

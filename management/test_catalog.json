@@ -9648,5 +9648,49 @@
     "expected": "Sign-in works through the tunnel, the apps keep the session, one hash stays well under a second within the memory budget.",
     "status": "NOT_RUN",
     "notes": "Needs the real installation and devices; not run by the agent."
+  },
+  {
+    "id": "AT-USR2-3",
+    "requirement_ids": [
+      "R-USR2-3"
+    ],
+    "task_ids": [
+      "USR2-P3"
+    ],
+    "title": "USR2 P3: the service identity - negative-first fixture tests (add-on and bridge)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device, no Home Assistant"
+    ],
+    "procedure": [
+      "backend tests/test_service_identity.py, tests/test_bridge_service_identity.py (and the touched suites: test_bridge_*, test_lovelace_card, test_local_identity, test_remote_access, test_alarm, test_ha*, test_devices, test_media_commands, test_cast*, test_schedules_api, test_automations_writes, test_device_activity*)",
+      "frontend tests/unit-service-identity.spec.ts (--project=desktop)"
+    ],
+    "expected": "Every listed test passes on the branch; a Home Assistant principal's bridge message is unchanged.",
+    "status": "NOT_RUN",
+    "notes": "Run by the lead's tier-M gate after integration."
+  },
+  {
+    "id": "AT-USR2-4",
+    "requirement_ids": [
+      "R-USR2-4"
+    ],
+    "task_ids": [
+      "USR2-P3"
+    ],
+    "title": "USR2 P3 on the owner's Home Assistant: the service identity end to end",
+    "kind": "hardware/manual",
+    "preconditions": [
+      "The owner's installation with bridge 0.9.0, security.local_identity on, a non-administrator HA service user created by the owner"
+    ],
+    "procedure": [
+      "Set the service user's id in the bridge options flow and in Settings > Arx users; the card shows Ready",
+      "As an Arx-only user: switch a light, arm and disarm under the PIN rules, play media, cast a camera, edit a schedule; try an automation save (refused) and a door (refused)",
+      "Check the device activity shows the person and HA's logbook shows the service user"
+    ],
+    "expected": "The allowed actions work, the refused ones are refused on both sides, attribution names the person.",
+    "status": "NOT_RUN",
+    "notes": "Needs the owner's Home Assistant; not run by the agent."
   }
 ]

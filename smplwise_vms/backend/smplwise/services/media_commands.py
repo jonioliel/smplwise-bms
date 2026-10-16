@@ -33,6 +33,7 @@ from ..db import database_of, get_setting, now_iso, read_mode, unlocked
 from ..errors import ApiError
 from ..rbac import Principal, note_grant
 from . import ha_actions, ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_query, media_store as store
+from . import service_identity
 from .timeutil import parse_utc
 
 EXPIRY_MAX_S = 60.0
@@ -741,7 +742,7 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
     if kind != "screen":
         _require_fan_out(conn, principal, request_id, cat, item, access, cmd)
     # 4. the caller's identity and the bridge
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+    if not service_identity.identity_ok(principal, settings):  # USR2 P3: a local principal goes on to the service identity's allow-list
         raise _deny(conn, principal, request_id, item, cmd, err(403, "identity_unmapped"))
     bridge = store.bridge_state(conn)
     if not bridge["paired"]:
@@ -795,6 +796,11 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
         if exc.code in ("action_not_allowed", "action_domain_mismatch", "argument_not_allowed"):
             exc = err(422, "not_supported", reason=exc.code)
         raise _deny(conn, principal, request_id, item, cmd, exc) from None
+    # 6b. USR2 P3: a local (Arx-only) principal acts through the service identity, `media` allow-list only - refused before anything is recorded
+    try:
+        subj = service_identity.subject(conn, principal, "media", bridge_service="execute", item=(spec["domain"], spec["service"]), request_id=request_id)
+    except ApiError as exc:
+        raise _deny(conn, principal, request_id, item, cmd, exc) from None
     # 7. (the rate limits were applied by `admit()` before the catalogue was loaded)
     # 8. record, send, settle
     command_id = uuid.uuid4().hex
@@ -818,7 +824,7 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
         conn.execute(
             "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (aid, p.entity_id, p.action_id, json.dumps(cleaned, ensure_ascii=False) if p.kind not in ("text",) else "{}", principal.user_id, principal.username, f"media:{crid}", "pending", created, expected, "bridge"))
-    payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": request_ref})
+    payload = ha_bridge.sign(secret or "", {**subj, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": request_ref})
     try:
         with unlocked(conn):  # the HA call runs without the request's write lock
             result = ha_client.call_bridge_execute(settings, payload)

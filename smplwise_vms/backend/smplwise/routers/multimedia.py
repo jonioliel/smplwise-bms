@@ -36,6 +36,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import device_bulk as bulk
 from ..services import ha_bridge, ha_client, ha_sync, ma_direct, media_commands, media_groups, media_layout, media_model as mm, media_profiles as profiles, media_query, media_queue, media_store as store, user_prefs
+from ..services import service_identity
 from .devices import _envelope, _is_json, _raw_body
 
 router = APIRouter()
@@ -472,7 +473,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_gate), raw: 
     if not plan["count"]:
         raise act.refuse(ApiError(409, "nothing_to_do", "אין מה לכבות: לפי הדיווח האחרון אין בהיקף הזה מסך שאושר כדולק." if body.kind == "screens_off" else "אין מה לעצור: לפי הדיווח האחרון לא מנגן בהיקף הזה דבר שאושר.", details={"counts": plan["counts"]}))
     settings = settings_of(request)
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+    if not service_identity.identity_ok(principal, settings):  # USR2 P3: a local principal goes on to the service identity's allow-list
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
@@ -910,7 +911,7 @@ def _group_request(request: Request, conn: sqlite3.Connection, principal: Princi
 def _group_bridge(request: Request, conn: sqlite3.Connection, principal: Principal, act: _MediaRefusals) -> tuple[Any, str]:
     """The prerequisites of a group write: the caller's identity maps to a Home Assistant user, the bridge is paired and at least 0.5.0 (503 otherwise)."""
     settings = settings_of(request)
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+    if not service_identity.identity_ok(principal, settings):  # USR2 P3: a local principal goes on to the service identity's allow-list
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):

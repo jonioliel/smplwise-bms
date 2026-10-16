@@ -11,7 +11,8 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
-from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, DEFAULT_ADDON_URL, DOMAIN, VERSION
+from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DEFAULT_ADDON_URL, DOMAIN, VERSION
+from .service_identity import options_error
 from .signing import sign
 
 
@@ -98,10 +99,20 @@ class SmplwiseBridgeOptionsFlow(config_entries.OptionsFlow):
         entry = self._entry()
         options = dict(entry.options) if entry is not None else {}
         current = bool(options.get(CONF_DELEGATED_AUTHORING, False))
+        service_user = str(options.get(CONF_SERVICE_USER_ID) or "")
+        errors: dict[str, str] = {}
         if user_input is not None:
             new = bool(user_input.get(CONF_DELEGATED_AUTHORING, False))
-            changed_at = options.get(CONF_DELEGATED_CHANGED_AT)
-            if new != current:
-                changed_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-            return self.async_create_entry(title="", data={**options, CONF_DELEGATED_AUTHORING: new, CONF_DELEGATED_CHANGED_AT: changed_at})
-        return self.async_show_form(step_id="init", data_schema=vol.Schema({vol.Optional(CONF_DELEGATED_AUTHORING, default=current): bool}))
+            # 0.9.0 (USR2 P3): the service identity for Arx-only users - ONE existing, active, NON-administrator HA user (32-hex id), or empty
+            typed = str(user_input.get(CONF_SERVICE_USER_ID) or "").strip().lower()
+            err = await options_error(self.hass, typed)
+            if err:
+                errors[CONF_SERVICE_USER_ID] = err
+                service_user = typed
+            else:
+                changed_at = options.get(CONF_DELEGATED_CHANGED_AT)
+                if new != current:
+                    changed_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+                return self.async_create_entry(title="", data={**options, CONF_DELEGATED_AUTHORING: new, CONF_DELEGATED_CHANGED_AT: changed_at, CONF_SERVICE_USER_ID: typed or None})
+        schema = vol.Schema({vol.Optional(CONF_DELEGATED_AUTHORING, default=current): bool, vol.Optional(CONF_SERVICE_USER_ID, default=service_user): str})
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

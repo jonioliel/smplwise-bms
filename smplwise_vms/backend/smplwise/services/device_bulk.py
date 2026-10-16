@@ -50,7 +50,7 @@ from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
 from ..rbac import Principal
 from . import devices as dsvc
-from . import device_activity, ha_actions, ha_bridge, ha_client, ha_scope
+from . import device_activity, ha_actions, ha_bridge, ha_client, ha_scope, service_identity
 from .timeutil import iso_utc
 
 log = logging.getLogger(__name__)
@@ -770,6 +770,10 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
         t["id"] = f"{bulk_id}{n:04d}"
         t["data"] = data
         t["service"] = spec["service"]
+        # USR2 P3: the identity fields of this call - a Home Assistant principal's own id, or (a local principal) the service identity under the
+        # `devices.control` / `media` allow-list; one refused target refuses the whole bulk before anything is recorded or sent
+        t["subject"] = service_identity.subject(conn, principal, service_identity.feature_for_pair(spec["domain"], spec["service"], media=plan.get("origin") == "media"),
+                                                bridge_service="execute", item=(spec["domain"], spec["service"]))
         # the arguments as validated (cleaned: entity_id dropped) - CR-007 slice 4: an attribute confirmation (e.g.
         # covers_position) compares the observed attribute to THESE, exactly as the single-entity route does
         # (routers/ha.py); every earlier bulk kind sends no arguments at all, so this was always "{}" for them.
@@ -806,7 +810,7 @@ def _call(settings: Settings, secret: str, principal: Principal, t: dict[str, An
     """One entity's bridge call (its record is already `sending`, committed). (item, status, error). The caller holds
     one of the global slots; it is released here, whatever happens."""
     try:
-        payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "domain": t["domain"], "service": t["service"], "data": t["data"], "request_id": t["id"]})
+        payload = ha_bridge.sign(secret, {**(t.get("subject") or {"user_id": principal.user_id}), "domain": t["domain"], "service": t["service"], "data": t["data"], "request_id": t["id"]})
         try:
             result = ha_client.call_bridge_execute(settings, payload)
         except ApiError as exc:
