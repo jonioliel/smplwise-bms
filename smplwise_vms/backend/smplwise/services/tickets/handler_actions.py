@@ -278,7 +278,9 @@ def record_open(conn, link: LinkRecord, now: dt.datetime, client_key: str) -> No
     """An open of the page WITH the token (spec 9.7 / D14 "הקישור נפתח ב-..."): the first one writes the timeline line, every one
     moves the counters, one access row per device every few minutes. Never extends the link (a preview must not keep it alive)."""
     at = iso(now)
-    first = store_links.note_open(conn, link.link_id, at)
+    first = store_links.note_open(conn, link.link_id, at, link.generation)
+    if first is None:
+        return  # TK251 review R2 A-5: the link moved to a new generation meanwhile - this open belongs to a dead token
     if first:
         ticket = store_links.ticket_of_link(conn, link.link_id)
         asg = store.assignment(conn, link.assignment_id)
