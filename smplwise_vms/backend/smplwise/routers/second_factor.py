@@ -96,6 +96,10 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
                                      request_id=getattr(request.state, "correlation_id", None))
     # TFA2: a phone device token issued before the factor existed ends too; the app re-registers through a session (which owes the code)
     tokens = presence.revoke_tokens(conn, principal.user_id)
+    if principal.source == "local":  # USR2: the other local sessions end; this one rotates and counts as having shown the factor
+        from ..services import local_identity
+
+        ended += local_identity.on_factor_enabled(conn, settings_of(request), request, principal)
     _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended, device_tokens_revoked=tokens)
     return sf.status(conn, principal.user_id)
 
@@ -198,6 +202,9 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     removed = sf.remove(conn, user_id)
     ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=getattr(request.state, "correlation_id", None))
     tokens = presence.revoke_tokens(conn, user_id)  # TFA2: the phone app's device tokens end with the factor (it re-registers through a session)
+    from ..services import local_identity
+
+    ended += local_identity.on_factor_reset(conn, user_id)  # USR2: a local user's sessions end with the factor (`factor_reset`)
     if was_active:
         notify_sources.second_factor_reset(conn, user_id)  # TFA2: the user hears of it in their inbox - no actor, no secret
     _audit(conn, request, principal, "auth.second_factor.reset", user_id, removed=removed, step_up=sf.is_enrolled(conn, principal.user_id), sign_ins_ended=ended,

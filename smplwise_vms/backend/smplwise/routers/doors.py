@@ -266,7 +266,7 @@ def switch_subject(body: SubjectSwitch, request: Request, principal: Principal =
             # SEC-WXD L1: never a door grant for a wall display (CR-033 4.1 step 1 refuses it at the door anyway)
             raise ApiError(422, "wall_account", "מסך קיר אינו מקבל הרשאה לפתיחת דלתות.")
         bb = acc.BindingBody(subject_kind=body.subject_kind, subject_id=body.subject_id, role_id=DOOR_ROLE, scope_type="installation", scope_id="*")
-        acc.validate_binding(conn, principal, bb)
+        acc.validate_binding(conn, principal, bb, request)
         bid, rev = acc.insert_binding(conn, principal, request, bb, extra_audit={"via": "door_grants_card"})
         conn.execute("INSERT INTO door_grant_bindings(binding_id, created_at) VALUES (?, ?)", (bid, now_iso()))
         revocation.changed(acc.affected_users(conn, body.subject_kind, body.subject_id))

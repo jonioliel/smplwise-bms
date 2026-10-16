@@ -189,7 +189,7 @@ def _sync_bindings(conn: sqlite3.Connection, principal: Principal, request: Requ
         if (scope_type, scope_id) in have:
             continue
         body = BindingBody(subject_kind="user", subject_id=user_id, role_id=wall.KIOSK_ROLE, scope_type=scope_type, scope_id=scope_id)
-        validate_binding(conn, principal, body)
+        validate_binding(conn, principal, body, request)
         insert_binding(conn, principal, request, body, extra_audit={"via": "wall"})
 
 

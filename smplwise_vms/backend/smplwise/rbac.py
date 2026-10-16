@@ -107,10 +107,29 @@ class Principal:
     user_id: str
     username: str
     display_name: str
-    source: str  # ingress | dev | remote
+    source: str  # ingress | dev | remote | local (USR2: an Arx-only identity, remote channel only)
     # CR-008 P2: on the remote channel, how the caller proved who they are - "cookie" (an Arx session) or "bearer" (an HA
     # access token on every request, a native client); "" elsewhere. Not part of equality: the same user either way.
     via: str = field(default="", compare=False)
+    # USR2 (owner answer Q3): a local principal's session showed the TOTP second factor at sign-in. Without it the
+    # administrative permissions (LOCAL_ADMIN_PERMISSIONS) are refused. Meaningless for every other source.
+    factor_ok: bool = field(default=False, compare=False)
+
+
+# USR2 (owner answer Q3, docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md): the administrative permissions. A local (Arx-only) principal
+# can use one of them only in a session whose sign-in presented a TOTP code; until then authorize() refuses it with the reason
+# `second_factor_required` (fail closed). The system permissions themselves never reach a local identity (only system_admin
+# holds them and system_admin is never bound to one); they are listed so the rule stays true if a role ever changes.
+LOCAL_ADMIN_PERMISSIONS = frozenset({
+    "rbac.assign", "identity.directory.read", "system.configure", "identity.local.manage",
+    "rbac.roles.manage", "sources.configure", "audit.read", "backup.manage", "nvr.configure", "system.update",
+})
+LOCAL_ID_PREFIX = "l_"
+
+
+def local_factor_gate(principal: Principal, permission: str) -> bool:
+    """True when this permission is withheld from this principal by the USR2 second-factor rule."""
+    return principal.source == "local" and permission in LOCAL_ADMIN_PERMISSIONS and not principal.factor_ok
 
 
 @dataclass(frozen=True)
@@ -203,16 +222,23 @@ def station_chain(conn: sqlite3.Connection, station_id: str) -> list[tuple[str, 
 
 def _active_bindings(conn: sqlite3.Connection, principal: Principal) -> list[sqlite3.Row]:
     now = now_iso()
-    return conn.execute(
+    rows = conn.execute(
         """SELECT b.* FROM bindings b
            WHERE b.revoked_at IS NULL AND (b.expires_at IS NULL OR b.expires_at > ?)
              AND ((b.subject_kind = 'user' AND b.subject_id = ?)
                   OR (b.subject_kind = 'group' AND b.subject_id IN (SELECT group_id FROM group_members WHERE user_id = ?)))""",
         (now, principal.user_id, principal.user_id),
     ).fetchall()
+    if str(principal.user_id or "").startswith(LOCAL_ID_PREFIX):
+        # USR2 defence in depth: a local identity never holds system_admin, and never anything through a group (the routes refuse
+        # both; a row written behind their back - a restored archive, a hand edit - still grants nothing)
+        rows = [b for b in rows if b["role_id"] != "system_admin" and b["subject_kind"] == "user"]
+    return rows
 
 
 def authorize(conn: sqlite3.Connection, principal: Principal, permission: str, target: tuple[str, str]) -> Decision:
+    if local_factor_gate(principal, permission):
+        return Decision(False, "second_factor_required")
     user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if user is not None and not user["active"]:
         return Decision(False, "user_inactive")
@@ -278,7 +304,7 @@ def effective_permissions(conn: sqlite3.Connection, principal: Principal, target
             continue
         perms = role_permissions(conn, b["role_id"])
         (denied if b["effect"] == "deny" else allowed).update(perms)
-    return sorted(allowed - denied)
+    return sorted(p for p in allowed - denied if not local_factor_gate(principal, p))
 
 
 def permissions_anywhere(conn: sqlite3.Connection, principal: Principal) -> list[str]:
@@ -298,7 +324,7 @@ def permissions_anywhere(conn: sqlite3.Connection, principal: Principal) -> list
             allowed.update(p for p in perms if p in STATION_PERMISSIONS)
         else:
             allowed.update(perms)
-    return sorted(allowed - denied_everywhere)
+    return sorted(p for p in allowed - denied_everywhere if not local_factor_gate(principal, p))
 
 
 def role_name(conn: sqlite3.Connection, role_id: str) -> str:
@@ -370,7 +396,10 @@ def is_system_admin(conn: sqlite3.Connection, user_id: str) -> bool:
     """Is this user an administrator of the installation: an active (not revoked, not expired) `system_admin` allow-binding
     at the installation scope - direct or through a group, resolved exactly like authorize() - and no installation-wide
     deny of that role. The same notion the wizard's "system administrators" count and the directory sync use; a Home
-    Assistant admin flag alone never makes anyone one (it is information only). Callers check the active flag themselves."""
+    Assistant admin flag alone never makes anyone one (it is information only). Callers check the active flag themselves.
+    USR2: never true for a local (Arx-only) identity."""
+    if str(user_id or "").startswith(LOCAL_ID_PREFIX):
+        return False
     admin = False
     for b in _active_bindings(conn, Principal(user_id=user_id, username="", display_name="", source="internal")):
         if b["role_id"] != "system_admin" or (b["scope_type"], b["scope_id"]) != INSTALLATION:

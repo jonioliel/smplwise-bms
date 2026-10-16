@@ -621,7 +621,7 @@ def media_reasons(ctx: Ctx, service: str, entity_id: str, info: dict[str, Any] |
 
 def remote_block(ctx: Ctx, kind: str) -> tuple[str, str] | None:
     """The remote channel's refusal of an alarm action (`alarm.remote_control` / `alarm.remote_disarm`): (code, message)."""
-    if ctx.principal is None or ctx.principal.source != "remote":
+    if ctx.principal is None or ctx.principal.source not in ("remote", "local"):
         return None
     from ..routers import alarm as alarm_router
 

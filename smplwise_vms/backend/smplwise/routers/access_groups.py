@@ -286,6 +286,10 @@ def set_members(group_id: str, request: Request, principal: Principal = Depends(
             raise _item_refusal(ApiError(403, "delegation_self", "מנהל מקומי אינו מצרף או מסיר את עצמו מקבוצה."), i, uid, "user")
         if uid in added and (not user_known(conn, uid) or (visible is not None and uid not in visible)):
             raise _item_refusal(ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant."), i, uid, "user")
+        if uid in added and uid.startswith("l_"):
+            # USR2 section 12.1: an Arx-only identity holds one role at one scope - never a group (groups union roles)
+            audit(conn, actor=principal, action="rbac.group_members", decision="denied", resource_type="group", resource_id=group_id, reason="local_user_no_groups", details={"item_id": uid})
+            raise _item_refusal(ApiError(422, "local_user_no_groups", "משתמש Arx אינו מצורף לקבוצות: יש לו תפקיד אחד בהיקף אחד."), i, uid, "user")
     if not added and not removed:
         return _group_dict(conn, g, principal)
     with keep_an_admin(conn):
@@ -467,7 +471,7 @@ def bulk_bindings(request: Request, principal: Principal = Depends(_assign_gate_
             raise _item_refusal(ApiError(409, "duplicate_item", "אותו שיוך מופיע פעמיים בבקשה.", details={"first_index": seen[key]}), i, item.subject_id, item.subject_kind)
         seen[key] = i
         try:
-            validate_binding(conn, principal, item)
+            validate_binding(conn, principal, item, request)
         except ApiError as exc:
             raise _item_refusal(exc, i, item.subject_id, item.subject_kind) from None
     created: list[dict[str, Any]] = []

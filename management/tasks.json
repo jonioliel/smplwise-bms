@@ -11761,5 +11761,47 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "USR2-P1",
+    "title": "USR2 phases P0+P1: Arx-only identities (CR-USR2) - identity store, passwords, sign-in, sessions, brute-force tiers, administration, sign-in page mode, settings tab; behind security.local_identity (off)",
+    "epic": "IDENTITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "CR-USR2 records the approved contract amendment; with security.local_identity off every new route refuses and the HA-based remote sign-in is unchanged; with it on: one binding (never system_admin), uniform refusals with one hash per attempt, the three brute-force tiers, login CSRF, cookie flags, persistent sessions with rotation and revocation, administrative permissions only after the TOTP factor, administrative-target links on the local channel only, Ingress refusing local ids, the directory-sync exemption, no password / token / typed name in logs, audit or answers, hashes (only) in the project backup.",
+      "On a real installation: sign-in through the real Cloudflare tunnel (CF-Connecting-IP, X-Forwarded-Proto), the cookie surviving 30 days of Android WebView / iOS shell restarts, the scrypt cost on the owner's host."
+    ],
+    "requirement_ids": [
+      "R-USR2-1",
+      "R-USR2-2"
+    ],
+    "test_ids": [
+      "AT-USR2-1",
+      "AT-USR2-2"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. A fresh security review of the public surfaces (sign-in, set-password) before release. No live HA contact."
+    },
+    "deliverables": [
+      "docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md (P0), migration 0097 (provisional), services/local_passwords.py, services/local_identity.py, routers/local_identity.py, the cookie branch in services/ha_user_auth.py, frontend arx/local-auth.ts, arx/arx-welcome.ts, the sign-in page mode, screens/system-local-users.ts on pilot/USR2-P1",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (pilot/USR2-P1): backend tests/test_local_identity.py + tests/test_local_identity_units.py; frontend tests/unit-arx-local-login.spec.ts; screenshots docs/evidence/USR2/. Fakes only. Status REVIEW until the lead's gate and the security review."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

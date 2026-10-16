@@ -25,6 +25,9 @@ export interface RemoteConfig {
   path: string;
   session: SessionMode;
   idle_lock_minutes: number;
+  /** USR2: present (true) only while the server offers the Arx-only sign-in. */
+  local_identity?: boolean;
+  local_password_min?: number;
 }
 
 export interface ArxTokens {

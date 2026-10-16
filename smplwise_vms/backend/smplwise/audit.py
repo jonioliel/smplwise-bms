@@ -29,8 +29,10 @@ def _write_audit(
     binding, role and scope the action was authorised under (T055; ids only)."""
     if isinstance(resource_id, str) and len(resource_id) > RESOURCE_ID_MAX:
         resource_id = resource_id[:RESOURCE_ID_MAX]  # a key straight from a URL path is never stored whole (CR-016 review L4)
-    if getattr(actor, "source", None) == "remote":  # CR-008: whatever a remote (SmplWise Arx) session does says so
+    if getattr(actor, "source", None) in ("remote", "local"):  # CR-008: whatever a remote (SmplWise Arx) session does says so (USR2: local identities too)
         details = {**(details or {}), "channel": "remote"}
+        if getattr(actor, "source", None) == "local":
+            details["identity"] = "local"
         if getattr(actor, "via", "") == "bearer":  # CR-008 P2: an HA bearer token rather than an Arx session cookie
             details["via"] = "bearer"
     base = (

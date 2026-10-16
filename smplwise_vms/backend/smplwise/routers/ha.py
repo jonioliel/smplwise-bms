@@ -631,6 +631,9 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     ha_bridge.verify(ha_bridge.signing_key(conn), message)
     users = message.get("users") or []
     now = now_iso()
+    # USR2 R11: an id of the Arx-only form (`l_...`) is never a Home Assistant user - a push naming one is ignored for it, so the
+    # directory can never shadow, mirror onto or deactivate a local identity
+    users = [u for u in users if isinstance(u, dict) and not str(u.get("id") or "").startswith("l_")]
     for u in users:
         if not u.get("id"):
             continue
@@ -678,7 +681,8 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
 
     admins = {r["subject_id"] for r in conn.execute("SELECT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow' AND revoked_at IS NULL").fetchall()}
     disabled: list[str] = []
-    for r in conn.execute("SELECT id, active FROM users WHERE source IN ('ingress', 'remote')").fetchall():  # CR-008: first seen through Arx
+    # CR-008: first seen through Arx. USR2 R11: `source = 'local'` rows (Arx-only identities) are never mirrored or dropped here
+    for r in conn.execute("SELECT id, active FROM users WHERE source IN ('ingress', 'remote') AND substr(id, 1, 2) <> 'l_'").fetchall():
         p = pushed.get(r["id"])
         if p is None:
             active_now = 1 if r["id"] in admins else 0

@@ -83,7 +83,7 @@ def _settings(conn: sqlite3.Connection) -> dict[str, Any]:
 
 def _remote_block(principal: Principal, cfg: dict[str, Any], kind: str) -> str | None:
     """Why the remote channel refuses this kind of action (arm / disarm / bypass_on / bypass_off), or None."""
-    if principal.source != "remote":
+    if principal.source not in ("remote", "local"):
         return None
     if not cfg["remote_control"]:
         return "remote_control_disabled"
@@ -131,7 +131,7 @@ def panels(request: Request, principal: Principal = Depends(current_principal), 
     cfg = _settings(conn)
     pol = codes.policy(conn, principal.user_id)
     stored = codes.stored_panel_codes(conn)
-    remote = principal.source == "remote"
+    remote = principal.source in ("remote", "local")
     out = []
     for p in _visible_panels(conn, scope):
         eid = p["entity_id"]
@@ -250,7 +250,7 @@ class _Act:
     def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal, action: str, resource_type: str, resource_id: str) -> None:
         self.request, self.conn, self.principal = request, conn, principal
         self.action, self.resource_type, self.resource_id = action, resource_type, resource_id
-        self.details: dict[str, Any] = {"channel": "remote" if principal.source == "remote" else "local"}
+        self.details: dict[str, Any] = {"channel": "remote" if principal.source in ("remote", "local") else "local"}
 
     def audit(self, decision: str, reason: str | None = None, **extra: Any) -> None:
         audit(self.conn, actor=self.principal, action=self.action, decision=decision, resource_type=self.resource_type, resource_id=self.resource_id,
@@ -378,7 +378,7 @@ def code_plan_for(conn: sqlite3.Connection, principal: Principal, panel_entity_i
     cfg = _settings(conn)
     panel = svc.schedule_panel_check(conn, panel_entity_id)
     return codes.code_plan(action=action, panel=panel, user_policy=codes.policy(conn, principal.user_id), mode=cfg["code_mode"],
-                           stored=panel_entity_id in codes.stored_panel_codes(conn), remote=principal.source == "remote", remote_codeless=cfg["remote_codeless"])
+                           stored=panel_entity_id in codes.stored_panel_codes(conn), remote=principal.source in ("remote", "local"), remote_codeless=cfg["remote_codeless"])
 
 
 def verify_code_for(conn: sqlite3.Connection, principal: Principal, settings: Any, panel_entity_id: str, action: str, typed: Any, *, refuse: Any = None) -> str:
@@ -481,7 +481,7 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
     stored = codes.stored_panel_codes(conn)
     pol = codes.policy(conn, principal.user_id)
     plan = codes.code_plan(action="disarm" if disarm else "arm", panel=panel, user_policy=pol, mode=cfg["code_mode"], stored=entity_id in stored,
-                           remote=principal.source == "remote", remote_codeless=cfg["remote_codeless"])
+                           remote=principal.source in ("remote", "local"), remote_codeless=cfg["remote_codeless"])
     act.details["code"] = plan["prompt"]  # which kind of code was asked for (none / pin / panel) - never the code
     stored_code = None
     if entity_id in stored and (plan["send"] == "stored" or plan["prompt"] == "panel"):
@@ -574,7 +574,7 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
         raise act.refuse(ApiError(409, "confirmation_required", "עקיפת חיישן דורשת אישור מפורש."))
     stored = codes.stored_panel_codes(conn)
     plan = codes.code_plan(action="bypass", panel=panel, user_policy=codes.policy(conn, principal.user_id), mode=cfg["code_mode"], stored=panel["entity_id"] in stored,
-                           remote=principal.source == "remote", remote_codeless=cfg["remote_codeless"])
+                           remote=principal.source in ("remote", "local"), remote_codeless=cfg["remote_codeless"])
     act.details["code"] = plan["prompt"]
     stored_code = None
     if plan["prompt"] == "panel" and panel["entity_id"] in stored:

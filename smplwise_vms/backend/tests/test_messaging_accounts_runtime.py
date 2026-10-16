@@ -174,7 +174,7 @@ def test_another_module_registers_a_use_and_a_shared_account_warns(database, mon
         v = mr.view(conn, can_manage=True, now=T0)
     assert [u["key"] for u in v["uses"]] == ["tickets.messages", "tickets.codes", "access.notices"]
     # NOTIFWA registers the notification channel's use (module "notifications") at import - a real second module next to tickets
-    assert v["modules"] == {"access": "בקרת כניסה", "tickets": naming.DEFAULTS["he"]["module"], "notifications": "התראות"}
+    assert v["modules"] == {"access": "בקרת כניסה", "tickets": naming.DEFAULTS["he"]["module"], "notifications": "התראות", "identity": "משתמשי Arx"}  # USR2 phase 2: the Arx-user reset use (identity.local)
     shared = [w for w in v["warnings"] if w["code"] == "shared_module"]
     assert {(w["use"], w["module"]) for w in shared} >= {("tickets.messages", "access"), ("access.notices", "tickets")}
     acc = {a["key"]: a for a in v["accounts"]}

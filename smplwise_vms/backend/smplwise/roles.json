@@ -205,6 +205,7 @@
         "system.configure",
         "sources.configure",
         "identity.directory.read",
+        "identity.local.manage",
         "rbac.assign",
         "rbac.roles.manage",
         "audit.read",

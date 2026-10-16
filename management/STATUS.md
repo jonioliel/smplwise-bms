@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-16T17:07:54.819166+00:00
+Generated: 2026-10-16T18:28:44.158881+00:00
 
-Tasks: 250 | Requirements: 357 | Tests: 373 | Screens: 32
+Tasks: 251 | Requirements: 359 | Tests: 375 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 58
+- REVIEW: 59
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 156
+- V1: 157
 - V2: 29
 - V3: 2
 
@@ -288,3 +288,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKFRIGLIVE](tasks/TKFRIGLIVE.md) | V1 | REVIEW | Frigate 2.6.3: live video through Frigate's restream, events polling, NVR system card fix | — |
 | [TKWIZHINT](tasks/TKWIZHINT.md) | V1 | REVIEW | Setup wizard 2.6.3: optional steps and a persistent per-user hint dismissal | — |
 | [TKFIX263](tasks/TKFIX263.md) | V1 | REVIEW | Arx 2.6.3 release: combined service-management redesign, requests for quotation, map element, number verification, secrets, Frigate live video (integ/263) | — |
+| [USR2-P1](tasks/USR2-P1.md) | V1 | REVIEW | USR2 phases P0+P1: Arx-only identities (CR-USR2) - identity store, passwords, sign-in, sessions, brute-force tiers, administration, sign-in page mode, settings tab; behind security.local_identity (off) | — |

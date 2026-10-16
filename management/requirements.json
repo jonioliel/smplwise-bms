@@ -6739,5 +6739,37 @@
     "test_ids": [
       "AT374"
     ]
+  },
+  {
+    "id": "R-USR2-1",
+    "title": "Arx-only identities (CR-USR2): a second identity source behind security.local_identity",
+    "statement": "Behind security.local_identity (off by default) a system administrator creates Arx-only users (one role at one scope, never system_admin), hands over a single-use first-login link, and those users sign in on the remote channel with a password stored only as a memory-hard hash; refusals are uniform, brute force is limited per account / address / installation, sessions are persistent, rotated and revocable, administrative permissions need the TOTP factor, administrative-target links are local-channel only; with the switch off nothing changes.",
+    "task_ids": [
+      "USR2-P1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-USR2-1"
+    ]
+  },
+  {
+    "id": "R-USR2-2",
+    "title": "Arx-only identities on a real installation (tunnel, phone apps, host cost)",
+    "statement": "The local sign-in works through the owner's Cloudflare tunnel, the session cookie survives phone-app restarts for its lifetime, and the password hash cost suits the owner's host.",
+    "task_ids": [
+      "USR2-P1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-USR2-2"
+    ]
   }
 ]
