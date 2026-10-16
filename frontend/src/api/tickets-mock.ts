@@ -5,7 +5,7 @@
  */
 import type {
   AdminDepartment, AssignBody, AssigneesList, CreateAnswer, CreateBody, DepartmentBody, Eligible, EntityTickets, Handler, HistorySummary, HoldersResponse, InstallationDefaults, ListPage, ListQuery, Meta, ModuleState,
-  NameDoc, NameEntries, PatchBody, PriorityKey, ReturnAnswer, ReturnBody, SettingsDoc, SlaRow, StaffMobile, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
+  NameDoc, NameEntries, PatchBody, PriorityKey, ReturnAnswer, ReturnBody, SettingsDoc, SlaRow, StaffMine, StaffMobile, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
 } from './tickets';
 import { ApiError } from './client';
 import { DEFAULT_TICKET_NAMES } from '../tickets/naming';
@@ -223,6 +223,9 @@ function touch(t: TicketDetail): void {
 function deptCounts(): void {
   for (const d of departments) d.open_tickets = tickets.filter((t) => t.department?.id === d.id && OPEN.includes(t.status)).length;
 }
+
+// TKSTAFF1 review F3: the demo user's own work-link mobile, set by a manager and not yet confirmed
+let demoMine: StaffMine = { has_phone: true, phone: '•••• 4567', confirmed: false, confirm: 'demo-token', notify_whatsapp: true, lang: 'he' };
 
 export const mockBackend: TicketsBackend = {
   async module(): Promise<ModuleState> {
@@ -540,6 +543,17 @@ export const mockBackend: TicketsBackend = {
     const d = departments.find((x) => x.id === departmentId)!;
     d.members = d.members.filter((x) => !(x.kind === kind && x.id === subjectId));
     return clone(d);
+  },
+  async myStaffMobile() {
+    await sleep(40);
+    return { ...demoMine };
+  },
+  async setMyStaffMobile(body) {
+    await sleep(60);
+    if ('confirm' in body) demoMine = { ...demoMine, confirmed: true, confirm: null };
+    else if ('confirmed' in body) demoMine = { ...demoMine, confirmed: false, confirm: 'demo-token' };
+    else demoMine = { ...demoMine, notify_whatsapp: body.notify_whatsapp };
+    return { ...demoMine };
   },
   async putStaffMobile(userId, body) {
     await sleep(60);

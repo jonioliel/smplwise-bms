@@ -218,7 +218,7 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
       let out = { user_id: sm[1], contact_id: null as string | null, phone: null as string | null, has_phone: false, notify_whatsapp: true, lang: 'he', active: true, live_links: 0 };
       for (const list of members.values()) for (const m of list as Array<Record<string, unknown>>) {
         if (m.kind !== 'user' || m.id !== sm[1]) continue;
-        if (b.phone !== undefined) m.mobile = b.phone || null;
+        if (b.phone !== undefined) { m.mobile = b.phone || null; m.mobile_confirmed = false; }
         if (b.lang) m.lang = b.lang;
         if (b.notify_whatsapp !== undefined) m.notify_whatsapp = b.notify_whatsapp;
         out = { ...out, contact_id: m.mobile ? `c-${sm[1]}` : null, phone: (m.mobile as string | null) ?? null, has_phone: !!m.mobile,

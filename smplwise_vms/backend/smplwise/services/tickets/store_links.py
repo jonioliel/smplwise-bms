@@ -32,7 +32,8 @@ CONTACT_FIELDS = ("kind", "vendor_id", "user_id", "display_name", "company", "ph
                   "preferred_channel", "require_code", "share_history", "lang", "notes", "active",
                   "cost_claim", "vat_exempt", "vat_default", "labor_rate_minor", "rate_currency",  # + S9 (0083)
                   "employee",  # + 0084: an employee without an account (API kind "employee" = kind 'person' with employee = 1)
-                  "notify_whatsapp")  # + TKSTAFF1 (0087): a user's own "WhatsApp for my assignments" switch on their directory row
+                  "notify_whatsapp",  # + TKSTAFF1 (0087): a user's own "WhatsApp for my assignments" switch on their directory row
+                  "phone_confirmed_at")  # + TKSTAFF1 (0087, review F3): the user confirmed this number; cleared on every change
 
 
 def insert_contact(conn: sqlite3.Connection, fields: Mapping[str, Any], created_by: str) -> str:

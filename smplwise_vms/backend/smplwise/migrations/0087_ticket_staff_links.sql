@@ -9,7 +9,8 @@
 --    tables reference it ON DELETE CASCADE and migrations run with foreign keys ON (a DROP TABLE deletes their rows), so their
 --    rows are kept in temporary tables across the rebuild and written back unchanged (ids, AUTOINCREMENT ids included).
 -- 3. ticket_contacts.notify_whatsapp: the user's own "WhatsApp for my assignments" switch on their directory row (R12; default on,
---    it only matters when the row has a mobile). Content-free: the audit names the field, never the value.
+--    it only matters when the row has a mobile; security review F4: the user turns it on / off, a configurer may only turn it off).
+--    Content-free: the audit names the field, never the value.
 -- Additive for every reader: nothing here is read while the module switch `tickets.enabled` is off.
 
 CREATE TEMP TABLE _tk_sessions AS SELECT * FROM ticket_link_sessions;
@@ -69,3 +70,6 @@ DROP TABLE _tk_access;
 DROP TABLE _tk_redeems;
 
 ALTER TABLE ticket_contacts ADD COLUMN notify_whatsapp INTEGER NOT NULL DEFAULT 1 CHECK (notify_whatsapp IN (0, 1));
+-- 4. ticket_contacts.phone_confirmed_at (security review F3): when the signed-in user confirmed THIS number for their staff links. A
+--    number set by a configurer is pending until then (no staff link is minted); every change of the number clears it.
+ALTER TABLE ticket_contacts ADD COLUMN phone_confirmed_at TEXT;

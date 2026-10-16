@@ -108,6 +108,7 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await page.locator(`${line} [data-member-mobile-save]`).click();
     await expect.poll(() => last(mock, 'PUT', /^tickets\/admin\/staff\/u-yossi$/)?.body).toEqual({ phone: '050-000-0091', lang: 'ar' });
     await expect(page.locator(`${line} [data-member-whatsapp]`)).toHaveCount(1);
+    await expect(page.locator(`${line} [data-member-mobile-pending]`)).toBeVisible(); // review F3: until the employee confirms
     await expect(page.locator(`${line} [data-member-mobile-input]`)).toHaveValue('050-000-0091');
     await shot(page, 'handlers-mobile', 'light', 'classic', false);
     await page.locator(`${line} [data-member-whatsapp] button[role="switch"]`).click();

@@ -254,7 +254,7 @@ def _member_dicts(conn: sqlite3.Connection, dept_id: str) -> list[dict[str, Any]
                 "added_at": m["added_at"]}
         if m["subject_kind"] == "user":  # TKSTAFF1: the mobile for the no-login staff link (a tickets.configure screen: the full number)
             sv = staff_links.view(conn, m["subject_id"])
-            item.update({"mobile": sv["phone"], "notify_whatsapp": sv["notify_whatsapp"], "lang": sv["lang"]})
+            item.update({"mobile": sv["phone"], "mobile_confirmed": sv["confirmed"], "notify_whatsapp": sv["notify_whatsapp"], "lang": sv["lang"]})
         out.append(item)
     return out
 

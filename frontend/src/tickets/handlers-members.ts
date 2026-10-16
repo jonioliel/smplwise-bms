@@ -28,7 +28,8 @@ type Directory = { users: { id: string; name: string }[]; groups: { id: string; 
  * Without tickets.configure the department list answers 403 and this card is not shown (a manager reads the employees and vendors below).
  * TKSTAFF1 (owner 2026-10-16): every user member has a mobile line - the number (the server validates E.164), the language of the
  * messages and the user's "WhatsApp on assignment" switch (PUT /tickets/admin/staff/{user_id}, tickets.configure). With a mobile, an
- * assignment sends the employee a WhatsApp message with a personal no-login link (services/tickets/staff_links.py).
+ * assignment sends the employee a WhatsApp message with a personal no-login link (services/tickets/staff_links.py) - once the employee
+ * confirmed the number in their own account (security review F3; until then the line says so). A manager may only turn the switch off.
  * Events: `notice` {ok | error}.
  */
 @customElement('tickets-handlers-members')
@@ -168,7 +169,8 @@ export class TicketsHandlersMembers extends LitElement {
       </select>
       <sw-button size="sm" ?disabled=${this.busy || !dirty} data-member-mobile-save
         @click=${() => void this.saveStaff(m, { phone: dr.phone.trim() || null, lang: dr.lang })}>${tt('hdMobileSave')}</sw-button>
-      ${m.mobile ? html`<sw-toggle label=${tt('hdMobileWhatsapp')} .checked=${m.notify_whatsapp !== false} ?disabled=${this.busy} data-member-whatsapp
+      ${m.mobile && m.mobile_confirmed === false ? html`<span class="tag" data-member-mobile-pending>${tt('hdMobilePending')}</span>` : nothing}
+      ${m.mobile ? html`<sw-toggle label=${tt('hdMobileWhatsapp')} .checked=${m.notify_whatsapp !== false} ?disabled=${this.busy || m.notify_whatsapp === false} data-member-whatsapp
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveStaff(m, { notify_whatsapp: e.detail.checked })}></sw-toggle>` : nothing}
     </div>`;
   }

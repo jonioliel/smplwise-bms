@@ -40,10 +40,24 @@ def set_mobile(env, user: str, phone: str | None, *, caller: str = "joni", **ext
     return env.c.put(f"{API}/tickets/admin/staff/dev-{user}", json={"phone": phone, **extra}, headers=env.h(caller))
 
 
+def mine(env, user: str):
+    r = env.c.get(f"{API}/tickets/me/staff-mobile", headers=env.h(user))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def confirm(env, user: str) -> None:
+    """Security review F3: the employee confirms, signed in, the exact number a configurer set (the token of the GET)."""
+    token = mine(env, user)["confirm"]
+    r = env.c.put(f"{API}/tickets/me/staff-mobile", json={"confirm": token}, headers=env.h(user))
+    assert r.status_code == 200 and r.json()["confirmed"] is True, r.text
+
+
 def staff_ticket(env, user: str = "tom", phone: str = TOM_PHONE, **extra):
-    """A ticket assigned to an internal user who has a mobile: (ticket, detail after the assignment)."""
+    """A ticket assigned to an internal user who has a CONFIRMED mobile: (ticket, detail after the assignment)."""
     r = set_mobile(env, user, phone, lang="he")
     assert r.status_code == 200, r.text
+    confirm(env, user)
     t = env.s4.ticket(**extra)
     r = env.s4.w.assign("joni", t["id"], user)
     assert r.status_code == 200, r.text
@@ -360,6 +374,7 @@ def test_10_new_request_notices_to_notify_new_managers_never_carry_a_link(env):
     t = env.s4.ticket()
     assert env.rows(t["id"]) == [], "a new ticket queues no ticket-outbox row for anyone (the managers are told in the app)"
     assert set_mobile(env, "tom", TOM_PHONE).status_code == 200
+    confirm(env, "tom")
     assert env.s4.w.assign("joni", t["id"], "tom").status_code == 200
     rows = env.rows(t["id"])
     with env.s4.db.connection(mode="read") as conn:
@@ -534,3 +549,56 @@ def test_06b_unlinking_the_user_from_the_directory_row_revokes_the_staff_link(en
     assert r.status_code == 200, r.text
     row = staff_row(env, t["id"])
     assert row["revoked_at"] and row["revoked_reason"] == "contact_changed"
+
+
+# ---------------------------------------------------------------- security review F3 / F4: the employee owns the number and the switch
+
+
+def test_f3_a_number_set_by_a_configurer_sends_nothing_until_the_employee_confirms_it(env):
+    assert set_mobile(env, "tom", TOM_PHONE).status_code == 200
+    t = env.s4.ticket()
+    assert env.s4.w.assign("joni", t["id"], "tom").status_code == 200
+    assert env.rows(t["id"]) == [], "pending number: no staff link, no message"
+    with env.s4.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ticket_links WHERE ticket_id = ?", (t["id"],)).fetchone()[0] == 0
+    dept = env.c.get(f"{API}/tickets/admin/departments").json()["departments"]
+    tom = next(m for d in dept if d["id"] == "dept-maintenance" for m in d["members"] if m["id"] == "dev-tom")
+    assert tom["mobile_confirmed"] is False, "the manager sees 'number not confirmed'"
+    me = mine(env, "tom")
+    assert me["has_phone"] and me["phone"].endswith("0091") and TOM_E164 not in json.dumps(me) and me["confirmed"] is False
+    assert env.c.get(f"{API}/tickets/me/staff-mobile", headers=env.h("gil")).json()["has_phone"] is False, "only the caller's own row"
+    r = env.c.put(f"{API}/tickets/me/staff-mobile", json={"confirm": "0" * 16}, headers=env.h("tom"))
+    assert r.status_code == 409 and r.json()["code"] == "number_changed"
+    confirm(env, "tom")
+    t2 = env.s4.ticket()
+    assert env.s4.w.assign("joni", t2["id"], "tom").status_code == 200
+    assert staff_row(env, t2["id"])["kind"] == "staff"
+
+
+def test_f3_a_changed_number_needs_a_new_confirmation_and_the_employee_is_told_in_the_app(env):
+    staff_ticket(env)
+    assert set_mobile(env, "tom", "+" + NEW_PHONE_E164).status_code == 200
+    assert mine(env, "tom")["confirmed"] is False
+    with env.s4.db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT n.id FROM notifications n JOIN notification_recipients r ON r.notification_id = n.id "
+                            "WHERE n.source = 'ticket.staff_mobile' AND r.user_id = 'dev-tom'").fetchall()
+        texts = json.dumps([dict(r) for r in conn.execute("SELECT * FROM notifications WHERE source = 'ticket.staff_mobile'").fetchall()], ensure_ascii=False)
+    assert rows, "an in-app notice to the employee"
+    assert NEW_PHONE_E164 not in texts and TOM_E164 not in texts
+    t = env.s4.ticket()
+    assert env.s4.w.assign("joni", t["id"], "tom").status_code == 200
+    assert env.rows(t["id"]) == []
+
+
+def test_f4_the_whatsapp_switch_is_the_employees_own(env):
+    staff_ticket(env)
+    r = env.c.put(f"{API}/tickets/me/staff-mobile", json={"notify_whatsapp": False}, headers=env.h("tom"))
+    assert r.status_code == 200 and r.json()["notify_whatsapp"] is False
+    t = env.s4.ticket()
+    assert env.s4.w.assign("joni", t["id"], "tom").status_code == 200
+    assert env.rows(t["id"]) == []
+    r = set_mobile(env, "tom", TOM_PHONE, notify_whatsapp=True)
+    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "notify_whatsapp", "code": "user_only"}, "a configurer may only turn it off"
+    r = env.c.put(f"{API}/tickets/me/staff-mobile", json={"notify_whatsapp": True}, headers=env.h("tom"))
+    assert r.status_code == 200 and r.json()["notify_whatsapp"] is True
+    assert set_mobile(env, "tom", TOM_PHONE, notify_whatsapp=False).status_code == 200

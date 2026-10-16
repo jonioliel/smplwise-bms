@@ -18,13 +18,20 @@ for the user's session:
   it); the code goes to the same phone (codes.py);
 - R11: a token link exists only for the CURRENT ASSIGNEE of a current assignment; "new request" notices to the department's
   `notify_new` managers go through the notification engine with a signed-in deep link (notify_bridge), never through this module;
-- R12: the user's own "WhatsApp for my assignments" switch (`ticket_contacts.notify_whatsapp`, default on, meaningful with a mobile).
+- R12: the user's own "WhatsApp for my assignments" switch (`ticket_contacts.notify_whatsapp`, default on, meaningful with a mobile) -
+  security review F4: the user turns it on and off in their own account area (`GET / PUT /tickets/me/staff-mobile`); a configurer may
+  only turn it off;
+- security review F3: a number set by a configurer is PENDING until the signed-in user confirms exactly that number (an opaque token
+  of the number shown to them, the last four digits only); `phone_confirmed_at` is cleared by every change of the number and the user
+  is told in the app (source `ticket.staff_mobile`, subject = the user). Until then no staff link is minted (the assignment stands).
 Staff links go by WhatsApp only (no e-mail redeem, no "copy link"). The outgoing text is the staff starter of message_templates
 (`starter:staff_assign[_code]:<lang>`, he / ar / ru / en): one URL, and no quick-reply line when a code is required.
 Nothing here logs, audits or stores a phone number, a token, a code or a message text."""
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import hmac
 import logging
 from typing import Any
 
@@ -52,6 +59,8 @@ def recipient(conn, user_id: str | None) -> dict[str, Any] | None:
     row = directory_row(conn, user_id)
     if row is None or not row["active"] or row.get("erased_at") or not row.get("phone_e164") or not row.get("notify_whatsapp", 1):
         return None
+    if not row.get("phone_confirmed_at"):
+        return None  # review F3: a number nobody confirmed (set by a configurer) never receives a staff link
     return row
 
 
@@ -187,6 +196,7 @@ def view(conn, user_id: str) -> dict[str, Any]:
     row = directory_row(conn, user_id)
     phone = (row or {}).get("phone_e164")
     return {"user_id": user_id, "contact_id": (row or {}).get("id"), "phone": display_phone(phone), "has_phone": bool(phone),
+            "confirmed": bool(phone) and bool((row or {}).get("phone_confirmed_at")),
             "notify_whatsapp": bool((row or {}).get("notify_whatsapp", 1)), "lang": (row or {}).get("lang") or "he",
             "active": bool((row or {}).get("active", 1)),
             "live_links": len(store_links.live_links_of_contact(conn, row["id"])) if row else 0}
@@ -217,6 +227,8 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
     except contacts.ContactInvalid as exc:
         raise contacts.invalid(conn, exc.field, exc.code) from None
     row = directory_row(conn, user_id)
+    if fields.get("notify_whatsapp") == 1 and not (row or {}).get("notify_whatsapp", 1):
+        raise contacts.invalid(conn, "notify_whatsapp", "user_only")  # review F4: only the user turns their WhatsApp back on
     if row is None:
         if not fields.get("phone_e164"):
             return view(conn, user_id)  # nothing to keep: no row is made for an empty number
@@ -226,13 +238,17 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
         cid = store_links.insert_contact(conn, new, viewer.uid)
         audit(conn, actor=viewer.principal, action="ticket.contact.create", decision="allowed", resource_type="ticket_contact", resource_id=cid,
               request_id=rid, details={"kind": "person", "user_linked": True, "has_phone": True, "fields": sorted(k if k != "phone_e164" else "phone" for k in fields)})
+        if user_id != viewer.uid:
+            tell_user(conn, user_id)
         return view(conn, user_id)
     phone_changed = "phone_e164" in fields and fields["phone_e164"] != row.get("phone_e164")
     if phone_changed:
         contacts._keyed(conn, fields)
+        fields["phone_confirmed_at"] = None  # review F3: the user confirms the new number again
     else:
         fields.pop("phone_e164", None)
-    changed = sorted(("phone" if k == "phone_e164" else k) for k, v in fields.items() if k not in ("phone_key", "phone_key_id") and row.get(k) != v)
+    changed = sorted(("phone" if k == "phone_e164" else k) for k, v in fields.items()
+                     if k not in ("phone_key", "phone_key_id", "phone_confirmed_at") and row.get(k) != v)
     if not changed:
         return view(conn, user_id)
     store_links.update_contact(conn, row["id"], fields, None)
@@ -241,4 +257,85 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
         revoked = contacts.revoke_contact_links(conn, row["id"], "contact_changed", handler_links.now_utc(), rid=rid)
     audit(conn, actor=viewer.principal, action="ticket.contact.update", decision="allowed", resource_type="ticket_contact", resource_id=row["id"],
           request_id=rid, details={"fields": changed, "links_revoked": revoked, "user_linked": True})
+    if user_id != viewer.uid and ("phone" in changed or "notify_whatsapp" in changed):
+        tell_user(conn, user_id)
     return view(conn, user_id)
+
+
+# ---------------------------------------------------------------- the user's own row (security review F3 / F4)
+
+
+def confirm_token(row: dict[str, Any]) -> str:
+    """An opaque token of the exact number the user was shown (no digit in it): the confirmation must echo it, so a number changed in
+    between can never be confirmed by accident. Derived from the row id and its keyed phone match index (`phone_key`)."""
+    seed = f"tkstaff-confirm|{row['id']}|{row.get('phone_key') or ''}|{row.get('phone_e164') or ''}"
+    return hashlib.sha256(seed.encode()).hexdigest()[:16]
+
+
+def my_view(conn, user_id: str) -> dict[str, Any]:
+    """`GET /tickets/me/staff-mobile`: the caller's own mobile for no-login work links - the last four digits only, whether they
+    confirmed it, the confirmation token (only while unconfirmed), their WhatsApp switch and the message language."""
+    row = directory_row(conn, user_id)
+    phone = (row or {}).get("phone_e164")
+    confirmed = bool(phone) and bool((row or {}).get("phone_confirmed_at"))
+    return {"has_phone": bool(phone), "phone": f"•••• {phone[-4:]}" if phone else None, "confirmed": confirmed,
+            "confirm": confirm_token(row) if row and phone and not confirmed else None,
+            "notify_whatsapp": bool((row or {}).get("notify_whatsapp", 1)), "lang": (row or {}).get("lang") or "he"}
+
+
+def _bad(conn, field: str, code: str) -> ApiError:
+    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": field, "code": code}]})
+
+
+def set_mine(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -> dict[str, Any]:
+    """`PUT /tickets/me/staff-mobile` - only ever the caller's own row (no user id in the request): `{confirm: <token>}` confirms the
+    number shown; `{confirmed: false}` withdraws it; `{notify_whatsapp: bool}` is the user's own switch. Audited without the number."""
+    keys = set(body) if isinstance(body, dict) else set()
+    if not keys or not keys <= {"confirm", "confirmed", "notify_whatsapp"} or {"confirm", "confirmed"} <= keys:
+        raise _bad(conn, "body", "shape")
+    row = directory_row(conn, viewer.uid)
+    if row is None or not row.get("phone_e164"):
+        raise ApiError(409, "no_number", text(conn, "לא הוגדר עבורך נייד לקישורי עבודה."))
+    fields: dict[str, Any] = {}
+    if "confirm" in keys:
+        tok = body["confirm"]
+        if not isinstance(tok, str) or not 0 < len(tok) <= 64:
+            raise _bad(conn, "confirm", "type")
+        if not hmac.compare_digest(tok, confirm_token(row)):
+            raise ApiError(409, "number_changed", text(conn, "המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר."))
+        fields["phone_confirmed_at"] = handler_links.iso(handler_links.now_utc())
+    if "confirmed" in keys:
+        if body["confirmed"] is not False:
+            raise _bad(conn, "confirmed", "type")
+        fields["phone_confirmed_at"] = None
+    if "notify_whatsapp" in keys:
+        if not isinstance(body["notify_whatsapp"], bool):
+            raise _bad(conn, "notify_whatsapp", "type")
+        fields["notify_whatsapp"] = 1 if body["notify_whatsapp"] else 0
+    store_links.update_contact(conn, row["id"], fields, None)
+    details: dict[str, Any] = {}
+    if "phone_confirmed_at" in fields:
+        details["confirmed"] = bool(fields["phone_confirmed_at"])
+    if "notify_whatsapp" in fields:
+        details["notify_whatsapp"] = bool(fields["notify_whatsapp"])
+    audit(conn, actor=viewer.principal, action="ticket.contact.self", decision="allowed", resource_type="ticket_contact", resource_id=row["id"],
+          request_id=rid, details=details)
+    return my_view(conn, viewer.uid)
+
+
+def tell_user(conn, user_id: str) -> None:
+    """The in-app notice to the user whose number / switch someone else changed (never the number; one row per change)."""
+    if not access.module_on(conn):
+        return
+    from .. import notify
+
+    row = directory_row(conn, user_id) or {}
+    marker = hashlib.sha256(f"{row.get('phone_key') or 'none'}|{row.get('notify_whatsapp', 1)}|{row.get('revision')}".encode()).hexdigest()[:12]
+    try:
+        notify.emit_full(conn, notify.Signal(
+            source="ticket.staff_mobile", subject_kind="session", subject_id=user_id, dedupe_key=f"ticket.staff_mobile:{user_id}:{marker}",
+            params={"title": text(conn, "הנייד שלך לקישורי עבודה עודכן"),
+                    "body": text(conn, "מנהל עדכן את הנייד שלך לקישורי עבודה בוואטסאפ. בדקו ואשרו אותו בתפריט החשבון שלי; עד האישור לא יישלחו קישורים.")},
+            initiator_user_id=user_id, link="#/tickets"))
+    except Exception:  # noqa: BLE001 - a notice never fails the change
+        log.warning("staff mobile notice failed", exc_info=True)

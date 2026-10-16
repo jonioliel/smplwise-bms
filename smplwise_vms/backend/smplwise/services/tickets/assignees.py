@@ -92,10 +92,12 @@ def handlers(viewer: access.Viewer, department_id: str, row: dict[str, Any] | No
     configure = contacts.may_configure(viewer)
     for u in service.eligible_assignees(conn, department_id, row):
         # TKSTAFF1: an account holder with a mobile on their directory row also gets the WhatsApp staff link (masked unless configure)
-        mobile = (store_links.contact_by_user(conn, u["id"]) or {}).get("phone_e164")
+        mrow = store_links.contact_by_user(conn, u["id"]) or {}
+        mobile = mrow.get("phone_e164")
         out.append({"key": f"user:{u['id']}", "kind": "user", "id": u["id"], "name": u["name"], "account": True, "member_role": u["member_role"],
                     "phone": (contacts.display_phone(mobile) if configure else contacts.mask_phone(mobile)) if mobile else None,
-                    "has_phone": bool(mobile), "preferred_channel": "inapp"})
+                    "has_phone": bool(mobile), "phone_confirmed": bool(mobile) and bool(mrow.get("phone_confirmed_at")),  # review F3
+                    "preferred_channel": "inapp"})
     managed = None if configure else contacts.managed_departments(viewer)
     where = row or {"department_id": department_id}
     staff = [c for c in staff_for(conn, department_id) if may_send(viewer, where, c)]
