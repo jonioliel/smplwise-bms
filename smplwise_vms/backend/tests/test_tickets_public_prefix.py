@@ -132,11 +132,11 @@ def test_prefix_t_serves_t_only(tmp_path):
 
 
 ATTACKS = [
-    "/support", "/support/..", "/support/../t/", "/support/%2e%2e/t/", "/support/%2E%2E/", "/support/.%2e/", "/support/%2e/", "/support//",
+    "/support", "/support/%2e%2e/t/", "/support/%2E%2E/", "/support/.%2e/", "/support/%2e/", "/support//",
     "/support//healthz", "//support/healthz", "/support/%2fhealthz", "/support%2fhealthz", "/support/api%2fticket", "/support/api/%74icket",
     "/support/healthz%00", "/support/healthz/", "/support/healthz.", "/support/HEALTHZ", "/Support/", "/SUPPORT/healthz", "/support/t/healthz",
     "/support/api/ticket/", "/support/api/", "/support/api", "/support/assets/", "/support/assets/..%2f..%2fx.js", "/support/assets/%2e%2e/index.html",
-    "/support/\\healthz", "/support/..\\t/", "/support/;x/", "/support/healthz;x", "/t/../support/healthz", "/t/%2e%2e/", "/t//healthz",
+    "/support/\\healthz", "/support/..\\t/", "/support/;x/", "/support/healthz;x", "/t/%2e%2e/", "/t//healthz",
     "/support/%252e%252e/", "/support/%c0%ae%c0%ae/", "/support/%ef%bc%8f", "/healthz", "/api/ticket", "/", "/arx/", "/support2/", "/sup/",
 ]
 
@@ -155,6 +155,58 @@ def test_no_spelling_reaches_an_unlisted_route_and_every_refusal_is_the_same_ans
     for path, status, headers, body in answers:
         assert (status, headers, body) == first[1:], path
     assert first[3] == UNIFORM
+
+
+def _asgi_status(world, path: str, raw: bytes | None, token: str) -> tuple[int, bytes]:
+    """The edge driven directly with a scope: no HTTP client in between to tidy the path (httpx resolves `/../` before sending)."""
+    import asyncio
+
+    out: dict = {"status": None, "body": b""}
+
+    async def run() -> None:
+        scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET", "path": path, "raw_path": raw,
+                 "query_string": b"", "headers": [(b"host", b"x.test"), (b"x-ticket-token", token.encode())], "client": ("198.51.100.30", 5000),
+                 "server": ("x.test", 443), "scheme": "https"}
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            await asyncio.sleep(0.05)
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            if message["type"] == "http.response.start":
+                out["status"] = message["status"]
+            elif message["type"] == "http.response.body":
+                out["body"] += message.get("body", b"")
+
+        await world.app(scope, receive, send)
+
+    asyncio.run(run())
+    return out["status"], out["body"]
+
+
+@pytest.mark.parametrize("path", ["/support/../t/", "/support/./", "/support/..", "/t/../support/healthz", "/support/../support/healthz",
+                                  "/support/healthz/..", "/support//healthz", "//support/healthz", "/support/api/../healthz"])
+def test_dot_segments_that_reach_the_server_unresolved_are_refused(tmp_path, path):
+    w = _world(tmp_path)
+    _link, tok = w.links.add()
+    status, body = _asgi_status(w, path, path.encode(), tok)
+    assert (status, body) == (404, UNIFORM), path
+    assert _asgi_status(w, "/support/healthz", b"/support/healthz", tok)[0] == 200  # the harness itself reaches a real route
+
+
+@pytest.mark.parametrize("decoded,raw", [("/support/healthz", b"/support/%68ealthz"), ("/support/healthz", b"/%73upport/healthz"),
+                                         ("/support/ ", b"/support/%20"), ("/support/../t/", b"/support/%2e%2e/t/"),
+                                         ("/support/a/b", b"/support/a%2fb"), ("/support/healthz", b"/support/healthz%2f"),
+                                         ("/support/healthz", "/support/héalthz".encode("utf-8"))])
+def test_a_raw_path_that_is_not_the_decoded_path_is_refused(tmp_path, decoded, raw):
+    w = _world(tmp_path)
+    _link, tok = w.links.add()
+    assert _asgi_status(w, decoded, raw, tok) == (404, UNIFORM)
 
 
 def test_methods_other_than_the_listed_one_are_the_same_404(tmp_path):
