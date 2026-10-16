@@ -1152,7 +1152,7 @@ export class SystemNotifications extends LitElement {
         this.openPicker(p.source);
         (e.target as HTMLSelectElement).value = shown;
       } else this.patchPolicy(p.source, (x) => policyWithRule(x, v));
-    }}>${RULES.map((r) => html`<option value=${r} .selected=${shown === r}>${r === 'users' && p.recipients.rule === 'users' ? `${RECIPIENT_LABEL.users} (${p.recipients.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r]}</option>`)}</select>`;
+    }}>${(RULES.includes(shown) ? RULES : [...RULES, shown]).map((r) => html`<option value=${r} .selected=${shown === r}>${r === 'users' && p.recipients.rule === 'users' ? `${RECIPIENT_LABEL.users} (${p.recipients.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r]}</option>`)}</select>`;
   }
   private chans(p: NotifyPolicy) {
     const s = this.settings;

@@ -1148,3 +1148,18 @@ test.describe('notifications client: selection, HTTP adapter and error mapping',
     }
   });
 });
+
+test('TKPOLISH: every recipient rule the server knows has a Hebrew and an English label (ticket, quote-request and generator rules too)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { RECIPIENT_LABEL, RECIPIENT_LABEL_EN } = await import('../src/api/notifications');
+  const py = readFileSync(new URL('../../smplwise_vms/backend/smplwise/services/notify_policy.py', import.meta.url), 'utf8');
+  const rules = /RECIPIENT_RULES\s*=\s*\(([^)]*)\)/.exec(py)?.[1].match(/"[a-z_]+"/g)?.map((s) => s.slice(1, -1)) ?? [];
+  expect(rules.length).toBeGreaterThanOrEqual(7);
+  for (const r of [...new Set([...rules, 'rfq_managers'])]) {
+    expect((RECIPIENT_LABEL as Record<string, string>)[r], `he ${r}`).toBeTruthy();
+    expect((RECIPIENT_LABEL_EN as Record<string, string>)[r], `en ${r}`).toBeTruthy();
+  }
+  const rule = 'ticket_assignee' as const;
+  expect(recipientsText({ rule })).toBe('הגורם המטפל בבקשה');
+  expect(recipientsText({ rule: 'rfq_managers' })).toBe('מנהלי בקשות הצעת מחיר');
+});
