@@ -123,7 +123,7 @@ export class TicketCard extends LitElement {
         </div>
         ${this.menu ? this.menuItems() : nothing}
       </header>
-      <p class="sentence" data-card-sentence title=${m.sentence}>${m.sentence}</p>
+      <p class="stat" data-card-sentence title=${m.sentence}>${m.sentence}</p>
       ${m.warning
         ? html`<div class=${`cwarn ${m.warning.tone}`} data-card-warning=${m.warning.key} role="note">${m.warning.icon === 'user' ? listIcon('hand') : tIcon('warning')}<span>${m.warning.text}</span></div>`
         : html`<div class="chips" data-card-chips>

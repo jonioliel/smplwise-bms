@@ -19,7 +19,7 @@ export const ticketCardListStyles = css`
     opacity: 0.85;
   }
   /* the sentence IS the status: the largest line of the card after the title, two lines at most (the full text is the title attribute) */
-  p.sentence {
+  p.stat {
     margin: 0;
     font-size: var(--sw-fs-md);
     line-height: 1.5;
@@ -80,17 +80,17 @@ export const ticketCardListStyles = css`
     color: var(--au-warn-text);
     background: var(--dv-warning-soft);
   }
-  footer .run {
+  footer span.run {
     flex: 1 1 auto;
     min-inline-size: 0;
   }
-  footer .run > span {
+  footer span.run > span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   @media (max-width: 767px) {
-    p.sentence {
+    p.stat {
       font-size: var(--sw-fs-base);
     }
   }
