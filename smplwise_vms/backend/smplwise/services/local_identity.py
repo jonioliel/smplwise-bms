@@ -99,7 +99,7 @@ SET_PASSWORD_LIMITS: list[tuple[float, int]] = [(60.0, 10)]
 
 # the routes a gated session (enrolment required / password change required) may still reach, relative to the remote prefix
 ENROL_PATHS = ("/api/v1/me", "/api/v1/auth/second-factor", "/api/v1/auth/session", "/api/v1/auth/sessions", "/api/v1/auth/local/password",
-               "/api/v1/auth/remote-config")
+               "/api/v1/auth/remote-config", "/api/v1/auth/passkeys")  # USR2 phase 4: a passkey is an enrolment path too (owner answer Q3)
 CHANGE_PATHS = ("/api/v1/me", "/api/v1/auth/session", "/api/v1/auth/sessions", "/api/v1/auth/local/password", "/api/v1/auth/remote-config")
 
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,31}$")
@@ -229,6 +229,13 @@ def holds_admin(conn, user_id: str) -> bool:
     from ..rbac import permissions_anywhere
 
     return bool(set(permissions_anywhere(conn, _internal(user_id))) & LOCAL_ADMIN_PERMISSIONS)
+
+
+def has_factor(conn, user_id: str) -> bool:
+    """USR2 phase 4: a TOTP factor or a usable passkey (services/local_passkeys.has_factor)."""
+    from . import local_passkeys
+
+    return local_passkeys.has_factor(conn, user_id)
 
 
 def factor_policy_required(conn, user_id: str) -> bool:
@@ -429,11 +436,9 @@ def _principal_of_row(row, factor_ok: bool) -> Principal:
 
 
 def _gate_for(conn, user_id: str, must_change: bool) -> str:
-    from . import second_factor as sf
-
     if must_change:
         return "change"
-    if not sf.is_enrolled(conn, user_id) and factor_policy_required(conn, user_id):
+    if not has_factor(conn, user_id) and factor_policy_required(conn, user_id):
         return "enrol"
     return ""
 
@@ -1025,6 +1030,17 @@ def new_pending(user_id: str, meta: dict[str, str]) -> str:
     return pid
 
 
+def peek_pending(pid: str | None) -> Pending | None:
+    """The live pending record without spending an attempt (the passkey options of the second step)."""
+    if not pid:
+        return None
+    with _pending_lock:
+        p = _pending.get(pid)
+        if p is None or time.time() - p.created > PENDING_TTL_S or p.attempts >= PENDING_MAX_ATTEMPTS:
+            return None
+        return p
+
+
 def take_pending(pid: str | None) -> Pending | None:
     if not pid:
         return None
@@ -1064,6 +1080,7 @@ class SignInResult:
     second_factor: str = "none"  # none | required | enroll_required
     must_change: bool = False
     user: dict[str, str] | None = None
+    methods: tuple[str, ...] = ()  # USR2 phase 4: the second-factor methods of a pending step ("totp", "passkey")
 
 
 def _context_words(conn, user_row) -> list[str]:
@@ -1193,13 +1210,18 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
         conn.execute("""UPDATE auth_local_credentials SET failed_count = 0, last_failed_at = NULL, delay_until = NULL, last_sign_in_at = ?,
                         last_sign_in_from = ?, updated_at = ? WHERE user_id = ?""",
                      (iso(now), (masked + (" " + meta["country"] if meta.get("country") else "")).strip(), iso(now), uid))
-        enrolled = sf.is_enrolled(conn, uid)
+        from . import local_passkeys
+
+        totp = sf.is_enrolled(conn, uid)
+        passkey = local_passkeys.usable(conn, uid)  # USR2 phase 4 (owner answer Q3): a usable passkey is the second factor too
         admin = holds_admin(conn, uid)
         required = factor_policy_required(conn, uid)
-        if enrolled:
+        if totp or passkey:
             pid = new_pending(uid, meta)
-            _audit(conn, actor=principal, action="auth.local.second_factor.required", decision="allowed", details={"ip": masked}, request_id=request_id)
-            return SignInResult(status="pending", pending_id=pid, second_factor="required", sleep_s=base_sleep)
+            methods = tuple(m for m, on in (("totp", totp), ("passkey", passkey)) if on)
+            _audit(conn, actor=principal, action="auth.local.second_factor.required", decision="allowed", details={"ip": masked, "methods": list(methods)},
+                   request_id=request_id)
+            return SignInResult(status="pending", pending_id=pid, second_factor="required", sleep_s=base_sleep, methods=methods)
         value, s = create_session(conn, settings, conn_like, uid, factor=False, meta=meta)
         _audit(conn, actor=principal, action="auth.local.sign_in.succeeded", decision="allowed",
                details={"kind": s.kind, "ip": masked, "country": meta.get("country", ""), "factor": "none", "id": public_id(s.chain_id)}, request_id=request_id)
@@ -1303,7 +1325,7 @@ def use_link(db: Any, settings: Settings, conn_like: Any, token: str, password: 
         invalidate_links(conn, uid)
         ended = revoke_user_sessions(conn, uid, "password_changed")
         drop_pending_of(uid)
-        must_enrol = not sf.is_enrolled(conn, uid) and (holds_admin(conn, uid) or factor_policy_required(conn, uid))
+        must_enrol = not has_factor(conn, uid) and (holds_admin(conn, uid) or factor_policy_required(conn, uid))
         _audit(conn, actor=None, action="auth.local.link.used", decision="allowed", resource_id=uid,
                details={"purpose": link["purpose"], "via": link["issued_via"], "channel": link["issued_channel"], "temporary": bool(link["temporary"]),
                         "sessions_ended": ended, "ip": mask_address(meta.get("client_ip", ""))}, request_id=request_id)
@@ -1344,6 +1366,13 @@ def change_password(conn, settings: Settings, conn_like: Any, s: LocalSession, c
             sf.verify(conn, settings, uid, code)
         except sf.SecondFactorError as exc:
             raise ApiError(429 if exc.code == "locked" else 400, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked") from None
+    elif not sf.is_enrolled(conn, uid) and not factor_shown_at_sign_in:
+        # USR2 phase 4: a user whose only factor is a passkey has no code to type - the change needs a FRESH sign-in that presented the
+        # passkey (local_passkeys.recent_auth: < 5 minutes, factor shown), the passkey equivalent of "the current code"
+        from . import local_passkeys
+
+        if local_passkeys.usable(conn, uid) and not local_passkeys.recent_auth(conn, s):
+            raise ApiError(403, "reauth_required", local_passkeys.REAUTH_HE)
     reason = lp.check_policy(new, min_length=password_min(conn), context=_context_words(conn, row), data_dir=settings.data_dir)
     if reason is None and lp.normalize(new) == lp.normalize(current):
         reason = "same_as_current"
@@ -1399,6 +1428,19 @@ def on_factor_enabled(conn, settings: Settings, conn_like: Any, principal: Princ
         rotate_current(conn, settings, conn_like, s, factor=True)
     CACHE.drop_user(principal.user_id)
     return ended
+
+
+def on_factor_removed(conn, user_id: str) -> bool:
+    """The user removed one of their own factors (a passkey, or TOTP `disable`). When none is left, no session of the user may keep
+    counting as factor-verified (review RELEASE_264 F2): `factor_at` is cleared on every row of the user (the caller's kept chain
+    included), so the administrative permissions close at once (rbac `factor_ok`); the user re-enrols from an ordinary session. The
+    cached sessions are dropped so the change is seen on the next request. True when the factor flag was cleared."""
+    CACHE.drop_user(user_id)
+    if has_factor(conn, user_id):
+        return False
+    conn.execute("UPDATE auth_local_sessions SET factor_at = NULL WHERE user_id = ? AND factor_at IS NOT NULL", (user_id,))
+    CACHE.drop_user(user_id)
+    return True
 
 
 def on_factor_reset(conn, user_id: str) -> int:
@@ -1460,6 +1502,9 @@ def reset_for_tests() -> None:
     from . import local_reset
 
     local_reset.reset_for_tests()
+    from . import local_passkeys
+
+    local_passkeys.reset_for_tests()
 
 
 _ = dataclasses  # kept for type tooling

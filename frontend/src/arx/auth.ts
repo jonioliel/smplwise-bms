@@ -28,6 +28,8 @@ export interface RemoteConfig {
   /** USR2: present (true) only while the server offers the Arx-only sign-in. */
   local_identity?: boolean;
   local_password_min?: number;
+  /** USR2 phase 4: passkey-only sign-in is allowed (owner switch on and a public address set). */
+  local_passkey_first?: boolean;
 }
 
 export interface ArxTokens {

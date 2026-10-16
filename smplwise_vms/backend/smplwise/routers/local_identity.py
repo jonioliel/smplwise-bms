@@ -176,7 +176,8 @@ async def local_sign_in(body: SignInBody, request: Request) -> Response:
     if r.status == "failed":
         return _error(request, 401, "sign_in_failed", li.SIGN_IN_FAILED_HE)
     if r.status == "pending":
-        response = JSONResponse({"second_factor": "required"}, status_code=202)
+        # USR2 phase 4: `methods` appears only when a passkey can answer the step (a TOTP-only user's answer is unchanged)
+        response = JSONResponse({"second_factor": "required", **({"methods": list(r.methods)} if "passkey" in r.methods else {})}, status_code=202)
         name = _pending_cookie_name(request)
         response.headers.append("set-cookie", li.cookie_header(name, r.pending_id or "", _pending_path(request), secure=name == li.PENDING_COOKIE_SECURE,
                                                                max_age=int(li.PENDING_TTL_S)))
@@ -325,6 +326,7 @@ class LocalUserPatch(BaseModel):
     notes: str | None = Field(default=None, max_length=200)
     active: bool | None = None
     reset_mode: str | None = Field(default=None, pattern="^(manager_only|self_service)$")
+    passkey_first: bool | None = None  # USR2 phase 4: an administrator may only switch it OFF (on is the user's own choice)
 
 
 class RoleBody(BaseModel):
@@ -390,7 +392,11 @@ def _user_dict(conn: sqlite3.Connection, row: sqlite3.Row, live: dict[str, int] 
         live = {row["id"]: len(li.chains(conn, row["id"]))}
     number = lr.verified_number(conn, row["id"])  # USR2 phase 2: the self-service reset / WhatsApp link needs it (masked: last two digits)
     admin = li.holds_admin(conn, row["id"])
+    from ..services import local_passkeys as lpk
+
+    passkeys = lpk.rows(conn, row["id"])  # USR2 phase 4: how many (never a credential id or a key); the list is its own route
     return {
+        "passkeys": len(passkeys), "passkey_first": lpk.user_first_on(conn, row["id"]),
         "id": row["id"], "username": row["username"], "display_name": row["display_name"], "email": row["email"], "notes": row["notes"],
         "status": _status(row), "active": bool(row["active"]), "created_at": row["first_seen_at"], "created_by": row["created_by"],
         "last_sign_in_at": row["last_sign_in_at"], "last_sign_in_from": row["last_sign_in_from"],
@@ -435,7 +441,15 @@ def list_local_users(request: Request, include_deleted: bool = Query(False), pri
     return {"enabled": li.enabled(conn), "can_manage": authorize(conn, principal, "identity.local.manage", INSTALLATION).allowed,
             "channel": "remote" if is_remote(request) else "local", "users": [_user_dict(conn, r, live) for r in rows],
             # USR2 phase 2: can a code / a link leave by WhatsApp at all (an account mapped and connected), and where links point
-            "whatsapp_ready": lr.channel_ready(conn), "public_url": lr.public_origin(conn, request)}
+            "whatsapp_ready": lr.channel_ready(conn), "public_url": lr.public_origin(conn, request),
+            # USR2 phase 4: the owner switch of passkey-only sign-in (the tab shows it next to the address passkeys depend on)
+            "passkey_first_allowed": _passkey_first_allowed(conn)}
+
+
+def _passkey_first_allowed(conn: sqlite3.Connection) -> bool:
+    from ..services import local_passkeys
+
+    return local_passkeys.first_enabled(conn)
 
 
 def _validate_email(email: str | None) -> str | None:
@@ -594,6 +608,16 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
         changed["reset_mode"] = fields["reset_mode"]
         if fields["reset_mode"] == "manager_only":
             lr.kill_codes(conn, user_id)
+    if fields.get("passkey_first") is not None:
+        from ..services import local_passkeys as lpk
+
+        if fields["passkey_first"]:
+            raise ApiError(422, "passkey_first_self_only", "רק המשתמש עצמו מפעיל כניסה במפתח גישה (עם מפתח הגישה שלו); מנהל יכול רק לכבות אותה.")
+        if lpk.user_first_on(conn, user_id):
+            conn.execute("UPDATE auth_local_credentials SET passkey_first = 0, updated_at = ? WHERE user_id = ?", (now_iso(), user_id))
+            audit(conn, actor=principal, action="auth.local.passkey.first_disabled", decision="allowed", resource_type="user", resource_id=user_id,
+                  reason="admin", request_id=_rid(request))
+            changed["passkey_first"] = False
     suggest: str | None = None
     if fields.get("active") is not None and bool(fields["active"]) != bool(row["active"]):
         if not fields["active"]:

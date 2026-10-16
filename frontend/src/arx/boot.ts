@@ -41,6 +41,7 @@ function showLogin(notice: string, kind: 'info' | 'error', mode: '' | 'local' = 
   login.noticeKind = kind;
   login.localEnabled = !!remoteConfig().local_identity; // USR2: the "משתמש Arx" mode, only while the server offers it
   login.initialMode = mode;
+  login.passkeyFirst = !!remoteConfig().local_passkey_first; // USR2 phase 4: "כניסה עם מפתח גישה", only while the server allows it
   login.addEventListener('arx-signed-in', () => {
     login.remove();
     void startApp();

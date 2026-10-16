@@ -115,7 +115,12 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
         _audit_failed(conn, request, principal, "disable", exc)
         raise _fail(exc) from None
     sf.remove(conn, principal.user_id)
-    _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self")
+    factor_cleared = False
+    if principal.source == "local":  # USR2 review RELEASE_264 F2: no factor left -> this session no longer counts as factor-verified
+        from ..services import local_identity
+
+        factor_cleared = local_identity.on_factor_removed(conn, principal.user_id)
+    _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self", factor_cleared=factor_cleared)
     return sf.status(conn, principal.user_id)
 
 
@@ -168,6 +173,24 @@ def set_override(kind: str, subject_id: str, body: OverrideBody, request: Reques
     return {"kind": kind, "subject_id": subject_id, "policy": body.policy, **sf.overrides(conn)}
 
 
+def require_step_up(conn: sqlite3.Connection, request: Request, principal: Principal, body_code: str | None, *, action: str, target: str) -> bool:
+    """Security review 2.2.0 M1: an administrator who has a factor shows their OWN current code (`X-Arx-Second-Factor`, or the body's
+    `code`) before stripping a factor from someone else - a stolen session or cookie alone cannot. True when a code was checked.
+    Shared by the TOTP reset below and the administrator's passkey removal (USR2 phase 4, routers/local_passkeys.py)."""
+    if not sf.is_enrolled(conn, principal.user_id):
+        return False
+    code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or body_code or "").strip()
+    if not code:
+        raise ApiError(403, "second_factor_step_up_required", STEP_UP_HE)
+    try:
+        sf.verify(conn, settings_of(request), principal.user_id, code)
+    except sf.SecondFactorError as exc:
+        audit(conn, actor=principal, action=action, decision="denied", resource_type="user", resource_id=target,
+              reason=f"step_up_{exc.code}", request_id=getattr(request.state, "correlation_id", None), details={"method": "totp"})
+        raise _fail(exc) from None
+    return True
+
+
 class ResetBody(BaseModel):
     code: str | None = Field(default=None, max_length=16)
 
@@ -188,16 +211,7 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     if user_id == principal.user_id:
         raise ApiError(409, "second_factor_self_reset", SELF_RESET_HE)
     _limit(principal)
-    if sf.is_enrolled(conn, principal.user_id):
-        code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
-        if not code:
-            raise ApiError(403, "second_factor_step_up_required", STEP_UP_HE)
-        try:
-            sf.verify(conn, settings_of(request), principal.user_id, code)
-        except sf.SecondFactorError as exc:
-            audit(conn, actor=principal, action="auth.second_factor.reset", decision="denied", resource_type="user", resource_id=user_id,
-                  reason=f"step_up_{exc.code}", request_id=getattr(request.state, "correlation_id", None), details={"method": "totp"})
-            raise _fail(exc) from None
+    require_step_up(conn, request, principal, body.code if body else None, action="auth.second_factor.reset", target=user_id)
     was_active = sf.is_enrolled(conn, user_id)
     removed = sf.remove(conn, user_id)
     ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=getattr(request.state, "correlation_id", None))

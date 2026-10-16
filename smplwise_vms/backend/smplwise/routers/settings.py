@@ -303,6 +303,11 @@ DEFAULTS: dict[str, str] = {
     # USR2 phase 2: the public address (https://<host>) a link sent by WhatsApp points to; "" = only links issued on the remote channel
     # (its own host) can be sent. A system administrator sets it (whoever sets it decides where reset tokens go).
     "security.local_public_url": "",
+    # USR2 phase 4: passkeys. `security.local_passkey_first` lets a local user who opted in sign in with a passkey alone (UV required);
+    # off by default, system administrators only, never restored from a backup. `security.local_passkey_android`: the app allowed to
+    # use this site's passkeys in its WebView (`<package>:<SHA-256 fingerprint>` lines; served as /.well-known/assetlinks.json).
+    "security.local_passkey_first": "off",
+    "security.local_passkey_android": "",
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top
@@ -730,6 +735,8 @@ class SettingsPatch(BaseModel):
     security_local_link_ttl_h: int | None = Field(default=None, ge=1, le=168, alias="security.local_link_ttl_h")
     security_local_lock_mode: str | None = Field(default=None, pattern="^(delay|lock)$", alias="security.local_lock_mode")
     security_local_public_url: str | None = Field(default=None, max_length=300, alias="security.local_public_url")  # USR2 phase 2: system_admin only (checked below)
+    security_local_passkey_first: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_passkey_first")  # USR2 phase 4: system_admin only
+    security_local_passkey_android: str | None = Field(default=None, max_length=1200, alias="security.local_passkey_android")  # USR2 phase 4: system_admin only
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=128, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
     app_android_url: str | None = Field(default=None, max_length=app_download.MAX_URL, alias="app.android_url")  # https only, checked in app_download.normalize
@@ -791,6 +798,26 @@ def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, **_capacity_info(conn)}
+
+
+LOCAL_ONLY_IDENTITY_KEYS = ("security.local_public_url", "security.local_passkey_first", "security.local_passkey_android")
+LOCAL_ONLY_HE = "שינוי ההגדרה הזו אפשרי רק בגישה מקומית: פתחו את המערכת מתוך Home Assistant או ברשת המקומית."
+
+
+def _local_only_identity_key(conn: sqlite3.Connection, request: Request, principal: Principal, key: str) -> None:
+    """USR2 review RELEASE_264 F4 (and the P2B/P3 review's F9): the settings that shape WHO can sign in to an Arx-only identity - the
+    public address (= the passkey RP id and where reset links point), passwordless sign-in, the Android app allowed to use this
+    site's passkeys - change only from the local channel (Ingress / the LAN), like the tickets public address (routers/tickets_admin).
+    The path itself cannot sit in remote_channel.BLOCKED_ON_REMOTE (every other setting stays remote-editable), so the refusal is per
+    key and only for an actual change: a remote PATCH that repeats the current value is untouched. Audited; the whole PATCH fails
+    (no partial write)."""
+    from ..remote_channel import is_remote
+
+    if not is_remote(request):
+        return
+    audit(conn, actor=principal, action="identity.local.setting_local_only", decision="denied", resource_type="installation", resource_id="local_identity",
+          reason="remote_channel", request_id=getattr(request.state, "correlation_id", None), details={"key": key})
+    raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": key})
 
 
 @router.patch("/settings")
@@ -953,6 +980,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if value is None:
             raise ApiError(422, "validation", "כתובת הגישה מרחוק: https://שם-מארח בלבד (בלי נתיב, בלי כתובת IP).", details={"field": "security.local_public_url"})
         if value != (get_setting(conn, "security.local_public_url", "") or ""):
+            _local_only_identity_key(conn, request, principal, "security.local_public_url")
             if not is_system_admin(conn, principal.user_id):
                 audit(conn, actor=principal, action="identity.local.public_url", decision="denied", resource_type="installation", resource_id="local_identity",
                       reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None))
@@ -960,6 +988,31 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             audit(conn, actor=principal, action="identity.local.public_url", decision="allowed", resource_type="installation", resource_id="local_identity",
                   request_id=getattr(request.state, "correlation_id", None), details={"to": value or None})
         changes["security.local_public_url"] = value
+    for key in ("security.local_passkey_first", "security.local_passkey_android"):
+        # USR2 phase 4: passwordless sign-in, and which app may use this site's passkeys - each shapes who can sign in, so (like the switch)
+        # only a system administrator changes them; audited; never restored from a backup (services/backup.SETTINGS_KEEP)
+        if key not in changes:
+            continue
+        from ..rbac import is_system_admin
+        from ..services import local_passkeys
+
+        value = changes[key].strip() if isinstance(changes[key], str) else changes[key]
+        if key == "security.local_passkey_android":
+            targets = local_passkeys.android_targets(value)
+            if targets is None:
+                raise ApiError(422, "validation", "אפליקציית אנדרואיד: שורות בצורה package.name:AA:BB:...(טביעת SHA-256).", details={"field": key})
+            value = "\n".join(f"{p}:{f}" for p, f in targets)
+        if value == (get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]):
+            changes.pop(key)
+            continue
+        _local_only_identity_key(conn, request, principal, key)
+        if not is_system_admin(conn, principal.user_id):
+            audit(conn, actor=principal, action="identity.local.passkey_setting", decision="denied", resource_type="installation", resource_id="local_identity",
+                  reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key})
+            raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את הגדרות מפתחות הגישה של משתמשי Arx.")
+        audit(conn, actor=principal, action="identity.local.passkey_setting", decision="allowed", resource_type="installation", resource_id="local_identity",
+              request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": value if key == "security.local_passkey_first" else ("set" if value else "cleared")})
+        changes[key] = value
     tickets_switch = None  # CR-038: the module switch gets its own audit row when it actually changes
     if "tickets.enabled" in changes:
         current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]

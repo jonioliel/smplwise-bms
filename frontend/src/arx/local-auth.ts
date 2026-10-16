@@ -8,11 +8,14 @@
  */
 import { ArxAuthError } from './auth';
 import { lit } from '../i18n/local-identity';
+import { getPasskey, type RequestOptionsJSON } from './webauthn';
 
 export interface LocalSignIn {
   second_factor: 'none' | 'required' | 'enroll_required';
   must_change_password?: boolean;
   user?: { id: string; username: string; display_name: string; source: string };
+  /** USR2 phase 4: present on the pending step when a passkey can answer it (`['totp', 'passkey']` or `['passkey']`). */
+  methods?: ('totp' | 'passkey')[];
 }
 
 export interface LocalMe {
@@ -36,7 +39,21 @@ async function call<T>(path: string, init: RequestInit): Promise<{ status: numbe
 
 export async function localSignIn(username: string, password: string): Promise<LocalSignIn> {
   const r = await call<LocalSignIn>('api/v1/auth/local/sign-in', { method: 'POST', body: JSON.stringify({ username, password }) });
-  return r.status === 202 ? { second_factor: 'required' } : r.data;
+  return r.status === 202 ? { second_factor: 'required', ...(r.data?.methods ? { methods: r.data.methods } : {}) } : r.data;
+}
+
+/** USR2 phase 4: answer the pending second step with a passkey (options bound to the pending cookie, then the assertion). */
+export async function localPasskeySecondFactor(): Promise<LocalSignIn> {
+  const opts = await call<{ publicKey: RequestOptionsJSON }>('api/v1/auth/local/sign-in/passkey/options', { method: 'POST', body: '{}' });
+  const credential = await getPasskey(opts.data.publicKey);
+  return (await call<LocalSignIn>('api/v1/auth/local/sign-in/passkey', { method: 'POST', body: JSON.stringify({ credential }) })).data;
+}
+
+/** USR2 phase 4: passkey first - a discoverable passkey with on-device verification, no username, no password. */
+export async function localPasskeySignIn(): Promise<LocalSignIn> {
+  const opts = await call<{ publicKey: RequestOptionsJSON }>('api/v1/auth/local/passkey/options', { method: 'POST', body: '{}' });
+  const credential = await getPasskey(opts.data.publicKey);
+  return (await call<LocalSignIn>('api/v1/auth/local/passkey', { method: 'POST', body: JSON.stringify({ credential }) })).data;
 }
 
 export async function localSecondFactor(code: string): Promise<LocalSignIn> {

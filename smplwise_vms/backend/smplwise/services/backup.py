@@ -52,7 +52,8 @@ PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
 # new host keeps the users) - the rows hold PHC hashes only; sessions, links, the failure counters and the TOTP secrets
 # (auth_local_sessions, auth_local_links, auth_local_failures, auth_totp*) are never written to an archive. identity_links: the
 # manual "same person" link. Listed right after `users` (they reference it).
-ACCESS_TABLES = ["users", "auth_local_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
+# USR2 phase 4: the passkeys' PUBLIC keys (auth_webauthn_credentials) travel the same way; WebAuthn challenges exist in memory only.
+ACCESS_TABLES = ["users", "auth_local_credentials", "auth_webauthn_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
                  # CR-033: where stations sit (station scope), which relay each WisKey lock is, and the door grant card's own bindings
                  "intercom_station_placement", "intercom_door_map", "door_grant_bindings"]
 # USR2-FIX F9 (CR-USR2 §1a.6 "failure counters never travel in a backup"): the per-account failure counter, the ceiling lock and
@@ -96,7 +97,9 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # USR2: the Arx-only identity switch is the installation's own policy - a restore never switches local sign-in on
                  "security.local_identity",
                  # USR2 phase 2: where links sent by WhatsApp point - an archive never re-aims reset links
-                 "security.local_public_url"}
+                 "security.local_public_url",
+                 # USR2 phase 4: passwordless sign-in and the Android app association - an archive never switches them on / re-aims them
+                 "security.local_passkey_first", "security.local_passkey_android"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:

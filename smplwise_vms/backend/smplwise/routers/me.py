@@ -65,7 +65,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
     if principal.source == "local":
         # USR2: what the shell needs for an Arx-only identity - whether its administrative permissions wait for the second factor
         # (owner answer Q3), whether the session is gated (enrolment / password change) and the reset mode the administrator chose
-        from ..services import local_identity
+        from ..services import local_identity, local_passkeys
         from ..services import second_factor as sf
         from ..services.ha_user_auth import session_of
 
@@ -79,6 +79,9 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
             "gate": getattr(s, "gate", "") or None,
             "must_change_password": bool(cred and cred["must_change"]),
             "reset_mode": cred["reset_mode"] if cred else "manager_only",
+            # USR2 phase 4: a usable passkey is a factor too (Q3); the shell offers the passkey section from these
+            "passkeys": len(local_passkeys.usable_rows(conn, principal.user_id)),
+            "factor_enrolled": local_passkeys.has_factor(conn, principal.user_id),
         }
     from ..services import wall as wall_service
     from ..services.tickets import access as tickets_access, naming as tickets_naming
