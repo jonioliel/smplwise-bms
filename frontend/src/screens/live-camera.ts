@@ -33,6 +33,7 @@ import { CastWatch, castStore } from '../components/cast-store';
 import { castButtonVisible, isLow, leftText } from './cast-logic';
 import { isPhoneWidth } from '../shell/tabs-mode';
 import { t as tr } from '../i18n/he';
+import { fx } from '../i18n/frigate-text';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
@@ -1049,6 +1050,7 @@ export class LiveCamera extends LitElement {
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div>
+      ${canView && cam.live_kind === 'still' ? html`<div class="note" data-live-still-note>${fx().live.stillExplain.replace('{n}', String(cam.still_refresh_s ?? 10))}</div>` : nothing}
       <div class="controls">
         <div class="round" role="group" aria-label="פקדי מצלמה">
           <button title="רענון תמונה" aria-label="רענון תמונה" @click=${() => (this.posterBust = Date.now())}><sw-icon name="aperture" size=${16}></sw-icon></button>

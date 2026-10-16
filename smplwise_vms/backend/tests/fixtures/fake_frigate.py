@@ -94,6 +94,7 @@ class FakeFrigate:
         self.viewer_blocks: set[str] = set()      # path prefixes a viewer role may not read (answered 403)
         self.openapi = True
         self.restream = False
+        self.restream_names = ["cam_front"]       # TKFRIGLIVE: the stream names Frigate's go2rtc lists while `restream` is on
         self.latest_status = 200
         self.cameras = {"cam_front": camera_config("cam_front", onvif=True, friendly="Front door"), "cam_yard": camera_config("cam_yard", w=2560, h=1440),
                         "cam_garage": camera_config("cam_garage", enabled=False)}
@@ -405,7 +406,7 @@ class FakeFrigate:
         if path == "/api/openapi.json":
             return self._json(self.openapi_doc()) if self.openapi else httpx.Response(404)
         if path == "/api/go2rtc/streams":
-            return self._json({"cam_front": {"producers": []}} if self.restream else {})
+            return self._json({n: {"producers": []} for n in self.restream_names} if self.restream else {})
         if path == "/api/recordings/storage":
             return self._json({"cam_front": {"usage": 82902.75, "bandwidth": 120.0, "usage_percent": 4.2}, "cam_yard": {"usage": 24509.63, "bandwidth": 80.0, "usage_percent": 1.2}})
         if path == "/api/review/activity/motion":

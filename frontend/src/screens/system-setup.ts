@@ -21,6 +21,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import '../components/nvr-connection-form';
 import '../components/nvr-recorders-card';
+import '../components/frigate-summary';
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -76,7 +77,7 @@ export class SystemSetup extends LitElement {
   @state() private sys: NvrSystem | null = null;
   /** CR-024: the recorder the NVR system card reads and acts on (a selector appears with two or more recorders). */
   @state() private sysRecorder = 'nvr-1';
-  @state() private sysRecorders: { id: string; name: string }[] = [];
+  @state() private sysRecorders: { id: string; name: string; vendor?: string | null }[] = [];
   private get sysApi() {
     return nvrSystemApi(this.sysRecorder);
   }
@@ -153,7 +154,18 @@ export class SystemSetup extends LitElement {
     void this.loadSystem();
   }
 
+  /** TKFRIGLIVE: the clock / disks / outputs card is a Hikvision card; a Frigate recorder is never asked (it answered 409 on every
+   * load) and shows its own summary instead. */
+  private get sysVendor(): string | null {
+    return this.sysRecorders.find((r) => r.id === this.sysRecorder)?.vendor ?? this.sys?.vendor ?? null;
+  }
+
   private async loadSystem() {
+    if (this.sysRecorders.find((r) => r.id === this.sysRecorder)?.vendor === 'frigate') {
+      this.sys = null;
+      this.sysError = '';
+      return;
+    }
     try {
       this.sys = await this.sysApi.nvrSystem();
       this.sysError = '';
@@ -189,7 +201,11 @@ export class SystemSetup extends LitElement {
             ${this.sysRecorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.sysRecorder}>${r.name}</option>`)}
           </select></sw-field>`
         : nothing}
-      ${this.sysError ? html`<div class="hint" data-nvr-system-error>${this.sysError}</div>` : nothing}
+      ${this.sysVendor === 'frigate'
+        ? html`<frigate-summary recorder-id=${this.sysRecorder} data-nvr-system-frigate></frigate-summary>`
+        : s && s.supported === false
+        ? html`<div class="hint" data-nvr-system-unsupported>פרטי השעון, הדיסקים והיציאות אינם זמינים עבור מקליט מסוג זה.</div>`
+        : html`${this.sysError ? html`<div class="hint" data-nvr-system-error>${this.sysError}</div>` : nothing}
       ${!s
         ? this.sysError ? nothing : html`<div class="hint">קורא את מצב המערכת מה־NVR…</div>`
         : html`
@@ -234,7 +250,7 @@ export class SystemSetup extends LitElement {
           ${s.can.reboot
             ? html`<div class="actions"><sw-button size="sm" variant="danger" icon="refresh" ?disabled=${this.sysBusy} data-nvr-reboot @click=${() => { this.rebootWord = ''; this.rebootOpen = true; }}>הפעל מחדש את ה־NVR…</sw-button><span class="hint">1–2 דקות בלי לייב ובלי הקלטה</span></div>`
             : html`<div class="hint">הפעלה מחדש: הרשאה nvr.system.reboot (תפקיד מותאם).</div>`}
-          ${this.sysMsg ? html`<div class="hint" data-nvr-system-msg>${this.sysMsg}</div>` : nothing}`}
+          ${this.sysMsg ? html`<div class="hint" data-nvr-system-msg>${this.sysMsg}</div>` : nothing}`}`}
       ${this.rebootOpen
         ? html`<sw-dialog open heading="הפעלה מחדש של ה־NVR" subheading="במשך 1–2 דקות אין לייב ואין הקלטה" data-nvr-reboot-dialog @close=${() => (this.rebootOpen = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">הקלד <b>RESTART</b> כדי לאשר. הפעולה נרשמת באודיט עם שם המשתמש.</div>

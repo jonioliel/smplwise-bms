@@ -79,8 +79,41 @@ def recorder_names(conn: sqlite3.Connection) -> dict[str, str]:
     return {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM recorders").fetchall()}
 
 
+def recorder_vendors(conn: sqlite3.Connection) -> dict[str, str]:
+    try:
+        return {r["id"]: r["vendor"] or "" for r in conn.execute("SELECT id, vendor FROM recorders").fetchall()}
+    except sqlite3.OperationalError:  # a database without the column
+        return {}
+
+
+def frigate_live_kinds(settings: Any, rows: list[sqlite3.Row]) -> dict[str, str]:
+    """TKFRIGLIVE: camera id -> `stream` | `still` for the cameras of a Frigate recorder, from the cached discovery only (no I/O):
+    `stream` when the camera has a Frigate restream Arx may pull (frigate_restream), else `still`. A recorder never discovered
+    since start-up is left out, so the screens ask the recorder's status as before."""
+    from ..services.recorders import frigate_io
+    from ..services.recorders import frigate_restream as frs
+    from ..services.recorders.frigate import FrigateAdapter
+
+    out: dict[str, str] = {}
+    for rid in sorted({r["recorder_id"] for r in rows}):
+        try:
+            rs = settings_for(settings, rid)
+            if not frigate_io.handles(rs):
+                continue
+            doc = FrigateAdapter(rid, rs).cached_discovery()
+        except Exception:  # noqa: BLE001 - the list never fails for this hint
+            continue
+        if doc is None:
+            continue
+        plan = frs.live_plan(rs, doc)
+        for r in rows:
+            if r["recorder_id"] == rid:
+                out[r["id"]] = "stream" if (r["source_ref"] if "source_ref" in r.keys() else None) in plan else "still"
+    return out
+
+
 @router.get("/cameras")
-def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+def list_cameras(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                  recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """Cameras the caller may see: everything for installation-wide readers, otherwise only cameras
     anchored on floors the caller can read. CR-024: `recorder_id` filters by recorder; cameras of a removed recorder are
@@ -99,10 +132,14 @@ def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sql
     from ..recorder_scope import is_disabled
 
     off = {rid for rid in present if is_disabled(rid)}  # CR-024: a disabled recorder's cameras are not offered for live / snapshots
+    vendors = recorder_vendors(conn)
+    kinds = frigate_live_kinds(settings_of(request), [r for r in visible if vendors.get(r["recorder_id"]) == "frigate"])
     return {
         "cameras": disambiguate([dict(camera_row(r), can_view_live=live_ok[r["id"]] and r["recorder_id"] not in off, recorder_enabled=r["recorder_id"] not in off,
-                                      recorder_name=names.get(r["recorder_id"]) if multi else None) for r in visible], names),
-        "recorders": [{"id": rid, "name": names.get(rid) or rid} for rid in present],
+                                      recorder_name=names.get(r["recorder_id"]) if multi else None, **({"live_kind": kinds[r["id"]]} if r["id"] in kinds else {}))
+                                 for r in visible], names),
+        # TKFRIGLIVE: `vendor` lets a screen skip what a recorder cannot answer (the NVR system card never asks a Frigate recorder)
+        "recorders": [{"id": rid, "name": names.get(rid) or rid, "vendor": vendors.get(rid) or None} for rid in present],
         "recorder": {"id": recorder["id"], "name": recorder["name"], "model": recorder["model"], "firmware": recorder["firmware"], "last_seen_at": recorder["last_seen_at"]} if recorder else None,
         "can_sync": authorize(conn, principal, "sources.configure", INSTALLATION).allowed,
         "media": read_settings(conn),

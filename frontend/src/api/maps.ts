@@ -224,7 +224,7 @@ export const deleteAnchor = (id: string, fromFloorId?: string) => del(`map-ancho
 // ---- cameras ----
 
 /** CR-024: `recorders` names the recorders of the visible cameras (a recorder filter is shown only with two or more). */
-export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: string; name: string }[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras')
+export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: string; name: string; vendor?: string | null }[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras')
   // NN5-F1B: cameras of a Frigate recorder without a restream are stills (live_kind), so the live screens do not open a stream for them
   .then(async (r) => {
     await markStillCameras(r.cameras);
