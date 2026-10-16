@@ -39,8 +39,8 @@ export class SwViewSwitch extends LitElement {
       box-sizing: border-box;
       display: grid;
       place-items: center;
-      min-block-size: var(--sw-touch-desktop, 44px);
-      min-inline-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
+      min-inline-size: var(--sw-touch-desktop);
       padding: 0;
       border: 0;
       border-radius: var(--sw-r-pill);

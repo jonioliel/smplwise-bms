@@ -56,7 +56,7 @@ export class ExternalAssign implements ReactiveController {
   query = '';
   requireCode = false;
   shareHistory = false;
-  /** slice 9 (D32): "דרישת עלות: חובה / רשות / בלי" - null = the preview's preselection (vendor -> department -> installation) */
+  /** slice 9 (D32): "דרישת תשלום: חובה / רשות / בלי" - null = the preview's preselection (vendor -> department -> installation) */
   costClaim: 'required' | 'optional' | 'off' | null = null;
   preview: AssignPreview | null = null;
   showText = false;
@@ -371,7 +371,7 @@ export const externalAssignStyles = css`
     color: var(--dv-text-3);
   }
   .xkinds button.off small {
-    color: var(--sw-warning, var(--dv-text-3));
+    color: var(--sw-warning);
   }
   .xreason {
     display: flex;

@@ -28,6 +28,7 @@ import type { TicketCardAction } from '../tickets/ticket-card';
 import { dlt } from '../tickets/delete-text';
 import { LiveRefresh } from '../tickets/live-refresh';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
+import { setCalendarWanted } from '../tickets/calendar-mode';
 import { applyCardFilters, activeCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
 import { filterButton, filterRow } from '../tickets/list-filter-row';
 import { roleFor, avatarPair } from '../tickets/list-card-model';
@@ -142,7 +143,7 @@ export class TicketsBoard extends LitElement {
       border-radius: var(--sw-r-pill);
       background: color-mix(in srgb, var(--dv-text) 8%, transparent);
       color: var(--dv-text-2);
-      font-size: var(--sw-fs-xs, 11px);
+      font-size: var(--sw-fs-xs);
       font-weight: 700;
     }
     .rc[aria-pressed='true'] small {
@@ -282,7 +283,9 @@ export class TicketsBoard extends LitElement {
 
   private pickMode = (m: ListMode): void => {
     if (m === 'board') return;
-    void saveBoardPrefs({ view: m });
+    // TKCAL: the calendar is a mode of the list page: the board's switch returns to the list in that mode
+    setCalendarWanted(m === 'calendar');
+    if (m !== 'calendar') void saveBoardPrefs({ view: m });
     window.location.hash = listHref(lastScope());
   };
 

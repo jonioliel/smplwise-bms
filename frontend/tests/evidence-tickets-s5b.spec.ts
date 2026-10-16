@@ -82,7 +82,7 @@ function preview(contactId: string) {
   const vendor = contactId === 'c-gates';
   return {
     channel: 'whatsapp', lang: 'he',
-    text: `שלום ${vendor ? 'משה' : 'דוד'},\nבקשת שירות 1044 (אחזקה): שער החניון לא נסגר\nחניון תת-קרקעי\nלעדכון הטיפול: [קישור]\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול`,
+    text: `שלום ${vendor ? 'משה' : 'דוד'},\nבקשת שירות 1044 (אחזקה): שער החניון לא נסגר\nחניון תת-קרקעי\nלעדכון הטיפול: [קישור]\nחובה להיכנס לקישור כדי להמשיך בטיפול.`,
     require_code: false, require_code_locked: false, code_to_contact_phone: false, share_history: { available: false, default: false },
     link: { sliding_days: 14, cap_days: 90, grace_hours: 24, expires_at: at(-24 * 14), cap_at: at(-24 * 90) }, refusals: [],
     send_hours: { window: { from: '07:00', to: '21:00' }, open_now: false, next_opening: '2026-10-14T04:00:00Z', send_now_default: true },
@@ -110,8 +110,8 @@ function channelView(enabled: boolean, revision: number) {
 }
 
 const STARTERS = {
-  assign: { he: 'שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול',
-    en: 'Hello {name},\nNew {module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling: {link}\nQuick reply: 1 = received, 2 = in progress' },
+  assign: { he: 'שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}\nחובה להיכנס לקישור כדי להמשיך בטיפול.',
+    en: 'Hello {name},\nNew {module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling: {link}\nYou must open the link to continue the handling.' },
   reminder: { he: 'תזכורת: {module_name} {number} ({department}): {title}\nלעדכון הטיפול: {link}' },
   code: { he: 'קוד האימות: {code}\nהקוד בתוקף 10 דקות. אין למסור אותו לאחרים.' },
 };
