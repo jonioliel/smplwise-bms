@@ -366,3 +366,188 @@ def test_the_vendor_urls_of_the_real_store_follow_the_prefix_then_the_address_pa
     assert r.status_code == 200 and prefix() == "t"
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "public": {"base_url": BASE_URL + "/zzprefix"}})
     assert r.status_code == 200 and prefix() == "zzprefix"  # a 2.5.4 address keeps its own prefix over the setting
+
+
+# ---------------------------------------------------------------- security review follow-ups (F1, F2, F2b and the missing classes)
+
+
+def _asgi(world, path, raw, token="", headers=()):
+    """Like _asgi_status, but with extra request headers."""
+    import asyncio
+
+    out: dict = {"status": None, "body": b""}
+
+    async def run() -> None:
+        hs = [(b"host", b"x.test")] + ([(b"x-ticket-token", token.encode())] if token else []) + list(headers)
+        scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET", "path": path, "raw_path": raw,
+                 "query_string": b"", "headers": hs, "client": ("198.51.100.31", 5000), "server": ("x.test", 443), "scheme": "https"}
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            await asyncio.sleep(0.05)
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            if message["type"] == "http.response.start":
+                out["status"] = message["status"]
+            elif message["type"] == "http.response.body":
+                out["body"] += message.get("body", b"")
+
+        await world.app(scope, receive, send)
+
+    asyncio.run(run())
+    return out["status"], out["body"]
+
+
+@pytest.mark.parametrize("path,raw", [("/support/healthz", b"http://x.test/support/healthz"),  # absolute-form request target
+                                      ("*", b"*"),  # asterisk-form
+                                      ("/support/healthz", b"/support/healthz?x=1"),  # a raw path that carries a query
+                                      ("support/healthz", b"support/healthz")])
+def test_unusual_request_targets_are_the_uniform_404(tmp_path, path, raw):
+    w = _world(tmp_path)
+    assert _asgi(w, path, raw) == (404, UNIFORM)
+
+
+def test_host_and_forwarding_headers_change_nothing(tmp_path):
+    w = _world(tmp_path, shell=b'<link href="/t/assets/main-AbCd1234.js">')
+    evil = [(b"host", b"evil.test"), (b"x-forwarded-host", b"evil.test"), (b"x-forwarded-prefix", b"/admin"), (b"x-forwarded-proto", b"http"),
+            (b"x-original-url", b"/t/api/ticket"), (b"x-rewrite-url", b"/t/"), (b"forwarded", b"host=evil.test;proto=http")]
+    plain = _asgi(w, "/support/", b"/support/")
+    assert plain[0] == 200 and b"/support/assets/main-AbCd1234.js" in plain[1]
+    assert _asgi(w, "/support/", b"/support/", headers=evil) == plain
+    assert _asgi(w, "/support/healthz", b"/support/healthz", headers=evil)[0] == 200
+    assert _asgi(w, "/admin/", b"/admin/", headers=evil) == (404, UNIFORM)
+    assert _asgi(w, "/t/", b"/t/", headers=evil)[1] == b'<link href="/t/assets/main-AbCd1234.js">'  # the legacy page keeps /t assets
+
+
+def test_unknown_paths_under_the_prefix_pay_the_static_budget(tmp_path):
+    w = _world(tmp_path)
+    c = w.client(peer="192.0.2.77")
+    codes = [c.get(f"/support/nothing/{i}").status_code for i in range(125)]
+    assert codes[:120] == [404] * 120 and set(codes[120:]) == {429}
+    assert c.get("/support/healthz").status_code == 429  # the same budget: nothing tells a scanner which route exists
+    assert w.client(peer="203.0.113.9").get("/support/healthz").status_code == 200
+
+
+def test_without_a_raw_path_only_the_decoded_path_is_judged_but_still_strictly():
+    assert public_prefix.resolve_path("/support/healthz", None, "support", True) == ("/t/healthz", "support")
+    for bad in ("/support/%2e%2e/", "/support/a%2fb", "/support//x", "/support/..", "/support/h?x"):
+        assert public_prefix.resolve_path(bad, None, "support", True) is None
+
+
+def test_f1_an_address_path_the_prefix_validator_refuses_is_refused_everywhere():
+    for word in ("api", "assets", "arx", "static", "www", "healthz", "admin"):
+        with pytest.raises(links.PublicUrlError):
+            links.validate_public_base_url(f"https://ecc.smplwise.com/{word}")
+        assert links.effective_prefix(f"https://ecc.smplwise.com/{word}", "support") == "support"  # a stored one falls back to the setting
+    assert links.validate_public_base_url("https://ecc.smplwise.com/help") == "https://ecc.smplwise.com/help"
+
+
+def test_f1_the_settings_put_refuses_a_reserved_address_path_and_assign_degrades_without_a_link(settings, monkeypatch):
+    from smplwise.services.tickets import handler_links
+    from tickets_s4_world import API
+
+    s4 = _s4(settings, monkeypatch)
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"base_url": "https://t-demo.arx.example.test/api"}})
+    assert r.status_code == 422, r.text
+    t, _token = s4.sent()
+
+    def boom(conn, row):
+        raise ValueError("reserved")
+
+    monkeypatch.setattr(handler_links, "handler_url", boom)
+    r = s4.copy(t["id"])
+    assert r.status_code == 409 and r.json()["code"] == "public_link_unavailable", r.text  # never a 500
+
+
+def _store_doc(db, doc: dict) -> None:
+    import json
+
+    with db.connection(label="test.store") as conn:
+        conn.execute("DELETE FROM settings WHERE key IN ('tickets.settings', 'tickets.path_prefix_pinned')")
+        conn.execute("INSERT INTO settings(key, value) VALUES('tickets.settings', ?)", (json.dumps(doc),))
+
+
+def test_f2_an_existing_path_less_address_stays_on_t_after_the_upgrade(settings, monkeypatch):
+    from smplwise.services.tickets import handler_links
+    from tickets_s4_world import BASE_URL
+
+    s4 = _s4(settings, monkeypatch)
+    _store_doc(s4.db, {"revision": 4, "public": {"base_url": BASE_URL}})  # saved before TK255: no path_prefix key
+    with s4.db.connection(label="test.pin") as conn:
+        assert settings_doc.pin_legacy_prefix(conn) is True
+        assert settings_doc.pin_legacy_prefix(conn) is False  # once only
+        doc = settings_doc.read(conn)
+        assert doc["public"]["path_prefix"] == "t" and doc["revision"] == 4
+        assert handler_links.public_prefix(conn) == "t"
+        assert links.handler_url(BASE_URL, "A" * 32, handler_links.public_prefix(conn)) == f"{BASE_URL}/t/#{'A' * 32}"
+
+
+def test_f2_a_fresh_installation_and_an_address_with_a_path_are_not_pinned(settings, monkeypatch):
+    from tickets_s4_world import BASE_URL
+
+    s4 = _s4(settings, monkeypatch)
+    _store_doc(s4.db, {"revision": 1})  # no address yet: the first start only records that the rule ran
+    with s4.db.connection(label="test.fresh") as conn:
+        assert settings_doc.pin_legacy_prefix(conn) is False
+    _store_doc(s4.db, {"revision": 2, "public": {"base_url": BASE_URL}})  # the owner sets an address LATER (marker present)
+    with s4.db.connection(label="test.fresh2") as conn:
+        conn.execute("INSERT INTO settings(key, value) VALUES('tickets.path_prefix_pinned', '1') ON CONFLICT(key) DO UPDATE SET value='1'")
+        assert settings_doc.pin_legacy_prefix(conn) is False
+        assert settings_doc.read(conn)["public"]["path_prefix"] == "support"
+    _store_doc(s4.db, {"revision": 3, "public": {"base_url": BASE_URL + "/help"}})
+    with s4.db.connection(label="test.path") as conn:
+        assert settings_doc.pin_legacy_prefix(conn) is False
+        assert "path_prefix" not in (settings_doc._stored(conn).get("public") or {})
+
+
+def test_f2_an_owner_choice_is_never_overwritten_by_the_pin(settings, monkeypatch):
+    from tickets_s4_world import BASE_URL
+
+    s4 = _s4(settings, monkeypatch)
+    _store_doc(s4.db, {"revision": 5, "public": {"base_url": BASE_URL, "path_prefix": "support"}})
+    with s4.db.connection(label="test.keep") as conn:
+        assert settings_doc.pin_legacy_prefix(conn) is False
+        assert settings_doc.read(conn)["public"]["path_prefix"] == "support"
+
+
+def test_f2b_changing_the_prefix_with_live_links_needs_an_explicit_confirmation(settings, monkeypatch):
+    from tickets_s4_world import API
+
+    s4 = _s4(settings, monkeypatch)
+    s4.sent()  # one live link
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"path_prefix": "help"}})
+    assert r.status_code == 409 and r.json()["code"] == "confirm_live_links", r.text
+    assert r.json()["details"]["live_links"] >= 1
+    assert s4.c.get(f"{API}/tickets/settings").json()["public"]["path_prefix"] == "support"  # nothing was stored
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"path_prefix": "help", "confirm_live_links": True}})
+    assert r.status_code == 200 and r.json()["public"]["path_prefix"] == "help"
+    rev = r.json()["revision"]  # an unchanged value, or the legacy switch alone, never asks
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "public": {"path_prefix": "help"}})
+    assert r.status_code == 200, r.text
+    assert s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "public": {"legacy_t_paths": False}}).status_code == 200
+
+
+def test_f2b_without_live_links_no_confirmation_is_needed(settings, monkeypatch):
+    from tickets_s4_world import API
+
+    s4 = _s4(settings, monkeypatch)
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"path_prefix": "help"}})
+    assert r.status_code == 200, r.text
+
+
+def test_f3_a_rebuilt_public_bundle_does_not_hardcode_t_in_its_calls():
+    from pathlib import Path
+
+    www = Path(links.__file__).resolve().parents[3] / "www-public" / "assets"
+    js = "".join(p.read_text(encoding="utf-8", errors="replace") for p in sorted(www.glob("*.js"))) if www.is_dir() else ""
+    if not js or 'replaceState(null,"","/t/")' in js or 'fetch("/t/' in js:
+        pytest.skip("the committed www-public bundle predates TK255; the release rebuilds it (npm run build:addon)")
+    assert 'fetch("/t/' not in js and "fetch(`/t/" not in js

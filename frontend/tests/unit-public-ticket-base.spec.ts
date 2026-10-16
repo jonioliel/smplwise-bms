@@ -33,3 +33,11 @@ test('a redeem link works under every valid prefix and under none other', () => 
   expect(bootFrom('', `/t/r/${rid}`, null).rid).toBe(rid);
   for (const bad of [`/x/r/${rid}`, `/Support/r/${rid}`, `/support/../r/${rid}`, `/a/b/r/${rid}`]) expect(bootFrom('', bad, null).rid).toBeNull();
 });
+
+test('a pathname that tries to leave the origin never produces anything but one local segment', () => {
+  for (const evil of ['//evil.test/t/', '/\\evil.test/t/', '/%2f/t/', '///', '/support/../x/', '/t/..;/']) {
+    expect(publicBase(evil)).toMatch(/^\/(t|[a-z0-9][a-z0-9_-]{1,31})$/);
+    expect(withBase('/t/api/ticket', evil).startsWith('//')).toBe(false);
+    expect(homePath(evil)).toMatch(/^\/[a-z0-9_-]+\/$/);
+  }
+});
