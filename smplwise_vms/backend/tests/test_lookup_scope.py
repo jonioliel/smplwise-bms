@@ -160,3 +160,15 @@ def test_n15_system_configure_without_system_admin_is_refused_not_system_admin(w
     with db.connection(mode="read") as conn:
         n = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'settings.changed' AND decision = 'denied' AND reason = 'not_system_admin' AND actor_username = 'cfgu'").fetchone()[0]
         assert n == 3 and cl.lookup_scope(conn) == "holder"
+
+
+def test_l6_reading_the_settings_needs_a_system_administrator_too(world, settings):
+    c, db = world
+    _custom_role(db, "cfg_y", ["system.configure"])
+    c.get("/api/v1/me", headers=as_user("cfgv"))
+    bind(c, settings, "cfgv", "cfg_y", "installation", "*")
+    r = c.get("/api/v1/access/capture-lease/settings", headers=as_user("cfgv"))
+    assert r.status_code == 403 and r.json()["code"] == "not_system_admin", r.text
+    r = c.put("/api/v1/access/capture-lease/settings", json={"degraded_reenable": True}, headers=as_user("cfgv"))
+    assert r.status_code == 403 and r.json()["code"] == "not_system_admin", r.text
+    assert c.get("/api/v1/access/capture-lease/settings", headers=as_user("joni")).status_code == 200

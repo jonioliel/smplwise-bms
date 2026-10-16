@@ -50,8 +50,8 @@ def classify_request(answer: Any, request_id: str) -> tuple[str, dict[str, Any]]
         return "unknown", {"code": "invalid_response"}
     result, rid = r.get("result"), r.get("request_id")
     if result == "rejected":
-        stage, code = r.get("stage"), r.get("code")
-        if rid not in (None, request_id) or not (isinstance(stage, str) and isinstance(code, str)):
+        stage, code = cl.bridge_text(r.get("stage")), cl.bridge_text(r.get("code"))  # bounded before audit / API (review L1)
+        if rid not in (None, request_id) or stage is None or code is None:
             return "unknown", {"code": "invalid_response"}
         return "rejected", {"code": f"{stage}/{code}"}
     if rid != request_id or result not in REQUEST_RESULTS:
@@ -82,6 +82,11 @@ def tick(registry: Any, capture: Any, now: float, busy: bool = False) -> None:
 
     if capture.elapsed(now) >= ic.SESSION_S + ic.EXPIRE_GRACE_S:
         if registry.set_state(capture, "expired", None, only_from=ic.POLLED):
+            registry._audit_result(capture, "expired", None, {"lease_ref": capture.lease_ref})
+        return
+    if cl.expired(capture.lease_ref):  # the lease's own end reads `expired`, not `revoked` (review L7)
+        if registry.set_state(capture, "expired", None, only_from=ic.POLLED):
+            cl.finish(capture.db, capture.lease_ref, "expired", "expired")
             registry._audit_result(capture, "expired", None, {"lease_ref": capture.lease_ref})
         return
     if not cl.usable(capture.lease_ref):

@@ -45,7 +45,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
-from ..db import Database, commit_now, get_setting, now_iso, permission_revision, unlocked
+from ..db import Database, commit_now, get_setting, now_iso, unlocked
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, STATION, Principal, authorize, note_grant, require
 from ..services import capture_lease, capture_lease_route, door_authority, ha_bridge, lease_events, trusted_door
@@ -1489,6 +1489,14 @@ CAPTURE_NOTE = "הקורא בעמדה במצב קריאת כרטיס. הצמיד
 _capturer_ro = people_writer(CAPTURE)  # access.people.manage + access.cards.capture anywhere, on the read connection
 
 
+def _capture_starter_ro(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> ia.Authority:
+    """`_capturer_ro` for the capture START, which may issue a capture lease: the permission revision and the authority epochs are
+    taken on the gate's own connection BEFORE any decision (review 2026-10-16 H1), so a permission change anywhere between this
+    gate and the ledger insert - including the body upload the caller controls - refuses the lease (`capture_lease_stale`)."""
+    request.state.capture_lease_mark = capture_lease.gate_mark(conn)
+    return _capturer_ro(request, principal, conn)
+
+
 class CaptureStartBody(CommandEnvelope):
     model_config = ConfigDict(extra="forbid")
     station_id: str = Field(min_length=1, max_length=MAX_STATION_ID)
@@ -1526,8 +1534,21 @@ def _lease_refused(act: _Action, exc: ApiError) -> ApiError:
     return act.refuse(exc)
 
 
+def _lease_redecide(conn: sqlite3.Connection, principal: Principal, station_id: str, target: Any) -> None:
+    """The capture start's decision once more, on the request's WRITE connection (review H1): both permissions somewhere, then
+    both on the reader's station and on every station of the person decided at the start (`target.stations`; None = the
+    unrestricted shortcut, which must still hold), with the sensitive level. A fresh Authority: nothing cached from the read
+    connection's decision is reused. Raises the refusal."""
+    fresh = ia.Authority(conn, principal)
+    if not (fresh.anywhere(MANAGE) and fresh.anywhere(CAPTURE)):
+        raise iw.scope_refusal()
+    iw.check_stations(fresh, target.stations, permissions=(MANAGE, CAPTURE), extra_stations=[station_id], sensitive=True)
+    if target.stations is not None and not (fresh.station(CAPTURE, station_id) and fresh.station(MANAGE, station_id)):
+        raise iw.scope_refusal()
+
+
 def _lease_start(request: Request, act: _Action, conn: sqlite3.Connection, auth: ia.Authority, body: "CaptureStartBody", user_id: str, target: Any,
-                 station: dict[str, Any] | None, token: str, lease_rev: int, lease_snap: Any) -> dict[str, Any]:
+                 station: dict[str, Any] | None, token: str, lease_mark: capture_lease.GateMark | None) -> dict[str, Any]:
     principal = auth.principal
     settings = settings_of(request)
     db: Database = request.app.state.db
@@ -1540,21 +1561,35 @@ def _lease_start(request: Request, act: _Action, conn: sqlite3.Connection, auth:
         announced = lease_events.WORKER.ensure_announced()
     if not announced:
         raise _lease_refused(act, capture_lease.unavailable())
+    if lease_mark is None:  # the gate could not take its mark: fail closed
+        raise _lease_refused(act, capture_lease._stale())
+    # Review H1 (a): the decision is taken AGAIN on this write connection, inside the transaction that inserts the ledger row
+    # (CR F3) - the write lock is held from here to the commit, so no permission write can land between this decision and the
+    # row. (b): the issue compares the revision / epochs with the gate's mark, taken before the first decision.
+    try:
+        _lease_redecide(conn, principal, body.station_id, target)
+    except ApiError as exc:
+        raise _lease_refused(act, exc) from None
     binding_revision = station.get("binding_revision") if isinstance(station, dict) and isinstance(station.get("binding_revision"), str) else None
     try:
         lease = capture_lease.issue(conn, principal=principal, station_id=body.station_id, reader_id=body.reader_id, person_id=user_id, person_revision=body.revision,
-                                    binding_revision=binding_revision, decision_revision=lease_rev, start_request_id=lease_events_request_id(), snap=lease_snap)
+                                    binding_revision=binding_revision, decision_revision=lease_mark.revision, start_request_id=lease_events_request_id(),
+                                    snap=lease_mark.snapshot(principal.user_id, body.station_id, user_id))
     except ApiError as exc:
         raise _lease_refused(act, exc) from None
     act.details.update(lease_ref=lease.lease_ref, lease_seconds=lease.seconds, transport="capture_lease")
     try:
-        signed = lease_events.sign(conn, "capture_start", principal.user_id, trusted_door.actor_name(principal), body.station_id, {"lease": lease.lease_object()},
-                                   request_id=lease.start_request_id)
-    except lease_events.NotSendable as exc:
-        capture_lease.discard(conn, lease.lease_ref, "start_refused")
-        raise _lease_refused(act, capture_lease.unavailable("bridge_not_paired" if exc.code == "bridge_not_paired" else "capture_lease_unavailable")) from None
-    act.details["body_sha256"] = signed.body_sha256  # computed after signing, recorded only in the audit
-    act.attempt()  # commits the ledger row and the attempt row together: no record, no command
+        try:
+            signed = lease_events.sign(conn, "capture_start", principal.user_id, trusted_door.actor_name(principal), body.station_id, {"lease": lease.lease_object()},
+                                       request_id=lease.start_request_id)
+        except lease_events.NotSendable as exc:
+            capture_lease.discard(conn, lease.lease_ref, "start_refused")
+            raise _lease_refused(act, capture_lease.unavailable("bridge_not_paired" if exc.code == "bridge_not_paired" else "capture_lease_unavailable")) from None
+        act.details["body_sha256"] = signed.body_sha256  # computed after signing, recorded only in the audit
+        act.attempt()  # commits the ledger row and the attempt row together: no record, no command
+    except BaseException:
+        capture_lease._forget(lease.lease_ref, "destroyed")  # review L3: no committed row -> no live cache entry either
+        raise
     try:
         try:
             answer = lease_events.TRANSPORT.request(settings, "capture_start", signed.text)
@@ -1741,7 +1776,7 @@ def card_readers(request: Request, station_id: str, auth: ia.Authority = Depends
 
 
 @router.post("/intercom/people/{user_id}/card-capture")
-def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depends(_capture_starter_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Start reading a card at a station (WisKey `cards/capture_start`, PHYSICAL: the station's reader enters card-
     collection mode). Body: `{station_id, reader_id, revision, confirmed, client_request_id, expires_at}`; `confirmed:
     true` comes only from the dialog's confirmation step. Refused before sending (each audited, `not_sent`): a malformed
@@ -1756,12 +1791,12 @@ def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depe
     with the sensitive level (a card is a credential); not unrestricted = checked against a fresh read whose revision the start
     must carry. UNKNOWN_EFFECT: `pending: true` (the session state the dialog polls is what tells)."""
     principal = auth.principal
-    # capture-lease route (CR-WISKEY-LEASE-REVOCATION-EVENT L5): the authority epochs and the permission revision BEFORE the
-    # decision - a trigger between here and the ledger insert makes the issue refuse (capture_lease.issue). Harmless when off.
-    lease_rev = permission_revision(conn)
+    # capture-lease route (CR-WISKEY-LEASE-REVOCATION-EVENT L5): the permission revision and the authority epochs were taken at
+    # the permission gate, BEFORE the decision (`_capture_starter_ro`, review H1) - a permission change or a trigger between
+    # there and the ledger insert makes the issue refuse (capture_lease.issue). Harmless when off.
+    lease_mark = getattr(request.state, "capture_lease_mark", None)
     act = _Action(request, conn, principal, "intercom.card_capture.start", user_id, PERSON)
     body: CaptureStartBody = _parse(act, CaptureStartBody, raw)
-    lease_snap = capture_lease.REG.snapshot(principal.user_id, body.station_id, user_id)
     act.details.update(client_request_id=body.client_request_id, expires_at=body.expires_at, station_id=body.station_id, reader_id=body.reader_id, revision=body.revision,
                        **iw.effect_fields("cards/capture_start"))
     settings = settings_of(request)
@@ -1786,7 +1821,7 @@ def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depe
         raise act.refuse(exc) from None
     if capture_lease.mode(conn) == "on":  # the lease route (fails closed with 503 unless it can really serve: route_on, not degraded, clock)
         try:
-            return _lease_start(request, act, conn, auth, body, user_id, target, station, token, lease_rev, lease_snap)
+            return _lease_start(request, act, conn, auth, body, user_id, target, station, token, lease_mark)
         except BaseException:
             CAPTURES.release(token)  # a no-op after hold_unknown / register
             raise

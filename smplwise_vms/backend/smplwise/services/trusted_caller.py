@@ -1,7 +1,7 @@
 """The signed trusted-caller message, generalized (CR-WISKEY-LEASE-REVOCATION-EVENT slice L3).
 
 One signer for every protocol that rides the bridge's trusted-caller transport (DTO v3, docs/contracts/wiskey-trusted-caller/
-DTO_DRAFT_v3.md): the WisKey door (`wiskey-trusted-door-v1`, services/trusted_door.py, behaviour and golden vectors
+DTO_DRAFT_v3.md): the WisKey door (its protocol constant lives only in services/trusted_door.py; behaviour and golden vectors
 unchanged) and the capture lease (`wiskey-capture-lease-v1`, services/lease_events.py). The protocol, the allowed actions,
 the message lifetime and the size cap are parameters; the body shape, the canonical JSON, the HMAC recipe
 (`ha_bridge.sign`), the explicit 32-hex nonce and `ts == epoch(issued_at)` are the same for all of them.

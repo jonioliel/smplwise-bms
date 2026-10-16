@@ -3,7 +3,9 @@
 Status: DRAFT, Arx LEASE-BUILD 2026-10-16 (CR-WISKEY-LEASE-REVOCATION-EVENT slice L0). Design source:
 `docs/changes/CR-WISKEY-LEASE-REVOCATION-EVENT.md` (on `origin/pilot/CR-LEASE-REVOKE`). Nothing here is switched on: the Arx route
 is behind `access.capture_lease` (default `off`) and cannot be switched on while no bridge offers `smplwise_bridge.lease_event`
-(slice L4, pending WisKey's consumer). Owner decisions encoded (2026-10-16): lease 120 s default and cap; any `permission_revision`
+(slice L4, pending WisKey's consumer) NOR without the owner's separate go-live permit, which is enforced in code: the build
+constant `GO_LIVE_PERMITTED = False` (`services/capture_lease.py`) keeps the route off and refuses `on` (409
+`capture_lease_not_permitted`) whatever bridge is known; only the commit carrying the owner's written permit flips it. Owner decisions encoded (2026-10-16): lease 120 s default and cap; any `permission_revision`
 bump revokes every live lease without a re-check; heartbeat every 5 s while a lease is live, WisKey destroys after 15 s of
 silence; no extra second-factor code at capture start; C03 lookup scope `holder` | `holder_or_audit_readers`.
 
@@ -44,7 +46,7 @@ name on the revocation wire); the installation id for scope `station` / `all`, t
 | `action` | `params` (all required, closed) | Meaning |
 |---|---|---|
 | `lease_revoke` | `stream_id` (32 hex), `sequence` (>= 1), `scope` (lease \| actor \| station \| all), `lease_ref`, `permission_revision`, `reason` (closed enum, schema), `revoked_at` | the named lease(s) lost their authority: destroy the session and the collected card, no confirm |
-| `lease_heartbeat` | `stream_id`, `sequence` (the LAST sequence sent, never a new one), `live_leases` (<= 8 UUIDs), `permission_revision` | liveness while >= 1 lease is live; grants nothing, never extends a lease |
+| `lease_heartbeat` | `stream_id`, `sequence` (the LAST sequence sent, never a new one), `live_leases` (<= 8 UUIDs: every lease Arx holds as live, `issued` - start sent, no answer yet - as well as `active`), `permission_revision` | liveness while >= 1 lease is live; grants nothing, never extends a lease. `live_leases` is INFORMATIONAL: never a reason for the host to keep, create or extend a session (a ref the host does not hold is ignored; a lease the host holds but Arx does not list is W? - Arx's own reconciliation is in section 5) |
 | `lease_stream_reset` | `stream_id` (the new one), `previous_stream_id` (32 hex or `*`), `sequence` = 1, `reason` (startup \| repair \| restore \| key_rotation) | destroy every lease of any earlier stream; the new stream starts at 1 |
 | `capture_start` | `lease` = {`lease_ref`, `lease_issued_at`, `lease_expires_at`, `binding_revision` (text or null - WisKey's, W?), `person_ref`, `person_revision`, `permission_revision`, `receiver {reader_id 0..8}`, `stream_id`, `sequence_at_issue`, `lease_actions` (exactly the four)} | start one collection under this lease. Never an address, serial, MAC, card value, hash or length |
 | `capture_status` / `capture_cancel` | `lease_ref`, `session_id` (`*` when the start's outcome was unknown) | read / end the session |
@@ -73,3 +75,42 @@ state}}` (start) · `{..., capture: {state, error, card: {masked_number, technol
 `capture_not_found`, `lease_gone`, `capture_station_busy`, `revision_conflict`) · `{result: sent_unknown, request_id}` (confirm
 passed the barrier, outcome unknown) · `{result: rejected, stage, code}`. No answer carries a card value beyond the masked form
 in a status, a person name in an event answer, or a station address.
+
+## 5. Arx-side reconciliation and robustness (LEASE-FIX, review 2026-10-16)
+
+- A heartbeat answer whose `live_leases` names a lease Arx ended (confirm, cancel, revoke, expiry) within 10 s before that
+  heartbeat was sent - i.e. the answer predates the end - is NOT read as `unknown_lease_on_host`. Only a ref Arx has not ended
+  recently triggers the revoke-all (F7).
+- Arx's issue path takes the permission revision and its authority epochs at the permission gate, before any decision, and
+  decides again on its write connection in the transaction that inserts the ledger row; any change in between refuses the
+  start before anything is signed (409 `capture_lease_stale`).
+- A ledger write that fails with "database is locked" is retried (3 tries, backoff 0.5 s / 1 s) before Arx degrades (F3);
+  during the retries Arx issues no lease and sends no heartbeat (the host's silence rule is the backstop). After a degrade an
+  administrator's audited re-enable marks the ledger's live rows revoked and announces a new stream (`lease_stream_reset`).
+- `rejected` answers: `stage` and `code` must each match `^[a-z][a-z0-9_]{0,63}$`, else the answer is invalid (not an ack).
+
+## 6. Deviations from the CR (recorded, NOT resolved - to be carried into CR-WISKEY-LEASE-REVOCATION-EVENT section 8)
+
+The CR file lives on `origin/pilot/CR-LEASE-REVOKE` and is not on this branch; the list below is the review's item 7
+(`private/planning/RELEASE_264_REVIEW_LEASE_BUILD.md`, "Deviations from the CR found in code"). None is a defect by itself;
+each needs the owner's / CR author's decision to amend the CR text or the code.
+
+1. Duplicate / conflict are keyed on the message's MEANING `(actor.id, station, params)` (section 3), not the CR's "same body
+   hash". A retry carries a new `request_id`, nonce and times, so the CR's rule would turn every retry into `conflict` ->
+   destroy all. WisKey MUST implement the meaning hash; the CR text should be amended.
+2. A new stream's `lease_stream_reset` is sequence 1 and the first revoke takes 2 (the stream row is created with
+   `next_sequence = 2`).
+3. The closed `reason` enum adds `key_rotation`, `restore`, `cancel_unknown`, `start_unknown`, `host_lost_stream`,
+   `unknown_lease_on_host`, `ledger_unavailable` beyond CR 1.4; `host_gap` / `host_conflict` / `startup` are ledger-only (never
+   on the wire).
+4. The heartbeat's `unknown_stream` answer resets the stream after ONE answer, not two as CR F6 says (safer).
+5. F5's "until the next successful signed exchange of a non-lease message" is an extension point only; the administrator's
+   re-enable is the only way out of the clock guard in this build.
+6. Not built on this branch (extension points in code; must be in the release notes): T8 reader-set comparison, T7
+   `binding_revision` (absent from the overview, always null), T12 "a feed refresh moves the person's revision" (only Arx's own
+   person writes trigger), T4 USR2 local session chain, T9 CR-034 key rotation, T10 emergency. The host's own checks at each
+   lease request are the backstop for T7 / T12 (W?).
+
+Further deviations introduced by LEASE-FIX (also for section 8): the heartbeat lists `issued` leases as well as `active` (CR
+says "live"; Arx previously sent only `active`); the GET of the lease settings now requires a system administrator, like the
+PUT (CR 7.3); an administrator `degraded_reenable` exists for F3 (the CR says "until restart").

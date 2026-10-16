@@ -118,6 +118,7 @@ def lease_world(settings, monkeypatch) -> LeaseWorld:
         set_setting(conn, "installation_id", "arx-installation-1")
         set_setting(conn, cl.FLAG_KEY, "on")
     monkeypatch.setattr(cl, "MIN_BRIDGE_FOR_CAPTURE_LEASE", "0.9.0")
+    monkeypatch.setattr(cl, "GO_LIVE_PERMITTED", True)  # the owner's go-live permit - inside the test only, never in production code
     monkeypatch.setattr(le, "AUTO_THREAD", False)
     host = FakeLeaseHost(clock)
     bridge = FakeLeaseBridge(host, clock)

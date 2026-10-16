@@ -30,7 +30,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ..db import Database, get_setting
+from ..db import Database, get_setting, is_busy
 from . import capture_lease as cl
 from . import ha_bridge, trusted_caller
 from .wiskey_channels import LEASE_SIGNED
@@ -54,6 +54,9 @@ JANITOR_S = 1.0
 SHUTDOWN_BUDGET_S = 2.0
 ANNOUNCE_TIMEOUT_S = 3.0
 MAX_LIVE_IN_HEARTBEAT = 8
+BUSY_RETRIES = 3  # ledger writes tried this many times on "database is locked" before F3 degrades the route (review M3)
+BUSY_BACKOFF_S = 0.5  # 0.5 s, then 1 s between the tries (each try itself waits up to db.BUSY_TIMEOUT_S for the lock)
+RECENT_GRACE_S = 2 * 5.0  # a lease Arx ended this long before a heartbeat was sent is not "unknown" to that heartbeat (M2)
 ACK_RESULTS = ("acknowledged", "duplicate", "stale", "gap", "conflict", "unknown_stream")
 CLOCK_CODES = ("time/clock_invalid", "time/not_yet_valid")
 AUTO_THREAD = True  # tests switch it off and call WORKER.step() with a fake clock
@@ -136,8 +139,8 @@ def classify(answer: Any, request_id: str, sequence: int | None = None) -> tuple
     result = r.get("result")
     rid = r.get("request_id")
     if result == "rejected":
-        stage, code = r.get("stage"), r.get("code")
-        if rid not in (None, request_id) or not (isinstance(stage, str) and isinstance(code, str)):
+        stage, code = cl.bridge_text(r.get("stage")), cl.bridge_text(r.get("code"))  # bounded before audit / API (review L1)
+        if rid not in (None, request_id) or stage is None or code is None:
             return "invalid", {"code": "invalid_response"}
         return "rejected", {"code": f"{stage}/{code}"}
     if rid != request_id or result not in ACK_RESULTS:
@@ -279,20 +282,38 @@ class LeaseWorker:
 
     # -- triggers -> ledger -> pending messages
     def _apply_triggers(self) -> None:
+        """Every queued trigger -> the ledger (one write each) -> a pending revoke. Review M3: "database is locked" (a backup,
+        a restore or a large import holding the write lock) is retried BUSY_RETRIES times with backoff before F3 degrades the
+        route; while a retry waits, `GUARDS.ledger_busy` keeps the route closed (no issue, no heartbeat - the epochs already
+        moved, so the lease is unusable in Arx at once and the host's silence rule is the backstop)."""
         assert self.db is not None
+        deferred: list[cl.Trigger] = []
+        now = cl.mono()
         while True:
             try:
                 trigger = cl.REG.triggers.get_nowait()
             except Exception:  # noqa: BLE001 - queue.Empty
-                return
+                break
+            if trigger.not_before > now:
+                deferred.append(trigger)
+                continue
             try:
-                with self.db.write_aside(label="capture_lease.revoke") as conn:
+                with self.db.write_aside(label="capture_lease.revoke", priority=trigger.attempts > 0) as conn:
                     revocation = cl.revoke(conn, trigger)
             except Exception as exc:  # noqa: BLE001 - F3: the ledger / counter write failed
+                if is_busy(exc) and trigger.attempts + 1 < BUSY_RETRIES:
+                    trigger.attempts += 1
+                    trigger.not_before = cl.mono() + BUSY_BACKOFF_S * (2 ** (trigger.attempts - 1))
+                    log.warning("capture lease: the ledger was busy while revoking (attempt %s); retrying", trigger.attempts)
+                    deferred.append(trigger)
+                    continue
                 self._ledger_failed(trigger, exc)
                 continue
             if revocation is not None:
                 self._queue_revoke(revocation)
+        for trigger in deferred:
+            cl.REG.triggers.put(trigger)
+        cl.GUARDS.ledger_busy = any(t.attempts > 0 for t in deferred)
 
     def _queue_revoke(self, rev: cl.Revocation) -> None:
         expires = max(cl.parse_iso(r["lease_expires_at"]) for r in rev.rows)
@@ -305,9 +326,12 @@ class LeaseWorker:
 
     def _ledger_failed(self, trigger: cl.Trigger, exc: BaseException) -> None:
         """F3: send `lease_revoke scope: all` with the last known sequence (the host's gap / conflict logic destroys
-        everything either way) and switch the route off in memory until restart."""
+        everything either way) and switch the route off in memory until restart or an administrator's audited
+        `degraded_reenable` (routers/capture_lease.py)."""
         cl.GUARDS.degraded = True
-        log.error("capture lease: the ledger could not record a revoke (%s); every lease is revoked and the route is off until restart", type(exc).__name__)
+        cl.GUARDS.ledger_busy = False
+        log.error("capture lease: the ledger could not record a revoke (%s); every lease is revoked and the route is off until restart or an administrator's re-enable",
+                  type(exc).__name__)
         assert self.db is not None
         stream_id, sequence, actor = "0" * 32, 1, "smplwise-arx"
         try:
@@ -386,17 +410,25 @@ class LeaseWorker:
         if p.action == "lease_stream_reset":
             self.announced = p.stream_id
         try:
-            with self.db.write_aside(label="capture_lease.ack") as conn:
-                if p.action == "lease_revoke":
-                    cl.mark_acked(conn, p.stream_id, p.sequence, kind)
-                cl._audit(conn, "intercom.capture_lease.event_acked", f"stream:{p.stream_id}",
-                          {"action": p.action, "ack_result": kind, "sequence": p.sequence, "destroyed": data.get("destroyed"), "last_sequence": data.get("last_sequence")})
-                if kind in ("gap", "conflict"):
-                    # the host destroyed EVERY live lease: the ledger follows (no message: nothing is left to revoke on the host)
-                    cl.revoke(conn, cl.Trigger("host_gap" if kind == "gap" else "host_conflict", "all", None), send=False)
+            for attempt in range(BUSY_RETRIES):  # review M3: "database is locked" is tried again (priority) before degrading
+                try:
+                    with self.db.write_aside(label="capture_lease.ack", priority=attempt > 0) as conn:
+                        if p.action == "lease_revoke":
+                            cl.mark_acked(conn, p.stream_id, p.sequence, kind)
+                        cl._audit(conn, "intercom.capture_lease.event_acked", f"stream:{p.stream_id}",
+                                  {"action": p.action, "ack_result": kind, "sequence": p.sequence, "destroyed": data.get("destroyed"), "last_sequence": data.get("last_sequence")})
+                        if kind in ("gap", "conflict"):
+                            # the host destroyed EVERY live lease: the ledger follows (no message: nothing is left to revoke on the host)
+                            cl.revoke(conn, cl.Trigger("host_gap" if kind == "gap" else "host_conflict", "all", None), send=False)
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    if not is_busy(exc) or attempt + 1 >= BUSY_RETRIES:
+                        raise
+                    log.warning("capture lease: the ledger was busy while recording an answer (attempt %s); retrying", attempt + 1)
         except Exception as exc:  # noqa: BLE001 - F3: the answer stands (the host acted); the ledger could not follow
             cl.GUARDS.degraded = True
-            log.error("capture lease: the answer to sequence %s could not be recorded (%s); the route is off until restart", p.sequence, type(exc).__name__)
+            log.error("capture lease: the answer to sequence %s could not be recorded (%s); the route is off until restart or an administrator's re-enable",
+                      p.sequence, type(exc).__name__)
             if kind in ("gap", "conflict"):
                 with cl.REG.lock:
                     cl.REG.live.clear()
@@ -478,8 +510,8 @@ class LeaseWorker:
         if not self.beating:
             self.beating = True
             self._audit_aside("intercom.capture_lease.heartbeat_start", "stream:*", {"live": len(live)})
-        if TEST_SUPPRESS_HEARTBEAT or cl.mono() - self.last_beat < HEARTBEAT_S:
-            return
+        if TEST_SUPPRESS_HEARTBEAT or cl.GUARDS.ledger_busy or cl.mono() - self.last_beat < HEARTBEAT_S:
+            return  # ledger_busy: a revoke waits for the ledger - never tell the host its leases are fine meanwhile (M3)
         self.last_beat = cl.mono()
         sent_at = cl.mono()
         try:
@@ -487,8 +519,8 @@ class LeaseWorker:
                 found = cl.last_sequence(conn)
                 if found is None:
                     return
-                with cl.REG.lock:
-                    active = [ref for ref, e in cl.REG.live.items() if e.state == "active"][:MAX_LIVE_IN_HEARTBEAT]
+                with cl.REG.lock:  # every LIVE lease, `issued` included (a start in flight may already hold a session; review L2)
+                    active = [ref for ref, e in cl.REG.live.items() if e.state in cl.LIVE][:MAX_LIVE_IN_HEARTBEAT]
                 params = {"stream_id": found[0], "sequence": max(1, found[1]), "live_leases": active, "permission_revision": cl.permission_revision(conn)}
                 signed, answer = self._send_event(conn, "lease_heartbeat", cl.installation_actor(conn), "*", params)
         except Exception as exc:  # noqa: BLE001 - a heartbeat that cannot be sent is simply missed; the host's silence rule is the backstop
@@ -510,10 +542,12 @@ class LeaseWorker:
 
     def _reconcile(self, host_live: set[str], sent_at: float, silent: bool) -> None:
         """F7 / N6: a lease the host lists that Arx has no live row for -> revoke all (`unknown_lease_on_host`); an active Arx
-        lease (activated before the heartbeat was sent) the host no longer holds -> `destroyed(host_silence | host_absent)`."""
+        lease (activated before the heartbeat was sent) the host no longer holds -> `destroyed(host_silence | host_absent)`.
+        Review M2: a lease Arx itself ended (confirm, cancel, revoke, expiry) shortly before or while this heartbeat was in
+        flight is NOT unknown - the host's answer simply predates its end; only a ref Arx never ended recently counts."""
         with cl.REG.lock:
             entries = {ref: e for ref, e in cl.REG.live.items() if e.state in cl.LIVE}
-        unknown = host_live - set(entries)
+        unknown = host_live - set(entries) - cl.REG.ended_since(sent_at - RECENT_GRACE_S)
         if unknown:
             cl.on_authority_change("unknown_lease_on_host", all=True)
             return
@@ -530,6 +564,7 @@ class LeaseWorker:
                 if not cl.tables_present(conn):
                     return
                 cl.expire_due(conn)
+                cl.drop_orphans(conn)
                 cl.prune(conn)
         except Exception:  # noqa: BLE001
             log.warning("capture lease janitor failed", exc_info=True)

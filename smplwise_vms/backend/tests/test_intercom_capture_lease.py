@@ -28,6 +28,7 @@ PERSON_SENTINEL = "LEASE-PERSON-SENTINEL"
 @pytest.fixture()
 def route(lease_world, monkeypatch):
     w = lease_world
+    monkeypatch.setattr(cl, "DEV_PRINCIPAL_ALLOWED", True)  # these HTTP tests drive the route with the dev identity (SW_DEV_USER)
     FakeWisKeyFeed([station("entry-a", "כניסה א", relays=[1]), station("entry-b", "כניסה ב", relays=[1])]).install(monkeypatch)
     monkeypatch.setattr(intercom_capture, "POLL_S", 0.05)
     monkeypatch.setattr(intercom_capture, "CAPTURED_POLL_S", 0.05)
