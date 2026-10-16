@@ -181,7 +181,8 @@ def test_tables_match_the_bridge_exactly():
            {k: {s: frozenset(v) for s, v in d.items()} for k, d in bridge.SERVICE_FEATURES.items()}
     assert si.DEVICE_PAIRS <= {(a["domain"], a["service"]) for a in ha_bridge.ACTIONS.values()} | si.DEVICE_PAIRS
     assert ("lock", "unlock") not in si.DEVICE_PAIRS and si.LOCAL_ID_RE.pattern == bridge.LOCAL_ID_RE.pattern
-    assert si.BRIDGE_SERVICE_IDENTITY_REQUIRED == load("const").VERSION
+    as_t = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+    assert as_t(load("const").VERSION) >= as_t(si.BRIDGE_SERVICE_IDENTITY_REQUIRED) == (0, 9, 0)  # the bridge in this repo carries the screen
 
 
 # ---------------------------------------------------------------- 2. configuration, the bridge's copy and the self-check
