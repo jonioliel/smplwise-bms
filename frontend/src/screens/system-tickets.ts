@@ -35,6 +35,7 @@ import {
 } from '../api/tickets';
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
 import { intIn, windowProblem } from '../tickets/durations';
+import { rt } from '../tickets/rfq-text'; // CR-RFQ-PAYMENT-SCHEDULE: the RFQ terms card
 import { ticketSettingsCss } from '../tickets/settings-styles';
 import { SETTINGS_TABS, isSettingsTab, rovingIndex, visibleTabs } from '../tickets/settings-tabs';
 import { tt, type TicketTextKey } from '../tickets/text';
@@ -97,7 +98,7 @@ export class SystemTickets extends LitElement {
   @state() private publicError = ''; // 2.5.3: the failed save of a public-address key, shown in its own card too
   @state() private ok = '';
   @state() private newDept = { name: '', key: '' };
-  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string } = {};
+  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string } = {};
   private okTimer = 0;
   private offNames: (() => void) | null = null;
 
@@ -543,6 +544,24 @@ export class SystemTickets extends LitElement {
     </sw-card>`;
   }
 
+  /** CR-RFQ-PAYMENT-SCHEDULE: the installation switch (default OFF) and the reminder delay of the arrival confirmation. */
+  private rfqTermsCard(doc: SettingsDoc): TemplateResult {
+    const on = doc.rfq?.schedule_arrival === true;
+    const hours = doc.rfq?.arrival_reminder_hours ?? 24;
+    const raw = this.instDraft.arrHours ?? String(hours);
+    const n = intIn(raw, 0, 168);
+    return html`<sw-card heading=${rt('stRfqCard')} data-card="rfq-terms">
+      <div class="row"><span class="lbl">${rt('stScheduleArrival')}<span class="muted">${rt('stScheduleArrivalSub')}</span></span>
+        <sw-toggle label=${rt('stScheduleArrival')} labelHidden .checked=${on} ?disabled=${this.busy} data-inst-schedule-arrival
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { schedule_arrival: e.detail.checked } })}></sw-toggle></div>
+      <div class="row"><span class="lbl">${rt('stArrivalHours')}<span class="muted">${rt('stArrivalHoursSub')}</span></span>
+        <span class="unit"><input class="in num" type="number" min="0" max="168" data-inst-arrival-hours aria-label=${rt('stArrivalHours')} aria-invalid=${String(Number.isNaN(n))} .value=${raw}
+          @input=${(e: Event) => (this.instDraft = { ...this.instDraft, arrHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
+          <sw-button size="sm" variant="primary" data-inst-arrival-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
+            @click=${() => void this.saveDoc({ rfq: { arrival_reminder_hours: n } }, () => (this.instDraft = { ...this.instDraft, arrHours: undefined }))}>${tt('save')}</sw-button></span></div>
+    </sw-card>`;
+  }
+
   private generalTab(): TemplateResult {
     const mayConfigure = !isApi() || can('system.configure');
     const mayName = !isApi() || can('tickets.configure');
@@ -582,6 +601,7 @@ export class SystemTickets extends LitElement {
       <div class="col">
         ${this.linksCard(this.doc)}
         ${this.hoursCard(this.doc)}
+        ${this.rfqTermsCard(this.doc)}
       </div>
     </div>`;
   }

@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, Principal
-from . import access, model, money, quotes, rfq_links, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
+from . import access, model, money, quotes, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
@@ -85,6 +85,9 @@ MESSAGES = {
     "order_channel_unavailable": "אין כרגע ערוץ שיכול לשלוח את הזמנת העבודה לספק. אפשר להעתיק את הקישור מבקשת השירות ולשלוח בעצמכם.",
     "order_link_unavailable": "הקישור של הספק בבקשת השירות אינו פעיל. צרו קישור חדש בבקשת השירות.",
     "order_ticket_closed": "בקשת השירות שנפתחה כבר סגורה.",
+    # CR-RFQ-PAYMENT-SCHEDULE (contract section 19)
+    "terms_not_found": "לאישור הזה אין לוח תשלומים ומועד הגעה.",
+    "arrival_not_proposed": "הספק לא הציע מועד אחר שממתין להחלטה.",
 }
 
 
@@ -817,6 +820,7 @@ def submit_quote(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body: 
         work_to = quotes._instant(body.get("work_to"), "work_to", now)
         note = quotes._text(body.get("note"), "note", quotes.NOTE_MAX, multiline=True)
         vendor_ref = quotes._text(body.get("vendor_ref"), "vendor_ref", quotes.VENDOR_REF_MAX)
+        plan_json = rfq_terms.quote_plan(conn, body, now)  # CR-RFQ-PAYMENT-SCHEDULE: the vendor's proposed instalments (switch on)
     except CostRefused as exc:
         raise invalid(conn, exc.field or "body", exc.code) from None
     if work_from and work_to and work_to < work_from:
@@ -829,6 +833,7 @@ def submit_quote(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body: 
             store_quotes.update_quote(conn, q["id"], {"state": "superseded"}, now=at)
             store_quotes.insert_decision(conn, {"quote_id": q["id"], "action": "superseded", "by_user": viewer.uid, "at": at})
             previous = q["id"]
+    extra = {"payment_plan_json": plan_json} if plan_json else {}
     version = store_rfq.next_version_of_vendor(conn, v["id"])
     qid = store_quotes.insert_quote(conn, {
         "ticket_id": None, "rfq_vendor_id": v["id"], "assignment_id": None, "contact_id": v["contact_id"], "department_id": row["department_id"],
@@ -836,7 +841,7 @@ def submit_quote(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body: 
         "currency": currency, "vat_mode": c.vat_mode, "vat_rate_bp": c.vat_rate_bp, "lines_json": [ln.as_json() for ln in c.lines],
         "labor_minor": c.by_kind["labor"], "parts_minor": c.by_kind["parts"], "travel_minor": c.by_kind["travel"], "other_minor": c.by_kind["other"],
         "subtotal_minor": c.subtotal_minor, "vat_minor": c.vat_minor, "total_minor": c.total_minor, "work_from": work_from, "work_to": work_to,
-        "note": note, "vendor_ref": vendor_ref, "created_by_kind": "user", "created_by": viewer.uid, "created_at": at, "updated_at": at})
+        "note": note, "vendor_ref": vendor_ref, "created_by_kind": "user", "created_by": viewer.uid, "created_at": at, "updated_at": at, **extra})
     store_rfq.update_vendor(conn, v["id"], {"state": "quoted", "quoted_at": at, "updated_at": at})
     fields = {"state": "collecting"} if row["state"] == "sent" else {}
     _touch(conn, row, fields, None, now)
@@ -987,6 +992,7 @@ def _finalize(conn, viewer: Viewer, row: Mapping[str, Any], award: Mapping[str, 
     store_rfq.update_award(conn, award["id"], {"state": "approved", "updated_at": at,
                                                **({"second_by": viewer.uid, "second_at": at} if second else {})})
     store_rfq.update_vendor(conn, award["rfq_vendor_id"], {"state": "awarded", "updated_at": at})
+    rfq_terms.activate(conn, award, q, by_kind="user", by=viewer.uid, by_name=actor_name(viewer), now=now)  # the schedule -> the quote
     fields: dict[str, Any] = {"state": "awarded"} if row["state"] != "awarded" else {}
     if row["state"] != "awarded":
         fields["awarded_at"] = at
@@ -1003,7 +1009,9 @@ def _finalize(conn, viewer: Viewer, row: Mapping[str, Any], award: Mapping[str, 
 
 
 def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, line_indexes: Sequence[int] | None,
-          kinds: Sequence[str] | None, finalize: bool, rid: str | None = None) -> dict[str, Any]:
+          kinds: Sequence[str] | None, finalize: bool, rid: str | None = None, payment: Any = None, arrival: Any = None) -> dict[str, Any]:
+    """`payment` / `arrival` (CR-RFQ-PAYMENT-SCHEDULE, switch on): the manager's edit of the vendor's proposed schedule and the planned
+    arrival window; omitted = the vendor's proposal (else one final instalment on completion) and the quote's / request's window."""
     now = now_utc()
     need_costs(conn, viewer, seen, "ticket.rfq.award", rid)
     row = apply_due(conn, dict(seen.row), now)
@@ -1027,6 +1035,10 @@ def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, 
     c = money.compute(chosen, q["vat_mode"], int(q["vat_rate_bp"]))
     threshold = store_rfq.department_threshold(conn, row["department_id"])
     second = bool(threshold is not None and c.total_minor > threshold and second_approvers(conn, row, viewer.uid, q))
+    try:  # every refusal of the schedule / arrival before the first write
+        terms = rfq_terms.prepare(conn, row, q, total_minor=c.total_minor, currency=q["currency"], payment=payment, arrival=arrival, now=now)
+    except CostRefused as exc:
+        raise invalid(conn, exc.field or "payment", exc.code) from None
     at = iso(now)
     aid = store_rfq.insert_award(conn, {
         "rfq_id": row["id"], "rfq_vendor_id": v["id"], "quote_id": q["id"], "state": "pending_second" if second else "approved",
@@ -1034,6 +1046,7 @@ def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, 
         "approved_subtotal_minor": c.subtotal_minor, "approved_vat_minor": c.vat_minor, "approved_total_minor": c.total_minor,
         "second_required": 1 if second else 0, "threshold_minor": threshold, "first_by": viewer.uid, "first_at": at, "created_at": at,
         "updated_at": at})
+    rfq_terms.store_prepared(conn, terms, aid, v["id"], now)
     a = store_rfq.award(conn, aid) or {}
     if second:
         _touch(conn, row, {}, None, now)
@@ -1044,7 +1057,8 @@ def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, 
         a = {**a, "state": "pending_second"}  # _finalize moves it to approved (one code path)
         fresh = _finalize(conn, viewer, row, a, now)
     _audit(conn, viewer, "ticket.rfq.award", row, rid, award_id=aid, vendor_id=v["id"], quote_id=q["id"], version=q["version"],
-           state="pending_second" if second else fresh["state"], approved_total_minor=c.total_minor, second_required=second)
+           state="pending_second" if second else fresh["state"], approved_total_minor=c.total_minor, second_required=second,
+           **({"schedule_source": terms["schedule_source"]} if terms else {}))
     return {"award": store_rfq.award(conn, aid), "quote": store_quotes.quote(conn, q["id"]), "vendor_id": v["id"]}
 
 
@@ -1085,6 +1099,7 @@ def decline_award(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: 
     why = _text_field(conn, reason, "reason", REASON_MAX, required=True, multiline=True)
     at = iso(now)
     store_rfq.update_award(conn, a["id"], {"state": "declined", "second_by": viewer.uid, "second_at": at, "decline_reason": why, "updated_at": at})
+    rfq_terms.drop(conn, a["id"])  # a declined award agreed nothing
     _touch(conn, seen.row, {}, None, now)
     store_rfq.insert_event(conn, seen.row["id"], "award_declined", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            rfq_vendor_id=a["rfq_vendor_id"], data={"award_id": a["id"]}, at=at)
@@ -1189,6 +1204,8 @@ def write_message(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body:
                            requested_by=viewer.uid, idempotency_key=f"rfqmsg:{mid}")
             store_rfq.set_message_notified(conn, mid, oid)
             notified["queued"] = True
+    if source is not None and source.get("kind") == "award":
+        rfq_terms.requested(conn, source.get("id"), via="award", now=now)  # CR-RFQ-PAYMENT-SCHEDULE: the confirmation clock starts
     _touch(conn, seen.row, {}, None, now)
     rfq_notify.answered(conn, seen.row["id"], v["id"])  # TKRFQ5: the vendor's question row is over
     store_rfq.insert_event(conn, seen.row["id"], "message", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
@@ -1219,6 +1236,14 @@ DRAFTS = {
 }
 
 
+TERMS_ASK = {
+    "he": "נא לאשר בדף ההצעה את מועד ההגעה לביצוע העבודה (או להציע מועד אחר) ואת לוח התשלומים שאושר.",
+    "en": "Please confirm on the quote page the date you will arrive to do the work (or propose another date) and the approved payment schedule.",
+    "ar": "يرجى التأكيد في صفحة العرض على موعد وصولكم لتنفيذ العمل (أو اقتراح موعد آخر) وعلى جدول الدفعات المعتمد.",
+    "ru": "Пожалуйста, подтвердите на странице предложения дату прибытия для выполнения работ (или предложите другую дату) и утверждённый график платежей.",
+}
+
+
 def award_draft(conn, row: Mapping[str, Any], award_row: Mapping[str, Any]) -> dict[str, Any]:
     """The editable notice of an award in the vendor's language - no amount; the manager may send it with the vendor-message route,
     or not at all (owner decision: an approval never sends a message by itself)."""
@@ -1236,6 +1261,8 @@ def award_draft(conn, row: Mapping[str, Any], award_row: Mapping[str, Any]) -> d
     name = "" if contact.get("erased_at") else (contact.get("display_name") or "")
     body = t["part" if partial else "all"].format(name=name, title=clean_text(row.get("title") or ""), kinds=kinds, window=window)
     body = " ".join(body.split()).replace("שלום ,", "שלום,").replace("Hello ,", "Hello,")
+    if store_rfq.terms(conn, award_row["id"]) is not None:  # CR-RFQ-PAYMENT-SCHEDULE: he confirms the date and the schedule on the page
+        body = f"{body} {TERMS_ASK[lang]}"
     return {"text": body[:MESSAGE_MAX], "lang": lang, "notify_default": True,
             "send": {"route": f"POST /tickets/rfqs/{row['id']}/vendors/{v.get('id')}/messages", "source": {"kind": "award", "id": award_row["id"]}}}
 
@@ -1270,7 +1297,7 @@ def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None) -> dict[s
 
 def retention(conn, now: dt.datetime) -> dict[str, int]:
     doc = settings_doc.read(conn)["rfq"]
-    out = {"due_passed": tick(conn, now), "links": 0, "purged": 0}
+    out = {"due_passed": tick(conn, now), "links": 0, "purged": 0, "arrival_reminders": rfq_terms.tick(conn, now)}
     for row in store_rfq.ended_before(conn, iso(now - dt.timedelta(days=int(doc["link_keep_days"])))):
         out["links"] += store_rfq.drop_links_of_rfq(conn, row["id"])
     months = int(doc["retention_months"])
@@ -1470,7 +1497,8 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
     from .rfq_orders import award_extras  # TKRFQ4 (contract 18.4): the work order of each award
 
     extras = award_extras(conn, viewer, seen, awards, amounts)
-    out_awards = [{**present_award(conn, a, amounts), **extras.get(a["id"], {})} for a in awards]
+    out_awards = [{**present_award(conn, a, amounts), **extras.get(a["id"], {}), "terms": rfq_terms.present(conn, a, amounts=amounts, manager=manager)}
+                  for a in awards]
     return {
         "id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": state, "title": row["title"], "description": row["description"],
         "department": {"id": row["department_id"], "name": dept.get("name") or ""},
@@ -1525,7 +1553,7 @@ def comparison(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
             "note": q.get("note"), "vendor_ref": q.get("vendor_ref"), "messages": counts.get(q["rfq_vendor_id"], 0),
             "lowest": q["id"] == low_id, "earliest": q["id"] == early_id,
             "award": {"id": a["id"], "state": a["state"], "line_indexes": json.loads(a["line_indexes_json"])} if a else None,
-            "revision": q["revision"],
+            "revision": q["revision"], "payment_proposal": rfq_terms.present_plan(rfq_terms.loads(q.get("payment_plan_json"))),
             "can": {"award": decide and q["state"] == "submitted" and not (q["created_by_kind"] == "user" and q["created_by"] == viewer.uid)},
         })
     return {"rfq_id": row["id"], "ref": ref(row["number"]), "state": effective_state(row, now), "currency": currency, "quotes": items,
@@ -1546,7 +1574,8 @@ def meta(conn, viewer: Viewer) -> dict[str, Any]:
         depts.append({"id": d["id"], "name": d["name"], "can_create": viewer.can_create_in(d) and EXTERNAL in viewer.anywhere,
                       "second_approval_minor": t if COSTS_VIEW in viewer.anywhere else None, "second_approval_enabled": t is not None})
     return {"vendor_page": vendor_page_ready(conn), "settings": dict(doc["rfq"]), "departments": depts, "line_kinds": list(money.LINE_KINDS),
-            "currencies": list(cost_settings(conn).currencies), "vendor_options": True}
+            "currencies": list(cost_settings(conn).currencies), "vendor_options": True,
+            "schedule_arrival": rfq_terms.enabled(conn)}  # CR-RFQ-PAYMENT-SCHEDULE: the award dialog offers the schedule / arrival fields
 
 
 def principal_of(viewer: Viewer) -> Principal:

@@ -245,7 +245,7 @@ function code(file: string): string {
 
 test('the RFQ chunk builds DOM from text nodes only, never imports the app, builds no link, keeps nothing in localStorage', () => {
   const files = readdirSync(SRC).filter((x) => x.endsWith('.ts'));
-  expect(files.sort()).toEqual(['rfq-page.ts', 'rfq-state.ts', 'rfq-text.ts']);
+  expect(files.sort()).toEqual(['rfq-page-terms.ts', 'rfq-page.ts', 'rfq-state.ts', 'rfq-text.ts']); // CR-RFQ-PAYMENT-SCHEDULE: rfq-page-terms.ts (same chunk, same guards)
   for (const f of files) {
     const src = code(f);
     expect(src, f).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|unsafeHTML|new Function|eval\(/);

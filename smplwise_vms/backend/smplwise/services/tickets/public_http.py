@@ -162,6 +162,7 @@ ROUTES: tuple[RouteRule, ...] = (
     _json("/t/api/rfq/withdraw", "token_write"),
     _json("/t/api/rfq/decline", "token_write"),
     _json("/t/api/rfq/message", "token_write"),
+    _json("/t/api/rfq/arrival", "token_write"),  # CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor's arrival confirmation
     _json("/t/api/rfq/code/send", "code"),
     _json("/t/api/rfq/code/verify", "code"),
 )

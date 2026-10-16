@@ -423,6 +423,44 @@ def update_award(conn: sqlite3.Connection, award_id: str, fields: Mapping[str, A
     return _update(conn, "ticket_rfq_awards", AWARD_COLUMNS, award_id, fields, expect_revision=expect_revision)
 
 
+# ---------------------------------------------------------------- CR-RFQ-PAYMENT-SCHEDULE: the award's terms (schedule + arrival)
+
+TERMS_COLUMNS = ("currency", "total_minor", "schedule_json", "schedule_source", "arrival_state", "planned_from", "planned_to", "proposed_from",
+                 "proposed_to", "rejected_at", "requested_at", "reminded_at", "reminders", "confirmed_at", "confirmed_by", "acknowledged_at",
+                 "decided_by", "decided_at", "updated_at")
+
+
+def insert_terms(conn: sqlite3.Connection, row: Mapping[str, Any]) -> None:
+    _insert(conn, "ticket_rfq_award_terms", row)
+
+
+def terms(conn: sqlite3.Connection, award_id: str | None) -> dict[str, Any] | None:
+    if not award_id:
+        return None
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_award_terms WHERE award_id = ?", (award_id,)).fetchone())
+
+
+def update_terms(conn: sqlite3.Connection, award_id: str, fields: Mapping[str, Any], *, expect_revision: int | None = None) -> bool:
+    cols = [c for c in fields if c in TERMS_COLUMNS]
+    sql = f"UPDATE ticket_rfq_award_terms SET {', '.join([f'{c} = ?' for c in cols] + ['revision = revision + 1'])} WHERE award_id = ?"
+    args: list[Any] = [*[fields[c] for c in cols], award_id]
+    if expect_revision is not None:
+        sql += " AND revision = ?"
+        args.append(int(expect_revision))
+    return conn.execute(sql, args).rowcount == 1
+
+
+def delete_terms(conn: sqlite3.Connection, award_id: str) -> int:
+    return conn.execute("DELETE FROM ticket_rfq_award_terms WHERE award_id = ?", (award_id,)).rowcount
+
+
+def terms_waiting(conn: sqlite3.Connection, requested_before: str) -> list[dict[str, Any]]:
+    """The janitor's reminder candidates: arrival not confirmed (nor proposed), the vendor messaged before `requested_before`."""
+    return [dict(r) for r in conn.execute(
+        "SELECT * FROM ticket_rfq_award_terms WHERE arrival_state = 'awaiting' AND requested_at IS NOT NULL AND requested_at <= ? "
+        "ORDER BY requested_at LIMIT 200", (requested_before,)).fetchall()]
+
+
 # ---------------------------------------------------------------- the private thread with each vendor
 
 def insert_message(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
@@ -556,6 +594,8 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
         run(table, f"DELETE FROM {table} WHERE link_id IN {links}", (rfq_id,))
     run("ticket_rfq_links", "DELETE FROM ticket_rfq_links WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_messages", "DELETE FROM ticket_rfq_messages WHERE rfq_id = ?", (rfq_id,))
+    # CR-RFQ-PAYMENT-SCHEDULE: the awards' terms (an ordered quote keeps its approved schedule in ticket_quotes.payment_schedule_json)
+    run("ticket_rfq_award_terms", "DELETE FROM ticket_rfq_award_terms WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_awards", "DELETE FROM ticket_rfq_awards WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_events", "DELETE FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,))
     run("ticket_quote_decisions", f"DELETE FROM ticket_quote_decisions WHERE quote_id IN (SELECT id FROM ticket_quotes WHERE "
@@ -574,6 +614,7 @@ def rfq_rows_left(conn: sqlite3.Connection, rfq_id: str, vendor_ids: list[str], 
               ("ticket_rfq_vendors", "SELECT COUNT(*) FROM ticket_rfq_vendors WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_rfq_links", "SELECT COUNT(*) FROM ticket_rfq_links WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_rfq_awards", "SELECT COUNT(*) FROM ticket_rfq_awards WHERE rfq_id = ?", (rfq_id,)),
+              ("ticket_rfq_award_terms", "SELECT COUNT(*) FROM ticket_rfq_award_terms WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_rfq_messages", "SELECT COUNT(*) FROM ticket_rfq_messages WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_rfq_events", "SELECT COUNT(*) FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_outbox", "SELECT COUNT(*) FROM ticket_outbox WHERE rfq_id = ?", (rfq_id,))]

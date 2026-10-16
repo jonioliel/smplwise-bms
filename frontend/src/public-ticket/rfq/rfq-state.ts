@@ -7,7 +7,7 @@
 import type { ApiFailure, RfqKind, RfqPageState, RfqQuote, RfqView } from '../api';
 import { instantOf, parseIso, zonedParts } from '../time';
 import { type ClaimForm, type ClaimFormSettings, type FieldError, type LineDraft, type LineKind, DEFAULT_LIMITS, LINE_KINDS, buildPayload, cleanText, minorToInput, newForm,
-  newLine, validateForm } from '../claim/claim-model';
+  newLine, normalizeDecimal, parseAmount, validateForm } from '../claim/claim-model';
 
 const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -68,6 +68,9 @@ export function rfqFailure(e: ApiFailure): RfqNext {
         return say('r_e_message_limit', true);
       case 'award_pending':
         return say('r_e_award_pending', true);
+      case 'arrival_closed': // CR-RFQ-PAYMENT-SCHEDULE: one answer for every "not now" of the arrival confirmation
+      case 'arrival_date_missing':
+        return say('r_e_arrival_closed', true);
       case 'request_in_progress':
         return say('r_e_rate', false, { keepCrid: true, n: 1 });
       default:
@@ -87,6 +90,8 @@ export function invalidKey(code: string, fields: readonly { field: string; code:
   const f = fields[0];
   if (code === 'kind_not_allowed' || fields.some((x) => x.code === 'kind_not_allowed')) return 'r_e_kind_not_allowed';
   if (f?.field === 'valid_until') return 'r_e_valid_until';
+  if (f?.field.startsWith('payment')) return 'r_e_pay';
+  if (f?.field === 'acknowledge_schedule') return 'r_e_ack';
   if (f && (f.field === 'work_from' || f.field === 'work_to')) return 'r_e_dates';
   if (f?.code === 'claim_too_large' || f?.code === 'too_large' || f?.field === 'total') return 'r_e_too_large';
   return 'r_e_invalid';
@@ -145,6 +150,8 @@ export interface RfqDraft {
   workFrom: string;
   workTo: string;
   validUntil: string;
+  /** CR-RFQ-PAYMENT-SCHEDULE: the proposed instalments (null = none; offered only when the server sends `form.payment`) */
+  pay?: PayDraft | null;
 }
 
 /** The kinds the form offers: the server's list, in the fixed order (labour is always allowed on a request). */
@@ -174,7 +181,7 @@ export function freshDraft(v: Pick<RfqView, 'form' | 'rfq'>): RfqDraft {
   const form = newForm(s, s?.currencies[0]);
   const kinds = rfqKinds(v);
   form.lines = [newLine(kinds[0], s)];
-  return { form, workFrom: '', workTo: '', validUntil: '' };
+  return { form, workFrom: '', workTo: '', validUntil: '', pay: null };
 }
 
 /** "Edit": the form starts from the quote he sent (his inputs, not the server's figures). */
@@ -202,7 +209,8 @@ export function draftFromQuote(q: RfqQuote, v: Pick<RfqView, 'form' | 'rfq' | 't
   form.include_vat = s?.vat.exempt ? false : q.vat_mode === 'included';
   form.notes = q.note ?? '';
   form.vendor_ref = q.vendor_ref ?? '';
-  return { form, workFrom: isoToDay(q.work_from, v.time_zone), workTo: isoToDay(q.work_to, v.time_zone), validUntil: isoToDay(q.valid_until, v.time_zone) };
+  return { form, workFrom: isoToDay(q.work_from, v.time_zone), workTo: isoToDay(q.work_to, v.time_zone), validUntil: isoToDay(q.valid_until, v.time_zone),
+    pay: v.form?.payment ? payFromQuote(q) : null };
 }
 
 /** 15.4 `base_version`: the version of his current LIVE quote, null when he has none (never quoted, or withdrawn). */
@@ -223,6 +231,7 @@ export function draftProblems(d: RfqDraft, v: Pick<RfqView, 'form' | 'rfq' | 'ti
     const t = end ? Date.parse(end) : NaN;
     if (!Number.isFinite(t) || t <= nowMs || t > nowMs + 366 * 86_400_000) out.push({ field: 'valid_until', code: 'range' });
   }
+  if (d.pay && v.form?.payment) out.push(...payProblems(d.pay, isoToDay(new Date(nowMs).toISOString(), v.time_zone), v.form.payment));
   return out;
 }
 
@@ -248,6 +257,7 @@ export function quoteWire(d: RfqDraft, v: Pick<RfqView, 'form' | 'quote' | 'time
   if (note) body.note = note;
   const ref = cleanText(d.form.vendor_ref);
   if (ref) body.vendor_ref = ref;
+  if (d.pay && v.form?.payment) body.payment = payWire(d.pay);
   body.base_version = baseVersion(v.quote);
   body.client_request_id = crid;
   return body;
@@ -277,7 +287,7 @@ export function parseRfqDraft(raw: string | null): RfqDraft | null {
         quantity: str(l.quantity, 20), unit_price: str(l.unit_price, 20), amount: str(l.amount, 20) }));
     return {
       form: { lines, currency: str(f.currency, 3) || 'ILS', include_vat: f.include_vat === true, no_charge: false, vendor_ref: str(f.vendor_ref, 200), notes: str(f.notes) },
-      workFrom: day(v.workFrom), workTo: day(v.workTo), validUntil: day(v.validUntil),
+      workFrom: day(v.workFrom), workTo: day(v.workTo), validUntil: day(v.validUntil), pay: parsePay(v.pay),
     };
   } catch {
     return null;
@@ -287,4 +297,100 @@ export function parseRfqDraft(raw: string | null): RfqDraft | null {
 /** The kinds as the request card lists them. */
 export function kindList(kinds: readonly RfqKind[] | undefined): LineKind[] {
   return LINE_KINDS.filter((k) => (kinds ?? []).includes(k));
+}
+
+// ---------------------------------------------------------------- CR-RFQ-PAYMENT-SCHEDULE: the proposed payment schedule (contract 19.2)
+
+export type PayMode = 'percent' | 'amount';
+export type FinalDue = 'completion' | 'date' | 'after_completion';
+export interface PayItemDraft { key: string; kind: 'advance' | 'progress'; mode: PayMode; value: string; date: string }
+export interface PayDraft { items: PayItemDraft[]; due: FinalDue; date: string; days: string }
+
+const PCT_RE = /^(\d{1,3})(?:\.(\d{1,2}))?$/;
+let paySeq = 0;
+
+export function newPayItem(kind: 'advance' | 'progress'): PayItemDraft {
+  paySeq += 1;
+  return { key: `p${paySeq}`, kind, mode: 'percent', value: '', date: '' };
+}
+
+/** A fresh schedule: an advance (percent, no date yet) and the final instalment on completion. */
+export function newPay(): PayDraft {
+  return { items: [newPayItem('advance')], due: 'completion', date: '', days: '30' };
+}
+
+/** Percent text -> basis points (1..10000), null when malformed. */
+export function percentBp(raw: string): number | null {
+  const m = PCT_RE.exec(normalizeDecimal(raw));
+  if (!m) return null;
+  const bp = Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0'));
+  return bp >= 1 && bp <= 10000 ? bp : null;
+}
+
+/** What the page can check before sending (the server checks everything again): shares, dates in order, the final rule. */
+export function payProblems(p: PayDraft, today: string, max: { days_max: number } = { days_max: 180 }): FieldError[] {
+  const out: FieldError[] = [];
+  let last = '';
+  let pct = 0;
+  p.items.forEach((it, i) => {
+    const f = `payment.items.${i}`;
+    if (it.mode === 'percent') {
+      const bp = percentBp(it.value);
+      if (bp === null) out.push({ field: `${f}.percent`, code: 'format' });
+      else pct += bp;
+    } else {
+      const a = parseAmount(it.value);
+      if (!a.ok || a.value <= 0) out.push({ field: `${f}.amount`, code: 'format' });
+    }
+    if (!DAY_RE.test(it.date) || it.date < today) out.push({ field: `${f}.date`, code: 'range' });
+    else if (last && it.date < last) out.push({ field: `${f}.date`, code: 'order' });
+    else last = it.date;
+  });
+  if (pct > 10000) out.push({ field: 'payment.items', code: 'exceeds_total' });
+  const fi = `payment.items.${p.items.length}`;
+  if (p.due === 'date' && (!DAY_RE.test(p.date) || p.date < (last || today))) out.push({ field: `${fi}.date`, code: 'range' });
+  if (p.due === 'after_completion' && (!/^\d{1,3}$/.test(p.days.trim()) || Number(p.days) > max.days_max)) out.push({ field: `${fi}.days`, code: 'range' });
+  return out;
+}
+
+/** The wire form of `payment` (contract 19.2): decimal strings and plain dates only - never a figure the page computed. */
+export function payWire(p: PayDraft): { items: Record<string, unknown>[] } {
+  const items: Record<string, unknown>[] = p.items.map((it) => ({ kind: it.kind, [it.mode]: normalizeDecimal(it.value), due: 'date', date: it.date }));
+  const final: Record<string, unknown> = { kind: 'final', due: p.due };
+  if (p.due === 'date') final.date = p.date;
+  if (p.due === 'after_completion') final.days = Number(p.days);
+  items.push(final);
+  return { items };
+}
+
+/** "Edit": the schedule he proposed with his live quote, back into the editor. */
+export function payFromQuote(q: RfqQuote): PayDraft | null {
+  const items = q.payment?.items;
+  if (!items?.length) return null;
+  const p: PayDraft = { items: [], due: 'completion', date: '', days: '30' };
+  for (const it of items) {
+    if (it.kind === 'final') {
+      p.due = it.due as FinalDue;
+      p.date = it.date ?? '';
+      p.days = it.days === null || it.days === undefined ? '30' : String(it.days);
+    } else {
+      const d = newPayItem(it.kind);
+      d.mode = it.percent ? 'percent' : 'amount';
+      d.value = it.percent ?? minorToInput(it.amount_minor);
+      d.date = it.date ?? '';
+      p.items.push(d);
+    }
+  }
+  return p;
+}
+
+/** A kept schedule (sessionStorage); anything tampered is no schedule. */
+export function parsePay(raw: unknown): PayDraft | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Partial<PayDraft>;
+  const s = (x: unknown, max = 20) => (typeof x === 'string' ? x.slice(0, max) : '');
+  if (!Array.isArray(v.items) || !['completion', 'date', 'after_completion'].includes(v.due as string)) return null;
+  const items = v.items.slice(0, 5).filter((it) => it && (it.kind === 'advance' || it.kind === 'progress'))
+    .map((it) => ({ key: s(it.key, 40) || newPayItem(it.kind).key, kind: it.kind, mode: (it.mode === 'amount' ? 'amount' : 'percent') as PayMode, value: s(it.value), date: s(it.date, 10) }));
+  return { items, due: v.due as FinalDue, date: s(v.date, 10), days: s(v.days, 3) };
 }

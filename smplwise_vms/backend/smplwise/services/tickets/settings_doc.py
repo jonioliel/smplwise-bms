@@ -194,6 +194,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("rfq", "link_keep_days"): (30, int_range(1, 365)),  # a link lives this long past the deadline; its row goes this long after closing
     ("rfq", "retention_months"): (24, int_range(6, 120)),  # spec 6: quotes that were not selected (and the request) are kept this long
     ("rfq", "reminder_hours"): (24, int_range(0, 168)),  # stage C2's automatic reminder before the deadline; 0 = off
+    # CR-RFQ-PAYMENT-SCHEDULE (contract section 19): the vendor's payment schedule + his arrival confirmation. OFF by default, so an
+    # upgrade changes nothing; `arrival_reminder_hours` = the reminder when he has not confirmed after being messaged (0 = no reminder)
+    ("rfq", "schedule_arrival"): (False, boolean),
+    ("rfq", "arrival_reminder_hours"): (24, int_range(0, 168)),
 }
 
 

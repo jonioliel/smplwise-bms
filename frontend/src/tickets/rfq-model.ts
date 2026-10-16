@@ -268,7 +268,9 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
   if (e.kind === 'awarded' && amount) return { key: 'ev_awarded_amount', vars };
   const known = ['created', 'edited', 'vendor_added', 'vendor_removed', 'sent', 'reminder', 'quote_submitted', 'quote_withdrawn', 'declined', 'link_revoked', 'message',
     'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',
-    'order_created', 'order_sent'];
+    'order_created', 'order_sent',
+    // CR-RFQ-PAYMENT-SCHEDULE (contract 19.7)
+    'terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected'];
   return { key: known.includes(e.kind) ? `ev_${e.kind}` : 'ev_other', vars };
 }
 
@@ -377,7 +379,9 @@ export function refusalKey(code: string | undefined): string | null {
   const known = ['rfq_stale', 'quote_stale', 'rfq_vendor_page_unavailable', 'self_approval', 'second_approver_required', 'award_pending', 'rfq_has_award',
     'vendor_not_allowed', 'vendor_duplicate', 'rfq_no_vendors', 'rfq_due_passed', 'rfq_field_locked', 'rfq_invalid_transition', 'vendor_code_locked',
     // TKRFQ4: the work order
-    'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable'];
+    'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable',
+    // CR-RFQ-PAYMENT-SCHEDULE
+    'terms_not_found', 'arrival_not_proposed'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 

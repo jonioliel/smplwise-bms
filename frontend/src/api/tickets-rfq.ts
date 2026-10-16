@@ -136,6 +136,24 @@ export interface RfqAward {
   /** TKRFQ4: the order form's dates (the quote's work window, else the request's) - while no order exists, for a viewer who may order */
   order_defaults?: { work_from: string | null; work_to: string | null } | null;
   can?: { order: boolean; send_order: boolean };
+  /** CR-RFQ-PAYMENT-SCHEDULE (contract 19.7): the approved schedule and the vendor's arrival confirmation (null while the switch is off) */
+  terms?: RfqAwardTerms | null;
+}
+
+/** CR-RFQ-PAYMENT-SCHEDULE: one instalment (amounts null without tickets.costs.view; the final one is the remainder). */
+export interface RfqInstalment { index: number; kind: 'advance' | 'progress' | 'final'; amount_minor: number | null; percent_bp: number | null;
+  due: 'date' | 'completion' | 'after_completion'; date: string | null; days: number | null }
+/** CR-RFQ-PAYMENT-SCHEDULE: the vendor's proposal as he sent it (percent text or a fixed amount in minor units). */
+export interface RfqPaymentProposal { items: { kind: 'advance' | 'progress' | 'final'; due: string; date: string | null; days: number | null; percent: string | null;
+  amount_minor: number | null }[] }
+export interface RfqAwardTerms {
+  schedule: { currency: string; total_minor: number | null; rounding: string; items: RfqInstalment[]; source: 'vendor' | 'manager' | 'default' };
+  proposal: RfqPaymentProposal | null;
+  arrival: { state: 'awaiting' | 'proposed' | 'confirmed'; planned_from: string | null; planned_to: string | null; proposed_from: string | null;
+    proposed_to: string | null; rejected_at: string | null; confirmed_at: string | null; confirmed_by: 'vendor' | 'manager' | null;
+    acknowledged_at: string | null; requested_at: string | null; reminders: number };
+  revision: number;
+  can: { decide_arrival: boolean };
 }
 
 export interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
@@ -241,6 +259,8 @@ export interface RfqCompareQuote {
   revision: number;
   /** C2 gap: the date the vendor's price holds until */
   valid_until?: string | null;
+  /** CR-RFQ-PAYMENT-SCHEDULE: the vendor's proposed instalments (null = none) */
+  payment_proposal?: RfqPaymentProposal | null;
   can: { award: boolean };
 }
 
@@ -268,6 +288,8 @@ export interface RfqMeta {
   attachments?: boolean;
   /** C2 gap: a channel and a code choice per invited vendor (absent = the directory's values, read-only) */
   vendor_options?: boolean;
+  /** CR-RFQ-PAYMENT-SCHEDULE: the installation offers the payment schedule + arrival confirmation (the award dialog's fields) */
+  schedule_arrival?: boolean;
 }
 
 export interface RfqVendorRef { contact_id: string; channel?: RfqChannel; require_code?: boolean }
@@ -312,7 +334,9 @@ export interface RfqQuoteBody {
 /** contract 15.6: `POST tickets/rfqs/{id}/vendors/{rv_id}/options` - `require_code` until the vendor is awarded / removed, `channel` for a draft vendor only. */
 export interface RfqVendorOptionsBody { revision: number; require_code?: boolean; channel?: 'auto' | RfqChannel }
 
-export interface RfqAwardBody { quote_id: string; revision: number; line_indexes?: number[]; kinds?: LineKind[]; finalize: boolean }
+export interface RfqAwardBody { quote_id: string; revision: number; line_indexes?: number[]; kinds?: LineKind[]; finalize: boolean;
+  /** CR-RFQ-PAYMENT-SCHEDULE (19.3): the manager's edit of the schedule (omitted = the vendor's proposal) and the planned arrival */
+  payment?: { items: Record<string, unknown>[] }; arrival?: { work_from: string; work_to?: string } }
 
 /** The editable notice of an award (rfq.award_draft) - never sent by the system. */
 export interface RfqMessageDraft {
@@ -363,6 +387,8 @@ export interface RfqBackend {
   orderPreview(id: string, awardId: string): Promise<RfqOrderPreview>;
   /** TKRFQ4: the manager's explicit send of the order message (a repeat answers the first send) */
   sendOrder(id: string, awardId: string): Promise<RfqOrderAnswer>;
+  /** CR-RFQ-PAYMENT-SCHEDULE (19.6): accept / reject the arrival date the vendor proposed (the demo store has no terms) */
+  decideArrival?(id: string, awardId: string, action: 'accept' | 'reject', revision: number): Promise<RfqDetail>;
   /** C2 gap: upload one file for a request that is being created (returns its id) */
   uploadFile?(file: File): Promise<RfqFile>;
 }
@@ -423,6 +449,7 @@ const rest: RfqBackend = {
   createOrder: (id, awardId, body) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order`, body),
   orderPreview: (id, awardId) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview`),
   sendOrder: (id, awardId) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/send`),
+  decideArrival: (id, awardId, action, revision) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival`, { action, revision }),
 };
 
 /** The backend in force: REST with a server, the demo store without one. */

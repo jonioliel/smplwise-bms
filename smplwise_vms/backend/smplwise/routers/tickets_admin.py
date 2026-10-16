@@ -135,6 +135,12 @@ class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; depart
     allowed_line_kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)  # TKDETAILBE
 
 
+class RfqPatch(BaseModel):  # CR-RFQ-PAYMENT-SCHEDULE: the requests-for-quotation keys (RFQ contract sections 13 / 19.9)
+    model_config = ConfigDict(extra="forbid")
+    schedule_arrival: StrictBool | None = None  # the payment schedule + arrival confirmation (default OFF)
+    arrival_reminder_hours: StrictInt | None = None  # settings_doc validates the range (0-168)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -148,6 +154,7 @@ class SettingsBody(BaseModel):
     code: CodePatch | None = None  # slice 7
     costs: CostsPatch | None = None  # slice 9
     staff_links: StaffLinksPatch | None = None  # TKSTAFF1
+    rfq: RfqPatch | None = None  # CR-RFQ-PAYMENT-SCHEDULE
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -202,7 +209,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links"):  # slice 2 / slice 4 / slice 7 / slice 9 / TKSTAFF1
+    for block in ("links", "public", "code", "costs", "staff_links", "rfq"):  # slice 2 / slice 4 / slice 7 / slice 9 / TKSTAFF1 / CR-RFQ-PAYMENT-SCHEDULE
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}

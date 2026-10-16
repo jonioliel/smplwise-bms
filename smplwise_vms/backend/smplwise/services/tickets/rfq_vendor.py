@@ -21,7 +21,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from ...db import get_setting
-from . import money, quotes, rfq, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
+from . import money, quotes, rfq, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
 from .costs import CostRefused, cost_settings, iso, parse
 
 LANGS = ("he", "en", "ar", "ru")
@@ -132,6 +132,7 @@ def present_quote(row: Mapping[str, Any], q: Mapping[str, Any]) -> dict[str, Any
         "net_minor": q["total_minor"] - q["vat_minor"], "work_from": q.get("work_from"), "work_to": q.get("work_to"),
         "in_window": in_window(row, q), "valid_until": q.get("valid_until"), "note": q.get("note"), "vendor_ref": q.get("vendor_ref"),
         "submitted_at": q["created_at"],
+        "payment": rfq_terms.present_plan(rfq_terms.loads(q.get("payment_plan_json"))),  # CR-RFQ-PAYMENT-SCHEDULE: his own proposal
         "approved": ({"line_indexes": quotes.approved_indexes(q), "subtotal_minor": q.get("approved_subtotal_minor"),
                       "vat_minor": q.get("approved_vat_minor"), "total_minor": q.get("approved_total_minor")} if approved else None),
     }
@@ -155,7 +156,10 @@ def _form(conn, row: Mapping[str, Any], v: Mapping[str, Any], cur: Mapping[str, 
     rate_currency = contact.get("rate_currency") or (vendor or {}).get("rate_currency")
     currency = (cur or {}).get("currency") or (rate_currency if rate_currency in s.currencies else s.currencies[0])
     kinds = rfq.allowed_kinds(row)
-    return {"currencies": list(s.currencies), "currency": currency, "allowed_kinds": kinds,
+    # CR-RFQ-PAYMENT-SCHEDULE: the optional instalments block of the form (switch on only; `null` = the page shows no such block)
+    payment = ({"max_items": rfq_terms.MAX_ITEMS, "days_max": rfq_terms.DAYS_MAX, "horizon_days": rfq_terms.HORIZON_DAYS}
+               if rfq_terms.enabled(conn) else None)
+    return {"currencies": list(s.currencies), "currency": currency, "allowed_kinds": kinds, "payment": payment,
             "vat": {"exempt": exempt, "rate_bp": s.vat_rate_bp,
                     "default": "none" if exempt else (contact.get("vat_default") or (vendor or {}).get("vat_default") or "excluded")},
             "labor_rate_minor": rate if rate_currency in (None, currency) else None,
@@ -204,6 +208,8 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
         "can": {"quote": writable, "withdraw": writable and submitted is not None and not pending,
                 "decline": writable and live is None and v["state"] != "declined",
                 "ask": writable and store_rfq.inbound_message_count(conn, v["id"]) < MESSAGES_PER_VENDOR},
+        # CR-RFQ-PAYMENT-SCHEDULE (19.4): HIS approved schedule and arrival - only on his own approved award, else absent
+        "terms": rfq_terms.vendor_block(conn, row, v, read_only=read_only) if state == "awarded" else None,
     })
     return out
 
@@ -275,6 +281,7 @@ def submit(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> dict[s
         valid_until = _valid_until(body.get("valid_until"), now)
         note = quotes._text(body.get("note"), "note", quotes.NOTE_MAX, multiline=True)
         vendor_ref = quotes._text(body.get("vendor_ref"), "vendor_ref", quotes.VENDOR_REF_MAX)
+        plan_json = rfq_terms.quote_plan(conn, body, now)  # CR-RFQ-PAYMENT-SCHEDULE: his proposed instalments (switch on only)
     except CostRefused as exc:
         code = "kind_not_allowed" if exc.code == "line_kind_not_allowed" else exc.code
         raise VendorRefused(422, "invalid", fields=[{"field": exc.field or "body", "code": code}]) from None
@@ -295,7 +302,7 @@ def submit(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> dict[s
         "labor_minor": c.by_kind["labor"], "parts_minor": c.by_kind["parts"], "travel_minor": c.by_kind["travel"], "other_minor": c.by_kind["other"],
         "subtotal_minor": c.subtotal_minor, "vat_minor": c.vat_minor, "total_minor": c.total_minor, "work_from": work_from, "work_to": work_to,
         "valid_until": valid_until, "note": note, "vendor_ref": vendor_ref, "created_by_kind": "contact", "created_by": v["contact_id"],
-        "created_at": at, "updated_at": at})
+        "created_at": at, "updated_at": at, **({"payment_plan_json": plan_json} if plan_json else {})})
     store_rfq.update_vendor(conn, v["id"], {"state": "quoted", "quoted_at": at, "updated_at": at})
     fields: dict[str, Any] = {"updated_at": at}
     if row["state"] == "sent":

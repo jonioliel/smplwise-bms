@@ -24,6 +24,7 @@ import { formatDate, formatWhen, zoneNote } from '../time';
 import { computeForm, formatMoney, formatRate, newLine, type LineDraft, type LineKind } from '../claim/claim-model';
 import { claimLang, ct, errorText, type ClaimTextKey } from '../claim/claim-text';
 import { rfqText, isRfqKey, type RfqKey } from './rfq-text';
+import { arrivalWire, payEditor, termsCard, type ArrivalUi, type TermsHost } from './rfq-page-terms';
 import {
   bodySig, cridFor, draftFromQuote, draftProblems, freshDraft, isoToDay, kindList, outsideWindow, parseRfqDraft, quoteWire, quoting, rfqFailure, rfqKinds, rfqScreen,
   rfqSettings, timeLeft, type RfqDraft, type RfqScreen,
@@ -43,7 +44,7 @@ export interface RfqHost {
 }
 
 type Phase = 'loading' | 'ready' | 'unavailable' | 'busy' | 'error' | 'finished';
-type Slot = 'quote' | 'withdraw' | 'decline' | 'message';
+type Slot = 'quote' | 'withdraw' | 'decline' | 'message' | 'arrival';
 type Pending = { crid: string; sig: string };
 
 const DAY_MS = 86_400_000;
@@ -66,6 +67,8 @@ class RfqPage {
   private declineReason = '';
   private withdrawOpen = false;
   private ask = '';
+  /** CR-RFQ-PAYMENT-SCHEDULE: the acknowledgement box and the "another date" fields of the arrival confirmation */
+  private arrivalUi: ArrivalUi = { ack: false, open: false, from: '', to: '' };
   /** a draft kept in this tab from before a reload: an update of a live quote reopens the form */
   private restored = false;
   /** a kept draft of a FIRST quote: dropped when a live quote exists meanwhile (it was sent, perhaps from another device) */
@@ -297,6 +300,31 @@ class RfqPage {
     await this.load(false);
   }
 
+  /** CR-RFQ-PAYMENT-SCHEDULE: confirm the planned arrival or propose another date (both acknowledge the approved schedule). */
+  private async arrival(action: 'confirm' | 'propose'): Promise<void> {
+    const v = this.view;
+    if (!v) return;
+    const body = arrivalWire(action, this.arrivalUi, v.time_zone);
+    const out = await this.write('arrival', body, (crid) => rfqApi.arrival(this.creds, { ...body, client_request_id: crid }));
+    if (!out) return;
+    this.arrivalUi = { ack: false, open: false, from: '', to: '' };
+    this.banner = { key: 'saved', tone: 'ok' };
+    await this.load(false);
+  }
+
+  /** The page as the terms module sees it (words, money, dates, the busy flag, keep / render). */
+  private termsHost(): TermsHost {
+    return {
+      t: (key, vars) => this.t(key, vars),
+      money: (minor, currency) => this.money(minor, currency),
+      totalLabel: () => this.c('total'),
+      day: (iso) => this.day(iso),
+      busy: this.busy,
+      keep: () => this.keep(),
+      render: () => this.render(),
+    };
+  }
+
   private async codeSend(): Promise<void> {
     if (this.busy) return;
     this.busy = true;
@@ -453,6 +481,7 @@ class RfqPage {
       this.bannerEl(),
       v.read_only && v.read_only_until ? h('div', { class: 'banner info', attrs: { role: 'status', 'data-rfq-readonly': true } }, this.t('readOnly', { when: this.when(v.read_only_until) })) : null,
       this.stateCard(v, screen),
+      screen === 'awarded' ? termsCard(this.termsHost(), v, this.arrivalUi, (a) => void this.arrival(a)) : null,
       ended ? null : this.requestCard(v),
       ended ? null : this.quoteBlock(v, screen),
       !ended && can.decline && screen === 'open' ? this.declineBlock(v) : null,
@@ -647,6 +676,8 @@ class RfqPage {
       on: { input: (e) => { d.form.notes = (e.target as HTMLTextAreaElement).value; this.keep(); if (this.showErrors) this.paintErrors(); } } });
     notes.value = d.form.notes;
     f.appendChild(h('label', { class: 'swc-field' }, h('span', { class: 'swc-label' }, `${this.c('notes')} ${this.c('optional')}`), notes));
+    const pay = payEditor(this.termsHost(), d, v); // CR-RFQ-PAYMENT-SCHEDULE: only when the installation offers it (`form.payment`)
+    if (pay) f.appendChild(pay);
     this.errorHost = h('p', { class: 'swc-error', attrs: { role: 'alert', 'data-rfq-error': true } });
     this.errorHost.hidden = true;
     f.appendChild(this.errorHost);
@@ -732,6 +763,7 @@ class RfqPage {
         if (first.code === 'kind_not_allowed') msg = this.t('r_e_kind_not_allowed');
         else if (first.field === 'valid_until') msg = this.t('r_e_valid_until');
         else if (first.field === 'work_to') msg = this.t('r_e_dates');
+        else if (first.field.startsWith('payment')) msg = this.t('r_e_pay');
         else if (first.field === 'lines' && first.code === 'required') msg = this.c('e_lines_required');
         else msg = errorText(claimLang(this.lang), first.code);
       }

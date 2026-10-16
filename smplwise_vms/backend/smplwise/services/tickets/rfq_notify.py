@@ -47,6 +47,8 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "question": ("{ref}: שאלת הבהרה מספק", "{place}"),
         "question_whatsapp": ("{ref}: הודעה מספק בוואטסאפ", "{place} · שולח לא מאומת"),
         "due_passed": ("{ref}: המועד להגשת הצעות עבר", "{place} · {quoted} מתוך {invited} הגישו הצעה"),
+        "arrival_confirmed": ("{ref}: ספק אישר את מועד ההגעה ואת לוח התשלומים", "{place}"),
+        "arrival_proposed": ("{ref}: ספק הציע מועד הגעה אחר", "{place} · ממתין להחלטה"),
     },
     "en": {
         "quote_new": ("{ref}: quote received", "{place}"),
@@ -56,9 +58,12 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "question": ("{ref}: clarification question from a vendor", "{place}"),
         "question_whatsapp": ("{ref}: WhatsApp message from a vendor", "{place} · unverified sender"),
         "due_passed": ("{ref}: the quote deadline passed", "{place} · {quoted} of {invited} quoted"),
+        "arrival_confirmed": ("{ref}: a vendor confirmed the arrival date and the payment schedule", "{place}"),
+        "arrival_proposed": ("{ref}: a vendor proposed another arrival date", "{place} · waiting for a decision"),
     },
 }
-PART_SOURCE = {"quote": "rfq.quote_received", "declined": "rfq.declined", "question": "rfq.question", "due": "rfq.due_passed"}
+PART_SOURCE = {"quote": "rfq.quote_received", "declined": "rfq.declined", "question": "rfq.question", "due": "rfq.due_passed",
+               "arrival": "rfq.arrival"}
 
 
 # ---------------------------------------------------------------- engine callbacks
@@ -208,3 +213,15 @@ def due_moved(conn: sqlite3.Connection, rfq_id: str) -> None:
 def ended(conn: sqlite3.Connection, rfq_id: str) -> None:
     """Awarded (final), closed, cancelled or deleted: every open row of the request is over."""
     resolve_rfq(conn, rfq_id)
+
+
+def arrival(conn: sqlite3.Connection, row: Mapping[str, Any], rfq_vendor_id: str, kind: str) -> str | None:
+    """CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor confirmed the arrival date (and acknowledged the schedule) or proposed another date
+    (`kind` = confirmed | proposed; one row per vendor - never a date, an amount or his name)."""
+    return _emit(conn, "rfq.arrival", row, f"arrival_{kind}", dedupe=f"rfq:{row['id']}:arrival:{rfq_vendor_id}",
+                 origin={"rfq_vendor_id": rfq_vendor_id})
+
+
+def arrival_done(conn: sqlite3.Connection, rfq_id: str, rfq_vendor_id: str) -> None:
+    """A manager accepted / rejected the proposed date: that vendor's arrival row is over."""
+    resolve(conn, "rfq.arrival", f"rfq:{rfq_id}:arrival:{rfq_vendor_id}")

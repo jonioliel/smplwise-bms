@@ -18,11 +18,12 @@ import { rIcon } from './rfq-icons';
 import { rt } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
 import {
-  KIND_ORDER, arrangeQuotes, awardPreview, currencyGroups, dateTime, initials, kindsOf, notSelected, rfqHref, scopeValid, secondApprovalHint, selectionTotals, splitPlan,
+  KIND_ORDER, arrangeQuotes, awardPreview, currencyGroups, dateTime, dayToIso, initials, kindsOf, notSelected, rfqHref, scopeValid, secondApprovalHint, selectionTotals, splitPlan,
   windowText, type AwardScope, type CompareFilter, type CompareSort, type Selection,
 } from './rfq-model';
 import { rfqError } from './rfq-new';
 import { tt, ticketsLang } from './text';
+import { payFromProposal, payProblems, payWire, proposalLines, type MgrDue, type MgrPay } from './rfq-terms-model';
 
 interface DraftOut { vendorId: string; name: string; text: string; send: boolean; notify: boolean; source?: { kind: 'award'; id: string } }
 
@@ -54,6 +55,10 @@ export class TicketsRfqCompare extends LitElement {
   @state() private message: RfqVendor | null = null;
   @state() private busy = false;
   @state() private error = '';
+  /** CR-RFQ-PAYMENT-SCHEDULE: per selected quote - the manager's edit of the vendor's schedule (absent = the proposal as is) and the
+   * planned arrival day ('' = the quote's / request's window) */
+  @state() private pays = new Map<string, MgrPay>();
+  @state() private arrivals = new Map<string, string>();
   private seq = 0;
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, rfqStyles];
@@ -142,7 +147,7 @@ export class TicketsRfqCompare extends LitElement {
     const answers: RfqAwardAnswer[] = [];
     try {
       for (const body of splitPlan(sel)) {
-        const a = await ticketsRfqApi().award(d.id, body);
+        const a = await ticketsRfqApi().award(d.id, { ...body, ...this.termsBody(body.quote_id) });
         answers.push(a);
         this.d = a.rfq;
         if (a.award.state === 'pending_second') break; // the RFQ waits: nothing more until the second approver decides
@@ -152,6 +157,8 @@ export class TicketsRfqCompare extends LitElement {
       this.notice({ ok: pending ? rt('awardPendingDone') : rt('awardDone') });
       if (!pending) this.drafts = this.draftsOf(answers, sel);
       this.sel = new Map();
+      this.pays = new Map();
+      this.arrivals = new Map();
       await this.load();
     } catch (e) {
       this.error = rfqError(e);
@@ -159,6 +166,79 @@ export class TicketsRfqCompare extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  // ---------------------------------------------------------------- CR-RFQ-PAYMENT-SCHEDULE: the schedule and the arrival at the award
+
+  private termsOn(): boolean {
+    return !!this.meta?.schedule_arrival;
+  }
+
+  /** The award body's extras: the edited schedule (only when the manager opened the editor) and the planned arrival day. */
+  private termsBody(quoteId: string): { payment?: { items: Record<string, unknown>[] }; arrival?: { work_from: string } } {
+    if (!this.termsOn()) return {};
+    const out: { payment?: { items: Record<string, unknown>[] }; arrival?: { work_from: string } } = {};
+    const p = this.pays.get(quoteId);
+    if (p) out.payment = payWire(p);
+    const day = this.arrivals.get(quoteId);
+    if (day) out.arrival = { work_from: dayToIso(day) };
+    return out;
+  }
+
+  private today(): string {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  }
+
+  private termsOk(): boolean {
+    return [...this.pays.values()].every((p) => payProblems(p, this.today()).length === 0);
+  }
+
+  private setPay(quoteId: string, p: MgrPay | null): void {
+    const next = new Map(this.pays);
+    if (p) next.set(quoteId, { ...p, items: p.items.map((x) => ({ ...x })) });
+    else next.delete(quoteId);
+    this.pays = next;
+  }
+
+  private proposalWords(q: RfqCompareQuote): string[] {
+    const kinds = { advance: rt('pk_advance'), progress: rt('pk_progress'), final: rt('pk_final') };
+    return proposalLines(q.payment_proposal, (m) => this.money(m, q.currency), { done: rt('pdDone'), after: rt('pdAfter'), kinds });
+  }
+
+  private termsEditor(q: RfqCompareQuote): TemplateResult {
+    const p = this.pays.get(q.quote_id);
+    const lines = this.proposalWords(q);
+    const day = this.arrivals.get(q.quote_id) ?? '';
+    const bad = p ? payProblems(p, this.today()) : [];
+    const upd = (fn: (x: MgrPay) => void) => { const c = { ...(p as MgrPay), items: (p as MgrPay).items.map((x) => ({ ...x })) }; fn(c); this.setPay(q.quote_id, c); };
+    return html`<div class="stack" data-cmp-terms=${q.quote_id}>
+      <b>${bidi(this.name(q))} · ${rt('pyRow')}</b>
+      ${lines.length ? html`<ul class="thr">${lines.map((l) => html`<li>${l}</li>`)}</ul>` : html`<p class="note">${rt('pyNone')}</p>`}
+      <label class="chk"><input type="checkbox" data-cmp-pay-edit .checked=${!!p} @change=${(e: Event) => this.setPay(q.quote_id, (e.target as HTMLInputElement).checked ? payFromProposal(q.payment_proposal) : null)} />${rt('pyEdit')}</label>
+      ${p ? html`<p class="note">${rt('pyEditNote')}</p>
+        ${p.items.map((it, i) => html`<div class="frm" data-cmp-pay-item=${i}>
+          <span class="mut">${rt(it.kind === 'advance' ? 'pk_advance' : 'pk_progress')}</span>
+          <span class="seg sm" role="radiogroup">${(['percent', 'amount'] as const).map((m) => html`<button type="button" role="radio" aria-checked=${String(it.mode === m)}
+            @click=${() => upd((c) => { c.items[i].mode = m; })}>${rt(m === 'percent' ? 'pyPercent' : 'pyAmount')}</button>`)}</span>
+          <input class="inp" inputmode="decimal" dir="ltr" aria-label=${rt(it.mode === 'percent' ? 'pyPercent' : 'pyAmount')} .value=${it.value} @change=${(e: Event) => upd((c) => { c.items[i].value = (e.target as HTMLInputElement).value; })} />
+          <input class="inp" type="date" aria-label=${rt('pyDate')} min=${this.today()} .value=${it.date} @change=${(e: Event) => upd((c) => { c.items[i].date = (e.target as HTMLInputElement).value; })} />
+          <button type="button" class="btn sm quiet" @click=${() => upd((c) => { c.items.splice(i, 1); })}>${rt('pyRemove')}</button></div>`)}
+        <div class="frm">
+          ${p.items.length < 5 && !p.items.some((x) => x.kind === 'advance') ? html`<button type="button" class="btn sm" @click=${() => upd((c) => { c.items.unshift({ kind: 'advance', mode: 'percent', value: '', date: '' }); })}>${rt('pyAddAdvance')}</button>` : nothing}
+          ${p.items.length < 5 ? html`<button type="button" class="btn sm" @click=${() => upd((c) => { c.items.push({ kind: 'progress', mode: 'percent', value: '', date: '' }); })}>${rt('pyAddProgress')}</button>` : nothing}</div>
+        <div class="frm" data-cmp-pay-final>
+          <span class="mut">${rt('pk_final')}</span>
+          <select class="inp" aria-label=${rt('pk_final')} @change=${(e: Event) => upd((c) => { c.due = (e.target as HTMLSelectElement).value as MgrDue; })}>
+            ${([['completion', 'pdDone'], ['date', 'pdOnDate'], ['after_completion', 'pdAfterShort']] as const).map(([v, k]) => html`<option value=${v} ?selected=${p.due === v}>${rt(k)}</option>`)}</select>
+          ${p.due === 'date' ? html`<input class="inp" type="date" aria-label=${rt('pyDate')} .value=${p.date} @change=${(e: Event) => upd((c) => { c.date = (e.target as HTMLInputElement).value; })} />` : nothing}
+          ${p.due === 'after_completion' ? html`<input class="inp" inputmode="numeric" dir="ltr" aria-label=${rt('pdAfterShort')} .value=${p.days} @change=${(e: Event) => upd((c) => { c.days = (e.target as HTMLInputElement).value.trim(); })} />` : nothing}
+        </div>
+        ${bad.length ? html`<div class="err" role="alert" data-cmp-pay-error>${rt('pyInvalid')}</div>` : nothing}` : nothing}
+      <label class="fld">${rt('pyArrival')}<input class="inp" type="date" data-cmp-arrival min=${this.today()} .value=${day}
+        @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; const n = new Map(this.arrivals); if (v) n.set(q.quote_id, v); else n.delete(q.quote_id); this.arrivals = n; }} />
+        <span class="note">${rt('pyArrivalNote')}</span></label>
+    </div>`;
   }
 
   /** The winners' drafts from the server (checked, editable) and an optional "not selected" draft per other vendor (unchecked). */
@@ -267,6 +347,10 @@ export class TicketsRfqCompare extends LitElement {
         }, 'lines')}
         ${row(rt('rowNote'), (q) => html`<td class=${cls(q)}>${q.note ? bidi(q.note) : html`<span class="mut">—</span>`}</td>`, 'note')}
         ${anyRef ? row(rt('rowRef'), (q) => html`<td class=${cls(q)}><span class="ltr">${q.vendor_ref ?? '—'}</span></td>`, 'ref') : nothing}
+        ${quotes.some((q) => q.payment_proposal) ? row(rt('pyRow'), (q) => {
+          const lines = this.proposalWords(q);
+          return html`<td class=${cls(q)} data-cmp-proposal=${q.quote_id}>${lines.length ? html`<ul class="lines">${lines.map((l) => html`<li><span>${l}</span></li>`)}</ul>` : html`<span class="mut">—</span>`}</td>`;
+        }, 'payment') : nothing}
         ${row(rt('rowMessages'), (q) => {
           const v = this.d?.vendors.find((x) => x.id === q.vendor_id);
           return html`<td class=${cls(q)}>${v?.can.message ? html`<button type="button" class="btn sm quiet" data-cmp-ask=${q.vendor_id} @click=${() => (this.message = v)}>${rIcon('chat')}${q.messages ? `${rt('messages')} (${q.messages})` : rt('ask')}</button>`
@@ -302,10 +386,11 @@ export class TicketsRfqCompare extends LitElement {
         ${sel.length > 1 ? html`<p class="note">${rt('awardSplitNote')}</p>` : nothing}
         <p class="note">${rt('awardOthers')}</p>
         <p class="note" data-cmp-second=${hint ? 'maybe' : 'off'}>${hint && threshold !== null ? rt('awardSecondMaybe', { amount: this.money(threshold, this.c.currency) }) : rt('awardSecondOff')}</p>
+        ${this.termsOn() ? sel.map((s) => this.termsEditor(s.quote)) : nothing}
         ${this.error ? html`<div class="err" role="alert" data-cmp-error>${this.error}</div>` : nothing}
       </div>
       <button slot="footer" type="button" class="btn quiet" ?disabled=${this.busy} @click=${() => (this.confirm = false)}>${rt('back')}</button>
-      <button slot="footer" type="button" class="btn primary" data-cmp-confirm-ok ?disabled=${this.busy} @click=${() => void this.award()}>${tIcon('check')}${rt('confirm')}</button>
+      <button slot="footer" type="button" class="btn primary" data-cmp-confirm-ok ?disabled=${this.busy || !this.termsOk()} @click=${() => void this.award()}>${tIcon('check')}${rt('confirm')}</button>
     </sw-dialog>`;
   }
 
