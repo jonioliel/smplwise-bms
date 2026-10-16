@@ -89,16 +89,16 @@ test.describe('tickets list v5 evidence', () => {
     const mock = await goList(page, '/tickets/mine');
     await page.waitForSelector(`${L} ticket-card`);
     await expect(page.locator(`${L} [data-scope-seg] [data-scope]`)).toHaveCount(3);
-    await expect(page.locator(`${L} [data-scope="mine"]`)).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator(`${L} [data-scope="department"] small`)).toBeVisible();
+    await expect(page.locator(`${L} [data-scope-seg] [data-scope="mine"]`)).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator(`${L} [data-scope-seg] [data-scope="department"] small`)).toBeVisible();
     const open = await page.locator(`${L} [data-status-filter="open"] small`).textContent();
     expect(Number(open)).toBe(await page.locator(`${L} ticket-card`).count()); // the segment's count IS what the list shows
     await expect(page.locator(`${L} [data-status-filter="all"] small`)).toBeVisible();
     await expect(page.locator(`${L} [data-dept=""] small`)).toBeVisible();
     expect(mock.calls.some((c) => c.path.startsWith('tickets/facets'))).toBe(true);
-    await page.locator(`${L} [data-scope="department"]`).click();
+    await page.locator(`${L} [data-scope-seg] [data-scope="department"]`).click();
     await expect(page).toHaveURL(/#\/tickets\/department/);
-    await expect(page.locator(`${L} [data-scope="department"]`)).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator(`${L} [data-scope-seg] [data-scope="department"]`)).toHaveAttribute('aria-checked', 'true');
     await page.waitForSelector(`${L} ticket-card`);
     await shot(page, 'frame-department');
   });
@@ -169,7 +169,7 @@ test.describe('tickets list v5 evidence', () => {
     await page.waitForSelector(`${L} ticket-card`);
     await page.locator(`${L} [data-filter-toggle]`).click();
     await shot(page, 'phone-frame');
-    for (const sel of [`${L} [data-scope="mine"]`, `${L} [data-filter-toggle]`, `${L} [data-f-priority]`, `${L} ticket-card [data-card-menu]`, `${L} ticket-card [data-card-timeline]`]) {
+    for (const sel of [`${L} [data-scope-seg] [data-scope="mine"]`, `${L} [data-filter-toggle]`, `${L} [data-f-priority]`, `${L} ticket-card [data-card-menu]`, `${L} ticket-card [data-card-timeline]`]) {
       const box = await page.locator(sel).first().boundingBox();
       expect(box?.height ?? 0, sel).toBeGreaterThanOrEqual(43.5);
     }
@@ -238,6 +238,7 @@ test.describe('tickets list v5 evidence', () => {
     await expect(page.locator(`${B} [data-closed-row]`)).toHaveCount(3);
     await shot(page, 'board-closed-rows', 'light', 'classic', true);
     // the floors / areas tree survives (owner requirement) - or the chips on a phone
+    await page.locator(B).evaluate((h) => { (h as HTMLElement).scrollTop = 0; });
     if (isPhone(page)) await expect(page.locator(`${B} [data-floor-chips]`)).toBeVisible();
     else await expect(page.locator(`${B} ticket-board-tree`)).toBeVisible();
     await page.locator(`${B} [data-closed-row]`).first().click();
