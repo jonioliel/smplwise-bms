@@ -107,9 +107,9 @@ outbox and this worker over one account (pre-existing design, noted by the revie
 - **B-3** when the number goes back to the confirmed one the "already told" marker is cleared, so a later change (also to the same
   other number) is told again.
 - **B-4** an unreadable messaging key means "unknown": the sweep tells nobody, the key error is logged once per data directory, and
-  the settings answer carries the warning  (shown in the section). Consent cannot be verified then, so
+  the settings answer carries the warning `messaging_key_unreadable` (shown in the section). Consent cannot be verified then, so
   nothing is sent (fail closed). The directory resolver does not depend on the tickets module switch, so a module switched off
   does not read as a removed number.
-- **B-5** an old opt-in (number changed or removed) can always be withdrawn (, the stop button).
+- **B-5** an old opt-in (number changed or removed) can always be withdrawn (`stored_opt_in`, the stop button).
 - **after_s** (decided): on a generator policy that carries WhatsApp, the delay before an alert fires is gated by notify.manage like
   recipients / severity / quiet mode / escalation / enabled - a shorter delay raises how often a flapping alert reaches WhatsApp.
