@@ -1,7 +1,7 @@
 """AI-rendered floor skins (CR-006 phase 2, slice 2a): status, the owner's connection test and the control-image upload.
 
 Nothing leaves the installation from here except the connection test's synthetic 64x64 pattern, and only with the
-privacy acknowledgement on, the API key configured (add-on option `openai_api_key`) and the monthly budget not spent.
+privacy acknowledgement on, the API key configured (the in-app secrets store, `openai_api_key` - TKSECRETS2) and the monthly budget not spent.
 The render-set proposal, real renders, skin storage and compositing are slices 2b/2c.
 """
 from __future__ import annotations
@@ -91,7 +91,7 @@ def skins_test(request: Request, principal: Principal = Depends(current_principa
     if s["skins.privacy_ack"] != "true":
         raise refuse("skins_privacy_ack_required", "לא נשלח דבר: יש לאשר קודם בהגדרות מה יוצא מהמתקן לספק הרינדור.")
     if not settings_of(request).openai_api_key:
-        raise refuse("skins_key_missing", "לא נשלח דבר: מפתח ה־API של OpenAI לא הוגדר באפשרויות ה־Add-on (openai_api_key).")
+        raise refuse("skins_key_missing", "לא נשלח דבר: מפתח ה־API של OpenAI לא הוגדר (הגדרות › חיבורים › סודות).")
     b = store.budget(conn)
     if not b.allows(1):
         raise refuse("skins_budget_exhausted", "לא נשלח דבר: התקציב החודשי של רינדורים נוצל.", **b.describe())

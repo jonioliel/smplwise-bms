@@ -124,7 +124,7 @@ def test_0088_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, t
                          "reason, decided_by, decided_at, created_at) VALUES (?, ?, ?, 'c1', ?, ?, ?, 30000, 80000, 0, 0, 110000, 'excluded', "
                          "1800, 19800, 129800, 'ILS', 'n', ?, ?, ?, ?)", (qid, tid, aid, seq, state, lines, reason, by, at, now))
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [88]
+    assert [n for n in dbmod.Database(settings.db_path).migrate() if n != 93] == [88]  # 93: TKSECRETS2 (provisional)
     with database.connection(mode="read") as conn:
         q = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM ticket_quotes")}
         assert {k: (v["version"], v["state"]) for k, v in q.items()} == {"q1": (1, "superseded"), "q2": (2, "approved"), "q3": (1, "fix_requested")}

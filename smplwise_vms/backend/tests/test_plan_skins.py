@@ -109,7 +109,7 @@ def test_status_says_whether_the_key_is_configured_never_the_key(settings):
     assert c2.get("/api/v1/skins/status").json()["key_configured"] is False
 
 
-def test_the_key_is_an_addon_option_with_an_env_fallback(tmp_path, monkeypatch):
+def test_the_key_is_a_legacy_addon_option_with_an_env_fallback(tmp_path, monkeypatch):
     from smplwise.config import load_settings
 
     opts = tmp_path / "options.json"
@@ -121,7 +121,8 @@ def test_the_key_is_an_addon_option_with_an_env_fallback(tmp_path, monkeypatch):
     import pathlib
 
     cfg = (pathlib.Path(__file__).resolve().parents[2] / "config.yaml").read_text(encoding="utf-8")
-    assert 'openai_api_key: ""' in cfg and "openai_api_key: password?" in cfg
+    # TKSECRETS2: the key left the add-on manifest (the in-app secrets store); an older options.json is still read as the legacy value
+    assert "openai_api_key" not in cfg
 
 
 # ---------- the connection test ----------
@@ -134,7 +135,7 @@ def test_connection_test_refused_without_ack_or_key_and_nothing_is_sent(settings
     c.patch("/api/v1/settings", json={"skins.privacy_ack": "true"})
     app2, c2 = _app(settings, key=None, fake=fake)
     r = c2.post("/api/v1/skins/test")
-    assert r.status_code == 409 and r.json()["code"] == "skins_key_missing" and "openai_api_key" in r.json()["user_message"]
+    assert r.status_code == 409 and r.json()["code"] == "skins_key_missing" and "סודות" in r.json()["user_message"]
     assert fake.calls == []
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM plan_skin_renders").fetchone()[0] == 0

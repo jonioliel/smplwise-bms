@@ -231,7 +231,7 @@ def test_gap4_migration_0087_keeps_every_child_row_of_a_populated_database(tmp_p
     before = {t: conn.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall() for t in tables}
     conn.close()
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(path).migrate() == [87]
+    assert [n for n in dbmod.Database(path).migrate() if n <= 87] == [87]  # 0088 (TKDETAILBE) and 0093 (TKSECRETS2) follow in the real set
     conn = sqlite3.connect(path)
     after = {t: conn.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall() for t in tables}
     assert all(len(before[t]) == 1 for t in tables)

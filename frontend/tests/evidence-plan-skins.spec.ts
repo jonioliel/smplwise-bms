@@ -75,7 +75,7 @@ test.describe.serial('plan skins 2a (SW A)', () => {
     await card.locator('[data-save-skins]').click();
     await expect(card.locator('[data-skins-test]')).not.toHaveAttribute('disabled', '', { timeout: 10000 });
     await card.locator('[data-skins-test]').click();
-    await expect(card.locator('[data-skins-test-error]')).toContainText('openai_api_key');
+    await expect(card.locator('[data-skins-test-error]')).toContainText('סודות'); // TKSECRETS2: the key is in הגדרות › חיבורים › סודות
     const st = await (await api.get('api/v1/skins/status')).json();
     expect(st.privacy_ack).toBe(true);
     expect(st.budget.used_month).toBe(0);

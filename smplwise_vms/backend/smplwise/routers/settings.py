@@ -176,7 +176,7 @@ DEFAULTS: dict[str, str] = {
     # CR-006 phase 2 (AI-rendered floor skins, slice 2a): a family of its own, not the ai.* keys above - those are the
     # search's analysis provider (event metadata, none bundled); a skin sends a floor picture to an image provider, a
     # different piece of data and a different consent. Nothing is sent while skins.privacy_ack is false; the API key is
-    # the add-on option openai_api_key (never a setting). Budgets count successful renders (routers/skins.py).
+    # in the in-app secrets store (openai_api_key, TKSECRETS2; never a setting). Budgets count successful renders (routers/skins.py).
     "skins.provider": "openai",  # the one implementation today (owner decision 2026-09-28, CR-006 7.1 a)
     "skins.model": "gpt-image-1.5",  # the OpenAI image model for edits (the official SDK's default)
     "skins.privacy_ack": "false",

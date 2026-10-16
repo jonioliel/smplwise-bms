@@ -1018,7 +1018,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<sw-card data-skins heading="סקינים מרונדרים (AI)" subheading="תמונה פוטוריאליסטית של קומה מספק רינדור חיצוני — נשלחת רק אחרי אישור, פעם אחת לקומה, ונשמרת לשימוש חוזר">
       <div class="row"><span class="lbl">ספק ומודל<span class="muted">OpenAI (עריכת תמונה לפי תמונת בקרה). המודל ניתן לשינוי כשיוצא מודל חדש</span></span>
         <sw-field class="ctl"><input type="text" data-ltr data-set-skins-model ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.model') ?? 'gpt-image-1.5')} @change=${(e: Event) => this.set('skins.model', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
-      <div class="row" data-skins-key><span class="lbl">מפתח API<span class="muted">נשמר רק באפשרויות ה־Add-on (openai_api_key), לא במסד הנתונים ולא ביומנים; המסך יודע רק אם הוגדר</span></span>
+      <div class="row" data-skins-key><span class="lbl">מפתח API<span class="muted">מוזן בהגדרות › חיבורים › סודות ונשמר מוצפן; לא ביומנים, והמסך יודע רק אם הוגדר</span></span>
         <sw-badge kind=${st?.key_configured ? 'live' : 'unknown'} label=${!st ? '—' : st.key_configured ? 'מוגדר' : 'לא מוגדר'}></sw-badge></div>
       <div class="row" data-skins-leaves style="flex-direction:column;align-items:stretch"><span class="lbl">מה יוצא מהמתקן לספק כשנשלח רינדור</span>
         <ul class="steps">${(st?.leaves ?? []).map((x) => html`<li>${x}</li>`)}</ul>

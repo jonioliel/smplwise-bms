@@ -2590,7 +2590,8 @@ def test_wiskey_account_options(tmp_path, monkeypatch):
     s = load_settings(tmp_path / "missing.json")
     assert (s.wiskey_user, s.wiskey_password) == ("env-door", "env-pw")
     cfg = (ROOT / "smplwise_vms" / "config.yaml").read_text(encoding="utf-8")
-    assert 'wiskey_username: ""' in cfg and "wiskey_password: password?" in cfg
+    # TKSECRETS2: the user name stays an add-on option; the password left the manifest (the in-app secrets store)
+    assert 'wiskey_username: ""' in cfg and "wiskey_username: str?" in cfg and "wiskey_password" not in cfg
 
 
 # ---------------------------------------------------------------- security review round (S1-S3, N2, N4a)
