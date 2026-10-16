@@ -528,6 +528,35 @@ def actor_source(principal: Any) -> str:
     return "local" if getattr(principal, "source", "") == "local" else "ha"
 
 
+# The principal sources whose authority triggers are proven wired (integ/264 risk 8): `ingress` / `remote` (HA-side T1-T4, T6:
+# ha_user_auth._drop_locked, routers/ha directory diff, revocation, second_factor) and `local` (the USR2 paths through
+# local_identity.lease_hook: session revoke / expiry / rotation on a privilege change, the switch off, factor and passkey changes,
+# disable / delete; role / group changes through T1 / T3). Any other source (kiosk, internal, background, system, an unknown one)
+# is not a person with wired triggers and never reaches the signer - fail closed. `dev` only inside the tests (DEV_PRINCIPAL_ALLOWED).
+TRIGGER_WIRED_SOURCES = ("ingress", "remote", "local")
+LOCAL_ID_PREFIX = "l_"  # services/local_identity.ID_PREFIX (kept literal: this module never imports the identity layer at load)
+
+
+def local_actor_live(conn: sqlite3.Connection, user_id: str) -> bool:
+    """An Arx-only actor at the ledger insert, inside the issuing write transaction (no revoke can interleave before the commit):
+    the local identity switch is on, the user row is a live local user (active, not deleted) and at least one of its session chains
+    is live (not revoked, not expired, not idle). This closes the window between the request's authentication and the gate's mark,
+    where a session revoke moves the epochs BEFORE the mark is taken and so cannot make the issue stale. Fail closed on any error."""
+    try:
+        from . import local_identity as li
+
+        if not li.enabled(conn):
+            return False
+        u = conn.execute("SELECT active, deleted_at, source FROM users WHERE id = ?", (user_id,)).fetchone()
+        if u is None or not u["active"] or u["deleted_at"] or u["source"] != "local":
+            return False
+        at = li.iso(time.time())
+        return conn.execute("""SELECT 1 FROM auth_local_sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? AND idle_expires_at > ?
+                               LIMIT 1""", (user_id, at, at)).fetchone() is not None
+    except Exception:  # noqa: BLE001 - an older schema / a read error: no lease
+        return False
+
+
 def issue(conn: sqlite3.Connection, *, principal: Any, station_id: str, reader_id: int, person_id: str, person_revision: int | None,
           binding_revision: str | None, decision_revision: int, start_request_id: str, snap: Snapshot) -> Lease:
     """Create the ledger row for a capture start the fresh decision allowed - inside the caller's write transaction, before
@@ -539,6 +568,11 @@ def issue(conn: sqlite3.Connection, *, principal: Any, station_id: str, reader_i
         raise ApiError(403, "forbidden", "אין הרשאה.", details={"outcome": "not_sent"})
     source = getattr(principal, "source", "")
     if source == "kiosk" or (source == "dev" and not DEV_PRINCIPAL_ALLOWED):  # CR 4 / review L5: never reaches the signer
+        raise ApiError(403, "forbidden", "אין הרשאה.", details={"outcome": "not_sent"})
+    if source not in TRIGGER_WIRED_SOURCES and source != "dev":  # integ/264 risk 8: only principals whose triggers are wired
+        raise ApiError(403, "forbidden", "אין הרשאה.", details={"outcome": "not_sent"})
+    is_local = source == "local" or snap.actor_id.startswith(LOCAL_ID_PREFIX)
+    if is_local and (source != "local" or not snap.actor_id.startswith(LOCAL_ID_PREFIX) or not local_actor_live(conn, snap.actor_id)):
         raise ApiError(403, "forbidden", "אין הרשאה.", details={"outcome": "not_sent"})
     if permission_revision(conn) != decision_revision or not REG.valid(snap):
         raise _stale()

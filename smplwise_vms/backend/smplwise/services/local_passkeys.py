@@ -362,6 +362,7 @@ def register(conn: Any, settings: Any, request: Any, s: Any, body: Any, label: s
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                  (pk, s.user_id, cid, wa.b64url(reg.public_key), reg.alg, reg.sign_count, ",".join(cred.transports), reg.aaguid, clean,
                   int(reg.backup_eligible), int(reg.backup_state), int(reg.uv), rec.rp_id, _now_iso()))
+    li.lease_hook("second_factor_changed", user_ids=[s.user_id])  # CR-WISKEY-LEASE T6 (strict): every passkey added changes the factor set
     ended = tokens = 0
     if first_factor:  # exactly like a TOTP enrolment (routers/second_factor.confirm)
         tokens = presence.revoke_tokens(conn, s.user_id)
@@ -376,6 +377,9 @@ def register(conn: Any, settings: Any, request: Any, s: Any, body: Any, label: s
 # ---------------------------------------------------------------- removal / the per-user mode
 
 def _set_first(conn: Any, user_id: str, on: bool) -> None:
+    from . import local_identity as li
+
+    li.lease_hook("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE T6 (strict): the sign-in factor mode changed
     conn.execute("UPDATE auth_local_credentials SET passkey_first = ?, updated_at = ? WHERE user_id = ?", (1 if on else 0, _now_iso(), user_id))
 
 
@@ -387,6 +391,7 @@ def remove(conn: Any, user_id: str, pk_id: str, *, actor: Any, by: str, keep_cha
     row = conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ? AND user_id = ?", (pk_id, user_id)).fetchone() if isinstance(pk_id, str) and len(pk_id) <= 40 else None
     if row is None:
         raise ApiError(404, "passkey_not_found", NOT_FOUND_HE)
+    li.lease_hook("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE T6: a passkey removed (by the user or an administrator)
     conn.execute("DELETE FROM auth_webauthn_credentials WHERE id = ?", (pk_id,))
     first_off = False
     if not rows(conn, user_id) and user_first_on(conn, user_id):

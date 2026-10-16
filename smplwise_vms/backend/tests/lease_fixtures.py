@@ -60,12 +60,13 @@ class LeaseWorld:
             self.clock.advance(tick)
             le.WORKER.step()
 
-    def issue(self, actor: str = "dev-sam", station: str = "entry-a", reader: int = 0, person: str = "u1", activate: bool = True) -> cl.Lease:
+    def issue(self, actor: str = "dev-sam", station: str = "entry-a", reader: int = 0, person: str = "u1", activate: bool = True,
+              source: str = "ingress") -> cl.Lease:
         """A lease the way the route issues it (decision snapshot, ledger row) plus the host's session, without HTTP."""
         snap = cl.REG.snapshot(actor, station, person)
         with self.db.connection(label="test.issue") as conn:
             rev = cl.permission_revision(conn)
-            lease = cl.issue(conn, principal=principal(actor), station_id=station, reader_id=reader, person_id=person, person_revision=4,
+            lease = cl.issue(conn, principal=principal(actor, source), station_id=station, reader_id=reader, person_id=person, person_revision=4,
                              binding_revision=None, decision_revision=rev, start_request_id=le_request_id(), snap=snap)
         if activate:
             with self.db.connection(mode="read") as conn:
