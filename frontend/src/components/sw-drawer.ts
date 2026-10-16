@@ -45,6 +45,11 @@ function deepActive(): HTMLElement | null {
  * the control that opened it. Content that opens its own dialog (a confirmation) must render it inside the drawer,
  * since everything outside the top layer is inert. No transform on the open panel (a transform would become the
  * containing block of a nested fixed confirmation dialog).
+ *
+ * TKUI1 (2.6.0): slot `sub` (a rich second header line under the title), slot `strip` (a fixed band between the header and the
+ * scrolling body - the request's status block and tabs, so the body stays the ONE scroll container), parts `title` / `strip` / `body`,
+ * and the phone sheet's height vars `--sw-drawer-sheet-h` / `--sw-drawer-sheet-max-h` (default auto / 88dvh). An element marked
+ * `data-nested-open` inside the drawer (an open menu) keeps Escape for itself, like an open confirmation.
  */
 /** One reference count per locked scroll container, shared by every drawer: the inline `overflow` is saved by the FIRST lock and
  * restored by the LAST release. Per-drawer save/restore left a container locked for good when two drawers overlapped (the second
