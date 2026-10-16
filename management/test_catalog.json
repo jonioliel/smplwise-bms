@@ -9555,5 +9555,29 @@
     "expected": "Service management 2.5.6: the status strip / chips / menus show six steps with the part wait as a sub-state, the toggles work for staff and vendor, the public status route stays strictly closed: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/256."
+  },
+  {
+    "id": "AT353",
+    "requirement_ids": [
+      "R337"
+    ],
+    "task_ids": [
+      "TKFIX257"
+    ],
+    "title": "Service management 2.5.7: vendor page quote / payment-request card and light/dark setting (migration 0085), deep-review security hardening (migration 0086), expand-arrow fix",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFIX257 (integ/257):",
+      "frontend specs tk260-expand-nav, evidence-public-vendor-card, unit-public-claim-model, unit-public-ticket",
+      "backend test_tickets_quotes.py, test_tickets_public_theme.py, test_tickets_deep_review_tk251a.py, test_tickets_costs.py, test_tickets_s5b_channel.py, test_tickets_migration.py, test_migrations.py",
+      "gate run of integ/257"
+    ],
+    "expected": "Service management 2.5.7: the quote / payment card, the theme setting, the PDF and message hardening and the expand-arrow fix work, the migrations 0085 and 0086 apply: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/257."
   }
 ]
