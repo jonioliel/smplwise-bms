@@ -199,6 +199,8 @@ export interface MetaDepartment {
   my_role: 'manager' | 'member' | null;
   can_create: boolean;
   can_manage: boolean;
+  /** CR-DEPT-MANAGER-HANDLERS: the caller manages this department's handlers and vendors (an older server: absent) */
+  can_handlers?: boolean;
   open_to_all: boolean;
   categories: { id: string; name: string; parent_id: string | null; default_priority_id: string | null; domains?: string[] }[];
   priorities: { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean }[];
@@ -207,7 +209,7 @@ export interface MetaDepartment {
 }
 export interface Meta {
   departments: MetaDepartment[];
-  can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean };
+  can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean; handlers?: boolean };
 }
 
 export interface ListQuery { scope: ListScope; status: StatusFilter; department_id?: string; q?: string; limit?: number; cursor?: string | null }
@@ -342,8 +344,10 @@ export interface Holder {
 export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles?: RoleRow[] }
 /** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
 export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for'; theme: 'light' | 'dark' | 'auto'; /* TK255 */ path_prefix?: string; legacy_t_paths?: boolean; /* a request field only */ confirm_live_links?: boolean }
-export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ }
-export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu' }
+export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */;
+  /** CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (system.configure, default off) */
+  directory?: { managers_full_phones: boolean } }
+export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones: boolean } }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;

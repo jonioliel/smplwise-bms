@@ -307,6 +307,12 @@ PERMISSION_LABELS: dict[str, str] = {
     # Owner 14.10 (docs/changes/CR-038-DELETE-NOTES.md): full, irreversible deletion of a ticket with everything hanging off it
     # (notes, photos, links, costs). Sensitive, not delegable, a single-permission role tickets_delete; system_admin only.
     "tickets.delete": "{module}: מחיקה מלאה (כולל הערות, תמונות, קישורים ועלויות)",
+    # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17, docs/changes/CR-DEPT-MANAGER-HANDLERS.md): a department MANAGER manages the handlers
+    # and vendors of HIS departments on "מטפלים וספקים" (add / remove members without a manager role, attach / detach directory rows,
+    # create a directory row, edit / erase the rows he created that no other department uses). Effective only together with
+    # tickets.manage AND a manager membership of the department (services/tickets/dept_handlers.py). Sensitive, not delegable by
+    # default, a single-permission role tickets_handlers; system_admin only among the built-in roles.
+    "tickets.handlers": "{module}: ניהול מטפלים וספקים במחלקות שבאחריותי",
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",

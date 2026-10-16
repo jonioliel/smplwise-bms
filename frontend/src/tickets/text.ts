@@ -12,6 +12,7 @@ import { tn, type TicketLang } from './naming';
 import { S4_EN, S4_HE } from './text-s4';
 import { UI6_EN, UI6_HE } from './text-ui6';
 import { OTP_EN, OTP_HE } from './text-otp';
+import { DM_EN, DM_HE } from './text-deptmgr';
 
 const he = {
   // the area, the navigation, the settings index
@@ -393,6 +394,7 @@ const he = {
   ...S4_HE, // slice 4: contacts and vendors, the handler page, sending outside, the link panel (tickets/text-s4.ts)
   ...UI6_HE, // TKUI6: the redesigned handlers page and settings (tickets/text-ui6.ts)
   ...OTP_HE, // TKNOTIFOTP: the optional number verification by code (tickets/text-otp.ts)
+  ...DM_HE, // CR-DEPT-MANAGER-HANDLERS: a department manager's handlers and vendors (tickets/text-deptmgr.ts)
 } as const;
 
 export type TicketTextKey = keyof typeof he;
@@ -750,6 +752,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   ...S4_EN, // slice 4 (tickets/text-s4.ts)
   ...UI6_EN, // TKUI6 (tickets/text-ui6.ts)
   ...OTP_EN, // TKNOTIFOTP (tickets/text-otp.ts)
+  ...DM_EN, // CR-DEPT-MANAGER-HANDLERS (tickets/text-deptmgr.ts)
 };
 
 /** The language of the tickets screens: the document's (English or the product's Hebrew). */

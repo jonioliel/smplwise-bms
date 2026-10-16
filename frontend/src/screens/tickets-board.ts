@@ -6,6 +6,7 @@ import { parseAssignParam, withAssign } from '../tickets/create-assign-model'; /
 import '../tickets/ticket-detail';
 import '../tickets/ticket-create';
 import '../tickets/board-tree';
+import './tickets-handlers'; // CR-DEPT-MANAGER-HANDLERS: the board's "מטפלים וספקים" pane
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -432,16 +433,21 @@ export class TicketsBoard extends LitElement {
     const depts = d?.departments ?? [];
     const canCreate = !!this.meta?.can.create;
     const chips = d && layout.chips ? floorChips(d.tree) : [];
+    const handlersPane = this.r.pane === 'handlers';
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-board-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
+        ${this.meta?.can.manage ? html`<div class="seg sm" role="radiogroup" aria-label=${tt('dmPaneGroup')} data-board-pane>
+          <button type="button" role="radio" aria-checked=${String(!handlersPane)} data-pane="cards" @click=${() => this.go({ pane: 'cards' })}>${tt('area')}</button>
+          <button type="button" role="radio" aria-checked=${String(handlersPane)} data-pane="handlers" @click=${() => this.go({ pane: 'handlers' })}>${tt('hdTitle')}</button>
+        </div>` : nothing}
         ${chips.length ? html`<div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
           <button type="button" class="rc" aria-pressed=${String(!this.r.place)} data-place="" @click=${() => this.go({ place: '' })}>${bt('allFloors')}</button>
           ${chips.map((n) => html`<button type="button" class="rc" aria-pressed=${String(this.r.place === n.key)} data-place=${n.key} @click=${() => this.go({ place: n.key })}>${bidi(placeLabel(n))}<small>${n.count}</small></button>`)}
         </div>` : html`<span class="grow"></span>`}
         ${layout.toggle && tools ? html`<button type="button" class="btn sm" aria-pressed=${String(!this.treeHidden)} data-tree-toggle @click=${() => void this.setTreeHidden(!this.treeHidden)}>${tIcon('tree')}${this.treeHidden ? bt('treeShow') : bt('treeHide')}</button>` : nothing}
       </div>
-      ${tools ? html`<div class="dh-det">
+      ${tools && !handlersPane ? html`<div class="dh-det">
         ${depts.length > 1 ? html`<div class="seg sm depts" role="radiogroup" aria-label=${tt('departmentsGroup')} data-dept-chips>
           <button type="button" role="radio" aria-checked=${String(!this.r.dept)} data-dept="" @click=${() => this.go({ dept: '' })}>${tt('allDepartments')}<small>${depts.reduce((s, x) => s + x.count, 0)}</small></button>
           ${depts.map((x) => html`<button type="button" role="radio" aria-checked=${String(this.r.dept === x.id)} data-dept=${x.id} @click=${() => this.go({ dept: x.id })}>${bidi(x.name)}<small>${x.count}</small></button>`)}
@@ -554,6 +560,7 @@ export class TicketsBoard extends LitElement {
       default:
         break;
     }
+    if (this.r.pane === 'handlers') return html`<tickets-handlers embedded data-board-handlers></tickets-handlers>`;
     const d = this.data as BoardResponse;
     const ui = this.ui();
     const layout = floorsLayout(ui.board_floors, this.treeHidden, this.phone);

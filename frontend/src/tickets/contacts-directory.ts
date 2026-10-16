@@ -17,6 +17,8 @@ import { ApiError, describeError } from '../api/client';
 import { ticketsApi } from '../api/tickets';
 import { CONTACT_CHANNELS, CONTACT_LANGS, ticketsS4Api, type Contact, type ContactBody, type ContactChannel, type ContactKind, type ContactLang } from '../api/tickets-s4';
 import { canAnywhere, isApi } from '../api/session';
+import { deptHandlersApi, type ManagerContactBody } from '../api/tickets-dept-handlers';
+import { mayShare, rowActions } from './dept-handlers-model';
 import { CURRENCIES, type CostMode } from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
 import { handlersGlass } from './handlers-glass';
@@ -59,6 +61,10 @@ function draftOf(c: Contact | null, kind: ContactKind = 'person'): Draft {
  * Owner request 2026-10-14: the directory moved out of Settings into the area's "מטפלים וספקים" page, one segment per kind - `kind`
  * locks the list and the new row to one kind (employee / vendor / person); an employee without an account keeps only the fields that
  * matter for him (name, phone, e-mail, channel, language, departments, notes).
+ * CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17): a department MANAGER with the capability (the list's `handler_departments`) creates a row
+ * (in one of his departments, or - vendors / contacts - shared with every department), attaches / detaches the rows of his departments
+ * and edits / erases the rows the server marks `manager_editable`; no notes, cost defaults, number verification, export or department
+ * list for him. The server's dept-handlers routes decide every write.
  */
 @customElement('tickets-contacts')
 export class TicketsContacts extends LitElement {
@@ -91,6 +97,10 @@ export class TicketsContacts extends LitElement {
   @state() private liveLinks = 0;
   @state() private full: Contact | null = null;
   @state() private denied = false;
+  /** CR-DEPT-MANAGER-HANDLERS: the departments in which the caller manages handlers without tickets.configure */
+  @state() private mine: string[] = [];
+  @state() private mgrDept = '';
+  @state() private mgrShared = true;
   private searchTimer = 0;
   private loadedKind: ContactKind | '' = '';
 
@@ -229,7 +239,17 @@ export class TicketsContacts extends LitElement {
 
   /** The page's "+ ספק" / "+ איש קשר": the editor with a new row. */
   startNew(): void {
-    if (this.canEdit || this.rows === null) this.open(null);
+    if (this.canEdit || this.mgr || this.rows === null) this.open(null);
+  }
+
+  /** CR-DEPT-MANAGER-HANDLERS: a department manager's mode (not a configurer, the capability in at least one department). */
+  private get mgr(): boolean {
+    return !this.canEdit && this.mine.length > 0;
+  }
+
+  /** The department a manager's write on this row goes through: one of his departments the row is in (a shared row: his first). */
+  private deptFor(c: Contact): string {
+    return c.departments.find((d) => this.mine.includes(d)) ?? (this.dept && this.mine.includes(this.dept) ? this.dept : this.mine[0]);
   }
 
   private notice(detail: { ok?: string; error?: string }): void {
@@ -243,6 +263,7 @@ export class TicketsContacts extends LitElement {
       const page = await ticketsS4Api().contacts({ q: this.query, kind });
       this.rows = page.contacts;
       this.canEdit = page.can_edit;
+      this.mine = page.handler_departments ?? [];
       if (this.kind === 'person' && page.can_edit && !this.vendorRows.length) {
         void ticketsS4Api().contacts({ kind: 'vendor' }).then((v) => (this.vendorRows = v.contacts)).catch(() => undefined);
       }
@@ -258,7 +279,12 @@ export class TicketsContacts extends LitElement {
   private open(c: Contact | null): void {
     this.selected = c?.id ?? '';
     this.creating = !c;
-    this.draft = this.canEdit ? draftOf(c, this.kind || 'person') : null;
+    const mgrEdit = this.mgr && (!c || c.manager_editable === true);
+    this.draft = this.canEdit || mgrEdit ? draftOf(c, this.kind || 'person') : null;
+    if (this.mgr && !c) {
+      this.mgrDept = this.dept && this.mine.includes(this.dept) ? this.dept : this.mine[0];
+      this.mgrShared = mayShare(this.kind || 'person');
+    }
     this.erasing = false;
     this.eraseHistory = false;
     this.problem = '';
@@ -317,6 +343,18 @@ export class TicketsContacts extends LitElement {
     return out;
   }
 
+  /** CR-DEPT-MANAGER-HANDLERS: the fields a manager may send (the server refuses every other one). */
+  private mgrBody(c: Contact | null, b: ContactBody): ManagerContactBody {
+    const keep = ['display_name', 'company', 'vendor_id', 'phone', 'email', 'preferred_channel', 'require_code', 'share_history', 'lang', 'active'] as const;
+    const out: ManagerContactBody = {};
+    for (const k of keep) if (k in b) (out as Record<string, unknown>)[k] = (b as Record<string, unknown>)[k];
+    if (!c) {
+      out.kind = this.draft?.kind ?? (this.kind || 'person');
+      if (mayShare(out.kind)) out.shared = this.mgrShared;
+    }
+    return out;
+  }
+
   private async save(c: Contact | null): Promise<void> {
     const d = this.draft;
     const b = this.body(c);
@@ -332,7 +370,10 @@ export class TicketsContacts extends LitElement {
     }
     this.busy = true;
     try {
-      const saved = c ? await ticketsS4Api().patchContact(c.id, { ...b, revision: c.revision }) : await ticketsS4Api().createContact(b);
+      const saved = this.mgr
+        ? (c ? await deptHandlersApi().patchContact(this.deptFor(c), c.id, { ...this.mgrBody(c, b), revision: c.revision })
+          : await deptHandlersApi().createContact(this.mgrDept, this.mgrBody(null, b)))
+        : c ? await ticketsS4Api().patchContact(c.id, { ...b, revision: c.revision }) : await ticketsS4Api().createContact(b);
       const before = this.liveLinks;
       const revoked = c && before > 0 && (saved.live_links ?? 0) < before ? before - (saved.live_links ?? 0) : 0;
       this.notice({ ok: revoked ? `${tt('setSaved')} · ${tt('ctLinksRevoked', { n: revoked })}` : tt('setSaved') });
@@ -351,7 +392,7 @@ export class TicketsContacts extends LitElement {
     if (this.busy) return;
     this.busy = true;
     try {
-      const r = await ticketsS4Api().eraseContact(c.id, this.eraseHistory);
+      const r = this.mgr ? await deptHandlersApi().erase(this.deptFor(c), c.id) : await ticketsS4Api().eraseContact(c.id, this.eraseHistory);
       this.notice({ ok: r.links_revoked ? `${tt('ctErased')} · ${tt('ctLinksRevoked', { n: r.links_revoked })}` : tt('ctErased') });
       this.selected = '';
       this.draft = null;
@@ -376,6 +417,44 @@ export class TicketsContacts extends LitElement {
     } catch (e) {
       this.notice({ error: describeError(e) });
     }
+  }
+
+  /** CR-DEPT-MANAGER-HANDLERS: attach / detach a row for one of the manager's departments. */
+  private async attachment(c: Contact, deptId: string, attach: boolean): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      if (attach) await deptHandlersApi().attach(deptId, c.id);
+      else await deptHandlersApi().detach(deptId, c.id);
+      this.notice({ ok: tt('setSaved') });
+      await this.load();
+    } catch (e) {
+      this.notice({ error: describeError(e) });
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** The manager's attachment section: his departments, attached or not, with the actions the rules leave him. */
+  private attachments(c: Contact): TemplateResult {
+    const a = rowActions(c, this.mine);
+    return html`<div class="fld wide" data-contact-attachments><span>${tt('dmMyDepartments')}</span>
+      ${a.shared ? html`<span class="chip" data-contact-shared>${tt('dmShared')}</span>` : html`<span class="chipsrow">${this.mine.map((id) => {
+        const on = c.departments.includes(id);
+        return html`<span class="chip ${on ? 'info' : ''}" data-attach-dept=${id}>${bidi(this.deptName(id))}
+          ${on && a.detach.includes(id) ? html`<button type="button" class="rm" data-contact-detach=${id} ?disabled=${this.busy} @click=${() => void this.attachment(c, id, false)}>${tt('dmDetach')}</button>` : nothing}
+          ${!on && a.attach.includes(id) ? html`<button type="button" class="rm" data-contact-attach=${id} ?disabled=${this.busy} @click=${() => void this.attachment(c, id, true)}>${tt('dmAttach')}</button>` : nothing}</span>`;
+      })}</span>`}
+      ${a.edit ? nothing : html`<span class="hint" data-contact-attachment-only>${tt('dmAttachmentOnly')}</span>`}
+    </div>`;
+  }
+
+  /** A manager's new row: the department it is created in and, for a vendor / contact, whether every department gets it. */
+  private mgrCreateFields(kind: ContactKind): TemplateResult {
+    return html`${this.mine.length > 1 ? html`<label class="fld"><span>${tt('dmCreateIn')}</span><select class="in" data-field="mgr_department"
+        @change=${(e: Event) => (this.mgrDept = (e.target as HTMLSelectElement).value)}>${this.mine.map((id) => html`<option value=${id} ?selected=${id === this.mgrDept}>${this.deptName(id)}</option>`)}</select></label>` : nothing}
+      ${mayShare(kind) ? html`<div class="row wide"><span class="lbl">${tt('dmShared')}<span class="muted">${tt('dmSharedHint')}</span></span>
+        <sw-toggle label=${tt('dmShared')} labelHidden .checked=${this.mgrShared} data-field="mgr_shared" @change=${(e: CustomEvent<{ checked: boolean }>) => (this.mgrShared = e.detail.checked)}></sw-toggle></div>` : nothing}`;
   }
 
   // ---------------------------------------------------------------- render
@@ -474,7 +553,7 @@ export class TicketsContacts extends LitElement {
     return html`<div class="sec" data-card="contacts" data-contacts-kind=${locked || 'all'}>
       ${this.head ? html`<div class="sh"><h2>${title}<span class="n" data-contacts-count>${rows.length}</span></h2><small>${sub}</small>
         <span class="grow"></span>
-        ${this.newbtn && this.canEdit ? html`<button type="button" class="btn sm" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${tIcon('plus')}${tt(`ctNew_${locked || 'person'}` as TicketTextKey)}</button>` : nothing}</div>` : nothing}
+        ${this.newbtn && (this.canEdit || this.mgr) ? html`<button type="button" class="btn sm" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${tIcon('plus')}${tt(`ctNew_${locked || 'person'}` as TicketTextKey)}</button>` : nothing}</div>` : nothing}
       ${list}
     </div>`;
   }
@@ -490,6 +569,7 @@ export class TicketsContacts extends LitElement {
         <dt>${tt('ctRequireCode')}</dt><dd>${c.require_code ? tt('ctYes') : tt('ctNo')}</dd>
         <dt>${tt('ctDepartments')}</dt><dd>${deptNames}</dd>
       </dl>
+      ${this.mgr ? this.attachments(c) : nothing}
     </div>`;
   }
 
@@ -536,13 +616,13 @@ export class TicketsContacts extends LitElement {
           <span class="hint">${tt('ctPhoneHint')}</span>
           ${c && this.liveLinks > 0 && (d.phone.trim() !== draftOf(c).phone || d.email.trim() !== draftOf(c).email)
             ? html`<span class="err" role="status" data-contact-links-warning>${tt('ctChangeRevokes', { n: this.liveLinks })}</span>` : nothing}</label>
-        ${c && this.full && this.full.id === c.id ? html`<div class="fld wide"><tickets-phone-verify data-contact-phone-verify .contactId=${c.id} ?hasPhone=${this.full.has_phone}
+        ${!this.mgr && c && this.full && this.full.id === c.id ? html`<div class="fld wide"><tickets-phone-verify data-contact-phone-verify .contactId=${c.id} ?hasPhone=${this.full.has_phone}
             ?userLinked=${this.full.user_linked} ?required=${!!this.full.phone_verify_required} ?confirmed=${!!this.full.phone_confirmed}
             .via=${this.full.phone_confirmed_via ?? null} .confirmToken=${this.full.phone_confirm_token ?? null}
             @changed=${() => void this.loadFull(c.id)}></tickets-phone-verify></div>` : nothing}
-        <div class="row wide"><span class="lbl">${tt('otpRowSwitch')}<span class="muted">${tt('otpSettingHint')}</span></span>
+        ${this.mgr ? nothing : html`<div class="row wide"><span class="lbl">${tt('otpRowSwitch')}<span class="muted">${tt('otpSettingHint')}</span></span>
           <sw-toggle label=${tt('otpRowSwitch')} labelHidden .checked=${d.phone_verify} data-field="phone_verify"
-            @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ phone_verify: e.detail.checked })}></sw-toggle></div>
+            @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ phone_verify: e.detail.checked })}></sw-toggle></div>`}
         <label class="fld"><span>${tt('ctEmail')}</span><input class="in" type="email" dir="ltr" maxlength="254" autocomplete="off" data-field="email" .value=${d.email}
           @input=${(e: Event) => this.set({ email: (e.target as HTMLInputElement).value })} /></label>
         ${seg(tt('ctChannel'), CONTACT_CHANNELS, d.preferred_channel, (v) => tt(`ch_${v}` as TicketTextKey), (v) => this.set({ preferred_channel: v }), 'channel')}
@@ -551,15 +631,15 @@ export class TicketsContacts extends LitElement {
         ${employee ? nothing : html`${seg(tt('ctHistory'), ['default', 'on', 'off'] as const, d.share_history, (v) => tt(`hist_${v}` as TicketTextKey), (v) => this.set({ share_history: v }), 'history')}
         <div class="row wide"><span class="lbl">${tt('ctRequireCode')}<span class="muted">${tt('ctRequireCodeSub')}</span></span>
           <sw-toggle label=${tt('ctRequireCode')} labelHidden .checked=${d.require_code} data-field="require_code" @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ require_code: e.detail.checked })}></sw-toggle></div>
-        ${this.costFields(d)}`}
-        <div class="fld wide"><span>${employee ? tt('ctDepartmentsOf') : tt('ctDepartments')}</span>
+        ${this.mgr ? nothing : this.costFields(d)}`}
+        ${this.mgr ? (c ? this.attachments(c) : this.mgrCreateFields(d.kind)) : html`<div class="fld wide"><span>${employee ? tt('ctDepartmentsOf') : tt('ctDepartments')}</span>
           <span class="chipsrow" data-field="departments">
             <button type="button" class="rc" aria-pressed=${String(!d.departments.length)} @click=${() => this.set({ departments: [] })}>${tt('ctDepartmentsAll')}</button>
             ${this.departments.map((dep) => html`<button type="button" class="rc" aria-pressed=${String(d.departments.includes(dep.id))} data-dept=${dep.id}
               @click=${() => this.set({ departments: d.departments.includes(dep.id) ? d.departments.filter((x) => x !== dep.id) : [...d.departments, dep.id] })}>${bidi(dep.name)}</button>`)}
           </span></div>
         <label class="fld wide"><span>${tt('ctNotes')}</span><textarea class="in" maxlength="1000" data-field="notes" .value=${d.notes}
-          @input=${(e: Event) => this.set({ notes: (e.target as HTMLTextAreaElement).value })}></textarea></label>
+          @input=${(e: Event) => this.set({ notes: (e.target as HTMLTextAreaElement).value })}></textarea></label>`}
         ${c ? html`<div class="row wide"><span class="lbl">${tt('ctActive')}</span>
           <sw-toggle label=${tt('ctActive')} labelHidden .checked=${d.active} data-field="active" @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ active: e.detail.checked })}></sw-toggle></div>` : nothing}
       </div>
@@ -568,12 +648,12 @@ export class TicketsContacts extends LitElement {
         <sw-button variant="primary" size="sm" data-contact-save ?disabled=${this.busy} @click=${() => void this.save(c)}>${tt('ctSave')}</sw-button>
         <sw-button size="sm" variant="ghost" data-contact-cancel ?disabled=${this.busy} @click=${() => { this.selected = ''; this.creating = false; this.draft = null; }}>${tt('ctCancel')}</sw-button>
         ${c ? html`<span class="grow"></span>
-          <sw-button size="sm" variant="ghost" data-contact-export ?disabled=${this.busy} @click=${() => void this.exportData(c)}>${tt('ctExport')}</sw-button>
+          ${this.mgr ? nothing : html`<sw-button size="sm" variant="ghost" data-contact-export ?disabled=${this.busy} @click=${() => void this.exportData(c)}>${tt('ctExport')}</sw-button>`}
           <sw-button size="sm" variant="ghost" data-contact-erase ?disabled=${this.busy || this.erasing} @click=${() => (this.erasing = true)}>${tt('ctErase')}</sw-button>` : nothing}
       </div>
       ${c && this.erasing ? html`<div class="danger" role="group" data-contact-erase-confirm>
         <span>${tt('ctEraseConfirm', { name: c.display_name })}</span>
-        <label class="chk"><input type="checkbox" .checked=${this.eraseHistory} @change=${(e: Event) => (this.eraseHistory = (e.target as HTMLInputElement).checked)} />${tt('ctEraseHistory')}</label>
+        ${this.mgr ? nothing : html`<label class="chk"><input type="checkbox" .checked=${this.eraseHistory} @change=${(e: Event) => (this.eraseHistory = (e.target as HTMLInputElement).checked)} />${tt('ctEraseHistory')}</label>`}
         <span class="chipsrow"><sw-button size="sm" variant="danger" data-contact-erase-ok ?disabled=${this.busy} @click=${() => void this.erase(c)}>${tt('ctErase')}</sw-button>
           <sw-button size="sm" variant="ghost" @click=${() => (this.erasing = false)}>${tt('ctCancel')}</sw-button></span>
       </div>` : nothing}

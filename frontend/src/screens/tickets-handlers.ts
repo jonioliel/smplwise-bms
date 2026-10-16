@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../tickets/contacts-directory';
 import '../tickets/handlers-members';
 import type { TicketsContacts } from '../tickets/contacts-directory';
@@ -21,6 +21,7 @@ import { loadsFromBoard, managedDepartments, type MemberLoad } from '../tickets/
 import { rovingIndex } from '../tickets/settings-tabs';
 import { tIcon } from '../tickets/icons';
 import { tt } from '../tickets/text';
+import { handlerDepartments } from '../tickets/dept-handlers-model';
 
 /**
  * CR-038 owner request 2026-10-14: "מטפלים וספקים" (#/tickets/handlers[?seg=vendors|contacts]) - the fifth entry of the area's view
@@ -36,10 +37,15 @@ import { tt } from '../tickets/text';
  * tickets.configure; a department manager reads the rows of his departments with masked phones. The strip of what sending outside
  * still needs (GET tickets/readiness) lists each item with a link to its setting. Settings keeps a link card to this page and redirects
  * the old `?tab=contacts`.
+ * CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17): a department manager with the capability adds / removes handlers and vendors of HIS
+ * departments here (the server's dept-handlers routes). `embedded`: the same page inside the manager board (#/tickets/board?pane=handlers) -
+ * no page title, the department chips narrowed to the departments he manages, the segment kept in the element (the board owns the address).
  */
 @customElement('tickets-handlers')
 export class TicketsHandlersPage extends LitElement {
   readonly bubbleSkin = new SkinController(this);
+  /** inside the manager board: no title, his departments only, the address is the board's */
+  @property({ type: Boolean }) embedded = false;
   @state() private seg: HandlersSegment = 'handlers';
   @state() private readiness: Readiness | null = null;
   @state() private meta: Meta | null = null;
@@ -97,6 +103,10 @@ export class TicketsHandlersPage extends LitElement {
     .newbtn {
       flex: none;
     }
+    .page.embedded {
+      padding: 0;
+      min-block-size: 0;
+    }
     @media (max-width: 767px) {
       .dh-row {
         grid-template-areas: 't .';
@@ -142,7 +152,7 @@ export class TicketsHandlersPage extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     applyAutomationsGlass(this);
-    this.readSeg();
+    if (!this.embedded) this.readSeg();
     window.addEventListener('hashchange', this.onHash);
     this.phoneMq.addEventListener('change', this.onPhone);
     this.offNames = onTicketNames(() => this.requestUpdate());
@@ -165,7 +175,7 @@ export class TicketsHandlersPage extends LitElement {
   }
 
   private onHash = () => {
-    if (window.location.hash.startsWith('#/tickets/handlers')) this.readSeg();
+    if (!this.embedded && window.location.hash.startsWith('#/tickets/handlers')) this.readSeg();
   };
 
   private readSeg(): void {
@@ -176,7 +186,7 @@ export class TicketsHandlersPage extends LitElement {
   private setSeg(id: HandlersSegment): void {
     this.seg = id;
     this.adding = false;
-    replaceRoute('/tickets/handlers', this.seg === 'handlers' ? undefined : new URLSearchParams({ seg: this.seg }));
+    if (!this.embedded) replaceRoute('/tickets/handlers', this.seg === 'handlers' ? undefined : new URLSearchParams({ seg: this.seg }));
     this.ok = '';
     this.error = '';
   }
@@ -289,14 +299,17 @@ export class TicketsHandlersPage extends LitElement {
   }
 
   render() {
-    const depts = this.meta?.departments ?? [];
-    const canAdd = this.seg !== 'handlers' || (this.meta?.can.configure ?? true);
-    return html`<div class="page" data-tickets-handlers data-seg=${this.seg}>
+    const all = this.meta?.departments ?? [];
+    // embedded in the manager board: only the departments he manages (never another department's name)
+    const depts = this.embedded ? all.filter((d) => d.can_manage) : all;
+    const mine = handlerDepartments(all);
+    const canAdd = this.seg !== 'handlers' || (this.meta?.can.configure ?? true) || mine.length > 0;
+    return html`<div class=${this.embedded ? 'page embedded' : 'page'} data-tickets-handlers data-seg=${this.seg} ?data-embedded=${this.embedded}>
       <header class="dh" data-tickets-header>
-        <div class="dh-row">
+        ${this.embedded ? nothing : html`<div class="dh-row">
           <div class="titles"><div class="crumbs">${tt('area')}</div><h1 data-handlers-title>${tt('hdTitle')}</h1></div>
           <span class="grow"></span>
-        </div>
+        </div>`}
         <div class="dh-det">
           <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs @keydown=${this.onSegKey}>
             ${HANDLERS_SEGMENTS.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} tabindex=${this.seg === id ? '0' : '-1'} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}

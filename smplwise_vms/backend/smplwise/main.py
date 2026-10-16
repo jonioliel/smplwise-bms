@@ -500,6 +500,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import tickets_contacts as tickets_contacts_router, tickets_links as tickets_links_router  # CR-038 S4 (its own lines)
 
     app.include_router(tickets_contacts_router.router, prefix=api, tags=["tickets"])  # the contact / vendor directory - BEFORE /tickets/{ticket_id}
+    from .routers import tickets_dept_handlers as tickets_dept_handlers_router  # CR-DEPT-MANAGER-HANDLERS (its own lines)
+
+    app.include_router(tickets_dept_handlers_router.router, prefix=api, tags=["tickets"])  # department managers' handlers - BEFORE /tickets/{ticket_id}
     app.include_router(tickets_links_router.router, prefix=api, tags=["tickets"])  # handler links, health, address probe, key - BEFORE /tickets/{ticket_id}
     from .routers import tickets_table as tickets_table_router  # CR-038 S6b: the board table (table, export.csv, bulk, views)
     app.include_router(tickets_table_router.router, prefix=api, tags=["tickets"])  # CR-038 S6b - BEFORE /tickets/{ticket_id}
