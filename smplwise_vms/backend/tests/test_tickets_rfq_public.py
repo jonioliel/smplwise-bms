@@ -183,7 +183,7 @@ def test_a_required_code_hides_the_request_and_blocks_every_write(s4):
     assert next(v for v in r.json()["vendors"] if v["id"] == a)["require_code"] is True
     v = view(c, tok)
     assert v["code_required"] is True and v["code_ok"] is False
-    assert set(v) == {"kind", "ref", "organization", "department", "lang", "dir", "theme", "time_zone", "code_required", "code_ok",
+    assert set(v) == {"kind", "ref", "organization", "logo", "department", "lang", "dir", "theme", "time_zone", "code_required", "code_ok",
                       "read_only", "read_only_until", "code_locked_s"}, "a forwarded link alone shows only that a request exists"
     w = quote(c, tok)
     assert w.status_code == 403 and w.json()["code"] == "code_required"

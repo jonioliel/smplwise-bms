@@ -196,7 +196,7 @@ def test_02_the_view_is_the_external_scope_even_for_a_department_manager(env):
     token = env.s4.token_of(tid)
     client, _ = env.s4.public(Clock(time.time()))
     before = client.get("/t/api/ticket", headers=hdr(token)).json()
-    assert set(before) <= {"number", "department", "organization", "lang", "dir", "labels", "time_zone", "code_required", "code_ok",
+    assert set(before) <= {"number", "department", "organization", "logo", "lang", "dir", "labels", "time_zone", "code_required", "code_ok",
                            "read_only", "read_only_until", "expires_at", "code_locked_s", "theme"}, "before the code: a ticket exists, nothing more"
     view = client.get("/t/api/ticket", headers=hdr(token, code_session(env, client, token, link))).json()
     blob = json.dumps(view, ensure_ascii=False)

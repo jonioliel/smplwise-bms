@@ -227,7 +227,7 @@ def test_ticket_sql_lives_in_the_store():
         # integ/263: map_element.py (TKMAP1, its own table ticket_map_elements) and phone_verify.py (TKNOTIFOTP, ticket_phone_verifications
         # and the contact verification columns) were merged with their SQL in place - recorded exceptions, a follow-up may move them
         if path.name in ("store.py", "store_links.py", "outbox_store.py", "store_costs.py", "store_quotes.py", "store_rfq.py",
-                         "map_element.py", "phone_verify.py"):
+                         "map_element.py", "phone_verify.py", "vendor_portal.py"):  # + VPORTAL (its own 0110 tables), same recorded exception
             continue
         if re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", path.read_text(encoding="utf-8")):
             offenders.append(path.name)
