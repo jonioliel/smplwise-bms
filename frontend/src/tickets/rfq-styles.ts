@@ -647,6 +647,18 @@ export const rfqStyles = css`
     flex-wrap: wrap;
     gap: 8px;
   }
+  .kinds .rc {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-block-size: 40px;
+    padding-inline: 14px;
+  }
+  @media (pointer: coarse), (max-width: 767px) {
+    .kinds .rc {
+      min-block-size: 44px;
+    }
+  }
   .files {
     display: flex;
     flex-wrap: wrap;
