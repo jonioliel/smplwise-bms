@@ -15,6 +15,7 @@ import zlib from 'node:zlib';
 //   npx playwright test -c playwright.public.config.ts tests/evidence-public-ui5.spec.ts --project=desktop --project=mobile
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, '../../docs/design/evidence/tickets-ui5');
+const SHOTS = path.resolve(HERE, '../.ui5-shots');
 const ORIGIN = 'https://t-demo.arx.example.test';
 const TOKEN = 'AbCdEfGhIjKlMnOpQrStUvWxYz012345';
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; form-action 'none'; "
@@ -186,7 +187,11 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.waitForTimeout(250);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow, `${name}: horizontal overflow`).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: path.join(OUT, `${name}-${test.info().project.name}.png`), fullPage: true });
+  const file = `${name}-${test.info().project.name}.png`;
+  await page.screenshot({ path: path.join(OUT, file), fullPage: true });
+  // the runner's job restores docs/ when it ends: a copy outside it is what gets fetched back (frontend/.ui5-shots is untracked)
+  fs.mkdirSync(SHOTS, { recursive: true });
+  fs.copyFileSync(path.join(OUT, file), path.join(SHOTS, file));
 }
 
 const bg = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
