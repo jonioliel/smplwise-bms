@@ -14,7 +14,13 @@ Rules (both sides enforce; the bridge has the same table in custom_components/sm
 - The service id must be configured, 32 hex, a known, active Home Assistant user who is NOT a Home Assistant administrator and not an Arx
   system administrator; the bridge must be >= 0.9.0 (BRIDGE_SERVICE_IDENTITY_REQUIRED).
 - Automation / script / scene writes and runs: refused (`automation_write_requires_ha_identity`); the area write, the camera stream source
-  and door actions are not in any feature (refused). A Home Assistant principal is untouched: subject() returns `{"user_id": <its id>}`.
+  and door actions are not in any feature (refused). NEVER_LOCAL (zone-bypass arming, doors, `script.turn_on`, `scene.turn_on`) is refused
+  by an explicit rule before the tables, and the alarm zone-bypass route refuses a local principal itself (security review F1 / F2).
+  A Home Assistant principal is untouched: subject() returns `{"user_id": <its id>}`.
+- The service user is never a person (security review F4): signing in to Arx as it is refused (`service_account`), it cannot be given an
+  Arx role, and the self-check flags a sign-in recorded before it was configured.
+- Entity reach: Home Assistant does not bound what the service user's in-process service call may touch (the bridge `execute` handler has
+  no per-entity check), so Arx's scope (`ha_scope`) is the sole entity guard for an Arx-only person (security review F5).
 """
 from __future__ import annotations
 
@@ -37,15 +43,21 @@ BRIDGE_SERVICE_IDENTITY_REQUIRED = "0.9.0"
 HA_USER_ID_RE = re.compile(r"[0-9a-f]{32}")
 LOCAL_ID_RE = re.compile(r"l_[0-9A-HJKMNP-TV-Z]{26}")
 
+# Never for a local identity, whatever a feature table says - an explicit rule checked before the tables (security review F1 / F2,
+# 2026-10-16; owner default: every open question stays refused until answered). Identical to the bridge's NEVER_LOCAL (drift-tested):
+# zone-bypass arming (open question 2), doors (1), scripts and scenes - which may unlock a door or disarm under the service user (5).
+NEVER_LOCAL = frozenset({
+    ("alarm_control_panel", "alarm_arm_custom_bypass"), ("lock", "unlock"), ("lock", "open"), ("script", "turn_on"), ("scene", "turn_on"),
+})
 ALARM_PAIRS = frozenset({
     ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_arm_night"),
-    ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_arm_custom_bypass"), ("alarm_control_panel", "alarm_disarm"),
+    ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_disarm"),
 })
-# The bridge's execute allow-list minus the alarm panel (its own feature, owner answer Q4) and minus `lock.unlock` (a door - kept refused).
+# The bridge's execute allow-list minus the alarm panel (its own feature, owner answer Q4) and minus NEVER_LOCAL (doors, scripts, scenes).
 DEVICE_PAIRS = frozenset({
     ("light", "turn_on"), ("light", "turn_off"), ("switch", "turn_on"), ("switch", "turn_off"), ("fan", "turn_on"), ("fan", "turn_off"),
     ("cover", "open_cover"), ("cover", "close_cover"), ("cover", "stop_cover"), ("lock", "lock"),
-    ("button", "press"), ("script", "turn_on"), ("scene", "turn_on"),
+    ("button", "press"),
     ("climate", "set_hvac_mode"), ("climate", "set_temperature"),
     ("media_player", "media_play"), ("media_player", "media_pause"), ("media_player", "media_stop"), ("media_player", "volume_set"),
     ("number", "set_value"), ("input_number", "set_value"), ("select", "select_option"), ("input_select", "select_option"),
@@ -73,9 +85,11 @@ FEATURES: dict[str, dict[str, frozenset[Any]]] = {
     "cast": {"cast_stream": frozenset({"play", "stop", "off"})},
     "schedules": {"schedule": frozenset({"add", "edit", "remove", "copy", "run", "enable", "disable"})},
 }
-FEATURE_LABELS = {"devices.control": ("שליטה בהתקנים", "Device control"), "alarm": ("אזעקה (דריכה / נטרול לפי כללי הקוד)", "Alarm (arm / disarm under the PIN rules)"),
+FEATURE_LABELS = {"devices.control": ("שליטה בהתקנים (בלי סקריפטים וסצנות)", "Device control (scripts and scenes excluded)"),
+                  "alarm": ("אזעקה (דריכה / נטרול לפי כללי הקוד, בלי עקיפת אזורים)", "Alarm (arm / disarm under the PIN rules, no zone bypass)"),
                   "media": ("מדיה ומוזיקה", "Media and music"), "cast": ("שידור למסך", "Cast to a screen"), "schedules": ("תזמונים", "Schedules")}
-REFUSED_LABELS = [("אוטומציות, סצנות וסקריפטים (כתיבה והפעלה)", "Automations, scenes and scripts (writing and running)"),
+REFUSED_LABELS = [("אוטומציות, סצנות וסקריפטים (כתיבה, הפעלה והרצה - גם מתוך שליטה בהתקנים)", "Automations, scenes and scripts (writing, running and activating - device control included)"),
+                  ("עקיפת אזורי אזעקה ודריכה עם עקיפה", "Alarm zone bypass and arming with bypass"),
                   ("שיוך התקן לאזור", "Assigning a device to an area"), ("מצלמות בזרם חי דרך תשתית המערכת", "Live cameras through the infrastructure"),
                   ("פתיחת דלתות ומנעולים", "Opening doors and locks")]
 
@@ -181,8 +195,55 @@ def subject_for_user(conn: sqlite3.Connection, user_id: str, feature: str, *, br
     return _local_subject(conn, user_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=actor)
 
 
+# A clean-up command that must still go out when the local person who started something can no longer act (security review F3): the
+# session must not outlive its owner. Only these items; never a play, never anything that starts or changes a device.
+CLEANUP_ITEMS = frozenset({("cast", "cast_stream", "stop"), ("cast", "cast_stream", "off")})
+
+
+def subject_for_cleanup(conn: sqlite3.Connection, owner_id: str, feature: str, *, bridge_service: str, item: Any, actor: Principal | None,
+                        request_id: str | None = None) -> dict[str, Any]:
+    """subject_for_user() for a stop / power-off of a session whose owner is a local user who was disabled or deleted since.
+    - the owner can still act (or is a Home Assistant user): exactly subject_for_user();
+    - the owner is gone and the acting principal is a Home Assistant identity (an administrator ending the session): as that identity;
+    - else (the janitor, a local administrator): the service identity, attributed to the acting local principal when there is one, else to the
+      former owner - every other rule (switch on, configured non-administrator service user, bridge >= 0.9.0, the `cast` table) still holds.
+    Audited `identity.service_identity.cleanup` with `sent_as`. Anything outside CLEANUP_ITEMS: the normal refusal."""
+    try:
+        return subject_for_user(conn, owner_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=actor)
+    except ApiError as exc:
+        if exc.code != "user_inactive":
+            raise
+    try:
+        cleanup = (feature, bridge_service, item) in CLEANUP_ITEMS
+    except TypeError:
+        cleanup = False
+    if not cleanup:
+        raise _refuse(conn, actor, owner_id, "service_identity_refused", 403, reason="not_cleanup", feature=feature, bridge_service=bridge_service, item=item,
+                      request_id=request_id)
+    if actor is not None and not is_local(actor):
+        subj, sent_as = {"user_id": actor.user_id}, "actor_ha"
+    elif actor is not None:
+        subj, sent_as = _local_subject(conn, actor.user_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=actor), "actor_local"
+    else:
+        subj = _local_subject(conn, owner_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=None, require_active=False)
+        sent_as = "service_for_owner"
+    audit(conn, actor=actor, action="identity.service_identity.cleanup", decision="allowed", resource_type="user", resource_id=owner_id,
+          reason="owner_inactive", request_id=request_id, details={"feature": feature, "bridge_service": bridge_service, "item": item, "sent_as": sent_as})
+    return subj
+
+
+def never_local(bridge_service: str, item: Any) -> bool:
+    """The explicit never-list (NEVER_LOCAL): zone-bypass arming, doors, scripts, scenes - whatever the feature tables say."""
+    if bridge_service != "execute":
+        return False
+    try:
+        return item in NEVER_LOCAL
+    except TypeError:
+        return True
+
+
 def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, bridge_service: str, item: Any, request_id: str | None,
-                   actor: Principal | None) -> dict[str, Any]:
+                   actor: Principal | None, require_active: bool = True) -> dict[str, Any]:
     args = {"feature": feature, "bridge_service": bridge_service, "item": item, "request_id": request_id}
     from . import local_identity
 
@@ -191,8 +252,10 @@ def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, brid
     if not local_identity.enabled(conn):
         raise _refuse(conn, actor, user_id, "local_identity_off", 403, **args)
     row = conn.execute("SELECT active, deleted_at, source FROM users WHERE id = ?", (user_id,)).fetchone()
-    if row is None or row["source"] != "local" or not row["active"] or row["deleted_at"]:
+    if row is None or row["source"] != "local" or (require_active and (not row["active"] or row["deleted_at"])):
         raise _refuse(conn, actor, user_id, "user_inactive", 403, **args)
+    if never_local(bridge_service, item):
+        raise _refuse(conn, actor, user_id, "service_identity_refused", 403, reason="never_local", **args)
     why = feature_refusal(feature, bridge_service, item)
     if why:
         raise _refuse(conn, actor, user_id, why, 403, **args)
@@ -216,6 +279,53 @@ def refuse_automation_write(conn: sqlite3.Connection, principal: Principal, requ
     audit(conn, actor=principal, action="identity.service_identity.refused", decision="denied", resource_type="user", resource_id=principal.user_id,
           reason="automation_write_requires_ha_identity", request_id=request_id, details={"feature": "automations"})
     raise ApiError(403, "automation_write_requires_ha_identity", MESSAGES["automation_write_requires_ha_identity"])
+
+
+def refuse_zone_bypass(conn: sqlite3.Connection, principal: Principal, request_id: str | None, *, zone: str) -> None:
+    """Alarm zone bypass (and its restore): never for a local identity - an explicit rule of the route (security review F1), independent of
+    whether the bypass control's (domain, service) happens to be in the `alarm` table. Called after the route's own permission checks."""
+    if not is_local(principal):
+        return
+    raise _refuse(conn, principal, principal.user_id, "service_identity_refused", 403, reason="zone_bypass", feature="alarm", bridge_service="execute",
+                  item=zone, request_id=request_id)
+
+
+# ---------------------------------------------------------------- the service user is never a person (security review F4)
+
+SERVICE_ACCOUNT_HE = "המשתמש הזה הוא זהות השירות של Arx - משתמש טכני בלבד. אי אפשר להיכנס בשמו ואי אפשר לתת לו תפקיד."
+
+
+def is_service_user(conn: sqlite3.Connection, user_id: Any) -> bool:
+    """True when `user_id` is the configured service identity (a Home Assistant id)."""
+    if not isinstance(user_id, str) or not HA_USER_ID_RE.fullmatch(user_id):
+        return False
+    try:
+        return configured_id(conn) == user_id
+    except sqlite3.OperationalError:
+        return False
+
+
+def refuse_service_principal(conn: sqlite3.Connection, principal: Principal, request_id: str | None) -> None:
+    """A human signing in to Arx AS the service Home Assistant user (Ingress or the remote channel) is refused: 403 `service_account`, audited
+    `identity.service_identity.signin_refused` (through a side transaction when the request is read-only). A local principal is never it."""
+    if principal.source not in ("ingress", "remote") or not is_service_user(conn, principal.user_id):
+        return
+    from ..db import database_of, read_mode
+
+    def write(w: sqlite3.Connection) -> None:
+        audit(w, actor=principal, action="identity.service_identity.signin_refused", decision="denied", resource_type="user", resource_id=principal.user_id,
+              reason="service_account", request_id=request_id, details={"source": principal.source})
+
+    try:
+        db = database_of(conn) if read_mode(conn) else None
+        if db is not None:
+            with db.write_aside() as w:
+                write(w)
+        else:
+            write(conn)
+    except Exception:  # noqa: BLE001 - the refusal stands even when its audit row cannot be written
+        log.warning("service identity sign-in refusal not audited")
+    raise ApiError(403, "service_account", SERVICE_ACCOUNT_HE)
 
 
 # ---------------------------------------------------------------- the payload guard (the last line before anything leaves)
@@ -301,6 +411,16 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         if bound:
             step("has_arx_role", "לזהות השירות יש תפקיד ב־Arx. מומלץ שזה יהיה משתמש טכני בלבד, בלי תפקיד ובלי סיסמה - כדי שאף אדם לא ייכנס בשמו.",
                  "The service identity holds an Arx role. It should be a technical user only, with no role and no password, so nobody signs in as it.")
+    if sid:
+        try:
+            seen = conn.execute("SELECT last_seen_at FROM users WHERE id = ? AND source IN ('ingress', 'remote')", (sid,)).fetchone()
+        except sqlite3.OperationalError:
+            seen = None
+        if seen:
+            # security review F4: somebody signed in to Arx as this user (before it was configured - since then such a sign-in is refused);
+            # it has a password a person knows, so actions done in Home Assistant directly under it are possible
+            step("service_signed_in", f"מישהו נכנס ל־Arx בשם זהות השירות ({seen['last_seen_at'] or '?'}). לזהות השירות אסור שתהיה סיסמה שאדם משתמש בה: בתשתית המערכת בטלו לה את הכניסה (או החליפו סיסמה), או בחרו משתמש טכני אחר.",
+                 f"Somebody signed in to Arx as the service identity ({seen['last_seen_at'] or '?'}). No person may use its password: in the infrastructure disable its login (or change the password), or choose another technical user.")
     if raw and bridge_ok and paired:
         if not bridge_capable or not bridge_reported:
             step("bridge_not_set", "בתשתית המערכת: הגדרות › התקנים ושירותים › SMPLWISE Bridge › הגדרות - הזינו באותו שדה את אותו מזהה (שני הצדדים חייבים להסכים).",

@@ -257,6 +257,19 @@ def _service_user_id(conn: sqlite3.Connection) -> str | None:
     return (r["value"] or None) if r else None
 
 
+LOCAL_IN_FLIGHT_S = 30  # how long an Arx-only person's request without the bridge's answer explains a change under the service context
+
+
+def _local_request_in_flight(conn: sqlite3.Connection) -> bool:
+    """A device action of an Arx-only person sent through the bridge in the last LOCAL_IN_FLIGHT_S seconds whose context id is not known yet."""
+    since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=LOCAL_IN_FLIGHT_S))
+    try:
+        return conn.execute("SELECT 1 FROM ha_actions WHERE principal_user_id LIKE 'l\\_%' ESCAPE '\\' AND context_id IS NULL AND via = 'bridge' "
+                            "AND requested_at >= ? LIMIT 1", (since,)).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
 def _entity_name(conn: sqlite3.Connection, entity_id: str) -> str | None:
     r = conn.execute("SELECT name FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
     return (r["name"] or None) if r else None
@@ -285,9 +298,14 @@ def attribute(conn: sqlite3.Connection, kind: str, ctx: dict[str, Any]) -> dict[
         if a:
             return {**base, "actor_type": "person", "actor_ref": a["principal_user_id"], "actor_name": _user_name(conn, a["principal_user_id"]) or a["principal_username"], "via": "arx", "confidence": "exact"}
     if uid and uid == _service_user_id(conn):
-        # USR2 P3: done for an Arx-only person through the service identity, before the bridge's answer linked the context to that person
-        # (device_activity.link_context then rewrites the row to the person, exact) - never shown as the service user
-        return {**base, "actor_type": "person", "via": "arx", "confidence": "inferred"}
+        if _local_request_in_flight(conn):
+            # USR2 P3: an Arx-only person's request through the service identity is in flight (no context id yet): that person's, inferred
+            # (device_activity.link_context then rewrites the row to the person, exact)
+            return {**base, "actor_type": "person", "via": "arx", "confidence": "inferred"}
+        # security review F4: nobody in Arx asked - the service user acted in Home Assistant directly (a person who knows its password, or a
+        # service-identity command without an `ha_actions` record such as a cast stop). Never "an Arx person": the technical account, by name.
+        # link_context still rewrites the row should an Arx request's answer arrive with this context later.
+        return {**base, "actor_type": "system", "actor_ref": uid, "actor_name": _user_name(conn, uid), "via": "ha", "confidence": "exact"}
     if uid:
         return {**base, "actor_type": "person", "actor_ref": uid, "actor_name": _user_name(conn, uid), "via": "ha", "confidence": "exact"}
     if src:

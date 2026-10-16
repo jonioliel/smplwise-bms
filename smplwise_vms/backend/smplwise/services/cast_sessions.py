@@ -447,11 +447,17 @@ def bridge_ready(conn: sqlite3.Connection) -> tuple[bool, str | None]:
     return True, None
 
 
-def _bridge(conn: sqlite3.Connection, settings: Settings, user_id: str, op: str, entity_id: str, *, url: str | None = None, title: str | None = None) -> tuple[bool, str | None, str]:
+def _bridge(conn: sqlite3.Connection, settings: Settings, user_id: str, op: str, entity_id: str, *, url: str | None = None, title: str | None = None,
+            cleanup: bool = False, actor: Principal | None = None) -> tuple[bool, str | None, str]:
     """ONE signed cast_stream call (never retried). (ok, error code, request id). Raises ApiError when Home Assistant is unreachable."""
     request_id = uuid.uuid4().hex[:12]
-    # USR2 P3: a local (Arx-only) session owner acts through the service identity (`cast` feature: play / stop / off); refused = ApiError, nothing sent
-    subj = service_identity.subject_for_user(conn, user_id, "cast", bridge_service="cast_stream", item=op)
+    # USR2 P3: a local (Arx-only) session owner acts through the service identity (`cast` feature: play / stop / off); refused = ApiError, nothing sent.
+    # Security review F3: a stop / off (`cleanup`) still goes out when that owner was disabled or deleted since - as the acting Home Assistant
+    # principal, else as the service identity (subject_for_cleanup) - so a session never outlives its owner; a play never does.
+    if cleanup:
+        subj = service_identity.subject_for_cleanup(conn, user_id, "cast", bridge_service="cast_stream", item=op, actor=actor)
+    else:
+        subj = service_identity.subject_for_user(conn, user_id, "cast", bridge_service="cast_stream", item=op)
     body: dict[str, Any] = {**subj, "op": op, "entity_id": entity_id, "request_id": request_id}
     if url is not None:
         body["url"] = url
@@ -869,13 +875,13 @@ def _end(conn: sqlite3.Connection, row: sqlite3.Row, reason: str, actor: Princip
     outcome: dict[str, Any] = {"stop": "not_sent", "power_off": off_state}
     if send and settings is not None:
         try:
-            ok, error, _rid = _bridge(conn, settings, row["started_by"], "stop", row["target_entity_id"])
+            ok, error, _rid = _bridge(conn, settings, row["started_by"], "stop", row["target_entity_id"], cleanup=True, actor=actor)
             outcome["stop"] = "sent" if ok else f"refused:{error}"
         except ApiError as exc:
             outcome["stop"] = f"failed:{exc.code}"
         if off_wanted:
             try:
-                ok, error, _rid = _bridge(conn, settings, row["started_by"], "off", row["target_entity_id"])
+                ok, error, _rid = _bridge(conn, settings, row["started_by"], "off", row["target_entity_id"], cleanup=True, actor=actor)
                 outcome["power_off"] = "sent" if ok else "failed"
             except ApiError:
                 outcome["power_off"] = "failed"
@@ -945,6 +951,14 @@ def attach(db: Any, settings: Settings) -> None:
         pass
 
 
+def owner_gone(conn: sqlite3.Connection, user_id: Any) -> bool:
+    """A local (Arx-only) session owner who was disabled or deleted (a Home Assistant owner is never judged here)."""
+    if not service_identity.is_local(user_id):
+        return False
+    row = conn.execute("SELECT active, deleted_at FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row is None or not row["active"] or bool(row["deleted_at"])
+
+
 def janitor(db: Any, settings: Settings) -> dict[str, int]:
     """Every 30 s: expired sessions end (`timeout`: ONE stop, the restore rule), sessions whose screen vanished end (`target_gone`, no
     command), 15 s without a first segment is persisted as `not_confirmed`."""
@@ -960,6 +974,12 @@ def janitor(db: Any, settings: Settings) -> dict[str, int]:
         ents = {r["entity_id"]: r for r in conn.execute(
             f"SELECT entity_id, state FROM ha_entities WHERE entity_id IN ({','.join('?' * len(rows))})", [r["target_entity_id"] for r in rows]).fetchall()}
         for r in rows:
+            if owner_gone(conn, r["started_by"]):
+                # security review F3: the session never outlives its local owner - ended within one janitor round of the disable / delete
+                # (token revoked, ONE stop and the restore rule's off, sent through subject_for_cleanup); stop_reason `admin` (an administrator's act)
+                _end(conn, r, "admin", None, None, send=True, settings=settings)
+                counts["owner_gone"] = counts.get("owner_gone", 0) + 1
+                continue
             exp = _parse(r["expires_at"])
             if exp is not None and exp <= at:
                 _end(conn, r, "timeout", None, None, send=True, settings=settings)

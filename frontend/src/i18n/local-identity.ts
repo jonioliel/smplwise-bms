@@ -127,7 +127,7 @@ const he = {
   sessions: 'כניסות פעילות',
   // USR2 P3: the service identity card (settings only - it may name Home Assistant)
   siTitle: 'זהות שירות ב־Home Assistant',
-  siSub: 'למשתמשי Arx אין חשבון ב־Home Assistant. כדי שיוכלו לשלוט בהתקנים, באזעקה (לפי כללי הקוד), במדיה, בשידור למסך ובתזמונים, Arx פועל עבורם דרך משתמש Home Assistant אחד שאינו מנהל - זהות השירות. כל פעולה נרשמת על שם האדם עצמו. אוטומציות לעולם לא.',
+  siSub: 'למשתמשי Arx אין חשבון ב־Home Assistant. כדי שיוכלו לשלוט בהתקנים, באזעקה (לפי כללי הקוד), במדיה, בשידור למסך ובתזמונים, Arx פועל עבורם דרך משתמש Home Assistant אחד שאינו מנהל - זהות השירות. כל פעולה נרשמת על שם האדם עצמו. לעולם לא: אוטומציות, סקריפטים וסצנות, פתיחת דלתות ועקיפת אזורי אזעקה. זהות השירות היא משתמש טכני - אסור שאדם ייכנס בשמו.',
   siReady: 'מוכן',
   siNotReady: 'לא מוכן',
   siUserId: 'מזהה משתמש Home Assistant (32 תווים)',
@@ -220,7 +220,7 @@ const en: Partial<Record<Key, string>> = {
   publicUrlSave: 'Save the address',
   publicUrlSaved: 'Address saved.',
   siTitle: 'Service identity in Home Assistant',
-  siSub: 'Arx users have no Home Assistant account. So that they can control devices, the alarm (under the PIN rules), media, casting and schedules, Arx acts for them through ONE Home Assistant user who is not an administrator - the service identity. Every action is recorded under the person. Automations never.',
+  siSub: 'Arx users have no Home Assistant account. So that they can control devices, the alarm (under the PIN rules), media, casting and schedules, Arx acts for them through ONE Home Assistant user who is not an administrator - the service identity. Every action is recorded under the person. Never: automations, scripts and scenes, opening doors, alarm zone bypass. The service identity is a technical user - no person may sign in as it.',
   siReady: 'Ready',
   siNotReady: 'Not ready',
   siUserId: 'Home Assistant user id (32 characters)',
