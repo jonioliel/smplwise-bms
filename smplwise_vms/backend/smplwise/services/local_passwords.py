@@ -24,15 +24,21 @@ Policy (NIST SP 800-63B style, no composition rules)
 """
 from __future__ import annotations
 
+import asyncio
 import base64
+import contextvars
+import functools
 import hashlib
 import hmac
 import secrets
 import threading
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Callable, Iterable, TypeVar
+
+T = TypeVar("T")
 
 MAX_CHARS = 128
 MAX_BYTES = 128
@@ -57,6 +63,78 @@ class Profile:
 PROFILES: dict[int, Profile] = {1: Profile(1, 17, 8, 1), 2: Profile(2, 16, 8, 1)}
 _SEM = threading.BoundedSemaphore(2)
 _profile_override: Profile | None = None  # tests only (a fast profile); never set by production code
+
+# USR2-FIX F5: the most a stored PHC string may ask for. Anything above the shipped profiles (scrypt N=2^17, r=8, p=1 -> 128 MiB)
+# is refused as a verification failure, never computed - a tampered database row or restored archive cannot make the add-on
+# allocate gigabytes.
+MAX_SCRYPT_LOG_N = 17
+MAX_SCRYPT_R = 8
+MAX_SCRYPT_P = 1
+MAX_MAXMEM = 160 * 1024 * 1024
+MAX_ARGON2_M_KIB = 128 * 1024
+MAX_ARGON2_T = 10
+MAX_ARGON2_P = 4
+
+
+# ---------------------------------------------------------------- USR2-FIX F3: bounded admission + a dedicated hashing executor
+
+HASH_THREADS = 2
+MAX_WAITERS = 8
+
+
+class Admission:
+    """A bounded waiting room in front of the public hashing routes: at most `limit` requests are in flight (HASH_THREADS
+    computing + MAX_WAITERS queued). Beyond it the route answers the uniform 429 `rate_limited` + Retry-After WITHOUT hashing and
+    for every username alike, so a sign-in storm can never park the shared worker threads of the rest of the add-on."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self._n = 0
+        self._lock = threading.Lock()
+
+    def try_enter(self) -> bool:
+        with self._lock:
+            if self._n >= self.limit:
+                return False
+            self._n += 1
+            return True
+
+    def leave(self) -> None:
+        with self._lock:
+            self._n = max(0, self._n - 1)
+
+    @property
+    def in_flight(self) -> int:
+        with self._lock:
+            return self._n
+
+
+ADMISSION = Admission(HASH_THREADS + MAX_WAITERS)
+_executor: "ThreadPoolExecutor | None" = None
+_executor_lock = threading.Lock()
+
+
+def executor() -> "ThreadPoolExecutor":
+    """The dedicated pool (HASH_THREADS threads, named `arx-hash`) the public routes run their blocking work in - never the shared
+    pool of the other routes."""
+    global _executor
+    with _executor_lock:
+        if _executor is None:
+            _executor = ThreadPoolExecutor(max_workers=HASH_THREADS, thread_name_prefix="arx-hash")
+        return _executor
+
+
+async def run_admitted(fn: Callable[..., T], *args: Any) -> tuple[bool, T | None]:
+    """(False, None) when the waiting room is full (answer 429 at once); else (True, fn(*args)) computed in the dedicated pool and
+    awaited on the event loop (the caller's context variables travel with it)."""
+    if not ADMISSION.try_enter():
+        return False, None
+    try:
+        ctx = contextvars.copy_context()
+        loop = asyncio.get_running_loop()
+        return True, await loop.run_in_executor(executor(), functools.partial(ctx.run, fn, *args))
+    finally:
+        ADMISSION.leave()
 
 
 def _cgroup_memory_bytes() -> int | None:
@@ -110,11 +188,30 @@ def _parse_scrypt(phc: str) -> tuple[Profile, bytes, bytes] | None:
     try:
         kv = dict(item.split("=", 1) for item in parts[2].split(","))
         log_n, r, p = int(kv["ln"]), int(kv["r"]), int(kv["p"])
-        if not (10 <= log_n <= 20 and 1 <= r <= 32 and 1 <= p <= 4):
+        if not (10 <= log_n <= MAX_SCRYPT_LOG_N and 1 <= r <= MAX_SCRYPT_R and 1 <= p <= MAX_SCRYPT_P):
             return None
-        return Profile(0, log_n, r, p), _unb64(parts[3]), _unb64(parts[4])
-    except (KeyError, ValueError):
+        prof = Profile(0, log_n, r, p)
+        if prof.maxmem > MAX_MAXMEM:
+            return None
+        salt, want = _unb64(parts[3]), _unb64(parts[4])
+        if not (8 <= len(salt) <= 64 and len(want) == 32):
+            return None
+        return prof, salt, want
+    except (KeyError, ValueError, TypeError):  # binascii.Error is a ValueError
         return None
+
+
+def _argon2_params_ok(phc: str) -> bool:
+    """`$argon2id$v=19$m=65536,t=3,p=4$...`: m (KiB), t and p within the maxima; anything unreadable is refused."""
+    parts = phc.split("$")
+    if len(parts) != 6 or parts[1] not in ("argon2id", "argon2i", "argon2d"):
+        return False
+    try:
+        kv = dict(item.split("=", 1) for item in parts[3].split(","))
+        m, t, p = int(kv["m"]), int(kv["t"]), int(kv["p"])
+    except (KeyError, ValueError):
+        return False
+    return 8 <= m <= MAX_ARGON2_M_KIB and 1 <= t <= MAX_ARGON2_T and 1 <= p <= MAX_ARGON2_P
 
 
 def verify(password: str, phc: str | None) -> bool:
@@ -129,10 +226,15 @@ def verify(password: str, phc: str | None) -> bool:
         if parsed is None:
             return False
         prof, salt, want = parsed
-        with _SEM:
-            got = _scrypt(secret, salt, prof)
+        try:
+            with _SEM:
+                got = _scrypt(secret, salt, prof)
+        except (ValueError, MemoryError, OSError):  # USR2-FIX F5: an unusable stored row is a failed verification, never a crash
+            return False
         return hmac.compare_digest(got, want)
     if phc.startswith("$argon2"):
+        if not _argon2_params_ok(phc):
+            return False
         try:
             from argon2 import PasswordHasher  # type: ignore[import-not-found]
             from argon2.exceptions import VerificationError, InvalidHashError  # type: ignore[import-not-found]
@@ -141,7 +243,7 @@ def verify(password: str, phc: str | None) -> bool:
         try:
             with _SEM:
                 return bool(PasswordHasher().verify(phc, secret))
-        except (VerificationError, InvalidHashError, ValueError):
+        except (VerificationError, InvalidHashError, ValueError, MemoryError, OSError):
             return False
     return False
 

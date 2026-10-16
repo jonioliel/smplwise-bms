@@ -186,3 +186,68 @@ def test_b64_helpers_round_trip():
     assert lp._unb64(lp._b64(raw)) == raw
     assert "=" not in lp._b64(raw)
     _ = base64
+
+
+# ---------------------------------------------------------------- USR2-FIX regressions (security review 2026-10-16)
+
+def _phc(ln: int, r: int, p: int) -> str:
+    return f"$scrypt$ln={ln},r={r},p={p}${lp._b64(b's' * 16)}${lp._b64(b'h' * 32)}"
+
+
+@pytest.mark.parametrize("phc", [_phc(20, 8, 1), _phc(18, 8, 1), _phc(17, 32, 1), _phc(17, 8, 4), _phc(10, 9, 1),
+                                 "$argon2id$v=19$m=4194304,t=3,p=1$abc$def", "$argon2id$v=19$m=65536,t=99,p=1$abc$def"])
+def test_f5_tampered_hash_parameters_are_refused_before_any_computation(monkeypatch, phc):
+    """F5: a stored row asking for more than the shipped profiles (a tampered database or archive) is a failed verification - the
+    hash is never computed, so it can never allocate gigabytes."""
+    calls: list[int] = []
+    monkeypatch.setattr(lp, "_scrypt", lambda secret, salt, prof: calls.append(prof.log_n) or b"x" * 32)
+    assert lp.verify("anything at all here", phc) is False
+    assert calls == []
+
+
+@pytest.mark.parametrize("exc", [MemoryError, ValueError, OSError])
+def test_f5_a_hashing_error_is_a_failed_verification_never_a_crash(monkeypatch, exc):
+    phc, _ = lp.hash_password("tree-river-lamp-9")
+
+    def boom(secret, salt, prof):
+        raise exc("no")
+
+    monkeypatch.setattr(lp, "_scrypt", boom)
+    assert lp.verify("tree-river-lamp-9", phc) is False
+
+
+def test_f5_the_shipped_profiles_still_verify():
+    for prof in lp.PROFILES.values():
+        assert prof.log_n <= lp.MAX_SCRYPT_LOG_N and prof.r <= lp.MAX_SCRYPT_R and prof.p <= lp.MAX_SCRYPT_P and prof.maxmem <= lp.MAX_MAXMEM
+    assert lp._parse_scrypt(_phc(17, 8, 1)) is not None and lp._parse_scrypt(_phc(16, 8, 1)) is not None
+
+
+def test_f2_the_account_delay_is_keyed_by_network():
+    """F2: failures of one name from one network delay that name FROM THAT NETWORK only."""
+    li.TIERS.clear()
+    try:
+        for _ in range(li.ACCOUNT_FREE_FAILURES):
+            li.TIERS.acct_fail("maria", "203.0.113.7")
+        assert li.TIERS.acct_delay("maria", "203.0.113.7") > 0
+        assert li.TIERS.acct_delay("maria", "198.51.100.4") == 0.0
+        assert li.TIERS.acct_delay("maria", "2001:db8:1:2::9") == 0.0
+        assert li.TIERS.acct_delay("dana", "203.0.113.7") == 0.0
+        # an IPv6 /64 is one network
+        for _ in range(li.ACCOUNT_FREE_FAILURES):
+            li.TIERS.acct_fail("maria", "2001:db8:1:2::9")
+        assert li.TIERS.acct_delay("maria", "2001:db8:1:2::abcd") > 0
+        assert li.TIERS.acct_clear_name("maria") == 2 and li.TIERS.acct_delay("maria", "203.0.113.7") == 0.0
+    finally:
+        li.TIERS.clear()
+
+
+def test_f3_admission_is_bounded():
+    a = lp.Admission(3)
+    assert [a.try_enter() for _ in range(4)] == [True, True, True, False]
+    assert a.in_flight == 3
+    a.leave()
+    assert a.try_enter() is True
+    for _ in range(5):
+        a.leave()
+    assert a.in_flight == 0
+    assert lp.ADMISSION.limit == lp.HASH_THREADS + lp.MAX_WAITERS

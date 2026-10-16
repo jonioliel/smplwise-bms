@@ -53,6 +53,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require, role_name, scope
 from ..remote_channel import csrf_reason, is_remote
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
+from ..services import local_passwords as lp
 from ..services import presence, revocation
 from ..services import second_factor as sf
 
@@ -123,6 +124,24 @@ def _clear_pending(response: Response, request: Request) -> None:
 
 # ---------------------------------------------------------------- the sign-in (public)
 
+OVERLOAD_RETRY_S = 5
+
+
+async def _overloaded(request: Request) -> JSONResponse:
+    """USR2-FIX F3: the hashing waiting room is full - the uniform 429 for every username, without hashing; one throttled audit
+    row (`auth.local.storm`, reason `admission`) per minute, written off the event loop."""
+    write, suppressed = hua.REFUSAL_AUDITS.admit("local_admission|installation")
+    if write:
+        def _row() -> None:
+            li._audit(request.app.state.db, actor=None, action="auth.local.storm", decision="denied", reason="admission", resource_id="installation",
+                      details={"in_flight": lp.ADMISSION.in_flight, **({"suppressed_since_last": suppressed} if suppressed else {})}, request_id=_rid(request))
+
+        try:
+            await run_in_threadpool(_row)
+        except Exception:  # noqa: BLE001 - an audit row never changes the answer
+            pass
+    return _error(request, 429, "rate_limited", li.RATE_LIMITED_HE, {"Retry-After": str(OVERLOAD_RETRY_S)}, retryable=True)
+
 class SignInBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     username: str = Field(min_length=1, max_length=64)
@@ -141,7 +160,9 @@ def _success(request: Request, r: li.SignInResult) -> JSONResponse:
 @router.post("/auth/local/sign-in")
 async def local_sign_in(body: SignInBody, request: Request) -> Response:
     _public_guard(request)
-    r = await run_in_threadpool(li.sign_in, request.app.state.db, settings_of(request), request, body.username, body.password, _rid(request))
+    admitted, r = await lp.run_admitted(li.sign_in, request.app.state.db, settings_of(request), request, body.username, body.password, _rid(request))
+    if not admitted or r is None:
+        return await _overloaded(request)
     if r.status == "rate_limited":
         return _error(request, 429, "rate_limited", li.RATE_LIMITED_HE, {"Retry-After": str(r.retry_after)}, retryable=True)
     if r.sleep_s:
@@ -183,7 +204,11 @@ async def local_set_password(body: SetPasswordBody, request: Request) -> dict[st
     _public_guard(request)
     if not hua.LIMITER.hit(f"lsetpw:{hua.limit_ip(hua.client_ip(request))}", li.SET_PASSWORD_LIMITS):
         raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
-    return await run_in_threadpool(li.use_link, request.app.state.db, settings_of(request), request, body.token, body.password, _rid(request))
+    admitted, out = await lp.run_admitted(li.use_link, request.app.state.db, settings_of(request), request, body.token, body.password, _rid(request))
+    if not admitted or out is None:
+        await _overloaded(request)  # the audit row; the answer is the route's usual 429 (same as its per-address limit)
+        raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
+    return out
 
 
 # ---------------------------------------------------------------- self
@@ -397,7 +422,7 @@ def _bind(conn: sqlite3.Connection, principal: Principal, request: Request, user
     from .access import BindingBody, insert_binding, validate_binding
 
     body = BindingBody(subject_kind="user", subject_id=user_id, role_id=role_id, scope_type=scope[0], scope_id=scope[1], effect="allow")
-    validate_binding(conn, principal, body)
+    validate_binding(conn, principal, body, request)
     bid, _rev = insert_binding(conn, principal, request, body, extra_audit={"identity": "local"})
     return bid
 
@@ -621,9 +646,10 @@ def issue_local_link(user_id: str, body: LinkBody, request: Request, principal: 
 @router.post("/identity/local-users/{user_id}/unlock")
 def unlock_local_user(user_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
-    _user_row(conn, user_id)
+    row = _user_row(conn, user_id)
     conn.execute("UPDATE auth_local_credentials SET failed_count = 0, last_failed_at = NULL, delay_until = NULL, unlocked_by = ?, updated_at = ? WHERE user_id = ?",
                  (principal.user_id, now_iso(), user_id))
+    li.TIERS.acct_clear_name(row["username"])  # USR2-FIX F2: the per-network delays of the name end too
     audit(conn, actor=principal, action="identity.local.user.unlocked", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request))
     return _user_dict(conn, _user_row(conn, user_id))
 

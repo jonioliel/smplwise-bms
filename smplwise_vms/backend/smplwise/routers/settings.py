@@ -297,7 +297,9 @@ DEFAULTS: dict[str, str] = {
     "security.local_admin_session_days": "7",  # 1-7: the absolute lifetime of a session of a local user holding an administrative permission
     "security.local_password_min": "12",  # 10-64
     "security.local_link_ttl_h": "72",  # 1-168: first-login / reset link lifetime
-    "security.local_lock_mode": "delay",  # delay (a growing delay, never a hard lock) | lock (locked until the delay ends; an administrator may unlock)
+    # USR2-FIX F2: the per-(account, network) delay and the per-account ceiling lock behave the same in both modes; the value only names
+    # the network-tier refusal in the audit (account_delay | account_locked). See CR-USR2 §6 (brute-force semantics).
+    "security.local_lock_mode": "delay",
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top

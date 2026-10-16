@@ -336,30 +336,71 @@ def test_login_csrf_needs_same_origin(lx):
     assert r.status_code == 403 and r.json()["code"] == "csrf_refused"
 
 
-def test_account_delay_tier_unlock_and_success_clears(lx):
+def _net(n: int) -> dict[str, str]:
+    return {"CF-Connecting-IP": f"203.0.113.{n}"}
+
+
+def test_account_delay_is_per_network_never_a_lock_of_the_person(lx):
+    """USR2-FIX F2 (security review 2026-10-16): a guesser's failures delay the name from the guesser's network only - the person's
+    correct password from their own network still signs in. Before the fix the account's delay_until refused it from everywhere."""
     lx.enable()
     created, _c = lx.ready("maria")
     uid = created["user"]["id"]
-    c = lx.remote()
+    attacker = lx.remote(**_net(7))
     for _ in range(5):
-        assert lx.sign_in(c, "maria", "not the password").status_code == 401
+        assert lx.sign_in(attacker, "maria", "not the password").status_code == 401
     row = lx.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,))[0]
-    assert row["failed_count"] == 5 and row["delay_until"] and 25 < row["delay_until"] - time.time() <= 30.5
+    assert row["failed_count"] == 5 and row["delay_until"] is None  # counted towards the ceiling, but no lock
     lx.sleeps.clear()
-    r = lx.sign_in(c, "maria")  # the right password during the delay: the same refusal, after a bounded wait
+    r = lx.sign_in(attacker, "maria")  # the right password from the delayed network: the same refusal, after a bounded wait
     assert r.status_code == 401 and r.json()["code"] == "sign_in_failed"
     assert lx.sleeps and 2.0 <= lx.sleeps[-1] <= li.DELAY_SLEEP_CAP_S
+    # the exact attack of F2: the victim from their own network is NOT refused
+    lx.sleeps.clear()
+    assert lx.sign_in(lx.remote(**_net(8)), "maria").status_code == 200
+    assert not lx.sleeps
+    users = lx.admin.get("/api/v1/identity/local-users").json()["users"]
+    assert [u["status"] for u in users if u["id"] == uid] == ["active"]
+    # an unknown name follows the same per-network schedule (no "this account exists" signal from the delay)
+    for _ in range(5):
+        lx.sign_in(attacker, "ghost", "not the password")
+    lx.sleeps.clear()
+    r = lx.sign_in(attacker, "ghost", "not the password")
+    assert r.status_code == 401 and lx.sleeps and lx.sleeps[-1] >= 2.0
+    lx.sleeps.clear()
+    assert lx.sign_in(lx.remote(**_net(9)), "ghost", "not the password").status_code == 401 and not lx.sleeps
+
+
+def test_account_ceiling_locks_audits_and_an_administrator_unlocks(lx, monkeypatch):
+    """USR2-FIX F2: only the high per-account ceiling (all networks together, one fixed window) locks - audited
+    `auth.local.account_locked` - and the administrator's unlock (or time) ends it, together with every network's delay."""
+    lx.enable()
+    monkeypatch.setattr(li, "ACCOUNT_CEILING", 8)
+    monkeypatch.setattr(li, "ACCOUNT_CEILING_WINDOW_S", 10 ** 9)  # one window for the whole test (no clock-boundary flake)
+    created, _c = lx.ready("maria")
+    uid = created["user"]["id"]
+    for _ in range(4):  # the attacker's own network gets delayed after its 5th failure; four from it, then other networks
+        assert lx.sign_in(lx.remote(**_net(30)), "maria", "not the password").status_code == 401
+    for i in range(4):
+        assert lx.sign_in(lx.remote(**_net(40 + i)), "maria", "not the password").status_code == 401
+    row = lx.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,))[0]
+    assert row["failed_count"] == 8 and row["delay_until"] and li.ACCOUNT_LOCK_S - 5 < row["delay_until"] - time.time() <= li.ACCOUNT_LOCK_S + 1
+    locked = lx.audit("auth.local.account_locked")
+    assert len(locked) == 1 and locked[0]["reason"] == "ceiling"
     users = lx.admin.get("/api/v1/identity/local-users").json()["users"]
     assert [u["status"] for u in users if u["id"] == uid] == ["delayed"]
-    # an unknown name follows the same schedule (no "this account exists" signal from the delay)
-    for _ in range(5):
-        lx.sign_in(c, "ghost", "not the password")
     lx.sleeps.clear()
-    r = lx.sign_in(c, "ghost", "not the password")
-    assert r.status_code == 401 and lx.sleeps and lx.sleeps[-1] >= 2.0
+    r = lx.sign_in(lx.remote(**_net(60)), "maria")  # now locked from everywhere, with the same uniform answer
+    assert r.status_code == 401 and r.json()["code"] == "sign_in_failed" and lx.sleeps and lx.sleeps[-1] <= li.DELAY_SLEEP_CAP_S
+    # a name that does not exist reaches the same ceiling in memory (the lock is not an existence signal)
+    for i in range(8):
+        lx.sign_in(lx.remote(**_net(70 + i)), "ghost", "not the password")
+    lx.sleeps.clear()
+    assert lx.sign_in(lx.remote(**_net(61)), "ghost", "not the password").status_code == 401 and lx.sleeps
+    # the administrator's unlock path
     assert lx.admin.post(f"/api/v1/identity/local-users/{uid}/unlock").status_code == 200
     assert lx.audit("identity.local.user.unlocked")
-    assert lx.sign_in(c, "maria").status_code == 200
+    assert lx.sign_in(lx.remote(**_net(60)), "maria").status_code == 200
     row = lx.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,))[0]
     assert row == {"failed_count": 0, "delay_until": None}
 
@@ -574,6 +615,152 @@ def test_administrative_targets_are_local_channel_only(lx, settings):
     assert r.status_code == 200 and r.json()["reset_mode"] == "manager_only"
 
 
+def test_f1_generic_bindings_route_cannot_shape_an_administrative_target_remotely(lx):
+    """USR2-FIX F1, the exact attack of the security review: a system administrator on the REMOTE channel creates a viewer local user
+    (allowed), revokes its binding through the generic route and binds site_admin through the generic route - refused (404, the
+    shape of the dedicated routes); the bulk route too. The same promotion from the local channel works and kills the link that
+    was minted on the remote channel."""
+    lx.enable()
+    lx.admin.get("/api/v1/sites")
+    remote_admin = _remote_admin(lx)
+    r = remote_admin.post("/arx/api/v1/identity/local-users", json={"username": "plain", "display_name": "Plain", "role_id": "viewer"})
+    assert r.status_code == 201
+    uid, bid = r.json()["user"]["id"], r.json()["user"]["binding_id"]
+    remote_token = r.json()["link"]["path"].split("t=", 1)[1]
+    assert remote_admin.delete(f"/arx/api/v1/access/bindings/{bid}").status_code == 200
+    admin_bind = {"subject_kind": "user", "subject_id": uid, "role_id": "site_admin", "scope_type": "installation", "scope_id": "*"}
+    r = remote_admin.post("/arx/api/v1/access/bindings", json=admin_bind)
+    assert r.status_code == 404 and r.json()["code"] == "not_found"
+    r = remote_admin.post("/arx/api/v1/access/bindings/bulk", json={"items": [admin_bind]})
+    assert r.status_code == 404
+    assert lx.rows("SELECT id FROM bindings WHERE subject_id = ? AND revoked_at IS NULL", (uid,)) == []
+    assert {a["reason"] for a in lx.audit("rbac.bind") if a["decision"] == "denied"} >= {"local_admin_target_remote"}
+    # a non-administrative role is still fine remotely through the generic route
+    r = remote_admin.post("/arx/api/v1/access/bindings", json={**admin_bind, "role_id": "operator"})
+    assert r.status_code == 201, r.text
+    assert remote_admin.delete(f"/arx/api/v1/access/bindings/{r.json()['id']}").status_code == 200
+    # from the local channel the promotion works - and the remotely minted first-login link no longer does
+    r = lx.admin.post("/api/v1/access/bindings", json=admin_bind)
+    assert r.status_code == 201, r.text
+    assert lx.set_password(remote_token).status_code == 401
+    inv = lx.audit("auth.local.link.invalidated")
+    assert inv and inv[-1]["reason"] == "admin_role" and inv[-1]["resource_id"] == uid
+
+
+def test_f1_role_change_to_an_administrative_role_invalidates_open_links(lx):
+    lx.enable()
+    created = lx.create("plain")  # viewer, link minted
+    uid = created["user"]["id"]
+    token = lx.link_token(created)
+    r = lx.admin.put(f"/api/v1/identity/local-users/{uid}/role", json={"role_id": "site_admin"})
+    assert r.status_code == 200 and r.json()["admin"] is True
+    assert lx.set_password(token).status_code == 401
+    assert lx.audit("auth.local.link.invalidated")[-1]["reason"] == "admin_role"
+    # a non-administrative role change keeps an open link
+    other = lx.create("other")
+    token2 = lx.link_token(other)
+    assert lx.admin.put(f"/api/v1/identity/local-users/{other['user']['id']}/role", json={"role_id": "operator"}).status_code == 200
+    assert lx.set_password(token2).status_code == 200
+
+
+def test_f3_a_sign_in_storm_waits_in_a_bounded_room_on_its_own_threads(lx, monkeypatch):
+    """USR2-FIX F3: sign-ins hash on the dedicated `arx-hash` threads; beyond the waiting room the answer is the uniform 429 with
+    Retry-After, without hashing, for a known and an unknown name alike; the other routes keep answering meanwhile."""
+    import threading
+
+    lx.enable()
+    lx.ready("maria")
+    lp.ensure_dummy()
+    gate = threading.Event()
+    started: list[str] = []
+    real = lp._scrypt
+
+    def slow(secret, salt, prof):
+        started.append(threading.current_thread().name)
+        gate.wait(15)
+        return real(secret, salt, prof)
+
+    monkeypatch.setattr(lp, "_scrypt", slow)
+    monkeypatch.setattr(lp.ADMISSION, "limit", 3)
+    results: list[int] = []
+
+    def one(i: int) -> None:
+        r = lx.sign_in(lx.remote(**_net(100 + i)), "maria" if i % 2 else "nobody", "wrong password here")
+        results.append(r.status_code)
+
+    threads = [threading.Thread(target=one, args=(i,)) for i in range(3)]
+    try:
+        for t in threads:
+            t.start()
+        deadline = time.monotonic() + 10
+        while (len(started) < lp.HASH_THREADS or lp.ADMISSION.in_flight < 3) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert len(started) == lp.HASH_THREADS and lp.ADMISSION.in_flight == 3
+        t0 = time.monotonic()
+        over = [lx.sign_in(lx.remote(**_net(150 + i)), name, "wrong password here") for i, name in enumerate(("maria", "nobody"))]
+        assert [r.status_code for r in over] == [429, 429]
+        assert _body(over[0]) == _body(over[1]) and over[0].json()["code"] == "rate_limited" and int(over[0].headers["retry-after"]) >= 1
+        assert len(started) == lp.HASH_THREADS  # refused without hashing
+        assert lx.admin.get("/api/v1/me").status_code == 200  # the rest of the add-on answers while every hashing thread is busy
+        assert lx.admin.get("/api/v1/identity/local-users").status_code == 200
+        assert time.monotonic() - t0 < 5
+    finally:
+        gate.set()
+        for t in threads:
+            t.join(20)
+    assert sorted(results) == [401, 401, 401]
+    assert started and all(name.startswith("arx-hash") for name in started)
+    assert lx.audit("auth.local.storm") and lx.audit("auth.local.storm")[-1]["reason"] == "admission"
+
+
+def test_f4_announcements_are_refused_to_a_local_identity(lx, monkeypatch):
+    """USR2-FIX F4 (CR-USR2 §1a.5): an announcement runs on the add-on's own infrastructure token, so a local identity is refused
+    (fail closed) until phase 3 - through the route and in the service itself - and nothing is spoken."""
+    from smplwise.rbac import Principal
+    from smplwise.services import announcements as ann
+
+    spoken: list = []
+    monkeypatch.setattr(ann, "SPEAK", lambda *a, **k: spoken.append(a))
+    lx.enable()
+    created = lx.create("sitey", "site_admin")  # site_admin carries media.announce
+    assert lx.set_password(lx.link_token(created)).status_code == 200
+    c = lx.remote()
+    assert lx.sign_in(c, "sitey").status_code == 200
+    r = c.post("/arx/api/v1/announcements", json={"scope": "device", "ref": "media_player.kitchen", "text": "hello"})
+    assert r.status_code == 403 and r.json()["code"] == "local_identity_not_allowed", r.text
+    assert lx.audit("media.announce")[-1]["reason"] == "local_identity_ha_action"
+    p = Principal(user_id=created["user"]["id"], username="sitey", display_name="Sitey", source="local", factor_ok=True)
+    with lx.db.connection() as conn:
+        with pytest.raises(Exception) as exc:
+            ann.announce(conn, lx.settings, p, None, source="manual", scope="device", ref="media_player.kitchen", text="hello")
+    assert getattr(exc.value, "code", None) == "local_identity_not_allowed"
+    assert spoken == []
+
+
+def test_f11_temporary_link_of_an_enrolled_user_can_finish_the_password_change(lx):
+    """USR2-FIX F11: an enrolled user given a TEMPORARY reset link signs in with the TOTP code and must change the password; that
+    step has no code field, and the code shown at this very sign-in counts - before the fix it answered `second_factor_required`."""
+    lx.enable()
+    created, c = lx.ready("maria")
+    uid = created["user"]["id"]
+    secret = c.post("/arx/api/v1/auth/second-factor/enroll").json()["secret"]
+    assert c.post("/arx/api/v1/auth/second-factor/confirm", json={"code": _code(secret)}).status_code == 200
+    link = lx.admin.post(f"/api/v1/identity/local-users/{uid}/link", json={"purpose": "reset", "temporary": True}).json()["link"]
+    assert lx.set_password(link["path"].split("t=", 1)[1], GOOD2).status_code == 200
+    with lx.db.connection() as conn:
+        conn.execute("UPDATE auth_totp SET last_step = 0")
+    c2 = lx.remote()
+    assert lx.sign_in(c2, "maria", GOOD2).status_code == 202
+    r = c2.post("/arx/api/v1/auth/local/sign-in/second-factor", json={"code": _code(secret)})
+    assert r.status_code == 200 and r.json()["must_change_password"] is True
+    r = c2.put("/arx/api/v1/auth/local/password", json={"current_password": GOOD2, "new_password": "quiet orange harbour 12"})
+    assert r.status_code == 200, r.text
+    assert lx.rows("SELECT must_change FROM auth_local_credentials WHERE user_id = ?", (uid,)) == [{"must_change": 0}]
+    # an ordinary change (no must_change) of an enrolled user still needs a fresh code
+    r = c2.put("/arx/api/v1/auth/local/password", json={"current_password": "quiet orange harbour 12", "new_password": "silver maple window 88"})
+    assert r.status_code == 400 and r.json()["code"] == "second_factor_required"
+
+
 def _code(secret_b32: str) -> str:
     pad = "=" * (-len(secret_b32) % 8)
     return sf.hotp(base64.b32decode(secret_b32 + pad), sf.step_of())
@@ -732,6 +919,29 @@ def test_backup_carries_hashes_but_no_sessions_links_or_counters(lx):
         assert table not in snap
     assert "security.local_identity" in backup.SETTINGS_KEEP
     assert not [r for r in snap.get("settings", []) if r["key"] == "security.local_identity"]
+
+
+def test_f9_failure_counters_never_travel_in_a_backup(lx):
+    """USR2-FIX F9 (CR-USR2 §1a.6): the per-account counter / lock columns of auth_local_credentials are left out of the archive,
+    and an archive that has them (an older one) never writes them back."""
+    from smplwise.services import backup
+
+    lx.enable()
+    created, _c = lx.ready("maria")
+    uid = created["user"]["id"]
+    lx.sign_in(lx.remote(), "maria", "not the password")
+    with lx.db.connection() as conn:
+        conn.execute("UPDATE auth_local_credentials SET delay_until = ?, unlocked_by = 'x' WHERE user_id = ?", (time.time() + 600, uid))
+    with lx.db.connection(mode="read") as conn:
+        snap = backup.snapshot(conn, include_access=True)
+    row = next(r for r in snap["auth_local_credentials"] if r["user_id"] == uid)
+    assert row["password_hash"].startswith("$scrypt$")
+    assert not {"failed_count", "last_failed_at", "delay_until", "unlocked_by"} & set(row)
+    tampered = {**row, "failed_count": 49, "last_failed_at": time.time(), "delay_until": time.time() + 900, "unlocked_by": "someone"}
+    with lx.db.connection() as conn:
+        backup._insert_rows(conn, "auth_local_credentials", [tampered], replace=True)
+    after = lx.rows("SELECT failed_count, last_failed_at, delay_until, unlocked_by, password_hash FROM auth_local_credentials WHERE user_id = ?", (uid,))[0]
+    assert after == {"failed_count": 0, "last_failed_at": None, "delay_until": None, "unlocked_by": None, "password_hash": row["password_hash"]}
 
 
 def test_janitor_prunes_old_links_and_sessions(lx):

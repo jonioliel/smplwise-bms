@@ -19,10 +19,14 @@ with the local prefix resolves to nothing (the HA path then answers exactly as b
   reason `second_factor_required` - fail closed until the user has enrolled and signed in with the code.
 - A session whose TOTP policy is `required` but whose user has not enrolled yet (gate "enrol"), or whose password must be
   changed (a temporary link), reaches only the few routes needed to get out of that state (ENROL_PATHS / CHANGE_PATHS).
-- Brute force (section 10): per account (delay doubling from the 5th failure in 15 min, 30 s .. 15 min; `lock` mode optional),
-  per address (20 / min, 100 / h, 300 / day; 429 + Retry-After), global (300 failures in 10 min: every sign-in waits 2 s and
-  accounts without a success in 30 days are refused for the window). Unknown usernames follow the same delay schedule in
-  memory, and every refusal is the same 401 `sign_in_failed` after the same kind of work (a dummy hash for unknown names).
+- Brute force (section 10, as amended by USR2-FIX F2): per (account, source network) in memory (delay doubling from the 5th
+  failure in 15 min, 30 s .. 15 min - a guesser elsewhere never delays the person signing in from their own network), plus a
+  per-account ceiling in the database (ACCOUNT_CEILING failures in one fixed 15-minute window, from all networks together, locks
+  the account for ACCOUNT_LOCK_S - audited, cleared by an administrator's unlock or by time); per address (20 / min, 100 / h,
+  300 / day; 429 + Retry-After), global (300 failures in 10 min: every sign-in waits 2 s and accounts without a success in 30
+  days are refused for the window). Unknown usernames follow exactly the same two schedules in memory, and every refusal is the
+  same 401 `sign_in_failed` after the same kind of work (a dummy hash for unknown names). Hashing is admitted through a
+  bounded waiting room (local_passwords.admit; USR2-FIX F3): beyond it the answer is the uniform 429 without hashing.
 - Nothing here logs, audits or returns a password, a cookie value, a link token or a typed unknown username.
 """
 from __future__ import annotations
@@ -77,6 +81,12 @@ ACCOUNT_WINDOW_S = 15 * 60
 ACCOUNT_DELAY_FIRST_S = 30.0
 ACCOUNT_DELAY_CAP_S = 15 * 60
 ACCOUNT_NOTIFY_AT = 10
+# USR2-FIX F2: the per-account delay above is keyed by (account, source network) in memory; the database keeps only a much
+# higher installation-wide ceiling per account (fixed, clock-aligned windows) that genuinely locks for ACCOUNT_LOCK_S, is audited
+# (`auth.local.account_locked`) and is cleared by an administrator (`POST identity/local-users/{id}/unlock`) or by time.
+ACCOUNT_CEILING = 50
+ACCOUNT_CEILING_WINDOW_S = 15 * 60
+ACCOUNT_LOCK_S = 15 * 60
 DELAY_SLEEP_CAP_S = 3.0
 IP_WINDOWS: tuple[tuple[int, int], ...] = ((60, 20), (3600, 100), (86400, 300))
 GLOBAL_WINDOW_S = 600
@@ -774,7 +784,10 @@ class _Tiers:
         self._lock = threading.Lock()
         self._ip: dict[str, dict[int, list[float]]] = {}  # key -> {window: [start, count]}
         self._global: collections.deque[float] = collections.deque(maxlen=20000)
-        self._unknown: dict[str, tuple[int, float, float]] = {}  # uname hash -> (failures, last failure, delay until)
+        # USR2-FIX F2: (uname hash, network key) -> (failures, last failure, delay until), for known AND unknown names alike
+        self._acct: dict[tuple[str, str], tuple[int, float, float]] = {}
+        # the ceiling twin of auth_local_credentials for names that do not exist: uname hash -> (window index, failures, locked until)
+        self._unknown: dict[str, tuple[int, int, float]] = {}
         self._dirty = False
         self._storm_notified = 0.0
 
@@ -830,20 +843,61 @@ class _Tiers:
                 return True
             return False
 
-    def unknown_delay(self, uname: str) -> float:
+    def _acct_key(self, uname: str, ip: str) -> tuple[str, str]:
+        return (_uname_hash(uname), self.ip_key(ip))
+
+    def acct_delay(self, uname: str, ip: str) -> float:
+        """Seconds left of the per-account delay of this name FROM THIS NETWORK (IPv4 address / IPv6 /64); 0 = none."""
+        key = self._acct_key(uname, ip)
         with self._lock:
-            n, last, until = self._unknown.get(_uname_hash(uname), (0, 0.0, 0.0))
+            _n, _last, until = self._acct.get(key, (0, 0.0, 0.0))
         return max(0.0, until - time.time())
 
-    def unknown_fail(self, uname: str) -> None:
+    def acct_fail(self, uname: str, ip: str) -> int:
+        """Count one failure of this name from this network; returns the failures counted in the current window."""
+        now = time.time()
+        key = self._acct_key(uname, ip)
+        with self._lock:
+            n, last, _until = self._acct.get(key, (0, 0.0, 0.0))
+            n = 1 if now - last > ACCOUNT_WINDOW_S else n + 1
+            self._acct[key] = (n, now, now + account_delay(n) if n >= ACCOUNT_FREE_FAILURES else 0.0)
+            if len(self._acct) > 20000:
+                for k in [k for k, v in self._acct.items() if now - v[1] > ACCOUNT_WINDOW_S][:5000]:
+                    self._acct.pop(k, None)
+        return n
+
+    def acct_clear(self, uname: str, ip: str) -> None:
+        with self._lock:
+            self._acct.pop(self._acct_key(uname, ip), None)
+
+    def acct_clear_name(self, uname: str) -> int:
+        """An administrator's unlock: every network's delay of this name ends (the ceiling row is cleared by the route)."""
+        h = _uname_hash(uname)
+        with self._lock:
+            keys = [k for k in self._acct if k[0] == h]
+            for k in keys:
+                self._acct.pop(k, None)
+            self._unknown.pop(h, None)
+        return len(keys)
+
+    def unknown_lock(self, uname: str) -> float:
+        """The ceiling lock of a name that does not exist (the memory twin of auth_local_credentials.delay_until)."""
+        with self._lock:
+            _w, _n, until = self._unknown.get(_uname_hash(uname), (0, 0, 0.0))
+        return max(0.0, until - time.time())
+
+    def unknown_ceiling_fail(self, uname: str) -> None:
         now = time.time()
         key = _uname_hash(uname)
+        window = int(now // ACCOUNT_CEILING_WINDOW_S)
         with self._lock:
-            n, last, until = self._unknown.get(key, (0, 0.0, 0.0))
-            n = 1 if now - last > ACCOUNT_WINDOW_S else n + 1
-            self._unknown[key] = (n, now, now + account_delay(n) if n >= ACCOUNT_FREE_FAILURES else 0.0)
+            w, n, until = self._unknown.get(key, (window, 0, 0.0))
+            n = n + 1 if w == window else 1
+            if n >= ACCOUNT_CEILING:
+                until = now + ACCOUNT_LOCK_S
+            self._unknown[key] = (window, n, until)
             if len(self._unknown) > 10000:
-                for k in [k for k, v in self._unknown.items() if now - v[1] > ACCOUNT_WINDOW_S][:2000]:
+                for k in [k for k, v in self._unknown.items() if v[0] != window and v[2] < now][:2000]:
                     self._unknown.pop(k, None)
 
     def flush(self, conn) -> int:
@@ -903,6 +957,7 @@ class _Tiers:
         with self._lock:
             self._ip.clear()
             self._global.clear()
+            self._acct.clear()
             self._unknown.clear()
             self._dirty = False
             self._storm_notified = 0.0
@@ -1045,25 +1100,41 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
                request_id=request_id)
         return SignInResult(status="failed", sleep_s=base_sleep + sleep_s)
 
+    # USR2-FIX F2: the per-account delay is keyed by (name, source network) - the same for a known and an unknown name - so a
+    # guesser's failures elsewhere never delay the person's correct password from their own network
+    net_delay = TIERS.acct_delay(uname, ip) if uname else 0.0
     if user is None:
         lp.verify_dummy(password if pw_ok_len else "")
-        delay = TIERS.unknown_delay(uname)
-        if delay:
-            return fail("account_delay", user_id=None, sleep_s=min(delay, DELAY_SLEEP_CAP_S), count=False)
+        if net_delay:
+            return fail("account_delay", user_id=None, sleep_s=min(net_delay, DELAY_SLEEP_CAP_S), count=False)
+        lock = TIERS.unknown_lock(uname) if uname else 0.0
+        if lock:
+            return fail("account_locked", user_id=None, sleep_s=min(lock, DELAY_SLEEP_CAP_S), count=False)
         if uname:
-            TIERS.unknown_fail(uname)
+            TIERS.acct_fail(uname, ip)
+            TIERS.unknown_ceiling_fail(uname)
         return fail("password", user_id=None)
     uid = user["id"]
-    delay_left = max(0.0, float(user["delay_until"] or 0.0) - now)
     usable = bool(user["active"]) and not user["deleted_at"] and bool(user["password_hash"])
-    if delay_left:
+    if net_delay:
         lp.verify_dummy(password if pw_ok_len else "")
         write, suppressed = REFUSAL_AUDITS.admit(f"local_delayed|{uid}")
         if write:  # at most one row per account a minute (the folded attempts are counted on the next one)
             _audit(db, actor=None, action="auth.local.sign_in.delayed", decision="denied", reason="account_delay" if mode == "delay" else "account_locked",
-                   resource_id=uid, details={"ip": masked, "seconds_left": int(delay_left), **({"suppressed_since_last": suppressed} if suppressed else {})},
+                   resource_id=uid, details={"ip": masked, "tier": "network", "seconds_left": int(net_delay),
+                                             **({"suppressed_since_last": suppressed} if suppressed else {})},
                    request_id=request_id)
-        return SignInResult(status="failed", sleep_s=base_sleep + min(delay_left, DELAY_SLEEP_CAP_S))
+        return SignInResult(status="failed", sleep_s=base_sleep + min(net_delay, DELAY_SLEEP_CAP_S))
+    lock_left = max(0.0, float(user["delay_until"] or 0.0) - now)  # the ceiling lock (all networks together)
+    if lock_left:
+        lp.verify_dummy(password if pw_ok_len else "")
+        write, suppressed = REFUSAL_AUDITS.admit(f"local_locked|{uid}")
+        if write:
+            _audit(db, actor=None, action="auth.local.sign_in.delayed", decision="denied", reason="account_ceiling",
+                   resource_id=uid, details={"ip": masked, "tier": "ceiling", "seconds_left": int(lock_left),
+                                             **({"suppressed_since_last": suppressed} if suppressed else {})},
+                   request_id=request_id)
+        return SignInResult(status="failed", sleep_s=base_sleep + min(lock_left, DELAY_SLEEP_CAP_S))
     if storm and not (user["last_sign_in_at"] and now - epoch(user["last_sign_in_at"]) < STALE_ACCOUNT_DAYS * 86400):
         lp.verify_dummy(password if pw_ok_len else "")
         return fail("global_tier", user_id=uid, count=False)
@@ -1071,16 +1142,23 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
     if not (usable and pw_ok_len):  # the same one hash computation as a real check, whatever stopped it
         lp.verify_dummy(password if pw_ok_len else "")
     if not ok:
-        failures = 1 if now - float(user["last_failed_at"] or 0.0) > ACCOUNT_WINDOW_S else int(user["failed_count"] or 0) + 1
-        delay = account_delay(failures)
+        net_failures = TIERS.acct_fail(uname, ip)
+        last = float(user["last_failed_at"] or 0.0)
+        same_window = bool(last) and int(last // ACCOUNT_CEILING_WINDOW_S) == int(now // ACCOUNT_CEILING_WINDOW_S)
+        failures = int(user["failed_count"] or 0) + 1 if same_window else 1
+        locked = failures >= ACCOUNT_CEILING
         with db.connection(label="local sign-in failure") as conn:
             conn.execute("UPDATE auth_local_credentials SET failed_count = ?, last_failed_at = ?, delay_until = ?, updated_at = ? WHERE user_id = ?",
-                         (failures, now, (now + delay) if delay else None, iso(now), uid))
-        if failures == ACCOUNT_NOTIFY_AT:
+                         (failures, now, (now + ACCOUNT_LOCK_S) if locked else None, iso(now), uid))
+        if locked:
+            _audit(db, actor=None, action="auth.local.account_locked", decision="denied", reason="ceiling", resource_id=uid,
+                   details={"failures_15min": failures, "lock_seconds": int(ACCOUNT_LOCK_S), "unlock": "identity.local.manage"}, request_id=request_id)
+        if net_failures == ACCOUNT_NOTIFY_AT:
             _audit(db, actor=None, action="auth.local.account_delayed", decision="denied", reason="ten_failures", resource_id=uid,
-                   details={"failures": failures}, request_id=request_id)
+                   details={"failures": net_failures, "ip": masked}, request_id=request_id)
         return fail("password" if usable else ("disabled" if not user["active"] else "no_password"), user_id=uid)
     # success
+    TIERS.acct_clear(uname, ip)
     principal = Principal(user_id=uid, username=user["username"], display_name=user["display_name"] or user["username"], source="local", via="cookie")
     with db.connection(label="local sign-in success") as conn:
         if lp.needs_rehash(user["password_hash"], int(user["params_version"] or 1)):
@@ -1223,11 +1301,18 @@ def change_password(conn, settings: Settings, conn_like: Any, s: LocalSession, c
     from . import second_factor as sf
 
     uid = s.user_id
-    row = conn.execute("SELECT u.username, u.display_name, c.password_hash FROM users u JOIN auth_local_credentials c ON c.user_id = u.id WHERE u.id = ?", (uid,)).fetchone()
+    row = conn.execute("SELECT u.username, u.display_name, c.password_hash, c.must_change FROM users u JOIN auth_local_credentials c ON c.user_id = u.id WHERE u.id = ?",
+                       (uid,)).fetchone()
     if row is None or not lp.verify(current, row["password_hash"]):
         _audit(conn, actor=s.principal, action="auth.local.password.change_refused", decision="denied", reason="current_password", request_id=request_id)
         raise ApiError(400, "current_password_invalid", "הסיסמה הנוכחית אינה נכונה.")
-    if sf.is_enrolled(conn, uid):
+    # USR2-FIX F11: the forced change after a TEMPORARY link (must_change) of an enrolled user. That session exists only because its
+    # sign-in passed the TOTP step moments ago (factor_at on the session row - an enrolled user never gets a session without it),
+    # and while must_change is set the session reaches nothing but this route (CHANGE_PATHS). Asking for a second code here is
+    # what left the user stuck on the login page (no code field in that step), so the code shown AT THIS SIGN-IN counts. Every
+    # other password change of an enrolled user still needs a fresh code.
+    factor_shown_at_sign_in = bool(row["must_change"]) and bool(s.principal.factor_ok)
+    if sf.is_enrolled(conn, uid) and not factor_shown_at_sign_in:
         if not code:
             raise ApiError(400, "second_factor_required", sf.REQUIRED_HE)
         try:

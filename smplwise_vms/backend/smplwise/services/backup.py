@@ -55,6 +55,10 @@ PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
 ACCESS_TABLES = ["users", "auth_local_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
                  # CR-033: where stations sit (station scope), which relay each WisKey lock is, and the door grant card's own bindings
                  "intercom_station_placement", "intercom_door_map", "door_grant_bindings"]
+# USR2-FIX F9 (CR-USR2 §1a.6 "failure counters never travel in a backup"): the per-account failure counter, the ceiling lock and
+# who last unlocked it are columns of auth_local_credentials. They are left out of every archive and ignored in an archive that
+# has them (an older one), so a restored row starts with the column defaults (no failures, no lock).
+NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": frozenset({"failed_count", "last_failed_at", "delay_until", "unlocked_by"})}
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -138,6 +142,9 @@ def snapshot(conn: sqlite3.Connection, include_access: bool = True, include_audi
     existing = _tables(conn)
     tables = PROJECT_TABLES + (ACCESS_TABLES if include_access else []) + (OPTIONAL_TABLES["audit"] if include_audit else []) + (OPTIONAL_TABLES["events"] if include_events else [])
     out = {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
+    for t, cols in NEVER_EXPORTED_COLUMNS.items():
+        if t in out:
+            out[t] = [{k: v for k, v in r.items() if k not in cols} for r in out[t]]
     if "settings" in out:  # review M3: what a restore never writes back (secrets, identity, pairing) never leaves in an archive either
         out["settings"] = [r for r in out["settings"] if not _kept_setting(r.get("key"))]
     return out
@@ -319,7 +326,7 @@ def _actor_rows(conn: sqlite3.Connection, user_id: str | None) -> dict[str, list
 
 def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]], replace: bool) -> int:
     """Write the archive's rows of one table; returns how many rows were written (what the restore answer reports)."""
-    cols_now = set(_columns(conn, table))
+    cols_now = set(_columns(conn, table)) - NEVER_EXPORTED_COLUMNS.get(table, frozenset())
     n = 0
     verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
     for row in rows:

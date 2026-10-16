@@ -74,6 +74,7 @@ MESSAGES: dict[str, dict[str, str]] = {
     "speak_failed": {"he": "ההכרזה לא נשלחה.", "en": "The announcement was not sent."},
     "validation": {"he": "הבקשה אינה תקינה.", "en": "The request is not valid."},
     "quiet_hours": {"he": "שעות שקט: ההכרזה לא הושמעה.", "en": "Quiet hours: the announcement was not spoken."},
+    "local_identity_not_allowed": {"he": "הכרזות אינן זמינות עדיין למשתמשי Arx.", "en": "Announcements are not available to Arx users yet."},
 }
 
 
@@ -487,6 +488,12 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     releases the write lock around the speak call; None (a test) calls it directly. A refusal is logged and audited first, then
     raised as an ApiError (the request still commits it). `volume` is a whole percent (clamped); `critical` is exempt from the quiet hours.
     Returns `{id, status: "sent", targets: n}`."""
+    if principal is not None and principal.source == "local":
+        # USR2-FIX F4 (CR-USR2 §1a.5): an Arx-only identity has no infrastructure identity; this call would run on the add-on's own
+        # token, so until phase 3 (the service identity with its per-feature allow-list) it is refused - fail closed, audited
+        audit(conn, actor=principal, action=PERM, decision="denied", resource_type=scope if scope in ("device", "area") else "announcement",
+              resource_id=ref if isinstance(ref, str) else None, reason="local_identity_ha_action", request_id=request_id, details={"source": source})
+        raise err(403, "local_identity_not_allowed")
     if scope not in ("device", "area") or not isinstance(ref, str) or not 0 < len(ref) <= 64:
         raise err(422, "validation", fields=["scope"])
     if volume is not None:

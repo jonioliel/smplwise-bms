@@ -471,7 +471,7 @@ def bulk_bindings(request: Request, principal: Principal = Depends(_assign_gate_
             raise _item_refusal(ApiError(409, "duplicate_item", "אותו שיוך מופיע פעמיים בבקשה.", details={"first_index": seen[key]}), i, item.subject_id, item.subject_kind)
         seen[key] = i
         try:
-            validate_binding(conn, principal, item)
+            validate_binding(conn, principal, item, request)
         except ApiError as exc:
             raise _item_refusal(exc, i, item.subject_id, item.subject_kind) from None
     created: list[dict[str, Any]] = []
