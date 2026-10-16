@@ -80,10 +80,10 @@ function people(t: TicketDetail & { link?: LinkBlock | null }, ctx: OverviewCtx)
       <span class=${`av lg ${ext ? 'ext' : 'int'}`} aria-hidden="true">${initials(a.name)}</span>
       <div class="pt">
         <div class="nm"><b>${bidi(a.name)}</b><span class="role">${role}${a.since ? ` · ${relTime(a.since, ctx.now)}` : ''}</span></div>
-        ${t.eta_at || link || asg?.channel === 'whatsapp' ? html`<div class="meta">
+        ${link || asg?.channel === 'whatsapp' ? html`<div class="meta">
           ${asg?.channel === 'whatsapp' ? html`<span class="chan">${tIcon('send')}WhatsApp</span>` : nothing}
           ${link ? html`<span class=${`chan ${link.tone}`} data-link-line>${tIcon('link')}${link.text}</span>` : nothing}
-          ${t.eta_at ? html`<span class="chan">${tIcon('clock')}${dwt('nowEta')}: ${etaText(t.eta_at, ctx.now)}</span>` : nothing}
+
         </div>` : nothing}
       </div>
       ${ctx.onReassign ? html`<button type="button" class="btn sm quiet" data-ov-reassign data-assign ?disabled=${ctx.busy} @click=${ctx.onReassign}>${tIcon('refresh')}${dwt('a_reassign')}</button>` : nothing}
@@ -271,7 +271,7 @@ export const overviewStyles = css`
     font-size: var(--sw-fs-md);
   }
   .orow .ot > div b {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     max-inline-size: 45%;
     overflow: hidden;
     text-overflow: ellipsis;
