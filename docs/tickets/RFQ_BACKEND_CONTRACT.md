@@ -319,7 +319,7 @@ request `sent` -> `collecting`, an `opened` timeline row on the first open only;
          "total_minor"}},
  "declined": null | {"at", "reason"},
  "messages": [{"id", "mine": true | false, "text", "at"}],
- "form": {"currencies": ["ILS"], "allowed_kinds": ["labor", "parts"], "vat": {"exempt": false, "rate_bp": 1800,
+ "form": {"currencies": ["ILS"], "currency": "ILS", "allowed_kinds": ["labor", "parts"], "vat": {"exempt": false, "rate_bp": 1800,
           "default": "excluded | included | none"}, "labor_rate_minor": null,
           "limits": {"lines": 30, "description": 120, "note": 1000, "vendor_ref": 40, "message": 2000, "decline_reason": 200,
                      "max_total_minor": 0}},
@@ -416,3 +416,7 @@ the links.
   - Retention runs inside the cost janitor (`costs_retention.janitor`, every 10 min): deadlines, link rows, purge.
   - Inbound WhatsApp replies are not matched to RFQs (residual: a vendor's text reply to an RFQ message is handled by the ticket
     matcher as today - usually `unknown_sender`).
+* v1.1 (2026-10-16, TKRFQVP): section 15 - the public vendor quote page (routes on the existing public listener, `#q.<token>` URL,
+  shared e-mail redeem, optional per-vendor verification code - owner decision: off by default, exposed-fields table), the manager-side
+  vendor options (`meta.vendor_options`, `vendors[].channel / require_code`, `POST .../vendors/{rv_id}/options`), `rfq.VENDOR_PAGE = True`,
+  additive changes inside the still-provisional 0089 (no new migration number). `form.currency` added after the contract-first push.

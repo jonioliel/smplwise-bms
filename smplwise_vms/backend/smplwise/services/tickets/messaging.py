@@ -505,7 +505,7 @@ class MessagingRuntime:
         if not row.code_id or not row.link_id:
             return None
         with obs.Access(self.db).read() as conn:
-            link = store_links.link(conn, row.link_id)
+            link = store_links.link(conn, row.link_id) or store_rfq.link(conn, row.link_id)  # TKRFQVP: an RFQ vendor link's code
         if link is None:
             return None
         try:

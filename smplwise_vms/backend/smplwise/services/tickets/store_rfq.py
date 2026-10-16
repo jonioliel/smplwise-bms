@@ -16,7 +16,7 @@ from ...db import new_id
 RFQ_COLUMNS = ("id", "number", "department_id", "title", "description", "site_id", "building_id", "floor_id", "place_text",
                "source_ticket_id", "allowed_line_kinds", "due_at", "work_from", "work_to", "internal_owner_user_id", "state", "created_by",
                "created_at", "updated_at", "sent_at", "due_passed_at", "awarded_at", "closed_at", "cancelled_at", "cancel_reason", "revision")
-VENDOR_COLUMNS = ("id", "rfq_id", "contact_id", "channel", "state", "require_code", "invited_at", "sent_at", "first_opened_at",
+VENDOR_COLUMNS = ("id", "rfq_id", "contact_id", "channel", "channel_choice", "state", "require_code", "invited_at", "sent_at", "first_opened_at",
                   "last_opened_at", "open_count", "quoted_at", "declined_at", "decline_reason", "removed_at", "created_by", "created_at",
                   "updated_at", "revision")
 LINK_COLUMNS = ("id", "rfq_vendor_id", "rfq_id", "contact_id", "generation", "key_id", "token_hash", "require_code", "sent_via", "sent_at",
@@ -172,6 +172,129 @@ def link_of_vendor(conn: sqlite3.Connection, rfq_vendor_id: str) -> dict[str, An
 def link_by_token_hash(conn: sqlite3.Connection, token_hash: str) -> dict[str, Any] | None:
     """Stage C2's single indexed lookup (the public listener)."""
     return _dict(conn.execute("SELECT * FROM ticket_rfq_links WHERE token_hash = ?", (token_hash,)).fetchone())
+
+
+# TKRFQVP (contract 15.1): the public listener's ONE read of an RFQ token - the link, its vendor, its request and its contact, by the
+# unique index on `ticket_rfq_links.token_hash`, the same statement for every state of the row
+LOOKUP_SQL = (
+    "SELECT l.*, v.state AS v_state, v.require_code AS v_require_code, r.state AS r_state, r.number AS r_number, "
+    "c.phone_key AS c_phone_key, c.erased_at AS c_erased_at, c.active AS c_active, c.user_id AS c_user_id, c.employee AS c_employee "
+    "FROM ticket_rfq_links l JOIN ticket_rfq_vendors v ON v.id = l.rfq_vendor_id JOIN ticket_rfqs r ON r.id = l.rfq_id "
+    "JOIN ticket_contacts c ON c.id = l.contact_id ")
+
+
+def link_by_token_joined(conn: sqlite3.Connection, token_hash: str) -> dict[str, Any] | None:
+    return _dict(conn.execute(LOOKUP_SQL + "WHERE l.token_hash = ?", (token_hash,)).fetchone())
+
+
+def link_by_id_joined(conn: sqlite3.Connection, link_id: str) -> dict[str, Any] | None:
+    return _dict(conn.execute(LOOKUP_SQL + "WHERE l.id = ?", (link_id,)).fetchone())
+
+
+def release_redeem(conn: sqlite3.Connection, id_hash: str, now: str, max_uses: int) -> tuple[str, int] | None:
+    """ONE statement (W4, as store_links.release_redeem): check and increment together."""
+    row = conn.execute(
+        "UPDATE ticket_rfq_link_redeems SET uses = uses + 1 WHERE id_hash = ? AND expires_at > ? AND uses < ? RETURNING link_id, generation",
+        (id_hash, now, int(max_uses))).fetchone()
+    return (row[0], int(row[1])) if row else None
+
+
+def note_open(conn: sqlite3.Connection, link_id: str, rfq_vendor_id: str, at: str) -> bool:
+    """A vendor opened his page: the counters of the link and the vendor row (no revision bump - a system move). True on the first open."""
+    conn.execute("UPDATE ticket_rfq_links SET first_opened_at = COALESCE(first_opened_at, ?), last_opened_at = ?, open_count = open_count + 1 "
+                 "WHERE id = ?", (at, at, link_id))
+    first = conn.execute("SELECT first_opened_at IS NULL FROM ticket_rfq_vendors WHERE id = ?", (rfq_vendor_id,)).fetchone()
+    conn.execute("UPDATE ticket_rfq_vendors SET first_opened_at = COALESCE(first_opened_at, ?), last_opened_at = ?, open_count = open_count + 1, "
+                 "state = CASE WHEN state = 'sent' THEN 'opened' ELSE state END WHERE id = ?", (at, at, rfq_vendor_id))
+    return bool(first and first[0])
+
+
+def set_vendor_code(conn: sqlite3.Connection, rfq_vendor_id: str, require_code: bool) -> None:
+    """The vendor's code choice reaches his live link at once (contract 15.2)."""
+    conn.execute("UPDATE ticket_rfq_links SET require_code = ? WHERE rfq_vendor_id = ? AND revoked_at IS NULL", (1 if require_code else 0, rfq_vendor_id))
+
+
+def inbound_message_count(conn: sqlite3.Connection, rfq_vendor_id: str) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM ticket_rfq_messages WHERE rfq_vendor_id = ? AND direction = 'in'", (rfq_vendor_id,)).fetchone()[0])
+
+
+# ---------------------------------------------------------------- verification codes of RFQ links (contract 15.2; the 0080 rules)
+
+def code_latest(conn: sqlite3.Connection, link_id: str, generation: int) -> dict[str, Any] | None:
+    return _dict(conn.execute(
+        "SELECT * FROM ticket_rfq_link_codes WHERE link_id = ? AND generation = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        (link_id, generation)).fetchone())
+
+
+def code_times_since(conn: sqlite3.Connection, link_id: str, generation: int, since: str) -> list[str]:
+    return [r[0] for r in conn.execute(
+        "SELECT created_at FROM ticket_rfq_link_codes WHERE link_id = ? AND generation = ? AND created_at >= ? ORDER BY created_at",
+        (link_id, generation, since)).fetchall()]
+
+
+def code_replace(conn: sqlite3.Connection, row: Mapping[str, Any], now: str) -> None:
+    """One transaction (W7): every older unconsumed live code of the LINK stops at `now`, then the new row."""
+    conn.execute("UPDATE ticket_rfq_link_codes SET expires_at = ? WHERE link_id = ? AND consumed_at IS NULL AND expires_at > ?",
+                 (now, row["link_id"], now))
+    conn.execute(
+        "INSERT INTO ticket_rfq_link_codes(id, link_id, generation, code_hash, channel, created_at, expires_at, attempts, consumed_at, outbox_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+        (row["id"], row["link_id"], row["generation"], row["code_hash"], row["channel"], row["created_at"], row["expires_at"],
+         int(row.get("attempts") or 0), row.get("consumed_at")))
+
+
+def code_expire(conn: sqlite3.Connection, code_id: str, now: str) -> None:
+    conn.execute("UPDATE ticket_rfq_link_codes SET expires_at = MIN(expires_at, ?) WHERE id = ?", (now, code_id))
+
+
+def code_add_attempt(conn: sqlite3.Connection, code_id: str) -> int:
+    conn.execute("UPDATE ticket_rfq_link_codes SET attempts = attempts + 1 WHERE id = ?", (code_id,))
+    row = conn.execute("SELECT attempts FROM ticket_rfq_link_codes WHERE id = ?", (code_id,)).fetchone()
+    return int(row[0]) if row else 0
+
+
+def code_consume(conn: sqlite3.Connection, code_id: str, now: str) -> bool:
+    return conn.execute("UPDATE ticket_rfq_link_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL", (now, code_id)).rowcount == 1
+
+
+def code_set_outbox(conn: sqlite3.Connection, code_id: str, outbox_id: str) -> None:
+    conn.execute("UPDATE ticket_rfq_link_codes SET outbox_id = ? WHERE id = ?", (outbox_id, code_id))
+
+
+def code_failures(conn: sqlite3.Connection, link_id: str, generation: int) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_link_failures WHERE link_id = ? AND generation = ?", (link_id, generation)).fetchone())
+
+
+def code_put_failures(conn: sqlite3.Connection, link_id: str, generation: int, window_start: str, n: int, locked_until: str | None) -> None:
+    conn.execute(
+        "INSERT INTO ticket_rfq_link_failures(link_id, generation, window_start, failures, locked_until) VALUES (?, ?, ?, ?, ?) "
+        "ON CONFLICT(link_id, generation) DO UPDATE SET window_start = excluded.window_start, failures = excluded.failures, "
+        "locked_until = excluded.locked_until", (link_id, generation, window_start, n, locked_until))
+
+
+def code_clear_failures(conn: sqlite3.Connection, link_id: str, generation: int) -> None:
+    conn.execute("DELETE FROM ticket_rfq_link_failures WHERE link_id = ? AND generation = ?", (link_id, generation))
+
+
+def code_put_session(conn: sqlite3.Connection, id_hash: str, link_id: str, generation: int, created_at: str, expires_at: str) -> None:
+    conn.execute("INSERT OR REPLACE INTO ticket_rfq_link_sessions(id_hash, link_id, generation, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+                 (id_hash, link_id, generation, created_at, expires_at))
+
+
+def code_session(conn: sqlite3.Connection, id_hash: str) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_link_sessions WHERE id_hash = ?", (id_hash,)).fetchone())
+
+
+def prune_codes(conn: sqlite3.Connection, before: str) -> int:
+    """Codes, sessions and wrong-code windows one day after their end (the hourly retention of the public listener)."""
+    n = conn.execute("DELETE FROM ticket_rfq_link_codes WHERE expires_at < ?", (before,)).rowcount
+    n += conn.execute("DELETE FROM ticket_rfq_link_sessions WHERE expires_at < ?", (before,)).rowcount
+    n += conn.execute("DELETE FROM ticket_rfq_link_failures WHERE (locked_until IS NULL OR locked_until < ?) AND window_start < ?",
+                      (before, before)).rowcount
+    return n
+
+
+CODE_TABLES = ("ticket_rfq_link_codes", "ticket_rfq_link_failures", "ticket_rfq_link_sessions")
 
 
 def links_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
@@ -366,6 +489,8 @@ def ended_before(conn: sqlite3.Connection, before: str) -> list[dict[str, Any]]:
 def drop_links_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> int:
     """Spec 6: link ids go 30 days after the request closed (the vendor rows keep their states)."""
     conn.execute("DELETE FROM ticket_rfq_link_redeems WHERE link_id IN (SELECT id FROM ticket_rfq_links WHERE rfq_id = ?)", (rfq_id,))
+    for table in CODE_TABLES:  # TKRFQVP (contract 15.7): codes, sessions, wrong-code windows go with their links
+        conn.execute(f"DELETE FROM {table} WHERE link_id IN (SELECT id FROM ticket_rfq_links WHERE rfq_id = ?)", (rfq_id,))
     return conn.execute("DELETE FROM ticket_rfq_links WHERE rfq_id = ?", (rfq_id,)).rowcount
 
 
@@ -387,6 +512,8 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
     links = "(SELECT id FROM ticket_rfq_links WHERE rfq_id = ?)"
     run("ticket_outbox", f"DELETE FROM ticket_outbox WHERE rfq_id = ? OR link_id IN {links}", (rfq_id, rfq_id))
     run("ticket_rfq_link_redeems", f"DELETE FROM ticket_rfq_link_redeems WHERE link_id IN {links}", (rfq_id,))
+    for table in CODE_TABLES:  # TKRFQVP (contract 15.7)
+        run(table, f"DELETE FROM {table} WHERE link_id IN {links}", (rfq_id,))
     run("ticket_rfq_links", "DELETE FROM ticket_rfq_links WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_messages", "DELETE FROM ticket_rfq_messages WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_awards", "DELETE FROM ticket_rfq_awards WHERE rfq_id = ?", (rfq_id,))
@@ -414,6 +541,8 @@ def rfq_rows_left(conn: sqlite3.Connection, rfq_id: str, vendor_ids: list[str], 
         checks.append(("ticket_quotes", "SELECT COUNT(*) FROM ticket_quotes WHERE rfq_vendor_id = ?", (vid,)))
     for lid in link_ids:
         checks.append(("ticket_rfq_link_redeems", "SELECT COUNT(*) FROM ticket_rfq_link_redeems WHERE link_id = ?", (lid,)))
+        for table in CODE_TABLES:
+            checks.append((table, f"SELECT COUNT(*) FROM {table} WHERE link_id = ?", (lid,)))
     for table, sql, args in checks:
         n = int(conn.execute(sql, args).fetchone()[0])
         if n:

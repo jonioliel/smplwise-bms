@@ -55,6 +55,7 @@ CREATE TABLE ticket_rfq_vendors (
   state           TEXT NOT NULL CHECK (state IN ('draft', 'sent', 'opened', 'quoted', 'declined', 'expired', 'withdrawn', 'awarded',
                                                  'not_awarded', 'removed')),
   require_code    INTEGER NOT NULL DEFAULT 0 CHECK (require_code IN (0, 1)),
+  channel_choice  TEXT NOT NULL DEFAULT 'auto' CHECK (channel_choice IN ('auto', 'whatsapp', 'email', 'manual')),
   invited_at      TEXT NOT NULL,
   sent_at         TEXT,
   first_opened_at TEXT,
@@ -110,6 +111,42 @@ CREATE TABLE ticket_rfq_link_redeems (
 CREATE INDEX idx_ticket_rfq_link_redeems_link ON ticket_rfq_link_redeems (link_id);
 CREATE INDEX idx_ticket_rfq_link_redeems_expiry ON ticket_rfq_link_redeems (expires_at);
 
+-- TKRFQVP (contract section 15.2): the OPTIONAL verification code of a vendor link (owner decision 16.10: off by default, per vendor) -
+-- the same columns and rules as ticket_link_codes / ticket_link_failures / ticket_link_sessions (0080), per link generation.
+CREATE TABLE ticket_rfq_link_codes (
+  id            TEXT PRIMARY KEY,
+  link_id       TEXT NOT NULL REFERENCES ticket_rfq_links(id) ON DELETE CASCADE,
+  generation    INTEGER NOT NULL,
+  code_hash     TEXT NOT NULL,
+  channel       TEXT NOT NULL CHECK (channel IN ('whatsapp', 'email')),
+  created_at    TEXT NOT NULL,
+  expires_at    TEXT NOT NULL,
+  attempts      INTEGER NOT NULL DEFAULT 0,
+  consumed_at   TEXT,
+  outbox_id     TEXT
+);
+CREATE INDEX idx_ticket_rfq_link_codes_link ON ticket_rfq_link_codes (link_id, generation, created_at DESC);
+CREATE INDEX idx_ticket_rfq_link_codes_expiry ON ticket_rfq_link_codes (expires_at);
+
+CREATE TABLE ticket_rfq_link_failures (
+  link_id      TEXT NOT NULL REFERENCES ticket_rfq_links(id) ON DELETE CASCADE,
+  generation   INTEGER NOT NULL,
+  window_start TEXT NOT NULL,
+  failures     INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,
+  PRIMARY KEY (link_id, generation)
+);
+
+CREATE TABLE ticket_rfq_link_sessions (
+  id_hash      TEXT PRIMARY KEY,
+  link_id      TEXT NOT NULL REFERENCES ticket_rfq_links(id) ON DELETE CASCADE,
+  generation   INTEGER NOT NULL,
+  created_at   TEXT NOT NULL,
+  expires_at   TEXT NOT NULL
+);
+CREATE INDEX idx_ticket_rfq_link_sessions_link ON ticket_rfq_link_sessions (link_id);
+CREATE INDEX idx_ticket_rfq_link_sessions_expiry ON ticket_rfq_link_sessions (expires_at);
+
 CREATE TABLE ticket_rfq_awards (
   id                      TEXT PRIMARY KEY,
   rfq_id                  TEXT NOT NULL REFERENCES ticket_rfqs(id) ON DELETE CASCADE,
@@ -164,6 +201,9 @@ CREATE TABLE ticket_rfq_events (
   at             TEXT NOT NULL
 );
 CREATE INDEX idx_ticket_rfq_events_rfq ON ticket_rfq_events (rfq_id, id);
+
+-- TKRFQVP (contract 15.4): how long the vendor's quote stays valid (an instant; NULL = not stated)
+ALTER TABLE ticket_quotes ADD COLUMN valid_until TEXT;
 
 ALTER TABLE ticket_departments ADD COLUMN rfq_second_approval_minor INTEGER CHECK (rfq_second_approval_minor IS NULL OR rfq_second_approval_minor >= 0);
 

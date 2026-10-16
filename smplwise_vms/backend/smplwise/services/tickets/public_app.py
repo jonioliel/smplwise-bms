@@ -168,6 +168,9 @@ class PublicDeps:
     # `claim_window(link, now)` answers that window's end (epoch seconds) or None; asked ONLY for a token that matched a row
     claim_window: Callable[[LinkRecord, float], float | None] | None = None
     claim_files: "ClaimFileSink | None" = None
+    # TKRFQVP (RFQ contract 15.1): the e-mail form of an RFQ vendor link shares `/t/r/<rid>` and this redeem route - asked ONLY when the id
+    # is not a ticket redeem id: `rfq_redeem(rid_hash, now, max_uses)` answers the RFQ token (domain `rfq`) or None
+    rfq_redeem: Callable[[str, float, int], str | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -542,6 +545,12 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
             until = await run_in_threadpool(deps.claim_window, link, now)
             if until is not None and now < until:
                 link = dataclasses.replace(link, expires_at=until, grace_until=None, revoked=False)
+        if released is None and rid is not None and deps.rfq_redeem is not None:
+            # TKRFQVP: not a ticket redeem id - maybe an RFQ one (one more indexed read; ONE failure is still counted when neither)
+            rfq_token = await run_in_threadpool(deps.rfq_redeem, links.redeem_hash(rid), now, REDEEM_MAX_USES)
+            if rfq_token is not None:
+                gate.success(links.limiter_key(links.token_hash(rfq_token)), counted=True)
+                return JSONResponse({"token": rfq_token, "kind": "rfq"})
         if released is None or link is None or link.generation != released[1] or not link.available(now):
             gate.failure(pr.net, kind="redeem", lookup=rid is not None)  # the redeem route's own exit cost
             raise unavailable()

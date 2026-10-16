@@ -9,6 +9,7 @@
     DELETE /tickets/rfqs/{id}                                          tickets.delete: full deletion
     POST   /tickets/rfqs/{id}/vendors                                  RFQ manager: invite one more vendor (draft)
     POST   /tickets/rfqs/{id}/vendors/{rv}/remove                      RFQ manager
+    POST   /tickets/rfqs/{id}/vendors/{rv}/options                     RFQ manager: the verification code / channel of one vendor (C2)
     POST   /tickets/rfqs/{id}/vendors/{rv}/link/revoke                 RFQ manager
     POST   /tickets/rfqs/{id}/vendors/{rv}/quotes                      on behalf (tickets.costs + view)
     POST   /tickets/rfqs/{id}/vendors/{rv}/quotes/{quote_id}/withdraw  on behalf
@@ -77,9 +78,14 @@ def list_rfqs(state: str = Query("open", pattern=STATE_FILTER), department_id: s
     return {"items": [rfq.summary(conn, viewer, s, now) for s in page], "next_cursor": nxt}
 
 
+Channel = Literal["auto", "whatsapp", "email", "manual"]
+
+
 class VendorRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
     contact_id: str = Field(min_length=1, max_length=64, pattern=ID)
+    channel: Channel | None = None  # TKRFQVP (contract 15.6): the manager's per-vendor choice (meta.vendor_options)
+    require_code: bool | None = None  # TKRFQVP: the optional verification code (off by default; the directory may demand it)
 
 
 class CreateBody(BaseModel):
@@ -111,7 +117,7 @@ def create_rfq(body: CreateBody, request: Request, principal: Principal = Depend
         rfq_id = json.loads(prior["response_json"]).get("id")
         return _detail(conn, viewer, rfq_id)
     payload = body.model_dump(exclude={"client_request_id"}, exclude_none=True)
-    payload["vendors"] = [v.model_dump() for v in body.vendors]
+    payload["vendors"] = [v.model_dump(exclude_none=True) for v in body.vendors]
     rfq_id = rfq.create(conn, viewer, payload, _rid(request))
     store.request_put(conn, scope, body.client_request_id, "rfq.create", 201, {"id": rfq_id})
     return _detail(conn, viewer, rfq_id)
@@ -181,6 +187,15 @@ class AddVendorBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     contact_id: str = Field(min_length=1, max_length=64, pattern=ID)
     revision: int = Field(ge=1)
+    channel: Channel | None = None
+    require_code: bool | None = None
+
+
+class VendorOptionsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=1)
+    channel: Channel | None = None
+    require_code: bool | None = None
 
 
 @router.post("/tickets/rfqs/{rfq_id}/vendors", status_code=201)
@@ -188,7 +203,8 @@ def post_vendor(body: AddVendorBody, request: Request, rfq_id: str = Path(..., p
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
-    vid = rfq.add_vendor_route(conn, viewer, seen, body.contact_id, body.revision, _rid(request))
+    vid = rfq.add_vendor_route(conn, viewer, seen, body.contact_id, body.revision, _rid(request), channel=body.channel,
+                               require_code=body.require_code)
     out = _detail(conn, viewer, rfq_id)
     out["vendor_id"] = vid
     return out
@@ -201,6 +217,19 @@ def post_vendor_remove(body: RevisionBody, request: Request, rfq_id: str = Path(
     seen = rfq.require_visible(viewer, rfq_id)
     rfq.remove_vendor(conn, viewer, seen, vendor_id, body.revision, _rid(request))
     return _detail(conn, viewer, rfq_id)
+
+
+@router.post("/tickets/rfqs/{rfq_id}/vendors/{vendor_id}/options")
+def post_vendor_options(body: VendorOptionsBody, request: Request, rfq_id: str = Path(..., pattern=ID), vendor_id: str = Path(..., pattern=ID),
+                        principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TKRFQVP (contract 15.6): the per-vendor verification code / invitation channel after creation."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    changed = rfq.vendor_options(conn, viewer, seen, vendor_id, body.revision, require_code=body.require_code, channel=body.channel,
+                                 rid=_rid(request))
+    out = _detail(conn, viewer, rfq_id)
+    out["changed"] = changed
+    return out
 
 
 @router.post("/tickets/rfqs/{rfq_id}/vendors/{vendor_id}/link/revoke")

@@ -35,9 +35,11 @@ from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, tex
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
 
-# Stage C2 flips this when the public listener serves the RFQ state of the vendor page. Until then a message would carry a link to a
-# page that cannot show the request, so invitations by WhatsApp / e-mail are refused and the manager works with `channel: manual`.
-VENDOR_PAGE = False
+# Stage C2 (TKRFQVP, contract section 15): the public listener serves the vendor page (services/tickets/public_rfq.py), so invitations,
+# reminders and the "new message" notice may go by WhatsApp / e-mail whenever the listener is ready (`vendor_page_ready`). Turning this
+# off again makes every such message refuse (409 rfq_vendor_page_unavailable) and the manager works with `channel: manual`.
+VENDOR_PAGE = True
+CHANNEL_CHOICES = ("auto", "whatsapp", "email", "manual")
 
 STATES = ("draft", "sent", "collecting", "due_passed", "awarded", "ordered", "closed", "cancelled")
 OPEN = frozenset({"sent", "collecting", "due_passed"})  # invited vendors may answer / the manager may award
@@ -75,6 +77,8 @@ MESSAGES = {
     "second_approver_required": "האישור השני צריך להינתן על ידי מאשר אחר, מעל יוצר הבקשה.",
     "owner_not_allowed": "אי אפשר לבחור את המשתמש הזה כאחראי (הוא אינו חבר במחלקה).",
     "department_not_found": "המחלקה לא נמצאה.",
+    "vendor_code_locked": "פרטי איש הקשר דורשים קוד אימות לספק הזה; אי אפשר לבטל אותו כאן.",
+    "code_channel_unavailable": "אין כרגע ערוץ שיכול לשלוח קוד אימות לספק הזה. בטלו את הקוד או בחרו פנייה ידנית.",
 }
 
 
@@ -147,6 +151,12 @@ def require_visible(viewer: Viewer, rfq_id: str) -> RfqSeen:
     if seen is None:
         raise _err(viewer.conn, 404, "rfq_not_found")
     return seen
+
+
+def row_of_link(conn, rfq_id: str) -> dict[str, Any] | None:
+    """TKRFQVP (contract 15): the request a vendor's RFQ link names. On the public side the LINK is the authorisation (public_rfq resolved
+    and checked it), never a person's visibility - the only read of a request around `visible()`, and it serves that one vendor only."""
+    return store_rfq.rfq_row_unchecked(conn, rfq_id)
 
 
 def is_manager(viewer: Viewer, seen: RfqSeen) -> bool:
@@ -307,7 +317,22 @@ def _require_code(conn, contact: Mapping[str, Any]) -> bool:
     return bool(contact.get("require_code") or (vendor or {}).get("require_code"))
 
 
-def add_vendor(conn, viewer: Viewer, row: Mapping[str, Any], contact_id: str, now: dt.datetime) -> str:
+def _choice(conn, value: Any) -> str:
+    if value is None:
+        return "auto"
+    if value not in CHANNEL_CHOICES:
+        raise invalid(conn, "channel", "unknown")
+    return value
+
+
+def add_vendor(conn, viewer: Viewer, row: Mapping[str, Any], contact_id: str, now: dt.datetime, *, channel: Any = None,
+               require_code: Any = None) -> str:
+    """A draft vendor. TKRFQVP (contract 15.2 / 15.6, owner decision 16.10): the verification code is OFF by default; the manager may
+    turn it on per vendor (`require_code`); the directory's own demand (the contact's / its vendor's) turns it on and is never lowered.
+    `channel` is the manager's choice for the invitation (`auto` = the contact's preferred channel)."""
+    if require_code is not None and not isinstance(require_code, bool):
+        raise invalid(conn, "require_code", "type")
+    choice = _choice(conn, channel)
     contact = store_links.contact(conn, contact_id)
     problem = vendor_problem(conn, contact, row["department_id"])
     if problem == "not_found":
@@ -317,8 +342,9 @@ def add_vendor(conn, viewer: Viewer, row: Mapping[str, Any], contact_id: str, no
     if store_rfq.vendor_by_contact(conn, row["id"], contact_id):
         raise _err(conn, 409, "vendor_duplicate")
     at = iso(now)
-    vid = store_rfq.insert_vendor(conn, {"rfq_id": row["id"], "contact_id": contact_id, "channel": "manual", "state": "draft",
-                                         "require_code": 1 if _require_code(conn, contact or {}) else 0, "invited_at": at, "created_by": viewer.uid,
+    code = _require_code(conn, contact or {}) or bool(require_code)
+    vid = store_rfq.insert_vendor(conn, {"rfq_id": row["id"], "contact_id": contact_id, "channel": "manual", "channel_choice": choice,
+                                         "state": "draft", "require_code": 1 if code else 0, "invited_at": at, "created_by": viewer.uid,
                                          "created_at": at, "updated_at": at})
     store_rfq.insert_event(conn, row["id"], "vendor_added", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            rfq_vendor_id=vid, data={"contact_id": contact_id}, at=at)
@@ -410,8 +436,8 @@ def create(conn, viewer: Viewer, body: Mapping[str, Any], rid: str | None = None
     row = store_rfq.rfq_row_unchecked(conn, rfq_id) or {}
     store_rfq.insert_event(conn, rfq_id, "created", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            data={"number": number, "source_ticket_id": source}, at=at)
-    for cid in contact_ids:
-        add_vendor(conn, viewer, row, cid, now)
+    for v in body.get("vendors") or []:
+        add_vendor(conn, viewer, row, v.get("contact_id"), now, channel=v.get("channel"), require_code=v.get("require_code"))
     _audit(conn, viewer, "ticket.rfq.create", row, rid, department_id=dept["id"], vendors=len(contact_ids), source_ticket_id=source)
     return rfq_id
 
@@ -484,7 +510,8 @@ def edit(conn, viewer: Viewer, seen: RfqSeen, patch: Mapping[str, Any], revision
     return changed
 
 
-def add_vendor_route(conn, viewer: Viewer, seen: RfqSeen, contact_id: str, revision: int, rid: str | None = None) -> str:
+def add_vendor_route(conn, viewer: Viewer, seen: RfqSeen, contact_id: str, revision: int, rid: str | None = None, *, channel: Any = None,
+                     require_code: Any = None) -> str:
     now = now_utc()
     need_manager(conn, viewer, seen, "ticket.rfq.vendor_add", rid)
     row = apply_due(conn, dict(seen.row), now)
@@ -492,7 +519,7 @@ def add_vendor_route(conn, viewer: Viewer, seen: RfqSeen, contact_id: str, revis
         raise _stale(conn, row)
     if row["state"] not in ("draft", "sent", "collecting", "due_passed"):
         raise _bad_move(conn, row, "vendor_add", now)
-    vid = add_vendor(conn, viewer, row, contact_id, now)
+    vid = add_vendor(conn, viewer, row, contact_id, now, channel=channel, require_code=require_code)
     _touch(conn, row, {}, revision, now)
     _audit(conn, viewer, "ticket.rfq.vendor_add", row, rid, vendor_id=vid, contact_id=contact_id)
     return vid
@@ -518,6 +545,46 @@ def remove_vendor(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, revis
     store_rfq.insert_event(conn, row["id"], "vendor_removed", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            rfq_vendor_id=v["id"], at=at)
     _audit(conn, viewer, "ticket.rfq.vendor_remove", row, rid, vendor_id=v["id"])
+
+
+def vendor_options(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, revision: int, *, require_code: Any = None, channel: Any = None,
+                   rid: str | None = None) -> list[str]:
+    """TKRFQVP (contract 15.6): the manager's per-vendor choices after creation - the verification code (until the vendor is awarded /
+    removed; it reaches the live link at once) and, for a vendor not invited yet, the invitation channel."""
+    now = now_utc()
+    need_manager(conn, viewer, seen, "ticket.rfq.vendor_options", rid)
+    row = apply_due(conn, dict(seen.row), now)
+    v = vendor_of(conn, seen, rfq_vendor_id)
+    if row["revision"] != revision:
+        raise _stale(conn, row)
+    if row["state"] in ENDED or v["state"] in ("removed", "awarded", "not_awarded"):
+        raise _bad_move(conn, row, "vendor_options", now)
+    if require_code is not None and not isinstance(require_code, bool):
+        raise invalid(conn, "require_code", "type")
+    fields: dict[str, Any] = {}
+    if channel is not None:
+        if v["state"] != "draft":
+            raise _err(conn, 409, "rfq_field_locked", fields=["channel"])
+        choice = _choice(conn, channel)
+        if choice != v.get("channel_choice"):
+            fields["channel_choice"] = choice
+    if require_code is not None and bool(require_code) != bool(v["require_code"]):
+        if not require_code and _require_code(conn, store_links.contact(conn, v["contact_id"]) or {}):
+            raise _err(conn, 409, "vendor_code_locked")
+        fields["require_code"] = 1 if require_code else 0
+    changed = sorted(fields)
+    if not changed:
+        return []
+    at = iso(now)
+    store_rfq.update_vendor(conn, v["id"], {**fields, "updated_at": at})
+    if "require_code" in fields:
+        store_rfq.set_vendor_code(conn, v["id"], bool(fields["require_code"]))
+    _touch(conn, row, {}, revision, now)
+    store_rfq.insert_event(conn, row["id"], "vendor_options", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
+                           rfq_vendor_id=v["id"], data={"fields": changed, "require_code": bool(fields.get("require_code", v["require_code"]))}, at=at)
+    _audit(conn, viewer, "ticket.rfq.vendor_options", row, rid, vendor_id=v["id"], fields=changed,
+           require_code=bool(fields.get("require_code", v["require_code"])), channel=fields.get("channel_choice"))
+    return changed
 
 
 # ---------------------------------------------------------------- messages through the outbox (templates only)
@@ -565,6 +632,12 @@ def _plan(conn, contact: Mapping[str, Any]) -> str:
     return plan_channel(conn, contact, RUNTIME.data_dir)
 
 
+def _code_channel(conn, contact: Mapping[str, Any], sent_via: str) -> str | None:
+    from .code_flow import code_channel_for
+
+    return code_channel_for(conn, dict(contact), link_sent_via=sent_via)
+
+
 def send(conn, viewer: Viewer, seen: RfqSeen, revision: int, channel: str = "auto", rid: str | None = None) -> dict[str, Any]:
     """Every `draft` vendor is invited: by WhatsApp / e-mail through the outbox (a personal link, template `rfq_invite`) or by hand
     (`manual`: no link, no message). The first send moves the request to `sent`. All checks run before the first write."""
@@ -586,9 +659,17 @@ def send(conn, viewer: Viewer, seen: RfqSeen, revision: int, channel: str = "aut
         problem = vendor_problem(conn, contact, row["department_id"])
         if problem:
             raise _err(conn, 409, "vendor_not_allowed", reason=problem, vendor_id=v["id"])
-        planned = "manual" if channel == "manual" else _plan(conn, contact or {})
+        choice = v.get("channel_choice") or "auto"
+        if channel == "manual" or choice == "manual":
+            planned = "manual"
+        elif choice in ("whatsapp", "email"):
+            planned = _plan(conn, {**(contact or {}), "preferred_channel": choice})  # the manager's choice, under the channel rules
+        else:
+            planned = _plan(conn, contact or {})
         if planned != "manual" and not vendor_page_ready(conn):
             raise _err(conn, 409, "rfq_vendor_page_unavailable", vendor_id=v["id"])
+        if planned != "manual" and v["require_code"] and _code_channel(conn, contact or {}, planned) is None:
+            raise _err(conn, 409, "code_channel_unavailable", vendor_id=v["id"])  # 15.2: never a code-protected link nobody can open
         plans.append((v, contact or {}, planned))
     at = iso(now)
     counts: Counter[str] = Counter()
@@ -1332,11 +1413,13 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
             "link": rfq_links.block(link, now) if manager else None,
             "delivery": deliveries.get((link or {}).get("id")) if manager else None,
             "quote": _quote_summary(live.get(v["id"]), amounts), "messages": counts.get(v["id"], 0), "revision": v["revision"],
+            "require_code": bool(v["require_code"]), "channel_choice": (v.get("channel_choice") or "auto") if manager else None,
             "can": {"remove": manager and state not in ENDED and vs not in ("removed", "awarded") and not _award_live_of_vendor(conn, v["id"]),
                     "remind": manager and state in ("sent", "collecting") and vs in ("sent", "opened") and v["channel"] != "manual",
                     "quote_on_behalf": manager and decide and (open_ or state == "awarded") and vs not in ("draft", "removed", "awarded", "not_awarded"),
                     "decline_on_behalf": manager and decide and state not in ENDED and state != "draft" and vs in ("sent", "opened", "expired", "withdrawn"),
-                    "message": manager and vs not in ("draft", "removed")},
+                    "message": manager and vs not in ("draft", "removed"),
+                    "options": manager and state not in ENDED and vs not in ("removed", "awarded", "not_awarded")},
         })
     dept = store.department_any(conn, row["department_id"]) or {}
     source = None
@@ -1418,7 +1501,7 @@ def meta(conn, viewer: Viewer) -> dict[str, Any]:
         depts.append({"id": d["id"], "name": d["name"], "can_create": viewer.can_create_in(d) and EXTERNAL in viewer.anywhere,
                       "second_approval_minor": t if COSTS_VIEW in viewer.anywhere else None, "second_approval_enabled": t is not None})
     return {"vendor_page": vendor_page_ready(conn), "settings": dict(doc["rfq"]), "departments": depts, "line_kinds": list(money.LINE_KINDS),
-            "currencies": list(cost_settings(conn).currencies)}
+            "currencies": list(cost_settings(conn).currencies), "vendor_options": True}
 
 
 def principal_of(viewer: Viewer) -> Principal:

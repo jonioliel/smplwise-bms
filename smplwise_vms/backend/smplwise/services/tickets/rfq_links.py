@@ -61,9 +61,19 @@ def state(row: Mapping[str, Any] | None, now: dt.datetime) -> str:
     return handler_links.state(dict(row), now) if row else "none"
 
 
+URL_MARK = "q."  # TKRFQVP (contract 15.1): `#q.<token>` - '.' is not a base64url character, so an RFQ fragment is never a ticket token
+
+
+def rfq_url(base_url: str, token: str, prefix: str | None = None) -> str:
+    """`<base>/<prefix>/#q.<token>`: the page reads the fragment (never sent to a server) and opens its RFQ mode."""
+    if links.parse_token(token) is None:
+        raise ValueError("not a link token")
+    return links.public_url(base_url, f"#{URL_MARK}{token}", prefix)
+
+
 def url(conn, row: Mapping[str, Any]) -> str:
-    """The URL a WhatsApp message carries (the token in the fragment, the same shape as a ticket link)."""
-    return links.handler_url(handler_links.public_base_url(conn), token_of(row))
+    """The URL a WhatsApp message carries (the token in the fragment, marked `q.`; the TK255 public prefix like a ticket link)."""
+    return rfq_url(handler_links.public_base_url(conn), token_of(row), handler_links.public_prefix(conn))
 
 
 def url_of(conn, link_id: str, now: dt.datetime) -> str | None:
@@ -87,7 +97,7 @@ def redeem_url(conn, link_id: str, now: dt.datetime) -> str | None:
     rid = links.new_redeem_id()
     store_rfq.insert_redeem(conn, links.redeem_hash(rid), link_id, int(row["generation"]), iso(now), iso(now + dt.timedelta(hours=REDEEM_HOURS)))
     try:
-        return links.redeem_url(base, rid)
+        return links.redeem_url(base, rid, handler_links.public_prefix(conn))
     except ValueError:
         return None
 
