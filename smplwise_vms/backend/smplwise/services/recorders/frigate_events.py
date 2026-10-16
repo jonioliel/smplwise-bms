@@ -336,6 +336,7 @@ class WsFeed:
                 if ssl_ctx is not None:
                     kwargs["ssl"] = ssl_ctx
                 with connect(url, **kwargs) as ws:
+                    self.st.ws_review_frames = 0  # delta review F-3: a new connection earns the trust again (a Frigate upgrade may change the frame shape)
                     self._set("connected")
                     backoff = 5.0
                     while not self.stop.is_set():
@@ -355,6 +356,7 @@ class WsFeed:
             except Exception as exc:  # noqa: BLE001 - never die; the poll covers the gap
                 log.warning("frigate ws (%s): %s (retry in %.0fs)", self.adapter.recorder_id, type(exc).__name__, backoff)
             self._set("down")
+            self.st.ws_review_frames = 0
             self.stop.wait(backoff)
             backoff = min(120.0, backoff * 2)
         self._set("off")
@@ -366,7 +368,7 @@ STALE_MIN_S = 180.0
 def events_health(conn: "sqlite3.Connection", recorder_id: str, sync: dict[str, Any] | None = None, now: float | None = None) -> dict[str, Any]:
     """TKFRIGLIVE: the visible facts of the event path for the status card - is the reader running, when did the last poll succeed
     (or why not), the newest review item Arx holds (`last_event_seen_at`: its start in UTC), how many arrived in 24 h, and `stale`
-    when no poll succeeded for max(3 x the poll interval, 3 minutes) or the last poll failed. Read-only (Arx's own tables)."""
+    when no poll succeeded for max(3 x the poll interval, 3 minutes), the last poll failed, or the reader runs and no poll has succeeded yet. Read-only (Arx's own tables)."""
     s = sync if sync is not None else state_of(recorder_id).as_dict()
     now = time.time() if now is None else now
     last_seen = stored_24h = None
@@ -382,6 +384,8 @@ def events_health(conn: "sqlite3.Connection", recorder_id: str, sync: dict[str, 
     last_poll_at = s.get("last_poll_at")
     interval = float(s.get("poll_interval_s") or WS_DOWN_POLL_S_DEFAULT)
     stale = bool(s.get("last_poll_error"))
+    if not stale and not last_poll_at and s.get("loop_running"):
+        stale = True  # F-3: before the first poll of a started reader succeeds nothing is known - that reads as stale, not as healthy
     if not stale and last_poll_at:
         try:
             age = now - dt.datetime.fromisoformat(str(last_poll_at).replace("Z", "+00:00")).timestamp()
@@ -513,6 +517,8 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
     feed = WsFeed(ad, frames, listener.stop, st, ws_connect)
     _load_cursor(listener, st)
     st.loop_running = True
+    st.ws_review_frames = 0           # F-3: a (re)started loop trusts nothing it has not seen itself
+    st.last_poll_at = st.last_poll_error = None
     st.poll_interval_s = down_interval
     feed.start()
     tracker = OfflineTracker()

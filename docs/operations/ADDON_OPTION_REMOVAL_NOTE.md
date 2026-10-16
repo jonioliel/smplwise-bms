@@ -76,6 +76,20 @@ defaults: `nvr_password`, `go2rtc_api_password`, `wiskey_password`, `wiskey_back
   runtime, so a key rotated or cleared in the store came back). Without a store row the legacy value is applied once at start-up by
   the store's overlay.
 
+Backups (delta review S-6): the statement "the key is never in a backup" holds for ARX backups only (`services/backup`, `keys/` is not
+part of them). A Home Assistant add-on backup (`backup: hot`, no `backup_exclude`) contains BOTH `/data/keys/connections.key` and the
+database, so encryption at rest does not protect the secrets (or the NVR password) inside an HA backup, which is often synced
+off-site. Excluding the key from HA backups is an owner trade-off: a restore would then lose every stored secret. Not changed in 2.6.x.
+
+Connection test of the WisKey password (delta review S-4): runs on a throwaway stream `smplwise_wiskey_probe_<random>` that is deleted
+right after the test; the live station stream is never re-pointed. go2rtc older than 1.9.14 logs the whole source URL when a stream is
+created, so on those versions a CANDIDATE password still appears once in go2rtc's own log per test (Arx cannot avoid giving go2rtc the
+source). Arx's logs never carry it.
+
+Frigate restream (delta review F-2): `restream_auth` = `account` sends the Frigate account password over RTSP (go2rtc may use Basic,
+cleartext on the LAN) and stores it in go2rtc's in-memory stream source (readable via go2rtc's `GET /api/streams`, logged by go2rtc
+< 1.9.14 on create) - the same model as the NVR sources; default off.
+
 FOLLOW-UP (next version): remove the six keys from config.yaml (options + schema), from `self_update.OPTION_TYPES` (kind
 `cleared`), `config.DEPRECATED_SECRET_OPTIONS` and `secrets_store.clear_lingering_options`.
 

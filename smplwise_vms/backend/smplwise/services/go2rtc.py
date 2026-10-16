@@ -86,6 +86,13 @@ def wiskey_stream_name(station_id: str) -> str:
     return name
 
 
+def wiskey_probe_stream_name() -> str:
+    """A throwaway stream name for a connection test (delta review S-4): smplwise_wiskey_probe_<random>, in our namespace."""
+    import secrets as _secrets
+
+    return f"{STREAM_PREFIX}wiskey_probe_{_secrets.token_hex(6)}"
+
+
 def rtsp_host(host: str) -> str | None:
     """The host as it may stand in an RTSP URL (an IPv6 address bracketed), or None when it is not a plain IP address
     or host name. The value comes from WisKey's `overview`, which is untrusted input."""
@@ -272,6 +279,16 @@ class Go2rtc:
             with _REGISTERED_LOCK:
                 _REGISTERED[name] = digest
         return self._frame(status, body, too_large)
+
+    def discard_probe_stream(self, name: str) -> None:
+        """Delete a throwaway probe stream and forget its registration; a failure is logged (never the source) and swallowed - the
+        stream is in-memory only and goes at the next go2rtc restart."""
+        with _REGISTERED_LOCK:
+            _REGISTERED.pop(name, None)
+        try:
+            self.delete_stream(name)
+        except ApiError:
+            log.warning("probe stream %s not deleted", name)
 
     @staticmethod
     def _frame(status: int, body: bytes, too_large: bool) -> bytes:

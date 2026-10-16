@@ -300,7 +300,7 @@ existing player (WebRTC / MSE through the authorised relay, `video.live`) works 
 - gated by the feature flag (`frigate_enabled` / `SW_FRIGATE=1`) and per recorder by the new connection extras (advanced):
   `restream` = `auto` (default) | `off`, `restream_port` (default 8554; an extra, because 8554 stays a refused probe port for
   `rtsp_port`), `restream_auth` = `none` (default) | `account` (the connection's user and password in the RTSP URL, server-side only;
-  switching it on or moving its port is a new destination of the stored password, so the password must be typed again).
+  switching it on or moving its port is a new destination of the stored password, so the password must be typed again. Note (2.6.3 delta review F-2): with `account` the password also travels over RTSP into go2rtc's stream source - cleartext Basic on the LAN is possible, the source is visible via go2rtc's `GET /api/streams` and logged by go2rtc < 1.9.14 on create; same model as the NVR sources).
 Without a restream the camera stays a refreshing still: the media route still answers 409 `live_not_available` with `fallback: still`;
 the camera list now marks each Frigate camera `live_kind: stream | still` from the cached discovery (no I/O), and the live camera page
 explains a still in one plain Hebrew line. `GET .../status` `live` = `{mode, cameras_live, cameras_total, reason (flag_off | off |

@@ -59,7 +59,7 @@ MAX_ATTEMPTS = 4  # the first try + 3 retries
 RETRY_DELAYS = (dt.timedelta(minutes=2), dt.timedelta(minutes=8), dt.timedelta(minutes=20))
 RETRY_SPAN = dt.timedelta(minutes=30)
 NON_RETRYABLE = frozenset({"no_phone", "no_address", "opted_out", "empty", "render_too_long", "template_missing", "code_lost",
-                           "target_lost", "contact_missing", "link_not_live"})
+                           "target_lost", "contact_missing", "link_not_live", "number_unverified"})
 EMAIL_PER_HOUR = 10  # 9.5: a per-module counter, separate from CR-018's
 DEFAULT_HOLD_MIN = 15
 CODE_HOLD_MIN = 2  # a code expires in 10 minutes: it never waits 15 for a down account (recorded interpretation)
@@ -557,6 +557,12 @@ class Outbox:
             return self._fail_before_claim(row, missing, now)
         if row.channel == "email":
             return self._send_email(row, recipient, now, busy)
+        if recipient.whatsapp_blocked and row.purpose not in ("test", "phone_verify"):
+            # TKHARDEN (delta review N-3): verification was switched on after this message was queued or held. It must not leave for a
+            # number nobody confirmed by code. Visible end state `not_sent` / `number_unverified` (e-mail fallback or the manual route
+            # as for any other failed WhatsApp row); never silently dropped.
+            log.info("outbox row id=%s purpose=%s stopped: number not verified", row.id, row.purpose)
+            return self._fail_before_claim(row, "number_unverified", now)
         return self._send_whatsapp(row, recipient, now, busy)
 
     def _send_whatsapp(self, row: OutboxRow, recipient: Recipient, now: dt.datetime, busy: set[str]) -> int:

@@ -96,12 +96,14 @@ def restream_plan(settings: Settings, recorder_id: str, *, fetch: bool = False) 
     return frs.plan(doc)
 
 
-def restream_source(settings: Settings, recorder_id: str, source_ref: str | None, profile: str, *, fetch: bool = False) -> tuple[str, str] | None:
+def restream_source(settings: Settings, recorder_id: str, source_ref: str | None, profile: str, *, fetch: bool = False,
+                    plan: dict[str, dict[str, str]] | None = None) -> tuple[str, str] | None:
     """(Frigate stream name, RTSP source for Arx's go2rtc) of one camera and profile, or None when the camera has no restream.
-    Raises 409 `frigate_restream_refused` when the source policy refuses the URL."""
+    Raises 409 `frigate_restream_refused` when the source policy refuses the URL. `plan` (delta review F-1): a plan the caller already
+    computed once for the recorder - nothing is read from Frigate then."""
     from . import frigate_restream as frs
 
-    p = restream_plan(settings, recorder_id, fetch=fetch).get(source_ref or "")
+    p = (plan if plan is not None else restream_plan(settings, recorder_id, fetch=fetch)).get(source_ref or "")
     if not p:
         return None
     stream = p["main" if profile == "main" else "sub"]

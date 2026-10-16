@@ -140,7 +140,10 @@ def _probe_go2rtc(settings: Settings, value: str) -> str:
 
 def _probe_wiskey(conn: sqlite3.Connection, settings: Settings, value: str) -> str:
     """The shared account against the first online station with a camera and no account of its own, the way the camera still
-    route pulls it (go2rtc's in-memory stream in the smplwise_ namespace). A failure cannot tell a wrong password from a camera
+    route pulls it, but on a throwaway go2rtc stream in the smplwise_ namespace that is deleted right after (the live station stream
+    is never touched). KNOWN LIMIT: go2rtc < 1.9.14 logs the whole source URL when it creates a stream, so the candidate password
+    reaches go2rtc's own log once per test on those versions - Arx cannot prevent that (the source must be given to go2rtc), it can
+    only keep the password out of Arx's logs and out of any lasting stream. A failure cannot tell a wrong password from a camera
     that did not answer: `station_failed` says so."""
     from ..services import go2rtc as g2
     from ..services import intercom_sync
@@ -159,10 +162,17 @@ def _probe_wiskey(conn: sqlite3.Connection, settings: Settings, value: str) -> s
         host = intercom_sync.SYNC.station_host(settings, station["id"])
         if not host:
             continue
+        # Delta review S-4: a THROWAWAY stream name (smplwise_ namespace), never the station's live stream - a candidate password
+        # must not re-point what the live still route uses - deleted right after, whatever the outcome.
+        probe = g2.wiskey_probe_stream_name()
+        client = g2.Go2rtc(settings)
         try:
             source = g2.wiskey_rtsp_url(host, settings.wiskey_user, value)
             with unlocked(conn):
-                g2.Go2rtc(settings).frame_jpeg(g2.wiskey_stream_name(station["id"]), source)
+                try:
+                    client.frame_jpeg(probe, source)
+                finally:
+                    client.discard_probe_stream(probe)
         except ApiError as exc:
             status = (exc.details or {}).get("status")
             if exc.code == "media_unavailable":
