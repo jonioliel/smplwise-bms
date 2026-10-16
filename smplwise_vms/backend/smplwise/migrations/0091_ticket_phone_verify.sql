@@ -1,6 +1,6 @@
 -- TKNOTIFOTP (owner decision 2026-10-16): OPTIONAL verification of number ownership by a one-time WhatsApp code - OFF by default,
--- never mandatory. PROVISIONAL NUMBER: the lead renumbers at integration (contiguous sequence rule). The outbox purpose the code
--- message needs lives in its own small migration (0092), because TKRFQ1 rebuilds `ticket_outbox` too.
+-- never mandatory. Final number 0091 (integ/263, release 2.6.3). The outbox purpose the code message needs (`phone_verify`) is
+-- part of the single ticket_outbox rebuild in 0089 (TKRFQ1), so no second rebuild exists.
 --
 -- 1. ticket_contacts.phone_verify: the per-contact / per-person switch "verify the number with a code" (default 0). It only RAISES
 --    the installation switch (`tickets.settings.phone_verify.required`): either one on = the number counts as confirmed only after

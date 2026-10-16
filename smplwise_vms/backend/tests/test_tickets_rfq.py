@@ -161,7 +161,8 @@ def test_0089_keeps_every_outbox_row_and_widens_only_the_purposes(settings, tmp_
                      "idempotency_key, link_generation, created_at, updated_at) VALUES ('o1', 'contact', 'c1', 'whatsapp', 'assign', "
                      "'tickets.messages', '{\"number\":\"1\"}', 'sent', 't', 'k1', 2, 't', 't')")
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [89]
+    applied = dbmod.Database(settings.db_path).migrate()
+    assert applied[0] == 89 and applied == list(range(89, applied[-1] + 1))  # 0090..0093 follow in the real set (none rebuilds ticket_outbox again)
     with database.connection() as conn:
         row = dict(conn.execute("SELECT * FROM ticket_outbox WHERE id = 'o1'").fetchone())
         assert (row["purpose"], row["state"], row["idempotency_key"], row["link_generation"], row["rfq_id"]) == ("assign", "sent", "k1", 2, None)
@@ -175,6 +176,12 @@ def test_0089_keeps_every_outbox_row_and_widens_only_the_purposes(settings, tmp_
         with pytest.raises(sqlite3.IntegrityError):  # the idempotency index survived the rebuild
             conn.execute("INSERT INTO ticket_outbox(id, recipient_kind, contact_id, channel, purpose, use_key, state, not_before, created_at, "
                          "updated_at, idempotency_key) VALUES ('o4', 'contact', 'c1', 'email', 'assign', 'email', 'queued', 't', 't', 't', 'k1')")
+        # integration 2.6.3: TKNOTIFOTP's purpose is folded into this single rebuild (no second ticket_outbox rebuild exists)
+        conn.execute("INSERT INTO ticket_outbox(id, recipient_kind, contact_id, channel, purpose, use_key, state, not_before, created_at, updated_at, "
+                     "code_id) VALUES ('o5', 'contact', 'c1', 'whatsapp', 'phone_verify', 'tickets.codes', 'queued', 't', 't', 't', 'pv1')")
+        assert conn.execute("SELECT count(*) FROM ticket_outbox").fetchone()[0] == 3
+    rebuilds = [f.name for f in real.glob("*.sql") if "CREATE TABLE ticket_outbox_new" in f.read_text(encoding="utf-8") and int(f.name[:4]) > 86]
+    assert rebuilds == ["0089_ticket_rfq.sql"], rebuilds
 
 
 # ---------------------------------------------------------------- visibility and the permission matrix

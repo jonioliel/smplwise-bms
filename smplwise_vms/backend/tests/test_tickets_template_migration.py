@@ -1,4 +1,4 @@
-"""TKTPLMIG (owner decision 2026-10-16): migration 0089 removes the numeric quick-reply line from the message templates an installation
+"""TKTPLMIG (owner decision 2026-10-16): migration 0092 (0089 on its branch) removes the numeric quick-reply line from the message templates an installation
 saved or customised (ticket_templates, kind 'message'), in he / en / ar / ru. Every name and text here is invented."""
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def _older(settings, tmp_path, monkeypatch):
     older = tmp_path / "older"
     older.mkdir()
     for f in real.glob("*.sql"):
-        if int(f.name.split("_", 1)[0]) < 89:
+        if int(f.name.split("_", 1)[0]) < 92:
             shutil.copy(f, older / f.name)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
     database = dbmod.Database(settings.db_path)
@@ -49,7 +49,7 @@ def test_the_starters_and_the_migration_agree_and_no_starter_has_the_old_line():
     assert all(NEW[lang] in mt.STARTERS["assign"][lang] for lang in OLD)
 
 
-def test_0089_rewrites_only_the_old_line_in_every_language_and_position(settings, tmp_path, monkeypatch):
+def test_0092_rewrites_only_the_old_line_in_every_language_and_position(settings, tmp_path, monkeypatch):
     database = _older(settings, tmp_path, monkeypatch)
     bodies = {
         "t-he": ("he", "שלום {name},\nלעדכון: {link}\n" + OLD["he"]),                      # last line
@@ -67,7 +67,7 @@ def test_0089_rewrites_only_the_old_line_in_every_language_and_position(settings
         _put(conn, "t-off", "he", "{link}\n" + OLD["he"], active=0, deleted=AT)          # inactive / deleted rows are rewritten too
         # negative first: the old line is there before the migration
         assert conn.execute("SELECT count(*) FROM ticket_templates WHERE instr(body, ?) > 0 OR instr(body, ?) > 0", (OLD["he"], OLD["en"])).fetchone()[0] == 5
-    assert dbmod.Database(settings.db_path).migrate() == [89]
+    assert dbmod.Database(settings.db_path).migrate() == [92, 93]  # 0093 (app secrets) follows in the real set
 
     expected = {
         "t-he": "שלום {name},\nלעדכון: {link}\n" + NEW["he"],
@@ -84,7 +84,7 @@ def test_0089_rewrites_only_the_old_line_in_every_language_and_position(settings
     assert _row(database, "t-off")["body"] == "{link}\n" + NEW["he"]
     for tid in ("t-he", "t-en", "t-ar", "t-ru", "t-mixed", "t-off"):  # changed rows: revision + 1, stamped by the migration
         r = _row(database, tid)
-        assert r["revision"] == 4 and r["updated_by"] == "system:migration-0089" and r["updated_at"] > AT
+        assert r["revision"] == 4 and r["updated_by"] == "system:migration-0092" and r["updated_at"] > AT
     for tid in ("t-clean", "t-done", "t-ticket"):  # untouched rows keep revision, author and time
         r = _row(database, tid)
         assert (r["revision"], r["updated_by"], r["updated_at"]) == (3, "owner", AT)
@@ -93,21 +93,21 @@ def test_0089_rewrites_only_the_old_line_in_every_language_and_position(settings
         assert mt.problems(purpose, _row(database, tid)["body"]) == [], tid
 
 
-def test_0089_is_idempotent_when_its_statement_runs_again(settings, tmp_path, monkeypatch):
+def test_0092_is_idempotent_when_its_statement_runs_again(settings, tmp_path, monkeypatch):
     database = _older(settings, tmp_path, monkeypatch)
     with database.connection() as conn:
         _put(conn, "t1", "he", "{link}\n" + OLD["he"])
         _put(conn, "t2", "en", "x {link}", purpose="reminder")
-    assert dbmod.Database(settings.db_path).migrate() == [89]
+    assert dbmod.Database(settings.db_path).migrate() == [92, 93]  # 0093 (app secrets) follows in the real set
     first = {t: _row(database, t) for t in ("t1", "t2")}
-    sql = (dbmod.MIGRATIONS_DIR / "0089_ticket_template_quick_reply.sql").read_text(encoding="utf-8")
+    sql = (dbmod.MIGRATIONS_DIR / "0092_ticket_template_quick_reply.sql").read_text(encoding="utf-8")
     with database.connection() as conn:
         conn.executescript(sql)
     assert {t: _row(database, t) for t in ("t1", "t2")} == first  # no body, revision or timestamp moved
     assert first["t1"]["revision"] == 4 and first["t2"]["revision"] == 3
 
 
-def test_0089_leaves_the_outbox_and_nothing_else_alone(settings, tmp_path, monkeypatch):
-    sql = (dbmod.MIGRATIONS_DIR / "0089_ticket_template_quick_reply.sql").read_text(encoding="utf-8")
+def test_0092_leaves_the_outbox_and_nothing_else_alone(settings, tmp_path, monkeypatch):
+    sql = (dbmod.MIGRATIONS_DIR / "0092_ticket_template_quick_reply.sql").read_text(encoding="utf-8")
     code = "\n".join(line for line in sql.splitlines() if not line.startswith("--"))
     assert "ticket_outbox" not in code and code.count("UPDATE") == 1 and "UPDATE ticket_templates" in code

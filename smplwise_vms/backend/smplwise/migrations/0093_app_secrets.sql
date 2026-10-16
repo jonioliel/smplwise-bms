@@ -1,5 +1,5 @@
--- TKSECRETS2: the in-app secrets store (services/secrets_store.py; הגדרות › חיבורים › סודות). PROVISIONAL NUMBER: the lead
--- renumbers at integration (contiguous sequence rule).
+-- TKSECRETS2: the in-app secrets store (services/secrets_store.py; הגדרות › חיבורים › סודות). Final number 0093
+-- (integ/263, release 2.6.3).
 --
 -- Home Assistant warned "Insecure secrets detected in app configuration" because add-on options of type `password` held secrets.
 -- The remaining ones (go2rtc_api_password, wiskey_password, wiskey_background_token, openai_api_key, push_relay_key) leave

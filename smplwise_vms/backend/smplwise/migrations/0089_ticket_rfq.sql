@@ -1,7 +1,7 @@
 -- CR-038 requests for quotation, stage C1 (TKRFQ1, docs/tickets/RFQ_BACKEND_CONTRACT.md; owner decisions 16.10): an RFQ sent to
 -- several vendors with no commitment to award, the invited vendors, their personal links (the handler-link token model, its own
 -- table: ticket_links needs a ticket and an assignment), the awards with the optional per-department second approval, the private
--- thread with each vendor and the RFQ's own timeline. PROVISIONAL NUMBER: the lead renumbers at integration.
+-- thread with each vendor and the RFQ's own timeline. Final number 0089 (integ/263, release 2.6.3).
 --
 -- Quotes are NOT a new table: an RFQ quote is a `ticket_quotes` row with `rfq_vendor_id` set and `ticket_id` NULL (0088 reserved it).
 -- Nothing here is read while the module switch `tickets.enabled` is off. Times are UTC ISO-8601 `...Z` text; money is an integer in
@@ -10,6 +10,8 @@
 -- ONE table rebuild: `ticket_outbox` (0081 + 0086). Its `purpose` CHECK cannot be widened in place; nothing references the table by a
 -- foreign key (ticket_link_codes.outbox_id is plain text), so dropping it cascades nothing. Every row, column and index is kept; the
 -- new purposes are rfq_invite / rfq_reminder / rfq_update / rfq_cancelled / rfq_order (C4) and the new column `rfq_id` (no FK).
+-- Integration (2.6.3): this is the ONLY rebuild of ticket_outbox in the release - TKNOTIFOTP's purpose `phone_verify` (the fixed
+-- number-verification code message; its table and columns are 0091) is folded in here instead of a second rebuild.
 
 CREATE TABLE ticket_rfqs (
   id                     TEXT PRIMARY KEY,
@@ -221,7 +223,8 @@ CREATE TABLE ticket_outbox_new (
   channel             TEXT NOT NULL CHECK (channel IN ('whatsapp', 'email')),
   purpose             TEXT NOT NULL CHECK (purpose IN ('assign', 'reminder', 'code', 'closed', 'reassigned', 'reopened',
                                                        'update', 'cost_rejected', 'cost_approved', 'cost_reopened', 'test',
-                                                       'rfq_invite', 'rfq_reminder', 'rfq_update', 'rfq_cancelled', 'rfq_order')),
+                                                       'rfq_invite', 'rfq_reminder', 'rfq_update', 'rfq_cancelled', 'rfq_order',
+                                                       'phone_verify')),
   use_key             TEXT NOT NULL,
   department_id       TEXT,
   account_key         TEXT,
@@ -241,7 +244,7 @@ CREATE TABLE ticket_outbox_new (
   reply_nonce         TEXT UNIQUE,
   fallback_of         TEXT,
   resend_of           TEXT,
-  code_id             TEXT,
+  code_id             TEXT,                          -- purpose 'code': the ticket_link_codes row; 'phone_verify': the ticket_phone_verifications row (0091)
   idempotency_key     TEXT,
   send_now            INTEGER NOT NULL DEFAULT 0,
   requested_by        TEXT,

@@ -126,7 +126,7 @@ def test_0088_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, t
                          "reason, decided_by, decided_at, created_at) VALUES (?, ?, ?, 'c1', ?, ?, ?, 30000, 80000, 0, 0, 110000, 'excluded', "
                          "1800, 19800, 129800, 'ILS', 'n', ?, ?, ?, ?)", (qid, tid, aid, seq, state, lines, reason, by, at, now))
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert [n for n in dbmod.Database(settings.db_path).migrate() if n < 89] == [88]  # later numbers belong to other changes (RFQ 89, map 90, secrets 93, ... provisional until integration)
+    assert [n for n in dbmod.Database(settings.db_path).migrate() if n < 89] == [88]  # 0089 RFQ, 0090 map element, 0091 number verification, 0092 quick-reply templates, 0093 secrets follow (integ/263 final numbers)
     with database.connection(mode="read") as conn:
         q = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM ticket_quotes")}
         assert {k: (v["version"], v["state"]) for k, v in q.items()} == {"q1": (1, "superseded"), "q2": (2, "approved"), "q3": (1, "fix_requested"),

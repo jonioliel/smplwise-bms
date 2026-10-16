@@ -46,7 +46,7 @@ def test_0079_is_the_highest_migration_of_the_branch():
     """0079 is the first of the CR-038 range; the later slices take their reserved numbers (0080 slice 4, 0081 slice 5b, 0082
     slice 5a, 0083 slice 9, 0084 employee contacts, 0085 TK257 quotes, 0086 deep review B3, 0087 TKSTAFF1 staff links, 0088 TKDETAILBE, 0089 TKRFQ1) - nothing of another change lives above 0079."""
     numbers = sorted(int(f.name.split("_", 1)[0]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert [n for n in numbers if n >= 79][0] == 79 and all(n in numbers for n in range(79, 89))  # 0079..0088 are this module's; higher numbers belong to later changes (provisional until the lead renumbers)
+    assert [n for n in numbers if n >= 79][0] == 79 and all(n in numbers for n in CR038)  # 0079..0092 are this module's (integ/263 final numbers); 0093 app secrets follows
     assert (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").is_file()
     assert numbers.count(79) == 1
     sql = (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").read_text(encoding="utf-8")
@@ -91,8 +91,10 @@ def test_on_top_of_the_previous_schema_nothing_else_moves(settings, tmp_path, mo
         conn.execute("INSERT INTO settings(key, value) VALUES ('ui.start_route', 'live')")
         before = conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0]
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    # 93: TKSECRETS2's app_secrets (provisional number)
-    assert [n for n in dbmod.Database(settings.db_path).migrate() if n != 93] == [n for n in CR038 if any(dbmod.MIGRATIONS_DIR.glob(f"{n:04d}_*.sql"))]
+    applied = dbmod.Database(settings.db_path).migrate()
+    # 93: TKSECRETS2's app_secrets (not a ticket migration) follows the CR-038 range
+    assert [n for n in applied if n in CR038] == [n for n in CR038 if any(dbmod.MIGRATIONS_DIR.glob(f"{n:04d}_*.sql"))]
+    assert [n for n in applied if n not in CR038] == [93]
     with database.connection(mode="read") as conn:
         assert conn.execute("SELECT value FROM settings WHERE key = 'ui.start_route'").fetchone()[0] == "live"
         tables, _ = _schema(conn)
