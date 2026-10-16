@@ -51,6 +51,27 @@ const SCREENS: Screen[] = [
   { name: 'overview-owner-dialog', open: overview('quote'), wait: OWNER, prep: async (p) => { await p.locator(`${L} [data-ov-owner-change]`).click(); await p.locator(`${L} sw-dialog[data-dialog="owner"] [data-owner-choice]`).first().waitFor(); } },
 ];
 
+/** The box of every open sw-dialog inside the tickets list (through shadow roots), measured against the viewport. */
+async function dialogBoxes(page: Page): Promise<{ l: number; t: number; r: number; b: number; vw: number; vh: number }[]> {
+  return page.evaluate(() => {
+    const found: Element[] = [];
+    const walk = (root: ParentNode) => {
+      for (const el of Array.from(root.querySelectorAll('*'))) {
+        if (el.tagName === 'SW-DIALOG' && el.hasAttribute('open')) found.push(el);
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    const list = document.querySelector('sw-app')?.shadowRoot?.querySelector('tickets-list');
+    if (list) walk(list.shadowRoot ?? list);
+    return found.flatMap((d) => {
+      const box = d.shadowRoot?.querySelector('.box');
+      if (!box) return [];
+      const r = box.getBoundingClientRect();
+      return [{ l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom), vw: innerWidth, vh: innerHeight }];
+    });
+  });
+}
+
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 test.use({ timezoneId: 'Asia/Jerusalem', locale: 'he-IL' });
 
@@ -84,7 +105,18 @@ test.describe('tickets drawer tabs layout guard', () => {
             const sc = await drawerScrollers(page);
             if (sc.length !== 1 || sc[0] !== 'div.body') scrollFindings.push(`${s.name} ${skin} ${theme} ${w}: scroll containers [${sc.join(', ')}]`);
             const found = await page.evaluate(inPageCheck, { ctx: `${s.name} ${skin} ${theme} ${w}`, bubble: BUBBLE, skip: SKIP, roots: [], within: 'tickets-list' });
-            for (const f of found) (f.cls === 'target' || f.cls === 'floating' ? targets : results).push(f);
+            // TKGATEFIX4: the on-behalf quote dialog (sw-dialog, TKUI3B) is rendered by the costs tab, so its modal overlay (`div.backdrop`,
+            // position: fixed, inset 0) lives inside the tab panel's DOM (`div.panel.stack`). The guard's escape rule skips content UNDER a
+            // fixed layer but has no exemption for a fixed element that is itself the descendant, so the viewport-wide overlay reads as
+            // "outside the panel" - the same case and the same treatment as layout-tickets-map.spec.ts (the map picker). Everything inside
+            // the dialog box is still checked by the guard, and the box itself must sit inside the viewport (checked below).
+            for (const f of found) {
+              if (f.cls === 'escape' && f.el.startsWith('div.backdrop')) continue;
+              (f.cls === 'target' || f.cls === 'floating' ? targets : results).push(f);
+            }
+            for (const box of await dialogBoxes(page)) {
+              if (box.l < -1 || box.t < -1 || box.r > box.vw + 1 || box.b > box.vh + 1) results.push({ cls: 'escape', el: 'sw-dialog .box', detail: `the dialog leaves the viewport (${JSON.stringify(box)})`, ctx: `${s.name} ${skin} ${theme} ${w}` });
+            }
           }
         }
       }
