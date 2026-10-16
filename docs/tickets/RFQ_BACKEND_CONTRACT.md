@@ -256,7 +256,7 @@ arithmetic only (money.py); a quote in another currency is shown and never ranke
 `reminder_hours` (0-168, 24 - C2's automatic reminder; 0 = off). Department: `rfq_second_approval_minor` (section 7). The allowed line
 kinds default is DETAIL's (`costs.allowed_line_kinds` <- department <- the RFQ).
 
-Audit actions (ids, states, totals, counts - never a text): `ticket.rfq.create`, `.edit`, `.vendor_add`, `.vendor_remove`, `.send`,
+Audit actions (ids, states, totals, counts - never a text; the PUBLIC vendor rows of 15.4 carry ids / versions / states / counts only, never an amount): `ticket.rfq.create`, `.edit`, `.vendor_add`, `.vendor_remove`, `.send`,
 `.remind`, `.link_revoke`, `.quote_on_behalf`, `.quote_withdraw`, `.decline_on_behalf`, `.award`, `.award_confirm`, `.award_decline`,
 `.cancel`, `.close`, `.message`, `.delete`, `.department`.
 
@@ -302,7 +302,9 @@ by the system from these routes (no WhatsApp / e-mail text, no free text); the o
 ### 15.3 `GET /t/api/rfq` - the request as the vendor may see it
 
 Counts as an open (vendor `sent` -> `opened`, `first_opened_at` / `last_opened_at` / `open_count` on the vendor and the link, the
-request `sent` -> `collecting`, an `opened` timeline row on the first open only; no revision bump). Answer:
+request `sent` -> `collecting`, an `opened` timeline row on the first open only; no revision bump) ONLY when the code gate is passed:
+a code-protected link read without a code session counts nothing (2.6.3 review F1 - a forwarded link alone must not forge "the
+vendor opened it"); the first read after `code/verify` is the open. Answer:
 
 ```json
 {"kind": "rfq", "ref": "RFQ-07", "organization": "...", "department": "...", "lang": "he", "dir": "rtl", "theme": "light",
@@ -337,8 +339,10 @@ request `sent` -> `collecting`, an `opened` timeline row on the first open only;
   as `state: withdrawn` until a new one. `not_awarded` is never shown (it reads as no special state: the page shows `closed`).
 * `messages`: the vendor's private thread - his questions (`mine: true`) and the organisation's answers (`mine: false`); no author
   names, no internal ids beyond the message id.
-* `can.*` is false everywhere when `read_only`, when the deadline passed, or when `page_state` is not `open` / `declined`
-  (`withdraw` needs a `submitted` quote with no pending award, `decline` needs no live quote, `ask` needs fewer than 30 questions).
+* `can.*` is false everywhere when `read_only`, when the deadline passed, when `page_state` is not `open` / `declined`, or when an
+  award on this vendor is pending a second approval (2.6.3 review F2: the page and the write path agree - the form simply closes,
+  `page_state` stays `open`, nothing names the pending decision) (`withdraw` needs a `submitted` quote, `decline` needs no live
+  quote, `ask` needs fewer than 30 questions).
 * `attachments` is always `[]` in this version (requests carry no files yet); the page shows no upload either.
 
 ### 15.4 Writes (JSON, strict models, `client_request_id` mandatory, replayed per link generation; the write budget is spent only
@@ -346,8 +350,8 @@ by a NEW stored effect; read-only grace 409 `read_only`; no code session 403 `co
 
 | Route | Body | Answer | Refusals |
 |---|---|---|---|
-| `POST /t/api/rfq/quote` | `{lines[] (kind, description?, hours?, rate?, quantity?, unit_price?, amount? - the ticket quote's line), currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note?, vendor_ref?, base_version: int \| null, client_request_id}` | 201 `{ok, quote}` (the 15.3 shape) | 409 `rfq_due_passed`, 409 `quote_closed` (`reason`), 409 `quote_changed` (`version` = the current live version; `base_version` must name it, `null` when none), 422 `invalid` (`kind_not_allowed`, money / date fields) |
-| `POST /t/api/rfq/withdraw` | `{quote_id, client_request_id}` | 200 `{ok}` | 409 `rfq_due_passed`, `quote_closed`, `award_pending`; unknown / another vendor's quote 409 `quote_closed` |
+| `POST /t/api/rfq/quote` | `{lines[] (kind, description?, hours?, rate?, quantity?, unit_price?, amount? - the ticket quote's line), currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note?, vendor_ref?, base_version: int \| null, client_request_id}` | 201 `{ok, quote}` (the 15.3 shape) | 409 `rfq_due_passed`, 409 `quote_closed` (`reason`: `ended` \| `vendor`), 409 `quote_changed` (`version` = the current live version; `base_version` must name it, `null` when none), 422 `invalid` (`kind_not_allowed`, money / date fields) |
+| `POST /t/api/rfq/withdraw` | `{quote_id, client_request_id}` | 200 `{ok}` | 409 `rfq_due_passed`, `quote_closed`; a quote under a pending award, an unknown / another vendor's quote: 409 `quote_closed` `reason: vendor` (`award_pending` is no longer answered on the public route) |
 | `POST /t/api/rfq/decline` | `{reason? (<= 200), client_request_id}` | 200 `{ok}` | 409 `rfq_due_passed`, `quote_closed`, `quote_exists` (withdraw first) |
 | `POST /t/api/rfq/message` | `{text (1-2000), client_request_id}` | 201 `{ok, message}` | 409 `rfq_due_passed`, `quote_closed`, `message_limit` (30 per vendor) |
 
@@ -361,6 +365,15 @@ manager may still enter one on the vendor's behalf). Every write records an RFQ 
 `.vendor_withdraw`, `.vendor_decline`, `.vendor_message`; actor `contact:<id>`, source `rfq_link`, ids / versions / totals - never a
 text). A vendor question is stored in the thread only; NOTHING is sent anywhere.
 
+Refusal vocabulary (2.6.3 review F2): `quote_closed.reason` is ONLY `ended` (the request no longer takes quotes - awarded, ordered,
+closed or cancelled, never said which) or `vendor` (this vendor's own row is closed, a decision on his quote is pending, or the quote
+id is not his live one). A non-awarded vendor therefore never learns from a refusal that anyone was awarded (15.3).
+Audit details of the public writes (2.6.3 review F3): ids, versions, states, counts - never a text or an amount
+(`ticket.rfq.vendor_quote` = vendor id, quote id, version).
+Link re-check (2.6.3 review F4): every write re-reads the link row (joined with the vendor, the request and the contact) INSIDE its
+transaction; a revoke, a new generation, a contact change, a vendor removal or a close without grace that landed after the lookup is
+the uniform 404, a read-only grace 409 `read_only`, a code switched on meanwhile 403 `code_required`. Nothing is stored.
+
 ### 15.5 Exposed fields (for the public-surface security review)
 
 | Field (vendor page) | Source | Shown when |
@@ -372,12 +385,24 @@ text). A vendor question is stored in the thread only; NOTHING is sent anywhere.
 | `quote.*` | the vendor's OWN latest live `ticket_quotes` row (`rfq_vendor_id` = his) | after the code |
 | `declined` | his own vendor row (`declined_at`, `decline_reason`) | after the code |
 | `messages[].text/at/mine` | his own thread (`ticket_rfq_messages` of his vendor row) | after the code |
-| `form.vat`, `form.labor_rate_minor` | his own directory row (VAT default / exemption, his rate) | after the code |
+| `form.vat`, `form.labor_rate_minor` | his own directory row (VAT default / exemption, his rate; owner decision 16.10, accepted risk A1) | after the code |
+| `form.currencies`, `form.currency`, `form.allowed_kinds` | settings (currency allow-list), his rate currency / his quote, the request's allowed kinds | after the code |
+| `form.limits.*` (`lines`, `description`, `note`, `vendor_ref`, `message`, `decline_reason`, `max_total_minor`) | code constants; `max_total_minor` is the installation's `max_claim_total_minor` setting | after the code |
+| `quote.approved.*` (`line_indexes`, `subtotal_minor`, `vat_minor`, `total_minor`) | his own APPROVED award on his own quote | after the code, when awarded |
+| `rfq.attachments` | always `[]` in this version | after the code |
+| `messages[].id` | his own thread's message ids | after the code |
+| `can.*` | derived (15.3) | after the code |
 | `page_state` | derived (15.3) | after the code |
+| `code_required`, `code_ok`, `code_locked_s`, `read_only`, `read_only_until` | the link (code switch, session, lock, grace) | always (also before the code) |
+
+Side effect of a read: `GET /t/api/rfq` past the code gate counts an open (vendor / link `open_count`, first / last open, the
+request `sent` -> `collecting`, the `opened` timeline row on the first open); before the code it counts nothing (F1).
 
 NEVER exposed: other vendors (names, count, states, opens), other quotes or amounts, lowest / earliest, the comparison, awards of
 others, the second-approval threshold, internal notes, `cancel_reason`, the internal owner, the creator, who answered a question,
-the source ticket, the site / building / floor ids, the link's id / key id / expiry internals, outbox / delivery states, the token.
+the source ticket, the site / building / floor ids, the link's id / key id / expiry internals, outbox / delivery states, the token,
+and - on the read AND the write path - the request's internal state after an award (`awarded` / `ordered`) or a pending second
+approval (2.6.3 review F2).
 
 ### 15.6 Manager-side additions (the internal API)
 
@@ -401,6 +426,12 @@ ticket code tables' columns; `link_id` -> `ticket_rfq_links(id)` ON DELETE CASCA
 the links.
 
 ## 14. Change log
+
+* v1.1.1 (2026-10-16, integration 2.6.3, public RFQ review F1-F4 / F6): the open counts only past the code gate (15.3); the fixed
+  refusal vocabulary `ended` / `vendor` and the form closed while an award on the vendor is pending (15.3 / 15.4; the public withdraw
+  no longer answers `award_pending`); public audit rows carry no amount (section 13 audit line, 15.4); writes re-read the link row
+  inside their transaction (15.4); the RFQ code message's footer / e-mail subject uses the RFQ label (F6); the 15.5 exposure table
+  completed. F5 (a code switched on for a vendor no channel can reach) is recorded, not fixed.
 
 * v0.9 (2026-10-16): first version, before the implementation (the UI may start on sections 9-11).
 * v1.0 (2026-10-16, after the implementation):
