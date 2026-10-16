@@ -1,4 +1,4 @@
-"""CR-038 slice 4, spec 10.3: the ticket routes of the public app - `GET /t/api/ticket`, `POST /t/api/status`, `/note`, `/eta`,
+"""CR-038 slice 4, spec 10.3: the ticket routes of the public app - `GET /t/api/ticket`, `GET /t/api/map-image` (TKMAP1), `POST /t/api/status`, `/note`, `/eta`,
 `/return` - added to public_app through `PublicDeps.extra_routers` (the edge's ROUTES already carry their limits, kinds and
 deadlines; the photo, code and redeem routes are the public-core library's).
 
@@ -18,12 +18,12 @@ import datetime as dt
 from typing import Any, Callable, Literal
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
-from . import handler_actions, links
+from . import handler_actions, links, map_element, store_links
 from .handler_actions import ActionRefused, LinkGone
 from .keyring import KEYS
 from .module_key import ModuleKeyError
@@ -126,6 +126,10 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                     data["quote"] = quotes.public_summary(conn, ctx.link.assignment_id)
                     if data["quote"] is not None and ctx.read_only:
                         data["quote"]["writable"] = False
+                if ctx.code_ok or not ctx.link.require_code:  # TKMAP1: the map element's SNAPSHOT text + whether a picture exists
+                    block = map_element.public_block(conn, ctx.link.ticket_id)
+                    if block is not None:
+                        data["map_element"] = block
                 return data
 
         try:
@@ -136,6 +140,30 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         if ctx.link.require_code and not ctx.code_ok and engine is not None:
             data["code_locked_s"] = int(await run_in_threadpool(engine.locked_for, ctx.link) + 0.999)
         return JSONResponse(data)
+
+    @r.get("/t/api/map-image")
+    async def map_picture(ctx: LinkContext = Depends(link_context())) -> Response:
+        """TKMAP1: the request's map element drawn on the server (map_image.py: structure, doors / windows, room names and the marked
+        element only - no other object, no id, no plan document). A live, available link only (link_context: unknown / expired /
+        revoked / claim-mode -> the uniform 404); a code-protected link needs its code session; nothing attached, or the element left
+        the map -> the uniform 404 (the page shows the stored text). Never cached (private, no-store)."""
+        if not ctx.code_ok:
+            raise PublicError(403, "code_required")
+
+        def read() -> str | None:
+            with db.connection(mode="read", label="tickets.public.map_image") as conn:
+                if store_links.ticket_of_link(conn, ctx.link.link_id) is None:
+                    raise LinkGone()
+                return map_element.picture(conn, ctx.link.ticket_id)
+
+        try:
+            svg = await run_in_threadpool(read)
+        except LinkGone:
+            raise PublicError(404, "link_unavailable") from None
+        if svg is None:
+            raise PublicError(404, "link_unavailable")
+        return Response(svg.encode("utf-8"), media_type="image/svg+xml; charset=utf-8",
+                        headers={"Cache-Control": "private, no-store", "Content-Disposition": 'inline; filename="map.svg"'})
 
     @r.post("/t/api/status")
     async def status(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:

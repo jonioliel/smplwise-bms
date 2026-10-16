@@ -13,6 +13,7 @@ import './styles.css';
 import { homePath } from './base';
 import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
+import { mapBlock } from './map-block';
 import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, linkKind, parseDraft, phaseOf, lineOf, partToggle, planSend, primaryAction, statusChoices, statusLine, validSession,
   type Draft, type LinkKind, type Phase, type Step } from './state';
 import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
@@ -67,6 +68,9 @@ class Page {
   private code = { sent: false, value: '', message: null as null | { key: string; n?: number } };
   private photos = new Map<string, string>();
   private uploading = 0;
+  /** TKMAP1: the map picture's blob: URL (fetched once per view that says a picture exists) */
+  private mapUrl: string | null = null;
+  private mapAsked = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -123,6 +127,9 @@ class Page {
     this.draft = { ...EMPTY_DRAFT, crids: {} };
     for (const url of this.photos.values()) URL.revokeObjectURL(url);
     this.photos.clear();
+    if (this.mapUrl) URL.revokeObjectURL(this.mapUrl);
+    this.mapUrl = null;
+    this.mapAsked = false;
   }
 
   private saveDraft(): void {
@@ -175,6 +182,39 @@ class Page {
     if (this.phase === 'code' && (r.data.code_locked_s ?? 0) > 0) this.code.message = { key: 'codeLocked', n: Math.ceil((r.data.code_locked_s ?? 60) / 60) };
     this.render();
     void this.loadPhotos();
+    void this.loadMap();
+  }
+
+  /** TKMAP1: the map picture, once (a reload of the view keeps it; an element that left the map drops it). */
+  private async loadMap(): Promise<void> {
+    const block = mapBlock(this.view?.map_element);
+    if (!block?.image) {
+      if (this.mapUrl) URL.revokeObjectURL(this.mapUrl);
+      this.mapUrl = null;
+      this.mapAsked = false;
+      return;
+    }
+    if (this.mapAsked) return;
+    this.mapAsked = true;
+    const blob = await api.mapBlob(this.creds);
+    if (!blob) {
+      this.mapAsked = false;
+      return;
+    }
+    this.mapUrl = URL.createObjectURL(blob);
+    this.render();
+  }
+
+  /** TKMAP1: "location on the map" - the stored text, and the server's 2D picture when there is one (nothing interactive). */
+  private mapCard(v: TicketView): HTMLElement | null {
+    const block = mapBlock(v.map_element);
+    if (!block) return null;
+    return h('section', { class: 'card map-card', attrs: { 'data-map-card': block.image ? 'image' : 'text' } }, h('h2', null, this.t('mapTitle')),
+      h('div', { class: 'where' }, icon('pin'), h('span', { attrs: { dir: 'auto', 'data-map-line': true } }, block.line)),
+      block.image
+        ? (this.mapUrl ? h('figure', { class: 'map-figure' }, img(this.mapUrl, this.t('mapAlt'), 'map-img'))
+          : h('div', { class: 'map-figure empty', attrs: { 'aria-hidden': 'true' } }, icon('image')))
+        : h('p', { class: 'muted small', attrs: { 'data-map-text-only': true } }, this.t('mapNoImage')));
   }
 
   private async loadPhotos(): Promise<void> {
@@ -458,6 +498,7 @@ class Page {
         h('h1', { class: 'msg-title' }, this.t('closedTitle')),
         v.read_only_until ? h('p', { class: 'msg-body' }, this.t('closedBody', { when: this.when(v.read_only_until) })) : null) : null,
       this.hero(v, kind),
+      v.claim_mode ? null : this.mapCard(v),
       v.claim_mode ? this.costBlock(v) : null,
       writable ? this.statusCard(v) : null,
       writable ? this.etaCard(v) : null,

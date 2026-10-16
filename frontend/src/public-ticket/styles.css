@@ -1052,3 +1052,31 @@ body {
     box-shadow: var(--sw-shadow);
   }
 }
+
+/* TKMAP1: the request's map element - the stored text and the server's 2D picture (never a map, nothing to pan or tap) */
+.map-card .where {
+  margin-block-end: 10px;
+}
+
+.map-figure {
+  margin: 0;
+  border: 1px solid var(--sw-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff; /* the picture is drawn on white in both themes (plan ink), framed by the page's border */
+}
+
+.map-figure.empty {
+  display: grid;
+  place-items: center;
+  min-block-size: 160px;
+  color: var(--sw-text-3);
+  background: var(--sw-surface-3);
+}
+
+.map-img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  direction: ltr; /* map geometry is never mirrored by RTL */
+}

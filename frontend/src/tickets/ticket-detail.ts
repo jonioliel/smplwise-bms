@@ -31,6 +31,7 @@ import { ExternalAssign, externalAssignStyles } from './external-assign';
 import { LinkPanel, linkPanelStyles } from './link-panel';
 import { deviceBlockStyles, historySection } from './ticket-device-context'; // CR-038 slice 3: the frozen device history
 import './delete-dialog'; // owner 14.10: full deletion (tickets.delete)
+import './map-element'; // TKMAP1: the request's map element (its own load, picker and vendor preview)
 import { openOverlay, menuKey } from './overlay-menu';
 import {
   SIZE_WIDTH, effectiveSize, initialTab, menuActions, parseSheet, primaryAction, quietAction, tabItems,
@@ -946,7 +947,8 @@ export class TicketDetailView extends LitElement {
         // TKUI2: the full timeline with its filters, the files and the audit card (the link panel and its audit rows), tickets/history-tab.ts
         return html`<div class="one" data-tab-content="history" data-slot="history">${this.history.render(t, { link: this.linkPanel.render(t) })}</div>`;
       default:
-        return html`${codeLockSection(t, { busy: this.busy, onNew: () => void this.run(() => sendNewLink(t.id), lockText('done')) })}${overviewTab(t, this.overviewCtx(t))}`;
+        return html`${codeLockSection(t, { busy: this.busy, onNew: () => void this.run(() => sendNewLink(t.id), lockText('done')) })}${overviewTab(t, this.overviewCtx(t))}
+          <ticket-map-element .ticketId=${t.id}></ticket-map-element>`;
     }
   }
 
