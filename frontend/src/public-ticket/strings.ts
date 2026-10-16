@@ -135,6 +135,8 @@ const he = {
   e_generic: 'הפעולה לא הצליחה. נסו שוב.',
   timeZone: 'שעון {zone}',
   language: 'שפה',
+  themeToDark: 'מעבר למצב כהה',
+  themeToLight: 'מעבר למצב בהיר',
 };
 
 type Catalogue = typeof he;
@@ -262,6 +264,8 @@ const en: Catalogue = {
   e_generic: 'That did not work. Please try again.',
   timeZone: '{zone} time',
   language: 'Language',
+  themeToDark: 'Switch to dark mode',
+  themeToLight: 'Switch to light mode',
 };
 
 const ar: Catalogue = {
@@ -386,6 +390,8 @@ const ar: Catalogue = {
   e_generic: 'لم تنجح العملية. حاول مرة أخرى.',
   timeZone: 'توقيت {zone}',
   language: 'اللغة',
+  themeToDark: 'التبديل إلى الوضع الداكن',
+  themeToLight: 'التبديل إلى الوضع الفاتح',
 };
 
 const ru: Catalogue = {
@@ -510,6 +516,8 @@ const ru: Catalogue = {
   e_generic: 'Не получилось. Попробуйте ещё раз.',
   timeZone: 'время {zone}',
   language: 'Язык',
+  themeToDark: 'Тёмная тема',
+  themeToLight: 'Светлая тема',
 };
 
 export const CATALOGUES: Readonly<Record<Lang, Catalogue>> = { he, en, ar, ru };

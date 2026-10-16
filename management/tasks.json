@@ -10903,5 +10903,44 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX257",
+    "title": "Service management 2.5.7: vendor page quote / payment-request card and light/dark setting (migration 0085), deep-review security hardening (migration 0086), expand-arrow fix",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.7: quote / payment card and vendor page theme (0085), security hardening (0086), expand-arrow fix; fakes only (integ/257)."
+    ],
+    "requirement_ids": [
+      "R337"
+    ],
+    "test_ids": [
+      "AT353"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TK260-expand-nav, pilot/TK257-259-vendor-page, pilot/TK251A-deep-review-fixes",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/257): TK260 @ 3e995cab, TK257/TK259 @ d30433dc, TK251A @ 76c0b7d9 (release 2.5.7). Fakes only. Status REVIEW until the tier-L gate of integ/257 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

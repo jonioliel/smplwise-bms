@@ -357,6 +357,7 @@ def view(conn, link: LinkRecord, *, code_ok: bool, read_only: bool, now: dt.date
         "code_required": bool(link.require_code),
         "code_ok": bool(code_ok),
         "read_only": bool(read_only),
+        "theme": doc["public"].get("theme", "light"),
         "read_only_until": iso(at_epoch(link.grace_until)) if read_only and link.grace_until else None,
         "expires_at": iso(at_epoch(link.expires_at)),
     }

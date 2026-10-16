@@ -85,8 +85,8 @@ class SqlClaimFileSink(ClaimFileSink):
     def check_quota(self, link: LinkRecord) -> None:
         since = costs.iso(_when(self._clock()) - costs.PENDING_TTL)
         with self.db.connection(mode="read", label="tickets.public.claim") as conn:
-            n = store_costs.pending_count_for_link(conn, link.link_id, since)
-        cost_files.check_pending_quota(n)  # IntakeError 409 `file_limit` (the public app's own handler answers it)
+            n, size = store_costs.pending_usage_for_link(conn, link.link_id, since)
+        cost_files.check_pending_quota(n, size)  # IntakeError 409 `file_limit` (the public app's own handler answers it)
 
     def record(self, link: LinkRecord, stored: Any, crid: str, document_key: str | None, page_no: int | None, name: str) -> Mapping[str, Any]:
         now = _when(self._clock())
@@ -213,7 +213,7 @@ def claim_card(conn, link: LinkRecord, *, code_ok: bool, now: dt.datetime) -> di
 
     shown = code_ok or not link.require_code
     full = handler_actions.view(conn, link, code_ok=shown, read_only=True, now=now)
-    keep = ["number", "department", "organization", "lang", "dir", "labels", "time_zone", "code_required", "code_ok"]
+    keep = ["number", "department", "organization", "lang", "dir", "labels", "time_zone", "code_required", "code_ok", "theme"]
     if shown:
         keep += ["title", "place_text", "device_name", "assigned_by"]
     out = {k: full.get(k) for k in keep}

@@ -250,6 +250,7 @@ def _inbound_item(conn: sqlite3.Connection, viewer: Viewer, r: dict[str, Any], t
     return {"id": r["id"], "received_at": r["received_at"], "sender": (contact or {}).get("display_name") or "", "tickets": tickets,
             "claimed": bool(r.get("claimed_by")), "claimed_by_me": mine,
             "claimed_by_name": store.display_name(conn, r["claimed_by"]) if r.get("claimed_by") and not mine else None,
+            "claimed_at": r.get("claimed_at") if r.get("claimed_by") else None,  # B4: "claimed by X, N min ago"; taken over after 15 min
             "text": r.get("content") if mine else None}
 
 
@@ -280,10 +281,14 @@ def claim_inbound(request: Request, inbound_id: str = Path(..., pattern=ID), pri
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     r, tickets = _inbound_for(conn, viewer, inbound_id)
-    if not obs.claim_inbound(conn, inbound_id, viewer.uid, now_iso()):
+    at = now_iso()
+    # deep review B4: a claim older than 15 minutes may be taken over (the list shows who claimed it and when)
+    stale_before = handler_links.iso(handler_links.parse(at) - obs.CLAIM_STALE_AFTER)  # type: ignore[operator]
+    if not obs.claim_inbound(conn, inbound_id, viewer.uid, at, stale_before=stale_before):
         raise ApiError(409, "already_claimed", text(conn, "מנהל אחר כבר טיפל בתשובה הזו."))
+    took_over = bool(r.get("claimed_by")) and r.get("claimed_by") != viewer.uid
     audit(conn, actor=principal, action="ticket.inbound.claim", decision="allowed", resource_type="ticket_inbound", resource_id=inbound_id,
-          request_id=_rid(request), details={"tickets": [t["id"] for t in tickets]})
+          request_id=_rid(request), details={"tickets": [t["id"] for t in tickets], **({"took_over": True} if took_over else {})})
     return _inbound_item(conn, viewer, obs.inbound(conn, inbound_id) or r, tickets)
 
 

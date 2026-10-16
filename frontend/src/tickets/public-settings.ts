@@ -12,7 +12,8 @@ import { ticketSettingsCss } from './settings-styles';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { sampleLink } from './public-address';
 
-const DEFAULT_PUBLIC: PublicSettings = { base_url: '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip' };
+const DEFAULT_PUBLIC: PublicSettings = { base_url: '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip', theme: 'light' };
+const THEMES: PublicSettings['theme'][] = ['light', 'dark', 'auto'];
 const HEADERS: PublicSettings['client_ip_header'][] = ['cf-connecting-ip', 'x-forwarded-for'];
 
 /**
@@ -184,6 +185,11 @@ export class TicketsPublicCard extends LitElement {
         <div class="line"><input class="in" maxlength="80" data-public-org aria-label=${tt('pubOrg')} .value=${org} @input=${(e: Event) => (this.org = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-public-org-save ?disabled=${this.busy || org.trim() === (this.doc?.organization_name ?? '')}
             @click=${() => this.save({ organization_name: org.trim() })}>${tt('save')}</sw-button></div></div>
+      <div class="row"><span class="lbl">${tt('pubTheme')}</span>
+        <span class="seg" role="radiogroup" aria-label=${tt('pubTheme')}>${THEMES.map((m) => html`<button type="button" role="radio"
+          aria-checked=${String(p.theme === m)} aria-pressed=${String(p.theme === m)} data-public-theme=${m} ?disabled=${this.busy}
+          @click=${() => { if (p.theme !== m) this.save({ public: { theme: m } }); }}>${tt(m === 'light' ? 'pubThemeLight' : m === 'dark' ? 'pubThemeDark' : 'pubThemeAuto')}</button>`)}</span></div>
+      <div class="hint" data-public-theme-note>${tt('pubThemeNote')}</div>
       <div class="row stack"><span class="lbl">${tt('pubAddress')}</span>
         <div class="line"><input class="in" type="url" dir="ltr" maxlength="300" inputmode="url" autocomplete="off" data-public-address aria-label=${tt('pubAddress')}
           placeholder=${tt('pubAddressHint')} ?readonly=${this.remote} .value=${address} @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />

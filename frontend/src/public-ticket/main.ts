@@ -15,6 +15,7 @@ import { h, icon, img } from './dom';
 import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, lineOf, partToggle, planSend, statusChoices, validSession,
   type Draft, type Phase, type Step } from './state';
 import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
+import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, storedServerMode, type ThemeMode } from './theme';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
 
 const STORE = { token: 'arx.t.token', session: 'arx.t.session', lang: 'arx.t.lang', draft: 'arx.t.draft' } as const;
@@ -46,11 +47,16 @@ class Page {
   private claimHost: HTMLElement | null = null;
   private claimHandle: { refresh(): Promise<void>; destroy(): void } | null = null;
   private claimLoading = false;
+  // TK257: the permanent quote / payment card (lazy chunk); it hosts the claim step in its payment part
+  private costHandle: { element: HTMLElement; update(ctx: { status: string | null; claim: { status: string } | null }): void; refresh(): Promise<void>;
+    ready: Promise<void>; approved(): { total_minor: number; currency: string } | null; destroy(): void } | null = null;
+  private costLoading = false;
   private rid: string | null = null;
   private phase: Phase = 'loading';
   private view: TicketView | null = null;
   private lang: Lang = 'he';
   private chosenLang: Lang | null = null;
+  private theme: ThemeMode = 'light';
   private banner: { key: string; tone: 'ok' | 'bad' | 'info'; n?: number } | null = null;
   private draft: Draft = { ...EMPTY_DRAFT, crids: {} };
   private busy = false;
@@ -78,6 +84,8 @@ class Page {
         /* ignore */
       }
     }
+    this.theme = resolveMode(storedChoice(), storedServerMode());
+    applyMode(this.theme);
     this.draft = parseDraft(stored(STORE.draft));
     if (boot.token) {
       this.setToken(boot.token);
@@ -158,6 +166,9 @@ class Page {
       return;
     }
     this.view = r.data;
+    if (r.data.theme) saveServerMode(r.data.theme);
+    this.theme = resolveMode(storedChoice(), r.data.theme);
+    applyMode(this.theme);
     this.lang = this.chosenLang ?? (isLang(r.data.lang) ? r.data.lang : 'he');
     this.phase = phaseOf(r.data);
     if (this.phase === 'code' && (r.data.code_locked_s ?? 0) > 0) this.code.message = { key: 'codeLocked', n: Math.ceil((r.data.code_locked_s ?? 60) / 60) };
@@ -367,7 +378,14 @@ class Page {
         h('div', { class: 'who' },
           org ? h('div', { class: 'org' }, org) : null,
           v ? h('div', { class: 'sub' }, this.t('number', { number: v.number }), v.department ? ` · ${v.department}` : '') : null)),
-      this.langPicker());
+      h('div', { class: 'tools' }, this.themeToggle(), this.langPicker()));
+  }
+
+  /** TK259: one tap flips light / dark and is remembered in this browser (theme.ts). */
+  private themeToggle(): HTMLElement {
+    const dark = this.theme === 'dark' || (this.theme === 'auto' && prefersDark());
+    return h('button', { class: 'icon-btn', attrs: { type: 'button', 'data-theme-toggle': dark ? 'dark' : 'light', 'aria-label': this.t(dark ? 'themeToLight' : 'themeToDark') },
+      on: { click: () => { const c = nextChoice(this.theme, prefersDark()); saveChoice(c); this.theme = c; applyMode(c); this.render(); } } }, icon(dark ? 'sun' : 'moon'));
   }
 
   private langPicker(): HTMLElement {
@@ -431,11 +449,39 @@ class Page {
         h('h1', { class: 'msg-title' }, this.t('closedTitle')),
         v.read_only_until ? h('p', { class: 'msg-body' }, this.t('closedBody', { when: this.when(v.read_only_until) })) : null) : null,
       this.ticketCard(v),
-      this.claimBlock(v),
+      this.costBlock(v),
       !readOnly && v.actions ? this.updateCard(v) : null,
       v.claim_mode ? null : this.timelineCard(v),
       !readOnly && v.actions?.return ? this.returnBlock() : null,
       this.footer()));
+  }
+
+  /**
+   * TK257: the quote / payment card, on the page from the first moment (the claim step lives inside it once a claim exists). In claim mode
+   * (the page no longer serves) it is the bare claim step, as before.
+   */
+  private costBlock(v: TicketView): HTMLElement | null {
+    if (v.claim_mode) return this.claimBlock(v);
+    if (!this.claimHost) this.claimHost = h('div', { class: 'claim-host', attrs: { 'data-claim-host': true } });
+    const ctx = { status: v.status ?? null, claim: v.claim ? { status: v.claim.status } : null };
+    if (this.costHandle) {
+      this.costHandle.update(ctx);
+    } else if (!this.costLoading) {
+      this.costLoading = true;
+      const slot = this.claimHost;
+      void import('./claim/quote-card').then((m) => {
+        this.costHandle = m.mountCostCard({
+          fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body),
+          lang: this.lang, dir: v.dir, labels: v.labels, demandSlot: slot, onCodeRequired: () => void this.load(),
+        });
+        this.costHandle.update(ctx);
+        this.render();
+      }).catch(() => {
+        this.costLoading = false;
+      });
+    }
+    if (v.claim) this.claimBlock(v);
+    return this.costHandle?.element ?? null;
   }
 
   /** Slice 9: the claim step under the ticket card once a claim exists (or in claim mode); mounted once, refreshed on reloads. */
@@ -449,8 +495,9 @@ class Page {
     } else if (!this.claimLoading) {
       this.claimLoading = true;
       const host = this.claimHost;
-      void import('./claim/claim-step').then((m) => {
+      void Promise.all([import('./claim/claim-step'), this.costHandle ? this.costHandle.ready : Promise.resolve()]).then(([m]) => {
         this.claimHandle = m.mountClaimStep(host, {
+          embedded: !v.claim_mode, quoteRef: () => this.costHandle?.approved() ?? null,
           fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body),
           uploadFile: (path, form) => rawCall(this.creds, 'POST', path, undefined, form),
           lang: this.lang, dir: v.dir, labels: v.labels, number: v.number, timeZone: v.time_zone,

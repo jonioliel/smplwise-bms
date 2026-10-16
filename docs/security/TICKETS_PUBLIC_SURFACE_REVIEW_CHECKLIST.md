@@ -128,3 +128,10 @@ guesses can make a fresh link's first open meet a 429; an HA add-on backup holds
 whoever holds the link can update that ticket while the link lives. TKSTAFF1 (2026-10-16): staff messages now also pass through the
 organisation's WhatsApp account, HA's recorder and the "last message" sensor - the install step that excludes `whatsapp_message_*`
 from the recorder (spec 16 S3) now covers internal tickets too; a lost unlocked staff phone is not protected by the code.
+
+2.5.7 (TK251A, deep review A2): the invoice PDF scan now refuses a stream dictionary that names /Predictor, indirect /DecodeParms or /Filter, or a /Filter
+array with FlateDecode twice, and re-inflates output that is itself zlib (4 layers at most). Accepted exception, stated: a cross-reference stream and an image
+XObject (/Type absent or /XObject, exactly one /Subtype /Image, /Width and /Height present) keep their PNG predictor, because every PDF 1.5+ writer predictor-codes
+cross-reference streams and PNG images embedded by common libraries keep predictor-coded rows; image samples are not parsed as objects. The exception applies on a
+trusted dictionary only. Residual: a reader that ignores /Type when it opens an object stream could be fed a predictor-coded object stream that passes as an
+image. The scan remains a filter, not a guarantee (sandboxed downloads stay the real control). Pending invoice bytes are capped at 64 MiB per link next to the 30-file count.

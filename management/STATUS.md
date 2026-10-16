@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-15T17:55:20.181645+00:00
+Generated: 2026-10-16T01:00:56.145982+00:00
 
-Tasks: 228 | Requirements: 335 | Tests: 351 | Screens: 32
+Tasks: 229 | Requirements: 336 | Tests: 352 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 36
+- REVIEW: 37
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 134
+- V1: 135
 - V2: 29
 - V3: 2
 
@@ -266,3 +266,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKFIX254](tasks/TKFIX254.md) | V1 | REVIEW | Service management 2.5.4: the public handler-page address may include one path prefix such as /support (vendor links built with it; Cloudflare rewrites it to /t) | — |
 | [TKFIX255](tasks/TKFIX255.md) | V1 | REVIEW | Service management 2.5.5: table menus open above the table (no clipping), settings lists refresh after changes, one-row bulk delete drops the row | — |
 | [TKFIX256](tasks/TKFIX256.md) | V1 | REVIEW | Service management 2.5.6: 'waiting for a part' is a sub-state of 'in progress' (status strip, chips, menus, vendor toggle), no API or stored-status change | — |
+| [TKFIX257](tasks/TKFIX257.md) | V1 | REVIEW | Service management 2.5.7: vendor page quote / payment-request card and light/dark setting (migration 0085), deep-review security hardening (migration 0086), expand-arrow fix | — |

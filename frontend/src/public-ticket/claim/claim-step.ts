@@ -87,6 +87,10 @@ export interface ClaimStepOptions {
   /** the lazy editor chunk (tests may inject one) */
   loadEditor?: () => Promise<typeof import('./capture-editor')>;
   userAgent?: string;
+  /** TK257: mounted inside the permanent quote / payment card - the card has the heading, so the step shows none */
+  embedded?: boolean;
+  /** TK257: the approved quote this demand is against (read when a figure is painted); the difference is shown to the vendor */
+  quoteRef?: () => { total_minor: number; currency: string } | null;
 }
 
 export interface ClaimStepHandle {
@@ -344,9 +348,11 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     root.replaceChildren();
     container.hidden = view === 'none';
     if (view === 'none') return;
-    const head = el('header', 'swc-head');
-    head.appendChild(el('h2', 'swc-title', opts.number !== undefined && opts.number !== null ? t('heading_item', { number: String(opts.number) }) : t('heading')));
-    root.appendChild(head);
+    if (!opts.embedded) {
+      const head = el('header', 'swc-head');
+      head.appendChild(el('h2', 'swc-title', opts.number !== undefined && opts.number !== null ? t('heading_item', { number: String(opts.number) }) : t('heading')));
+      root.appendChild(head);
+    }
 
     switch (view) {
       case 'loading':
@@ -533,6 +539,8 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     }
     if (rev.lines?.length) card.appendChild(list);
     card.appendChild(totalsBlock(rev.net_minor ?? rev.total_minor - rev.vat_minor, rev.vat_minor, rev.total_minor, rev.vat_mode, rev.vat_rate_bp, rev.currency));
+    const delta = quoteDelta(rev.total_minor, rev.currency);
+    if (delta) card.appendChild(delta);
     if (rev.vendor_ref) {
       const p = el('p', 'swc-muted');
       p.textContent = `${t('vendor_ref')}: ${rev.vendor_ref}`;
@@ -550,6 +558,16 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
       card.appendChild(p);
     }
     return card;
+  }
+
+  /** TK257: "against the approved quote (X): +Y" - null when no quote was approved or it is in another currency. */
+  function quoteDelta(totalMinor: number, currency: string): HTMLElement | null {
+    const ref = opts.quoteRef?.();
+    if (!ref || ref.currency !== currency) return null;
+    const d = totalMinor - ref.total_minor;
+    const p = el('p', d > 0 ? 'swc-muted swc-delta swc-up' : 'swc-muted swc-delta', t('vs_quote', { quote: money(ref.total_minor, currency), delta: `${d > 0 ? '+' : ''}${money(d, currency)}` }));
+    p.dataset.quoteDelta = String(d);
+    return p;
   }
 
   function totalsBlock(net: number, vat: number, total: number, mode: string, rateBp: number, currency: string): HTMLElement {
@@ -826,6 +844,8 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     }
     if (!figuresHost) return;
     figuresHost.replaceChildren(totalsBlock(fig.net, fig.vat, fig.total, fig.vatMode, fig.rateBp, form.currency));
+    const delta = fig.complete && !form.no_charge ? quoteDelta(fig.total, form.currency) : null;
+    if (delta) figuresHost.appendChild(delta);
     figuresHost.appendChild(el('p', 'swc-muted swc-small-text', t('estimate_note')));
   }
 

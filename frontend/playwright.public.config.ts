@@ -11,7 +11,7 @@ process.env.SW_DIST_ROUTE = '1';
 
 export default defineConfig({
   testDir: 'tests',
-  testMatch: /(evidence-(public-ticket|tickets-s4)|layout-tickets-s4)\.spec\.ts$/,
+  testMatch: /(evidence-(public-ticket|public-vendor-card|tickets-s4)|layout-tickets-s4)\.spec\.ts$/,
   timeout: 240_000,
   retries: 0,
   workers: 1,

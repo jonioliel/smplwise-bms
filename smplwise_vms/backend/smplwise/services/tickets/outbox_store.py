@@ -137,7 +137,7 @@ def from_db(r: Mapping[str, Any]) -> OutboxRow:
 
 
 def _stamp_generation(conn: sqlite3.Connection, row: OutboxRow) -> None:
-    """Deep review B3 (migration 0085, provisional number): `link_generation` = the link's generation now - at enqueue, and
+    """Deep review B3 (migration 0086): `link_generation` = the link's generation now - at enqueue, and
     again at the claim (the worker derives the URL from the link when it sends, in the same transaction). Kept outside
     OutboxRow on purpose: the message core never reads it; only the inbound matcher (`nonce_row`) does."""
     if row.link_id:
@@ -369,7 +369,7 @@ def inbound_counts(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, int]
 
 def nonce_row(conn: sqlite3.Connection, nonce: str) -> dict[str, Any] | None:
     """The outbox row a button nonce names, joined with its ticket, assignment, link and contact. `link_generation` is the
-    generation the message carried (NULL for a row from before migration 0085 that the backfill could not prove current);
+    generation the message carried (NULL for a row from before migration 0086 that the backfill could not prove current);
     `link_current_generation` the link's generation now (deep review B3)."""
     r = conn.execute(
         "SELECT o.id AS outbox_id, o.ticket_id, o.assignment_id, o.contact_id, o.account_key, o.provider_message_id, o.link_id, "

@@ -591,6 +591,163 @@ def test_logs_and_rows_never_carry_the_number_the_token_or_the_text(env, caplog)
     assert PHONE_A_E164 not in inbound
 
 
+# ---------------------------------------------------------------- deep security review 2026-10-15 (TK251A): B1, B3, B4
+
+def _press(env: Env, button_id: str) -> None:
+    env.inbound({"event_type": "whatsapp_button_pressed", "data": {"sender": "123456789012345@lid", "sender_number": "", "button_id": button_id,
+                                                                    "button_text": "בטיפול", "timestamp": int(env.clock().timestamp()), "entry_id": ENTRY_A}})
+
+
+def _last_inbound(env: Env) -> dict:
+    with env.s4.db.connection(mode="read") as conn:
+        return dict(conn.execute("SELECT * FROM ticket_inbound ORDER BY received_at DESC, rowid DESC LIMIT 1").fetchone())
+
+
+def _iso_s(at: dt.datetime) -> str:
+    return at.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def test_b1_one_failing_event_does_not_lose_the_rest_of_its_batch(env, monkeypatch, caplog):
+    """B1: the batch is popped from the queue first; an exception in one event (here a database error while applying it) is
+    isolated - counted, logged by exception type only (no text, no message), its transaction rolled back - and the next event
+    of the same batch is still applied."""
+    import sqlite3
+
+    t, _ = _sent_ticket(env)
+    env.tick()
+    real = messaging.apply_decision
+    seen: list = []
+
+    def flaky(conn, decision, now):
+        seen.append(decision.result)
+        if len(seen) == 1:
+            raise sqlite3.OperationalError("database is locked near 'אגיע מחר'")
+        return real(conn, decision, now)
+
+    monkeypatch.setattr(messaging, "apply_decision", flaky)
+    caplog.set_level(logging.DEBUG)
+    before = env.rt.counters["event_failed"]
+    assert messaging.submit_inbound(FakeHaWhatsapp.received(PHONE_A_E164, "אגיע מחר", at=env.clock(), entry_id=ENTRY_A))
+    assert messaging.submit_inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock(), entry_id=ENTRY_A))
+    env.tick()
+    assert seen == ["note", "status"]
+    assert env.s4.w.detail(t["id"])["status"] == "acknowledged", "the second event of the batch was still applied"
+    assert env.rt.counters["event_failed"] == before + 1
+    assert "OperationalError" in caplog.text
+    assert "אגיע מחר" not in caplog.text and "database is locked" not in caplog.text, "the log line carries the exception type only"
+    with env.s4.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ticket_inbound").fetchone()[0] == 1, "the failed event's transaction rolled back"
+
+
+def test_b3_the_buttons_of_a_message_sent_before_a_new_link_no_longer_act(env):
+    """B3: a button nonce is bound to the link GENERATION the message carried; after "קישור חדש" the old message's buttons are
+    ignored (reason `link_superseded`) while the new message's buttons act."""
+    env.channel(whatsapp={"use_buttons": True})
+    t, _ = _sent_ticket(env)
+    env.tick()
+    old = env.fake.calls[0]["data"]["buttons"][1]["id"]
+    assert env.c.post(f"{API}/tickets/{t['id']}/link/new").status_code == 200
+    env.tick(seconds=30)
+    new = env.fake.calls[-1]["data"]["buttons"][1]["id"]
+    assert new != old
+    with env.s4.db.connection(mode="read") as conn:
+        gens = [r[0] for r in conn.execute("SELECT link_generation FROM ticket_outbox WHERE ticket_id = ? AND purpose = 'assign' "
+                                           "ORDER BY created_at", (t["id"],)).fetchall()]
+    assert gens == [1, 2]
+    env.clock.advance(seconds=5)
+    _press(env, old)
+    assert env.s4.w.detail(t["id"])["status"] == "assigned"
+    last = _last_inbound(env)
+    assert (last["result"], last["reason"]) == ("ignored", "link_superseded")
+    env.clock.advance(seconds=5)
+    _press(env, new)
+    assert env.s4.w.detail(t["id"])["status"] == "in_progress"
+
+
+def test_b3_a_message_queued_before_a_new_generation_carries_the_generation_it_was_sent_with(env):
+    """The URL is derived when the worker sends; the row's generation follows it at the claim (not only at enqueue)."""
+    env.channel(whatsapp={"use_buttons": True})
+    env.clock.t = NIGHT
+    t, _ = _sent_ticket(env)
+    env.tick()
+    row = env.rows(t["id"])[0]
+    assert row.held_reason == "send_hours"
+    with env.s4.db.connection() as conn:
+        assert conn.execute("SELECT link_generation FROM ticket_outbox WHERE id = ?", (row.id,)).fetchone()[0] == 1, "set at enqueue"
+        conn.execute("UPDATE ticket_links SET generation = 2 WHERE ticket_id = ?", (t["id"],))
+    assert env.c.post(f"{API}/tickets/{t['id']}/outbox/{row.id}/send-now").status_code == 200
+    env.tick()
+    assert env.rows(t["id"])[0].state == "sent"
+    with env.s4.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT link_generation FROM ticket_outbox WHERE id = ?", (row.id,)).fetchone()[0] == 2
+    env.clock.advance(seconds=5)
+    _press(env, env.fake.calls[-1]["data"]["buttons"][1]["id"])
+    assert env.s4.w.detail(t["id"])["status"] == "in_progress"
+
+
+def test_b3_rows_from_before_the_migration_keep_buttons_only_when_sent_under_the_live_generation(env):
+    """The documented rule for rows written before the column existed: the migration fills a row's generation with the link's
+    CURRENT generation only when the row was sent at or after that generation began (`generation_at`); an older row stays NULL
+    and its buttons are ignored (a text reply still matches by sender)."""
+    env.channel(whatsapp={"use_buttons": True})
+    t, _ = _sent_ticket(env)
+    env.tick()
+    old = env.fake.calls[0]["data"]["buttons"][1]["id"]
+    assert env.c.post(f"{API}/tickets/{t['id']}/link/new").status_code == 200
+    env.tick(seconds=30)
+    new = env.fake.calls[-1]["data"]["buttons"][1]["id"]
+    from smplwise import db as dbmod
+
+    sql = next(p.read_text(encoding="utf-8") for p in dbmod.MIGRATIONS_DIR.glob("*_ticket_outbox_link_generation.sql"))
+    backfill = sql[sql.index("UPDATE ticket_outbox"):]
+    backfill = backfill[:backfill.index(";") + 1]
+    with env.s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_outbox SET link_generation = NULL")
+        conn.execute("UPDATE ticket_links SET generation_at = ? WHERE ticket_id = ?", (_iso_s(DAY + dt.timedelta(seconds=10)), t["id"]))
+        conn.execute(backfill)
+        gens = [r[0] for r in conn.execute("SELECT link_generation FROM ticket_outbox WHERE ticket_id = ? AND purpose = 'assign' "
+                                           "ORDER BY created_at", (t["id"],)).fetchall()]
+    assert gens == [None, 2]
+    env.clock.advance(seconds=5)
+    _press(env, old)
+    assert env.s4.w.detail(t["id"])["status"] == "assigned" and _last_inbound(env)["reason"] == "link_superseded"
+    env.clock.advance(seconds=5)
+    _press(env, new)
+    assert env.s4.w.detail(t["id"])["status"] == "in_progress"
+
+
+def test_b4_an_ambiguous_reply_claim_older_than_15_minutes_can_be_taken_over(env):
+    t1, _ = _sent_ticket(env)
+    t2, _ = _sent_ticket(env)
+    env.tick()
+    env.tick(seconds=30)
+    env.inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock(), entry_id=ENTRY_A))
+    iid = env.c.get(f"{API}/tickets/inbound", headers=env.h("mona")).json()["items"][0]["id"]
+    assert env.c.post(f"{API}/tickets/inbound/{iid}/claim", headers=env.h("mona")).status_code == 200
+    assert env.c.post(f"{API}/tickets/inbound/{iid}/claim", headers=env.h("joni")).status_code == 409
+    item = env.c.get(f"{API}/tickets/inbound", headers=env.h("joni")).json()["items"][0]
+    assert item["claimed"] is True and item["claimed_by_name"] and item["claimed_at"] and item["text"] is None
+    now = dt.datetime.now(dt.timezone.utc)
+    with env.s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_inbound SET claimed_at = ? WHERE id = ?", (_iso_s(now - dt.timedelta(minutes=14)), iid))
+    assert env.c.post(f"{API}/tickets/inbound/{iid}/claim", headers=env.h("joni")).status_code == 409, "a fresh claim holds"
+    with env.s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_inbound SET claimed_at = ? WHERE id = ?", (_iso_s(now - dt.timedelta(minutes=16)), iid))
+    item = env.c.get(f"{API}/tickets/inbound", headers=env.h("joni")).json()["items"][0]
+    assert item["claimed_at"] == _iso_s(now - dt.timedelta(minutes=16)), "the screen can show 'claimed by X, N min ago'"
+    taken = env.c.post(f"{API}/tickets/inbound/{iid}/claim", headers=env.h("joni"))
+    assert taken.status_code == 200 and taken.json()["text"] == "1" and taken.json()["claimed_by_me"] is True
+    r = env.c.post(f"{API}/tickets/inbound/{iid}/attach", json={"ticket_id": t2["id"]}, headers=env.h("mona"))
+    assert r.status_code == 409 and r.json()["code"] == "not_claimed", "the earlier claimer lost it"
+    assert env.c.post(f"{API}/tickets/inbound/{iid}/claim", headers=env.h("mona")).status_code == 409, "joni's claim is fresh now"
+    with env.s4.db.connection(mode="read") as conn:
+        details = [json.loads(r[0]) for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'ticket.inbound.claim' "
+                                                           "ORDER BY rowid").fetchall()]
+    assert details[-1].get("took_over") is True and not details[0].get("took_over")
+    r = env.c.post(f"{API}/tickets/inbound/{iid}/attach", json={"ticket_id": t1["id"]}, headers=env.h("joni"))
+    assert r.status_code == 200, r.text
+
+
 def test_migration_0081_tables_and_indexes(env):
     with env.s4.db.connection(mode="read") as conn:
         names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master").fetchall()}

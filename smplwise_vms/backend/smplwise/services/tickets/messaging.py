@@ -630,21 +630,32 @@ class MessagingRuntime:
             return 0
         done = 0
         for event in events:
-            with self.db.connection(label="tickets.inbound") as conn, obs.bound(conn):
-                if not access.module_on(conn) or not channel_settings(conn)["whatsapp"]["enabled"]:
-                    self.counters["dropped_off"] += 1
-                    continue
-                proc = self.processor(conn)
-                if proc is None:
-                    self.counters["dropped_no_key"] += 1
-                    continue
-                decision = proc.process(event, now)
-                if decision is None:
-                    continue
-                self.counters[decision.result] += 1
-                apply_decision(conn, decision, now)
-                done += 1
+            # deep review B1: the batch is already off the queue - one event that raises (a shape surprise, a database error)
+            # must not take the rest of the batch with it. Its transaction rolls back; the log line names the exception type
+            # only (never the frame, the text, a number or the exception message, which may quote the text).
+            try:
+                done += self._drain_one(event, now)
+            except Exception as exc:  # noqa: BLE001
+                self.counters["event_failed"] += 1
+                log.warning("ticket inbound event failed (%s)", type(exc).__name__)
         return done
+
+    def _drain_one(self, event: Mapping[str, Any], now: dt.datetime) -> int:
+        assert self.db is not None
+        with self.db.connection(label="tickets.inbound") as conn, obs.bound(conn):
+            if not access.module_on(conn) or not channel_settings(conn)["whatsapp"]["enabled"]:
+                self.counters["dropped_off"] += 1
+                return 0
+            proc = self.processor(conn)
+            if proc is None:
+                self.counters["dropped_no_key"] += 1
+                return 0
+            decision = proc.process(event, now)
+            if decision is None:
+                return 0
+            apply_decision(conn, decision, now)
+            self.counters[decision.result] += 1
+            return 1
 
     # ------------------------------------------------------------ enqueue helpers (called inside a request's transaction)
 
@@ -1046,7 +1057,7 @@ class DbMatchDirectory:
             assignment_id=r["assignment_id"], contact_id=r.get("contact_id") or "", contact_phone_key=r.get("phone_key"), account_key=r.get("account_key"),
             link_live=_link_state(r, self.clock()) == "live", assignment_current=r.get("current_assignment_id") == r["assignment_id"] and not r.get("asg_ended_at"),
             requires_code=bool(r.get("require_code")), ticket_status=r["status"], provider_message_id=r.get("provider_message_id"),
-            # deep review B3: the button acts only for the generation its message carried (NULL never matches - see 0085)
+            # deep review B3: the button acts only for the generation its message carried (NULL never matches - see 0086)
             generation_current=r.get("link_generation") is not None and r.get("link_generation") == r.get("link_current_generation"))
 
     def candidates(self, sender_key: str, *, since: dt.datetime, account_key: str | None) -> list[inbound_mod.Candidate]:
