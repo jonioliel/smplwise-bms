@@ -133,6 +133,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         hua_svc.flush_limiter(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("rate limiter flush failed", exc_info=True)
+    try:  # USR2: the local identities' tiers (written behind), expired pending second steps, old link and session rows
+        from .services import local_identity as local_identity_svc
+
+        local_identity_svc.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("local identity janitor failed", exc_info=True)
     try:
         from .services import alarm_codes as alarm_codes_svc
 
@@ -446,6 +452,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(second_factor_router.router, prefix=api, tags=["remote"])  # K11: the optional TOTP second factor (own enrolment, admin reset)
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
+    from .routers import local_identity as local_identity_router
+
+    app.include_router(local_identity_router.router, prefix=api, tags=["identity"])  # USR2: Arx-only identities (off by default: security.local_identity)
     from .routers import cast as cast_router
 
     app.include_router(cast_router.router, prefix=api, tags=["multimedia"])  # CR-028: שדר למסך - cast sessions, targets, the cast administration
@@ -501,6 +510,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             hua_svc.restore_limiter(app.state.db)
         except Exception:  # noqa: BLE001 - a failed restore is the old behaviour (empty counters)
             log.warning("rate limiter restore failed", exc_info=True)
+        try:  # USR2: the per-address and global sign-in tiers of the local identities (written behind by the janitor)
+            from .services import local_identity as local_identity_svc
+
+            local_identity_svc.restore_tiers(app.state.db)
+        except Exception:  # noqa: BLE001
+            log.warning("local identity tiers restore failed", exc_info=True)
         # Sessions never survive a restart: remove our leftover playback streams, then expire idle
         # sessions every 30 s. Only `smplwise_pb_*` names are ever deleted.
         from starlette.concurrency import run_in_threadpool

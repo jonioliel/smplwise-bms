@@ -20,7 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, expand_legacy, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_name, role_permissions, scope_name
+from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, LOCAL_ID_PREFIX, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, expand_legacy, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_name, role_permissions, scope_name
 from ..services import ha_client, revocation
 from ..services import playback as pb
 from ..services.timeutil import parse_utc
@@ -70,6 +70,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "system.configure": "הגדרות מערכת",
     "sources.configure": "הגדרת מקורות (NVR / go2rtc)",
     "identity.directory.read": "צפייה בספריית המשתמשים",
+    "identity.local.manage": "ניהול משתמשי Arx (יצירה, קישורי כניסה, השבתה)",  # USR2: system_admin only, never delegable, never in a custom role
     "rbac.assign": "שיוך תפקידים",
     "rbac.roles.manage": "ניהול תפקידים",
     "audit.read": "צפייה באודיט",
@@ -304,7 +305,8 @@ PERMISSION_LABELS: dict[str, str] = {
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",
 }
-SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update"}  # rbac.assign is delegable (T082)
+SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
+                      "identity.local.manage"}  # rbac.assign is delegable (T082); USR2: identity.local.manage (system_admin only, never in a custom role)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a
@@ -425,14 +427,14 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
         if h and v and not v["active"]:
             active = False
         admin_default = admins_default and active and is_system_admin(conn, uid)
-        remote_basis = "flag" if uid in remote_ids else "admin_default" if admin_default else None
+        remote_basis = "local" if uid.startswith(LOCAL_ID_PREFIX) else "flag" if uid in remote_ids else "admin_default" if admin_default else None  # USR2 Q2: the role is the admission
         out.append({
             "id": uid,
             "name": (h or {}).get("name") or (v or {}).get("display_name") or (v or {}).get("username") or uid,
             "username": (h or {}).get("username") or (v or {}).get("username") or "",
             "is_admin": bool((h or {}).get("is_admin")),
             "active": active,
-            "source": "both" if h and v else "ha_directory" if h else "vms",
+            "source": "local" if uid.startswith(LOCAL_ID_PREFIX) else "both" if h and v else "ha_directory" if h else "vms",  # USR2: an Arx-only identity
             "sync_status": _sync_status(h, v, paired),
             "synced_at": (h or {}).get("synced_at"),
             "first_seen_at": (v or {}).get("first_seen_at"),
@@ -894,12 +896,37 @@ def validate_binding(conn: sqlite3.Connection, principal: Principal, body: Bindi
     check_delegation(conn, principal, body.role_id, scope, body.subject_kind, body.subject_id, op="bind", effect=body.effect)
     if body.subject_kind == "user" and not user_known(conn, body.subject_id):
         raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant.")
+    if body.subject_kind == "user" and body.subject_id.startswith(LOCAL_ID_PREFIX):
+        local_binding_check(conn, principal, body.subject_id, body.role_id, body.effect)
     dup = conn.execute(
         _active_bindings_sql("AND subject_kind = ? AND subject_id = ? AND role_id = ? AND scope_type = ? AND scope_id = ? AND effect = ?"),
         (now_iso(), body.subject_kind, body.subject_id, body.role_id, body.scope_type, body.scope_id, body.effect),
     ).fetchone()
     if dup:
         raise ApiError(409, "binding_exists", "השיוך הזה כבר קיים.", details={"binding_id": dup["id"]})
+
+
+LOCAL_ONE_BINDING_HE = "למשתמש Arx יש תפקיד אחד בהיקף אחד. כדי להחליף אותו, השתמש ב״שינוי תפקיד״ במסך משתמשי Arx."
+LOCAL_ROLE_HE = "התפקיד הזה אינו ניתן למשתמש Arx (מנהל מערכת והרשאות מערכת שמורים למשתמשי תשתית המערכת)."
+LOCAL_DENY_HE = "למשתמש Arx אין חסימות: יש לו תפקיד אחד בהיקף אחד."
+
+
+def local_binding_check(conn: sqlite3.Connection, principal: Principal, user_id: str, role_id: str, effect: str) -> None:
+    """USR2 section 12.1 (owner answer Q3): an Arx-only identity holds exactly ONE allow binding - any role except system_admin
+    (and no role with a system permission) - never a deny, never a second binding. Every refusal is audited."""
+    from ..services import local_identity
+
+    def refuse(code: str, message: str, status: int) -> ApiError:
+        audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type="user", resource_id=user_id, reason=code, details={"role_id": role_id})
+        return ApiError(status, code, message, details={"role_id": role_id})
+
+    if effect != "allow":
+        raise refuse("local_user_no_deny", LOCAL_DENY_HE, 422)
+    if local_identity.role_refusal(conn, role_id):
+        raise refuse("role_not_allowed_for_local_user", LOCAL_ROLE_HE, 422)
+    existing = conn.execute(_active_bindings_sql("AND subject_kind = 'user' AND subject_id = ?"), (now_iso(), user_id)).fetchone()
+    if existing:
+        raise refuse("local_user_one_binding", LOCAL_ONE_BINDING_HE, 409)
 
 
 def user_known(conn: sqlite3.Connection, user_id: str) -> bool:

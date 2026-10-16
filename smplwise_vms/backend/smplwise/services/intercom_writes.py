@@ -94,7 +94,7 @@ def interactive(principal: Principal) -> bool:
     `push`, `device`), is not. Ingress cannot prove a person at the keyboard either; it is the HA frontend's own session."""
     if principal.source in ("ingress", "dev"):
         return True
-    return principal.source == "remote" and principal.via == "cookie"
+    return principal.source in ("remote", "local") and principal.via == "cookie"  # USR2: a local identity signs in with a cookie only
 
 
 # ---------------------------------------------------------------- the station-scope gate

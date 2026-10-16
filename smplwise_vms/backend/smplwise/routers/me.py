@@ -62,6 +62,24 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services import presence
 
         extra["presence_gate"] = presence.gate_for(conn, principal.user_id, app=presence.is_app_user_agent(request.headers.get("user-agent")))
+    if principal.source == "local":
+        # USR2: what the shell needs for an Arx-only identity - whether its administrative permissions wait for the second factor
+        # (owner answer Q3), whether the session is gated (enrolment / password change) and the reset mode the administrator chose
+        from ..services import local_identity
+        from ..services import second_factor as sf
+        from ..services.ha_user_auth import session_of
+
+        s = session_of(request)
+        cred = conn.execute("SELECT must_change, reset_mode FROM auth_local_credentials WHERE user_id = ?", (principal.user_id,)).fetchone()
+        admin = local_identity.holds_admin(conn, principal.user_id)
+        extra["local_identity"] = {
+            "admin_permissions": admin,
+            "admin_permissions_blocked": admin and not principal.factor_ok,
+            "second_factor_enrolled": sf.is_enrolled(conn, principal.user_id),
+            "gate": getattr(s, "gate", "") or None,
+            "must_change_password": bool(cred and cred["must_change"]),
+            "reset_mode": cred["reset_mode"] if cred else "manager_only",
+        }
     from ..services import wall as wall_service
     from ..services.tickets import access as tickets_access, naming as tickets_naming
     from ..services.tickets import settings_doc as tickets_settings  # D17 (slice 3): the long-press behaviour

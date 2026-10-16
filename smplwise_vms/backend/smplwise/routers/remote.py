@@ -49,9 +49,15 @@ def _remote_only(request: Request) -> None:
 def remote_config(request: Request) -> dict[str, Any]:
     _remote_only(request)
     settings = settings_of(request)
+    from ..services import local_identity
+
     with request.app.state.db.connection(mode="read", label="auth/remote-config") as conn:
         rs = hua.remote_settings(conn)
-    return {"path": settings.remote_path + "/", "session": rs["remote.session"], "idle_lock_minutes": rs["remote.idle_lock_minutes"]}
+        local = local_identity.enabled(conn)
+    body = {"path": settings.remote_path + "/", "session": rs["remote.session"], "idle_lock_minutes": rs["remote.idle_lock_minutes"]}
+    if local:  # USR2: the sign-in page offers the "משתמש Arx" mode only while the feature is on (absent otherwise: the answer is unchanged)
+        body["local_identity"] = True
+    return body
 
 
 @router.get("/auth/app-download")
@@ -212,8 +218,62 @@ def list_remote_sessions(request: Request, scope: str = Query("own", pattern="^(
     entries = hua.STORE.chains(None if scope == "all" else principal.user_id)
     current = _current_chain(request)
     live = _live_by_chain()
-    return {"scope": scope, "can_manage": admin, "channel": channel_of(request),
-            "sessions": [hua.describe(e, current, live) for e in entries]}
+    sessions = [hua.describe(e, current, live) for e in entries]
+    sessions += _local_rows(request, None if scope == "all" else principal.user_id, current, live)
+    return {"scope": scope, "can_manage": admin, "channel": channel_of(request), "sessions": sessions}
+
+
+def _local_rows(request: Request, user_id: str | None, current: str | None, live: dict[str, int]) -> list[dict[str, Any]]:
+    """USR2: the live local (Arx-only) sign-ins, one row per chain, with `kind: "local"` and the device label. Nothing while the
+    feature is off, so the list is unchanged for an installation that never enabled it."""
+    from ..services import local_identity
+
+    if user_id is not None and not local_identity.is_local_id(user_id):
+        return []
+    with request.app.state.db.connection(mode="read", label="auth/sessions local") as conn:
+        if not local_identity.enabled(conn):
+            return []
+        rows = local_identity.chains(conn, user_id)
+    out = []
+    for r in rows:
+        chain = r.pop("_chain")
+        out.append({**r, "current": chain == current, "live_streams": live.get(chain, 0)})
+    return out
+
+
+def _local_revoke(request: Request, principal: Principal, admin: bool, *, chain_pid: str | None = None, user_id: str | None = None) -> JSONResponse | None:
+    """USR2: DELETE auth/sessions[/{id}] for local sign-ins. None = not a local session (the HA path answers)."""
+    from ..services import local_identity
+
+    settings = settings_of(request)
+    current = _current_chain(request)
+    with request.app.state.db.connection(label="auth/sessions local revoke") as conn:
+        if not local_identity.enabled(conn):
+            return None
+        if chain_pid is not None:
+            found = local_identity.chain_owner(conn, chain_pid)
+            if found is None:
+                return None
+            chain_id, owner = found
+            if owner != principal.user_id and not admin:
+                require(conn, principal, "system.configure", INSTALLATION)  # 403, audited
+            reason = "logout" if owner == principal.user_id else "admin"
+            ended = local_identity.revoke_chain(conn, chain_id, reason)
+            ends_current = current == "l:" + chain_id
+            target = owner
+        else:
+            if not local_identity.is_local_id(user_id):
+                return None
+            target = user_id
+            reason = "logout_all" if target == principal.user_id else "admin"
+            ended = local_identity.revoke_user_sessions(conn, target, reason)
+            ends_current = current is not None and current.startswith("l:") and target == principal.user_id
+        audit(conn, actor=principal, action="auth.local.session.revoked", decision="allowed", resource_type="user", resource_id=target, reason=reason,
+              request_id=getattr(request.state, "correlation_id", None), details={"sessions": ended, **({"id": chain_pid} if chain_pid else {})})
+    response = JSONResponse({"sessions_ended": ended, "ha_sign_ins_ended": 0, "current_ended": ends_current})
+    if ends_current:
+        _clear_cookie(response, settings)
+    return response
 
 
 def _clear_cookie(response: Response, settings) -> None:
@@ -238,6 +298,11 @@ async def _revoke(request: Request, principal: Principal, sessions: list, target
 async def revoke_remote_session(session_id: str, request: Request) -> JSONResponse:
     principal, admin = await run_in_threadpool(_who, request)  # identity first: an anonymous caller learns nothing (401)
     sessions = hua.STORE.sessions_of({session_id}) if re.fullmatch(r"[0-9a-f]{20}", session_id) else []
+    if not sessions and re.fullmatch(r"[0-9a-f]{20}", session_id):
+        local = await run_in_threadpool(lambda: _local_revoke(request, principal, admin, chain_pid=session_id))
+        if local is not None:
+            await hua._close_sockets()
+            return local
     if not sessions:
         raise ApiError(404, "session_not_found", SESSION_NOT_FOUND_HE)
     owner = sessions[0].principal.user_id
@@ -252,6 +317,11 @@ async def revoke_all_remote_sessions(request: Request, user_id: str | None = Que
     target = user_id or principal.user_id
     if target != principal.user_id and not admin:
         await run_in_threadpool(_require_admin, request, principal)
+    if target.startswith("l_"):  # USR2: a local identity's sign-ins (it has no HA sign-in)
+        local = await run_in_threadpool(lambda: _local_revoke(request, principal, admin, user_id=target))
+        if local is not None:
+            await hua._close_sockets()
+            return local
     sessions = hua.STORE.sessions_of(user_id=target)
     return await _revoke(request, principal, sessions, target, "signed_out_everywhere" if target == principal.user_id else "revoked_all_by_admin")
 

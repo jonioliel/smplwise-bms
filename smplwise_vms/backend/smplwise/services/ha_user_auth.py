@@ -905,7 +905,13 @@ def holds_live_credential(settings: Settings, conn: Any) -> bool:
     expired? Memory only (no Home Assistant, no database, no last-used touch) and NOT an authentication: the request is
     still authenticated as usual; this only decides whether it may send more than the anonymous body cap."""
     now = time.time()
-    s = STORE.peek(session_id_of(settings, conn))
+    sid = session_id_of(settings, conn)
+    if sid and sid.startswith("l."):  # USR2: a local session this process holds in its cache
+        from . import local_identity
+
+        if local_identity.holds_live_cookie(sid):
+            return True
+    s = STORE.peek(sid)
     if s is not None and s.token_exp > now:
         return True
     token = bearer_of(conn)
@@ -1223,6 +1229,11 @@ def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
     """Drop the caller's session and every other session of its chain (this browser's earlier rotations). Audited
     when one existed. A bearer-only client has no session to drop; its tokens die when HA revokes them."""
     sid = session_id_of(settings, conn_like)
+    if sid and sid.startswith("l."):  # USR2: sign-out of a local session ends its chain (rows kept for the janitor)
+        from . import local_identity
+
+        if local_identity.logout(app_state.db, settings, conn_like, sid):
+            return True
     s = STORE.drop_chain(sid) if sid else None
     if s is not None:
         _audit(app_state.db, actor=s.principal, action="auth.remote_session.logout", decision="allowed", reason=None, meta=request_meta(conn_like))
@@ -1470,7 +1481,16 @@ def remote_principal(request: Any, settings: Settings, offline: bool = False) ->
     memory (a live, not stale session; a bearer session validated within BEARER_CACHE_S) and raise NeedsUnlock where
     Home Assistant would be asked or a row written - one read of the session state, so nothing can change between a
     check and the use (a session crossing STALE_AFTER_S / BEARER_CACHE_S or revoked meanwhile)."""
-    s = STORE.get(session_id_of(settings, request))
+    sid = session_id_of(settings, request)
+    if sid and sid.startswith("l."):
+        # USR2: an Arx-only (local) session cookie. None (the feature off, an unknown / ended session) falls through to exactly
+        # what any unknown cookie gets below - the HA path is unchanged
+        from . import local_identity
+
+        local = local_identity.remote_principal(request, settings, sid, offline=offline)
+        if local is not None:
+            return local
+    s = STORE.get(sid)
     if s is not None and _stale(s):
         if offline:
             raise NeedsUnlock
@@ -1493,6 +1513,10 @@ async def remote_principal_ws(websocket: Any, settings: Settings) -> Principal |
     if sid:
         if not origin_ok(websocket):
             return None
+        if sid.startswith("l."):  # USR2: a local session (None = refused, as for any unknown cookie)
+            from . import local_identity
+
+            return await local_identity.remote_principal_ws(websocket, settings, sid)
         s = STORE.get(sid)
         if s is not None and _stale(s):
             s = await _recheck_async(websocket, settings, s)
@@ -1690,7 +1714,9 @@ def _days_ago(days: int) -> str:
 # ---------------------------------------------------------------- background revalidation
 
 async def _close_sockets() -> None:
-    for ws in STORE.take_sockets_to_close():
+    from . import local_identity  # USR2: the sockets of revoked local sessions close on the same pass
+
+    for ws in STORE.take_sockets_to_close() + local_identity.take_sockets_to_close():
         try:
             await ws.close(code=4401)
         except Exception:  # noqa: BLE001 - already closed
@@ -1768,3 +1794,6 @@ def reset_for_tests() -> None:
     _core_base.clear()
     _xff_refused.clear()
     _REVOKED_TABLE["seen"] = False
+    from . import local_identity
+
+    local_identity.reset_for_tests()

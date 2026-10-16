@@ -48,7 +48,11 @@ PROJECT_TABLES = PROJECT_TABLES + ["plan_view_prefs"]
 # regenerate requests (plan_bake_jobs) are runtime state and stay out. An archive written before the table restores no bake: the
 # floors show their live view until an editor bakes again (a replace restore sweeps the files nobody names).
 PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
-ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles",
+# USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
+# new host keeps the users) - the rows hold PHC hashes only; sessions, links, the failure counters and the TOTP secrets
+# (auth_local_sessions, auth_local_links, auth_local_failures, auth_totp*) are never written to an archive. identity_links: the
+# manual "same person" link. Listed right after `users` (they reference it).
+ACCESS_TABLES = ["users", "auth_local_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
                  # CR-033: where stations sit (station scope), which relay each WisKey lock is, and the door grant card's own bindings
                  "intercom_station_placement", "intercom_door_map", "door_grant_bindings"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
@@ -75,7 +79,9 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # docs/changes/CR-038-S1-NOTES.md: a replace restore must not delete departments that open tickets reference).
                  "tickets.enabled", "tickets.settings", "tickets.name", "messaging.whatsapp",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
-                 "notify.whatsapp"}
+                 "notify.whatsapp",
+                 # USR2: the Arx-only identity switch is the installation's own policy - a restore never switches local sign-in on
+                 "security.local_identity"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:

@@ -19,7 +19,7 @@ import time
 
 from .db import Database, commit_now, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting, unlocked
 from .errors import unauthenticated
-from .rbac import Principal
+from .rbac import LOCAL_ID_PREFIX, Principal
 from .remote_channel import is_remote
 
 HEADER_ID = "x-remote-user-id"
@@ -70,6 +70,10 @@ def _pre_resolved(request: Request) -> Principal | None:
     principal = getattr(request.state, PRE_RESOLVED, None)
     if principal is None:
         return None
+    if principal.source == "local":  # USR2: a local session is still live while a revoke has not emptied its cache entry
+        from .services import local_identity
+
+        return principal if local_identity.still_live(principal, request) else None
     from .services import ha_user_auth
 
     s = ha_user_auth.session_of(request)
@@ -121,6 +125,10 @@ def resolve_principal(request: Request, settings: Settings, offline: bool = Fals
     if _client_host(request) not in settings.trusted_proxies:
         raise unauthenticated("untrusted_origin", "הגישה מותרת רק דרך Home Assistant Ingress.")
     user_id = headers.get(HEADER_ID)
+    if user_id and user_id.startswith(LOCAL_ID_PREFIX):
+        # USR2 R1 / test plan 9: Ingress trust is by address, so the id form of an Arx-only identity is refused explicitly - a
+        # local identity never signs in through Home Assistant's door (Home Assistant never issues such an id)
+        user_id = None
     if not user_id:
         raise unauthenticated(
             "identity_missing",
@@ -175,8 +183,8 @@ def same_username(a: str | None, b: str | None) -> bool:
 
 def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None) -> None:
     """Grant system_admin once to the HA username named in the add-on options - through Ingress only: never on the
-    CR-008 remote channel, whatever the username."""
-    if principal.source == "remote":
+    CR-008 remote channel, whatever the username, and never to an Arx-only (USR2 local) identity."""
+    if principal.source in ("remote", "local"):
         return
     if not settings.bootstrap_admin_username:
         return

@@ -288,6 +288,16 @@ DEFAULTS: dict[str, str] = {
     "remote.mse_fallback": "true",  # MSE through the tunnel only as an announced last resort; false = never (D7)
     "security.second_factor_policy": "optional",  # K11 (owner 2026-10-06): the TOTP second factor is optional; "admins" refuses a remote sign-in of an administrator who has none
     "security.second_factor_bearer": "enforce",  # security review 2.2.0 H1: enforce = the factor / admins policy also on a new bearer sign-in (HTTP + WS); off = the pre-2.2.1 bearer path
+    # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
+    # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
+    # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,
+    # the password policy, the link lifetime and the brute-force mode (services/local_identity.py). Never restored from a backup.
+    "security.local_identity": "off",
+    "security.local_session": "rolling_30d",  # rolling_30d | rolling_90d | browser_session
+    "security.local_admin_session_days": "7",  # 1-7: the absolute lifetime of a session of a local user holding an administrative permission
+    "security.local_password_min": "12",  # 10-64
+    "security.local_link_ttl_h": "72",  # 1-168: first-login / reset link lifetime
+    "security.local_lock_mode": "delay",  # delay (a growing delay, never a hard lock) | lock (locked until the delay ends; an administrator may unlock)
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top
@@ -357,7 +367,7 @@ ALLOW_DISARM_WORD = "אפשר נטרול"
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
+INT_KEYS = ("security.local_admin_session_days", "security.local_password_min", "security.local_link_ttl_h", "media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
 
 
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
@@ -708,6 +718,12 @@ class SettingsPatch(BaseModel):
     security_second_factor_policy: str | None = Field(default=None, pattern="^(optional|admins)$", alias="security.second_factor_policy")
     security_second_factor_bearer: str | None = Field(default=None, pattern="^(enforce|off)$", alias="security.second_factor_bearer")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
+    security_local_identity: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity")  # USR2: system_admin only (checked below)
+    security_local_session: str | None = Field(default=None, pattern="^(rolling_30d|rolling_90d|browser_session)$", alias="security.local_session")
+    security_local_admin_session_days: int | None = Field(default=None, ge=1, le=7, alias="security.local_admin_session_days")
+    security_local_password_min: int | None = Field(default=None, ge=10, le=64, alias="security.local_password_min")
+    security_local_link_ttl_h: int | None = Field(default=None, ge=1, le=168, alias="security.local_link_ttl_h")
+    security_local_lock_mode: str | None = Field(default=None, pattern="^(delay|lock)$", alias="security.local_lock_mode")
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=128, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
     app_android_url: str | None = Field(default=None, max_length=app_download.MAX_URL, alias="app.android_url")  # https only, checked in app_download.normalize
@@ -906,6 +922,19 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         current_switch = get_setting(conn, "update.apply_enabled", DEFAULTS["update.apply_enabled"]) or DEFAULTS["update.apply_enabled"]
         if changes["update.apply_enabled"] != ("false" if current_switch == "false" else "true"):
             update_switch = changes["update.apply_enabled"]
+    local_switch = None  # USR2: the Arx-only identity switch - a system administrator only, its own audit row, off ends every local session
+    if "security.local_identity" in changes:
+        current_local = "on" if (get_setting(conn, "security.local_identity", "off") or "off") == "on" else "off"
+        if changes["security.local_identity"] == current_local:
+            changes.pop("security.local_identity")
+        else:
+            from ..rbac import is_system_admin
+
+            if not is_system_admin(conn, principal.user_id):
+                audit(conn, actor=principal, action="identity.local.feature", decision="denied", resource_type="installation", resource_id="local_identity",
+                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity"]})
+                raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את משתמשי Arx.")
+            local_switch = changes["security.local_identity"]
     tickets_switch = None  # CR-038: the module switch gets its own audit row when it actually changes
     if "tickets.enabled" in changes:
         current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]
@@ -977,6 +1006,19 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         from ..remote_channel import set_csp_enforce
 
         set_csp_enforce(changes["remote.csp_enforce"] == "true")
+    if any(k.startswith("security.local_") for k in changes):
+        from ..services import local_identity
+
+        local_identity.flag_changed()  # the hot path reads the switch again at once
+    if local_switch is not None:
+        from ..services import local_identity
+
+        ended = local_identity.revoke_all(conn, "feature_off") if local_switch == "off" else 0
+        audit(conn, actor=principal, action="identity.local.feature_enabled" if local_switch == "on" else "identity.local.feature_disabled", decision="allowed",
+              resource_type="installation", resource_id="local_identity", request_id=getattr(request.state, "correlation_id", None),
+              details={"sessions_ended": ended} if ended else None)
+        if ended:
+            local_identity.close_sockets_from_thread()
     if disarm_change is not None:
         audit(conn, actor=principal, action="schedules.allow_disarm", decision="allowed", resource_type="installation", resource_id="*",
               request_id=getattr(request.state, "correlation_id", None), details={"to": disarm_change})

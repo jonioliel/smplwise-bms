@@ -322,6 +322,9 @@ class RemoteChannel:
                 headers.extend(ours)
                 if api and not any(k.lower() == b"cache-control" for k, _ in headers):
                     headers.append((b"cache-control", b"no-store"))
+                rotated = state.get("sw_local_set_cookie")
+                if rotated:  # USR2: a local session rotated while this request was served - the new cookie goes out with it
+                    headers.append((b"set-cookie", rotated.encode("latin-1")))
                 message = {**message, "headers": headers}
             await send(message)
 
