@@ -106,7 +106,7 @@ test.describe('setup wizard against the fixture backend (fake NVR / go2rtc)', ()
     expect(writes.every((w) => w.startsWith('go2rtc PUT smplwise_'))).toBe(true);
   });
 
-  test('the shell hint "השלם את ההתקנה" counts required steps only and its dismissal is the user's own (survives a reload)', async ({ page }, testInfo) => {
+  test('the shell hint "השלם את ההתקנה" counts required steps only and its dismissal is each user own (survives a reload)', async ({ page }, testInfo) => {
     // on a phone the setup progress moved into the user menu's header (sw-app: `.setuphint { display: none }` under 768 px), so the row is desktop only
     test.skip(testInfo.project.name === 'mobile', 'the phone shows the setup progress in the user menu, not as a row');
     await page.goto('/?design=a#/live');
