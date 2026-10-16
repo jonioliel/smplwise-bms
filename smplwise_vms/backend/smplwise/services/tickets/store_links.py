@@ -286,12 +286,20 @@ def any_keyed_row(conn: sqlite3.Connection) -> bool:
     restore without secrets/, never a reason to mint a new key (code review W12 / V4)."""
     if any_link(conn):
         return True
+    if _has_rfq_links(conn) and conn.execute("SELECT 1 FROM ticket_rfq_links LIMIT 1").fetchone() is not None:  # TKRFQ1 (0089)
+        return True
     return conn.execute("SELECT 1 FROM ticket_contacts WHERE phone_key IS NOT NULL LIMIT 1").fetchone() is not None
+
+
+def _has_rfq_links(conn: sqlite3.Connection) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_links'").fetchone() is not None
 
 
 def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
     """The module keys a row still NEEDS: live links (a revoked link never derives its token again) and contacts' phone keys."""
     ids = {r[0] for r in conn.execute("SELECT DISTINCT key_id FROM ticket_links WHERE revoked_at IS NULL").fetchall() if r[0]}
+    if _has_rfq_links(conn):  # TKRFQ1: the live RFQ vendor links need their key too
+        ids |= {r[0] for r in conn.execute("SELECT DISTINCT key_id FROM ticket_rfq_links WHERE revoked_at IS NULL").fetchall() if r[0]}
     ids |= {r[0] for r in conn.execute("SELECT DISTINCT phone_key_id FROM ticket_contacts WHERE phone_key_id IS NOT NULL").fetchall() if r[0]}
     return ids
 
