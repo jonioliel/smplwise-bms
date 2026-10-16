@@ -290,8 +290,22 @@ def resolve_number(conn: sqlite3.Connection, user_id: str) -> ResolvedNumber | N
     found = raw_number(conn, user_id)
     if found is None:
         return None
-    granted = found.consent == "granted" and opted_in_for(conn, user_id, found.digits)
+    granted = found.consent == "granted" and opted_in_for(conn, user_id, found.digits) and number_verified(conn, user_id, found.digits)
     return ResolvedNumber(found.digits, found.lang, found.source, "granted" if granted else "declined")
+
+
+def number_verified(conn: sqlite3.Connection, user_id: str, digits: str) -> bool:
+    """TKNOTIFOTP: while number verification is on (the installation's or the person's own switch, services/tickets/phone_verify.py),
+    notifications go only to a number confirmed by the code sent to it. Off (the default): always True."""
+    try:
+        from .tickets import phone_verify
+    except Exception:  # noqa: BLE001 - no tickets module: nothing to verify against
+        return True
+    try:
+        return phone_verify.user_number_ok(conn, user_id, digits)
+    except Exception:  # noqa: BLE001 - fail closed: a check that cannot run never grants
+        log.warning("whatsapp number verification check failed")
+        return False
 
 
 def mask(digits: str) -> str:
@@ -969,10 +983,14 @@ def my_view(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     stored = opt_in_hash(conn, user_id)
     opted = bool(found) and opted_in_for(conn, user_id, found.digits)  # type: ignore[union-attr]
     blocked = bool(found) and found.consent != "granted"  # type: ignore[union-attr]
+    verified = bool(found) and number_verified(conn, user_id, found.digits)  # type: ignore[union-attr]
     return {"channel_enabled": load_config(conn)["enabled"], "has_number": found is not None, "masked": mask_own(found.digits) if found else None,
             "confirm": confirm_token(conn, found.digits) if found else None,  # re-review R2: the PUT must echo it
             "source": found.source if found else None, "opted_in": opted, "number_changed": bool(stored) and found is not None and not opted,
-            "directory_declined": blocked, "consent": "granted" if (opted and not blocked) else ("declined" if found else None),
+            "directory_declined": blocked,
+            "consent": "granted" if (opted and not blocked and verified) else ("declined" if found else None),
+            # TKNOTIFOTP: the number still has to be verified with a code (in "החשבון שלי", the work-link mobile card)
+            "verify_required": bool(found) and not verified,
             "stored_opt_in": bool(stored)}  # B-5: an old opt-in (number changed or removed) can still be withdrawn
 
 

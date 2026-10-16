@@ -12,6 +12,7 @@ import { ApiError, describeError } from '../api/client';
 import { messagesApi, type ChannelPatch, type ChannelView, type ChannelWarning } from '../api/tickets-messages';
 import { ticketSettingsCss } from './settings-styles';
 import { mtt, type MessageTextKey } from './messages-text';
+import { tt } from './text';
 import { when } from './ticket-messages';
 
 /**
@@ -181,6 +182,9 @@ export class TicketsChannelSettings extends LitElement {
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ email_fallback: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${mtt('chMailServer')}</span>
         <span class="val" data-mail-state=${v.email.configured ? 'ok' : 'missing'}>${v.email.configured ? mtt('chMailOk') : mtt('chMailMissing')}</span></div>
+      <div class="row"><span class="lbl">${tt('otpSettingTitle')}<span class="muted">${tt('otpSettingHint')}</span></span>
+        <sw-toggle label=${tt('otpSettingTitle')} labelHidden .checked=${!!v.phone_verify?.required} ?disabled=${this.busy} data-channel-phone-verify
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ phone_verify: { required: e.detail.checked } })}></sw-toggle></div>
     </sw-card>`;
   }
 

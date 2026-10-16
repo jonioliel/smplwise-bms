@@ -37,8 +37,11 @@ PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "u
             "cost_rejected", "cost_approved", "cost_reopened", "test",
             # TKRFQ1 (migration 0089): requests for quotation - the invitation, a reminder, "a new message about your quote", the
             # cancellation notice to vendors who quoted (owner decision 2) and the work order (stage C4)
-            "rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order")
+            "rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order",
+            "phone_verify")  # TKNOTIFOTP (folded into the 0089 outbox rebuild): the fixed number-verification code (no ticket, no link, WhatsApp only)
 RFQ_PURPOSES = frozenset({"rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order"})
+# the purposes whose message carries a six-digit code ({code} mandatory, rendered at send time only)
+CODE_PURPOSES = frozenset({"code", "phone_verify"})
 
 # The kinds of the brief (assignment link, reminder, verification code, status notice). "Escalation" is NOT a channel message:
 # escalation goes to managers through CR-018 (13.3 step 2), never to the handler. A "status echo" is a notice the MANAGER's act
@@ -50,9 +53,10 @@ KIND_OF_PURPOSE = {
     "closed": "status", "reassigned": "status", "cost_rejected": "status", "cost_approved": "status", "cost_reopened": "status",
     "test": "test",
     "rfq_invite": "link", "rfq_update": "link", "rfq_order": "link", "rfq_reminder": "reminder", "rfq_cancelled": "status",
+    "phone_verify": "code",
 }
 # 7.3: 0 = code (sent first), 1 = assign / update / reopened, 2 = reminder / closed / reassigned (and the rest)
-PRIORITY_OF_PURPOSE = {"code": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1, "rfq_invite": 1, "rfq_update": 1, "rfq_order": 1}
+PRIORITY_OF_PURPOSE = {"code": 0, "phone_verify": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1, "rfq_invite": 1, "rfq_update": 1, "rfq_order": 1}
 LINK_PURPOSES = frozenset({"assign", "reminder", "reopened", "update",
                            "rfq_invite", "rfq_reminder", "rfq_update", "rfq_order"})  # {link} is mandatory in these templates (9.7)
 # TK251 (11A.7: "sent back to the vendor ... with the link"): the cost messages that ask the vendor to act carry the handler link

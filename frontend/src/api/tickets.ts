@@ -272,13 +272,18 @@ export interface AdminMember {
   mobile?: string | null; notify_whatsapp?: boolean; lang?: 'he' | 'en' | 'ar' | 'ru';
   /** security review F3: the employee confirmed this number in their own account (until then no staff link is sent) */
   mobile_confirmed?: boolean;
+  /** TKNOTIFOTP: the directory row, its "verify with a code" switch, whether a code is required, the manager-mark token (null = not offered) */
+  contact_id?: string | null; phone_verify?: boolean; verify_required?: boolean; mobile_confirm?: string | null;
 }
 /** TKSTAFF1 review F3 / F4: GET /tickets/me/staff-mobile - the caller's OWN work-link mobile (last four digits only) */
-export interface StaffMine { has_phone: boolean; phone: string | null; confirmed: boolean; confirm: string | null; notify_whatsapp: boolean; lang: string }
+export interface StaffMine { has_phone: boolean; phone: string | null; confirmed: boolean; confirm: string | null; notify_whatsapp: boolean; lang: string;
+  /** TKNOTIFOTP: the number is confirmed only by typing the code sent to it */
+  verify_required?: boolean; code_pending?: boolean; confirmed_via?: 'user' | 'manager' | 'code' | null }
 export type StaffMineBody = { confirm: string } | { confirmed: false } | { notify_whatsapp: boolean };
 /** TKSTAFF1: PUT /tickets/admin/staff/{user_id} (tickets.configure) - the mobile of an internal employee with an account */
-export interface StaffMobile { user_id: string; contact_id: string | null; phone: string | null; has_phone: boolean; notify_whatsapp: boolean; lang: 'he' | 'en' | 'ar' | 'ru'; active: boolean; live_links: number }
-export interface StaffMobileBody { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean }
+export interface StaffMobile { user_id: string; contact_id: string | null; phone: string | null; has_phone: boolean; notify_whatsapp: boolean; lang: 'he' | 'en' | 'ar' | 'ru'; active: boolean; live_links: number;
+  confirmed?: boolean; phone_verify?: boolean; verify_required?: boolean; confirm?: string | null }
+export interface StaffMobileBody { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean; /** TKNOTIFOTP */ phone_verify?: boolean }
 export interface AdminDepartment {
   id: string;
   key: string;

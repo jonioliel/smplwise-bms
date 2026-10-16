@@ -88,7 +88,9 @@ def channel_settings(conn) -> dict[str, Any]:
     return {"revision": doc["revision"],
             "whatsapp": {"enabled": bool(wa.get("enabled", False)), "use_buttons": bool(wa.get("use_buttons", False)),
                          "reply_window_h": int(wa.get("reply_window_h", inbound_mod.DEFAULT_REPLY_WINDOW_H))},
-            "email_fallback": bool(doc.get("email_fallback", True))}
+            "email_fallback": bool(doc.get("email_fallback", True)),
+            # TKNOTIFOTP: verify every WhatsApp number with a one-time code (optional, OFF by default)
+            "phone_verify": {"required": bool((doc.get("phone_verify") or {}).get("required", False))}}
 
 
 def time_zone(conn) -> ZoneInfo:
@@ -502,6 +504,11 @@ class MessagingRuntime:
 
     def _derive_code(self, row: OutboxRow) -> str | None:
         """W9: the six digits of a code row, derived from its id under the link's key at render time."""
+        if row.purpose == "phone_verify":  # TKNOTIFOTP: the verification row names its own key
+            from . import phone_verify
+
+            with obs.Access(self.db).read() as conn:
+                return phone_verify.derive_for_outbox(conn, row.code_id, row.contact_id)
         if not row.code_id or not row.link_id:
             return None
         with obs.Access(self.db).read() as conn:
@@ -878,11 +885,19 @@ def plan_channel(conn, contact: Mapping[str, Any], data_dir: Path | None) -> str
         return "manual"
     if preferred == "email":
         return "email" if mail_ok else "manual"
-    if cs["whatsapp"]["enabled"] and has_phone:
+    if cs["whatsapp"]["enabled"] and has_phone and _verified_for_whatsapp(conn, contact):
         return "whatsapp"
     if cs["email_fallback"] and mail_ok:
         return "email"
     return "manual"
+
+
+def _verified_for_whatsapp(conn, contact: Mapping[str, Any]) -> bool:
+    """TKNOTIFOTP: while number verification is on for this contact (the installation switch or the row's own), nothing goes to its
+    WhatsApp number until the code sent to that number was typed back. Off (the default): unchanged."""
+    from . import phone_verify
+
+    return phone_verify.whatsapp_allowed(conn, contact)
 
 
 def message_params(conn, ticket: Mapping[str, Any], contact: Mapping[str, Any]) -> dict[str, str]:
@@ -1011,15 +1026,22 @@ def fallback_plan(conn, contact: Mapping[str, Any], data_dir: Path | None) -> st
     return "manual"
 
 
+def whatsapp_code_ready(conn, contact: Mapping[str, Any], rt: MessagingRuntime) -> bool:
+    """WhatsApp can carry a code to this contact's number now: the master switch, a number, and a sendable `tickets.codes` account."""
+    cs = channel_settings(conn)
+    if not cs["whatsapp"]["enabled"] or phone_digits(contact.get("phone_e164") or "") is None:
+        return False
+    try:
+        ref = rt.accounts().resolve("tickets.codes")
+        return ref is not None and bool(ref.value) and rt.accounts().status(ref.key).sendable
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def code_channels(conn, contact: Mapping[str, Any], rt: MessagingRuntime) -> tuple[bool, bool]:
     cs = channel_settings(conn)
-    whatsapp_ok = False
-    if cs["whatsapp"]["enabled"] and phone_digits(contact.get("phone_e164") or "") is not None:
-        try:
-            ref = rt.accounts().resolve("tickets.codes")
-            whatsapp_ok = ref is not None and bool(ref.value) and rt.accounts().status(ref.key).sendable
-        except Exception:  # noqa: BLE001
-            whatsapp_ok = False
+    # TKNOTIFOTP: a link code never goes to a number that verification still holds back (the number check has its own message)
+    whatsapp_ok = whatsapp_code_ready(conn, contact, rt) and _verified_for_whatsapp(conn, contact)
     email_ok = bool(contact.get("email")) and cs["email_fallback"] and email_configured(conn, rt.data_dir)
     return whatsapp_ok, email_ok
 

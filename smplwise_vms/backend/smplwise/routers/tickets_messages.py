@@ -89,11 +89,17 @@ class WhatsappPatch(BaseModel):
     reply_window_h: int | None = Field(default=None, ge=1, le=336)
 
 
+class PhoneVerifyPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    required: bool | None = None
+
+
 class ChannelBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
     whatsapp: WhatsappPatch | None = None
     email_fallback: bool | None = None
+    phone_verify: PhoneVerifyPatch | None = None  # TKNOTIFOTP: the installation switch "verify numbers with a code"
 
 
 @router.put("/tickets/channel")
@@ -110,6 +116,8 @@ def put_channel(body: ChannelBody, request: Request, principal: Principal = Depe
             patch["whatsapp"] = wa
     if body.email_fallback is not None:
         patch["email_fallback"] = body.email_fallback
+    if body.phone_verify is not None and body.phone_verify.required is not None:
+        patch["phone_verify"] = {"required": body.phone_verify.required}
     try:
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:

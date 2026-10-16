@@ -166,7 +166,10 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
             vendors: dict[str, str] | None = None, configure: bool = False, rates: bool = False) -> dict[str, Any]:
     """One directory row for the caller: the full phone / e-mail only when `full_phone`; the internal notes only for the
     directory's editors (`configure`)."""
+    from . import phone_verify
+
     phone = row.get("phone_e164")
+    verify_required = phone_verify.required(conn, row)
     return {
         "id": row["id"],
         "kind": api_kind(row),
@@ -197,6 +200,11 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
         "vat_default": row.get("vat_default") or "excluded",
         "labor_rate_minor": row.get("labor_rate_minor") if rates else None,
         "rate_currency": row.get("rate_currency") if rates else None,
+        # TKNOTIFOTP: the row's switch, whether a code is required for it (installation OR row) and whether the number counts as confirmed
+        "phone_verify": bool(row.get("phone_verify")),
+        "phone_verify_required": verify_required,
+        "phone_confirmed": bool(phone) and bool(row.get("phone_confirmed_at")) and (not verify_required or row.get("phone_confirmed_via") == "code"),
+        "phone_confirmed_via": row.get("phone_confirmed_via") if phone and row.get("phone_confirmed_at") else None,
     }
 
 
@@ -286,7 +294,7 @@ def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, An
             if body["lang"] not in LANGS:
                 raise ContactInvalid("lang", "choice")
             f["lang"] = body["lang"]
-        for flag in ("require_code", "active"):
+        for flag in ("require_code", "active", "phone_verify"):  # + TKNOTIFOTP: the row's "verify the number with a code" switch
             if flag in body:
                 if not isinstance(body[flag], bool):
                     raise ContactInvalid(flag, "type")
@@ -404,6 +412,14 @@ def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
     out = present(conn, row, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure),
                   open_count=counts.get(contact_id, 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere)
     out["live_links"] = len(store_links.live_links_of_contact(conn, contact_id))
+    if configure:  # TKNOTIFOTP: the verification card of a directory editor
+        from . import phone_verify
+
+        pv = phone_verify.view(conn, row)
+        out["phone_code_pending"] = pv["code_pending"]
+        # "אני בטוח שזה המספר שלו" echoes this token - only while verification is off for the row and the number is unconfirmed
+        out["phone_confirm_token"] = (phone_verify.confirm_token(row) if row.get("phone_e164") and not pv["confirmed"]
+                                      and not pv["verify_required"] and not row.get("erased_at") else None)
     out["persons"] = [{"id": p["id"], "display_name": p["display_name"]} for p in store_links.persons_of(conn, contact_id)] if row["kind"] == "vendor" else []
     return out
 
@@ -433,12 +449,15 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
     if phone_changed:
         _keyed(conn, fields)
         fields["phone_confirmed_at"] = None  # TKSTAFF1 (review F3): a staff member confirms every new number again
+        fields["phone_confirmed_via"] = None
     elif "phone_e164" in fields:
         fields.pop("phone_e164")
     user_changed = "user_id" in fields and fields["user_id"] != row.get("user_id")  # TKSTAFF1 (review F6): an unlink revokes too
     if user_changed:
         fields["phone_confirmed_at"] = None  # 2.5.8 review F1: a confirmation belongs to the user who gave it, never to the row
-    changed = sorted(k for k, v in fields.items() if row.get(k) != v and k not in ("phone_key", "phone_key_id", "phone_confirmed_at"))
+        fields["phone_confirmed_via"] = None
+    changed = sorted(k for k, v in fields.items()
+                     if row.get(k) != v and k not in ("phone_key", "phone_key_id", "phone_confirmed_at", "phone_confirmed_via"))
     if not store_links.update_contact(conn, contact_id, fields, revision):
         raise ApiError(409, "contact_stale", text(conn, "הרשומה השתנתה בינתיים. טענו מחדש."), details={"revision": row["revision"]})
     if depts is not None:
@@ -449,6 +468,10 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
     deactivated = fields.get("active") == 0 and bool(row["active"])  # TKSTAFF1 (security design R7 c): an inactive row holds no live link
     if phone_changed or email_changed or user_changed or deactivated:
         revoked = revoke_contact_links(conn, contact_id, "contact_changed", now, rid=rid)
+    if phone_changed or user_changed:
+        from . import phone_verify  # TKNOTIFOTP: a code sent to the old number (or for the old person) confirms nothing
+
+        phone_verify.kill_codes(conn, contact_id, now)
     if fields.get("require_code") == 1 and not row["require_code"]:
         raise_code_requirement(conn, contact_id)
     if (phone_changed or user_changed) and (row.get("user_id") or fields.get("user_id")):
@@ -498,6 +521,9 @@ def erase(conn, viewer: Viewer, contact_id: str, *, history: bool, rid: str | No
     if row["kind"] == "vendor" and store_links.persons_of(conn, contact_id):
         raise ApiError(409, "contact_has_persons", text(conn, "לספק יש אנשי קשר. מחקו אותם קודם."))
     revoked = revoke_contact_links(conn, contact_id, "contact_erased", handler_links.now_utc(), rid=rid)
+    from . import phone_verify  # TKNOTIFOTP: the verification rows hold the keyed number index
+
+    phone_verify.forget(conn, contact_id)
     store_links.erase_contact(conn, contact_id, TOMBSTONE)
     store_links.set_contact_departments(conn, contact_id, [])
     if history:

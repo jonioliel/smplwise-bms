@@ -260,7 +260,7 @@ def test_own_opt_in_withdraw_and_confirm_again(w):
     token = me.pop("confirm")
     assert len(token) == 16
     assert me == {"channel_enabled": True, "has_number": True, "masked": "····0191", "source": "directory", "opted_in": True, "number_changed": False,
-                  "directory_declined": False, "consent": "granted", "stored_opt_in": True}
+                  "directory_declined": False, "consent": "granted", "verify_required": False, "stored_opt_in": True}
     r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False})
     assert r.status_code == 200 and r.json()["opted_in"] is False and r.json()["consent"] == "declined"
     nid = w.emit()

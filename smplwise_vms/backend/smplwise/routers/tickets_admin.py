@@ -291,7 +291,10 @@ def _member_dicts(conn: sqlite3.Connection, dept_id: str) -> list[dict[str, Any]
                 "added_at": m["added_at"]}
         if m["subject_kind"] == "user":  # TKSTAFF1: the mobile for the no-login staff link (a tickets.configure screen: the full number)
             sv = staff_links.view(conn, m["subject_id"])
-            item.update({"mobile": sv["phone"], "mobile_confirmed": sv["confirmed"], "notify_whatsapp": sv["notify_whatsapp"], "lang": sv["lang"]})
+            item.update({"mobile": sv["phone"], "mobile_confirmed": sv["confirmed"], "notify_whatsapp": sv["notify_whatsapp"], "lang": sv["lang"],
+                         # TKNOTIFOTP: the directory row, its "verify with a code" switch, whether a code is required, the manager-mark token
+                         "contact_id": sv["contact_id"], "phone_verify": sv["phone_verify"], "verify_required": sv["verify_required"],
+                         "mobile_confirm": sv["confirm"]})
         out.append(item)
     return out
 
@@ -902,6 +905,7 @@ class StaffMobileBody(BaseModel):
     phone: str | None = Field(default=None, max_length=40)
     lang: Literal["he", "en", "ar", "ru"] | None = None
     notify_whatsapp: StrictBool | None = None
+    phone_verify: StrictBool | None = None  # TKNOTIFOTP: "verify the number with a code" for this person
 
 
 @router.put("/tickets/admin/staff/{user_id}")

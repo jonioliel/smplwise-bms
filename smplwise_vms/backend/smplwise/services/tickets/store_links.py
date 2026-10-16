@@ -33,7 +33,8 @@ CONTACT_FIELDS = ("kind", "vendor_id", "user_id", "display_name", "company", "ph
                   "cost_claim", "vat_exempt", "vat_default", "labor_rate_minor", "rate_currency",  # + S9 (0083)
                   "employee",  # + 0084: an employee without an account (API kind "employee" = kind 'person' with employee = 1)
                   "notify_whatsapp",  # + TKSTAFF1 (0087): a user's own "WhatsApp for my assignments" switch on their directory row
-                  "phone_confirmed_at")  # + TKSTAFF1 (0087, review F3): the user confirmed this number; cleared on every change
+                  "phone_confirmed_at",  # + TKSTAFF1 (0087, review F3): the user confirmed this number; cleared on every change
+                  "phone_verify", "phone_confirmed_via")  # + TKNOTIFOTP (0091): the row's "verify with a code" switch; how it was confirmed
 
 
 def insert_contact(conn: sqlite3.Connection, fields: Mapping[str, Any], created_by: str) -> str:
@@ -105,7 +106,7 @@ def erase_contact(conn: sqlite3.Connection, contact_id: str, tombstone: str) -> 
     now = now_iso()
     conn.execute(
         "UPDATE ticket_contacts SET display_name = ?, company = '', phone_e164 = NULL, phone_key = NULL, phone_key_id = NULL, "
-        "email = NULL, notes = '', user_id = NULL, phone_confirmed_at = NULL, active = 0, erased_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ?",
+        "email = NULL, notes = '', user_id = NULL, phone_confirmed_at = NULL, phone_confirmed_via = NULL, active = 0, erased_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ?",
         (tombstone, now, now, contact_id),
     )
 

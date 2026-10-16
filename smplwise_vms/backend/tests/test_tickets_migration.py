@@ -12,7 +12,7 @@ import pytest
 
 from smplwise import db as dbmod
 
-CR038 = range(79, 91)  # the numbers the spec reserves for CR-038 (section 7) + 0085 (TK257 quotes) + 0086 (deep review B3, renumbered at integration) + 0087 (TKSTAFF1 staff links) + 0088 (TKDETAILBE detail: quotes v2, owner, allowed kinds; replaces 0085) + 0089 (TKRFQ1 requests for quotation) + 0090 (TKMAP1 map element)
+CR038 = range(79, 93)  # the numbers the spec reserves for CR-038 (section 7) + 0085 (TK257 quotes) + 0086 (deep review B3, renumbered at integration) + 0087 (TKSTAFF1 staff links) + 0088 (TKDETAILBE detail: quotes v2, owner, allowed kinds; replaces 0085) + 0089 (TKRFQ1 requests for quotation) + 0090 (TKMAP1 map element) + 0091 (TKNOTIFOTP number verification) + 0092 (TKTPLMIG quick-reply data migration)
 TABLES = {
     "ticket_departments", "ticket_department_members", "ticket_priorities", "ticket_categories", "ticket_sla_rules", "ticket_templates",
     "ticket_sequence", "tickets", "ticket_assignments", "ticket_events", "ticket_requests", "ticket_saved_views", "ticket_attachments",

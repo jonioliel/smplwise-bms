@@ -53,6 +53,14 @@ export interface Contact {
   labor_rate_minor?: number | null;
   rate_currency?: string | null;
   persons?: { id: string; display_name: string }[];
+  /** TKNOTIFOTP: "verify the number with a code" - the row's switch, whether a code is required (installation OR row), the confirmation */
+  phone_verify?: boolean;
+  phone_verify_required?: boolean;
+  phone_confirmed?: boolean;
+  phone_confirmed_via?: 'user' | 'manager' | 'code' | null;
+  /** one row only, for a directory editor: a code is waiting, and the token of the manager's mark (null = not offered) */
+  phone_code_pending?: boolean;
+  phone_confirm_token?: string | null;
 }
 export interface ContactsPage { contacts: Contact[]; can_edit: boolean }
 export interface ContactBody {
@@ -75,6 +83,8 @@ export interface ContactBody {
   /** a decimal text ('120', '120.50'); null / '' clears the rate */
   labor_rate?: string | null;
   rate_currency?: string | null;
+  /** TKNOTIFOTP: the row's "verify the number with a code" switch */
+  phone_verify?: boolean;
   revision?: number;
 }
 export interface ContactExport { contact: Record<string, unknown>; departments: string[]; assignments: Record<string, unknown>[]; timeline: Record<string, unknown>[] }

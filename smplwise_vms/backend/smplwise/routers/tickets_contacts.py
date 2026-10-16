@@ -50,6 +50,7 @@ class ContactBody(BaseModel):
     vat_default: Literal["included", "excluded"] | None = None
     labor_rate: str | None = Field(default=None, max_length=20)
     rate_currency: str | None = Field(default=None, max_length=3)
+    phone_verify: bool | None = None  # TKNOTIFOTP: "verify the number with a code" for this row (raises the installation switch)
     revision: int | None = Field(default=None, ge=1)
 
 
@@ -57,7 +58,7 @@ def _body(body: ContactBody) -> dict[str, Any]:
     """Only the fields the client sent (an explicit null clears a nullable field)."""
     sent = body.model_fields_set - {"revision"}
     out = {k: getattr(body, k) for k in sent}
-    for flag in ("require_code", "active", "vat_exempt", "vat_default"):
+    for flag in ("require_code", "active", "vat_exempt", "vat_default", "phone_verify"):
         if flag in out and out[flag] is None:
             out.pop(flag)
     return out
@@ -129,3 +130,45 @@ def export_contact(request: Request, contact_id: str = Path(..., pattern=ID), pr
                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     return contacts.export(conn, viewer, contact_id, _rid(request))
+
+
+# ---------------------------------------------------------------- TKNOTIFOTP: verifying a vendor's / contact's number (optional)
+# tickets.configure; never for a row that names a user (409 `user_only`: the user verifies their own number in "החשבון שלי").
+# No number and no code in any answer, audit row or log line (services/tickets/phone_verify.py).
+
+
+class CodeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(max_length=32)
+
+
+class ConfirmBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirm: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/tickets/contacts/{contact_id}/phone-verify/send")
+def contact_verify_send(request: Request, contact_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Send the fixed code message to the contact's number (WhatsApp only)."""
+    from ..services.tickets import phone_verify
+
+    return phone_verify.admin_send(conn, Viewer(conn, principal), contact_id, _rid(request))
+
+
+@router.post("/tickets/contacts/{contact_id}/phone-verify/check")
+def contact_verify_check(body: CodeBody, request: Request, contact_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The code the vendor read out, typed by the configurer: a match confirms the number by code (uniform 422 otherwise)."""
+    from ..services.tickets import phone_verify
+
+    return phone_verify.admin_check(conn, Viewer(conn, principal), contact_id, {"code": body.code}, _rid(request))
+
+
+@router.post("/tickets/contacts/{contact_id}/phone-confirm")
+def contact_phone_confirm(body: ConfirmBody, request: Request, contact_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                          conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """"אני בטוח שזה המספר שלו" - only while verification is off for the row (409 `code_required` otherwise); audited."""
+    from ..services.tickets import phone_verify
+
+    return phone_verify.manager_confirm(conn, Viewer(conn, principal), contact_id, {"confirm": body.confirm}, _rid(request))

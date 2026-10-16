@@ -83,8 +83,10 @@ export interface ChannelView {
     inbound: { last_24h: Record<string, number>; queue: number; queue_overflow: number };
   };
   accounts_href: string;
+  /** TKNOTIFOTP: verify every WhatsApp number with a one-time code (optional, off by default) */
+  phone_verify?: { required: boolean };
 }
-export interface ChannelPatch { whatsapp?: Partial<ChannelView['whatsapp']>; email_fallback?: boolean }
+export interface ChannelPatch { whatsapp?: Partial<ChannelView['whatsapp']>; email_fallback?: boolean; phone_verify?: { required: boolean } }
 
 export interface InboundItem {
   id: string;
@@ -197,7 +199,7 @@ const mock: MessagesBackend = {
   channel: async () => structuredClone(demo.channel),
   saveChannel: async (_rev, patch) => {
     demo.channel = { ...demo.channel, revision: demo.channel.revision + 1, whatsapp: { ...demo.channel.whatsapp, ...(patch.whatsapp ?? {}) },
-      email_fallback: patch.email_fallback ?? demo.channel.email_fallback };
+      email_fallback: patch.email_fallback ?? demo.channel.email_fallback, phone_verify: patch.phone_verify ?? demo.channel.phone_verify ?? { required: false } };
     return structuredClone(demo.channel);
   },
   sendNow: async () => { throw new Error('demo'); },
