@@ -498,3 +498,23 @@ def delete_ticket(body: DeleteBody, request: Request, ticket_id: str = Path(...,
     commit_now(conn, keep_reading=False)  # the rows are gone for good before any file is touched
     deletion.remove_files(settings_of(request).data_dir / attachments.DIR, [done.ticket_id])
     return answer
+
+
+# ---------------------------------------------------------------- TKSTAFF1 (security review F3 / F4): the caller's own work-link mobile
+
+
+@router.get("/tickets/me/staff-mobile")
+def my_staff_mobile(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The caller's OWN mobile for no-login work links (last four digits), whether they confirmed it, and their WhatsApp switch."""
+    from ..services.tickets import staff_links
+
+    return staff_links.my_view(conn, principal.user_id)
+
+
+@router.put("/tickets/me/staff-mobile")
+def set_my_staff_mobile(request: Request, body: dict[str, Any], principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """`{confirm: <token of the GET>}` | `{confirmed: false}` | `{notify_whatsapp: bool}` - only ever for the caller."""
+    from ..services.tickets import staff_links
+
+    return staff_links.set_mine(conn, Viewer(conn, principal), body, getattr(request.state, "correlation_id", None))

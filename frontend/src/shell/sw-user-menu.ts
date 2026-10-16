@@ -70,6 +70,7 @@ export class SwUserMenu extends LitElement {
   @state() private homeOpen = false;
   /** K11: the optional second factor section loads only while it is open. */
   @state() private factorOpen = false;
+  @state() private staffOpen = false; // TKSTAFF1 review F3: the own work-link mobile
 
   static styles = css`
     :host {
@@ -437,6 +438,7 @@ export class SwUserMenu extends LitElement {
       this.wiskeyOpen = false;
       this.homeOpen = false;
       this.factorOpen = false;
+      this.staffOpen = false;
     }
   }
 
@@ -453,13 +455,15 @@ export class SwUserMenu extends LitElement {
     const wiskey = this.api && !this.gated && !WISKEY_HIDDEN && can('access.read');
     // home redesign: the personal home screen - only for a holder of screen.personalize (the server checks it again)
     const home = this.api && !this.gated && canAnywhere('screen.personalize');
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, wiskey, home };
+    // TKSTAFF1 (security review F3 / F4): the user's own mobile for no-login work links - for a user who may hold tickets
+    const staff = this.api && !this.gated && canAnywhere('tickets.view');
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, wiskey, home, staff };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.wiskey || acc.home;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.wiskey || acc.home || acc.staff;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -543,6 +547,15 @@ export class SwUserMenu extends LitElement {
           ? html`<li><details data-my-sessions @toggle=${(e: Event) => (this.sessionsOpen = (e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="users" size=${18}></sw-icon></span><span class="txt">הכניסות שלי</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.sessionsOpen ? html`<sw-remote-sessions compact scope="own" @remote-signed-out=${(e: CustomEvent<{ everywhere?: boolean }>) => void arxLogout(e.detail?.everywhere ? 'everywhere' : 'logout')}></sw-remote-sessions>` : nothing}</div>
+            </details></li>`
+          : nothing}
+        ${acc.staff
+          ? html`<li><details data-my-staff-mobile @toggle=${(e: Event) => {
+              this.staffOpen = (e.currentTarget as HTMLDetailsElement).open;
+              if (this.staffOpen) void import('../tickets/staff-mine'); // loaded only when opened (the tickets texts stay out of the shell)
+            }}>
+              <summary><span class="ic"><sw-icon name="link" size=${18}></sw-icon></span><span class="txt">נייד לקישורי עבודה</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.staffOpen ? html`<tickets-staff-mine></tickets-staff-mine>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.factor

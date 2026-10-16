@@ -9,7 +9,8 @@ Who may do what (section 8, D15, D25, review T19):
   for (D25); everyone else sees the last four digits only;
 - a row that names an internal user (`user_id`: the phone / e-mail of a user) can never receive a handler link (409
   `assignee_not_allowed` at assignment, Q4 / D16);
-- a phone or e-mail change while the contact holds live links revokes those links at once (`contact_changed`), puts each
+- a phone or e-mail change (TKSTAFF1: or the row set inactive) while the contact holds live links revokes those links at once
+  (`contact_changed`; their queued messages are cancelled - handler_links.revoke), puts each
   ticket in "waiting for the manager" and tells the managers (review T19-4: a directory editor cannot redirect a live link to a
   phone of their choosing);
 - erase replaces the person's data by a tombstone and revokes the links (`contact_erased`); export returns the row and what
@@ -431,9 +432,10 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
     email_changed = "email" in fields and fields["email"] != row.get("email")
     if phone_changed:
         _keyed(conn, fields)
+        fields["phone_confirmed_at"] = None  # TKSTAFF1 (review F3): a staff member confirms every new number again
     elif "phone_e164" in fields:
         fields.pop("phone_e164")
-    changed = sorted(k for k, v in fields.items() if row.get(k) != v and k not in ("phone_key", "phone_key_id"))
+    changed = sorted(k for k, v in fields.items() if row.get(k) != v and k not in ("phone_key", "phone_key_id", "phone_confirmed_at"))
     if not store_links.update_contact(conn, contact_id, fields, revision):
         raise ApiError(409, "contact_stale", text(conn, "הרשומה השתנתה בינתיים. טענו מחדש."), details={"revision": row["revision"]})
     if depts is not None:
@@ -441,10 +443,16 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
         changed.append("departments")
     revoked = 0
     now = handler_links.now_utc()
-    if phone_changed or email_changed or fields.get("user_id"):
+    deactivated = fields.get("active") == 0 and bool(row["active"])  # TKSTAFF1 (security design R7 c): an inactive row holds no live link
+    user_changed = "user_id" in fields and fields["user_id"] != row.get("user_id")  # TKSTAFF1 (review F6): an unlink revokes too
+    if phone_changed or email_changed or user_changed or deactivated:
         revoked = revoke_contact_links(conn, contact_id, "contact_changed", now, rid=rid)
     if fields.get("require_code") == 1 and not row["require_code"]:
         raise_code_requirement(conn, contact_id)
+    if phone_changed and row.get("user_id"):
+        from . import staff_links  # TKSTAFF1 (review F3): the employee is told in the app that their number changed
+
+        staff_links.tell_user(conn, row["user_id"])
     audit(conn, actor=viewer.principal, action="ticket.contact.update", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
           request_id=rid, details={"fields": changed, "links_revoked": revoked})
     return one(conn, viewer, contact_id)

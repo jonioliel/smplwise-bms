@@ -1048,6 +1048,36 @@ directory entry linked by `ticket_contacts.user_id` with a phone, the WhatsApp m
 on the remote address (sign-in required, no token). No handler-page token is ever minted for an internal user (enforced by the
 409 above, not only by this text).
 
+> **Amendment 2026-10-16 (TKSTAFF1, owner request; security design review `TKSTAFF1_LINK_SECURITY_DESIGN_2026-10-16`, GO with
+> conditions).** The invariant above ("no handler-page token is ever minted for an internal user") is **reversed for one scoped
+> case**: an internal employee with an account who is the CURRENT assignee of a ticket, and whose directory row
+> (`ticket_contacts.user_id`) has a mobile and the user's own "WhatsApp for my assignments" switch on, gets a WhatsApp message
+> with a no-login **staff link** (`ticket_links.kind = 'staff'`). Reason: staff in the field update tickets from the phone without
+> signing in, as vendors do. Trust boundary: *a staff link authorises the external-handler actions on one assignment of one ticket
+> to whoever holds the message. It carries no identity. Everything the user may do beyond that requires signing in.* Rules: the
+> page is the external view unchanged (never the user's visibility); writes are `actor_kind = 'contact'` / `via = 'link'`, audit
+> actor `contact:<id>` - never the user's principal; no cost-claim or quote surface; a verification code by default
+> (`staff_links.require_code`, raise only); `staff_links.*` lifetime (sliding 3 days, cap 14 days, grace 1 hour); WhatsApp only (no
+> e-mail redeem, no "copy link"); revoked on reassignment, return, close, user deactivation, leaving the department or losing
+> `tickets.view` there (`user_inactive`), the directory row set inactive or its mobile changed (`contact_changed`), and every
+> revocation cancels the link's queued messages. The contact path keeps refusing a row that names a user (409
+> `assignee_not_allowed`); the staff path is `services/tickets/staff_links.py`, reached only from the internal-user assignment.
+> "New request" notices to `notify_new` managers stay signed-in deep links (no token). Precondition shipped with it: deep review B3
+> (the reply button nonce bound to the link generation).
+>
+> **Addendum 2026-10-16 (independent security review of TKSTAFF1, lead decisions).** (1) Since TKSTAFF1 a staff member's OWN
+> assignment names their directory row in `ticket_assignments.contact_id`: **`contact_id IS NOT NULL` no longer means "external
+> assignment"; only `assignee_kind = 'contact'` does** - every cost / quote reader must follow this (`quotes.public_quote` / `submit`
+> do). Every cost route (claim, claim file, quote) passes `link_context(claim_surface=True)` and answers a staff token with the
+> uniform 404. (2) A number set by a `tickets.configure` holder is **pending until the signed-in employee confirms exactly that number**
+> in their own account ("החשבון שלי" › "נייד לקישורי עבודה", `GET / PUT /tickets/me/staff-mobile`, last four digits only, an opaque
+> token of the number shown); every change of the number clears the confirmation and tells the employee in the app (source
+> `ticket.staff_mobile`); until confirmed no staff link is minted and the members card says so. The "WhatsApp on assignment" switch
+> belongs to the employee; a configurer may only turn it off. (3) Unlinking `user_id` from a directory row revokes its live links.
+> (4) Revocation window: deactivation by the HA directory push and removal from a department revoke at once; a change that removes
+> membership through an HA group or `tickets.view` through a binding is caught by the SLA monitor's recheck (about 30 seconds, while
+> the module is on). App-push-first (security design section 8 item 7) is not built - owner decision pending.
+
 ### 8.2 Giving a ticket permission to one specific user (D25)
 
 **How RBAC works today (read in code):** there are no direct per-permission grants. A **binding** (`bindings` table, 0001 /
@@ -2313,6 +2343,12 @@ The values reach every signed-in user through `GET /tickets/module` (`ui: {...}`
     "cap_days": 90,                         // 7-365, >= sliding_days
     "grace_hours": 24                       // 0-168
   },
+  "staff_links": {                          // TKSTAFF1 (amendment 2026-10-16, 8.1): the staff link - installation only
+    "sliding_days": 3,                      // 1-90
+    "cap_days": 14,                         // 7-365, >= sliding_days; a LOWER value pulls in live staff links only
+    "grace_hours": 1,                       // 0-168
+    "require_code": true                    // raise only: the user's directory row (require_code) still raises it
+  },
   "send_hours": { "from": "07:00", "to": "21:00" },   // D4, installation time.zone, every day; department override;
                                                       // "from" < "to" required (a window across midnight is refused 422 in
                                                       // release 1); from == to is refused; DST days follow the zone rules
@@ -2478,7 +2514,7 @@ both the internal app (which has no CSP under Ingress) and the public page.
 | S9 [T10] | **Session / CSRF on the public app** | no cookies; token and code session in custom headers; no CORS; JSON-only writes | - |
 | S10 [T5] | **Code brute force; lock-out as DoS** | 6 digits (fixed); 10-min expiry; 5 attempts per link per 15 min → 30-min lock; 3 codes/h per link; single use; HMAC; constant-time compare; one-tap new link for the manager | ~5/10^6 per window; a link holder can lock the vendor out for 30 min |
 | S11 [T21] | **Channel abuse → number ban; night messages** | sends only from authenticated manager actions, the SLA monitor and code requests; per-account pacing shared by all uses; send hours for vendor-bound messages; no auto-replies; test sends capped; dedicated number recommended; shared-account warnings | Baileys ban risk remains (unofficial client) |
-| S12 [T18, T19] | **Privilege leaks and escalation between departments** | one `visible()` function (placeless tickets on any held scope; internal content for members / managers only; device tab requires `devices.read`); `tickets.configure` sensitive; member edits only where one already manages; template diffs audited; no token for internal users; contact changes revoke links; account mapping behind a sensitive permission | any member with `tickets.view` is assignable (D15); single-user grants (8.2) are visible only in the bindings lists - the "הרשאות" sub-tab shows them in one place |
+| S12 [T18, T19] | **Privilege leaks and escalation between departments** | one `visible()` function (placeless tickets on any held scope; internal content for members / managers only; device tab requires `devices.read`); `tickets.configure` sensitive; member edits only where one already manages; template diffs audited; no token for internal users; contact changes revoke links; account mapping behind a sensitive permission. **Amended 2026-10-16 (TKSTAFF1, 8.1):** "no token for internal users" now reads "no token for internal users except the scoped staff link of the CURRENT assignee (external-handler scope, link actor, no claim surface, code by default, 14-day cap, revoked on deactivation / membership loss / row change)" | any member with `tickets.view` is assignable (D15); single-user grants (8.2) are visible only in the bindings lists - the "הרשאות" sub-tab shows them in one place; a forwarded staff message together with its forwarded code (within 10 minutes) acts on that one assignment; a lost unlocked phone is not protected by the code (report it: the manager revokes or reassigns) |
 | S13 [T17] | **DoS on the shared process / public listener as a pivot** | own thread + event loop + threadpool limiter; concurrency 16; keep-alive 5 s; body deadlines; rate limit before DB; one upload per link; own decode semaphore; separate app object with only `/t/*`; route-enumeration test; Cloudflare rate-limit rule | the SQLite write gate and the GIL are still shared (public writes are rate-limited) |
 | S14 [T11] | **SSRF** | the address probe validates the target, connects to the validated address (no second resolution), never follows redirects, never shows the body; local-only; inbound `media_url` never fetched; the public app has no redirect parameter | - |
 | S15 [T16] | **Log and error leaks** | no access log; route-template logging; invalid-request records filtered; public 422 without `input`; `httpx` at WARNING | - |

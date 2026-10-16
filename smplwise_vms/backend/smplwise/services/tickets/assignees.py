@@ -64,9 +64,13 @@ def may_send(viewer: access.Viewer, row: dict[str, Any], contact: dict[str, Any]
 
 
 def link_contact_is_staff(conn, ticket: dict[str, Any]) -> bool:
-    """Whether the ticket's current (or last) handler link belongs to a staff contact (the link panel's actions follow may_send)."""
+    """Whether the ticket's current (or last) handler link belongs to a staff contact (the link panel's actions follow may_send) -
+    or is a TKSTAFF1 staff link of an internal employee with an account (`ticket_links.kind = 'staff'`): its actions need manager
+    rights only, like the assignment that made it."""
     link = store_links.link_for_assignment(conn, ticket.get("current_assignment_id")) or store_links.latest_link_of_ticket(conn, ticket["id"])
-    return bool(link) and is_staff(store_links.contact(conn, link["contact_id"]))
+    if not link:
+        return False
+    return link.get("kind") == "staff" or is_staff(store_links.contact(conn, link["contact_id"]))
 
 
 def staff_for(conn, department_id: str) -> list[dict[str, Any]]:
@@ -85,10 +89,15 @@ def handlers(viewer: access.Viewer, department_id: str, row: dict[str, Any] | No
 
     conn = viewer.conn
     out: list[dict[str, Any]] = []
-    for u in service.eligible_assignees(conn, department_id, row):
-        out.append({"key": f"user:{u['id']}", "kind": "user", "id": u["id"], "name": u["name"], "account": True, "member_role": u["member_role"],
-                    "phone": None, "has_phone": False, "preferred_channel": "inapp"})
     configure = contacts.may_configure(viewer)
+    for u in service.eligible_assignees(conn, department_id, row):
+        # TKSTAFF1: an account holder with a mobile on their directory row also gets the WhatsApp staff link (masked unless configure)
+        mrow = store_links.contact_by_user(conn, u["id"]) or {}
+        mobile = mrow.get("phone_e164")
+        out.append({"key": f"user:{u['id']}", "kind": "user", "id": u["id"], "name": u["name"], "account": True, "member_role": u["member_role"],
+                    "phone": (contacts.display_phone(mobile) if configure else contacts.mask_phone(mobile)) if mobile else None,
+                    "has_phone": bool(mobile), "phone_confirmed": bool(mobile) and bool(mrow.get("phone_confirmed_at")),  # review F3
+                    "preferred_channel": "inapp"})
     managed = None if configure else contacts.managed_departments(viewer)
     where = row or {"department_id": department_id}
     staff = [c for c in staff_for(conn, department_id) if may_send(viewer, where, c)]

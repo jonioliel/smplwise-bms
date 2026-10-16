@@ -301,7 +301,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued")),
                    "cost_claim": claim_mode})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
-          details={"number": row["number"], "link": link_row["id"][:6], "generation": 1})
+          details={"number": row["number"], "link": link_row["id"][:6], "generation": 1, "kind": "external"})
     sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)
     notify_bridge.ticket_assigned(conn, row["id"], aid)
     return aid
@@ -313,7 +313,9 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
 def _current_link(conn, seen: Seen) -> dict[str, Any]:
     row = seen.row
     current = row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
-    link_row = store_links.link_for_assignment(conn, current) if current and row.get("asg_kind") == "contact" else None
+    link_row = store_links.link_for_assignment(conn, current) if current else None
+    if link_row is not None and row.get("asg_kind") != "contact" and link_row.get("kind") != "staff":
+        link_row = None  # TKSTAFF1: a user assignment holds a link only when it is a staff link
     if link_row is None:
         raise ApiError(409, "no_link", text(conn, "אין קישור פעיל של מטפל חיצוני."))
     return link_row
@@ -332,6 +334,9 @@ def copy_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[
     """The handler URL once (the only place a link is shown), and the message to paste with it. Audited; `sent_via = manual`."""
     _need(conn, viewer, seen, "ticket.link.copy", rid, external=True)
     link_row = _current_link(conn, seen)
+    if link_row.get("kind") == "staff":
+        # TKSTAFF1 (security design 2 / 3): a staff link goes to the employee's own phone by WhatsApp only - never shown to a manager
+        raise ApiError(409, "staff_link_not_copyable", text(conn, "קישור של עובד נשלח רק בוואטסאפ לטלפון שלו."))
     now = handler_links.now_utc()
     if handler_links.state(link_row, now) != "live":
         raise ApiError(409, "link_not_live", text(conn, "הקישור אינו פעיל. צרו קישור חדש."))
@@ -358,8 +363,13 @@ def new_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[s
     if link_row.get("revoked_reason") == "contact_erased":
         raise _not_allowed(conn)
     contact = store_links.contact(conn, link_row["contact_id"])
-    if contact is None or contact.get("erased_at") or contact.get("user_id"):
+    staff = link_row.get("kind") == "staff"
+    if contact is None or contact.get("erased_at") or (contact.get("user_id") and not staff):
         raise _not_allowed(conn)
+    if staff:
+        from . import staff_links  # TKSTAFF1: a new staff link only while the user may still hold the ticket (R7)
+
+        staff_links.check_new_generation(conn, seen.row, contact)
     if not access.public_ready(conn):
         raise _unavailable(conn)
     # slice 7, D6: a code-protected link is useful only if its code can still leave on a channel the rule allows - refused
@@ -384,7 +394,7 @@ def new_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[s
                               send_now=False, requested_by=viewer.uid)
     audit(conn, actor=viewer.principal, action="ticket.link.new", decision="allowed", resource_type="ticket", resource_id=seen.row["id"], request_id=rid,
           details={"number": seen.row["number"], "link": fresh["id"][:6], "generation": int(fresh["generation"]),
-                   "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel})
+                   "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel, "kind": fresh.get("kind") or "external"})
     return {"generation": int(fresh["generation"]), "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel}
 
 

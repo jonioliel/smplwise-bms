@@ -128,6 +128,13 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5
     ("links", "cap_days"): (90, int_range(*CAP_DAYS)),  # D5, >= sliding_days (checked across keys below)
     ("links", "grace_hours"): (24, int_range(*GRACE_HOURS)),  # D5
+    # TKSTAFF1 (security design R6 / R8, its `links.staff.*`): the no-login STAFF link of an internal employee - shorter than a
+    # vendor's (a staff phone is the lost / forwarded case and the employee has the app for anything longer); installation-wide only
+    # (no department override). A block of its own so the vendor `links` block keeps its shape for every reader.
+    ("staff_links", "sliding_days"): (3, int_range(*SLIDING_DAYS)),
+    ("staff_links", "cap_days"): (14, int_range(*CAP_DAYS)),
+    ("staff_links", "grace_hours"): (1, int_range(*GRACE_HOURS)),
+    ("staff_links", "require_code"): (True, boolean),  # R8: raise only - a staff member's row (require_code) still raises it when off
     ("send_hours",): ({"from": "07:00", "to": "21:00"}, send_hours),  # D4
     ("urgent_is_critical",): (True, boolean),  # D28
     # slice 4: the handler page (section 10 / 14.1)
@@ -167,6 +174,9 @@ def _cross_problem(doc: dict[str, Any]) -> str | None:
     links = doc.get("links") or {}
     if links.get("cap_days", 0) < links.get("sliding_days", 0):
         return "links.cap_days:below_sliding"
+    staff = doc.get("staff_links") if isinstance(doc.get("staff_links"), dict) else {}
+    if staff.get("cap_days", 0) < staff.get("sliding_days", 0):
+        return "staff_links.cap_days:below_sliding"
     return None
 
 
@@ -212,9 +222,10 @@ def read(conn: sqlite3.Connection) -> dict[str, Any]:
         except ValueError:
             value = copy.deepcopy(default)
         _set(out, path, value)
-    if _cross_problem(out):  # a stored pair that breaks the cross-key rule reads as the default pair (fail safe)
-        for path in (("links", "sliding_days"), ("links", "cap_days")):
-            _set(out, path, SCHEMA[path][0])
+    for prefix in (("links",), ("staff_links",)):  # a stored pair that breaks the cross-key rule reads as the default pair (fail safe)
+        if _get(out, prefix + ("cap_days",)) < _get(out, prefix + ("sliding_days",)):
+            for path in (prefix + ("sliding_days",), prefix + ("cap_days",)):
+                _set(out, path, SCHEMA[path][0])
     return out
 
 

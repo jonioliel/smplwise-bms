@@ -642,6 +642,9 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     if ids:
         conn.execute(f"UPDATE ha_users SET is_active = 0 WHERE id NOT IN ({','.join('?' * len(ids))})", ids)
     _apply_directory_to_users(conn, request, {u["id"]: u for u in users if u.get("id")})
+    from ..services.tickets import staff_links  # TKSTAFF1 (R7 a): a deactivated user's no-login staff links die with the push
+
+    staff_links.safe_recheck(conn)
     set_setting(conn, "bridge.directory_at", now)
     if not get_setting(conn, "bridge.paired_at"):
         set_setting(conn, "bridge.paired_at", now)

@@ -254,6 +254,8 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
       return { icon: 'x', text: tt('ev_link_revoked') };
     case 'contact_changed':
       return { icon: 'warning', text: tt('ev_contact_changed') };
+    case 'user_inactive': // TKSTAFF1: the employee's no-login staff link died with their membership / account
+      return { icon: 'warning', text: tt('ev_user_inactive') };
     // slice 6: the rows the SLA monitor writes (actor: the system)
     case 'stuck':
       return { icon: 'clock', text: bt('e_stuck', { reason: BOARD_REASONS.includes(String(d.kind)) ? bt(`r_${String(d.kind)}` as BoardTextKey) : '' }) };

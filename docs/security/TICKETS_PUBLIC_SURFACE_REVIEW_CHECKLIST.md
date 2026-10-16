@@ -100,7 +100,7 @@ token, link, code or phone number in the report.
 | # | Verify | Where | Result |
 |---|---|---|---|
 | 7.1 | Sending outside needs manager rights and `tickets.external`; gates run in order before any write; refusals audited | S4 1 | |
-| 7.2 | A contact row that names an internal user can never receive a link; phone or e-mail change revokes live links; erase writes a tombstone | S4 1 | |
+| 7.2 | A contact row that names an internal user can never receive a link **on the contact path** (amended 2026-10-16, TKSTAFF1: the scoped staff link of the CURRENT internal assignee is the one exception - `ticket_links.kind = 'staff'`, external view, link actor, no claim surface, code by default, WhatsApp only, revoked on deactivation / membership loss / row deactivation / phone change / user unlink with queued messages cancelled; never a cost surface - claim, claim file and quote all pass `link_context(claim_surface=True)`; only `assignee_kind = 'contact'` is external, never `contact_id` alone; a configurer-set number is pending until the employee confirms it; `tests/test_tickets_staff_links.py`); phone or e-mail change revokes live links; erase writes a tombstone | S4 1, TKSTAFF1 | |
 | 7.3 | `access.visible` is the only decider; unchecked store readers are called from `access.py` only (static test); every `{ticket_id}` route returns the uniform 404 for an invisible ticket | S1 1 | |
 | 7.4 | Sensitive permissions are not implied by roles; the single-permission roles; the sensitive list (`tickets.external`, `tickets.all_departments`, `tickets.configure`, `messaging.accounts.manage`, cost permissions) | S1 1 | |
 | 7.5 | Local-only routes stay local: address probe, WhatsApp test send; remote channel blocks them | S4 1, S5A 1 | |
@@ -125,7 +125,9 @@ Taken from PUBLIC-CORE section 7 and TICKETS-MODULE section 16: every add-on on 
 header; PDF filters other than Flate are not decoded; Pillow / libjpeg / zlib vulnerabilities remain a dependency risk; the SQLite
 write gate is shared with the main app; holders of a forwarded link can lock that generation's code entry; a flood of well-formed
 guesses can make a fresh link's first open meet a 429; an HA add-on backup holds the module key and the database; without a code,
-whoever holds the link can update that ticket while the link lives.
+whoever holds the link can update that ticket while the link lives. TKSTAFF1 (2026-10-16): staff messages now also pass through the
+organisation's WhatsApp account, HA's recorder and the "last message" sensor - the install step that excludes `whatsapp_message_*`
+from the recorder (spec 16 S3) now covers internal tickets too; a lost unlocked staff phone is not protected by the code.
 
 2.5.7 (TK251A, deep review A2): the invoice PDF scan now refuses a stream dictionary that names /Predictor, indirect /DecodeParms or /Filter, or a /Filter
 array with FlateDecode twice, and re-inflates output that is itself zlib (4 layers at most). Accepted exception, stated: a cross-reference stream and an image

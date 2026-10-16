@@ -112,14 +112,17 @@ def public_quote(conn, assignment_id: str, ticket_id: str) -> dict[str, Any]:
     rows = quotes_of_assignment(conn, assignment_id)
     cur = current(rows)
     s = costs.cost_settings(conn)
-    contact, vendor = costs._contact_pair(conn, asg["contact_id"]) if asg.get("contact_id") else ({}, None)
+    # TKSTAFF1 (security review F1): only `assignee_kind = 'contact'` is an external assignment - a staff member's own assignment
+    # also names their directory row in `contact_id`, and must never get a quote card
+    external = asg.get("assignee_kind") == "contact" and bool(asg.get("contact_id"))
+    contact, vendor = costs._contact_pair(conn, asg["contact_id"]) if external else ({}, None)
     exempt = bool(contact.get("vat_exempt") or (vendor or {}).get("vat_exempt"))
     rate = contact.get("labor_rate_minor")
     if rate is None and vendor is not None:
         rate = vendor.get("labor_rate_minor")
     rate_currency = contact.get("rate_currency") or (vendor or {}).get("rate_currency")
     currency = (cur or {}).get("currency") or (rate_currency if rate_currency in s.currencies else s.currencies[0])
-    mode = costs.assignment_mode(conn, ticket, asg) if ticket and asg.get("contact_id") else "off"
+    mode = costs.assignment_mode(conn, ticket, asg) if ticket and external else "off"
     return {
         "state": cur["state"] if cur else "none",
         # `enabled`: false when the assignment's cost mode is "off" (the department / vendor / request asks for no costs at all) - the page hides the card
@@ -139,6 +142,8 @@ def public_quote(conn, assignment_id: str, ticket_id: str) -> dict[str, Any]:
 def submit(conn, assignment: Mapping[str, Any], ticket: Mapping[str, Any], body: Mapping[str, Any], *, at: dt.datetime) -> dict[str, Any]:
     """A vendor's quote through its handler link. The same arithmetic and validation as a claim (costs.draft), then: only the allowed
     line kinds; the request must still be before "done"; an approved quote is closed. A new quote supersedes the open one."""
+    if assignment.get("assignee_kind") != "contact":
+        raise CostRefused(409, "quote_closed")  # TKSTAFF1 (security review F1): never for an internal (staff) assignment
     rows = quotes_of_assignment(conn, assignment["id"])
     if ticket["status"] not in QUOTE_STATUSES:
         raise CostRefused(409, "quote_closed")

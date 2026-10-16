@@ -115,6 +115,7 @@ def fold(row: Mapping[str, Any] | None) -> LinkRecord | None:
         link_id=row["id"], generation=int(row["generation"]), ticket_id=row["ticket_id"], assignment_id=row["assignment_id"],
         contact_id=row["contact_id"], require_code=bool(row["require_code"]), expires_at=expires, key_id=row["key_id"],
         grace_until=grace, revoked=revoked, recipient_key=row["c_phone_key"], sent_via=row["sent_via"], ticket_number=row["t_number"],
+        kind=(row["kind"] if "kind" in row.keys() else None) or "external",
     )
 
 
