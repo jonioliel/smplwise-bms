@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smplwise.local/contracts/wiskey-capture-lease/lease.schema.json",
+  "title": "wiskey-capture-lease-v1 (DRAFT, Arx LEASE-BUILD 2026-10-16)",
+  "description": "Closed schema of the capture-lease wire messages (CR-WISKEY-LEASE-REVOCATION-EVENT section 1.2). The common envelope is DTO v3's (docs/contracts/wiskey-trusted-caller/DTO_DRAFT_v3.md sections 2-3). Time strings are UTC whole seconds with Z. The reference validator is smplwise_vms/backend/tests/lease_contract.py; GOLDEN_VECTORS.json is the oracle. Cross-field rules JSON Schema cannot say (ts == epoch(issued_at); 0 < expires_at - issued_at <= 15; 0 < lease_expires_at - lease_issued_at <= 120; lease_issued_at <= issued_at < lease_expires_at; station == '*' exactly for heartbeat, stream reset and revoke scope all; lease_ref is a UUID exactly for scope lease) are in SCHEMA.md section 2.",
+  "$defs": {
+    "time": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "hex32": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "text128": {"type": "string", "minLength": 1, "maxLength": 128},
+    "revision": {"type": "integer", "minimum": 0},
+    "sequence": {"type": "integer", "minimum": 1},
+    "actor": {
+      "type": "object", "additionalProperties": false, "required": ["id", "display_name"],
+      "properties": {"id": {"$ref": "#/$defs/text128"}, "display_name": {"$ref": "#/$defs/text128"}}
+    },
+    "lease": {
+      "type": "object", "additionalProperties": false,
+      "required": ["lease_ref", "lease_issued_at", "lease_expires_at", "binding_revision", "person_ref", "person_revision", "permission_revision", "receiver", "stream_id", "sequence_at_issue", "lease_actions"],
+      "properties": {
+        "lease_ref": {"$ref": "#/$defs/uuid"},
+        "lease_issued_at": {"$ref": "#/$defs/time"},
+        "lease_expires_at": {"$ref": "#/$defs/time"},
+        "binding_revision": {"oneOf": [{"$ref": "#/$defs/text128"}, {"type": "null"}]},
+        "person_ref": {"$ref": "#/$defs/text128"},
+        "person_revision": {"oneOf": [{"$ref": "#/$defs/revision"}, {"type": "null"}]},
+        "permission_revision": {"$ref": "#/$defs/revision"},
+        "receiver": {"type": "object", "additionalProperties": false, "required": ["reader_id"], "properties": {"reader_id": {"type": "integer", "minimum": 0, "maximum": 8}}},
+        "stream_id": {"$ref": "#/$defs/hex32"},
+        "sequence_at_issue": {"$ref": "#/$defs/revision"},
+        "lease_actions": {"const": ["capture_start", "capture_status", "capture_confirm", "capture_cancel"]}
+      }
+    },
+    "params_lease_revoke": {
+      "type": "object", "additionalProperties": false,
+      "required": ["stream_id", "sequence", "scope", "lease_ref", "permission_revision", "reason", "revoked_at"],
+      "properties": {
+        "stream_id": {"$ref": "#/$defs/hex32"},
+        "sequence": {"$ref": "#/$defs/sequence"},
+        "scope": {"enum": ["lease", "actor", "station", "all"]},
+        "lease_ref": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"const": "*"}]},
+        "permission_revision": {"$ref": "#/$defs/revision"},
+        "reason": {"enum": ["permission_revision", "actor_disabled", "actor_removed", "access_changed", "session_ended", "abandoned", "second_factor_changed", "binding_changed", "receiver_changed", "receiver_offline", "feed_reconnect", "feature_off", "repair", "emergency", "shutdown", "person_changed", "clock_invalid", "start_unknown", "host_lost_stream", "unknown_lease_on_host", "ledger_unavailable", "key_rotation", "restore", "cancel_unknown"]},
+        "revoked_at": {"$ref": "#/$defs/time"}
+      }
+    },
+    "params_lease_heartbeat": {
+      "type": "object", "additionalProperties": false, "required": ["stream_id", "sequence", "live_leases", "permission_revision"],
+      "properties": {
+        "stream_id": {"$ref": "#/$defs/hex32"},
+        "sequence": {"$ref": "#/$defs/sequence"},
+        "live_leases": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"$ref": "#/$defs/uuid"}},
+        "permission_revision": {"$ref": "#/$defs/revision"}
+      }
+    },
+    "params_lease_stream_reset": {
+      "type": "object", "additionalProperties": false, "required": ["stream_id", "previous_stream_id", "sequence", "reason"],
+      "properties": {
+        "stream_id": {"$ref": "#/$defs/hex32"},
+        "previous_stream_id": {"oneOf": [{"$ref": "#/$defs/hex32"}, {"const": "*"}]},
+        "sequence": {"const": 1},
+        "reason": {"enum": ["startup", "repair", "restore", "key_rotation"]}
+      }
+    },
+    "params_capture_start": {"type": "object", "additionalProperties": false, "required": ["lease"], "properties": {"lease": {"$ref": "#/$defs/lease"}}},
+    "params_capture_status": {
+      "type": "object", "additionalProperties": false, "required": ["lease_ref", "session_id"],
+      "properties": {"lease_ref": {"$ref": "#/$defs/uuid"}, "session_id": {"$ref": "#/$defs/text128"}}
+    },
+    "params_capture_cancel": {"$ref": "#/$defs/params_capture_status"},
+    "params_capture_confirm": {
+      "type": "object", "additionalProperties": false, "required": ["lease_ref", "session_id", "label"],
+      "properties": {"lease_ref": {"$ref": "#/$defs/uuid"}, "session_id": {"$ref": "#/$defs/text128"}, "label": {"type": "string", "maxLength": 64}}
+    },
+    "answer_event": {
+      "description": "Answers of lease_event (section 1.2). live_leases only on a heartbeat answer.",
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["result", "request_id", "sequence"],
+         "properties": {"result": {"enum": ["acknowledged", "duplicate"]}, "request_id": {"$ref": "#/$defs/uuid"}, "sequence": {"$ref": "#/$defs/sequence"},
+                        "destroyed": {"$ref": "#/$defs/revision"}, "live_leases": {"type": "array", "items": {"$ref": "#/$defs/uuid"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["result", "request_id", "sequence", "last_sequence"],
+         "properties": {"result": {"const": "stale"}, "request_id": {"$ref": "#/$defs/uuid"}, "sequence": {"$ref": "#/$defs/sequence"}, "last_sequence": {"$ref": "#/$defs/revision"}}},
+        {"type": "object", "additionalProperties": false, "required": ["result", "request_id", "sequence", "last_sequence", "destroyed"],
+         "properties": {"result": {"const": "gap"}, "request_id": {"$ref": "#/$defs/uuid"}, "sequence": {"$ref": "#/$defs/sequence"}, "last_sequence": {"$ref": "#/$defs/revision"}, "destroyed": {"$ref": "#/$defs/revision"}}},
+        {"type": "object", "additionalProperties": false, "required": ["result", "request_id", "sequence", "destroyed"],
+         "properties": {"result": {"const": "conflict"}, "request_id": {"$ref": "#/$defs/uuid"}, "sequence": {"$ref": "#/$defs/sequence"}, "destroyed": {"$ref": "#/$defs/revision"}}},
+        {"type": "object", "additionalProperties": false, "required": ["result", "request_id"],
+         "properties": {"result": {"const": "unknown_stream"}, "request_id": {"$ref": "#/$defs/uuid"}}},
+        {"type": "object", "additionalProperties": false, "required": ["result", "stage", "code"],
+         "properties": {"result": {"const": "rejected"}, "stage": {"type": "string"}, "code": {"type": "string"}, "request_id": {"$ref": "#/$defs/uuid"}}}
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "actor", "action", "station", "params", "request_id", "issued_at", "expires_at", "ts", "nonce", "sig"],
+  "properties": {
+    "protocol": {"const": "wiskey-capture-lease-v1"},
+    "actor": {"$ref": "#/$defs/actor"},
+    "action": {"enum": ["lease_revoke", "lease_heartbeat", "lease_stream_reset", "capture_start", "capture_status", "capture_confirm", "capture_cancel"]},
+    "station": {"$ref": "#/$defs/text128"},
+    "params": {"type": "object"},
+    "request_id": {"$ref": "#/$defs/uuid"},
+    "issued_at": {"$ref": "#/$defs/time"},
+    "expires_at": {"$ref": "#/$defs/time"},
+    "ts": {"type": "integer"},
+    "nonce": {"$ref": "#/$defs/hex32"},
+    "sig": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "allOf": [
+    {"if": {"properties": {"action": {"const": "lease_revoke"}}}, "then": {"properties": {"params": {"$ref": "#/$defs/params_lease_revoke"}}}},
+    {"if": {"properties": {"action": {"const": "lease_heartbeat"}}}, "then": {"properties": {"params": {"$ref": "#/$defs/params_lease_heartbeat"}}}},
+    {"if": {"properties": {"action": {"const": "lease_stream_reset"}}}, "then": {"properties": {"params": {"$ref": "#/$defs/params_lease_stream_reset"}}}},
+    {"if": {"properties": {"action": {"const": "capture_start"}}}, "then": {"properties": {"params": {"$ref": "#/$defs/params_capture_start"}}}},
+    {"if": {"properties": {"action": {"const": "capture_status"}}}, "then": {"properties": {"params": {"$ref": "#/$defs/params_capture_status"}}}},
+    {"if": {"properties": {"action": {"const": "capture_confirm"}}}, "then": {"properties": {"params": {"$ref": "#/$defs/params_capture_confirm"}}}},
+    {"if": {"properties": {"action": {"const": "capture_cancel"}}}, "then": {"properties": {"params": {"$ref": "#/$defs/params_capture_cancel"}}}}
+  ]
+}

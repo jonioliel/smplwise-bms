@@ -1,0 +1,252 @@
+{
+  "format": "smplwise-arx/wiskey-capture-lease/golden-vectors",
+  "format_version": 1,
+  "protocol": "wiskey-capture-lease-v1",
+  "vectors_version": 1,
+  "status": "DRAFT, Arx LEASE-BUILD 2026-10-16 (CR-WISKEY-LEASE-REVOCATION-EVENT slice L0). Synthetic; do not edit by hand.",
+  "generated_by": "smplwise_vms/backend/tests/lease_contract.py --write",
+  "test_hmac_key": {
+    "value": "TEST-ONLY-golden-vectors-key-NOT-A-REAL-SECRET",
+    "encoding": "UTF-8 bytes of the string are the HMAC key",
+    "warning": "TEST CONSTANT ONLY. Publicly known. Never use as, or derive, a pairing secret."
+  },
+  "signing": "as wiskey-trusted-door-v1 (DTO v3 sections 2-3): canonical JSON of the body without ts/nonce/sig (sort_keys, compact, UTF-8), HMAC-SHA256 over '<ts>.<nonce>.<sha256(canonical)>', ts == epoch(issued_at), explicit 32-hex nonce",
+  "accept": [
+    {
+      "id": "revoke_lease_scope",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":2,\"scope\":\"lease\",\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"permission_revision\":17,\"reason\":\"abandoned\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"1e215a516ad3c6c4c62a2e331c17c84b0dc8c99d176714851807d8f32810f521\"}",
+      "body_sha256_of_signed_fields": "4bef8f31a2577700e2a3cf6d1b7e083a03502a98803521864afc107b45bc9a29",
+      "expect": {
+        "result": "pass"
+      }
+    },
+    {
+      "id": "revoke_all_scope",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"arx-installation-1\",\"display_name\":\"arx-installation-1\"},\"action\":\"lease_revoke\",\"station\":\"*\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":3,\"scope\":\"all\",\"lease_ref\":\"*\",\"permission_revision\":18,\"reason\":\"permission_revision\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000002\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000002\",\"sig\":\"fcf4fc58e177dac825adad873b04bad36c023cc7b6dc1f47f2cdc741edccf57b\"}",
+      "body_sha256_of_signed_fields": "5747cdb37d94f6873dfdfc8941aef53a3f6ae337c16798e0da0cfb11ac98a625",
+      "expect": {
+        "result": "pass"
+      }
+    },
+    {
+      "id": "heartbeat",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"arx-installation-1\",\"display_name\":\"arx-installation-1\"},\"action\":\"lease_heartbeat\",\"station\":\"*\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":3,\"live_leases\":[\"7c9e6679-7425-40de-944b-e07fc1f90ae7\"],\"permission_revision\":18},\"request_id\":\"00000000-0000-4000-8000-000000000003\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000003\",\"sig\":\"e279939cd63b1ceaa69d9d9ba5c98eba764ca34d93ba465aed0838282d78a5ac\"}",
+      "body_sha256_of_signed_fields": "fc1647b9fe44336c830fbcd3623eeae11fdb21004128644b7be6f6301943a114",
+      "expect": {
+        "result": "pass"
+      }
+    },
+    {
+      "id": "stream_reset",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"arx-installation-1\",\"display_name\":\"arx-installation-1\"},\"action\":\"lease_stream_reset\",\"station\":\"*\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"previous_stream_id\":\"*\",\"sequence\":1,\"reason\":\"startup\"},\"request_id\":\"00000000-0000-4000-8000-000000000004\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000004\",\"sig\":\"26eb334ac3b4461cb973c9bac5bb8068973045e3f6e6753f4da950aad7876f56\"}",
+      "body_sha256_of_signed_fields": "27ae4f62d7d404701e3a5febe211d4d55ec4f29faa94df7534538d6c7fc9b985",
+      "expect": {
+        "result": "pass"
+      }
+    },
+    {
+      "id": "capture_start",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_start\",\"station\":\"entry-a\",\"params\":{\"lease\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"lease_issued_at\":\"2026-10-16T12:00:00Z\",\"lease_expires_at\":\"2026-10-16T12:02:00Z\",\"binding_revision\":null,\"person_ref\":\"u1\",\"person_revision\":4,\"permission_revision\":17,\"receiver\":{\"reader_id\":0},\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence_at_issue\":1,\"lease_actions\":[\"capture_start\",\"capture_status\",\"capture_confirm\",\"capture_cancel\"]}},\"request_id\":\"00000000-0000-4000-8000-000000000005\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000005\",\"sig\":\"775c92b328ddca0cd3abc090e8c9a454786828c5acfbc8f2da47d9a808492e2d\"}",
+      "body_sha256_of_signed_fields": "2213bfd40327f08b48474522388ba16eb157f6ae9ffb080f8d34cd9b315af564",
+      "expect": {
+        "result": "pass"
+      }
+    },
+    {
+      "id": "capture_status",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_status\",\"station\":\"entry-a\",\"params\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"session_id\":\"0123456789abcdef\"},\"request_id\":\"00000000-0000-4000-8000-000000000006\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000006\",\"sig\":\"a1b289cd87d23218db4837964827f48bb49264e23c072f519e486c425411789e\"}",
+      "body_sha256_of_signed_fields": "46b1a71d9e5e3c7fdb5a38649100ed0392c1a0fda54f82a1052942c3d9aefcbb",
+      "expect": {
+        "result": "pass"
+      }
+    },
+    {
+      "id": "capture_confirm",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_confirm\",\"station\":\"entry-a\",\"params\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"session_id\":\"0123456789abcdef\",\"label\":\"תג ראשי\"},\"request_id\":\"00000000-0000-4000-8000-000000000007\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000007\",\"sig\":\"fdcb77c60f091018ea3547afe8cc57de72bbe25ef51ab9c0b3276aabe683afa2\"}",
+      "body_sha256_of_signed_fields": "37881d8814cd123c1a511885def69dba0c22909b33374154b1f45ffacbe2ce12",
+      "expect": {
+        "result": "pass"
+      }
+    },
+    {
+      "id": "capture_cancel",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_cancel\",\"station\":\"entry-a\",\"params\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"session_id\":\"*\"},\"request_id\":\"00000000-0000-4000-8000-000000000008\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000008\",\"sig\":\"aea6983dc9b027e727a86df72891c1078288a486920dd3fddb7236cc69f12d9c\"}",
+      "body_sha256_of_signed_fields": "5bf9c717c23747734a430de78362437b969e246490f5617edf6499d345bf159c",
+      "expect": {
+        "result": "pass"
+      }
+    }
+  ],
+  "reject": [
+    {
+      "id": "revoke_sequence_zero",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":0,\"scope\":\"lease\",\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"permission_revision\":17,\"reason\":\"abandoned\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"fb403770ec17f6f9d3f5f14c516ab142ec4f59865bce633b7ab8024d296a0044\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_value"
+      }
+    },
+    {
+      "id": "revoke_unknown_reason",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":2,\"scope\":\"lease\",\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"permission_revision\":17,\"reason\":\"because\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"c51dcce8f88ee4f67fdd680d9dfc99fe47faf7c92de35a4d52ec6b8504b9c11a\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_value"
+      }
+    },
+    {
+      "id": "revoke_lease_scope_star_ref",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":2,\"scope\":\"lease\",\"lease_ref\":\"*\",\"permission_revision\":17,\"reason\":\"abandoned\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"2d669ac9c77fa8675777bb79272718f0e3d79a4f0cf6c9ad8f30b4b0fda1891c\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_format"
+      }
+    },
+    {
+      "id": "revoke_extra_param",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":2,\"scope\":\"lease\",\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"permission_revision\":17,\"reason\":\"abandoned\",\"revoked_at\":\"2026-10-16T12:00:00Z\",\"card\":\"1234\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"6228351a30109f694e46bb26e5dbc085d162c69a54afb3e78210385175028ea9\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "unknown_field"
+      }
+    },
+    {
+      "id": "revoke_all_scope_named_station",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"arx-installation-1\",\"display_name\":\"arx-installation-1\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":3,\"scope\":\"all\",\"lease_ref\":\"*\",\"permission_revision\":18,\"reason\":\"permission_revision\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000002\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000002\",\"sig\":\"618732bf97c4d89ecabb6f8f2ebea3697d79a0dadfad4f40cf8d38b17be7fff1\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "binding",
+        "code": "station_scope_mismatch"
+      }
+    },
+    {
+      "id": "heartbeat_nine_live",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"arx-installation-1\",\"display_name\":\"arx-installation-1\"},\"action\":\"lease_heartbeat\",\"station\":\"*\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":3,\"live_leases\":[\"7c9e6679-7425-40de-944b-e07fc1f90a00\",\"7c9e6679-7425-40de-944b-e07fc1f90a01\",\"7c9e6679-7425-40de-944b-e07fc1f90a02\",\"7c9e6679-7425-40de-944b-e07fc1f90a03\",\"7c9e6679-7425-40de-944b-e07fc1f90a04\",\"7c9e6679-7425-40de-944b-e07fc1f90a05\",\"7c9e6679-7425-40de-944b-e07fc1f90a06\",\"7c9e6679-7425-40de-944b-e07fc1f90a07\",\"7c9e6679-7425-40de-944b-e07fc1f90a08\"],\"permission_revision\":18},\"request_id\":\"00000000-0000-4000-8000-000000000003\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000003\",\"sig\":\"aba32e7a49de46c5d1650b8be261071dd9322f2d45b1b4e5b63478bcd97e571d\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_value"
+      }
+    },
+    {
+      "id": "reset_sequence_two",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"arx-installation-1\",\"display_name\":\"arx-installation-1\"},\"action\":\"lease_stream_reset\",\"station\":\"*\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"previous_stream_id\":\"*\",\"sequence\":2,\"reason\":\"startup\"},\"request_id\":\"00000000-0000-4000-8000-000000000004\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000004\",\"sig\":\"c89dc117ac03d9aa4ee16399d1f4f31ea9900d93d1f825d01cf6e2ba82b43fd1\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_value"
+      }
+    },
+    {
+      "id": "start_lease_121s",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_start\",\"station\":\"entry-a\",\"params\":{\"lease\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"lease_issued_at\":\"2026-10-16T12:00:00Z\",\"lease_expires_at\":\"2026-10-16T12:02:01Z\",\"binding_revision\":null,\"person_ref\":\"u1\",\"person_revision\":4,\"permission_revision\":17,\"receiver\":{\"reader_id\":0},\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence_at_issue\":1,\"lease_actions\":[\"capture_start\",\"capture_status\",\"capture_confirm\",\"capture_cancel\"]}},\"request_id\":\"00000000-0000-4000-8000-000000000005\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000005\",\"sig\":\"529590d43ac1e7a692c0f495cc5eb55fbb34a8a6fe022d5c241c7848211c8011\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_value"
+      }
+    },
+    {
+      "id": "start_lease_card_field",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_start\",\"station\":\"entry-a\",\"params\":{\"lease\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"lease_issued_at\":\"2026-10-16T12:00:00Z\",\"lease_expires_at\":\"2026-10-16T12:02:00Z\",\"binding_revision\":null,\"person_ref\":\"u1\",\"person_revision\":4,\"permission_revision\":17,\"receiver\":{\"reader_id\":0},\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence_at_issue\":1,\"lease_actions\":[\"capture_start\",\"capture_status\",\"capture_confirm\",\"capture_cancel\"],\"card_number\":\"1234\"}},\"request_id\":\"00000000-0000-4000-8000-000000000005\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000005\",\"sig\":\"ed0578b9e1f82b0e05d9c1f256d1c2a3bae5a2cd80cd0edad766f4659ba32f59\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "unknown_field"
+      }
+    },
+    {
+      "id": "start_lease_missing_stream",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_start\",\"station\":\"entry-a\",\"params\":{\"lease\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"lease_issued_at\":\"2026-10-16T12:00:00Z\",\"lease_expires_at\":\"2026-10-16T12:02:00Z\",\"binding_revision\":null,\"person_ref\":\"u1\",\"person_revision\":4,\"permission_revision\":17,\"receiver\":{\"reader_id\":0},\"sequence_at_issue\":1,\"lease_actions\":[\"capture_start\",\"capture_status\",\"capture_confirm\",\"capture_cancel\"]}},\"request_id\":\"00000000-0000-4000-8000-000000000005\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000005\",\"sig\":\"f4c20f378602dfe26c3d6779b5f1ce0cc9a10b92462217c010b671f1cc1cbb3e\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "missing_field"
+      }
+    },
+    {
+      "id": "start_wrong_actions",
+      "service": "lease_request",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"capture_start\",\"station\":\"entry-a\",\"params\":{\"lease\":{\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"lease_issued_at\":\"2026-10-16T12:00:00Z\",\"lease_expires_at\":\"2026-10-16T12:02:00Z\",\"binding_revision\":null,\"person_ref\":\"u1\",\"person_revision\":4,\"permission_revision\":17,\"receiver\":{\"reader_id\":0},\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence_at_issue\":1,\"lease_actions\":[\"capture_start\"]}},\"request_id\":\"00000000-0000-4000-8000-000000000005\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000005\",\"sig\":\"ccf721a1ecfea1c92762b22dbf93f4adaf1858ebd09a13faa216f48650af5a15\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_value"
+      }
+    },
+    {
+      "id": "message_lifetime_16s",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":2,\"scope\":\"lease\",\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"permission_revision\":17,\"reason\":\"abandoned\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:16Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"3b3b6e32b4482afcd3affee41cbc06dd9524cccc3ede0ebaa8cdeb47ae0d0f46\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "time",
+        "code": "lifetime_invalid"
+      }
+    },
+    {
+      "id": "wrong_protocol",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":2,\"scope\":\"lease\",\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"permission_revision\":17,\"reason\":\"abandoned\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"dd97c6faa5df36b5acf391f124bb80f52af7c1d70b284ffe037cc38666701779\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "schema",
+        "code": "bad_value"
+      }
+    },
+    {
+      "id": "bad_signature",
+      "service": "lease_event",
+      "now": 1792152001,
+      "signed_message_json": "{\"protocol\":\"wiskey-capture-lease-v1\",\"actor\":{\"id\":\"dev-sam\",\"display_name\":\"dev-sam\"},\"action\":\"lease_revoke\",\"station\":\"entry-a\",\"params\":{\"stream_id\":\"5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b\",\"sequence\":2,\"scope\":\"lease\",\"lease_ref\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"permission_revision\":17,\"reason\":\"abandoned\",\"revoked_at\":\"2026-10-16T12:00:00Z\"},\"request_id\":\"00000000-0000-4000-8000-000000000001\",\"issued_at\":\"2026-10-16T12:00:00Z\",\"expires_at\":\"2026-10-16T12:00:15Z\",\"ts\":1792152000,\"nonce\":\"00000000000000000000000000000001\",\"sig\":\"6311e898fb40e1544c68c554a744b405dee1c6dc9cd30532f69adff9d940132d\"}",
+      "expect": {
+        "result": "rejected",
+        "stage": "signature",
+        "code": "bad_signature"
+      }
+    }
+  ]
+}
