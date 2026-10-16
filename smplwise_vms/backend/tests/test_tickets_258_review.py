@@ -238,6 +238,8 @@ def test_gap4_migration_0087_keeps_every_child_row_of_a_populated_database(tmp_p
     for t in tables:
         if t == "ticket_links":
             assert [r[:-1] for r in after[t]] == before[t] and after[t][0][-1] == "external"
+        elif t == "ticket_outbox":  # 0089 (RFQ) appends `rfq_id` (NULL for every earlier row) in the release's one outbox rebuild
+            assert [r[:-1] for r in after[t]] == before[t] and after[t][0][-1] is None
         else:
             assert after[t] == before[t], t
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []

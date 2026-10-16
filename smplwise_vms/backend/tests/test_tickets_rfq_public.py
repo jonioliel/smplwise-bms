@@ -387,8 +387,13 @@ def test_the_vendor_options_route_needs_an_rfq_manager(s4):
 # ---------------------------------------------------------------- release 2.6.3: the public RFQ review (F1-F4, F6), negative first
 
 def _coded_rfq(s4) -> tuple[dict, str]:
-    d = sent_rfq(s4, vendors=[{"contact_id": s4.vendor["id"], "require_code": True}, {"contact_id": s4.contact["id"]}])
-    return d, vid(d, s4.vendor["id"])
+    """Sent, then the manager switches the code on for vendor A before he ever opened the link."""
+    d = sent_rfq(s4)
+    a = vid(d, s4.vendor["id"])
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{a}/options", json={"revision": detail(s4, d["id"])["revision"], "require_code": True},
+                  headers=s4.h("mona"))
+    assert r.status_code == 200, r.text
+    return d, a
 
 
 def test_f1_a_code_protected_link_read_without_the_code_is_not_an_open(s4):

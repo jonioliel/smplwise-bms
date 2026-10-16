@@ -125,7 +125,7 @@ def kim(s4, settings, *names: str) -> None:
 
 def test_0089_creates_the_rfq_tables_and_rebuilds_only_the_outbox(s4):
     sql = (MIGRATIONS_DIR / "0089_ticket_rfq.sql").read_text(encoding="utf-8")
-    assert "CR-038" in sql.splitlines()[0] and "PROVISIONAL NUMBER" in sql
+    assert "CR-038" in sql.splitlines()[0] and "Final number 0089" in sql  # integ/263 renumbered (was PROVISIONAL NUMBER)
     assert re.findall(r"^DROP TABLE\s+(\w+)", sql, re.I | re.M) == ["ticket_outbox"], "one rebuild: the outbox (its purpose CHECK)"
     assert not re.search(r"^\s*(BEGIN|COMMIT)\b", sql, re.M | re.I)
     with s4.db.connection(mode="read") as conn:
