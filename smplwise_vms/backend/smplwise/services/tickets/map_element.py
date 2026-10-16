@@ -27,6 +27,16 @@ from . import map_image
 SEP = " · "
 KINDS = ("anchor", "object")
 NAME_MAX = 120
+# The word used when an element has no human name: NEVER a camera id, an entity_id or a catalog item_id (owner 16.10: no ids reach the vendor).
+GENERIC_NAME = {"he": {"camera": "מצלמה", "item": "רכיב"}, "en": {"camera": "Camera", "item": "Item"}}
+_snapshot_cache: dict[tuple, str] = {}  # the rendered picture per input stamp (see picture()); small, newest kept
+_SNAPSHOT_CACHE_MAX = 64
+
+
+def generic_name(kind: str, lang: str = "he") -> str:
+    """The id-free stand-in name: `kind` is "camera" or anything else (a device / object)."""
+    words = GENERIC_NAME.get(lang) or GENERIC_NAME["he"]
+    return words["camera" if kind == "camera" else "item"]
 
 
 @dataclass(frozen=True)
@@ -93,13 +103,13 @@ def _default_level(doc: dict[str, Any] | None) -> str:
 def floor_zones(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
     """The floor's OWN rooms (never the rooms other floors share in), outline parsed; a malformed outline is dropped."""
     out: list[dict[str, Any]] = []
-    for r in conn.execute("SELECT name, polygon_json, level_id FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL ORDER BY id", (floor_id,)).fetchall():
+    for r in conn.execute("SELECT name, kind, polygon_json, level_id FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL ORDER BY id", (floor_id,)).fetchall():
         try:
             poly = json.loads(r["polygon_json"])
         except ValueError:
             continue
         if isinstance(poly, list) and len(poly) >= 3:
-            out.append({"name": r["name"] or "", "polygon": poly, "level_id": r["level_id"]})
+            out.append({"name": map_image.clean_text(r["name"], NAME_MAX), "polygon": poly, "kind": r["kind"] or "", "level_id": r["level_id"]})
     return out
 
 
@@ -129,32 +139,37 @@ def room_at(zones: list[dict[str, Any]], level: str, x: float, y: float) -> str 
         except (KeyError, TypeError, ValueError):
             continue
         if best is None or area < best[0]:
-            best = (area, str(z["name"]))
+            best = (area, map_image.clean_text(z["name"], NAME_MAX))
     return best[1] if best else None
 
 
-def _anchor_name(conn: sqlite3.Connection, a: sqlite3.Row) -> str:
-    if a["label"]:
+def _anchor_name(conn: sqlite3.Connection, a: sqlite3.Row, lang: str = "he") -> str:
+    """A human name only: the anchor's label, the camera's alias / source name, the entity's name - else the generic word (never an id)."""
+    if a["label"] and map_image.clean_text(a["label"]):
         return str(a["label"])
     if a["resource_type"] == "camera":
         c = conn.execute("SELECT alias, name_source FROM cameras WHERE id = ?", (a["resource_id"],)).fetchone()
-        if c is not None:
-            return str(c["alias"] or c["name_source"] or a["resource_id"])
+        if c is not None and (map_image.clean_text(c["alias"]) or map_image.clean_text(c["name_source"])):
+            return str(c["alias"] if map_image.clean_text(c["alias"]) else c["name_source"])
     else:
         e = conn.execute("SELECT name FROM ha_entities WHERE entity_id = ?", (a["resource_id"],)).fetchone()
-        if e is not None and e["name"]:
+        if e is not None and map_image.clean_text(e["name"]):
             return str(e["name"])
-    return str(a["resource_id"])
+    return generic_name(a["resource_type"], lang)
 
 
-def _object_name(conn: sqlite3.Connection, o: dict[str, Any]) -> str:
-    if isinstance(o.get("label"), str) and o["label"].strip():
+def _object_name(conn: sqlite3.Connection, o: dict[str, Any], lang: str = "he") -> str:
+    """The object's label, else its catalog item's Hebrew / English name - never the item id (generic word instead)."""
+    if isinstance(o.get("label"), str) and map_image.clean_text(o["label"]):
         return o["label"].strip()
     from .. import plan_catalog
 
     item = plan_catalog.item_index(conn).get(o.get("item_id")) or {}
     names = item.get("names") if isinstance(item.get("names"), dict) else {}
-    return str(names.get("he") or names.get("en") or o.get("item_id") or "")
+    for n in (names.get("he"), names.get("en")):
+        if isinstance(n, str) and map_image.clean_text(n):
+            return n
+    return generic_name("object", lang)
 
 
 def _num(v: Any) -> float | None:
@@ -175,7 +190,8 @@ def _build(conn: sqlite3.Connection, floor: dict[str, Any], version: dict[str, A
     return Element(kind=kind, type=etype, element_id=element_id, resource_id=resource_id, floor_id=floor["id"],
                    plan_version_id=version["id"] if version else None, level_id=lvl, x=xf, y=yf,
                    width_px=float(version["width_px"]) if version else 1000.0, height_px=float(version["height_px"]) if version else 1000.0,
-                   name=name[:NAME_MAX], floor_name=str(floor["name"] or ""), room_name=room_at(zones, lvl, xf, yf))
+                   name=map_image.clean_text(name, NAME_MAX), floor_name=map_image.clean_text(floor["name"], NAME_MAX),
+                   room_name=room_at(zones, lvl, xf, yf))
 
 
 def find(conn: sqlite3.Connection, floor_id: str, kind: str, element_id: str) -> Element | None:
@@ -274,7 +290,7 @@ def public_block(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | N
     if row is None:
         return None
     return {"name": row["name_snapshot"], "floor": row["floor_snapshot"], "room": row["room_snapshot"] or "",
-            "image": _drawable(live(conn, row))}
+            "image": _image_exists(conn, row)}
 
 
 def _drawable(el: Element | None) -> bool:
@@ -282,11 +298,39 @@ def _drawable(el: Element | None) -> bool:
     return el is not None and el.plan_version_id is not None
 
 
+def _image_exists(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
+    """Whether a picture exists, WITHOUT parsing the plan document for an anchor (a live anchor on a floor with a published plan);
+    an object needs the document (it may be gone from it), so that case goes through live()."""
+    if row["element_kind"] == "anchor":
+        if _floor(conn, row["floor_id"]) is None or published_version(conn, row["floor_id"]) is None:
+            return False
+        return conn.execute("SELECT 1 FROM map_anchors WHERE id = ? AND floor_id = ? AND effective_to IS NULL",
+                            (row["element_id"], row["floor_id"])).fetchone() is not None
+    return _drawable(live(conn, row))
+
+
+def _stamp(conn: sqlite3.Connection, row: dict[str, Any]) -> tuple | None:
+    """Everything the picture depends on, from cheap queries (no JSON parsing): the request's element row (revision), the structure
+    version (floors / zones / anchors / cameras triggers, migration 0031), the floor's published plan version and its geometry row."""
+    version = published_version(conn, row["floor_id"])
+    if version is None:
+        return None
+    g = conn.execute("SELECT id, doc_hash, updated_at FROM plan_geometry WHERE plan_version_id = ? AND status = 'published' ORDER BY updated_at DESC, rowid DESC LIMIT 1",
+                     (version["id"],)).fetchone()
+    cv = conn.execute("SELECT version FROM cache_versions WHERE name = 'structure'").fetchone()
+    return (row["ticket_id"], row["revision"], row["attached_at"], row["element_kind"], row["element_id"], row["floor_id"], row["name_snapshot"],
+            row["floor_snapshot"], row["room_snapshot"], cv["version"] if cv else None, version["id"], version["width_px"], version["height_px"],
+            tuple(g) if g else None, map_image.MAP_ZONE_NAMES)
+
+
 def picture(conn: sqlite3.Connection, ticket_id: str) -> str | None:
     """The vendor's SVG, or None (nothing attached, or the element left the map: the stored text only, no new image)."""
     row = stored(conn, ticket_id)
     if row is None:
         return None
+    stamp = _stamp(conn, row)
+    if stamp is not None and stamp in _snapshot_cache:
+        return _snapshot_cache[stamp]  # a removed / moved element or a republish changes the stamp (structure version, geometry row)
     el = live(conn, row)
     if not _drawable(el):
         return None
@@ -294,5 +338,10 @@ def picture(conn: sqlite3.Connection, ticket_id: str) -> str | None:
     version = published_version(conn, el.floor_id)
     doc = published_doc(conn, version["id"]) if version else None
     text = describe(row["name_snapshot"], row["floor_snapshot"], row["room_snapshot"])
-    return map_image.render_public_svg(doc, floor_zones(conn, el.floor_id), el.width_px, el.height_px, level=el.level_id, x=el.x_px, y=el.y_px,
-                                       caption=text, title=text)
+    svg = map_image.render_public_svg(doc, floor_zones(conn, el.floor_id), el.width_px, el.height_px, level=el.level_id, x=el.x_px, y=el.y_px,
+                                      caption=text, title=text, room=el.room_name)
+    if stamp is not None:
+        if len(_snapshot_cache) >= _SNAPSHOT_CACHE_MAX:
+            _snapshot_cache.pop(next(iter(_snapshot_cache)))
+        _snapshot_cache[stamp] = svg
+    return svg
