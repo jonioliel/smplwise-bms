@@ -172,7 +172,12 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   cost?: TicketCostBlock;
   /** TKUI3B: the internal owner - full view only (null for a limited viewer or while nobody is responsible; absent from older servers) */
   internal_owner?: InternalOwner | null;
+  /** TKRFQ4 (RFQ contract 16.4): the request for quotation this item was opened from (a work order) - full view only; `id` null when the
+   * viewer may not open the request; `siblings` = the other items the same request opened (a split, one per vendor) the viewer may see */
+  rfq_origin?: RfqOrigin | null;
 }
+
+export interface RfqOrigin { id: string | null; number: number; ref: string; work_from: string | null; work_to: string | null; siblings: { id: string; number: number }[] }
 
 /** TKUI1 (2.6.0): the request drawer's defaults - the tab it opens on, its desktop size (a viewer's own switch wins) and the phone sheet. */
 export type DetailTab = 'overview' | 'conv' | 'costs' | 'history';

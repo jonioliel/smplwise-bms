@@ -4,12 +4,14 @@
  * and moves, the KPIs, lowest / earliest only inside the majority currency, the award with the optional second approval, the message
  * draft that is never sent by itself, "not selected" without a message, cancel with the short notice) and computes figures with the
  * integer rules of tickets/cost-model.ts.
+ * TKRFQ4 (contract v1.2 section 16): the work order of an award - opening the vendor's service request never sends anything; the order
+ * message leaves only on the explicit send; one request per awarded vendor; `ordered` once every approved award has its order.
  */
 import { ApiError } from './client';
 import type { LineInput, LineKind, StoredLine, VatMode } from './tickets-costs';
 import type {
   RfqAward, RfqAwardAnswer, RfqBackend, RfqChannel, RfqCompareQuote, RfqComparison, RfqCreateBody, RfqDetail, RfqEvent, RfqFile, RfqKpis, RfqListPage,
-  RfqMessage, RfqMeta, RfqQuoteBody, RfqState, RfqSummary, RfqVendor, RfqVendorState,
+  RfqMessage, RfqMeta, RfqOrder, RfqOrderAnswer, RfqOrderPreview, RfqQuoteBody, RfqScope, RfqState, RfqSummary, RfqVendor, RfqVendorState,
 } from './tickets-rfq';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, quantityToMilli, vatOf } from '../tickets/cost-model';
 
@@ -196,15 +198,15 @@ function seed(): void {
   const r5 = mk(5, 'צביעת חדר המדרגות הצפוני', 'dept-maintenance', 'awarded', 400, -200, { awarded_at: iso(now - 150 * HOUR) });
   const paint = vendor('paint', 'יוסי צ.', 'צבע וגימור', 'whatsapp', 'sent', now - 399 * HOUR, now - 398 * HOUR);
   const paint2 = vendor('paint2', 'עדי ר.', 'גוונים', 'email', 'sent', now - 399 * HOUR, now - 390 * HOUR);
-  quote(paint, now - 300 * HOUR, [lineOf('labor', 'צביעה', 380_000), lineOf('parts', 'צבע', 90_000)], now - 100 * HOUR, now - 90 * HOUR, '');
-  quote(paint2, now - 290 * HOUR, [lineOf('labor', 'צביעה', 410_000), lineOf('parts', 'צבע', 70_000)], now - 100 * HOUR, now - 80 * HOUR, '');
+  quote(paint, now - 300 * HOUR, [lineOf('labor', 'צביעה', 380_000), lineOf('parts', 'צבע', 90_000)], now + 3 * DAY, now + 4 * DAY, '');
+  quote(paint2, now - 290 * HOUR, [lineOf('labor', 'צביעה', 410_000), lineOf('parts', 'צבע', 70_000)], now + 3 * DAY, now + 5 * DAY, '');
   paint.state = 'awarded';
   paint.quotes[0].state = 'approved';
   paint2.state = 'not_awarded';
   paint2.quotes[0].state = 'not_awarded';
   const f5 = figures(paint.quotes[0]);
   r5.awards.push({ id: nid('aw'), vendor_id: paint.id, quote_id: paint.quotes[0].id, state: 'approved', line_indexes: [0, 1], finalize: true, first_by: ME, first_at: iso(now - 150 * HOUR),
-    second_required: false, second_by: null, second_at: null, revision: 1, currency: 'ILS', subtotal_minor: f5.subtotal, vat_minor: f5.vat, total_minor: f5.total, ticket: { id: '00000000000c1051', number: 1051 } });
+    second_required: false, second_by: null, second_at: null, revision: 1, currency: 'ILS', subtotal_minor: f5.subtotal, vat_minor: f5.vat, total_minor: f5.total });
   r5.vendors = [paint, paint2];
   event(r5, 'awarded', now - 150 * HOUR, paint, ME, { quote_id: paint.quotes[0].id, total_minor: f5.total, currency: 'ILS' });
   const r4 = mk(4, 'החלפת שטיחים בלובי', 'dept-cleaning', 'cancelled', 700, -600, { cancelled_at: iso(now - 600 * HOUR), cancel_reason: 'הפרויקט נדחה' });
@@ -300,14 +302,64 @@ function detail(r: DRfq): RfqDetail {
     source_ticket: r.source_ticket, due_at: r.due_at, work_from: r.work_from, work_to: r.work_to, allowed_line_kinds: [...r.kinds],
     internal_owner: { id: 'u-me', name: r.owner, active: true }, created_by: { id: 'u-me', name: r.created_by }, created_at: r.created_at, updated_at: r.updated_at,
     sent_at: r.sent_at, awarded_at: r.awarded_at, closed_at: r.closed_at, cancelled_at: r.cancelled_at, cancel_reason: r.cancel_reason, revision: r.revision,
-    kpis: kpis(r), vendors, awards: clone(r.awards), second_approval: { threshold_minor: threshold, enabled: threshold !== null },
+    kpis: kpis(r), vendors, awards: r.awards.map((a) => awardOut(r, a)), second_approval: { threshold_minor: threshold, enabled: threshold !== null },
     timeline: [...r.events].map(amounts).sort((a, b) => b.at.localeCompare(a.at)), vendor_page: true, files: clone(r.files),
     can: {
       edit: !ended, add_vendor: state === 'draft' || open, send: (state === 'draft' || state === 'sent' || state === 'collecting') && r.vendors.some((v) => v.state === 'draft'),
       remind: state === 'sent' || state === 'collecting', cancel: (state === 'draft' || open) && !hasAward, close: (open || state === 'awarded' || state === 'ordered') && !pending,
       award: (open || state === 'awarded') && !pending, see_amounts: true, delete: true,
+      order: r.awards.some((a) => awardOut(r, a).can?.order), send_order: r.awards.some((a) => awardOut(r, a).can?.send_order),
     },
   };
+}
+
+// ---------------------------------------------------------------- TKRFQ4: the work order (no table of its own on the server either)
+
+interface DOrder extends RfqOrder { documents: string | null; request_key: string }
+const orders = new Map<string, DOrder>();
+const orderKeys = new Map<string, string>();
+let ticketSeq = 2043;
+
+function quoteOf(r: DRfq, a: RfqAward): DQuote | undefined {
+  return r.vendors.find((v) => v.id === a.vendor_id)?.quotes.find((q) => q.id === a.quote_id);
+}
+
+function scopeOf(q: DQuote | undefined, idx: number[]): RfqScope | null {
+  if (!q) return null;
+  const kinds = [...new Set(idx.map((i) => q.lines[i]?.kind).filter((k): k is LineKind => !!k))];
+  if (idx.length === q.lines.length) return { kind: 'all', kinds, lines: q.lines.length };
+  const byKinds = q.lines.map((l, i) => (kinds.includes(l.kind) ? i : -1)).filter((i) => i >= 0);
+  return { kind: byKinds.length === idx.length ? 'kinds' : 'lines', kinds, lines: idx.length };
+}
+
+function awardOut(r: DRfq, a: RfqAward): RfqAward {
+  const o = orders.get(a.id);
+  const q = quoteOf(r, a);
+  const state = effective(r);
+  const out: RfqAward = { ...clone(a), scope: scopeOf(q, a.line_indexes), order: null, ticket: null, order_defaults: null, can: { order: false, send_order: false } };
+  if (o) {
+    const { documents: _d, request_key: _k, ...pub } = o;
+    out.order = clone(pub);
+    out.ticket = clone(o.ticket);
+    out.can = { order: false, send_order: !o.sent };
+  } else if (a.state === 'approved') {
+    out.order_defaults = { work_from: q?.work_from ?? r.work_from, work_to: q?.work_to ?? q?.work_from ?? r.work_to };
+    out.can = { order: state === 'awarded' || state === 'ordered', send_order: false };
+  }
+  return out;
+}
+
+function orderAnswer(r: DRfq, awardId: string, extra: Partial<RfqOrderAnswer> = {}): RfqOrderAnswer {
+  const d = detail(r);
+  return { rfq: d, award: d.awards.find((a) => a.id === awardId) ?? null, ...extra };
+}
+
+function orderText(r: DRfq, o: RfqOrder): string {
+  const d = (s: string | null) => (s ? new Date(s).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }).replace(/\//g, '.') : '');
+  const a = d(o.work_from);
+  const b = d(o.work_to);
+  const win = a && b && a !== b ? `${a}-${b}` : a || b || 'גמיש';
+  return `ההצעה שלכם ל"${r.title}" (מס' ${r.number}) אושרה. מועד העבודה: ${win}.\nהזמנת העבודה והמסמכים: [קישור]\nנא לאשר את המועד בקישור.`;
 }
 
 function find(id: string): DRfq {
@@ -702,6 +754,59 @@ export const mockRfq: RfqBackend = {
     d.threshold = minor;
     return { department_id: departmentId, second_approval_minor: minor };
   },
+  async createOrder(id, awardId, body) {
+    await sleep(220);
+    const r = find(id);
+    const a = r.awards.find((x) => x.id === awardId);
+    if (!a) fail(404, 'award_not_found', 'האישור לא נמצא');
+    const prior = orderKeys.get(`${awardId}:${body.request_key}`);
+    const priorOrder = prior ? orders.get(prior) : undefined;
+    if (priorOrder) return orderAnswer(r, awardId, { ticket: { id: priorOrder.ticket.id ?? '', number: priorOrder.ticket.number }, replayed: true });
+    if (a.state === 'pending_second') fail(409, 'award_pending', 'יש אישור שממתין לאישור שני');
+    const state = effective(r);
+    if (a.state !== 'approved' || (state !== 'awarded' && state !== 'ordered')) fail(409, 'rfq_invalid_transition', 'הפעולה הזו אינה אפשרית במצב הנוכחי של הבקשה', { from: state, action: 'order' });
+    const existing = orders.get(a.id);
+    if (existing) fail(409, 'order_exists', 'כבר נפתחה הזמנת עבודה לספק הזה', { ticket_id: existing.ticket.id });
+    const q = quoteOf(r, a);
+    const wf = body.work_from || q?.work_from || r.work_from;
+    const wt = body.work_to || (body.work_from ? wf : q?.work_to || q?.work_from || r.work_to) || wf;
+    if (!wf) fail(422, 'validation', 'ערך לא תקין', { fields: [{ field: 'work_from', code: 'required' }] });
+    if (wt && wt < wf) fail(422, 'validation', 'ערך לא תקין', { fields: [{ field: 'work_to', code: 'order' }] });
+    const number = ++ticketSeq;
+    const o: DOrder = { ticket: { id: `0000000000${number.toString(16).padStart(6, '0')}`, number, status: 'assigned' }, work_from: wf, work_to: wt ?? wf,
+      created_at: iso(Date.now()), created_by: ME, sent: null, documents: body.documents?.trim() || null, request_key: body.request_key };
+    orders.set(a.id, o);
+    orderKeys.set(`${awardId}:${body.request_key}`, a.id);
+    const approved = r.awards.filter((x) => x.state === 'approved');
+    if (approved.some((x) => x.finalize) && approved.every((x) => orders.has(x.id))) r.state = 'ordered';
+    touch(r);
+    event(r, 'order_created', Date.now(), vendorOf(r, a.vendor_id), ME, { award_id: a.id, ticket_number: number });
+    return orderAnswer(r, awardId, { ticket: { id: o.ticket.id as string, number }, replayed: false });
+  },
+  async orderPreview(id, awardId): Promise<RfqOrderPreview> {
+    await sleep(100);
+    const r = find(id);
+    const a = r.awards.find((x) => x.id === awardId);
+    const o = a ? orders.get(a.id) : undefined;
+    if (!a || !o) fail(404, 'order_not_found', 'עדיין לא נפתחה הזמנת עבודה לספק הזה');
+    const v = vendorOf(r, a.vendor_id);
+    const channel = v.channel;
+    return { award_id: awardId, text: orderText(r, o), lang: 'he', channel, refusals: channel === 'manual' ? ['order_channel_unavailable'] : [], sent: !!o.sent, sent_at: o.sent?.at ?? null };
+  },
+  async sendOrder(id, awardId) {
+    await sleep(180);
+    const r = find(id);
+    const a = r.awards.find((x) => x.id === awardId);
+    const o = a ? orders.get(a.id) : undefined;
+    if (!a || !o) fail(404, 'order_not_found', 'עדיין לא נפתחה הזמנת עבודה לספק הזה');
+    if (o.sent) return orderAnswer(r, awardId, { notified: { queued: true, channel: o.sent.channel, already: true } });
+    const v = vendorOf(r, a.vendor_id);
+    if (v.channel === 'manual') fail(409, 'order_channel_unavailable', 'אין כרגע ערוץ שיכול לשלוח את הזמנת העבודה לספק');
+    o.sent = { at: iso(Date.now()), channel: v.channel, by: ME };
+    touch(r);
+    event(r, 'order_sent', Date.now(), v, ME, { award_id: a.id });
+    return orderAnswer(r, awardId, { notified: { queued: true, channel: v.channel, already: false } });
+  },
   async uploadFile(file: File) {
     await sleep(150);
     const f: RfqFile = { id: nid('f'), name: file.name || 'file', kind: file.type === 'application/pdf' ? 'pdf' : 'photo', bytes: file.size };
@@ -714,6 +819,9 @@ export const mockRfq: RfqBackend = {
 export function resetDemoRfq(): void {
   rfqs.length = 0;
   seq = 6;
+  orders.clear();
+  orderKeys.clear();
+  ticketSeq = 2043;
   DEPTS[0].threshold = null;
   DEPTS[1].threshold = 500_000;
   seed();

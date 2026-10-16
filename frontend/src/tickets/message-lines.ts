@@ -50,6 +50,7 @@ export function messageLine(m: Pick<TicketMessage, 'state' | 'channel' | 'held_r
 const PURPOSE_KEYS: Record<string, MessageTextKey> = {
   assign: 'p_assign', reminder: 'p_reminder', code: 'p_code', closed: 'p_closed', reassigned: 'p_reassigned', reopened: 'p_reopened',
   update: 'p_update', test: 'p_test', cost_rejected: 'p_cost_rejected', cost_approved: 'p_cost_approved', cost_reopened: 'p_cost_reopened',
+  rfq_order: 'p_rfq_order', // TKRFQ4: the RFQ work order carries the item's handler link
 };
 
 export function purposeLabel(p: string): string {
@@ -115,6 +116,10 @@ export function messageEventLine(e: TicketEvent): EventLine | null {
       return { icon: 'refresh', text: mtt('e_link_new') };
     case 'link_revoked':
       return { icon: 'x', text: mtt('e_link_revoked') };
+    case 'rfq_order': // TKRFQ4: the item was opened by a request-for-quotation work order
+      return { icon: 'link', text: mtt('e_rfq_order', { number: typeof d.number === 'number' ? String(d.number).padStart(2, '0') : '' }) };
+    case 'rfq_order_sent':
+      return { icon: 'check', text: mtt('e_rfq_order_sent') };
     case 'status':
       return e.actor.kind === 'inbound' ? { icon: 'check', text: mtt('e_inbound_status', { status: e.to ? statusLabel(e.to) : '' }) } : null;
     default:

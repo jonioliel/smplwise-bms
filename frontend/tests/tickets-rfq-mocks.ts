@@ -26,6 +26,8 @@ export interface RfqMockOptions {
   empty?: boolean;
   /** the list hangs for a while (the loading state) */
   slowList?: boolean;
+  /** TKRFQ4: the order create answers this 409 code (e.g. `vendor_not_allowed`, `public_link_unavailable`) */
+  orderRefusal?: string;
 }
 
 export interface RfqMock { calls: { method: string; path: string; body: unknown }[] }
@@ -118,6 +120,17 @@ export async function installRfqMock(page: Page, o: RfqMockOptions = {}): Promis
           if (seg.length === 2) return json(route, await api.award(id, b), 201);
           if (seg[3] === 'confirm') return json(route, await api.confirmAward(id, seg[2], b.revision));
           if (seg[3] === 'decline') return json(route, contractDetail(await api.declineAward(id, seg[2], b.revision, b.reason)));
+          // TKRFQ4 (contract v1.2 section 16): the work order - open the request (sends nothing), the preview, the explicit send
+          if (seg[3] === 'order' && seg.length === 4 && method === 'POST') {
+            if (o.orderRefusal) return json(route, { code: o.orderRefusal, user_message: 'נדחה', retryable: false, correlation_id: 'mock', details: {} }, 409);
+            const a = await api.createOrder(id, seg[2], b);
+            return json(route, { ...a, rfq: out(a.rfq) }, 201);
+          }
+          if (seg[3] === 'order' && seg[4] === 'preview') return json(route, await api.orderPreview(id, seg[2]));
+          if (seg[3] === 'order' && seg[4] === 'send') {
+            const a = await api.sendOrder(id, seg[2]);
+            return json(route, { ...a, rfq: out(a.rfq) });
+          }
           break;
         case 'vendors': {
           if (seg.length === 2) return json(route, contractDetail(await api.addVendor(id, b.contact_id, b.revision)), 201);
