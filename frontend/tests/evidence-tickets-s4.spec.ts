@@ -73,7 +73,7 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
     await page.locator(`${C} [data-field="phone"]`).fill('050-000-0099');
     await expect(page.locator(`${C} [data-contact-links-warning]`)).toBeVisible();
     // a new contact: the name is required
-    await page.locator(`${C} [data-contact-new]`).click();
+    await page.locator(`${HP} [data-handlers-new]`).click(); // the page's "+ איש קשר" opens a new row
     await page.locator(`${C} [data-contact-save]`).click();
     await expect(page.locator(`${C} [data-contact-problem]`)).toBeVisible();
     expect(last(mock, 'POST', /^tickets\/contacts$/)).toBeUndefined();
