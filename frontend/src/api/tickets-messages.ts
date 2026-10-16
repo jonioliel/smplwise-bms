@@ -166,8 +166,8 @@ const rest: MessagesBackend = {
 
 const DEMO_STARTERS: Record<string, Partial<Record<MessageLang, string>>> = {
   assign: {
-    he: 'שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול',
-    en: 'Hello {name},\nNew {module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling: {link}\nQuick reply: 1 = received, 2 = in progress',
+    he: 'שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}\nחובה להיכנס לקישור כדי להמשיך בטיפול.',
+    en: 'Hello {name},\nNew {module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling: {link}\nYou must open the link to continue the handling.',
   },
   reminder: { he: 'תזכורת: {module_name} {number} ({department}): {title}\nלעדכון הטיפול: {link}' },
   code: { he: 'קוד האימות: {code}\nהקוד בתוקף 10 דקות. אין למסור אותו לאחרים.' },
