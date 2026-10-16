@@ -28,6 +28,9 @@ import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import '../components/sw-cast-picker';
 import '../components/sw-cast-stop';
+// TKMAP1: "open a service request" for this camera (the camera's place on the map is attached to the new request)
+import '../tickets/map-create';
+import { MAP_CREATE_LABEL, mapTicketsOn } from '../tickets/map-create';
 import { castTargets, type CastSession } from '../api/cast';
 import { CastWatch, castStore } from '../components/cast-store';
 import { castButtonVisible, isLow, leftText } from './cast-logic';
@@ -46,6 +49,8 @@ export class LiveCamera extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
   @property() cameraId = 'cam-1';
+  /** TKMAP1: the create form for a service request about this camera is open */
+  @state() private mapTicket = false;
   @state() private cam: Camera | null = null;
   /** T075: the NVR's detection configuration for this camera (read-only), drawn over the snapshot. */
   @state() private zones: CameraZones | null = null;
@@ -1243,6 +1248,8 @@ export class LiveCamera extends LitElement {
         ${this.renderRename()}
         <a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>
         <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
+        ${api && this.cam && mapTicketsOn() ? html`<sw-button slot="actions" variant="ghost" icon="plus" data-camera-ticket @click=${() => (this.mapTicket = true)}>${MAP_CREATE_LABEL}</sw-button>` : nothing}
+        ${this.mapTicket && this.cam ? html`<ticket-map-create open .element=${{ pick: { resource: { type: 'camera', id: this.cam.id } }, name: this.cam.alias || this.cam.name, floorName: '' }} @close=${() => (this.mapTicket = false)}></ticket-map-create>` : nothing}
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
     `;

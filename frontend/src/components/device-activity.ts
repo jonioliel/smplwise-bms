@@ -251,7 +251,8 @@ export class DeviceActivity extends LitElement {
     const tg = this.target;
     if (!this.creating || !tg) return nothing;
     return html`<ticket-create .open=${true} .meta=${this.meta} mode=${this.newMode} data-device-create
-      .device=${{ id: tg.id, name: tg.name, data: this.tdata }} @created=${this.onCreated} @close=${this.onCreateClosed}></ticket-create>`;
+      .device=${{ id: tg.id, name: tg.name, data: this.tdata }} .mapElement=${{ pick: { resource: { type: 'ha_entity', id: tg.id } }, name: tg.name, floorName: '' }}
+      @created=${this.onCreated} @close=${this.onCreateClosed}></ticket-create>`; // TKMAP1: the device's place on the map is attached too (when it has one)
   }
 
   private menuAction(item: MenuItem) {

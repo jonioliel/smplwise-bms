@@ -20,6 +20,8 @@ import { isApi } from '../api/session';
 import { ticketsS4Api, type AssigneesAnswer, type ExternalAssignee, type Readiness } from '../api/tickets-s4';
 import { LATER, createAssignGroups, parsePick, type CreateGroupKey } from './create-assign-model';
 import { dwt, type DrawerTextKey } from './drawer-text';
+import { ticketsMapApi, type MapElementDraft } from '../api/tickets-map'; // TKMAP1: a request opened from a map element
+import { MAP_TEXT } from './map-text';
 
 /**
  * CR-038 `<ticket-create .open .meta mode="sheet|dialog">`: the create form (D22: a side sheet - the automation builder's 620 px sheet - or a
@@ -41,6 +43,8 @@ export class TicketCreate extends LitElement {
   /** CR-038 slice 3: a ticket opened from a device (the device window): the device, its place, its open tickets first (the duplicate hint),
    * what history will be attached, the category preselected by the device's domain; the server resolves the place itself. */
   @property({ attribute: false }) device: DeviceRef | null = null;
+  /** TKMAP1: a request opened from the live map / a camera page: the element is attached right after the request exists (like the photos). */
+  @property({ attribute: false }) mapElement: MapElementDraft | null = null;
   @state() private dept = '';
   @state() private category = '';
   @state() private priority = '';
@@ -256,11 +260,18 @@ export class TicketCreate extends LitElement {
       const answer = await ticketsApi().create({
         department_id: this.dept, category_id: this.category || null, priority_id: this.priority || null, title: this.ttl.trim(),
         description: this.description.trim(), assign: this.assignee(), client_request_id: this.requestId,
-        ...(this.device ? { entity_id: this.device.id } : {}),
+        ...(this.device ? { entity_id: this.device.id } : this.mapElement?.entityId ? { entity_id: this.mapElement.entityId } : {}),
       });
       let ticket: TicketDetail | null = 'events' in answer ? (answer as TicketDetail) : null;
       let failed = 0;
       if (ticket && answer.result === 'created') {
+        if (this.mapElement) {
+          try {
+            await ticketsMapApi.attach(ticket.id, this.mapElement.pick, this.mapElement);
+          } catch {
+            // the request stands without the element; its drawer offers "הוסף רכיב מהמפה"
+          }
+        }
         for (const f of this.files) {
           try {
             ticket = await ticketsApi().upload(ticket.id, f, false);
@@ -296,6 +307,7 @@ export class TicketCreate extends LitElement {
     const titleMissing = this.tried && !this.ttl.trim();
     return html`<div class="form" data-create-form>
       ${this.device ? deviceBlock(this.device, (id) => this.hrefOf(id)) : nothing}
+      ${this.mapElement && !this.device ? html`<div class="hint" data-create-map-element>${tIcon('layers')}${MAP_TEXT.createLine}: ${bidi([this.mapElement.name, this.mapElement.floorName].filter(Boolean).join(' · '))}</div>` : nothing}
       <div class="two">
         <label class="fld"><span>${tt('fDepartment')}</span>
           <select class="inp" data-create-department @change=${(e: Event) => this.pickDepartment((e.target as HTMLSelectElement).value)}>${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === this.dept}>${x.name}</option>`)}</select></label>
