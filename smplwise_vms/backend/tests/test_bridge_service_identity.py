@@ -112,6 +112,10 @@ def test_malformed_or_padded_on_behalf_of_is_refused(obo):
     ("devices.control", "alarm_control_panel", "alarm_disarm"),  # the alarm is its own feature
     ("alarm", "switch", "turn_on"),  # a zone bypass switch is not arm / disarm
     ("alarm", "alarm_control_panel", "alarm_trigger"),
+    ("alarm", "alarm_control_panel", "alarm_arm_custom_bypass"),  # review F1: arming with the bypass set is a zone bypass
+    ("alarm", "select", "select_option"),
+    ("devices.control", "script", "turn_on"),  # review F2: a script / scene may open a door or disarm (owner Q5 open)
+    ("devices.control", "scene", "turn_on"),
     ("media", "light", "turn_on"),
     ("automations", "automation", "trigger"),
     ("system", "homeassistant", "restart"),
@@ -119,6 +123,18 @@ def test_malformed_or_padded_on_behalf_of_is_refused(obo):
 ])
 def test_items_outside_the_feature_allow_list_are_refused(feature, domain, service):
     assert _error(_screen(_execute(domain=domain, service=service, obo=_obo(feature)))) == "service_identity_refused"
+
+
+@pytest.mark.parametrize("item", sorted(si.NEVER_LOCAL))
+def test_never_local_items_are_refused_even_when_a_table_lists_them(monkeypatch, item):
+    """Review F1 / F2: an explicit rule, not only the shape of the tables - a widened table still cannot carry them for a local identity."""
+    for feature in ("devices.control", "alarm", "media"):
+        widened = {k: dict(v) for k, v in si.SERVICE_FEATURES.items()}
+        widened[feature]["execute"] = frozenset(widened[feature]["execute"]) | {item}
+        monkeypatch.setattr(si, "SERVICE_FEATURES", widened)
+        assert _error(_screen(_execute(domain=item[0], service=item[1], obo=_obo(feature)))) == "service_identity_refused", (feature, item)
+    out, refused = _screen(_execute(domain=item[0], service=item[1], user_id=OTHER))
+    assert refused is None  # a Home Assistant user is untouched by the never-list (its own allow-list and Arx RBAC decide)
 
 
 def test_services_outside_every_feature_are_refused():
@@ -188,8 +204,10 @@ def test_options_flow_check():
 
 def test_feature_tables_are_inside_the_execute_allow_list():
     allowed = init_allowed_services()
-    assert si.DEVICE_PAIRS == allowed - {p for p in allowed if p[0] == "alarm_control_panel"} - {("lock", "unlock")}
+    assert si.DEVICE_PAIRS == allowed - {p for p in allowed if p[0] == "alarm_control_panel"} - si.NEVER_LOCAL
     assert si.ALARM_PAIRS <= allowed and ("alarm_control_panel", "alarm_trigger") not in si.ALARM_PAIRS
+    assert not (si.ALARM_PAIRS | si.DEVICE_PAIRS) & si.NEVER_LOCAL
+    assert {("lock", "unlock"), ("script", "turn_on"), ("scene", "turn_on"), ("alarm_control_panel", "alarm_arm_custom_bypass")} <= si.NEVER_LOCAL
     assert si.MEDIA_PAIRS <= si.DEVICE_PAIRS and all(d in si.MEDIA_DOMAINS for d, _ in si.MEDIA_PAIRS)
     assert set(si.SERVICE_FEATURES) == {"devices.control", "alarm", "media", "cast", "schedules"}
     assert not any(s in svc for svc in si.SERVICE_FEATURES.values() for s in ("config_item", "set_entity_area", "stream_source"))

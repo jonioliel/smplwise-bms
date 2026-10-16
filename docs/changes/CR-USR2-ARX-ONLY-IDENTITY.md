@@ -203,21 +203,25 @@ Branch `pilot/USR2-P3` (cut from `pilot/USR2-FIX` @ f5ea0c2d). No migration. Bri
 **Message shape (both sides).** For a local principal the signed bridge message carries
 `user_id = <service HA user id>` and `on_behalf_of = {"kind": "local", "user_id": "<the session principal's l_ id>", "feature": "<key>"}`.
 `on_behalf_of.user_id` is taken from the authenticated principal only (never from a body or a header) and is ATTRIBUTION ONLY: the bridge
-runs the call with `Context(user_id = service id)`.
+runs the call with `Context(user_id = service id)`. That context does NOT limit which entities the call may touch (section 9, F5): for an
+Arx-only person, Arx's own scope (`ha_scope`) is the sole entity guard.
 
 **Allow-list (identical tables, drift-tested):** add-on `services/service_identity.FEATURES`, bridge `service_identity.SERVICE_FEATURES`.
 
 | Feature | Bridge service | Items |
 |---|---|---|
-| `devices.control` | `execute` | the bridge's execute allow-list minus `alarm_control_panel.*` and minus `lock.unlock` |
-| `alarm` (owner answer Q4) | `execute` | `alarm_arm_home/away/night/vacation/custom_bypass`, `alarm_disarm` - after the Arx permission, remote rules and PIN rules |
+| `devices.control` | `execute` | the bridge's execute allow-list minus `alarm_control_panel.*` and minus `NEVER_LOCAL` (`lock.unlock`, `lock.open`, `script.turn_on`, `scene.turn_on`) |
+| `alarm` (owner answer Q4) | `execute` | `alarm_arm_home/away/night/vacation`, `alarm_disarm` - after the Arx permission, remote rules and PIN rules (`alarm_arm_custom_bypass` removed: section 9, F1) |
 | `media` | `execute`, `media_query` | the media pairs (`media_player`, `remote`, `webostv`, `music_assistant`); queries `queue`, `library` |
 | `cast` | `cast_stream` | `play`, `stop`, `off` |
 | `schedules` | `schedule` | every scheduler op |
 
 Never for a local identity: `config_item` (automations, scenes, scripts - writes AND runs: `automation_write_requires_ha_identity`, also
 refused by the add-on before any op is recorded), `set_entity_area` (the spec's `devices.area`, default off - not offered), `stream_source`,
-voice announcements (USR2-FIX F4, unchanged), door actions (`door_authority.identity_ok` unchanged), zone bypass (not in `alarm`).
+voice announcements (USR2-FIX F4, unchanged), door actions (`door_authority.identity_ok` unchanged), zone bypass (refused explicitly by the
+zone-bypass route for a local principal, and `alarm_arm_custom_bypass` is in `NEVER_LOCAL`), running scripts and scenes from device control
+(`script.turn_on` / `scene.turn_on` in `NEVER_LOCAL`). `NEVER_LOCAL` is an explicit list on both sides (identical, drift-tested) checked
+before the feature tables, so a later table edit cannot re-admit one of them.
 
 **The service identity.** `identity.service_user_id` (add-on, `PUT /identity/service-identity`, local channel + `system.configure`) and the
 bridge's options-flow field `service_user_id` (only an HA administrator opens it). Both refuse an HA administrator; the add-on also refuses an
@@ -232,10 +236,56 @@ copy (`service_identity`, `service_user_id`) so the settings card can show wheth
 `l_` id as `user_id` and a malformed `on_behalf_of` before sending.
 
 **Attribution.** `ha_actions.principal_user_id` stays the local id; `device_activity._user_name` names an `l_` id from `users`; a state change
-under the service user's context that is not (yet) linked to an Arx request is recorded as `person / via arx / inferred` without a name -
-never as the service user - and `link_context` rewrites it to the person when the bridge's answer arrives. Audit rows: actor = the local
-principal; `details.service_identity = true` on the device-action and alarm rows.
+under the service user's context that is not (yet) linked to an Arx request is recorded as `person / via arx / inferred` without a name only
+while an Arx-only person's bridge request without a context id is in flight (30 s); otherwise it is recorded as `system`, named as the
+service user, `via ha` (section 9, F4) - never as "an Arx person" nobody was. `link_context` rewrites either to the person when the bridge's
+answer arrives. Audit rows: actor = the local principal; `details.service_identity = true` on the device-action and alarm rows.
 
-**Open questions for the owner (kept refused until answered):** (1) doors / `lock.unlock` for Arx-only users; (2) alarm zone bypass;
-(3) HA camera entities' live stream source; (4) the area write (`devices.area`); (5) running scripts / scenes from the automations screen
-(device control can still `script.turn_on` / `scene.turn_on` an entity the role controls).
+**Open questions for the owner (all kept refused until answered - owner default 2026-10-16):** (1) doors / `lock.unlock` for Arx-only users;
+(2) alarm zone bypass, including `arm_custom_bypass`; (3) HA camera entities' live stream source; (4) the area write (`devices.area`);
+(5) running scripts / scenes - from the automations screen AND from device control (`script.turn_on` / `scene.turn_on` refused since the
+review fix, section 9 F2).
+
+## 9. USR2-P3-FIX - the P3 security review (2026-10-16)
+
+Branch `pilot/USR2-P3-FIX` (from `pilot/USR2-P3` @ ffef4fcc). Review: `private/planning/RELEASE_264_REVIEW_USR2_P2B_P3.md`. No migration;
+bridge stays 0.9.0 (unreleased; both copies byte-identical).
+
+- **F1 - zone bypass.** `alarm_arm_custom_bypass` removed from `alarm` on both sides and listed in `NEVER_LOCAL`; the zone-bypass route
+  (`POST /alarm/zones/{id}/bypass`, on and off) refuses a local principal explicitly (`service_identity_refused`, audited reason `zone_bypass`)
+  after the route's own permission checks and before any code is judged - independent of whether `switch` / `select` appear in `alarm`.
+  Tests: a local `site_admin` (alarm.arm + alarm.bypass) with the `alarm` table deliberately widened to the bypass controls is still refused.
+- **F2 - doors by indirection.** `script.turn_on` / `scene.turn_on` removed from `devices.control` on both sides and listed in `NEVER_LOCAL`
+  until the owner answers open question 5. The settings card's allowed / never-allowed lists and the he / en card text say so.
+- **F3 - the stop that could not be sent.** `cast_sessions._end` sends stop / off through `service_identity.subject_for_cleanup`: when the
+  local owner was disabled or deleted, as the acting Home Assistant principal, else as the service identity attributed to the acting local
+  principal or the former owner (stop / off only, never play; switch, service user, bridge version and table rules unchanged; audited
+  `identity.service_identity.cleanup` with `sent_as`). The janitor ends an open session of a disabled / deleted local owner within one round
+  (stop_reason `admin`). Residual: while `security.local_identity` is off no service-identity message is sent at all, so a local owner's
+  session ended by the janitor then revokes its token (the relay stops serving) without a stop / off command.
+- **F4 - the service user as a person.** (a) Signing in to Arx as the configured service user (Ingress or the remote channel) is refused:
+  403 `service_account`, audited `identity.service_identity.signin_refused`, before any user row is written (`auth._principal`). Binding an
+  Arx role (allow) to it is refused (422 `service_account`, audited `rbac.bind` denied). The self-check (`GET /identity/service-identity`)
+  shows step `service_signed_in` when a sign-in as that user was recorded (before it was configured). (b) `device_activity.attribute` no longer
+  labels a change under the service context as an Arx person unless such a request is in flight (above). NOT detectable from add-on data: a
+  person signing in to Home Assistant itself (not Arx) as the service user - Home Assistant does not tell the add-on; the owner must give that
+  user no password a person knows (the card says so). Residual: the websocket / presence / notifications paths that resolve a principal
+  outside `auth._principal` do not run the sign-in refusal; the service user can be given no new Arx role (one held from before is
+  flagged by the existing `has_arx_role` step), so they give it no more than a role-less Home Assistant user gets.
+- **F5 - recorded, not changed.** The bridge's `execute` handler performs no per-entity check (`check_entity` is called by the `schedule` and
+  `config_item` handlers only), and Home Assistant Core does not apply a user's entity policy to an in-process `hass.services.async_call`
+  (policy is enforced in its websocket / REST layers). So "a non-administrator service user" keeps only administrator-only services out; the
+  entity guard for an Arx-only person is Arx's `ha_scope` alone - the same is true today for Home Assistant users through the bridge. The
+  earlier sentence "its own per-user policy for that user applies" (bridge module docstring) overstated this and is corrected. Optional defence
+  in depth (not done here): `check_entity(entity_id, POLICY_CONTROL)` in `execute`.
+- **Contract / documentation mismatches recorded (not silently resolved).**
+  1. CR section 8 said "zone bypass (not in `alarm`)" while `alarm_arm_custom_bypass` was in `alarm` - fixed by F1.
+  2. CR section 8 / the bridge docstring said Home Assistant's per-user policy applies to the service identity's calls - not for `execute`
+     (F5); true for the `schedule` / `config_item` handlers, which call `check_entity`.
+  3. Open question 5 was listed as open while `script.turn_on` / `scene.turn_on` shipped allowed - now refused until answered (F2).
+  4. `docs/security/HA_IDENTITY_RBAC_HE.md` section 8 ("the bridge checks the user's permission explicitly") and section 7 ("a generic ability
+     to control entities does not include unlock ... or uncontrolled scripts"): for the service identity both rely on Arx scope (and, after F2,
+     on `NEVER_LOCAL` for unlock / scripts / scenes), not on a Home Assistant permission check. The security document is NOT edited by this
+     branch (it outranks this CR); the amendment of those two sentences is proposed here for the owner / the security document's owner.
+- **F9** (`security.local_public_url` in `BLOCKED_ON_REMOTE`) belongs to `pilot/USR2-P2B`: the setting does not exist on this branch, so it is
+  not changed here.

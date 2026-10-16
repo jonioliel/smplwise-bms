@@ -86,6 +86,11 @@ def test_switch_off_refuses_every_local_call_and_changes_nothing_for_ha_users(db
     ("devices.control", "execute", ("alarm_control_panel", "alarm_disarm")),  # the alarm only through its own section
     ("alarm", "execute", ("switch", "turn_on")),  # a zone bypass is not arm / disarm
     ("alarm", "execute", ("alarm_control_panel", "alarm_trigger")),
+    ("alarm", "execute", ("alarm_control_panel", "alarm_arm_custom_bypass")),  # review F1: arming with the bypass set is a zone bypass
+    ("alarm", "execute", ("select", "select_option")),  # a select-type bypass control
+    ("devices.control", "execute", ("script", "turn_on")),  # review F2: a script may unlock a door or disarm (owner Q5 open: refused)
+    ("devices.control", "execute", ("scene", "turn_on")),
+    ("media", "execute", ("script", "turn_on")),
     ("media", "execute", ("light", "turn_on")),
     ("automations", "config_item", "upsert"),
     ("devices.area", "set_entity_area", None),
@@ -100,6 +105,22 @@ def test_items_outside_the_allow_list_are_refused_and_audited(db, feature, servi
     with db.connection(mode="read") as conn:
         rows = conn.execute("SELECT actor_user_id, decision, reason FROM audit_log WHERE action = 'identity.service_identity.refused'").fetchall()
     assert rows and rows[-1]["actor_user_id"] == LID and rows[-1]["decision"] == "denied"
+
+
+@pytest.mark.parametrize("item", sorted(si.NEVER_LOCAL))
+def test_never_local_items_are_refused_even_when_a_table_lists_them(db, monkeypatch, item):
+    """Review F1 / F2: zone bypass, doors, scripts and scenes are refused by an explicit rule, not only by their absence from a table - a
+    future table edit that lists one of them still cannot send it for a local identity."""
+    _seed(db)
+    for feature in ("devices.control", "alarm", "media"):
+        widened = {k: dict(v) for k, v in si.FEATURES.items()}
+        widened[feature]["execute"] = frozenset(widened[feature]["execute"]) | {item}
+        monkeypatch.setattr(si, "FEATURES", widened)
+        assert _code(db, _local(), feature=feature, item=item) == "service_identity_refused", (feature, item)
+    with db.connection(mode="read") as conn:
+        row = conn.execute("SELECT reason FROM audit_log WHERE action = 'identity.service_identity.refused' ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert row["reason"] == "never_local"
+    assert {("alarm_control_panel", "alarm_arm_custom_bypass"), ("lock", "unlock"), ("script", "turn_on"), ("scene", "turn_on")} <= si.NEVER_LOCAL
 
 
 def test_inactive_unknown_or_malformed_local_users_are_refused(db):
@@ -181,6 +202,11 @@ def test_tables_match_the_bridge_exactly():
            {k: {s: frozenset(v) for s, v in d.items()} for k, d in bridge.SERVICE_FEATURES.items()}
     assert si.DEVICE_PAIRS <= {(a["domain"], a["service"]) for a in ha_bridge.ACTIONS.values()} | si.DEVICE_PAIRS
     assert ("lock", "unlock") not in si.DEVICE_PAIRS and si.LOCAL_ID_RE.pattern == bridge.LOCAL_ID_RE.pattern
+    # review F1 / F2: zone-bypass arming, scripts and scenes are in no feature on either side, and the explicit never-list is the same
+    assert si.NEVER_LOCAL == bridge.NEVER_LOCAL
+    for k, d in si.FEATURES.items():
+        for items in d.values():
+            assert not (frozenset(items) & si.NEVER_LOCAL), k
     as_t = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
     assert as_t(load("const").VERSION) >= as_t(si.BRIDGE_SERVICE_IDENTITY_REQUIRED) == (0, 9, 0)  # the bridge in this repo carries the screen
 
@@ -239,6 +265,10 @@ def lx_app(settings, tmp_path, monkeypatch):
     states = [{"entity_id": "light.lobby", "state": "off", "attributes": {"friendly_name": "Lobby light", "supported_features": 44},
                "last_changed": "2026-09-15T10:00:00+00:00", "last_updated": "2026-09-15T10:00:00+00:00"},
               {"entity_id": "lock.front", "state": "locked", "attributes": {"friendly_name": "Front door"},
+               "last_changed": "2026-09-15T10:00:00+00:00", "last_updated": "2026-09-15T10:00:00+00:00"},
+              {"entity_id": "script.open_front", "state": "off", "attributes": {"friendly_name": "Open the front door"},
+               "last_changed": "2026-09-15T10:00:00+00:00", "last_updated": "2026-09-15T10:00:00+00:00"},
+              {"entity_id": "scene.evening", "state": "unknown", "attributes": {"friendly_name": "Evening"},
                "last_changed": "2026-09-15T10:00:00+00:00", "last_updated": "2026-09-15T10:00:00+00:00"}]
     monkeypatch.setattr(ha_client, "get_states", lambda _s: states)
     lx = Lx(settings, tmp_path, monkeypatch, ha_url="http://ha.local:8123", ha_token="t")
@@ -301,6 +331,27 @@ def test_local_user_controls_a_light_through_the_service_identity(lx_app, monkey
     assert _action(c, crid="c-5").status_code == 401 and len(calls) == n
 
 
+def test_local_user_cannot_run_a_script_or_a_scene_through_device_control(lx_app, monkeypatch):
+    """Review F2: a script or scene in the person's scope could unlock a door or disarm under the service identity - refused (owner Q5 open),
+    nothing sent, audited as a service-identity refusal (not an RBAC one: the role may control the entity)."""
+    lx = lx_app
+    secret, calls = _bridge(lx, monkeypatch)
+    lx.enable()
+    created, c = lx.ready("maria", "site_admin")
+    uid = created["user"]["id"]
+    with lx.db.connection() as conn:
+        conn.execute("INSERT INTO ha_users(id, name, username, is_active, is_admin, synced_at) VALUES (?, 'SmplWise Arx Service', 'arxsvc', 1, 0, ?)", (SID, now_iso()))
+        set_setting(conn, si.SETTING, SID)
+    for i, (entity, action) in enumerate((("script.open_front", "script.turn_on"), ("scene.evening", "scene.turn_on"))):
+        r = _action(c, entity=entity, action=action, crid=f"s-{i}", confirmation_grant="confirmed")
+        assert r.status_code == 403 and r.json()["code"] == "service_identity_refused", r.text
+    assert calls == []
+    rows = lx.rows("SELECT details_json FROM audit_log WHERE action = 'identity.service_identity.refused' AND actor_user_id = ?", (uid,))
+    items = [json.loads(r["details_json"])["item"] for r in rows]
+    assert ["script", "turn_on"] in items and ["scene", "turn_on"] in items
+    assert _action(c, crid="s-light").status_code == 202 and len(calls) == 1  # a light still works
+
+
 def test_ha_user_message_is_unchanged_with_the_feature_on(lx_app, monkeypatch):
     lx = lx_app
     secret, calls = _bridge(lx, monkeypatch)
@@ -318,8 +369,12 @@ def test_activity_rows_name_the_person_never_the_service(lx_app):
     lx = lx_app
     _seed(lx.db)
     with lx.db.connection() as conn:
+        # an Arx request of a local person is in flight (no context id yet): the change is that person's, inferred - never "the service"
+        conn.execute("INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, via) "
+                     "VALUES ('a0', 'light.lobby', 'light.turn_on', '{}', ?, 'maria', 'x0', 'pending', ?, 'bridge')", (LID, now_iso()))
         who = device_activity.attribute(conn, "state", {"id": "ctx-race", "parent_id": None, "user_id": SID})
-        assert who["actor_ref"] is None and who["actor_name"] is None and who["via"] == "arx"  # before the bridge's answer: never "the service"
+        assert who["actor_type"] == "person" and who["actor_ref"] is None and who["actor_name"] is None and who["via"] == "arx" and who["confidence"] == "inferred"
+        conn.execute("DELETE FROM ha_actions WHERE id = 'a0'")
         conn.execute("INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, via, context_id) "
                      "VALUES ('a1', 'light.lobby', 'light.turn_on', '{}', ?, 'maria', 'x', 'pending', ?, 'bridge', 'ctx-ok')", (LID, now_iso()))
         who = device_activity.attribute(conn, "state", {"id": "ctx-ok", "parent_id": None, "user_id": SID})
@@ -375,6 +430,43 @@ def test_local_user_arms_and_disarms_under_the_pin_rules_but_never_bypasses(alar
         with db.connection(mode="read") as conn:
             row = conn.execute("SELECT actor_user_id, details_json FROM audit_log WHERE action = 'alarm.arm' AND decision = 'allowed' ORDER BY rowid DESC LIMIT 1").fetchone()
         assert row["actor_user_id"] == LID and json.loads(row["details_json"])["service_identity"] is True
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_local_user_never_bypasses_a_zone_nor_arms_with_the_bypass_set(alarm_app, monkeypatch):
+    """Review F1: a local user holding alarm.arm AND alarm.bypass is refused both the zone-bypass route (switch or select control, on and
+    off) and `arm_custom_bypass` - by an explicit rule: widening the `alarm` table to the bypass controls changes nothing."""
+    from smplwise.services import ha_sync as hs
+    from test_alarm import _act, _bypass, _no_code
+
+    app, s, c, calls, _ = alarm_app
+    db = app.state.db
+    _seed(db, role="site_admin")  # alarm.arm + alarm.disarm + alarm.bypass
+    with db.connection() as conn:
+        conn.execute("UPDATE settings SET value = '0.9.0' WHERE key = 'bridge.integration_version'")
+        now = now_iso()
+        hs.upsert_state(conn, {"entity_id": "alarm_control_panel.risco_house", "state": "disarmed", "last_changed": now, "last_updated": now,
+                               "attributes": {"friendly_name": "x", "code_format": "number", "code_arm_required": False, "supported_features": 1 | 2 | 4 | 16}})
+    _no_code(c, LID)
+    widened = {k: dict(v) for k, v in si.FEATURES.items()}
+    widened["alarm"]["execute"] = frozenset(widened["alarm"]["execute"]) | {("switch", "turn_on"), ("switch", "turn_off"), ("select", "select_option")}
+    monkeypatch.setattr(si, "FEATURES", widened)
+    local = _local()
+    app.dependency_overrides[current_principal] = lambda: local
+    app.dependency_overrides[current_principal_ro] = lambda: local
+    try:
+        n = len(calls)
+        r = _act(c, "alarm_control_panel.risco_house", "arm_custom_bypass")
+        assert r.status_code == 403 and r.json()["code"] == "service_identity_refused", r.text
+        for on in (True, False):
+            r = _bypass(c, "binary_sensor.kitchen_window", on, confirmed=True)
+            assert r.status_code == 403 and r.json()["code"] == "service_identity_refused", r.text
+        assert len(calls) == n  # nothing reached the bridge
+        assert _act(c, "alarm_control_panel.risco_house", "arm_away").status_code == 202  # plain arming still works
+        with db.connection(mode="read") as conn:
+            reasons = [r["reason"] for r in conn.execute("SELECT reason FROM audit_log WHERE action = 'identity.service_identity.refused' AND actor_user_id = ?", (LID,))]
+        assert reasons.count("zone_bypass") == 2 and "never_local" in reasons
     finally:
         app.dependency_overrides.clear()
 
@@ -444,6 +536,135 @@ def test_local_user_schedule_create_goes_through_the_service_identity(sched_app)
         assert call["user_id"] == SID and call["on_behalf_of"] == {"kind": "local", "user_id": LID, "feature": "schedules"}
     finally:
         app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------- 7. review F3: a cast session never outlives its local owner
+
+def _cast_row(owner: str, *, power_off_after: bool = True) -> dict:
+    return {"session_id": "cs-1", "restore_json": json.dumps({"power_off_after": power_off_after}), "device_key": "dk-tv", "camera_id": "cam-1",
+            "kind": "live", "target_entity_id": "media_player.tv", "started_by": owner, "started_by_name": "Maria Local", "stopped_at": None}
+
+
+def _cast_bridge(monkeypatch) -> list[dict]:
+    sent: list[dict] = []
+
+    def fake(_settings, payload, timeout=10.0):
+        sent.append(payload)
+        return {"ok": True}
+
+    monkeypatch.setattr(ha_client, "call_bridge_cast_stream", fake)
+    return sent
+
+
+@pytest.mark.parametrize("gone", ["disabled", "deleted"])
+def test_cast_stop_and_power_off_still_go_out_after_the_local_owner_is_disabled(db, settings, monkeypatch, gone):
+    from smplwise.services import cast_sessions
+
+    _seed(db)
+    sent = _cast_bridge(monkeypatch)
+    with db.connection() as conn:
+        conn.execute("UPDATE users SET active = 0" + (", deleted_at = ?" if gone == "deleted" else "") + " WHERE id = ?",
+                     ((now_iso(), LID) if gone == "deleted" else (LID,)))
+        out = cast_sessions._end(conn, _cast_row(LID), "timeout", None, None, send=True, settings=settings)
+    assert out["stop"] == "sent" and out["power_off"] == "sent", out
+    assert [p["op"] for p in sent] == ["stop", "off"]
+    for p in sent:  # the service identity, attributed to the (former) owner - a cleanup, never a play
+        assert p["user_id"] == SID and p["on_behalf_of"] == {"kind": "local", "user_id": LID, "feature": "cast"}
+    with db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT details_json FROM audit_log WHERE action = 'identity.service_identity.cleanup'").fetchall()
+    assert [json.loads(r["details_json"])["sent_as"] for r in rows] == ["service_for_owner", "service_for_owner"]
+
+
+def test_cast_stop_of_a_disabled_local_owner_goes_out_as_the_acting_ha_administrator(db, settings, monkeypatch):
+    from smplwise.services import cast_sessions
+
+    _seed(db)
+    sent = _cast_bridge(monkeypatch)
+    admin = Principal(user_id=HA_ADMIN, username="owner", display_name="Owner", source="ingress")
+    with db.connection() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (LID,))
+        out = cast_sessions._end(conn, _cast_row(LID, power_off_after=False), "admin", admin, None, send=True, settings=settings)
+    assert out["stop"] == "sent" and sent[-1]["user_id"] == HA_ADMIN and "on_behalf_of" not in sent[-1]
+
+
+def test_a_disabled_local_owner_can_never_play_and_cleanup_is_stop_or_off_only(db, settings, monkeypatch):
+    from smplwise.services import cast_sessions
+
+    _seed(db)
+    sent = _cast_bridge(monkeypatch)
+    with db.connection() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (LID,))
+        with pytest.raises(ApiError) as e:
+            cast_sessions._bridge(conn, settings, LID, "play", "media_player.tv", url="https://x/y")
+        assert e.value.code == "user_inactive"
+        with pytest.raises(ApiError) as e:
+            si.subject_for_cleanup(conn, LID, "cast", bridge_service="cast_stream", item="play", actor=None)
+        assert e.value.code == "service_identity_refused"
+        set_setting(conn, "security.local_identity", "off")
+        with pytest.raises(ApiError) as e:  # the switch off: no service-identity message at all, not even a stop
+            si.subject_for_cleanup(conn, LID, "cast", bridge_service="cast_stream", item="stop", actor=None)
+        assert e.value.code == "local_identity_off"
+    assert sent == []
+
+
+def test_janitor_ends_the_open_cast_of_a_disabled_local_owner(db, settings, monkeypatch):
+    from smplwise.services import cast_sessions
+
+    _seed(db)
+    sent = _cast_bridge(monkeypatch)
+    with db.connection() as conn:
+        assert cast_sessions.owner_gone(conn, LID) is False
+        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (LID,))
+        assert cast_sessions.owner_gone(conn, LID) is True
+        assert cast_sessions.owner_gone(conn, "u-ha") is False  # a Home Assistant owner is never judged here
+    assert sent == []
+
+
+# ---------------------------------------------------------------- 8. review F4: the service user is never a person
+
+def test_signing_in_as_the_service_user_is_refused_and_flagged(settings, tmp_path):
+    import dataclasses
+
+    from smplwise.main import create_app
+
+    s = dataclasses.replace(settings, dev_user=None, trusted_proxies=("testclient",), data_dir=tmp_path / "svc")
+    app = create_app(s)
+    _seed(app.state.db)
+    c = TestClient(app)
+    r = c.get("/api/v1/me", headers={"X-Remote-User-Id": SID, "X-Remote-User-Name": "arxsvc"})
+    assert r.status_code == 403 and r.json()["code"] == "service_account", r.text
+    with app.state.db.connection(mode="read") as conn:
+        row = conn.execute("SELECT actor_user_id, decision FROM audit_log WHERE action = 'identity.service_identity.signin_refused'").fetchone()
+        assert row["actor_user_id"] == SID and row["decision"] == "denied"
+        assert conn.execute("SELECT 1 FROM users WHERE id = ?", (SID,)).fetchone() is None  # no user row for it is created
+    assert c.get("/api/v1/me", headers={"X-Remote-User-Id": "b" * 32, "X-Remote-User-Name": "dana"}).status_code == 200
+    # a sign-in recorded before the identity was configured is flagged on the self-check
+    with app.state.db.connection() as conn:
+        conn.execute("INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at) VALUES (?, 'arxsvc', 'svc', 'ingress', 1, ?, ?)",
+                     (SID, now_iso(), now_iso()))
+        st = si.status(conn)
+    assert "service_signed_in" in {x["code"] for x in st["steps"]}
+
+
+def test_the_service_user_cannot_be_given_an_arx_role(settings):
+    from smplwise.main import create_app
+
+    app = create_app(settings)
+    _seed(app.state.db)
+    c = TestClient(app)
+    body = {"subject_kind": "user", "subject_id": SID, "role_id": "viewer", "scope_type": "installation", "scope_id": "*"}
+    r = c.post("/api/v1/access/bindings", json=body)
+    assert r.status_code == 422 and r.json()["code"] == "service_account", r.text
+    assert c.post("/api/v1/access/bindings", json={**body, "subject_id": HA_ADMIN}).status_code == 201
+
+
+def test_activity_under_the_service_context_is_the_service_unless_an_arx_request_is_pending(lx_app):
+    lx = lx_app
+    _seed(lx.db)
+    with lx.db.connection() as conn:
+        who = device_activity.attribute(conn, "state", {"id": "ctx-direct", "parent_id": None, "user_id": SID})
+        # nobody in Arx asked: the service user acting in Home Assistant directly - never "an Arx person"
+        assert who["actor_type"] == "system" and who["actor_ref"] == SID and who["actor_name"] == "SmplWise Arx Service" and who["via"] == "ha"
 
 
 from test_alarm import _fresh_limits, alarm_app  # noqa: E402,F401  (fixtures)

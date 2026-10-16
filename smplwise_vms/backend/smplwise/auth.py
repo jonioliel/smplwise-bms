@@ -235,6 +235,11 @@ def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
                 principal = resolve_principal(request, settings)
     else:
         principal = resolve_principal(request, settings)
+    # USR2 P3 security review F4: the service Home Assistant user is a technical account - nobody signs in to Arx as it (403 service_account,
+    # audited; checked before any user row is written for it)
+    from .services import service_identity
+
+    service_identity.refuse_service_principal(conn, principal, getattr(request.state, "correlation_id", None))
     touch_user(conn, principal)
     maybe_bootstrap(conn, settings, principal, getattr(request.state, "correlation_id", None))
     # CR-027: the required-sensors policy - a session of the phone app (or, when the policy says so, any session) of a user

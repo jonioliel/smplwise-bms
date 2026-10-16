@@ -897,6 +897,14 @@ def validate_binding(conn: sqlite3.Connection, principal: Principal, body: Bindi
     check_delegation(conn, principal, body.role_id, scope, body.subject_kind, body.subject_id, op="bind", effect=body.effect)
     if body.subject_kind == "user" and not user_known(conn, body.subject_id):
         raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית Home Assistant.")
+    if body.subject_kind == "user" and body.effect == "allow":
+        from ..services import service_identity
+
+        if service_identity.is_service_user(conn, body.subject_id):
+            # USR2 P3 security review F4: the service identity is never a person - it holds no Arx role (a deny stays possible)
+            audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type="user", resource_id=body.subject_id, reason="service_account",
+                  details={"role_id": body.role_id})
+            raise ApiError(422, "service_account", service_identity.SERVICE_ACCOUNT_HE)
     if body.subject_kind == "user" and body.subject_id.startswith(LOCAL_ID_PREFIX):
         # USR2-FIX F1: without a request the channel is unknown - fail closed (treated as remote)
         local_binding_check(conn, principal, body.subject_id, body.role_id, body.effect, remote=True if request is None else is_remote(request))

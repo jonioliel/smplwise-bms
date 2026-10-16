@@ -13,8 +13,12 @@ compared by a drift test):
   SERVICE_FEATURES, the bridge service must be one of the feature's, and the item (a (domain, service) pair, an op, a query) must be in its list.
 - `on_behalf_of` absent: a message naming the service identity in `user_id` is refused (the service identity never acts as itself, so it can
   never bypass the allow-list), and a message naming an `l_` id is refused (a local id is never a Home Assistant user).
-- `on_behalf_of.user_id` is ATTRIBUTION ONLY: nothing here authorises by it. Home Assistant runs the call with `Context(user_id=<service id>)`,
-  so its own per-user policy for that user applies; the add-on links the answer's context id to the person for the activity log.
+- `on_behalf_of.user_id` is ATTRIBUTION ONLY: nothing here authorises by it. Home Assistant runs the call with `Context(user_id=<service id>)`.
+  That does NOT bound the entities the call may touch: the `execute` handler performs no per-entity check and an in-process service call
+  does not apply a user's entity policy, so "non-administrator" only keeps administrator-only services out. The entity guard for an Arx-only
+  person is Arx's own scope (`ha_scope`) alone (security review F5, recorded in CR-USR2 section 9). The add-on links the answer's context id
+  to the person for the activity log.
+- NEVER_LOCAL (zone-bypass arming, doors, scripts, scenes) is refused for a local identity before any feature table is consulted.
 - Automation / script / scene writes and runs (`config_item`) are never available to a local identity (`automation_write_requires_ha_identity`),
   nor is the area registry write (`set_entity_area`) or the camera stream source (`stream_source`).
 
@@ -32,17 +36,27 @@ LOCAL_ID_RE = re.compile(r"l_[0-9A-HJKMNP-TV-Z]{26}")
 HA_USER_ID_RE = re.compile(r"[0-9a-f]{32}")
 OBO_KEYS = frozenset({"kind", "user_id", "feature"})
 
-ALARM_PAIRS = frozenset({
-    ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_arm_night"),
-    ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_arm_custom_bypass"), ("alarm_control_panel", "alarm_disarm"),
+# Never for a local identity, whatever a feature table says (an explicit rule, checked before the tables - security review F1 / F2,
+# 2026-10-16; owner default: every open question stays refused until answered):
+# - `alarm_arm_custom_bypass`: arms with the integration's bypass set - a zone bypass (open question 2);
+# - `lock.unlock` / `lock.open`: a door (open question 1);
+# - `script.turn_on` / `scene.turn_on`: a script or scene may unlock a door, disarm or press an intercom button under the service user's
+#   authority (open question 5).
+NEVER_LOCAL = frozenset({
+    ("alarm_control_panel", "alarm_arm_custom_bypass"), ("lock", "unlock"), ("lock", "open"), ("script", "turn_on"), ("scene", "turn_on"),
 })
 
-# The execute allow-list (ALLOWED_SERVICES in __init__.py) minus the alarm panel (its own feature, owner answer Q4) and minus `lock.unlock`
-# (a door: door actions stay refused to local identities until the owner decides otherwise - USR2-P3 open question).
+ALARM_PAIRS = frozenset({
+    ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_arm_night"),
+    ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_disarm"),
+})
+
+# The execute allow-list (ALLOWED_SERVICES in __init__.py) minus the alarm panel (its own feature, owner answer Q4) and minus NEVER_LOCAL
+# (doors, scripts, scenes: refused to local identities until the owner decides otherwise - USR2-P3 open questions 1 and 5).
 DEVICE_PAIRS = frozenset({
     ("light", "turn_on"), ("light", "turn_off"), ("switch", "turn_on"), ("switch", "turn_off"), ("fan", "turn_on"), ("fan", "turn_off"),
     ("cover", "open_cover"), ("cover", "close_cover"), ("cover", "stop_cover"), ("lock", "lock"),
-    ("button", "press"), ("script", "turn_on"), ("scene", "turn_on"),
+    ("button", "press"),
     ("climate", "set_hvac_mode"), ("climate", "set_temperature"),
     ("media_player", "media_play"), ("media_player", "media_pause"), ("media_player", "media_stop"), ("media_player", "volume_set"),
     ("number", "set_value"), ("input_number", "set_value"), ("select", "select_option"), ("input_select", "select_option"),
@@ -107,6 +121,11 @@ def obo_refusal(obo: Any, bridge_service: str, item: Any) -> str | None:
         return "service_identity_refused"
     if bridge_service == "config_item":
         return "automation_write_requires_ha_identity"
+    try:
+        if bridge_service == "execute" and item in NEVER_LOCAL:
+            return "service_identity_refused"
+    except TypeError:
+        return "service_identity_refused"
     feature = obo.get("feature")
     services = SERVICE_FEATURES.get(feature) if isinstance(feature, str) else None
     if not services or bridge_service not in services:
