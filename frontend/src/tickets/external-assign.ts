@@ -87,7 +87,23 @@ export class ExternalAssign implements ReactiveController {
     this.showText = false;
     this.error = '';
     this.sendNow = null;
+    this.pending = '';
     this.seq += 1;
+  }
+
+  /** TKUI1 (the new-request sheet's vendor flow, step two): open on the outside group with this contact chosen once the list is in. */
+  private pending = '';
+  preselect(contactId: string): void {
+    this.kind = 'person';
+    this.pending = contactId;
+    this.host.requestUpdate();
+  }
+
+  private applyPending(t: TicketDetail): void {
+    const id = this.pending;
+    this.pending = '';
+    const c = id ? this.groupRows().find((x) => x.id === id) : undefined;
+    if (c) this.choose(t, c);
   }
 
   /** The answer of `GET tickets/assignees` the dialog already asked for (it carries the outside contacts on a server). */
@@ -97,6 +113,7 @@ export class ExternalAssign implements ReactiveController {
       this.external = !!r.external;
       this.publicReady = !!r.public_ready;
       this.readiness = r.readiness ?? null;
+      this.applyPending(t);
       this.host.requestUpdate();
       return;
     }
@@ -106,6 +123,7 @@ export class ExternalAssign implements ReactiveController {
       this.external = !!x.external;
       this.publicReady = !!x.public_ready;
       this.readiness = x.readiness ?? null;
+      this.applyPending(t);
       this.host.requestUpdate();
     }).catch(() => undefined);
   }

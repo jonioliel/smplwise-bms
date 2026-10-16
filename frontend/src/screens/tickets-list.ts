@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../tickets/ticket-card';
+import { parseAssignParam, withAssign } from '../tickets/create-assign-model'; // TKUI1: the new-request sheet's vendor flow
 import '../tickets/ticket-detail';
 import '../tickets/ticket-create';
 import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (a chip only while the queue is not empty)
@@ -317,11 +318,14 @@ export class TicketsList extends LitElement {
     void saveBoardPrefs({ view: v });
   }
 
-  private onCreated = (e: CustomEvent<{ ticket: TicketDetail | null; id: string; number: number; result: 'created' | 'absorbed'; failedPhotos: number }>) => {
+  private onCreated = (e: CustomEvent<{ ticket: TicketDetail | null; id: string; number: number; result: 'created' | 'absorbed'; failedPhotos: number; assignContact?: string }>) => {
     const d = e.detail;
     this.say(d.failedPhotos ? tt('photosFailed', { n: d.failedPhotos }) : tt(d.result === 'absorbed' ? 'absorbed' : 'created', { n: d.number }), d.failedPhotos ? 'bad' : 'ok');
     this.listKey = '';
-    if (d.ticket || d.result === 'absorbed') writeHref(this.detailMode() === 'fullscreen' ? ticketHref(d.id) : listHref(this.r.scope, this.r.filters, { t: d.id }), true);
+    const href = this.detailMode() === 'fullscreen' ? ticketHref(d.id) : listHref(this.r.scope, this.r.filters, { t: d.id });
+    // TKUI1: a vendor picked in the new-request sheet - the drawer opens with the external-assign dialog prefilled (step two)
+    if (d.ticket && d.assignContact && d.result === 'created') writeHref(withAssign(href, d.assignContact), true);
+    else if (d.ticket || d.result === 'absorbed') writeHref(href, true);
     else writeHref(listHref(this.r.scope, this.r.filters), true);
     void this.loadPage(false);
   };
@@ -402,7 +406,8 @@ export class TicketsList extends LitElement {
       ${this.body()}
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${this.r.scope} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
-      .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''}
+      .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
+      @assign-consumed=${() => writeHref(listHref(this.r.scope, this.r.filters, { t: this.r.ticketId }), true)}
       @drawer-close=${this.closeDrawer} @ticket-changed=${this.onTicketChanged} @ticket-gone=${this.onTicketGone}></ticket-detail>` : nothing}
     ${this.module?.enabled && this.meta?.can.create ? html`<ticket-create .open=${this.r.creating && this.screen === 'ready'} .meta=${this.meta} .mode=${ui?.new_ticket ?? 'sheet'} .scope=${this.r.scope} .detailMode=${ui?.detail ?? 'drawer_fullscreen'}
       @close=${() => writeHref(listHref(this.r.scope, this.r.filters), false)} @created=${this.onCreated}></ticket-create>` : nothing}

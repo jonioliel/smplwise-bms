@@ -165,6 +165,14 @@ const he = {
   costsEmpty: 'לא נדרשת הצעת מחיר או דרישת תשלום',
   slotHistory: 'ציר זמן וביקורת',
 
+  // ---- the new-request sheet: the handler choice in three groups (owner 16.10)
+  cg_account: 'עם חשבון',
+  cg_staff: 'ללא חשבון',
+  cg_vendor: 'ספקים וגורמים חיצוניים',
+  cgSearch: 'חיפוש מטפל או ספק',
+  cgNoMatch: 'אין תוצאות לחיפוש',
+  cgVendorNext: '{the_ticket} {f:תיפתח|m:ייפתח} ללא שיוך, ומיד ייפתח אישור השליחה לספק',
+
   // ---- Settings › the module › display (the two drawer rows)
   setDrawerTab: 'לשונית ברירת המחדל',
   setDrawerTabSub: 'הלשונית שנפתחת עם {the_ticket}',
@@ -312,6 +320,12 @@ const en: Partial<Record<DrawerTextKey, string>> = {
   slotConv: 'Messages and notes',
   costsEmpty: 'No quote or payment demand is required',
   slotHistory: 'Timeline and audit',
+  cg_account: 'With an account',
+  cg_staff: 'Without an account',
+  cg_vendor: 'Vendors and outside contacts',
+  cgSearch: 'Search a handler or vendor',
+  cgNoMatch: 'No results',
+  cgVendorNext: 'The {ticket} opens unassigned, then the send-to-vendor confirmation opens',
   setDrawerTab: 'Default tab',
   setDrawerTabSub: 'The tab a {ticket} opens on',
   setDrawerSize: 'Drawer size on a computer',

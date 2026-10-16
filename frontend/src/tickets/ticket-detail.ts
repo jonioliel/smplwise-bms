@@ -91,6 +91,9 @@ export class TicketDetailView extends LitElement {
   /** TKUI1: the module settings `ui.drawer_size` (the desktop default - a viewer's own switch wins) and `ui.phone_sheet` (full / half) */
   @property() sizeSetting = '';
   @property() sheetSetting = '';
+  /** TKUI1: the new-request sheet's vendor flow, step two (`?assign=contact:<id>`): open the external-assign dialog prefilled, once */
+  @property() assignContact = '';
+  private assignedFor = '';
   @state() private t: Detail | null = null;
   @state() private failed = '';
   @state() private gone = false;
@@ -427,6 +430,13 @@ export class TicketDetailView extends LitElement {
       const t = await ticketsApi().get(id);
       if (id !== this.ticketId) return;
       this.t = t as Detail;
+      if (this.assignContact && this.assignedFor !== id && t.can.assign) {
+        this.assignedFor = id;
+        this.openDialog({ kind: 'assign' });
+        this.ext.preselect(this.assignContact);
+        // the screen drops the parameter from the address (a reload never reopens the dialog); cancelling leaves the request unassigned
+        this.dispatchEvent(new CustomEvent('assign-consumed', { detail: { id }, bubbles: true, composed: true }));
+      }
       if (this.focusTimeline) void this.updateComplete.then(() => this.renderRoot.querySelector('#timeline')?.scrollIntoView({ block: 'start' }));
     } catch (e) {
       if (id !== this.ticketId) return;
