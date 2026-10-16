@@ -394,7 +394,12 @@ def view(conn, link: LinkRecord, *, code_ok: bool, read_only: bool, now: dt.date
         timeline.append(item)
     photos = [{"id": a["id"], "at": a["created_at"], "width": a["width"], "height": a["height"], "mine": a["uploaded_by_kind"] == "contact"}
               for a in store_links.handler_attachments(conn, ticket["id"], link.contact_id, since)]
+    # TKUI3 (2.6.0): the page's layout by an EXPLICIT kind instead of the client guessing from which keys are present - `staff` for a
+    # no-money link (an employee's staff link, or a staff contact without an account: public_ports.LinkRecord.no_money), else `vendor`.
+    # Only after the code gate, like everything else that describes the assignment (a forwarded link alone discloses nothing more).
+    staff = bool(getattr(link, "no_money", getattr(link, "kind", "external") == "staff"))
     out.update({
+        "kind": "staff" if staff else "vendor",
         "title": ticket["title"],
         "description": ticket.get("description") or "",
         "priority": _priority(conn, ticket),

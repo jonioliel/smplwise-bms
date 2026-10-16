@@ -20,6 +20,7 @@ const he = {
   lsView_cards: 'כרטיסים',
   lsView_table: 'טבלה',
   lsView_board: 'לוח מנהל',
+  lsView_calendar: 'יומן שבועי',
 
   // ---- the filter row ("סינון" opens it; hidden until asked for)
   lfBtn: 'סינון',
@@ -84,6 +85,7 @@ const en: Partial<Record<ListTextKey, string>> = {
   lsView_cards: 'Cards',
   lsView_table: 'Table',
   lsView_board: 'Manager board',
+  lsView_calendar: 'Weekly calendar',
   lfBtn: 'Filter',
   lfBtnCount: 'Filter · {n}',
   lfGroup: 'Filter {tickets}',

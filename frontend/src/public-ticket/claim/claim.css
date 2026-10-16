@@ -1,27 +1,27 @@
 /*
  * CR-038 slice 9: the cost-claim step of the public handler page (claim-step.ts, capture-editor.ts).
- * Neutral styling with the product's token NAMES (--sw-*) and fallbacks - the public page has no skins (spec 10.7).
+ * Neutral styling with the product's token NAMES (--sw-*), all declared by the public sheet (styles.css; no literal fallbacks, TKUI7) - the public page has no skins (spec 10.7).
  * Light / dark follow the page's --sw-* tokens (data-theme, styles.css). Mobile-first, one column, touch targets >= 44 px. No inline styles anywhere
  * (style-src 'self'): every state is a class.
  */
 
 .swc {
-  --swc-bg: var(--sw-surface, #ffffff);
-  --swc-bg-2: var(--sw-surface-2, #f3f5f8);
-  --swc-text: var(--sw-text, #14181f);
-  --swc-text-2: var(--sw-text-2, #4b5563);
-  --swc-border: var(--sw-border, #d6dbe3);
-  --swc-accent: var(--sw-accent, #1f6feb);
-  --swc-on-accent: var(--sw-text-inverse, #ffffff);
-  --swc-danger: var(--sw-danger, #c62828);
-  --swc-warning: var(--sw-warning, #a15c00);
-  --swc-success: var(--sw-success, #1b7f3b);
-  --swc-focus: var(--sw-focus, #1f6feb);
-  --swc-radius: var(--sw-r-md, 10px);
-  --swc-gap: var(--sw-s-3, 12px);
+  --swc-bg: var(--sw-surface);
+  --swc-bg-2: var(--sw-surface-2);
+  --swc-text: var(--sw-text);
+  --swc-text-2: var(--sw-text-2);
+  --swc-border: var(--sw-border);
+  --swc-accent: var(--sw-accent);
+  --swc-on-accent: var(--sw-text-inverse);
+  --swc-danger: var(--sw-danger);
+  --swc-warning: var(--sw-warning);
+  --swc-success: var(--sw-success);
+  --swc-focus: var(--sw-focus);
+  --swc-radius: var(--sw-r-md);
+  --swc-gap: var(--sw-s-3);
   --swc-touch: 44px;
   color: var(--swc-text);
-  font-size: var(--sw-fs-base, 16px);
+  font-size: var(--sw-fs-base);
   line-height: 1.45;
   display: flex;
   flex-direction: column;
@@ -35,12 +35,12 @@
 }
 
 .swc-title {
-  font-size: var(--sw-fs-lg, 1.2rem);
+  font-size: var(--sw-fs-lg);
   margin: 0;
 }
 
 .swc-sub {
-  font-size: var(--sw-fs-md, 1.05rem);
+  font-size: var(--sw-fs-md);
   margin: 4px 0 0;
 }
 
@@ -50,7 +50,7 @@
 }
 
 .swc-small-text {
-  font-size: var(--sw-fs-sm, 0.875rem);
+  font-size: var(--sw-fs-sm);
 }
 
 .swc-note {
@@ -94,7 +94,7 @@
 }
 
 .swc-label {
-  font-size: var(--sw-fs-sm, 0.875rem);
+  font-size: var(--sw-fs-sm);
   color: var(--swc-text-2);
 }
 
@@ -122,7 +122,7 @@
   color: var(--swc-text);
   background: var(--swc-bg);
   border: 1px solid var(--swc-border);
-  border-radius: var(--sw-r-sm, 8px);
+  border-radius: var(--sw-r-sm);
 }
 
 .swc-area {
@@ -152,7 +152,7 @@
   color: var(--swc-text);
   background: var(--swc-bg-2);
   border: 1px solid var(--swc-border);
-  border-radius: var(--sw-r-pill, 999px);
+  border-radius: var(--sw-r-pill);
   cursor: pointer;
 }
 
@@ -170,7 +170,7 @@
 
 .swc-small {
   padding: 6px 12px;
-  font-size: var(--sw-fs-sm, 0.875rem);
+  font-size: var(--sw-fs-sm);
 }
 
 .swc-icon {
@@ -205,7 +205,7 @@
 .swc-seg {
   display: flex;
   border: 1px solid var(--swc-border);
-  border-radius: var(--sw-r-pill, 999px);
+  border-radius: var(--sw-r-pill);
   overflow: hidden;
 }
 
@@ -265,7 +265,7 @@
 
 .swc-grand {
   font-weight: 700;
-  font-size: var(--sw-fs-md, 1.05rem);
+  font-size: var(--sw-fs-md);
 }
 
 .swc-amount {
@@ -276,7 +276,7 @@
 .swc-error,
 .swc-error-inline {
   color: var(--swc-danger);
-  font-size: var(--sw-fs-sm, 0.875rem);
+  font-size: var(--sw-fs-sm);
   margin: 0;
 }
 
@@ -309,7 +309,7 @@
 }
 
 .swc-page-state {
-  font-size: var(--sw-fs-sm, 0.875rem);
+  font-size: var(--sw-fs-sm);
   color: var(--swc-text-2);
 }
 
@@ -384,7 +384,7 @@
 
 .swc-editor-title {
   margin: 0;
-  font-size: var(--sw-fs-md, 1.05rem);
+  font-size: var(--sw-fs-md);
 }
 
 .swc-editor-canvas {
@@ -394,7 +394,7 @@
   height: auto;
   margin-inline: auto;
   background: #000000;
-  border-radius: var(--sw-r-sm, 8px);
+  border-radius: var(--sw-r-sm);
   touch-action: manipulation;
 }
 
@@ -426,7 +426,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--sw-fs-xs, 12px);
+  font-size: var(--sw-fs-xs);
 }
 
 .swq-flow li {
@@ -473,7 +473,7 @@
   padding: 2px 10px;
   border-radius: 999px;
   border: 1px solid var(--swc-border);
-  font-size: var(--sw-fs-xs, 12px);
+  font-size: var(--sw-fs-xs);
   color: var(--swc-text-2);
 }
 
@@ -500,7 +500,7 @@
 
 .swq-tr,
 .swc-delta {
-  font-size: var(--sw-fs-sm, 14px);
+  font-size: var(--sw-fs-sm);
 }
 
 .swc-delta.swc-up {
@@ -512,8 +512,8 @@
  * the numbered badge of the page's steps, the flow as dots, state pills with a dot, calm inner parts, pill buttons, 14 px inputs.
  */
 .swc {
-  --swc-on-accent: var(--sw-on-accent, #ffffff);
-  --swc-bg-2: var(--sw-surface-2, #f3f5f8);
+  --swc-on-accent: var(--sw-on-accent);
+  --swc-bg-2: var(--sw-surface-2);
 }
 
 .swc .swc-input,
@@ -531,17 +531,17 @@
 }
 
 .swc .swc-primary {
-  box-shadow: var(--sw-glow, none);
+  box-shadow: var(--sw-glow);
 }
 
 .swc.swq {
   max-width: none;
   margin: 0;
-  background: var(--sw-surface, #ffffff);
-  border: 1px solid var(--sw-cost-line, #cfc4f2);
-  border-radius: var(--sw-r-lg, 20px);
+  background: var(--sw-surface);
+  border: 1px solid var(--sw-cost-line);
+  border-radius: var(--sw-r-lg);
   padding: 16px;
-  box-shadow: var(--sw-shadow, none);
+  box-shadow: var(--sw-shadow);
 }
 
 .swq > .swc-head .swc-title {
@@ -561,15 +561,15 @@
   border-radius: 9px;
   display: grid;
   place-items: center;
-  background: var(--sw-cost, #533bb0);
-  color: var(--sw-surface, #ffffff);
+  background: var(--sw-cost);
+  color: var(--sw-surface);
   font-size: 13px;
   font-weight: 800;
 }
 
 .swq .swc-card {
-  background: var(--sw-surface-2, #f6f8fb);
-  border-color: var(--sw-border, #e3e7ee);
+  background: var(--sw-surface-2);
+  border-color: var(--sw-border);
   border-radius: 14px;
 }
 
@@ -580,8 +580,8 @@
 .swq .swq-intro {
   padding: 10px 12px;
   border-radius: 14px;
-  background: var(--sw-cost-soft, #efeaff);
-  color: var(--sw-cost, #533bb0);
+  background: var(--sw-cost-soft);
+  color: var(--sw-cost);
   font-weight: 600;
 }
 
@@ -598,7 +598,7 @@
   gap: 5px;
   padding: 0;
   background: transparent;
-  color: var(--sw-text-3, #5d697b);
+  color: var(--sw-text-3);
   font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
@@ -609,7 +609,7 @@
   inline-size: 8px;
   block-size: 8px;
   border-radius: 50%;
-  background: var(--sw-border-strong, #c9d0db);
+  background: var(--sw-border-strong);
 }
 
 .swq .swq-flow li::after {
@@ -617,7 +617,7 @@
   inline-size: 14px;
   block-size: 1px;
   margin-inline: 6px;
-  background: var(--sw-border-strong, #c9d0db);
+  background: var(--sw-border-strong);
 }
 
 .swq .swq-flow li:last-child::after {
@@ -625,22 +625,22 @@
 }
 
 .swq .swq-flow li.swq-done {
-  color: var(--sw-success, #14703c);
+  color: var(--sw-success);
   background: transparent;
 }
 
 .swq .swq-flow li.swq-done::before {
-  background: var(--sw-success, #14703c);
+  background: var(--sw-success);
 }
 
 .swq .swq-flow li.swq-cur {
   background: transparent;
-  color: var(--sw-accent-text, #1a4fb8);
+  color: var(--sw-accent-text);
 }
 
 .swq .swq-flow li.swq-cur::before {
-  background: var(--sw-accent, #1f5fd6);
-  box-shadow: 0 0 0 3px var(--sw-accent-soft, #e8f0ff);
+  background: var(--sw-accent);
+  box-shadow: 0 0 0 3px var(--sw-accent-soft);
 }
 
 .swq .swq-pill {
@@ -652,8 +652,8 @@
   border: 0;
   font-size: 13px;
   font-weight: 700;
-  background: var(--sw-surface-3, #eceff4);
-  color: var(--sw-text-2, #404b5d);
+  background: var(--sw-surface-3);
+  color: var(--sw-text-2);
 }
 
 .swq .swq-pill::before {
@@ -665,18 +665,18 @@
 }
 
 .swq .swq-pill.swq-ok {
-  background: var(--sw-success-soft, #e6f6ec);
-  color: var(--sw-success, #14703c);
+  background: var(--sw-success-soft);
+  color: var(--sw-success);
 }
 
 .swq .swq-pill.swq-bad {
-  background: var(--sw-danger-soft, #fdeaea);
-  color: var(--sw-danger, #a82525);
+  background: var(--sw-danger-soft);
+  color: var(--sw-danger);
 }
 
 .swq .swq-pill.swq-acc {
-  background: var(--sw-accent-soft, #e8f0ff);
-  color: var(--sw-accent-text, #1a4fb8);
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent-text);
 }
 
 /* the preliminary-translation line of the arabic / russian pages lives once in the page footer (main.ts) */

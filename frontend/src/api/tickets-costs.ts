@@ -11,6 +11,7 @@
 import { ApiError, apiUrl, get, post, put, upload, type ApiErrorBody } from './client';
 import { isApi } from './session';
 import { mockCosts } from './tickets-costs-mock';
+import type { MessageDraft, QuoteBlock } from './tickets-quotes';
 
 export type CostMode = 'required' | 'optional' | 'off';
 export type CostStatus = 'not_required' | 'awaiting' | 'submitted' | 'rejected' | 'approved' | 'paid';
@@ -79,7 +80,22 @@ export interface CostRevision {
   created_by_kind?: 'contact' | 'user';
   created_by_name?: string;
   documents: CostDocument[];
+  /** TKDETAILBE (contract 5.2): the lines of this revision outside the baseline (or outside the allowed kinds without one) */
+  exceptional?: ExceptionalLine[];
 }
+
+/** TKDETAILBE (5.2): an exceptional line of a payment demand - `not_in_quote` against a baseline, `kind_not_allowed` without one. */
+export interface ExceptionalLine {
+  index: number;
+  kind: LineKind;
+  description: string;
+  total_minor: number;
+  reason: 'not_in_quote' | 'kind_not_allowed';
+  review?: 'pending' | 'accepted' | 'excluded';
+}
+
+/** TKDETAILBE (5.2): the approved quote a payment demand was validated against. */
+export interface ClaimBaseline { quote_id: string; version: number; total_minor: number | null; currency: string; state?: string; subtotal_minor?: number | null; line_kinds?: LineKind[] }
 
 export type DecisionAction = 'approve' | 'adjust' | 'reject' | 'mark_paid' | 'unmark_paid' | 'reopen_window' | 'override_close' | 'superseded' | 'requirement';
 export interface CostDecision {
@@ -125,10 +141,25 @@ export interface CostClaim {
   reopen_used?: boolean;
   revisions?: CostRevision[];
   decisions?: CostDecision[];
+  /** TKDETAILBE (5.2, full view): the baseline, the difference from it (same currency only) and whether exceptional lines wait */
+  baseline?: ClaimBaseline | null;
+  delta_minor?: number | null;
+  kind_deltas?: Record<LineKind, number> | null;
+  needs_review?: boolean;
 }
 
 export interface CostSettingsBrief { currencies: string[]; vat_rate_bp: number; review_flag_above_minor: number; max_claim_total_minor: number; require_invoice: boolean }
-export interface ExternalAssignment { id: string; name: string; assigned_at: string; ended_at: string | null; cost_claim: CostMode | null }
+export interface ExternalAssignment {
+  id: string;
+  name: string;
+  assigned_at: string;
+  ended_at: string | null;
+  cost_claim: CostMode | null;
+  /** TKDETAILBE: the quote requirement of the assignment (null on an older server = optional) */
+  quote_mode?: CostMode | null;
+  /** TKUI3: false for a staff contact without an account - no quote, no payment demand, no requirement (undefined on an older server) */
+  quote_capable?: boolean;
+}
 
 /** `GET tickets/{id}/costs` (and the answer of every cost write). */
 export interface TicketCosts {
@@ -139,6 +170,11 @@ export interface TicketCosts {
   settings?: CostSettingsBrief;
   external_assignments?: ExternalAssignment[];
 }
+
+/** TKDETAILBE (contract 4.4): `GET tickets/{id}/costs` also carries the quotes block (amounts only with tickets.costs.view). */
+export type TicketCostsFull = TicketCosts & Partial<QuoteBlock>;
+/** The answer of a claim decision: the costs answer plus the editable vendor message draft (contract 5.3 / 7) - nothing is sent. */
+export type DecisionAnswer = TicketCostsFull & { message_draft?: MessageDraft };
 
 export type DecisionKind = 'approve' | 'adjust' | 'reject' | 'mark-paid' | 'unmark-paid' | 'reopen-window';
 export interface DecisionBody {
@@ -151,6 +187,8 @@ export interface DecisionBody {
   payment_ref?: string;
   /** YYYY-MM-DD */
   payment_date?: string;
+  /** TKDETAILBE (5.3): approve with or without the exceptional lines (approve only; omitted = include) */
+  exceptional?: 'include' | 'exclude';
 }
 
 export interface OnBehalfBody {
@@ -244,18 +282,31 @@ export interface CostsSettings {
   review_flag_above_minor: number;
   notify_vendor_approved: boolean;
   retention_days: number;
+  /** TKDETAILBE: the installation default of the allowed cost line kinds (labor is always one of them) */
+  allowed_line_kinds?: LineKind[];
 }
 export interface CostsSettingsDoc { revision: number; costs: CostsSettings }
-export interface DepartmentCosts { id: string; key: string; name: string; active: boolean; cost_claim: CostMode | null; claim_window_days: number | null }
-export interface DepartmentCostsAnswer { departments: DepartmentCosts[]; installation: { mode: CostMode; claim_window_days: number } }
+export interface DepartmentCosts {
+  id: string;
+  key: string;
+  name: string;
+  active: boolean;
+  cost_claim: CostMode | null;
+  claim_window_days: number | null;
+  /** TKDETAILBE: the department's allowed cost line kinds; null = the installation default */
+  allowed_line_kinds?: LineKind[] | null;
+}
+export interface DepartmentCostsAnswer { departments: DepartmentCosts[]; installation: { mode: CostMode; claim_window_days: number; allowed_line_kinds?: LineKind[] } }
+/** `PUT tickets/costs/departments/{id}`: the requirement and window are always written (null = the installation's); the kinds only when sent. */
+export interface DepartmentCostsBody { cost_claim: CostMode | null; claim_window_days: number | null; allowed_line_kinds?: LineKind[] | null }
 
 /** `POST tickets/{id}/assign/preview` (slice 4) - only the part slice 9 reads; the rest belongs to slice 4's assign dialog. */
 export interface CostClaimOption { default: CostMode; from: 'contact' | 'vendor' | 'department' | 'installation'; choices: CostMode[] }
 export interface AssignPreview { channel?: string; text?: string; require_code?: boolean; refusals?: string[]; cost_claim: CostClaimOption; [k: string]: unknown }
 
 export interface CostsBackend {
-  get(ticketId: string): Promise<TicketCosts>;
-  decide(ticketId: string, claimId: string, action: DecisionKind, body: DecisionBody): Promise<TicketCosts>;
+  get(ticketId: string): Promise<TicketCostsFull>;
+  decide(ticketId: string, claimId: string, action: DecisionKind, body: DecisionBody): Promise<DecisionAnswer>;
   setRequirement(ticketId: string, assignmentId: string, mode: CostMode): Promise<TicketCosts>;
   uploadFile(ticketId: string, file: File): Promise<PendingFile>;
   onBehalf(ticketId: string, body: OnBehalfBody): Promise<TicketCosts>;
@@ -272,7 +323,7 @@ export interface CostsBackend {
   /** TK258: "סימון כשולם" for several approved claims (a result per item) */
   markPaidBulk(items: BulkPaidItem[], paymentRef: string, paymentDate: string): Promise<BulkPaidAnswer>;
   departments(): Promise<DepartmentCostsAnswer>;
-  saveDepartment(id: string, body: { cost_claim: CostMode | null; claim_window_days: number | null }): Promise<DepartmentCostsAnswer>;
+  saveDepartment(id: string, body: DepartmentCostsBody): Promise<DepartmentCostsAnswer>;
   settings(): Promise<CostsSettingsDoc>;
   saveSettings(revision: number, costs: Partial<CostsSettings>): Promise<CostsSettingsDoc>;
   assignPreview(ticketId: string, contactId: string, requireCode?: boolean): Promise<AssignPreview>;
@@ -336,8 +387,8 @@ async function download(path: string, fallback: string): Promise<void> {
 }
 
 const rest: CostsBackend = {
-  get: (id) => get<TicketCosts>(`${T}/${enc(id)}/costs`),
-  decide: (id, claimId, action, body) => post<TicketCosts>(`${T}/${enc(id)}/costs/${enc(claimId)}/${action}`, body),
+  get: (id) => get<TicketCostsFull>(`${T}/${enc(id)}/costs`),
+  decide: (id, claimId, action, body) => post<DecisionAnswer>(`${T}/${enc(id)}/costs/${enc(claimId)}/${action}`, body),
   setRequirement: (id, assignmentId, mode) => post<TicketCosts>(`${T}/${enc(id)}/costs/requirement`, { assignment_id: assignmentId, mode }),
   uploadFile: (id, file) => {
     const form = new FormData();

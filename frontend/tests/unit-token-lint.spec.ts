@@ -131,3 +131,37 @@ test('text and fill colours are tokens: a hex literal on color / background / bo
   // an allow entry that no longer has a literal is noise: drop it (it keeps the list honest)
   expect(stale, `stale ALLOW_HEX entries:\n${stale.join('\n')}`).toEqual([]);
 });
+
+// TKUI7 (service module, 2026-10-16): the service module reads the tokens without a literal or a second token as a fallback,
+// and the public-ticket bundle (its own CSS, no skins) declares every --sw token it reads in styles.css.
+test('service module: no `var(--sw-x, <anything>)` fallback for a declared token in src/tickets, tickets screens, the view switch and the setup hint', () => {
+  const names = new Set(TOKEN_NAMES);
+  const scope = files.filter((f) => /^(tickets\/|screens\/(tickets-|system-tickets)|components\/sw-view-switch|shell\/setup-hint)/.test(f.rel));
+  expect(scope.length).toBeGreaterThan(100);
+  const bad: string[] = [];
+  for (const f of scope) {
+    for (const b of cssBlocks(readFileSync(f.abs, 'utf8'))) {
+      for (const m of b.matchAll(/var\((--sw-[a-z0-9-]+),\s*([^)]*\)?)\)/g)) if (names.has(m[1])) bad.push(`${f.rel}: ${m[0]}`);
+    }
+  }
+  expect(bad, bad.join('\n')).toEqual([]);
+});
+
+test('public ticket bundle: every var(--sw-*) it reads is declared in styles.css, with no literal fallback', () => {
+  const dir = path.join(SRC, 'public-ticket');
+  const sheets = [path.join(dir, 'styles.css'), path.join(dir, 'claim/claim.css')];
+  const declared = new Set([...readFileSync(sheets[0], 'utf8').matchAll(/(--sw-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+  const bad: string[] = [];
+  for (const sheet of sheets) {
+    const css = readFileSync(sheet, 'utf8');
+    const rel = path.relative(SRC, sheet).split(path.sep).join('/');
+    for (const m of css.matchAll(/var\((--sw-[a-z0-9-]+)(,[^;)]*\)?)?\)/g)) {
+      if (!declared.has(m[1])) bad.push(`${rel}: ${m[1]} is not declared in public-ticket/styles.css`);
+      else if (m[2]) bad.push(`${rel}: ${m[0]} (fallback for a declared token)`);
+    }
+    // literal radii / font sizes that equal a scale step must use the token
+    for (const m of css.matchAll(/border-radius:\s*(12|16|20)px;/g)) bad.push(`${rel}: ${m[0]} (use --sw-r-*)`);
+    for (const m of css.matchAll(/font-size:\s*(12|14|16|19|22)px;/g)) bad.push(`${rel}: ${m[0]} (use --sw-fs-*)`);
+  }
+  expect(bad, bad.join('\n')).toEqual([]);
+});

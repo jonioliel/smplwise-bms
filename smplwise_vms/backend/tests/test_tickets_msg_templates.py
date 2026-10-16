@@ -131,7 +131,7 @@ def test_params_never_carry_secrets():
 def test_default_assign_text_hebrew():
     text = tp.render(tp.STARTERS["assign"]["he"], PARAMS, lang="he", secrets={"link": LINK})
     assert text == ("שלום דני,\n" + naming.DEFAULTS["he"]["one"] + " 1042 (אחזקה): מזגן לא מקרר\nקומה 1 · חדר 102\nלעדכון הטיפול: " + LINK +
-                    "\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול")
+                    "\nחובה להיכנס לקישור כדי להמשיך בטיפול.")
 
 
 def test_rendering_is_one_pass_and_values_are_one_line():
