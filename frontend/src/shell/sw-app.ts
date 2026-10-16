@@ -101,6 +101,8 @@ import { navigate, onRouteChange, type RouteState, parseRoute } from '../router'
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
+import { dismissHint, loadDismissal, onDismissal } from '../api/setup-hint';
+import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -146,8 +148,14 @@ export class SwApp extends LitElement {
   @state() private session: Session = { mode: 'loading', me: null, error: null, capabilities: ALL_CAPABILITIES };
   @state() private sys: HealthSummary | null = null;
   private sysTimer = 0;
-  /** T071: "complete the setup" for a system administrator while wizard steps remain; dismissed per browser session. */
-  @state() private setupHint: { done: number; total: number } | null = null;
+  /** T071 / TKWIZHINT: "complete the setup" for a system administrator while REQUIRED wizard steps remain; the dismissal is the user's own (/me/prefs setup.hint). */
+  @state() private setupSum: SetupSummary | null = null;
+  @state() private setupDis: SetupDismissal | null = null;
+  private get setupHint(): { done: number; total: number } | null {
+    const s = this.setupSum;
+    return s && hintVisible(s, this.setupDis) ? { done: s.done, total: s.total } : null;
+  }
+  private stopSetupDismissal: (() => void) | null = null;
   @state() private searchQ = '';
   @state() private searchResults: SearchResult[] = [];
   @state() private searchOpen = false;
@@ -1689,6 +1697,8 @@ export class SwApp extends LitElement {
     this.searchPanel = false;
     this.syncSearchOutside();
     window.removeEventListener('sw-setup-state', this.onSetupState);
+    this.stopSetupDismissal?.();
+    this.stopSetupDismissal = null;
     window.clearInterval(this.sysTimer);
     this.sysTimer = 0;
   }
@@ -1740,46 +1750,31 @@ export class SwApp extends LitElement {
 
   // ---- setup hint (T071) ----
 
-  private static readonly SETUP_HINT_KEY = 'sw.setupHint.dismissed';
-
-  private setupHintDismissed(): boolean {
-    try {
-      return window.sessionStorage.getItem(SwApp.SETUP_HINT_KEY) === '1';
-    } catch {
-      return false;
-    }
-  }
-
   /** GET /setup/state never probes a device, so this costs a few database reads, once per session load. */
   private async loadSetupHint() {
-    if (!can('system.configure') || this.setupHintDismissed()) return;
+    if (!can('system.configure')) return;
+    this.stopSetupDismissal ??= onDismissal((d) => (this.setupDis = d));
+    this.setupDis = await loadDismissal();
     try {
-      const s = await setupState();
-      this.setupHint = s.ready ? null : { done: s.done, total: s.total };
+      this.setupSum = summarizeSetup(await setupState());
     } catch {
-      this.setupHint = null;
+      this.setupSum = null;
     }
   }
 
   private onSetupState = (e: Event) => {
-    const d = (e as CustomEvent<{ ready: boolean; done: number; total: number }>).detail;
-    if (!can('system.configure') || this.setupHintDismissed()) return;
-    this.setupHint = d.ready ? null : { done: d.done, total: d.total };
+    if (!can('system.configure')) return;
+    this.setupSum = (e as CustomEvent<SetupSummary>).detail;
   };
 
   private dismissSetupHint() {
-    try {
-      window.sessionStorage.setItem(SwApp.SETUP_HINT_KEY, '1');
-    } catch {
-      /* private mode: dismissed for this page only */
-    }
-    this.setupHint = null;
+    void dismissHint(this.setupSum);
   }
 
   private renderSetupHint() {
     const h = this.setupHint;
     if (!h || this.gated || (this.route?.mode === 'system' && this.route.segments[1] === 'wizard')) return nothing;
-    return html`<div class="setuphint" role="status" data-setup-hint><sw-icon name="info" size=${16}></sw-icon><span><b>השלם את ההתקנה</b> · ${h.done} מתוך ${h.total} שלבים הושלמו</span><a href="#/system/wizard">לאשף ההתקנה</a><button type="button" class="x" aria-label="הסתר עד הכניסה הבאה" title="הסתר עד הכניסה הבאה" data-setup-hint-dismiss @click=${() => this.dismissSetupHint()}><sw-icon name="close" size=${14}></sw-icon></button></div>`;
+    return html`<div class="setuphint" role="status" data-setup-hint><sw-icon name="info" size=${16}></sw-icon><span><b>${SETUP_HINT_TEXT.title}</b> · ${SETUP_HINT_TEXT.progress(h.done, h.total)}</span><a href="#/system/wizard">${SETUP_HINT_TEXT.toWizard}</a><button type="button" class="x" aria-label=${SETUP_HINT_TEXT.dismiss} title=${SETUP_HINT_TEXT.dismiss} data-setup-hint-dismiss @click=${() => this.dismissSetupHint()}><sw-icon name="close" size=${14}></sw-icon></button></div>`;
   }
 
   // ---- global search (top bar) ----
@@ -2405,7 +2400,7 @@ export class SwApp extends LitElement {
     const h = this.setupHint;
     return html`<span slot="pills" class="menu-pills">
       ${this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label="נתוני הדגמה" data-demo-pill></sw-badge>` : nothing}
-      ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay('#/system/wizard'); }}><sw-icon name="info" size=${14}></sw-icon>השלם את ההתקנה · ${h.done}/${h.total}</a>` : nothing}
+      ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay('#/system/wizard'); }}><sw-icon name="info" size=${14}></sw-icon>${SETUP_HINT_TEXT.title} · ${h.done}/${h.total}</a>` : nothing}
     </span>`;
   }
 

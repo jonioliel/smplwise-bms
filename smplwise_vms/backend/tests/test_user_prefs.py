@@ -148,3 +148,16 @@ def test_plan_quality_is_a_personal_view_mode_auto_1_or_2_per_user_and_null_foll
     r = c.put("/api/v1/me/prefs", json={"plan.quality": None})
     assert r.json()["prefs"]["plan.quality"] is None and "plan.quality" not in r.json()["stored"]
     assert c.get("/api/v1/settings").json()["settings"]["plan.quality"] == "auto"
+
+def test_setup_hint_dismissal_is_per_user_validated_and_resettable(settings):
+    """2.6.0 TKWIZHINT: the shell's setup hint dismissal is the user's own (setup.hint), with the required steps failing at that moment."""
+    c = TestClient(create_app(settings))
+    assert c.get("/api/v1/me/prefs").json()["prefs"]["setup.hint"] is None
+    r = c.put("/api/v1/me/prefs", json={"setup.hint": {"dismissed": True, "failed": ["ha", "nvr", "ha"]}})
+    assert r.status_code == 200 and r.json()["prefs"]["setup.hint"] == {"dismissed": True, "failed": ["ha", "nvr"]} and "setup.hint" in r.json()["stored"]
+    for bad in ({"dismissed": False}, {"dismissed": True, "failed": ["bogus"]}, {"dismissed": True, "x": 1}, {"failed": []}, {"dismissed": True, "failed": "ha"}):
+        assert c.put("/api/v1/me/prefs", json={"setup.hint": bad}).status_code == 422, bad
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["prefs"]["setup.hint"] is None
+    r = c.put("/api/v1/me/prefs", json={"setup.hint": None})
+    assert r.json()["prefs"]["setup.hint"] is None and "setup.hint" not in r.json()["stored"]

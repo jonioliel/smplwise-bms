@@ -473,3 +473,13 @@ def test_floor_and_camera_steps_then_ready_when_all_six_pass(settings, fake, mon
     assert step_of(body, "install")["evidence"]["integrity"] is None, "the state view does not run quick_check"
     assert step_of(check(c, "install").json(), "install")["evidence"]["integrity"] == "ok"
     assert fake.writes == []
+
+
+def test_floor_and_camera_are_optional_and_only_required_steps_decide_ready(settings):
+    """2.6.0 TKWIZHINT: additive `optional` flag per step; `required_*` counts, `ready` and `next` follow the required steps only."""
+    c = TestClient(create_app(settings))
+    body = c.get(STATE).json()
+    assert {s["id"]: s["optional"] for s in body["steps"]} == {"install": False, "nvr": False, "ha": False, "go2rtc": False, "floor": True, "camera": True}
+    assert body["total"] == 6 and body["required_total"] == 4  # `done` / `total` keep counting every applicable step
+    assert body["required_done"] == 1 and set(body["required_failed"]) == {"nvr", "ha", "go2rtc"}
+    assert body["ready"] is False and body["next"] == "nvr"

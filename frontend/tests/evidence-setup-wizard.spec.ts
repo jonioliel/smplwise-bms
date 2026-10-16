@@ -106,7 +106,7 @@ test.describe('setup wizard against the fixture backend (fake NVR / go2rtc)', ()
     expect(writes.every((w) => w.startsWith('go2rtc PUT smplwise_'))).toBe(true);
   });
 
-  test('the shell hint "השלם את ההתקנה" shows while steps remain and is dismissed for the session', async ({ page }, testInfo) => {
+  test('the shell hint "השלם את ההתקנה" counts required steps only and its dismissal is the user's own (survives a reload)', async ({ page }, testInfo) => {
     // on a phone the setup progress moved into the user menu's header (sw-app: `.setuphint { display: none }` under 768 px), so the row is desktop only
     test.skip(testInfo.project.name === 'mobile', 'the phone shows the setup progress in the user menu, not as a row');
     await page.goto('/?design=a#/live');
@@ -114,7 +114,7 @@ test.describe('setup wizard against the fixture backend (fake NVR / go2rtc)', ()
     const hint = page.locator('sw-app [data-setup-hint]');
     await expect(hint).toBeVisible({ timeout: 30000 });
     await expect(hint).toContainText('השלם את ההתקנה');
-    await expect(hint).toContainText('מתוך 6 שלבים הושלמו');
+    await expect(hint).toContainText('מתוך 4 שלבים הושלמו'); // floors + camera are optional and not counted
     await noHorizontalOverflow(page);
     await page.screenshot({ path: path.join(OUT, `shell-hint-${testInfo.project.name}.png`) });
     await hint.locator('a').click();
@@ -124,23 +124,29 @@ test.describe('setup wizard against the fixture backend (fake NVR / go2rtc)', ()
     await expect(hint).toBeVisible({ timeout: 30000 });
     await hint.locator('[data-setup-hint-dismiss]').click();
     await expect(hint).toHaveCount(0);
-    await page.reload();
+    await page.reload(); // persistent per user (/me/prefs setup.hint), not per browser session
     await page.waitForSelector('sw-app');
     await page.waitForTimeout(1500);
     await expect(hint).toHaveCount(0);
+    await page.goto('/?design=a#/system/wizard'); // the way back
+    await page.locator('system-wizard [data-setup-hint-restore]').click();
+    await page.goto('/?design=a#/live');
+    await expect(hint).toBeVisible({ timeout: 30000 });
   });
 });
 
 test.describe('setup wizard in demo mode (fixture data, no backend)', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo mode runs without a backend behind the preview');
 
-  test('the camera step explains itself; "בדוק שוב" completes the six steps and shows "מוכן לעבודה"', async ({ page }, testInfo) => {
+  test('the camera step is optional: the wizard is ready without it; "בדוק שוב" completes all six steps', async ({ page }, testInfo) => {
     await openWizard(page);
     const cam = step(page, 'camera');
     await expect(cam).toHaveAttribute('data-status', 'todo');
     await expect(cam.locator('[data-step-problem]')).toContainText('אף מצלמה עוד לא מוצבת על מפה');
     await expect(cam.locator('[data-step-link]')).toHaveAttribute('href', '#/explore/floors/f0/edit');
-    await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('5 מתוך 6');
+    await expect(cam.locator('[data-step-optional]')).toContainText('אופציונלי');
+    await expect(page.locator('system-wizard [data-wizard-progress]')).toHaveCount(0); // every required step is done
+    await expect(page.locator('system-wizard [data-wizard-ready]')).toContainText('1 אופציונליים נותרו');
     await noHorizontalOverflow(page);
     await page.screenshot({ path: path.join(OUT, `wizard-demo-${testInfo.project.name}.png`), fullPage: true });
     await cam.locator('[data-check="camera"]').click();
@@ -148,6 +154,7 @@ test.describe('setup wizard in demo mode (fixture data, no backend)', () => {
     const ready = page.locator('system-wizard [data-wizard-ready]');
     await expect(ready).toBeVisible();
     await expect(ready).toContainText('מוכן לעבודה');
+    await expect(ready).toContainText('כל ששת השלבים עברו');
     await expect(page.locator('system-wizard [data-rail-step][data-status="done"]')).toHaveCount(6);
     await expect(page.locator('sw-app [data-setup-hint]')).toHaveCount(0); // the hint is for a real installation only
     await noHorizontalOverflow(page);
