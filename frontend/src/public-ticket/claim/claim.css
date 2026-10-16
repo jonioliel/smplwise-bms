@@ -683,3 +683,8 @@
 .swq .swq-tr {
   display: none;
 }
+
+/* a card the page has nothing to show in (costs off for this request) stays out of the layout */
+.swc[hidden] {
+  display: none !important;
+}
