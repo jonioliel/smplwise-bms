@@ -58,8 +58,11 @@ class Rx(Lx):
         now = now_iso()
         with self.db.connection() as conn:
             conn.execute("DELETE FROM ticket_contacts WHERE user_id = ?", (user_id,))
-            conn.execute("INSERT INTO ticket_contacts(id, kind, user_id, display_name, phone_e164, preferred_channel, lang, created_by, created_at, updated_at, phone_confirmed_at) "
-                         "VALUES (?, 'person', ?, 'x', ?, 'whatsapp', ?, 'test', ?, ?, ?)", (f"c-{user_id}"[:40], user_id, phone, lang, now, now, now if confirmed else None))
+            # integ/264: on 2.6.3+ (0091) a number counts only when confirmed by the user or by a code - the TKSTAFF1 one-tap
+            # confirmation this fixture stands for is 'user' (0091's own backfill of phone_confirmed_at)
+            conn.execute("INSERT INTO ticket_contacts(id, kind, user_id, display_name, phone_e164, preferred_channel, lang, created_by, created_at, updated_at, phone_confirmed_at, phone_confirmed_via) "
+                         "VALUES (?, 'person', ?, 'x', ?, 'whatsapp', ?, 'test', ?, ?, ?, ?)",
+                         (f"c-{user_id}"[:40], user_id, phone, lang, now, now, now if confirmed else None, "user" if confirmed else None))
 
     @property
     def sender(self) -> lr.Sender:

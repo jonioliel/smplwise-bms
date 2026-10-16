@@ -370,6 +370,14 @@ def delete(ha_user_id: str, body: DeleteBody, request: Request, principal: Princ
         raise _refuse(conn, principal, request, action, ha_user_id, 409, "target_not_safe", "המשתמש הפך למנהל במערכת הבית ולכן אינו נמחק מכאן.")
     if would_strand_admins(conn, ha_user_id):
         raise _refuse(conn, principal, request, action, ha_user_id, 409, "last_admin", "המחיקה משאירה את ההתקנה בלי מנהל מערכת פעיל; הקצה מנהל אחר קודם.")
+    # owner rule (integ/264): an Arx-only (USR2) identity linked to this HA user blocks the delete - the manager unlinks first
+    # (Settings > Arx users). Refused before Home Assistant is called; the audit row carries ids only.
+    linked = [r[0] for r in conn.execute("SELECT local_user_id FROM identity_links WHERE ha_user_id = ? ORDER BY local_user_id", (ha_user_id,))]
+    if linked:
+        audit(conn, actor=principal, action=action, decision="denied", resource_type="ha_user", resource_id=ha_user_id, reason="linked_local_identity",
+              request_id=_rid(request), details={"local_user_ids": linked})
+        raise ApiError(409, "linked_local_identity", "למשתמש הזה מקושר משתמש Arx. יש לבטל את הקישור במסך 'משתמשי Arx' לפני המחיקה.",
+                       details={"local_user_ids": linked})
     settings = _ha_settings(request, conn)
     try:
         with unlocked(conn):

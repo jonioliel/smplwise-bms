@@ -493,6 +493,39 @@ def test_last_admin_refused_before_ha(ha_settings, fake, monkeypatch):
     assert len(fake.calls) == n and uid in fake.users
 
 
+def _link_local(settings, ha_user_id: str, local_id: str = "l_linked0001") -> str:
+    with _db(settings).connection() as conn:
+        conn.execute("INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at) VALUES (?, 'yael', 'Yael', 'local', 1, ?, ?)",
+                     (local_id, now_iso(), now_iso()))
+        conn.execute("INSERT INTO identity_links(ha_user_id, local_user_id, linked_by, linked_at) VALUES (?, ?, 'dev-joni', ?)", (ha_user_id, local_id, now_iso()))
+    return local_id
+
+
+def test_delete_refused_while_an_arx_only_identity_is_linked(ha_settings, fake):
+    """Owner rule (integ/264): an HA user an Arx-only (USR2) identity is linked to is never deleted through USR1 - the manager
+    unlinks first. Refused before Home Assistant is called, nothing changes in Arx, one audit row with ids only."""
+    c = _client(ha_settings)
+    uid = _created(c, ha_settings)
+    local_id = _link_local(ha_settings, uid)
+    n = len(fake.calls)
+    r = c.post(f"{API}/ha-users/{uid}/delete", json={"confirm_username": "dana"})
+    assert r.status_code == 409 and r.json()["code"] == "linked_local_identity"
+    assert len(fake.calls) == n and uid in fake.users, "Home Assistant is never called"
+    assert _managed_rows(ha_settings)[0]["state"] == "active"
+    with _db(ha_settings).connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM bindings WHERE subject_id = ? AND revoked_at IS NULL", (uid,)).fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM identity_links WHERE ha_user_id = ?", (uid,)).fetchone()[0] == 1, "the link is not removed for the manager"
+    [row] = _audit(ha_settings, "ha_users.delete")
+    assert (row["decision"], row["reason"], row["resource_id"]) == ("denied", "linked_local_identity", uid)
+    assert json.loads(row["details_json"]) == {"local_user_ids": [local_id]}
+    assert "yael" not in _audit_text(ha_settings).lower(), "ids only - never a name"
+    # the manager unlinks: the delete then goes through
+    with _db(ha_settings).connection() as conn:
+        conn.execute("DELETE FROM identity_links WHERE local_user_id = ?", (local_id,))
+    r = c.post(f"{API}/ha-users/{uid}/delete", json={"confirm_username": "dana"})
+    assert r.status_code == 200 and uid not in fake.users
+
+
 def test_delete_happy_path_and_idempotency(ha_settings, fake):
     c = _client(ha_settings)
     uid = _created(c, ha_settings)
