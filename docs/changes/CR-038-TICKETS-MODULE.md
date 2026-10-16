@@ -1064,6 +1064,19 @@ on the remote address (sign-in required, no token). No handler-page token is eve
 > `assignee_not_allowed`); the staff path is `services/tickets/staff_links.py`, reached only from the internal-user assignment.
 > "New request" notices to `notify_new` managers stay signed-in deep links (no token). Precondition shipped with it: deep review B3
 > (the reply button nonce bound to the link generation).
+>
+> **Addendum 2026-10-16 (independent security review of TKSTAFF1, lead decisions).** (1) Since TKSTAFF1 a staff member's OWN
+> assignment names their directory row in `ticket_assignments.contact_id`: **`contact_id IS NOT NULL` no longer means "external
+> assignment"; only `assignee_kind = 'contact'` does** - every cost / quote reader must follow this (`quotes.public_quote` / `submit`
+> do). Every cost route (claim, claim file, quote) passes `link_context(claim_surface=True)` and answers a staff token with the
+> uniform 404. (2) A number set by a `tickets.configure` holder is **pending until the signed-in employee confirms exactly that number**
+> in their own account ("החשבון שלי" › "נייד לקישורי עבודה", `GET / PUT /tickets/me/staff-mobile`, last four digits only, an opaque
+> token of the number shown); every change of the number clears the confirmation and tells the employee in the app (source
+> `ticket.staff_mobile`); until confirmed no staff link is minted and the members card says so. The "WhatsApp on assignment" switch
+> belongs to the employee; a configurer may only turn it off. (3) Unlinking `user_id` from a directory row revokes its live links.
+> (4) Revocation window: deactivation by the HA directory push and removal from a department revoke at once; a change that removes
+> membership through an HA group or `tickets.view` through a binding is caught by the SLA monitor's recheck (about 30 seconds, while
+> the module is on). App-push-first (security design section 8 item 7) is not built - owner decision pending.
 
 ### 8.2 Giving a ticket permission to one specific user (D25)
 
