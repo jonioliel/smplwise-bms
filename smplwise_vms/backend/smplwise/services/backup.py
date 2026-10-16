@@ -59,12 +59,21 @@ ACCESS_TABLES = ["users", "auth_local_credentials", "identity_links", "groups", 
 # who last unlocked it are columns of auth_local_credentials. They are left out of every archive and ignored in an archive that
 # has them (an older one), so a restored row starts with the column defaults (no failures, no lock).
 NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": frozenset({"failed_count", "last_failed_at", "delay_until", "unlocked_by"})}
+# USR2 / USR2-P2B: runtime security state of the Arx-only identities. Never written to an archive and never read from one (a
+# `replace` restore leaves the rows alone): the sessions, the links, the failure tiers, the TOTP state and the self-service
+# reset codes and their send counters (migration 0102 - a restore must neither revive a code nor hand back a fresh daily budget).
+# The archive format is an allow-list (PROJECT_TABLES / ACCESS_TABLES / OPTIONAL_TABLES); this set is the guard that none of them
+# is ever added to it, checked at import and again by `snapshot`.
+NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
+                                   "auth_local_reset_codes", "auth_local_reset_sends"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
 # policy is NOT kept (an older archive without it leaves every class OFF - the default - never a class that happened to be on).
 KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
+if NEVER_EXPORTED_TABLES & set(PROJECT_TABLES + ACCESS_TABLES + OPTIONAL_TABLES["audit"] + OPTIONAL_TABLES["events"]):
+    raise RuntimeError("a never-exported table is listed for backup")
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], "plan_bakes": ["path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
@@ -143,7 +152,7 @@ def schema_version(conn: sqlite3.Connection) -> int:
 def snapshot(conn: sqlite3.Connection, include_access: bool = True, include_audit: bool = False, include_events: bool = False) -> dict[str, list[dict[str, Any]]]:
     existing = _tables(conn)
     tables = PROJECT_TABLES + (ACCESS_TABLES if include_access else []) + (OPTIONAL_TABLES["audit"] if include_audit else []) + (OPTIONAL_TABLES["events"] if include_events else [])
-    out = {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
+    out = {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing and t not in NEVER_EXPORTED_TABLES}
     for t, cols in NEVER_EXPORTED_COLUMNS.items():
         if t in out:
             out[t] = [{k: v for k, v in r.items() if k not in cols} for r in out[t]]
@@ -398,7 +407,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     if int(manifest.get("schema_version") or 0) > current_schema:
         raise ValueError(f"backup schema {manifest.get('schema_version')} is newer than this installation ({current_schema}); update the add-on first")
     existing = _tables(conn)
-    tables = [t for t in PROJECT_TABLES + (ACCESS_TABLES if scope == "project+access" else []) if t in existing]
+    tables = [t for t in PROJECT_TABLES + (ACCESS_TABLES if scope == "project+access" else []) if t in existing and t not in NEVER_EXPORTED_TABLES]
     data: dict[str, list[dict[str, Any]]] = {}
     with zipfile.ZipFile(path) as z:
         names = set(z.namelist())

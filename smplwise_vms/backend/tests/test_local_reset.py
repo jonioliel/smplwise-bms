@@ -105,6 +105,20 @@ class Rx(Lx):
     def notifications(self, source: str) -> list[dict]:
         return self.rows("SELECT * FROM notifications WHERE source = ?", (source,))
 
+    def restart(self, monkeypatch) -> None:
+        """A new process on the same data (USR2-P2B): the module's threads end, the per-process fallback key changes, the caches
+        empty, and a new app opens the same database file and data directory (the messaging key file stays)."""
+        import os
+
+        from fastapi.testclient import TestClient
+        from smplwise.main import create_app
+
+        lr.reset_for_tests()
+        li.CACHE.clear()
+        monkeypatch.setattr(lr, "_PROCESS_KEY", os.urandom(32))
+        self.app = create_app(self.settings)
+        self.admin = TestClient(self.app)
+
 
 @pytest.fixture()
 def rx(settings, tmp_path, monkeypatch):
@@ -274,14 +288,14 @@ def test_cooldown_and_daily_caps(rx, monkeypatch):
     rx.request("maria")
     assert len(rx.fake.calls) == lr.PER_USER_DAY and rx.audit("auth.local.reset.requested")[-1]["reason"] == "cap_user"
     # the per-number cap across users sharing one number, and the installation cap
-    lr.reset_for_tests()
+    lr.reset_for_tests(rx.db)
     other = rx.eligible("noam")
     rx.number(other)  # the same number as maria
     for i in range(lr.PER_NUMBER_DAY):
         rx.request("maria" if i % 2 == 0 else "noam")
     rx.request("noam")
     assert rx.audit("auth.local.reset.requested")[-1]["reason"] == "cap_number"
-    lr.reset_for_tests()
+    lr.reset_for_tests(rx.db)
     monkeypatch.setattr(lr, "PER_INSTALLATION_DAY", 1)
     rx.request("maria")
     rx.request("noam")
@@ -313,7 +327,7 @@ def test_the_code_is_bound_to_the_credential_row_and_to_the_number(rx):
     assert rx.set_password(link["path"].split("t=", 1)[1], GOOD2).status_code == 200
     assert rx.confirm("maria", code).status_code == 422
     # the number changed after the code was sent: the code dies with it
-    lr.reset_for_tests()
+    lr.reset_for_tests(rx.db)
     rx.request("maria")
     code = rx.last_code()
     rx.number(uid, "+972 50-555-0277")
@@ -340,7 +354,7 @@ def test_switching_back_to_manager_only_or_disabling_kills_a_live_code(rx):
     code = rx.last_code()
     assert rx.admin.patch(f"/api/v1/identity/local-users/{uid}", json={"reset_mode": "manager_only"}).status_code == 200
     assert rx.confirm("maria", code).status_code == 422
-    assert not lr.live_code(uid)
+    assert not lr.live_code(rx.db, uid)
 
 
 def test_no_code_number_or_username_in_logs_audit_ledger_or_answers(rx, caplog):
@@ -515,3 +529,219 @@ def test_text_table_is_complete_for_every_language():
                                     ("https://arx.example.com:8443", False), ("javascript:alert(1)", False)])
 def test_public_url_normalisation(raw, ok):
     assert (lr.normalize_public_url(raw) is not None) is ok
+
+
+# ---------------------------------------------------------------- 7. persistence across a restart (USR2-P2B, owner decision 2026-10-16 option b)
+
+def _wrong(code: str) -> str:
+    return f"{(int(code) + 1) % 10 ** 6:06d}"
+
+
+def test_restart_an_expired_code_is_not_usable(rx, monkeypatch):
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    code = rx.last_code()
+    with rx.db.connection() as conn:
+        conn.execute("UPDATE auth_local_reset_codes SET expires_at = expires_at - ?", (lr.CODE_TTL_S + 1,))
+    rx.restart(monkeypatch)
+    r = rx.confirm("maria", code)
+    assert r.status_code == 422 and r.json()["code"] == "code_invalid"
+    assert rx.audit("auth.local.reset.refused")[-1]["reason"] == "no_code"
+    assert rx.sign_in(rx.remote(), "maria", GOOD).status_code == 200
+
+
+def test_restart_a_consumed_code_stays_consumed(rx, monkeypatch):
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    code = rx.last_code()
+    assert rx.confirm("maria", code).status_code == 200
+    rx.restart(monkeypatch)
+    r = rx.confirm("maria", code, GOOD2)
+    assert r.status_code == 422 and r.json()["code"] == "code_invalid"
+    assert rx.sign_in(rx.remote(), "maria", NEW_PW).status_code == 200
+
+
+def test_restart_keeps_the_attempts_used(rx, monkeypatch):
+    """Three wrong guesses before the restart and two after end the code: five attempts in all, not five per process."""
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    code = rx.last_code()
+    for _ in range(3):
+        assert rx.confirm("maria", _wrong(code)).status_code == 422
+    rx.restart(monkeypatch)
+    assert rx.rows("SELECT attempts FROM auth_local_reset_codes") == [{"attempts": 3}]
+    for _ in range(lr.CODE_ATTEMPTS - 3):
+        assert rx.confirm("maria", _wrong(code)).status_code == 422
+    assert rx.confirm("maria", code).status_code == 422  # the right code after five wrong ones across the restart: dead
+    assert rx.sign_in(rx.remote(), "maria", GOOD).status_code == 200
+
+
+def test_restart_keeps_the_cooldown_and_the_daily_caps(rx, monkeypatch):
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    rx.restart(monkeypatch)
+    rx.request("maria")  # within 60 s of the first send, in a new process: still the cooldown
+    assert len(rx.fake.calls) == 1 and rx.audit("auth.local.reset.requested")[-1]["reason"] == "cooldown"
+    monkeypatch.setattr(lr, "COOLDOWN_S", 0.0)
+    for _ in range(lr.PER_USER_DAY - 1):
+        rx.request("maria")
+    assert len(rx.fake.calls) == lr.PER_USER_DAY
+    rx.restart(monkeypatch)
+    rx.request("maria")
+    assert len(rx.fake.calls) == lr.PER_USER_DAY and rx.audit("auth.local.reset.requested")[-1]["reason"] == "cap_user"
+    # the per-number and the installation caps are counted from the same rows
+    other = rx.eligible("noam")
+    rx.number(other)  # maria's number
+    rx.restart(monkeypatch)
+    rx.request("noam")
+    assert rx.audit("auth.local.reset.requested")[-1]["reason"] == "cap_number"
+    monkeypatch.setattr(lr, "PER_INSTALLATION_DAY", lr.PER_USER_DAY)
+    third = rx.eligible("dalia")
+    rx.number(third, "+972 50-555-0333")
+    rx.restart(monkeypatch)
+    rx.request("dalia")
+    assert rx.audit("auth.local.reset.requested")[-1]["reason"] == "cap_installation"
+
+
+def test_restart_keeps_a_live_code_usable_exactly_once(rx, monkeypatch):
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    code = rx.last_code()
+    rx.restart(monkeypatch)
+    assert rx.confirm("maria", code).status_code == 200
+    assert rx.confirm("maria", code, GOOD2).status_code == 422
+    assert rx.sign_in(rx.remote(), "maria", NEW_PW).status_code == 200
+
+
+def test_concurrent_confirms_consume_the_code_exactly_once(rx):
+    import threading
+
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    code = rx.last_code()
+    passwords = [NEW_PW, GOOD2, "copper lantern quiet harbour", "seven paper boats drifting"]
+    gate = threading.Barrier(len(passwords))
+    statuses: list[int] = []
+
+    def go(i: int, pw: str) -> None:
+        client = rx.remote(**{"CF-Connecting-IP": f"192.0.2.{10 + i}"})
+        gate.wait()
+        statuses.append(rx.confirm("maria", code, pw, client).status_code)
+
+    threads = [threading.Thread(target=go, args=(i, pw)) for i, pw in enumerate(passwords)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+    assert sorted(statuses) == [200] + [422] * (len(passwords) - 1), statuses
+    assert len(rx.audit("auth.local.reset.completed")) == 1
+    assert sum(rx.sign_in(rx.remote(), "maria", pw).status_code == 200 for pw in passwords) == 1
+
+
+def test_no_plain_code_number_or_username_in_the_database_file_or_wal(rx):
+    from pathlib import Path
+
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    code = rx.last_code()
+    assert rx.confirm("maria", _wrong(code)).status_code == 422  # the row is written again (attempts)
+    rows = rx.rows("SELECT * FROM auth_local_reset_codes") + rx.rows("SELECT * FROM auth_local_reset_sends")
+    allowed = {"user_id", "code_id", "code_mac", "number_key", "created_at", "expires_at", "attempts", "consumed", "id", "sent_at"}
+    assert rows and all(set(r) <= allowed for r in rows)
+    text = json.dumps(rows)
+    for secret in (code, DIGITS, DIGITS[-7:], "maria"):
+        assert secret not in text, secret
+    assert all(re.fullmatch(r"[0-9a-f]{32}", r["number_key"]) for r in rows)
+    db_path = Path(rx.settings.db_path)
+    files = [p for p in db_path.parent.glob(db_path.name + "*")]  # the database and, when present, its -wal / -shm / -journal
+    assert db_path in files
+    raw = b"".join(p.read_bytes() for p in files)
+    assert code.encode() not in raw and DIGITS.encode() not in raw
+
+
+def test_kill_paths_delete_the_rows(rx):
+    """A password change, a reset-mode change, the switch going off, a disable and a delete each delete the code row."""
+    rx.enable()
+    rx.map_account()
+    uid = rx.eligible("maria")
+
+    def live() -> bool:
+        return bool(rx.rows("SELECT 1 FROM auth_local_reset_codes WHERE user_id = ?", (uid,)))
+
+    def fresh() -> None:
+        lr.reset_for_tests(rx.db)
+        rx.request("maria")
+        assert live()
+
+    fresh()  # a manager's reset link used: the password row changed
+    link = rx.admin.post(f"/api/v1/identity/local-users/{uid}/link", json={"purpose": "reset"}).json()["link"]
+    assert rx.set_password(link["path"].split("t=", 1)[1], GOOD2).status_code == 200
+    assert not live()
+    fresh()  # back to manager_only
+    assert rx.admin.patch(f"/api/v1/identity/local-users/{uid}", json={"reset_mode": "manager_only"}).status_code == 200
+    assert not live()
+    assert rx.admin.patch(f"/api/v1/identity/local-users/{uid}", json={"reset_mode": "self_service"}).status_code == 200
+    fresh()  # the switch off (and on again)
+    rx.enable(False)
+    assert not live()
+    rx.enable()
+    fresh()  # disabled
+    assert rx.admin.patch(f"/api/v1/identity/local-users/{uid}", json={"active": False}).status_code == 200
+    assert not live()
+    with rx.db.connection() as conn:  # a direct write behind the routes' back is covered by the trigger too
+        conn.execute("UPDATE users SET active = 1 WHERE id = ?", (uid,))
+        conn.execute("INSERT INTO auth_local_reset_codes(user_id, code_id, code_mac, number_key, created_at, expires_at) VALUES (?, 'x', 'y', 'z', 0, 9e12)", (uid,))
+        conn.execute("UPDATE users SET deleted_at = '2026-10-16T00:00:00Z' WHERE id = ?", (uid,))
+    assert not live()
+
+
+def test_janitor_prunes_dead_codes_and_old_send_rows(rx):
+    import time
+
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    now = time.time()
+    assert lr.janitor(rx.db, now) == 0  # nothing due
+    assert lr.janitor(rx.db, now + lr.CODE_TTL_S + lr.CODE_RETAIN_S + 1) == 1  # the code row, an hour after its expiry
+    assert rx.rows("SELECT * FROM auth_local_reset_codes") == [] and len(rx.rows("SELECT * FROM auth_local_reset_sends")) == 1
+    assert lr.janitor(rx.db, now + lr.DAY_S + 1) == 1  # the send row after its 24-hour window
+    assert rx.rows("SELECT * FROM auth_local_reset_sends") == []
+
+
+def test_backups_never_carry_the_reset_tables(rx):
+    from smplwise.services import backup
+
+    rx.enable()
+    rx.map_account()
+    rx.eligible("maria")
+    rx.request("maria")
+    assert rx.rows("SELECT 1 FROM auth_local_reset_codes") and rx.rows("SELECT 1 FROM auth_local_reset_sends")
+    with rx.db.connection(mode="read") as conn:
+        snap = backup.snapshot(conn, include_access=True, include_audit=True, include_events=True)
+    assert "auth_local_reset_codes" not in snap and "auth_local_reset_sends" not in snap
+    assert {"auth_local_reset_codes", "auth_local_reset_sends"} <= backup.NEVER_EXPORTED_TABLES
+    listed = set(backup.PROJECT_TABLES + backup.ACCESS_TABLES + backup.OPTIONAL_TABLES["audit"] + backup.OPTIONAL_TABLES["events"])
+    assert not listed & backup.NEVER_EXPORTED_TABLES
+
+
+def test_switch_off_behaviour_is_unchanged_and_writes_nothing(rx):
+    rx.map_account()
+    c = rx.remote()
+    assert c.post(REQ, json={"username": "maria"}).json()["code"] == "local_identity_off"
+    assert rx.rows("SELECT 1 FROM auth_local_reset_codes") == [] and rx.rows("SELECT 1 FROM auth_local_reset_sends") == []

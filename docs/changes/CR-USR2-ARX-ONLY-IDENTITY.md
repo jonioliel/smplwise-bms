@@ -198,8 +198,9 @@ on 7ee88ea6 (`tests/test_local_identity.py`, `tests/test_local_identity_units.py
 
 ## 8. Phase 2 (USR2-P2, 2026-10-16) - self-service reset, WhatsApp links, notifications
 
-Branch `pilot/USR2-P2` (cut from `pilot/USR2-FIX` @ f5ea0c2d). **No migration** (the provisional number 0098 stays unused; the
-lead renumbers nothing for this phase). Everything stays behind `security.local_identity` (off by default): the new public routes
+Branch `pilot/USR2-P2` (cut from `pilot/USR2-FIX` @ f5ea0c2d); persistence follow-up `pilot/USR2-P2B` (cut from `pilot/USR2-P2` @
+1b893bb8) with **migration 0102 (provisional number - the lead renumbers at integration)**; see "Persistence (USR2-P2B)" below.
+Everything stays behind `security.local_identity` (off by default): the new public routes
 answer 403 `local_identity_off` while it is off and 404 on the local channel, and nothing else changes with the switch off.
 
 **Owner answer Q5 (final), as built:** both reset modes, chosen per user (`reset_mode`).
@@ -207,7 +208,7 @@ answer 403 `local_identity_off` while it is off and 404 on the local channel, an
 | Item | Built | Where |
 |---|---|---|
 | Self-service "forgot password" | `POST /arx/api/v1/auth/local/reset/request {username}` - **always the same 202** (unknown name, `manager_only`, no password yet, administrator, no verified number, channel down, a cap: alike; the message leaves later on the sender thread, so no answer waits for WhatsApp). `POST /arx/api/v1/auth/local/reset/confirm {username, code, password}` - 200 `{must_enrol}` / uniform 422 `code_invalid` / 400 `password_policy` (only after a correct code; the code stays live) / 429. Success: the password policy of §6.2, `set_by = 'self_service'`, every session and open link of the user ends, the per-network delays of the name and the ceiling counter clear, **no session is created** (the page signs in normally, so the TOTP step still applies). | `services/local_reset.py`, `routers/local_identity.py` |
-| Code rules (as the tickets code engine) | 6 digits (OS random); stored only as HMAC-SHA256(process key, `lr`, code id, user id, **credential fingerprint** (password hash + set_at), **number key**, code) - a password set in between, or a changed number, kills it; 10 minutes; single use (consumed under a lock before the hash); one live code per user; 5 wrong guesses end it; 1 send / 60 s and 5 / day per user, 5 / day per number, 50 / day per installation; per address 5 / min + 20 / h (request) and 10 / min + 40 / h (confirm); the confirm runs in the bounded hashing admission (F3) and hashes only after a correct code. | `services/local_reset.py` |
+| Code rules (as the tickets code engine) | 6 digits (OS random); stored only as HMAC-SHA256(reset key, `lr`, code id, user id, **credential fingerprint** (password hash + set_at), **number key**, code) - a password set in between, or a changed number, kills it; the reset key is HMAC(`k_messaging` file, label), never in the database or a backup (USR2-P2B); 10 minutes; single use (one `UPDATE ... SET consumed = 1 WHERE consumed = 0` in the confirm's write transaction, before the hash; rowcount 1 wins); one live code per user; 5 wrong guesses end it; 1 send / 60 s and 5 / day per user, 5 / day per number, 50 / day per installation; per address 5 / min + 20 / h (request) and 10 / min + 40 / h (confirm); the confirm runs in the bounded hashing admission (F3) and hashes only after a correct code. | `services/local_reset.py` |
 | Administrative user refused at the moment of use (F6) | The eligibility rule (`active`, has a password, `reset_mode = self_service`, **not `holds_admin` now**) runs at the request AND again at the confirm, whatever `reset_mode` says; a custom role that gained `rbac.assign` after the code was sent makes the correct code fail (audited `admin_target`). The live code also ends on disable / delete / switch back to `manager_only`. | `local_reset._refusal` |
 | Verified number | The user's own tickets directory row (`ticket_contacts.user_id`, active, not erased) with `phone_confirmed_at` (TKSTAFF1: confirmed by the user). Where 2.6.3's number verification is merged (`phone_confirmed_via`), only `user` / `code` count (never a manager's mark) and `tickets.phone_verify.confirmed()` must agree. | `local_reset.verified_number` |
 | Delivery | The tickets / NOTIFWA WhatsApp infrastructure through its public functions: a new account use `identity.local` ("איפוס סיסמה וקישורי כניסה של משתמשי Arx", Settings › ערוץ ההודעות; inherits the `tickets.messages` account when not set; shown while the switch is on), the adapter `WhatsAppChannel`, the pacing gate over the shared send ledger (kind `code` / `message`), `notify_whatsapp.transport()`. Fixed code-owned texts in he / en / ar / ru by the contact's language (**ar and ru need a native review**), no username or name, never editable, never held by send hours. A code that ended before its message left is never sent. | `local_reset.Sender`, `TEXTS` |
@@ -231,14 +232,49 @@ New audit actions (ids only; never a code, a number, a token or a typed username
    purposes exist only on `integ/263` (2.6.3), not on this base; adding a purpose to `ticket_outbox` needs a table rebuild (its CHECK)
    that would collide with 2.6.3's single rebuild (0089). Chosen instead: the same WhatsApp infrastructure (account use, adapter,
    pacing, shared ledger, transport) with an in-memory sender - so there is **no outbox row at all** and the code is never stored.
-2. Codes and caps live in memory (no migration): a restart ends every live code (the user asks again - safe direction) and starts
-   the caps afresh (weaker direction; the per-address limits are persisted by the existing limiter). The persistent variant would
-   be migration 0098 (a `auth_local_reset_codes` table like `ticket_phone_verifications`) - a lead / owner decision.
+2. ~~Codes and caps live in memory (no migration).~~ **Superseded by USR2-P2B (owner decision 2026-10-16, option b): codes and caps
+   are persistent** - see "Persistence (USR2-P2B)" below. (The phase-2 build kept them in memory; a restart ended every live code
+   and started the caps afresh.)
 3. The design record's "notification after the 10th failure" fires only when one network really reaches 10 counted failures
    (the per-network delay stops counting while it runs, so a single guesser reaches it after the delays expire); the ceiling
    notification covers the many-network case.
 4. Notification texts follow the catalogue rule "never a person": they do not name the account; the audit row and the Settings tab
    show which one.
+
+**Persistence (USR2-P2B, owner decision 2026-10-16 option b).** The self-service codes and their counters survive an add-on
+restart. Migration **0102 (provisional; the lead renumbers at integration)**, additive:
+
+| Object | What it holds | Notes |
+|---|---|---|
+| `auth_local_reset_codes` | one row per user (PK `user_id`, FK users ON DELETE CASCADE): `code_id`, `code_mac` (the HMAC above), `number_key` (keyed hash of the number), `created_at` / `expires_at` (epoch), `attempts` used, `consumed` (0/1) | a new request replaces the row (attempts / consumed start afresh); the confirm reads, counts a wrong guess (`attempts + 1`, committed with the uniform 422) and consumes with `UPDATE ... WHERE consumed = 0` (rowcount 1 wins; the confirm runs under `BEGIN IMMEDIATE`, so a parallel confirm waits and then finds the row consumed / gone; a failure after it rolls the consumption back) |
+| `auth_local_reset_sends` | one row per code sent: `sent_at`, `user_id` (no FK: a deleted user must not hand the number / installation a fresh budget), `number_key` | the 60 s cooldown and the per-user / per-number / per-installation daily caps are counted from the rows of the last 24 h, inside the request's write transaction |
+| triggers | delete a user's code on a password / set_at / reset_mode change of the credential row (also a sign-in re-hash - the MAC already died with it), on a disable or a (soft / hard) delete of the user; delete every code on any change of the `security.local_identity` row | the services delete explicitly as well (`kill_codes(conn, ...)` in the router's disable / delete / manager_only paths; the settings route on switch-off) |
+
+- **Never stored:** the code, the phone number, the username. The code MAC and the number key use the **reset key** = HMAC(`k_messaging`,
+  label) - the messaging key FILE (`<data>/secrets/messaging_key`, mode 600, never in the database, never in a backup), so a copy of
+  the database alone cannot brute-force a 6-digit code or a phone number. When that file is unreadable a per-process key is used
+  (codes then end with the process - the safe direction; logged without any value). No code / number / username in a log line or
+  an audit row (unchanged; the audit keeps the user id and a 12-hex code id).
+- **Restore on start:** nothing is held in memory any more (every decision reads the rows), so there is nothing to restore; the
+  sender thread's queue is the only memory state - a code whose message had not left before a restart stays valid for its
+  10 minutes but is not re-sent (the user asks again after the cooldown).
+- **Request ordering:** the code row and the send row are committed BEFORE the message job is queued (the sender checks that the very
+  code of the job is still live, from its own connection); a full queue then deletes that code (`busy`). The audit row of an
+  allowed / busy request is written in a second short transaction.
+- **Janitor** (`local_reset.janitor`, from `main.janitor_tick`): code rows 1 h after their expiry (dead ones - consumed, five wrong
+  guesses - included; retention <= 24 h as asked), send rows after their 24-hour window. A read first, so a quiet installation takes
+  no write lock.
+- **Backups:** neither table is a backup table. New `backup.NEVER_EXPORTED_TABLES` (sessions, links, failure tiers, TOTP state, the two
+  reset tables) - the archive stays an allow-list; the set is filtered out of `snapshot` and of the restore's table list, and the module
+  refuses to import if one of them is ever added to `PROJECT_TABLES` / `ACCESS_TABLES` / `OPTIONAL_TABLES`.
+- **Per-address limits** (5 / min + 20 / h request, 10 / min + 40 / h confirm): unchanged - the shared sign-in limiter
+  (`ha_user_auth.LIMITER`), whose counters are already written behind to `block_counters` and restored at start (SEC3 L4). No new table.
+- **Switch off:** behaviour unchanged (the routes refuse first; nothing is written); turning the switch off deletes every code row.
+- Tests (negative first, `tests/test_local_reset.py` section 7): an expired code is not usable after a restart; a consumed code stays
+  consumed; attempts used survive a restart (3 + 2 = dead); the cooldown and the three daily caps survive a restart; a live code
+  survives a restart and is usable exactly once; four concurrent confirms consume the code exactly once; no plain code / number /
+  username in the rows or in the raw database files (db, -wal / -shm when present); every kill path deletes the row (including a direct
+  write behind the routes' back); the janitor retention; backups exclude both tables; the switch off writes nothing.
 
 **NOT_VERIFIED (phase 2):** WhatsApp delivery of a code / a link to a real phone through the real `ha-whatsapp` (fakes only); ar / ru
 texts (native review); the mapping UI of the new account use on a real installation; link previews of WhatsApp clients (the token is

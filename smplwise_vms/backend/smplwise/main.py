@@ -139,6 +139,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         local_identity_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("local identity janitor failed", exc_info=True)
+    try:  # USR2-P2B: self-service reset code rows an hour past expiry, send-counter rows past 24 h
+        from .services import local_reset as local_reset_svc
+
+        local_reset_svc.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("local reset janitor failed", exc_info=True)
     try:
         from .services import alarm_codes as alarm_codes_svc
 

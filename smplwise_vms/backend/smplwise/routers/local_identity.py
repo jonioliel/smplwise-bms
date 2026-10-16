@@ -559,7 +559,7 @@ def _end_access(conn: sqlite3.Connection, user_id: str, reason: str) -> dict[str
     ended = li.revoke_user_sessions(conn, user_id, reason)
     links = li.invalidate_links(conn, user_id)
     li.drop_pending_of(user_id)
-    lr.kill_codes(user_id)  # a live self-service code ends too (the confirm would refuse it anyway)
+    lr.kill_codes(conn, user_id)  # a live self-service code ends too (the confirm would refuse it anyway; a trigger deletes it as well)
     tokens = presence.revoke_tokens(conn, user_id)
     revocation.mark([user_id])
     return {"sessions_ended": ended, "links_invalidated": links, "device_tokens_revoked": tokens}
@@ -593,7 +593,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
         conn.execute("UPDATE auth_local_credentials SET reset_mode = ?, updated_at = ? WHERE user_id = ?", (fields["reset_mode"], now_iso(), user_id))
         changed["reset_mode"] = fields["reset_mode"]
         if fields["reset_mode"] == "manager_only":
-            lr.kill_codes(user_id)
+            lr.kill_codes(conn, user_id)
     suggest: str | None = None
     if fields.get("active") is not None and bool(fields["active"]) != bool(row["active"]):
         if not fields["active"]:
