@@ -14,12 +14,12 @@ import { ct, type CostTextKey } from './cost-text';
 import { cIcon } from './cost-icons';
 import { ticketsLang } from './text';
 import { onTicketNames } from './naming';
-import { editorKinds, quoteBodyOf, quoteFormProblem, workWindowProblem, type OnBehalfTarget, type QuoteForm } from './quote-model';
+import { editorKinds, quoteBodyOf, quoteFormProblem, validUntilProblem, workWindowProblem, type OnBehalfTarget, type QuoteForm } from './quote-model';
 import { qt, type QuoteTextKey } from './quote-text';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { costCardStyles, costDialogStyles } from './cost-styles';
 
-const PROBLEM_TEXT: Record<string, QuoteTextKey> = { lines: 'obLinesRequired', kind: 'obLinesRequired', work_format: 'obWorkFormat', work_range: 'obWorkRange', work_order: 'obWorkOrder' };
+const PROBLEM_TEXT: Record<string, QuoteTextKey> = { lines: 'obLinesRequired', kind: 'obLinesRequired', work_format: 'obWorkFormat', work_range: 'obWorkRange', work_order: 'obWorkOrder', valid_format: 'obValidFormat', valid_range: 'obValidRange' };
 
 /**
  * TKUI3B `<ticket-quote-form .ticketId .costs .target>`: the dialog of a quote a manager enters ON THE VENDOR'S BEHALF (contract v1.4
@@ -29,7 +29,7 @@ const PROBLEM_TEXT: Record<string, QuoteTextKey> = { lines: 'obLinesRequired', k
  *   - the amounts are with or without VAT (an exempt vendor's quote has none whatever is picked); the work window is optional;
  *   - it says plainly, before saving, that the quote is recorded as entered by the manager and that the same person cannot approve it
  *     (server rule, 409 `self_approval`);
- *   - there is no valid-until field: the backend has none (QuoteBody is `extra: forbid`).
+ *   - TKQVALID: an optional "תוקף ההצעה" date (the end of that day is sent by the model; the server allows one day back to a year ahead).
  * Events (bubble, composed): `quote-entered` {answer} after the server accepted it, `quote-form-close` when it is closed without saving.
  */
 @customElement('ticket-quote-form')
@@ -67,6 +67,7 @@ export class TicketQuoteForm extends LitElement {
       include: false,
       from: '',
       to: '',
+      validUntil: '',
       note: '',
       lines: [blankLine('labor', claim?.labor_rate_minor)],
     };
@@ -100,7 +101,7 @@ export class TicketQuoteForm extends LitElement {
     const allowed = d.allowed_line_kinds?.kinds;
     const problem = quoteFormProblem(f, allowed);
     if (problem) {
-      if (!problem.startsWith('work_')) this.err = qt(PROBLEM_TEXT[problem]); // a work-window problem is shown at its fields
+      if (!problem.startsWith('work_') && !problem.startsWith('valid_')) this.err = qt(PROBLEM_TEXT[problem]); // a work-window problem is shown at its fields
       return;
     }
     this.busy = true;
@@ -155,6 +156,8 @@ export class TicketQuoteForm extends LitElement {
     const v = (n: number | undefined) => (t && n !== undefined ? this.money(n, f.currency) : '—');
     const wp = this.tried ? workWindowProblem(f.from, f.to) : '';
     const workBad = wp ? qt(PROBLEM_TEXT[`work_${wp}`]) : '';
+    const vp = this.tried ? validUntilProblem(f.validUntil) : '';
+    const validBad = vp ? qt(PROBLEM_TEXT[`valid_${vp}`]) : '';
     return html`<sw-dialog open wide heading=${qt('obTitle')} data-dialog="quote-on-behalf" @close=${this.close}>
       <div class="form">
         <div class="banner info" role="note" data-ob-notice>${cIcon('lock')}<div>${bidi(qt('obNotice', { vendor: target.name }))}</div></div>
@@ -177,6 +180,8 @@ export class TicketQuoteForm extends LitElement {
           <label class="fld"><span>${qt('obWorkTo')}</span><input class="inp" type="datetime-local" dir="ltr" data-ob-work-to aria-invalid=${String(!!workBad)} .value=${f.to} @input=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })} /></label>
         </div>
         ${workBad ? html`<span class="err" data-ob-work-error>${workBad}</span>` : html`<span class="muted" data-ob-work-hint>${qt('obWorkHint')}</span>`}
+        <label class="fld"><span>${qt('obValidUntil')}</span><input class="inp" type="date" dir="ltr" data-ob-valid-until aria-invalid=${String(!!validBad)} .value=${f.validUntil} @input=${(e: Event) => this.set({ validUntil: (e.target as HTMLInputElement).value })} /></label>
+        ${validBad ? html`<span class="err" data-ob-valid-error>${validBad}</span>` : html`<span class="muted" data-ob-valid-hint>${qt('obValidHint')}</span>`}
         <label class="fld"><span>${qt('quoteNote')}</span><textarea class="inp" maxlength="1000" data-ob-note .value=${f.note} @input=${(e: Event) => this.set({ note: (e.target as HTMLTextAreaElement).value })}></textarea></label>
         ${this.err ? html`<div class="err" role="alert" data-ob-error>${this.err}</div>` : nothing}
       </div>

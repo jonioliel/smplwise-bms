@@ -7,7 +7,8 @@ import type { ExternalAssignment } from '../src/api/tickets-costs';
 import type { Quote } from '../src/api/tickets-quotes';
 import { canChangeOwner, ownerChoices, ownerPlan, ownerView, type OwnerTicket } from '../src/tickets/owner-model';
 import {
-  editorKinds, enteredByViewer, onBehalfTarget, quoteBodyOf, quoteFormProblem, workWindowProblem, type QuoteForm,
+  approvalNeedsExpiredConfirm, editorKinds, enteredByViewer, isQuoteExpired, onBehalfTarget, quoteBodyOf, quoteFormProblem, validDayText, validUntilIso,
+  validUntilProblem, workWindowProblem, type QuoteForm,
 } from '../src/tickets/quote-model';
 import { blankLine } from '../src/tickets/cost-model';
 import { DRAWER_TEXT_EN_KEYS, DRAWER_TEXT_KEYS, drawerTemplate } from '../src/tickets/drawer-text';
@@ -111,7 +112,7 @@ test('the person who entered a quote for the vendor is recognised (they cannot a
 // ---------------------------------------------------------------- the form
 
 const form = (over: Partial<QuoteForm> = {}): QuoteForm => ({
-  assignment: 'a-v', currency: 'ILS', include: false, from: '', to: '', note: '', lines: [{ ...blankLine('labor'), hours: '2', rate: '200' }], ...over,
+  assignment: 'a-v', currency: 'ILS', include: false, from: '', to: '', validUntil: '', note: '', lines: [{ ...blankLine('labor'), hours: '2', rate: '200' }], ...over,
 });
 
 test('labour is always an allowed kind and the order is canonical', () => {
@@ -143,7 +144,7 @@ test('the form is valid with one valid line of an allowed kind; an invalid or di
   expect(quoteFormProblem(form({ from: '2026-01-01T10:00' }), ['labor'], NOW)).toBe('work_range');
 });
 
-test('the body: decimal strings, UTC instants, empty optionals left out, the currency only when there is a choice, never a valid-until', () => {
+test('the body: decimal strings, UTC instants, empty optionals left out, the currency only when there is a choice, a valid-until only when given (the end of its day)', () => {
   const body = quoteBodyOf(form({ note: '  המדחס במלאי  ', include: true, from: '2026-10-17T08:00', to: '2026-10-17T12:00' }), { multiCurrency: false });
   expect(body).toEqual({
     assignment_id: 'a-v', lines: [{ kind: 'labor', hours: '2', rate: '200' }], amounts_include_vat: true, note: 'המדחס במלאי',
@@ -153,6 +154,56 @@ test('the body: decimal strings, UTC instants, empty optionals left out, the cur
   const plain = quoteBodyOf(form(), { multiCurrency: true });
   expect(plain).toEqual({ assignment_id: 'a-v', lines: [{ kind: 'labor', hours: '2', rate: '200' }], currency: 'ILS', amounts_include_vat: false });
   expect(JSON.stringify(plain)).not.toMatch(/valid|until|expires/);
+  const withValid = quoteBodyOf(form({ validUntil: '2026-11-05' }), { multiCurrency: false });
+  expect(withValid.valid_until).toBe(new Date(2026, 10, 5, 23, 59, 59).toISOString().replace(/\.\d+Z$/, 'Z'));
+});
+
+// ---------------------------------------------------------------- TKQVALID: the validity
+
+test('validity: optional, a real day, from one day back to 366 days ahead (negative cases first)', () => {
+  expect(validUntilProblem('', NOW)).toBe('');
+  for (const bad of ['x', '2026-13-01', '2026-02-30', '16/10/2026', '2026-10-1', '2026-10-16T10:00']) expect(validUntilProblem(bad, NOW), bad).toBe('format');
+  expect(validUntilProblem('2026-10-10', NOW)).toBe('range'); // the end of that day is earlier than yesterday
+  expect(validUntilProblem('2028-01-01', NOW)).toBe('range');
+  expect(validUntilProblem('2027-10-18', NOW)).toBe('range'); // beyond 366 days
+  expect(validUntilProblem('2026-10-15', NOW)).toBe(''); // yesterday: a just-lapsed quote can still be entered
+  expect(validUntilProblem('2026-12-31', NOW)).toBe('');
+  expect(validUntilIso('2026-02-30')).toBe('');
+  expect(quoteFormProblem(form({ validUntil: '2028-01-01' }), ['labor'], NOW)).toBe('valid_range');
+  expect(quoteFormProblem(form({ validUntil: 'zzz' }), ['labor'], NOW)).toBe('valid_format');
+  expect(quoteFormProblem(form({ validUntil: '2026-11-01' }), ['labor'], NOW)).toBe('');
+  expect(quoteFormProblem(form({ from: '2026-01-01T10:00', validUntil: '2028-01-01' }), ['labor'], NOW)).toBe('work_range'); // the work window is checked first
+});
+
+test('expired: only a passed instant; an approval of a pending expired quote needs the explicit confirmation, a rejection never does', () => {
+  expect(isQuoteExpired(undefined, NOW)).toBe(false);
+  expect(isQuoteExpired({ valid_until: null }, NOW)).toBe(false);
+  expect(isQuoteExpired({ valid_until: 'garbage' }, NOW)).toBe(false);
+  expect(isQuoteExpired({ valid_until: '2026-10-16T09:59:59Z' }, NOW)).toBe(true);
+  expect(isQuoteExpired({ valid_until: '2026-10-16T10:00:01Z' }, NOW)).toBe(false);
+  const old = { state: 'submitted' as const, valid_until: '2026-10-14T20:59:59Z' };
+  expect(approvalNeedsExpiredConfirm(old, 'approve', NOW)).toBe(true);
+  expect(approvalNeedsExpiredConfirm(old, 'partial', NOW)).toBe(true);
+  expect(approvalNeedsExpiredConfirm(old, 'reject', NOW)).toBe(false);
+  expect(approvalNeedsExpiredConfirm(old, 'fix', NOW)).toBe(false);
+  expect(approvalNeedsExpiredConfirm({ ...old, state: 'approved' }, 'approve', NOW)).toBe(false);
+  expect(approvalNeedsExpiredConfirm({ state: 'submitted', valid_until: null }, 'approve', NOW)).toBe(false);
+  expect(validDayText('2026-10-14T12:00:00Z')).toMatch(/^\d{2}\/\d{2}\/2026$/);
+  expect(validDayText(null)).toBe('');
+  expect(validDayText('nope')).toBe('');
+});
+
+test('demo: the store keeps the validity and refuses a bad one (422)', async () => {
+  const id = 'demo-qvalid-1';
+  demoCostBlock(id, 1043, 'in_progress');
+  const lines = [{ kind: 'labor' as const, hours: '2', rate: '200' }];
+  await expect(mockQuotes.onBehalf(id, { lines, valid_until: 'not a date' })).rejects.toMatchObject({ status: 422 });
+  await expect(mockQuotes.onBehalf(id, { lines, valid_until: new Date(Date.now() - 5 * 86_400_000).toISOString() })).rejects.toMatchObject({ status: 422 });
+  await expect(mockQuotes.onBehalf(id, { lines, valid_until: new Date(Date.now() + 400 * 86_400_000).toISOString() })).rejects.toMatchObject({ status: 422 });
+  const ok = await mockQuotes.onBehalf(id, { lines, valid_until: new Date(Date.now() + 5 * 86_400_000).toISOString() });
+  expect(ok.quotes.at(-1)!.valid_until).toBeTruthy();
+  const plain = await mockQuotes.onBehalf(id, { lines });
+  expect(plain.quotes.at(-1)!.valid_until).toBeNull();
 });
 
 // ---------------------------------------------------------------- the demo store (no backend)
@@ -190,7 +241,7 @@ test('the new texts exist in Hebrew and English, the owner texts carry no hard-c
   expect(quoteTemplate('obNotice', 'en')).toMatch(/another person has to approve/);
 });
 
-test('static guard: the quote dialog opens only through onBehalfTarget; the owner API and the owner picker use the one assignee list; no valid-until anywhere', () => {
+test('static guard: the quote dialog opens only through onBehalfTarget; the owner API and the owner picker use the one assignee list; the validity goes through the model only (TKQVALID)', () => {
   const read = (f: string) => readFileSync(path.join(SRC, f), 'utf8');
   const tab = read('tickets/costs-tab.ts');
   expect(tab).toContain('onBehalfTarget(');
@@ -200,5 +251,9 @@ test('static guard: the quote dialog opens only through onBehalfTarget; the owne
   expect(detail).toContain("ticketsApi().assignees(t.department?.id ?? '', t.id).then((r) => { this.eligible = handlersOf(r); })");
   expect(detail).toContain('ownerChoices(');
   expect(read('api/tickets-owner.ts')).not.toMatch(/candidates\.map|\.candidates/);
-  for (const f of ['tickets/quote-form.ts', 'tickets/quote-model.ts', 'api/tickets-quotes.ts']) expect(read(f), f).not.toMatch(/valid_until|validUntil/);
+  // TKQVALID: the dialog never builds the wire field itself - the model's quoteBodyOf does; the API type carries it; the tab asks before an expired approval
+  expect(read('tickets/quote-form.ts')).not.toMatch(/valid_until/);
+  expect(read('tickets/quote-model.ts')).toContain('validUntilIso(');
+  expect(read('api/tickets-quotes.ts')).toMatch(/valid_until\?: string/);
+  expect(tab).toContain('confirm_expired');
 });

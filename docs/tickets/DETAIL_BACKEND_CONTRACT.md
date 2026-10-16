@@ -1,6 +1,6 @@
 # Service-request detail - backend contract (TKDETAILBE)
 
-Status: **v1.4 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
+Status: **v1.5 (stable)** - 2026-10-16 (v1.5 = TKQVALID, section 12). Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
 in the hand-off report. Source decisions: `private/planning/_mockups/ticket-detail-v3/DECISIONS.md` (owner, 15.10 and 15.10 evening)
 and `RFQ_SPEC_DRAFT.md` sections 1, 2, 5, 9. Backend only: no UI is part of this change.
 
@@ -102,6 +102,7 @@ kind: a line outside its baseline is an exceptional line (5.3).
 | `lines_json` | the validated lines (money.Line.as_json, each with `kind`, `description`, `total_minor` and its inputs) |
 | `labor_minor`, `parts_minor`, `travel_minor`, `other_minor`, `subtotal_minor`, `vat_minor`, `total_minor` | server-computed integers (minor units) |
 | `work_from`, `work_to` | the proposed work window (UTC instants), optional; `work_to >= work_from` |
+| `valid_until` | v1.5 (TKQVALID): the quote's validity, a UTC instant, optional. Column added by 0089 (RFQ) - exists on every row, no new migration. Rule: an ISO instant, or a plain date (= 23:59:59 UTC of that day); not in the past by more than a day, at most 366 days ahead (same family as the work window; NOT strictly future, so a just-lapsed quote can be entered). 422 `format` / `range` / `type`, field `valid_until` |
 | `note` (<= 1000), `vendor_ref` (<= 40) | |
 | `approved_lines_json` | JSON array of line indexes (0-based) approved; NULL until approved |
 | `approved_subtotal_minor`, `approved_vat_minor`, `approved_total_minor` | the approved part, same VAT mode / rate |
@@ -151,8 +152,8 @@ unchanged and the vendor may set it), else null.
 | Route | Who | Body / answer |
 |---|---|---|
 | `GET /tickets/{id}/quotes` | visible | `{flow, allowed_line_kinds, quote_mode, quotes: [...], baseline}`; amounts / lines / note only with `tickets.costs.view` (full view), else `{id, version, state, source, created_at}` per quote |
-| `POST /tickets/{id}/quotes` | `tickets.costs` + `tickets.costs.view` | on the vendor's behalf: `{assignment_id?, lines[], currency?, amounts_include_vat?, work_from?, work_to?, note?, vendor_ref?}` -> 201, the quotes answer |
-| `POST /tickets/{id}/quotes/{quote_id}/approve` | `tickets.costs` + `tickets.costs.view` | `{revision, line_indexes?: [int], internal_note?}` (omitted = all) -> `{quotes..., message_draft}`; 409 `demand_pending` while a payment demand of the assignment is submitted / approved / paid (v1.4) |
+| `POST /tickets/{id}/quotes` | `tickets.costs` + `tickets.costs.view` | on the vendor's behalf: `{assignment_id?, lines[], currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note?, vendor_ref?}` -> 201, the quotes answer (v1.5: `valid_until`) |
+| `POST /tickets/{id}/quotes/{quote_id}/approve` | `tickets.costs` + `tickets.costs.view` | `{revision, line_indexes?: [int], internal_note?, confirm_expired?: bool}` (omitted = all) -> `{quotes..., message_draft}`; 409 `demand_pending` while a payment demand of the assignment is submitted / approved / paid (v1.4); v1.5: 409 `quote_expired` (details `valid_until`) when the quote is past its `valid_until` and `confirm_expired` is not `true` - the client asks the approver and resends; request-fix / reject never need it |
 | `POST /tickets/{id}/quotes/{quote_id}/request-fix` | same | `{revision, reason, internal_note?}` -> `{..., message_draft}` |
 | `POST /tickets/{id}/quotes/{quote_id}/reject` | same | `{revision, reason, internal_note?}` -> `{..., message_draft}` |
 | `POST /tickets/{id}/quotes/requirement` | manager of the ticket | `{assignment_id, mode: required|optional|off}` |
@@ -174,7 +175,7 @@ Quote answer (full):
  "lines": [{"index": 0, "kind": "labor", "description": "", "hours": "2", "rate_minor": 15000, "total_minor": 30000, "approved": true}],
  "labor_minor": 30000, "parts_minor": 0, "travel_minor": 0, "other_minor": 0, "subtotal_minor": 30000, "vat_minor": 5400, "total_minor": 35400,
  "approved": {"line_indexes": [0], "subtotal_minor": 30000, "vat_minor": 5400, "total_minor": 35400} ,
- "work_from": null, "work_to": null, "note": null, "vendor_ref": null, "created_at": "...", "created_by_name": "",
+ "work_from": null, "work_to": null, "valid_until": null, "note": null, "vendor_ref": null, "created_at": "...", "created_by_name": "",
  "decision": {"by": "Dana", "at": "...", "reason": null, "internal_note": null}, "revision": 3, "can": {"decide": true}}
 ```
 
@@ -185,11 +186,11 @@ Quote answer (full):
 | Route | Body / answer |
 |---|---|
 | `GET /t/api/quote` | the 2.5.7 (TK257) answer, unchanged for the built vendor card: `state` (`none`/`submitted`/`approved`/`rejected`), `enabled`, `writable`, `allowed_kinds`, `currency`, `quote` (the one that counts: the approved one, else the newest live one) and `form` (`currencies`, `vat`, `labor_rate_minor`, `limits.{lines, description, notes, max_total_minor}`). Added: `state_detail` (this design's exact state), `mode`, `quotes` (every version), `form.allowed_kinds`, `form.limits.{note, vendor_ref}` |
-| `POST /t/api/quote` | `{lines[], currency?, amounts_include_vat?, work_from?, work_to?, note? or notes?, vendor_ref?, client_request_id}` -> 201 `{ok, quote}`; refusals as in 2.5.7: 409 `quote_closed` (the precise reason in `reason`: `quote_not_open`, `quote_off`, `quote_already_approved`), 422 `invalid` with `fields` (`kind_not_allowed` for a line kind the request does not allow) |
+| `POST /t/api/quote` | `{lines[], currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note? or notes?, vendor_ref?, client_request_id}` -> 201 `{ok, quote}`; refusals as in 2.5.7: 409 `quote_closed` (the precise reason in `reason`: `quote_not_open`, `quote_off`, `quote_already_approved`), 422 `invalid` with `fields` (`kind_not_allowed` for a line kind the request does not allow) |
 
 A vendor-side quote (`quote` / `quotes[]`) has the 2.5.7 fields `id`, `seq`, `state` (2.5.7 vocabulary), `lines`, `labor_minor` ...
 `total_minor`, `net_minor`, `vat_mode`, `vat_rate_bp`, `currency`, `notes`, `created_at`, `reason` (when `state` is `rejected`), and
-adds `version`, `state_detail`, `work_from`, `work_to`, `approved` (`{line_indexes, partial, subtotal_minor, vat_minor, total_minor}`)
+adds `version`, `state_detail`, `work_from`, `work_to`, `valid_until` (v1.5: ONLY the link's own quotes, never another vendor's), `approved` (`{line_indexes, partial, subtotal_minor, vat_minor, total_minor}`)
 and per line `index` / `approved`, and (v1.4) `on_behalf` (true for a version the organisation entered; never who). Mapping: `fix_requested` and `rejected` -> `rejected` (both let the vendor send a new version);
 `approved` and `partially_approved` -> `approved`. The card is hidden (`enabled: false`) when the assignment's cost mode is `off` or
 its quote mode is `off`. Nothing the built card reads changed; it can show a partial approval from `quote.approved.partial`.
@@ -350,6 +351,11 @@ rows keep their totals (11A.12: a payment record; TK258's bulk "mark paid" relie
 
 ## 12. Change log of this contract
 
+* v1.5 (2026-10-16, TKQVALID): `valid_until` end to end for ticket quotes. `POST /tickets/{id}/quotes` and `POST /t/api/quote` accept it
+  (4.1 rule; no migration - the column is 0089's); the manager's quote answer (full view, `tickets.costs.view`) and the vendor's own
+  `GET /t/api/quote` carry it; a limited viewer never gets it; `POST .../approve` takes `confirm_expired` and answers 409 `quote_expired`
+  without it for a quote past its validity (request-fix / reject are not gated). Staff assignments still take no quote, so no validity.
+  The public vendor card displays it; its form does not yet send it (gap, listed in the hand-off).
 * v1.4 (2026-10-16, TKFIX260 - the release 2.6.0 reviews): `costs.notify_vendor_approved` removed (approvals never send); decision
   `internal_note` apart from the vendor-facing `reason`; quote audit rows without amounts; W2 re-read + progress on the public quote /
   claim writes; `on_behalf` on the vendor's quotes; staff assignments have no quote stage / mode / decision; 409 `demand_pending`;
