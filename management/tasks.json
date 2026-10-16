@@ -10981,5 +10981,785 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKUI1",
+    "title": "Service management 2.6.3: the request drawer (side sheet / full screen) with the overview tab and status sentence",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: the request drawer (side sheet / full screen) with the overview tab and status sentence; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R339"
+    ],
+    "test_ids": [
+      "AT355"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKUI1-drawer",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKUI1-drawer @ 8740b0ce. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKUI2",
+    "title": "Service management 2.6.3: conversation and history tabs of the drawer",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: conversation and history tabs of the drawer; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R340"
+    ],
+    "test_ids": [
+      "AT356"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKUI2-conversation",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKUI2-conversation @ 453d800c. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKUI3",
+    "title": "Service management 2.6.3: costs tab, quote decisions, quote on the vendor's behalf, owner change (TKUI3, TKUI3B, TKLAYFIX)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: costs tab, quote decisions, quote on the vendor's behalf, owner change (TKUI3, TKUI3B, TKLAYFIX); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R341"
+    ],
+    "test_ids": [
+      "AT357"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKUI3-costs, pilot/TKUI3B, pilot/TKLAYFIX",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKUI3-costs, pilot/TKUI3B, pilot/TKLAYFIX @ 58b61ee9 (TKUI3B), 08313b68 (TKLAYFIX). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKUI4",
+    "title": "Service management 2.6.3: request list in list / table / board views with the running clock",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: request list in list / table / board views with the running clock; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R342"
+    ],
+    "test_ids": [
+      "AT358"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKUI4-lists",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKUI4-lists @ 5dcfc965. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKCAL",
+    "title": "Service management 2.6.3: weekly calendar of visits and time targets",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: weekly calendar of visits and time targets; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R343"
+    ],
+    "test_ids": [
+      "AT359"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKCAL",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKCAL @ SHA not recorded in the integration notes. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKUI5",
+    "title": "Service management 2.6.3: redesigned vendor page",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: redesigned vendor page; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R344"
+    ],
+    "test_ids": [
+      "AT360"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKUI5-public-page",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKUI5-public-page @ 74860757. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKUI6",
+    "title": "Service management 2.6.3: handlers page and settings; the display tab places the drawer rows",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: handlers page and settings; the display tab places the drawer rows; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R345"
+    ],
+    "test_ids": [
+      "AT361"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKUI6",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKUI6 @ 51deae71. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKUI7",
+    "title": "Service management 2.6.3: service module on the shared design tokens",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: service module on the shared design tokens; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R346"
+    ],
+    "test_ids": [
+      "AT362"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on TKUI7 commit 4bf7aea2 (on integ/260)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): TKUI7 commit 4bf7aea2 (on integ/260) @ 4bf7aea2. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKDETAILBE",
+    "title": "Service management 2.6.3: request detail backend - internal owner, allowed line kinds, quotes v2 (migration 0088)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: request detail backend - internal owner, allowed line kinds, quotes v2 (migration 0088); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R347"
+    ],
+    "test_ids": [
+      "AT363"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKDETAILBE-backend",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKDETAILBE-backend @ 558815de. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX260",
+    "title": "Service management 2.6.3: approvals never send by themselves, internal note, assign dialog with internal note and vendor message (TKFIX260, TKASSIGNDLG)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: approvals never send by themselves, internal note, assign dialog with internal note and vendor message (TKFIX260, TKASSIGNDLG); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R348"
+    ],
+    "test_ids": [
+      "AT364"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKFIX260, TKASSIGNDLG",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKFIX260, TKASSIGNDLG @ b6627259 (TKFIX260), 5072c614 (TKASSIGNDLG). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKRFQ1",
+    "title": "Service management 2.6.3: requests for quotation backend (migration 0089)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: requests for quotation backend (migration 0089); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R349"
+    ],
+    "test_ids": [
+      "AT365"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKRFQVP (TKRFQ1 part)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKRFQVP (TKRFQ1 part) @ 5c7dd305. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKRFQ2",
+    "title": "Service management 2.6.3: requests for quotation manager screens (list, new request, vendor board, comparison, award)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: requests for quotation manager screens (list, new request, vendor board, comparison, award); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R350"
+    ],
+    "test_ids": [
+      "AT366"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKRFQVP (TKRFQ2 part)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKRFQVP (TKRFQ2 part) @ 5c7dd305. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKRFQ3",
+    "title": "Service management 2.6.3: public vendor quote page and per-vendor verification-code switch",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: public vendor quote page and per-vendor verification-code switch; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R351"
+    ],
+    "test_ids": [
+      "AT367"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKRFQVP (public page part)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKRFQVP (public page part) @ 5c7dd305. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKMAP1",
+    "title": "Service management 2.6.3: map element on a request (migration 0090)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: map element on a request (migration 0090); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R352"
+    ],
+    "test_ids": [
+      "AT368"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKMAP1 (+ TKMAPFIX, TKMAPSPEC)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKMAP1 (+ TKMAPFIX, TKMAPSPEC) @ 0a5386a3. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKNOTIFOTP",
+    "title": "Service management 2.6.3: optional WhatsApp number verification by a one-time code (migration 0091)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: optional WhatsApp number verification by a one-time code (migration 0091); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R353"
+    ],
+    "test_ids": [
+      "AT369"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKNOTIFOTP",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKNOTIFOTP @ a7582add. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKSECRETS",
+    "title": "Arx 2.6.3: secrets moved from add-on options to Settings > Connections > Secrets (migration 0093)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx 2.6.3: secrets moved from add-on options to Settings > Connections > Secrets (migration 0093); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R354"
+    ],
+    "test_ids": [
+      "AT370"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKSECRETS1, pilot/TKSECRETS2",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKSECRETS1, pilot/TKSECRETS2 @ efd60996, 48e41cd2. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKTPLMIG",
+    "title": "Service management 2.6.3: removal of the numeric quick-reply line from saved message templates (migration 0092)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.6.3: removal of the numeric quick-reply line from saved message templates (migration 0092); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R355"
+    ],
+    "test_ids": [
+      "AT371"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKTPLMIG (migration and its test only)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKTPLMIG (migration and its test only) @ e5924bb8 (merged as cdb6f80a, migration and test only). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKFRIGLIVE",
+    "title": "Frigate 2.6.3: live video through Frigate's restream, events polling, NVR system card fix",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Frigate 2.6.3: live video through Frigate's restream, events polling, NVR system card fix; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R356"
+    ],
+    "test_ids": [
+      "AT372"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKFRIGLIVE",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKFRIGLIVE @ 1caa4939. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKWIZHINT",
+    "title": "Setup wizard 2.6.3: optional steps and a persistent per-user hint dismissal",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Setup wizard 2.6.3: optional steps and a persistent per-user hint dismissal; fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R357"
+    ],
+    "test_ids": [
+      "AT373"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKWIZHINT",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): pilot/TKWIZHINT @ 9e1d34a0. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX263",
+    "title": "Arx 2.6.3 release: combined service-management redesign, requests for quotation, map element, number verification, secrets, Frigate live video (integ/263)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx 2.6.3 release: combined service-management redesign, requests for quotation, map element, number verification, secrets, Frigate live video (integ/263); fakes only (integ/263)."
+    ],
+    "requirement_ids": [
+      "R358"
+    ],
+    "test_ids": [
+      "AT374"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on integ/263",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/263): integ/263 @ 61f79e28 (UI bundles rebuilt on the runner). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

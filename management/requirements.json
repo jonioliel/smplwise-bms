@@ -6419,5 +6419,325 @@
     "test_ids": [
       "AT354"
     ]
+  },
+  {
+    "id": "R339",
+    "title": "Service management 2.6.3: the request drawer (side sheet / full screen) with the overview tab and status sentence",
+    "statement": "A request opens in a side drawer (or full screen) with an overview tab, a one-sentence status per state and role, and the rows the display settings choose.",
+    "task_ids": [
+      "TKUI1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT355"
+    ]
+  },
+  {
+    "id": "R340",
+    "title": "Service management 2.6.3: conversation and history tabs of the drawer",
+    "statement": "The drawer has a conversation tab (vendor thread, internal notes, message drafts) and a history tab (full timeline with filters, files, audit card).",
+    "task_ids": [
+      "TKUI2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT356"
+    ]
+  },
+  {
+    "id": "R341",
+    "title": "Service management 2.6.3: costs tab, quote decisions, quote on the vendor's behalf, owner change (TKUI3, TKUI3B, TKLAYFIX)",
+    "statement": "The costs tab shows each vendor quote with versions and lets the manager approve all or some lines, send back for a correction (reason shown to the vendor, separate internal note) or reject; the manager can enter a quote on the vendor's behalf (not self-approvable); the approved quote is the cost baseline of the payment demand; the internal owner can be changed from the drawer; a closed fold takes no space.",
+    "task_ids": [
+      "TKUI3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT357"
+    ]
+  },
+  {
+    "id": "R342",
+    "title": "Service management 2.6.3: request list in list / table / board views with the running clock",
+    "statement": "The request list offers cards, table and manager board with a running clock per request (frozen as total handling time once closed), a filter row and saved table views.",
+    "task_ids": [
+      "TKUI4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT358"
+    ]
+  },
+  {
+    "id": "R343",
+    "title": "Service management 2.6.3: weekly calendar of visits and time targets",
+    "statement": "A weekly calendar view lists visits and time targets (acknowledgement, no-update, completion), with week and day navigation and an undated-requests count.",
+    "task_ids": [
+      "TKCAL"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT359"
+    ]
+  },
+  {
+    "id": "R344",
+    "title": "Service management 2.6.3: redesigned vendor page",
+    "statement": "The no-login vendor page is redesigned (quote / payment-demand card, theme, \"entered by the manager\" marker) without exposing internal data.",
+    "task_ids": [
+      "TKUI5"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT360"
+    ]
+  },
+  {
+    "id": "R345",
+    "title": "Service management 2.6.3: handlers page and settings; the display tab places the drawer rows",
+    "statement": "The settings display tab decides which rows the request drawer shows; the handlers page and its settings follow the new design.",
+    "task_ids": [
+      "TKUI6"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT361"
+    ]
+  },
+  {
+    "id": "R346",
+    "title": "Service management 2.6.3: service module on the shared design tokens",
+    "statement": "The whole service module draws from the shared design tokens and keeps its layout at phone width.",
+    "task_ids": [
+      "TKUI7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT362"
+    ]
+  },
+  {
+    "id": "R347",
+    "title": "Service management 2.6.3: request detail backend - internal owner, allowed line kinds, quotes v2 (migration 0088)",
+    "statement": "The backend stores an internal owner with history, allowed line kinds (request, then department, then installation), versioned quotes with partial approval and decisions, and the approved quote as claim baseline; migration 0088 replaces the 2.5.7 quote table after copying it.",
+    "task_ids": [
+      "TKDETAILBE"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT363"
+    ]
+  },
+  {
+    "id": "R348",
+    "title": "Service management 2.6.3: approvals never send by themselves, internal note, assign dialog with internal note and vendor message (TKFIX260, TKASSIGNDLG)",
+    "statement": "Approving a quote or payment demand never sends a message (a \"send a message to the vendor?\" dialog follows, default not sending); the old auto-notify switch is removed; the assign dialog has an internal note and a separate vendor message; several vendor messages within 10 minutes raise one update notification.",
+    "task_ids": [
+      "TKFIX260"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT364"
+    ]
+  },
+  {
+    "id": "R349",
+    "title": "Service management 2.6.3: requests for quotation backend (migration 0089)",
+    "statement": "One request can be sent to several vendors with no commitment: per-vendor personal links, quotes with update / withdraw / decline / question, comparison, award (all or some lines, optional second approval), the award as approved cost baseline; RFQ messages carry no amount or free text; migration 0089 is the single outbound-table rebuild of the release.",
+    "task_ids": [
+      "TKRFQ1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT365"
+    ]
+  },
+  {
+    "id": "R350",
+    "title": "Service management 2.6.3: requests for quotation manager screens (list, new request, vendor board, comparison, award)",
+    "statement": "Managers create a request for quotation, pick vendors and channels, preview the message, track vendor states, compare quotes and award; no message is sent without the manager's confirmation.",
+    "task_ids": [
+      "TKRFQ2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT366"
+    ]
+  },
+  {
+    "id": "R351",
+    "title": "Service management 2.6.3: public vendor quote page and per-vendor verification-code switch",
+    "statement": "The vendor page in RFQ mode shows the request, lets the vendor quote, update, withdraw, decline or ask, never reveals other vendors, counts \"opened\" only after the optional code, and a code the directory demands cannot be lowered.",
+    "task_ids": [
+      "TKRFQ3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT367"
+    ]
+  },
+  {
+    "id": "R352",
+    "title": "Service management 2.6.3: map element on a request (migration 0090)",
+    "statement": "A camera, device or Plan Studio object can be attached to a request from the live map, a camera page or the request picker; the vendor page shows a 2D floor picture with the element marked, or the text only when the element left the map.",
+    "task_ids": [
+      "TKMAP1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT368"
+    ]
+  },
+  {
+    "id": "R353",
+    "title": "Service management 2.6.3: optional WhatsApp number verification by a one-time code (migration 0091)",
+    "statement": "Number verification by a one-time code is optional and off by default; a number counts as confirmed only after the code was typed back; the manager \"I am sure\" mark is allowed only while verification is off for the row and, for staff, needs the system-administrator permission and never overrides the person's own switch.",
+    "task_ids": [
+      "TKNOTIFOTP"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT369"
+    ]
+  },
+  {
+    "id": "R354",
+    "title": "Arx 2.6.3: secrets moved from add-on options to Settings > Connections > Secrets (migration 0093)",
+    "statement": "The go2rtc API password, WisKey password and background token, OpenAI key and push relay key are stored encrypted, set / replaced / cleared by a system administrator with a connection test for go2rtc and WisKey; no screen or log shows a value; the NVR password option is removed; deprecated empty options survive for one version and are imported and emptied at first start.",
+    "task_ids": [
+      "TKSECRETS"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT370"
+    ]
+  },
+  {
+    "id": "R355",
+    "title": "Service management 2.6.3: removal of the numeric quick-reply line from saved message templates (migration 0092)",
+    "statement": "The numeric quick-reply line is gone from the starter texts and, by migration 0092, from templates an installation saved (he / en / ar / ru); running the statement again changes nothing.",
+    "task_ids": [
+      "TKTPLMIG"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT371"
+    ]
+  },
+  {
+    "id": "R356",
+    "title": "Frigate 2.6.3: live video through Frigate's restream, events polling, NVR system card fix",
+    "statement": "Frigate cameras with a matching restream stream live through Arx-owned smplwise_ streams (read-only toward Frigate; streams of other projects never touched), events stay fresh by polling when the live channel is quiet, and the NVR system card no longer asks a Frigate recorder (no 409).",
+    "task_ids": [
+      "TKFRIGLIVE"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT372"
+    ]
+  },
+  {
+    "id": "R357",
+    "title": "Setup wizard 2.6.3: optional steps and a persistent per-user hint dismissal",
+    "statement": "The floor and camera steps are optional, the \"complete the installation\" hint counts required steps only, and its dismissal is per user, survives a reload and can be restored.",
+    "task_ids": [
+      "TKWIZHINT"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT373"
+    ]
+  },
+  {
+    "id": "R358",
+    "title": "Arx 2.6.3 release: combined service-management redesign, requests for quotation, map element, number verification, secrets, Frigate live video (integ/263)",
+    "statement": "The combined 2.6.3 release (formerly 2.6.0 - 2.6.3) holds: contiguous migrations 0001..0093 that upgrade a populated 2.5.8 database, the user guide updated for every user-visible change, and the release notes; fakes and fixtures only.",
+    "task_ids": [
+      "TKFIX263"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT374"
+    ]
   }
 ]

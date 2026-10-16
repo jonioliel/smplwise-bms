@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-16T07:24:37.554394+00:00
+Generated: 2026-10-16T17:07:54.819166+00:00
 
-Tasks: 230 | Requirements: 337 | Tests: 353 | Screens: 32
+Tasks: 250 | Requirements: 357 | Tests: 373 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 38
+- REVIEW: 58
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 136
+- V1: 156
 - V2: 29
 - V3: 2
 
@@ -268,3 +268,23 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKFIX256](tasks/TKFIX256.md) | V1 | REVIEW | Service management 2.5.6: 'waiting for a part' is a sub-state of 'in progress' (status strip, chips, menus, vendor toggle), no API or stored-status change | — |
 | [TKFIX257](tasks/TKFIX257.md) | V1 | REVIEW | Service management 2.5.7: vendor page quote / payment-request card and light/dark setting (migration 0085), deep-review security hardening (migration 0086), expand-arrow fix | — |
 | [TKFIX258](tasks/TKFIX258.md) | V1 | REVIEW | Service management 2.5.8: assignable staff, vendor account screen, no-login staff link (migration 0087), WhatsApp notification channel, handler-page path, TK251 remainder hardening | — |
+| [TKUI1](tasks/TKUI1.md) | V1 | REVIEW | Service management 2.6.3: the request drawer (side sheet / full screen) with the overview tab and status sentence | — |
+| [TKUI2](tasks/TKUI2.md) | V1 | REVIEW | Service management 2.6.3: conversation and history tabs of the drawer | — |
+| [TKUI3](tasks/TKUI3.md) | V1 | REVIEW | Service management 2.6.3: costs tab, quote decisions, quote on the vendor's behalf, owner change (TKUI3, TKUI3B, TKLAYFIX) | — |
+| [TKUI4](tasks/TKUI4.md) | V1 | REVIEW | Service management 2.6.3: request list in list / table / board views with the running clock | — |
+| [TKCAL](tasks/TKCAL.md) | V1 | REVIEW | Service management 2.6.3: weekly calendar of visits and time targets | — |
+| [TKUI5](tasks/TKUI5.md) | V1 | REVIEW | Service management 2.6.3: redesigned vendor page | — |
+| [TKUI6](tasks/TKUI6.md) | V1 | REVIEW | Service management 2.6.3: handlers page and settings; the display tab places the drawer rows | — |
+| [TKUI7](tasks/TKUI7.md) | V1 | REVIEW | Service management 2.6.3: service module on the shared design tokens | — |
+| [TKDETAILBE](tasks/TKDETAILBE.md) | V1 | REVIEW | Service management 2.6.3: request detail backend - internal owner, allowed line kinds, quotes v2 (migration 0088) | — |
+| [TKFIX260](tasks/TKFIX260.md) | V1 | REVIEW | Service management 2.6.3: approvals never send by themselves, internal note, assign dialog with internal note and vendor message (TKFIX260, TKASSIGNDLG) | — |
+| [TKRFQ1](tasks/TKRFQ1.md) | V1 | REVIEW | Service management 2.6.3: requests for quotation backend (migration 0089) | — |
+| [TKRFQ2](tasks/TKRFQ2.md) | V1 | REVIEW | Service management 2.6.3: requests for quotation manager screens (list, new request, vendor board, comparison, award) | — |
+| [TKRFQ3](tasks/TKRFQ3.md) | V1 | REVIEW | Service management 2.6.3: public vendor quote page and per-vendor verification-code switch | — |
+| [TKMAP1](tasks/TKMAP1.md) | V1 | REVIEW | Service management 2.6.3: map element on a request (migration 0090) | — |
+| [TKNOTIFOTP](tasks/TKNOTIFOTP.md) | V1 | REVIEW | Service management 2.6.3: optional WhatsApp number verification by a one-time code (migration 0091) | — |
+| [TKSECRETS](tasks/TKSECRETS.md) | V1 | REVIEW | Arx 2.6.3: secrets moved from add-on options to Settings > Connections > Secrets (migration 0093) | — |
+| [TKTPLMIG](tasks/TKTPLMIG.md) | V1 | REVIEW | Service management 2.6.3: removal of the numeric quick-reply line from saved message templates (migration 0092) | — |
+| [TKFRIGLIVE](tasks/TKFRIGLIVE.md) | V1 | REVIEW | Frigate 2.6.3: live video through Frigate's restream, events polling, NVR system card fix | — |
+| [TKWIZHINT](tasks/TKWIZHINT.md) | V1 | REVIEW | Setup wizard 2.6.3: optional steps and a persistent per-user hint dismissal | — |
+| [TKFIX263](tasks/TKFIX263.md) | V1 | REVIEW | Arx 2.6.3 release: combined service-management redesign, requests for quotation, map element, number verification, secrets, Frigate live video (integ/263) | — |

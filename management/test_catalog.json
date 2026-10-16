@@ -9603,5 +9603,473 @@
     "expected": "Service management 2.5.8: assignable staff, the vendor account screen, the staff link, the WhatsApp notification channel (OFF by default), the handler-page path and the TK251 remainder work, the migration 0087 applies: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/258."
+  },
+  {
+    "id": "AT355",
+    "requirement_ids": [
+      "R339"
+    ],
+    "task_ids": [
+      "TKUI1"
+    ],
+    "title": "Service management 2.6.3: the request drawer (side sheet / full screen) with the overview tab and status sentence",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKUI1 (integ/263):",
+      "frontend specs unit-tickets-drawer-model.spec.ts, unit-tickets-status-sentence.spec.ts, evidence-tickets-drawer.spec.ts, layout-tickets-drawer.spec.ts, layout-tickets-tabs.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "A request opens in a side drawer (or full screen) with an overview tab, a one-sentence status per state and role, and the rows the display settings choose. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT356",
+    "requirement_ids": [
+      "R340"
+    ],
+    "task_ids": [
+      "TKUI2"
+    ],
+    "title": "Service management 2.6.3: conversation and history tabs of the drawer",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKUI2 (integ/263):",
+      "frontend specs unit-tickets-conversation.spec.ts, unit-tickets-messages.spec.ts, unit-tickets-live-refresh.spec.ts, evidence-tickets-conversation.spec.ts, layout-tickets-conversation.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "The drawer has a conversation tab (vendor thread, internal notes, message drafts) and a history tab (full timeline with filters, files, audit card). The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT357",
+    "requirement_ids": [
+      "R341"
+    ],
+    "task_ids": [
+      "TKUI3"
+    ],
+    "title": "Service management 2.6.3: costs tab, quote decisions, quote on the vendor's behalf, owner change (TKUI3, TKUI3B, TKLAYFIX)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKUI3 (integ/263):",
+      "frontend specs unit-tickets-costs.spec.ts, unit-tickets-quotes.spec.ts, unit-tickets-3b.spec.ts, evidence-tickets-costs.spec.ts, evidence-tickets-3b.spec.ts, layout-tickets-tabs.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "The costs tab shows each vendor quote with versions and lets the manager approve all or some lines, send back for a correction (reason shown to the vendor, separate internal note) or reject; the manager can enter a quote on the vendor's behalf (not self-approvable); the approved quote is the cost baseline of the payment demand; the internal owner can be changed from the drawer; a closed fold takes no space. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT358",
+    "requirement_ids": [
+      "R342"
+    ],
+    "task_ids": [
+      "TKUI4"
+    ],
+    "title": "Service management 2.6.3: request list in list / table / board views with the running clock",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKUI4 (integ/263):",
+      "frontend specs unit-tickets-list.spec.ts, unit-tickets-table.spec.ts, unit-tickets-board.spec.ts, unit-tickets-elapsed.spec.ts, unit-tickets-durations.spec.ts, evidence-tickets-ui4.spec.ts, evidence-tickets-table.spec.ts, evidence-tickets-board.spec.ts, layout-tickets-table.spec.ts, layout-tickets-board.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "The request list offers cards, table and manager board with a running clock per request (frozen as total handling time once closed), a filter row and saved table views. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT359",
+    "requirement_ids": [
+      "R343"
+    ],
+    "task_ids": [
+      "TKCAL"
+    ],
+    "title": "Service management 2.6.3: weekly calendar of visits and time targets",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKCAL (integ/263):",
+      "frontend specs unit-tickets-calendar.spec.ts, evidence-tickets-calendar.spec.ts, layout-tickets-calendar.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "A weekly calendar view lists visits and time targets (acknowledgement, no-update, completion), with week and day navigation and an undated-requests count. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT360",
+    "requirement_ids": [
+      "R344"
+    ],
+    "task_ids": [
+      "TKUI5"
+    ],
+    "title": "Service management 2.6.3: redesigned vendor page",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKUI5 (integ/263):",
+      "frontend specs unit-public-ticket.spec.ts, unit-public-ticket-base.spec.ts, evidence-public-ticket.spec.ts",
+      "backend tests test_tickets_public_app.py, test_tickets_public_theme.py",
+      "gate run of integ/263"
+    ],
+    "expected": "The no-login vendor page is redesigned (quote / payment-demand card, theme, \"entered by the manager\" marker) without exposing internal data. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT361",
+    "requirement_ids": [
+      "R345"
+    ],
+    "task_ids": [
+      "TKUI6"
+    ],
+    "title": "Service management 2.6.3: handlers page and settings; the display tab places the drawer rows",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKUI6 (integ/263):",
+      "frontend specs unit-tickets-ui6.spec.ts, unit-tickets-handlers.spec.ts, evidence-tickets-ui6.spec.ts, evidence-tickets-handlers.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "The settings display tab decides which rows the request drawer shows; the handlers page and its settings follow the new design. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT362",
+    "requirement_ids": [
+      "R346"
+    ],
+    "task_ids": [
+      "TKUI7"
+    ],
+    "title": "Service management 2.6.3: service module on the shared design tokens",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKUI7 (integ/263):",
+      "frontend specs layout-tickets.spec.ts, layout-tickets-tabs.spec.ts, layout-tickets-s4.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "The whole service module draws from the shared design tokens and keeps its layout at phone width. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT363",
+    "requirement_ids": [
+      "R347"
+    ],
+    "task_ids": [
+      "TKDETAILBE"
+    ],
+    "title": "Service management 2.6.3: request detail backend - internal owner, allowed line kinds, quotes v2 (migration 0088)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKDETAILBE (integ/263):",
+      "backend tests test_tickets_detail.py, test_tickets_quotes.py, test_migrations_263_upgrade.py",
+      "gate run of integ/263"
+    ],
+    "expected": "The backend stores an internal owner with history, allowed line kinds (request, then department, then installation), versioned quotes with partial approval and decisions, and the approved quote as claim baseline; migration 0088 replaces the 2.5.7 quote table after copying it. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT364",
+    "requirement_ids": [
+      "R348"
+    ],
+    "task_ids": [
+      "TKFIX260"
+    ],
+    "title": "Service management 2.6.3: approvals never send by themselves, internal note, assign dialog with internal note and vendor message (TKFIX260, TKASSIGNDLG)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFIX260 (integ/263):",
+      "frontend specs unit-tickets-assign-message.spec.ts, unit-tickets-create-assign.spec.ts, evidence-tickets-create-assign.spec.ts",
+      "backend tests test_tickets_quotes.py, test_tickets_detail.py",
+      "gate run of integ/263"
+    ],
+    "expected": "Approving a quote or payment demand never sends a message (a \"send a message to the vendor?\" dialog follows, default not sending); the old auto-notify switch is removed; the assign dialog has an internal note and a separate vendor message; several vendor messages within 10 minutes raise one update notification. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT365",
+    "requirement_ids": [
+      "R349"
+    ],
+    "task_ids": [
+      "TKRFQ1"
+    ],
+    "title": "Service management 2.6.3: requests for quotation backend (migration 0089)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKRFQ1 (integ/263):",
+      "backend tests test_tickets_rfq.py, test_tickets_rfq_public.py, test_migrations_263_upgrade.py",
+      "gate run of integ/263"
+    ],
+    "expected": "One request can be sent to several vendors with no commitment: per-vendor personal links, quotes with update / withdraw / decline / question, comparison, award (all or some lines, optional second approval), the award as approved cost baseline; RFQ messages carry no amount or free text; migration 0089 is the single outbound-table rebuild of the release. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT366",
+    "requirement_ids": [
+      "R350"
+    ],
+    "task_ids": [
+      "TKRFQ2"
+    ],
+    "title": "Service management 2.6.3: requests for quotation manager screens (list, new request, vendor board, comparison, award)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKRFQ2 (integ/263):",
+      "frontend specs unit-tickets-rfq.spec.ts, evidence-tickets-rfq2.spec.ts, evidence-tickets-rfq-code.spec.ts, layout-tickets-rfq2.spec.ts",
+      "gate run of integ/263"
+    ],
+    "expected": "Managers create a request for quotation, pick vendors and channels, preview the message, track vendor states, compare quotes and award; no message is sent without the manager's confirmation. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT367",
+    "requirement_ids": [
+      "R351"
+    ],
+    "task_ids": [
+      "TKRFQ3"
+    ],
+    "title": "Service management 2.6.3: public vendor quote page and per-vendor verification-code switch",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKRFQ3 (integ/263):",
+      "frontend specs unit-public-rfq.spec.ts, evidence-public-rfq.spec.ts, layout-public-rfq.spec.ts, unit-tickets-code-gate.spec.ts",
+      "backend tests test_tickets_rfq_public.py",
+      "gate run of integ/263"
+    ],
+    "expected": "The vendor page in RFQ mode shows the request, lets the vendor quote, update, withdraw, decline or ask, never reveals other vendors, counts \"opened\" only after the optional code, and a code the directory demands cannot be lowered. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT368",
+    "requirement_ids": [
+      "R352"
+    ],
+    "task_ids": [
+      "TKMAP1"
+    ],
+    "title": "Service management 2.6.3: map element on a request (migration 0090)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKMAP1 (integ/263):",
+      "frontend specs unit-tickets-map.spec.ts, evidence-tickets-map.spec.ts, evidence-tickets-map-internal.spec.ts, layout-tickets-map.spec.ts",
+      "backend tests test_tickets_map_element.py",
+      "gate run of integ/263"
+    ],
+    "expected": "A camera, device or Plan Studio object can be attached to a request from the live map, a camera page or the request picker; the vendor page shows a 2D floor picture with the element marked, or the text only when the element left the map. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT369",
+    "requirement_ids": [
+      "R353"
+    ],
+    "task_ids": [
+      "TKNOTIFOTP"
+    ],
+    "title": "Service management 2.6.3: optional WhatsApp number verification by a one-time code (migration 0091)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKNOTIFOTP (integ/263):",
+      "frontend specs unit-phone-verify.spec.ts",
+      "backend tests test_tickets_phone_verify.py, test_migrations_263_upgrade.py",
+      "gate run of integ/263"
+    ],
+    "expected": "Number verification by a one-time code is optional and off by default; a number counts as confirmed only after the code was typed back; the manager \"I am sure\" mark is allowed only while verification is off for the row and, for staff, needs the system-administrator permission and never overrides the person's own switch. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT370",
+    "requirement_ids": [
+      "R354"
+    ],
+    "task_ids": [
+      "TKSECRETS"
+    ],
+    "title": "Arx 2.6.3: secrets moved from add-on options to Settings > Connections > Secrets (migration 0093)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKSECRETS (integ/263):",
+      "backend tests test_secrets_store.py, test_secrets_transitional_263.py, test_docs_config_consistency.py",
+      "gate run of integ/263"
+    ],
+    "expected": "The go2rtc API password, WisKey password and background token, OpenAI key and push relay key are stored encrypted, set / replaced / cleared by a system administrator with a connection test for go2rtc and WisKey; no screen or log shows a value; the NVR password option is removed; deprecated empty options survive for one version and are imported and emptied at first start. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT371",
+    "requirement_ids": [
+      "R355"
+    ],
+    "task_ids": [
+      "TKTPLMIG"
+    ],
+    "title": "Service management 2.6.3: removal of the numeric quick-reply line from saved message templates (migration 0092)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKTPLMIG (integ/263):",
+      "backend tests test_tickets_template_migration.py, test_migrations_263_upgrade.py",
+      "gate run of integ/263"
+    ],
+    "expected": "The numeric quick-reply line is gone from the starter texts and, by migration 0092, from templates an installation saved (he / en / ar / ru); running the statement again changes nothing. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT372",
+    "requirement_ids": [
+      "R356"
+    ],
+    "task_ids": [
+      "TKFRIGLIVE"
+    ],
+    "title": "Frigate 2.6.3: live video through Frigate's restream, events polling, NVR system card fix",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFRIGLIVE (integ/263):",
+      "frontend specs evidence-frigate-settings.spec.ts, unit-frigate.spec.ts",
+      "backend tests test_frigate_restream.py, test_frigate_events.py, test_nvr_system.py",
+      "gate run of integ/263"
+    ],
+    "expected": "Frigate cameras with a matching restream stream live through Arx-owned smplwise_ streams (read-only toward Frigate; streams of other projects never touched), events stay fresh by polling when the live channel is quiet, and the NVR system card no longer asks a Frigate recorder (no 409). The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT373",
+    "requirement_ids": [
+      "R357"
+    ],
+    "task_ids": [
+      "TKWIZHINT"
+    ],
+    "title": "Setup wizard 2.6.3: optional steps and a persistent per-user hint dismissal",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKWIZHINT (integ/263):",
+      "frontend specs unit-setup-hint.spec.ts, evidence-setup-wizard.spec.ts",
+      "backend tests test_setup_wizard.py, test_user_prefs.py",
+      "gate run of integ/263"
+    ],
+    "expected": "The floor and camera steps are optional, the \"complete the installation\" hint counts required steps only, and its dismissal is per user, survives a reload and can be restored. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
+  },
+  {
+    "id": "AT374",
+    "requirement_ids": [
+      "R358"
+    ],
+    "task_ids": [
+      "TKFIX263"
+    ],
+    "title": "Arx 2.6.3 release: combined service-management redesign, requests for quotation, map element, number verification, secrets, Frigate live video (integ/263)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFIX263 (integ/263):",
+      "frontend specs guide-screenshots.spec.ts",
+      "backend tests test_migrations_263_upgrade.py, test_docs_config_consistency.py, test_release_check.py, test_version.py",
+      "gate run of integ/263"
+    ],
+    "expected": "The combined 2.6.3 release (formerly 2.6.0 - 2.6.3) holds: contiguous migrations 0001..0093 that upgrade a populated 2.5.8 database, the user guide updated for every user-visible change, and the release notes; fakes and fixtures only. The listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed."
   }
 ]
