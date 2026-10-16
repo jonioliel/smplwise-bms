@@ -58,6 +58,7 @@ export class TicketCostsTab extends LitElement {
   @state() private flash: { text: string; tone: 'ok' | 'bad' } | null = null;
   @state() private dialog: QDialog = null;
   @state() private reason = '';
+  @state() private internalNote = '';
   @state() private tried = false;
   @state() private err = '';
   @state() private picking: { quoteId: string; selected: Set<number> } | null = null;
@@ -174,8 +175,10 @@ export class TicketCostsTab extends LitElement {
     }
   }
 
-  private async decide(q: Quote, action: QuoteAction, extra: { line_indexes?: number[]; reason?: string } = {}): Promise<void> {
+  private async decide(q: Quote, action: QuoteAction, extra: { line_indexes?: number[]; reason?: string; internal_note?: string } = {}): Promise<void> {
     const tid = this.ticket?.id ?? '';
+    const note = this.internalNote.trim();
+    if (note) extra = { ...extra, internal_note: note }; // TKFIX260: stored apart, never shown to the vendor
     const answer = await this.quoteWrite(() => ticketQuotesApi().decide(tid, q.id, action, { revision: q.revision ?? 1, ...extra }));
     if (!answer) return;
     this.dialog = null;
@@ -200,6 +203,7 @@ export class TicketCostsTab extends LitElement {
 
   private openDialog(kind: Exclude<QDialog, null>['kind'], q: Quote): void {
     this.reason = '';
+    this.internalNote = '';
     this.tried = false;
     this.err = '';
     this.moreFor = '';
@@ -430,11 +434,18 @@ export class TicketCostsTab extends LitElement {
 
   // ---------------------------------------------------------------- render: dialogs
 
+  /** TKFIX260 (public-surface review F1): the reason of a correction request / rejection is shown to the vendor (its page and the
+   * draft) - the field says so; the internal note beside it is stored apart and never sent. */
   private reasonField(label: string): TemplateResult {
     const bad = this.tried && !this.reason.trim();
-    return html`<label class="fld"><span>${label} <b class="req">*</b></span>
+    return html`<label class="fld"><span>${label} <b class="req">*</b> <span class="muted" data-quote-reason-public>· ${qt('vendorSees')}</span></span>
       <textarea class="inp" maxlength="500" data-quote-reason-input aria-invalid=${String(bad)} .value=${this.reason} @input=${(e: Event) => { this.reason = (e.target as HTMLTextAreaElement).value; this.err = ''; }}></textarea>
-      ${bad ? html`<span class="err">${qt('required')}</span>` : nothing}</label>`;
+      ${bad ? html`<span class="err">${qt('required')}</span>` : nothing}</label>${this.internalNoteField()}`;
+  }
+
+  private internalNoteField(): TemplateResult {
+    return html`<label class="fld"><span>${qt('internalNote')}</span>
+      <textarea class="inp" maxlength="500" data-quote-internal-note .value=${this.internalNote} @input=${(e: Event) => (this.internalNote = (e.target as HTMLTextAreaElement).value)}></textarea></label>`;
   }
 
   private quoteDialog(d: TicketCostsFull): TemplateResult | typeof nothing {
@@ -446,7 +457,8 @@ export class TicketCostsTab extends LitElement {
     const oks = { approve: 'approveQuote', partial: 'approveSelected', fix: 'fixQuote', reject: 'rejectQuote' } as const;
     const total = dlg.kind === 'partial' && this.picking ? selectionTotals(q, this.picking.selected).total : quoteShownTotal(q);
     const head = html`<div class="ch"><span class="who">${bidi(q.vendor ?? '')}</span><span class="sp"></span>${total !== null ? html`<span class="amt" data-dialog-total>${this.money(total, q.currency)}</span>` : nothing}</div>`;
-    const body = dlg.kind === 'fix' ? this.reasonField(qt('fixReason')) : dlg.kind === 'reject' ? this.reasonField(qt('rejectReason')) : html`<p class="muted">${qt('approveNote')}</p>`;
+    const body = dlg.kind === 'fix' ? this.reasonField(qt('fixReason')) : dlg.kind === 'reject' ? this.reasonField(qt('rejectReason'))
+      : html`<p class="muted">${qt('approveNote')}</p>${this.internalNoteField()}`;
     return html`<sw-dialog open heading=${qt(titles[dlg.kind])} data-dialog=${`quote-${dlg.kind}`} @close=${this.onDialogClose}>
       <div class="form">${head}${body}${this.err ? html`<div class="err" role="alert" data-quote-error>${this.err}</div>` : nothing}</div>
       <div slot="footer" class="sheetfoot">

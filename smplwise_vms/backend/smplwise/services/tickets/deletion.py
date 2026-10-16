@@ -157,7 +157,7 @@ def refuse(conn, viewer: Viewer, seen: Seen, chk: Check, rid: str | None, *, bul
           request_id=rid, details={"number": seen.row["number"], "department_id": seen.row["department_id"], "bulk": bulk})
     if chk.result == "cost_claim_approved":
         return ApiError(409, "cost_claim_approved",
-                        text(conn, "ל{the_ticket} יש דרישת עלות שאושרה או שולמה. המחיקה דורשת גם הרשאת אישור עלויות."),
+                        text(conn, "ל{the_ticket} יש דרישת תשלום שאושרה או שולמה. המחיקה דורשת גם הרשאת אישור עלויות."),
                         details={"permission": "tickets.costs"})
     return ApiError(403, "forbidden", text(conn, "אין הרשאה למחוק את {the_ticket}."), details={"permission": access.DELETE})
 

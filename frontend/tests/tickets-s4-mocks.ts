@@ -88,7 +88,7 @@ function present(c: Contact, full: boolean, configure: boolean) {
 
 /** the `costs` block of the installation document (the costs tab of the settings reads it; TKUI6 evidence) */
 const COSTS = { mode: 'optional', currencies: ['ILS'], vat_rate_bp: 1800, claim_window_days: 14, require_invoice: false, max_claim_total_minor: 100_000_000,
-  review_flag_above_minor: 1_000_000, notify_vendor_approved: true, retention_days: 2555 };
+  review_flag_above_minor: 1_000_000, retention_days: 2555 };
 
 interface Link { contact: Contact; generation: number; state: 'live' | 'grace' | 'expired' | 'revoked'; reason: string | null; sent: boolean; opens: number }
 

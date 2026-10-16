@@ -8,12 +8,13 @@
  *     the note itself never changes visibility.
  * Team notes stay `POST /tickets/{id}/notes` with `external: false` - the composer has no visibility flag any more.
  *
- * Until the detail backend is merged a server without these routes answers 404 / 405: the vendor message then falls back to the
- * slice-4 external note (`POST /notes` with `external: true`), which is what the new route records as well (a forward falls back the
- * same way, without the link to its note). A refusal of the new routes (409 `no_external_assignment`, `ticket_closed`,
- * `note_already_external`, 404 `note_not_found`) is shown as the server's message. Without a server (the demo) the in-memory store answers.
+ * The detail backend ships in the same release, so there is NO fallback any more (TKFIX260, review A F10): an unexpected 404 / 405
+ * (a proxy prefix mismatch, ...) is an error the screen shows - it never re-posts the text through the old `POST /notes` with
+ * `external: true`, which would ignore `notify: false` (TKASSIGNDLG) and drop the `from_note_id` link. A refusal of the routes (409
+ * `no_external_assignment`, `ticket_closed`, `note_already_external`, 404 `note_not_found`) is shown as the server's message.
+ * Without a server (the demo) the in-memory store answers.
  */
-import { ApiError, post } from './client';
+import { post } from './client';
 import { isApi } from './session';
 import { ticketsApi, type TicketDetail } from './tickets';
 import { mockStore } from './tickets-mock';
@@ -24,12 +25,6 @@ export interface VendorMessageAnswer {
 }
 
 const enc = encodeURIComponent;
-/** the codes of a real refusal by the new routes (anything else on a 404 / 405 = the route is not on this server yet) */
-const REFUSALS = new Set(['note_not_found', 'ticket_not_found', 'no_external_assignment', 'ticket_closed', 'note_already_external', 'forbidden']);
-
-export function routeMissing(e: unknown): boolean {
-  return e instanceof ApiError && (e.status === 404 || e.status === 405) && !REFUSALS.has(e.code);
-}
 
 function demoMessage(id: string, text: string, fromNote: string | null): TicketDetail {
   const t = mockStore.find(id);
@@ -45,23 +40,10 @@ export interface ConversationBackend {
 }
 
 const rest: ConversationBackend = {
-  async vendorMessage(id, text, opts = {}) {
-    try {
-      return await post<VendorMessageAnswer>(`tickets/${enc(id)}/vendor-message`, { text, notify: opts.notify ?? true, ...(opts.source ? { source: opts.source } : {}) });
-    } catch (e) {
-      if (!routeMissing(e)) throw e;
-      await ticketsApi().note(id, text, true);
-      return {};
-    }
-  },
-  async forwardNote(id, eventId, text, opts = {}) {
-    try {
-      return await post<VendorMessageAnswer>(`tickets/${enc(id)}/notes/${enc(eventId)}/forward`, { text, notify: opts.notify ?? true });
-    } catch (e) {
-      if (!routeMissing(e)) throw e;
-      return rest.vendorMessage(id, text, { notify: opts.notify, source: { kind: 'note', id: eventId } });
-    }
-  },
+  vendorMessage: (id, text, opts = {}) =>
+    post<VendorMessageAnswer>(`tickets/${enc(id)}/vendor-message`, { text, notify: opts.notify ?? true, ...(opts.source ? { source: opts.source } : {}) }),
+  forwardNote: (id, eventId, text, opts = {}) =>
+    post<VendorMessageAnswer>(`tickets/${enc(id)}/notes/${enc(eventId)}/forward`, { text, notify: opts.notify ?? true }),
   teamNote: (id, text) => ticketsApi().note(id, text, false),
 };
 

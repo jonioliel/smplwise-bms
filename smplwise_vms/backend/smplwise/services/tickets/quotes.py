@@ -29,6 +29,7 @@ STATES = ("submitted", "fix_requested", "approved", "partially_approved", "rejec
 APPROVED = frozenset({"approved", "partially_approved"})
 PENDING = frozenset({"submitted", "fix_requested"})
 QUOTE_MODES = ("required", "optional", "off")
+DEMAND_LOCKS = frozenset({"submitted", "approved", "paid"})  # TKFIX260 (review A F12): a quote is not approved over these
 NOTE_MAX = 1000
 VENDOR_REF_MAX = 40
 REASON_MAX = 500
@@ -192,10 +193,21 @@ def demand_view(conn, claim: Mapping[str, Any], revs: Sequence[Mapping[str, Any]
                            "needs_review": bool(claim["status"] == "submitted" and current is not None and exceptional_of(current))}
     if base is not None and current is not None and current["currency"] == base["currency"] and base.get("approved_total_minor") is not None:
         out["delta_minor"] = int(current["total_minor"]) - int(base["approved_total_minor"])
-        base_sums = kind_sums(approved_lines(base))
-        cur = {"labor": current["labor_minor"], "parts": current["parts_minor"], "travel": current["travel_minor"], "other": current["other_minor"]}
-        out["kind_deltas"] = {k: int(cur[k]) - base_sums[k] for k in money.LINE_KINDS}
+        if same_line_basis(base, current):
+            base_sums = kind_sums(approved_lines(base))
+            cur = {"labor": current["labor_minor"], "parts": current["parts_minor"], "travel": current["travel_minor"], "other": current["other_minor"]}
+            out["kind_deltas"] = {k: int(cur[k]) - base_sums[k] for k in money.LINE_KINDS}
     return out
+
+
+def same_line_basis(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
+    """TKFIX260 (review A F6): line amounts are as entered - gross under `included`, net under `excluded` / `none` (money.compute) -
+    so per-kind sums compare only on the same basis (and, both gross, at the same rate). Otherwise `kind_deltas` is null; the
+    total `delta_minor` (both totals) stays."""
+    gross_a, gross_b = a.get("vat_mode") == "included", b.get("vat_mode") == "included"
+    if gross_a != gross_b:
+        return False
+    return not gross_a or int(a.get("vat_rate_bp") or 0) == int(b.get("vat_rate_bp") or 0)
 
 
 # ---------------------------------------------------------------- building a quote (vendor through the link / manager on behalf)
@@ -321,18 +333,36 @@ def _reason(value: Any) -> str:
     return t
 
 
+def internal_note(value: Any) -> str | None:
+    """TKFIX260 (public-surface review F1): the manager's INTERNAL note of a decision - stored apart from the vendor-facing `reason`,
+    never in a public answer, a draft, a message or an audit row."""
+    return _text(value, "internal_note", REASON_MAX, multiline=True)
+
+
 def decide(conn, q: Mapping[str, Any], action: str, *, by: str, revision: int, at: dt.datetime, line_indexes: Sequence[int] | None = None,
-           reason: Any = None, actor_name: str = "") -> dict[str, Any]:
-    """approve (all lines or a subset -> partially_approved) / request_fix / reject. The caller holds tickets.costs + view."""
+           reason: Any = None, actor_name: str = "", note: Any = None) -> dict[str, Any]:
+    """approve (all lines or a subset -> partially_approved) / request_fix / reject. The caller holds tickets.costs + view.
+    TKFIX260 (review A F3): never on a staff assignment (a 2.5.7-era staff quote copied by 0088 can never become a baseline) - 409
+    `not_external`."""
+    if q.get("assignment_id") and not quote_capable(conn, store.assignment(conn, q["assignment_id"])):
+        raise CostRefused(409, "not_external")
     if int(q["revision"]) != int(revision):
         raise CostRefused(409, "quote_stale", revision=q["revision"])
     now = iso(at)
+    inote = internal_note(note)
     fields: dict[str, Any]
     if action == "approve":
         if q["state"] != "submitted":
             raise CostRefused(409, "quote_not_submitted")
         if q["created_by_kind"] == "user" and q["created_by"] == by:
             raise CostRefused(409, "self_approval")
+        # TKFIX260 (review A F12, the safer option - refuse, not flag): once a payment demand of this assignment was submitted (or
+        # approved / paid) it was checked against the baseline of ITS submission time; a quote approved now would become a baseline the
+        # demand's exceptional lines were never checked against. The manager decides the demand first (a rejected demand is checked
+        # again against the new baseline when the vendor resubmits).
+        claim = store_costs.claim_for_assignment(conn, q.get("assignment_id")) if q.get("assignment_id") else None
+        if claim is not None and claim["status"] in DEMAND_LOCKS:
+            raise CostRefused(409, "demand_pending")
         lines = lines_of(q)
         if line_indexes is None:
             idx = list(range(len(lines)))
@@ -358,9 +388,10 @@ def decide(conn, q: Mapping[str, Any], action: str, *, by: str, revision: int, a
         decision = {"action": action, "reason": why}
     else:
         raise CostRefused(422, "unknown", "action")
+    fields["decision_internal_note"] = inote
     if not store_quotes.update_quote(conn, q["id"], fields, now=now, expect_revision=int(revision)):
         raise CostRefused(409, "quote_stale", revision=q["revision"])
-    store_quotes.insert_decision(conn, {"quote_id": q["id"], "by_user": by, "at": now, **decision})
+    store_quotes.insert_decision(conn, {"quote_id": q["id"], "by_user": by, "at": now, "internal_note": inote, **decision})
     if q.get("ticket_id"):
         store.insert_event(conn, q["ticket_id"], "quote_decided", actor_kind="user", actor_user_id=by, actor_name=actor_name,
                            assignment_id=q.get("assignment_id"), data={"quote_id": q["id"], "version": q["version"], "action": decision["action"]},
@@ -372,7 +403,7 @@ def decide(conn, q: Mapping[str, Any], action: str, *, by: str, revision: int, a
 def set_mode(conn, ticket: Mapping[str, Any], assignment: Mapping[str, Any], mode: Any) -> None:
     if mode not in QUOTE_MODES:
         raise CostRefused(422, "invalid", "mode")
-    if assignment.get("assignee_kind") != "contact":
+    if not quote_capable(conn, assignment):  # TKFIX260 (review A F3): a staff contact is never asked for a quote
         raise CostRefused(409, "not_external")
     store.update_assignment(conn, assignment["id"], {"quote_mode": mode})
 
@@ -385,6 +416,10 @@ def flow(conn, ticket: Mapping[str, Any]) -> dict[str, Any]:
     asg = active_external(conn, ticket) or latest_external(conn, ticket["id"])
     if asg is None:
         return {"stage": "none", "sub_state": sub, "assignment_id": None, "quote_mode": None}
+    if not quote_capable(conn, asg):
+        # TKFIX260 (review A F3): a staff assignment (an employee without an account) is never in the vendor-payment pipeline - no
+        # quote stage, no mode; `assignment_id` stays so the Costs tab can tell it is staff (quote-model.ts flowIsStaff)
+        return {"stage": "none", "sub_state": sub, "assignment_id": asg["id"], "quote_mode": None}
     mode = quote_mode(asg)
     out = {"stage": "none", "sub_state": sub, "assignment_id": asg["id"], "quote_mode": mode}
     claim = store_costs.claim_for_assignment(conn, asg["id"])
@@ -450,7 +485,8 @@ def present_quote(conn, q: Mapping[str, Any], *, full: bool, can_decide: bool = 
         "vendor": snap_vendor, "revision": q["revision"],
         "created_by_name": store.display_name(conn, q["created_by"]) if q["created_by_kind"] == "user" else "",
         "decision": ({"by": store.display_name(conn, q["decided_by"]) if q.get("decided_by") and not str(q["decided_by"]).startswith("contact:") else "",
-                      "at": q.get("decided_at"), "reason": q.get("decision_reason")} if q.get("decided_at") else None),
+                      "at": q.get("decided_at"), "reason": q.get("decision_reason"),
+                      "internal_note": q.get("decision_internal_note")} if q.get("decided_at") else None),
         "can": {"decide": bool(can_decide and q["state"] == "submitted"),
                 "reject": bool(can_decide and q["state"] in PENDING)},
     })
@@ -461,6 +497,8 @@ def answer(conn, ticket: Mapping[str, Any], *, full: bool, can_decide: bool) -> 
     """GET /tickets/{id}/quotes (and the `quotes` block of GET /tickets/{id}/costs)."""
     kinds, level = effective_kinds(conn, ticket)
     asg = active_external(conn, ticket) or latest_external(conn, ticket["id"])
+    if asg is not None and not quote_capable(conn, asg):
+        asg = None  # TKFIX260 (review A F3): staff carry no quote mode and no baseline
     out: dict[str, Any] = {
         "flow": flow(conn, ticket),
         "allowed_line_kinds": {"kinds": kinds, "level": level},
@@ -500,6 +538,8 @@ def present_public(q: Mapping[str, Any]) -> dict[str, Any]:
         "subtotal_minor": q["subtotal_minor"], "vat_mode": q["vat_mode"], "vat_rate_bp": q["vat_rate_bp"], "vat_minor": q["vat_minor"],
         "total_minor": q["total_minor"], "net_minor": q["total_minor"] - q["vat_minor"], "currency": q["currency"],
         "notes": q.get("note"), "work_from": q.get("work_from"), "work_to": q.get("work_to"), "created_at": q["created_at"],
+        # TKFIX260 (public-surface review F4): a version the organisation entered on the vendor's behalf says so (never who entered it)
+        "on_behalf": q.get("source") == "manager",
         "approved": ({"line_indexes": approved_indexes(q), "partial": q["state"] == "partially_approved",
                       "subtotal_minor": q.get("approved_subtotal_minor"), "vat_minor": q.get("approved_vat_minor"),
                       "total_minor": q.get("approved_total_minor")} if q["state"] in APPROVED else None),

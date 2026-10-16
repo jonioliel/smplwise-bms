@@ -192,3 +192,36 @@ test('the Costs tab catalogue is complete; the retired cost term is in no file o
   }
   expect(bad, bad.join('\n')).toEqual([]);
 });
+
+// ---------------------------------------------------------------- TKFIX260 (release 2.6.0 review fixes)
+
+test('TKFIX260: a decision reason says it is shown to the vendor; the internal note is a separate field that goes as internal_note', () => {
+  const tab = readFileSync(path.join(SRC, 'tickets/costs-tab.ts'), 'utf8');
+  expect(tab).toContain("qt('vendorSees')");
+  expect(tab).toContain('data-quote-internal-note');
+  expect(tab).toMatch(/internal_note: note/);
+  const card = readFileSync(path.join(SRC, 'tickets/ticket-cost-card.ts'), 'utf8');
+  expect(card).toContain("ct('vendorSees')");
+  expect(card).toContain('data-cost-internal-note');
+  expect(card).toMatch(/body\.internal_note = this\.internalNote\.trim\(\)/);
+  expect(quoteTemplate('vendorSees', 'he')).toBe('יוצג למטפל החיצוני');
+});
+
+test('TKFIX260: the settings card has no "tell the vendor on approval" toggle any more (approvals never send)', () => {
+  const settings = readFileSync(path.join(SRC, 'tickets/settings-costs.ts'), 'utf8');
+  expect(settings).not.toContain('notify_vendor_approved');
+  expect(readFileSync(path.join(SRC, 'api/tickets-costs.ts'), 'utf8')).not.toContain('notify_vendor_approved');
+});
+
+test('TKFIX260: the conversation API has no silent fallback to the old external-note route', () => {
+  const conv = readFileSync(path.join(SRC, 'api/tickets-conversation.ts'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  expect(conv).not.toContain('routeMissing');
+  expect(conv).not.toMatch(/note\(id, text, true\)/);
+});
+
+test('TKFIX260: the setup-hint dismissal is reset on a session change (one user\'s choice, not the page\'s)', () => {
+  const store = readFileSync(path.join(SRC, 'api/setup-hint.ts'), 'utf8');
+  expect(store).toMatch(/export function resetDismissalFor\(userId: string \| null\): boolean/);
+  const app = readFileSync(path.join(SRC, 'shell/sw-app.ts'), 'utf8');
+  expect(app).toMatch(/resetDismissalFor\(s\.mode === 'api' \? s\.me\?\.user\.id \?\? null : null\)/);
+});

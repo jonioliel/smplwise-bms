@@ -61,7 +61,7 @@ export async function installDeleteMock(page: Page, o: DeleteMockOptions = {}): 
       st.calls.push({ path: p, body });
       const b = body as { confirm_number: number; reason: string };
       if (b.confirm_number !== d.number) return err(route, 422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'confirm_number', code: 'mismatch' }] });
-      if (blocked.has(id)) return err(route, 409, 'cost_claim_approved', 'לבקשת השירות יש דרישת עלות שאושרה או שולמה. המחיקה דורשת גם הרשאת אישור עלויות.', { permission: 'tickets.costs' });
+      if (blocked.has(id)) return err(route, 409, 'cost_claim_approved', 'לבקשת השירות יש דרישת תשלום שאושרה או שולמה. המחיקה דורשת גם הרשאת אישור עלויות.', { permission: 'tickets.costs' });
       drop(id);
       return json(route, { deleted: true, id, number: d.number, counts: { notes: 1, photos: 0, files: 0, links: 0, claims: 0 } });
     }

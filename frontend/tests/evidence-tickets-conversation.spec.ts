@@ -143,13 +143,15 @@ test.describe('TKUI2 conversation / history evidence', () => {
     await expect(c.locator('[data-dir="out"]').last()).toContainText('מחר ב-09:00 החדר פנוי');
   });
 
-  test('a server before the detail backend: the vendor message falls back to the external note', async ({ page }) => {
+  test('TKFIX260 (review A F10): a 404 of the vendor-message route is an error - never a silent external note through the old route', async ({ page }) => {
     const mock = await go(page, CONV, 'light', 'classic', { vendorMessage: false });
     const c = d(page).locator('[data-conv]');
     await expect(c.locator('[data-composer="vendor"]')).toBeVisible(); // can.note_external + an outside handler now
     await c.locator('[data-composer-text]').fill('עדכון דרך השרת הישן');
     await c.locator('[data-composer-send="vendor"]').click();
-    await expect.poll(() => last(mock, /\/notes$/)?.body).toEqual({ text: 'עדכון דרך השרת הישן', external: true });
+    await expect.poll(() => last(mock, /vendor-message$/)?.body).toEqual({ text: 'עדכון דרך השרת הישן', notify: true });
+    await page.waitForTimeout(300);
+    expect(last(mock, /\/notes$/), 'no fallback to POST /notes').toBeUndefined();
   });
 
   test('a closed request: the feed stays readable, no composer', async ({ page }) => {

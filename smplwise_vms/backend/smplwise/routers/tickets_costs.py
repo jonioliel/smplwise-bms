@@ -75,7 +75,7 @@ def _need(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str, action: str,
 def _claim(conn: sqlite3.Connection, seen: Seen, claim_id: str) -> dict[str, Any]:
     c = store_costs.claim(conn, claim_id)
     if c is None or c.get("ticket_id") != seen.row["id"]:
-        raise ApiError(404, "claim_not_found", text(conn, "דרישת העלות לא נמצאה."))
+        raise ApiError(404, "claim_not_found", text(conn, "דרישת התשלום לא נמצאה."))
     return c
 
 
@@ -97,10 +97,15 @@ def _answer(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[st
                            "max_claim_total_minor": s.max_claim_total_minor, "require_invoice": s.require_invoice}
         # TKUI3: `quote_capable` (quotes.quote_capable) - false for a staff contact without an account, whose assignment is of kind
         # `contact` too; the Costs tab never offers a quote, a payment demand or a requirement for such an assignment (no money surface)
-        out["external_assignments"] = [{"id": a["id"], "name": a["assignee_name"], "assigned_at": a["assigned_at"], "ended_at": a.get("ended_at"),
-                                        "cost_claim": a.get("cost_claim"), "quote_mode": a.get("quote_mode") or "optional",
-                                        "quote_capable": quotes.quote_capable(conn, a)}
-                                       for a in store.assignments(conn, ticket_id) if a["assignee_kind"] == "contact"]
+        # TKFIX260 (review A F3): a staff assignment stays in the list (the tab needs it to say "no money surface") but carries no quote mode
+        out["external_assignments"] = []
+        for a in store.assignments(conn, ticket_id):
+            if a["assignee_kind"] != "contact":
+                continue
+            capable = quotes.quote_capable(conn, a)
+            out["external_assignments"].append({"id": a["id"], "name": a["assignee_name"], "assigned_at": a["assigned_at"], "ended_at": a.get("ended_at"),
+                                                "cost_claim": a.get("cost_claim"), "quote_mode": (a.get("quote_mode") or "optional") if capable else None,
+                                                "quote_capable": capable})
 
     out.update(quotes.answer(conn, seen.row, full=full, can_decide=full and viewer.holds(costs.COSTS, seen.row)))
     return out
@@ -313,6 +318,7 @@ class DecisionBody(BaseModel):
     payment_ref: str | None = Field(default=None, max_length=500)
     payment_date: str | None = Field(default=None, max_length=10)
     exceptional: Literal["include", "exclude"] | None = None  # TKDETAILBE (5.3): approve with / without the exceptional lines
+    internal_note: str | None = Field(default=None, max_length=5000)  # TKFIX260: never shown to the vendor (approve / adjust / reject)
 
 
 ACTIONS =("approve", "adjust", "reject", "mark-paid", "unmark-paid", "reopen-window")
@@ -334,15 +340,18 @@ def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "revision_id", "code": "required"}]})
     if body.exceptional is not None and action != "approve":
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "exceptional", "code": "only_with_approve"}]})
+    if body.internal_note is not None and not needs_rev:
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "internal_note", "code": "only_with_decision"}]})
     try:
         if action == "approve":
             fresh = costs.approve(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", at=at,
-                                  exceptional=body.exceptional or "include", reason=body.reason)
+                                  exceptional=body.exceptional or "include", reason=body.reason, internal_note=body.internal_note)
         elif action == "adjust":
             fresh = costs.adjust(conn, claim, {"lines": body.lines or []}, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "",
-                                 reason=body.reason, at=at)
+                                 reason=body.reason, at=at, internal_note=body.internal_note)
         elif action == "reject":
-            fresh = costs.reject(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", reason=body.reason, at=at)
+            fresh = costs.reject(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", reason=body.reason, at=at,
+                                 internal_note=body.internal_note)
         elif action == "mark-paid":
             fresh = costs.mark_paid(conn, claim, by=viewer.uid, revision=body.revision, payment_ref=body.payment_ref, payment_date=body.payment_date, at=at)
         elif action == "unmark-paid":
@@ -398,7 +407,7 @@ def post_quote_decision(body: QuoteDecisionBody, request: Request, ticket_id: st
         if exc.code == "quote_not_submitted":
             raise ApiError(409, "invalid_state", text(conn, "ההצעה כבר טופלה.")) from None
         raise _refused(conn, exc) from None
-    _audit(conn, viewer, name, seen, None, rid, quote_id=quote_id, state=fresh["state"], total_minor=fresh["total_minor"])
+    _audit(conn, viewer, name, seen, None, rid, quote_id=quote_id, version=fresh["version"], state=fresh["state"])  # TKFIX260: a quote audit carries no amount
     out = _answer(conn, viewer, ticket_id)
     out["message_draft"] = quotes.draft_message(conn, seen.row, subject="quote", obj=fresh,
                                                 decision="approved" if act == "approve" else "fix_requested")

@@ -105,6 +105,8 @@ export interface TicketView {
   /** slice 9 (11A.2 / 11A.5): the vendor's cost claim of this assignment, and the claim mode of a link whose page no longer serves */
   claim?: { status: string; required: boolean; writable: boolean; claim_until: string | null } | null;
   claim_mode?: boolean;
+  /** TKUI3: the link's kind, sent after the code gate only (handler_actions.view); absent on the code screen and on an older server */
+  kind?: 'vendor' | 'staff';
   timeline?: TimelineItem[];
   photos?: { id: string; at: string; width: number; height: number; mine: boolean }[];
   history?: { at: string; from: string | null; to: string | null; actor: string }[] | null;

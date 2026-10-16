@@ -88,7 +88,8 @@ export interface MessageDraft {
 
 export type QuotesAnswer = QuoteBlock & { message_draft?: MessageDraft };
 
-export interface QuoteDecisionBody { revision: number; line_indexes?: number[]; reason?: string }
+/** `reason` is shown to the vendor (request-fix / reject); `internal_note` (TKFIX260) never is - not on the page, not in the draft. */
+export interface QuoteDecisionBody { revision: number; line_indexes?: number[]; reason?: string; internal_note?: string }
 export interface QuoteOnBehalfBody {
   assignment_id?: string;
   lines: LineInput[];

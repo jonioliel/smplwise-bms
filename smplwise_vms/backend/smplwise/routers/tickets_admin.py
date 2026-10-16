@@ -131,7 +131,6 @@ class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; depart
     require_invoice: bool | None = None
     max_claim_total_minor: int | None = Field(default=None, ge=100, le=99_999_999_999)
     review_flag_above_minor: int | None = Field(default=None, ge=0, le=99_999_999_999)
-    notify_vendor_approved: bool | None = None
     retention_days: int | None = Field(default=None, ge=730, le=3650)
     allowed_line_kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)  # TKDETAILBE
 

@@ -202,13 +202,15 @@ export function partToggle(view: Pick<TicketView, 'status' | 'actions'>, draftSt
 export type LinkKind = 'vendor' | 'staff';
 
 /**
- * The page is ONE component; the contact kind decides the layout. The server's view carries no `kind` field (handler_actions.view); the
- * only signal is the `claim` key: GET /t/api/ticket sets it (a block or null) on every vendor link and never on a staff link (TKSTAFF1 R2,
- * public_routes.py). So: a view that shows the ticket and has no `claim` key (and is not the claim mode of a dead link) is a staff link.
- * A view without content (the code screen) is treated as vendor: nothing of the layout is visible there.
+ * The page is ONE component; the contact kind decides the layout. TKFIX260: the server says it - handler_actions.view() sends an explicit
+ * `kind` ('vendor' | 'staff', TKUI3) after the code gate, and that wins. The fallback is for a view WITHOUT it (the code screen, where the
+ * kind is deliberately not sent, or an older server): the `claim` key - GET /t/api/ticket sets it (a block or null) on every vendor link
+ * and never on a staff link (TKSTAFF1 R2, public_routes.py). A view without content is treated as vendor: nothing of the layout shows.
  */
-export function linkKind(view: Pick<TicketView, 'title' | 'claim' | 'claim_mode'>): LinkKind {
-  if (view.title === undefined || view.claim_mode) return 'vendor';
+export function linkKind(view: Pick<TicketView, 'title' | 'claim' | 'claim_mode' | 'kind'>): LinkKind {
+  if (view.claim_mode) return 'vendor';
+  if (view.kind === 'vendor' || view.kind === 'staff') return view.kind;
+  if (view.title === undefined) return 'vendor';
   return 'claim' in view ? 'vendor' : 'staff';
 }
 

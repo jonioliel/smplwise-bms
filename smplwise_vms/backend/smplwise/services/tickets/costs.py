@@ -89,7 +89,6 @@ class CostSettings:
     require_invoice: bool
     max_claim_total_minor: int
     review_flag_above_minor: int
-    notify_vendor_approved: bool
     retention_days: int
 
 
@@ -98,7 +97,7 @@ def cost_settings(conn) -> CostSettings:
     return CostSettings(mode=c["mode"], currencies=tuple(c["currencies"]), vat_rate_bp=int(c["vat_rate_bp"]),
                         claim_window_days=int(c["claim_window_days"]), require_invoice=bool(c["require_invoice"]),
                         max_claim_total_minor=int(c["max_claim_total_minor"]), review_flag_above_minor=int(c["review_flag_above_minor"]),
-                        notify_vendor_approved=bool(c["notify_vendor_approved"]), retention_days=int(c["retention_days"]))
+                        retention_days=int(c["retention_days"]))
 
 
 def preselected_mode(conn, *, contact: Mapping[str, Any] | None, vendor: Mapping[str, Any] | None, department: Mapping[str, Any] | None) -> tuple[str, str]:
@@ -508,7 +507,10 @@ def _reason(value: Any, field: str = "reason", *, required: bool = True) -> str 
 
 
 def _approve(conn, claim: Mapping[str, Any], revision_id: str, by: str, at: dt.datetime, action: str, reason: str | None,
-             *, notify: bool = True) -> dict[str, Any]:
+             internal_note: str | None = None) -> dict[str, Any]:
+    """TKFIX260 (owner rule 15.10 evening): an approval NEVER sends a vendor message. The decision route returns a `message_draft`
+    and the manager confirms it in the cost card (`POST /tickets/{id}/vendor-message`); that is the only path. The 2.5.x setting
+    `costs.notify_vendor_approved` is gone - a stored `true` is kept in the document as an unknown key and ignored."""
     rev = store_costs.revision(conn, revision_id) or {}
     now = iso(at)
     retention = cost_settings(conn).retention_days
@@ -518,15 +520,13 @@ def _approve(conn, claim: Mapping[str, Any], revision_id: str, by: str, at: dt.d
         "purge_after": iso(at + dt.timedelta(days=retention)),
     }, now=now)
     store_costs.insert_decision(conn, {"claim_id": claim["id"], "revision_id": revision_id, "action": action, "reason": reason,
-                                       "amount_minor": int(rev["total_minor"]), "by_user": by, "at": now})
+                                       "internal_note": internal_note, "amount_minor": int(rev["total_minor"]), "by_user": by, "at": now})
     fresh = store_costs.claim(conn, claim["id"]) or dict(claim)
     refresh_ticket(conn, claim.get("ticket_id"))
     _clear_claim_missing(conn, claim.get("ticket_id"))
     if claim.get("ticket_id"):
         notify_bridge.cost_resolved(conn, claim["ticket_id"], claim["id"])
     emit_cost_event("approved", fresh)
-    if notify and cost_settings(conn).notify_vendor_approved:  # TKDETAILBE: default OFF - the manager confirms a draft instead
-        vendor_message(conn, fresh, "cost_approved", requested_by=by)
     return fresh
 
 
@@ -538,8 +538,14 @@ def _not_self(conn, revision_id: str, by: str) -> None:
         raise CostRefused(409, "self_approval")
 
 
+def _internal_note(value: Any) -> str | None:
+    """TKFIX260 (public-surface review F1): the manager's INTERNAL note of a decision - stored apart from the vendor-facing reason
+    (`ticket_cost_decisions.internal_note`), never in the vendor's page, a draft, a message or an audit row."""
+    return _text(value, "internal_note", REASON_MAX, multiline=True)
+
+
 def approve(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_id: str, at: dt.datetime,
-            exceptional: str = "include", reason: Any = None) -> dict[str, Any]:
+            exceptional: str = "include", reason: Any = None, internal_note: Any = None) -> dict[str, Any]:
     """TKDETAILBE (5.3): `exceptional = "exclude"` approves the submission WITHOUT its exceptional lines - a manager adjustment
     revision (reason: the given one, else the default text in the vendor's language) - and never sends a message."""
     if claim["status"] != "submitted":
@@ -548,6 +554,7 @@ def approve(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_
         raise CostRefused(422, "invalid", "exceptional")
     _expect(claim, revision, revision_id)
     _not_self(conn, revision_id, by)
+    inote = _internal_note(internal_note)
     if exceptional == "exclude":
         from . import quotes
 
@@ -568,12 +575,12 @@ def approve(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_
             placed = [(f["id"], int(f["doc_no"]), int(f["rf_page_no"])) for f in store_costs.revision_files(conn, revision_id)]
             rid = _write_revision(conn, claim, d, source="manager", kind="adjustment", created_by_kind="user", created_by=by, placed=placed,
                                   at=at, based_on=revision_id, reason=why)
-            return _approve(conn, claim, rid, by, at, "adjust", why, notify=False)
-    return _approve(conn, claim, revision_id, by, at, "approve", None)
+            return _approve(conn, claim, rid, by, at, "adjust", why, inote)
+    return _approve(conn, claim, revision_id, by, at, "approve", None, inote)
 
 
 def adjust(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by: str, revision: int, revision_id: str, reason: Any,
-           at: dt.datetime) -> dict[str, Any]:
+           at: dt.datetime, internal_note: Any = None) -> dict[str, Any]:
     """"אישור עם תיקון": a MANAGER revision (`kind = adjustment`, mandatory reason) based on the vendor's, carrying its files and
     its VAT mode, approved at once. The vendor sees the approved total and the reason."""
     if claim["status"] != "submitted":
@@ -581,6 +588,7 @@ def adjust(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by: str, 
     _expect(claim, revision, revision_id)
     _not_self(conn, revision_id, by)
     why = _reason(reason)
+    inote = _internal_note(internal_note)
     base = store_costs.revision(conn, revision_id) or {}
     d = draft(conn, claim, {**body, "currency": base.get("currency")}, vat_mode=base.get("vat_mode"))
     from . import quotes
@@ -589,19 +597,22 @@ def adjust(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by: str, 
     placed = [(f["id"], int(f["doc_no"]), int(f["rf_page_no"])) for f in store_costs.revision_files(conn, revision_id)]
     rid = _write_revision(conn, claim, d, source="manager", kind="adjustment", created_by_kind="user", created_by=by, placed=placed,
                           at=at, based_on=revision_id, reason=why, exceptional=exceptional)
-    return _approve(conn, claim, rid, by, at, "adjust", why)
+    return _approve(conn, claim, rid, by, at, "adjust", why, inote)
 
 
-def reject(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_id: str, reason: Any, at: dt.datetime) -> dict[str, Any]:
+def reject(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_id: str, reason: Any, at: dt.datetime,
+           internal_note: Any = None) -> dict[str, Any]:
     if claim["status"] != "submitted":
         raise CostRefused(409, "claim_not_submitted")
     _expect(claim, revision, revision_id)
     why = _reason(reason)
+    inote = _internal_note(internal_note)
     now = iso(at)
     dept = store.department_any(conn, claim["department_id"])
     store_costs.update_claim(conn, claim["id"], {"status": "rejected", "claim_until": iso(at + dt.timedelta(days=window_days(conn, dept))),
                                                  "missing_at": None}, now=now)
-    store_costs.insert_decision(conn, {"claim_id": claim["id"], "revision_id": revision_id, "action": "reject", "reason": why, "by_user": by, "at": now})
+    store_costs.insert_decision(conn, {"claim_id": claim["id"], "revision_id": revision_id, "action": "reject", "reason": why, "internal_note": inote,
+                                       "by_user": by, "at": now})
     fresh = store_costs.claim(conn, claim["id"]) or dict(claim)
     refresh_ticket(conn, claim.get("ticket_id"))
     if claim.get("ticket_id"):
@@ -900,7 +911,8 @@ def present_claim(conn, claim: Mapping[str, Any], *, full: bool, now: dt.datetim
     current = next((r for r in revs if r["id"] == claim.get("current_revision_id")), None)
     approved_rev = next((r for r in revs if r["id"] == claim.get("approved_revision_id")), None)
     counted = claim.get("approved_total_minor") if claim["status"] in SETTLED else (current or {}).get("total_minor")
-    decisions = [{"id": d["id"], "action": d["action"], "revision_id": d.get("revision_id"), "reason": d.get("reason"), "amount_minor": d.get("amount_minor"),
+    decisions = [{"id": d["id"], "action": d["action"], "revision_id": d.get("revision_id"), "reason": d.get("reason"),
+                  "internal_note": d.get("internal_note"), "amount_minor": d.get("amount_minor"),
                   "payment_ref": d.get("payment_ref"), "by": store.display_name(conn, d["by_user"]) if not str(d["by_user"]).startswith("contact:") else "",
                   "at": d["at"]} for d in store_costs.decisions(conn, claim["id"])]
     contact, vendor = _contact_pair(conn, claim["contact_id"])

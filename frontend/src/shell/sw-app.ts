@@ -101,7 +101,7 @@ import { navigate, onRouteChange, type RouteState, parseRoute } from '../router'
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { dismissHint, loadDismissal, onDismissal } from '../api/setup-hint';
+import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
@@ -1484,6 +1484,12 @@ export class SwApp extends LitElement {
       // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (OFF by default, the static demo too: shell/nav.ts visibleAreas)
       applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) });
       setTicketNames(s.me?.modules?.tickets_name);
+      // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
+      if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
+        this.setupDis = null;
+        this.setupSum = null;
+        void this.loadSetupHint();
+      }
       // CR-013: this user's tab order (cached copy at once, the server's copy when it answers) and open alerts
       const who = s.mode === 'demo' ? 'demo' : s.me?.user.id ?? null;
       if (who && who !== this.navOrderUser) {

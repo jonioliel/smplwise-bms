@@ -10,7 +10,11 @@ link whose page no longer serves (closed past its grace, expired, a cannot-handl
 until `claim_until` (`claim_window`); the code session applies exactly as on the page (403 `code_required`); bodies through
 `read_json()` into strict models; `client_request_id` mandatory and stored in the effect's own transaction; the write budget is
 spent once a NEW revision is stored. The vendor never sees internal notes, other assignments' claims, other vendors' costs or who
-decided; amounts are the server's (client totals are not even accepted - `extra = forbid`)."""
+decided; amounts are the server's (client totals are not even accepted - `extra = forbid`).
+TKFIX260 (public-surface review F3): inside the write transaction the link is read AGAIN (rule W2): a live / read-only link through
+handler_actions.fresh, a claim-mode link through `costs.claim_mode_ok` - a link revoked or regenerated since the lookup is the
+uniform 404. A stored revision on a link that still serves counts as the handler's progress (the update count and the access row;
+the sliding expiry moves only outside the read-only grace). A claim keeps its total in the audit row (a financial record, 11A.12)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -23,7 +27,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
 from . import cost_files, costs, store_costs, store_links
-from .handler_actions import claim as claim_request, _finish as finish_request
+from .handler_actions import ActionRefused, LinkGone, claim as claim_request, _finish as finish_request, _progress as link_progress, fresh as fresh_link
 from .public_app import ClaimFileSink, Idempotency, idempotency_scope, LinkContext, PublicError, link_context, parse_client_request_id, read_json, spend_budget
 from .public_ports import LinkRecord
 from .public_store import audit_link
@@ -171,11 +175,23 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
             raise PublicError(403, "code_required")
         payload = body.model_dump(exclude={"client_request_id"}, exclude_none=True)
         payload["lines"] = [{k: v for k, v in ln.items() if v is not None} for ln in payload.get("lines", [])]
+        from .public_quotes import client_key
+
+        ck = client_key(ctx)
 
         def tx() -> tuple[int, dict[str, Any], bool]:
             when = now()
             with db.connection(label="tickets.public.claim") as conn:
-                link = ctx.link
+                f = None
+                try:
+                    f = fresh_link(conn, ctx.link, when, write=False)  # W2: the link as it is NOW
+                except LinkGone:
+                    # claim mode (11A.5): the page no longer serves the link, the claim step may - re-checked here as well
+                    if costs.claim_mode_ok(conn, ctx.link.link_id, ctx.link.generation, when) is None:
+                        raise PublicError(404, "link_unavailable") from None
+                if f is not None and f.link.no_money:
+                    raise PublicError(404, "link_unavailable")  # TKSTAFF1 (R2): defence in depth
+                link = f.link if f is not None else ctx.link
                 replay = claim_request(conn, link, crid, CLAIM_ROUTE, when)
                 if replay is not None:
                     return replay[0], replay[1], False
@@ -189,6 +205,8 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 except costs.CostRefused as exc:
                     raise _error(exc) from None
                 rev = store_costs.revision(conn, fresh["current_revision_id"]) or {}
+                if f is not None:  # a link that still serves: the handler's progress (no sliding expiry inside the read-only grace)
+                    link_progress(conn, f, when, ck, extend=not f.link.read_only(when.timestamp()))
                 audit_link(conn, link, "ticket.cost.submit", claim_id=fresh["id"], revision=rev.get("seq"), total_minor=rev.get("total_minor"),
                            currency=rev.get("currency"))
                 answer = {"ok": True, "status": fresh["status"],
@@ -196,7 +214,10 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 return (*finish_request(conn, link, crid, 201, answer), True)
 
         async def work() -> tuple[int, dict[str, Any]]:
-            status, answer, new = await run_in_threadpool(tx)
+            try:
+                status, answer, new = await run_in_threadpool(tx)
+            except ActionRefused as exc:  # claim_request: request_id_reused / request_in_progress
+                raise PublicError(exc.status, exc.code, **exc.extra) from None
             if new:
                 spend_budget(request)
             return status, answer

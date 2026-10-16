@@ -301,3 +301,24 @@ test('TKUI5: the cost words - "הצעת מחיר" before the work, "דרישת �
   expect(CATALOGUES.he.btn_quote_fix).toContain('הצעת המחיר');
   expect(CATALOGUES.he.btn_demand).toContain('דרישת תשלום');
 });
+
+// ---------------------------------------------------------------- TKFIX260 (release 2.6.0 review fixes)
+
+test('TKFIX260: the explicit kind of the view wins over the claim-key guess; the guess stays for a view without it', () => {
+  expect(linkKind(view({ title: 'x', kind: 'staff', claim: null }))).toBe('staff'); // the server says staff - a stray claim key does not make it a vendor
+  expect(linkKind(view({ title: 'x', kind: 'vendor' }))).toBe('vendor'); // the server says vendor even without a claim key
+  expect(linkKind(view({ title: 'x', kind: 'staff', claim_mode: true }))).toBe('vendor'); // the claim mode is a vendor's
+  expect(linkKind(view({ code_required: true, code_ok: false }))).toBe('vendor'); // the code screen: no kind is sent
+  expect(linkKind(view({ title: 'x' }))).toBe('staff'); // an older server: the claim-key fallback
+});
+
+test('TKFIX260: an on-behalf quote is labelled on the vendor card, and the note field holds what the server accepts', () => {
+  const card = code('claim/quote-card.ts');
+  expect(card).toContain("quote.on_behalf");
+  expect(card).toContain("t('q_on_behalf')");
+  expect(card).not.toMatch(/limits\.notes \?\? 1000\) \* 2/);
+  expect(card).toMatch(/notes\.maxLength = s\?\.limits\.notes \?\? 1000;/);
+  const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  expect(texts.match(/q_on_behalf:/g)?.length).toBe(4); // he / en / ar / ru
+  expect(texts).toContain("q_on_behalf: 'הוזן על ידי המנהל'");
+});
