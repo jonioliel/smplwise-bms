@@ -15,6 +15,8 @@ import { ticketsApi, type DetailMode, type Handler, type Meta, type PatchBody, t
 import type { LinkBlock } from '../api/tickets-s4';
 import { messagesApi } from '../api/tickets-messages';
 import { assigneeRef, handlersOf } from './assignee-model';
+import { assignPlan, handlerMessageApplies, messageTarget, outgoingMessage, HANDLER_MESSAGE_MAX } from './assign-message-model';
+import { conversationApi } from '../api/tickets-conversation';
 import {
   fromLocalInput, listHref, marksInternal, moveTo, priorityTone, ticketHref, toLocalInput, type TicketsRoute,
 } from './model';
@@ -113,7 +115,7 @@ export class TicketDetailView extends LitElement {
   @state() private dlgNumber = '';
   @state() private dlgError = '';
   @state() private dlgPick = '';
-  @state() private dlgFlag = true;
+  @state() private dlgMsg = ''; // TKASSIGNDLG: the optional message sent to the handler with the assignment (empty by default)
   @state() private dlgReturnKind: 'cannot_handle' | 'not_mine' = 'cannot_handle';
   /** TKSTAFF2: the handlers of the assign dialog - account holders and staff contacts without an account, one list (assignee-model.ts) */
   @state() private eligible: Handler[] | null = null;
@@ -614,7 +616,7 @@ export class TicketDetailView extends LitElement {
     this.dlgNumber = '';
     this.dlgError = '';
     this.dlgPick = '';
-    this.dlgFlag = true;
+    this.dlgMsg = '';
     this.dlgReturnKind = 'cannot_handle';
     this.costGate = null;
     this.dlgOverride = '';
@@ -673,8 +675,14 @@ export class TicketDetailView extends LitElement {
 
   private async submitAssign(): Promise<void> {
     const t = this.t;
+    // TKASSIGNDLG: the internal note travels with the assignment (never external); the handler message goes after it, and a failed
+    // message never undoes the assignment
+    const plan = assignPlan({ internalNote: this.dlgText, handlerMessage: this.dlgMsg, applies: this.handlerMessageOn() });
     if (t && this.ext.outside) { // slice 4: an outside contact / vendor
-      if (await this.ext.submit(t, this.dlgText.trim(), this.dlgFlag)) this.closeDialog();
+      if (await this.ext.submit(t, plan.note ?? '')) {
+        if (plan.message) await this.sendHandlerMessage(t.id, plan.message);
+        this.closeDialog();
+      }
       return;
     }
     const h = this.pickedHandler();
@@ -683,8 +691,32 @@ export class TicketDetailView extends LitElement {
       return;
     }
     // TKSTAFF2: one submit for every handler - an account holder, or a staff contact (the server sends its personal link)
-    const note = this.dlgText.trim();
-    if (await this.run(() => ticketsApi().assign(t.id, { assignee: assigneeRef(h), note: note || null, note_external: this.dlgFlag, revision: t.revision }), tt('saved'))) this.closeDialog();
+    if (await this.run(() => ticketsApi().assign(t.id, { assignee: assigneeRef(h), note: plan.note, note_external: plan.note_external, revision: t.revision }), tt('saved'))) {
+      if (plan.message) await this.sendHandlerMessage(t.id, plan.message);
+      this.closeDialog();
+    }
+  }
+
+  /** TKASSIGNDLG: whether the handler-message field is on for the handler picked now. */
+  private handlerMessageOn(): boolean {
+    const picked = this.ext.outside ? null : this.pickedHandler();
+    return handlerMessageApplies({ outside: this.ext.outside, pickedStaff: !!picked && !picked.account });
+  }
+
+  /** TKASSIGNDLG: the message that goes with the assignment - the vendor-message route (no extra notification: the assignment's own
+   * message already told the handler). The assignment is already saved; a failure here says so plainly and leaves it in place. */
+  private async sendHandlerMessage(id: string, text: string): Promise<void> {
+    this.busy = true;
+    try {
+      await conversationApi().vendorMessage(id, text, { notify: false });
+      const next = await ticketsApi().get(id);
+      this.t = next as Detail;
+      this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
+    } catch {
+      this.say(tt('asgMsgFailed'), 'bad');
+    } finally {
+      this.busy = false;
+    }
   }
 
   /** The handler picked in the dialog (its key), when it belongs to the group on show. */
@@ -925,6 +957,16 @@ export class TicketDetailView extends LitElement {
     </div>`;
   }
 
+  /** TKASSIGNDLG: the second text of the assign dialog - empty by default, it says it will be sent and shows the outgoing text. */
+  private handlerMessageField(): TemplateResult {
+    const label = tt(messageTarget({ outside: this.ext.outside, vendor: this.ext.pickedVendor }) === 'vendor' ? 'asgMsgVendor' : 'asgMsgHandler');
+    const out = outgoingMessage(this.dlgMsg, true);
+    return html`<label class="fld" data-assign-message><span>${label}</span>
+        <textarea class="inp" maxlength=${HANDLER_MESSAGE_MAX} data-dialog-message .value=${this.dlgMsg} @input=${(e: Event) => { this.dlgMsg = (e.target as HTMLTextAreaElement).value; }}></textarea></label>
+      <span class="muted" data-assign-message-hint>${tIcon('send')}${tt('asgMsgHint')}</span>
+      ${out ? html`<div class="xinfo" data-assign-message-preview><span class="muted">${tt('asgMsgPreview')}</span><pre class="pv" dir="auto" data-message-text>${out}</pre></div>` : nothing}`;
+  }
+
   // ---------------------------------------------------------------- dialogs
 
   private dialogs(): TemplateResult | typeof nothing {
@@ -967,7 +1009,8 @@ export class TicketDetailView extends LitElement {
                 ${h.member_role === 'manager' ? html`<small>${tt('depManager')}</small>` : nothing}</label>`)}</div>`
             : html`<div data-eligible-none>${groupWhy ? this.ext.reasonLine(groupWhy) : nothing}</div>`}
           ${text(tt('assignNote'), false)}
-          ${outside || (picked && !picked.account) || marksInternal(t) ? html`<label class="chk"><input type="checkbox" .checked=${this.dlgFlag} @change=${(e: Event) => (this.dlgFlag = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
+          <span class="muted" data-assign-internal-hint>${tIcon('lock')}${tt('asgInternalHint')}</span>
+          ${this.handlerMessageOn() ? this.handlerMessageField() : nothing}
           ${err}</div>
         ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || (outside ? !this.ext.ready() : !picked)} @click=${() => void this.submitAssign()}>${tIcon('user')}${tt('assign')}</button>`)}
       </sw-dialog>`;

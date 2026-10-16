@@ -287,17 +287,22 @@ export class ExternalAssign implements ReactiveController {
         data-cost-claim-mode=${m} ?disabled=${this.lend.busy()} @click=${() => { this.costClaim = m; this.host.requestUpdate(); }}>${ct(`m_${m}` as CostTextKey)}</button>`)}</span></div>`;
   }
 
+  /** TKASSIGNDLG: whether the chosen outside contact is a vendor (the message field says "vendor" or "handler"). */
+  get pickedVendor(): boolean {
+    return !!this.contacts?.find((c) => c.id === this.pick && c.contact_kind === 'vendor');
+  }
+
   /** Whether the dialog's OK button may be pressed for an outside contact. */
   ready(): boolean {
     return !!this.pick && !!this.preview && this.preview.refusals.length === 0;
   }
 
   /** Assign to the chosen contact; true when the dialog may close. */
-  async submit(t: TicketDetail, note: string, noteExternal: boolean): Promise<boolean> {
+  async submit(t: TicketDetail, note: string): Promise<boolean> {
     if (!this.ready()) return false;
     const chosen = this.contacts?.find((c) => c.id === this.pick);
     return this.lend.run(() => ticketsS4Api().assignContact(t.id, {
-      contactId: this.pick, note: note || null, noteExternal, revision: t.revision,
+      contactId: this.pick, note: note || null, noteExternal: false, revision: t.revision,
       requireCode: this.requireCode && !chosen?.require_code ? true : null,
       shareHistory: this.preview?.share_history.available ? this.shareHistory : null,
       sendNow: this.sendNowChoice() || null, // slice 5b (D29)
