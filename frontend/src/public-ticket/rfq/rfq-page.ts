@@ -26,7 +26,7 @@ import { claimLang, ct, errorText, type ClaimTextKey } from '../claim/claim-text
 import { rfqText, isRfqKey, type RfqKey } from './rfq-text';
 import {
   bodySig, cridFor, draftFromQuote, draftProblems, freshDraft, isoToDay, kindList, outsideWindow, parseRfqDraft, quoteWire, quoting, rfqFailure, rfqKinds, rfqScreen,
-  rfqSettings, timeLeft, type RfqDraft, type RfqScreen,
+  rfqSettings, safeMapUrl, timeLeft, type RfqDraft, type RfqScreen,
 } from './rfq-state';
 
 export interface RfqHost {
@@ -497,6 +497,11 @@ class RfqPage {
       h('div', { class: 'chips' }, h('span', { class: 'chip num-chip' }, this.t('kind')), h('span', { class: 'spacer' }), left ? h('span', { class: 'chip rfq-left', attrs: { 'data-rfq-left': true } }, leftText) : null),
       h('h1', { class: 'title', attrs: { dir: 'auto', 'data-rfq-title': true } }, r.title),
       r.place_text ? h('div', { class: 'where' }, icon('pin'), h('span', { attrs: { dir: 'auto' } }, r.place_text)) : null,
+      // CR-ORG-LOCATIONS: the request's location (text only); the map address only when the manager added it - as TEXT (this chunk builds
+      // no link, unit-public-rfq), and only the short maps.google.com form the server makes from the coordinates
+      r.location?.text ? h('div', { class: 'where', attrs: { 'data-rfq-location': true } }, icon('pin'), h('span', { attrs: { dir: 'auto' } }, r.location.text)) : null,
+      safeMapUrl(r.location?.map_url) ? h('div', { class: 'where', attrs: { 'data-rfq-map': true } }, h('span', { class: 'lbl' }, this.t('navigate')),
+        h('span', { attrs: { dir: 'ltr' } }, safeMapUrl(r.location?.map_url))) : null,
       h('div', { class: 'rfq-facts' },
         r.due_at ? row('due', h('span', { class: 'val' }, h('b', null, this.when(r.due_at))), 'due') : null,
         row('window', win, 'window'),

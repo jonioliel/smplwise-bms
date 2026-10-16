@@ -10,7 +10,7 @@ import sqlite3
 from typing import Any
 
 from ..timeutil import parse_utc
-from . import device_context, model, store
+from . import device_context, model, org_locations, store
 from .access import Seen, Viewer, attachment_visible, event_visible, public_ready
 
 DESCRIPTION_EXCERPT = 240
@@ -210,6 +210,7 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
     out = ticket_item(conn, seen, lk)
     out["description"] = row.get("description") or ""
     out.pop("excerpt", None)
+    out["location"] = org_locations.present_request(row)  # CR-ORG-LOCATIONS: the snapshot taken at creation (None: no location)
     now = dt.datetime.now(dt.timezone.utc)
     events = [_event(conn, e, uid) for e in store.events(conn, row["id"]) if event_visible(seen, e, uid)]
     atts = [_attachment(seen, a, uid, now) for a in store.attachments(conn, row["id"]) if attachment_visible(seen, a, uid)]

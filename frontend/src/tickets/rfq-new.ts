@@ -23,6 +23,10 @@ import {
   normalizeKinds, plannedChannel, refusalKey, toggleKind, windowText, type DraftField, type RfqDraft,
 } from './rfq-model';
 import { ticketsLang } from './text';
+import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
+import { locationPicker } from './location-picker';
+import { OTHER, defaultPick, locationBody, navAvailable, pickPreview } from './org-locations-model';
+import { lt } from './org-locations-text';
 
 const CHANNELS: readonly RfqChannel[] = ['whatsapp', 'email', 'manual'];
 const ERR: Record<DraftField, RfqTextKey> = { title: 'err_title', description: 'err_description', department: 'err_department', due: 'err_due', window: 'err_window', vendors: 'err_vendors', place: 'err_place' };
@@ -58,6 +62,10 @@ export class TicketsRfqNew extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private previewOpen = true;
+  /** CR-ORG-LOCATIONS: the organisation's active locations (null while loading / unavailable) */
+  @state() private locs: LocationsAnswer | null = null;
+  /** the person changed the location: a department change no longer moves it to that department's default */
+  private pickTouched = false;
   private created: RfqDetail | null = null;
   private crid = clientRequestId();
 
@@ -77,6 +85,19 @@ export class TicketsRfqNew extends LitElement {
     if (changed.has('meta') && this.meta && !this.d.department_id) this.d = { ...this.d, department_id: this.firstDept() };
   }
 
+  private async loadLocations(): Promise<void> {
+    try {
+      this.locs = await ticketsLocationsApi().list();
+    } catch {
+      this.locs = null; // the old free-text field stays
+    }
+    if (!this.pickTouched) this.d = { ...this.d, location_pick: defaultPick(this.locs, this.d.department_id) };
+  }
+
+  private setDept(id: string): void {
+    this.d = { ...this.d, department_id: id, ...(this.pickTouched ? {} : { location_pick: defaultPick(this.locs, id) }) };
+  }
+
   private firstDept(): string {
     return this.meta?.departments.find((x) => x.can_create)?.id ?? '';
   }
@@ -84,7 +105,7 @@ export class TicketsRfqNew extends LitElement {
   private blank(): RfqDraft {
     const due = defaultDue(new Date(), this.meta?.settings.default_due_days ?? 3);
     return { department_id: '', title: '', description: '', place_text: '', due_date: due.date, due_time: due.time, work_from: '', work_to: '', kinds: ['labor', 'parts'],
-      vendors: [], source_ticket_id: '' };
+      vendors: [], source_ticket_id: '', location_pick: OTHER, location_nav: false };
   }
 
   private reset(): void {
@@ -97,7 +118,9 @@ export class TicketsRfqNew extends LitElement {
     this.error = '';
     this.created = null;
     this.crid = clientRequestId();
+    this.pickTouched = false;
     void this.loadContacts();
+    void this.loadLocations();
   }
 
   private async loadContacts(): Promise<void> {
@@ -196,7 +219,8 @@ export class TicketsRfqNew extends LitElement {
   private body() {
     const d = this.d;
     return {
-      department_id: d.department_id, title: d.title.trim(), description: d.description.trim() || undefined, place_text: d.place_text.trim() || undefined,
+      department_id: d.department_id, title: d.title.trim(), description: d.description.trim() || undefined,
+      ...locationBody(d.location_pick ?? OTHER, d.place_text), // CR-ORG-LOCATIONS: a location reference, or "other" as the free-text place
       source_ticket_id: d.source_ticket_id || undefined, due_at: localToIso(d.due_date, d.due_time || '12:00'), work_from: dayToIso(d.work_from) || undefined,
       work_to: dayToIso(d.work_to) || undefined, allowed_line_kinds: normalizeKinds(d.kinds), vendors: d.vendors.map((v) => ({ ...v })), client_request_id: this.crid,
       file_ids: this.files.map((f) => f.id),
@@ -236,7 +260,8 @@ export class TicketsRfqNew extends LitElement {
     this.error = '';
     try {
       const r = await this.ensureCreated();
-      await ticketsRfqApi().send(r.id, r.revision, this.mode, clientRequestId());
+      const nav = navAvailable(this.locs, this.d.location_pick ?? '') ? !!this.d.location_nav : undefined;
+      await ticketsRfqApi().send(r.id, r.revision, this.mode, clientRequestId(), nav);
       this.confirm = false;
       this.dispatchEvent(new CustomEvent('rfq-saved', { detail: { id: r.id, sent: true, manual: this.mode === 'manual' } }));
     } catch (e) {
@@ -254,7 +279,8 @@ export class TicketsRfqNew extends LitElement {
     const c = v ? this.contacts?.find((x) => x.id === v.contact_id) : undefined;
     const lang = ticketsLang();
     return invitePreview({
-      name: c?.display_name ?? rt('previewName'), number: rt('previewNumber'), title: this.d.title.trim() || rt('fTitle'), place: this.d.place_text.trim(),
+      name: c?.display_name ?? rt('previewName'), number: rt('previewNumber'), title: this.d.title.trim() || rt('fTitle'),
+      place: pickPreview(this.locs, this.d.location_pick ?? OTHER, this.d.place_text, !!this.d.location_nav && navAvailable(this.locs, this.d.location_pick ?? '')),
       due: dateTime(localToIso(this.d.due_date, this.d.due_time || '12:00')), window: windowText(dayToIso(this.d.work_from), dayToIso(this.d.work_to)) || rt('previewFlexible'),
       link: rt('previewLink'), organization: '',
     }, lang);
@@ -285,10 +311,12 @@ export class TicketsRfqNew extends LitElement {
             aria-describedby="e-title" @input=${(e: Event) => this.set('title', (e.target as HTMLInputElement).value)} />${this.err('title', p)}</label>
           <label class="fld wide">${rt('fDescription')}<textarea class="inp" data-rfq-description maxlength=${DESCRIPTION_MAX} .value=${d.description}
             @input=${(e: Event) => this.set('description', (e.target as HTMLTextAreaElement).value)}></textarea>${this.err('description', p)}</label>
-          <label class="fld">${rt('fDepartment')}<select class="inp" data-rfq-department aria-invalid=${this.inv('department', p)} @change=${(e: Event) => this.set('department_id', (e.target as HTMLSelectElement).value)}>
+          <label class="fld">${rt('fDepartment')}<select class="inp" data-rfq-department aria-invalid=${this.inv('department', p)} @change=${(e: Event) => this.setDept((e.target as HTMLSelectElement).value)}>
             ${depts.map((x) => html`<option value=${x.id} ?selected=${x.id === d.department_id}>${bidi(x.name)}</option>`)}
           </select>${this.err('department', p)}</label>
-          <label class="fld">${rt('fPlace')}<input class="inp" data-rfq-place maxlength=${PLACE_MAX} .value=${d.place_text} @input=${(e: Event) => this.set('place_text', (e.target as HTMLInputElement).value)} />${this.err('place', p)}</label>
+          ${locationPicker({ ans: this.locs, pick: d.location_pick ?? OTHER, other: d.place_text, disabled: this.busy, error: this.err('place', p), label: rt('fPlace'), rfqPlaceAttr: true,
+            onPick: (v) => { this.pickTouched = true; this.d = { ...this.d, location_pick: v, location_nav: false }; },
+            onOther: (v) => { this.pickTouched = true; this.set('place_text', v.slice(0, PLACE_MAX * 2)); } })}
           <fieldset class="fld" style="border:0;padding:0;margin:0"><legend>${rt('fDue')}</legend>
             <div class="dates">
               <label><span class="vh">${rt('fDueDate')}</span><input class="inp" type="date" data-rfq-due-date .value=${d.due_date} aria-invalid=${this.inv('due', p)} aria-describedby="e-due"
@@ -355,6 +383,10 @@ export class TicketsRfqNew extends LitElement {
           ${opt('auto', 'sendAuto', 'sendAutoSub', pageOff)}
           ${opt('manual', 'sendManual', 'sendManualSub', false)}
         </div>
+        ${this.mode === 'auto' && this.d.location_pick && this.d.location_pick !== OTHER ? html`<label class="chk" data-rfq-location-nav>
+            <input type="checkbox" .checked=${!!this.d.location_nav} ?disabled=${this.busy || !navAvailable(this.locs, this.d.location_pick)}
+              @change=${(e: Event) => this.set('location_nav', (e.target as HTMLInputElement).checked)} />
+            <span><b>${lt('navOn')}</b><small>${navAvailable(this.locs, this.d.location_pick) ? lt('navOnSub') : lt('navNoCoords')}</small></span></label>` : nothing}
         ${this.mode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${this.preview()}</pre>` : nothing}
         ${this.error ? html`<div class="err" role="alert" data-rfq-send-error>${this.error}</div>` : nothing}
       </div>

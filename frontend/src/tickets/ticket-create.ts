@@ -22,6 +22,10 @@ import { LATER, createAssignGroups, parsePick, type CreateGroupKey } from './cre
 import { dwt, type DrawerTextKey } from './drawer-text';
 import { ticketsMapApi, type MapElementDraft } from '../api/tickets-map'; // TKMAP1: a request opened from a map element
 import { MAP_TEXT } from './map-text';
+import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations'; // CR-ORG-LOCATIONS: the location picker
+import { locationPicker } from './location-picker';
+import { OTHER, defaultPick, locationBody, otherTooLong } from './org-locations-model';
+import { lt } from './org-locations-text';
 
 /**
  * CR-038 `<ticket-create .open .meta mode="sheet|dialog">`: the create form (D22: a side sheet - the automation builder's 620 px sheet - or a
@@ -65,6 +69,11 @@ export class TicketCreate extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private tried = false;
+  /** CR-ORG-LOCATIONS: the organisation's active locations, the pick (a location id, '' none, OTHER) and the free text of "other" */
+  @state() private locs: LocationsAnswer | null = null;
+  @state() private locPick = OTHER;
+  @state() private locOther = '';
+  private locTouched = false;
   private requestId = newRequestId();
   private similarTimer = 0;
   private offNames: (() => void) | null = null;
@@ -149,6 +158,12 @@ export class TicketCreate extends LitElement {
     this.error = '';
     this.tried = false;
     this.requestId = newRequestId();
+    this.locPick = OTHER;
+    this.locOther = '';
+    this.locTouched = false;
+    void ticketsLocationsApi().list().then((a) => { this.locs = a; }).catch(() => { this.locs = null; }).finally(() => {
+      if (!this.locTouched) this.locPick = defaultPick(this.locs, this.dept);
+    });
   }
 
   private dropPreviews(): void {
@@ -158,6 +173,7 @@ export class TicketCreate extends LitElement {
 
   private pickDepartment(id: string): void {
     this.dept = id;
+    if (!this.locTouched && this.locs) this.locPick = defaultPick(this.locs, id);
     const d = this.meta?.departments.find((x) => x.id === id);
     this.category = '';
     this.priority = d?.priorities.find((p) => p.is_default)?.id ?? d?.priorities[0]?.id ?? '';
@@ -253,13 +269,13 @@ export class TicketCreate extends LitElement {
 
   private async submit(): Promise<void> {
     this.tried = true;
-    if (!this.ttl.trim() || !this.dept || this.busy) return;
+    if (!this.ttl.trim() || !this.dept || this.busy || otherTooLong(this.locPick, this.locOther)) return;
     this.busy = true;
     this.error = '';
     try {
       const answer = await ticketsApi().create({
         department_id: this.dept, category_id: this.category || null, priority_id: this.priority || null, title: this.ttl.trim(),
-        description: this.description.trim(), assign: this.assignee(), client_request_id: this.requestId,
+        description: this.description.trim(), assign: this.assignee(), client_request_id: this.requestId, ...locationBody(this.locPick, this.locOther),
         ...(this.device ? { entity_id: this.device.id } : this.mapElement?.entityId ? { entity_id: this.mapElement.entityId } : {}),
       });
       let ticket: TicketDetail | null = 'events' in answer ? (answer as TicketDetail) : null;
@@ -331,6 +347,9 @@ export class TicketCreate extends LitElement {
       </div></div>` : nothing}
       <label class="fld"><span>${tt('fDescription')}</span>
         <textarea class="inp" maxlength="4000" data-create-description placeholder=${tt('fDescriptionPh')} .value=${this.description} @input=${(e: Event) => (this.description = (e.target as HTMLTextAreaElement).value)}></textarea></label>
+      ${locationPicker({ ans: this.locs, pick: this.locPick, other: this.locOther, disabled: this.busy,
+        error: this.tried && otherTooLong(this.locPick, this.locOther) ? html`<span class="err" role="alert" data-create-location-err>${lt('err_too_long')}</span>` : nothing,
+        onPick: (v) => { this.locTouched = true; this.locPick = v; }, onOther: (v) => { this.locTouched = true; this.locOther = v; } })}
       <div class="fld"><span>${tt('fPhotos')}</span>
         <div class="thumbs">
           ${this.files.map((f, i) => html`<figure class="ph" style="margin:0" data-create-photo><img src=${this.previewOf(f)} alt=${tt('photoAlt', { n: i + 1 })} /><button type="button" class="rm" aria-label=${tt('removePhoto')} @click=${() => this.removeFile(f)}>${tIcon('trash')}</button></figure>`)}

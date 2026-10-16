@@ -288,3 +288,9 @@ export function parseRfqDraft(raw: string | null): RfqDraft | null {
 export function kindList(kinds: readonly RfqKind[] | undefined): LineKind[] {
   return LINE_KINDS.filter((k) => (kinds ?? []).includes(k));
 }
+
+/** CR-ORG-LOCATIONS: the request's map link as a link target - only the short `https://maps.google.com/?q=<lat>,<lng>` form the server
+ * builds from the coordinates; anything else (a script URL, another host) is dropped. */
+export function safeMapUrl(url: string | null | undefined): string {
+  return typeof url === 'string' && /^https:\/\/maps\.google\.com\/\?q=-?\d{1,2}\.\d{5},-?\d{1,3}\.\d{5}$/.test(url) ? url : '';
+}

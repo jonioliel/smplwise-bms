@@ -15,7 +15,8 @@ from ...db import new_id
 
 RFQ_COLUMNS = ("id", "number", "department_id", "title", "description", "site_id", "building_id", "floor_id", "place_text",
                "source_ticket_id", "allowed_line_kinds", "due_at", "work_from", "work_to", "internal_owner_user_id", "state", "created_by",
-               "created_at", "updated_at", "sent_at", "due_passed_at", "awarded_at", "closed_at", "cancelled_at", "cancel_reason", "revision")
+               "created_at", "updated_at", "sent_at", "due_passed_at", "awarded_at", "closed_at", "cancelled_at", "cancel_reason", "revision",
+               "location_id", "location_snapshot", "location_nav")  # + CR-ORG-LOCATIONS (0101, provisional)
 VENDOR_COLUMNS = ("id", "rfq_id", "contact_id", "channel", "channel_choice", "state", "require_code", "invited_at", "sent_at", "first_opened_at",
                   "last_opened_at", "open_count", "quoted_at", "declined_at", "decline_reason", "removed_at", "created_by", "created_at",
                   "updated_at", "revision")

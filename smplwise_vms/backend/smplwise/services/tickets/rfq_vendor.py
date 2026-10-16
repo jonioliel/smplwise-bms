@@ -21,8 +21,18 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from ...db import get_setting
-from . import money, quotes, rfq, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
+from . import money, org_locations, quotes, rfq, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
 from .costs import CostRefused, cost_settings, iso, parse
+
+
+def _vendor_location(row: Mapping[str, Any]) -> dict[str, str] | None:
+    """CR-ORG-LOCATIONS: the request's location as its vendor page shows it - the full text (name, address, details) and the map
+    link only when the manager switched it on for this request (owner answer 17.10 (c))."""
+    snap = org_locations.parse_snapshot(row.get("location_snapshot"))
+    if snap is None:
+        return None
+    url = org_locations.nav_url(snap.get("lat"), snap.get("lng")) if row.get("location_nav") else ""
+    return {"text": org_locations.display_text(snap), "map_url": url}
 
 LANGS = ("he", "en", "ar", "ru")
 RTL = frozenset({"he", "ar"})
@@ -195,6 +205,8 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
     out.update({
         "page_state": state,
         "rfq": {"title": row["title"], "description": row.get("description") or "", "place_text": row.get("place_text") or "",
+                # CR-ORG-LOCATIONS: THIS request's location (its snapshot), after the code gate; the map link only when switched on
+                "location": _vendor_location(row),
                 "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"),
                 "allowed_line_kinds": rfq.allowed_kinds(row), "attachments": []},
         "quote": None if (terminal or cur is None) else present_quote(row, cur),

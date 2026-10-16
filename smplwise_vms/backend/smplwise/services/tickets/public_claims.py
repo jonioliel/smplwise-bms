@@ -236,7 +236,7 @@ def claim_card(conn, link: LinkRecord, *, code_ok: bool, now: dt.datetime) -> di
     full = handler_actions.view(conn, link, code_ok=shown, read_only=True, now=now)
     keep = ["number", "department", "organization", "lang", "dir", "labels", "time_zone", "code_required", "code_ok", "theme"]
     if shown:
-        keep += ["title", "place_text", "device_name", "assigned_by"]
+        keep += ["title", "place_text", "location_text", "device_name", "assigned_by"]
     out = {k: full.get(k) for k in keep}
     out.update({"claim_mode": True, "status": "claim", "read_only": True, "expires_at": costs.iso(_when(link.expires_at)),
                 "actions": {"statuses": [], "note": False, "eta": False, "photo": False, "return": False},

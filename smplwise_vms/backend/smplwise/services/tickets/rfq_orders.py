@@ -222,7 +222,9 @@ def create_order(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, body: M
                                                            description=_description(conn, row, q, a, wf, wt, documents)), viewer, rid=rid)
         tid = res.ticket_id
         store.update_ticket(conn, tid, {"site_id": row.get("site_id"), "building_id": row.get("building_id"), "floor_id": row.get("floor_id"),
-                                        "place_text": row.get("place_text") or "", "allowed_line_kinds": row.get("allowed_line_kinds")}, bump=False)
+                                        "place_text": row.get("place_text") or "", "allowed_line_kinds": row.get("allowed_line_kinds"),
+                                        # CR-ORG-LOCATIONS: the RFQ's reference and snapshot travel to the work order as they are
+                                        "location_id": row.get("location_id"), "location_snapshot": row.get("location_snapshot")}, bump=False)
         if row.get("internal_owner_user_id"):
             owners.set_from_rfq(conn, tid, row["internal_owner_user_id"], by=viewer.uid, at=at)  # RFQ_SPEC 2: the RFQ's internal owner
         seen_t = access.require_visible(viewer, tid)

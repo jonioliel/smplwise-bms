@@ -11,6 +11,7 @@ import { canChangeOwner, ownerView } from './owner-model';
 import { initials } from './status-block';
 import { etaText, slaState } from './status-sentence';
 import { ticketsLang } from './text';
+import { lt } from './org-locations-text'; // CR-ORG-LOCATIONS
 
 /**
  * TKUI1 (release 2.6.0): the Overview tab (סקירה) of the request - IA §4.1 / wireframe §6.1, mock-up v5 `tabOverview()`:
@@ -142,6 +143,7 @@ function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
   return html`<section class="sect" data-ov="facts">
     <h4><span class="tag t2">${tIcon('layers')}</span>${dwt('ovFacts')}${ctx.onEdit ? html`<button type="button" class="btn sm quiet act" data-edit ?disabled=${ctx.busy} @click=${ctx.onEdit}>${tIcon('edit')}${dwt('a_edit')}</button>` : nothing}</h4>
     <div class="facts">
+      ${f('location', lt('fLocation'), t.location?.text ?? '', true)}
       ${f('place', dwt('fPlace'), t.place_text)}
       ${f('device', dwt('fDevice'), t.device_name)}
       ${f('dept', dwt('fDept'), dc)}

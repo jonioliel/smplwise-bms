@@ -14,9 +14,10 @@ from typing import Any, Literal
 from ...audit import audit
 from ...db import new_id, now_iso
 from ...errors import ApiError
-from . import access, assignees, device_context, model, notify_bridge, place, service, sla, store
+from . import access, assignees, device_context, model, notify_bridge, org_locations, place, service, sla, store
 from .access import Viewer, text
 
+PLACE_OTHER_MAX = 200  # CR-ORG-LOCATIONS: the free-text place of a manual request (the RFQ's PLACE_MAX)
 AssigneeRef = assignees.AssigneeRef  # TKSTAFF2: the module's one assignee reference (kind 'user' | 'contact', id)
 
 
@@ -35,6 +36,8 @@ class TicketSpec:
     assign_to: AssigneeRef | None = None
     assign_note: str = ""
     assign_note_external: bool = True
+    location_id: str | None = None  # CR-ORG-LOCATIONS: an organisation location (reference + snapshot at creation)
+    place_other: str = ""  # CR-ORG-LOCATIONS: "other (free text)" - the old free-text place
 
 
 @dataclass(frozen=True)
@@ -73,8 +76,16 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
         title = model.text_field(spec.title, "title", required=True, max_len=model.TITLE_MAX)
         description = model.text_field(spec.description, "description", required=False, max_len=model.DESCRIPTION_MAX, multiline=True)
         assign_note = model.text_field(spec.assign_note, "assign_note", required=False, max_len=model.NOTE_MAX, multiline=True)
+        place_other = model.text_field(spec.place_other, "place_text", required=False, max_len=PLACE_OTHER_MAX)
     except model.Invalid as exc:
         raise service.invalid(conn, exc) from None
+    location: dict[str, Any] = {}
+    if spec.location_id:
+        try:
+            lid, snap = org_locations.resolve(conn, spec.location_id)
+        except org_locations.Invalid as exc:
+            raise service.invalid(conn, model.Invalid([model.Problem(exc.field, exc.code)])) from None
+        location = {"location_id": lid, "location_snapshot": snap}
     category = None
     if spec.category_id:
         category = store.category(conn, spec.category_id)
@@ -122,10 +133,12 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
     store.insert_ticket(conn, {
         "id": ticket_id, "number": number, "department_id": dept["id"], "category_id": category["id"] if category else None,
         "priority_id": priority["id"], "title": title, "description": description, "status": "new", "origin": spec.origin,
-        "place_text": "", "created_by": viewer.uid, "created_by_name": service.actor_name(viewer), "last_activity_at": now,
+        "place_text": place_other, "created_by": viewer.uid, "created_by_name": service.actor_name(viewer), "last_activity_at": now,
         "waiting_on": waiting_on, "waiting_reason": waiting_reason, "rule_ref": spec.rule_ref, "dedupe_key": spec.dedupe_key,
-        "revision": 1, "created_at": now, "updated_at": now, **device,
+        "revision": 1, "created_at": now, "updated_at": now, **device, **location,
     })
+    if entity is not None and not where.place_text and place_other:
+        store.update_ticket(conn, ticket_id, {"place_text": place_other}, bump=False)
     store.insert_event(conn, ticket_id, "created", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
                        to_status="new", data={"origin": spec.origin}, at=now)
     details: dict[str, Any] = {"number": number, "department_id": dept["id"], "origin": spec.origin}
@@ -136,6 +149,8 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
         store.insert_event(conn, ticket_id, "device_context", actor_kind="system", actor_name="", at=now,
                            data={"source": snap["source"], "count": len(snap["items"]), "truncated": bool(snap["truncated"]), "withheld": snap["withheld"]})
         details.update(entity_id=entity["entity_id"], floor_id=where.floor_id, history=snap["source"], history_items=len(snap["items"]))
+    if location:
+        details["location_id"] = location["location_id"]
     audit(conn, actor=viewer.principal, action="ticket.create", decision="allowed", resource_type="ticket", resource_id=ticket_id, request_id=rid,
           details=details)
     sla.refresh(conn, ticket_id)  # slice 2: the dues of the new ticket (section 13.1)

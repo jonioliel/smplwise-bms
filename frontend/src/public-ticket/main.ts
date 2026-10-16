@@ -666,6 +666,7 @@ class Page {
   private hero(v: TicketView, kind: LinkKind): HTMLElement {
     const prio = v.priority ? (this.lang === 'he' && v.priority.name ? v.priority.name : this.t(`priority_${v.priority.key}`)) : '';
     const place = (v.place_text ?? '').trim();
+    const location = (v.location_text ?? '').trim(); // CR-ORG-LOCATIONS: the organisation location the request names
     const device = (v.device_name ?? '').trim();
     return h('section', { class: 'card hero', attrs: { 'data-ticket': v.number } },
       h('div', { class: 'chips' },
@@ -677,6 +678,7 @@ class Page {
       h('h1', { class: 'title', attrs: { dir: 'auto' } }, v.title ?? ''),
       place || device ? h('div', { class: 'where' }, icon('pin'),
         h('span', null, place ? h('span', { attrs: { dir: 'auto' } }, place) : null, place && device ? ' · ' : null, device ? h('span', { attrs: { dir: 'auto' } }, device) : null)) : null,
+      location ? h('div', { class: 'where', attrs: { 'data-location': true } }, icon('pin'), h('span', { attrs: { dir: 'auto' } }, location)) : null,
       this.statusLineEl(v),
       v.description ? h('p', { class: 'desc', attrs: { dir: 'auto' } }, v.description) : null,
       kind === 'vendor' && v.history && v.history.length ? this.historyBlock(v) : null,

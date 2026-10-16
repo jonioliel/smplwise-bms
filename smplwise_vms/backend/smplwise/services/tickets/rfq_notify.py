@@ -116,6 +116,11 @@ def recipient_users(conn: sqlite3.Connection, n: Mapping[str, Any]) -> list[str]
 def place_of(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
     if row.get("place_text"):
         return str(row["place_text"])
+    from .org_locations import parse_snapshot  # CR-ORG-LOCATIONS: the location's NAME only (staff notification, no address)
+
+    snap = parse_snapshot(row.get("location_snapshot"))
+    if snap:
+        return str(snap["name"])
     dept = store.department_any(conn, row["department_id"]) or {}
     return str(dept.get("name") or "")
 

@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ...db import get_setting, new_id
-from . import handler_links, model, naming, notify_bridge, settings_doc, sla, store, store_links
+from . import handler_links, model, naming, notify_bridge, org_locations, settings_doc, sla, store, store_links
 from .public_ports import LinkRecord, StoredImage
 from .public_store import audit_link, fold
 
@@ -404,6 +404,7 @@ def view(conn, link: LinkRecord, *, code_ok: bool, read_only: bool, now: dt.date
         "description": ticket.get("description") or "",
         "priority": _priority(conn, ticket),
         "place_text": ticket.get("place_text") or "",
+        "location_text": org_locations.display_text(org_locations.parse_snapshot(ticket.get("location_snapshot"))),  # CR-ORG-LOCATIONS
         "device_name": ticket.get("device_name") or "",
         "status": status,
         "eta_at": ticket.get("eta_at"),

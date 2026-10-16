@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, Principal
-from . import access, model, money, quotes, rfq_links, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
+from . import access, model, money, org_locations, quotes, rfq_links, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
@@ -422,6 +422,24 @@ def _text_field(conn, value: Any, field_name: str, max_len: int, *, required: bo
         raise invalid(conn, p.field, p.code) from None
 
 
+def _location(conn, location_id: Any) -> dict[str, Any]:
+    """CR-ORG-LOCATIONS: an active organisation location -> its reference and the snapshot taken now; None / "" -> no location."""
+    if not location_id:
+        return {"location_id": None, "location_snapshot": None}
+    try:
+        lid, snap = org_locations.resolve(conn, location_id)
+    except org_locations.Invalid as exc:
+        raise invalid(conn, exc.field, exc.code) from None
+    return {"location_id": lid, "location_snapshot": snap}
+
+
+def location_value(row: Mapping[str, Any]) -> str:
+    """The `{location}` of this request's vendor messages: name · street, city; + the map link only when the manager switched it on
+    for this request (owner answer 17.10 (c), default off). Empty without a location."""
+    snap = org_locations.parse_snapshot(row.get("location_snapshot"))
+    return org_locations.message_text(snap, nav=bool(row.get("location_nav")))
+
+
 def create(conn, viewer: Viewer, body: Mapping[str, Any], rid: str | None = None) -> str:
     now = now_utc()
     dept = store.department(conn, body.get("department_id") or "")
@@ -438,6 +456,7 @@ def create(conn, viewer: Viewer, body: Mapping[str, Any], rid: str | None = None
     title = _text_field(conn, body.get("title"), "title", TITLE_MAX, required=True)
     description = _text_field(conn, body.get("description"), "description", DESCRIPTION_MAX, multiline=True)
     place_text = _text_field(conn, body.get("place_text"), "place_text", PLACE_MAX) or None
+    location = _location(conn, body.get("location_id"))
     source = body.get("source_ticket_id")
     if source:
         seen_ticket = access.visible_by_id(viewer, source)
@@ -460,7 +479,8 @@ def create(conn, viewer: Viewer, body: Mapping[str, Any], rid: str | None = None
     at = iso(now)
     number = store_rfq.next_number(conn)
     rfq_id = store_rfq.insert_rfq(conn, {
-        "number": number, "department_id": dept["id"], "title": title, "description": description, **place, "place_text": place_text,
+        "number": number, "department_id": dept["id"], "title": title, "description": description, **place, "place_text": place_text, **location,
+        "location_nav": 1 if (body.get("location_nav") and location["location_id"]) else 0,
         "source_ticket_id": source, "allowed_line_kinds": store_rfq.dumps(kinds), "due_at": due, "work_from": wf, "work_to": wt,
         "internal_owner_user_id": owner, "state": "draft", "created_by": viewer.uid, "created_at": at, "updated_at": at})
     row = store_rfq.rfq_row_unchecked(conn, rfq_id) or {}
@@ -472,7 +492,7 @@ def create(conn, viewer: Viewer, body: Mapping[str, Any], rid: str | None = None
     return rfq_id
 
 
-EDITABLE_IN_DRAFT = ("title", "description", "place_text", "floor_id", "due_at", "work_from", "work_to", "allowed_line_kinds", "internal_owner_user_id")
+EDITABLE_IN_DRAFT = ("title", "description", "place_text", "location_id", "location_nav", "floor_id", "due_at", "work_from", "work_to", "allowed_line_kinds", "internal_owner_user_id")
 EDITABLE_WHILE_OPEN = ("due_at", "work_from", "work_to", "internal_owner_user_id")
 EDITABLE_AFTER_AWARD = ("internal_owner_user_id",)
 
@@ -497,6 +517,10 @@ def edit(conn, viewer: Viewer, seen: RfqSeen, patch: Mapping[str, Any], revision
         fields["place_text"] = _text_field(conn, patch["place_text"], "place_text", PLACE_MAX) or None
     if "floor_id" in patch:
         fields.update(_place(conn, patch["floor_id"]))
+    if "location_id" in patch:
+        fields.update(_location(conn, patch["location_id"]))  # a new snapshot only while the request is a draft
+    if "location_nav" in patch:
+        fields["location_nav"] = 1 if patch["location_nav"] else 0
     if "allowed_line_kinds" in patch:
         fields["allowed_line_kinds"] = store_rfq.dumps(_kinds(conn, patch["allowed_line_kinds"], row["department_id"]))
     if "due_at" in patch:
@@ -641,9 +665,9 @@ def message_params(conn, row: Mapping[str, Any], contact: Mapping[str, Any]) -> 
     window = (a if a == b or not b else f"{a}-{b}" if a else b) or FLEXIBLE[lang]
     dept = store.department_any(conn, row["department_id"]) or {}
     return {"name": "" if contact.get("erased_at") else (contact.get("display_name") or ""), "number": str(row["number"]),
-            "title": row.get("title") or "", "place": row.get("place_text") or "", "department": dept.get("name") or "",
+            "title": row.get("title") or "", "place": row.get("place_text") or location_value(row), "department": dept.get("name") or "",
             "organization": settings_doc.read(conn).get("organization_name") or "", "due": _local(conn, row.get("due_at"), "%d.%m %H:%M"),
-            "window": window}
+            "window": window, **({"location": location_value(row)} if row.get("location_snapshot") else {})}
 
 
 def _enqueue(conn, *, purpose: str, row: Mapping[str, Any], vendor: Mapping[str, Any], contact: Mapping[str, Any], channel: str,
@@ -670,7 +694,8 @@ def _code_channel(conn, contact: Mapping[str, Any], sent_via: str) -> str | None
     return code_channel_for(conn, dict(contact), link_sent_via=sent_via)
 
 
-def send(conn, viewer: Viewer, seen: RfqSeen, revision: int, channel: str = "auto", rid: str | None = None) -> dict[str, Any]:
+def send(conn, viewer: Viewer, seen: RfqSeen, revision: int, channel: str = "auto", rid: str | None = None,
+         location_nav: bool | None = None) -> dict[str, Any]:
     """Every `draft` vendor is invited: by WhatsApp / e-mail through the outbox (a personal link, template `rfq_invite`) or by hand
     (`manual`: no link, no message). The first send moves the request to `sent`. All checks run before the first write."""
     now = now_utc()
@@ -704,6 +729,10 @@ def send(conn, viewer: Viewer, seen: RfqSeen, revision: int, channel: str = "aut
             raise _err(conn, 409, "code_channel_unavailable", vendor_id=v["id"])  # 15.2: never a code-protected link nobody can open
         plans.append((v, contact or {}, planned))
     at = iso(now)
+    if location_nav is not None and row.get("location_snapshot"):
+        # owner answer 17.10 (c): the preview dialog's "add the navigation link" switch, for THIS request's messages (default off)
+        row["location_nav"] = 1 if location_nav else 0
+        store_rfq.update_rfq(conn, row["id"], {"location_nav": row["location_nav"]}, bump=False)
     counts: Counter[str] = Counter()
     for v, contact, planned in plans:
         if planned != "manual":
@@ -1420,7 +1449,7 @@ def summary(conn, viewer: Viewer, seen: RfqSeen, now: dt.datetime) -> dict[str, 
     dept = store.department_any(conn, row["department_id"]) or {}
     return {"id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": effective_state(row, now), "title": row["title"],
             "department": {"id": row["department_id"], "name": dept.get("name") or ""}, "place_text": row.get("place_text"),
-            "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"), "created_at": row["created_at"],
+            "location": org_locations.present_request(row), "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"), "created_at": row["created_at"],
             "updated_at": row["updated_at"], "internal_owner": {"id": row.get("internal_owner_user_id"),
                                                                  "name": store.display_name(conn, row.get("internal_owner_user_id"))},
             "kpis": kpis(conn, row, vendors, live, now, amounts)}
@@ -1475,6 +1504,7 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
         "id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": state, "title": row["title"], "description": row["description"],
         "department": {"id": row["department_id"], "name": dept.get("name") or ""},
         "place": {"site_id": row.get("site_id"), "building_id": row.get("building_id"), "floor_id": row.get("floor_id"), "text": row.get("place_text")},
+        "location": org_locations.present_request(row), "location_nav": bool(row.get("location_nav")),  # CR-ORG-LOCATIONS
         "source_ticket": source, "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"),
         "allowed_line_kinds": allowed_kinds(row),
         "internal_owner": {"id": row.get("internal_owner_user_id"), "name": store.display_name(conn, row.get("internal_owner_user_id")),

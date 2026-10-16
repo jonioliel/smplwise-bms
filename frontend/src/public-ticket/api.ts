@@ -106,6 +106,8 @@ export interface TicketView {
   description?: string;
   priority?: { key: string; name: string } | null;
   place_text?: string;
+  /** CR-ORG-LOCATIONS: the organisation location this request names (name · address · details), '' without one */
+  location_text?: string;
   device_name?: string;
   status?: string;
   eta_at?: string | null;
@@ -227,6 +229,8 @@ export interface RfqView {
   read_only_until?: string | null;
   page_state?: RfqPageState;
   rfq?: { title: string; description: string | null; place_text: string | null; due_at: string | null; work_from: string | null; work_to: string | null;
+    /** CR-ORG-LOCATIONS: this request's location; `map_url` only when the manager added the navigation link */
+    location?: { text: string; map_url: string } | null;
     allowed_line_kinds: RfqKind[]; attachments: { id?: string; name: string }[] };
   quote?: RfqQuote | null;
   declined?: { at: string; reason: string | null } | null;

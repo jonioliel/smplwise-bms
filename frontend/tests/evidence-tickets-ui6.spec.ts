@@ -179,7 +179,7 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
   });
 
   test('settings: the seven tabs, every tab renders; light / dark, desktop and phone', async ({ page }) => {
-    const tabs = ['general', 'departments', 'display', 'channel', 'messages', 'costs', 'permissions'];
+    const tabs = ['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'permissions'];
     const waits: Record<string, string> = {
       general: `${S} [data-name-editor]`, departments: `${S} tickets-dept-editor`, display: `${S} ticket-board-settings [data-ui-board]`, channel: `${S} tickets-channel-settings [data-channel-settings]`,
       messages: `${S} tickets-message-templates [data-message-templates]`, costs: `${S} tickets-costs-settings [data-costs-settings]`, permissions: `${S} [data-holder]`,

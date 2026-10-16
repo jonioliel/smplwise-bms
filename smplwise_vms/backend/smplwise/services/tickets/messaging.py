@@ -47,6 +47,7 @@ from ...db import Database, get_setting, unlocked
 from .. import messaging_accounts as ma
 from .. import messaging_runtime as mr
 from . import access, handler_links, hours, model, naming, notify_bridge, outbox_store as obs, settings_doc, sla, store, store_links
+from . import org_locations  # CR-ORG-LOCATIONS: the {location} value
 from . import rfq_links, store_rfq  # TKRFQ1: request-for-quotation vendor links and their outbox rows
 from . import codes as codes_mod
 from . import inbound as inbound_mod
@@ -71,7 +72,7 @@ DEFAULT_TZ = "Asia/Jerusalem"
 REPLY_WINDOW_RANGE = (1, 336)
 NOTICE_PURPOSES = ("closed", "reassigned")
 SAMPLE = {"name": "דני", "number": "1042", "department": "אחזקה", "title": "מזגן לא מקרר", "place": "קומה 1 · חדר 102",
-          "device": "מזגן חדר 102", "priority": "רגילה", "organization": "", "manager": "", "eta": ""}
+          "device": "מזגן חדר 102", "priority": "רגילה", "organization": "", "manager": "", "eta": "", "location": "מטה ראשי · הרצל 5, תל אביב"}
 LINK_PLACEHOLDER = {"he": "[קישור]", "en": "[link]", "ar": "[رابط]", "ru": "[ссылка]"}
 CODE_PLACEHOLDER = "123456"
 
@@ -910,7 +911,9 @@ def message_params(conn, ticket: Mapping[str, Any], contact: Mapping[str, Any]) 
     dept = store.department_any(conn, ticket["department_id"]) or {}
     prio = store.priority(conn, ticket["priority_id"]) if ticket.get("priority_id") else None
     device = ticket.get("device_name") or ""
-    place = ", ".join(p for p in (device, ticket.get("place_text") or "") if p)
+    # CR-ORG-LOCATIONS: the request's own location (its snapshot) - only in a message of the request that names it
+    location = org_locations.message_text(org_locations.parse_snapshot(ticket.get("location_snapshot")))
+    place = ", ".join(p for p in (device, ticket.get("place_text") or location) if p)
     eta = ""
     if ticket.get("eta_at"):
         when = obs.parse(ticket["eta_at"])
@@ -920,7 +923,7 @@ def message_params(conn, ticket: Mapping[str, Any], contact: Mapping[str, Any]) 
     doc = settings_doc.read(conn)
     return {"name": contact.get("display_name") or "", "number": str(ticket["number"]), "department": dept.get("name") or "",
             "title": ticket.get("title") or "", "place": place, "device": device, "priority": (prio or {}).get("name") or "",
-            "organization": doc.get("organization_name") or "", "manager": manager, "eta": eta}
+            "organization": doc.get("organization_name") or "", "manager": manager, "eta": eta, **({"location": location} if location else {})}
 
 
 def render_preview(conn, *, purpose: str, contact: Mapping[str, Any], ticket: Mapping[str, Any], template_id: str | None = None,

@@ -611,6 +611,16 @@ purge removes its quotes (DETAIL section 1) - the request then shows the award w
 
 ## 14. Change log
 
+* v1.4 (2026-10-17, CR-ORG-LOCATIONS, `pilot/ORGLOC`; migration 0101, PROVISIONAL number): an RFQ may name an organisation location -
+  create / draft edit take `location_id` (an ACTIVE location; `place_text` stays the "other (free text)") and `location_nav`; the row
+  keeps `location_id` + `location_snapshot` (JSON taken at creation, never rewritten) + `location_nav` (default 0). `POST .../send`
+  takes an optional `location_nav` (the preview dialog's switch). The invitation's `{place}` is `place_text`, else the location's
+  "name · street, city" (+ " · <map link>" only when `location_nav`); the new placeholder `{location}` carries the same text and is
+  present in `params_json` only when the request names a location. The detail / summary carry `location` (`id`, `name`, `address`,
+  `details`, `text`, `message`, `map_url`, `has_coordinates`) and `location_nav`; the vendor page's `rfq.location` = `{text, map_url}`
+  after the code gate (`map_url` empty unless switched on). The work order copies the reference and the snapshot to its ticket. See
+  `docs/changes/CR-ORG-LOCATIONS.md`.
+
 * v1.3 (2026-10-16, integration 2.6.4; TKRFQ4 stage C4, built as "v1.2" on `pilot/TKRFQ4` in parallel with TKRFQ5): section 18 - the work order: create (opens one service request per awarded vendor through the
   existing create and external-assignment code, the assignment message suppressed; the awarded quote becomes its baseline with no
   copy; idempotent by `request_key`), the preview of the exact `rfq_order` text and the explicit send (one outbox row; never on the

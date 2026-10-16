@@ -18,6 +18,7 @@ import { ApiError, del, get, patch, post, put } from './client';
 import { isApi } from './session';
 import type { LineInput, LineKind, StoredLine, VatMode } from './tickets-costs';
 import { mockRfq } from './tickets-rfq-mock';
+import type { RequestLocation } from './tickets-locations';
 
 export type RfqState = 'draft' | 'sent' | 'collecting' | 'due_passed' | 'awarded' | 'ordered' | 'closed' | 'cancelled';
 export type RfqFilter = 'open' | 'all' | RfqState;
@@ -180,6 +181,9 @@ export interface RfqDetail {
   description: string;
   department: { id: string; name: string };
   place: { site_id: string | null; building_id: string | null; floor_id: string | null; text: string | null };
+  /** CR-ORG-LOCATIONS: the organisation location named at creation (its snapshot) and the navigation-link switch of its messages */
+  location?: RequestLocation | null;
+  location_nav?: boolean;
   source_ticket: { id: string; number: number } | null;
   due_at: string | null;
   work_from: string | null;
@@ -277,6 +281,9 @@ export interface RfqCreateBody {
   title: string;
   description?: string;
   place_text?: string;
+  /** CR-ORG-LOCATIONS: an active organisation location (reference + snapshot); `place_text` stays the "other (free text)" */
+  location_id?: string;
+  location_nav?: boolean;
   source_ticket_id?: string;
   due_at?: string;
   work_from?: string;
@@ -343,7 +350,8 @@ export interface RfqBackend {
   /** TKRFQVP (contract 15.6): the per-vendor options; lowering a code the directory demands is 409 `vendor_code_locked` */
   vendorOptions(id: string, vendorId: string, body: RfqVendorOptionsBody): Promise<RfqDetail>;
   revokeLink(id: string, vendorId: string): Promise<RfqDetail>;
-  send(id: string, revision: number, channel: 'auto' | 'manual', clientRequestId: string): Promise<RfqSendAnswer>;
+  /** `locationNav` (CR-ORG-LOCATIONS): the preview dialog's "add the navigation link" switch for this request's messages (default off) */
+  send(id: string, revision: number, channel: 'auto' | 'manual', clientRequestId: string, locationNav?: boolean): Promise<RfqSendAnswer>;
   remind(id: string, vendorIds?: string[]): Promise<RfqDetail>;
   quoteOnBehalf(id: string, vendorId: string, body: RfqQuoteBody): Promise<RfqDetail>;
   withdrawQuote(id: string, vendorId: string, quoteId: string, revision: number): Promise<RfqDetail>;
@@ -406,7 +414,8 @@ const rest: RfqBackend = {
   removeVendor: (id, vendorId, revision) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/remove`, { revision }),
   vendorOptions: (id, vendorId, body) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/options`, body),
   revokeLink: (id, vendorId) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/link/revoke`),
-  send: (id, revision, channel, clientRequestId) => post<RfqSendAnswer>(`${R}/${enc(id)}/send`, { revision, channel, client_request_id: clientRequestId }),
+  send: (id, revision, channel, clientRequestId, locationNav) => post<RfqSendAnswer>(`${R}/${enc(id)}/send`,
+    { revision, channel, client_request_id: clientRequestId, ...(locationNav === undefined ? {} : { location_nav: locationNav }) }),
   remind: (id, vendorIds) => post<RfqDetail>(`${R}/${enc(id)}/remind`, vendorIds?.length ? { vendor_ids: vendorIds } : {}),
   quoteOnBehalf: (id, vendorId, body) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/quotes`, body),
   withdrawQuote: (id, vendorId, quoteId, revision) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/quotes/${enc(quoteId)}/withdraw`, { revision }),
