@@ -506,3 +506,185 @@
 .swc-delta.swc-up {
   color: var(--swc-warning);
 }
+
+/*
+ * TKUI5 (2.6.0): the permanent "quote / payment demand" card in the page's card language (approved mock-up v5): one purple-edged card,
+ * the numbered badge of the page's steps, the flow as dots, state pills with a dot, calm inner parts, pill buttons, 14 px inputs.
+ */
+.swc {
+  --swc-on-accent: var(--sw-on-accent, #ffffff);
+  --swc-bg-2: var(--sw-surface-2, #f3f5f8);
+}
+
+.swc .swc-input,
+.swc .swc-seg {
+  border-width: 1.5px;
+  border-radius: 14px;
+}
+
+.swc .swc-seg {
+  border-radius: 999px;
+}
+
+.swc .swc-btn {
+  font-weight: 700;
+}
+
+.swc .swc-primary {
+  box-shadow: var(--sw-glow, none);
+}
+
+.swc.swq {
+  max-width: none;
+  margin: 0;
+  background: var(--sw-surface, #ffffff);
+  border: 1px solid var(--sw-cost-line, #cfc4f2);
+  border-radius: var(--sw-r-lg, 20px);
+  padding: 16px;
+  box-shadow: var(--sw-shadow, none);
+}
+
+.swq > .swc-head .swc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.swq > .swc-head .swc-title::before {
+  counter-increment: step;
+  content: counter(step);
+  inline-size: 28px;
+  block-size: 28px;
+  flex: none;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--sw-cost, #533bb0);
+  color: var(--sw-surface, #ffffff);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.swq .swc-card {
+  background: var(--sw-surface-2, #f6f8fb);
+  border-color: var(--sw-border, #e3e7ee);
+  border-radius: 14px;
+}
+
+.swq .swq-dim {
+  opacity: 0.75;
+}
+
+.swq .swq-intro {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--sw-cost-soft, #efeaff);
+  color: var(--sw-cost, #533bb0);
+  font-weight: 600;
+}
+
+.swq .swq-flow {
+  flex-wrap: nowrap;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.swq .swq-flow li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  background: transparent;
+  color: var(--sw-text-3, #5d697b);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.swq .swq-flow li::before {
+  content: '';
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--sw-border-strong, #c9d0db);
+}
+
+.swq .swq-flow li::after {
+  content: '';
+  inline-size: 14px;
+  block-size: 1px;
+  margin-inline: 6px;
+  background: var(--sw-border-strong, #c9d0db);
+}
+
+.swq .swq-flow li:last-child::after {
+  display: none;
+}
+
+.swq .swq-flow li.swq-done {
+  color: var(--sw-success, #14703c);
+  background: transparent;
+}
+
+.swq .swq-flow li.swq-done::before {
+  background: var(--sw-success, #14703c);
+}
+
+.swq .swq-flow li.swq-cur {
+  background: transparent;
+  color: var(--sw-accent-text, #1a4fb8);
+}
+
+.swq .swq-flow li.swq-cur::before {
+  background: var(--sw-accent, #1f5fd6);
+  box-shadow: 0 0 0 3px var(--sw-accent-soft, #e8f0ff);
+}
+
+.swq .swq-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 28px;
+  padding: 0 11px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--sw-surface-3, #eceff4);
+  color: var(--sw-text-2, #404b5d);
+}
+
+.swq .swq-pill::before {
+  content: '';
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.swq .swq-pill.swq-ok {
+  background: var(--sw-success-soft, #e6f6ec);
+  color: var(--sw-success, #14703c);
+}
+
+.swq .swq-pill.swq-bad {
+  background: var(--sw-danger-soft, #fdeaea);
+  color: var(--sw-danger, #a82525);
+}
+
+.swq .swq-pill.swq-acc {
+  background: var(--sw-accent-soft, #e8f0ff);
+  color: var(--sw-accent-text, #1a4fb8);
+}
+
+/* the preliminary-translation line of the arabic / russian pages lives once in the page footer (main.ts) */
+.swq .swq-tr {
+  display: none;
+}
+
+/* a card the page has nothing to show in (costs off for this request) stays out of the layout */
+.swc[hidden] {
+  display: none !important;
+}

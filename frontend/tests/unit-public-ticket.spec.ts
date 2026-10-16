@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { afterFailure, afterStep, bootFrom, codeMessage, lineOf, parseDraft, partToggle, phaseOf, planSend, statusChoices, validSession, type Draft } from '../src/public-ticket/state';
+import { afterFailure, afterStep, bootFrom, codeMessage, linkKind, lineOf, parseDraft, partToggle, phaseOf, planSend, primaryAction, statusChoices, statusLine, validSession, type Draft } from '../src/public-ticket/state';
 import { CATALOGUES, LANGS, preferredLang, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
 import { etaFor, instantOf, isoToLocalInput, localInputToIso, zonedParts } from '../src/public-ticket/time';
 import type { ApiFailure, TicketView } from '../src/public-ticket/api';
@@ -243,4 +243,61 @@ test('TKSTAFF1 18 / 19: a 404 forgets the token; "סיום" clears the token, th
   const finish = main.slice(main.indexOf('private finish(): void {'), main.indexOf('private setLang('));
   expect(finish).toContain('this.forget()');
   expect(main).toMatch(/if \(next\.forget\) this\.forget\(\)|next\.forget/);
+});
+
+// ---------------------------------------------------------------- TKUI5: one component, the layout chosen by the link's kind
+
+test('TKUI5: the kind comes from the claim key - a vendor link always has it (even null), a staff link never does', () => {
+  expect(linkKind(view({ title: 'x', claim: null }))).toBe('vendor');
+  expect(linkKind(view({ title: 'x', claim: { status: 'awaiting', required: false, writable: true, claim_until: null } }))).toBe('vendor');
+  expect(linkKind(view({ title: 'x' }))).toBe('staff'); // no claim key at all
+  expect(linkKind(view({ title: 'x', claim_mode: true }))).toBe('vendor'); // the claim mode of a dead link is a vendor's
+  expect(linkKind(view({ code_required: true, code_ok: false }))).toBe('vendor'); // the code screen shows no content: nothing of the layout is visible
+});
+
+test('TKUI5: the one status line speaks in the vendor words and follows the quote and the payment demand', () => {
+  const key = (over: Partial<TicketView>, quote: string | null = null) => statusLine(view({ claim: null, ...over }), quote).key;
+  expect(key({ status: 'assigned' })).toBe('line_ack');
+  expect(key({ status: 'acknowledged' })).toBe('line_received');
+  expect(key({ status: 'acknowledged' }, 'rejected')).toBe('line_quote_fix');
+  expect(key({ status: 'acknowledged' }, 'submitted')).toBe('line_quote_wait');
+  expect(key({ status: 'acknowledged' }, 'approved')).toBe('line_quote_ok');
+  expect(key({ status: 'in_progress' })).toBe('line_working');
+  expect(key({ status: 'waiting_part' })).toBe('line_part');
+  expect(key({ status: 'done' })).toBe('line_done');
+  expect(key({ status: 'done', claim: { status: 'awaiting', required: false, writable: true, claim_until: null } })).toBe('line_demand_ask');
+  expect(key({ status: 'done', claim: { status: 'awaiting', required: false, writable: false, claim_until: null } })).toBe('line_done');
+  expect(key({ status: 'done', claim: { status: 'submitted', required: false, writable: false, claim_until: null } })).toBe('line_demand_wait');
+  expect(key({ status: 'done', claim: { status: 'rejected', required: false, writable: true, claim_until: null } })).toBe('line_demand_fix');
+  expect(key({ status: 'done', claim: { status: 'approved', required: false, writable: false, claim_until: null } })).toBe('line_demand_ok');
+  expect(key({ status: 'done', claim: { status: 'paid', required: false, writable: false, claim_until: null } })).toBe('line_paid');
+  expect(key({ status: 'closed', read_only: true })).toBe('line_closed');
+  expect(statusLine(view({ status: 'assigned', claim: null }), null).tone).toBe('acc');
+  for (const l of LANGS) for (const k of ['line_ack', 'line_part', 'line_demand_ask', 'btn_ack', 'btn_quote_fix', 'btn_demand', 'prelim'] as Key[]) expect(CATALOGUES[l][k].length).toBeGreaterThan(2);
+});
+
+test('TKUI5: the ONE primary - a draft wins, then receipt, a quote correction, the payment demand, else the update; none when nothing can be written', () => {
+  const v = (over: Partial<TicketView>) => view({ claim: null, ...over });
+  expect(primaryAction(v({ status: 'assigned' }), 'vendor', false, null)).toBe('ack');
+  expect(primaryAction(v({ status: 'assigned' }), 'staff', false, null)).toBe('ack');
+  expect(primaryAction(v({ status: 'assigned' }), 'vendor', true, null)).toBe('send');
+  expect(primaryAction(v({ status: 'assigned', actions: { statuses: ['in_progress'], note: true, eta: true, photo: true, return: true } }), 'vendor', false, null)).toBe('send');
+  expect(primaryAction(v({ status: 'acknowledged' }), 'vendor', false, 'rejected')).toBe('quote_fix');
+  expect(primaryAction(v({ status: 'acknowledged' }), 'staff', false, 'rejected')).toBe('send'); // staff has no quote
+  const awaiting = { status: 'awaiting', required: false, writable: true, claim_until: null };
+  expect(primaryAction(v({ status: 'done', claim: awaiting }), 'vendor', false, null)).toBe('demand');
+  expect(primaryAction(v({ status: 'done', claim: { ...awaiting, status: 'rejected' } }), 'vendor', false, null)).toBe('demand');
+  expect(primaryAction(v({ status: 'done', claim: { ...awaiting, status: 'submitted' } }), 'vendor', false, null)).toBe('send');
+  expect(primaryAction(v({ status: 'done', claim: awaiting }), 'vendor', true, null)).toBe('send');
+  expect(primaryAction(v({ status: 'closed', read_only: true, actions: undefined }), 'vendor', false, null)).toBe('none');
+  expect(primaryAction(v({ claim_mode: true }), 'vendor', false, null)).toBe('none');
+});
+
+test('TKUI5: the cost words - "הצעת מחיר" before the work, "דרישת תשלום" after, never "דרישת עלות"; no module default name, no HA branding', () => {
+  const all = JSON.stringify(CATALOGUES) + readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  expect(all).not.toContain('דרישת עלות');
+  expect(all).not.toMatch(/קריא/);
+  expect(all).not.toMatch(/Home Assistant/i);
+  expect(CATALOGUES.he.btn_quote_fix).toContain('הצעת המחיר');
+  expect(CATALOGUES.he.btn_demand).toContain('דרישת תשלום');
 });

@@ -82,6 +82,8 @@ export interface CostCardOptions {
   /** where the claim step lives (the page mounts it there); shown once a claim exists */
   demandSlot: HTMLElement;
   onCodeRequired?: () => void;
+  /** TKUI5: the quote's state became known or changed (the page's status line and primary button follow it, without a full redraw) */
+  onState?: (state: QuoteState) => void;
 }
 
 export interface CostCardHandle {
@@ -91,6 +93,8 @@ export interface CostCardHandle {
   /** resolves after the first load (success or not) */
   ready: Promise<void>;
   approved(): { total_minor: number; currency: string } | null;
+  /** TKUI5: the quote's state as the server last said it (null until the first answer) */
+  quoteState(): QuoteState | null;
   destroy(): void;
 }
 
@@ -194,6 +198,7 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
     }
     render();
     resolveReady();
+    if (info) opts.onState?.(info.state);
   }
 
   function startForm(): ClaimForm {
@@ -629,6 +634,7 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
     refresh,
     ready,
     approved: approvedRef,
+    quoteState: () => info?.state ?? null,
     destroy() {
       destroyed = true;
       root.remove();

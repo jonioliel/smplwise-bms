@@ -196,3 +196,67 @@ export function partToggle(view: Pick<TicketView, 'status' | 'actions'>, draftSt
   if (target !== cur && !(view.actions?.statuses ?? []).includes(target)) return null;
   return { on, next: target === cur ? null : target };
 }
+
+// ---------------------------------------------------------------- TKUI5: one component, the layout chosen by the link's kind
+
+export type LinkKind = 'vendor' | 'staff';
+
+/**
+ * The page is ONE component; the contact kind decides the layout. The server's view carries no `kind` field (handler_actions.view); the
+ * only signal is the `claim` key: GET /t/api/ticket sets it (a block or null) on every vendor link and never on a staff link (TKSTAFF1 R2,
+ * public_routes.py). So: a view that shows the ticket and has no `claim` key (and is not the claim mode of a dead link) is a staff link.
+ * A view without content (the code screen) is treated as vendor: nothing of the layout is visible there.
+ */
+export function linkKind(view: Pick<TicketView, 'title' | 'claim' | 'claim_mode'>): LinkKind {
+  if (view.title === undefined || view.claim_mode) return 'vendor';
+  return 'claim' in view ? 'vendor' : 'staff';
+}
+
+export type Tone = 'acc' | 'ok' | 'warn' | 'bad' | 'mut';
+export interface StatusLine { tone: Tone; icon: string; key: string }
+
+/**
+ * The ONE status line of the first screen, in the vendor's words (never the manager's): derived from the ticket's status, the cost
+ * claim (after "done") and the state of the quote (before the work; null until the quote card has answered, and always null for staff).
+ */
+export function statusLine(view: Pick<TicketView, 'status' | 'claim' | 'read_only' | 'claim_mode'>, quote: string | null): StatusLine {
+  const st = view.status ?? '';
+  const claim = view.claim?.status ?? null;
+  if (view.claim_mode) return { tone: 'acc', icon: 'coin', key: 'line_demand_ask' };
+  if (view.read_only || st === 'closed' || st === 'cancelled') return { tone: 'mut', icon: 'lock', key: 'line_closed' };
+  if (claim === 'paid') return { tone: 'ok', icon: 'check', key: 'line_paid' };
+  if (claim === 'approved') return { tone: 'ok', icon: 'check', key: 'line_demand_ok' };
+  if (claim === 'submitted') return { tone: 'acc', icon: 'clock', key: 'line_demand_wait' };
+  if (claim === 'rejected') return { tone: 'bad', icon: 'alert', key: 'line_demand_fix' };
+  if (claim === 'awaiting' && view.claim?.writable) return { tone: 'warn', icon: 'coin', key: 'line_demand_ask' };
+  if (st === 'done') return { tone: 'ok', icon: 'check', key: 'line_done' };
+  if (st === 'new' || st === 'assigned') return { tone: 'acc', icon: 'check', key: 'line_ack' };
+  if (st === 'waiting_part') return { tone: 'warn', icon: 'box', key: 'line_part' };
+  if (st === 'in_progress') return { tone: 'acc', icon: 'wrench', key: 'line_working' };
+  if (st === 'acknowledged') {
+    if (quote === 'rejected') return { tone: 'bad', icon: 'alert', key: 'line_quote_fix' };
+    if (quote === 'submitted') return { tone: 'acc', icon: 'clock', key: 'line_quote_wait' };
+    if (quote === 'approved') return { tone: 'ok', icon: 'check', key: 'line_quote_ok' };
+    return { tone: 'acc', icon: 'check', key: 'line_received' };
+  }
+  return { tone: 'mut', icon: 'info', key: 'line_working' };
+}
+
+export type PrimaryKind = 'ack' | 'quote_fix' | 'demand' | 'send' | 'none';
+
+/**
+ * The ONE big button of the first screen. A draft the vendor started always wins (it is "send the update"); then the next thing the
+ * state asks for: confirm receipt, correct a quote the organisation sent back, send the payment request; else "send the update".
+ * Nothing at all on a page that cannot be written (closed, claim mode: the claim step has its own button).
+ */
+export function primaryAction(view: Pick<TicketView, 'status' | 'actions' | 'claim' | 'read_only' | 'claim_mode'>, kind: LinkKind, hasDraft: boolean, quote: string | null): PrimaryKind {
+  if (view.read_only || view.claim_mode || !view.actions) return 'none';
+  if (hasDraft) return 'send';
+  if ((view.status === 'new' || view.status === 'assigned') && view.actions.statuses.includes('acknowledged')) return 'ack';
+  if (kind === 'vendor') {
+    if (quote === 'rejected' && view.status !== 'done') return 'quote_fix';
+    const c = view.claim;
+    if (c && (c.status === 'awaiting' || c.status === 'rejected') && c.writable) return 'demand';
+  }
+  return 'send';
+}
