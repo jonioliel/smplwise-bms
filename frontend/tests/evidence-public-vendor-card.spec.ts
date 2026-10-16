@@ -189,6 +189,27 @@ test.describe('TK257 / TK259: the vendor page card and theme', () => {
     await shot(page, 'card-quote-sent-he');
   });
 
+  test('TKPOLISH: the optional work window and validity are sent; an end before the start is refused on the page', async ({ page }) => {
+    const s = await open(page, view('he'));
+    const card = page.locator('[data-cost-card]');
+    const day = (n: number) => new Date(Date.now() + n * DAY).toISOString().slice(0, 10);
+    await card.locator('input[data-quote-field="hours"]').fill('2');
+    await card.locator('input[data-quote-field="rate"]').fill('150');
+    await card.locator('input[data-quote-date="from"]').fill(day(5));
+    await card.locator('input[data-quote-date="to"]').fill(day(3));
+    await card.locator('[data-quote-send]').click();
+    await expect(card.locator('.swc-error:not([hidden])')).toBeVisible(); // the end is before the start
+    expect(s.calls.filter((c) => c.method === 'POST').length, 'nothing posted').toBe(0);
+    await card.locator('input[data-quote-date="to"]').fill(day(6));
+    await card.locator('input[data-quote-date="valid"]').fill(day(30));
+    await card.locator('[data-quote-send]').click();
+    await expect(page.locator('[data-quote-part="submitted"]')).toBeVisible();
+    const b = s.calls.find((c) => c.method === 'POST' && c.path === '/t/api/quote')!.body as { work_from?: string; work_to?: string; valid_until?: string };
+    expect(b.work_from).toBe(`${day(5)}T00:00:00Z`);
+    expect(b.work_to).toBe(`${day(6)}T23:59:59Z`);
+    expect(b.valid_until).toBe(day(30));
+  });
+
   test('TK257: travel and other appear only when the server lists them; "other" needs a description', async ({ page }) => {
     await open(page, view('he'), { quote: quoteInfo({ allowed_kinds: ['labor', 'parts', 'travel', 'other'] }) });
     const card = page.locator('[data-cost-card]');

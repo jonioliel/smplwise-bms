@@ -165,7 +165,7 @@ export interface NotifyPolicy {
   /** A quiet "resolved" update (default false; true for critical). */
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
-  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users'; user_ids?: string[] };
+  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers'; user_ids?: string[] };
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
@@ -999,7 +999,16 @@ export async function runDoorOpen(adapter: Pick<NotifyAdapter, 'openDoor'>, stat
 
 // ------------------------------------------------------------------------------------------------ helpers: the source / channel matrix (settings §19.1, §19.7)
 
-export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string> = { scope: 'כל מי שרואה', managers: 'מנהלים', initiator: 'היוזם / בעל החשבון', users: 'משתמשים נבחרים' };
+// TKPOLISH: every rule the server knows (notify_policy.RECIPIENT_RULES) has a label; the last four are routed by their own module
+// (the generator screen, the service-management tickets, quote requests) and are shown, not picked, in the matrix.
+export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string> = {
+  scope: 'כל מי שרואה', managers: 'מנהלים', initiator: 'היוזם / בעל החשבון', users: 'משתמשים נבחרים',
+  generator: 'לפי הגדרות הגנרטור', ticket_managers: 'מנהלי השירות', ticket_assignee: 'הגורם המטפל בבקשה', rfq_managers: 'מנהלי בקשות הצעת מחיר',
+};
+export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
+  scope: 'Everyone who can see it', managers: 'Managers', initiator: 'The initiator / account owner', users: 'Selected users',
+  generator: 'As set on the generator screen', ticket_managers: 'Service managers', ticket_assignee: 'The person handling the request', rfq_managers: 'Quote request managers',
+};
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
 export interface ChannelCell {
   on: boolean;
