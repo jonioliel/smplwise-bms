@@ -1,6 +1,6 @@
 # Service-request detail - backend contract (TKDETAILBE)
 
-Status: **v1.1 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
+Status: **v1.2 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
 in the hand-off report. Source decisions: `private/planning/_mockups/ticket-detail-v3/DECISIONS.md` (owner, 15.10 and 15.10 evening)
 and `RFQ_SPEC_DRAFT.md` sections 1, 2, 5, 9. Backend only: no UI is part of this change.
 
@@ -8,10 +8,15 @@ The RFQ backend (C1) builds on sections 3-6: its `quote` / `quote_line` entities
 an award approves a quote through the same decision code, and the ticket opened from an order receives the approved quote as its
 cost baseline.
 
-## 1. Migration (provisional number 0087)
+## 1. Migration 0087 (on top of 0085 TK257 quotes and 0086 outbox link generation)
 
-`0087_ticket_detail.sql` - additive only (no table rebuild). Provisional: other branches hold 0085 / 0086; the lead renumbers at
-integration. Nothing is read while `tickets.enabled` is off.
+`0087_ticket_detail.sql` - no table rebuild. Nothing is read while `tickets.enabled` is off. It REPLACES the 2.5.7 quote of 0085
+(TK257): every `ticket_cost_quotes` row is copied into `ticket_quotes` (`seq` -> `version`, `rejected` = "needs a correction" ->
+`fix_requested`, an approval approves every line, `notes` -> `note`, `reason` -> `decision_reason`, the previous seq becomes
+`supersedes_id`), each 2.5.7 decision becomes a `ticket_quote_decisions` row (id `m0087-<quote id>`), and `ticket_cost_quotes` is
+DROPPED. The 2.5.7 comma lists `cost_line_kinds` become `allowed_line_kinds` JSON (labour and parts added, as 2.5.7 always did):
+the department's onto the department, an assignment's onto its ticket (the latest assignment that set one). The two
+`cost_line_kinds` columns stay in place, unused.
 
 | Object | Change |
 |---|---|
@@ -169,11 +174,22 @@ Quote answer (full):
 
 | Route | Body / answer |
 |---|---|
-| `GET /t/api/quote` | the link's own quotes (vendor view: state, its lines and totals, the fix / reject reason, the approved line indexes and total), `mode`, the form (`allowed_kinds`, currencies, VAT default / exempt, rate, limits), `writable` |
-| `POST /t/api/quote` | `{lines[], currency?, amounts_include_vat?, work_from?, work_to?, note?, vendor_ref?, client_request_id}` -> 201 `{ok, quote}`; refusals `{code}`: 409 `quote_not_open`, 409 `quote_already_approved`, 422 `invalid` with `fields` |
+| `GET /t/api/quote` | the 2.5.7 (TK257) answer, unchanged for the built vendor card: `state` (`none`/`submitted`/`approved`/`rejected`), `enabled`, `writable`, `allowed_kinds`, `currency`, `quote` (the one that counts: the approved one, else the newest live one) and `form` (`currencies`, `vat`, `labor_rate_minor`, `limits.{lines, description, notes, max_total_minor}`). Added: `state_detail` (this design's exact state), `mode`, `quotes` (every version), `form.allowed_kinds`, `form.limits.{note, vendor_ref}` |
+| `POST /t/api/quote` | `{lines[], currency?, amounts_include_vat?, work_from?, work_to?, note? or notes?, vendor_ref?, client_request_id}` -> 201 `{ok, quote}`; refusals as in 2.5.7: 409 `quote_closed` (the precise reason in `reason`: `quote_not_open`, `quote_off`, `quote_already_approved`), 422 `invalid` with `fields` (`kind_not_allowed` for a line kind the request does not allow) |
 
-The `GET /t/api/ticket` answer gains `quote: {mode, state, version, writable}` (or null) beside `claim`. Never internal notes, other
-vendors' quotes, who decided, or the internal owner.
+A vendor-side quote (`quote` / `quotes[]`) has the 2.5.7 fields `id`, `seq`, `state` (2.5.7 vocabulary), `lines`, `labor_minor` ...
+`total_minor`, `net_minor`, `vat_mode`, `vat_rate_bp`, `currency`, `notes`, `created_at`, `reason` (when `state` is `rejected`), and
+adds `version`, `state_detail`, `work_from`, `work_to`, `approved` (`{line_indexes, partial, subtotal_minor, vat_minor, total_minor}`)
+and per line `index` / `approved`. Mapping: `fix_requested` and `rejected` -> `rejected` (both let the vendor send a new version);
+`approved` and `partially_approved` -> `approved`. The card is hidden (`enabled: false`) when the assignment's cost mode is `off` or
+its quote mode is `off`. Nothing the built card reads changed; it can show a partial approval from `quote.approved.partial`.
+
+The `GET /t/api/ticket` answer gains `quote: {mode, enabled, state, state_detail, version, writable}` (or null) beside `claim`.
+Never internal notes, other vendors' quotes, who decided, or the internal owner.
+
+The 2.5.7 manager route `POST /tickets/{id}/costs/quotes/{quote_id}/{approve|reject}` stays as a compatibility alias (approve = all
+lines, reject = request a fix with a reason; it answers the costs answer plus `message_draft`); new clients use 4.4. The `quotes`
+list of `GET /tickets/{id}/costs` is now this design's (section 4.4: `decision.by` instead of 2.5.7's `decided_by`).
 
 ## 5. Payment demand (after the work) - the existing claim, extended
 
@@ -319,3 +335,8 @@ The task named `tickets.costs.approve`: no such permission exists - `tickets.cos
   never `decision`; 6 - status items carry `stored_to` (the stored status, `waiting_part` included) beside the displayed `to`.
   Unchanged on purpose: a demand REJECTION still queues the existing templated `cost_rejected` notification (it is not an approval;
   the owner's rule names approvals) - the reject answer also returns a `message_draft` for a free-text explanation.
+* v1.2 (2026-10-16, lead decision on the TK257 collision): merged on top of `integ/257` (0085 TK257 quotes, 0086). 0087 now migrates
+  and drops `ticket_cost_quotes` and converts `cost_line_kinds` (section 1); the public `/t/api/quote` keeps the 2.5.7 shape and codes
+  (4.5 - this replaces the v1 codes `quote_not_open` / `quote_already_approved` / `line_kind_not_allowed` on the PUBLIC routes; the
+  internal routes keep them); a quote is also refused when the assignment's cost mode is `off` (2.5.7 rule); the 2.5.7 manager route
+  stays as an alias.

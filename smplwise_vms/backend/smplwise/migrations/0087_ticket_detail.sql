@@ -2,8 +2,15 @@
 -- request with its history, the allowed cost line kinds (request -> department -> installation), the quote mode of an external
 -- assignment, quotes before the work (versions, partial approval, append-only decisions) and the link from a payment demand (the
 -- 0083 claim) to the approved quote it was validated against, with the exceptional lines of each revision.
--- Additive only (no table rebuild); nothing here is read while the module switch `tickets.enabled` is off.
--- PROVISIONAL NUMBER: other branches hold 0085 / 0086; renumbered at integration (the release check wants a contiguous sequence).
+-- No table rebuild; nothing here is read while the module switch `tickets.enabled` is off. Applies on top of 0085 (TK257, 2.5.7: the
+-- first, minimal quote table `ticket_cost_quotes` and the comma lists `cost_line_kinds`) and 0086 (outbox link generation).
+--
+-- REPLACES 0085 (lead decision 2026-10-16): at the end of this file every `ticket_cost_quotes` row is copied into `ticket_quotes`
+-- (seq -> version; 2.5.7 `rejected` = "needs a correction" -> `fix_requested`; an approval approves every line; each decision becomes
+-- a `ticket_quote_decisions` row) and the old table is DROPPED (nothing references it; one quote implementation only). The two
+-- `cost_line_kinds` columns are converted into `allowed_line_kinds` (JSON; 2.5.7 always added labour and parts) - the department's
+-- onto the department, an assignment's onto its ticket (the latest assignment that set one) - and are then left in place, unused
+-- (nothing reads them after this migration; dropping a column is not worth a rebuild).
 --
 -- Money is an integer in minor units, as in 0083. A quote's VAT mode and rate are frozen at submission. Quote rows are never
 -- re-priced: a correction is a new version (the previous one `superseded`); decisions are append-only rows.
@@ -88,3 +95,47 @@ CREATE TABLE ticket_quote_decisions (
   at           TEXT NOT NULL
 );
 CREATE INDEX idx_ticket_quote_decisions_quote ON ticket_quote_decisions (quote_id, at);
+
+-- ---------------------------------------------------------------- 0085 (TK257) -> this design
+
+UPDATE ticket_departments SET allowed_line_kinds =
+  '["labor","parts"' ||
+  CASE WHEN instr(',' || replace(cost_line_kinds, ' ', '') || ',', ',travel,') > 0 THEN ',"travel"' ELSE '' END ||
+  CASE WHEN instr(',' || replace(cost_line_kinds, ' ', '') || ',', ',other,') > 0 THEN ',"other"' ELSE '' END || ']'
+WHERE cost_line_kinds IS NOT NULL AND trim(cost_line_kinds) <> '' AND allowed_line_kinds IS NULL;
+
+UPDATE tickets SET allowed_line_kinds = (
+  SELECT '["labor","parts"' ||
+         CASE WHEN instr(',' || replace(a.cost_line_kinds, ' ', '') || ',', ',travel,') > 0 THEN ',"travel"' ELSE '' END ||
+         CASE WHEN instr(',' || replace(a.cost_line_kinds, ' ', '') || ',', ',other,') > 0 THEN ',"other"' ELSE '' END || ']'
+  FROM ticket_assignments a
+  WHERE a.ticket_id = tickets.id AND a.cost_line_kinds IS NOT NULL AND trim(a.cost_line_kinds) <> ''
+  ORDER BY a.assigned_at DESC, a.rowid DESC LIMIT 1)
+WHERE allowed_line_kinds IS NULL AND EXISTS (
+  SELECT 1 FROM ticket_assignments a WHERE a.ticket_id = tickets.id AND a.cost_line_kinds IS NOT NULL AND trim(a.cost_line_kinds) <> '');
+
+INSERT INTO ticket_quotes (id, ticket_id, rfq_vendor_id, assignment_id, contact_id, department_id, version, supersedes_id, source, state,
+                           currency, vat_mode, vat_rate_bp, lines_json, labor_minor, parts_minor, travel_minor, other_minor,
+                           subtotal_minor, vat_minor, total_minor, work_from, work_to, note, vendor_ref, approved_lines_json,
+                           approved_subtotal_minor, approved_vat_minor, approved_total_minor, decided_by, decided_at, decision_reason,
+                           created_by_kind, created_by, created_at, updated_at, revision)
+SELECT q.id, q.ticket_id, NULL, q.assignment_id, q.contact_id, t.department_id, q.seq,
+       (SELECT p.id FROM ticket_cost_quotes p WHERE p.assignment_id = q.assignment_id AND p.seq = q.seq - 1), 'vendor',
+       CASE q.state WHEN 'rejected' THEN 'fix_requested' ELSE q.state END,
+       q.currency, q.vat_mode, q.vat_rate_bp, q.lines_json, q.labor_minor, q.parts_minor, q.travel_minor, q.other_minor,
+       q.subtotal_minor, q.vat_minor, q.total_minor, NULL, NULL, q.notes, NULL,
+       CASE WHEN q.state = 'approved' THEN (SELECT json_group_array(CAST(j.key AS INTEGER)) FROM json_each(q.lines_json) j) END,
+       CASE WHEN q.state = 'approved' THEN q.subtotal_minor END,
+       CASE WHEN q.state = 'approved' THEN q.vat_minor END,
+       CASE WHEN q.state = 'approved' THEN q.total_minor END,
+       q.decided_by, q.decided_at, q.reason, 'contact', q.contact_id, q.created_at, COALESCE(q.decided_at, q.created_at), 1
+FROM ticket_cost_quotes q LEFT JOIN tickets t ON t.id = q.ticket_id;
+
+INSERT INTO ticket_quote_decisions (id, quote_id, action, reason, lines_json, amount_minor, by_user, at)
+SELECT 'm0087-' || q.id, q.id, CASE q.state WHEN 'approved' THEN 'approve' ELSE 'request_fix' END, q.reason,
+       CASE WHEN q.state = 'approved' THEN (SELECT json_group_array(CAST(j.key AS INTEGER)) FROM json_each(q.lines_json) j) END,
+       CASE WHEN q.state = 'approved' THEN q.total_minor END, q.decided_by, q.decided_at
+FROM ticket_cost_quotes q WHERE q.state IN ('approved', 'rejected') AND q.decided_by IS NOT NULL AND q.decided_at IS NOT NULL;
+
+DROP INDEX IF EXISTS idx_cost_quotes_ticket;
+DROP TABLE ticket_cost_quotes;

@@ -1,7 +1,7 @@
 """CR-038 slice 1 - migration 0079 (section 7.1): it applies on an empty database and on top of the previous schema (a database at
 0078, the 2.4.10 line) without touching existing rows; every core table and index exists with the r2 columns; the foreign keys hold;
 the seeds (the running number, the "אחזקה" department with four priorities and the section 13.1 SLA matrix) are there; 0079 is the
-highest migration of this branch (the spec reserves 0079-0084)."""
+highest migration of this branch (the spec reserves 0079-0084; TK257 added 0085, provisionally)."""
 from __future__ import annotations
 
 import re
@@ -12,7 +12,7 @@ import pytest
 
 from smplwise import db as dbmod
 
-CR038 = range(79, 89)  # the numbers the spec reserves for CR-038 (section 7) + the provisional TKDETAILBE 0087 (renumbered at integration)
+CR038 = range(79, 88)  # the numbers the spec reserves for CR-038 (section 7) + 0085 (TK257 quotes) + 0086 (deep review B3, renumbered at integration) + 0087 (TKDETAILBE detail: quotes v2, owner, allowed kinds)
 TABLES = {
     "ticket_departments", "ticket_department_members", "ticket_priorities", "ticket_categories", "ticket_sla_rules", "ticket_templates",
     "ticket_sequence", "tickets", "ticket_assignments", "ticket_events", "ticket_requests", "ticket_saved_views", "ticket_attachments",
@@ -44,9 +44,9 @@ def _schema(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
 
 def test_0079_is_the_highest_migration_of_the_branch():
     """0079 is the first of the CR-038 range; the later slices take their reserved numbers (0080 slice 4, 0081 slice 5b, 0082
-    slice 5a, 0083 slice 9) - nothing of another change lives above 0079."""
+    slice 5a, 0083 slice 9, 0084 employee contacts, 0085 TK257 quotes, 0086 deep review B3, 0087 TKDETAILBE) - nothing of another change lives above 0079."""
     numbers = sorted(int(f.name.split("_", 1)[0]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert [n for n in numbers if n >= 79][0] == 79 and all(79 <= n <= 88 for n in numbers if n >= 79)  # TKDETAILBE: provisional 0087 (renumbered at integration)
+    assert [n for n in numbers if n >= 79][0] == 79 and all(79 <= n <= 87 for n in numbers if n >= 79)
     assert (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").is_file()
     assert numbers.count(79) == 1
     sql = (dbmod.MIGRATIONS_DIR / "0079_tickets_core.sql").read_text(encoding="utf-8")

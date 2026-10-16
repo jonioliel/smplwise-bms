@@ -6,6 +6,8 @@ decision drafts that are NEVER sent automatically, the permission matrix and the
 from __future__ import annotations
 
 import datetime as dt
+import re
+import shutil
 import time
 
 import pytest
@@ -75,9 +77,9 @@ def timeline(s4, tid, user="joni", **params):
 
 # ---------------------------------------------------------------- the migration
 
-def test_0087_is_additive_and_creates_the_tables(s4):
+def test_0087_creates_the_tables_and_drops_only_the_2_5_7_quote_table(s4):
     sql = (MIGRATIONS_DIR / "0087_ticket_detail.sql").read_text(encoding="utf-8")
-    assert "DROP TABLE" not in sql.upper() and "CR-038" in sql.splitlines()[0]
+    assert re.findall(r"^DROP TABLE\s+(\w+)", sql, re.I | re.M) == ["ticket_cost_quotes"] and "CR-038" in sql.splitlines()[0]
     with s4.db.connection(mode="read") as conn:
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {"ticket_quotes", "ticket_quote_decisions", "ticket_owner_changes"} <= tables
@@ -86,6 +88,55 @@ def test_0087_is_additive_and_creates_the_tables(s4):
         assert "quote_mode" in {r[1] for r in conn.execute("PRAGMA table_info(ticket_assignments)")}
         assert "quote_id" in {r[1] for r in conn.execute("PRAGMA table_info(ticket_cost_claims)")}
         assert "exceptional_json" in {r[1] for r in conn.execute("PRAGMA table_info(ticket_cost_revisions)")}
+        assert "ticket_cost_quotes" not in tables, "one quote implementation: the 2.5.7 table is gone"
+
+
+def test_0087_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, tmp_path, monkeypatch):
+    from smplwise import db as dbmod
+
+    real = dbmod.MIGRATIONS_DIR
+    older = tmp_path / "older"
+    older.mkdir()
+    for f in real.glob("*.sql"):
+        if int(f.name.split("_", 1)[0]) < 87:
+            shutil.copy(f, older / f.name)
+    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
+    database = dbmod.Database(settings.db_path)
+    database.migrate()
+    now = "2026-10-16T08:00:00Z"
+    lines = ('[{"kind":"labor","description":"","total_minor":30000,"hours":"2","rate_minor":15000},'
+             '{"kind":"parts","description":"x","total_minor":80000,"quantity":"1","unit_minor":80000}]')
+    with database.connection() as conn:
+        prio = conn.execute("SELECT id FROM ticket_priorities WHERE department_id = 'dept-maintenance' LIMIT 1").fetchone()[0]
+        conn.execute("UPDATE ticket_departments SET cost_line_kinds = 'travel' WHERE id = 'dept-maintenance'")
+        for n, tid in enumerate(("t1", "t2"), start=1):
+            conn.execute("INSERT INTO tickets(id, number, department_id, priority_id, title, status, origin, created_by, last_activity_at, "
+                         "created_at, updated_at) VALUES (?, ?, 'dept-maintenance', ?, 'x', 'assigned', 'manual', 'u', ?, ?, ?)",
+                         (tid, 900 + n, prio, now, now, now))
+            conn.execute("INSERT INTO ticket_assignments(id, ticket_id, assignee_kind, contact_id, assignee_name, channel, assigned_by, "
+                         "assigned_at, cost_line_kinds) VALUES (?, ?, 'contact', 'c1', 'v', 'manual', 'u', ?, ?)",
+                         (f"a{n}", tid, now, "other, travel" if n == 1 else None))
+        rows = (("q1", "t1", "a1", 1, "superseded", None, None, None), ("q2", "t1", "a1", 2, "approved", None, "u1", now),
+                ("q3", "t2", "a2", 1, "rejected", "missing parts price", "u1", now))
+        for qid, tid, aid, seq, state, reason, by, at in rows:
+            conn.execute("INSERT INTO ticket_cost_quotes(id, ticket_id, assignment_id, contact_id, seq, state, lines_json, labor_minor, "
+                         "parts_minor, travel_minor, other_minor, subtotal_minor, vat_mode, vat_rate_bp, vat_minor, total_minor, currency, notes, "
+                         "reason, decided_by, decided_at, created_at) VALUES (?, ?, ?, 'c1', ?, ?, ?, 30000, 80000, 0, 0, 110000, 'excluded', "
+                         "1800, 19800, 129800, 'ILS', 'n', ?, ?, ?, ?)", (qid, tid, aid, seq, state, lines, reason, by, at, now))
+    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
+    assert dbmod.Database(settings.db_path).migrate() == [87]
+    with database.connection(mode="read") as conn:
+        q = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM ticket_quotes")}
+        assert {k: (v["version"], v["state"]) for k, v in q.items()} == {"q1": (1, "superseded"), "q2": (2, "approved"), "q3": (1, "fix_requested")}
+        assert q["q2"]["approved_lines_json"] == "[0,1]" and q["q2"]["approved_total_minor"] == 129800 and q["q2"]["supersedes_id"] == "q1"
+        assert q["q3"]["decision_reason"] == "missing parts price" and q["q2"]["note"] == "n" and q["q2"]["department_id"] == "dept-maintenance"
+        d = [(r["quote_id"], r["action"]) for r in conn.execute("SELECT * FROM ticket_quote_decisions ORDER BY quote_id")]
+        assert d == [("q2", "approve"), ("q3", "request_fix")]
+        kinds = {r[0]: r[1] for r in conn.execute("SELECT id, allowed_line_kinds FROM tickets")}
+        assert kinds == {"t1": '["labor","parts","travel","other"]', "t2": None}
+        dept = conn.execute("SELECT allowed_line_kinds FROM ticket_departments WHERE id = 'dept-maintenance'").fetchone()[0]
+        assert dept == '["labor","parts","travel"]'
+        assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'ticket_cost_quotes'").fetchone()
 
 
 # ---------------------------------------------------------------- the internal owner
@@ -163,7 +214,7 @@ def test_allowed_kinds_default_to_labor_and_parts_and_follow_request_department_
     q = quotes_of(s4, t["id"])
     assert q["allowed_line_kinds"] == {"kinds": ["labor", "parts"], "level": "installation"}
     r = vendor_quote(client, token, lines=QUOTE + [{"kind": "travel", "amount": "50"}])
-    assert r.status_code == 422 and r.json()["fields"][0] == {"field": "lines.2.kind", "code": "line_kind_not_allowed"}
+    assert r.status_code == 422 and r.json()["fields"][0] == {"field": "lines.2.kind", "code": "kind_not_allowed"}
     r = s4.c.put(f"{API}/tickets/costs/departments/dept-maintenance", json={"allowed_line_kinds": ["labor", "parts", "travel"]})
     assert r.status_code == 200, r.text
     dept = next(d for d in r.json()["departments"] if d["id"] == "dept-maintenance")
@@ -199,7 +250,7 @@ def test_the_vendor_quotes_through_the_link_and_versions_supersede(s4):
     f = r.json()
     assert f["writable"] is True and f["mode"] == "optional" and f["form"]["allowed_kinds"] == ["labor", "parts"] and f["quotes"] == []
     page = client.get("/t/api/ticket", headers=hdr(token)).json()
-    assert page["quote"] == {"mode": "optional", "state": None, "version": None, "writable": True}
+    assert page["quote"] == {"mode": "optional", "enabled": True, "state": "none", "state_detail": None, "version": None, "writable": True}
     r = vendor_quote(client, token, amounts_include_vat=False, work_from=SOON, work_to=SOON_END, note="כולל פירוק")
     assert r.status_code == 201, r.text
     q1 = r.json()["quote"]
@@ -247,7 +298,7 @@ def test_partial_approval_is_the_baseline_and_returns_a_draft_but_sends_nothing(
     vendor_status(client, token, "in_progress")
     assert quotes_of(s4, t["id"])["flow"]["stage"] == "work"
     r = vendor_quote(client, token)
-    assert r.status_code == 409 and r.json()["code"] == "quote_already_approved"
+    assert r.status_code == 409 and r.json()["code"] == "quote_closed" and r.json()["reason"] == "quote_already_approved"
     v = client.get("/t/api/quote", headers=hdr(token)).json()
     assert v["writable"] is False and v["quotes"][0]["approved"]["total_minor"] == 35400 and "decision" not in v["quotes"][0]
 
@@ -260,7 +311,7 @@ def test_request_fix_and_reject_need_a_reason_and_the_vendor_sees_it(s4):
     assert r.status_code == 200 and r.json()["quotes"][-1]["state"] == "fix_requested" and "חסר פירוט חלקים" in r.json()["message_draft"]["text"]
     assert quotes_of(s4, t["id"])["flow"]["stage"] == "quote_fix_requested"
     v = client.get("/t/api/quote", headers=hdr(token)).json()
-    assert v["quotes"][0]["state"] == "fix_requested" and v["quotes"][0]["reason"] == "חסר פירוט חלקים" and v["writable"] is True
+    assert (v["quotes"][0]["state"], v["quotes"][0]["state_detail"]) == ("rejected", "fix_requested") and v["quotes"][0]["reason"] == "חסר פירוט חלקים" and v["writable"] is True
     assert vendor_quote(client, token).status_code == 201
     r = decide_quote(s4, t["id"], "reject", reason="יקר מדי")
     assert r.status_code == 200 and r.json()["quotes"][-1]["state"] == "rejected"
@@ -295,7 +346,7 @@ def test_a_quote_needs_an_active_external_assignment_and_the_mode(s4):
     assert r.status_code == 200 and r.json()["flow"]["stage"] == "quote_requested" and r.json()["quote_mode"] == "required"
     assert s4.c.post(f"{API}/tickets/{t['id']}/quotes/requirement", json={"assignment_id": asg, "mode": "off"}, headers=s4.h("mona")).status_code == 200
     r = vendor_quote(client, token)
-    assert r.status_code == 409 and r.json()["code"] == "quote_off"
+    assert r.status_code == 409 and r.json()["code"] == "quote_closed" and r.json()["reason"] == "quote_off"
     assert client.get("/t/api/ticket", headers=hdr(token)).json()["quote"] is None
 
 

@@ -1,11 +1,11 @@
 /*
  * CR-038 slice 4 - the handler page's own small stylesheet (spec 10.7): the product's token NAMES (--sw-*), neutral values, no
- * skins, light / dark by the phone's setting. Served as a file (CSP `style-src 'self'`: no inline style anywhere); no web font
+ * skins, light / dark by the installation's setting and the vendor's own toggle (theme.ts). Served as a file (CSP `style-src 'self'`: no inline style anywhere); no web font
  * (CSP `default-src 'none'`): the system's fonts. Logical properties only, so the same rules serve Hebrew / Arabic (RTL) and
  * English / Russian (LTR). Touch targets are at least 44 px.
  */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --sw-bg: #f3f5f9;
   --sw-surface: #ffffff;
   --sw-surface-2: #f6f8fb;
@@ -38,8 +38,39 @@
   --sw-fs-xl: 22px;
 }
 
+/* TK259: the look is chosen by data-theme on <html> (theme.ts): light (the default, also before any script runs), dark, or auto = the device's setting */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+    --sw-bg: #0d1117;
+    --sw-surface: #161c26;
+    --sw-surface-2: #1b2330;
+    --sw-surface-3: #222c3b;
+    --sw-border: #2a3444;
+    --sw-border-strong: #3a4659;
+    --sw-text: #e9eef6;
+    --sw-text-2: #c3ccd8;
+    --sw-text-3: #8f9bad;
+    --sw-accent: #5b8cff;
+    --sw-accent-text: #8fb0ff;
+    --sw-accent-soft: #1d2a45;
+    --sw-on-accent: #0b1020;
+    --sw-success: #4ade80;
+    --sw-success-soft: #13291c;
+    --sw-warning: #f2a54a;
+    --sw-warning-soft: #2e2213;
+    --sw-danger: #f87171;
+    --sw-danger-soft: #331717;
+    --sw-focus: #8fb0ff;
+    --sw-shadow: none;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root[data-theme='auto'] {
+    color-scheme: dark;
     --sw-bg: #0d1117;
     --sw-surface: #161c26;
     --sw-surface-2: #1b2330;
@@ -144,6 +175,37 @@ body {
 .sub {
   font-size: var(--sw-fs-sm);
   color: var(--sw-text-3);
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.icon-btn {
+  flex: none;
+  inline-size: 44px;
+  block-size: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--sw-border-strong);
+  background: var(--sw-surface);
+  color: var(--sw-text);
+  cursor: pointer;
+}
+
+.icon-btn .ic {
+  inline-size: 22px;
+  block-size: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .lang {

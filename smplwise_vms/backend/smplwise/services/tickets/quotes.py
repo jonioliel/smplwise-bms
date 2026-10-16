@@ -250,6 +250,10 @@ def submit(conn, ticket: Mapping[str, Any], assignment: Mapping[str, Any] | None
         raise CostRefused(409, "quote_not_open")
     if quote_mode(assignment) == "off":
         raise CostRefused(409, "quote_off")
+    from .costs import assignment_mode
+
+    if assignment_mode(conn, ticket, assignment) == "off":  # TK257: no costs at all on this assignment -> no quote either
+        raise CostRefused(409, "quote_off")
     existing = store_quotes.quotes_of_assignment(conn, assignment["id"])
     if any(q["state"] in APPROVED for q in existing):
         raise CostRefused(409, "quote_already_approved")
@@ -280,7 +284,7 @@ def submit(conn, ticket: Mapping[str, Any], assignment: Mapping[str, Any] | None
         "vat_rate_bp": c.vat_rate_bp, "lines_json": [ln.as_json() for ln in c.lines], "labor_minor": c.by_kind["labor"],
         "parts_minor": c.by_kind["parts"], "travel_minor": c.by_kind["travel"], "other_minor": c.by_kind["other"],
         "subtotal_minor": c.subtotal_minor, "vat_minor": c.vat_minor, "total_minor": c.total_minor, "work_from": work_from, "work_to": work_to,
-        "note": _text(body.get("note"), "note", NOTE_MAX, multiline=True), "vendor_ref": _text(body.get("vendor_ref"), "vendor_ref", VENDOR_REF_MAX),
+        "note": _text(body.get("note") if body.get("note") is not None else body.get("notes"), "note", NOTE_MAX, multiline=True), "vendor_ref": _text(body.get("vendor_ref"), "vendor_ref", VENDOR_REF_MAX),
         "created_by_kind": by_kind, "created_by": by_id, "created_at": now, "updated_at": now,
     })
     data = {"quote_id": qid, "version": version, "on_behalf": by_kind == "user"}
@@ -457,18 +461,50 @@ def answer(conn, ticket: Mapping[str, Any], *, full: bool, can_decide: bool) -> 
 
 # ---------------------------------------------------------------- the handler page (section 4.5)
 
-def public_summary(conn, assignment_id: str) -> dict[str, Any] | None:
-    asg = store.assignment(conn, assignment_id)
-    if asg is None or asg.get("assignee_kind") != "contact":
-        return None
-    mode = quote_mode(asg)
-    quotes = [q for q in store_quotes.quotes_of_assignment(conn, assignment_id) if q["state"] not in ("superseded",)]
-    last = quotes[-1] if quotes else None
-    ticket = store_costs.ticket_row(conn, asg["ticket_id"]) or {}
-    writable = _writable(ticket, asg, quotes)
-    if mode == "off" and last is None:
-        return None
-    return {"mode": mode, "state": last["state"] if last else None, "version": last["version"] if last else None, "writable": writable}
+# The handler page speaks the 2.5.7 (TK257) vocabulary, which the built vendor card (frontend public-ticket/claim/quote-card.ts) reads:
+# `state` none | submitted | approved | rejected ("needs a correction" - the vendor may send a new quote). The exact state of this design
+# travels beside it as `state_detail` (fix_requested / rejected / partially_approved ...).
+PUBLIC_STATE = {"submitted": "submitted", "fix_requested": "rejected", "rejected": "rejected", "approved": "approved",
+                "partially_approved": "approved", "superseded": "superseded", "withdrawn": "superseded", "not_awarded": "superseded"}
+HIDDEN_FROM_VENDOR = frozenset({"not_awarded"})
+
+
+def current(quotes: Sequence[Mapping[str, Any]]) -> dict[str, Any] | None:
+    """The quote that counts on the page: the approved one, else the newest one that is still live."""
+    approved = [q for q in quotes if q["state"] in APPROVED]
+    if approved:
+        return dict(approved[-1])
+    live = [q for q in quotes if q["state"] not in ("superseded", "withdrawn", "not_awarded")]
+    return dict(live[-1]) if live else None
+
+
+def present_public(q: Mapping[str, Any]) -> dict[str, Any]:
+    """One quote as its vendor sees it - the TK257 shape (`seq`, `notes`, `reason` of a correction) plus this design's fields."""
+    state = PUBLIC_STATE[q["state"]]
+    out: dict[str, Any] = {
+        "id": q["id"], "seq": q["version"], "version": q["version"], "state": state, "state_detail": q["state"], "lines": _lines_view(q),
+        "labor_minor": q["labor_minor"], "parts_minor": q["parts_minor"], "travel_minor": q["travel_minor"], "other_minor": q["other_minor"],
+        "subtotal_minor": q["subtotal_minor"], "vat_mode": q["vat_mode"], "vat_rate_bp": q["vat_rate_bp"], "vat_minor": q["vat_minor"],
+        "total_minor": q["total_minor"], "net_minor": q["total_minor"] - q["vat_minor"], "currency": q["currency"],
+        "notes": q.get("note"), "work_from": q.get("work_from"), "work_to": q.get("work_to"), "created_at": q["created_at"],
+        "approved": ({"line_indexes": approved_indexes(q), "partial": q["state"] == "partially_approved",
+                      "subtotal_minor": q.get("approved_subtotal_minor"), "vat_minor": q.get("approved_vat_minor"),
+                      "total_minor": q.get("approved_total_minor")} if q["state"] in APPROVED else None),
+    }
+    if state == "rejected":
+        out["reason"] = q.get("decision_reason")
+    return out
+
+
+def _enabled(conn, ticket: Mapping[str, Any], asg: Mapping[str, Any]) -> bool:
+    """TK257: the card is hidden when the assignment asks for no costs at all (cost mode `off`) - and when no quote is wanted."""
+    if quote_mode(asg) == "off":
+        return False
+    if not ticket or not asg.get("contact_id"):
+        return False
+    from .costs import assignment_mode
+
+    return assignment_mode(conn, ticket, asg) != "off"
 
 
 def _writable(ticket: Mapping[str, Any], asg: Mapping[str, Any], quotes: Sequence[Mapping[str, Any]]) -> bool:
@@ -476,25 +512,53 @@ def _writable(ticket: Mapping[str, Any], asg: Mapping[str, Any], quotes: Sequenc
             and ticket.get("status") in model.HANDLING and not any(q["state"] in APPROVED for q in quotes))
 
 
+def public_summary(conn, assignment_id: str) -> dict[str, Any] | None:
+    """The `quote` block of GET /t/api/ticket (the card itself reads GET /t/api/quote)."""
+    asg = store.assignment(conn, assignment_id)
+    if asg is None or asg.get("assignee_kind") != "contact":
+        return None
+    ticket = store_costs.ticket_row(conn, asg["ticket_id"]) or {}
+    quotes = store_quotes.quotes_of_assignment(conn, assignment_id)
+    cur = current(quotes)
+    enabled = _enabled(conn, ticket, asg)
+    if not enabled and cur is None:
+        return None
+    return {"mode": quote_mode(asg), "enabled": enabled, "state": PUBLIC_STATE[cur["state"]] if cur else "none",
+            "state_detail": cur["state"] if cur else None, "version": cur["version"] if cur else None,
+            "writable": enabled and _writable(ticket, asg, quotes)}
+
+
 def public_quotes(conn, assignment_id: str) -> dict[str, Any]:
-    """GET /t/api/quote: the link's OWN quotes only - states, its lines and totals, the fix / reject reason, the approved part, the
-    form. Never internal notes, other vendors' quotes or who decided."""
+    """GET /t/api/quote - the 2.5.7 (TK257) answer, extended: `state`, `enabled`, `writable`, `allowed_kinds`, `currency`, `quote` (the
+    one that counts) and `form`, plus `state_detail`, `mode` and `quotes` (every version). The link's OWN quotes only; never internal
+    notes, other vendors' quotes or who decided."""
     asg = store.assignment(conn, assignment_id) or {}
     ticket = store_costs.ticket_row(conn, asg.get("ticket_id")) or {}
     quotes = store_quotes.quotes_of_assignment(conn, assignment_id)
+    cur = current(quotes)
     s = cost_settings(conn)
     contact = store_links.contact(conn, asg.get("contact_id")) or {}
     vendor = store_links.contact(conn, contact.get("vendor_id")) if contact.get("vendor_id") else None
     exempt = bool(contact.get("vat_exempt") or (vendor or {}).get("vat_exempt"))
+    rate = contact.get("labor_rate_minor")
+    if rate is None and vendor is not None:
+        rate = vendor.get("labor_rate_minor")
+    rate_currency = contact.get("rate_currency") or (vendor or {}).get("rate_currency")
+    currency = (cur or {}).get("currency") or (rate_currency if rate_currency in s.currencies else s.currencies[0])
     kinds = effective_kinds(conn, ticket)[0] if ticket else ["labor", "parts"]
+    enabled = _enabled(conn, ticket, asg)
     return {
-        "mode": quote_mode(asg), "writable": bool(ticket) and _writable(ticket, asg, quotes),
-        "quotes": [present_quote(conn, q, full=True, for_vendor=True) for q in quotes if q["state"] != "not_awarded"],
-        "form": {"allowed_kinds": kinds, "currencies": list(s.currencies),
+        "state": PUBLIC_STATE[cur["state"]] if cur else "none", "state_detail": cur["state"] if cur else None,
+        "enabled": enabled or cur is not None, "writable": bool(ticket) and enabled and _writable(ticket, asg, quotes),
+        "allowed_kinds": kinds, "currency": currency, "mode": quote_mode(asg),
+        "quote": present_public(cur) if cur else None,
+        "quotes": [present_public(q) for q in quotes if q["state"] not in HIDDEN_FROM_VENDOR],
+        "form": {"currencies": list(s.currencies), "allowed_kinds": kinds,
                  "vat": {"exempt": exempt, "rate_bp": s.vat_rate_bp,
                          "default": "none" if exempt else (contact.get("vat_default") or (vendor or {}).get("vat_default") or "excluded")},
-                 "limits": {"lines": money.MAX_LINES, "description": money.DESC_MAX, "note": NOTE_MAX, "vendor_ref": VENDOR_REF_MAX,
-                            "max_total_minor": s.max_claim_total_minor}},
+                 "labor_rate_minor": rate if rate_currency in (None, currency) else None,
+                 "limits": {"lines": money.MAX_LINES, "description": money.DESC_MAX, "notes": NOTE_MAX, "note": NOTE_MAX,
+                            "vendor_ref": VENDOR_REF_MAX, "max_total_minor": s.max_claim_total_minor}},
     }
 
 

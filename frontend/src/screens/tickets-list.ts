@@ -288,7 +288,7 @@ export class TicketsList extends LitElement {
     }
   };
 
-  private closeDrawer = () => writeHref(listHref(this.r.scope, this.r.filters), false);
+  private closeDrawer = () => this.isConnected && writeHref(listHref(this.r.scope, this.r.filters), false);
 
   /** Returned by a non-member handler, or deleted (owner 14.10): the drawer closes, the cards and the table drop it and reload. */
   private onTicketGone = (e: CustomEvent<{ id: string; deleted?: boolean }>) => {

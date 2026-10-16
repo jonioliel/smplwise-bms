@@ -223,7 +223,7 @@ def test_ticket_sql_lives_in_the_store():
                                                   "tickets_detail.py")]
     for path in list((SMPLWISE / "services" / "tickets").glob("*.py")) + [r for r in routers if r.is_file()]:
         # the storage layer: core (0079), directory and links (0080, slice 4), outbox and inbound (0081, slice 5b), cost claims (0083, slice 9),
-        # quotes / owner history / allowed kinds (TKDETAILBE, 0087)
+        # quotes, owner history, allowed kinds (0087 TKDETAILBE; it replaced the 0085 TK257 quote table)
         if path.name in ("store.py", "store_links.py", "outbox_store.py", "store_costs.py", "store_quotes.py"):
             continue
         if re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", path.read_text(encoding="utf-8")):

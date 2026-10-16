@@ -202,7 +202,7 @@ function view(t: TicketDetail): TicketDetail {
 export const mockStore = { me: ME, all: () => tickets, find: (id: string) => find(id), view: (t: TicketDetail) => view(t), touch: (t: TicketDetail) => touch(t), event: ev };
 // slice 4: the handler page's installation keys of the settings document (organisation name, public address, proxies)
 let publicDoc: Pick<SettingsDoc, 'organization_name' | 'public'> = {
-  organization_name: 'מגדלי הדר', public: { base_url: 'https://t-demo.arx.example.test', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip' },
+  organization_name: 'מגדלי הדר', public: { base_url: 'https://t-demo.arx.example.test', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip', theme: 'light' },
 };
 
 function find(id: string): TicketDetail {

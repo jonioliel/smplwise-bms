@@ -1,7 +1,11 @@
 """TKDETAILBE (docs/tickets/DETAIL_BACKEND_CONTRACT.md section 4.5): the vendor's quote BEFORE the work on the public handler page.
 
     GET  /t/api/quote   the link's own quotes (state, lines, totals, the fix / reject reason, the approved part) and the form
-    POST /t/api/quote   {lines[], currency?, amounts_include_vat?, work_from?, work_to?, note?, vendor_ref?, client_request_id}
+    POST /t/api/quote   {lines[], currency?, amounts_include_vat?, work_from?, work_to?, note? (or notes?), vendor_ref?, client_request_id}
+
+The answers keep the 2.5.7 (TK257) public contract the built vendor card reads (state none | submitted | approved | rejected,
+enabled, writable, allowed_kinds, quote with seq / notes / reason, form; errors 409 quote_closed and 422 kind_not_allowed) and add this
+design's fields (state_detail, mode, quotes, work window, the approved part).
 
 Wiring rules (code review section 3, as public_routes / public_claims): the token through `link_context()` only (writes:
 `write=True` - the read-only grace answers 409 and a code-protected link without a code session 403); bodies through `read_json()`
@@ -40,8 +44,23 @@ class QuoteIn(_Strict):
     work_from: str | None = Field(default=None, max_length=40)
     work_to: str | None = Field(default=None, max_length=40)
     note: str | None = Field(default=None, max_length=4000)
+    notes: str | None = Field(default=None, max_length=4000)  # the 2.5.7 (TK257) name of `note` - the built vendor card sends it
     vendor_ref: str | None = Field(default=None, max_length=200)
     client_request_id: str = Field(max_length=64)
+
+
+# the 2.5.7 (TK257) public codes the built vendor card reacts to: every "no quote now" is `quote_closed` (the precise reason rides
+# along as `reason`), a line kind the request does not allow is `kind_not_allowed`
+_CLOSED = frozenset({"quote_not_open", "quote_off", "quote_already_approved"})
+
+
+def _public_error(exc: costs.CostRefused) -> PublicError:
+    if exc.status == 409 and exc.code in _CLOSED:
+        return PublicError(409, "quote_closed", reason=exc.code)
+    if exc.status == 422:
+        code = "kind_not_allowed" if exc.code == "line_kind_not_allowed" else exc.code
+        return PublicError(422, "invalid", fields=[{"field": exc.field or "body", "code": code}])
+    return _error(exc)
 
 
 def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> APIRouter:
@@ -83,16 +102,16 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 ticket = store_costs.ticket_row(conn, link.ticket_id)
                 asg = store.assignment(conn, link.assignment_id)
                 if ticket is None or asg is None:
-                    raise PublicError(404, "link_unavailable")
+                    raise PublicError(409, "quote_closed")
                 contact = store_links.contact(conn, link.contact_id) or {}
                 try:
                     q = quotes.submit(conn, ticket, asg, payload, by_kind="contact", by_id=link.contact_id, at=when,
                                       actor_name=contact.get("display_name") or "")
                 except costs.CostRefused as exc:
-                    raise _error(exc) from None
+                    raise _public_error(exc) from None
                 audit_link(conn, link, "ticket.quote.submit", quote_id=q["id"], version=q["version"], total_minor=q["total_minor"],
                            currency=q["currency"])
-                answer = {"ok": True, "quote": quotes.present_quote(conn, q, full=True, for_vendor=True)}
+                answer = {"ok": True, "quote": quotes.present_public(q)}
                 return (*finish_request(conn, link, crid, 201, answer), True)
 
         async def work() -> tuple[int, dict[str, Any]]:

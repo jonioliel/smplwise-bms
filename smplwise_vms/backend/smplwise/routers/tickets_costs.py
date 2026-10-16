@@ -33,7 +33,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, service, store, store_costs
+from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, quotes, service, store, store_costs
 from ..services.tickets.access import Seen, Viewer, text
 from .tickets import ID, module_gate
 
@@ -244,6 +244,44 @@ def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..
         if action == "approve" and body.exceptional == "exclude" and fresh.get("approved_revision_id") != body.revision_id:
             draft = "approved_without_exceptional"
         out["message_draft"] = quotes.draft_message(conn, seen.row, subject="claim", obj=claim_draft_object(conn, fresh), decision=draft)
+    return out
+
+
+# ---------------------------------------------------------------- TK257: the quote before the work (migration 0085)
+
+class QuoteDecisionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str | None = Field(default=None, max_length=5000)
+
+
+@router.post("/tickets/{ticket_id}/costs/quotes/{quote_id}/{action}")
+def post_quote_decision(body: QuoteDecisionBody, request: Request, ticket_id: str = Path(..., pattern=ID), quote_id: str = Path(..., pattern=ID),
+                        action: Literal["approve", "reject"] = Path(...), principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TK257 (2.5.7) compatibility alias of POST /tickets/{id}/quotes/{quote_id}/{approve|request-fix} (TKDETAILBE, routers/tickets_detail.py):
+    "approve" approves every line, "reject" is TK257's correction request (reason required). NOTHING is sent to the vendor; the answer
+    carries the editable `message_draft` like the new route."""
+    from ..services.tickets import store_quotes
+
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    act = "approve" if action == "approve" else "request_fix"
+    name = f"ticket.quote.{act}"
+    seen = _need(conn, viewer, ticket_id, name, rid, decide=True)
+    row = store_quotes.quote(conn, quote_id)
+    if row is None or row.get("ticket_id") != seen.row["id"]:
+        raise ApiError(404, "quote_not_found", text(conn, "ההצעה לא נמצאה."))
+    try:
+        fresh = quotes.decide(conn, row, act, by=viewer.uid, revision=int(row["revision"]), at=costs.now_utc(), reason=body.reason,
+                              actor_name=service.actor_name(viewer))
+    except costs.CostRefused as exc:
+        if exc.code == "quote_not_submitted":
+            raise ApiError(409, "invalid_state", text(conn, "ההצעה כבר טופלה.")) from None
+        raise _refused(conn, exc) from None
+    _audit(conn, viewer, name, seen, None, rid, quote_id=quote_id, state=fresh["state"], total_minor=fresh["total_minor"])
+    out = _answer(conn, viewer, ticket_id)
+    out["message_draft"] = quotes.draft_message(conn, seen.row, subject="quote", obj=fresh,
+                                                decision="approved" if act == "approve" else "fix_requested")
     return out
 
 

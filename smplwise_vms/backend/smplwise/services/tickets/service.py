@@ -246,6 +246,9 @@ COST_MESSAGES = {
     "claim_window_closed": "חלון ההגשה נסגר.",
     "invoice_required": "יש לצרף חשבונית או קבלה.",
     "claim_too_large": "הסכום גבוה מהמותר.",
+    "quote_closed": "ההצעה כבר אושרה או שהעבודה הסתיימה.",
+    "quote_not_found": "ההצעה לא נמצאה.",
+    "invalid_state": "ההצעה כבר טופלה.",
 }
 
 

@@ -187,7 +187,8 @@ test('the page builds DOM from text nodes only and never imports the app', () =>
     const src = code(f);
     expect(src, f).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|unsafeHTML|new Function|eval\(/);
     expect(src, f).not.toMatch(/from '\.\.\/(shell|api|components|screens|design|arx|pwa|i18n|tickets)\//);
-    expect(src, f).not.toMatch(/localStorage|document\.cookie|serviceWorker/);
+    // TK259: localStorage is allowed in theme.ts ONLY (the vendor's light / dark choice, every access in try/catch); never a cookie
+    expect(src, f).not.toMatch(f === 'theme.ts' ? /document\.cookie|serviceWorker/ : /localStorage|document\.cookie|serviceWorker/);
     expect(src, f).not.toMatch(/createElement\(['"]a['"]\)|h\(['"]a['"]/); // no link is ever built (W20: no auto-linkify)
   }
   const html = readFileSync(path.resolve(HERE, '../public-ticket.html'), 'utf8');

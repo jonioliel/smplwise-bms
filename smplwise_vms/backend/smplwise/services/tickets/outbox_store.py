@@ -136,6 +136,15 @@ def from_db(r: Mapping[str, Any]) -> OutboxRow:
         account_key=r["account_key"], sent_at=parse(r["sent_at"]), updated_at=parse(r["updated_at"]))
 
 
+def _stamp_generation(conn: sqlite3.Connection, row: OutboxRow) -> None:
+    """Deep review B3 (migration 0086): `link_generation` = the link's generation now - at enqueue, and
+    again at the claim (the worker derives the URL from the link when it sends, in the same transaction). Kept outside
+    OutboxRow on purpose: the message core never reads it; only the inbound matcher (`nonce_row`) does."""
+    if row.link_id:
+        conn.execute("UPDATE ticket_outbox SET link_generation = (SELECT generation FROM ticket_links WHERE id = ?) WHERE id = ?",
+                     (row.link_id, row.id))
+
+
 class SqliteOutboxStore:
     """`outbox.OutboxStore` on `ticket_outbox`. Writes go to the BOUND connection only (module note); `save` is a compare-and-set
     on the state (`UPDATE ... WHERE id = ? AND state = ?`), so a cancel and a claim can never both win."""
@@ -151,11 +160,7 @@ class SqliteOutboxStore:
                          tuple(data[c] for c in COLUMNS))
         except sqlite3.IntegrityError:
             raise OutboxError("duplicate") from None
-
-    def get(self, row_id: str) -> OutboxRow | None:
-        with self._io.read() as conn:
-            r = conn.execute("SELECT * FROM ticket_outbox WHERE id = ?", (row_id,)).fetchone()
-        return from_db(r) if r else None
+        _stamp_generation(conn, row)
 
     def save(self, row: OutboxRow, *, expect_state: str) -> bool:
         if expect_state != row.state and not can_transition(expect_state, row.state):
@@ -165,7 +170,16 @@ class SqliteOutboxStore:
         cols = [c for c in COLUMNS if c not in ("id", "created_at")]
         cur = conn.execute(f"UPDATE ticket_outbox SET {', '.join(f'{c} = ?' for c in cols)} WHERE id = ? AND state = ?",
                            (*[data[c] for c in cols], row.id, expect_state))
-        return cur.rowcount == 1
+        if cur.rowcount != 1:
+            return False
+        if row.state == "sending" and expect_state != "sending":
+            _stamp_generation(conn, row)  # the claim: the worker just derived the URL from the link's current generation
+        return True
+
+    def get(self, row_id: str) -> OutboxRow | None:
+        with self._io.read() as conn:
+            r = conn.execute("SELECT * FROM ticket_outbox WHERE id = ?", (row_id,)).fetchone()
+        return from_db(r) if r else None
 
     def open_rows(self) -> list[OutboxRow]:
         with self._io.read() as conn:
@@ -323,10 +337,19 @@ def open_ambiguous(conn: sqlite3.Connection, limit: int = 200) -> list[dict[str,
         "SELECT * FROM ticket_inbound WHERE result = 'ambiguous' AND handled_at IS NULL ORDER BY received_at DESC LIMIT ?", (int(limit),)).fetchall()]
 
 
-def claim_inbound(conn: sqlite3.Connection, inbound_id: str, user_id: str, at: str) -> bool:
-    """Compare-and-set: the first manager to press "זה שלי" holds it (a second one gets 409)."""
+CLAIM_STALE_AFTER = dt.timedelta(minutes=15)  # deep review B4: a claim older than this can be taken over
+
+
+def claim_inbound(conn: sqlite3.Connection, inbound_id: str, user_id: str, at: str, *, stale_before: str | None = None) -> bool:
+    """Compare-and-set: the first manager to press "זה שלי" holds it (a second one gets 409) - until the claim is older than
+    `stale_before` (deep review B4: a manager who claimed and left no longer blocks the reply for everyone; the route passes
+    now - CLAIM_STALE_AFTER). Times are `db.now_iso` text (seconds, Z), so they compare as text."""
+    if stale_before is None:
+        return conn.execute("UPDATE ticket_inbound SET claimed_by = ?, claimed_at = ? WHERE id = ? AND result = 'ambiguous' AND handled_at IS NULL "
+                            "AND (claimed_by IS NULL OR claimed_by = ?)", (user_id, at, inbound_id, user_id)).rowcount == 1
     return conn.execute("UPDATE ticket_inbound SET claimed_by = ?, claimed_at = ? WHERE id = ? AND result = 'ambiguous' AND handled_at IS NULL "
-                        "AND (claimed_by IS NULL OR claimed_by = ?)", (user_id, at, inbound_id, user_id)).rowcount == 1
+                        "AND (claimed_by IS NULL OR claimed_by = ? OR claimed_at IS NULL OR claimed_at < ?)",
+                        (user_id, at, inbound_id, user_id, stale_before)).rowcount == 1
 
 
 def handle_inbound(conn: sqlite3.Connection, inbound_id: str, user_id: str, at: str, kind: str, ticket_id: str | None) -> bool:
@@ -345,11 +368,13 @@ def inbound_counts(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, int]
 # ---------------------------------------------------------------- what the matcher reads (inbound.MatchDirectory)
 
 def nonce_row(conn: sqlite3.Connection, nonce: str) -> dict[str, Any] | None:
-    """The outbox row a button nonce names, joined with its ticket, assignment, link and contact."""
+    """The outbox row a button nonce names, joined with its ticket, assignment, link and contact. `link_generation` is the
+    generation the message carried (NULL for a row from before migration 0086 that the backfill could not prove current);
+    `link_current_generation` the link's generation now (deep review B3)."""
     r = conn.execute(
         "SELECT o.id AS outbox_id, o.ticket_id, o.assignment_id, o.contact_id, o.account_key, o.provider_message_id, o.link_id, "
-        "t.number, t.department_id, t.status, t.current_assignment_id, a.ended_at AS asg_ended_at, c.phone_key, "
-        "l.revoked_at, l.expires_at, l.cap_at, l.grace_until, l.require_code "
+        "o.link_generation, t.number, t.department_id, t.status, t.current_assignment_id, a.ended_at AS asg_ended_at, c.phone_key, "
+        "l.revoked_at, l.expires_at, l.cap_at, l.grace_until, l.require_code, l.generation AS link_current_generation "
         "FROM ticket_outbox o JOIN tickets t ON t.id = o.ticket_id JOIN ticket_assignments a ON a.id = o.assignment_id "
         "LEFT JOIN ticket_contacts c ON c.id = o.contact_id LEFT JOIN ticket_links l ON l.id = o.link_id "
         "WHERE o.reply_nonce = ?", (nonce,)).fetchone()

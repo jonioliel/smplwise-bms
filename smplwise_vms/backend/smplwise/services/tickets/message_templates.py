@@ -52,7 +52,10 @@ DEFAULT_NOUNS = tuple(dict.fromkeys(
 
 _TOKEN = re.compile(r"\{([^{}]*)\}")
 _GENDER = re.compile(r"^g:([fmn]=[^|{}]*)(\|[fmn]=[^|{}]*)*$")
-_URL = re.compile(r"(?i)\b(?:https?://|www\.|xn--)")
+# a URL that is not {link}: a scheme, `www.`, a punycode label, or (deep review B5) a bare domain followed by a path - labels
+# joined by dots, the last one of letters only (2+), then `/` - which WhatsApp turns into a link ("evil.example/x"). Numbers
+# with dots and slashes ("1.5/2", "2.5.6/ב") are not domains.
+_URL = re.compile(r"(?i)\b(?:https?://|www\.|xn--)|\b[\w-]+(?:\.[\w-]+)*\.[^\W\d_]{2,}/")
 
 # the reply words and button captions per language (buttons are OFF by default, 9.3)
 BUTTON_TEXT = {

@@ -356,7 +356,7 @@ export class TicketsBoard extends LitElement {
     }
   };
 
-  private closeDrawer = () => writeHref(boardHref(this.r), false);
+  private closeDrawer = () => this.isConnected && writeHref(boardHref(this.r), false);
 
   /** 2.5.4: gone or deleted - the drawer closes, a deleted request leaves the board at once (confirmation shown), then a quiet re-read. */
   private onGone = (e: CustomEvent<{ id: string; deleted?: boolean }>) => {

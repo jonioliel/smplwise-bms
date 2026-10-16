@@ -144,6 +144,8 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("code", "lock_min"): (30, int_range(5, 240)),
     # where a trusted proxy puts the client address (code review V3): cloudflared's header, or another proxy's X-Forwarded-For
     ("public", "client_ip_header"): ("cf-connecting-ip", _choice("cf-connecting-ip", "x-forwarded-for")),
+    # TK259: the handler page's look - light (default), dark, or follow the device; the vendor may still flip it on his own phone
+    ("public", "theme"): ("light", _choice("light", "dark", "auto")),
     # slice 5b: the ticket message channel (9.3 / 9.5 / 9.6); the accounts and their pacing live in `messaging.whatsapp` (9.9)
     ("whatsapp", "enabled"): (False, boolean),  # the master switch: OFF until an administrator turns it on
     ("whatsapp", "use_buttons"): (False, boolean),  # 9.3: buttons may show as text only on multi-device clients - numbered replies
