@@ -109,7 +109,7 @@ def test_copy_returns_the_url_once_audited_and_marks_it_sent_by_hand(s4):
     r = s4.copy(t["id"])
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store", r.text
     body = r.json()
-    assert body["url"] == f"{BASE_URL}/t/#{token}" and token in body["text"] and "#" in body["url"]
+    assert body["url"] == f"{BASE_URL}/support/#{token}" and token in body["text"] and "#" in body["url"]
     assert s4.link_row(t["id"])["sent_via"] == "manual"
     with s4.db.connection(mode="read") as conn:
         a = conn.execute("SELECT details_json FROM audit_log WHERE action = 'ticket.link.copy'").fetchone()[0]

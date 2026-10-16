@@ -303,3 +303,66 @@ def test_the_address_probe_asks_the_configured_prefix():
 
     address_probe.probe("https://ecc.smplwise.com", resolve=lambda h: ["93.184.216.34"], fetch=fetch, prefix="support")
     assert seen == ["/support/healthz"]
+
+
+# ---------------------------------------------------------------- over the real settings route and store (the s4 world)
+
+
+def _s4(settings, monkeypatch):
+    from tickets_s4_world import build_s4
+
+    return build_s4(settings, monkeypatch)
+
+
+def test_settings_default_validate_and_reach_the_running_edge(settings, monkeypatch):
+    import time
+
+    from smplwise.services.tickets.public_runtime import RUNTIME
+    from tickets_s4_world import API, Clock
+
+    s4 = _s4(settings, monkeypatch)
+    client, app = s4.public(Clock(time.time()))
+    monkeypatch.setattr(RUNTIME, "app", app)
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    assert doc["public"]["path_prefix"] == "support" and doc["public"]["legacy_t_paths"] is True
+    assert app.edge.prefix == "support" and app.edge.legacy_t is True
+    for bad in ("api", "Support", "a/b", "x", "", "x" * 40):
+        r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"path_prefix": bad}})
+        assert r.status_code == 422, bad
+    assert s4.c.get(f"{API}/tickets/settings").json()["revision"] == doc["revision"]  # nothing was stored
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"path_prefix": "/help", "legacy_t_paths": False}})
+    assert r.status_code == 200, r.text
+    assert r.json()["public"]["path_prefix"] == "help" and app.edge.prefix == "help" and app.edge.legacy_t is False
+    assert client.get("/help/healthz").status_code == 200
+    assert client.get("/support/healthz").status_code == 404 and client.get("/t/healthz").status_code == 404
+
+
+def test_the_prefix_settings_are_refused_from_a_remote_session(settings, monkeypatch):
+    from smplwise.routers import tickets_admin
+    from tickets_s4_world import API
+
+    s4 = _s4(settings, monkeypatch)
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    for public in ({"path_prefix": "help"}, {"legacy_t_paths": False}):
+        r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": public})
+        assert r.status_code == 403 and r.json()["code"] == "local_only", public
+    assert s4.c.get(f"{API}/tickets/settings").json()["public"] == doc["public"]
+
+
+def test_the_vendor_urls_of_the_real_store_follow_the_prefix_then_the_address_path(settings, monkeypatch):
+    from smplwise.services.tickets import handler_links
+    from tickets_s4_world import API, BASE_URL
+
+    s4 = _s4(settings, monkeypatch)
+
+    def prefix() -> str:
+        with s4.db.connection(mode="read", label="test.prefix") as conn:
+            return handler_links.public_prefix(conn)
+
+    assert prefix() == "support"
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"path_prefix": "t"}})
+    assert r.status_code == 200 and prefix() == "t"
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "public": {"base_url": BASE_URL + "/zzprefix"}})
+    assert r.status_code == 200 and prefix() == "zzprefix"  # a 2.5.4 address keeps its own prefix over the setting

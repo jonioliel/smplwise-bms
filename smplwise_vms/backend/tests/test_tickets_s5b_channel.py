@@ -143,7 +143,7 @@ def test_an_assignment_to_a_contact_leaves_by_whatsapp_through_the_mapped_accoun
     call = env.fake.calls[0]
     assert (call["domain"], call["service"], call["data"]["account"], call["data"]["target"]) == ("whatsapp", "send_message", ENTRY_A, PHONE_A_E164)
     text = call["data"]["message"]
-    assert f"{BASE_URL}/t/#" in text and str(t["number"]) in text and "מזגן לא מקרר" in text
+    assert f"{BASE_URL}/support/#" in text and str(t["number"]) in text and "מזגן לא מקרר" in text
     row = env.rows(t["id"])[0]
     assert (row.state, row.account_key, row.provider_message_id is not None) == ("sent", KEY_A, True)
     ev = [e for e in env.events(t["id"]) if e["kind"] == "link_sent"]
@@ -245,7 +245,7 @@ def test_a_failed_send_is_retried_then_falls_back_to_email_with_the_redeem_link(
     assert rows[0].state == "not_sent" and rows[0].attempts == 4, "first try + 3 retries within 30 minutes"
     assert rows[1].channel == "email" and rows[1].fallback_of == rows[0].id and rows[1].state == "sent"
     to, rendered = env.mails[0]
-    assert to == "rina@vendor.example.test" and f"{BASE_URL}/t/r/" in rendered.text and "/t/#" not in rendered.text
+    assert to == "rina@vendor.example.test" and f"{BASE_URL}/support/r/" in rendered.text and "/t/#" not in rendered.text
     kinds = [e["kind"] for e in env.events(t["id"])]
     assert "message_failed" in kinds and "message_fallback" in kinds and "link_sent" in kinds
     assert env.s4.link_row(t["id"])["sent_via"] == "email"
@@ -260,7 +260,7 @@ def test_a_contact_who_prefers_email_gets_the_redeem_link_by_email_even_with_wha
     env.tick()
     assert env.fake.calls == [] and env.rows(t["id"])[0].state == "sent", "nothing on WhatsApp"
     to, rendered = env.mails[0]
-    assert to == "dana@vendor.example.test" and f"{BASE_URL}/t/r/" in rendered.text and "/t/#" not in rendered.text
+    assert to == "dana@vendor.example.test" and f"{BASE_URL}/support/r/" in rendered.text and "/t/#" not in rendered.text
     assert env.s4.link_row(t["id"])["sent_via"] == "email"
 
 
