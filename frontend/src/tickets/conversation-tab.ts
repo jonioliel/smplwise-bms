@@ -235,17 +235,16 @@ export class ConversationTab implements ReactiveController {
         <span class="ni" aria-hidden="true">${tIcon('lock')}</span>
         <div class="nh"><b>${cvt('note_head')}</b><span>·</span><span>${bidi(it.actor.me ? cvt('me') : it.actor.name)}</span>
           <span class="mut">${time} · ${fwd ? html`<span class="fwd" data-note-forwarded>${tIcon('check')}${cvt('note_forwarded', { when: when(fwd.at, c.now) })}</span>` : cvt('note_not_sent')}</span>
-          <span class="sp"></span>
-          ${canForward(it, { canVendor: c.canVendor, forwarded: c.forwarded }) ? html`<button type="button" class="btn sm quiet cv-fwd" data-note-forward=${it.id}
-            @click=${() => this.forward(it)}>${tIcon('send')}${cvt('forward')}</button>` : nothing}
         </div>
         ${this.bodyOf(it)}
+        ${canForward(it, { canVendor: c.canVendor, forwarded: c.forwarded }) ? html`<button type="button" class="btn sm quiet cv-fwd" data-note-forward=${it.id}
+          @click=${() => this.forward(it)}>${tIcon('send')}${cvt('forward')}</button>` : nothing}
       </article>`;
     }
     if (it.type === 'message' && it.direction === 'in') {
       const ch = it.unverified ? timelineLine(it.event!).text : it.channel === 'page' ? cvt('ch_page') : cvt('ch_whatsapp');
       return html`<article class="cv-msg in" data-item=${it.id} data-kind=${it.kind} data-dir="in">
-        <div class="hd"><b>${bidi(it.actor.name || c.vname)}</b><span class=${`ch ${it.channel ?? ''}`}>${tIcon(it.channel === 'page' ? 'link' : 'send')}${ch}</span></div>
+        <div class="hd"><b>${bidi(it.actor.name || c.vname)}</b><span class=${`ch cv-ch-${it.channel ?? 'none'}`}>${tIcon(it.channel === 'page' ? 'link' : 'send')}${ch}</span></div>
         <div class="bx">${it.body ? this.bodyOf(it) : html`<div class="cv-text">${timelineLine(it.event!).text}</div>`}<span class="tm">${time}</span></div>
       </article>`;
     }
@@ -253,7 +252,7 @@ export class ConversationTab implements ReactiveController {
       const seen = openedAfter(it, c.all);
       const author = it.actor.me ? cvt('me') : it.actor.name;
       return html`<article class="cv-msg out" data-item=${it.id} data-kind=${it.kind} data-dir="out" data-delivery=${seen ? 'opened' : it.delivery ?? ''}>
-        <div class="hd"><span class="ch page">${tIcon('link')}${cvt('ch_page')}</span><b>${bidi(author)}</b>${it.fromNoteId ? html`<span class="mut">· ${cvt('from_note')}</span>` : nothing}</div>
+        <div class="hd"><span class="ch cv-ch-page">${tIcon('link')}${cvt('ch_page')}</span><b>${bidi(author)}</b>${it.fromNoteId ? html`<span class="mut">· ${cvt('from_note')}</span>` : nothing}</div>
         <div class="bx">${this.bodyOf(it)}<span class="tm">${time} · <span data-delivery-line>${seen ? cvt('d_page_opened') : cvt('d_page')}</span></span></div>
       </article>`;
     }
@@ -603,6 +602,10 @@ export const conversationStyles = css`
   .cv-note .cv-more {
     justify-self: start;
   }
+  .cv-note .cv-fwd {
+    grid-column: 2;
+    justify-self: end;
+  }
   .cv-ob.bad .bt small,
   .cv-stale .who {
     color: var(--dv-danger);
@@ -621,12 +624,12 @@ export const conversationStyles = css`
     margin-block-start: 4px;
     padding: 10px 12px;
     border-radius: var(--sw-r-lg);
-    background: var(--dv-surface-solid);
+    background: linear-gradient(color-mix(in srgb, var(--dv-accent-soft) 40%, transparent), color-mix(in srgb, var(--dv-accent-soft) 40%, transparent)), var(--dv-surface-solid);
     border: 1px solid color-mix(in srgb, var(--dv-accent) 35%, var(--dv-border));
     box-shadow: var(--dv-shadow-2);
   }
   .cv-composer.team {
-    background: var(--dv-warning-soft);
+    background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface-solid);
     border: 1px dashed color-mix(in srgb, var(--dv-warning) 60%, transparent);
   }
   .cv-src {
