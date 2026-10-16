@@ -226,10 +226,10 @@ test('load meter: filled segments by requests in hand, "hot" at full load, cappe
 
 // ---------------------------------------------------------------- the view registry
 
-test('views: cards and table for everyone, the manager board for managers; the registry is extensible and has NO calendar yet (task TKCAL)', () => {
-  expect(visibleModes(false).map((m) => m.id)).toEqual(['cards', 'table']);
-  expect(visibleModes(true).map((m) => m.id)).toEqual(['cards', 'table', 'board']);
-  expect(LIST_MODES.map((m) => m.id as string)).not.toContain('calendar');
+test('views: cards, table and the weekly calendar for everyone, the manager board for managers (the registry grew by one entry: task TKCAL)', () => {
+  expect(visibleModes(false).map((m) => m.id)).toEqual(['cards', 'table', 'calendar']);
+  expect(visibleModes(true).map((m) => m.id)).toEqual(['cards', 'table', 'board', 'calendar']);
+  expect(LIST_MODES.map((m) => m.id as string)).toContain('calendar');
   for (const m of LIST_MODES) expect(listTemplate(m.label, 'he').length).toBeGreaterThan(0);
 });
 

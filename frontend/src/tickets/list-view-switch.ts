@@ -4,10 +4,10 @@ import { lt, type ListTextKey } from './list-text';
 
 /**
  * TKUI4 (release 2.6.0): the view switch of the list - cards, table and, for a department manager, the manager board (mock-up v5). The
- * modes are a REGISTRY: a later mode (the weekly calendar of task TKCAL) is one more entry here and one more renderer in the host; nothing
+ * modes are a REGISTRY: a mode is one entry here and one renderer in the host (the weekly calendar of task TKCAL is the fourth); nothing
  * else in the page frame changes. The switch keeps the `data-view-switch` / `data-view` hooks of the table slice (tests, automation).
  */
-export type ListMode = 'cards' | 'table' | 'board';
+export type ListMode = 'cards' | 'table' | 'board' | 'calendar';
 
 export interface ListModeDef {
   id: ListMode;
@@ -21,6 +21,8 @@ export const LIST_MODES: readonly ListModeDef[] = [
   { id: 'cards', icon: 'cardsView', label: 'lsView_cards', managerOnly: false },
   { id: 'table', icon: 'tableView', label: 'lsView_table', managerOnly: false },
   { id: 'board', icon: 'boardView', label: 'lsView_board', managerOnly: true },
+  // TKCAL: the weekly calendar of visits and targets (tickets/calendar-view.ts)
+  { id: 'calendar', icon: 'calendar', label: 'lsView_calendar', managerOnly: false },
 ];
 
 export function visibleModes(canManage: boolean): readonly ListModeDef[] {
