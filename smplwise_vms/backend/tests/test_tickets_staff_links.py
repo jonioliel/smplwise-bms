@@ -506,8 +506,11 @@ def test_01b_every_cost_route_closes_the_staff_link_by_construction():
     for mod in (public_claims, public_quotes):
         calls = re.findall(r"link_context\(([^)]*)\)", inspect.getsource(mod).split("def build_router", 1)[-1])
         assert calls and all("claim_surface=True" in c for c in calls), (mod.__name__, calls)
-    src = inspect.getsource(quotes.public_quote)
-    assert 'asg.get("assignee_kind") == "contact"' in src and 'if ticket and asg.get("contact_id")' not in src
+    # TKDETAILBE (2.6.0) carries the rule in one predicate that every quote path calls (the card, its summary, submit)
+    rule = inspect.getsource(quotes.quote_capable)
+    assert 'asg.get("assignee_kind") != "contact"' in rule and "is_staff" in rule
+    for fn in (quotes.public_quotes, quotes.public_summary, quotes.submit, quotes._enabled):
+        assert "quote_capable(" in inspect.getsource(fn), fn.__name__
 
 
 def test_01c_the_quote_card_and_submit_refuse_a_user_assignment(env):
@@ -518,12 +521,14 @@ def test_01c_the_quote_card_and_submit_refuse_a_user_assignment(env):
     with env.s4.db.connection() as conn:
         asg = store.assignment(conn, link["assignment_id"])
         assert asg["assignee_kind"] == "user" and asg["contact_id"] == link["contact_id"]
-        card = quotes.public_quote(conn, asg["id"], t["id"])
-        assert card["enabled"] is False and card["writable"] is False
+        assert quotes.quote_capable(conn, asg) is False
+        card = quotes.public_quotes(conn, asg["id"])
+        assert card["enabled"] is False and card["writable"] is False and card["form"]["labor_rate_minor"] is None
+        assert quotes.public_summary(conn, asg["id"]) is None
         ticket = dict(conn.execute("SELECT * FROM tickets WHERE id = ?", (t["id"],)).fetchone())
         with pytest.raises(costs.CostRefused):
-            quotes.submit(conn, asg, ticket, {"lines": [{"kind": "work", "description": "x", "quantity": "1", "unit_price": "100"}]},
-                          at=dt.datetime.now(dt.timezone.utc))
+            quotes.submit(conn, ticket, asg, {"lines": [{"kind": "labor", "hours": "1", "rate": "100"}]}, by_kind="contact",
+                          by_id=asg["contact_id"], at=dt.datetime.now(dt.timezone.utc))
 
 
 # ---------------------------------------------------------------- security review F5 / F6

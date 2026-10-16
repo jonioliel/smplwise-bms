@@ -1,16 +1,21 @@
-"""TK257: the vendor's quote on the public handler page - the part of the permanent "quote / payment demand" card that exists BEFORE the work.
+"""TKDETAILBE (docs/tickets/DETAIL_BACKEND_CONTRACT.md section 4.5): the vendor's quote BEFORE the work on the public handler page.
 
-    GET  /t/api/quote   the vendor's own quote state, its latest quote, the line kinds it may use (work + parts unless the request or the
-                        department allows travel / other), the form settings
-    POST /t/api/quote   {lines[], amounts_include_vat?, notes?, client_request_id} -> the server-computed quote
+    GET  /t/api/quote   the link's own quotes (state, lines, totals, the fix / reject reason, the approved part) and the form
+    POST /t/api/quote   {lines[], currency?, amounts_include_vat?, work_from?, work_to?, note? (or notes?), vendor_ref?, client_request_id}
 
-Wired like public_claims: the token through `link_context` (the POST is a `write`, so the read-only grace refuses it and a code-protected
-link needs its code session), bodies through `read_json()` into a strict model, `client_request_id` stored in the effect's own
-transaction. Everything is scoped to the link's assignment: a vendor never sees another vendor's quote. NOTHING here sends a message."""
+The answers keep the 2.5.7 (TK257) public contract the built vendor card reads (state none | submitted | approved | rejected,
+enabled, writable, allowed_kinds, quote with seq / notes / reason, form; errors 409 quote_closed and 422 kind_not_allowed) and add this
+design's fields (state_detail, mode, quotes, work window, the approved part).
+
+Wiring rules (code review section 3, as public_routes / public_claims): the token through `link_context()` only (writes:
+`write=True` - the read-only grace answers 409 and a code-protected link without a code session 403); bodies through `read_json()`
+into strict models (client totals are not even accepted - `extra = forbid`); `client_request_id` mandatory and stored in the
+effect's own transaction; the write budget is spent once a NEW quote is stored. No claim mode: a quote needs a live link and a
+request in handling. The vendor never sees internal notes, other vendors' quotes or who decided."""
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Callable, Literal
+from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -18,45 +23,44 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
-from . import costs, quotes, store, store_links
-from .handler_actions import claim as claim_request, _finish as finish_request
-from .public_app import Idempotency, idempotency_scope, LinkContext, PublicError, link_context, parse_client_request_id, read_json, spend_budget
+from . import costs, quotes, store, store_costs, store_links
+from .handler_actions import _finish as finish_request, claim as claim_request
+from .public_app import Idempotency, LinkContext, PublicError, idempotency_scope, link_context, parse_client_request_id, read_json, spend_budget
+from .public_claims import LineIn, _error
 from .public_store import audit_link
 
 UTC = dt.timezone.utc
 QUOTE_ROUTE = "/t/api/quote"
 
 
-def _when(t: float) -> dt.datetime:
-    return dt.datetime.fromtimestamp(float(t), UTC).replace(microsecond=0)
-
-
-def _error(exc: costs.CostRefused) -> PublicError:
-    if exc.status == 422:
-        return PublicError(422, "invalid", fields=[{"field": exc.field or "body", "code": exc.code}])
-    return PublicError(exc.status, exc.code)
-
-
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-
-
-class LineIn(_Strict):
-    kind: Literal["labor", "parts", "travel", "other"]
-    description: str | None = Field(default=None, max_length=400)
-    hours: str | None = Field(default=None, max_length=12)
-    rate: str | None = Field(default=None, max_length=16)
-    quantity: str | None = Field(default=None, max_length=16)
-    unit_price: str | None = Field(default=None, max_length=16)
-    amount: str | None = Field(default=None, max_length=16)
 
 
 class QuoteIn(_Strict):
     lines: list[LineIn] = Field(default_factory=list, max_length=30)
     currency: str | None = Field(default=None, max_length=3)
     amounts_include_vat: bool | None = None
-    notes: str | None = Field(default=None, max_length=4000)
+    work_from: str | None = Field(default=None, max_length=40)
+    work_to: str | None = Field(default=None, max_length=40)
+    note: str | None = Field(default=None, max_length=4000)
+    notes: str | None = Field(default=None, max_length=4000)  # the 2.5.7 (TK257) name of `note` - the built vendor card sends it
+    vendor_ref: str | None = Field(default=None, max_length=200)
     client_request_id: str = Field(max_length=64)
+
+
+# the 2.5.7 (TK257) public codes the built vendor card reacts to: every "no quote now" is `quote_closed` (the precise reason rides
+# along as `reason`), a line kind the request does not allow is `kind_not_allowed`
+_CLOSED = frozenset({"quote_not_open", "quote_off", "quote_already_approved"})
+
+
+def _public_error(exc: costs.CostRefused) -> PublicError:
+    if exc.status == 409 and exc.code in _CLOSED:
+        return PublicError(409, "quote_closed", reason=exc.code)
+    if exc.status == 422:
+        code = "kind_not_allowed" if exc.code == "line_kind_not_allowed" else exc.code
+        return PublicError(422, "invalid", fields=[{"field": exc.field or "body", "code": code}])
+    return _error(exc)
 
 
 def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> APIRouter:
@@ -64,7 +68,8 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
     idem = Idempotency(None)
 
     def now() -> dt.datetime:
-        return _when(clock() if clock is not None else dt.datetime.now(UTC).timestamp())
+        t = clock() if clock is not None else dt.datetime.now(UTC).timestamp()
+        return dt.datetime.fromtimestamp(float(t), UTC).replace(microsecond=0)
 
     @r.get(QUOTE_ROUTE)
     # TKSTAFF1 (security review F1): the quote is a cost surface - a staff link answers the uniform 404 here (claim_surface=True)
@@ -74,7 +79,10 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
 
         def read() -> dict[str, Any]:
             with db.connection(mode="read", label="tickets.public.quote") as conn:
-                return quotes.public_quote(conn, ctx.link.assignment_id, ctx.link.ticket_id)
+                out = quotes.public_quotes(conn, ctx.link.assignment_id)
+            if ctx.read_only:
+                out["writable"] = False
+            return out
 
         return JSONResponse(await run_in_threadpool(read))
 
@@ -92,16 +100,19 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 replay = claim_request(conn, link, crid, QUOTE_ROUTE, when)
                 if replay is not None:
                     return replay[0], replay[1], False
+                ticket = store_costs.ticket_row(conn, link.ticket_id)
                 asg = store.assignment(conn, link.assignment_id)
-                ticket = store_links.ticket_of_link(conn, link.link_id)
-                if asg is None or ticket is None:
+                if ticket is None or asg is None:
                     raise PublicError(409, "quote_closed")
+                contact = store_links.contact(conn, link.contact_id) or {}
                 try:
-                    row = quotes.submit(conn, asg, dict(ticket), payload, at=when)
+                    q = quotes.submit(conn, ticket, asg, payload, by_kind="contact", by_id=link.contact_id, at=when,
+                                      actor_name=contact.get("display_name") or "")
                 except costs.CostRefused as exc:
-                    raise _error(exc) from None
-                audit_link(conn, link, "ticket.quote.submit", quote_id=row["id"], seq=row["seq"], total_minor=row["total_minor"], currency=row["currency"])
-                answer = {"ok": True, "quote": quotes.present(row)}
+                    raise _public_error(exc) from None
+                audit_link(conn, link, "ticket.quote.submit", quote_id=q["id"], version=q["version"], total_minor=q["total_minor"],
+                           currency=q["currency"])
+                answer = {"ok": True, "quote": quotes.present_public(q)}
                 return (*finish_request(conn, link, crid, 201, answer), True)
 
         async def work() -> tuple[int, dict[str, Any]]:

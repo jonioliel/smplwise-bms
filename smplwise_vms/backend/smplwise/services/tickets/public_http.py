@@ -150,7 +150,8 @@ ROUTES: tuple[RouteRule, ...] = (
     RouteRule("GET", r"/t/api/claim", "/t/api/claim", "token_read"),
     _json("/t/api/claim", "token_write", CLAIM_JSON_MAX),
     RouteRule("POST", r"/t/api/claim/file", "/t/api/claim/file", "claim_file", "multipart", CLAIM_FILE_MAX, UPLOAD_DEADLINE_S),
-    RouteRule("GET", r"/t/api/quote", "/t/api/quote", "token_read"),  # TK257: the quote before the work
+    # TKDETAILBE (contract 4.5): the vendor's quote before the work - the same limits and kinds as the claim's JSON routes
+    RouteRule("GET", r"/t/api/quote", "/t/api/quote", "token_read"),
     _json("/t/api/quote", "token_write", CLAIM_JSON_MAX),
 )
 

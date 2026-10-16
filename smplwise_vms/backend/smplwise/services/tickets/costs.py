@@ -422,9 +422,11 @@ def _available_files(conn, claim: Mapping[str, Any], *, link_id: str | None, use
 
 
 def _write_revision(conn, claim: Mapping[str, Any], d: Draft, *, source: str, kind: str, created_by_kind: str, created_by: str,
-                    placed: Sequence[tuple[str, int, int]], at: dt.datetime, based_on: str | None = None, reason: str | None = None) -> str:
+                    placed: Sequence[tuple[str, int, int]], at: dt.datetime, based_on: str | None = None, reason: str | None = None,
+                    exceptional: Sequence[Mapping[str, Any]] = ()) -> str:
     c = d.computed
     rid = store_costs.insert_revision(conn, {
+        "exceptional_json": json.dumps(list(exceptional), ensure_ascii=False, separators=(",", ":")),  # TKDETAILBE (5.1)
         "claim_id": claim["id"], "seq": store_costs.next_seq(conn, claim["id"]), "source": source, "kind": kind, "based_on": based_on,
         "no_charge": 1 if d.no_charge else 0, "lines_json": [ln.as_json() for ln in c.lines],
         "labor_minor": c.by_kind["labor"], "parts_minor": c.by_kind["parts"], "travel_minor": c.by_kind["travel"], "other_minor": c.by_kind["other"],
@@ -455,18 +457,22 @@ def submit(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by_kind: 
     if by_kind == "contact" and not window_open(claim, at):
         raise CostRefused(409, "claim_window_closed")
     d = draft(conn, claim, body)
+    from . import quotes  # TKDETAILBE (5.1): the demand against the approved quote; an exceptional line is flagged, never refused
+
+    exceptional, base = quotes.analyse_demand(conn, claim, d.computed.lines)
     placed = place_documents(body.get("documents"), _available_files(conn, claim, link_id=link_id, user_id=by_id if by_kind == "user" else None, now=at), at)
     if cost_settings(conn).require_invoice and not d.no_charge and not placed:
         raise CostRefused(422, "invoice_required", "documents")
     now = iso(at)
     previous = claim.get("current_revision_id") if claim["status"] == "submitted" else None
     rid = _write_revision(conn, claim, d, source="vendor" if by_kind == "contact" else "manager", kind=kind, created_by_kind=by_kind,
-                          created_by=by_id, placed=placed, at=at)
+                          created_by=by_id, placed=placed, at=at, exceptional=exceptional)
     if previous:
         store_costs.insert_decision(conn, {"claim_id": claim["id"], "revision_id": previous, "action": "superseded",
                                            "by_user": by_id if by_kind == "user" else f"contact:{by_id}", "at": now})
     store_costs.update_claim(conn, claim["id"], {"status": "submitted", "current_revision_id": rid, "currency": d.currency,
-                                                 "no_charge": 1 if d.no_charge else 0, "missing_at": None}, now=now)
+                                                 "no_charge": 1 if d.no_charge else 0, "missing_at": None,
+                                                 "quote_id": base["id"] if base else None}, now=now)
     fresh = store_costs.claim(conn, claim["id"]) or dict(claim)
     if claim.get("ticket_id"):
         # the timeline row names the claim and its revision number only: members without tickets.costs.view read the timeline too
@@ -501,7 +507,8 @@ def _reason(value: Any, field: str = "reason", *, required: bool = True) -> str 
     return t
 
 
-def _approve(conn, claim: Mapping[str, Any], revision_id: str, by: str, at: dt.datetime, action: str, reason: str | None) -> dict[str, Any]:
+def _approve(conn, claim: Mapping[str, Any], revision_id: str, by: str, at: dt.datetime, action: str, reason: str | None,
+             *, notify: bool = True) -> dict[str, Any]:
     rev = store_costs.revision(conn, revision_id) or {}
     now = iso(at)
     retention = cost_settings(conn).retention_days
@@ -518,7 +525,7 @@ def _approve(conn, claim: Mapping[str, Any], revision_id: str, by: str, at: dt.d
     if claim.get("ticket_id"):
         notify_bridge.cost_resolved(conn, claim["ticket_id"], claim["id"])
     emit_cost_event("approved", fresh)
-    if cost_settings(conn).notify_vendor_approved:
+    if notify and cost_settings(conn).notify_vendor_approved:  # TKDETAILBE: default OFF - the manager confirms a draft instead
         vendor_message(conn, fresh, "cost_approved", requested_by=by)
     return fresh
 
@@ -531,11 +538,37 @@ def _not_self(conn, revision_id: str, by: str) -> None:
         raise CostRefused(409, "self_approval")
 
 
-def approve(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_id: str, at: dt.datetime) -> dict[str, Any]:
+def approve(conn, claim: Mapping[str, Any], *, by: str, revision: int, revision_id: str, at: dt.datetime,
+            exceptional: str = "include", reason: Any = None) -> dict[str, Any]:
+    """TKDETAILBE (5.3): `exceptional = "exclude"` approves the submission WITHOUT its exceptional lines - a manager adjustment
+    revision (reason: the given one, else the default text in the vendor's language) - and never sends a message."""
     if claim["status"] != "submitted":
         raise CostRefused(409, "claim_not_submitted")
+    if exceptional not in ("include", "exclude"):
+        raise CostRefused(422, "invalid", "exceptional")
     _expect(claim, revision, revision_id)
     _not_self(conn, revision_id, by)
+    if exceptional == "exclude":
+        from . import quotes
+
+        base = store_costs.revision(conn, revision_id) or {}
+        drop = {int(e["index"]) for e in quotes.exceptional_of(base) if isinstance(e, Mapping) and isinstance(e.get("index"), int)}
+        if drop:
+            kept = [ln for i, ln in enumerate(_lines(base)) if i not in drop]
+            if not kept:
+                raise CostRefused(409, "nothing_left")
+            why = _reason(reason, required=False) or quotes.excluded_reason(conn, claim.get("contact_id"))
+            lines = [money.line_from_json(ln) for ln in kept]
+            s = cost_settings(conn)
+            try:
+                computed = money.compute(lines, base["vat_mode"], int(base["vat_rate_bp"]), max_total_minor=s.max_claim_total_minor)
+            except money.MoneyError as exc:
+                raise CostRefused(422, exc.code, exc.field) from None
+            d = Draft(computed=computed, currency=base["currency"], no_charge=False, vendor_ref=base.get("vendor_ref"), notes=base.get("notes"))
+            placed = [(f["id"], int(f["doc_no"]), int(f["rf_page_no"])) for f in store_costs.revision_files(conn, revision_id)]
+            rid = _write_revision(conn, claim, d, source="manager", kind="adjustment", created_by_kind="user", created_by=by, placed=placed,
+                                  at=at, based_on=revision_id, reason=why)
+            return _approve(conn, claim, rid, by, at, "adjust", why, notify=False)
     return _approve(conn, claim, revision_id, by, at, "approve", None)
 
 
@@ -550,9 +583,12 @@ def adjust(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by: str, 
     why = _reason(reason)
     base = store_costs.revision(conn, revision_id) or {}
     d = draft(conn, claim, {**body, "currency": base.get("currency")}, vat_mode=base.get("vat_mode"))
+    from . import quotes
+
+    exceptional, _base_quote = quotes.analyse_demand(conn, claim, d.computed.lines)
     placed = [(f["id"], int(f["doc_no"]), int(f["rf_page_no"])) for f in store_costs.revision_files(conn, revision_id)]
     rid = _write_revision(conn, claim, d, source="manager", kind="adjustment", created_by_kind="user", created_by=by, placed=placed,
-                          at=at, based_on=revision_id, reason=why)
+                          at=at, based_on=revision_id, reason=why, exceptional=exceptional)
     return _approve(conn, claim, rid, by, at, "adjust", why)
 
 
@@ -810,7 +846,18 @@ def _lines(rev: Mapping[str, Any]) -> list[dict[str, Any]]:
     return v if isinstance(v, list) else []
 
 
-def present_revision(conn, rev: Mapping[str, Any], *, for_vendor: bool = False) -> dict[str, Any]:
+def _exceptional_view(claim: Mapping[str, Any] | None, rev: Mapping[str, Any], approved_rev: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+    from . import quotes
+
+    items = [e for e in quotes.exceptional_of(rev) if isinstance(e, Mapping)]
+    if not items:
+        return []
+    state = quotes.review_state(claim, rev, approved_rev) if claim is not None else "pending"
+    return [{**e, "review": state} for e in items]
+
+
+def present_revision(conn, rev: Mapping[str, Any], *, for_vendor: bool = False, claim: Mapping[str, Any] | None = None,
+                     approved_rev: Mapping[str, Any] | None = None) -> dict[str, Any]:
     files = store_costs.revision_files(conn, rev["id"])
     docs: dict[int, list[dict[str, Any]]] = {}
     for f in files:
@@ -826,6 +873,7 @@ def present_revision(conn, rev: Mapping[str, Any], *, for_vendor: bool = False) 
         "net_minor": rev["total_minor"] - rev["vat_minor"], "currency": rev["currency"], "vendor_ref": rev.get("vendor_ref"),
         "notes": rev.get("notes"), "created_at": rev["created_at"],
         "documents": [{"no": k, "kind": v[0]["kind"], "pages": v} for k, v in sorted(docs.items())],
+        "exceptional": _exceptional_view(claim, rev, approved_rev),  # TKDETAILBE (5.2)
     }
     if rev["source"] == "manager":
         out["reason"] = rev.get("reason")
@@ -850,6 +898,7 @@ def present_claim(conn, claim: Mapping[str, Any], *, full: bool, now: dt.datetim
         pass
     revs = store_costs.revisions(conn, claim["id"])
     current = next((r for r in revs if r["id"] == claim.get("current_revision_id")), None)
+    approved_rev = next((r for r in revs if r["id"] == claim.get("approved_revision_id")), None)
     counted = claim.get("approved_total_minor") if claim["status"] in SETTLED else (current or {}).get("total_minor")
     decisions = [{"id": d["id"], "action": d["action"], "revision_id": d.get("revision_id"), "reason": d.get("reason"), "amount_minor": d.get("amount_minor"),
                   "payment_ref": d.get("payment_ref"), "by": store.display_name(conn, d["by_user"]) if not str(d["by_user"]).startswith("contact:") else "",
@@ -865,9 +914,12 @@ def present_claim(conn, claim: Mapping[str, Any], *, full: bool, now: dt.datetim
         "vendor": snap.get("vendor") or "", "contact_name": snap.get("contact_name") or "",
         "labor_rate_minor": contact.get("labor_rate_minor"), "rate_currency": contact.get("rate_currency"),
         "vat_exempt": bool(contact.get("vat_exempt") or (vendor or {}).get("vat_exempt")),
-        "revisions": [present_revision(conn, r) for r in revs], "decisions": decisions,
+        "revisions": [present_revision(conn, r, claim=claim, approved_rev=approved_rev) for r in revs], "decisions": decisions,
         "reopen_used": any(d["action"] == "reopen_window" for d in decisions),
     })
+    from . import quotes  # TKDETAILBE (5.2): the baseline, the deltas, needs_review
+
+    base.update(quotes.demand_view(conn, claim, revs))
     return base
 
 
@@ -895,7 +947,7 @@ def public_claim(conn, link_assignment_id: str, now: dt.datetime) -> dict[str, A
         "rejection_reason": last_reject["reason"] if (last_reject and claim["status"] == "rejected") else None,
         "approved": ({"total_minor": approved["total_minor"], "currency": approved["currency"], "adjusted": approved["kind"] == "adjustment",
                       "reason": approved.get("reason") if approved["kind"] == "adjustment" else None} if approved else None),
-        "revisions": [present_revision(conn, r, for_vendor=True) for r in revs if r["source"] == "vendor"],
+        "revisions": [present_revision(conn, r, for_vendor=True, claim=claim, approved_rev=approved) for r in revs if r["source"] == "vendor"],
         "form": {
             "currencies": list(s.currencies), "vat": {"exempt": exempt, "rate_bp": s.vat_rate_bp,
                                                        "default": "none" if exempt else (contact.get("vat_default") or (vendor or {}).get("vat_default") or "excluded")},

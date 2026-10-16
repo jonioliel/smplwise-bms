@@ -227,7 +227,7 @@ def report_rows(conn: sqlite3.Connection, *, date_from: str | None, date_to: str
 
 def department_cost_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute(
-        "SELECT id, key, name, active, cost_claim, claim_window_days FROM ticket_departments WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall()]
+        "SELECT id, key, name, active, cost_claim, claim_window_days, allowed_line_kinds FROM ticket_departments WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall()]
 
 
 def set_department_costs(conn: sqlite3.Connection, dept_id: str, cost_claim: str | None, claim_window_days: int | None, now: str) -> bool:

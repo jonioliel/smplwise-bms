@@ -121,6 +121,11 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 data = handler_actions.view(conn, ctx.link, code_ok=ctx.code_ok, read_only=ctx.read_only, now=when)
                 if (ctx.code_ok or not ctx.link.require_code) and not ctx.link.no_money:  # TKSTAFF1 (R2): never on a staff link
                     data["claim"] = costs.public_summary(conn, ctx.link.assignment_id, when)
+                    from . import quotes  # TKDETAILBE (contract 4.5): the quote card's state
+
+                    data["quote"] = quotes.public_summary(conn, ctx.link.assignment_id)
+                    if data["quote"] is not None and ctx.read_only:
+                        data["quote"]["writable"] = False
                 return data
 
         try:

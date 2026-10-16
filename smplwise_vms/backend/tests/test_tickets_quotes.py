@@ -1,4 +1,5 @@
-"""TK257 - the vendor's quote BEFORE the work (migration 0085, services/tickets/quotes.py, public_quotes.py): the public routes
+"""TK257 - the vendor's quote BEFORE the work, kept as the PUBLIC CONTRACT of the built vendor card (frontend public-ticket/claim/
+quote-card.ts) after TKDETAILBE replaced the 2.5.7 implementation (migration 0088 moved 0085's rows into `ticket_quotes`): the public routes
 GET/POST /t/api/quote over the real store and the handler link, the allowed line kinds (work + parts by default), server arithmetic,
 idempotency, supersession, the manager's approve / correction request (tickets.costs; NOTHING is sent to the vendor), the vendor's
 isolation from other vendors' quotes, the close after "done", and the purge. Every name and number here is invented."""
@@ -8,7 +9,7 @@ import time
 
 import pytest
 
-from smplwise.services.tickets import quotes, store
+from smplwise.services.tickets import store
 from tickets_s4_world import API, Clock, build_s4, crid
 
 PHONE_OTHER = "050-000-0077"
@@ -83,8 +84,8 @@ def test_travel_and_other_are_refused_unless_the_request_allows_them(s4):
     travel = [*LINES, {"kind": "travel", "amount": "50"}]
     r = post_quote(client, token, lines=travel)
     assert r.status_code == 422 and r.json()["fields"] == [{"field": "lines.2.kind", "code": "kind_not_allowed"}], r.text
-    with s4.db.connection() as conn:
-        conn.execute("UPDATE ticket_assignments SET cost_line_kinds = 'travel,other' WHERE ticket_id = ?", (t["id"],))
+    r = s4.c.put(f"{API}/tickets/{t['id']}/allowed-line-kinds", json={"kinds": ["labor", "parts", "travel", "other"]})
+    assert r.status_code == 200, r.text
     assert client.get("/t/api/quote", headers=hdr(token)).json()["allowed_kinds"] == ["labor", "parts", "travel", "other"]
     assert post_quote(client, token, lines=travel).status_code == 201
     no_desc = post_quote(client, token, lines=[{"kind": "other", "amount": "10"}])
@@ -92,11 +93,13 @@ def test_travel_and_other_are_refused_unless_the_request_allows_them(s4):
     assert post_quote(client, token, lines=[{"kind": "other", "description": "פינוי פסולת", "amount": "10"}]).status_code == 201
 
 
-def test_a_department_default_allows_travel_and_basic_kinds_cannot_be_removed():
-    dept = {"cost_line_kinds": "travel"}
-    assert quotes.allowed_kinds({}, dept) == ("labor", "parts", "travel")
-    assert quotes.allowed_kinds({"cost_line_kinds": "other"}, dept) == ("labor", "parts", "other"), "the request wins over the department"
-    assert quotes.allowed_kinds({}, {}) == ("labor", "parts") and quotes.allowed_kinds({"cost_line_kinds": "junk"}, None) == ("labor", "parts")
+def test_a_department_default_allows_travel(s4):
+    """TKDETAILBE: the request -> department -> installation chain (labour always; parts may be left out on purpose)."""
+    t, token, client = vendor_page(s4)
+    assert s4.c.put(f"{API}/tickets/costs/departments/dept-maintenance", json={"allowed_line_kinds": ["labor", "parts", "travel"]}).status_code == 200
+    assert client.get("/t/api/quote", headers=hdr(token)).json()["allowed_kinds"] == ["labor", "parts", "travel"]
+    assert s4.c.put(f"{API}/tickets/{t['id']}/allowed-line-kinds", json={"kinds": ["labor", "other"]}).status_code == 200
+    assert client.get("/t/api/quote", headers=hdr(token)).json()["allowed_kinds"] == ["labor", "other"], "the request wins over the department"
 
 
 def test_a_repeated_request_id_is_one_quote_and_a_new_quote_supersedes_the_open_one(s4):
@@ -119,7 +122,8 @@ def test_approving_sends_nothing_and_closes_the_quote(s4):
     r = decide(s4, t["id"], qid, "approve")
     assert r.status_code == 200, r.text
     assert [q["state"] for q in r.json()["quotes"]] == ["approved"]
-    assert r.json()["quotes"][0]["decided_by"], "the manager sees who decided"
+    assert r.json()["quotes"][0]["decision"]["by"], "the manager sees who decided"
+    assert r.json()["message_draft"]["text"], "a draft is offered - never sent"
     assert outbox_rows(s4) == before, "approving a quote never sends an automatic message"
     g = client.get("/t/api/quote", headers=hdr(token)).json()
     assert g["state"] == "approved" and g["writable"] is False and "decided_by" not in g["quote"], "the vendor never sees who decided"
@@ -193,12 +197,12 @@ def test_the_purge_removes_the_quotes(s4):
     assert post_quote(client, token).status_code == 201
     with s4.db.connection() as conn:
         gone = store.purge_ticket(conn, t["id"])
-        assert gone.get("ticket_cost_quotes") == 1
-        assert conn.execute("SELECT COUNT(*) FROM ticket_cost_quotes").fetchone()[0] == 0
+        assert gone.get("ticket_quotes") == 1
+        assert conn.execute("SELECT COUNT(*) FROM ticket_quotes").fetchone()[0] == 0
 
 
-def test_the_migration_adds_the_table_and_the_two_optional_columns(s4):
+def test_the_2_5_7_table_is_replaced(s4):
+    """0088 moved the 2.5.7 rows into `ticket_quotes` and dropped `ticket_cost_quotes` (test_tickets_detail covers the copy)."""
     with s4.db.connection(mode="read") as conn:
-        assert {r["name"] for r in conn.execute("PRAGMA table_info(ticket_cost_quotes)")} >= {"assignment_id", "state", "total_minor", "vat_mode"}
-        assert "cost_line_kinds" in {r["name"] for r in conn.execute("PRAGMA table_info(ticket_assignments)")}
-        assert "cost_line_kinds" in {r["name"] for r in conn.execute("PRAGMA table_info(ticket_departments)")}
+        assert {r["name"] for r in conn.execute("PRAGMA table_info(ticket_quotes)")} >= {"assignment_id", "state", "total_minor", "vat_mode"}
+        assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'ticket_cost_quotes'").fetchone()
