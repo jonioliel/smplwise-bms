@@ -156,6 +156,15 @@ const he = {
   obSaved: 'ההצעה הוזנה בשם הספק. אדם אחר צריך לאשר אותה.',
   obOwn: 'את ההצעה הזנת בעצמך: אדם אחר צריך לאשר אותה.',
   selfApproval: 'את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.',
+  obValidUntil: 'תוקף ההצעה',
+  obValidHint: 'לא חובה. עד שנה קדימה.',
+  obValidFormat: 'התאריך אינו תקין',
+  obValidRange: 'התוקף חייב להיות לכל היותר שנה קדימה, ולא יותר מיום אחד אחורה',
+  validUntil: 'תוקף ההצעה',
+  validExpiredChip: 'התוקף פג',
+  expiredConfirmSentence: 'תוקף ההצעה פג ב-{date}. אני מאשר/ת הצעה שתוקפה פג.',
+  expiredNeeded: 'צריך לסמן את האישור כדי לאשר הצעה שתוקפה פג',
+  expiredRefused: 'תוקף ההצעה פג. סמנו את האישור ונסו שוב.',
 } as const;
 
 export type QuoteTextKey = keyof typeof he;
@@ -295,6 +304,15 @@ const en: Partial<Record<QuoteTextKey, string>> = {
   obSaved: 'The quote was entered for the vendor. Another person has to approve it.',
   obOwn: 'You entered this quote yourself: another person has to approve it.',
   selfApproval: 'You entered this quote yourself: another person has to approve it.',
+  obValidUntil: 'Quote valid until',
+  obValidHint: 'Optional. Up to a year ahead.',
+  obValidFormat: 'The date is not valid',
+  obValidRange: 'The validity can be at most a year ahead, and no more than one day back',
+  validUntil: 'Valid until',
+  validExpiredChip: 'Validity expired',
+  expiredConfirmSentence: 'The validity of this quote ended on {date}. I am approving a quote whose validity has expired.',
+  expiredNeeded: 'Tick the confirmation to approve a quote whose validity has expired',
+  expiredRefused: 'The validity of the quote has expired. Tick the confirmation and try again.',
 };
 
 export function quoteTemplate(key: QuoteTextKey, lang: 'he' | 'en' = ticketsLang()): string {

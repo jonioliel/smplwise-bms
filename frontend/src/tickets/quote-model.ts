@@ -299,6 +299,8 @@ export interface QuoteForm {
   /** `datetime-local` values in the viewer's zone, '' = not given */
   from: string;
   to: string;
+  /** TKQVALID: `YYYY-MM-DD` (a date input), '' = not given */
+  validUntil: string;
   note: string;
   lines: EditLine[];
 }
@@ -319,7 +321,51 @@ export function workWindowProblem(from: string, to: string, now: Date = new Date
   return from && to && Date.parse(fromLocalInput(to)) < Date.parse(fromLocalInput(from)) ? 'order' : '';
 }
 
-export type QuoteFormProblem = '' | 'lines' | 'kind' | 'work_format' | 'work_range' | 'work_order';
+export type ValidProblem = '' | 'format' | 'range';
+
+/**
+ * TKQVALID: the quote's validity as the server checks it (services/tickets/quotes.py `_valid_until`): a day (`YYYY-MM-DD`), kept as the END
+ * of that day in the viewer's zone, not in the past by more than a day and at most a year (366 days) ahead. Optional ('' = not given).
+ */
+export function validUntilProblem(day: string, now: Date = new Date()): ValidProblem {
+  if (!day) return '';
+  const iso = validUntilIso(day);
+  if (!iso) return 'format';
+  const ms = Date.parse(iso);
+  return ms < now.getTime() - WORK_PAST_DAYS * 86_400_000 || ms > now.getTime() + WORK_HORIZON_DAYS * 86_400_000 ? 'range' : '';
+}
+
+/** The instant sent for a chosen day: its last second in the viewer's zone ('' when the day is not a real date). */
+export function validUntilIso(day: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return '';
+  const [y, m, d] = day.split('-').map(Number);
+  const at = new Date(y, m - 1, d, 23, 59, 59);
+  if (Number.isNaN(at.getTime()) || at.getMonth() !== m - 1 || at.getDate() !== d) return '';
+  return at.toISOString().replace(/\.\d+Z$/, 'Z');
+}
+
+/** The day text of a validity instant ('16/10/2026', the viewer's zone); '' when absent or invalid. */
+export function validDayText(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/** A quote whose valid-until has passed (nothing is hidden or blocked by it - the chip only says so, and an approval asks first). */
+export function isQuoteExpired(q: Pick<Quote, 'valid_until'> | undefined, now: Date = new Date()): boolean {
+  if (!q?.valid_until) return false;
+  const ms = Date.parse(q.valid_until);
+  return Number.isFinite(ms) && ms < now.getTime();
+}
+
+/** Approving this quote needs the explicit confirmation sentence (server: 409 `quote_expired` without `confirm_expired`). */
+export function approvalNeedsExpiredConfirm(q: Pick<Quote, 'valid_until' | 'state'> | undefined, kind: 'approve' | 'partial' | 'fix' | 'reject', now: Date = new Date()): boolean {
+  return (kind === 'approve' || kind === 'partial') && q?.state === 'submitted' && isQuoteExpired(q, now);
+}
+
+export type QuoteFormProblem = '' | 'lines' | 'kind' | 'work_format' | 'work_range' | 'work_order' | 'valid_format' | 'valid_range';
 
 /** The first problem of the form (nothing is sent while there is one). The server re-checks everything. */
 export function quoteFormProblem(f: QuoteForm, allowed: readonly LineKind[] | undefined, now: Date = new Date()): QuoteFormProblem {
@@ -327,14 +373,17 @@ export function quoteFormProblem(f: QuoteForm, allowed: readonly LineKind[] | un
   const ok = editorKinds(allowed);
   if (f.lines.some((l) => !ok.includes(l.kind))) return 'kind';
   const w = workWindowProblem(f.from, f.to, now);
-  return w ? (`work_${w}` as QuoteFormProblem) : '';
+  if (w) return `work_${w}` as QuoteFormProblem;
+  const v = validUntilProblem(f.validUntil ?? '', now);
+  return v ? (`valid_${v}` as QuoteFormProblem) : '';
 }
 
-/** The body of POST /tickets/{id}/quotes. Decimal strings, instants in UTC; empty optionals are left out; no valid-until (the server has none). */
+/** The body of POST /tickets/{id}/quotes. Decimal strings, instants in UTC; empty optionals are left out; `valid_until` = the end of the chosen day. */
 export function quoteBodyOf(f: QuoteForm, o: { multiCurrency: boolean }): QuoteOnBehalfBody {
   const note = f.note.trim();
   const from = fromLocalInput(f.from);
   const to = fromLocalInput(f.to);
+  const valid = validUntilIso(f.validUntil ?? '');
   return {
     assignment_id: f.assignment,
     lines: f.lines.map(wireLine),
@@ -342,6 +391,7 @@ export function quoteBodyOf(f: QuoteForm, o: { multiCurrency: boolean }): QuoteO
     amounts_include_vat: f.include,
     ...(from ? { work_from: from } : {}),
     ...(to ? { work_to: to } : {}),
+    ...(valid ? { valid_until: valid } : {}),
     ...(note ? { note } : {}),
   };
 }

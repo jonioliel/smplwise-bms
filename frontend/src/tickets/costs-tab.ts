@@ -23,8 +23,8 @@ import { ticketsLang } from './text';
 import { onTicketNames } from './naming';
 import { canWriteVendor, vendorOf, type ConvTicket } from './conversation-tab';
 import {
-  askQuoteTarget, currentQuote, enteredByViewer, flowIsStaff, lineMark, MODES, moneyClaims, moneyQuotes, olderQuotes, onBehalfTarget, partialValid, quoteActions,
-  quoteShownTotal, quoteTone, requirementTargets, selectionTotals, sendDialogOf, sendPlanOf, sendTitleKey, stageView, toggleKind, VENDOR_TEXT_MAX,
+  approvalNeedsExpiredConfirm, askQuoteTarget, currentQuote, enteredByViewer, flowIsStaff, lineMark, MODES, moneyClaims, moneyQuotes, olderQuotes, onBehalfTarget, partialValid, quoteActions,
+  isQuoteExpired, quoteShownTotal, quoteTone, requirementTargets, selectionTotals, sendDialogOf, sendPlanOf, sendTitleKey, stageView, toggleKind, validDayText, VENDOR_TEXT_MAX,
   type OnBehalfTarget, type SendDialog,
 } from './quote-model';
 import { qt, type QuoteTextKey } from './quote-text';
@@ -62,6 +62,8 @@ export class TicketCostsTab extends LitElement {
   @state() private dialog: QDialog = null;
   @state() private reason = '';
   @state() private internalNote = '';
+  /** TKQVALID: the manager ticked "I am approving a quote whose validity has expired" */
+  @state() private expiredOk = false;
   @state() private tried = false;
   @state() private err = '';
   @state() private picking: { quoteId: string; selected: Set<number> } | null = null;
@@ -73,6 +75,7 @@ export class TicketCostsTab extends LitElement {
   @state() private entering = false;
   private loadedKey = '';
   private flashTimer = 0;
+  private expiredAsked = false;
   private offNames: (() => void) | null = null;
 
   static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, costCardStyles, costDialogStyles, costsTabStyles];
@@ -174,6 +177,9 @@ export class TicketCostsTab extends LitElement {
         await this.load();
       } else if (e instanceof ApiError && e.status === 409 && e.code === 'self_approval') {
         this.err = qt('selfApproval'); // TKUI3B: the person who entered a quote for the vendor cannot approve it
+      } else if (e instanceof ApiError && e.status === 409 && e.code === 'quote_expired') {
+        this.err = qt('expiredRefused'); // TKQVALID: never silent - the dialog asks again with the confirmation
+        this.expiredAsked = true;
       } else {
         this.err = describeError(e);
       }
@@ -183,7 +189,7 @@ export class TicketCostsTab extends LitElement {
     }
   }
 
-  private async decide(q: Quote, action: QuoteAction, extra: { line_indexes?: number[]; reason?: string; internal_note?: string } = {}): Promise<void> {
+  private async decide(q: Quote, action: QuoteAction, extra: { line_indexes?: number[]; reason?: string; internal_note?: string; confirm_expired?: boolean } = {}): Promise<void> {
     const tid = this.ticket?.id ?? '';
     const note = this.internalNote.trim();
     if (note) extra = { ...extra, internal_note: note }; // TKFIX260: stored apart, never shown to the vendor
@@ -199,19 +205,37 @@ export class TicketCostsTab extends LitElement {
     const d = this.dialog;
     if (!d) return;
     this.tried = true;
-    if (d.kind === 'approve') return this.decide(q, 'approve');
+    const confirm = this.expiredNeeded(q, d.kind) ? { confirm_expired: true } : {};
+    if (this.expiredNeeded(q, d.kind) && !this.expiredOk) {
+      this.err = qt('expiredNeeded'); // TKQVALID: an expired quote is approved only after the explicit confirmation
+      return;
+    }
+    if (d.kind === 'approve') return this.decide(q, 'approve', confirm);
     if (d.kind === 'partial') {
       const sel = this.picking?.selected;
       if (!sel || !partialValid(q, sel)) return;
-      return this.decide(q, 'approve', { line_indexes: (q.lines ?? []).filter((l) => sel.has(l.index)).map((l) => l.index) });
+      return this.decide(q, 'approve', { ...confirm, line_indexes: (q.lines ?? []).filter((l) => sel.has(l.index)).map((l) => l.index) });
     }
     if (!this.reason.trim()) return;
     return this.decide(q, d.kind === 'fix' ? 'request-fix' : 'reject', { reason: this.reason.trim() });
   }
 
+  /** The quote is past its valid-until (by the viewer's clock, or the server said so), so approving it needs the confirmation. */
+  private expiredNeeded(q: Quote, kind: Exclude<QDialog, null>['kind']): boolean {
+    return approvalNeedsExpiredConfirm(q, kind) || (this.expiredAsked && (kind === 'approve' || kind === 'partial'));
+  }
+
+  private expiredField(q: Quote, kind: Exclude<QDialog, null>['kind']): TemplateResult | typeof nothing {
+    if (!this.expiredNeeded(q, kind)) return nothing;
+    return html`<label class="chk" data-quote-expired-confirm><input type="checkbox" data-quote-expired-ok .checked=${this.expiredOk}
+      @change=${(e: Event) => { this.expiredOk = (e.target as HTMLInputElement).checked; this.err = ''; }} />${qt('expiredConfirmSentence', { date: validDayText(q.valid_until) })}</label>`;
+  }
+
   private openDialog(kind: Exclude<QDialog, null>['kind'], q: Quote): void {
     this.reason = '';
     this.internalNote = '';
+    this.expiredOk = false;
+    this.expiredAsked = false;
     this.tried = false;
     this.err = '';
     this.moreFor = '';
@@ -395,15 +419,17 @@ export class TicketCostsTab extends LitElement {
     const decided = q.decision?.at ? qt('decidedBy', { state: qt(`qs_${q.state}` as QuoteTextKey), who: q.decision.by || '', when: shortDateTime(q.decision.at) }) : '';
     const picking = this.picking?.quoteId === q.id ? this.picking.selected : null;
     const ok = q.state === 'approved' || q.state === 'partially_approved';
+    const expired = !ok && (q.state === 'submitted' || q.state === 'fix_requested') && isQuoteExpired(q);
     return html`<section class=${`cstage ${ok ? 'ok' : ''}`} data-quote=${q.id} data-quote-state=${q.state} aria-labelledby=${`qh-${q.id}`}>
       <div class="csh"><span class="ic">${cIcon('file')}</span><b id=${`qh-${q.id}`}>${qt('quoteTitle')}</b><span class="muted">${qt('quoteSub')}</span>
         ${q.version > 1 ? html`<span class="muted">· ${qt('quoteVersion', { n: q.version })}</span>` : nothing}
-        <span class="sp"></span><span class=${`chip ${quoteTone(q.state)}`} data-quote-chip>${decided && ok ? decided : qt(`qs_${q.state}` as QuoteTextKey)}</span></div>
+        <span class="sp"></span>${expired ? html`<span class="chip warn" data-quote-expired-chip>${qt('validExpiredChip')}</span>` : nothing}<span class=${`chip ${quoteTone(q.state)}`} data-quote-chip>${decided && ok ? decided : qt(`qs_${q.state}` as QuoteTextKey)}</span></div>
       <div class="meta"><span>${qt('quoteSubmitted', { when: shortDateTime(q.created_at) })}</span>
         ${q.source === 'manager' ? html`<span data-quote-by-manager>${bidi(q.created_by_name ? qt('quoteOnBehalf', { who: q.created_by_name }) : qt('obEntry'))}</span>` : nothing}
         ${q.vendor ? html`<span>${bidi(q.vendor)}</span>` : nothing}</div>
       ${q.lines ? html`${this.quoteLines(q, picking)}${this.quoteTotals(q)}` : html`<p class="muted" data-amounts-hidden>${qt('amountsHidden')}</p>`}
       ${q.work_from || q.work_to ? html`<div class="line" data-work-window><span>${qt('workWindow')}</span><span class="num">${[q.work_from, q.work_to].filter(Boolean).map((x) => shortDateTime(x as string)).join(' – ')}</span></div>` : nothing}
+      ${q.valid_until ? html`<div class="line" data-valid-until><span>${qt('validUntil')}</span><span class="num">${validDayText(q.valid_until)}</span></div>` : nothing}
       ${q.vendor_ref ? html`<div class="line"><span>${qt('vendorRef')}</span><span class="num">${bidi(q.vendor_ref)}</span></div>` : nothing}
       ${q.note ? html`<p class="qnote" data-quote-note><b>${qt('quoteNote')}:</b> ${bidi(q.note)}</p>` : nothing}
       ${!ok && q.decision?.reason && (q.state === 'fix_requested' || q.state === 'rejected') ? html`<p class="why" data-quote-reason>${bidi(q.decision.reason)}</p>` : nothing}
@@ -502,7 +528,7 @@ export class TicketCostsTab extends LitElement {
     const total = dlg.kind === 'partial' && this.picking ? selectionTotals(q, this.picking.selected).total : quoteShownTotal(q);
     const head = html`<div class="ch"><span class="who">${bidi(q.vendor ?? '')}</span><span class="sp"></span>${total !== null ? html`<span class="amt" data-dialog-total>${this.money(total, q.currency)}</span>` : nothing}</div>`;
     const body = dlg.kind === 'fix' ? this.reasonField(qt('fixReason')) : dlg.kind === 'reject' ? this.reasonField(qt('rejectReason'))
-      : html`<p class="muted">${qt('approveNote')}</p>${this.internalNoteField()}`;
+      : html`<p class="muted">${qt('approveNote')}</p>${this.expiredField(q, dlg.kind)}${this.internalNoteField()}`;
     return html`<sw-dialog open heading=${qt(titles[dlg.kind])} data-dialog=${`quote-${dlg.kind}`} @close=${this.onDialogClose}>
       <div class="form">${head}${body}${this.err ? html`<div class="err" role="alert" data-quote-error>${this.err}</div>` : nothing}</div>
       <div slot="footer" class="sheetfoot">

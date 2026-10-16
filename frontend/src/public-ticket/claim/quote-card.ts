@@ -52,6 +52,8 @@ export interface QuoteView {
   reason?: string | null;
   /** TKFIX260 (public-surface review F4): a version the organisation entered on the vendor's behalf (never who entered it) */
   on_behalf?: boolean;
+  /** TKQVALID: the quote's validity (an instant); only ever the link's OWN quote. Display only here - the vendor form cannot send it yet. */
+  valid_until?: string | null;
 }
 
 export interface QuoteInfo {
@@ -338,6 +340,14 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
       const by = el('p', 'swc-muted swq-on-behalf', t('q_on_behalf'));
       by.dataset.quoteOnBehalf = '';
       wrap.appendChild(by);
+    }
+    if (quote.valid_until) {
+      const at = new Date(quote.valid_until);
+      if (!Number.isNaN(at.getTime())) {
+        const v = el('p', 'swc-muted swq-valid', t('q_valid_until', { date: new Intl.DateTimeFormat(lang, { dateStyle: 'medium' }).format(at) }));
+        v.dataset.quoteValidUntil = '';
+        wrap.appendChild(v);
+      }
     }
     const list = el('ul', 'swc-rev-lines');
     for (const ln of quote.lines) {

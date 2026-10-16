@@ -57,6 +57,8 @@ export interface Quote {
   net_minor?: number;
   work_from?: string | null;
   work_to?: string | null;
+  /** TKQVALID: the quote's validity (an instant, the end of the chosen day); full view only */
+  valid_until?: string | null;
   note?: string | null;
   vendor_ref?: string | null;
   approved?: { line_indexes: number[]; subtotal_minor: number | null; vat_minor: number | null; total_minor: number | null } | null;
@@ -89,7 +91,7 @@ export interface MessageDraft {
 export type QuotesAnswer = QuoteBlock & { message_draft?: MessageDraft };
 
 /** `reason` is shown to the vendor (request-fix / reject); `internal_note` (TKFIX260) never is - not on the page, not in the draft. */
-export interface QuoteDecisionBody { revision: number; line_indexes?: number[]; reason?: string; internal_note?: string }
+export interface QuoteDecisionBody { revision: number; line_indexes?: number[]; reason?: string; internal_note?: string; /** TKQVALID: needed to approve a quote past its valid-until (409 `quote_expired` without it) */ confirm_expired?: boolean }
 export interface QuoteOnBehalfBody {
   assignment_id?: string;
   lines: LineInput[];
@@ -97,6 +99,7 @@ export interface QuoteOnBehalfBody {
   amounts_include_vat?: boolean;
   work_from?: string;
   work_to?: string;
+  valid_until?: string;
   note?: string;
   vendor_ref?: string;
 }

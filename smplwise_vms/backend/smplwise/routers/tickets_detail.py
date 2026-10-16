@@ -45,6 +45,7 @@ QUOTE_MESSAGES = {
     "self_approval": "את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.",
     "not_external": "הצעת מחיר קיימת רק לשיוך לגורם חיצוני.",
     "nothing_left": "אחרי הסרת הסעיפים החריגים לא נשאר מה לאשר.",
+    "quote_expired": "תוקף ההצעה פג. אשרו שוב במפורש כדי להמשיך.",
     "demand_pending": "כבר הוגשה דרישת תשלום בשיוך הזה. החליטו עליה לפני אישור הצעת המחיר.",
 }
 
@@ -151,6 +152,7 @@ class QuoteBody(BaseModel):
     amounts_include_vat: bool | None = None
     work_from: str | None = Field(default=None, max_length=40)
     work_to: str | None = Field(default=None, max_length=40)
+    valid_until: str | None = Field(default=None, max_length=40)
     note: str | None = Field(default=None, max_length=5000)
     vendor_ref: str | None = Field(default=None, max_length=500)
 
@@ -212,6 +214,7 @@ class QuoteDecisionBody(BaseModel):
     line_indexes: list[int] | None = Field(default=None, max_length=30)
     reason: str | None = Field(default=None, max_length=5000)  # shown to the vendor (page + draft) for request-fix / reject
     internal_note: str | None = Field(default=None, max_length=5000)  # TKFIX260: internal only - never public, never in the draft
+    confirm_expired: bool = False  # TKQVALID: approving a quote past its valid-until needs this explicit confirmation (409 quote_expired)
 
 
 QUOTE_ACTIONS = {"approve": "approve", "request-fix": "request_fix", "reject": "reject"}
@@ -236,7 +239,8 @@ def post_quote_decision(body: QuoteDecisionBody, request: Request, ticket_id: st
     q = _quote_of(conn, seen, quote_id)
     try:
         fresh = quotes.decide(conn, q, act, by=viewer.uid, revision=body.revision, at=costs.now_utc(), line_indexes=body.line_indexes,
-                              reason=body.reason, actor_name=service.actor_name(viewer), note=body.internal_note)
+                              reason=body.reason, actor_name=service.actor_name(viewer), note=body.internal_note,
+                              confirm_expired=body.confirm_expired)
     except costs.CostRefused as exc:
         raise _refused(conn, exc) from None
     audit(conn, actor=principal, action=f"ticket.quote.{act}", decision="allowed", resource_type="ticket", resource_id=ticket_id, request_id=rid,
