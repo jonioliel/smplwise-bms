@@ -1,6 +1,6 @@
 # Service-request detail - backend contract (TKDETAILBE)
 
-Status: **v1.3 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
+Status: **v1.4 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
 in the hand-off report. Source decisions: `private/planning/_mockups/ticket-detail-v3/DECISIONS.md` (owner, 15.10 and 15.10 evening)
 and `RFQ_SPEC_DRAFT.md` sections 1, 2, 5, 9. Backend only: no UI is part of this change.
 
@@ -31,8 +31,11 @@ the department's onto the department, an assignment's onto its ticket (the lates
 | `ticket_quote_decisions` | new - append-only decisions on quotes |
 
 Installation setting (the `tickets.settings` document): `costs.allowed_line_kinds`, default `["labor", "parts"]`.
-Changed default: `costs.notify_vendor_approved` is now **false** (owner 15.10 evening: an approval never sends a message silently;
-the manager confirms a draft - section 7). An installation that saved `true` keeps it.
+`costs.notify_vendor_approved` is **removed** (v1.4; owner 15.10 evening: an approval never sends a message - the manager confirms
+a draft, section 7). A stored 2.5.x value stays in the document as an unknown key: never served, never read; PUT refuses the key.
+v1.4 also: `ticket_quote_decisions.internal_note`, `ticket_quotes.decision_internal_note` and `ticket_cost_decisions.internal_note`
+(the manager's internal note of a decision, see 4.4); `idx_ticket_quotes_assignment` is UNIQUE (`assignment_id`, `version`); the
+copy writes a `request_fix` row for a 2.5.7 correction request the vendor later replaced and a `superseded` row per replaced version.
 
 Full deletion and retention: `store.purge_ticket` removes the ticket's quotes, quote decisions and owner changes. A quote of a
 purged ticket is not kept (unlike an approved claim, a quote is not a financial record).
@@ -59,7 +62,7 @@ Routes:
 
 | Route | Who | Body / answer |
 |---|---|---|
-| `GET /tickets/{id}/owner` | visible, full view | `{owner, history: [{at, from, to, by, source, reason}], candidates: [{id, name}]}` |
+| `GET /tickets/{id}/owner` | visible, full view | `{owner, history: [{at, from, to, by, source, reason}], candidates: [{id, name}]}`; a limited viewer gets `owner: null`, `history: []` (v1.4; `internal_owner` of `GET /tickets/{id}` likewise) |
 | `PUT /tickets/{id}/owner` | manager of the ticket | `{user_id: str|null, reason?: str, revision: int}` -> the same answer; 409 `ticket_stale`, 409 `owner_not_allowed` (not an eligible member of the department), 409 `owner_unchanged` |
 
 Candidates = the eligible assignees of the department (active members who may view the ticket).
@@ -149,12 +152,19 @@ unchanged and the vendor may set it), else null.
 |---|---|---|
 | `GET /tickets/{id}/quotes` | visible | `{flow, allowed_line_kinds, quote_mode, quotes: [...], baseline}`; amounts / lines / note only with `tickets.costs.view` (full view), else `{id, version, state, source, created_at}` per quote |
 | `POST /tickets/{id}/quotes` | `tickets.costs` + `tickets.costs.view` | on the vendor's behalf: `{assignment_id?, lines[], currency?, amounts_include_vat?, work_from?, work_to?, note?, vendor_ref?}` -> 201, the quotes answer |
-| `POST /tickets/{id}/quotes/{quote_id}/approve` | `tickets.costs` + `tickets.costs.view` | `{revision, line_indexes?: [int]}` (omitted = all) -> `{quotes..., message_draft}` |
-| `POST /tickets/{id}/quotes/{quote_id}/request-fix` | same | `{revision, reason}` -> `{..., message_draft}` |
-| `POST /tickets/{id}/quotes/{quote_id}/reject` | same | `{revision, reason}` -> `{..., message_draft}` |
+| `POST /tickets/{id}/quotes/{quote_id}/approve` | `tickets.costs` + `tickets.costs.view` | `{revision, line_indexes?: [int], internal_note?}` (omitted = all) -> `{quotes..., message_draft}`; 409 `demand_pending` while a payment demand of the assignment is submitted / approved / paid (v1.4) |
+| `POST /tickets/{id}/quotes/{quote_id}/request-fix` | same | `{revision, reason, internal_note?}` -> `{..., message_draft}` |
+| `POST /tickets/{id}/quotes/{quote_id}/reject` | same | `{revision, reason, internal_note?}` -> `{..., message_draft}` |
 | `POST /tickets/{id}/quotes/requirement` | manager of the ticket | `{assignment_id, mode: required|optional|off}` |
 
 `GET /tickets/{id}/costs` (existing) additionally carries `quotes`, `flow`, `allowed_line_kinds` and `baseline` with the same gating.
+
+v1.4: `reason` is SHOWN TO THE VENDOR (its page and the draft); `internal_note` (<= 500, optional) is stored apart and is never in a
+public answer, a draft, a timeline row or an audit row - the manager reads it in `decision.internal_note`. The claim decisions
+(`/tickets/{id}/costs/{claim_id}/approve|adjust|reject`) take the same optional `internal_note` (in `decisions[].internal_note`);
+other claim actions refuse it (422 `only_with_decision`). A staff contact's assignment (not `quote_capable`) has no quote: `flow`
+stage `none` with `quote_mode: null`, `quote_mode` / `baseline` null, `external_assignments[].quote_mode` null, and
+`requirement` / a decision answer 409 `not_external`.
 
 Quote answer (full):
 
@@ -165,7 +175,7 @@ Quote answer (full):
  "labor_minor": 30000, "parts_minor": 0, "travel_minor": 0, "other_minor": 0, "subtotal_minor": 30000, "vat_minor": 5400, "total_minor": 35400,
  "approved": {"line_indexes": [0], "subtotal_minor": 30000, "vat_minor": 5400, "total_minor": 35400} ,
  "work_from": null, "work_to": null, "note": null, "vendor_ref": null, "created_at": "...", "created_by_name": "",
- "decision": {"by": "Dana", "at": "...", "reason": null}, "revision": 3, "can": {"decide": true}}
+ "decision": {"by": "Dana", "at": "...", "reason": null, "internal_note": null}, "revision": 3, "can": {"decide": true}}
 ```
 
 `baseline`: `{"quote_id", "version", "total_minor", "subtotal_minor", "currency", "line_kinds": ["labor", ...]}` or null.
@@ -180,12 +190,15 @@ Quote answer (full):
 A vendor-side quote (`quote` / `quotes[]`) has the 2.5.7 fields `id`, `seq`, `state` (2.5.7 vocabulary), `lines`, `labor_minor` ...
 `total_minor`, `net_minor`, `vat_mode`, `vat_rate_bp`, `currency`, `notes`, `created_at`, `reason` (when `state` is `rejected`), and
 adds `version`, `state_detail`, `work_from`, `work_to`, `approved` (`{line_indexes, partial, subtotal_minor, vat_minor, total_minor}`)
-and per line `index` / `approved`. Mapping: `fix_requested` and `rejected` -> `rejected` (both let the vendor send a new version);
+and per line `index` / `approved`, and (v1.4) `on_behalf` (true for a version the organisation entered; never who). Mapping: `fix_requested` and `rejected` -> `rejected` (both let the vendor send a new version);
 `approved` and `partially_approved` -> `approved`. The card is hidden (`enabled: false`) when the assignment's cost mode is `off` or
 its quote mode is `off`. Nothing the built card reads changed; it can show a partial approval from `quote.approved.partial`.
 
 The `GET /t/api/ticket` answer gains `quote: {mode, enabled, state, state_detail, version, writable}` (or null) beside `claim`.
 Never internal notes, other vendors' quotes, who decided, or the internal owner.
+v1.4: `POST /t/api/quote` (and `/t/api/claim`) read the link again inside the write transaction (rule W2: a link revoked / regenerated
+since the lookup is the uniform 404) and a stored quote / revision counts as the handler's progress (update count, access row; the
+sliding expiry outside the read-only grace).
 
 The 2.5.7 manager route `POST /tickets/{id}/costs/quotes/{quote_id}/{approve|reject}` stays as a compatibility alias (approve = all
 lines, reject = request a fix with a reason; it answers the costs answer plus `message_draft`); new clients use 4.4. The `quotes`
@@ -281,6 +294,9 @@ decision draft). With `notify` and a live link the vendor also gets the existing
 e-mail, purpose `update`, held by the send hours) - the free text never travels in WhatsApp / e-mail. The answer is
 `{"item": <timeline item>, "notified": {"queued": bool, "channel": "whatsapp|email|manual|null"}}`. A forward is refused for a
 note that is already external (409 `note_already_external`) or is not an internal note (404 `note_not_found`).
+v1.4: `source.id` has the id pattern and must name a quote / claim / note of THIS ticket (404 `quote_not_found` / `claim_not_found`
+/ `note_not_found`). The "update" notification is sent once per assignment (and link generation) per 10 minutes - the outbox
+idempotency key names the window; every message is on the page.
 
 ## 7. Decision drafts (no automatic message)
 
@@ -313,7 +329,12 @@ and `can.change_owner`, `can.vendor_message`.
 The task named `tickets.costs.approve`: no such permission exists - `tickets.costs` IS the approval permission (its label: "אישור
 עלויות"). Nothing was added.
 
-## 10. Audit actions (ids, states, totals only - never a text)
+## 10. Audit actions (ids and states - never a text; amounts only on claim rows)
+
+v1.4 (public-surface review F2, reconciled with `quotes.py`): QUOTE audit rows carry ids, the version, the state / currency - never
+an amount (a quote is not a financial record; an audit reader without `tickets.costs.view` must not learn quote totals). CLAIM audit
+rows keep their totals (11A.12: a payment record; TK258's bulk "mark paid" relies on it).
+
 
 `ticket.owner.change`, `ticket.allowed_kinds`, `ticket.quote.submit` (vendor, via the link audit), `ticket.quote.on_behalf`,
 `ticket.quote.approve`, `ticket.quote.request_fix`, `ticket.quote.reject`, `ticket.quote.requirement`, `ticket.vendor_message`,
@@ -328,6 +349,12 @@ The task named `tickets.costs.approve`: no such permission exists - `tickets.cos
 * The RFQ entities other than the quote (C1).
 
 ## 12. Change log of this contract
+
+* v1.4 (2026-10-16, TKFIX260 - the release 2.6.0 reviews): `costs.notify_vendor_approved` removed (approvals never send); decision
+  `internal_note` apart from the vendor-facing `reason`; quote audit rows without amounts; W2 re-read + progress on the public quote /
+  claim writes; `on_behalf` on the vendor's quotes; staff assignments have no quote stage / mode / decision; 409 `demand_pending`;
+  `kind_deltas` null on a different VAT basis; the owner for the full view only (the contract's own rule - the earlier test pinned the
+  opposite); `source` validated; one "update" notification per 10 minutes; 0088 unique version + complete decision log.
 
 * v1 (2026-10-16): first version.
 * v1.1 (2026-10-16, same day, after the implementation): 5.1 - the description of an exceptional line is required only against a

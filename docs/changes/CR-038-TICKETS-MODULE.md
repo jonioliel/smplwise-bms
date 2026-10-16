@@ -1913,6 +1913,9 @@ vendor's behalf.
   tickets, severity info); `ticket.cost_missing` when `claim_until` passes on a required claim (to the department managers who
   hold `tickets.costs.view`). Vendor messages: `cost_rejected` (always), `cost_approved` (setting `costs.notify_vendor_approved`,
   default true; text "דרישת העלות לקריאה {number} אושרה" - no amount in WhatsApp).
+  *Superseded (recorded, not silently resolved): owner decision 15.10 evening - an approval never sends a message; the manager
+  confirms an editable draft. 2.6.0 (TKFIX260) removed the setting and the automatic `cost_approved` message; see
+  docs/tickets/DETAIL_BACKEND_CONTRACT.md v1.4 section 1.*
 
 ### 11A.8 Permissions (two new, both sensitive, both grantable per user - 8.2)
 
