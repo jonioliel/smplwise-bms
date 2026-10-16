@@ -109,7 +109,7 @@ test.describe('tickets list v5 evidence', () => {
     const header = page.locator(`${L} [data-tickets-header]`);
     await expect(header).not.toHaveClass(/compact/);
     const before = (await header.boundingBox())?.height ?? 0;
-    await page.evaluate(() => { const h = document.querySelector('sw-app tickets-list') as HTMLElement; h.scrollTop = 400; });
+    await page.locator(L).evaluate((h) => { (h as HTMLElement).scrollTop = 400; });
     await expect(header).toHaveClass(/compact/);
     expect(Math.abs(((await header.boundingBox())?.height ?? 0) - before), 'compacting never changes the header height').toBeLessThanOrEqual(1);
   });
@@ -145,7 +145,7 @@ test.describe('tickets list v5 evidence', () => {
   });
 
   test('the view switch: cards and table for everyone, the manager board for managers; no calendar mode', async ({ page }) => {
-    await goList(page, '/tickets/mine');
+    await goBoard(page, '/tickets/mine');
     await page.waitForSelector(`${L} ticket-card`);
     await expect(page.locator(`${L} [data-view-switch] [data-view]`)).toHaveCount(3);
     await expect(page.locator(`${L} [data-view-switch] [data-view="calendar"]`)).toHaveCount(0);
@@ -237,11 +237,11 @@ test.describe('tickets list v5 evidence', () => {
     await page.locator(`${B} [data-closed-toggle]`).click();
     await expect(page.locator(`${B} [data-closed-row]`)).toHaveCount(3);
     await shot(page, 'board-closed-rows', 'light', 'classic', true);
-    await page.locator(`${B} [data-closed-row]`).first().click();
-    await expect(page).toHaveURL(/board\?t=/);
     // the floors / areas tree survives (owner requirement) - or the chips on a phone
     if (isPhone(page)) await expect(page.locator(`${B} [data-floor-chips]`)).toBeVisible();
     else await expect(page.locator(`${B} ticket-board-tree`)).toBeVisible();
+    await page.locator(`${B} [data-closed-row]`).first().click();
+    await expect(page).toHaveURL(/board\?t=/);
   });
 
   test('the today row is not on the list; the board has the filter row and the same view switch', async ({ page }) => {
