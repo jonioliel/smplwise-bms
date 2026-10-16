@@ -45,6 +45,11 @@ function local(days: number, hour = 9): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(hour)}:00`;
 }
 
+/** A `YYYY-MM-DD` date input value `days` from today in the browser's zone. */
+function day(days: number): string {
+  return local(days).slice(0, 10);
+}
+
 const posts = (m: CostsMock, re: RegExp) => m.calls.filter((c) => re.test(c.path));
 
 test.describe('TKUI3B evidence', () => {
@@ -166,6 +171,17 @@ test.describe('TKUI3B evidence', () => {
     await expect(f.locator('[data-ob-work-error]')).toContainText('מחוץ לטווח');
     await shot(page, 'onbehalf-error');
     await f.locator('[data-ob-work-to]').fill(local(3, 15));
+    // TKQVALID: the validity - a bad one is refused in place, a day within the range is sent as the end of that day
+    await expect(f.locator('[data-ob-valid-hint]')).toBeVisible();
+    await f.locator('[data-ob-valid-until]').fill(day(500));
+    await f.locator('[data-dialog-ok]').click();
+    await expect(f.locator('[data-ob-valid-error]')).toContainText('שנה קדימה');
+    expect(posts(m, /\/quotes$/)).toHaveLength(0);
+    await f.locator('[data-ob-valid-until]').fill(day(-5));
+    await expect(f.locator('[data-ob-valid-error]')).toBeVisible();
+    await shot(page, 'onbehalf-valid-error');
+    await f.locator('[data-ob-valid-until]').fill(day(14));
+    await expect(f.locator('[data-ob-valid-error]')).toHaveCount(0);
     await f.locator('[data-ob-note]').fill('הוזן לפי שיחת טלפון');
     await f.locator('[data-dialog-ok]').click();
     await expect(page.locator(FORM)).toHaveCount(0);
@@ -173,10 +189,13 @@ test.describe('TKUI3B evidence', () => {
     expect(body).toMatchObject({ assignment_id: 'asg-v', amounts_include_vat: true, note: 'הוזן לפי שיחת טלפון' });
     expect(body.lines).toEqual([{ kind: 'labor', hours: '3', rate: '200' }, { kind: 'parts', description: 'מדחס רוטורי', quantity: '1', unit_price: '950' }]);
     expect(String(body.work_from)).toMatch(/Z$/);
-    expect(Object.keys(body).sort()).toEqual(['amounts_include_vat', 'assignment_id', 'lines', 'note', 'work_from', 'work_to']);
+    expect(Object.keys(body).sort()).toEqual(['amounts_include_vat', 'assignment_id', 'lines', 'note', 'valid_until', 'work_from', 'work_to']);
+    expect(String(body.valid_until)).toMatch(/Z$/);
     // the quote is on the card as entered by the manager, and the viewer is told plainly that someone else must approve it
     const t = page.locator(T);
     await expect(t.locator('[data-quote-by-manager]')).toContainText('רונית לוי');
+    await expect(t.locator('[data-valid-until]')).toBeVisible();
+    await expect(t.locator('[data-quote-expired-chip]')).toHaveCount(0);
     await expect(t.locator('[data-costs-flash]')).toContainText('אדם אחר צריך לאשר אותה');
     await expect(t.locator('[data-quote-own]')).toContainText('אדם אחר צריך לאשר');
     await expect(t.locator('[data-quote-approve]')).toHaveCount(0);
@@ -222,6 +241,40 @@ test.describe('TKUI3B evidence', () => {
     // the entry stays available from the menu (a new version is another entry by the same person)
     await t.locator('[data-quote-more]').click();
     await expect(t.locator('[data-quote-on-behalf]')).toBeVisible();
+  });
+
+  test('validity: a quote past its valid-until shows the chip; approving it asks for the explicit sentence, never blocked silently', async ({ page }) => {
+    const m = await open(page, 'expired', 'costs');
+    const t = page.locator(T);
+    await expect(t.locator('[data-quote-expired-chip]')).toBeVisible();
+    await expect(t.locator('[data-valid-until]')).toBeVisible();
+    await expect(t.locator('[data-quote-approve]')).toBeEnabled(); // nothing is hidden or disabled by the expiry
+    await shot(page, 'validity-expired-card');
+    await t.locator('[data-quote-approve]').click();
+    const dlg = page.locator(`${T} sw-dialog[data-dialog="quote-approve"]`);
+    await expect(dlg.locator('[data-quote-expired-confirm]')).toContainText('אני מאשר/ת הצעה שתוקפה פג');
+    await shot(page, 'validity-expired-dialog');
+    await dlg.locator('[data-dialog-ok]').click(); // without the tick: a plain message in the dialog, nothing is sent
+    await expect(dlg.locator('[data-quote-error]')).toContainText('לסמן את האישור');
+    expect(posts(m, /q-8\/approve$/)).toHaveLength(0);
+    await dlg.locator('[data-quote-expired-ok]').check();
+    await dlg.locator('[data-dialog-ok]').click();
+    await expect.poll(() => posts(m, /q-8\/approve$/).length).toBe(1);
+    expect(posts(m, /q-8\/approve$/)[0].body).toMatchObject({ revision: 1, confirm_expired: true });
+  });
+
+  test('validity: rejecting or sending back an expired quote needs no confirmation, and a quote with a future validity shows no chip', async ({ page }) => {
+    const m = await open(page, 'expired', 'costs');
+    const t = page.locator(T);
+    await t.locator('[data-quote-fix]').click();
+    const dlg = page.locator(`${T} sw-dialog[data-dialog="quote-fix"]`);
+    await expect(dlg.locator('[data-quote-expired-confirm]')).toHaveCount(0);
+    await dlg.locator('textarea').first().fill('נא לחדש את ההצעה');
+    await dlg.locator('[data-dialog-ok]').click();
+    await expect.poll(() => posts(m, /q-8\/request-fix$/).length).toBe(1);
+    expect(posts(m, /q-8\/request-fix$/)[0].body).not.toHaveProperty('confirm_expired');
+    await open(page, 'quote', 'costs');
+    await expect(page.locator(T).locator('[data-quote-expired-chip]')).toHaveCount(0);
   });
 
   test('on behalf: never for a staff assignment, never for a closed request', async ({ page }) => {

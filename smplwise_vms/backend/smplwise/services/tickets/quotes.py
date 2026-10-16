@@ -236,6 +236,37 @@ def _instant(value: Any, field: str, now: dt.datetime) -> str | None:
     return iso(at)
 
 
+def _valid_until(value: Any, now: dt.datetime) -> str | None:
+    """TKQVALID: the quote's validity ("valid until"). Same rule family as the work window: an ISO instant, or a plain date (= the END of
+    that day, 23:59:59 UTC), not in the past by more than a day, at most 366 days ahead. NOT strictly in the future: a manager may enter a
+    quote on the vendor's behalf that has just lapsed (the card then shows an expired chip)."""
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise CostRefused(422, "type", "valid_until")
+    text = value.strip()
+    if len(text) == 10 and text[4:5] == "-" and text[7:8] == "-":  # a plain date -> the end of the day
+        try:
+            day = dt.date.fromisoformat(text)
+        except ValueError:
+            raise CostRefused(422, "format", "valid_until") from None
+        at: dt.datetime | None = dt.datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=dt.timezone.utc)
+    else:
+        at = parse(text)
+        if at is not None and dt.datetime.fromisoformat(text.replace("Z", "+00:00")).tzinfo is None:
+            at = dt.datetime.fromisoformat(text).replace(tzinfo=dt.timezone.utc)  # a naive instant is UTC, never the server's local zone
+    if at is None:
+        raise CostRefused(422, "format", "valid_until")
+    if at < now - dt.timedelta(days=1) or at > now + dt.timedelta(days=WORK_HORIZON_DAYS):
+        raise CostRefused(422, "range", "valid_until")
+    return iso(at)
+
+
+def is_expired(q: Mapping[str, Any], now: dt.datetime) -> bool:
+    at = parse(q.get("valid_until"))
+    return at is not None and at < now
+
+
 def _vat_mode(conn, contact_id: str, include: Any) -> str:
     contact = store_links.contact(conn, contact_id) or {}
     vendor = store_links.contact(conn, contact["vendor_id"]) if contact.get("vendor_id") else None
@@ -293,6 +324,7 @@ def submit(conn, ticket: Mapping[str, Any], assignment: Mapping[str, Any] | None
     work_to = _instant(body.get("work_to"), "work_to", at)
     if work_from and work_to and work_to < work_from:
         raise CostRefused(422, "order", "work_to")
+    valid_until = _valid_until(body.get("valid_until"), at)
     now = iso(at)
     by = by_id if by_kind == "user" else f"contact:{by_id}"
     previous = None
@@ -309,6 +341,7 @@ def submit(conn, ticket: Mapping[str, Any], assignment: Mapping[str, Any] | None
         "vat_rate_bp": c.vat_rate_bp, "lines_json": [ln.as_json() for ln in c.lines], "labor_minor": c.by_kind["labor"],
         "parts_minor": c.by_kind["parts"], "travel_minor": c.by_kind["travel"], "other_minor": c.by_kind["other"],
         "subtotal_minor": c.subtotal_minor, "vat_minor": c.vat_minor, "total_minor": c.total_minor, "work_from": work_from, "work_to": work_to,
+        "valid_until": valid_until,
         "note": _text(body.get("note") if body.get("note") is not None else body.get("notes"), "note", NOTE_MAX, multiline=True), "vendor_ref": _text(body.get("vendor_ref"), "vendor_ref", VENDOR_REF_MAX),
         "created_by_kind": by_kind, "created_by": by_id, "created_at": now, "updated_at": now,
     })
@@ -340,7 +373,7 @@ def internal_note(value: Any) -> str | None:
 
 
 def decide(conn, q: Mapping[str, Any], action: str, *, by: str, revision: int, at: dt.datetime, line_indexes: Sequence[int] | None = None,
-           reason: Any = None, actor_name: str = "", note: Any = None) -> dict[str, Any]:
+           reason: Any = None, actor_name: str = "", note: Any = None, confirm_expired: bool = False) -> dict[str, Any]:
     """approve (all lines or a subset -> partially_approved) / request_fix / reject. The caller holds tickets.costs + view.
     TKFIX260 (review A F3): never on a staff assignment (a 2.5.7-era staff quote copied by 0088 can never become a baseline) - 409
     `not_external`."""
@@ -356,6 +389,8 @@ def decide(conn, q: Mapping[str, Any], action: str, *, by: str, revision: int, a
             raise CostRefused(409, "quote_not_submitted")
         if q["created_by_kind"] == "user" and q["created_by"] == by:
             raise CostRefused(409, "self_approval")
+        if is_expired(q, at) and not confirm_expired:  # TKQVALID: never silent - the client asks the manager and resends with the flag
+            raise CostRefused(409, "quote_expired", valid_until=q.get("valid_until"))
         # TKFIX260 (review A F12, the safer option - refuse, not flag): once a payment demand of this assignment was submitted (or
         # approved / paid) it was checked against the baseline of ITS submission time; a quote approved now would become a baseline the
         # demand's exceptional lines were never checked against. The manager decides the demand first (a rejected demand is checked
@@ -470,7 +505,7 @@ def present_quote(conn, q: Mapping[str, Any], *, full: bool, can_decide: bool = 
         "labor_minor": q["labor_minor"], "parts_minor": q["parts_minor"], "travel_minor": q["travel_minor"], "other_minor": q["other_minor"],
         "subtotal_minor": q["subtotal_minor"], "vat_minor": q["vat_minor"], "total_minor": q["total_minor"],
         "net_minor": q["total_minor"] - q["vat_minor"], "work_from": q.get("work_from"), "work_to": q.get("work_to"),
-        "note": q.get("note"), "vendor_ref": q.get("vendor_ref"),
+        "valid_until": q.get("valid_until"), "note": q.get("note"), "vendor_ref": q.get("vendor_ref"),
         "approved": ({"line_indexes": approved_indexes(q), "subtotal_minor": q.get("approved_subtotal_minor"), "vat_minor": q.get("approved_vat_minor"),
                       "total_minor": q.get("approved_total_minor")} if q["state"] in APPROVED else None),
     })
@@ -537,7 +572,7 @@ def present_public(q: Mapping[str, Any]) -> dict[str, Any]:
         "labor_minor": q["labor_minor"], "parts_minor": q["parts_minor"], "travel_minor": q["travel_minor"], "other_minor": q["other_minor"],
         "subtotal_minor": q["subtotal_minor"], "vat_mode": q["vat_mode"], "vat_rate_bp": q["vat_rate_bp"], "vat_minor": q["vat_minor"],
         "total_minor": q["total_minor"], "net_minor": q["total_minor"] - q["vat_minor"], "currency": q["currency"],
-        "notes": q.get("note"), "work_from": q.get("work_from"), "work_to": q.get("work_to"), "created_at": q["created_at"],
+        "notes": q.get("note"), "work_from": q.get("work_from"), "work_to": q.get("work_to"), "valid_until": q.get("valid_until"), "created_at": q["created_at"],
         # TKFIX260 (public-surface review F4): a version the organisation entered on the vendor's behalf says so (never who entered it)
         "on_behalf": q.get("source") == "manager",
         "approved": ({"line_indexes": approved_indexes(q), "partial": q["state"] == "partially_approved",

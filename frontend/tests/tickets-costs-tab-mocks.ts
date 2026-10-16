@@ -17,7 +17,7 @@ import { installTicketsMock, PEOPLE } from './tickets-mocks';
 export const CID = '0000000000000a03'; // a row of slice 1's list (the drawer opens over the list), its detail replaced here
 export const VENDOR = 'קירור הצפון';
 export type Call = { method: string; path: string; body: Record<string, unknown> | null };
-export type Scenario = 'quote' | 'demand' | 'staff' | 'empty' | 'own' | 'closed';
+export type Scenario = 'quote' | 'demand' | 'staff' | 'empty' | 'own' | 'closed' | 'expired';
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const NOW = Date.parse('2026-10-16T10:00:00Z');
@@ -73,6 +73,13 @@ export async function installCostsTabMock(page: Page, scenario: Scenario = 'quot
       { index: 1, kind: 'parts', description: 'מדחס רוטורי', quantity: '1', unit_minor: 95_000, total_minor: 95_000 },
       { index: 2, kind: 'parts', description: 'גז קירור', quantity: '2', unit_minor: 8_500, total_minor: 17_000 },
     ]));
+  }
+  if (scenario === 'expired') {
+    // TKQVALID: a vendor's quote whose validity ended two days ago - nothing hides it, the card says so and the approval asks first
+    quotes.push(quoteOf('q-8', 1, 'submitted', [
+      { index: 0, kind: 'labor', description: 'החלפת מדחס', hours: '3', rate_minor: 20_000, total_minor: 60_000 },
+      { index: 1, kind: 'parts', description: 'מדחס רוטורי', quantity: '1', unit_minor: 95_000, total_minor: 95_000 },
+    ], { created_at: at(60), valid_until: at(48) }));
   }
   if (scenario === 'own') {
     quotes.push(quoteOf('q-7', 1, 'submitted', [
@@ -200,7 +207,7 @@ export async function installCostsTabMock(page: Page, scenario: Scenario = 'quot
         return { index, kind: l.kind, description: l.description ?? '', total_minor: minor };
       });
       quotes.push(quoteOf(`q-${quotes.length + 10}`, quotes.length + 1, 'submitted', stored, {
-        source: 'manager', created_by_name: me.name, created_at: at(0), note: (body?.note as string | undefined) ?? null, work_from: (body?.work_from as string | undefined) ?? null, work_to: (body?.work_to as string | undefined) ?? null,
+        source: 'manager', created_by_name: me.name, created_at: at(0), valid_until: (body?.valid_until as string | undefined) ?? null, note: (body?.note as string | undefined) ?? null, work_from: (body?.work_from as string | undefined) ?? null, work_to: (body?.work_to as string | undefined) ?? null,
       }));
       return json(route, block(), 201);
     }
@@ -211,6 +218,9 @@ export async function installCostsTabMock(page: Page, scenario: Scenario = 'quot
       if (Number(body?.revision) !== q.revision) return json(route, { code: 'quote_stale', user_message: 'ההצעה השתנתה בינתיים.', retryable: false, correlation_id: 'm', details: {} }, 409);
       if (qd[2] === 'approve' && q.source === 'manager' && q.created_by_name === me.name) {
         return json(route, { code: 'self_approval', user_message: 'את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.', retryable: false, correlation_id: 'm', details: {} }, 409);
+      }
+      if (qd[2] === 'approve' && q.valid_until && Date.parse(String(q.valid_until)) < NOW && body?.confirm_expired !== true) {
+        return json(route, { code: 'quote_expired', user_message: 'תוקף ההצעה פג. אשרו שוב במפורש כדי להמשיך.', retryable: false, correlation_id: 'm', details: { valid_until: q.valid_until } }, 409);
       }
       if (qd[2] === 'approve') approve(q, (body?.line_indexes as number[] | undefined) ?? q.lines.map((l) => l.index));
       else {

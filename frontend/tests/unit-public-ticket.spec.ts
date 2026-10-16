@@ -330,3 +330,14 @@ test('TKFIX260: an on-behalf quote is labelled on the vendor card, and the note 
   expect(texts.match(/q_on_behalf:/g)?.length).toBe(4); // he / en / ar / ru
   expect(texts).toContain("q_on_behalf: 'הוזן על ידי המנהל'");
 });
+
+test('TKQVALID: the vendor card shows the validity of the link\'s own quote (display only: the public form cannot send it yet), in four languages', () => {
+  const card = code('claim/quote-card.ts');
+  expect(card).toContain('quote.valid_until');
+  expect(card).toContain("t('q_valid_until'");
+  expect(card).toContain('Intl.DateTimeFormat(lang');
+  expect(card).not.toMatch(/valid_until\s*[:=]\s*form/); // the form never sends it
+  const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  expect(texts.match(/q_valid_until:/g)?.length).toBe(4); // he / en / ar / ru
+  expect(texts.match(/q_valid_until:[^\n]*\{date\}/g)?.length).toBe(4);
+});

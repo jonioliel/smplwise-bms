@@ -221,7 +221,7 @@ function answer(t: DemoTicket): TicketCostsFull {
 const APPROVED_Q: readonly QuoteState[] = ['approved', 'partially_approved'];
 const KINDS: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
 
-interface QuoteExtra { decided?: { by: string; at: number; reason?: string }; approvedIdx?: number[]; work?: [number, number]; note?: string; source?: 'vendor' | 'manager' }
+interface QuoteExtra { decided?: { by: string; at: number; reason?: string }; approvedIdx?: number[]; work?: [number, number]; note?: string; source?: 'vendor' | 'manager'; valid?: number }
 
 function quoteOf(asgId: string, version: number, state: QuoteState, lines: StoredLine[], at: number, extra: QuoteExtra = {}): Quote {
   const k = { labor: 0, parts: 0, travel: 0, other: 0 };
@@ -232,6 +232,7 @@ function quoteOf(asgId: string, version: number, state: QuoteState, lines: Store
     id: nid('qt'), version, state, source: extra.source ?? 'vendor', created_at: iso(at), assignment_id: asgId, currency: 'ILS', vat_mode: 'excluded', vat_rate_bp: costs.vat_rate_bp,
     lines: lines.map((l, index) => ({ ...l, index })), labor_minor: k.labor, parts_minor: k.parts, travel_minor: k.travel, other_minor: k.other, subtotal_minor: subtotal,
     vat_minor: v.vat, total_minor: v.total, net_minor: v.net, work_from: extra.work ? iso(extra.work[0]) : null, work_to: extra.work ? iso(extra.work[1]) : null,
+    valid_until: extra.valid !== undefined ? iso(extra.valid) : null,
     note: extra.note ?? null, vendor_ref: null, approved: null, vendor: '', revision: 1, created_by_name: extra.source === 'manager' ? ME : '',
     decision: extra.decided ? { by: extra.decided.by, at: iso(extra.decided.at), reason: extra.decided.reason ?? null } : null, can: { decide: false, reject: false },
   };
@@ -369,6 +370,7 @@ export const mockQuotes: QuotesBackend = {
     if (body.revision !== q.revision) return refuse(409, 'quote_stale', 'ההצעה השתנתה בינתיים. טענו מחדש.');
     if (t.assignments.find((a) => a.id === q.assignment_id)?.quote_capable === false) return refuse(409, 'quote_not_open', 'אין הצעת מחיר לשיוך הזה.');
     if (action === 'approve' && q.source === 'manager' && q.created_by_name === ME) return refuse(409, 'self_approval', 'את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.');
+    if (action === 'approve' && q.state === 'submitted' && q.valid_until && Date.parse(q.valid_until) < Date.now() && body.confirm_expired !== true) return refuse(409, 'quote_expired', 'תוקף ההצעה פג. אשרו שוב במפורש כדי להמשיך.');
     const reason = body.reason?.trim() ?? '';
     if (action !== 'approve' && !reason) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'reason', code: 'required' }] });
     const open = action === 'reject' ? q.state === 'submitted' || q.state === 'fix_requested' : q.state === 'submitted';
@@ -396,10 +398,15 @@ export const mockQuotes: QuotesBackend = {
     const allowed = effectiveKinds(t).kinds;
     const bad = body.lines.findIndex((l) => !allowed.includes(l.kind));
     if (bad >= 0) return refuse(422, 'line_kind_not_allowed', 'סוג השורה אינו מותר בבקשה הזו.', { fields: [{ field: `lines.${bad}.kind`, code: 'line_kind_not_allowed' }] });
+    if (body.valid_until !== undefined) {
+      const at = Date.parse(body.valid_until);
+      if (!Number.isFinite(at)) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'valid_until', code: 'format' }] });
+      if (at < Date.now() - 86_400_000 || at > Date.now() + 366 * 86_400_000) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'valid_until', code: 'range' }] });
+    }
     const mine = t.quotes.filter((q) => q.assignment_id === a.id);
     if (mine.some((q) => APPROVED_Q.includes(q.state))) return refuse(409, 'quote_already_approved', 'כבר יש הצעה מאושרת.');
     for (const q of mine) if (q.state === 'submitted' || q.state === 'fix_requested') q.state = 'superseded';
-    t.quotes.push(quoteOf(a.id, mine.length + 1, 'submitted', body.lines.map(storedLine), Date.now(), { source: 'manager', note: body.note, ...(body.work_from && body.work_to ? { work: [Date.parse(body.work_from), Date.parse(body.work_to)] as [number, number] } : {}) }));
+    t.quotes.push(quoteOf(a.id, mine.length + 1, 'submitted', body.lines.map(storedLine), Date.now(), { source: 'manager', note: body.note, ...(body.valid_until ? { valid: Date.parse(body.valid_until) } : {}), ...(body.work_from && body.work_to ? { work: [Date.parse(body.work_from), Date.parse(body.work_to)] as [number, number] } : {}) }));
     return quotesAnswer(t);
   },
   async setMode(id, assignmentId, mode) {

@@ -1,7 +1,7 @@
 """TKDETAILBE (docs/tickets/DETAIL_BACKEND_CONTRACT.md section 4.5): the vendor's quote BEFORE the work on the public handler page.
 
     GET  /t/api/quote   the link's own quotes (state, lines, totals, the fix / reject reason, the approved part) and the form
-    POST /t/api/quote   {lines[], currency?, amounts_include_vat?, work_from?, work_to?, note? (or notes?), vendor_ref?, client_request_id}
+    POST /t/api/quote   {lines[], currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note? (or notes?), vendor_ref?, client_request_id}
 
 The answers keep the 2.5.7 (TK257) public contract the built vendor card reads (state none | submitted | approved | rejected,
 enabled, writable, allowed_kinds, quote with seq / notes / reason, form; errors 409 quote_closed and 422 kind_not_allowed) and add this
@@ -49,6 +49,7 @@ class QuoteIn(_Strict):
     amounts_include_vat: bool | None = None
     work_from: str | None = Field(default=None, max_length=40)
     work_to: str | None = Field(default=None, max_length=40)
+    valid_until: str | None = Field(default=None, max_length=40)
     note: str | None = Field(default=None, max_length=4000)
     notes: str | None = Field(default=None, max_length=4000)  # the 2.5.7 (TK257) name of `note` - the built vendor card sends it
     vendor_ref: str | None = Field(default=None, max_length=200)
