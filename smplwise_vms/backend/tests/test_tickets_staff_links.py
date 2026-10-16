@@ -181,7 +181,7 @@ def test_02_the_view_is_the_external_scope_even_for_a_department_manager(env):
     client, _ = env.s4.public(Clock(time.time()))
     before = client.get("/t/api/ticket", headers=hdr(token)).json()
     assert set(before) <= {"number", "department", "organization", "lang", "dir", "labels", "time_zone", "code_required", "code_ok",
-                           "read_only", "read_only_until", "expires_at", "code_locked_s"}, "before the code: a ticket exists, nothing more"
+                           "read_only", "read_only_until", "expires_at", "code_locked_s", "theme"}, "before the code: a ticket exists, nothing more"
     view = client.get("/t/api/ticket", headers=hdr(token, code_session(env, client, token, link))).json()
     blob = json.dumps(view, ensure_ascii=False)
     for never in ("dev-mona", "mona", MONA_E164, "0092", "פנימי בלבד", other["title"], "claim", "user_id", "username"):
@@ -506,3 +506,31 @@ def test_01c_the_quote_card_and_submit_refuse_a_user_assignment(env):
         with pytest.raises(costs.CostRefused):
             quotes.submit(conn, asg, ticket, {"lines": [{"kind": "work", "description": "x", "quantity": "1", "unit_price": "100"}]},
                           at=dt.datetime.now(dt.timezone.utc))
+
+
+# ---------------------------------------------------------------- security review F5 / F6
+
+
+def test_05b_an_ha_directory_push_that_disables_the_user_revokes_the_staff_link(env):
+    """F5: the hook in routers/ha.py bridge_directory (not only a direct recheck call)."""
+    from smplwise.services import ha_bridge
+
+    t, _ = staff_ticket(env)
+    secret = env.c.get(f"{API}/ha/bridge/pairing").json()["pairing_code"]
+    people = [{"id": f"dev-{u}", "name": u, "username": u, "is_active": u != "tom", "is_admin": u == "joni"}
+              for u in ("joni", "mona", "tom", "gil", "nora", "fred", "cleo", "alda", "dina", "vic")]
+    r = env.c.post(f"{API}/ha/bridge/directory", json=ha_bridge.sign(secret, {"users": people}))
+    assert r.status_code == 200, r.text
+    row = staff_row(env, t["id"])
+    assert row["revoked_at"] and row["revoked_reason"] == "user_inactive"
+
+
+def test_06b_unlinking_the_user_from_the_directory_row_revokes_the_staff_link(env):
+    """F6: `user_id` set to null by a configurer - the row no longer belongs to the employee, so their staff link dies."""
+    t, _ = staff_ticket(env)
+    link = staff_row(env, t["id"])
+    rev = env.s4.contact_rev(link["contact_id"])
+    r = env.c.patch(f"{API}/tickets/contacts/{link['contact_id']}", json={"user_id": None, "revision": rev})
+    assert r.status_code == 200, r.text
+    row = staff_row(env, t["id"])
+    assert row["revoked_at"] and row["revoked_reason"] == "contact_changed"

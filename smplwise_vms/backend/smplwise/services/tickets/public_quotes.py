@@ -67,7 +67,8 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         return _when(clock() if clock is not None else dt.datetime.now(UTC).timestamp())
 
     @r.get(QUOTE_ROUTE)
-    async def get_quote(ctx: LinkContext = Depends(link_context())) -> JSONResponse:
+    # TKSTAFF1 (security review F1): the quote is a cost surface - a staff link answers the uniform 404 here (claim_surface=True)
+    async def get_quote(ctx: LinkContext = Depends(link_context(claim_surface=True))) -> JSONResponse:
         if not ctx.code_ok:
             raise PublicError(403, "code_required")
 
@@ -78,7 +79,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         return JSONResponse(await run_in_threadpool(read))
 
     @r.post(QUOTE_ROUTE)
-    async def post_quote(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:
+    async def post_quote(request: Request, ctx: LinkContext = Depends(link_context(write=True, claim_surface=True))) -> JSONResponse:
         body: QuoteIn = await read_json(request, QuoteIn)
         crid = parse_client_request_id(body.client_request_id)
         payload = body.model_dump(exclude={"client_request_id"}, exclude_none=True)
