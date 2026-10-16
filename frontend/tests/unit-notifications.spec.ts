@@ -90,8 +90,8 @@ test.describe('notifications client: severity, catalog, defaults', () => {
   test('the settings defaults: quiet hours, matrix (critical passes), escalation 5 x 2, type + place, 30 days, mail not configured', () => {
     const s = DEFAULT_SETTINGS();
     expect(s.quiet).toEqual({ enabled: true, from: '22:00', to: '07:00', days: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] });
-    expect(s.pass_through.critical).toEqual({ webpush: true, email: true, ha_mobile: true });
-    expect(s.pass_through.alert).toEqual({ webpush: false, email: false, ha_mobile: false });
+    expect(s.pass_through.critical).toEqual({ webpush: true, email: true, ha_mobile: true, whatsapp: true }); // NOTIFWA: the whatsapp column
+    expect(s.pass_through.alert).toEqual({ webpush: false, email: false, ha_mobile: false, whatsapp: false });
     expect(s.pass_through.info.webpush).toBe(false);
     expect(s.escalation).toEqual({ enabled: true, after_min: 5, steps: 2, to: 'managers' });
     expect(s).toMatchObject({ lockscreen: 'type_place', image_in_push: false, retention_days: 30, deliveries_retention_days: 14, companion: { critical_sound_safety: false } });
@@ -376,7 +376,8 @@ test.describe('notifications client: lock screen, push actions, quiet hours', ()
     expect(passThrough(s, 'info', 'inbox', quiet, TZ).send).toBe(true);
     expect(passThrough(s, 'alert', 'webpush', quiet, TZ, { escalation: true }).send).toBe(true);
     expect(passThrough(s, 'alert', 'webpush', day, TZ).send).toBe(true); // outside quiet hours everything is sent
-    expect(passThrough(s, 'critical', 'whatsapp', quiet, TZ).send).toBe(false); // no matrix column
+    expect(passThrough(s, 'critical', 'whatsapp', quiet, TZ).send).toBe(true); // NOTIFWA: whatsapp has its own matrix column (critical passes by default)
+    expect(passThrough(s, 'alert', 'whatsapp', quiet, TZ).send).toBe(false);
     expect(passThrough(s, 'critical', 'ha_mobile', quiet, TZ).send).toBe(true);
     // an administrator's matrix: alerts also pass on push, never on email
     const custom: NotifySettings = { ...s, pass_through: { ...s.pass_through, alert: { webpush: true, email: false, ha_mobile: false } } };
@@ -553,22 +554,27 @@ test.describe('notifications client: the source and channel matrix, validation',
     expect(channelCell(p, 'email', s)).toEqual({ on: false, editable: true, note: 'unconfigured' });
     expect(channelCell(p, 'email', { email: { ...s.email, configured: true } }).note).toBeNull();
     expect(channelCell(p, 'ha_mobile')).toEqual({ on: false, editable: false, note: 'soon' });
-    expect(channelCell(p, 'whatsapp')).toEqual({ on: false, editable: false, note: 'soon' });
+    expect(channelCell(p, 'whatsapp')).toEqual({ on: false, editable: true, note: null }); // NOTIFWA: a real channel
+    expect(channelCell(p, 'whatsapp', s, { enabled: false }).note).toBe('unconfigured'); // its master switch is off
+    expect(channelCell(p, 'whatsapp', s, { enabled: true }).note).toBeNull();
     expect(withChannel(p, 'email', true).channels.email).toBe(true);
     expect(p.channels.email).toBe(false); // pure
     expect(withChannel(p, 'inbox', false)).toBe(p);
-    expect(withChannel(p, 'whatsapp', false)).toBe(p);
+    expect(withChannel(p, 'whatsapp', true).channels.whatsapp).toBe(true);
     expect(() => withChannel(p, 'ha_mobile', true)).toThrow(ApiError);
-    try { withChannel(p, 'whatsapp', true); } catch (e) { expect(errorCode(e)).toBe('channel_reserved'); expect((e as ApiError).status).toBe(422); }
+    try { withChannel(p, 'ha_mobile', true); } catch (e) { expect(errorCode(e)).toBe('channel_reserved'); expect((e as ApiError).status).toBe(422); }
     expect(validatePolicy({ channels: { ...p.channels } })).toBeNull();
     expect(validatePolicy({ channels: { ...p.channels, ha_mobile: true } as never })).toBe('channel_reserved');
-    expect(validatePolicy({ channels: { ...p.channels, whatsapp: true } as never })).toBe('channel_reserved');
+    expect(validatePolicy({ channels: { ...p.channels, whatsapp: true } })).toBeNull(); // NOTIFWA
     expect(channelStatus('inbox', s, 0)).toEqual({ state: 'always', text: 'פעיל תמיד' });
     expect(channelStatus('webpush', s, 3)).toEqual({ state: 'on', text: '3 מכשירים רשומים' });
     expect(channelStatus('webpush', s, 0).state).toBe('off');
     expect(channelStatus('email', s, 0)).toEqual({ state: 'unconfigured', text: 'לא מוגדר' });
     expect(channelStatus('email', { email: { ...s.email, configured: true, recipients: ['a@b.co'] } }, 0).text).toBe('1 נמענים');
-    expect(channelStatus('whatsapp', s, 0)).toEqual({ state: 'soon', text: 'בקרוב' });
+    expect(channelStatus('whatsapp', s, 0)).toEqual({ state: 'off', text: 'כבוי' });
+    expect(channelStatus('whatsapp', s, 0, { enabled: true, mapped: false })).toEqual({ state: 'unconfigured', text: 'לא נבחר חשבון' });
+    expect(channelStatus('whatsapp', s, 0, { enabled: true, mapped: true }).state).toBe('on');
+    expect(channelStatus('ha_mobile', s, 0)).toEqual({ state: 'soon', text: 'בקרוב' });
     expect(recipientsText({ rule: 'scope' })).toBe('כל מי שרואה');
     expect(recipientsText({ rule: 'users', user_ids: ['a', 'b'] })).toBe('משתמשים נבחרים (2)');
   });
@@ -858,11 +864,12 @@ test.describe('notifications mock: the API behaviour', () => {
     const leak = ps.find((p) => p.source === 'sensor.leak')!;
     const pb = policyBody(leak);
     expect(await code(m.savePolicy('sensor.leak', { ...pb, channels: { ...pb.channels, ha_mobile: true } as never }, 1))).toBe('channel_reserved');
-    expect(await code(m.savePolicy('sensor.leak', { ...pb, channels: { ...pb.channels, whatsapp: true } as never }, 1))).toBe('channel_reserved');
     expect(await code(m.savePolicy('sensor.leak', pb, 7))).toBe('settings_conflict');
     expect(await code(m.savePolicy('no.such', pb, 1))).toBe('not_found');
     const p2 = await m.savePolicy('sensor.leak', { ...pb, severity: 'alert', channels: { ...pb.channels, email: true }, recipients: { rule: 'managers' } }, 1);
     expect(p2).toMatchObject({ revision: 2, severity: 'alert', recipients: { rule: 'managers' }, channels: { inbox: true, email: true, ha_mobile: false, whatsapp: false } });
+    const p3 = await m.savePolicy('sensor.leak', { ...pb, channels: { ...pb.channels, whatsapp: true } }, 2); // NOTIFWA: no longer reserved
+    expect(p3.channels.whatsapp).toBe(true);
     // mail
     const mail: EmailBody = { host: 'smtp.example.net', port: 465, security: 'tls', user: 'arx', from: 'arx@example.net', recipients: ['a@example.net'] };
     expect(await code(m.saveEmail({ ...mail, port: 0 }))).toBe('email_invalid');

@@ -160,6 +160,10 @@ class PublicDeps:
     processing_wait_s: float = PROCESSING_WAIT_S
     # where a TRUSTED proxy puts the client address (V3): cf-connecting-ip (cloudflared) or x-forwarded-for (last hop)
     client_ip_header: str = "cf-connecting-ip"
+    # TK255: the public path prefix the listener serves itself under (`/t` routes stay the internal names) and whether the
+    # old `/t/...` links still work; the default keeps `/t` alone (what every existing test and caller meant)
+    path_prefix: str = "t"
+    legacy_t_paths: bool = True
     # slice 9 (11A.5): a link that no longer serves the page may still open the CLAIM step until the claim's own window ends -
     # `claim_window(link, now)` answers that window's end (epoch seconds) or None; asked ONLY for a token that matched a row
     claim_window: Callable[[LinkRecord, float], float | None] | None = None
@@ -197,10 +201,13 @@ def begin_body(request: Request) -> None:
     public_request(request).cost.body_phase()
 
 
-def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bool = False) -> Callable[[Request], Awaitable[LinkContext]]:
+def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bool = False,
+                 claim_surface: bool = False) -> Callable[[Request], Awaitable[LinkContext]]:
     """The dependency of every token route (see the module docstring). `write`: refuse during the read-only grace (409
     `read_only`); `need_code`: a link that requires a code needs a valid code session (403 `code_required`) - for writes; a
-    read route checks `code_ok` itself to decide what it may show (spec 10.5: number, department, organisation only)."""
+    read route checks `code_ok` itself to decide what it may show (spec 10.5: number, department, organisation only).
+    `claim_surface` (TKSTAFF1, security design R2): a route of the cost-claim step - a STAFF link (an internal employee's no-login
+    link) answers the uniform 404 there, whatever claim row exists; a staff link never enters claim mode either."""
 
     async def dep(request: Request) -> LinkContext:
         deps: PublicDeps = request.app.state.deps
@@ -210,7 +217,8 @@ def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bo
         link = await run_in_threadpool(deps.links.lookup, pr.token_hash)
         now = deps.clock()
         claim_mode = False
-        if link is not None and not link.available(now) and allow_claim and deps.claim_window is not None:
+        staff = link is not None and bool(getattr(link, "no_money", getattr(link, "kind", "external") == "staff"))  # + review F4
+        if link is not None and not link.available(now) and allow_claim and deps.claim_window is not None and not staff:
             # slice 9 (11A.5): one more read, only for a token that matched a link row - nothing is learned without a real token
             until = await run_in_threadpool(deps.claim_window, link, now)
             if until is not None and now < until:
@@ -219,6 +227,8 @@ def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bo
         if link is None or not link.available(now):
             pr.cost.unknown()
             raise unavailable()
+        if claim_surface and staff:
+            raise unavailable()  # R2: byte-identical to an unknown token (no budget spent: nothing was stored)
         pr.cost.proved(link.link_id)
         read_only = link.read_only(now) or claim_mode
         code_ok = not link.require_code
@@ -472,16 +482,22 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
                 pass
         return FALLBACK_SHELL
 
-    def shell() -> Response:
-        return Response(shell_bytes(), media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
+    def shell(request: Request) -> Response:
+        # TK255: the built page names its assets `/t/assets/...`; under another prefix they must name that prefix (the page's own
+        # API calls and address bar follow the path it was opened on - frontend/src/public-ticket/base.ts)
+        body = shell_bytes()
+        prefix = public_request(request).prefix
+        if prefix != "t":
+            body = body.replace(b"/t/assets/", b"/" + prefix.encode("ascii") + b"/assets/")
+        return Response(body, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
 
     @api.get("/t/")
-    async def page() -> Response:
-        return shell()
+    async def page(request: Request) -> Response:
+        return shell(request)
 
     @api.get("/t/r/{rid}")
-    async def redeem_page(rid: str) -> Response:  # the same shell; the id is read by the page script, never looked up here
-        return shell()
+    async def redeem_page(rid: str, request: Request) -> Response:  # the same shell; the id is read by the page script, never looked up here
+        return shell(request)
 
     @api.get("/t/assets/{name}")
     async def asset(name: str) -> Response:
@@ -519,6 +535,13 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         now = deps.clock()
         released = await run_in_threadpool(deps.redeems.release, links.redeem_hash(rid), now, REDEEM_MAX_USES) if rid else None
         link = await run_in_threadpool(deps.links.by_id, released[0]) if released else None
+        if (released is not None and link is not None and link.generation == released[1] and not link.available(now)
+                and deps.claim_window is not None and not getattr(link, "no_money", getattr(link, "kind", "external") == "staff")):
+            # TK251 review R2 A-2: the e-mail form of a cost message (cost_rejected / cost_reopened) - a link that no longer serves
+            # the page may still open the CLAIM step, exactly as link_context decides it (same generation, claim window open)
+            until = await run_in_threadpool(deps.claim_window, link, now)
+            if until is not None and now < until:
+                link = dataclasses.replace(link, expires_at=until, grace_until=None, revoked=False)
         if released is None or link is None or link.generation != released[1] or not link.available(now):
             gate.failure(pr.net, kind="redeem", lookup=rid is not None)  # the redeem route's own exit cost
             raise unavailable()
@@ -711,7 +734,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
     # ---------------------------------------------------------------- invoice files of a cost claim (slice 9, spec 11A.6 / 11A.6A)
 
     @api.post("/t/api/claim/file")
-    async def claim_file(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True))) -> Response:
+    async def claim_file(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True, claim_surface=True))) -> Response:
         """One photographed page or one PDF of the vendor's claim, stored as a PENDING file (24 h) - the submission references it.
         The photo route's protections apply (one upload in flight per link, the upload memory budget, the storage cap before
         the body, V2's body-phase cost, the processing and decoder admission, idempotent by `client_request_id`); a
@@ -775,7 +798,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         api.include_router(router)
 
     edge = PublicEdge(api, switch=deps.switch, gate=gate, trusted=deps.trusted_proxies, stats=stats, rules=deps.rules,
-                      client_ip_header=deps.client_ip_header)
+                      client_ip_header=deps.client_ip_header, path_prefix=deps.path_prefix, legacy_t=deps.legacy_t_paths)
     return PublicApp(edge, api, deps, gate, stats)
 
 

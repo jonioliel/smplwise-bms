@@ -3,6 +3,8 @@
 Assignment to a contact (`POST /tickets/{id}/assign {assignee: {kind: contact}}`), in this order - every refusal before anything is
 written:
 1. manager rights in the ticket's department (`seen.manager`) AND `tickets.external` where the ticket lies (D25) - audited 403s;
+   TKSTAFF2: a staff contact (an employee without an account) needs manager rights only, like an account holder
+   (services/tickets/assignees.py `may_send`; the same rule for the copy / new / resend link actions);
 2. the public page exists (`access.public_ready`: the add-on option, its listener, a public address) - else 409
    `public_link_unavailable`;
 3. the contact: known, active, not erased, allowed in the ticket's department; NEVER a row that names an internal user (409
@@ -27,7 +29,7 @@ from typing import Any, Protocol
 
 from ...audit import audit
 from ...errors import ApiError
-from . import access, codes as codes_mod, handler_links, links, model, naming, notify_bridge, sla, store, store_links
+from . import access, assignees, codes as codes_mod, handler_links, links, model, naming, notify_bridge, sla, store, store_links
 from .access import Seen, Viewer, text
 from .module_key import ModuleKeyError
 from .present import can_reopen
@@ -176,7 +178,7 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", None)
-    if not viewer.holds(access.EXTERNAL, row):
+    if not assignees.may_send(viewer, row, store_links.contact(conn, contact_id)):  # TKSTAFF2: a staff contact is assigned like a user
         raise _refuse(conn, viewer, "ticket.assign", row, "external_permission_missing", None, permission=access.EXTERNAL)
     contact, vendor = contact_for(conn, row, contact_id)
     refusals: list[str] = []
@@ -215,6 +217,8 @@ def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dic
     """S9 (D32): the assign dialog's "דרישת עלות: חובה / רשות / בלי" and where its preselection came from."""
     from . import costs
 
+    if assignees.is_staff(contact):  # 2.5.8 review F4 (lead decision): an internal employee is never in the vendor-payment pipeline
+        return {"default": "off", "from": "staff", "choices": ["off"]}
     mode, level = costs.preselected_mode(conn, contact=contact, vendor=vendor, department=store.department_any(conn, row["department_id"]))
     return {"default": mode, "from": level, "choices": list(costs.MODES)}
 
@@ -224,7 +228,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
-    if not viewer.holds(access.EXTERNAL, row):
+    if not assignees.may_send(viewer, row, store_links.contact(conn, contact_id)):  # TKSTAFF2: a staff contact is assigned like a user
         raise _refuse(conn, viewer, "ticket.assign", row, "external_permission_missing", rid, permission=access.EXTERNAL)
     if not access.public_ready(conn):
         raise _unavailable(conn)
@@ -251,6 +255,8 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     if cost_claim is not None and cost_claim not in costs.MODES:
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "cost_claim", "code": "unknown"}]})
     claim_mode = cost_claim or costs.preselected_mode(conn, contact=contact, vendor=vendor, department=dept)[0]
+    if assignees.is_staff(contact):
+        claim_mode = "off"  # 2.5.8 review F4 (lead decision, fail closed): no cost claim / quote for a staff contact, whatever was sent
     try:
         note_text = model.text_field(note, "note", required=False, max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
@@ -302,7 +308,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued")),
                    "cost_claim": claim_mode})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
-          details={"number": row["number"], "link": link_row["id"][:6], "generation": 1})
+          details={"number": row["number"], "link": link_row["id"][:6], "generation": 1, "kind": "external"})
     sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)
     notify_bridge.ticket_assigned(conn, row["id"], aid)
     return aid
@@ -314,7 +320,9 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
 def _current_link(conn, seen: Seen) -> dict[str, Any]:
     row = seen.row
     current = row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
-    link_row = store_links.link_for_assignment(conn, current) if current and row.get("asg_kind") == "contact" else None
+    link_row = store_links.link_for_assignment(conn, current) if current else None
+    if link_row is not None and row.get("asg_kind") != "contact" and link_row.get("kind") != "staff":
+        link_row = None  # TKSTAFF1: a user assignment holds a link only when it is a staff link
     if link_row is None:
         raise ApiError(409, "no_link", text(conn, "אין קישור פעיל של מטפל חיצוני."))
     return link_row
@@ -323,7 +331,9 @@ def _current_link(conn, seen: Seen) -> dict[str, Any]:
 def _need(conn, viewer: Viewer, seen: Seen, action: str, rid: str | None, *, external: bool) -> None:
     if not seen.manager:
         raise _refuse(conn, viewer, action, seen.row, "not_manager", rid)
-    if external and not viewer.holds(access.EXTERNAL, seen.row):
+    # TKSTAFF2: the link of a staff contact (an employee without an account) follows assignees.may_send, like its assignment
+    staff_link = not assignees.STAFF_NEEDS_EXTERNAL and assignees.link_contact_is_staff(conn, seen.row)
+    if external and not staff_link and not viewer.holds(access.EXTERNAL, seen.row):
         raise _refuse(conn, viewer, action, seen.row, "external_permission_missing", rid, permission=access.EXTERNAL)
 
 
@@ -331,13 +341,16 @@ def copy_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[
     """The handler URL once (the only place a link is shown), and the message to paste with it. Audited; `sent_via = manual`."""
     _need(conn, viewer, seen, "ticket.link.copy", rid, external=True)
     link_row = _current_link(conn, seen)
+    if link_row.get("kind") == "staff":
+        # TKSTAFF1 (security design 2 / 3): a staff link goes to the employee's own phone by WhatsApp only - never shown to a manager
+        raise ApiError(409, "staff_link_not_copyable", text(conn, "קישור של עובד נשלח רק בוואטסאפ לטלפון שלו."))
     now = handler_links.now_utc()
     if handler_links.state(link_row, now) != "live":
         raise ApiError(409, "link_not_live", text(conn, "הקישור אינו פעיל. צרו קישור חדש."))
     contact = store_links.contact(conn, link_row["contact_id"]) or {}
     try:
         url = handler_links.handler_url(conn, link_row)
-    except links.PublicUrlError:
+    except (links.PublicUrlError, ValueError):  # a ValueError: a prefix the listener refuses (TK255 review F1) - degrade, never a 500
         raise _unavailable(conn) from None
     except ModuleKeyError:
         raise ApiError(409, "module_key_missing", text(conn, "מפתח המודול חסר (שחזור ללא secrets/). שחזרו את התיקייה מהגיבוי.")) from None
@@ -357,8 +370,13 @@ def new_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[s
     if link_row.get("revoked_reason") == "contact_erased":
         raise _not_allowed(conn)
     contact = store_links.contact(conn, link_row["contact_id"])
-    if contact is None or contact.get("erased_at") or contact.get("user_id"):
+    staff = link_row.get("kind") == "staff"
+    if contact is None or contact.get("erased_at") or (contact.get("user_id") and not staff):
         raise _not_allowed(conn)
+    if staff:
+        from . import staff_links  # TKSTAFF1: a new staff link only while the user may still hold the ticket (R7)
+
+        staff_links.check_new_generation(conn, seen.row, contact)
     if not access.public_ready(conn):
         raise _unavailable(conn)
     # slice 7, D6: a code-protected link is useful only if its code can still leave on a channel the rule allows - refused
@@ -383,7 +401,7 @@ def new_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[s
                               send_now=False, requested_by=viewer.uid)
     audit(conn, actor=viewer.principal, action="ticket.link.new", decision="allowed", resource_type="ticket", resource_id=seen.row["id"], request_id=rid,
           details={"number": seen.row["number"], "link": fresh["id"][:6], "generation": int(fresh["generation"]),
-                   "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel})
+                   "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel, "kind": fresh.get("kind") or "external"})
     return {"generation": int(fresh["generation"]), "queued": bool(sent.get("queued")), "channel": sent.get("channel") or channel}
 
 
@@ -424,6 +442,10 @@ def resend(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[str
     if handler_links.state(link_row, now) != "live":
         raise ApiError(409, "link_not_live", text(conn, "הקישור אינו פעיל. צרו קישור חדש."))
     contact = store_links.contact(conn, link_row["contact_id"]) or {}
+    if link_row.get("kind") == "staff":
+        from . import staff_links  # 2.5.8 review F5: a resend honours the confirmed number and the user's own WhatsApp switch
+
+        staff_links.check_new_generation(conn, seen.row, contact)
     if DISPATCH.channel(conn, contact) == "manual":
         raise ApiError(409, "channel_unavailable", text(conn, "אין ערוץ שליחה להודעות. העתיקו את הקישור ושלחו אותו בעצמכם."))
     result = DISPATCH.queue(conn, purpose="assign", ticket=seen.row, assignment_id=link_row["assignment_id"], link=link_row, contact=contact,

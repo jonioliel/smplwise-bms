@@ -1,6 +1,6 @@
 # Service-request detail - backend contract (TKDETAILBE)
 
-Status: **v1.2 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
+Status: **v1.3 (stable)** - 2026-10-16. Branch `pilot/TKDETAILBE-backend`. Changes after v1 are listed in section 12 and announced
 in the hand-off report. Source decisions: `private/planning/_mockups/ticket-detail-v3/DECISIONS.md` (owner, 15.10 and 15.10 evening)
 and `RFQ_SPEC_DRAFT.md` sections 1, 2, 5, 9. Backend only: no UI is part of this change.
 
@@ -8,12 +8,12 @@ The RFQ backend (C1) builds on sections 3-6: its `quote` / `quote_line` entities
 an award approves a quote through the same decision code, and the ticket opened from an order receives the approved quote as its
 cost baseline.
 
-## 1. Migration 0087 (on top of 0085 TK257 quotes and 0086 outbox link generation)
+## 1. Migration 0088 (on top of 0085 TK257 quotes, 0086 outbox link generation, 0087 TKSTAFF1 staff links)
 
-`0087_ticket_detail.sql` - no table rebuild. Nothing is read while `tickets.enabled` is off. It REPLACES the 2.5.7 quote of 0085
+`0088_ticket_detail.sql` - no table rebuild. Nothing is read while `tickets.enabled` is off. It REPLACES the 2.5.7 quote of 0085
 (TK257): every `ticket_cost_quotes` row is copied into `ticket_quotes` (`seq` -> `version`, `rejected` = "needs a correction" ->
 `fix_requested`, an approval approves every line, `notes` -> `note`, `reason` -> `decision_reason`, the previous seq becomes
-`supersedes_id`), each 2.5.7 decision becomes a `ticket_quote_decisions` row (id `m0087-<quote id>`), and `ticket_cost_quotes` is
+`supersedes_id`), each 2.5.7 decision becomes a `ticket_quote_decisions` row (id `m0088-<quote id>`), and `ticket_cost_quotes` is
 DROPPED. The 2.5.7 comma lists `cost_line_kinds` become `allowed_line_kinds` JSON (labour and parts added, as 2.5.7 always did):
 the department's onto the department, an assignment's onto its ticket (the latest assignment that set one). The two
 `cost_line_kinds` columns stay in place, unused.
@@ -340,3 +340,8 @@ The task named `tickets.costs.approve`: no such permission exists - `tickets.cos
   (4.5 - this replaces the v1 codes `quote_not_open` / `quote_already_approved` / `line_kind_not_allowed` on the PUBLIC routes; the
   internal routes keep them); a quote is also refused when the assignment's cost mode is `off` (2.5.7 rule); the 2.5.7 manager route
   stays as an alias.
+* v1.3 (2026-10-16, merged on top of `integ/258`): the migration is renumbered **0088** (0087 = TKSTAFF1 staff links); it still moves
+  the 0085 rows and drops `ticket_cost_quotes`. TKSTAFF1 guards kept: only an assignment of kind `contact` whose contact is not a
+  staff employee is quote-capable (`quotes.quote_capable`, used by the card, its summary, `_enabled` and `submit`); a staff link gets
+  the uniform 404 on `GET` / `POST /t/api/quote` (`link_context(claim_surface=True)`). TK255's public prefix routing, TK251R's
+  claim-mode redeem / per-generation "link opened" and TKSTAFF2's assignees module come unchanged from `integ/258`.

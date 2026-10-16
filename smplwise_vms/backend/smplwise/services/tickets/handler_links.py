@@ -16,7 +16,13 @@ Rules (spec 10.2):
   the link's current generation (`generation_at`); a higher one applies to new links only.
 `sent_at` / `sent_via` say when and how the current generation first left (the manager's copy here; slice 5b's outbox through
 `mark_sent`) - slice 6's "link not opened" (`link_unopened_min`) counts from `sent_at`.
-Tokens are derived, never stored (links.derive_token under the link's key, `ticket_links.key_id`)."""
+Tokens are derived, never stored (links.derive_token under the link's key, `ticket_links.key_id`).
+
+TKSTAFF1 (owner 2026-10-16, security design R5 / R6 / R7): a link has a KIND - 'external' (a vendor / contact) or 'staff' (an internal
+employee's no-login link over their own assignment, services/tickets/staff_links.py). A staff link takes the installation's
+`staff_links.*` durations (sliding 3 days, cap 14 days, grace 1 hour by default; no department override) and a lower STAFF cap pulls
+in staff links only. Every revocation and every new generation cancels the link's queued / held messages (spec 9.2), so a message
+queued before a phone change or a "new link" never leaves with a dead or superseded link."""
 from __future__ import annotations
 
 import datetime as dt
@@ -75,9 +81,13 @@ def _of_policy(p: policy.DepartmentPolicy) -> Durations:
     return Durations(sliding_days=p.link_sliding_days, cap_days=max(p.link_cap_days, p.link_sliding_days), grace_hours=p.link_grace_hours)
 
 
-def durations(conn, department_id: str | None, *, installation: dict[str, Any] | None = None) -> Durations:
-    """The effective D5 durations of a department (its override when set and in range, else the installation's value)."""
+def durations(conn, department_id: str | None, *, installation: dict[str, Any] | None = None, kind: str = "external") -> Durations:
+    """The effective D5 durations of a department (its override when set and in range, else the installation's value). TKSTAFF1: a
+    staff link takes the installation's `staff_links.*` (R6) - never a department override."""
     inst = installation if installation is not None else settings_doc.read(conn)
+    if kind == "staff":
+        st = inst["staff_links"]
+        return Durations(sliding_days=st["sliding_days"], cap_days=max(st["cap_days"], st["sliding_days"]), grace_hours=st["grace_hours"])
     dept = (store.department_any(conn, department_id) if department_id else None) or {}
     return _of_policy(policy.resolve(inst, dept))
 
@@ -101,25 +111,32 @@ def public_base_url(conn) -> str:
     return settings_doc.read(conn)["public"]["base_url"]
 
 
+def public_prefix(conn) -> str:
+    """TK255: the bare path prefix the vendor URLs carry (the address's own path, else `public.path_prefix`)."""
+    pub = settings_doc.read(conn)["public"]
+    return links.effective_prefix(pub["base_url"], pub["path_prefix"])
+
+
 def handler_url(conn, link_row: dict[str, Any]) -> str:
     """The URL of a live link (the token in the fragment). Raises links.PublicUrlError when no public address is configured and
     ModuleKeyError when the key the row names is missing."""
     token = links.derive_token(KEYS.get(link_row["key_id"]), link_row["id"], int(link_row["generation"]))
-    return links.handler_url(public_base_url(conn), token)
+    return links.handler_url(public_base_url(conn), token, public_prefix(conn))
 
 
 # ---------------------------------------------------------------- mint, revoke, extend, grace, new generation
 
 
-def mint(conn, *, ticket: dict[str, Any], assignment_id: str, contact_id: str, require_code: bool, now: dt.datetime) -> dict[str, Any]:
+def mint(conn, *, ticket: dict[str, Any], assignment_id: str, contact_id: str, require_code: bool, now: dt.datetime,
+         kind: str = "external") -> dict[str, Any]:
     """A new link (generation 1) for an external assignment, under the current module key (minted only by the "module on" path -
     keyring.py, W12; a missing key here is ModuleKeyError). Returns the row; the token is derived again whenever it is needed."""
     key_id, key = KEYS.current(create=False)
     link_id = links.new_link_id()
     token = links.derive_token(key, link_id, 1)
-    d = durations(conn, ticket["department_id"])
+    d = durations(conn, ticket["department_id"], kind=kind)
     expires, cap = first_expiry(now, d, resolve_window_min(conn, ticket["department_id"], ticket["priority_id"]))
-    row = {"id": link_id, "ticket_id": ticket["id"], "assignment_id": assignment_id, "contact_id": contact_id, "generation": 1,
+    row = {"id": link_id, "kind": kind, "ticket_id": ticket["id"], "assignment_id": assignment_id, "contact_id": contact_id, "generation": 1,
            "key_id": key_id, "token_hash": links.token_hash(token), "require_code": 1 if require_code else 0, "sent_via": None,
            "created_at": iso(now), "generation_at": iso(now), "expires_at": iso(expires), "cap_at": iso(cap), "open_count": 0,
            "update_count": 0}
@@ -134,7 +151,18 @@ def revoke(conn, link_row: dict[str, Any] | None, reason: str, at: dt.datetime) 
     done = store_links.revoke_link(conn, link_row["id"], reason, iso(at))
     if done:
         store_links.drop_sessions(conn, link_row["id"])
+        cancel_messages(conn, link_row["id"], at)
     return done
+
+
+def _outbox_iso(at: dt.datetime) -> str:
+    return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"  # outbox times carry milliseconds (outbox_store.iso)
+
+
+def cancel_messages(conn, link_id: str, at: dt.datetime) -> int:
+    """TKSTAFF1 (R7 / spec 9.2): the link's queued / held messages are cancelled - except the "closed" / "reassigned" notices, which
+    tell the holder that the link ended (queued after the revocation by _notice)."""
+    return store_links.cancel_open_messages(conn, link_id, _outbox_iso(at), keep=("closed", "reassigned"))
 
 
 def revoke_for_assignment(conn, assignment_id: str | None, reason: str, at: dt.datetime) -> dict[str, Any] | None:
@@ -149,10 +177,10 @@ def revoke_for_assignment(conn, assignment_id: str | None, reason: str, at: dt.d
 def on_final(conn, ticket_id: str, assignment_id: str | None, to_status: str, department_id: str, at: dt.datetime) -> None:
     """Close / cancel of a ticket: the link of the assignment that was current gets the read-only grace (D5); with a grace of 0
     hours it is revoked at once. Every other live link of the ticket (none should exist) is revoked."""
-    grace_h = durations(conn, department_id).grace_hours
     for row in store_links.links_of_ticket(conn, ticket_id):
         if row["revoked_at"]:
             continue
+        grace_h = durations(conn, department_id, kind=row.get("kind") or "external").grace_hours
         if row["assignment_id"] == assignment_id and grace_h > 0:
             store_links.update_link(conn, row["id"], {"grace_until": iso(at + dt.timedelta(hours=grace_h))})
         else:
@@ -170,21 +198,26 @@ def on_reopened(conn, ticket_id: str, at: dt.datetime) -> None:
 
 
 def extend(conn, link_id: str, department_id: str, at: dt.datetime) -> None:
-    d = durations(conn, department_id)
+    row = store_links.link(conn, link_id)
+    d = durations(conn, department_id, kind=(row or {}).get("kind") or "external")
     store_links.extend_link(conn, link_id, iso(at + dt.timedelta(days=d.sliding_days)))
 
 
 def new_generation(conn, link_row: dict[str, Any], ticket: dict[str, Any], at: dt.datetime) -> dict[str, Any]:
     """"קישור חדש": generation + 1 under the CURRENT key, a new cap and first expiry, every earlier token, code session and code
-    of the link dead (codes and their windows are generation-scoped; the old sessions are deleted here)."""
+    of the link dead (codes and their windows are generation-scoped; the old sessions are deleted here). TK251: the open record
+    is generation-scoped too - the first open of the NEW link writes its own "הקישור נפתח" line, the manager's card shows when the
+    new link was opened (not the old one) and the "link not opened" clock (monitor, `generation_at`) starts again."""
     key_id, key = KEYS.current(create=False)
     gen = int(link_row["generation"]) + 1
     token = links.derive_token(key, link_row["id"], gen)
-    d = durations(conn, ticket["department_id"])
+    d = durations(conn, ticket["department_id"], kind=link_row.get("kind") or "external")
+    cancel_messages(conn, link_row["id"], at)  # TKSTAFF1: what was queued for the old generation never leaves (B3's companion)
     expires, cap = first_expiry(at, d, resolve_window_min(conn, ticket["department_id"], ticket["priority_id"]))
     store_links.update_link(conn, link_row["id"], {
         "generation": gen, "key_id": key_id, "token_hash": links.token_hash(token), "generation_at": iso(at), "expires_at": iso(expires),
         "cap_at": iso(cap), "grace_until": None, "revoked_at": None, "revoked_reason": None, "sent_via": None, "sent_at": None,
+        "first_opened_at": None, "last_opened_at": None, "open_count": 0,
     })
     store_links.drop_sessions(conn, link_row["id"])
     return store_links.link(conn, link_row["id"]) or link_row
@@ -197,16 +230,17 @@ def mark_sent(conn, link_id: str, via: str, at: dt.datetime) -> None:
     store_links.mark_sent(conn, link_id, via, iso(at))
 
 
-def pull_in_caps(conn, *, department_id: str | None = None) -> int:
-    """A LOWER cap (installation or department): every live link - of one department, or all - gets
-    cap_at = min(cap_at, generation_at + effective cap days) and its expiry with it, at once. Never moves a cap later."""
+def pull_in_caps(conn, *, department_id: str | None = None, kind: str = "external") -> int:
+    """A LOWER cap (installation or department): every live link of that kind - of one department, or all - gets
+    cap_at = min(cap_at, generation_at + effective cap days) and its expiry with it, at once. Never moves a cap later. TKSTAFF1: the
+    vendor caps (installation / department) pull in external links only; the staff cap (`staff_links.cap_days`) staff links only."""
     inst = settings_doc.read(conn)
     caps: dict[str, int] = {}
     pulls: dict[str, str] = {}
-    for row in store_links.live_links_with_department(conn, department_id):
+    for row in store_links.live_links_with_department(conn, department_id, kind=kind):
         dept_id = row["department_id"]
         if dept_id not in caps:
-            caps[dept_id] = durations(conn, dept_id, installation=inst).cap_days
+            caps[dept_id] = durations(conn, dept_id, installation=inst, kind=kind).cap_days
         start = parse(row.get("generation_at")) or parse(row["created_at"])
         if start is None:
             continue
@@ -245,7 +279,9 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
     from .code_flow import lock_state  # slice 7: the lock card shows until when (the current generation's window)
 
     locked_until = lock_state(conn, row, now) if locked else None
+    staff = row.get("kind") == "staff"
     return {
+        "kind": row.get("kind") or "external",  # TKSTAFF1: 'staff' = an internal employee's no-login link
         "state": st,
         "current": current,
         "generation": int(row["generation"]),
@@ -260,13 +296,14 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
         "first_opened_at": row.get("first_opened_at"),
         "last_opened_at": row.get("last_opened_at"),
         "open_count": int(row.get("open_count") or 0),
-        "devices": store_links.access_devices(conn, row["id"]),
+        # TK251: the devices of THIS generation (none before its first open; access rows carry no generation, so the time decides)
+        "devices": store_links.access_devices(conn, row["id"], since=row.get("generation_at")) if row.get("first_opened_at") else 0,
         "update_count": int(row.get("update_count") or 0),
         "require_code": bool(row["require_code"]),
         "code_locked": locked,
         "code_locked_until": locked_until,
         "can": {
-            "copy": external and current and st == "live",
+            "copy": external and current and st == "live" and not staff,  # TKSTAFF1: a staff link leaves by WhatsApp only
             "new": external and current and st in ("live", "expired", "revoked") and row.get("revoked_reason") not in ("contact_erased", "module_key"),
             "revoke": current and st in ("live", "grace"),
             "resend": bool(external and current and st == "live" and CHANNEL_OK is not None and CHANNEL_OK(conn, row)),  # slice 5b

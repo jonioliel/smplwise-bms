@@ -166,7 +166,7 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     sla.refresh(conn, f.ticket["id"])  # slice 2: the dues follow every change of a ticket
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
     notify_bridge.ticket_status(conn, f.ticket["id"], frm, to)
-    if to == "done":  # S9 (11A.1): the vendor's cost claim is asked from here on (per the assignment's requirement)
+    if to == "done" and not f.link.no_money:  # S9 (11A.1): the vendor's cost claim is asked from here on; TKSTAFF1 (R2): never staff
         from . import costs
 
         costs.on_assignment_done(conn, f.ticket["id"], f.assignment["id"], now)
@@ -278,7 +278,9 @@ def record_open(conn, link: LinkRecord, now: dt.datetime, client_key: str) -> No
     """An open of the page WITH the token (spec 9.7 / D14 "הקישור נפתח ב-..."): the first one writes the timeline line, every one
     moves the counters, one access row per device every few minutes. Never extends the link (a preview must not keep it alive)."""
     at = iso(now)
-    first = store_links.note_open(conn, link.link_id, at)
+    first = store_links.note_open(conn, link.link_id, at, link.generation)
+    if first is None:
+        return  # TK251 review R2 A-5: the link moved to a new generation meanwhile - this open belongs to a dead token
     if first:
         ticket = store_links.ticket_of_link(conn, link.link_id)
         asg = store.assignment(conn, link.assignment_id)
@@ -286,7 +288,8 @@ def record_open(conn, link: LinkRecord, now: dt.datetime, client_key: str) -> No
             store_links.insert_contact_event(conn, ticket["id"], "link_opened", contact_id=link.contact_id,
                                              actor_name=(asg or {}).get("assignee_name") or "", assignment_id=link.assignment_id, at=at,
                                              data={"generation": link.generation}, visible_external=False)
-    if not store_links.recent_access(conn, link.link_id, "open", client_key, iso(now - OPEN_ACCESS_GAP)):
+    # the first open of a generation always counts its device (TK251: the device count is per generation, like the open line)
+    if first or not store_links.recent_access(conn, link.link_id, "open", client_key, iso(now - OPEN_ACCESS_GAP)):
         store_links.insert_access(conn, link.link_id, at, "open", client_key)
 
 

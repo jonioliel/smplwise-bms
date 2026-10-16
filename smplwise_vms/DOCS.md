@@ -1030,14 +1030,20 @@ in a build that contains them.
 4. **Cloudflare, required:** a rate-limiting rule on `/t/api/*`, and every script-injecting feature off for that hostname (Rocket
    Loader, e-mail obfuscation, Bot Fight Mode and similar): the page runs under `script-src 'self'; style-src 'self'` with no inline
    code.
-   **Optional path prefix (2.5.4).** The public address may be `https://<host>` or `https://<host>/<prefix>` with exactly one prefix
-   segment (`/[a-z][a-z0-9-]{1,31}`, for example `https://ecc.smplwise.com/support`). Vendor links are then built as
-   `<host>/<prefix>/#<token>` (e-mail: `<host>/<prefix>/r/<rid>`); without a prefix they stay `<host>/t/...`. The listener still serves
-   only `/t/...`, so Cloudflare must rewrite the prefix at the edge: a Transform Rule "Rewrite URL" for host `ecc.smplwise.com` and path
-   starting `/support/` with the dynamic expression `concat("/t/", substring(http.request.uri.path, 9))`, plus a tunnel route
-   `^/t(/.*)?$` -> `http://<add-on host>:18093` (the page loads its assets and calls its API under `/t/` directly) placed BEFORE the
-   empty-path Home Assistant route. UNVERIFIED: rewrite-before-tunnel ordering, until the address probe passes on the owner's setup
-   (a 404 is reported as "not routed to the handler page").
+   **Path prefix (2.5.8, TK255).** The public address is `https://<host>`; the listener serves ITSELF under one path segment, the
+   setting `public.path_prefix` (default `support`; single segment, `[a-z0-9_-]`, 2-32 characters, not a reserved word such as `api`,
+   `assets`, `arx`; `t` selects the old form). Vendor links are built as `<host>/<prefix>/#<token>` (e-mail: `<host>/<prefix>/r/<rid>`).
+   Cloudflare needs ONE tunnel route, path `^/support(/.*)?$` -> `http://<add-on host>:18093`, placed BEFORE the empty-path Home
+   Assistant route, and NO Rewrite/Transform rule. Only the exact known routes under the prefix are served; every other path (the bare
+   `/support`, another letter case, `//`, `/../`, `%2e`, `%2f`, a backslash) gets the same uniform 404 and nothing is ever redirected.
+   Links sent before (`/t/...`) keep working while `public.legacy_t_paths` is on (default on; needs the old `^/t(/.*)?$` route too).
+   An address saved since 2.5.4 with its own prefix (`https://host/support`) keeps working: the address's path wins over the setting.
+   UPGRADE RULE: an installation already running with an address WITHOUT a path and no saved `public.path_prefix` is pinned to `t`
+   once, at the first start of this build, so its links do not change; fresh installations default to `support`. To move to
+   `/support`: first add the Cloudflare route `^/support(/.*)?$`, then change the page path. Changing the path while live links exist
+   needs `public.confirm_live_links=true` in the PUT (409 `confirm_live_links` otherwise); afterwards only the `/t/` spelling of
+   links already sent keeps working (and only while `public.legacy_t_paths` is on); links under the previous prefix stop.
+   UNVERIFIED against a real Cloudflare tunnel until the address probe passes on the owner's setup.
 5. **Home Assistant recorder, required:** exclude the `whatsapp_message_*` events and the integration's "last message" sensor from
    the recorder (they carry message text and a recipient); see the Hebrew guide for the YAML. The exact entity id of that sensor is
    UNVERIFIED. Arx's own entity mirror may still receive that sensor until the live check shows what it contains (slice 5a,

@@ -170,7 +170,7 @@ export function toggleDay(days: readonly Weekday[], day: Weekday): Weekday[] {
   return WEEKDAYS.filter((d) => set.has(d));
 }
 /** One cell of the quiet-hours matrix (push / email); Companion is a reserved column that cannot be switched. */
-export function togglePass(pt: PassThrough, severity: Severity, channel: 'webpush' | 'email'): PassThrough {
+export function togglePass(pt: PassThrough, severity: Severity, channel: 'webpush' | 'email' | 'whatsapp'): PassThrough {
   return { ...pt, [severity]: { ...pt[severity], [channel]: !pt[severity][channel] } };
 }
 /** The policy with a channel switched (the same rule the server enforces: reserved channels refuse). */

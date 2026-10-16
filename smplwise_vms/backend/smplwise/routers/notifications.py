@@ -352,7 +352,7 @@ def get_policy(source: str, principal: Principal = Depends(current_principal_ro)
 def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), if_match: str | None = Header(None), principal: Principal = Depends(current_principal),
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change one source's policy (enabled, severity, category, how long the condition must hold, fold window, resolve notice, recipients,
-    channels). `ha_mobile` / `whatsapp` true is 422 `channel_reserved` in v1. A stale revision is 412 `settings_conflict`."""
+    channels). `ha_mobile` true is 422 `channel_reserved`; `whatsapp` is a real channel since NOTIFWA. A stale revision is 412 `settings_conflict`."""
     _manager(conn, principal)
     cur = policies.get_policy(conn, source)
     if cur is None:
@@ -432,7 +432,7 @@ def test_email(request: Request, body: dict[str, Any] | None = Body(None), princ
 
 @router.get("/notify/deliveries")
 def all_deliveries(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), status: str | None = Query(None, max_length=16),
-                   channel: Literal["webpush", "email"] | None = None, since: str | None = Query(None, max_length=40), limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+                   channel: Literal["webpush", "email", "app", "announce", "whatsapp"] | None = None, since: str | None = Query(None, max_length=40), limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
     """Everyone's delivery log (masked targets): `status=failed` (or `failures`: failed and gone) for the failures panel."""
     _manager(conn, principal)
     if status is not None and status not in ("queued", "sent", "retry", "failed", "gone", "skipped", "failures"):

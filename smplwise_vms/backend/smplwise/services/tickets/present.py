@@ -156,8 +156,10 @@ def ticket_item(conn: sqlite3.Connection, seen: Seen, lk: Lookups, last_names: d
         "closed_at": row.get("closed_at"),
         "revision": row["revision"],
         "view": "full" if seen.full else "limited",
-        # slice 2: the SLA dues (services/tickets/sla.py; the board and the table of slices 6 / 6b show them)
-        "sla": {"ack_due_at": row.get("ack_due_at"), "stuck_due_at": row.get("stuck_due_at"), "resolve_due_at": row.get("resolve_due_at")},
+        # slice 2: the SLA dues (services/tickets/sla.py; the board and the table of slices 6 / 6b show them). TK251: management
+        # information (13.6) - a limited viewer (a creator / internal assignee who is not a member) gets None, as in the table
+        "sla": ({"ack_due_at": row.get("ack_due_at"), "stuck_due_at": row.get("stuck_due_at"), "resolve_due_at": row.get("resolve_due_at")}
+                if seen.full else None),
     }
 
 
@@ -224,9 +226,12 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
         "device_context": device_context.for_ticket(conn, viewer.principal, row, full=seen.full),
     })
     # slice 4: the handler link of the current (or last) external assignment - managers only, never the token or the URL
+    from . import assignees
     from .handler_links import link_block
 
-    out["link"] = link_block(conn, row, manager=seen.manager, external=viewer.holds("tickets.external", row))
+    # TKSTAFF2: the link of a staff contact (an employee without an account) is handled like its assignment (assignees.may_send)
+    staff_link = seen.manager and not assignees.STAFF_NEEDS_EXTERNAL and assignees.link_contact_is_staff(conn, row)
+    out["link"] = link_block(conn, row, manager=seen.manager, external=staff_link or viewer.holds("tickets.external", row))
     # slice 5b: the delivery lines of D14 (managers / tickets.external only) and their actions ("send now" D29, "send again")
     from .messaging import ticket_messages
 

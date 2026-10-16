@@ -77,8 +77,8 @@ def timeline(s4, tid, user="joni", **params):
 
 # ---------------------------------------------------------------- the migration
 
-def test_0087_creates_the_tables_and_drops_only_the_2_5_7_quote_table(s4):
-    sql = (MIGRATIONS_DIR / "0087_ticket_detail.sql").read_text(encoding="utf-8")
+def test_0088_creates_the_tables_and_drops_only_the_2_5_7_quote_table(s4):
+    sql = (MIGRATIONS_DIR / "0088_ticket_detail.sql").read_text(encoding="utf-8")
     assert re.findall(r"^DROP TABLE\s+(\w+)", sql, re.I | re.M) == ["ticket_cost_quotes"] and "CR-038" in sql.splitlines()[0]
     with s4.db.connection(mode="read") as conn:
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
@@ -91,14 +91,14 @@ def test_0087_creates_the_tables_and_drops_only_the_2_5_7_quote_table(s4):
         assert "ticket_cost_quotes" not in tables, "one quote implementation: the 2.5.7 table is gone"
 
 
-def test_0087_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, tmp_path, monkeypatch):
+def test_0088_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, tmp_path, monkeypatch):
     from smplwise import db as dbmod
 
     real = dbmod.MIGRATIONS_DIR
     older = tmp_path / "older"
     older.mkdir()
     for f in real.glob("*.sql"):
-        if int(f.name.split("_", 1)[0]) < 87:
+        if int(f.name.split("_", 1)[0]) < 88:
             shutil.copy(f, older / f.name)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
     database = dbmod.Database(settings.db_path)
@@ -124,7 +124,7 @@ def test_0087_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, t
                          "reason, decided_by, decided_at, created_at) VALUES (?, ?, ?, 'c1', ?, ?, ?, 30000, 80000, 0, 0, 110000, 'excluded', "
                          "1800, 19800, 129800, 'ILS', 'n', ?, ?, ?, ?)", (qid, tid, aid, seq, state, lines, reason, by, at, now))
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [87]
+    assert dbmod.Database(settings.db_path).migrate() == [88]
     with database.connection(mode="read") as conn:
         q = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM ticket_quotes")}
         assert {k: (v["version"], v["state"]) for k, v in q.items()} == {"q1": (1, "superseded"), "q2": (2, "approved"), "q3": (1, "fix_requested")}

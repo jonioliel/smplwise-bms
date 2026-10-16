@@ -386,7 +386,7 @@ export class NotifyMockStore implements NotifyAdapter {
     if (i < 0) throw new ApiError(404, { code: 'not_found', user_message: 'המקור לא קיים', retryable: false, correlation_id: '', details: {} });
     if (validatePolicy(body)) throw notifyError('channel_reserved');
     if (baseRevision !== this.policyRows[i].revision) throw notifyError('settings_conflict');
-    this.policyRows[i] = { ...this.policyRows[i], ...JSON.parse(JSON.stringify(body)) as PolicyBody, channels: { ...body.channels, inbox: true, ha_mobile: false, whatsapp: false }, revision: this.policyRows[i].revision + 1 };
+    this.policyRows[i] = { ...this.policyRows[i], ...JSON.parse(JSON.stringify(body)) as PolicyBody, channels: { ...body.channels, inbox: true, ha_mobile: false, whatsapp: !!body.channels.whatsapp }, revision: this.policyRows[i].revision + 1 };
     return JSON.parse(JSON.stringify(this.policyRows[i])) as NotifyPolicy;
   }
   async saveEmail(body: EmailBody): Promise<EmailSettings> {

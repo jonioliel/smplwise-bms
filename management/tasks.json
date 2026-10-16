@@ -10903,5 +10903,83 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX257",
+    "title": "Service management 2.5.7: vendor page quote / payment-request card and light/dark setting (migration 0085), deep-review security hardening (migration 0086), expand-arrow fix",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.7: quote / payment card and vendor page theme (0085), security hardening (0086), expand-arrow fix; fakes only (integ/257)."
+    ],
+    "requirement_ids": [
+      "R337"
+    ],
+    "test_ids": [
+      "AT353"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TK260-expand-nav, pilot/TK257-259-vendor-page, pilot/TK251A-deep-review-fixes",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/257): TK260 @ 3e995cab, TK257/TK259 @ d30433dc, TK251A @ 76c0b7d9 (release 2.5.7). Fakes only. Status REVIEW until the tier-L gate of integ/257 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TKFIX258",
+    "title": "Service management 2.5.8: assignable staff, vendor account screen, no-login staff link (migration 0087), WhatsApp notification channel, handler-page path, TK251 remainder hardening",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Service management 2.5.8: assignable staff (TKSTAFF2), vendor account (TK258), staff link (TKSTAFF1, 0087), WhatsApp notification channel (NOTIFWA), handler-page path (TK255), hardening (TK251R); fakes only (integ/258)."
+    ],
+    "requirement_ids": [
+      "R338"
+    ],
+    "test_ids": [
+      "AT354"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/TKSTAFF2-assign-contacts, pilot/TK258-vendor-accounts, pilot/TKSTAFF1-staff-link, pilot/NOTIFWA-whatsapp-channel, pilot/TK255-support-path, pilot/TK251R-remainder",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (integ/258): TKSTAFF2 @ a9852b58, TK258 @ 03625c5e, TKSTAFF1 @ 2c094584, NOTIFWA @ 83a47b4c, TK255 @ b32dee81, TK251R @ 950f1bd3 (release 2.5.8). Fakes only. Status REVIEW until the tier-L gate of integ/258 passes."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

@@ -94,6 +94,27 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await expect(page.locator(`${M} [data-handlers-members="dept-cleaning"]`)).toBeVisible();
   });
 
+  test('TKSTAFF1: a handler with an account gets a mobile line - number, language, WhatsApp on assignment', async ({ page }) => {
+    const M = `${H} tickets-handlers-members`;
+    const mock = await go(page, '/tickets/handlers');
+    await page.waitForSelector(`${M} [data-handlers-members="dept-maintenance"]`);
+    await page.locator(`${M} [data-member-pick]`).selectOption('user:u-yossi');
+    await page.locator(`${M} [data-member-add]`).click();
+    const line = `${M} [data-member-mobile="u-yossi"]`;
+    await page.waitForSelector(line);
+    await expect(page.locator(`${line} [data-member-whatsapp]`)).toHaveCount(0); // no number yet: no switch
+    await page.locator(`${line} [data-member-mobile-input]`).fill('050-000-0091');
+    await page.locator(`${line} [data-member-mobile-lang]`).selectOption('ar');
+    await page.locator(`${line} [data-member-mobile-save]`).click();
+    await expect.poll(() => last(mock, 'PUT', /^tickets\/admin\/staff\/u-yossi$/)?.body).toEqual({ phone: '050-000-0091', lang: 'ar' });
+    await expect(page.locator(`${line} [data-member-whatsapp]`)).toHaveCount(1);
+    await expect(page.locator(`${line} [data-member-mobile-pending]`)).toBeVisible(); // review F3: until the employee confirms
+    await expect(page.locator(`${line} [data-member-mobile-input]`)).toHaveValue('050-000-0091');
+    await shot(page, 'handlers-mobile', 'light', 'classic', false);
+    await page.locator(`${line} [data-member-whatsapp] button[role="switch"]`).click();
+    await expect.poll(() => last(mock, 'PUT', /^tickets\/admin\/staff\/u-yossi$/)?.body).toEqual({ notify_whatsapp: false });
+  });
+
   test('an employee without an account: created from the page with only his fields', async ({ page }) => {
     const E = `${H} tickets-contacts[kind="employee"]`;
     const mock = await go(page, '/tickets/handlers');
@@ -229,11 +250,17 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await expect(page).toHaveURL(/#\/tickets\/handlers\?seg=vendors/);
   });
 
-  test('the assign dialog, a manager without the outside permission: the outside groups say so', async ({ page }) => {
-    await go(page, `/tickets/mine?t=${FRESH}`, { persona: 'manager' });
+  test('the assign dialog, a manager without the outside permission: staff without an account are handlers, the outside group says why', async ({ page }) => {
+    // TKSTAFF2: an employee without an account is assigned like an account holder (no "send outside" permission); vendors still need it
+    const mock = await go(page, `/tickets/mine?t=${FRESH}`, { persona: 'manager' });
     await openAssign(page);
-    await expect(page.locator(`${D} [data-assign-kind="employee"]`)).toHaveAttribute('data-kind-blocked', 'external');
+    await expect(page.locator(`${D} [data-assign-kind="employee"]`)).toHaveAttribute('data-kind-blocked', '');
     await expect(page.locator(`${D} [data-assign-kind="person"]`)).toHaveAttribute('data-kind-blocked', 'external');
+    await page.locator(`${D} [data-assign-kind="employee"]`).click();
+    await expect(page.locator(`${D} [data-handler="contact:c000000000000e01"]`)).toContainText('אבי לוי');
+    await page.locator(`${D} [data-handler="contact:c000000000000e01"] input`).check();
+    await page.locator(`${D} [data-dialog-ok]`).click();
+    await expect.poll(() => last(mock, 'POST', new RegExp(`^tickets/${FRESH}/assign$`))?.body).toMatchObject({ assignee: { kind: 'contact', id: 'c000000000000e01' } });
   });
 
   test('everything ready: an employee without an account is assigned through the handler link; WhatsApp off shows a note', async ({ page }) => {
@@ -241,8 +268,9 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await openAssign(page);
     await page.locator(`${D} [data-assign-kind="employee"]`).click();
     await expect(page.locator(`${D} [data-contact-kind="vendor"]`)).toHaveCount(0);
-    await page.locator(`${D} [data-contact="c000000000000e01"] input`).check();
-    await page.waitForSelector(`${D} [data-assign-preview]`);
+    // TKSTAFF2: the staff group is the same handler picker as the account holders (one list, one submit)
+    await expect(page.locator(`${D} [data-handler^="user:"]`)).toHaveCount(0);
+    await page.locator(`${D} [data-handler="contact:c000000000000e01"] input`).check();
     await shot(page, 'assign-employee', 'light', 'classic', false);
     await page.locator(`${D} [data-dialog-ok]`).click();
     await expect.poll(() => last(mock, 'POST', new RegExp(`^tickets/${FRESH}/assign$`))?.body).toMatchObject({ assignee: { kind: 'contact', id: 'c000000000000e01' } });

@@ -1,5 +1,5 @@
 """TK257 - the vendor's quote BEFORE the work, kept as the PUBLIC CONTRACT of the built vendor card (frontend public-ticket/claim/
-quote-card.ts) after TKDETAILBE replaced the 2.5.7 implementation (migration 0087 moved 0085's rows into `ticket_quotes`): the public routes
+quote-card.ts) after TKDETAILBE replaced the 2.5.7 implementation (migration 0088 moved 0085's rows into `ticket_quotes`): the public routes
 GET/POST /t/api/quote over the real store and the handler link, the allowed line kinds (work + parts by default), server arithmetic,
 idempotency, supersession, the manager's approve / correction request (tickets.costs; NOTHING is sent to the vendor), the vendor's
 isolation from other vendors' quotes, the close after "done", and the purge. Every name and number here is invented."""
@@ -202,7 +202,7 @@ def test_the_purge_removes_the_quotes(s4):
 
 
 def test_the_2_5_7_table_is_replaced(s4):
-    """0087 moved the 2.5.7 rows into `ticket_quotes` and dropped `ticket_cost_quotes` (test_tickets_detail covers the copy)."""
+    """0088 moved the 2.5.7 rows into `ticket_quotes` and dropped `ticket_cost_quotes` (test_tickets_detail covers the copy)."""
     with s4.db.connection(mode="read") as conn:
         assert {r["name"] for r in conn.execute("PRAGMA table_info(ticket_quotes)")} >= {"assignment_id", "state", "total_minor", "vat_mode"}
         assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'ticket_cost_quotes'").fetchone()

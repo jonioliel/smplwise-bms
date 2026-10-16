@@ -5,18 +5,27 @@ SQL is store.table_rows_unchecked, reached through access.visible_table_page onl
     sort      `<key>:<asc|desc>[,<key>:<dir>]` from SORT_KEYS; at most two keys, no repeat; ties are broken by the ticket id
     filters   scope, status (a group or a list), department[], priority[] (keys), assignee (user:<id> | contact:<id> | none | me),
               floor, area, stuck (any | a stuck kind), waiting (manager), created_from / created_to (UTC instants), q
-    cursor    opaque base64 of {sort, values of the last row's sort keys, its id}; tampering only moves the position inside the
-              caller's visible set (every value is a bound parameter and every row still passes access.visible())
+    cursor    SEALED {sort, values of the last row's sort keys, its id} (AES-GCM under a per-process key - TK251): the position may
+              be an invisible row or a limited one (a short page stops on whatever row it looked at last), so its sort values - a
+              title, a place, an SLA due - must not be readable by the client; a cursor that does not open is a TableError (the
+              client starts over; a restart of the add-on does the same). Forging is impossible; even a forged position would only
+              move inside the caller's visible set (every value is a bound parameter and every row still passes access.visible())
     limit     25 / 50 / 100 / 200
 
 Anything outside the whitelist is a `TableError` (the router answers 422 `validation` naming the field)."""
 from __future__ import annotations
 
 import base64
+import binascii
 import json
+import os
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
+
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .model import STATUSES, clean_text
 
@@ -266,23 +275,61 @@ def parse_columns(raw: Any, *, name: str = "columns", require: bool = True) -> t
 
 # ---------------------------------------------------------------- the cursor (keyset pagination)
 
-def encode_cursor(sort: tuple[tuple[str, str], ...], values: list[Any], ticket_id: str) -> str:
-    raw = json.dumps({"s": sort_text(sort), "v": values, "i": ticket_id}, ensure_ascii=False, separators=(",", ":"))
-    return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+CURSOR_MAX = 1600  # two sort values of up to 200 characters, sealed and base64 (the router's query limit is the same)
+_CURSOR_KEY = AESGCM.generate_key(bit_length=128)  # per process: nothing to store, nothing to leak; a restart starts lists over
+_CURSOR_AAD = b"smplwise.tickets.table.cursor.v2"
+CURSOR_TTL_S = 1800  # review R2 A-3: a cursor lives 30 minutes (a list left open longer starts over)
 
 
-def decode_cursor(cursor: str | None, sort: tuple[tuple[str, str], ...]) -> tuple[list[Any], str] | None:
+def _aad(uid: str, fingerprint: str) -> bytes:
+    """Review R2 A-3: the cursor is bound to its caller and to the exact filter set (a replay by another user, from a log or a
+    shared address, or with other filters does not open: the same 422 `cursor`)."""
+    return _CURSOR_AAD + b"\x1f" + uid.encode() + b"\x1f" + fingerprint.encode()
+
+
+def filters_fingerprint(query: "Query") -> str:
+    import hashlib
+
+    doc = json.dumps({"f": query.filters.as_dict(), "s": query.sort_text}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(doc.encode()).hexdigest()[:32]
+
+
+def encode_cursor(sort: tuple[tuple[str, str], ...], values: list[Any], ticket_id: str, *, uid: str = "", fingerprint: str = "") -> str:
+    raw = json.dumps({"s": sort_text(sort), "v": values, "i": ticket_id, "t": int(time.time())}, ensure_ascii=False, separators=(",", ":"))
+    nonce = os.urandom(12)
+    sealed = nonce + AESGCM(_CURSOR_KEY).encrypt(nonce, raw.encode(), _aad(uid, fingerprint))
+    return base64.urlsafe_b64encode(sealed).decode().rstrip("=")
+
+
+def _open_cursor(cursor: str, aad: bytes = _CURSOR_AAD) -> bytes:
+    try:
+        blob = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
+    except (ValueError, binascii.Error):
+        raise TableError("cursor") from None
+    if len(blob) < 12 + 16:
+        raise TableError("cursor")
+    try:
+        return AESGCM(_CURSOR_KEY).decrypt(blob[:12], blob[12:], aad)
+    except InvalidTag:
+        raise TableError("cursor") from None
+
+
+def decode_cursor(cursor: str | None, sort: tuple[tuple[str, str], ...], *, uid: str = "", fingerprint: str = "") -> tuple[list[Any], str] | None:
     """(the last row's sort values, its id) or None for the first page. A cursor of another sort, a broken one or one with values
     of the wrong shape is a TableError (the client starts over)."""
     if not cursor:
         return None
-    if len(cursor) > 600:
+    if len(cursor) > CURSOR_MAX:
         raise TableError("cursor")
+    raw = _open_cursor(cursor, _aad(uid, fingerprint))
     try:
-        doc = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode())
+        doc = json.loads(raw.decode())
     except (ValueError, UnicodeDecodeError):
         raise TableError("cursor") from None
     if not isinstance(doc, dict) or doc.get("s") != sort_text(sort):
+        raise TableError("cursor")
+    issued = doc.get("t")
+    if isinstance(issued, bool) or not isinstance(issued, int) or not (-60 <= time.time() - issued <= CURSOR_TTL_S):
         raise TableError("cursor")
     values, tid = doc.get("v"), doc.get("i")
     if not isinstance(values, list) or len(values) != len(sort) or not isinstance(tid, str) or not ID_RE.match(tid):

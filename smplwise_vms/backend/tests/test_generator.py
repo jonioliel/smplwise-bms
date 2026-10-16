@@ -438,7 +438,7 @@ def test_routing_starts_empty_then_delivers_only_what_was_saved(app):
     bind(c, settings, "ops", "operator", "installation", "*")
     bind(c, settings, "vera", "viewer", "installation", "*")
     pol = c.get(f"{API}/devices/{g}/policies").json()
-    assert all(i["policy"] is None for i in pol["items"]) and pol["channels_reserved"] == ["whatsapp", "ha_mobile"]
+    assert all(i["policy"] is None for i in pol["items"]) and pol["channels_reserved"] == ["ha_mobile"] and "whatsapp" in pol["channels"]  # NOTIFWA: whatsapp is a real channel
     set_state(db, "sensor.gen_fuel", "10")
     evaluate(db, T0)
     evaluate(db, T0 + 61)
@@ -466,7 +466,10 @@ def test_routing_validation(app):
     c, db, _ = app
     g = _full(db)
     url = f"{API}/devices/{g}/policies/low_fuel"
-    assert c.put(url, json={"channels": ["whatsapp"]}).status_code == 422
+    assert c.put(url, json={"channels": ["ha_mobile"]}).status_code == 422  # still reserved
+    r = c.put(url, json={"channels": ["whatsapp"]})  # NOTIFWA: mirrored onto the CR-018 policy (sends only while its master switch is on)
+    assert r.status_code == 200 and r.json()["channels"] == ["whatsapp"]
+    assert json.loads(rows(db, "SELECT channels_json FROM notify_policies WHERE source LIKE 'generator.low_fuel@%'")[0]["channels_json"])["whatsapp"] is True
     assert c.put(url, json={"channels": ["sms"]}).status_code == 422
     assert c.put(url, json={"recipients": {"roles": ["viewer"], "users": []}}).status_code == 422
     assert c.put(url, json={"recipients": {"roles": [], "users": ["ghost"]}}).status_code == 422
@@ -724,3 +727,56 @@ def test_message_template(app):
     evaluate(db, T0 + 2000)
     evaluate(db, T0 + 2100)
     assert [r["body"] for r in rows(db, "SELECT body FROM notifications WHERE source LIKE 'generator.low_fuel@%' ORDER BY first_at")][-1] == "גנרטור ראשי: מפלס הדלק 5%."
+
+
+def test_review_notifwa_f7_adding_whatsapp_needs_notify_manage(app):
+    """NOTIFWA review F7: a site administrator (generator.manage, no notify.manage) cannot ADD the WhatsApp channel to a generator policy;
+    the system administrator (who holds notify.manage) can, and the site administrator may then edit the policy while it stays on."""
+    c, db, settings = app
+    g = _full(db)
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    a = as_user("adm")
+    url = f"{API}/devices/{g}/policies/low_fuel"
+    assert c.put(url, json={"channels": ["push"]}, headers=a).status_code == 200
+    r = c.put(url, json={"channels": ["push", "whatsapp"]}, headers=a)
+    assert r.status_code == 403, r.text
+    assert "whatsapp" not in json.loads(rows(db, "SELECT channels_json FROM generator_alert_policies WHERE alert_key = 'low_fuel'")[0]["channels_json"])
+    assert rows(db, "SELECT 1 FROM audit_log WHERE action = 'notify.manage' AND decision = 'denied'") or rows(db, "SELECT 1 FROM audit_log WHERE decision = 'denied'")
+    assert c.put(url, json={"channels": ["push", "whatsapp"]}).status_code == 200  # joni: system administrator
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "template_he": "דלק {detail}"}, headers=a).status_code == 200  # kept, not added (a field outside WhatsApp's reach)
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "critical"}, headers=a).status_code == 403  # re-review R3: raising to critical is not
+    assert c.put(url, json={"channels": ["push"]}, headers=a).status_code == 200  # removing is always allowed
+
+
+def test_rereview_r3_whatsapp_relevant_fields_need_notify_manage(app):
+    """Re-review R3: on a policy that carries WhatsApp, a site administrator without notify.manage cannot widen the recipients, raise the
+    severity, switch the quiet mode or escalation (who or how often WhatsApp reaches); other edits and removing WhatsApp stay allowed."""
+    c, db, settings = app
+    g = _full(db)
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    a = as_user("adm")
+    url = f"{API}/devices/{g}/policies/low_fuel"
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "alert", "recipients": {"roles": ["site_admin"], "users": []}}).status_code == 200  # joni
+    for body in ({"severity": "critical"}, {"recipients": {"roles": ["operator", "site_admin"], "users": []}}, {"quiet_mode": "pass"}, {"escalate": True}):
+        r = c.put(url, json={"channels": ["push", "whatsapp"], **body}, headers=a)
+        assert r.status_code == 403, (body, r.text)
+        r = c.put(url, json=body, headers=a)  # channels omitted: the stored WhatsApp still applies
+        assert r.status_code == 403, (body, r.text)
+    stored = rows(db, "SELECT severity, recipients_json FROM generator_alert_policies WHERE alert_key = 'low_fuel'")[0]
+    assert stored["severity"] == "alert" and json.loads(stored["recipients_json"])["roles"] == ["site_admin"]
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "alert", "template_he": "דלק {detail}"}, headers=a).status_code == 200  # unchanged + text
+    assert c.put(url, json={"channels": ["push"], "severity": "critical"}, headers=a).status_code == 200  # without WhatsApp: allowed
+
+
+def test_second_rereview_after_s_is_a_whatsapp_reach_field(app):
+    """Second re-review (decided): the delay before an alert fires (`after_s`) decides how often a flapping condition reaches WhatsApp, so on a
+    policy that carries WhatsApp changing it needs notify.manage too."""
+    c, db, settings = app
+    g = _full(db)
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    a = as_user("adm")
+    url = f"{API}/devices/{g}/policies/low_fuel"
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "after_s": 120}).status_code == 200  # joni
+    assert c.put(url, json={"after_s": 0}, headers=a).status_code == 403
+    assert c.put(url, json={"after_s": 120, "template_he": "דלק {detail}"}, headers=a).status_code == 200  # unchanged value + another field
+    assert c.put(url, json={"channels": ["push"], "after_s": 0}, headers=a).status_code == 200  # without WhatsApp: allowed

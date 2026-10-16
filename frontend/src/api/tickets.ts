@@ -49,8 +49,8 @@ export interface TicketItem {
   closed_at: string | null;
   revision: number;
   view: 'full' | 'limited';
-  /** slice 2: the SLA dues (null = no threshold applies now / off) */
-  sla?: { ack_due_at: string | null; stuck_due_at: string | null; resolve_due_at: string | null };
+  /** slice 2: the SLA dues (null = no threshold applies now / off). TK251: null for a limited viewer (management information) */
+  sla?: { ack_due_at: string | null; stuck_due_at: string | null; resolve_due_at: string | null } | null;
   /** slice 3: a device's ticket */
   entity_id?: string | null;
 }
@@ -203,7 +203,7 @@ export interface CreateBody {
   priority_id?: string | null;
   title: string;
   description?: string;
-  assign?: { kind: 'user'; id: string } | null;
+  assign?: { kind: 'user' | 'contact'; id: string } | null; // TKSTAFF2: a handler of either kind (tickets/assignee-model.ts)
   assign_note?: string;
   assign_note_external?: boolean;
   client_request_id: string;
@@ -219,6 +219,24 @@ export interface AssignBody { assignee: { kind: 'user' | 'contact'; id: string }
 export interface ReturnBody { kind: 'cannot_handle' | 'not_mine'; reason: string; revision: number }
 export type ReturnAnswer = TicketDetail | { id: string; view: 'none'; status: 'returned' };
 export interface Eligible { kind: 'user'; id: string; name: string; member_role: 'manager' | 'member' }
+/**
+ * TKSTAFF2: one handler of the picker (`handlers` of GET tickets/assignees, services/tickets/assignees.py) - an account holder
+ * (`kind: 'user'`, `account: true`) or a staff contact without an account (`kind: 'contact'`, `account: false`: an employee of the
+ * directory; it gets the personal handler link). `key` is the board / table filter key (`user:<id>` / `contact:<id>`); the phone is
+ * masked unless the directory allows the full number.
+ */
+export interface Handler {
+  key: string;
+  kind: 'user' | 'contact';
+  id: string;
+  name: string;
+  account: boolean;
+  member_role: 'manager' | 'member' | null;
+  phone: string | null;
+  has_phone: boolean;
+  preferred_channel: string;
+}
+export interface AssigneesList { users: Eligible[]; handlers?: Handler[] }
 
 // ---------------------------------------------------------------- settings (the module's own screen)
 
@@ -244,7 +262,19 @@ export type SlaPatch = { priority_id: string; revision: number } & Partial<Recor
 export interface AdminTemplate { id: string; kind: 'ticket'; name: string; title: string; body: string; category_id: string | null; priority_key: PriorityKey | null; active: boolean; revision: number; updated_at: string }
 export interface TemplateBody { name?: string; title?: string; body?: string; category_id?: string | null; priority_key?: PriorityKey | null; active?: boolean; revision?: number }
 export interface AdminPriority { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean; active: boolean }
-export interface AdminMember { kind: 'user' | 'group'; id: string; name: string; role: 'manager' | 'member'; notify_new: boolean; added_at: string }
+export interface AdminMember {
+  kind: 'user' | 'group'; id: string; name: string; role: 'manager' | 'member'; notify_new: boolean; added_at: string;
+  /** TKSTAFF1: a user member's mobile for the no-login staff link (display form; null = none), its message language and the user's WhatsApp switch */
+  mobile?: string | null; notify_whatsapp?: boolean; lang?: 'he' | 'en' | 'ar' | 'ru';
+  /** security review F3: the employee confirmed this number in their own account (until then no staff link is sent) */
+  mobile_confirmed?: boolean;
+}
+/** TKSTAFF1 review F3 / F4: GET /tickets/me/staff-mobile - the caller's OWN work-link mobile (last four digits only) */
+export interface StaffMine { has_phone: boolean; phone: string | null; confirmed: boolean; confirm: string | null; notify_whatsapp: boolean; lang: string }
+export type StaffMineBody = { confirm: string } | { confirmed: false } | { notify_whatsapp: boolean };
+/** TKSTAFF1: PUT /tickets/admin/staff/{user_id} (tickets.configure) - the mobile of an internal employee with an account */
+export interface StaffMobile { user_id: string; contact_id: string | null; phone: string | null; has_phone: boolean; notify_whatsapp: boolean; lang: 'he' | 'en' | 'ar' | 'ru'; active: boolean; live_links: number }
+export interface StaffMobileBody { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean }
 export interface AdminDepartment {
   id: string;
   key: string;
@@ -290,7 +320,7 @@ export interface Holder {
 }
 export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles?: RoleRow[] }
 /** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
-export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for'; theme: 'light' | 'dark' | 'auto' }
+export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for'; theme: 'light' | 'dark' | 'auto'; /* TK255 */ path_prefix?: string; legacy_t_paths?: boolean; /* a request field only */ confirm_live_links?: boolean }
 export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ }
 export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu' }
 
@@ -309,7 +339,7 @@ export interface TicketsBackend {
   upload(id: string, file: File, external: boolean): Promise<TicketDetail>;
   removePhoto(id: string, attachmentId: string): Promise<TicketDetail>;
   photoUrl(att: TicketAttachment): string;
-  assignees(departmentId: string, ticketId?: string): Promise<{ users: Eligible[] }>;
+  assignees(departmentId: string, ticketId?: string): Promise<AssigneesList>;
   settings(): Promise<SettingsDoc>;
   saveSettings(revision: number, ui: Partial<UiSettings>): Promise<SettingsDoc>;
   /** slice 2: any installation key of the document (links, send hours, urgent as critical, ui) */
@@ -334,6 +364,11 @@ export interface TicketsBackend {
   deleteTemplate(id: string): Promise<AdminDepartment>;
   putMember(departmentId: string, kind: 'user' | 'group', subjectId: string, role: 'manager' | 'member', notifyNew?: boolean): Promise<AdminDepartment>;
   deleteMember(departmentId: string, kind: 'user' | 'group', subjectId: string): Promise<AdminDepartment>;
+  /** TKSTAFF1: the mobile (E.164 validated by the server), language and WhatsApp switch of a staff member with an account */
+  putStaffMobile(userId: string, body: StaffMobileBody): Promise<StaffMobile>;
+  /** review F3 / F4: the caller's own work-link mobile - confirm the number a manager set, the own WhatsApp switch */
+  myStaffMobile(): Promise<StaffMine>;
+  setMyStaffMobile(body: StaffMineBody): Promise<StaffMine>;
   directory(q?: string): Promise<{ users: { id: string; name: string }[]; groups: { id: string; name: string }[] }>;
   holders(): Promise<HoldersResponse>;
 }
@@ -368,7 +403,7 @@ const rest: TicketsBackend = {
   },
   removePhoto: (id, attachmentId) => del<TicketDetail>(`${T}/${enc(id)}/attachments/${enc(attachmentId)}`),
   photoUrl: (att) => apiUrl(att.url),
-  assignees: (departmentId, ticketId) => get<{ users: Eligible[] }>(`${T}/assignees${qs({ department_id: departmentId, ticket_id: ticketId })}`),
+  assignees: (departmentId, ticketId) => get<AssigneesList>(`${T}/assignees${qs({ department_id: departmentId, ticket_id: ticketId })}`),
   settings: () => get<SettingsDoc>(`${T}/settings`),
   saveSettings: (revision, ui) => put<SettingsDoc>(`${T}/settings`, { revision, ui }),
   saveInstallation: (revision, body) => put<SettingsDoc>(`${T}/settings`, { revision, ...body }),
@@ -390,6 +425,9 @@ const rest: TicketsBackend = {
   putMember: (departmentId, kind, subjectId, role, notifyNew) =>
     put<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/members/${kind}/${enc(subjectId)}`, notifyNew === undefined ? { role } : { role, notify_new: notifyNew }),
   deleteMember: (departmentId, kind, subjectId) => del<AdminDepartment>(`${T}/admin/departments/${enc(departmentId)}/members/${kind}/${enc(subjectId)}`),
+  putStaffMobile: (userId, body) => put<StaffMobile>(`${T}/admin/staff/${enc(userId)}`, body),
+  myStaffMobile: () => get<StaffMine>(`${T}/me/staff-mobile`),
+  setMyStaffMobile: (body) => put<StaffMine>(`${T}/me/staff-mobile`, body),
   directory: (q = '') => get<{ users: { id: string; name: string }[]; groups: { id: string; name: string }[] }>(`${T}/admin/directory${qs({ q })}`),
   holders: () => get<HoldersResponse>(`${T}/admin/holders`),
 };

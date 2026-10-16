@@ -2,7 +2,8 @@
 a template for a contact's language, and rendering.
 
 Rules (9.7):
-- Allow-listed placeholders only (PLACEHOLDERS). `{link}` is mandatory in assign / reminder / reopened / update; `{code}` is
+- Allow-listed placeholders only (PLACEHOLDERS). `{link}` is mandatory in assign / reminder / reopened / update and in the cost messages that ask the vendor to act
+  (cost_rejected / cost_reopened - TK251, 11A.7); `{code}` is
   mandatory in, and allowed only in, the `code` template, which carries no link and no ticket title (this module is stricter and
   also refuses `{place}` and `{device}` there: a forwarded code message discloses nothing about the ticket).
 - No Unicode Cc / Cf characters (control, bidi, zero-width - review T9), no URL other than `{link}`, at most 1000 rendered
@@ -22,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 from . import naming as _naming
-from .channel import DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, Button, one_line, strip_controls
+from .channel import DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, TEMPLATE_LINK_PURPOSES, Button, one_line, strip_controls
 
 PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "priority", "organization", "link", "code",
                 "manager", "eta", "module_name", "module_name_plural")
@@ -110,13 +111,13 @@ STARTERS: dict[str, dict[str, str]] = {
         "ar": "تحديث: {module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة: {link}",
         "ru": "Обновление: {module_name} № {number} ({department}): {title}\n{place}\nОбновить статус: {link}",
     },
-    # slice 9 (11A.7): the vendor's cost claim - never an amount in a message; the vendor reopens the handler link it already
-    # received (the claim step opens on it until the claim window ends)
+    # slice 9 (11A.7): the vendor's cost claim - never an amount in a message. TK251: a message that asks the vendor to act
+    # carries the handler link ({link}, the claim step - claim mode until the claim window ends); the approval carries none
     "cost_rejected": {
-        "he": "דרישת העלות ל{module_name} {number} ({department}) הוחזרה לתיקון. פתחו את הקישור שקיבלתם כדי לעיין בהערה ולהגיש מחדש.",
-        "en": "The cost claim for {module_name} #{number} ({department}) was sent back for correction. Open the link you received to see the note and resubmit.",
-        "ar": "أعيدت مطالبة التكلفة لـ {module_name} رقم {number} ({department}) للتصحيح. افتحوا الرابط الذي استلمتموه للاطلاع على الملاحظة وإعادة التقديم.",
-        "ru": "Счёт по {module_name} № {number} ({department}) возвращён на исправление. Откройте полученную ссылку, чтобы увидеть замечание и отправить снова.",
+        "he": "דרישת העלות ל{module_name} {number} ({department}) הוחזרה לתיקון.\nלעיון בהערה ולהגשה מחדש: {link}",
+        "en": "The cost claim for {module_name} #{number} ({department}) was sent back for correction.\nSee the note and resubmit: {link}",
+        "ar": "أعيدت مطالبة التكلفة لـ {module_name} رقم {number} ({department}) للتصحيح.\nللاطلاع على الملاحظة وإعادة التقديم: {link}",
+        "ru": "Счёт по {module_name} № {number} ({department}) возвращён на исправление.\nЗамечание и повторная отправка: {link}",
     },
     "cost_approved": {
         "he": "דרישת העלות ל{module_name} {number} ({department}) אושרה. תודה.",
@@ -125,10 +126,10 @@ STARTERS: dict[str, dict[str, str]] = {
         "ru": "Счёт по {module_name} № {number} ({department}) одобрен. Спасибо.",
     },
     "cost_reopened": {
-        "he": "אפשר שוב להגיש דרישת עלות ל{module_name} {number} ({department}). פתחו את הקישור שקיבלתם כדי להגיש.",
-        "en": "You can submit the cost claim for {module_name} #{number} ({department}) again. Open the link you received to submit it.",
-        "ar": "يمكنكم مجددًا تقديم مطالبة التكلفة لـ {module_name} رقم {number} ({department}). افتحوا الرابط الذي استلمتموه للتقديم.",
-        "ru": "Вы снова можете отправить счёт по {module_name} № {number} ({department}). Откройте полученную ссылку, чтобы отправить его.",
+        "he": "אפשר שוב להגיש דרישת עלות ל{module_name} {number} ({department}).\nלהגשה: {link}",
+        "en": "You can submit the cost claim for {module_name} #{number} ({department}) again.\nSubmit it here: {link}",
+        "ar": "يمكنكم مجددًا تقديم مطالبة التكلفة لـ {module_name} رقم {number} ({department}).\nللتقديم: {link}",
+        "ru": "Вы снова можете отправить счёт по {module_name} № {number} ({department}).\nОтправить: {link}",
     },
     "test": {
         "he": "הודעת בדיקה. אין צורך להשיב.",
@@ -137,6 +138,48 @@ STARTERS: dict[str, dict[str, str]] = {
         "ru": "Тестовое сообщение. Отвечать не нужно.",
     },
 }
+
+
+# TKSTAFF1 (owner 2026-10-16): the assignment message of an internal employee's no-login STAFF link (services/tickets/staff_links.py),
+# chosen by the outbox row's `template_id` ('starter:<id>:<lang>') - code-owned, not editable in Settings (a staff text must keep its
+# one-URL / no-quick-reply shape). `staff_assign_code` (a verification code is required - the default, R8) has NO quick-reply line:
+# a reply to a code-protected link is only a note (security design 4); `staff_assign` keeps it. ar / ru need a native review.
+STAFF_STARTERS: dict[str, dict[str, str]] = {
+    "staff_assign_code": {
+        "he": "שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול ללא כניסה למערכת: {link}",
+        "en": "Hello {name},\n{module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling without signing in: {link}",
+        "ar": "مرحبًا {name}،\n{module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة دون تسجيل الدخول: {link}",
+        "ru": "Здравствуйте, {name}!\n{module_name} № {number} ({department}): {title}\n{place}\nОбновить статус без входа в систему: {link}",
+    },
+    "staff_assign": {
+        "he": "שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול ללא כניסה למערכת: {link}\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול",
+        "en": "Hello {name},\n{module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling without signing in: {link}\nQuick reply: 1 = received, 2 = in progress",
+        "ar": "مرحبًا {name}،\n{module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة دون تسجيل الدخول: {link}\nللرد السريع: 1 = تم الاستلام، 2 = قيد المعالجة",
+        "ru": "Здравствуйте, {name}!\n{module_name} № {number} ({department}): {title}\n{place}\nОбновить статус без входа в систему: {link}\nБыстрый ответ: 1 = получено, 2 = в работе",
+    },
+}
+
+
+def staff_template_id(require_code: bool, lang: str) -> str:
+    lang = lang if lang in LANGS else DEFAULT_LANG
+    return f"starter:{'staff_assign_code' if require_code else 'staff_assign'}:{lang}"
+
+
+def staff_starter(name: str, lang: str) -> "TemplateText | None":
+    """The staff starter `name` in `lang` (Hebrew when the language has none); its purpose is `assign` (a link purpose)."""
+    texts = STAFF_STARTERS.get(name)
+    if not texts:
+        return None
+    lang = lang if lang in texts else DEFAULT_LANG
+    return TemplateText(id=f"starter:{name}:{lang}", purpose="assign", lang=lang, body=texts[lang])
+
+
+def staff_starter_by_id(template_id: str | None) -> "TemplateText | None":
+    """'starter:staff_assign[_code]:<lang>' -> its TemplateText; anything else -> None."""
+    parts = (template_id or "").split(":")
+    if len(parts) != 3 or parts[0] != "starter" or parts[1] not in STAFF_STARTERS:
+        return None
+    return staff_starter(parts[1], parts[2])
 
 
 class TemplateError(ValueError):
@@ -262,7 +305,7 @@ def problems(purpose: str, body: Any, *, for_contacts: bool = True) -> list[dict
     else:
         if "code" in names:
             add("code_not_allowed")
-        if for_contacts and purpose in LINK_PURPOSES and "link" not in names:
+        if for_contacts and purpose in TEMPLATE_LINK_PURPOSES and "link" not in names:
             add("link_required")
     if not any(p["code"] in ("brace_unbalanced", "gender_malformed") for p in out):
         worst = render(body, _WORST, lang="he", display_name={l: {"one": "W" * 30, "many": "W" * 30} for l in LANGS},

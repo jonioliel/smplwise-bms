@@ -200,7 +200,9 @@ def test_a_forged_cursor_only_moves_inside_the_callers_visible_set(w):
 
     sort = table.parse_sort("number:asc")
     for start in (0, 10**9 - 1, -5):
-        forged = table.encode_cursor(sort, [start], "0")
+        # TK251 R2 A-3: the cursor is bound to its caller and filter set - forged here with cleo's own binding (the strongest forgery)
+        fp = table.filters_fingerprint(table.from_query_params({"sort": "number:asc"})[0])
+        forged = table.encode_cursor(sort, [start], "0", uid="dev-cleo", fingerprint=fp)
         got = _ids(w, "cleo", f"?sort=number:asc&cursor={forged}")
         assert set(got) <= {t["id"] for t in mine}, "a forged position never reveals another department's row"
 

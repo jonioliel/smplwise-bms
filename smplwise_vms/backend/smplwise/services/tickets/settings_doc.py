@@ -83,6 +83,14 @@ def _base_url(v: Any) -> str:
         raise ValueError(exc.code) from None
 
 
+def _path_prefix(v: Any) -> str:
+    """TK255: the one path segment the public listener serves itself under (`support` -> `https://host/support/...`); `t` keeps the
+    old `/t/...` form. Single segment, [a-z0-9_-], at most 32, no reserved word (public_prefix.validate_prefix)."""
+    from .public_prefix import validate_prefix
+
+    return validate_prefix(v)
+
+
 def _cidrs(v: Any) -> list[str]:
     """Slice 4: the peers whose client-address header is believed (spec 10.2, review T1a); at most 8, none broader than /8."""
     from .ratelimit import parse_trusted_cidrs
@@ -132,11 +140,20 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5
     ("links", "cap_days"): (90, int_range(*CAP_DAYS)),  # D5, >= sliding_days (checked across keys below)
     ("links", "grace_hours"): (24, int_range(*GRACE_HOURS)),  # D5
+    # TKSTAFF1 (security design R6 / R8, its `links.staff.*`): the no-login STAFF link of an internal employee - shorter than a
+    # vendor's (a staff phone is the lost / forwarded case and the employee has the app for anything longer); installation-wide only
+    # (no department override). A block of its own so the vendor `links` block keeps its shape for every reader.
+    ("staff_links", "sliding_days"): (3, int_range(*SLIDING_DAYS)),
+    ("staff_links", "cap_days"): (14, int_range(*CAP_DAYS)),
+    ("staff_links", "grace_hours"): (1, int_range(*GRACE_HOURS)),
+    ("staff_links", "require_code"): (True, boolean),  # R8: raise only - a staff member's row (require_code) still raises it when off
     ("send_hours",): ({"from": "07:00", "to": "21:00"}, send_hours),  # D4
     ("urgent_is_critical",): (True, boolean),  # D28
     # slice 4: the handler page (section 10 / 14.1)
     ("organization_name",): ("", _org_name),
     ("public", "base_url"): ("", _base_url),
+    ("public", "path_prefix"): ("support", _path_prefix),  # TK255: used when the address itself carries no path
+    ("public", "legacy_t_paths"): (True, boolean),  # TK255: links already sent as /t/... keep working (turn off once none is live)
     ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
     # slice 7: option B verification codes (section 10.5 / 14.1); the length is fixed at 6 (D2) and is NOT a setting
     ("code", "ttl_min"): (10, int_range(1, 30)),
@@ -171,6 +188,9 @@ def _cross_problem(doc: dict[str, Any]) -> str | None:
     links = doc.get("links") or {}
     if links.get("cap_days", 0) < links.get("sliding_days", 0):
         return "links.cap_days:below_sliding"
+    staff = doc.get("staff_links") if isinstance(doc.get("staff_links"), dict) else {}
+    if staff.get("cap_days", 0) < staff.get("sliding_days", 0):
+        return "staff_links.cap_days:below_sliding"
     return None
 
 
@@ -209,17 +229,55 @@ def read(conn: sqlite3.Connection) -> dict[str, Any]:
     out: dict[str, Any] = {}
     rev = stored.get("revision")
     out["revision"] = rev if isinstance(rev, int) and not isinstance(rev, bool) and rev >= 0 else 0
+    refused: str | None = None
     for path, (default, check) in SCHEMA.items():
         raw = _get(stored, path)
         try:
             value = check(raw) if raw is not None else copy.deepcopy(default)
-        except ValueError:
+        except ValueError as exc:
             value = copy.deepcopy(default)
+            if path == ("public", "base_url"):
+                refused = "reserved" if str(exc) == "path_reserved" else (str(exc) or "invalid")
         _set(out, path, value)
-    if _cross_problem(out):  # a stored pair that breaks the cross-key rule reads as the default pair (fail safe)
-        for path in (("links", "sliding_days"), ("links", "cap_days")):
-            _set(out, path, SCHEMA[path][0])
+    if refused:
+        # 2.5.8 review F7: a stored public address that a newer rule refuses (e.g. a path that became a reserved word) reads as "" -
+        # fail closed: no link is derived from it - and the reason is served so Settings / readiness can say why the page is off
+        out["public"]["base_url_refused"] = refused
+    for prefix in (("links",), ("staff_links",)):  # a stored pair that breaks the cross-key rule reads as the default pair (fail safe)
+        if _get(out, prefix + ("cap_days",)) < _get(out, prefix + ("sliding_days",)):
+            for path in (prefix + ("sliding_days",), prefix + ("cap_days",)):
+                _set(out, path, SCHEMA[path][0])
     return out
+
+
+PIN_MARKER = "tickets.path_prefix_pinned"
+
+
+def pin_legacy_prefix(conn: sqlite3.Connection) -> bool:
+    """TK255 review F2, ONCE per installation (the first start of a build that has this rule): an installation that already runs
+    with a public address WITHOUT a path (links `<host>/t/...`) and never saved `public.path_prefix` keeps `t` - the new default
+    `support` would silently re-point every new link at a Cloudflare route the owner has not added. The owner moves to `support`
+    from the settings card. A fresh installation (no address at that first start) and an address that carries its own path are
+    never pinned; the marker makes a later address entry follow the default. Returns whether `t` was pinned."""
+    from ...db import get_setting, set_setting
+    from .links import PublicUrlError, split_base, validate_public_base_url
+
+    if get_setting(conn, PIN_MARKER):
+        return False
+    pinned = False
+    stored = _stored(conn)
+    base = _get(stored, ("public", "base_url"))
+    if isinstance(base, str) and base and _get(stored, ("public", "path_prefix")) is None:
+        try:
+            has_path = bool(split_base(validate_public_base_url(base))[1])
+        except PublicUrlError:
+            has_path = True  # an address that no longer validates is not a running /t setup
+        if not has_path:
+            _set(stored, ("public", "path_prefix"), "t")
+            set_setting(conn, SETTING_KEY, json.dumps(stored, ensure_ascii=False, separators=(",", ":")))  # no revision bump: not an edit
+            pinned = True
+    set_setting(conn, PIN_MARKER, "1")
+    return pinned
 
 
 def apply_patch(conn: sqlite3.Connection, patch: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:

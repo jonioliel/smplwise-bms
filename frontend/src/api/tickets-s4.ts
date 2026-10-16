@@ -12,7 +12,7 @@
 import { get, patch, post } from './client';
 import { isApi } from './session';
 import { s4Mock } from './tickets-s4-mock';
-import type { Eligible, PublicSettings, TicketDetail } from './tickets';
+import type { Eligible, Handler, PublicSettings, TicketDetail } from './tickets';
 
 /** 'employee' (owner request 2026-10-14, migration 0084): an employee WITHOUT an account - assigned through a handler link like a contact. */
 export type ContactKind = 'person' | 'vendor' | 'employee';
@@ -109,7 +109,7 @@ export interface Readiness {
   email_configured: boolean;
   contacts_count: { employee: number; vendor: number; person: number };
 }
-export interface AssigneesAnswer { users: Eligible[]; contacts?: ExternalAssignee[]; external?: boolean; public_ready?: boolean; readiness?: Readiness }
+export interface AssigneesAnswer { users: Eligible[]; handlers?: Handler[]; contacts?: ExternalAssignee[]; external?: boolean; public_ready?: boolean; readiness?: Readiness }
 
 export type Refusal = 'public_link_unavailable' | 'code_channel_unavailable' | string;
 export interface AssignPreview {
@@ -128,9 +128,11 @@ export interface AssignContactBody { contactId: string; note?: string | null; no
   costClaim?: 'required' | 'optional' | 'off' | null; revision: number }
 
 export type LinkState = 'live' | 'grace' | 'expired' | 'revoked';
-export type LinkRevokedReason = 'closed' | 'cancelled' | 'reassigned' | 'returned' | 'not_mine' | 'manual' | 'resent' | 'module_key' | 'contact_changed' | 'contact_erased';
+export type LinkRevokedReason = 'closed' | 'cancelled' | 'reassigned' | 'returned' | 'not_mine' | 'manual' | 'resent' | 'module_key' | 'contact_changed' | 'contact_erased' | 'user_inactive';
 /** The `link` block of a ticket (managers only; never the token or the URL - the copy route returns that once). */
 export interface LinkBlock {
+  /** TKSTAFF1: 'staff' = an internal employee's no-login link (WhatsApp only, never copied) */
+  kind?: 'external' | 'staff';
   state: LinkState;
   current: boolean;
   generation: number;
@@ -163,7 +165,7 @@ export interface TicketsHealth {
   error: string | null;
   rate_limit_trips: Record<string, number>;
   module_key: { state: string; [k: string]: unknown };
-  links: { live: number; grace: number; expired: number; revoked: number; locked: number };
+  links: { live: number; grace: number; expired: number; revoked: number; locked: number; /** TKSTAFF1 */ live_staff?: number };
   address_configured: boolean;
   missing: PublicMissing[];
   attachments_bytes?: number | null;

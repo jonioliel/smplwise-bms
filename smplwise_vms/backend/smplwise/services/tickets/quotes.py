@@ -72,6 +72,17 @@ def parse_kinds(value: Any, field: str = "kinds") -> list[str] | None:
 
 # ---------------------------------------------------------------- assignments, modes, the baseline
 
+def quote_capable(conn, asg: Mapping[str, Any] | None) -> bool:
+    """TKSTAFF1 (security review F1, 2.5.8 review F4): only an assignment of kind `contact` is external - a staff member's own (user)
+    assignment also names their directory row in `contact_id` and is never external - and a staff contact without an account
+    (the 0084 employee row) is internal staff: neither ever gets a quote card or a quote."""
+    if not asg or asg.get("assignee_kind") != "contact" or not asg.get("contact_id"):
+        return False
+    from .assignees import is_staff
+
+    return not is_staff(store_links.contact(conn, asg["contact_id"]))
+
+
 def active_external(conn, ticket: Mapping[str, Any]) -> dict[str, Any] | None:
     asg = store.assignment(conn, ticket.get("current_assignment_id"))
     if asg is None or asg.get("ended_at") or asg.get("assignee_kind") != "contact":
@@ -247,6 +258,8 @@ def submit(conn, ticket: Mapping[str, Any], assignment: Mapping[str, Any] | None
     assignment must be the ticket's ACTIVE external one and the ticket in handling (409 `quote_not_open`)."""
     if assignment is None or assignment.get("ended_at") or assignment.get("assignee_kind") != "contact" \
             or ticket.get("current_assignment_id") != assignment["id"] or ticket.get("status") not in model.HANDLING:
+        raise CostRefused(409, "quote_not_open")
+    if not quote_capable(conn, assignment):  # TKSTAFF1: never for an internal (staff) assignment
         raise CostRefused(409, "quote_not_open")
     if quote_mode(assignment) == "off":
         raise CostRefused(409, "quote_off")
@@ -500,7 +513,7 @@ def _enabled(conn, ticket: Mapping[str, Any], asg: Mapping[str, Any]) -> bool:
     """TK257: the card is hidden when the assignment asks for no costs at all (cost mode `off`) - and when no quote is wanted."""
     if quote_mode(asg) == "off":
         return False
-    if not ticket or not asg.get("contact_id"):
+    if not ticket or not quote_capable(conn, asg):  # TKSTAFF1: a user / staff assignment never shows the card
         return False
     from .costs import assignment_mode
 
@@ -515,7 +528,7 @@ def _writable(ticket: Mapping[str, Any], asg: Mapping[str, Any], quotes: Sequenc
 def public_summary(conn, assignment_id: str) -> dict[str, Any] | None:
     """The `quote` block of GET /t/api/ticket (the card itself reads GET /t/api/quote)."""
     asg = store.assignment(conn, assignment_id)
-    if asg is None or asg.get("assignee_kind") != "contact":
+    if asg is None or not quote_capable(conn, asg):
         return None
     ticket = store_costs.ticket_row(conn, asg["ticket_id"]) or {}
     quotes = store_quotes.quotes_of_assignment(conn, assignment_id)
@@ -537,7 +550,8 @@ def public_quotes(conn, assignment_id: str) -> dict[str, Any]:
     quotes = store_quotes.quotes_of_assignment(conn, assignment_id)
     cur = current(quotes)
     s = cost_settings(conn)
-    contact = store_links.contact(conn, asg.get("contact_id")) or {}
+    external = quote_capable(conn, asg)  # TKSTAFF1: no vendor rates / VAT data for a user or staff assignment
+    contact = (store_links.contact(conn, asg.get("contact_id")) or {}) if external else {}
     vendor = store_links.contact(conn, contact.get("vendor_id")) if contact.get("vendor_id") else None
     exempt = bool(contact.get("vat_exempt") or (vendor or {}).get("vat_exempt"))
     rate = contact.get("labor_rate_minor")

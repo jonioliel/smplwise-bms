@@ -11,12 +11,16 @@ import { assignLines } from './message-lines';
 import { mtt } from './messages-text';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { ct, type CostTextKey } from './cost-text'; // slice 9
-import { outsideBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
+import { outsideBlock, staffBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
 
 type CostModeChoice = 'required' | 'optional' | 'off';
 
-/** The dialog's three groups (owner 2026-10-14): handlers with an account, employees without one, vendors and contacts. */
+/** The dialog's three groups (owner 2026-10-14): handlers with an account, employees without one, vendors and contacts. TKSTAFF2: the
+ * first two are both HANDLERS (one list, one picker and one submit in the host - tickets/assignee-model.ts); this controller runs the
+ * third (outside contacts) only. */
 export type AssignKind = 'user' | 'employee' | 'person';
+/** How many handlers of each handler group the server offered (null = still loading). */
+export interface HandlerCounts { user: number | null; employee: number | null }
 
 /** A refusal the preview names, in words (an unknown code - a newer server - shows the general line). */
 export function refusalText(code: string): string {
@@ -111,16 +115,23 @@ export class ExternalAssign implements ReactiveController {
     return t.can.assign_external || this.external;
   }
 
-  /** The rows of an outside group the dialog may offer for this ticket. */
-  private groupRows(k: 'employee' | 'person'): ExternalAssignee[] {
-    return (this.contacts ?? []).filter((c) => (k === 'employee' ? c.contact_kind === 'employee' : c.contact_kind !== 'employee'));
+  /** The outside contacts the dialog may offer for this ticket (staff contacts are handlers - TKSTAFF2). */
+  private groupRows(): ExternalAssignee[] {
+    return (this.contacts ?? []).filter((c) => c.contact_kind !== 'employee');
   }
 
-  /** Why a group cannot be used now (one short reason with the link to its setting), or null. `users` = the handlers the server listed. */
-  blocked(t: TicketDetail, k: AssignKind, users: number | null): ReadyItem | null {
-    if (k === 'user') return users === null ? null : usersBlock(users);
+  /** Why a group cannot be used now (one short reason with the link to its setting), or null. `n` = how many handlers of that handler
+   * group the server listed (ignored for the outside group). */
+  blocked(t: TicketDetail, k: AssignKind, n: number | null): ReadyItem | null {
+    if (k === 'user') return n === null ? null : usersBlock(n);
+    if (k === 'employee') return n === null ? null : staffBlock({ readiness: this.readiness, publicReady: this.publicReady || !isApi(), count: n });
     if (this.contacts === null && this.mayExternal(t)) return null; // still loading
-    return outsideBlock(k, { external: this.mayExternal(t), readiness: this.readiness, publicReady: this.publicReady || !isApi(), count: this.groupRows(k).length });
+    return outsideBlock('person', { external: this.mayExternal(t), readiness: this.readiness, publicReady: this.publicReady || !isApi(), count: this.groupRows().length });
+  }
+
+  /** The host's group switch: the handler groups are the host's picker, the outside group this controller's. */
+  get outside(): boolean {
+    return this.kind === 'person';
   }
 
   /** One reason line: the words and the link to the exact setting. */
@@ -162,16 +173,17 @@ export class ExternalAssign implements ReactiveController {
   }
 
   private matches(c: ExternalAssignee): boolean {
-    if ((this.kind === 'employee') !== (c.contact_kind === 'employee')) return false;
+    if (c.contact_kind === 'employee') return false; // TKSTAFF2: a staff contact is a handler, never an outside row
     const q = this.query.trim().toLowerCase();
     return !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || (c.vendor_name ?? '').toLowerCase().includes(q);
   }
 
   /** The three groups at the top of the dialog - ALWAYS shown (owner 2026-10-14): a group that cannot be used now is dimmed and its
-   * second line says why; choosing it shows the reason with the link to the setting. `users` = how many handlers the server listed. */
-  renderKinds(t: TicketDetail, users: number | null): TemplateResult {
+   * second line says why; choosing it shows the reason with the link to the setting. `counts` = how many handlers of each handler
+   * group the server listed. */
+  renderKinds(t: TicketDetail, counts: HandlerCounts): TemplateResult {
     const item = (k: AssignKind, label: TicketTextKey, sub: TicketTextKey) => {
-      const why = this.blocked(t, k, users);
+      const why = this.blocked(t, k, k === 'person' ? null : counts[k]);
       return html`<button type="button" role="radio" aria-checked=${String(this.kind === k)} class=${why ? 'off' : ''} data-assign-kind=${k}
         data-kind-blocked=${why?.key ?? ''} @click=${() => this.setKind(k)}><b>${tt(label)}</b><small>${tt(why ? why.text : sub)}</small></button>`;
     };
@@ -188,9 +200,9 @@ export class ExternalAssign implements ReactiveController {
       ${c.require_code ? html`<small>${tIcon('lock')}${tt('lkCode')}</small>` : nothing}</label>`;
   }
 
-  /** The picker of an outside group (employees / vendors and contacts) and the chosen row's options. */
+  /** The picker of the outside group (vendors and contacts) and the chosen row's options. */
   renderPicker(t: TicketDetail): TemplateResult {
-    const k = this.kind === 'employee' ? 'employee' : 'person';
+    const k = 'person';
     const why = this.blocked(t, k, null);
     if (why) return this.reasonLine(why);
     if (this.contacts === null) return html`<span class="skl" style="block-size:44px"></span>`;

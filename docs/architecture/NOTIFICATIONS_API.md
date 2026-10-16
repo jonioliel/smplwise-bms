@@ -17,8 +17,9 @@ the API. All instants are UTC ISO strings; quiet hours are evaluated in the inst
 type Severity = 'info' | 'alert' | 'critical';                  // services/rules.SEVERITY_RANK, unchanged
 type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security';
                                                                  // alerts/doors/device_faults/system exist in push.py
-type Channel = 'inbox' | 'webpush' | 'email'                        // v1
-             | 'ha_mobile' | 'whatsapp' | 'app';                     // reserved: Companion step, WhatsApp step, CR-012
+type Channel = 'inbox' | 'webpush' | 'email' | 'app'                // v1 (+ app: CR-027)
+             | 'whatsapp'                                         // NOTIFWA: the user's own number (docs/changes/NOTIFWA-WHATSAPP-CHANNEL.md)
+             | 'ha_mobile';                                       // reserved: Companion step
 type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation'
                  | 'bulk_job' | 'system' | 'session';
 
@@ -126,9 +127,10 @@ worker never calls an unlock route, and no token for it exists (CR §9).
 | Method | Path | Notes |
 |---|---|---|
 | GET / PUT | `/notify/settings` | `NotifySettings` without the mail password; PUT with `If-Match` revision; audited `notify.settings.update` (field names only). |
-| GET / PUT | `/notify/policies` · `/notify/policies/{source}` | `NotifyPolicy`; PUT with revision; audited `notify.policy.update`. `ha_mobile`/`whatsapp` true → 422 `channel_reserved` in v1. |
+| GET / PUT | `/notify/policies` · `/notify/policies/{source}` | `NotifyPolicy`; PUT with revision; audited `notify.policy.update`. `ha_mobile` true → 422 `channel_reserved`; `whatsapp` is a real channel since NOTIFWA (sends only while `/notify/whatsapp` is switched on). |
 | PUT | `/notify/email` `{host, port, security, user, password?, from, recipients}` | Password write-only to `/data/secrets/notify_email` (mode 600); omitted = unchanged; audited `notify.email.update` without values. |
 | POST | `/notify/email/test` | Sends one test mail to the recipients; 3/min; returns `{ok, detail}` (`detail` is the SMTP class: dns, connect, tls, auth, refused, timeout) and stores `email.last_test`. Audited `notify.email.test`. |
+| GET / PUT | `/notify/whatsapp` · POST `/notify/whatsapp/test` · GET / PUT `/me/notify-whatsapp` | NOTIFWA: the WhatsApp channel - master switch (off by default), per-user cap, no-repeat window, own-number test, own opt-out (routers/notify_whatsapp.py). |
 | GET | `/notify/deliveries?status=failed&channel=&since=&limit=` | Everyone's delivery log (masked targets) for "יומן מסירה וכשלים" and its failures panel. |
 | GET | `/notify/stats` | Per-channel counters for the last 24 h (sent, failed, skipped by reason) plus the push worker STATS. |
 
@@ -181,8 +183,8 @@ fallback when the socket is down.
 
 `notification_not_found` 404 (also for a row the caller may no longer see), `ack_not_allowed` 403,
 `action_token_invalid` 401 (expired, used, wrong user), `settings_conflict` 412 (stale revision), `quiet_invalid` 422
-(from == to), `escalation_invalid` 422 (after_min or steps out of range), `channel_reserved` 422 (ha_mobile /
-whatsapp in v1), `channel_unavailable` 409 (email not configured), `email_invalid` 422 (host/port/address),
+(from == to), `escalation_invalid` 422 (after_min or steps out of range), `channel_reserved` 422 (ha_mobile;
+whatsapp left the reserved list with NOTIFWA), `channel_unavailable` 409 (email not configured), `email_invalid` 422 (host/port/address),
 `rate_limited` 429 with `Retry-After`, `forbidden` 403 for every `/notify/*` route without `notify.manage`.
 
 ## 5. Parallel work plan

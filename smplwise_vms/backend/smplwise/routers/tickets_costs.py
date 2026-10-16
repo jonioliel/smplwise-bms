@@ -2,6 +2,10 @@
 
     GET  /tickets/costs/report                         tickets.costs.view (rows: visible tickets with the permission on their place)
     GET  /tickets/costs/export.csv                     tickets.costs.view; 5,000 rows, 1 a minute, audited ticket.costs.export
+         (both take the report filters + TK258's optional `vendor` (the vendor grouping's key) and `department`)
+    GET  /tickets/costs/claims                         TK258 "חשבון ספקים": tickets.costs.view; one row per claim of the same filters
+    POST /tickets/costs/mark-paid                      TK258: tickets.costs; {items: [{ticket_id, claim_id, revision?}], payment_ref,
+                                                       payment_date} -> a result per item (idempotent: already_paid)
     GET  /tickets/{id}/costs                           visible; amounts / lines / files / history with tickets.costs.view, else the status
     POST /tickets/{id}/costs/requirement               a manager of the ticket: {assignment_id, mode} while no claim was submitted
     POST /tickets/{id}/costs/files                     tickets.costs: one invoice page or PDF as a PENDING file (on-behalf entry)
@@ -38,6 +42,7 @@ from ..services.tickets.access import Seen, Viewer, text
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
+BULK_PAID_MAX = 200  # TK258: claims per "mark as paid" request
 
 
 def _rid(request: Request) -> str | None:
@@ -103,9 +108,11 @@ def _refused(conn, exc: costs.CostRefused) -> ApiError:
 
 # ---------------------------------------------------------------- report and export (before /tickets/{id}/... by shape anyway)
 
-def _filters(conn, group_by: str, date_from: str | None, date_to: str | None, status: str | None, currency: str | None) -> costs_report.Filters:
+def _filters(conn, group_by: str, date_from: str | None, date_to: str | None, status: str | None, currency: str | None,
+             vendor: str | None = None, department: str | None = None) -> costs_report.Filters:
     try:
-        return costs_report.parse_filters(conn, group_by=group_by, date_from=date_from, date_to=date_to, status=status, currency=currency)
+        return costs_report.parse_filters(conn, group_by=group_by, date_from=date_from, date_to=date_to, status=status, currency=currency,
+                                          vendor=vendor, department=department)
     except costs_report.ReportError as exc:
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field, "code": exc.code}]}) from None
 
@@ -118,21 +125,129 @@ def _need_report(conn, viewer: Viewer, action: str, rid: str | None) -> None:
 @router.get("/tickets/costs/report")
 def cost_report(request: Request, group_by: str = Query("vendor", max_length=16), date_from: str | None = Query(None, alias="from", max_length=10),
                 date_to: str | None = Query(None, alias="to", max_length=10), status: str | None = Query(None, max_length=40),
-                currency: str | None = Query(None, max_length=3), principal: Principal = Depends(current_principal),
+                currency: str | None = Query(None, max_length=3), vendor: str | None = Query(None, max_length=64),
+                department: str | None = Query(None, max_length=64), principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     _need_report(conn, viewer, "ticket.costs.report", _rid(request))
-    f = _filters(conn, group_by, date_from, date_to, status, currency)
+    f = _filters(conn, group_by, date_from, date_to, status, currency, vendor, department)
     out = costs_report.report(conn, viewer, f)
     audit(conn, actor=principal, action="ticket.costs.report", decision="allowed", resource_type="ticket", resource_id="*", request_id=_rid(request),
-          details={"group_by": f.group_by, "from": date_from, "to": date_to, "status": list(f.statuses), "currency": currency, "claims": out["claims"]})
+          details={"group_by": f.group_by, "from": date_from, "to": date_to, "status": list(f.statuses), "currency": currency, "vendor": f.vendor,
+                   "department": f.department, "claims": out["claims"]})
     return out
+
+
+@router.get("/tickets/costs/claims")
+def cost_claims(request: Request, date_from: str | None = Query(None, alias="from", max_length=10), date_to: str | None = Query(None, alias="to", max_length=10),
+                status: str | None = Query(None, max_length=40), currency: str | None = Query(None, max_length=3),
+                vendor: str | None = Query(None, max_length=64), department: str | None = Query(None, max_length=64),
+                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TK258 "חשבון ספקים": the claims of the report's filters one per row (amounts per currency, never summed across), each with
+    its ticket for the link, its revision and whether this caller may mark it paid. tickets.costs.view; audited like the report."""
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    _need_report(conn, viewer, "ticket.costs.claims", rid)
+    f = _filters(conn, "vendor", date_from, date_to, status, currency, vendor, department)
+    out = costs_report.claim_rows(conn, viewer, f)
+    out["can_mark_paid"] = costs.COSTS in viewer.anywhere
+    audit(conn, actor=principal, action="ticket.costs.claims", decision="allowed", resource_type="ticket", resource_id="*", request_id=rid,
+          details={"from": date_from, "to": date_to, "status": list(f.statuses), "currency": currency, "vendor": f.vendor, "department": f.department,
+                   "claims": len(out["rows"])})
+    return out
+
+
+class BulkPaidItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ticket_id: str = Field(min_length=1, max_length=64, pattern=ID)
+    claim_id: str = Field(min_length=1, max_length=64, pattern=ID)
+    revision: int | None = Field(default=None, ge=1)
+
+
+class BulkPaidBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    items: list[BulkPaidItem] = Field(min_length=1, max_length=BULK_PAID_MAX)
+    payment_ref: str = Field(max_length=500)
+    payment_date: str = Field(max_length=10)
+
+
+@router.post("/tickets/costs/mark-paid")
+def post_mark_paid_bulk(body: BulkPaidBody, request: Request, principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TK258: "סימון כשולם" for several approved claims at once, one payment reference and date. A result per item, never one
+    refusal for all: `paid`, `already_paid` (idempotent - a repeated request changes nothing), `not_found` (an unknown or invisible
+    ticket / claim, the uniform answer), `forbidden` (no tickets.costs or tickets.costs.view on that ticket's place; audited),
+    `not_approved`, `stale` (the claim's revision moved). Each item is its own savepoint inside the request's transaction. The audit
+    rows carry ids, statuses and totals only - never the payment reference."""
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    if costs.COSTS not in viewer.anywhere or costs.COSTS_VIEW not in viewer.anywhere:
+        raise _deny(conn, viewer, "ticket.costs.mark_paid_bulk", None, costs.COSTS if costs.COSTS_VIEW in viewer.anywhere else costs.COSTS_VIEW, rid)
+    at = costs.now_utc()
+    try:  # the shared fields once, so a bad reference / date is one 422 and not N identical item failures
+        costs.check_payment(body.payment_ref, body.payment_date, at)
+    except costs.CostRefused as exc:
+        raise _refused(conn, exc) from None
+    results: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for it in body.items:
+        if it.claim_id in seen_ids:
+            continue
+        seen_ids.add(it.claim_id)
+        results.append(_mark_one(conn, viewer, it, body.payment_ref, body.payment_date, at, rid))
+    counts: dict[str, int] = {}
+    for r in results:
+        counts[r["result"]] = counts.get(r["result"], 0) + 1
+    audit(conn, actor=principal, action="ticket.costs.mark_paid_bulk", decision="allowed", resource_type="ticket", resource_id="*", request_id=rid,
+          details={"items": len(results), **counts})
+    return {"results": results, "paid": counts.get("paid", 0), "already_paid": counts.get("already_paid", 0),
+            "failed": len(results) - counts.get("paid", 0) - counts.get("already_paid", 0)}
+
+
+def _mark_one(conn: sqlite3.Connection, viewer: Viewer, it: BulkPaidItem, ref: str, day: str, at, rid: str | None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ticket_id": it.ticket_id, "claim_id": it.claim_id}
+    seen = access.visible_by_id(viewer, it.ticket_id)
+    if seen is None:
+        return {**out, "result": "not_found"}
+    out["number"] = seen.row["number"]
+    if not seen.full or not viewer.holds(costs.COSTS_VIEW, seen.row) or not viewer.holds(costs.COSTS, seen.row):
+        perm = costs.COSTS_VIEW if not seen.full or not viewer.holds(costs.COSTS_VIEW, seen.row) else costs.COSTS
+        audit(conn, actor=viewer.principal, action="ticket.cost.mark_paid", decision="denied", resource_type="ticket", resource_id=seen.row["id"],
+              reason="permission_missing", request_id=rid, details={"permission": perm, "number": seen.row["number"], "bulk": True})
+        return {**out, "result": "forbidden"}
+    claim = store_costs.claim(conn, it.claim_id)
+    if claim is None or claim.get("ticket_id") != seen.row["id"]:
+        return {**out, "result": "not_found"}
+    if claim["status"] == "paid":
+        return {**out, "result": "already_paid", "revision": claim["revision"]}
+    if claim["status"] != "approved":
+        return {**out, "result": "not_approved", "revision": claim["revision"]}
+    if it.revision is not None and int(claim["revision"]) != it.revision:
+        return {**out, "result": "stale", "revision": claim["revision"]}
+    conn.execute("SAVEPOINT tk258_mark_paid")
+    try:
+        fresh = costs.mark_paid(conn, claim, by=viewer.uid, revision=int(claim["revision"]), payment_ref=ref, payment_date=day, at=at)
+        _audit(conn, viewer, "ticket.cost.mark_paid", seen, fresh, rid, revision_id=fresh.get("current_revision_id"),
+               total_minor=fresh.get("approved_total_minor"), bulk=True)
+        store.insert_event(conn, seen.row["id"], "cost_decision", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
+                           assignment_id=fresh["assignment_id"], data={"claim_id": fresh["id"], "action": "mark_paid"})
+    except costs.CostRefused as exc:
+        conn.execute("ROLLBACK TO tk258_mark_paid")
+        conn.execute("RELEASE tk258_mark_paid")
+        return {**out, "result": "stale" if exc.code == "claim_stale" else "not_approved", "revision": claim["revision"]}
+    except Exception:
+        conn.execute("ROLLBACK TO tk258_mark_paid")
+        conn.execute("RELEASE tk258_mark_paid")
+        raise
+    conn.execute("RELEASE tk258_mark_paid")
+    return {**out, "result": "paid", "revision": fresh["revision"]}
 
 
 @router.get("/tickets/costs/export.csv")
 def cost_export(request: Request, group_by: str = Query("vendor", max_length=16), date_from: str | None = Query(None, alias="from", max_length=10),
                 date_to: str | None = Query(None, alias="to", max_length=10), status: str | None = Query(None, max_length=40),
                 currency: str | None = Query(None, max_length=3), rows: Literal["claim", "line"] = Query("claim"),
+                vendor: str | None = Query(None, max_length=64), department: str | None = Query(None, max_length=64),
                 principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> StreamingResponse:
     viewer = Viewer(conn, principal)
     rid = _rid(request)
@@ -140,13 +255,14 @@ def cost_export(request: Request, group_by: str = Query("vendor", max_length=16)
     wait = costs_report.rate_check(principal.user_id)
     if wait > 0:
         raise ApiError(429, "export_rate", text(conn, "אפשר לייצא פעם בדקה. נסו שוב בעוד רגע."), retryable=True, details={"retry_after_s": int(wait) + 1})
-    f = _filters(conn, group_by, date_from, date_to, status, currency)
+    f = _filters(conn, group_by, date_from, date_to, status, currency, vendor, department)
     try:
         cells = costs_report.build_csv(conn, viewer, f, rows)
     except costs_report.ReportError:
         raise ApiError(413, "export_too_large", text(conn, "יותר מדי שורות לייצוא. צמצמו את הסינון."), details={"max_rows": costs_report.EXPORT_MAX_ROWS}) from None
     audit(conn, actor=principal, action="ticket.costs.export", decision="allowed", resource_type="ticket", resource_id="*", request_id=rid,
-          details={"from": date_from, "to": date_to, "status": list(f.statuses), "currency": currency, "rows_kind": rows, "rows": len(cells) - 1})
+          details={"from": date_from, "to": date_to, "status": list(f.statuses), "currency": currency, "vendor": f.vendor, "department": f.department,
+                   "rows_kind": rows, "rows": len(cells) - 1})
     costs_report.mark(principal.user_id)
     return StreamingResponse(costs_report.stream(cells), media_type="text/csv; charset=utf-8", headers={
         "Content-Disposition": f'attachment; filename="{costs_report.filename(conn)}"', "Cache-Control": "private, no-store",

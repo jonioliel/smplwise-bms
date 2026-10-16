@@ -50,7 +50,7 @@ from . import codes as codes_mod
 from . import inbound as inbound_mod
 from . import links as links_mod
 from . import message_templates as mt
-from .channel import LANGS, LINK_PURPOSES, SENT, AccountRef, Recipient, SendResult, phone_digits
+from .channel import CLAIM_LINK_PURPOSES, LANGS, LINK_PURPOSES, SENT, AccountRef, Recipient, SendResult, phone_digits
 from .channel_email import EmailChannel, mail_config
 from .channel_whatsapp import HaServiceTransport, WhatsAppChannel
 from .keyring import KEYS
@@ -136,23 +136,36 @@ class DbLinks:
         self.io = io
         self.clock = clock
 
-    def url(self, link_id: str) -> str | None:
+    @staticmethod
+    def _serves(conn, row: Mapping[str, Any] | None, now: dt.datetime, claim: bool) -> bool:
+        """The link opens the page now - or, for a cost message (`claim`, TK251), at least the claim step (claim mode)."""
+        if row is None:
+            return False
+        if handler_links.state(dict(row), now) == "live":
+            return True
+        if not claim:
+            return False
+        from . import costs
+
+        return costs.claim_mode_ok(conn, row["id"], int(row["generation"]), now) is not None
+
+    def url(self, link_id: str, *, claim: bool = False) -> str | None:
         with self.io.read() as conn:
             row = store_links.link(conn, link_id)
-            if row is None or handler_links.state(row, self.clock()) != "live":
+            if not self._serves(conn, row, self.clock(), claim):
                 return None
             try:
                 return handler_links.handler_url(conn, row)
             except Exception:  # noqa: BLE001 - no public address, a missing key: the message cannot carry a link
                 return None
 
-    def redeem_url(self, link_id: str) -> str | None:
+    def redeem_url(self, link_id: str, *, claim: bool = False) -> str | None:
         """The e-mail form (10.2): a fresh 128-bit redeem id, stored as its hash for 24 h (3 releases)."""
         conn = self.io.write()
         row = store_links.link(conn, link_id)
         now = self.clock()
-        if row is None or handler_links.state(row, now) != "live":
-            return None
+        if row is None or row.get("kind") == "staff" or not self._serves(conn, row, now, claim):
+            return None  # TKSTAFF1: a staff link never takes the e-mail redeem path (security design 2)
         base = handler_links.public_base_url(conn)
         if not base:
             return None
@@ -160,7 +173,7 @@ class DbLinks:
         store_links.insert_redeem(conn, links_mod.redeem_hash(rid), link_id, int(row["generation"]), handler_links.iso(now),
                                   handler_links.iso(now + dt.timedelta(hours=24)))
         try:
-            return links_mod.redeem_url(base, rid)
+            return links_mod.redeem_url(base, rid, handler_links.public_prefix(conn))
         except ValueError:
             return None
 
@@ -182,7 +195,7 @@ class DbLinks:
         row = store_links.link(conn, link_id)
         if row is None:
             return
-        if purpose in LINK_PURPOSES:
+        if purpose in LINK_PURPOSES or purpose in CLAIM_LINK_PURPOSES:  # TK251: a cost message carries the link too (D6)
             handler_links.mark_sent(conn, link_id, via, at)
         if purpose in ("reminder", "update"):
             t = obs.ticket_for_worker(conn, row["ticket_id"])
@@ -207,6 +220,9 @@ class DbTemplates:
         self.io = io
 
     def pick(self, *, purpose: str, lang: str, department_id: str | None, template_id: str | None) -> mt.TemplateText | None:
+        staff = mt.staff_starter_by_id(template_id)  # TKSTAFF1: the code-owned staff texts (the row names one; never editable)
+        if staff is not None:
+            return staff
         with self.io.read() as conn:
             cands = [template_text(r) for r in message_template_rows(conn, purpose=purpose, department_id=department_id)]
         if template_id:
@@ -318,7 +334,9 @@ class DbHooks:
                            data={"outbox_id": row.id, "step": step, "purpose": row.purpose, "channel": row.channel, "code": row.outcome_code,
                                  "new_outbox_id": new_row.id if new_row else None},
                            via="system", at=obs.iso_s(self.rt.clock()))
-        if step in ("nobody", "code_unavailable") and ticket["status"] not in model.FINAL \
+        link = store_links.link(conn, row.link_id) if row.link_id else None
+        staff = bool(link) and link.get("kind") == "staff"  # TKSTAFF1: the WhatsApp is an extra channel - the user still has the app
+        if step in ("nobody", "code_unavailable") and ticket["status"] not in model.FINAL and not staff \
                 and (row.assignment_id is None or ticket.get("current_assignment_id") == row.assignment_id):
             store.update_ticket(conn, ticket["id"], {"waiting_on": "manager", "waiting_reason": "send_failed"}, bump=False)
             _notify("send_failed", conn, ticket["id"])
@@ -616,7 +634,8 @@ class MessagingRuntime:
                 return obs.recent_account_keys(c, since)
 
         return inbound_mod.InboundProcessor(key=key, directory=DbMatchDirectory(io, self.clock), dedupe=DbDedupe(io),
-                                            account_filter=inbound_mod.TicketAccountFilter(lambda: svc.mapped_keys("tickets"), recent, lambda: window),
+                                            account_filter=inbound_mod.TicketAccountFilter(lambda: svc.mapped_keys("tickets"), recent, lambda: window,
+                                                                                           visible_keys=svc.all_keys),
                                             reply_window_h=lambda: window)
 
     def drain_inbound(self, now: dt.datetime) -> int:
@@ -903,9 +922,14 @@ class OutboxDispatch:
             return {"queued": False, "channel": "manual"}
         if purpose == "assign" and ticket.get("status") == "closed":
             purpose = "reopened"
+        template_id = None
+        if link.get("kind") == "staff":  # TKSTAFF1: the staff text (one URL; no quick-reply line when a code is required)
+            if ch != "whatsapp":
+                return {"queued": False, "channel": "manual"}  # a staff link leaves by WhatsApp only
+            template_id = mt.staff_template_id(bool(link.get("require_code")), contact.get("lang") or "he")
         row = self.rt.enqueue(conn, purpose=purpose, contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=assignment_id,
                               link_id=link["id"], department_id=ticket["department_id"], params=message_params(conn, ticket, contact),
-                              channel=ch, send_now=send_now, requested_by=requested_by)
+                              channel=ch, send_now=send_now, requested_by=requested_by, template_id=template_id)
         held = hours.decide(row.purpose, self.rt.clock(), send_window(conn, ticket["department_id"]), time_zone(conn), send_now=row.send_now)
         return {"queued": True, "channel": ch, "outbox_id": row.id, "held_until": None if held.send else obs.iso_s(held.not_before)}
 

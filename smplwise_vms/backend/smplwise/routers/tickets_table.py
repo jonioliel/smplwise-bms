@@ -63,7 +63,8 @@ def _manages_some_department(viewer: Viewer) -> bool:
 def _query(conn: sqlite3.Connection, params: dict[str, Any], viewer: Viewer | None = None) -> tuple[table.Query, int, tuple[list[Any], str] | None]:
     try:
         query, limit, cursor = table.from_query_params(params)
-        after = table.decode_cursor(cursor, query.sort)
+        after = table.decode_cursor(cursor, query.sort, uid=viewer.uid if viewer is not None else "",
+                                    fingerprint=table.filters_fingerprint(query))
     except table.TableError as exc:
         raise _invalid(conn, exc) from None
     if query.uses_costs and viewer is not None:
@@ -108,7 +109,7 @@ def table_page(
     filters: dict[str, Any] = Depends(filter_params),
     sort: str | None = Query(None, max_length=60),
     limit: int | None = Query(None),
-    cursor: str | None = Query(None, max_length=600),
+    cursor: str | None = Query(None, max_length=table.CURSOR_MAX),  # TK251: the sealed cursor
 ) -> dict[str, Any]:
     """`{items, next_cursor, sort, limit}`: one page in the requested order, each row checked by access.visible(); a page may come back
     SHORT with a `next_cursor` (5 x limit candidates scanned) - the client keeps loading."""
@@ -121,7 +122,8 @@ def table_page(
     lk = present.Lookups(conn)
     last = store.last_assignee_names(conn, [s.row["id"] for s in seen if not s.row.get("current_assignment_id")])
     items = [table_present.table_row(conn, viewer, s, lk, last, now) for s in seen]
-    next_cursor = table.encode_cursor(query.sort, position[0], position[1]) if position else None
+    next_cursor = (table.encode_cursor(query.sort, position[0], position[1], uid=viewer.uid, fingerprint=table.filters_fingerprint(query))
+                   if position else None)
     return {"items": items, "next_cursor": next_cursor, "sort": query.sort_text, "limit": size, "filters": query.filters.as_dict()}
 
 

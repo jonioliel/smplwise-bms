@@ -8,7 +8,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { describeError } from '../api/client';
-import { newRequestId, ticketsApi, type Eligible, type Meta, type NewTicketMode, type TicketDetail, type TicketItem } from '../api/tickets';
+import { assigneeRef, handlersOf } from './assignee-model';
+import { newRequestId, ticketsApi, type Handler, type Meta, type NewTicketMode, type TicketDetail, type TicketItem } from '../api/tickets';
 import { listHref, priorityTone, ticketHref, type TicketsRoute } from './model';
 import { tt } from './text';
 import { tIcon } from './icons';
@@ -44,7 +45,8 @@ export class TicketCreate extends LitElement {
   @state() private description = '';
   @state() private files: File[] = [];
   @state() private assignTo = '';
-  @state() private eligible: Eligible[] | null = null;
+  /** TKSTAFF2: the department's handlers (account holders and staff contacts without an account); ssignTo is a handler key */
+  @state() private eligible: Handler[] | null = null;
   @state() private similar: TicketItem[] = [];
   @state() private busy = false;
   @state() private error = '';
@@ -120,7 +122,7 @@ export class TicketCreate extends LitElement {
     if (byDomain) this.pickCategory(byDomain.id);
     this.assignTo = '';
     this.eligible = null;
-    if (d?.can_manage) void ticketsApi().assignees(id).then((r) => { if (this.dept === id) this.eligible = r.users; }).catch(() => (this.eligible = []));
+    if (d?.can_manage) void ticketsApi().assignees(id).then((r) => { if (this.dept === id) this.eligible = handlersOf(r); }).catch(() => (this.eligible = []));
   }
 
   private pickCategory(id: string): void {
@@ -179,6 +181,12 @@ export class TicketCreate extends LitElement {
     return url;
   }
 
+  /** The picked handler as the create route's `assign` ({kind, id}), or null ("assign later"). */
+  private assignee(): { kind: 'user' | 'contact'; id: string } | null {
+    const h = (this.eligible ?? []).find((x) => x.key === this.assignTo);
+    return h ? assigneeRef(h) : null;
+  }
+
   private async submit(): Promise<void> {
     this.tried = true;
     if (!this.ttl.trim() || !this.dept || this.busy) return;
@@ -187,7 +195,7 @@ export class TicketCreate extends LitElement {
     try {
       const answer = await ticketsApi().create({
         department_id: this.dept, category_id: this.category || null, priority_id: this.priority || null, title: this.ttl.trim(),
-        description: this.description.trim(), assign: this.assignTo ? { kind: 'user', id: this.assignTo } : null, client_request_id: this.requestId,
+        description: this.description.trim(), assign: this.assignee(), client_request_id: this.requestId,
         ...(this.device ? { entity_id: this.device.id } : {}),
       });
       let ticket: TicketDetail | null = 'events' in answer ? (answer as TicketDetail) : null;
@@ -257,7 +265,7 @@ export class TicketCreate extends LitElement {
       ${d?.can_manage ? html`<div class="fld" data-create-assignee><span>${tt('fAssignee')}</span>
         ${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : html`<div class="pick" role="radiogroup" aria-label=${tt('fAssignee')}>
           <label><input type="radio" name="asg" .checked=${!this.assignTo} @change=${() => (this.assignTo = '')} />${tt('fAssignLater')}</label>
-          ${this.eligible.map((u) => html`<label data-eligible=${u.id}><input type="radio" name="asg" .checked=${this.assignTo === u.id} @change=${() => (this.assignTo = u.id)} />${bidi(u.name)}</label>`)}
+          ${this.eligible.map((h) => html`<label data-eligible=${h.id} data-handler=${h.key}><input type="radio" name="asg" .checked=${this.assignTo === h.key} @change=${() => (this.assignTo = h.key)} />${bidi(h.name)}</label>`)}
         </div>`}
       </div>` : nothing}
       ${this.error ? html`<div class="banner bad" role="alert" data-create-error>${tIcon('warning')}<div>${this.error}</div></div>` : nothing}

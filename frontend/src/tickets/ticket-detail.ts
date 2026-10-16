@@ -11,7 +11,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
-import { ticketsApi, type DetailMode, type Eligible, type Meta, type PatchBody, type TicketDetail, type TicketStatus } from '../api/tickets';
+import { ticketsApi, type DetailMode, type Handler, type Meta, type PatchBody, type TicketDetail, type TicketStatus } from '../api/tickets';
+import { assigneeRef, handlersOf } from './assignee-model';
 import {
   FINAL, STATUS_LINE, actorName, eventLine, fromLocalInput, listHref, marksInternal, moveTo, priorityTone, relTime, shortDateTime, sideMoves,
   chipLabel, isWaitingPart, lineStatus, statusLabel, statusTone, waitingToggle, ticketHref, toLocalInput, type TicketsRoute,
@@ -77,7 +78,8 @@ export class TicketDetailView extends LitElement {
   @state() private dlgPick = '';
   @state() private dlgFlag = true;
   @state() private dlgReturnKind: 'cannot_handle' | 'not_mine' = 'cannot_handle';
-  @state() private eligible: Eligible[] | null = null;
+  /** TKSTAFF2: the handlers of the assign dialog - account holders and staff contacts without an account, one list (assignee-model.ts) */
+  @state() private eligible: Handler[] | null = null;
   @state() private deleting = false; // owner 14.10: the deletion dialog is open
   @state() private meta: Meta | null = null;
   @state() private edit: EditForm | null = null;
@@ -273,7 +275,7 @@ export class TicketDetailView extends LitElement {
     if (d.kind === 'assign') {
       this.eligible = null;
       this.ext.reset();
-      void ticketsApi().assignees(t.department?.id ?? '', t.id).then((r) => { this.eligible = r.users; this.ext.take(r, t); }).catch((e) => { this.eligible = []; this.dlgError = describeError(e); });
+      void ticketsApi().assignees(t.department?.id ?? '', t.id).then((r) => { this.eligible = handlersOf(r); this.ext.take(r, t); }).catch((e) => { this.eligible = []; this.dlgError = describeError(e); });
     }
     if (d.kind === 'eta') this.dlgText = toLocalInput(t.eta_at);
     if (d.kind === 'edit') {
@@ -322,16 +324,29 @@ export class TicketDetailView extends LitElement {
 
   private async submitAssign(): Promise<void> {
     const t = this.t;
-    if (t && this.ext.kind !== 'user') { // slice 4: an outside contact / vendor
+    if (t && this.ext.outside) { // slice 4: an outside contact / vendor
       if (await this.ext.submit(t, this.dlgText.trim(), this.dlgFlag)) this.closeDialog();
       return;
     }
-    if (!t || !this.dlgPick) {
+    const h = this.pickedHandler();
+    if (!t || !h) {
       this.dlgError = tt('required');
       return;
     }
+    // TKSTAFF2: one submit for every handler - an account holder, or a staff contact (the server sends its personal link)
     const note = this.dlgText.trim();
-    if (await this.run(() => ticketsApi().assign(t.id, { assignee: { kind: 'user', id: this.dlgPick }, note: note || null, note_external: this.dlgFlag, revision: t.revision }), tt('saved'))) this.closeDialog();
+    if (await this.run(() => ticketsApi().assign(t.id, { assignee: assigneeRef(h), note: note || null, note_external: this.dlgFlag, revision: t.revision }), tt('saved'))) this.closeDialog();
+  }
+
+  /** The handler picked in the dialog (its key), when it belongs to the group on show. */
+  private pickedHandler(): Handler | null {
+    return this.groupHandlers().find((h) => h.key === this.dlgPick) ?? null;
+  }
+
+  /** The handlers of the handler group on show: account holders, or staff contacts without an account. */
+  private groupHandlers(): Handler[] {
+    const staff = this.ext.kind === 'employee';
+    return (this.eligible ?? []).filter((h) => h.account !== staff);
   }
 
   private async submitReturn(): Promise<void> {
@@ -587,18 +602,24 @@ export class TicketDetailView extends LitElement {
     if (d.kind === 'assign') {
       // slice 4 + owner 2026-10-14: three groups always shown - handlers, employees without an account, vendors and contacts; a group
       // that cannot be used says why in one line with the link to its setting (tickets/external-assign.ts, tickets/readiness-model.ts)
-      const outside = this.ext.kind !== 'user';
-      const usersWhy = this.eligible === null ? null : this.ext.blocked(t, 'user', this.eligible.length);
+      // TKSTAFF2: the two handler groups (with / without an account) are ONE picker and ONE submit over the `handlers` list
+      const outside = this.ext.outside;
+      const count = (staff: boolean) => (this.eligible === null ? null : this.eligible.filter((h) => h.account !== staff).length);
+      const rows = this.groupHandlers();
+      const groupWhy = this.eligible === null ? null : this.ext.blocked(t, this.ext.kind, rows.length);
+      const picked = outside ? null : this.pickedHandler();
       return html`<sw-dialog open heading=${tt('assignTitle')} data-dialog="assign" @close=${this.onDialogClose}>
         <div class="form">
-          ${this.ext.renderKinds(t, this.eligible?.length ?? null)}
-          ${outside ? this.ext.renderPicker(t) : this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
-            ? html`<div class="pick" role="radiogroup" aria-label=${tt('fAssignee')}>${this.eligible.map((u) => html`<label data-eligible=${u.id}><input type="radio" name="asg" .checked=${this.dlgPick === u.id} @change=${() => { this.dlgPick = u.id; this.dlgError = ''; }} />${bidi(u.name)}${u.member_role === 'manager' ? html`<small>${tt('depManager')}</small>` : nothing}</label>`)}</div>`
-            : html`<div data-eligible-none>${usersWhy ? this.ext.reasonLine(usersWhy) : nothing}</div>`}
+          ${this.ext.renderKinds(t, { user: count(false), employee: count(true) })}
+          ${outside ? this.ext.renderPicker(t) : this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : rows.length && !groupWhy
+            ? html`<div class="pick" role="radiogroup" aria-label=${tt('fAssignee')}>${rows.map((h) => html`<label data-eligible=${h.id} data-handler=${h.key}>
+                <input type="radio" name="asg" .checked=${this.dlgPick === h.key} @change=${() => { this.dlgPick = h.key; this.dlgError = ''; }} />${bidi(h.name)}
+                ${h.member_role === 'manager' ? html`<small>${tt('depManager')}</small>` : nothing}</label>`)}</div>`
+            : html`<div data-eligible-none>${groupWhy ? this.ext.reasonLine(groupWhy) : nothing}</div>`}
           ${text(tt('assignNote'), false)}
-          ${outside || marksInternal(t) ? html`<label class="chk"><input type="checkbox" .checked=${this.dlgFlag} @change=${(e: Event) => (this.dlgFlag = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
+          ${outside || (picked && !picked.account) || marksInternal(t) ? html`<label class="chk"><input type="checkbox" .checked=${this.dlgFlag} @change=${(e: Event) => (this.dlgFlag = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
           ${err}</div>
-        ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || (outside ? !this.ext.ready() : !this.dlgPick)} @click=${() => void this.submitAssign()}>${tIcon('user')}${tt('assign')}</button>`)}
+        ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || (outside ? !this.ext.ready() : !picked)} @click=${() => void this.submitAssign()}>${tIcon('user')}${tt('assign')}</button>`)}
       </sw-dialog>`;
     }
     if (d.kind === 'return') {

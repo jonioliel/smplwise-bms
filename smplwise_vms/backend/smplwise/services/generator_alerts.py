@@ -38,8 +38,8 @@ log = logging.getLogger("smplwise.generator")
 FOLD_S = 900
 MUTE_MAX_H = 24 * 7
 ROUTABLE_ROLES = ("operator", "site_admin", "system_admin")  # viewers and kiosks are refused (they hold no generator.view)
-CHANNELS = ("push", "app", "email")
-CHANNELS_RESERVED = ("whatsapp", "ha_mobile")
+CHANNELS = ("push", "app", "email", "whatsapp")  # NOTIFWA: whatsapp mirrors onto the CR-018 policy like the others (it sends only while its master switch is on)
+CHANNELS_RESERVED = ("ha_mobile",)
 QUIET = ("pass", "matrix", "hold")
 SOURCE_PREFIX = "generator."
 
@@ -643,7 +643,7 @@ def _bridge(conn: sqlite3.Connection, device_id: str, key: str, pol: dict[str, A
     if pol is None:
         conn.execute("DELETE FROM notify_policies WHERE source = ?", (src,))  # back to the type's defaults, created again on first use
         return
-    ch = {"inbox": True, "webpush": "push" in pol["channels"], "email": "email" in pol["channels"], "app": "app" in pol["channels"], "ha_mobile": False, "whatsapp": False}
+    ch = {"inbox": True, "webpush": "push" in pol["channels"], "email": "email" in pol["channels"], "app": "app" in pol["channels"], "ha_mobile": False, "whatsapp": "whatsapp" in pol["channels"]}
     base = notify_policy.default_row(notify_policy.BY_KEY[src])
     conn.execute(
         """INSERT INTO notify_policies(source, enabled, severity, category, after_s, dedupe_window_s, resolve_notice, recipients_json, channels_json, revision, updated_at)

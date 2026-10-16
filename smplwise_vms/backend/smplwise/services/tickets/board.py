@@ -137,8 +137,9 @@ def board_item(conn, seen: Seen, lk: Lookups, now: dt.datetime) -> dict[str, Any
             auto_close_at = stuck.iso(d + dt.timedelta(days=int(dept["auto_close_after_days"])))
     item.update({
         "group": group_of(row) if row["status"] in stuck.OPEN_STATUSES else "closed",
-        "stuck": reason,
-        "sla_cell": stuck.nearest_due(ev, now) if row["status"] in stuck.OPEN_STATUSES else None,
+        # TK251: the stuck reason and the SLA cell are management information (the board shows managed rows only - belt and braces)
+        "stuck": reason if seen.full else None,
+        "sla_cell": stuck.nearest_due(ev, now) if row["status"] in stuck.OPEN_STATUSES and seen.full else None,
         "place_keys": _place_keys(row),
         "assignee_key": assignee_key(row),
         "auto_close_at": auto_close_at,
@@ -278,7 +279,8 @@ def facets(conn, viewer: Viewer, *, scope: str, statuses: tuple[str, ...] | None
     department, per place (the tree), per stuck kind, waiting for the manager - capped at SCAN_CAP rows ("2000+")."""
     lk = Lookups(conn)
     sc = scan(viewer, scope=scope, statuses=statuses, department_id=f.department_id, query=f.q)
-    rows = [s for s in sc.rows if matches(s.row, f, lk.prio_key(s.row["priority_id"]))]
+    # TK251: the stuck kind is management information - a limited row never matches a stuck filter and is never counted by kind
+    rows = [s for s in sc.rows if matches(s.row, f, lk.prio_key(s.row["priority_id"])) and (s.full or not f.stuck_kind)]
     by_status: dict[str, int] = {}
     by_dept: dict[str, int] = {}
     by_stuck: dict[str, int] = {}
@@ -288,7 +290,7 @@ def facets(conn, viewer: Viewer, *, scope: str, statuses: tuple[str, ...] | None
         by_status[r["status"]] = by_status.get(r["status"], 0) + 1
         by_dept[r["department_id"]] = by_dept.get(r["department_id"], 0) + 1
         if r["status"] in stuck.OPEN_STATUSES:
-            if r.get("stuck_kind"):
+            if r.get("stuck_kind") and s.full:
                 by_stuck[r["stuck_kind"]] = by_stuck.get(r["stuck_kind"], 0) + 1
             if r.get("waiting_on") == "manager":
                 waiting += 1

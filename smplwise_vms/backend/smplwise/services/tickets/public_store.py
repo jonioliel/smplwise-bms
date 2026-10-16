@@ -97,6 +97,14 @@ def make_code_record(**kw: Any) -> CodeRecord:
     return CodeRecord(**{k: v for k, v in kw.items() if k in _CODE_FIELDS})
 
 
+def _staff_contact(row: Mapping[str, Any]) -> bool:
+    """2.5.8 review F4: the joined contact is a TKSTAFF2 staff contact (assignees.is_staff: a flagged person, no user, no vendor)."""
+    keys = row.keys()
+    if "c_employee" not in keys:
+        return False
+    return row["c_kind"] == "person" and bool(row["c_employee"]) and not row["c_user_id"] and not row["c_vendor_id"]
+
+
 def fold(row: Mapping[str, Any] | None) -> LinkRecord | None:
     """The LinkRecord of a joined lookup row (module docstring, W2)."""
     if row is None:
@@ -115,6 +123,8 @@ def fold(row: Mapping[str, Any] | None) -> LinkRecord | None:
         link_id=row["id"], generation=int(row["generation"]), ticket_id=row["ticket_id"], assignment_id=row["assignment_id"],
         contact_id=row["contact_id"], require_code=bool(row["require_code"]), expires_at=expires, key_id=row["key_id"],
         grace_until=grace, revoked=revoked, recipient_key=row["c_phone_key"], sent_via=row["sent_via"], ticket_number=row["t_number"],
+        kind=(row["kind"] if "kind" in row.keys() else None) or "external",
+        staff_contact=_staff_contact(row),
     )
 
 

@@ -208,6 +208,24 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
       members.set(mm[1], list);
       return json(route, dept(mm[1]));
     }
+    // TKSTAFF1: a staff member's mobile (number / language / WhatsApp switch) - kept on every department row of that user
+    const sm = /^tickets\/admin\/staff\/([\w-]+)$/.exec(p);
+    if (sm && method === 'PUT') {
+      mine();
+      if (!configure) return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');
+      const b = (body ?? {}) as { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean };
+      if (b.phone && !/^[+0-9][0-9\s\-().]{7,30}$/.test(b.phone)) return err(route, 422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'phone', code: 'format' }] });
+      let out = { user_id: sm[1], contact_id: null as string | null, phone: null as string | null, has_phone: false, notify_whatsapp: true, lang: 'he', active: true, live_links: 0 };
+      for (const list of members.values()) for (const m of list as Array<Record<string, unknown>>) {
+        if (m.kind !== 'user' || m.id !== sm[1]) continue;
+        if (b.phone !== undefined) { m.mobile = b.phone || null; m.mobile_confirmed = false; }
+        if (b.lang) m.lang = b.lang;
+        if (b.notify_whatsapp !== undefined) m.notify_whatsapp = b.notify_whatsapp;
+        out = { ...out, contact_id: m.mobile ? `c-${sm[1]}` : null, phone: (m.mobile as string | null) ?? null, has_phone: !!m.mobile,
+          notify_whatsapp: (m.notify_whatsapp as boolean | undefined) ?? true, lang: (m.lang as string | undefined) ?? 'he' };
+      }
+      return json(route, out);
+    }
     if (p === 'tickets/contacts' && method === 'GET') {
       mine();
       if (!configure && persona !== 'manager') return err(route, 403, 'forbidden', 'אין הרשאה לפעולה הזו.');
@@ -250,12 +268,19 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
     if (p === 'tickets/assignees') {
       mine();
       const users = o.empty ? [] : [{ kind: 'user', id: 'u-avi', name: 'אבי כהן', member_role: 'manager' }, { kind: 'user', id: 'u-yossi', name: 'יוסי מזרחי', member_role: 'member' }];
-      const outside = external ? contacts.filter((c) => c.active && (!c.departments.length || c.departments.includes('dept-maintenance'))).map((c) => {
+      const allowed = (c: Contact) => c.active && (!c.departments.length || c.departments.includes('dept-maintenance'));
+      // TKSTAFF2: staff contacts (employees without an account) are handlers for every manager; `contacts` = the outside ones only
+      const outside = external ? contacts.filter((c) => c.kind !== 'employee' && allowed(c)).map((c) => {
         const vendor = c.vendor_id ? contacts.find((v) => v.id === c.vendor_id) : undefined;
         return { kind: 'contact', id: c.id, contact_kind: c.kind, name: c.display_name, company: c.company, vendor_name: vendor?.display_name ?? null, phone: c.phone,
           has_phone: !!c.phone, has_email: !!c.email, preferred_channel: c.preferred_channel, require_code: c.require_code || !!vendor?.require_code, share_history: c.share_history, lang: c.lang };
       }) : [];
-      return json(route, { users, contacts: outside, external, public_ready: ready, readiness: readiness() });
+      const handlers = [
+        ...users.map((u) => ({ key: `user:${u.id}`, kind: 'user', id: u.id, name: u.name, account: true, member_role: u.member_role, phone: null, has_phone: false, preferred_channel: 'inapp' })),
+        ...contacts.filter((c) => c.kind === 'employee' && allowed(c)).map((c) => ({ key: `contact:${c.id}`, kind: 'contact', id: c.id, name: c.display_name, account: false,
+          member_role: null, phone: external || configure ? c.phone : c.phone ? `•••• ${c.phone.slice(-4)}` : null, has_phone: !!c.phone, preferred_channel: c.preferred_channel })),
+      ];
+      return json(route, { users, handlers, contacts: outside, external, public_ready: ready, readiness: readiness() });
     }
     if (p === 'tickets/settings') {
       if (method === 'PUT') {

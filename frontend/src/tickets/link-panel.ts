@@ -125,6 +125,7 @@ export class LinkPanel implements ReactiveController {
     return html`<div class="lkp" data-link-panel data-link-state=${l.state}>
       <div class="lkh">${tIcon('link')}<b>${tt('lkTitle')}</b>
         <span class=${`chip ${tone}`} data-link-chip>${tt(`lk_${l.state}` as TicketTextKey)}</span>
+        ${l.kind === 'staff' ? html`<span class="chip tag" data-link-staff>${tt('lkStaff')}</span>` : nothing}
         ${l.require_code ? html`<span class="chip tag" data-link-code>${tIcon('lock')}${tt('lkCode')}</span>` : nothing}
         ${l.code_locked ? html`<span class="chip warn" data-link-locked>${tt('lkCodeLocked')}</span>` : nothing}
       </div>

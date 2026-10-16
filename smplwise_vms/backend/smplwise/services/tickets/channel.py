@@ -49,6 +49,12 @@ KIND_OF_PURPOSE = {
 # 7.3: 0 = code (sent first), 1 = assign / update / reopened, 2 = reminder / closed / reassigned (and the rest)
 PRIORITY_OF_PURPOSE = {"code": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1}
 LINK_PURPOSES = frozenset({"assign", "reminder", "reopened", "update"})  # {link} is mandatory in these templates (9.7)
+# TK251 (11A.7: "sent back to the vendor ... with the link"): the cost messages that ask the vendor to act carry the handler link
+# too - the link that opens the CLAIM step (claim mode, costs.claim_mode_ok), which keeps working after the ticket closed while the
+# claim window is open. A row whose link serves neither the page nor the claim step is cancelled (`link_not_live`), never sent
+# with a dead link. `cost_approved` asks nothing of the vendor and carries no link.
+CLAIM_LINK_PURPOSES = frozenset({"cost_rejected", "cost_reopened"})
+TEMPLATE_LINK_PURPOSES = LINK_PURPOSES | CLAIM_LINK_PURPOSES  # {link} is mandatory in these templates
 REPLY_PURPOSES = frozenset({"assign", "reminder", "reopened", "update"})  # messages that invite "1 / 2" replies (carry a nonce)
 
 CHANNELS = ("whatsapp", "email")  # the outbox CHECK; with the fallback order below the only places that name channels
