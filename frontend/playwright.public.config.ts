@@ -11,7 +11,8 @@ process.env.SW_DIST_ROUTE = '1';
 
 export default defineConfig({
   testDir: 'tests',
-  testMatch: /(evidence-(public-ticket|public-vendor-card|public-ui5|tickets-s4)|layout-tickets-s4)\.spec\.ts$/,
+  // TKRFQVP: + the request-for-quotation mode of the vendor page (evidence-public-rfq, layout-public-rfq)
+  testMatch: /(evidence-(public-ticket|public-vendor-card|public-ui5|public-rfq|tickets-s4)|layout-(tickets-s4|public-rfq))\.spec\.ts$/,
   timeout: 240_000,
   retries: 0,
   workers: 1,

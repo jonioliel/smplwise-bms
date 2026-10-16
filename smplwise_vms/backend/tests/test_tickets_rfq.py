@@ -591,7 +591,7 @@ def test_invitations_through_the_outbox_carry_no_link_text_or_amount(s4, monkeyp
         from smplwise.services.tickets.messaging import RUNTIME
 
         url = RUNTIME.outbox.p.links.url(rows[0]["link_id"])
-    assert url and url.startswith("https://t-demo.arx.example.test/t/#")
+    assert url and url.startswith("https://t-demo.arx.example.test/support/#q."), "TKRFQVP: the TK255 prefix and the q. mark"
     r2 = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/remind", json={}, headers=s4.h("mona"))
     r3 = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/remind", json={}, headers=s4.h("mona"))
     assert r2.json()["reminded"]["queued"] == 2 and r3.status_code == 200

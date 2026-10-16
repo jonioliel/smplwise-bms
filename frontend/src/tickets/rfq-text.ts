@@ -85,6 +85,10 @@ const he = {
   chTitle: 'ערוץ',
   codeOn: 'קוד אימות',
   codeOff: 'ללא קוד',
+  codeToggle: 'קוד אימות לספק {name}',
+  codeSetOn: 'הספק יתבקש להזין קוד אימות',
+  codeSetOff: 'הספק לא יתבקש קוד אימות',
+  codeLocked: 'ספר הספקים דורש קוד לספק הזה',
   // the new-request sheet
   secRequest: 'הבקשה',
   secVendors: 'ספקים',
@@ -355,6 +359,7 @@ const he = {
   err_rfq_due_passed: 'המועד האחרון עבר',
   err_rfq_field_locked: 'אחרי השליחה אפשר לשנות רק מועד מאוחר יותר, חלון עבודה ואחראי',
   err_rfq_invalid_transition: 'הפעולה לא אפשרית במצב הנוכחי של הבקשה',
+  err_vendor_code_locked: 'ספר הספקים דורש קוד לספק הזה, ולכן אי אפשר לבטל אותו',
 } as const;
 
 export type RfqTextKey = keyof typeof he;
@@ -427,6 +432,10 @@ const en: Partial<Record<RfqTextKey, string>> = {
   chTitle: 'Channel',
   codeOn: 'Verification code',
   codeOff: 'No code',
+  codeToggle: 'Verification code for {name}',
+  codeSetOn: 'The vendor will be asked for a verification code',
+  codeSetOff: 'The vendor will not be asked for a code',
+  codeLocked: 'The directory requires a code for this vendor',
   secRequest: 'The request',
   secVendors: 'Vendors',
   secPreview: 'Message preview',
@@ -684,6 +693,7 @@ const en: Partial<Record<RfqTextKey, string>> = {
   err_rfq_due_passed: 'The deadline passed',
   err_rfq_field_locked: 'After sending only a later deadline, the work window and the owner can change',
   err_rfq_invalid_transition: 'The action is not possible in the request\'s current state',
+  err_vendor_code_locked: 'The directory requires a code for this vendor, so it cannot be turned off',
 };
 
 export function rfqTemplate(key: RfqTextKey, lang: 'he' | 'en' = ticketsLang()): string {

@@ -373,7 +373,7 @@ export function notSelected(quotes: readonly RfqCompareQuote[], sel: readonly Se
 /** A refusal code of the server mapped to the screen's words (`err_<code>`), or null for the server's own message. */
 export function refusalKey(code: string | undefined): string | null {
   const known = ['rfq_stale', 'quote_stale', 'rfq_vendor_page_unavailable', 'self_approval', 'second_approver_required', 'award_pending', 'rfq_has_award',
-    'vendor_not_allowed', 'vendor_duplicate', 'rfq_no_vendors', 'rfq_due_passed', 'rfq_field_locked', 'rfq_invalid_transition'];
+    'vendor_not_allowed', 'vendor_duplicate', 'rfq_no_vendors', 'rfq_due_passed', 'rfq_field_locked', 'rfq_invalid_transition', 'vendor_code_locked'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 

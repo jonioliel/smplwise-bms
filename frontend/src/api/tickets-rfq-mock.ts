@@ -50,6 +50,9 @@ interface DVendor {
   contact: { id: string; name: string; company: string; lang: string };
   channel: RfqChannel;
   require_code: boolean;
+  /** contract 15.2: the directory (the contact or its vendor) demands a code - it cannot be lowered for this vendor */
+  code_from_directory?: boolean;
+  channel_choice?: 'auto' | RfqChannel;
   state: RfqVendorState;
   invited_at: string;
   sent_at: string | null;
@@ -132,7 +135,7 @@ function seed(): void {
     };
   };
   const vendor = (key: string, name: string, company: string, channel: RfqChannel, state: RfqVendorState, sentAt: number | null, openedAt: number | null): DVendor => ({
-    id: `rv-${key}`, contact: { id: `ct-${key}`, name, company, lang: 'he' }, channel, require_code: key === 'kortek', state, invited_at: iso(sentAt ?? Date.now()),
+    id: `rv-${key}`, contact: { id: `ct-${key}`, name, company, lang: 'he' }, channel, require_code: key === 'kortek', code_from_directory: key === 'kortek', state, invited_at: iso(sentAt ?? Date.now()),
     sent_at: sentAt ? iso(sentAt) : null, first_opened_at: openedAt ? iso(openedAt) : null, open_count: openedAt ? 2 : 0, quoted_at: null, declined_at: null,
     decline_reason: null, link: sentAt && channel !== 'manual' ? 'live' : 'none', quotes: [], messages: [], revision: 1,
   });
@@ -273,7 +276,7 @@ function detail(r: DRfq): RfqDetail {
       link: { state: v.link, expires_at: r.due_at, sent_via: v.channel === 'manual' ? null : v.channel }, delivery: null,
       quote: q && f ? { id: q.id, version: q.version, state: q.state, created_at: q.created_at, total_minor: f.total, subtotal_minor: f.subtotal, currency: q.currency,
         work_from: q.work_from, work_to: q.work_to, revision: q.revision } : null,
-      messages: v.messages.length, revision: v.revision, require_code: v.require_code,
+      messages: v.messages.length, revision: v.revision, require_code: v.require_code, channel_choice: v.channel_choice ?? 'auto',
       can: {
         remove: !ended && vs !== 'removed' && vs !== 'awarded' && !r.awards.some((a) => a.vendor_id === v.id && a.state !== 'declined'),
         remind: (state === 'sent' || state === 'collecting') && (vs === 'sent' || vs === 'opened') && v.channel !== 'manual',
@@ -493,6 +496,25 @@ export const mockRfq: RfqBackend = {
     for (const q of v.quotes) if (q.state === 'submitted') q.state = 'withdrawn';
     touch(r);
     event(r, 'vendor_removed', Date.now(), v);
+    return detail(r);
+  },
+  async vendorOptions(id, vendorId, body) {
+    await sleep();
+    const r = find(id);
+    checkRev(r, body.revision);
+    const v = vendorOf(r, vendorId);
+    if (body.channel !== undefined) {
+      if (v.state !== 'draft') fail(409, 'rfq_field_locked', 'הערוץ נעול אחרי השליחה');
+      v.channel_choice = body.channel;
+      if (body.channel !== 'auto') v.channel = body.channel;
+    }
+    if (body.require_code !== undefined) {
+      if (v.state === 'awarded' || v.state === 'removed') fail(409, 'rfq_invalid_transition', 'אי אפשר לשנות ספק שנבחר או הוסר', { from: v.state, action: 'options' });
+      if (!body.require_code && v.code_from_directory) fail(409, 'vendor_code_locked', 'ספר הספקים דורש קוד אימות לספק הזה');
+      v.require_code = body.require_code;
+    }
+    v.revision += 1;
+    touch(r);
     return detail(r);
   },
   async revokeLink(id, vendorId) {

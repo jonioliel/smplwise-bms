@@ -62,6 +62,9 @@ export class TicketsRfqBoard extends LitElement {
   @state() private sendMode: 'auto' | 'manual' = 'auto';
   @state() private contacts: Contact[] | null = null;
   @state() private picks = new Set<string>();
+  /** TKRFQVP: vendors whose code the directory demands (the server answered 409 vendor_code_locked): the off-switch is disabled */
+  @state() private codeLocked = new Set<string>();
+  @state() private codeBusy = '';
   @state() private edit = { title: '', description: '', place: '', dueDate: '', dueTime: '', from: '', to: '', kinds: [] as LineKind[] };
   private seq = 0;
 
@@ -281,6 +284,37 @@ export class TicketsRfqBoard extends LitElement {
     return html`<span class="chan" title=${rt(`ch_${v.channel}` as RfqTextKey)}>${icon}<span class="vh">${rt(`ch_${v.channel}` as RfqTextKey)}</span></span>`;
   }
 
+  /** TKRFQVP (contract 15.6): the per-vendor verification-code switch - managers, a server that takes vendor options, not awarded / removed. */
+  private codeSwitchShown(v: RfqVendor): boolean {
+    const d = this.d as RfqDetail;
+    return !!this.meta?.vendor_options && d.can.edit && typeof v.require_code === 'boolean' && v.state !== 'awarded' && v.state !== 'removed';
+  }
+
+  private async setCode(v: RfqVendor, on: boolean): Promise<void> {
+    const d = this.d as RfqDetail;
+    if (this.codeBusy) return;
+    this.codeBusy = v.id;
+    try {
+      this.d = await ticketsRfqApi().vendorOptions(d.id, v.id, { revision: d.revision, require_code: on });
+      this.notice({ ok: rt(on ? 'codeSetOn' : 'codeSetOff') });
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'vendor_code_locked') this.codeLocked = new Set(this.codeLocked).add(v.id);
+      if (e instanceof ApiError && e.code === 'rfq_stale') void this.load();
+      this.notice({ error: rfqError(e) });
+    } finally {
+      this.codeBusy = '';
+    }
+  }
+
+  private codeSwitch(v: RfqVendor): TemplateResult {
+    const on = !!v.require_code;
+    const locked = on && this.codeLocked.has(v.id);
+    const name = v.contact.company || v.contact.name;
+    return html`<span class="codesw-wrap"><button type="button" class="rc codesw" aria-pressed=${String(on)} aria-label=${rt('codeToggle', { name })} data-rfq-code-toggle=${v.id}
+        data-on=${String(on)} ?disabled=${this.codeBusy === v.id || locked} title=${locked ? rt('codeLocked') : ''} @click=${() => void this.setCode(v, !on)}>${tIcon('lock')}<span>${on ? rt('codeOn') : rt('codeOff')}</span></button>
+      ${locked ? html`<small class="reason" data-rfq-code-locked>${rt('codeLocked')}</small>` : nothing}</span>`;
+  }
+
   private vendorActions(v: RfqVendor): number {
     const d = this.d as RfqDetail;
     return [v.can.quote_on_behalf, v.can.decline_on_behalf, v.can.remove, v.can.message, v.quote?.state === 'submitted' && v.can.quote_on_behalf, v.link?.state === 'live' && d.can.edit].filter(Boolean).length;
@@ -292,7 +326,7 @@ export class TicketsRfqBoard extends LitElement {
     const q = v.quote;
     return html`<tr data-rfq-vendor-row=${v.id} data-vstate=${v.state}>
       <td class="first"><span class="vname"><span class="av" aria-hidden="true">${initials(name)}</span><span><b>${bidi(name)}</b>${v.contact.company ? html`<small>${bidi(v.contact.name)}</small>` : nothing}</span></span></td>
-      <td data-l=${rt('colChannel')}>${this.chan(v)}</td>
+      <td data-l=${rt('colChannel')}><span class="chancol">${this.chan(v)}${this.codeSwitchShown(v) ? this.codeSwitch(v) : nothing}</span></td>
       <td data-l=${rt('colState')}><span><span class=${`chip ${vendorStateTone(v.state)}`} data-vchip>${rt(`v_${v.state}` as RfqTextKey)}</span>
         ${v.decline_reason ? html`<span class="reason">${bidi(v.decline_reason)}</span>` : nothing}</span></td>
       <td data-l=${rt('colSent')} class="num">${dateTime(v.sent_at) || '—'}</td>

@@ -14,6 +14,10 @@ export interface ApiFailure {
   attemptsLeft: number | null;
   /** the request never reached the server (no reception): the page keeps the draft and retries with the same request id */
   offline: boolean;
+  /** TKRFQVP: a 422's field problems (`{field, code}`), when the answer names them */
+  fields?: { field: string; code: string }[];
+  /** TKRFQVP: 409 quote_changed - the current live version of the vendor's quote */
+  version?: number | null;
 }
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: ApiFailure };
@@ -25,13 +29,20 @@ export interface Credentials {
 
 function failure(status: number, body: unknown, offline = false): ApiFailure {
   const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  return {
+  const out: ApiFailure = {
     status,
     code: typeof b.code === 'string' ? b.code : offline ? 'offline' : status === 404 ? 'link_unavailable' : 'error',
     retryAfter: typeof b.retry_after_s === 'number' ? b.retry_after_s : 0,
     attemptsLeft: typeof b.attempts_left === 'number' ? b.attempts_left : null,
     offline,
   };
+  // the RFQ refusals carry extras at the top level or under `details` (the contract does not pin the place): read both
+  const d = (b.details && typeof b.details === 'object' ? b.details : {}) as Record<string, unknown>;
+  const fields = Array.isArray(b.fields) ? b.fields : Array.isArray(d.fields) ? d.fields : null;
+  if (fields) out.fields = fields.filter((f): f is { field: string; code: string } => !!f && typeof f === 'object' && typeof f.field === 'string' && typeof f.code === 'string');
+  const version = 'version' in b ? b.version : d.version;
+  if (typeof version === 'number' || version === null) out.version = version;
+  return out;
 }
 
 async function call<T>(creds: Credentials, method: 'GET' | 'POST', path: string, body?: unknown, form?: FormData): Promise<Result<T>> {
@@ -139,7 +150,84 @@ export const api = {
   },
   codeSend: (c: Credentials) => call<{ sent: boolean; channel: string; expires_in_s: number }>(c, 'POST', '/t/api/code/send', {}),
   codeVerify: (c: Credentials, code: string) => call<{ session: string; expires_in_s: number }>(c, 'POST', '/t/api/code/verify', { code }),
-  redeem: (rid: string) => call<{ token: string }>({ token: null, session: null }, 'POST', '/t/api/redeem', { rid }),
+  /** TKRFQVP (contract 15.1): an RFQ link's e-mail form answers `{token, kind: "rfq"}`; a ticket's stays `{token}` */
+  redeem: (rid: string) => call<{ token: string; kind?: string }>({ token: null, session: null }, 'POST', '/t/api/redeem', { rid }),
+};
+
+// ---------------------------------------------------------------- TKRFQVP: the request-for-quotation mode (contract section 15)
+
+export type RfqPageState = 'open' | 'due_passed' | 'declined' | 'awarded' | 'closed' | 'cancelled';
+export type RfqKind = 'labor' | 'parts' | 'travel' | 'other';
+
+export interface RfqQuoteLine {
+  index: number;
+  kind: RfqKind;
+  description: string | null;
+  total_minor: number;
+  hours?: string;
+  rate_minor?: number;
+  quantity?: string;
+  unit_minor?: number;
+  amount_minor?: number;
+}
+
+export interface RfqQuote {
+  id: string;
+  version: number;
+  state: 'submitted' | 'withdrawn' | 'awarded' | 'partially_awarded';
+  lines: RfqQuoteLine[];
+  currency: string;
+  vat_mode: 'excluded' | 'included' | 'none';
+  vat_rate_bp: number;
+  subtotal_minor: number;
+  vat_minor: number;
+  total_minor: number;
+  net_minor: number;
+  work_from: string | null;
+  work_to: string | null;
+  in_window: boolean | null;
+  valid_until: string | null;
+  note: string | null;
+  vendor_ref: string | null;
+  submitted_at: string;
+  approved: null | { line_indexes: number[]; subtotal_minor: number; vat_minor: number; total_minor: number };
+}
+
+/** `GET /t/api/rfq` (15.3). Before the code (a code-protected link without a session) only the first block is present. */
+export interface RfqView {
+  kind: 'rfq';
+  ref: string;
+  organization: string;
+  department: string;
+  lang: string;
+  dir: 'rtl' | 'ltr';
+  theme?: 'light' | 'dark' | 'auto';
+  time_zone: string;
+  code_required: boolean;
+  code_ok: boolean;
+  code_locked_s?: number;
+  read_only: boolean;
+  read_only_until?: string | null;
+  page_state?: RfqPageState;
+  rfq?: { title: string; description: string | null; place_text: string | null; due_at: string | null; work_from: string | null; work_to: string | null;
+    allowed_line_kinds: RfqKind[]; attachments: { id?: string; name: string }[] };
+  quote?: RfqQuote | null;
+  declined?: { at: string; reason: string | null } | null;
+  messages?: { id: string; mine: boolean; text: string; at: string }[];
+  form?: { currencies: string[]; allowed_kinds: RfqKind[]; vat: { exempt: boolean; rate_bp: number; default: 'excluded' | 'included' | 'none' }; labor_rate_minor: number | null;
+    limits: { lines: number; description: number; note: number; vendor_ref: number; message: number; decline_reason: number; max_total_minor: number } };
+  can?: { quote: boolean; withdraw: boolean; decline: boolean; ask: boolean };
+}
+
+export const rfqApi = {
+  view: (c: Credentials) => call<RfqView>(c, 'GET', '/t/api/rfq'),
+  quote: (c: Credentials, body: Record<string, unknown>) => call<{ ok: boolean; quote: RfqQuote }>(c, 'POST', '/t/api/rfq/quote', body),
+  withdraw: (c: Credentials, quoteId: string, crid: string) => call<{ ok: boolean }>(c, 'POST', '/t/api/rfq/withdraw', { quote_id: quoteId, client_request_id: crid }),
+  decline: (c: Credentials, reason: string, crid: string) =>
+    call<{ ok: boolean }>(c, 'POST', '/t/api/rfq/decline', reason ? { reason, client_request_id: crid } : { client_request_id: crid }),
+  message: (c: Credentials, text: string, crid: string) => call<{ ok: boolean; message: { id: string; mine: boolean; text: string; at: string } }>(c, 'POST', '/t/api/rfq/message', { text, client_request_id: crid }),
+  codeSend: (c: Credentials) => call<{ sent: boolean; channel: string; expires_in_s: number }>(c, 'POST', '/t/api/rfq/code/send', {}),
+  codeVerify: (c: Credentials, code: string) => call<{ session: string; expires_in_s: number }>(c, 'POST', '/t/api/rfq/code/verify', { code }),
 };
 
 /** Slice 9: the claim step's own I/O (claim/claim-step.ts gets these injected) - the same headers and fetch options as `call`. */

@@ -325,7 +325,7 @@ def test_the_email_form_redeems_an_rfq_link(s4):
     with s4.db.connection() as conn:
         row = store_rfq.link_of_vendor(conn, a)
         url = rfq_links.redeem_url(conn, row["id"], dt.datetime.now(dt.timezone.utc))
-    assert url and url.startswith(f"{BASE_URL}/t/r/")
+    assert url and url.startswith(f"{BASE_URL}/support/r/"), "the TK255 public prefix, like a ticket link"
     rid = url.rsplit("/", 1)[1]
     c = pub(s4)
     r = c.post("/t/api/redeem", json={"rid": rid})
@@ -340,7 +340,7 @@ def test_the_invitation_url_marks_an_rfq_link(s4):
         row = store_rfq.link_of_vendor(conn, vid(d, s4.vendor["id"]))
         url = rfq_links.url(conn, row)
     tok = links.derive_token(KEYS.get(row["key_id"]), row["id"], int(row["generation"]), domain="rfq")
-    assert url == f"{BASE_URL}/t/#q.{tok}"
+    assert url == f"{BASE_URL}/support/#q.{tok}"
 
 
 # ---------------------------------------------------------------- the manager's per-vendor options (contract 15.6)

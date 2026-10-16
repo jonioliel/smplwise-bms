@@ -101,8 +101,10 @@ export interface RfqVendor {
   quote: RfqQuoteSummary | null;
   messages: number;
   revision: number;
-  /** C2 gap: whether a verification code is required on the vendor page (frozen from the contact) */
+  /** contract 15.2 / 15.6: whether the vendor page asks this vendor for a verification code (the directory's demand cannot be lowered) */
   require_code?: boolean;
+  /** contract 15.6 (managers only): the channel chosen for this vendor's messages */
+  channel_choice?: 'auto' | RfqChannel;
   can: { remove: boolean; remind: boolean; quote_on_behalf: boolean; decline_on_behalf: boolean; message: boolean };
 }
 
@@ -277,6 +279,9 @@ export interface RfqQuoteBody {
   vendor_ref?: string;
 }
 
+/** contract 15.6: `POST tickets/rfqs/{id}/vendors/{rv_id}/options` - `require_code` until the vendor is awarded / removed, `channel` for a draft vendor only. */
+export interface RfqVendorOptionsBody { revision: number; require_code?: boolean; channel?: 'auto' | RfqChannel }
+
 export interface RfqAwardBody { quote_id: string; revision: number; line_indexes?: number[]; kinds?: LineKind[]; finalize: boolean }
 
 /** The editable notice of an award (rfq.award_draft) - never sent by the system. */
@@ -303,6 +308,8 @@ export interface RfqBackend {
   remove(id: string): Promise<void>;
   addVendor(id: string, contactId: string, revision: number): Promise<RfqDetail>;
   removeVendor(id: string, vendorId: string, revision: number): Promise<RfqDetail>;
+  /** TKRFQVP (contract 15.6): the per-vendor options; lowering a code the directory demands is 409 `vendor_code_locked` */
+  vendorOptions(id: string, vendorId: string, body: RfqVendorOptionsBody): Promise<RfqDetail>;
   revokeLink(id: string, vendorId: string): Promise<RfqDetail>;
   send(id: string, revision: number, channel: 'auto' | 'manual', clientRequestId: string): Promise<RfqSendAnswer>;
   remind(id: string, vendorIds?: string[]): Promise<RfqDetail>;
@@ -359,6 +366,7 @@ const rest: RfqBackend = {
   remove: (id) => del(`${R}/${enc(id)}`),
   addVendor: (id, contactId, revision) => post<RfqDetail>(`${R}/${enc(id)}/vendors`, { contact_id: contactId, revision }),
   removeVendor: (id, vendorId, revision) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/remove`, { revision }),
+  vendorOptions: (id, vendorId, body) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/options`, body),
   revokeLink: (id, vendorId) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/link/revoke`),
   send: (id, revision, channel, clientRequestId) => post<RfqSendAnswer>(`${R}/${enc(id)}/send`, { revision, channel, client_request_id: clientRequestId }),
   remind: (id, vendorIds) => post<RfqDetail>(`${R}/${enc(id)}/remind`, vendorIds?.length ? { vendor_ids: vendorIds } : {}),

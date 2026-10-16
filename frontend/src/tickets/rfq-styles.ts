@@ -328,6 +328,30 @@ export const rfqStyles = css`
     color: var(--dv-text-2);
     white-space: nowrap;
   }
+  /* TKRFQVP: the per-vendor verification-code switch under the channel */
+  .chancol {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .codesw {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-block-size: 40px;
+    padding-inline: 12px;
+    font-size: var(--sw-fs-sm);
+  }
+  .codesw svg {
+    inline-size: 16px;
+    block-size: 16px;
+  }
+  @media (pointer: coarse), (max-width: 767px) {
+    .codesw {
+      min-block-size: 44px;
+    }
+  }
   .reason {
     display: block;
     font-size: var(--sw-fs-sm);

@@ -13,13 +13,14 @@ import './styles.css';
 import { homePath } from './base';
 import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
-import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, linkKind, parseDraft, phaseOf, lineOf, partToggle, planSend, primaryAction, statusChoices, statusLine, validSession,
+import { afterFailure, afterStep, codeMessage, EMPTY_DRAFT, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
   type Draft, type LinkKind, type Phase, type Step } from './state';
 import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
 import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, storedServerMode, type ThemeMode } from './theme';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
 
-const STORE = { token: 'arx.t.token', session: 'arx.t.session', lang: 'arx.t.lang', draft: 'arx.t.draft' } as const;
+// TKRFQVP: an RFQ link keeps its own token / code session / quote draft (the RFQ chunk reads them through RfqHost)
+const STORE = { token: 'arx.t.token', session: 'arx.t.session', lang: 'arx.t.lang', draft: 'arx.t.draft', rfq: 'arx.t.rfq', rsession: 'arx.t.rsession', rdraft: 'arx.t.rdraft' } as const;
 
 function stored(key: string): string | null {
   try {
@@ -67,6 +68,8 @@ class Page {
   private code = { sent: false, value: '', message: null as null | { key: string; n?: number } };
   private photos = new Map<string, string>();
   private uploading = 0;
+  /** TKRFQVP: the request-for-quotation mode (`#q.<token>` or a redeem answer of kind "rfq") hands the page to the lazy RFQ chunk */
+  private mode: 'ticket' | 'rfq' = 'ticket';
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -77,7 +80,7 @@ class Page {
     if (isLang(saved)) this.chosenLang = saved;
     // before a ticket answers (an expired link, the redeem screen): the choice made here, else the browser's language
     this.lang = this.chosenLang ?? preferredLang(typeof navigator !== 'undefined' ? navigator.languages : null) ?? 'he';
-    const boot = bootFrom(window.location.hash, window.location.pathname, stored(STORE.token));
+    const boot = pickMode(window.location.hash, window.location.pathname, stored(STORE.token), stored(STORE.rfq));
     if (boot.fromFragment || boot.rid) {
       try {
         history.replaceState(null, '', homePath()); // the token never stays in the address bar, the history or a bookmark
@@ -88,7 +91,10 @@ class Page {
     this.theme = resolveMode(storedChoice(), storedServerMode());
     applyMode(this.theme);
     this.draft = parseDraft(stored(STORE.draft));
-    if (boot.token) {
+    if (boot.mode === 'rfq' && boot.token) {
+      this.startRfq(boot.token);
+    } else if (boot.token) {
+      if (boot.fromFragment) this.forgetRfq(); // only one link is kept per tab
       this.setToken(boot.token);
       this.creds.session = validSession(stored(STORE.session));
       void this.load();
@@ -101,10 +107,11 @@ class Page {
       this.render();
     }
     document.addEventListener('visibilitychange', () => {
+      if (this.mode === 'rfq') return; // the RFQ chunk reloads itself
       if (document.visibilityState === 'visible' && this.creds.token && ['ready', 'readonly', 'code', 'busy', 'error'].includes(this.phase)) void this.load();
     });
     window.addEventListener('online', () => {
-      if (this.phase === 'ready' && this.hasDraft()) void this.send();
+      if (this.mode === 'ticket' && this.phase === 'ready' && this.hasDraft()) void this.send();
     });
   }
 
@@ -123,6 +130,36 @@ class Page {
     this.draft = { ...EMPTY_DRAFT, crids: {} };
     for (const url of this.photos.values()) URL.revokeObjectURL(url);
     this.photos.clear();
+    this.forgetRfq();
+  }
+
+  /** TKRFQVP: forget the RFQ link of this tab (its token, code session and quote draft). */
+  private forgetRfq(): void {
+    store(STORE.rfq, null);
+    store(STORE.rsession, null);
+    store(STORE.rdraft, null);
+  }
+
+  /** TKRFQVP: the link is a request for quotation - the lazy RFQ chunk takes the page over (the ticket chunks are never fetched). */
+  private startRfq(token: string): void {
+    this.mode = 'rfq';
+    this.setToken(null);
+    store(STORE.session, null);
+    if (stored(STORE.rfq) !== token) this.forgetRfq(); // another request's code session and draft never carry over
+    store(STORE.rfq, token);
+    this.phase = 'loading';
+    this.render();
+    void import('./rfq/rfq-page').then((m) => {
+      m.mountRfq({
+        root: this.root, token, chosenLang: this.chosenLang, fallbackLang: this.lang,
+        stored: (key) => stored(key === 'session' ? STORE.rsession : STORE.rdraft),
+        store: (key, value) => store(key === 'session' ? STORE.rsession : key === 'draft' ? STORE.rdraft : STORE.lang, value),
+        forget: () => this.forget(),
+      });
+    }).catch(() => {
+      this.phase = 'error';
+      this.render();
+    });
   }
 
   private saveDraft(): void {
@@ -199,6 +236,10 @@ class Page {
       return;
     }
     this.rid = null;
+    if (r.data.kind === 'rfq') {
+      this.startRfq(r.data.token); // contract 15.1: the e-mail form of an RFQ link
+      return;
+    }
     this.setToken(r.data.token);
     await this.load();
   }

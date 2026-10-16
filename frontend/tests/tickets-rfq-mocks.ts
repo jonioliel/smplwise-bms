@@ -123,6 +123,7 @@ export async function installRfqMock(page: Page, o: RfqMockOptions = {}): Promis
           if (seg.length === 2) return json(route, contractDetail(await api.addVendor(id, b.contact_id, b.revision)), 201);
           const vid = seg[2];
           if (seg[3] === 'remove') return json(route, contractDetail(await api.removeVendor(id, vid, b.revision)));
+          if (seg[3] === 'options') return json(route, contractDetail(await api.vendorOptions(id, vid, b)));
           if (seg[3] === 'link') return json(route, contractDetail(await api.revokeLink(id, vid)));
           if (seg[3] === 'decline') return json(route, contractDetail(await api.declineOnBehalf(id, vid, b.reason)));
           if (seg[3] === 'messages' && method === 'GET') return json(route, await api.messages(id, vid));
