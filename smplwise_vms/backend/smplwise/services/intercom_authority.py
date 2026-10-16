@@ -552,3 +552,73 @@ def require_anywhere(conn: sqlite3.Connection, principal: Principal, permission:
                 rbac.note_grant(Decision(True, "binding", b.get("id"), b.get("role_id"), (str(b.get("scope_type")), str(b.get("scope_id")))), permission)
                 break
     return auth
+
+
+# ---------------------------------------------------------------- C03: who may look up an OLD action's status (CR-WISKEY-LEASE-REVOCATION-EVENT 5)
+#
+# Owner decision 2026-10-16 (question 1, option a; question 5): whoever CURRENTLY holds the Arx permission for the original action on
+# that target, at the current permission revision; the system administrator may widen it with `access.lookup_scope` =
+# `holder_or_audit_readers` (also `audit.read` at installation scope). Explicit deny of the original permission on the target wins
+# under BOTH values (HA_IDENTITY_RBAC section 15). The answer's existence rules (pending | not_found_or_expired, no oracle) are
+# WisKey's; Arx contributes this decision and the audit row `intercom.lookup.decide` (ids only). EXTENSION POINT: the transport
+# that carries WisKey's lookup question to Arx is part of WisKey's revised C04 (W?) - nothing calls this over the wire yet.
+
+LOOKUP_ACTIONS: dict[str, tuple[str, ...]] = {  # a CLOSED table: an action not listed here is refused
+    "cards/capture_start": ("access.cards.capture", PEOPLE_MANAGE),
+    "cards/capture_status": ("access.cards.capture", PEOPLE_MANAGE),
+    "cards/capture_confirm": ("access.cards.capture", PEOPLE_MANAGE),
+    "cards/capture_cancel": ("access.cards.capture", PEOPLE_MANAGE),
+    "stations/test_unlock": ("@door",),
+    "door_open": ("@door",),
+    "users/create": (PEOPLE_MANAGE,),
+    "users/update": (PEOPLE_MANAGE,),
+    "users/delete": (PEOPLE_MANAGE,),
+    "users/set_cards": (PEOPLE_MANAGE,),
+    "users/set_assignments": (PEOPLE_MANAGE,),
+}
+AUDIT_READ = "audit.read"
+
+
+def lookup_allowed(conn: sqlite3.Connection, principal: Principal, original_action: Any, logical_target_id: Any, binding_revision: Any = None,
+                   *, request_id: str | None = None, dev_mode: bool = False) -> bool:
+    """The fresh Arx decision for a status lookup of an old action on `logical_target_id` (a station id). Fail closed: an
+    unknown action, an id Arx will not evaluate or any error refuses. Audited `intercom.lookup.decide` (ids, the action, the
+    basis - never a name, a card value or the binding revision's meaning; the opaque value is recorded as given, bounded)."""
+    allowed, basis = False, "refused"
+    try:
+        perms = LOOKUP_ACTIONS.get(original_action) if isinstance(original_action, str) else None
+        if perms is None or not valid_id(logical_target_id):
+            basis = "unknown_action" if perms is None else "invalid_target"
+        else:
+            denied, held = False, True
+            for perm in perms:
+                if perm == "@door":
+                    from . import door_authority
+
+                    d = door_authority.check(conn, principal, logical_target_id, dev_mode=dev_mode)
+                    denied = denied or d.reason == "explicit_deny"
+                    held = held and d.allowed
+                else:
+                    d2 = rbac.authorize(conn, principal, perm, (STATION_SCOPE, logical_target_id))
+                    denied = denied or d2.reason in ("explicit_deny", "user_inactive")
+                    held = held and d2.allowed
+            if denied:
+                basis = "explicit_deny"
+            elif held:
+                allowed, basis = True, "holder"
+            else:
+                from . import capture_lease
+
+                if capture_lease.lookup_scope(conn) == "holder_or_audit_readers" and rbac.authorize(conn, principal, AUDIT_READ, INSTALLATION).allowed:
+                    allowed, basis = True, "audit_reader"
+    except Exception as exc:  # noqa: BLE001 - fail closed
+        log.warning("intercom lookup decision failed (%s); refused", type(exc).__name__)
+        allowed, basis = False, "error"
+    try:
+        audit(conn, actor=principal, action="intercom.lookup.decide", decision="allowed" if allowed else "denied", resource_type="intercom_station",
+              resource_id=logical_target_id if valid_id(logical_target_id) else "*", reason=None if allowed else basis, request_id=request_id,
+              details={"original_action": original_action if isinstance(original_action, str) and len(original_action) <= 64 else None, "basis": basis,
+                       "binding_revision": binding_revision if isinstance(binding_revision, str) and len(binding_revision) <= 128 else None})
+    except Exception:  # noqa: BLE001 - the decision stands; a failed audit write is logged
+        log.warning("intercom lookup decision: audit row not written")
+    return allowed
