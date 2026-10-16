@@ -23,8 +23,9 @@ with the local prefix resolves to nothing (the HA path then answers exactly as b
   failure in 15 min, 30 s .. 15 min - a guesser elsewhere never delays the person signing in from their own network), plus a
   per-account ceiling in the database (ACCOUNT_CEILING failures in one fixed 15-minute window, from all networks together, locks
   the account for ACCOUNT_LOCK_S - audited, cleared by an administrator's unlock or by time); per address (20 / min, 100 / h,
-  300 / day; 429 + Retry-After), global (300 failures in 10 min: every sign-in waits 2 s and accounts without a success in 30
-  days are refused for the window). Unknown usernames follow exactly the same two schedules in memory, and every refusal is the
+  300 / day; 429 + Retry-After), global (300 failures in 10 min from at least 5 distinct networks - phase 2, review F7: every
+  sign-in waits 2 s and accounts without a success in 30 days are refused for the window). Phase 2: the storm, the 10th failure of
+  one network and the ceiling lock also reach the managers through the notification centre (`_notify`). Unknown usernames follow exactly the same two schedules in memory, and every refusal is the
   same 401 `sign_in_failed` after the same kind of work (a dummy hash for unknown names). Hashing is admitted through a
   bounded waiting room (local_passwords.admit; USR2-FIX F3): beyond it the answer is the uniform 429 without hashing.
 - Nothing here logs, audits or returns a password, a cookie value, a link token or a typed unknown username.
