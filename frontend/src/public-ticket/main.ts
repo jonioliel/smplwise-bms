@@ -50,7 +50,7 @@ class Page {
   private claimLoading = false;
   // TK257: the permanent quote / payment card (lazy chunk); it hosts the claim step in its payment part
   private costHandle: { element: HTMLElement; update(ctx: { status: string | null; claim: { status: string } | null }): void; refresh(): Promise<void>;
-    ready: Promise<void>; approved(): { total_minor: number; currency: string } | null; destroy(): void } | null = null;
+    ready: Promise<void>; approved(): { total_minor: number; currency: string } | null; quoteState(): string | null; destroy(): void } | null = null;
   private costLoading = false;
   private rid: string | null = null;
   private phase: Phase = 'loading';
