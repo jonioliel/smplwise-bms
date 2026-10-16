@@ -1065,7 +1065,7 @@ body {
 .map-figure {
   margin: 0;
   border: 1px solid var(--sw-border);
-  border-radius: 12px;
+  border-radius: var(--sw-r-md);
   overflow: hidden;
   background: #ffffff; /* the picture is drawn on white in both themes (plan ink), framed by the page's border */
 }

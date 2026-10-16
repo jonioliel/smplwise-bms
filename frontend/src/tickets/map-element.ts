@@ -47,7 +47,7 @@ export class TicketMapElement extends LitElement {
     .gone { color: var(--dv-text-2); font-size: var(--sw-fs-sm); }
     .pv { margin-block-start: 10px; border: 1px solid var(--dv-border); border-radius: var(--sw-r-lg); overflow: hidden; background: #fff; }
     .pv img { display: block; inline-size: 100%; block-size: auto; }
-    .err { color: var(--dv-bad-text, #b42318); font-size: var(--sw-fs-sm); }
+    .err { color: var(--dv-danger); font-size: var(--sw-fs-sm); }
     .ok { color: var(--dv-text-2); font-size: var(--sw-fs-sm); }
   `];
 
@@ -153,9 +153,9 @@ export class TicketMapPicker extends LitElement {
     .dot { cursor: pointer; }
     .hint, .state { color: var(--dv-text-2); font-size: var(--sw-fs-sm); }
     .chosen { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-    .err { color: var(--dv-bad-text, #b42318); font-size: var(--sw-fs-sm); }
+    .err { color: var(--dv-danger); font-size: var(--sw-fs-sm); }
     .list { display: flex; flex-wrap: wrap; gap: 6px; max-block-size: 132px; overflow: auto; }
-    .list button[aria-pressed='true'] { outline: 2px solid var(--dv-accent, #2f6bff); }
+    .list button[aria-pressed='true'] { outline: 2px solid var(--dv-accent); }
   `];
 
   connectedCallback(): void {
