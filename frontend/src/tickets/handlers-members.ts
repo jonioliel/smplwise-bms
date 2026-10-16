@@ -15,6 +15,7 @@ import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type AdminDepartment, type AdminMember } from '../api/tickets';
 import { ticketSettingsCss } from './settings-styles';
 import { handlersGlass } from './handlers-glass';
+import { seesLoad, type MemberLoad } from './handler-load';
 import { tIcon } from './icons';
 import { tt } from './text';
 
@@ -22,9 +23,8 @@ type Role = 'manager' | 'member';
 type Lang = 'he' | 'en' | 'ar' | 'ru';
 const LANGS: Lang[] = ['he', 'ar', 'ru', 'en'];
 type Directory = { users: { id: string; name: string }[]; groups: { id: string; name: string }[] };
-/** What a handler holds right now (from the manager board): open requests, those waiting for them, those stuck. */
-export interface MemberLoad { open: number; waiting: number; stuck: number }
 
+interface Person { key: string; kind: 'user' | 'group'; id: string; name: string; ms: { d: AdminDepartment; m: AdminMember }[] }
 const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((s) => s[0] ?? '').join('');
 
 /**
@@ -233,10 +233,10 @@ export class TicketsHandlersMembers extends LitElement {
     this.open = next;
   }
 
-  /** The count line of a user member; only for the manager of the department, and only when the board answered. */
-  private statsOf(d: AdminDepartment, m: AdminMember): TemplateResult | typeof nothing {
-    if (m.kind !== 'user' || !this.loads || !this.managed.includes(d.id)) return nothing;
-    const l = this.loads.get(`user:${m.id}`) ?? { open: 0, waiting: 0, stuck: 0 };
+  /** The count line of a user member; only for a manager of one of the person's departments, and only when the board answered. */
+  private statsOf(p: Person): TemplateResult | typeof nothing {
+    if (p.kind !== 'user' || !this.loads || !seesLoad(this.managed, p.ms.map((x) => x.d.id))) return nothing;
+    const l = this.loads.get(`user:${p.id}`) ?? { open: 0, waiting: 0, stuck: 0 };
     return html`<div class="stats" data-member-stats>
       <div><b data-stat="open">${l.open}</b>${tt('u6Open')}</div>
       <div><b class=${l.waiting ? 'warn' : ''} data-stat="waiting">${l.waiting}</b>${tt('u6WaitingHim')}</div>
@@ -244,36 +244,43 @@ export class TicketsHandlersMembers extends LitElement {
     </div>`;
   }
 
-  private card(d: AdminDepartment, m: AdminMember): TemplateResult {
-    const key = `${d.id}:${m.kind}:${m.id}`;
-    const open = this.open.has(key);
+  /** One department's membership of the person: the role, the new-request alert of a manager, "הסרה". */
+  private membership(d: AdminDepartment, m: AdminMember, many: boolean): TemplateResult {
     const edit = d.can_edit_members;
-    const group = m.kind === 'group';
-    const pending = !group && !!m.mobile && m.mobile_confirmed === false;
-    return html`<article class=${`glass hcard ${open ? 'open' : ''}`} data-member=${`${m.kind}:${m.id}`}>
+    return html`<div class="line" data-member-membership=${d.id}>
+      <span class="lbl">${many ? bidi(d.name) : tt('u6MemberRole')}</span>
+      <span class="seg" role="radiogroup" aria-label=${`${m.name} · ${d.name}`}>${(['manager', 'member'] as const).map((r) => html`<button type="button" role="radio" aria-pressed=${String(m.role === r)}
+        aria-checked=${String(m.role === r)} ?disabled=${this.busy || !edit || m.role === r} data-member-role=${r}
+        @click=${() => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r))}>${r === 'manager' ? tt('hdRole_manager') : tt('hdRole_member')}</button>`)}</span>
+      ${m.role === 'manager' && edit ? html`<sw-toggle label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
+        @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, m.role, e.detail.checked))}></sw-toggle>` : nothing}
+      ${edit ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
+    </div>`;
+  }
+
+  private card(p: Person): TemplateResult {
+    const open = this.open.has(p.key);
+    const group = p.kind === 'group';
+    const first = p.ms[0].m;
+    const manager = p.ms.some((x) => x.m.role === 'manager');
+    const pending = !group && !!first.mobile && first.mobile_confirmed === false;
+    return html`<article class=${`glass hcard ${open ? 'open' : ''}`} data-member=${p.key}>
       <header>
-        <span class=${`tile ${group ? 'grp' : 'int'}`} aria-hidden="true">${group ? tIcon('users') : initials(m.name)}</span>
-        <div class="t"><h3>${bidi(m.name)}</h3>
-          <div class="role">${group ? tt('u6Group') : tt('hdRole_member')}${m.role === 'manager' ? html`<span class="chip xs info" data-member-manager-chip>${tt('u6Manager')}</span>` : nothing}</div></div>
-        <button type="button" class="rb sm" data-member-toggle aria-expanded=${String(open)} aria-label=${`${open ? tt('u6CloseManage') : tt('u6Manage')} · ${m.name}`} title=${open ? tt('u6CloseManage') : tt('u6Manage')}
-          @click=${() => this.toggle(key)}>${open ? tIcon('x') : tIcon('dots')}</button>
+        <span class=${`tile ${group ? 'grp' : 'int'}`} aria-hidden="true">${group ? tIcon('users') : initials(p.name)}</span>
+        <div class="t"><h3>${bidi(p.name)}</h3>
+          <div class="role">${group ? tt('u6Group') : tt('hdRole_member')}${manager ? html`<span class="chip xs info" data-member-manager-chip>${tt('u6Manager')}</span>` : nothing}</div></div>
+        <button type="button" class="rb sm" data-member-toggle aria-expanded=${String(open)} aria-label=${`${open ? tt('u6CloseManage') : tt('u6Manage')} · ${p.name}`} title=${open ? tt('u6CloseManage') : tt('u6Manage')}
+          @click=${() => this.toggle(p.key)}>${open ? tIcon('x') : tIcon('dots')}</button>
       </header>
-      ${this.statsOf(d, m)}
-      ${!group && (m.mobile || pending) ? html`<footer>
-        ${m.mobile ? html`<span class="chip ltr" data-member-phone>${m.mobile}</span>` : nothing}
-        ${m.mobile && m.notify_whatsapp !== false ? html`<span class="chip wa">${tIcon('send')}${tt('ch_whatsapp')}</span>` : nothing}
+      ${this.statsOf(p)}
+      <footer>
+        ${p.ms.map((x) => html`<span class="chip">${bidi(x.d.name)}</span>`)}
+        ${!group && first.mobile && first.notify_whatsapp !== false ? html`<span class="chip wa" data-member-wa>${tIcon('send')}${tt('ch_whatsapp')}</span>` : nothing}
         ${pending ? html`<span class="chip warn" data-member-pending-chip>${tt('hdMobilePending')}</span>` : nothing}
-      </footer>` : nothing}
+      </footer>
       ${open ? html`<div class="manage" data-member-panel>
-        <div class="line"><span class="lbl">${tt('u6MemberRole')}</span>
-          <span class="seg" role="radiogroup" aria-label=${m.name}>${(['manager', 'member'] as const).map((r) => html`<button type="button" role="radio" aria-pressed=${String(m.role === r)}
-            aria-checked=${String(m.role === r)} ?disabled=${this.busy || !edit || m.role === r} data-member-role=${r}
-            @click=${() => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r))}>${r === 'manager' ? tt('hdRole_manager') : tt('hdRole_member')}</button>`)}</span>
-          ${m.role === 'manager' && edit ? html`<sw-toggle label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
-            @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, m.role, e.detail.checked))}></sw-toggle>` : nothing}
-          ${edit ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
-        </div>
-        ${group ? nothing : this.mobileOf(m)}
+        ${p.ms.map((x) => this.membership(x.d, x.m, p.ms.length > 1))}
+        ${group ? nothing : this.mobileOf(first)}
       </div>` : nothing}
     </article>`;
   }
@@ -301,21 +308,32 @@ export class TicketsHandlersMembers extends LitElement {
     </div>`;
   }
 
+  /** The people of the shown departments: one card per person (a user or a group), with every membership of it. */
+  private people(): Person[] {
+    const q = this.query.trim().toLowerCase();
+    const out = new Map<string, Person>();
+    for (const d of (this.depts ?? []).filter((x) => !this.dept || x.id === this.dept)) {
+      for (const m of d.members) {
+        if (q && !m.name.toLowerCase().includes(q)) continue;
+        const key = `${m.kind}:${m.id}`;
+        const p = out.get(key) ?? { key, kind: m.kind, id: m.id, name: m.name, ms: [] };
+        p.ms.push({ d, m });
+        out.set(key, p);
+      }
+    }
+    return [...out.values()];
+  }
+
   render() {
     if (this.denied) return nothing;
     if (this.depts === null) return html`<div class="sec"><div class="glass" style="padding:18px"><span class="skl" style="block-size:20px;inline-size:40%"></span></div></div>`;
-    const q = this.query.trim().toLowerCase();
-    const shown = this.depts.filter((d) => !this.dept || d.id === this.dept);
-    const sections = shown.map((d) => ({ d, members: d.members.filter((m) => !q || m.name.toLowerCase().includes(q)) }));
-    const people = new Set(sections.flatMap((s) => s.members.map((m) => `${m.kind}:${m.id}`)));
-    return html`<div class="sec" data-card="handlers-members">
-      <div class="sh"><h2>${tt('u6SecMembers')}<span class="n">${people.size}</span></h2><small>${tt('u6SecMembersSub')}</small></div>
+    const people = this.people();
+    const empty = this.query.trim() ? tt('u6NoMatch') : tt('hdMembersEmpty');
+    return html`<div class="sec" data-card="handlers-members" data-handlers-members>
+      <div class="sh"><h2>${tt('u6SecMembers')}<span class="n">${people.length}</span></h2><small>${tt('u6SecMembersSub')}</small></div>
       ${this.adding ? this.addPanel() : nothing}
-      ${this.depts.length ? sections.map(({ d, members }) => html`<section class="dsec" data-handlers-members=${d.id}>
-        ${shown.length > 1 ? html`<h3>${bidi(d.name)}<span class="chip xs">${members.length}</span></h3>` : nothing}
-        ${members.length ? html`<div class="cgrid" data-members-grid>${repeat(members, (m) => `${m.kind}:${m.id}`, (m) => this.card(d, m))}</div>`
-          : html`<span class="mut" data-members-empty>${q ? tt('u6NoMatch') : tt('hdMembersEmpty')}</span>`}
-      </section>`)
+      ${this.depts.length
+        ? (people.length ? html`<div class="cgrid" data-members-grid>${repeat(people, (p) => p.key, (p) => this.card(p))}</div>` : html`<span class="mut" data-members-empty>${empty}</span>`)
         : html`<sw-state-panel state="empty" heading=${tt('hdNoDepartments')}></sw-state-panel>
           <div class="foot"><a href="#/system/tickets?tab=departments" data-to-departments>${tt('setTabDepartments')}</a></div>`}
     </div>`;

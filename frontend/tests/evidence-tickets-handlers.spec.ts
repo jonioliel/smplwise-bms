@@ -58,11 +58,11 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     for (const skin of ['classic', 'domus'])
       for (const scheme of ['light', 'dark'] as const) {
         await go(page, '/tickets/handlers', {}, scheme, skin);
-        await page.waitForSelector(`${H} tickets-handlers-members [data-handlers-members="dept-maintenance"]`);
+        await page.waitForSelector(`${H} tickets-handlers-members [data-member="user:u-ronit"]`);
         await page.waitForSelector(`${H} tickets-contacts[kind="employee"] [data-contacts-list]`);
         await expect(page.locator(`${H} [data-readiness]`)).toHaveCount(0); // everything ready: no strip (clean screens)
         await shot(page, 'handlers', scheme, skin);
-        await page.locator(`${H} sw-tabs button`, { hasText: 'ספקים' }).click();
+        await page.locator(`${H} [data-handlers-tabs] [data-seg="vendors"]`).click();
         await page.waitForSelector(`${H} tickets-contacts[kind="vendor"] [data-contacts-list]`);
         await expect(page).toHaveURL(/#\/tickets\/handlers\?seg=vendors/);
         await shot(page, 'vendors', scheme, skin);
@@ -79,27 +79,33 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
   test('handlers with an account: add a user to a department as a handler, make a manager, remove', async ({ page }) => {
     const M = `${H} tickets-handlers-members`;
     const mock = await go(page, '/tickets/handlers');
-    await page.waitForSelector(`${M} [data-handlers-members="dept-maintenance"]`);
+    await page.waitForSelector(`${M} [data-member="user:u-ronit"]`);
+    await page.locator(`${H} [data-handlers-new]`).click(); // the page's "+ מטפל" opens the add panel
     await page.locator(`${M} [data-member-pick]`).selectOption('user:u-yossi');
     await page.locator(`${M} [data-member-add]`).click();
     await expect.poll(() => last(mock, 'PUT', /members\/user\/u-yossi$/)?.body).toEqual({ role: 'member' });
     await expect(page.locator(`${M} [data-member="user:u-yossi"]`)).toBeVisible();
+    await expect(page.locator(`${M} [data-members-add]`)).toHaveCount(0); // the panel closes after the add
+    await page.locator(`${M} [data-member="user:u-yossi"] [data-member-toggle]`).click(); // "ניהול" opens the card's own panel
     await page.locator(`${M} [data-member="user:u-yossi"] [data-member-role="manager"]`).click();
     await expect.poll(() => last(mock, 'PUT', /members\/user\/u-yossi$/)?.body).toEqual({ role: 'manager' });
     await page.locator(`${M} [data-member="user:u-yossi"] [data-member-remove]`).click();
     await expect.poll(() => last(mock, 'DELETE', /members\/user\/u-yossi$/)).toBeTruthy();
     await expect(page.locator(`${M} [data-member="user:u-yossi"]`)).toHaveCount(0);
     // another department
-    await page.locator(`${M} [data-members-dept="dept-cleaning"]`).click();
-    await expect(page.locator(`${M} [data-handlers-members="dept-cleaning"]`)).toBeVisible();
+    await page.locator(`${H} [data-handlers-dept="dept-cleaning"]`).click();
+    await expect(page.locator(`${M} [data-member="user:u-dana"]`)).toBeVisible();
+    await expect(page.locator(`${M} [data-member="user:u-ronit"]`)).toHaveCount(0);
   });
 
   test('TKSTAFF1: a handler with an account gets a mobile line - number, language, WhatsApp on assignment', async ({ page }) => {
     const M = `${H} tickets-handlers-members`;
     const mock = await go(page, '/tickets/handlers');
-    await page.waitForSelector(`${M} [data-handlers-members="dept-maintenance"]`);
+    await page.waitForSelector(`${M} [data-member="user:u-ronit"]`);
+    await page.locator(`${H} [data-handlers-new]`).click();
     await page.locator(`${M} [data-member-pick]`).selectOption('user:u-yossi');
     await page.locator(`${M} [data-member-add]`).click();
+    await page.locator(`${M} [data-member="user:u-yossi"] [data-member-toggle]`).click();
     const line = `${M} [data-member-mobile="u-yossi"]`;
     await page.waitForSelector(line);
     await expect(page.locator(`${line} [data-member-whatsapp]`)).toHaveCount(0); // no number yet: no switch
@@ -157,7 +163,7 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await go(page, '/system/tickets');
     await page.waitForSelector('sw-app system-tickets [data-card="handlers-link"]');
     await expect(page.locator('sw-app system-tickets [data-to-handlers]')).toHaveAttribute('href', '#/tickets/handlers');
-    await expect(page.locator('sw-app system-tickets sw-tabs button', { hasText: 'ספקים ואנשי קשר' })).toHaveCount(0);
+    await expect(page.locator('sw-app system-tickets [data-tickets-settings-tabs] [role="tab"]', { hasText: 'ספקים ואנשי קשר' })).toHaveCount(0);
     await go(page, '/system/tickets?tab=contacts');
     await expect(page).toHaveURL(/#\/tickets\/handlers\?seg=vendors/);
     await page.waitForSelector(`${H} tickets-contacts[kind="vendor"] [data-contacts-list]`);

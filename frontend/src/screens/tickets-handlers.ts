@@ -17,7 +17,8 @@ import { ApiError } from '../api/client';
 import { onTicketNames } from '../tickets/naming';
 import { HANDLERS_SEGMENTS, missingItems, type HandlersSegment } from '../tickets/readiness-model';
 import { handlersGlass } from '../tickets/handlers-glass';
-import type { MemberLoad } from '../tickets/handlers-members';
+import { loadsFromBoard, managedDepartments, type MemberLoad } from '../tickets/handler-load';
+import { rovingIndex } from '../tickets/settings-tabs';
 import { tIcon } from '../tickets/icons';
 import { tt } from '../tickets/text';
 
@@ -211,22 +212,12 @@ export class TicketsHandlersPage extends LitElement {
    * viewer sees). Owner decision (TKUI6): ONLY a department manager sees it; everybody else reads the cards without numbers.
    */
   private async loadLoads(): Promise<void> {
-    if (!(this.meta?.departments ?? []).some((d) => d.can_manage)) {
+    if (!managedDepartments(this.meta?.departments ?? []).length) {
       this.loads = null;
       return;
     }
     try {
-      const b = await boardApi().board({});
-      const m = new Map<string, MemberLoad>();
-      for (const it of b.items) {
-        if (it.assignee_key === 'none') continue;
-        const l = m.get(it.assignee_key) ?? { open: 0, waiting: 0, stuck: 0 };
-        l.open += 1;
-        if (it.waiting_on === 'assignee') l.waiting += 1;
-        if (it.stuck) l.stuck += 1;
-        m.set(it.assignee_key, l);
-      }
-      this.loads = m;
+      this.loads = loadsFromBoard((await boardApi().board({})).items);
     } catch {
       this.loads = null; // the board is the manager's: any failure leaves the cards without numbers (never an error line on this page)
     }
@@ -262,6 +253,20 @@ export class TicketsHandlersPage extends LitElement {
     (this.renderRoot.querySelector(`tickets-contacts[kind="${this.seg === 'vendors' ? 'vendor' : 'person'}"]`) as TicketsContacts | null)?.startNew();
   }
 
+  private managed(): string[] {
+    return managedDepartments(this.meta?.departments ?? []);
+  }
+
+  /** The segments are a radio group: the arrow keys move between them (the visual order follows the text direction). */
+  private onSegKey = (e: KeyboardEvent) => {
+    const i = HANDLERS_SEGMENTS.indexOf(this.seg);
+    const n = rovingIndex(e.key, i, HANDLERS_SEGMENTS.length, getComputedStyle(this).direction === 'rtl');
+    if (n === null) return;
+    e.preventDefault();
+    this.setSeg(HANDLERS_SEGMENTS[n]);
+    void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-handlers-tabs] [data-seg="${this.seg}"]`) as HTMLElement | null)?.focus());
+  };
+
   /** What sending outside still needs - shown only when something is missing (clean operator screens). */
   private strip(): TemplateResult | typeof nothing {
     const items = missingItems(this.readiness);
@@ -277,9 +282,9 @@ export class TicketsHandlersPage extends LitElement {
     if (this.seg === 'vendors') return html`<tickets-contacts kind="vendor" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     if (this.seg === 'contacts') return html`<tickets-contacts kind="person" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     return html`<div class="body" data-handlers-segment>
-      <tickets-handlers-members .dept=${this.dept} .query=${this.q} .loads=${this.loads} .managed=${(this.meta?.departments ?? []).filter((d) => d.can_manage).map((d) => d.id)}
+      <tickets-handlers-members .dept=${this.dept} .query=${this.q} .loads=${this.loads} .managed=${this.managed()}
         ?adding=${this.adding} @add-done=${this.onAddDone} @notice=${this.onNotice}></tickets-handlers-members>
-      <tickets-contacts kind="employee" head newbtn .loads=${this.loads} .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>
+      <tickets-contacts kind="employee" head newbtn .loads=${this.loads} .managed=${this.managed()} .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>
     </div>`;
   }
 
@@ -293,8 +298,8 @@ export class TicketsHandlersPage extends LitElement {
           <span class="grow"></span>
         </div>
         <div class="dh-det">
-          <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs>
-            ${HANDLERS_SEGMENTS.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}
+          <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs @keydown=${this.onSegKey}>
+            ${HANDLERS_SEGMENTS.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} tabindex=${this.seg === id ? '0' : '-1'} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}
           </div>
           ${depts.length > 1 ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')} data-handlers-depts>
             <button type="button" class="rc" aria-pressed=${String(!this.dept)} data-handlers-dept="" @click=${() => (this.dept = '')}>${tt('allDepartments')}</button>

@@ -35,6 +35,7 @@ import {
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
 import { intIn, windowProblem } from '../tickets/durations';
 import { ticketSettingsCss } from '../tickets/settings-styles';
+import { SETTINGS_TABS, isSettingsTab, rovingIndex, visibleTabs } from '../tickets/settings-tabs';
 import { tt, type TicketTextKey } from '../tickets/text';
 import { ticketPermLabel } from '../tickets/perm-label';
 import '../tickets/board-settings'; // CR-038 slice 6: the D19-D21 rows of the display card
@@ -42,8 +43,8 @@ import type { BoardSettingsDoc } from '../api/tickets-board';
 import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
 import { setLongPressMode } from '../tickets/device-entry';
 
-type Tab = 'general' | 'departments' | 'display' | 'channel' | 'messages' | 'costs' | 'permissions';
-const TABS: readonly Tab[] = ['general', 'departments', 'display', 'channel', 'messages', 'costs', 'permissions'];
+type Tab = (typeof SETTINGS_TABS)[number];
+const TABS = SETTINGS_TABS;
 const PERMS = ['view', 'create', 'manage', 'external', 'all_departments', 'configure'] as const;
 type Perm = (typeof PERMS)[number];
 const SENSITIVE_PERMS: readonly Perm[] = ['external', 'all_departments', 'configure'];
@@ -114,6 +115,17 @@ export class SystemTickets extends LitElement {
       --sw-card-pad: 16px 20px;
       --sw-card-title-fs: var(--sw-fs-lg);
       --sw-card-title-fw: 700;
+      --sw-seg-border: transparent;
+      --sw-seg-radius: 999px;
+      --sw-seg-btn-radius: 999px;
+      --sw-seg-track: var(--dv-surface-3);
+      --sw-seg-pad: 3px;
+      --sw-seg-gap: 2px;
+      --sw-seg-h: var(--sw-touch-desktop);
+      --sw-seg-divider: 0 solid transparent;
+      --sw-seg-on-bg: var(--mm-seg-thumb);
+      --sw-seg-on-fg: var(--dv-text);
+      --sw-seg-on-shadow: var(--dv-shadow-control);
     }
     .page {
       max-inline-size: 1320px;
@@ -265,7 +277,16 @@ export class SystemTickets extends LitElement {
       queueMicrotask(() => window.location.replace(`${TICKETS_HANDLERS_HREF}?seg=vendors`));
       return;
     }
-    this.tab = q && TABS.includes(q as Tab) ? (q as Tab) : 'general';
+    this.tab = isSettingsTab(q) ? q : 'general';
+  }
+
+  /** The tab list is a roving-focus group: the arrow keys (the text direction decides which way is forward), Home and End. */
+  private onTabKey(e: KeyboardEvent, ids: string[]): void {
+    const n = rovingIndex(e.key, ids.indexOf(this.tab), ids.length, getComputedStyle(this).direction === 'rtl');
+    if (n === null) return;
+    e.preventDefault();
+    this.setTab(ids[n]);
+    void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-settings-tab="${ids[n]}"]`) as HTMLElement | null)?.focus());
   }
 
   private setTab(id: string): void {
@@ -801,19 +822,10 @@ export class SystemTickets extends LitElement {
   render() {
     const heading = tt('area');
     if (this.enabled === null) return html`<div class="page" data-tickets-settings><div class="ttl"><div class="crumbs">הגדרות</div><h1>${heading}</h1></div><sw-state-panel state="loading"></sw-state-panel></div>`;
-    const channel = !isApi() || can('system.configure'); // slice 5b: the master switch and the e-mail fallback (PUT /tickets/channel)
-    const templates = !isApi() || can('tickets.configure'); // slice 5b: message templates (D26)
-    const costsTab = !isApi() || can('system.configure'); // slice 9b: the costs document (PUT /tickets/settings)
-    const display = !isApi() || can('system.configure'); // TKUI6: the display tab is the installation document's rows (system.configure)
-    const items = [
-      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') },
-      ...(display ? [{ id: 'display', label: tt('u6TabDisplay') }] : []),
-      ...(channel ? [{ id: 'channel', label: mtt('tabChannel') }] : []), ...(templates ? [{ id: 'messages', label: mtt('tabTemplates') }] : []), // slice 5b
-      ...(costsTab ? [{ id: 'costs', label: ct('setTab') }] : []), // slice 9b
-      { id: 'permissions', label: tt('setTabPermissions') },
-    ];
-    const tabs = this.enabled ? html`<div class="stabs"><div class="seg sm" role="tablist" aria-label=${heading} data-tickets-settings-tabs>${items.map((i) => html`<button type="button" role="tab"
-      aria-selected=${String(this.tab === i.id)} data-settings-tab=${i.id} @click=${() => this.setTab(i.id)}>${i.label}</button>`)}</div></div>` : nothing;
+    const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), permissions: tt('setTabPermissions') };
+    const items = visibleTabs({ api: isApi(), can }).map((id) => ({ id, label: labels[id] }));
+    const tabs = this.enabled ? html`<div class="stabs"><div class="seg sm" role="tablist" aria-label=${heading} data-tickets-settings-tabs @keydown=${(e: KeyboardEvent) => this.onTabKey(e, items.map((x) => x.id))}>${items.map((i) => html`<button type="button" role="tab"
+      aria-selected=${String(this.tab === i.id)} tabindex=${this.tab === i.id ? '0' : '-1'} data-settings-tab=${i.id} @click=${() => this.setTab(i.id)}>${i.label}</button>`)}</div></div>` : nothing;
     const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
       : this.tab === 'display' ? this.displayTab()
       : this.tab === 'channel' ? html`<tickets-channel-settings @notice=${this.onNotice}></tickets-channel-settings>` // slice 5b

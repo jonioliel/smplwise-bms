@@ -138,12 +138,12 @@ test.describe('tickets board evidence', () => {
 
   test('Settings > display: the board rows (D19-D21; the D28 row is slice 2s)', async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) {
-      await go(page, '/system/tickets', { persona: 'admin' }, scheme);
+      await go(page, '/system/tickets?tab=display', { persona: 'admin' }, scheme);
       await page.waitForSelector('sw-app system-tickets ticket-board-settings [data-ui-board]');
       await page.locator('sw-app system-tickets [data-card="display"]').scrollIntoViewIfNeeded();
       await shot(page, 'settings-display', scheme);
     }
-    const mock = await go(page, '/system/tickets', { persona: 'admin' });
+    const mock = await go(page, '/system/tickets?tab=display', { persona: 'admin' });
     await page.waitForSelector('sw-app system-tickets [data-ui-board="grouping:never"]');
     await page.locator('sw-app system-tickets [data-ui-board="grouping:never"]').click();
     await expect.poll(() => mock.calls.find((c) => c.method === 'PUT' && c.path === 'tickets/settings')?.body).toEqual({ revision: 1, ui: { grouping: 'never' } });

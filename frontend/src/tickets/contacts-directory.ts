@@ -20,7 +20,7 @@ import { CURRENCIES, type CostMode } from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
 import { handlersGlass } from './handlers-glass';
 import { tIcon } from './icons';
-import type { MemberLoad } from './handlers-members';
+import { seesLoad, type MemberLoad } from './handler-load';
 import { ct } from './cost-text';
 import { decimalToMinor, minorToInput } from './cost-model';
 import { tt, type TicketTextKey } from './text';
@@ -69,6 +69,8 @@ export class TicketsContacts extends LitElement {
   @property({ type: Boolean }) newbtn = false;
   /** the load by assignee key (`contact:<id>` for an employee without an account), from the board - department managers only */
   @property({ attribute: false }) loads: Map<string, MemberLoad> | null = null;
+  /** the departments the viewer manages (the load of an employee is shown only to a manager of one of the employee's departments) */
+  @property({ attribute: false }) managed: readonly string[] = [];
   @state() private rows: Contact[] | null = null;
   /** the vendors a person may work for, when the list itself is locked to persons */
   @state() private vendorRows: Contact[] = [];
@@ -395,7 +397,7 @@ export class TicketsContacts extends LitElement {
   }
 
   private loadOf(c: Contact): MemberLoad | null {
-    if (!this.loads) return null;
+    if (!this.loads || !seesLoad(this.managed, c.departments)) return null;
     return this.loads.get(`contact:${c.id}`) ?? { open: 0, waiting: 0, stuck: 0 };
   }
 

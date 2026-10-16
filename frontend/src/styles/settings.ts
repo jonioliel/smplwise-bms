@@ -245,31 +245,37 @@ export const settingsStyles = css`
        clipped the last segment ("30 דק׳") of the schedules defaults in the page's 300 px side column at tablet widths */
     flex: none;
     max-inline-size: 100%;
-    border: 1px solid var(--sw-border-strong);
-    border-radius: var(--sw-r-sm);
+    border: 1px solid var(--sw-seg-border, var(--sw-border-strong));
+    border-radius: var(--sw-seg-radius, var(--sw-r-sm));
     overflow: hidden;
-    background: var(--sw-surface);
+    background: var(--sw-seg-track, var(--sw-surface));
+    padding: var(--sw-seg-pad, 0);
+    gap: var(--sw-seg-gap, 0);
   }
+  /* the knobs `--sw-seg-*` belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
   .seg button {
     border: 0;
+    border-radius: var(--sw-seg-btn-radius, 0);
     background: transparent;
     padding: 0 14px;
-    min-block-size: var(--sw-ctl-h-md);
+    min-block-size: var(--sw-seg-h, var(--sw-ctl-h-md));
     font: inherit;
     font-size: var(--sw-fs-sm);
     cursor: pointer;
     color: var(--sw-text-2);
   }
   .seg button + button {
-    border-inline-start: 1px solid var(--sw-border);
+    border-inline-start: var(--sw-seg-divider, 1px solid var(--sw-border));
   }
   .seg button:hover {
     background: var(--sw-hover-wash);
     color: var(--sw-text);
   }
-  .seg button[aria-pressed='true'] {
-    background: var(--sw-accent);
-    color: var(--sw-text-inverse);
+  .seg button[aria-pressed='true'],
+  .seg button[aria-selected='true'] {
+    background: var(--sw-seg-on-bg, var(--sw-accent));
+    color: var(--sw-seg-on-fg, var(--sw-text-inverse));
+    box-shadow: var(--sw-seg-on-shadow, none);
   }
   .seg button:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);

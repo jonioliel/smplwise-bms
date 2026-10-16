@@ -37,7 +37,7 @@ const SCREENS: Screen[] = [
     },
   },
   {
-    name: 'handlers-members', hash: '/tickets/handlers', wait: 'sw-app tickets-handlers tickets-handlers-members [data-handlers-members]', within: 'tickets-handlers',
+    name: 'handlers-members', hash: '/tickets/handlers', wait: 'sw-app tickets-handlers tickets-handlers-members [data-member]', within: 'tickets-handlers',
     mock: { readiness: { master_switch: false }, publicReady: false },
     prep: async (p) => {
       await p.waitForSelector('sw-app tickets-handlers tickets-contacts[kind="employee"] [data-contacts-list]');
