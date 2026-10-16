@@ -33,6 +33,7 @@ import { filterButton, filterRow } from '../tickets/list-filter-row';
 import { roleFor, avatarPair } from '../tickets/list-card-model';
 import { loadMeter, todayEntries } from '../tickets/board-today';
 import { lt } from '../tickets/list-text';
+import { oldestOpenText } from '../tickets/elapsed-model';
 import { ticketBoardV5Styles, ticketListFrameStyles } from '../tickets/list-styles';
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
@@ -271,6 +272,14 @@ export class TicketsBoard extends LitElement {
   }
 
   /** TKUI4: the view switch of the board - cards / table go back to the list (the choice is remembered, as on the list), "board" stays. */
+  /** The state strip's tooltip: how long the oldest open request of that state has been open (elapsed time, not an SLA rule). */
+  private stripTip(id: string): string {
+    const d = this.data;
+    if (!d || id === 'closed') return '';
+    const pick = id === 'waiting' ? (x: BoardItem) => x.group === 'waiting' : id === 'stuck' ? (x: BoardItem) => !!x.stuck : id === 'unassigned' ? (x: BoardItem) => ['new', 'returned'].includes(x.status) : () => true;
+    return oldestOpenText(d.items.filter(pick), this.now);
+  }
+
   private pickMode = (m: ListMode): void => {
     if (m === 'board') return;
     void saveBoardPrefs({ view: m });
@@ -435,7 +444,7 @@ export class TicketsBoard extends LitElement {
           ${depts.map((x) => html`<button type="button" role="radio" aria-checked=${String(this.r.dept === x.id)} data-dept=${x.id} @click=${() => this.go({ dept: x.id })}>${bidi(x.name)}<small>${x.count}</small></button>`)}
         </div>` : nothing}
         ${d ? html`<div class="seg sm stf" role="radiogroup" aria-label=${bt('stateStrip')} data-state-strip>
-          ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
+          ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
         </div>` : nothing}
         <span class="grow"></span>
         ${layout.treeInFilter ? html`<button type="button" class="btn" aria-expanded=${String(this.filterOpen)} data-filter-btn @click=${() => (this.filterOpen = !this.filterOpen)}>${tIcon('filter')}${bt('filter')}</button>` : nothing}

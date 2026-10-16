@@ -18,6 +18,7 @@ import { chipLabel, menuMoves, priorityTone, relTime, statusLabel } from '../tic
 import { roleFor, rowSentence } from '../tickets/list-card-model';
 import { statusChip as chipOf } from '../tickets/status-sentence';
 import { lt } from '../tickets/list-text';
+import '../tickets/elapsed-clock';
 import { readSentenceOn, writeSentenceOn } from '../tickets/list-prefs';
 import {
   activeExtraCount, ageText, applyView, ariaSort, bulkSummary, columnLabel, keepAfterBulk, layoutFromPrefs, nextIndex, NO_TABLE_FILTERS, pageState, queryParams,
@@ -561,7 +562,7 @@ export class TicketsTable extends LitElement {
       case 'device':
         return html`<td><span class="cv">${r.device_name ? bidi(r.device_name) : ''}</span></td>`;
       case 'created':
-        return html`<td class="c-created">${ageText(r, this.now)}</td>`;
+        return html`<td class="c-created"><ticket-elapsed .item=${r} data-row-elapsed></ticket-elapsed></td>`;
       case 'activity':
         return html`<td class="c-activity">${relTime(r.last_activity_at, this.now)}</td>`;
       case 'stuck':

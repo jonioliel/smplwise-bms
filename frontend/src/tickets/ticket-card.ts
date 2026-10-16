@@ -12,6 +12,7 @@ import { tIcon } from './icons';
 import { ticketCardStyles } from './styles';
 import { ticketCardListStyles } from './list-styles';
 import { listIcon } from './list-icons';
+import './elapsed-clock';
 import { cardModel, type CardItem } from './list-card-model';
 import type { ViewerRole } from './status-sentence';
 
@@ -131,6 +132,7 @@ export class TicketCard extends LitElement {
       <footer>
         <span class="num">#${t.number}</span>
         <span class="run" data-card-run><i class=${`dot ${m.run.tone}`}></i><span>${m.run.text}</span></span>
+        <ticket-elapsed .item=${t} data-card-elapsed></ticket-elapsed>
         ${this.timelineHref ? html`<a class="tl" href=${this.timelineHref} data-card-timeline>${tIcon('clock')}${tt('timelineLink')}</a>` : nothing}
         ${m.avatars.length ? html`<span class="pair" data-card-pair>${m.avatars.map((a) => html`<span class=${`av ${a.kind}`} title=${a.label} role="img" aria-label=${a.label}>${a.ini}</span>`)}</span>` : nothing}
       </footer>

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Meta, TicketItem } from '../src/api/tickets';
+import type { Meta } from '../src/api/tickets';
 import type { BoardItem } from '../src/api/tickets-board';
 import type { TableRow } from '../src/api/tickets-table';
 import { CARD_CHIP_MAX, avatarPair, boardWarning, cardChips, cardModel, initials, roleFor, rowSentence, type CardItem } from '../src/tickets/list-card-model';

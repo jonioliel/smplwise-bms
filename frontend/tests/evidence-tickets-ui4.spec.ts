@@ -260,4 +260,27 @@ test.describe('tickets list v5 evidence', () => {
     await page.locator(`${B} [data-f-clear]`).click();
     await expect(page.locator(`${B} ticket-card`)).toHaveCount(total);
   });
+  test('the running clock: on the cards, in the table, on the board and its strip tooltips; static text, no live region', async ({ page }) => {
+    await goList(page, '/tickets/mine');
+    await page.waitForSelector(`${L} ticket-card`);
+    const clock = page.locator(`${L} ticket-card ticket-elapsed [data-elapsed]`);
+    expect(await clock.count()).toBeGreaterThan(3);
+    await expect(clock.first()).toHaveText(/(פתוחה|טופלה|פתוח|טופל)/);
+    await expect(clock.first()).not.toHaveAttribute('aria-live', /.+/);
+    expect(await page.locator(`${L} ticket-card ticket-elapsed [aria-live]`).count()).toBe(0);
+    await shot(page, 'cards-clock');
+    await goBoard(page, '/tickets/board');
+    await page.waitForSelector(`${B} ticket-card`);
+    await expect(page.locator(`${B} ticket-card ticket-elapsed [data-elapsed="open"]`).first()).toHaveText(/פתוחה/);
+    await expect(page.locator(`${B} [data-state="all"]`)).toHaveAttribute('title', /הוותיקה פתוחה/);
+    await page.locator(`${B} [data-closed-toggle]`).click();
+    await shot(page, 'board-clock');
+    if (isPhone(page)) return;
+    await goTable(page, '/tickets/mine');
+    await page.waitForSelector(`${T} table[data-tickets-table] tbody tr`);
+    await page.locator(`${T} tickets-table-toolbar [data-open="columns"]`).click();
+    await page.locator(`${T} tickets-table-toolbar [data-col-toggle="created"]`).check();
+    await expect(page.locator(`${T} th[data-col="created"] button`)).toHaveAttribute('aria-label', /פתוחה/);
+    await expect(page.locator(`${T} tbody td.c-created ticket-elapsed`).first()).toBeVisible();
+  });
 });

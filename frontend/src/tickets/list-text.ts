@@ -60,6 +60,18 @@ const he = {
   bdLoadLabel: 'עומס: {n} {tickets} בטיפול',
   bdClosedRows: 'נסגרו לאחרונה',
   bdOpenRow: 'פתיחת {the_ticket} {n}',
+  // ---- the running clock (owner 2026-10-16): open time, frozen as the total handling time once closed
+  elLessMinute: 'פחות מדקה',
+  elMin: '{m} ד׳',
+  elHour: '{h} ש׳',
+  elHourMin: '{h} ש׳ {m} ד׳',
+  elDayOne: '1 יום',
+  elDays: '{d} ימים',
+  elOpen: '{f:פתוחה|m:פתוח} {dur}',
+  elHandled: '{f:טופלה|m:טופל} תוך {dur}',
+  elCancelled: '{f:בוטלה|m:בוטל} אחרי {dur}',
+  elOldest: '{f:הוותיקה|m:הוותיק} {f:פתוחה|m:פתוח} {dur}',
+  elTitle: 'משך הזמן מפתיחת {the_ticket}',
 } as const;
 
 export type ListTextKey = keyof typeof he;
@@ -104,6 +116,17 @@ const en: Partial<Record<ListTextKey, string>> = {
   bdLoadLabel: 'Load: {n} {tickets} in progress',
   bdClosedRows: 'Closed lately',
   bdOpenRow: 'Open {the_ticket} {n}',
+  elLessMinute: 'Under a minute',
+  elMin: '{m} min',
+  elHour: '{h} h',
+  elHourMin: '{h} h {m} min',
+  elDayOne: '1 day',
+  elDays: '{d} days',
+  elOpen: 'Open {dur}',
+  elHandled: 'Handled in {dur}',
+  elCancelled: 'Cancelled after {dur}',
+  elOldest: 'Oldest open {dur}',
+  elTitle: 'Time since the {ticket} was opened',
 };
 
 /** The raw template of a key (the unit tests read it). */
