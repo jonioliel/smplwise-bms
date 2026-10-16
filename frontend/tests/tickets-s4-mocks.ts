@@ -86,6 +86,10 @@ function present(c: Contact, full: boolean, configure: boolean) {
   };
 }
 
+/** the `costs` block of the installation document (the costs tab of the settings reads it; TKUI6 evidence) */
+const COSTS = { mode: 'optional', currencies: ['ILS'], vat_rate_bp: 1800, claim_window_days: 14, require_invoice: false, max_claim_total_minor: 100_000_000,
+  review_flag_above_minor: 1_000_000, notify_vendor_approved: true, retention_days: 2555 };
+
 interface Link { contact: Contact; generation: number; state: 'live' | 'grace' | 'expired' | 'revoked'; reason: string | null; sent: boolean; opens: number }
 
 export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<S4Mock> {
@@ -292,10 +296,10 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
         publicDoc = { organization_name: b?.organization_name ?? publicDoc.organization_name, public: { ...publicDoc.public, ...(b?.public ?? {}) } as typeof publicDoc.public };
         if (b?.organization_name === undefined && b?.public === undefined) return route.fallback();
         return json(route, { revision: 2, ui: { detail: 'drawer_fullscreen', new_ticket: 'sheet' }, links: { sliding_days: 14, cap_days: 90, grace_hours: 24 },
-          send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true, ...publicDoc });
+          send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true, costs: COSTS, ...publicDoc });
       }
       return json(route, { revision: 1, ui: { detail: 'drawer_fullscreen', new_ticket: 'sheet' }, links: { sliding_days: 14, cap_days: 90, grace_hours: 24 },
-        send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true, ...publicDoc });
+        send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true, costs: COSTS, ...publicDoc });
     }
     if (p === 'tickets/health') {
       mine();

@@ -2,9 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { LiveRefresh } from '../tickets/live-refresh';
-import '../components/sw-page';
 import '../components/sw-card';
-import '../components/sw-tabs';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
@@ -14,6 +12,7 @@ import '../tickets/public-settings';
 import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
 import '../tickets/settings-message-templates'; // slice 5b: תבניות הודעה (D26)
 import '../tickets/settings-costs'; // slice 9b: costs (11A.14)
+import '../tickets/board-settings'; // slice 6: the board's rows (the display tab)
 import { ct } from '../tickets/cost-text';
 import { mtt } from '../tickets/messages-text';
 import { ApiError, describeError, patch } from '../api/client';
@@ -24,6 +23,9 @@ import { loadTree } from '../api/catalog';
 import { replaceRoute } from '../router';
 import { applyTicketsHidden, TICKETS_HANDLERS_HREF } from '../shell/nav';
 import { settingsStyles } from '../styles/settings';
+import { automationsStyles } from '../styles/automations-glass';
+import { mediaPageStyles } from '../styles/media-page';
+import { applyAutomationsGlass } from '../api/automations-demo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
@@ -34,6 +36,7 @@ import {
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
 import { intIn, windowProblem } from '../tickets/durations';
 import { ticketSettingsCss } from '../tickets/settings-styles';
+import { SETTINGS_TABS, isSettingsTab, rovingIndex, visibleTabs } from '../tickets/settings-tabs';
 import { tt, type TicketTextKey } from '../tickets/text';
 import { ticketPermLabel } from '../tickets/perm-label';
 import '../tickets/board-settings'; // CR-038 slice 6: the D19-D21 rows of the display card
@@ -41,8 +44,8 @@ import type { BoardSettingsDoc } from '../api/tickets-board';
 import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
 import { setLongPressMode } from '../tickets/device-entry';
 
-type Tab = 'general' | 'departments' | 'channel' | 'messages' | 'costs' | 'permissions';
-const TABS: readonly Tab[] = ['general', 'departments', 'channel', 'messages', 'costs', 'permissions'];
+type Tab = (typeof SETTINGS_TABS)[number];
+const TABS = SETTINGS_TABS;
 const PERMS = ['view', 'create', 'manage', 'external', 'all_departments', 'configure'] as const;
 type Perm = (typeof PERMS)[number];
 const SENSITIVE_PERMS: readonly Perm[] = ['external', 'all_departments', 'configure'];
@@ -98,13 +101,110 @@ export class SystemTickets extends LitElement {
   private okTimer = 0;
   private offNames: (() => void) | null = null;
 
-  static styles = [settingsStyles, ticketSettingsCss, css`
-    sw-tabs {
-      margin-block-end: var(--sw-s-3);
+  /**
+   * TKUI6 (2.6.0): the page frame of the automations / multimedia pages - the glass backdrop, a centred tab pill, the title block, the
+   * glass cards in two columns (one column below 900 px of the page's own width). The cards are the sw-card of every screen: the host
+   * only sets the `--sw-card-*` knobs, which every nested card (the department editor, the channel, template and cost screens, the
+   * handler page card) inherits; the rows, segments and inputs follow the `--sw-*` tokens the glass host bridges to its palette.
+   */
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, settingsStyles, ticketSettingsCss, css`
+    :host {
+      --sw-card-bg: var(--mm-sheen), var(--dv-surface);
+      --sw-card-radius: var(--sw-r-2xl);
+      --sw-card-shadow: var(--dv-shadow-1);
+      --sw-card-blur: var(--dv-surface-blur);
+      --sw-card-pad: 16px 20px;
+      --sw-card-title-fs: var(--sw-fs-lg);
+      --sw-card-title-fw: 700;
+      --sw-seg-border: transparent;
+      --sw-seg-radius: 999px;
+      --sw-seg-btn-radius: 999px;
+      --sw-seg-track: var(--dv-surface-3);
+      --sw-seg-pad: 3px;
+      --sw-seg-gap: 2px;
+      --sw-seg-h: var(--sw-touch-desktop);
+      --sw-seg-divider: 0 solid transparent;
+      --sw-seg-on-bg: var(--mm-seg-thumb);
+      --sw-seg-on-fg: var(--dv-text);
+      --sw-seg-on-shadow: var(--dv-shadow-control);
+    }
+    .page {
+      max-inline-size: 1320px;
+      margin-inline: auto;
+      inline-size: 100%;
+      box-sizing: border-box;
+      gap: 16px;
+    }
+    .stabs {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 15;
+      display: flex;
+      justify-content: center;
+      padding: 12px 0 4px;
+      pointer-events: none;
+    }
+    .stabs .seg {
+      pointer-events: auto;
+      overflow-x: auto;
+      scrollbar-width: none;
+      max-inline-size: 100%;
+      box-shadow: var(--dv-shadow-1);
+    }
+    .stabs .seg::-webkit-scrollbar {
+      display: none;
+    }
+    .stabs .seg button {
+      min-block-size: 40px;
+      padding-inline: 18px;
+    }
+    .ttl {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      align-items: flex-start;
+      padding-inline-end: var(--sw-float-reserve, 0px);
+    }
+    .ttl .crumbs {
+      font-size: var(--sw-fs-sm);
+      color: var(--dv-text-2);
+    }
+    .ttl h1 {
+      font-size: var(--sw-fs-3xl);
+    }
+    .ttl .sub {
+      font-size: var(--sw-fs-md);
+      color: var(--dv-text-2);
+    }
+    .sgrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      align-items: start;
+      min-inline-size: 0;
+    }
+    .sgrid.one {
+      grid-template-columns: minmax(0, 640px);
+    }
+    .sgrid > .col {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-inline-size: 0;
+    }
+    .split,
+    .stack {
+      max-inline-size: none;
+    }
+    @container (max-width: 900px) {
+      .sgrid,
+      .sgrid.one {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
     details[data-dept-deleted] summary {
       cursor: pointer;
-      min-block-size: 36px;
+      min-block-size: 44px;
       display: flex;
       align-items: center;
       font-weight: var(--sw-fw-medium);
@@ -113,22 +213,46 @@ export class SystemTickets extends LitElement {
       display: inline-flex;
       align-items: center;
       flex: none;
-      min-block-size: 36px;
-      padding-inline: 14px;
-      border-radius: var(--sw-r-pill);
-      border: 1px solid var(--sw-border);
-      background: var(--sw-surface);
-      color: var(--sw-accent);
+      min-block-size: 44px;
+      padding-inline: 16px;
+      border-radius: var(--dv-radius-control);
+      border: 1px solid var(--dv-border);
+      background: var(--dv-surface-2);
+      color: var(--dv-accent-text);
       font-weight: var(--sw-fw-medium);
       text-decoration: none;
     }
     .btnlink:hover {
-      border-color: var(--sw-accent);
+      border-color: var(--dv-accent);
     }
-  `, bubbleChrome];
+    /* a narrow page: the seven tabs wrap onto rows instead of scrolling sideways (nothing hidden behind a scroll) */
+    @container (max-width: 900px) {
+      .stabs .seg {
+        flex-wrap: wrap;
+        overflow: visible;
+        justify-content: center;
+        border-radius: var(--sw-r-xl);
+      }
+      .stabs .seg button {
+        flex: 1 1 auto;
+      }
+    }
+    @media (max-width: 767px) {
+      .page {
+        padding: 0 14px 26px;
+      }
+      .stabs {
+        justify-content: stretch;
+      }
+      .stabs .seg {
+        inline-size: 100%;
+      }
+    }
+  `];
 
   connectedCallback() {
     super.connectedCallback();
+    applyAutomationsGlass(this);
     this.readTab();
     window.addEventListener('hashchange', this.onHash);
     this.offNames = onTicketNames(() => this.requestUpdate());
@@ -166,7 +290,16 @@ export class SystemTickets extends LitElement {
       queueMicrotask(() => window.location.replace(`${TICKETS_HANDLERS_HREF}?seg=vendors`));
       return;
     }
-    this.tab = q && TABS.includes(q as Tab) ? (q as Tab) : 'general';
+    this.tab = isSettingsTab(q) ? q : 'general';
+  }
+
+  /** The tab list is a roving-focus group: the arrow keys (the text direction decides which way is forward), Home and End. */
+  private onTabKey(e: KeyboardEvent, ids: string[]): void {
+    const n = rovingIndex(e.key, ids.indexOf(this.tab), ids.length, getComputedStyle(this).direction === 'rtl');
+    if (n === null) return;
+    e.preventDefault();
+    this.setTab(ids[n]);
+    void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-settings-tab="${ids[n]}"]`) as HTMLElement | null)?.focus());
   }
 
   private setTab(id: string): void {
@@ -224,6 +357,8 @@ export class SystemTickets extends LitElement {
       } else if (this.tab === 'departments') {
         await this.loadDepartments();
         if (!this.directory) this.directory = await ticketsApi().directory();
+      } else if (this.tab === 'display') {
+        if (!isApi() || can('system.configure')) this.doc = await ticketsApi().settings();
       } else if (this.tab === 'channel' || this.tab === 'messages' || this.tab === 'costs') {
         // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
@@ -418,8 +553,7 @@ export class SystemTickets extends LitElement {
     const heOne = he.one || DEFAULT_TICKET_NAMES.he.one;
     const heMany = he.many || DEFAULT_TICKET_NAMES.he.many;
     const preview = ['{module}', '{ticket} {f:חדשה|m:חדש}', '{the_tickets} {f:פתוחות|m:פתוחים}'].map((tpl) => renderName(tpl, { one: heOne, many: heMany, gender: he.gender, module: he.module?.trim() || moduleDefault('he', heOne, heMany) }));
-    return html`<div class="stack">
-      <sw-card heading=${tt('setModuleCard')} data-card="module">
+    const moduleCard = html`<sw-card heading=${tt('setModuleCard')} data-card="module">
         <div class="row"><span class="lbl">${tt('setModuleSwitch')}<span class="muted">${tt('setModuleSwitchSub')}</span></span>
           <sw-toggle label=${tt('setModuleSwitch')} labelHidden .checked=${!!this.enabled} ?disabled=${!mayConfigure || this.switching} data-tickets-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>
         ${this.enabled && this.draft ? html`<div class="row stack" data-name-editor>
@@ -432,25 +566,63 @@ export class SystemTickets extends LitElement {
             <sw-button size="sm" variant="ghost" data-name-default ?disabled=${this.busy} @click=${() => (this.draft = structuredClone(DEFAULT_TICKET_NAMES) as NameEntries)}>${tt('setNameDefault')}</sw-button></div>` : nothing}
         </div>` : nothing}
         ${!this.enabled ? html`<div class="row"><span class="muted" data-module-off>${tt('setModuleOff')}</span></div>` : nothing}
-      </sw-card>
-      ${this.enabled && mayHandlers ? html`<sw-card heading=${tt('setHandlersCard')} data-card="handlers-link">
+      </sw-card>`;
+    const handlersCard = this.enabled && mayHandlers ? html`<sw-card heading=${tt('setHandlersCard')} data-card="handlers-link">
         <div class="row"><span class="lbl">${tt('hdSeg_handlers')} · ${tt('hdSeg_vendors')} · ${tt('hdSeg_contacts')}</span>
           <a class="btnlink" href=${TICKETS_HANDLERS_HREF} data-to-handlers>${tt('setHandlersOpen')}</a></div>
-      </sw-card>` : nothing}
-      ${this.enabled && this.doc && mayConfigure ? html`<sw-card heading=${tt('setDisplayCard')} data-card="display">
-        <div class="row"><span class="lbl">${tt('setDetail')}<span class="muted">${tt('setDetailSub')}</span></span>
-          <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.detail === v)} aria-checked=${String(this.doc?.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { detail: v } })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
-        <div class="row"><span class="lbl">${tt('setNewTicket')}<span class="muted">${tt('setNewTicketSub')}</span></span>
-          <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { new_ticket: v } })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
-        ${drawerSettingsRows(this.doc?.ui, this.busy, (ui) => void this.saveDoc({ ui }))}
-        <ticket-board-settings .doc=${this.doc as unknown as BoardSettingsDoc} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<BoardSettingsDoc>) => { this.doc = e.detail as unknown as SettingsDoc; this.say(tt('setSaved')); }}></ticket-board-settings>
-        ${this.longPressRow()}
-      </sw-card>
-      ${this.linksCard(this.doc)}
-      ${this.hoursCard(this.doc)}
-      <tickets-public-card .doc=${this.doc} ?busy=${this.busy} ?remote=${onRemote()} .saveError=${this.publicError} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}
-        @notice=${this.onNotice}></tickets-public-card>` : nothing}
+      </sw-card>` : nothing;
+    if (!(this.enabled && this.doc && mayConfigure)) return html`<div class="sgrid one" data-settings-cols><div class="col">${moduleCard}${handlersCard}</div></div>`;
+    return html`<div class="sgrid" data-settings-cols>
+      <div class="col">
+        ${moduleCard}
+        ${handlersCard}
+        <tickets-public-card .doc=${this.doc} ?busy=${this.busy} ?remote=${onRemote()} .saveError=${this.publicError} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}
+          @notice=${this.onNotice}></tickets-public-card>
+      </div>
+      <div class="col">
+        ${this.linksCard(this.doc)}
+        ${this.hoursCard(this.doc)}
+      </div>
     </div>`;
+  }
+
+  /**
+   * TKUI6: the tab "תצוגה" - what used to be the display card of the general tab, in the cards of mock-up v5: how a request opens (D18 /
+   * D22), the manager board (D19 / D20 / D21: the floors, the grouping, the closed strip), the device tab (D17). Every row is an
+   * existing installation setting; the mock-up's rows with no key behind them (the "today" row, the card options, the calendar, the
+   * detail size names) are not drawn.
+   */
+  private displayTab(): TemplateResult {
+    if (!this.doc) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    const doc = this.doc;
+    return html`<div class="sgrid" data-settings-cols data-display-tab>
+      <div class="col">
+        <sw-card heading=${tt('u6CardOpen')} data-card="display">
+          <div class="row"><span class="lbl">${tt('setDetail')}<span class="muted">${tt('setDetailSub')}</span></span>
+            <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(doc.ui.detail === v)} aria-checked=${String(doc.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { detail: v } })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
+          <div class="row"><span class="lbl">${tt('setNewTicket')}<span class="muted">${tt('setNewTicketSub')}</span></span>
+            <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(doc.ui.new_ticket === v)} aria-checked=${String(doc.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { new_ticket: v } })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
+          ${this.requestDrawerRows(doc)}
+        </sw-card>
+      </div>
+      <div class="col">
+        <sw-card heading=${tt('u6CardBoard')} data-card="display-board">
+          <ticket-board-settings .doc=${doc as unknown as BoardSettingsDoc} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<BoardSettingsDoc>) => { this.doc = e.detail as unknown as SettingsDoc; this.say(tt('setSaved')); }}></ticket-board-settings>
+        </sw-card>
+        <sw-card heading=${tt('u6CardDevice')} data-card="display-device">${this.longPressRow()}</sw-card>
+      </div>
+    </div>`;
+  }
+
+  /**
+   * TKUI6 -> TKUI1 hook: the two display settings of the request drawer ("the tab it opens on", "how it opens: half sheet / full screen")
+   * are owned by the drawer rebuild (branch pilot/TKUI1-drawer), which adds their keys to the installation document. The place is here,
+   * at the end of the "פתיחה והצגה" card; nothing is drawn until those keys exist (no setting is invented on this side).
+   */
+  private requestDrawerRows(doc: SettingsDoc): TemplateResult | typeof nothing {
+    // integration: TKUI1 owns the rows (tab, size, phone sheet); TKUI6 only places them in the display tab
+    if ((doc.ui as unknown as Record<string, string | undefined>).detail_tab === undefined) return nothing;
+    return drawerSettingsRows(doc.ui as never, this.busy, (ui) => void this.saveDoc({ ui }));
   }
 
   // ---------------------------------------------------------------- departments (slice 2: list + editor)
@@ -647,7 +819,7 @@ export class SystemTickets extends LitElement {
     if (this.permsFailed) return this.permsError();
     if (!this.holders) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     try {
-      return html`<div class="stack">${this.matrixCard()}${this.holdersCard()}${this.grantCard()}</div>`;
+      return html`<div class="sgrid" data-settings-cols><div class="col">${this.matrixCard()}</div><div class="col">${this.holdersCard()}${this.grantCard()}</div></div>`;
     } catch (e) {
       console.error('tickets permissions tab: render failed', e instanceof Error ? e.name : typeof e);
       return this.permsError();
@@ -664,27 +836,24 @@ export class SystemTickets extends LitElement {
 
   render() {
     const heading = tt('area');
-    if (this.enabled === null) return html`<sw-page crumbs="הגדרות" heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    const channel = !isApi() || can('system.configure'); // slice 5b: the master switch and the e-mail fallback (PUT /tickets/channel)
-    const templates = !isApi() || can('tickets.configure'); // slice 5b: message templates (D26)
-    const costsTab = !isApi() || can('system.configure'); // slice 9b: the costs document (PUT /tickets/settings)
-    const tabs = this.enabled ? html`<sw-tabs variant="underline" data-tickets-settings-tabs .items=${[
-      { id: 'general', label: tt('setTabGeneral') }, { id: 'departments', label: tt('setTabDepartments') },
-      ...(channel ? [{ id: 'channel', label: mtt('tabChannel') }] : []), ...(templates ? [{ id: 'messages', label: mtt('tabTemplates') }] : []), // slice 5b
-      ...(costsTab ? [{ id: 'costs', label: ct('setTab') }] : []), // slice 9b
-      { id: 'permissions', label: tt('setTabPermissions') },
-    ]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;
+    if (this.enabled === null) return html`<div class="page" data-tickets-settings><div class="ttl"><div class="crumbs">הגדרות</div><h1>${heading}</h1></div><sw-state-panel state="loading"></sw-state-panel></div>`;
+    const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), permissions: tt('setTabPermissions') };
+    const items = visibleTabs({ api: isApi(), can }).map((id) => ({ id, label: labels[id] }));
+    const tabs = this.enabled ? html`<div class="stabs"><div class="seg sm" role="tablist" aria-label=${heading} data-tickets-settings-tabs @keydown=${(e: KeyboardEvent) => this.onTabKey(e, items.map((x) => x.id))}>${items.map((i) => html`<button type="button" role="tab"
+      aria-selected=${String(this.tab === i.id)} tabindex=${this.tab === i.id ? '0' : '-1'} data-settings-tab=${i.id} @click=${() => this.setTab(i.id)}>${i.label}</button>`)}</div></div>` : nothing;
     const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
+      : this.tab === 'display' ? this.displayTab()
       : this.tab === 'channel' ? html`<tickets-channel-settings @notice=${this.onNotice}></tickets-channel-settings>` // slice 5b
       : this.tab === 'messages' ? html`<tickets-message-templates @notice=${this.onNotice}></tickets-message-templates>` // slice 5b
       : this.tab === 'costs' ? html`<tickets-costs-settings @notice=${this.onNotice}></tickets-costs-settings>` // slice 9b
       : this.permissionsTab();
-    return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${tt('setSub')} data-tickets-settings data-tab=${this.tab}>
+    return html`<div class="page" data-tickets-settings data-tab=${this.tab}>
       ${tabs}
+      <div class="ttl"><div class="crumbs">הגדרות</div><h1>${heading}</h1><div class="sub">${tt('setSub')}</div></div>
       ${this.error ? html`<div class="msg err" role="alert" data-tickets-settings-error>${this.error}</div>` : nothing}
       ${this.ok ? html`<div class="msg ok" role="status" data-tickets-settings-ok>${this.ok}</div>` : nothing}
       ${body}
-    </sw-page>`;
+    </div>`;
   }
 }
 

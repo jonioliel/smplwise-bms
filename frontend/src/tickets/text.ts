@@ -10,6 +10,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { S4_EN, S4_HE } from './text-s4';
+import { UI6_EN, UI6_HE } from './text-ui6';
 
 const he = {
   // the area, the navigation, the settings index
@@ -383,6 +384,7 @@ const he = {
   p_configure: 'הגדרות',
   sensitive: 'רגישה',
   ...S4_HE, // slice 4: contacts and vendors, the handler page, sending outside, the link panel (tickets/text-s4.ts)
+  ...UI6_HE, // TKUI6: the redesigned handlers page and settings (tickets/text-ui6.ts)
 } as const;
 
 export type TicketTextKey = keyof typeof he;
@@ -732,6 +734,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   p_configure: 'Settings',
   sensitive: 'Sensitive',
   ...S4_EN, // slice 4 (tickets/text-s4.ts)
+  ...UI6_EN, // TKUI6 (tickets/text-ui6.ts)
 };
 
 /** The language of the tickets screens: the document's (English or the product's Hebrew). */

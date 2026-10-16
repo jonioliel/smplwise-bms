@@ -2,11 +2,13 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { LiveRefresh } from './live-refresh';
 import { repeat } from 'lit/directives/repeat.js';
-import '../components/sw-card';
 import '../components/sw-toggle';
 import '../components/sw-button';
+import '../components/sw-drawer';
 import '../components/sw-state-panel';
 import { settingsStyles } from '../styles/settings';
+import { automationsStyles } from '../styles/automations-glass';
+import { applyAutomationsGlass } from '../api/automations-demo';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
@@ -16,11 +18,15 @@ import { CONTACT_CHANNELS, CONTACT_LANGS, ticketsS4Api, type Contact, type Conta
 import { canAnywhere, isApi } from '../api/session';
 import { CURRENCIES, type CostMode } from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
+import { handlersGlass } from './handlers-glass';
+import { tIcon } from './icons';
+import { seesLoad, type MemberLoad } from './handler-load';
 import { ct } from './cost-text';
 import { decimalToMinor, minorToInput } from './cost-model';
 import { tt, type TicketTextKey } from './text';
 
 /** The languages by their own names (the page and the messages of a contact speak it). */
+const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((x) => x[0] ?? '').join('');
 const LANG_NAMES: Record<ContactLang, string> = { he: 'עברית', en: 'English', ar: 'العربية', ru: 'Русский' };
 type KindFilter = 'all' | ContactKind;
 interface Draft {
@@ -55,11 +61,20 @@ export class TicketsContacts extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   /** one kind only (the handlers page's segments); '' = every kind with the kind filter (the old settings tab) */
   @property() kind: ContactKind | '' = '';
+  /** TKUI6: the page's department chip ('' = all) and search text (the page's own box; the old in-card search is gone) */
+  @property() dept = '';
+  @property() query = '';
+  /** a section head (title, count, sub line); the page's "+" opens the new row of a vendor / person list, an employee list carries its own */
+  @property({ type: Boolean }) head = false;
+  @property({ type: Boolean }) newbtn = false;
+  /** the load by assignee key (`contact:<id>` for an employee without an account), from the board - department managers only */
+  @property({ attribute: false }) loads: Map<string, MemberLoad> | null = null;
+  /** the departments the viewer manages (the load of an employee is shown only to a manager of one of the employee's departments) */
+  @property({ attribute: false }) managed: readonly string[] = [];
   @state() private rows: Contact[] | null = null;
   /** the vendors a person may work for, when the list itself is locked to persons */
   @state() private vendorRows: Contact[] = [];
   @state() private canEdit = false;
-  @state() private query = '';
   @state() private filter: KindFilter = 'all';
   @state() private selected = '';
   @state() private creating = false;
@@ -74,22 +89,30 @@ export class TicketsContacts extends LitElement {
   private searchTimer = 0;
   private loadedKind: ContactKind | '' = '';
 
-  static styles = [settingsStyles, ticketSettingsCss, css`
+  static styles = [bubbleChrome, ...automationsStyles, settingsStyles, ticketSettingsCss, handlersGlass, css`
     :host {
       display: block;
       min-inline-size: 0;
     }
-    .tools {
+    .sec {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .drawer-body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 14px;
+    }
+    .drawer-body .foot {
+      margin-block-start: 6px;
+    }
+    .hcard .fchips {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .tools .in[type='search'] {
-      flex: 1 1 160px;
-    }
-    .ditem .kind {
-      flex: none;
+      gap: 6px;
+      min-inline-size: 0;
     }
     .form {
       display: grid;
@@ -141,6 +164,17 @@ export class TicketsContacts extends LitElement {
       background: var(--sw-danger-soft, var(--sw-stale-soft));
       font-size: var(--sw-fs-sm);
     }
+    .form .in,
+    .form select.in,
+    .form textarea.in {
+      min-block-size: 44px;
+      border-radius: var(--dv-radius-control);
+      border-color: var(--dv-border);
+      background: var(--dv-surface-2);
+    }
+    .form textarea.in {
+      border-radius: var(--dv-radius-sm);
+    }
     .chk {
       display: inline-flex;
       align-items: center;
@@ -161,6 +195,7 @@ export class TicketsContacts extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    applyAutomationsGlass(this);
     this.live.start();
     void this.load();
     void ticketsApi().meta().then((m) => (this.departments = m.departments.map((d) => ({ id: d.id, name: d.name })))).catch(() => undefined);
@@ -180,7 +215,16 @@ export class TicketsContacts extends LitElement {
       this.draft = null;
       this.rows = null;
       void this.load();
+    } else if (changed.has('query') && changed.get('query') !== undefined && this.isConnected) {
+      // the page's search box: a debounced re-read (the server filters by name / phone / company)
+      window.clearTimeout(this.searchTimer);
+      this.searchTimer = window.setTimeout(() => void this.load(), 250);
     }
+  }
+
+  /** The page's "+ ספק" / "+ איש קשר": the editor with a new row. */
+  startNew(): void {
+    if (this.canEdit || this.rows === null) this.open(null);
   }
 
   private notice(detail: { ok?: string; error?: string }): void {
@@ -204,12 +248,6 @@ export class TicketsContacts extends LitElement {
       if (e instanceof ApiError && e.status === 403) this.denied = true;
       else this.notice({ error: describeError(e) });
     }
-  }
-
-  private search(value: string): void {
-    this.query = value;
-    window.clearTimeout(this.searchTimer);
-    this.searchTimer = window.setTimeout(() => void this.load(), 250);
   }
 
   private open(c: Contact | null): void {
@@ -322,36 +360,108 @@ export class TicketsContacts extends LitElement {
 
   // ---------------------------------------------------------------- render
 
-  private listCard(): TemplateResult {
+  /** The rows the page's department chip leaves: a contact of no department belongs to all of them. */
+  private shown(): Contact[] {
     const rows = this.rows ?? [];
-    const filters: KindFilter[] = ['all', 'vendor', 'person', 'employee'];
-    const locked = this.kind;
-    const heading = locked === 'employee' ? tt('hdEmployees') : locked === 'vendor' ? tt('hdSeg_vendors') : locked === 'person' ? tt('hdSeg_contacts') : tt('ctTitle');
-    return html`<sw-card heading=${heading} subheading=${locked ? '' : tt('ctSub')} data-card="contacts" data-contacts-kind=${locked || 'all'}>
-      <div class="tools">
-        <input class="in" type="search" maxlength="60" data-contacts-search aria-label=${tt('ctSearch')} placeholder=${tt('ctSearch')} .value=${this.query}
-          @input=${(e: Event) => this.search((e.target as HTMLInputElement).value)} />
-        ${locked ? nothing : html`<span class="seg" role="radiogroup" aria-label=${tt('ctColKind')}>${filters.map((f) => html`<button type="button" role="radio" aria-checked=${String(this.filter === f)}
-          aria-pressed=${String(this.filter === f)} data-contacts-filter=${f} @click=${() => { this.filter = f; void this.load(); }}>${f === 'all' ? tt('tabAll') : tt(`ctKind_${f}` as TicketTextKey)}</button>`)}</span>`}
-        ${this.canEdit ? html`<sw-button size="sm" variant="primary" icon="plus" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${locked ? tt(`ctNew_${locked}` as TicketTextKey) : tt('ctNew')}</sw-button>` : nothing}
-      </div>
-      ${this.rows === null ? html`<sw-state-panel state="loading"></sw-state-panel>` : rows.length ? html`<div class="dlist" role="list" data-contacts-list>
-        ${repeat(rows, (c) => c.id, (c) => html`<button type="button" role="listitem" class=${`ditem ${c.active ? '' : 'off'}`} aria-current=${String(c.id === this.selected)}
-          data-contact-item=${c.id} @click=${() => this.open(c)}>
-          <span class="txt"><span class="nm">${bidi(c.display_name)}</span>
-            <span class="sub">${bidi([c.vendor_name ?? c.company, c.phone].filter(Boolean).join(' · ') || '–')}</span></span>
-          ${c.require_code ? html`<span class="tag">${tt('lkCode')}</span>` : nothing}
-          ${c.open_tickets ? html`<span class="tag acc" data-open-tickets>${c.open_tickets} ${tt('ctColOpen')}</span>` : nothing}
-          ${locked ? nothing : html`<span class=${`tag kind ${c.kind === 'vendor' ? 'acc' : ''}`}>${tt(`ctKind_${c.kind}` as TicketTextKey)}</span>`}
-          ${c.active ? nothing : html`<span class="tag">${tt('depInactive')}</span>`}
-        </button>`)}</div>`
-        : html`<sw-state-panel state="empty" heading=${this.query || this.filter !== 'all' ? tt('ctNone') : locked ? tt(`ctEmpty_${locked}` as TicketTextKey) : tt('ctEmpty')}></sw-state-panel>`}
-    </sw-card>`;
+    return this.dept ? rows.filter((c) => !c.departments.length || c.departments.includes(this.dept)) : rows;
   }
 
-  private readOnlyCard(c: Contact): TemplateResult {
+  private deptName(id: string): string {
+    return this.departments.find((d) => d.id === id)?.name ?? id;
+  }
+
+  private chIcon(c: ContactChannel): TemplateResult {
+    return c === 'whatsapp' ? tIcon('send') : c === 'email' ? tIcon('note') : tIcon('copy');
+  }
+
+  /** The preferred channel of a card: three round choices (a quick edit for a holder of tickets.configure, a plain mark otherwise). */
+  private channelSel(c: Contact): TemplateResult {
+    return html`<span class="chsel" role="radiogroup" aria-label=${tt('u6ChannelPref')} data-contact-channels>${CONTACT_CHANNELS.map((ch) => html`<button type="button" role="radio"
+      aria-checked=${String(c.preferred_channel === ch)} aria-label=${tt(`ch_${ch}` as TicketTextKey)} title=${tt(`ch_${ch}` as TicketTextKey)} data-contact-channel=${ch}
+      ?disabled=${!this.canEdit || this.busy} @click=${() => void this.quickChannel(c, ch)}>${this.chIcon(ch)}</button>`)}</span>`;
+  }
+
+  private async quickChannel(c: Contact, ch: ContactChannel): Promise<void> {
+    if (!this.canEdit || this.busy || c.preferred_channel === ch) return;
+    this.busy = true;
+    try {
+      await ticketsS4Api().patchContact(c.id, { preferred_channel: ch, revision: c.revision });
+      this.notice({ ok: tt('setSaved') });
+      await this.load();
+    } catch (e) {
+      this.notice({ error: describeError(e) });
+      if (e instanceof ApiError && e.status === 409) await this.load();
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private loadOf(c: Contact): MemberLoad | null {
+    if (!this.loads || !seesLoad(this.managed, c.departments)) return null;
+    return this.loads.get(`contact:${c.id}`) ?? { open: 0, waiting: 0, stuck: 0 };
+  }
+
+  /** A vendor or an employee without an account: the handler card of mock-up v5. */
+  private card(c: Contact): TemplateResult {
+    const employee = c.kind === 'employee';
+    const load = employee ? this.loadOf(c) : null;
+    const sub = employee ? [tt('u6NoAccount'), c.phone].filter(Boolean).join(' · ') : [c.phone, LANG_NAMES[c.lang]].filter(Boolean).join(' · ');
+    return html`<article class=${`glass hcard ${c.active ? '' : 'off'}`} data-contact-card=${c.id}>
+      <header>
+        <button type="button" class="main" data-contact-item=${c.id} aria-current=${String(c.id === this.selected)} @click=${() => this.open(c)}>
+          <span class=${`tile ${employee ? '' : 'int'}`} aria-hidden="true">${initials(c.display_name)}</span>
+          <span class="t"><h3>${bidi(c.display_name)}</h3>
+            <span class="role">${bidi(sub || '–')}${employee ? html`<span class="chip xs pur">${tIcon('link')}${tt('u6PersonalLink')}</span>` : nothing}${c.active ? nothing : html`<span class="chip xs">${tt('depInactive')}</span>`}</span></span>
+        </button>
+      </header>
+      ${employee
+        ? (load ? html`<div class="stats" data-contact-stats>
+            <div><b data-stat="open">${load.open}</b>${tt('u6Open')}</div>
+            <div><b class=${load.waiting ? 'warn' : ''} data-stat="waiting">${load.waiting}</b>${tt('u6WaitingHim')}</div>
+            <div><b class=${load.stuck ? 'bad' : ''} data-stat="stuck">${load.stuck}</b>${tt('u6Stuck')}</div></div>` : nothing)
+        : html`<div class="stats" data-contact-stats><div><b data-stat="open">${c.open_tickets}</b>${tt('u6Open')}</div></div>`}
+      <footer>
+        <span class="fchips">${c.departments.map((id) => html`<span class="chip">${bidi(this.deptName(id))}</span>`)}</span>
+        ${employee
+          ? (c.preferred_channel === 'whatsapp' && c.has_phone ? html`<span class="chip wa">${tIcon('send')}${tt('ch_whatsapp')}</span>` : nothing)
+          : html`<span class="push"></span>${this.channelSel(c)}<span class=${`chip ${c.require_code ? 'info' : ''}`} title=${tt('u6CodeTitle')} data-contact-code>${tIcon('lock')}${c.require_code ? tt('u6CodeOn') : tt('u6CodeOff')}</span>`}
+      </footer>
+    </article>`;
+  }
+
+  /** A contact (a person): a row with the name, the vendor, the phone, the language and the channel marks. */
+  private row(c: Contact): TemplateResult {
+    return html`<button type="button" role="listitem" class=${`crow ${c.active ? '' : 'off'}`} aria-current=${String(c.id === this.selected)} data-contact-item=${c.id} @click=${() => this.open(c)}>
+      <span class="av" aria-hidden="true">${initials(c.display_name)}</span>
+      <span><b>${bidi(c.display_name)}</b><small>${bidi(c.vendor_name ?? c.company ?? '') || ' '}</small></span>
+      <span class="ltr hide-p">${c.phone ?? '–'}</span>
+      <span class="hide-p mut">${LANG_NAMES[c.lang]}</span>
+      <span class="chs" aria-label=${tt(`ch_${c.preferred_channel}` as TicketTextKey)}>${CONTACT_CHANNELS.map((ch) => html`<span class=${c.preferred_channel === ch ? 'on' : ''}>${this.chIcon(ch)}</span>`)}</span>
+    </button>`;
+  }
+
+  private listCard(): TemplateResult {
+    const rows = this.shown();
+    const locked = this.kind;
+    const title = locked === 'employee' ? tt('u6SecEmployees') : locked === 'vendor' ? tt('hdSeg_vendors') : tt('hdSeg_contacts');
+    const sub = locked === 'employee' ? tt('u6SecEmployeesSub') : locked === 'vendor' ? tt('u6SecVendorsSub') : tt('u6SecContactsSub');
+    const filtered = !!this.query.trim() || !!this.dept;
+    let list: TemplateResult;
+    if (this.rows === null) list = html`<div class="cgrid" data-contacts-loading aria-busy="true"><div class="glass hcard"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:44px"></span></div></div>`;
+    else if (!rows.length) list = html`<sw-state-panel state="empty" heading=${filtered ? tt('ctNone') : locked ? tt(`ctEmpty_${locked}` as TicketTextKey) : tt('ctEmpty')}></sw-state-panel>`;
+    else if (locked === 'person') list = html`<div class="glass crows" role="list" data-contacts-list>${repeat(rows, (c) => c.id, (c) => this.row(c))}</div>`;
+    else list = html`<div class="cgrid" data-contacts-list>${repeat(rows, (c) => c.id, (c) => this.card(c))}</div>`;
+    return html`<div class="sec" data-card="contacts" data-contacts-kind=${locked || 'all'}>
+      ${this.head ? html`<div class="sh"><h2>${title}<span class="n" data-contacts-count>${rows.length}</span></h2><small>${sub}</small>
+        <span class="grow"></span>
+        ${this.newbtn && this.canEdit ? html`<button type="button" class="btn sm" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${tIcon('plus')}${tt(`ctNew_${locked || 'person'}` as TicketTextKey)}</button>` : nothing}</div>` : nothing}
+      ${list}
+    </div>`;
+  }
+
+  private readOnlyBody(c: Contact): TemplateResult {
     const deptNames = c.departments.length ? c.departments.map((id) => this.departments.find((d) => d.id === id)?.name ?? id).join(', ') : tt('ctDepartmentsAll');
-    return html`<sw-card heading=${c.display_name} subheading=${tt(`ctKind_${c.kind}` as TicketTextKey)} data-card="contact" data-contact=${c.id}>
+    return html`<div class="drawer-body" data-card="contact" data-contact=${c.id}>
       <dl class="ro">
         ${c.company ? html`<dt>${tt('ctCompany')}</dt><dd>${bidi(c.company)}</dd>` : nothing}
         ${c.vendor_name ? html`<dt>${tt('ctVendor')}</dt><dd>${bidi(c.vendor_name)}</dd>` : nothing}
@@ -360,7 +470,7 @@ export class TicketsContacts extends LitElement {
         <dt>${tt('ctRequireCode')}</dt><dd>${c.require_code ? tt('ctYes') : tt('ctNo')}</dd>
         <dt>${tt('ctDepartments')}</dt><dd>${deptNames}</dd>
       </dl>
-    </sw-card>`;
+    </div>`;
   }
 
   /** slice 9: the cost-claim defaults of the contact (11A.1 / 11A.2); the hourly rate only for holders of tickets.costs.view (11A.8). */
@@ -392,8 +502,7 @@ export class TicketsContacts extends LitElement {
     const seg = <T extends string>(label: string, values: readonly T[], current: T, text: (v: T) => string, on: (v: T) => void, attr: string) => html`
       <div class="fld"><span>${label}</span><span class="seg" role="radiogroup" aria-label=${label}>${values.map((v) => html`<button type="button" role="radio"
         aria-checked=${String(current === v)} aria-pressed=${String(current === v)} data-field=${`${attr}:${v}`} @click=${() => on(v)}>${text(v)}</button>`)}</span></div>`;
-    const fresh = this.kind ? tt(`ctNew_${this.kind}` as TicketTextKey) : tt('ctFormNew');
-    return html`<sw-card heading=${c ? c.display_name : fresh} subheading=${c && !this.kind ? tt(`ctKind_${c.kind}` as TicketTextKey) : ''} data-card="contact-editor" data-contact=${c?.id ?? 'new'} data-contact-kind=${d.kind}>
+    return html`<div class="drawer-body" data-card="contact-editor" data-contact=${c?.id ?? 'new'} data-contact-kind=${d.kind}>
       <div class="form">
         ${kinds.length ? seg(tt('ctColKind'), kinds, d.kind, (v) => tt(`ctKind_${v}` as TicketTextKey), (v) => this.set({ kind: v, vendor_id: v === 'person' ? d.vendor_id : '' }), 'kind') : nothing}
         <label class="fld"><span>${tt('ctName')} *</span><input class="in" maxlength="80" data-field="display_name" aria-invalid=${String(!!this.problem && !d.display_name.trim())}
@@ -441,16 +550,21 @@ export class TicketsContacts extends LitElement {
         <span class="chipsrow"><sw-button size="sm" variant="danger" data-contact-erase-ok ?disabled=${this.busy} @click=${() => void this.erase(c)}>${tt('ctErase')}</sw-button>
           <sw-button size="sm" variant="ghost" @click=${() => (this.erasing = false)}>${tt('ctCancel')}</sw-button></span>
       </div>` : nothing}
-    </sw-card>`;
+    </div>`;
   }
 
   render() {
     if (this.denied) return html`<sw-state-panel state="empty" heading=${tt('ctNoPermission')} data-contacts-denied></sw-state-panel>`;
     const sel = (this.rows ?? []).find((c) => c.id === this.selected) ?? null;
-    const side = this.creating && this.draft ? this.editorCard(null) : sel ? (this.draft ? this.editorCard(sel) : this.readOnlyCard(sel)) : nothing;
-    return html`<div class="split" data-contacts>
-      <div class="stack">${this.listCard()}</div>
-      ${side}
+    const editing = this.creating && !!this.draft;
+    const shownC = editing ? null : sel;
+    const fresh = this.kind ? tt(`ctNew_${this.kind}` as TicketTextKey) : tt('ctFormNew');
+    const heading = editing ? fresh : shownC ? shownC.display_name : '';
+    const body = editing ? this.editorCard(null) : shownC ? (this.draft ? this.editorCard(shownC) : this.readOnlyBody(shownC)) : nothing;
+    return html`<div data-contacts>
+      ${this.listCard()}
+      <sw-drawer modal .open=${editing || !!shownC} heading=${bidi(heading)} subheading=${shownC && !this.kind ? tt(`ctKind_${shownC.kind}` as TicketTextKey) : ''} data-contact-drawer
+        @close=${() => { this.selected = ''; this.creating = false; this.draft = null; }}>${body}</sw-drawer>
     </div>`;
   }
 }

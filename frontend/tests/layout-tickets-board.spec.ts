@@ -26,7 +26,7 @@ const SCREENS: Screen[] = [
     prep: async (p) => { await p.locator('sw-app tickets-board [data-closed-toggle]').click(); } },
   { name: 'board-drawer', hash: '/tickets/board?t=0000000000000a01', wait: 'sw-app tickets-board ticket-detail [data-ticket-detail]', within: 'tickets-board' },
   { name: 'board-forbidden', hash: '/tickets/board', wait: 'sw-app tickets-board [data-tickets-state="forbidden"]', within: 'tickets-board', mock: { persona: 'operator' } },
-  { name: 'settings-display', hash: '/system/tickets', wait: 'sw-app system-tickets ticket-board-settings [data-ui-board]', within: 'system-tickets', mock: { persona: 'admin' } },
+  { name: 'settings-display', hash: '/system/tickets?tab=display', wait: 'sw-app system-tickets ticket-board-settings [data-ui-board]', within: 'system-tickets', mock: { persona: 'admin' } },
 ];
 
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
