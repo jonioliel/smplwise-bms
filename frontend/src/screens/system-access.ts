@@ -24,6 +24,7 @@ import { ht } from '../i18n/ha-users';
 import './system-local-users'; // USR2: the Arx-only identities (tab "משתמשי Arx")
 import { localRoles } from './system-local-users';
 import { lit } from '../i18n/local-identity';
+import './system-lookup-scope'; // CR-WISKEY-LEASE-REVOCATION-EVENT 5: who may look up an old intercom action (system administrator)
 import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
 import { can, isApi, session } from '../api/session';
@@ -1140,9 +1141,9 @@ export class SystemAccess extends LitElement {
       { key: 'decision', label: 'החלטה', render: (r) => html`<sw-badge kind=${r.decision === 'denied' ? 'forbidden' : 'live'} label=${r.decision === 'denied' ? `נחסם${r.reason ? ` · ${String(r.reason)}` : ''}` : 'הותר'}></sw-badge>` },
       { key: 'details', label: 'פרטים', render: (r) => { const d = r.details as Record<string, unknown>; const parts = [d.role_id ? `${String(d.role_id)}` : '', d.scope ? String(d.scope) : '', Array.isArray(d.added) && d.added.length ? `+${(d.added as string[]).length}` : '', Array.isArray(d.removed) && d.removed.length ? `−${(d.removed as string[]).length}` : '', d.revision ? `rev ${String(d.revision)}` : ''].filter(Boolean); return html`<span style="font-size:var(--sw-fs-xs);direction:ltr;unicode-bidi:isolate">${parts.join(' · ')}</span>`; } },
     ];
-    return this.audit.length
+    return html`<sw-lookup-scope></sw-lookup-scope>${this.audit.length
       ? html`<sw-table dense .columns=${columns} .rows=${this.audit as unknown as Record<string, unknown>[]} rowKey="at"></sw-table>`
-      : html`<sw-state-panel state="empty" heading="אין רשומות אודיט הרשאות" hint="כל שיוך, ביטול, קבוצה או שינוי מצב משתמש יופיע כאן."></sw-state-panel>`;
+      : html`<sw-state-panel state="empty" heading="אין רשומות אודיט הרשאות" hint="כל שיוך, ביטול, קבוצה או שינוי מצב משתמש יופיע כאן."></sw-state-panel>`}`;
   }
 
   private renderApi() {

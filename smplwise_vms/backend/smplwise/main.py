@@ -465,6 +465,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import second_factor as second_factor_router
 
     app.include_router(second_factor_router.router, prefix=api, tags=["remote"])  # K11: the optional TOTP second factor (own enrolment, admin reset)
+    from .routers import capture_lease as capture_lease_router
+
+    app.include_router(capture_lease_router.router, prefix=api, tags=["access"])  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: lease route switch (off), lease length, C03 lookup scope
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
     from .routers import local_identity as local_identity_router
 
@@ -616,6 +619,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import ha_sync
 
         ha_sync.SYNC.start(app.state.db, settings)
+        from .services import lease_events
+
+        # CR-WISKEY-LEASE-REVOCATION-EVENT T11 / F4: Arx holds no capture lease after a restart (every live row -> revoked(startup));
+        # a new revocation stream is announced only when there were live rows or the route is on - otherwise nothing is sent
+        await run_in_threadpool(lease_events.WORKER.on_startup, app.state.db, settings)
         from .services import intercom_sync
 
         intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
@@ -709,6 +717,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import ha_sync
 
         ha_sync.SYNC.shutdown()
+        from .services import lease_events
+
+        # CR-WISKEY-LEASE-REVOCATION-EVENT T11: before the WisKey feed stops, any live capture lease is revoked (scope all) within 2 s
+        await _stop_in_thread(lease_events.WORKER.on_shutdown)
         from .services import intercom_sync
 
         intercom_sync.SYNC.shutdown()

@@ -418,7 +418,7 @@ export class WiskeyCardCapture extends LitElement {
     const cancel = CANCELLABLE.has(c.state)
       ? html`<sw-button variant="danger" data-wiskey-capture-cancel ?disabled=${!!busy} @click=${() => void this.cancel()}>${busy === 'cancel' ? t('wait') : 'ביטול הקריאה'}</sw-button>`
       : nothing;
-    const again = ['error', 'captured', 'cancelled', 'expired', 'lost', 'closed'].includes(c.state)
+    const again = ['error', 'captured', 'cancelled', 'expired', 'lost', 'closed', 'revoked'].includes(c.state)
       ? html`<sw-button data-wiskey-capture-again ?disabled=${!!busy} @click=${() => this.again()}>${t('capture_again')}</sw-button>`
       : nothing;
     const save = c.state === 'captured' ? html`<sw-button variant="primary" icon="check" data-wiskey-capture-save ?disabled=${!!busy} @click=${() => { this.setError(''); this.step = 'confirm_save'; }}>${t('capture_save')}</sw-button>` : nothing;

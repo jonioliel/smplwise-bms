@@ -327,6 +327,8 @@ const HE: Record<string, string> = {
   capture_state_lost: 'בקרת הכניסה אינה מכירה עוד את הקריאה (למשל אחרי הפעלה מחדש של תשתית המערכת). לא נשמר כרטיס.',
   capture_state_closed: 'בקרת הכניסה דחתה את הוספת הכרטיס וסגרה את הקריאה. לא נשמר כרטיס.',
   capture_state_confirmed: 'הכרטיס נוסף למשתמש ונשלחה בקשה לסנכרון לתחנות.',
+  // CR-WISKEY-LEASE-REVOCATION-EVENT L5 (the capture-lease route, OFF by default): the one stop message - never a code or a reason
+  capture_state_revoked: 'קריאת הכרטיס הופסקה. לא נשמר כרטיס.',
   manager_closed: 'מנהל הגישה של בקרת הכניסה נסגר (ייתכן שתשתית המערכת נטענה מחדש). נסה שוב בעוד רגע.',
 };
 

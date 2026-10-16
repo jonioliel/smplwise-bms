@@ -1239,6 +1239,7 @@ class IntercomSync:
             from . import notify_sources  # CR-018: a station that starts ringing signals `door.ring` - queued for the notifier's thread, never a write on this loop
 
             notify_sources.on_stations(before, projected["stations"])
+            lease_station_diff(before, projected["stations"])
         STATE.fetched_at = now_iso()
         self._fetched_mono = time.monotonic()
         STATE.refreshes += 1
@@ -1314,6 +1315,7 @@ class IntercomSync:
                 log.warning("WisKey feed disconnected: %s (retry in %.0fs)", code, delay)
             if STATE.connected:
                 STATE.reconnects += 1
+                _lease_hook("feed_reconnect")  # CR-WISKEY-LEASE-REVOCATION-EVENT T8: a feed reconnect revokes every live capture lease
             STATE.connected = False
             try:
                 await asyncio.wait_for(stop_evt.wait(), timeout=delay)
@@ -1428,6 +1430,7 @@ class IntercomSync:
                 intercom_adapter.ADAPTER.cache.invalidate()
                 self._kick()
             elif kind == "access_revoked":
+                _lease_hook("receiver_changed")  # T8: the add-on lost WisKey access - every live capture lease goes
                 self._fail(IntercomError("unauthorized", "subscribe"))
         elif mid == self._entities_sub:
             # subscribe_entities also opens with the current states; that costs one coalesced refetch, and clients
@@ -1533,6 +1536,45 @@ class IntercomSync:
             self._entities_sub = int(frame["id"])
             self._watched = set(ids)  # only now: a refused subscription is tried again on the next refresh
             self._replay_early()
+
+
+def _lease_hook(reason: str, station_ids: list[str] | None = None) -> None:
+    """CR-WISKEY-LEASE-REVOCATION-EVENT T7 / T8 (capture leases). Non-blocking (safe on this event loop), never raises."""
+    try:
+        from . import capture_lease
+
+        if station_ids is None:
+            capture_lease.on_authority_change(reason, all=True)
+        elif station_ids:
+            capture_lease.on_authority_change(reason, station_ids=station_ids)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+LEASE_RECEIVER_KEYS = ("lock_enabled", "locks")
+
+
+def lease_station_diff(before: list[Any], after: list[Any]) -> None:
+    """T7 / T8 from one overview refresh: a station that left the overview or whose `binding_revision` (WisKey's, W? - absent
+    today) moved -> `binding_changed`; a station not online -> `receiver_offline`; its managed lock set changed ->
+    `receiver_changed`. Only stations with a live lease are affected (the hook matches). EXTENSION POINT: the reader set of
+    `cards/reader_capabilities` compared with the one at issue (needs the reader set recorded at issue; not built)."""
+    try:
+        from . import capture_lease
+
+        if not capture_lease.has_live():
+            return
+        old = {s["id"]: s for s in before if isinstance(s, dict) and isinstance(s.get("id"), str)}
+        new = {s["id"]: s for s in after if isinstance(s, dict) and isinstance(s.get("id"), str)}
+        gone = [sid for sid in old if sid not in new]
+        moved = [sid for sid, s in new.items() if sid in old and s.get("binding_revision") != old[sid].get("binding_revision")]
+        offline = [sid for sid, s in new.items() if s.get("online") is not True]
+        receiver = [sid for sid, s in new.items() if sid in old and any(s.get(k) != old[sid].get(k) for k in LEASE_RECEIVER_KEYS)]
+        _lease_hook("binding_changed", gone + moved)
+        _lease_hook("receiver_offline", offline)
+        _lease_hook("receiver_changed", receiver)
+    except Exception:  # noqa: BLE001
+        log.warning("capture lease: station diff failed", exc_info=True)
 
 
 SYNC = IntercomSync()
