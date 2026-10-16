@@ -270,6 +270,10 @@ export const costCardStyles = css`
     unicode-bidi: isolate;
     white-space: nowrap;
   }
+  /* TKLAYFIX: the title, its sub-line and the on-behalf button wrap to a second row on a narrow drawer instead of crossing the panel */
+  .sect[data-cost-section] > h4 {
+    flex-wrap: wrap;
+  }
   .sect[data-embedded] > h4 .muted {
     font-weight: 500;
     color: var(--dv-text-3);

@@ -237,6 +237,10 @@ export const costsTabStyles = css`
     outline-offset: -2px;
     border-radius: var(--sw-r-lg);
   }
+  /* TKLAYFIX: a closed <details> keeps laying its body out (content-visibility hides it but the boxes still extend below the fold, outside the panel); it takes no space until opened. */
+  .fold:not([open]) > .foldbody {
+    display: none;
+  }
   .foldbody {
     display: flex;
     flex-direction: column;
