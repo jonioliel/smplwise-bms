@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,6 +30,7 @@ KINDS = ("anchor", "object")
 NAME_MAX = 120
 # The word used when an element has no human name: NEVER a camera id, an entity_id or a catalog item_id (owner 16.10: no ids reach the vendor).
 GENERIC_NAME = {"he": {"camera": "מצלמה", "item": "רכיב"}, "en": {"camera": "Camera", "item": "Item"}}
+_snapshot_lock = threading.Lock()
 _snapshot_cache: dict[tuple, str] = {}  # the rendered picture per input stamp (see picture()); small, newest kept
 _SNAPSHOT_CACHE_MAX = 64
 
@@ -329,8 +331,9 @@ def picture(conn: sqlite3.Connection, ticket_id: str) -> str | None:
     if row is None:
         return None
     stamp = _stamp(conn, row)
-    if stamp is not None and stamp in _snapshot_cache:
-        return _snapshot_cache[stamp]  # a removed / moved element or a republish changes the stamp (structure version, geometry row)
+    cached = _snapshot_cache.get(stamp) if stamp is not None else None  # one lookup: another thread may evict between two
+    if cached is not None:
+        return cached  # a removed / moved element or a republish changes the stamp (structure version, geometry row)
     el = live(conn, row)
     if not _drawable(el):
         return None
@@ -341,7 +344,8 @@ def picture(conn: sqlite3.Connection, ticket_id: str) -> str | None:
     svg = map_image.render_public_svg(doc, floor_zones(conn, el.floor_id), el.width_px, el.height_px, level=el.level_id, x=el.x_px, y=el.y_px,
                                       caption=text, title=text, room=el.room_name)
     if stamp is not None:
-        if len(_snapshot_cache) >= _SNAPSHOT_CACHE_MAX:
-            _snapshot_cache.pop(next(iter(_snapshot_cache)))
-        _snapshot_cache[stamp] = svg
+        with _snapshot_lock:  # delta review (TKMAPFIX P3): concurrent evictions never raise KeyError / RuntimeError (a 500 on the public picture)
+            while len(_snapshot_cache) >= _SNAPSHOT_CACHE_MAX:
+                _snapshot_cache.pop(next(iter(_snapshot_cache)), None)
+            _snapshot_cache[stamp] = svg
     return svg
