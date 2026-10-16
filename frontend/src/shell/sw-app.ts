@@ -56,6 +56,7 @@ import '../screens/tickets-list'; // CR-038: the tickets area (the list, the dra
 import '../screens/tickets-detail'; // CR-038 D18: a ticket on the full screen (#/tickets/<id>)
 import '../screens/tickets-board'; // CR-038 slice 6: the manager board (#/tickets/board)
 import '../screens/tickets-handlers'; // owner 2026-10-14: "מטפלים וספקים" (#/tickets/handlers)
+import '../tickets/vendor-accounts'; // TK258: "חשבון ספקים" (#/tickets/accounts)
 import '../screens/system-tickets'; // CR-038: the tickets module's settings
 import '../screens/system-messaging-accounts'; // CR-038 S5a: הגדרות › ערוץ ההודעות (WhatsApp accounts per use)
 import '../screens/security-alarm';
@@ -2154,6 +2155,7 @@ export class SwApp extends LitElement {
         if (isTicketId(s[1])) return keyed(s[1], html`<tickets-detail .ticketId=${s[1]}></tickets-detail>`);
         if (s[1] === 'board') return html`<tickets-board .route=${r}></tickets-board>`; // CR-038 slice 6: the manager board (13.5)
         if (s[1] === 'handlers') return html`<tickets-handlers></tickets-handlers>`; // owner 2026-10-14: handlers, employees, vendors, contacts
+        if (s[1] === 'accounts') return html`<tickets-vendor-accounts></tickets-vendor-accounts>`; // TK258: the vendors account
         if (!s[1] || !['mine', 'department', 'all'].includes(s[1])) {
           const first = visibleTabs(AREA_TABS.tickets, this.session.mode === 'api', canNav)[0]?.href ?? '#/tickets/mine';
           queueMicrotask(() => window.location.replace(first));

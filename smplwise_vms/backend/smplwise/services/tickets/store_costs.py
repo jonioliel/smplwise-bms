@@ -214,7 +214,7 @@ def report_rows(conn: sqlite3.Connection, *, date_from: str | None, date_to: str
         where.append("r.currency = ?")
         args.append(currency)
     sql = ("SELECT c.id AS claim_id, c.ticket_id, c.department_id, c.contact_id, c.status, c.required, c.no_charge, c.snapshot_json, "
-           "c.approved_at, c.paid_at, c.payment_ref, c.payment_date, c.approved_total_minor, " + period + " AS period_at, "
+           "c.approved_at, c.paid_at, c.payment_ref, c.payment_date, c.approved_total_minor, c.revision AS claim_revision, " + period + " AS period_at, "
            "r.id AS revision_id, r.seq, r.source, r.kind, r.lines_json, r.labor_minor, r.parts_minor, r.travel_minor, r.other_minor, "
            "r.subtotal_minor, r.vat_mode, r.vat_rate_bp, r.vat_minor, r.total_minor, r.currency, r.vendor_ref, r.created_at AS submitted_at "
            "FROM ticket_cost_claims c JOIN ticket_cost_revisions r ON r.id = COALESCE(c.approved_revision_id, c.current_revision_id) "
