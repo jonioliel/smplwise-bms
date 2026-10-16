@@ -135,6 +135,16 @@ class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; depart
     allowed_line_kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)  # TKDETAILBE
 
 
+class RfqPatch(BaseModel):  # RFQQUESTIONS: the requests-for-quotation section (settings_doc ranges; before this it had no route)
+    model_config = ConfigDict(extra="forbid")
+    default_due_days: int | None = Field(default=None, ge=1, le=60)
+    grace_hours: int | None = Field(default=None, ge=0, le=168)
+    link_keep_days: int | None = Field(default=None, ge=1, le=365)
+    retention_months: int | None = Field(default=None, ge=6, le=120)
+    reminder_hours: int | None = Field(default=None, ge=0, le=168)
+    question_reminder_hours: int | None = Field(default=None, ge=0, le=168)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -148,6 +158,7 @@ class SettingsBody(BaseModel):
     code: CodePatch | None = None  # slice 7
     costs: CostsPatch | None = None  # slice 9
     staff_links: StaffLinksPatch | None = None  # TKSTAFF1
+    rfq: RfqPatch | None = None  # RFQQUESTIONS
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -202,7 +213,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links"):  # slice 2 / slice 4 / slice 7 / slice 9 / TKSTAFF1
+    for block in ("links", "public", "code", "costs", "staff_links", "rfq"):  # slice 2 / slice 4 / slice 7 / slice 9 / TKSTAFF1 / RFQQUESTIONS
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}

@@ -46,6 +46,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "declined": ("{ref}: ספק השיב שאינו מעוניין", "{place}"),
         "question": ("{ref}: שאלת הבהרה מספק", "{place}"),
         "question_whatsapp": ("{ref}: הודעה מספק בוואטסאפ", "{place} · שולח לא מאומת"),
+        "question_unanswered": ("{ref}: שאלת ספק ממתינה לתשובה", "{place} · {hours} שעות ללא מענה"),
         "due_passed": ("{ref}: המועד להגשת הצעות עבר", "{place} · {quoted} מתוך {invited} הגישו הצעה"),
     },
     "en": {
@@ -55,10 +56,12 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "declined": ("{ref}: a vendor declined", "{place}"),
         "question": ("{ref}: clarification question from a vendor", "{place}"),
         "question_whatsapp": ("{ref}: WhatsApp message from a vendor", "{place} · unverified sender"),
+        "question_unanswered": ("{ref}: a vendor question is waiting for an answer", "{place} · {hours} hours without an answer"),
         "due_passed": ("{ref}: the quote deadline passed", "{place} · {quoted} of {invited} quoted"),
     },
 }
-PART_SOURCE = {"quote": "rfq.quote_received", "declined": "rfq.declined", "question": "rfq.question", "due": "rfq.due_passed"}
+PART_SOURCE = {"quote": "rfq.quote_received", "declined": "rfq.declined", "question": "rfq.question", "due": "rfq.due_passed",
+               "qremind": "rfq.question_unanswered"}
 
 
 # ---------------------------------------------------------------- engine callbacks
@@ -192,8 +195,16 @@ def question(conn: sqlite3.Connection, row: Mapping[str, Any], rfq_vendor_id: st
 
 
 def answered(conn: sqlite3.Connection, rfq_id: str, rfq_vendor_id: str) -> None:
-    """A manager wrote to the vendor: that vendor's question row is over."""
+    """A manager answered the vendor (wrote to him, or marked his questions handled): that vendor's question rows are over."""
     resolve(conn, "rfq.question", f"rfq:{rfq_id}:question:{rfq_vendor_id}")
+    resolve(conn, "rfq.question_unanswered", f"rfq:{rfq_id}:qremind:{rfq_vendor_id}")
+
+
+def question_unanswered(conn: sqlite3.Connection, row: Mapping[str, Any], rfq_vendor_id: str, message_id: str, *, hours: int) -> str | None:
+    """RFQQUESTIONS: a vendor question still unanswered after `rfq.question_reminder_hours` (the janitor, once per question; one row
+    per vendor). The engine applies each recipient's channels and quiet hours; nothing reaches the vendor."""
+    return _emit(conn, "rfq.question_unanswered", row, "question_unanswered", dedupe=f"rfq:{row['id']}:qremind:{rfq_vendor_id}",
+                 origin={"rfq_vendor_id": rfq_vendor_id, "message_id": message_id}, hours=hours)
 
 
 def due_passed(conn: sqlite3.Connection, row: Mapping[str, Any], *, invited: int, quoted: int) -> str | None:

@@ -7,6 +7,100 @@ import { css } from 'lit';
  * action bar, the new-request sheet. Knobs only (--dv-* palette, --sw-* type / radius / space), logical properties only (RTL first).
  */
 export const rfqStyles = css`
+  /* RFQQUESTIONS: a vendor question waiting for the manager - one unmistakable badge everywhere, the pending section at the top of a request */
+  .qbadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-block-size: 22px;
+    padding-inline: 8px;
+    border-radius: 999px;
+    background: var(--dv-danger, #d92d20);
+    color: #fff;
+    font-size: var(--sw-fs-xs, 12px);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .qbadge.seen {
+    background: var(--dv-warning-soft);
+    color: var(--au-warn-text, var(--dv-text));
+  }
+  .qbadge svg {
+    inline-size: 14px;
+    block-size: 14px;
+  }
+  .qsec {
+    display: grid;
+    gap: var(--sw-s-2, 8px);
+    padding: var(--sw-s-3, 12px);
+    border-radius: var(--sw-r-lg, 14px);
+    border: 1px solid color-mix(in srgb, var(--dv-danger, #d92d20) 40%, transparent);
+    background: linear-gradient(var(--dv-danger-soft), var(--dv-danger-soft)), var(--dv-surface);
+  }
+  .qsec h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: var(--sw-fs-md, 16px);
+  }
+  .qsec > small {
+    color: var(--dv-text-2);
+  }
+  .qlist {
+    display: grid;
+    gap: var(--sw-s-2, 8px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .qitem {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    align-items: start;
+    padding: 10px 12px;
+    border-radius: var(--sw-r-md, 10px);
+    background: var(--dv-surface-solid, var(--dv-surface));
+  }
+  .qitem .qmeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: center;
+    font-size: var(--sw-fs-xs, 12px);
+    color: var(--dv-text-2);
+  }
+  .qitem p {
+    margin: 4px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .qitem .rowacts {
+    justify-content: flex-end;
+  }
+  .qbox {
+    padding: 10px 12px;
+    border-radius: var(--sw-r-md, 10px);
+    background: var(--dv-surface-2, var(--dv-surface));
+  }
+  .qbox p {
+    margin: 4px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .thr pre.pv {
+    margin-block-start: 6px;
+    white-space: pre-wrap;
+  }
+  @media (max-width: 767px) {
+    .qitem {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .qitem .rowacts {
+      justify-content: flex-start;
+    }
+  }
   sw-dialog {
     --sw-surface: var(--dv-surface-solid);
     --sw-glass-blur: none;

@@ -4,6 +4,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import './rfq-quote-dialog';
 import './rfq-message-dialog';
+import './rfq-question-dialog';
 import './rfq-order';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
@@ -14,7 +15,7 @@ import { bidi } from '../i18n/bidi';
 import { ApiError } from '../api/client';
 import { ticketsS4Api, type Contact } from '../api/tickets-s4';
 import type { LineKind } from '../api/tickets-costs';
-import { ticketsRfqApi, type RfqAward, type RfqDetail, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
+import { ticketsRfqApi, type RfqAward, type RfqDetail, type RfqMeta, type RfqQuestion, type RfqVendor } from '../api/tickets-rfq';
 import { rememberDemoContact } from '../api/tickets-rfq-mock';
 import { formatMoney } from './cost-model';
 import { ct, type CostTextKey } from './cost-text';
@@ -27,9 +28,12 @@ import {
   remindable, toggleKind, vendorStateTone, windowText,
 } from './rfq-model';
 import { rfqError } from './rfq-new';
+import { pendingQuestions, questionBadge } from './rfq-questions';
+import { refreshRfqQuestions } from './rfq-questions-store';
 import { tt, ticketsLang } from './text';
 
 type Dlg =
+  | { kind: 'answer' | 'resolve'; q: RfqQuestion }
   | { kind: 'remind'; ids: string[] }
   | { kind: 'vendor'; v: RfqVendor }
   | { kind: 'remove' | 'revoke' | 'decline' | 'withdraw'; v: RfqVendor }
@@ -227,6 +231,7 @@ export class TicketsRfqBoard extends LitElement {
       </div>
       <div class="dh-det">
         <span class=${`chip ${rfqStateTone(d.state)}`} data-rfq-state=${d.state}>${rt(`st_${d.state}` as RfqTextKey)}</span>
+        ${this.qBadge(questionBadge(d.questions), 'header')}
         ${d.source_ticket ? html`<a class="chip info" href=${`#/tickets/${d.source_ticket.id}`} data-rfq-source>${tIcon('ticket')}${rt('sourceTicket', { number: d.source_ticket.number })}</a>` : nothing}
         <span class="grow"></span>
         ${d.can.see_amounts && quotes ? html`<a class="btn" href=${rfqHref({ id: d.id, view: 'compare' })} data-rfq-to-compare>${rIcon('columns')}${rt('compareN', { n: quotes })}</a>` : nothing}
@@ -280,6 +285,55 @@ export class TicketsRfqBoard extends LitElement {
     </div>`;
   }
 
+  // ---------------------------------------------------------------- RFQQUESTIONS: vendor questions
+
+  private qBadge(b: { n: number; fresh: boolean } | null, where: string): TemplateResult | typeof nothing {
+    if (!b) return nothing;
+    return html`<span class=${`qbadge${b.fresh ? '' : ' seen'}`} role="status" aria-label=${rt('qBadgeAria', { n: b.n })} data-rfq-q-badge=${where} data-n=${b.n}>
+      ${rIcon('chat')}${b.n === 1 ? rt('qBadgeOne') : rt('qBadge', { n: b.n })}${b.fresh ? html` · ${rt('qBadgeNew')}` : nothing}</span>`;
+  }
+
+  private vendorBadges(v: RfqVendor): TemplateResult {
+    return html`${this.qBadge(questionBadge(v.questions), 'vendor')}${v.quote?.has_note ? html`<span class="chip info" title=${rt('qNoteTitle')} data-rfq-note-chip>${rt('qVendorNote')}</span>` : nothing}`;
+  }
+
+  private async openQuestion(q: RfqQuestion): Promise<void> {
+    const d = this.d as RfqDetail;
+    this.open({ kind: 'answer', q });
+    if (!q.read && d.can.answer) {
+      try {
+        await ticketsRfqApi().markRead(d.id, q.vendor_id);
+        refreshRfqQuestions();
+        void this.load();
+      } catch {
+        /* the badge stays "new"; the answer still works */
+      }
+    }
+  }
+
+  /** "שאלות ממתינות": every unanswered question of the request, oldest first, with "answer" / "handled without an answer" for a manager. */
+  private questionsCard(d: RfqDetail): TemplateResult | typeof nothing {
+    const items = pendingQuestions(d);
+    if (!items.length) return nothing;
+    return html`<section class="qsec" aria-labelledby="h-q" data-rfq-questions=${items.length}>
+      <h2 id="h-q">${rIcon('chat')}${rt('qSection')} ${this.qBadge(questionBadge(d.questions), 'section')}</h2>
+      <small>${rt('qSectionSub')}</small>
+      <ul class="qlist">${items.map((q) => html`<li class="qitem" data-rfq-question=${q.id} data-read=${String(q.read)}>
+        <div>
+          <span class="qmeta"><b>${bidi(q.vendor.company || q.vendor.name)}</b>
+            ${q.read ? nothing : html`<span class="qbadge">${rt('qBadgeNew')}</span>`}
+            <span>${q.age_h > 0 ? rt('qAge', { h: q.age_h }) : rt('qAgeNow')}</span>
+            ${q.quote ? html`<span>${rt('qWithQuote', { n: q.quote.version })}</span>` : nothing}
+            ${q.unverified ? html`<span class="chip warn">${rt('qViaWhatsapp')}</span>` : nothing}</span>
+          <p>${bidi(q.text)}</p>
+        </div>
+        ${d.can.answer ? html`<div class="rowacts">
+          <button type="button" class="btn sm primary" data-rfq-q-answer=${q.id} @click=${() => void this.openQuestion(q)}>${tIcon('send')}${rt('qAnswer')}</button>
+          <button type="button" class="btn sm quiet" data-rfq-q-resolve=${q.id} @click=${() => this.open({ kind: 'resolve', q })}>${rt('qResolve')}</button></div>` : nothing}
+      </li>`)}</ul>
+    </section>`;
+  }
+
   private chan(v: RfqVendor): TemplateResult {
     const icon = v.channel === 'whatsapp' ? rIcon('chat') : v.channel === 'email' ? rIcon('mail') : tIcon('copy');
     return html`<span class="chan" title=${rt(`ch_${v.channel}` as RfqTextKey)}>${icon}<span class="vh">${rt(`ch_${v.channel}` as RfqTextKey)}</span></span>`;
@@ -326,7 +380,8 @@ export class TicketsRfqBoard extends LitElement {
     const name = v.contact.company || v.contact.name;
     const q = v.quote;
     return html`<tr data-rfq-vendor-row=${v.id} data-vstate=${v.state}>
-      <td class="first"><span class="vname"><span class="av" aria-hidden="true">${initials(name)}</span><span><b>${bidi(name)}</b>${v.contact.company ? html`<small>${bidi(v.contact.name)}</small>` : nothing}</span></span></td>
+      <td class="first"><span class="vname"><span class="av" aria-hidden="true">${initials(name)}</span><span><b>${bidi(name)}</b>${v.contact.company ? html`<small>${bidi(v.contact.name)}</small>` : nothing}</span></span>
+        ${this.vendorBadges(v)}</td>
       <td data-l=${rt('colChannel')}><span class="chancol">${this.chan(v)}${this.codeSwitchShown(v) ? this.codeSwitch(v) : nothing}</span></td>
       <td data-l=${rt('colState')}><span><span class=${`chip ${vendorStateTone(v.state)}`} data-vchip>${rt(`v_${v.state}` as RfqTextKey)}</span>
         ${v.decline_reason ? html`<span class="reason">${bidi(v.decline_reason)}</span>` : nothing}</span></td>
@@ -434,9 +489,16 @@ export class TicketsRfqBoard extends LitElement {
       case 'quote':
         return html`<tickets-rfq-quote-dialog open .rfq=${d} .vendor=${g.v} .currencies=${this.meta?.currencies?.length ? this.meta.currencies : ['ILS']}
           @close=${() => (this.dlg = null)} @saved=${(e: CustomEvent<RfqDetail>) => { this.d = e.detail; this.dlg = null; this.notice({ ok: rt('qSaved') }); }}></tickets-rfq-quote-dialog>`;
+      case 'answer':
+        return html`<tickets-rfq-question-dialog open .rfq=${d} .question=${g.q} @close=${() => (this.dlg = null)}
+          @saved=${(e: CustomEvent<{ rfq: RfqDetail; copies: number; notified: number }>) => { this.d = e.detail.rfq; this.dlg = null; refreshRfqQuestions();
+            this.notice({ ok: `${e.detail.copies > 1 ? rt('qDoneAll', { n: e.detail.copies }) : rt('qDone')}${e.detail.notified ? ` · ${rt('qDoneNotified', { n: e.detail.notified })}` : ''}` }); }}></tickets-rfq-question-dialog>`;
+      case 'resolve':
+        return dlg(rt('qResolve'), 'resolve', html`<div class="qbox"><p>${bidi(g.q.text)}</p></div><p>${rt('qResolveQ')}</p>`,
+          foot(rt('qResolve'), 'resolve', () => void this.run(() => ticketsRfqApi().resolveQuestion(d.id, g.q.id), rt('qResolved')).then(() => refreshRfqQuestions())));
       case 'message':
         return html`<tickets-rfq-message-dialog open .rfq=${d} .vendor=${g.v} @close=${() => (this.dlg = null)}
-          @saved=${(e: CustomEvent<{ notified: boolean }>) => { this.dlg = null; this.notice({ ok: e.detail.notified ? rt('writeDoneNotified') : rt('writeDone') }); void this.load(); }}></tickets-rfq-message-dialog>`;
+          @saved=${(e: CustomEvent<{ notified: boolean }>) => { this.dlg = null; refreshRfqQuestions(); this.notice({ ok: e.detail.notified ? rt('writeDoneNotified') : rt('writeDone') }); void this.load(); }}></tickets-rfq-message-dialog>`;
       case 'add': {
         const have = new Set(d.vendors.filter((v) => v.state !== 'removed').map((v) => v.contact.id));
         const list = (this.contacts ?? []).filter((c) => invitable(c, d.department.id) && !have.has(c.id));
@@ -496,6 +558,7 @@ export class TicketsRfqBoard extends LitElement {
     const d = this.d;
     return html`<div class="page" data-rfq-board data-phase="ready" data-rfq-id=${d.id}>
       ${this.header(d)}
+      ${this.questionsCard(d)}
       ${this.banners(d)}
       ${d.awards.some((a) => a.state === 'approved') ? html`<tickets-rfq-order .rfq=${d} @changed=${(e: CustomEvent<RfqDetail>) => (this.d = e.detail)}></tickets-rfq-order>` : nothing}
       ${this.kpis(d)}

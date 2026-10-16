@@ -8,6 +8,7 @@ const he = {
   'rfq.declined': 'ספק השיב שאינו מעוניין',
   'rfq.question': 'שאלת הבהרה מספק',
   'rfq.due_passed': 'המועד להגשת הצעות עבר',
+  'rfq.question_unanswered': 'שאלת ספק ממתינה לתשובה',
   kind: 'בקשת הצעת מחיר',
   open: 'פתח את הבקשה',
 };
@@ -18,6 +19,7 @@ const en: Partial<Record<RfqNotifyKey, string>> = {
   'rfq.declined': 'Vendor declined',
   'rfq.question': 'Clarification question from a vendor',
   'rfq.due_passed': 'Quote deadline passed',
+  'rfq.question_unanswered': 'Vendor question waiting for an answer',
   kind: 'Request for quotation',
   open: 'Open the request',
 };

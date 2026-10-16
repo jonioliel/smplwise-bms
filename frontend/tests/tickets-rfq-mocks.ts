@@ -91,6 +91,7 @@ export async function installRfqMock(page: Page, o: RfqMockOptions = {}): Promis
         return json(route, o.contract ? { ...m, vendor_page: false, attachments: undefined, vendor_options: undefined } : m);
       }
       if (seg[0] === 'departments') return json(route, await api.setThreshold(seg[1], body.second_approval_minor));
+      if (seg[0] === 'questions' && seg[1] === 'summary') return json(route, await api.questionsSummary()); // RFQQUESTIONS: the nav badge
       const id = seg[0];
       const out = (d: RfqDetail) => (o.noAmounts ? strip(d) : d);
       const contractDetail = (d: RfqDetail) => out(o.contract ? { ...d, vendor_page: false, files: undefined } : d);
@@ -139,12 +140,21 @@ export async function installRfqMock(page: Page, o: RfqMockOptions = {}): Promis
           if (seg[3] === 'options') return json(route, contractDetail(await api.vendorOptions(id, vid, b)));
           if (seg[3] === 'link') return json(route, contractDetail(await api.revokeLink(id, vid)));
           if (seg[3] === 'decline') return json(route, contractDetail(await api.declineOnBehalf(id, vid, b.reason)));
+          if (seg[3] === 'messages' && seg[4] === 'read') return json(route, await api.markRead(id, vid)); // RFQQUESTIONS
           if (seg[3] === 'messages' && method === 'GET') return json(route, await api.messages(id, vid));
           if (seg[3] === 'messages') return json(route, await api.writeMessage(id, vid, b.text, b.notify, b.source), 201);
           if (seg[3] === 'quotes' && seg.length === 4) return json(route, contractDetail(await api.quoteOnBehalf(id, vid, b)), 201);
           if (seg[3] === 'quotes' && seg[5] === 'withdraw') return json(route, contractDetail(await api.withdrawQuote(id, vid, seg[4], b.revision)));
           break;
         }
+        case 'questions': // RFQQUESTIONS: preview / answer / resolve one vendor question
+          if (seg[3] === 'preview') return json(route, await api.answerPreview(id, seg[2], b));
+          if (seg[3] === 'answer') {
+            const a = await api.answer(id, seg[2], b, b.client_request_id);
+            return json(route, { ...a, rfq: out(a.rfq) }, 201);
+          }
+          if (seg[3] === 'resolve') return json(route, contractDetail(await api.resolveQuestion(id, seg[2])));
+          break;
         default:
           break;
       }

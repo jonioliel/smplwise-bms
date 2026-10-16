@@ -194,6 +194,7 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("rfq", "link_keep_days"): (30, int_range(1, 365)),  # a link lives this long past the deadline; its row goes this long after closing
     ("rfq", "retention_months"): (24, int_range(6, 120)),  # spec 6: quotes that were not selected (and the request) are kept this long
     ("rfq", "reminder_hours"): (24, int_range(0, 168)),  # stage C2's automatic reminder before the deadline; 0 = off
+    ("rfq", "question_reminder_hours"): (24, int_range(0, 168)),  # RFQQUESTIONS: remind the RFQ managers of a vendor question still unanswered after N hours; 0 = off
 }
 
 

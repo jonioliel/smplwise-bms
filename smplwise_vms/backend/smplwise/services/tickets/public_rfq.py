@@ -294,6 +294,7 @@ class QuoteIn(_Strict):
     valid_until: str | None = Field(default=None, max_length=40)
     note: str | None = Field(default=None, max_length=4000)
     vendor_ref: str | None = Field(default=None, max_length=200)
+    question: str | None = Field(default=None, max_length=8000)  # RFQQUESTIONS: a question sent with the quote (stored in his thread)
     base_version: int | None = Field(default=None, ge=1, le=100000)
     client_request_id: str = Field(max_length=64)
 

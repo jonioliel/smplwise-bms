@@ -13,7 +13,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const py = readFileSync(path.resolve(here, '../../smplwise_vms/backend/smplwise/services/tickets/notify_sources.py'), 'utf8');
 
 test('the four RFQ sources, in the tickets category, visible by tickets.view (the server decides by rfq.visible)', () => {
-  expect(RFQ_SOURCES.map((s) => s.key)).toEqual(['rfq.quote_received', 'rfq.declined', 'rfq.question', 'rfq.due_passed']);
+  expect(RFQ_SOURCES.map((s) => s.key)).toEqual(['rfq.quote_received', 'rfq.declined', 'rfq.question', 'rfq.due_passed', 'rfq.question_unanswered']);
   expect(RFQ_SOURCES.every((s) => s.category === 'tickets')).toBe(true);
   expect(VISIBILITY_PERMISSION.rfq).toBe('tickets.view');
   expect(TICKET_SOURCES.some((s) => s.key.startsWith('rfq.'))).toBe(false);

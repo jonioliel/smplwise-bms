@@ -53,6 +53,9 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
     {"key": "rfq.due_passed", "label": "המועד להגשת הצעות עבר", "label_en": "Quote deadline passed", "severity": "info",
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # RFQQUESTIONS: a vendor question still unanswered after `rfq.question_reminder_hours` (default 24, 0 = off)
+    {"key": "rfq.question_unanswered", "label": "שאלת ספק ממתינה לתשובה", "label_en": "Vendor question waiting for an answer",
+     "severity": "alert", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}

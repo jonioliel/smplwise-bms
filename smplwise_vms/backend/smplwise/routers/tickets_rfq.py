@@ -17,8 +17,11 @@
     GET    /tickets/rfqs/{id}/vendors/{rv}/messages                    visible
     POST   /tickets/rfqs/{id}/vendors/{rv}/messages                    RFQ manager (templated notice only; the text stays in the thread)
     POST   /tickets/rfqs/{id}/send | remind | cancel | close            RFQ manager
+    GET    /tickets/rfqs/questions/summary                             RFQQUESTIONS: the navigation badge (requests the caller manages)
+    POST   /tickets/rfqs/{id}/vendors/{rv}/messages/read               RFQQUESTIONS: an RFQ manager opened the thread (no longer new)
+    POST   /tickets/rfqs/{id}/questions/{mid}/preview | answer | resolve  RFQQUESTIONS: answer one vendor / every vendor, or mark handled
     GET    /tickets/rfqs/{id}/comparison                               + tickets.costs.view
-    POST   /tickets/rfqs/{id}/awards                                   tickets.costs + view (+ message_draft; nothing is sent)
+    POST   /tickets/rfqs/{id}/awards                                 tickets.costs + view (+ message_draft; nothing is sent)
     POST   /tickets/rfqs/{id}/awards/{award_id}/confirm | decline      the second approver
     POST   /tickets/rfqs/{id}/awards/{award_id}/order                  TKRFQ4: open the vendor's service request (idempotent; sends nothing)
     GET    /tickets/rfqs/{id}/awards/{award_id}/order/preview          TKRFQ4: the exact order message, its channel, the refusals
@@ -38,7 +41,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, model, rfq, rfq_orders, store, store_rfq
+from ..services.tickets import access, model, rfq, rfq_orders, rfq_questions, store, store_rfq
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
 from .tickets_detail import QuoteLine, quote_payload
@@ -129,6 +132,14 @@ def create_rfq(body: CreateBody, request: Request, principal: Principal = Depend
 class ThresholdBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     second_approval_minor: int | None = Field(default=None, ge=0, le=rfq.THRESHOLD_MAX)
+
+
+@router.get("/tickets/rfqs/questions/summary")
+def get_questions_summary(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """RFQQUESTIONS: the navigation badge - unanswered vendor questions of the open requests the caller manages."""
+    viewer = Viewer(conn, principal)
+    _need_view(conn, viewer)
+    return rfq_questions.nav_summary(conn, viewer)
 
 
 @router.put("/tickets/rfqs/departments/{dept_id}")
@@ -363,6 +374,67 @@ def post_message(body: MessageBody, request: Request, rfq_id: str = Path(..., pa
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
     return rfq.write_message(conn, viewer, seen, vendor_id, body.text, body.notify, body.source.model_dump() if body.source else None, _rid(request))
+
+
+# ---------------------------------------------------------------- RFQQUESTIONS: a vendor's question (contract section 19)
+
+@router.post("/tickets/rfqs/{rfq_id}/vendors/{vendor_id}/messages/read")
+def post_messages_read(request: Request, rfq_id: str = Path(..., pattern=ID), vendor_id: str = Path(..., pattern=ID),
+                       principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """An RFQ manager opened the vendor's thread: his questions are no longer new (they stay pending until answered)."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    return {"read": rfq_questions.mark_read(conn, viewer, seen, vendor_id, _rid(request))}
+
+
+class AnswerPlanBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(max_length=5000)
+    scope: Literal["vendor", "all"] = "vendor"
+    question_text: str | None = Field(default=None, max_length=5000)
+    name_asker: bool = False
+    notify: bool = True
+
+
+class AnswerBody(AnswerPlanBody):
+    client_request_id: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
+
+
+@router.post("/tickets/rfqs/{rfq_id}/questions/{message_id}/preview")
+def post_answer_preview(body: AnswerPlanBody, request: Request, rfq_id: str = Path(..., pattern=ID), message_id: str = Path(..., pattern=ID),
+                        principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The exact text each recipient would get and whether a notice would go - nothing is stored (a refusal of the role is audited)."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    p = rfq_questions.plan(conn, viewer, seen, message_id, body.model_dump(), _rid(request), action="ticket.rfq.answer_preview")
+    return rfq_questions.present_plan(conn, p, body.notify)
+
+
+@router.post("/tickets/rfqs/{rfq_id}/questions/{message_id}/answer", status_code=201)
+def post_answer(body: AnswerBody, request: Request, rfq_id: str = Path(..., pattern=ID), message_id: str = Path(..., pattern=ID),
+                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The manager's explicit send of an answer: to the asking vendor only (default) or to every invited vendor (`scope: all`)."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    scope = f"rfqanswer:{rfq_id}"
+    prior = store.request_get(conn, scope, body.client_request_id)
+    if prior is not None:  # a repeated press: the first answer, nothing stored twice
+        import json
+
+        return {"rfq": _detail(conn, viewer, rfq_id), "answer": json.loads(prior["response_json"]), "replayed": True}
+    res = rfq_questions.answer(conn, viewer, seen, message_id, body.model_dump(exclude={"client_request_id"}), _rid(request))
+    store.request_put(conn, scope, body.client_request_id, "rfq.answer", 201, res)
+    return {"rfq": _detail(conn, viewer, rfq_id), "answer": res, "replayed": False}
+
+
+@router.post("/tickets/rfqs/{rfq_id}/questions/{message_id}/resolve")
+def post_question_resolve(request: Request, rfq_id: str = Path(..., pattern=ID), message_id: str = Path(..., pattern=ID),
+                          principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Handled without a reply (answered by phone): the question leaves the badges; nothing is sent."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    rfq_questions.resolve(conn, viewer, seen, message_id, _rid(request))
+    return _detail(conn, viewer, rfq_id)
 
 
 @router.get("/tickets/rfqs/{rfq_id}/comparison")

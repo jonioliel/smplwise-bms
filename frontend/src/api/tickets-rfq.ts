@@ -46,6 +46,26 @@ export interface RfqKpis {
 
 export interface RfqPerson { id: string | null; name: string; active?: boolean }
 
+/** RFQQUESTIONS (contract section 19): unanswered vendor questions - `unread` = no RFQ manager opened them yet. Zero once the request is no
+ * longer open (sent / collecting / due_passed). Absent from servers before 2.6.5: the screens then show no badge. */
+export interface RfqQuestionCounts { pending: number; unread: number }
+
+/** One pending question in the detail's "שאלות ממתינות" section. */
+export interface RfqQuestion {
+  id: string;
+  vendor_id: string;
+  vendor: { name: string; company: string };
+  text: string;
+  at: string;
+  read: boolean;
+  /** `whatsapp` = a WhatsApp reply matched to the request: an unverified sender */
+  via: 'page' | 'whatsapp';
+  unverified: boolean;
+  /** the quote the vendor sent the question with (the quote form's own question field) */
+  quote: { id: string; version: number } | null;
+  age_h: number;
+}
+
 /** One row of `GET tickets/rfqs` (rfq.summary). */
 export interface RfqSummary {
   id: string;
@@ -62,6 +82,8 @@ export interface RfqSummary {
   updated_at: string;
   internal_owner: RfqPerson;
   kpis: RfqKpis;
+  /** RFQQUESTIONS */
+  questions?: RfqQuestionCounts;
 }
 
 export interface RfqListPage { items: RfqSummary[]; next_cursor: string | null }
@@ -81,6 +103,8 @@ export interface RfqQuoteSummary {
   work_from?: string | null;
   work_to?: string | null;
   revision?: number;
+  /** RFQQUESTIONS (costs.view only): the vendor wrote a note on this quote (the text is the comparison's) */
+  has_note?: boolean;
 }
 
 export interface RfqVendor {
@@ -100,6 +124,8 @@ export interface RfqVendor {
   delivery?: { state: string; channel?: string } | null;
   quote: RfqQuoteSummary | null;
   messages: number;
+  /** RFQQUESTIONS */
+  questions?: RfqQuestionCounts;
   revision: number;
   /** contract 15.2 / 15.6: whether the vendor page asks this vendor for a verification code (the directory's demand cannot be lowered) */
   require_code?: boolean;
@@ -203,7 +229,9 @@ export interface RfqDetail {
   vendor_page: boolean;
   /** C2 gap: the request's files */
   files?: RfqFile[];
-  can: { edit: boolean; add_vendor: boolean; send: boolean; remind: boolean; cancel: boolean; close: boolean; award: boolean; see_amounts: boolean; delete: boolean;
+  /** RFQQUESTIONS: the counts and every pending question (oldest first) */
+  questions?: RfqQuestionCounts & { items: RfqQuestion[] };
+  can: { answer?: boolean; edit: boolean; add_vendor: boolean; send: boolean; remind: boolean; cancel: boolean; close: boolean; award: boolean; see_amounts: boolean; delete: boolean;
     /** TKRFQ4: an award waits for its work order / an order waits for its message (absent from older servers) */
     order?: boolean; send_order?: boolean };
 }
@@ -235,6 +263,8 @@ export interface RfqCompareQuote {
   note: string | null;
   vendor_ref: string | null;
   messages: number;
+  /** RFQQUESTIONS */
+  questions?: RfqQuestionCounts;
   lowest: boolean;
   earliest: boolean;
   award: { id: string; state: RfqAwardState; line_indexes: number[] } | null;
@@ -326,10 +356,30 @@ export interface RfqAwardAnswer { rfq: RfqDetail; award: RfqAward; message_draft
 
 export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string; at: string; by: string; source: { kind: string; id: string | null } | null; notified: boolean;
   /** TKRFQ5: a vendor's WhatsApp reply matched to the thread - an unverified sender (the vendor page never shows it). */
-  via?: 'whatsapp' | null; unverified?: boolean }
+  via?: 'whatsapp' | null; unverified?: boolean;
+  /** RFQQUESTIONS: an inbound message is a question with a state */
+  question?: { state: 'pending' | 'answered'; read: boolean; answered_at: string | null; answer_id: string | null; quote_id: string | null };
+  /** RFQQUESTIONS: an outbound message that answers a question / one copy of an answer to every vendor */
+  answers_id?: string | null; to_all?: boolean }
 export interface RfqMessageAnswer { item: RfqMessage; notified: { queued: boolean; channel: string | null } }
 
 export interface RfqSendAnswer extends RfqDetail { sent?: Record<string, unknown> }
+
+/** RFQQUESTIONS: an answer to one question - to the asking vendor only (the default) or to every invited vendor. */
+export interface RfqAnswerBody { text: string; scope: 'vendor' | 'all'; question_text?: string; name_asker?: boolean; notify: boolean }
+/** The exact text each recipient would get (no side effect) - the "לשלוח הודעה לספק?" step. */
+export interface RfqAnswerPreview {
+  question_id: string;
+  scope: 'vendor' | 'all';
+  name_asker: boolean;
+  recipients: { vendor_id: string; vendor: { name: string; company: string }; asker: boolean; text: string; lang: string; notify_channel: string | null }[];
+}
+export interface RfqAnswerAnswer {
+  rfq: RfqDetail;
+  answer: { question_id: string; scope: 'vendor' | 'all'; items: { vendor_id: string; message_id: string; notified: boolean }[]; notified: number; broadcast_id: string | null };
+  replayed: boolean;
+}
+export interface RfqQuestionsSummary { pending: number; unread: number; requests: number }
 
 export interface RfqBackend {
   meta(): Promise<RfqMeta>;
@@ -365,6 +415,15 @@ export interface RfqBackend {
   sendOrder(id: string, awardId: string): Promise<RfqOrderAnswer>;
   /** C2 gap: upload one file for a request that is being created (returns its id) */
   uploadFile?(file: File): Promise<RfqFile>;
+  /** RFQQUESTIONS: the navigation badge (the open requests the caller manages) */
+  questionsSummary(): Promise<RfqQuestionsSummary>;
+  /** RFQQUESTIONS: an RFQ manager opened the vendor's thread (his questions are no longer new) */
+  markRead(id: string, vendorId: string): Promise<{ read: number }>;
+  answerPreview(id: string, questionId: string, body: RfqAnswerBody): Promise<RfqAnswerPreview>;
+  /** the explicit send (idempotent by client_request_id) */
+  answer(id: string, questionId: string, body: RfqAnswerBody, clientRequestId: string): Promise<RfqAnswerAnswer>;
+  /** handled without a reply (answered by phone) - nothing is sent */
+  resolveQuestion(id: string, questionId: string): Promise<RfqDetail>;
 }
 
 const R = 'tickets/rfqs';
@@ -423,7 +482,22 @@ const rest: RfqBackend = {
   createOrder: (id, awardId, body) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order`, body),
   orderPreview: (id, awardId) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview`),
   sendOrder: (id, awardId) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/send`),
+  questionsSummary: () => get<RfqQuestionsSummary>(`${R}/questions/summary`),
+  markRead: (id, vendorId) => post<{ read: number }>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages/read`),
+  answerPreview: (id, qid, body) => post<RfqAnswerPreview>(`${R}/${enc(id)}/questions/${enc(qid)}/preview`, answerWire(body)),
+  answer: (id, qid, body, crid) => post<RfqAnswerAnswer>(`${R}/${enc(id)}/questions/${enc(qid)}/answer`, { ...answerWire(body), client_request_id: crid }),
+  resolveQuestion: (id, qid) => post<RfqDetail>(`${R}/${enc(id)}/questions/${enc(qid)}/resolve`),
 };
+
+/** The answer body the server accepts (extra = forbid): the question as the others read it only for an answer to every vendor. */
+export function answerWire(body: RfqAnswerBody): Record<string, unknown> {
+  const out: Record<string, unknown> = { text: body.text, scope: body.scope, notify: body.notify };
+  if (body.scope === 'all') {
+    if (body.question_text !== undefined) out.question_text = body.question_text;
+    out.name_asker = !!body.name_asker;
+  }
+  return out;
+}
 
 /** The backend in force: REST with a server, the demo store without one. */
 export function ticketsRfqApi(): RfqBackend {

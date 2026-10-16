@@ -22,6 +22,7 @@ import {
   windowText, type AwardScope, type CompareFilter, type CompareSort, type Selection,
 } from './rfq-model';
 import { rfqError } from './rfq-new';
+import { awardQuestionWarning, questionBadge } from './rfq-questions';
 import { tt, ticketsLang } from './text';
 
 interface DraftOut { vendorId: string; name: string; text: string; send: boolean; notify: boolean; source?: { kind: 'award'; id: string } }
@@ -214,10 +215,19 @@ export class TicketsRfqCompare extends LitElement {
       <span class="mut">${rt('rowSubmitted')} ${dateTime(q.submitted_at)}${q.version > 1 ? ` · ${rt('versionN', { n: q.version })}` : ''}</span>
       <span>${q.late ? html`<span class="chip warn">${rt('late')}</span>` : nothing}
         ${q.award ? html`<span class=${`chip ${q.award.state === 'approved' ? 'ok' : 'warn'}`} data-cmp-award=${q.award.state}>${q.award.state === 'approved' ? rt('v_awarded') : rt('pendingSecond')}</span>` : nothing}
-        ${q.state === 'not_awarded' ? html`<span class="chip">${rt('v_not_awarded')}</span>` : nothing}</span>
+        ${q.state === 'not_awarded' ? html`<span class="chip">${rt('v_not_awarded')}</span>` : nothing}
+        ${this.qBadge(q)}${q.note?.trim() ? html`<span class="chip info" title=${rt('qNoteTitle')} data-cmp-note-chip>${rt('qVendorNote')}</span>` : nothing}</span>
       ${this.canPick(q) ? html`<label class="pickrow"><input type="checkbox" data-cmp-pick=${q.quote_id} .checked=${picked} ?disabled=${this.busy}
         @change=${(e: Event) => this.toggle(q, (e.target as HTMLInputElement).checked)} />${picked ? rt('picked') : rt('pick')}<span class="vh"> ${name}</span></label>` : nothing}
     </div></th>`;
+  }
+
+  /** RFQQUESTIONS: the vendor column's "question waiting" badge (the clarifications row below opens his thread, where a manager answers). */
+  private qBadge(q: RfqCompareQuote): TemplateResult | typeof nothing {
+    const b = questionBadge(q.questions);
+    if (!b) return nothing;
+    const label = b.n === 1 ? rt('qBadgeOne') : rt('qBadge', { n: b.n });
+    return html`<span class=${`qbadge${b.fresh ? '' : ' seen'}`} role="status" aria-label=${rt('qBadgeAria', { n: b.n })} data-cmp-q-badge=${q.vendor_id}>${rIcon('chat')}${label}${b.fresh ? ` · ${rt('qBadgeNew')}` : ''}</span>`;
   }
 
   private scopeCell(q: RfqCompareQuote): TemplateResult {
@@ -269,7 +279,7 @@ export class TicketsRfqCompare extends LitElement {
         ${anyRef ? row(rt('rowRef'), (q) => html`<td class=${cls(q)}><span class="ltr">${q.vendor_ref ?? '—'}</span></td>`, 'ref') : nothing}
         ${row(rt('rowMessages'), (q) => {
           const v = this.d?.vendors.find((x) => x.id === q.vendor_id);
-          return html`<td class=${cls(q)}>${v?.can.message ? html`<button type="button" class="btn sm quiet" data-cmp-ask=${q.vendor_id} @click=${() => (this.message = v)}>${rIcon('chat')}${q.messages ? `${rt('messages')} (${q.messages})` : rt('ask')}</button>`
+          return html`<td class=${cls(q)}>${v?.can.message ? html`<button type="button" class="btn sm quiet" data-cmp-ask=${q.vendor_id} @click=${() => (this.message = v)}>${rIcon('chat')}${q.questions?.pending ? `${rt('qAnswer')} (${q.questions.pending})` : q.messages ? `${rt('messages')} (${q.messages})` : rt('ask')}</button>`
             : q.messages ? html`<span>${rt('messages')} (${q.messages})</span>` : html`<span class="mut">—</span>`}</td>`;
         }, 'messages')}
         ${anyPicked ? row(rt('rowScope'), (q) => this.scopeCell(q), 'scope') : nothing}
@@ -294,10 +304,13 @@ export class TicketsRfqCompare extends LitElement {
     const sel = this.selections();
     const threshold = this.d.second_approval.threshold_minor;
     const hint = secondApprovalHint(threshold, sel, this.c.currency);
+    const qWarn = awardQuestionWarning(this.d, sel.map((s) => s.quote.vendor_id)); // RFQQUESTIONS (owner 2026-10-17)
     return html`<sw-dialog open ?locked=${this.busy} wide heading=${rt('awardTitle')} data-cmp-confirm @close=${() => !this.busy && (this.confirm = false)}>
       <div class="stack">
         <ul class="thr">${sel.map((s) => html`<li data-cmp-confirm-item=${s.quote.quote_id}><b>${bidi(this.name(s.quote))}</b> · ${this.scopeLabel(s.quote, s.scope)}
           <small class="num">${this.money(awardPreview(s.quote, s.scope).total, s.quote.currency)}</small></li>`)}</ul>
+        ${qWarn ? html`<div class="banner warn" role="alert" data-cmp-q-warn=${qWarn.total}>${rIcon('chat')}<div><b>${rt('qAwardWarn', { n: qWarn.total })}</b>
+          ${qWarn.vendors.map((n) => html`<small>${rt('qAwardWarnVendor', { name: n })}</small>`)}</div></div>` : nothing}
         <p class="note">${rt('awardBody')}</p>
         ${sel.length > 1 ? html`<p class="note">${rt('awardSplitNote')}</p>` : nothing}
         <p class="note">${rt('awardOthers')}</p>
@@ -376,7 +389,7 @@ export class TicketsRfqCompare extends LitElement {
       ${c.quotes.length ? this.bar() : nothing}
     </div>
     ${this.confirmDialog()}${this.draftsDialog()}
-    ${this.message ? html`<tickets-rfq-message-dialog open .rfq=${d} .vendor=${this.message} @close=${() => (this.message = null)}
+    ${this.message ? html`<tickets-rfq-message-dialog open .rfq=${d} .vendor=${this.message} @close=${() => { this.message = null; void this.load(); }}
       @saved=${(e: CustomEvent<{ notified: boolean }>) => { this.message = null; this.notice({ ok: e.detail.notified ? rt('writeDoneNotified') : rt('writeDone') }); void this.load(); }}></tickets-rfq-message-dialog>` : nothing}`;
   }
 }

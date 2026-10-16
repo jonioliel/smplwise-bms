@@ -230,7 +230,7 @@ export interface RfqView {
     allowed_line_kinds: RfqKind[]; attachments: { id?: string; name: string }[] };
   quote?: RfqQuote | null;
   declined?: { at: string; reason: string | null } | null;
-  messages?: { id: string; mine: boolean; text: string; at: string }[];
+  messages?: { id: string; mine: boolean; text: string; at: string; answered?: boolean }[];
   form?: { currencies: string[]; allowed_kinds: RfqKind[]; vat: { exempt: boolean; rate_bp: number; default: 'excluded' | 'included' | 'none' }; labor_rate_minor: number | null;
     limits: { lines: number; description: number; note: number; vendor_ref: number; message: number; decline_reason: number; max_total_minor: number } };
   can?: { quote: boolean; withdraw: boolean; decline: boolean; ask: boolean };

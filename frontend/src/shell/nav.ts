@@ -596,6 +596,25 @@ export const TICKETS_TABS: TabItem[] = [
 ];
 const isTicketsAreaHref = (href: string) => href === '#/tickets' || href.startsWith('#/tickets/');
 
+/** RFQQUESTIONS: vendor questions waiting in the requests the user manages (tickets/rfq-questions-store.ts reports here). The "בקשות הצעת
+ * מחיר" tab carries the number as a badge (and the dropdown chip a dot), the tickets area icon a small count. Navigation only. */
+let RFQ_QUESTIONS = 0;
+export function applyRfqQuestions(n: number): void {
+  const next = Math.max(0, Math.floor(Number(n)) || 0);
+  if (next === RFQ_QUESTIONS) return;
+  RFQ_QUESTIONS = next;
+  const t = TICKETS_TABS.find((x) => x.id === 'rfqs');
+  if (t) {
+    t.badge = next || undefined;
+    t.alert = next ? true : undefined;
+  }
+  for (const l of tabsListeners) l();
+}
+/** The count a rail / bottom-bar area shows (0 = none): the tickets area while the module is on. */
+export function areaBadge(id: string): number {
+  return id === 'tickets' && !TICKETS_OFF ? RFQ_QUESTIONS : 0;
+}
+
 /** CR-038 section 6: the module switch. The area (never its settings tab) is hidden until the session says the module is on (`/me` modules.tickets,
  * then `tickets.enabled` of the product settings, and at once after a switch in Settings) - hidden by default, so an operator never sees it flash. */
 let TICKETS_OFF = true;

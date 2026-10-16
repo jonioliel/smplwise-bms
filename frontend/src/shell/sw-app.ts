@@ -57,6 +57,8 @@ import '../screens/tickets-detail'; // CR-038 D18: a ticket on the full screen (
 import '../screens/tickets-board'; // CR-038 slice 6: the manager board (#/tickets/board)
 import '../screens/tickets-handlers'; // owner 2026-10-14: "מטפלים וספקים" (#/tickets/handlers)
 import '../screens/tickets-rfqs'; // TKRFQ2 (2.6.1): requests for quotation (#/tickets/rfqs)
+import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
+import { rt } from '../tickets/rfq-text';
 import '../tickets/vendor-accounts'; // TK258: "חשבון ספקים" (#/tickets/accounts)
 import '../screens/system-tickets'; // CR-038: the tickets module's settings
 import '../screens/system-messaging-accounts'; // CR-038 S5a: הגדרות › ערוץ ההודעות (WhatsApp accounts per use)
@@ -104,7 +106,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
@@ -249,6 +251,28 @@ export class SwApp extends LitElement {
       gap: 2px;
       overflow: auto;
       scrollbar-width: none;
+    }
+    /* RFQQUESTIONS: a count on an area icon (vendor questions waiting in the tickets area) */
+    a.item,
+    nav.bottom a {
+      position: relative;
+    }
+    .nb {
+      position: absolute;
+      inset-block-start: 2px;
+      inset-inline-end: 4px;
+      display: inline-grid;
+      place-items: center;
+      min-inline-size: 16px;
+      block-size: 16px;
+      padding-inline: 4px;
+      border-radius: 999px;
+      background: var(--sw-danger, #d92d20);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      pointer-events: none;
     }
     a.item {
       display: flex;
@@ -1483,7 +1507,7 @@ export class SwApp extends LitElement {
       this.session = s;
       applyCapabilities(s.mode === 'api' ? s.capabilities : null); // NN1: what the installation has decides which areas are offered (nav-capabilities.ts)
       // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (OFF by default, the static demo too: shell/nav.ts visibleAreas)
-      applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) });
+      if (!applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) })) startRfqQuestions(); // RFQQUESTIONS: the nav badge
       setTicketNames(s.me?.modules?.tickets_name);
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
       if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
@@ -1536,7 +1560,7 @@ export class SwApp extends LitElement {
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
-          applyTicketsHidden(ps as unknown as Record<string, unknown>); // tickets.enabled (CR-038): the optional tickets area
+          if (!applyTicketsHidden(ps as unknown as Record<string, unknown>)) startRfqQuestions(); // tickets.enabled (CR-038): the optional tickets area (+ RFQQUESTIONS: the nav badge)
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
@@ -2471,7 +2495,7 @@ export class SwApp extends LitElement {
         <span class="brand-tile" aria-hidden="true"><span>S</span></span>
         ${areas.map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
-            <sw-icon .name=${n.icon} size=${this.nav.icon}></sw-icon><span>${n.label}</span>
+            <sw-icon .name=${n.icon} size=${this.nav.icon}></sw-icon><span>${n.label}</span>${this.areaCount(n.id)}
           </a>`,
         )}
         <div class="grow"></div>
@@ -2489,18 +2513,24 @@ export class SwApp extends LitElement {
       ${this.skin === 'bubble'
         ? html`<nav class=${classMap({ bottom: true, dock: true, crowded: areas.length >= 6 })} aria-label="ניווט ראשי" data-dock>
             <div class="stack">
-              ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
+              ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span>${this.areaCount(n.id)}</a>`)}
               ${this.renderMe('bottom')}
             </div>
             <button type="button" class="fab" aria-label="בחירת אזור" aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'} data-area-picker @click=${() => void this.openPicker()}><sw-icon name="home" size=${24}></sw-icon></button>
           </nav>
           ${this.renderPicker()}`
         : html`<nav class=${classMap({ bottom: true, crowded: areas.length >= 6 })} aria-label="ניווט ראשי">
-            ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
+            ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span>${this.areaCount(n.id)}</a>`)}
             ${this.renderMe('bottom')}
           </nav>`}
       ${this.renderUserMenu()}
     `;
+  }
+
+  /** RFQQUESTIONS: the small count on an area icon (vendor questions waiting in the tickets area for a manager). */
+  private areaCount(id: string) {
+    const n = areaBadge(id);
+    return n ? html`<span class="nb" role="status" aria-label=${rt('navQuestionsAria', { n })} data-nav-badge=${id}>${n > 99 ? '99+' : n}</span>` : nothing;
   }
 
   /** Bubble foundation: the phone dock's home button opens the room picker - floors (collapsible) and areas as pill rows. */

@@ -1,7 +1,7 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.3 (section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = attachments, DESIGN ONLY; section 18 = the work order, stage C4)** -
-2026-10-16. v1.0 implemented on `pilot/TKRFQ1-core`; v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ5` (from `integ/263`); section 18 on `pilot/TKRFQ4` (from `integ/263`), combined as v1.3 at the integ/264 integration. Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
+Status: **v1.4 (section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = attachments, DESIGN ONLY; section 18 = the work order, stage C4; section 19 = vendor questions, RFQQUESTIONS)** -
+2026-10-17 (v1.3: 2026-10-16). v1.0 implemented on `pilot/TKRFQ1-core`; v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ5` (from `integ/263`); section 18 on `pilot/TKRFQ4` (from `integ/263`), combined as v1.3 at the integ/264 integration. Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
 (final)"), `docs/tickets/DETAIL_BACKEND_CONTRACT.md` v1.2 (the quote entity, money, drafts), the approved mock-up v5
 (`private/planning/_mockups/ticket-module-v4/rfq.js`: new request, vendors board, comparison, order). Backend only. Changes after this
 version are listed in section 14.
@@ -320,7 +320,7 @@ vendor opened it"); the first read after `code/verify` is the open. Answer:
          "valid_until", "note", "vendor_ref", "submitted_at", "approved": null | {"line_indexes", "subtotal_minor", "vat_minor",
          "total_minor"}},
  "declined": null | {"at", "reason"},
- "messages": [{"id", "mine": true | false, "text", "at"}],
+ "messages": [{"id", "mine": true | false, "text", "at", "answered"?: bool (v1.4: his own questions only)}],
  "form": {"currencies": ["ILS"], "currency": "ILS", "allowed_kinds": ["labor", "parts"], "vat": {"exempt": false, "rate_bp": 1800,
           "default": "excluded | included | none"}, "labor_rate_minor": null,
           "limits": {"lines": 30, "description": 120, "note": 1000, "vendor_ref": 40, "message": 2000, "decline_reason": 200,
@@ -351,7 +351,7 @@ by a NEW stored effect; read-only grace 409 `read_only`; no code session 403 `co
 
 | Route | Body | Answer | Refusals |
 |---|---|---|---|
-| `POST /t/api/rfq/quote` | `{lines[] (kind, description?, hours?, rate?, quantity?, unit_price?, amount? - the ticket quote's line), currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note?, vendor_ref?, base_version: int \| null, client_request_id}` | 201 `{ok, quote}` (the 15.3 shape) | 409 `rfq_due_passed`, 409 `quote_closed` (`reason`: `ended` \| `vendor`), 409 `quote_changed` (`version` = the current live version; `base_version` must name it, `null` when none), 422 `invalid` (`kind_not_allowed`, money / date fields) |
+| `POST /t/api/rfq/quote` | `{lines[] (kind, description?, hours?, rate?, quantity?, unit_price?, amount? - the ticket quote's line), currency?, amounts_include_vat?, work_from?, work_to?, valid_until?, note?, vendor_ref?, question? (v1.4, section 19: <= 2000, stored as a question in his thread), base_version: int \| null, client_request_id}` | 201 `{ok, quote}` (the 15.3 shape) | 409 `rfq_due_passed`, 409 `quote_closed` (`reason`: `ended` \| `vendor`), 409 `quote_changed` (`version` = the current live version; `base_version` must name it, `null` when none), 422 `invalid` (`kind_not_allowed`, money / date fields) |
 | `POST /t/api/rfq/withdraw` | `{quote_id, client_request_id}` | 200 `{ok}` | 409 `rfq_due_passed`, `quote_closed`; a quote under a pending award, an unknown / another vendor's quote: 409 `quote_closed` `reason: vendor` (`award_pending` is no longer answered on the public route) |
 | `POST /t/api/rfq/decline` | `{reason? (<= 200), client_request_id}` | 200 `{ok}` | 409 `rfq_due_passed`, `quote_closed`, `quote_exists` (withdraw first) |
 | `POST /t/api/rfq/message` | `{text (1-2000), client_request_id}` | 201 `{ok, message}` | 409 `rfq_due_passed`, `quote_closed`, `message_limit` (30 per vendor) |
@@ -609,7 +609,85 @@ purge removes its quotes (DETAIL section 1) - the request then shows the award w
   confirms through the request's handler page as for any request (acknowledge, notes, ETA); no separate order state is stored.
 * Files: requests and orders carry no files yet - the agreed documents are text in the request's description.
 
+## 19. Vendor questions (v1.4, RFQQUESTIONS - owner report 2026-10-17)
+
+Owner report: a vendor's question was not obvious to the manager - it sat in the vendor's private thread (only a timeline row and the
+TKRFQ5 notification said so) or, more often, in the quote's free "note" (shown only in the comparison's notes row). v1.4 makes a question
+a first-class, visible item. Decisions and open owner questions: `docs/changes/CR-RFQ-QUESTIONS.md`.
+
+### 19.1 Model - migration 0106 (PROVISIONAL number; the lead renumbers at integration)
+
+A question IS an inbound `ticket_rfq_messages` row (`direction = 'in'`: the page's question box, the quote form's own `question` field, or
+a WhatsApp reply matched by 16.2 - unverified). Additive columns: `quote_id` (in: the quote it came with), `read_at` / `read_by` (in: first
+opened by an RFQ manager - ONE shared state per request), `answered_at` / `answered_by` / `answer_id` (in: answered; `answer_id` NULL =
+handled without a reply), `reminded_at` (in: the reminder was raised), `answers_id` (out: the question it answers), `broadcast_id` (out: one
+"answer every vendor" act). Partial index on the pending rows. Backfill: an inbound message followed by an outbound message to the same
+vendor is answered (and read) by it - the TKRFQ5 resolve rule, now stored. No table rebuild; purge / retention remove them with the
+messages (section 12).
+
+States: **pending** = `answered_at IS NULL`; **unread** = pending and `read_at IS NULL`; **answered**. Badges count pending questions only
+while the request is open (`sent` / `collecting` / `due_passed`): after an award, a close or a cancel nobody can act on them; the thread
+still shows them as never answered.
+
+### 19.2 Reads
+
+* Detail (section 10) adds `questions: {pending, unread, items: [{id, vendor_id, vendor: {name, company}, text, at, read, via: page |
+  whatsapp, unverified, quote: {id, version} | null, age_h}]}` (oldest first, the open request's pending questions; removed vendors are
+  left out), `vendors[].questions: {pending, unread}`, `can.answer` (= RFQ manager). `vendors[].quote.has_note` (costs.view only, like the
+  rest of the quote summary): the vendor wrote a note.
+* List summary adds `questions: {pending, unread}`; comparison `quotes[].questions: {pending, unread}`.
+* `GET .../vendors/{rv}/messages` items: inbound rows add `question: {state: pending | answered, read, answered_at, answer_id, quote_id}`;
+  outbound rows add `answers_id`, `to_all`.
+* `GET /tickets/rfqs/questions/summary` (`tickets.view`) -> `{pending, unread, requests}` over the open requests the caller MANAGES
+  (section 6 manager rule, `rfq.visible` + `rfq.is_manager`; at most 500 requests scanned) - the navigation badge. A plain viewer gets zeros.
+
+### 19.3 Writes (RFQ manager; visibility first: uniform 404 `rfq_not_found`; then the audited 403)
+
+| Route | Body | Answer | Refusals |
+|---|---|---|---|
+| `POST /tickets/rfqs/{id}/vendors/{rv}/messages/read` | none | `{read: n}` | 404 `vendor_not_found` |
+| `POST /tickets/rfqs/{id}/questions/{mid}/preview` | `{text (<= 2000), scope: vendor \| all = vendor, question_text? (<= 1000, scope all), name_asker: bool = false, notify: bool = true}` | `{question_id, scope, name_asker, recipients: [{vendor_id, vendor, asker, text, lang, notify_channel}]}` - nothing stored | 404 `message_not_found` (another request's, an outbound or an unknown id), 409 `question_answered`, 409 `rfq_invalid_transition` (scope all on a request that is not open; a draft / removed asker), 422 `validation` (`text`, `question_text`, `scope`) |
+| `POST /tickets/rfqs/{id}/questions/{mid}/answer` | the preview body + `client_request_id` | 201 `{rfq: detail, answer: {question_id, scope, items: [{vendor_id, message_id, notified}], notified, broadcast_id}, replayed}` (the same `client_request_id` answers the first answer) | as the preview |
+| `POST /tickets/rfqs/{id}/questions/{mid}/resolve` | none | the detail | 404 `message_not_found`, 409 `question_answered` |
+
+* **vendor** (the default): one outbound message to the asking vendor (his question sits above it in his thread).
+* **all**: the asker gets the answer; every other invited vendor (not `draft` / `removed` / `not_awarded`) gets ONE message of his own:
+  `"<frame>: <question as the manager worded it>\n<answer frame>: <answer>"`, the frame in the vendor's language (he / en / ar / ru; ar / ru
+  pending a native review); the asker is named (`"שאלה מ<company>"`) only with `name_asker`. The default question text is the vendor's
+  own - the manager edits it (e.g. to remove a phone number) before the preview. A vendor never sees another vendor's copy.
+* `notify`: per copy, the templated `rfq_update` notice through the existing outbox (live link, ready page, a channel; never the free
+  text - section 8); the outbox's send-hours rules apply as for every RFQ message.
+* The vendor-message route (section 9) also answers every pending question of that vendor (a `clarify` message, not an award draft).
+* `resolve` = handled without a reply (answered by phone): nothing is sent; the vendor page shows no "answered" for it.
+* Every write: the timeline row (`question_answered` `{message_id, scope, copies, notified, named}` / `question_resolved` / the per-copy
+  `message` rows with `answers`, `broadcast`), audit `ticket.rfq.answer` / `.question_resolve` / `.answer_preview` (denied only) /
+  `.question_read` (denied only) - ids, scope, counts; never a text, never a name. The `rfq.question` and `rfq.question_unanswered`
+  notifications of that vendor are resolved once he has no pending question.
+
+### 19.4 The vendor page (15.3 / 15.4 / 15.5)
+
+* The quote form has its own optional `question` field (<= 2000, the same text hygiene; the message cap of 30 applies - a refused question
+  stores NO quote: every check runs before the first write). Stored as his question with `quote_id`, the `vendor_message` timeline / audit
+  rows (ids + the quote id), the `rfq.question` notification. The note stays the quote's note.
+* `messages[]` of his own questions add `answered` (an answer was sent to HIM; a question handled by phone stays `false`). Exposure (15.5):
+  `messages[].answered` - his own thread, after the code. An answer to every vendor appears in each vendor's thread as an organisation
+  message (`mine: false`); it names the asker only when the manager chose it.
+
+### 19.5 The reminder
+
+`rfq.question_reminder_hours` (settings section `rfq`, 0-168, default 24, 0 = off; `PUT /tickets/settings {rfq: {...}}` now accepts the
+whole `rfq` section, which had no route before): the cost janitor (`rfq.retention`, every 10 min) raises `rfq.question_unanswered`
+("שאלת ספק ממתינה לתשובה", alert, push on, WhatsApp off, recipients `rfq_managers`, one row per vendor `rfq:<id>:qremind:<rv_id>`) ONCE per
+question still pending after N hours on an open request, and the timeline row `question_reminder`. Texts: the reference, the place and the
+hours - never the text or the vendor. The engine applies each recipient's channels and quiet hours.
+
 ## 14. Change log
+
+* v1.4 (2026-10-17, RFQQUESTIONS, `pilot/RFQQUESTIONS` from `integ/264`): section 19 - vendor questions: migration 0106 (provisional;
+  question state on `ticket_rfq_messages`), pending / unread counts on the list, the detail, the comparison and a navigation summary, the
+  pending items of the detail, read / answer (one vendor or every vendor, preview first, idempotent) / resolve, the quote form's own
+  `question` field, `messages[].answered` on the vendor page, the `rfq.question_unanswered` reminder and the `rfq` settings section on the
+  settings route. 15.3 / 15.4 amended in place.
 
 * v1.3 (2026-10-16, integration 2.6.4; TKRFQ4 stage C4, built as "v1.2" on `pilot/TKRFQ4` in parallel with TKRFQ5): section 18 - the work order: create (opens one service request per awarded vendor through the
   existing create and external-assignment code, the assignment message suppressed; the awarded quote becomes its baseline with no

@@ -145,6 +145,8 @@ export interface RfqDraft {
   workFrom: string;
   workTo: string;
   validUntil: string;
+  /** RFQQUESTIONS: a question sent with the quote (its own field - never mixed into the quote's notes) */
+  question?: string;
 }
 
 /** The kinds the form offers: the server's list, in the fixed order (labour is always allowed on a request). */
@@ -248,6 +250,8 @@ export function quoteWire(d: RfqDraft, v: Pick<RfqView, 'form' | 'quote' | 'time
   if (note) body.note = note;
   const ref = cleanText(d.form.vendor_ref);
   if (ref) body.vendor_ref = ref;
+  const question = cleanText(d.question ?? '', true);
+  if (question) body.question = question;
   body.base_version = baseVersion(v.quote);
   body.client_request_id = crid;
   return body;
@@ -277,7 +281,7 @@ export function parseRfqDraft(raw: string | null): RfqDraft | null {
         quantity: str(l.quantity, 20), unit_price: str(l.unit_price, 20), amount: str(l.amount, 20) }));
     return {
       form: { lines, currency: str(f.currency, 3) || 'ILS', include_vat: f.include_vat === true, no_charge: false, vendor_ref: str(f.vendor_ref, 200), notes: str(f.notes) },
-      workFrom: day(v.workFrom), workTo: day(v.workTo), validUntil: day(v.validUntil),
+      workFrom: day(v.workFrom), workTo: day(v.workTo), validUntil: day(v.validUntil), question: str(v.question, 2000),
     };
   } catch {
     return null;
