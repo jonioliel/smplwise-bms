@@ -38,7 +38,7 @@ def test_migration_tables_defaults_and_push_prefs_left_readable(w):
         assert st["escalation"] == {"enabled": True, "after_min": 5, "steps": 2, "to": "managers"} and st["retention_days"] == 30 and st["deliveries_retention_days"] == 14
         assert st["center_layout"] == "sheet" and st["failures_audience"] == "admins" and st["image_in_push"] is False and st["email"]["configured"] is False
         pols = policies.list_policies(conn)
-    assert {p["source"] for p in pols} == {s.key for s in policies.SOURCES if not s.key.startswith("ticket.")} and len(pols) >= 28  # CR-038: listed only while the tickets module is on
+    assert {p["source"] for p in pols} == {s.key for s in policies.SOURCES if not s.key.startswith(("ticket.", "rfq."))} and len(pols) >= 28  # CR-038 / TKRFQ5: listed only while the tickets module is on
     by = {p["source"]: p for p in pols}
     assert by["sensor.leak"]["severity"] == "critical" and by["sensor.leak"]["category"] == "safety" and by["sensor.leak"]["resolve_notice"] is True
     assert by["alarm.state"]["enabled"] is False and by["camera.motion"]["enabled"] is False and by["update.available"]["channels"]["webpush"] is False and by["update.available"]["channels"]["email"] is True
