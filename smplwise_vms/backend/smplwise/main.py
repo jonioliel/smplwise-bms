@@ -455,6 +455,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import local_identity as local_identity_router
 
     app.include_router(local_identity_router.router, prefix=api, tags=["identity"])  # USR2: Arx-only identities (off by default: security.local_identity)
+    from .routers import local_passkeys as local_passkeys_router
+
+    app.include_router(local_passkeys_router.router, prefix=api, tags=["identity"])  # USR2 phase 4: passkeys of Arx-only identities
+    # the Android app's Digital Asset Links statement for passkeys in its WebView (404 unless the feature is on and an app is named)
+    app.add_api_route("/.well-known/assetlinks.json", local_passkeys_router.assetlinks, methods=["GET"], include_in_schema=False)
     from .routers import cast as cast_router
 
     app.include_router(cast_router.router, prefix=api, tags=["multimedia"])  # CR-028: שדר למסך - cast sessions, targets, the cast administration

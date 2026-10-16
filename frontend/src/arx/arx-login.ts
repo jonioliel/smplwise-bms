@@ -4,9 +4,11 @@ import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSignIn
 import { t } from '../i18n/he';
 import { inAndroidApp, switchServer } from './android-app';
 import { formatSize, loadAndroidOffer, offerText, type AndroidOffer } from './android-download';
-import { changePassword, confirmReset, localMe, localSecondFactor, localSignIn, requestReset } from './local-auth';
+import { changePassword, confirmReset, localMe, localPasskeySecondFactor, localPasskeySignIn, localSecondFactor, localSignIn, requestReset } from './local-auth';
 import { lit } from '../i18n/local-identity';
+import { PasskeyCancelled, passkeysSupported } from './webauthn';
 import '../components/sw-second-factor';
+import '../components/sw-passkeys';
 
 const MODE_KEY = 'arx.login.mode';
 
@@ -40,6 +42,10 @@ export class ArxLogin extends LitElement {
   @property({ type: Boolean }) localEnabled = false;
   /** USR2: open straight in the "משתמש Arx" mode (after the welcome page saved a password). */
   @property() initialMode: '' | 'infra' | 'local' = '';
+  /** USR2 phase 4: the server allows passkey-only sign-in (remote-config `local_passkey_first`): the local mode shows the button. */
+  @property({ type: Boolean }) passkeyFirst = false;
+  /** USR2 phase 4: how the pending local second step can be answered (`methods` of the 202; TOTP when absent). */
+  @state() private factorMethods: ('totp' | 'passkey')[] = ['totp'];
   @state() private mode: 'infra' | 'local' = 'infra';
   @state() private step: 'credentials' | 'mfa' | 'factor' | 'lfactor' | 'enrol' | 'change' | 'forgot' | 'reset' = hasPendingSecondFactor() ? 'factor' : 'credentials';
   /** USR2 phase 2: the username of the self-service reset in progress (the steps 'forgot' -> 'reset'). */
@@ -290,6 +296,22 @@ export class ArxLogin extends LitElement {
       justify-content: center;
       margin-block-start: -8px;
     }
+    /* USR2 phase 4: the passkey buttons sit under the primary action */
+    button.secondary {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    button.secondary:hover:not(:disabled) {
+      background: var(--sw-surface-2, var(--sw-surface));
+    }
+    .passkey-only {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    form > .hint[aria-hidden] {
+      text-align: center;
+    }
   `;
 
   connectedCallback() {
@@ -332,6 +354,7 @@ export class ArxLogin extends LitElement {
     await this.run(async () => {
       const r = await localSignIn(username, password);
       if (r.second_factor === 'required') {
+        this.factorMethods = r.methods?.length ? r.methods : ['totp'];
         this.step = 'lfactor';
         await this.updateComplete;
         this.codeEl?.focus();
@@ -343,6 +366,24 @@ export class ArxLogin extends LitElement {
       this.passwordEl.value = '';
       this.passwordEl.focus();
     }
+  }
+
+  /** USR2 phase 4: the pending second step answered with a passkey instead of the code. */
+  private async onPasskeyFactor() {
+    if (this.busy) return;
+    await this.run(async () => {
+      const r = await localPasskeySecondFactor();
+      await this.afterLocal(!!r.must_change_password);
+    }, false);
+  }
+
+  /** USR2 phase 4: passkey first - no username, no password; the server answers uniformly when it is not allowed for this passkey. */
+  private async onPasskeySignIn() {
+    if (this.busy) return;
+    await this.run(async () => {
+      const r = await localPasskeySignIn();
+      await this.afterLocal(!!r.must_change_password);
+    }, false);
   }
 
   private async onChange(e: Event) {
@@ -506,7 +547,7 @@ export class ArxLogin extends LitElement {
     try {
       await fn();
     } catch (err) {
-      this.error = err instanceof ArxAuthError ? err.message : 'שגיאה לא צפויה. נסה שוב.';
+      this.error = err instanceof ArxAuthError ? err.message : err instanceof PasskeyCancelled ? lit('passkeyCancelled') : 'שגיאה לא צפויה. נסה שוב.';
       if (err instanceof ArxAuthError && err.code === 'code_invalid') this.error = lit('resetCodeInvalid');
       if (!haFlow) {
         // USR2: a wrong code keeps the code step; an expired / locked second step goes back to the credentials
@@ -555,7 +596,7 @@ export class ArxLogin extends LitElement {
           : this.step === 'factor'
           ? t('secondFactor.loginPrompt')
           : this.step === 'lfactor'
-          ? lit('codePrompt')
+          ? this.factorMethods.includes('totp') ? lit('codePrompt') : lit('passkeyUse')
           : this.step === 'enrol'
           ? lit('enrolSub')
           : this.step === 'change'
@@ -576,6 +617,7 @@ export class ArxLogin extends LitElement {
       ${this.error ? html`<div class="msg error" role="alert" data-arx-error>${this.error}</div>` : nothing}
       ${this.step === 'enrol'
         ? html`<sw-second-factor data-arx-enrol></sw-second-factor>
+            <sw-passkeys data-arx-enrol-passkey></sw-passkeys>
             <button type="button" data-arx-enrol-continue ?disabled=${this.busy} @click=${() => window.location.reload()}>${lit('continue')}</button>`
         : this.step === 'change'
         ? html`<form @submit=${this.onChange} novalidate data-arx-change>
@@ -608,10 +650,23 @@ export class ArxLogin extends LitElement {
             ${this.localEnabled && this.mode === 'local'
               ? html`<button type="button" class="link" ?disabled=${this.busy} @click=${() => this.openForgot()} data-arx-forgot>${lit('forgot')}</button>`
               : nothing}
+            ${this.localEnabled && this.mode === 'local' && this.passkeyFirst && passkeysSupported()
+              ? html`<span class="hint" aria-hidden="true">${lit('passkeyOr')}</span>
+                  <button type="button" class="secondary" ?disabled=${this.busy} @click=${() => void this.onPasskeySignIn()} data-arx-passkey-signin>${this.busy ? lit('passkeyWaiting') : lit('passkeySignIn')}</button>`
+              : nothing}
           </form>`
+        : this.step === 'lfactor' && !this.factorMethods.includes('totp')
+        ? html`<div class="passkey-only" data-arx-passkey-only>
+            <button type="button" ?disabled=${this.busy || !passkeysSupported()} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${this.busy ? lit('passkeyWaiting') : lit('passkeyUse')}</button>
+            ${passkeysSupported() ? nothing : html`<span class="hint">${lit('passkeyUnsupported')}</span>`}
+            <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
+          </div>`
         : html`<form @submit=${this.onCode} novalidate>
             <label>קוד אימות<input id="code" class="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required ?disabled=${this.busy} /></label>
             <button type="submit" ?disabled=${this.busy} data-arx-verify>${this.busy ? 'בודק…' : 'אימות'}</button>
+            ${this.step === 'lfactor' && this.factorMethods.includes('passkey') && passkeysSupported()
+              ? html`<button type="button" class="secondary" ?disabled=${this.busy} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${lit('passkeyUse')}</button>`
+              : nothing}
             <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>חזרה לכניסה</button>
           </form>`}
       <div class="foot">

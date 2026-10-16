@@ -55,10 +55,16 @@ def remote_config(request: Request) -> dict[str, Any]:
         rs = hua.remote_settings(conn)
         local = local_identity.enabled(conn)
         local_min = local_identity.password_min(conn) if local else 0
+        if local:
+            from ..services import local_passkeys
+
+            passkey_first = local_passkeys.first_enabled(conn) and local_passkeys.rp(conn) is not None
     body = {"path": settings.remote_path + "/", "session": rs["remote.session"], "idle_lock_minutes": rs["remote.idle_lock_minutes"]}
     if local:  # USR2: the sign-in page offers the "משתמש Arx" mode only while the feature is on (absent otherwise: the answer is unchanged)
         body["local_identity"] = True
         body["local_password_min"] = local_min
+        if passkey_first:  # USR2 phase 4: the "sign in with a passkey" button (absent otherwise)
+            body["local_passkey_first"] = True
     return body
 
 

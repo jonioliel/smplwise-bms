@@ -329,7 +329,6 @@ def confirm(db: Any, settings: Any, conn_like: Any, username: str, presented: An
     """Blocking (runs in the hashing pool). A correct, live code of an eligible user + a password that passes the policy -> the new
     password; every session and open link of the user ends; NO session is created (the page signs in normally)."""
     from . import local_passwords as lp
-    from . import second_factor as sf
     from .ha_user_auth import REFUSAL_AUDITS, mask_address, request_meta
 
     meta = request_meta(conn_like)
@@ -393,7 +392,7 @@ def confirm(db: Any, settings: Any, conn_like: Any, username: str, presented: An
         ended = li.revoke_user_sessions(conn, uid, "password_changed")
         li.drop_pending_of(uid)
         li.TIERS.acct_clear_name(user["username"])  # the person's own failed tries before they asked for the code end with the reset
-        must_enrol = not sf.is_enrolled(conn, uid) and (li.holds_admin(conn, uid) or li.factor_policy_required(conn, uid))
+        must_enrol = not li.has_factor(conn, uid) and (li.holds_admin(conn, uid) or li.factor_policy_required(conn, uid))  # USR2 phase 4: a passkey counts
         li._audit(conn, actor=None, action="auth.local.reset.completed", decision="allowed", resource_id=uid,
                   details={"code_id": rec.cid[:12], "sessions_ended": ended, "links_invalidated": links, "ip": masked}, request_id=request_id)
         li._audit(conn, actor=None, action="auth.local.password.changed", decision="allowed", resource_id=uid,

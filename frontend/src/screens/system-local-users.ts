@@ -5,9 +5,10 @@ import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-table';
 import type { TableColumn } from '../components/sw-table';
-import { apiUrl, del, describeError, get, patch, post, put } from '../api/client';
+import { ApiError, apiUrl, del, describeError, get, patch, post, put } from '../api/client';
 import { fmtWhen, type RoleInfo, type ScopeRef } from '../api/access';
 import { lit, type LocalIdentityKey } from '../i18n/local-identity';
+import { adminRemovePasskey, userPasskeys, type PasskeyView } from '../api/passkeys';
 
 /** USR2: one Arx-only identity as GET /identity/local-users lists it (never a hash, never a link). */
 export interface LocalUser {
@@ -36,6 +37,9 @@ export interface LocalUser {
   whatsapp?: { verified: boolean; masked: string | null };
   /** Why a self-service reset would be refused right now (null = it would work, or the mode is manager_only). */
   self_service_blocked?: 'admin_target' | 'no_verified_number' | null;
+  /** USR2 phase 4: how many passkeys (the list is its own route) and the user's own passkey-only mode. */
+  passkeys?: number;
+  passkey_first?: boolean;
 }
 
 export interface LocalUsersReply {
@@ -47,6 +51,8 @@ export interface LocalUsersReply {
   whatsapp_ready?: boolean;
   /** Where links sent by WhatsApp point (the configured address, or this remote session's host), or null. */
   public_url?: string | null;
+  /** USR2 phase 4: the owner switch `security.local_passkey_first`. */
+  passkey_first_allowed?: boolean;
 }
 
 /** USR2 phase 2: a link that went by WhatsApp - nothing secret is shown, only where and until when. */
@@ -114,6 +120,10 @@ export class SystemLocalUsers extends LitElement {
   @state() private sent: LinkSent | null = null;
   @state() private publicUrl = '';
   @state() private publicUrlNote = '';
+  /** USR2 phase 4: the selected user's passkeys (loaded when the user is selected) and the administrator's own step-up code. */
+  @state() private pk: { userId: string; items: PasskeyView[] } | null = null;
+  @state() private pkStepUp = false;
+  @state() private pkCode = '';
 
   static styles = css`
     :host {
@@ -349,6 +359,72 @@ export class SystemLocalUsers extends LitElement {
     });
   }
 
+  /** USR2 phase 4: the selected user's passkeys (never a credential id or a key - only names, dates, flags). */
+  private async loadPasskeys(userId: string) {
+    try {
+      const r = await userPasskeys(userId);
+      if (this.selected === userId) this.pk = { userId, items: r.credentials };
+    } catch {
+      this.pk = null;
+    }
+  }
+
+  private removePasskey(u: LocalUser, id: string) {
+    if (!window.confirm(lit('passkeyAdminRemoveConfirm'))) return;
+    void this.run(async () => {
+      try {
+        await adminRemovePasskey(u.id, id, this.pkStepUp ? this.pkCode.trim() : undefined);
+      } catch (err) {
+        // the administrator's own TOTP factor is on: the removal needs their current code (CR-011 M1)
+        if (err instanceof ApiError && err.body.code === 'second_factor_step_up_required') this.pkStepUp = true;
+        throw err;
+      }
+      this.pkCode = '';
+      await this.load();
+      await this.loadPasskeys(u.id);
+    });
+  }
+
+  private passkeyFirstOff(u: LocalUser) {
+    void this.run(async () => {
+      await patch(`/identity/local-users/${encodeURIComponent(u.id)}`, { passkey_first: false });
+      await this.load();
+    });
+  }
+
+  private setPasskeyFirstAllowed(on: boolean) {
+    void this.run(async () => {
+      await patch('/settings', { 'security.local_passkey_first': on ? 'on' : 'off' });
+      await this.load();
+    });
+  }
+
+  /** Which user's passkeys were last requested (a plain field: a failed load must not re-request on every render). */
+  private pkRequested: string | null = null;
+
+  private renderPasskeys(u: LocalUser, manage: boolean): TemplateResult {
+    if (this.pkRequested !== u.id) {
+      this.pkRequested = u.id;
+      void Promise.resolve().then(() => {
+        this.pkStepUp = false;
+        return this.loadPasskeys(u.id);
+      });
+    }
+    const items = this.pk?.userId === u.id ? this.pk.items : [];
+    return html`<div class="full cell" data-local-passkeys>
+      <span class="muted">${lit('passkeysCount', { n: u.passkeys ?? items.length })}${u.passkey_first ? html` · ${lit('passkeyFirstOn')}` : nothing}</span>
+      ${items.map((p) => html`<span class="muted" data-local-passkey=${p.id}>${p.label || lit('passkeys')} · ${fmtWhen(p.created_at)}${p.synced ? html` · ${lit('passkeySynced')}` : nothing}${p.usable ? nothing : html` · ${lit('passkeyNotUsable')}`}
+        ${manage ? html`<sw-button size="sm" variant="ghost" @click=${() => this.removePasskey(u, p.id)} ?disabled=${this.busy} data-local-passkey-remove>${lit('passkeyAdminRemove')}</sw-button>` : nothing}</span>`)}
+      ${manage && this.pkStepUp
+        ? html`<label>${lit('code')}<input class="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" .value=${this.pkCode}
+            @input=${(e: Event) => (this.pkCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} data-local-passkey-code /></label>`
+        : nothing}
+      ${manage && u.passkey_first
+        ? html`<div class="actions"><sw-button @click=${() => this.passkeyFirstOff(u)} ?disabled=${this.busy} data-local-passkey-first-off>${lit('passkeyFirstAdminOff')}</sw-button></div>`
+        : nothing}
+    </div>`;
+  }
+
   private saveRole(u: LocalUser) {
     const edit = this.roleEdit;
     if (!edit) return;
@@ -469,6 +545,7 @@ export class SystemLocalUsers extends LitElement {
               ? html`<div class="note warn full" data-local-reset-blocked=${u.self_service_blocked}>${lit(`blocked_${u.self_service_blocked}` as LocalIdentityKey)}</div>`
               : html`<div class="muted full">${lit('resetModeHelp')}</div>`}
             ${this.renderWhatsapp(u)}
+            ${this.renderPasskeys(u, manage)}
             ${edit
               ? html`<label>${lit('role')}<select .value=${edit.role_id} @change=${(e: Event) => (this.roleEdit = { ...edit, role_id: (e.target as HTMLSelectElement).value })}>
                     ${roles.map((r) => html`<option value=${r.id} ?selected=${r.id === edit.role_id} ?disabled=${this.remote && roleIsAdmin(r)}>${r.name}</option>`)}
@@ -493,6 +570,10 @@ export class SystemLocalUsers extends LitElement {
         <div class="muted full">${lit('publicUrlHint')}</div>
         ${this.publicUrlNote ? html`<div class="note full" role="status">${this.publicUrlNote}</div>` : nothing}
         <div class="actions"><sw-button @click=${() => this.savePublicUrl()} ?disabled=${this.busy} data-local-public-url-save>${lit('publicUrlSave')}</sw-button></div>
+        <label class="full check"><input type="checkbox" .checked=${!!d.passkey_first_allowed} ?disabled=${this.busy}
+            @change=${(e: Event) => this.setPasskeyFirstAllowed((e.target as HTMLInputElement).checked)} data-local-passkey-first-allowed />
+          ${lit('passkeySettingFirst')}</label>
+        <div class="muted full">${lit('passkeySettingHelp')}</div>
       </div>
     </sw-card>`;
   }
@@ -515,7 +596,13 @@ export class SystemLocalUsers extends LitElement {
       },
       { key: 'status', label: lit('colStatus'), render: (x) => this.statusBadge(row(x)) },
       { key: 'last', label: lit('colLast'), render: (x) => (row(x).last_sign_in_at ? fmtWhen(row(x).last_sign_in_at) : lit('never')) },
-      { key: 'factor', label: lit('colFactor'), render: (x) => (row(x).second_factor ? lit('factorOn') : lit('factorOff')) },
+      {
+        key: 'factor',
+        label: lit('colFactor'),
+        render: (x) => html`<span style=${CELL}><span>${row(x).second_factor ? lit('factorOn') : lit('factorOff')}</span>${row(x).passkeys
+          ? html`<span style=${MUTED}>${lit('passkeysCount', { n: row(x).passkeys ?? 0 })}</span>`
+          : nothing}</span>`,
+      },
     ];
     const sel = d.users.find((u) => u.id === this.selected) ?? null;
     return html`<div class="stack" data-local-users>

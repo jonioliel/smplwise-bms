@@ -4,6 +4,7 @@ import '../components/sw-avatar';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
 import '../components/sw-second-factor';
+import '../components/sw-passkeys'; // USR2 phase 4: renders nothing unless the caller is an Arx-only identity
 import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
 import './sw-home-personal';
@@ -561,7 +562,7 @@ export class SwUserMenu extends LitElement {
         ${acc.factor
           ? html`<li><details data-my-second-factor @toggle=${(e: Event) => (this.factorOpen = (e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="shield" size=${18}></sw-icon></span><span class="txt">${t('secondFactor.title')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
-              <div class="sessions">${this.open && this.factorOpen ? html`<sw-second-factor></sw-second-factor>` : nothing}</div>
+              <div class="sessions">${this.open && this.factorOpen ? html`<sw-second-factor></sw-second-factor><sw-passkeys></sw-passkeys>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.android

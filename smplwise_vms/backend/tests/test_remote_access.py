@@ -500,7 +500,10 @@ PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("GET", "/api/v1/auth
                     # security.local_identity is off; tests/test_local_identity.py covers their guards)
                     ("POST", "/api/v1/auth/local/sign-in"), ("POST", "/api/v1/auth/local/sign-in/second-factor"), ("POST", "/api/v1/auth/local/set-password"),
                     # USR2 phase 2: the self-service reset by a WhatsApp code (tests/test_local_reset.py covers the guards)
-                    ("POST", "/api/v1/auth/local/reset/request"), ("POST", "/api/v1/auth/local/reset/confirm")}
+                    ("POST", "/api/v1/auth/local/reset/request"), ("POST", "/api/v1/auth/local/reset/confirm"),
+                    # USR2 phase 4: the passkey answer to the pending second step and the passkey-first sign-in (tests/test_local_passkeys.py)
+                    ("POST", "/api/v1/auth/local/sign-in/passkey/options"), ("POST", "/api/v1/auth/local/sign-in/passkey"),
+                    ("POST", "/api/v1/auth/local/passkey/options"), ("POST", "/api/v1/auth/local/passkey")}
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory"),  # 404: the bridge's signed calls
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
