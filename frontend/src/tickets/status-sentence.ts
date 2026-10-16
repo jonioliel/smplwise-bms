@@ -45,7 +45,7 @@ export interface SentenceTicket {
   link?: { first_opened_at: string | null; sent_via?: string | null; sent_at?: string | null; open_count?: number; state?: string } | null;
   events?: readonly { kind: string; at: string; to?: TicketStatus | null; data?: Record<string, unknown> }[];
   /** the board / table item's stuck state (detail: derived from the events) */
-  stuck?: { kind: string; since: string | null } | null;
+  stuck?: { kind: string; since: string | null; reminders?: number } | null;
 }
 
 /** What the role resolution reads (the detail's `can`). */
@@ -254,7 +254,7 @@ export function stuckOf(t: SentenceTicket): { kind: string; since: string | null
   const evs = t.events ?? [];
   const reset = evs.filter((e) => ['status', 'assigned', 'reassigned', 'returned', 'reopened', 'closed', 'cancelled'].includes(e.kind)).at(-1)?.at ?? '';
   const reminders = evs.filter((e) => e.kind === 'reminder' && e.at >= reset).length;
-  if (t.stuck) return { kind: t.stuck.kind, since: t.stuck.since, reminders };
+  if (t.stuck) return { kind: t.stuck.kind, since: t.stuck.since, reminders: t.stuck.reminders ?? reminders }; // TKUI4: a board item carries its own count
   const ev = evs.filter((e) => e.kind === 'stuck' && e.at >= reset).at(-1);
   if (!ev) return null;
   return { kind: String(ev.data?.kind ?? 'stuck'), since: ev.at, reminders };

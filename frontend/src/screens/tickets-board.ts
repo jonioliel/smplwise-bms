@@ -7,7 +7,7 @@ import '../tickets/ticket-detail';
 import '../tickets/ticket-create';
 import '../tickets/board-tree';
 import { automationsStyles } from '../styles/automations-glass';
-import { mediaPageStyles } from '../styles/media-page';
+import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -15,16 +15,25 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { replaceRoute, type RouteState } from '../router';
 import { ticketsApi, type Meta, type ModuleState, type TicketDetail } from '../api/tickets';
+import { saveBoardPrefs } from '../api/tickets-table';
 import { boardApi, boardUiOf, type BoardItem, type BoardResponse, type BoardUi } from '../api/tickets-board';
-import { ticketHref } from '../tickets/model';
+import { relTime, ticketHref, listHref } from '../tickets/model';
+import { lastScope } from '../tickets/model';
 import { tt } from '../tickets/text';
 import { bt } from '../tickets/board-text';
 import { tIcon } from '../tickets/icons';
 import { onTicketNames, setTicketNames } from '../tickets/naming';
-import { autoCloseLine, ageOf, boardHref, floorChips, floorsLayout, groupingOn, parseBoardRoute, placeLabel, sections, stripItems, stuckChip, waitingLabel, type BoardRoute } from '../tickets/board-model';
+import { ageOf, boardHref, floorChips, floorsLayout, groupingOn, parseBoardRoute, placeLabel, sections, stripItems, type BoardRoute } from '../tickets/board-model';
 import type { TicketCardAction } from '../tickets/ticket-card';
 import { dlt } from '../tickets/delete-text';
 import { LiveRefresh } from '../tickets/live-refresh';
+import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
+import { applyCardFilters, activeCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
+import { filterButton, filterRow } from '../tickets/list-filter-row';
+import { roleFor, avatarPair } from '../tickets/list-card-model';
+import { loadMeter, todayEntries } from '../tickets/board-today';
+import { lt } from '../tickets/list-text';
+import { ticketBoardV5Styles, ticketListFrameStyles } from '../tickets/list-styles';
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
 
@@ -65,6 +74,10 @@ export class TicketsBoard extends LitElement {
   @state() private now = new Date();
   @state() private q = '';
   @state() private toast: { text: string; tone: 'ok' | 'bad' } | null = null;
+  /** TKUI4: the filter row over the held cards, and the title that compacts while the page scrolls */
+  @state() private filterRowOpen = false;
+  @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
+  @state() private compactHeader = false;
   private pendingQ: string | null = null;
   private key = '';
   private seq = 0;
@@ -74,7 +87,7 @@ export class TicketsBoard extends LitElement {
   private live = new LiveRefresh(() => { this.now = new Date(); if (this.screen === 'ready') void this.load(true); }); // 2.5.4: shared poller
   private toastTimer = 0;
   private offNames: (() => void) | null = null;
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketBoardV5Styles, css`
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -232,6 +245,7 @@ export class TicketsBoard extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.live.start();
     void this.boot();
@@ -240,11 +254,28 @@ export class TicketsBoard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     this.live.stop();
     window.clearTimeout(this.qTimer);
     window.clearTimeout(this.toastTimer);
   }
+
+  private onScroll = () => {
+    const compact = this.scrollTop > 40;
+    if (compact !== this.compactHeader) this.compactHeader = compact;
+  };
+
+  protected updated(): void {
+    measureHeaderBar(this.renderRoot, this.phone);
+  }
+
+  /** TKUI4: the view switch of the board - cards / table go back to the list (the choice is remembered, as on the list), "board" stays. */
+  private pickMode = (m: ListMode): void => {
+    if (m === 'board') return;
+    void saveBoardPrefs({ view: m });
+    window.location.hash = listHref(lastScope());
+  };
 
   protected willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('route') && this.route) {
@@ -389,7 +420,7 @@ export class TicketsBoard extends LitElement {
     const depts = d?.departments ?? [];
     const canCreate = !!this.meta?.can.create;
     const chips = d && layout.chips ? floorChips(d.tree) : [];
-    return html`<header class="dh" data-board-header>
+    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-board-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
         ${chips.length ? html`<div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
@@ -409,8 +440,11 @@ export class TicketsBoard extends LitElement {
         <span class="grow"></span>
         ${layout.treeInFilter ? html`<button type="button" class="btn" aria-expanded=${String(this.filterOpen)} data-filter-btn @click=${() => (this.filterOpen = !this.filterOpen)}>${tIcon('filter')}${bt('filter')}</button>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
+        ${filterButton(this.filterRowOpen, activeCardFilters(this.filters), () => (this.filterRowOpen = !this.filterRowOpen))}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(boardHref(this.r, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-      </div>` : nothing}
+        ${listViewSwitch('board', true, this.pickMode)}
+      </div>
+      ${this.filterRowOpen && d ? filterRow([...d.items, ...d.closed], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
     </header>`;
   }
 
@@ -420,14 +454,7 @@ export class TicketsBoard extends LitElement {
 
   private card(t: BoardItem): TemplateResult {
     const fullScreen = this.detailMode() !== 'drawer';
-    const waiting = t.group === 'waiting' ? waitingLabel(t.waiting_reason) : '';
-    const stuckText = t.stuck && t.group !== 'closed' ? stuckChip(t, this.now) : '';
-    const auto = autoCloseLine(t.auto_close_at);
-    return html`<ticket-card .item=${t} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}>
-      ${waiting ? html`<span slot="chips" class="chip warn" data-chip="waiting">${tIcon('user')}${waiting}</span>` : nothing}
-      ${stuckText ? html`<span slot="chips" class="chip bad" data-chip="stuck">${tIcon('warning')}${stuckText}</span>` : nothing}
-      ${auto ? html`<span slot="chips" class="chip info" data-chip="auto-close">${tIcon('clock')}${auto}</span>` : nothing}
-    </ticket-card>`;
+    return html`<ticket-card .item=${t} .board=${true} .role=${roleFor(t, this.meta)} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}></ticket-card>`;
   }
 
   private grid(items: readonly BoardItem[], attr: string): TemplateResult {
@@ -441,34 +468,61 @@ export class TicketsBoard extends LitElement {
     </section>`;
   }
 
+  /** TKUI4: a handler's group - the avatar, the name, how many are in hand and the oldest, and the load meter (full load turns red). */
   private handling(items: readonly BoardItem[]): TemplateResult {
     const d = this.data as BoardResponse;
     const groups = d.handling.filter((h) => items.some((i) => h.ids.includes(i.id)));
     if (groups.length <= 1) return this.grid(items, 'handling');
-    return html`${groups.map((h) => html`<div class="assignee-block" data-assignee=${h.key}>
-      <div class="sub"><b>${h.name ? bidi(h.name) : bt('noAssigneeGroup')}</b><span>${bt('handlingBy', { n: h.count, age: ageOf(h.oldest_at, this.now) })}</span></div>
-      ${this.grid(items.filter((i) => h.ids.includes(i.id)), 'handling')}
-    </div>`)}`;
+    return html`${groups.map((h) => {
+      const mine = items.filter((i) => h.ids.includes(i.id));
+      const meter = loadMeter(mine.length);
+      const av = avatarPair(mine[0])[0];
+      return html`<div class="assignee-block" data-assignee=${h.key}>
+        <div class="hgroup sub">${av && h.name ? html`<span class=${`av ${av.kind}`} aria-hidden="true">${av.ini}</span>` : nothing}<b>${h.name ? bidi(h.name) : bt('noAssigneeGroup')}</b><span>${lt('bdHandlingBy', { n: h.count, age: ageOf(h.oldest_at, this.now) })}</span>
+          <span class="load" role="img" aria-label=${lt('bdLoadLabel', { n: mine.length })} data-load=${meter.on}>${Array.from({ length: meter.total }, (_, i) => html`<i class=${i < meter.on ? (meter.hot && i === meter.total - 1 ? 'hot' : 'on') : ''}></i>`)}</span></div>
+        ${this.grid(mine, 'handling')}
+      </div>`;
+    })}`;
+  }
+
+  /** TKUI4 ("today" row, the manager board ONLY): visits and the next response target of today, and what waits for the manager. */
+  private today(d: BoardResponse): TemplateResult | typeof nothing {
+    const rows = todayEntries(d.items, d.counts, this.now);
+    if (!rows.length) return nothing;
+    return html`<div class="today glass" role="list" aria-label=${lt('bdTodayGroup')} data-board-today><b>${lt('bdToday')}</b>
+      ${rows.map((e) => e.id
+        ? html`<button type="button" class=${`up ${e.tone}`} role="listitem" data-today=${e.kind} @click=${() => writeHref(this.hrefOf(e.id), false)}><i></i><time>${e.time}</time><span>${bidi(e.label)}</span>${e.what ? html`<span class="what">${bidi(e.what)}</span>` : nothing}</button>`
+        : html`<span class=${`up ${e.tone}`} role="listitem" data-today=${e.kind}><i></i><span>${e.label}</span></span>`)}
+    </div>`;
+  }
+
+  /** The recently closed ones are quiet rows (number, title, who, when); a row opens the request like a card. */
+  private closedRows(items: readonly BoardItem[]): TemplateResult {
+    return html`<div class="closedrows glass" data-cards="closed">${items.map((t) => html`<a class="cr" href=${this.hrefOf(t.id)} data-closed-row=${t.id} aria-label=${lt('bdOpenRow', { n: t.number })}>
+      <span class="num">#${t.number}</span><b>${t.title}</b><span class="hide-p">${t.assignee?.name ? bidi(t.assignee.name) : ''}</span><span>${relTime(t.closed_at ?? t.last_activity_at, this.now)}</span></a>`)}</div>`;
   }
 
   private cards(): TemplateResult {
     const d = this.data as BoardResponse;
     const ui = this.ui();
+    const items = applyCardFilters(d.items, this.filters);
+    const closed = applyCardFilters(d.closed, this.filters);
     if (!d.items.length) {
       const filtered = !!(this.r.q.trim() || this.r.dept || this.r.place || this.r.state !== 'all');
       if (filtered) return this.stateBox('search', this.r.state !== 'all' && !this.r.q.trim() ? bt('emptyState') : tt('emptyFiltered'), 'no-match', html`<button type="button" class="btn sm" data-clear-filters @click=${() => writeHref(boardHref({}), false)}>${tt('clearFilters')}</button>`);
       return this.stateBox('ticket', bt('emptyBoard'), 'empty');
     }
-    if (!groupingOn(ui.grouping, this.r.state)) return this.grid(d.items, 'flat');
-    const s = sections(d.items);
+    if (!items.length && !closed.length) return this.stateBox('search', lt('lfNoMatch'), 'no-match-filters', html`<button type="button" class="btn sm" data-clear-card-filters @click=${() => (this.filters = { ...NO_CARD_FILTERS })}>${tIcon('x')}${lt('lfClear')}</button>`);
+    if (!groupingOn(ui.grouping, this.r.state)) return this.grid(items, 'flat');
+    const s = sections(items);
     return html`<div class="groups">
       ${s.waiting.length ? this.section('waiting', bt('grpWaiting'), bt('grpWaitingSub'), s.waiting.length, this.grid(s.waiting, 'waiting')) : nothing}
       ${s.stuck.length ? this.section('stuck', bt('grpStuck'), bt('grpStuckSub'), s.stuck.length, this.grid(s.stuck, 'stuck')) : nothing}
       ${s.handling.length ? this.section('handling', bt('grpHandling'), bt('grpHandlingSub'), s.handling.length, this.handling(s.handling)) : nothing}
-      ${this.r.state === 'all' && ui.closed_strip !== 'hidden' && d.closed.length ? html`<section class="fsec" data-section="closed">
-        <div class="sh"><h2>${bt('grpClosed')}</h2><span class="cnt">${d.closed.length}</span>
+      ${this.r.state === 'all' && ui.closed_strip !== 'hidden' && closed.length ? html`<section class="fsec" data-section="closed">
+        <div class="sh"><h2>${bt('grpClosed')}</h2><span class="cnt">${closed.length}</span>
           <button type="button" class="btn sm" aria-expanded=${String(this.showClosed)} data-closed-toggle @click=${() => (this.showClosed = !this.showClosed)}>${this.showClosed ? bt('hideClosed') : bt('showClosed')}</button></div>
-        ${this.showClosed ? this.grid(d.closed, 'closed') : nothing}
+        ${this.showClosed ? this.closedRows(closed) : nothing}
       </section>` : nothing}
     </div>`;
   }
@@ -498,6 +552,7 @@ export class TicketsBoard extends LitElement {
       : nothing;
     const tree = html`<ticket-board-tree .nodes=${d.tree} .selected=${this.r.place} .total=${total} @place-pick=${(e: CustomEvent<{ key: string }>) => this.go({ place: e.detail.key })}></ticket-board-tree>`;
     return html`
+      ${this.today(d)}
       ${layout.treeInFilter && this.filterOpen ? html`<div class="fpanel" data-filter-panel>${tree}</div>` : nothing}
       <div class=${`layout${layout.tree ? ' with-tree' : ''}`}>
         ${layout.tree && showTree ? html`<aside class="side">${tree}</aside>` : nothing}

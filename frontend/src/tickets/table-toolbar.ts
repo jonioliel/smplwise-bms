@@ -16,6 +16,7 @@ import { fromLocalInput, toLocalInput } from './model';
 import { costColumnsOn } from './table-model';
 import { COST_FILTER_STATUSES } from './cost-model';
 import { ct, type CostTextKey } from './cost-text';
+import { lt } from './list-text';
 
 type Pop = 'columns' | 'views' | 'filters' | null;
 
@@ -42,6 +43,8 @@ export class TicketsTableToolbar extends LitElement {
   @property({ type: Boolean }) phone = false;
   @property({ type: Boolean }) canExport = false;
   @property({ type: Boolean }) exporting = false;
+  /** TKUI4: the "what is happening" column is shown (a client-only choice the host keeps) */
+  @property({ type: Boolean }) sentence = true;
   @property() defaultView = '';
   @state() private pop: Pop = null;
   @state() private views: SavedView[] | null = null;
@@ -167,7 +170,10 @@ export class TicketsTableToolbar extends LitElement {
     const shown = this.layout.columns;
     return html`<div class="pop lst" role="dialog" aria-label=${tbt('columns')} data-pop="columns">
       <div class="hd">${tbt('columns')}</div>
-      <div class="plist">${list.map((c) => {
+      <div class="plist"><div class="crow" data-col="sentence">
+          <label class="opt"><input type="checkbox" .checked=${this.sentence} data-col-sentence
+            @change=${(e: Event) => this.emit('sentence-change', { on: (e.target as HTMLInputElement).checked })} />${lt('ltSentence')}</label>
+        </div>${list.map((c) => {
         const i = shown.indexOf(c.key);
         return html`<div class="crow" data-col=${c.key}>
           <label class="opt"><input type="checkbox" .checked=${c.shown} ?disabled=${c.required} data-col-toggle=${c.key}

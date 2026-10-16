@@ -9,9 +9,17 @@ import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (
 import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
-import { boardViewSwitch } from '../tickets/table-switch';
+import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
+import { BOARD_HREF } from '../tickets/board-model';
+import { boardApi } from '../api/tickets-board';
+import { foldCounts, NO_COUNTS, countText, type ListCounts } from '../tickets/list-counts';
+import { applyCardFilters, activeCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
+import { filterButton, filterRow } from '../tickets/list-filter-row';
+import { roleFor, type CardItem } from '../tickets/list-card-model';
+import { lt } from '../tickets/list-text';
+import { ticketListFrameStyles } from '../tickets/list-styles';
 import { automationsStyles } from '../styles/automations-glass';
-import { mediaPageStyles } from '../styles/media-page';
+import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -20,7 +28,7 @@ import { ApiError, describeError } from '../api/client';
 import { can } from '../api/session';
 import { replaceRoute, type RouteState } from '../router';
 import { ticketsApi, type ListPage, type Meta, type ModuleState, type TicketDetail, type TicketItem } from '../api/tickets';
-import { NO_FILTERS, STATUS_FILTERS, filterLabel, listHref, parseTicketsRoute, rememberScope, ticketHref, type ListFilters, type TicketsRoute } from '../tickets/model';
+import { NO_FILTERS, SCOPES, STATUS_FILTERS, filterLabel, listHref, parseTicketsRoute, rememberScope, scopeLabel, ticketHref, type ListFilters, type TicketsRoute } from '../tickets/model';
 import { tt } from '../tickets/text';
 import { dlt } from '../tickets/delete-text';
 import { LiveRefresh } from '../tickets/live-refresh';
@@ -67,6 +75,12 @@ export class TicketsList extends LitElement {
   @state() private now = new Date();
   @state() private q = '';
   @state() private view: BoardView = 'cards'; // CR-038 S6b (D24): cards | table, the user's tickets.board.view
+  /** TKUI4: the page frame's counts (scope, state, department) and the filter row over the held cards */
+  @state() private counts: ListCounts = NO_COUNTS;
+  @state() private filterOpen = false;
+  @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
+  @state() private compactHeader = false;
+  private countSeq = 0;
   /** the text last typed into the search box, until the address carries it */
   private pendingQ: string | null = null;
   private listKey = '';
@@ -86,7 +100,7 @@ export class TicketsList extends LitElement {
   private clock = 0;
   private offNames: (() => void) | null = null;
 
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, css`
     .cgrid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
@@ -156,6 +170,7 @@ export class TicketsList extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.clock = window.setInterval(() => (this.now = new Date()), 60_000);
     this.live.start();
@@ -165,11 +180,22 @@ export class TicketsList extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     window.clearInterval(this.clock);
     this.live.stop();
     window.clearTimeout(this.qTimer);
     window.clearTimeout(this.toastTimer);
+  }
+
+  /** TKUI4: the large title compacts while the page scrolls (the schedules page's rule: a layer over the title row, never a change of height) */
+  private onScroll = () => {
+    const compact = this.scrollTop > 40;
+    if (compact !== this.compactHeader) this.compactHeader = compact;
+  };
+
+  protected updated(): void {
+    measureHeaderBar(this.renderRoot, this.phone);
   }
 
   protected willUpdate(changed: PropertyValues<this>): void {
@@ -242,11 +268,32 @@ export class TicketsList extends LitElement {
       this.items = more ? [...(this.items ?? []), ...page.items.filter((x) => !(this.items ?? []).some((y) => y.id === x.id))] : page.items;
       this.next = page.next_cursor;
       this.screen = 'ready';
+      if (!more) void this.loadCounts();
     } catch (e) {
       if (seq === this.seq) this.fail(e);
     } finally {
       if (seq === this.seq) this.loadingMore = false;
     }
+  }
+
+  /**
+   * TKUI4: the numbers of the page frame - one read of `tickets/facets` per scope (under the current state, department and text), one over
+   * every state of the current scope, and one for the department chips. A failed read leaves its numbers out; the list never waits for it.
+   */
+  private async loadCounts(): Promise<void> {
+    const seq = ++this.countSeq;
+    const f = this.r.filters;
+    const api = boardApi();
+    const base = { q: f.q, department_id: f.department || undefined };
+    const ok = async <T>(p: Promise<T>): Promise<T | null> => p.catch(() => null);
+    const [mine, department, all, states, depts] = await Promise.all([
+      ...SCOPES.map((scope) => ok(api.facets({ ...base, scope, status: f.status }))),
+      ok(api.facets({ ...base, scope: this.r.scope, status: 'all' })),
+      f.department ? ok(api.facets({ q: f.q, scope: this.r.scope, status: f.status })) : Promise.resolve(null),
+    ]);
+    if (seq !== this.countSeq) return;
+    const cur = { mine, department, all }[this.r.scope];
+    this.counts = foldCounts({ scopes: { mine, department, all }, states, departments: f.department ? depts : cur });
   }
 
   private say(text: string, tone: 'ok' | 'bad' = 'ok'): void {
@@ -332,30 +379,45 @@ export class TicketsList extends LitElement {
 
   // ---------------------------------------------------------------- render
 
+  private pickMode = (m: ListMode): void => {
+    if (m === 'board') window.location.hash = BOARD_HREF;
+    else this.setView(m);
+  };
+
   private header(): TemplateResult {
     const f = this.r.filters;
     const depts = this.meta?.departments ?? [];
     const showDepts = depts.length > 1 && this.screen !== 'off' && this.screen !== 'forbidden';
     const tools = this.screen === 'ready' || this.screen === 'loading';
     const canCreate = !!this.meta?.can.create;
-    return html`<header class="dh" data-tickets-header>
+    const c = this.counts;
+    const withDept = (n: number | undefined) => (n === undefined ? nothing : html`<small>${countText(n)}</small>`);
+    const total = Object.values(c.departments).reduce((a, x) => a + x, 0);
+    const cards = this.view !== 'table';
+    const active = activeCardFilters(this.filters);
+    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-tickets-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
         ${showDepts ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')}>
-          <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}</button>
-          ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}</button>`)}
+          <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${Object.keys(c.departments).length ? withDept(total) : nothing}</button>
+          ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${Object.keys(c.departments).length ? withDept(c.departments[d.id] ?? 0) : nothing}</button>`)}
         </div>` : html`<span class="grow"></span>`}
       </div>
       ${tools ? html`<div class="dh-det">
+        <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
+          ${SCOPES.map((sc) => html`<button type="button" role="radio" aria-checked=${String(this.r.scope === sc)} data-scope=${sc} @click=${() => writeHref(listHref(sc, f), false)}>${scopeLabel(sc)}${withDept(c.scopes[sc])}</button>`)}
+        </div>
         <div class="seg sm stf" role="radiogroup" aria-label=${tt('stateFilter')}>
-          ${STATUS_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.status === s)} data-status-filter=${s} @click=${() => this.setFilters({ status: s })}>${filterLabel(s)}</button>`)}
+          ${STATUS_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.status === s)} data-status-filter=${s} @click=${() => this.setFilters({ status: s })}>${filterLabel(s)}${withDept(c.states[s])}</button>`)}
         </div>
         <span class="grow"></span>
         ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
-        <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
+        <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : lt('lsSearchLong')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
+        ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-        ${boardViewSwitch(this.view, (v) => this.setView(v))}
-      </div>` : nothing}
+        ${listViewSwitch(cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
+      </div>
+      ${cards && this.filterOpen && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
     </header>`;
   }
 
@@ -394,7 +456,10 @@ export class TicketsList extends LitElement {
       return this.stateBox('ticket', title, 'empty', this.meta?.can.create ? html`<button type="button" class="btn primary" data-new-empty @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newTitle')}</button>` : undefined);
     }
     const fullScreen = this.detailMode() !== 'drawer';
-    return html`<div class="cgrid" data-tickets-grid>${repeat(rows, (t) => t.id, (t) => html`<ticket-card .item=${t} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}></ticket-card>`)}</div>
+    const shown = applyCardFilters(rows as CardItem[], this.filters);
+    if (!shown.length) return html`${this.stateBox('search', lt('lfNoMatch'), 'no-match-filters', html`<button type="button" class="btn sm" data-clear-card-filters @click=${() => (this.filters = { ...NO_CARD_FILTERS })}>${tIcon('x')}${lt('lfClear')}</button>`)}
+      ${this.next ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.loadPage(true)}>${tt('loadMore')}</button></div>` : nothing}`;
+    return html`<div class="cgrid" data-tickets-grid>${repeat(shown, (t) => t.id, (t) => html`<ticket-card .item=${t} .role=${roleFor(t, this.meta)} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}></ticket-card>`)}</div>
       ${this.next ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.loadPage(true)}>${tt('loadMore')}</button></div>` : nothing}`;
   }
 
