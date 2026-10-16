@@ -129,8 +129,12 @@ def test_api_fields_is_an_object_and_writable_is_null_in_lists(w):
 
 # ------------------------------------------------------------------------------------------------ M2: unknown outcomes
 
-def shift_clock(monkeypatch, seconds: float) -> None:
-    real = dt.datetime.now(dt.timezone.utc)
+def shift_clock(monkeypatch, seconds: float, since: str | None = None) -> None:
+    """Move the janitor clock to `seconds` after `since` (a change's created_at) - anchoring on the row, not on the wall
+    clock, keeps the 44 s / 46 s probes either side of the 45 s line however slow the machine is."""
+    real = dt.datetime.fromisoformat(since.replace("Z", "+00:00")) if since else dt.datetime.now(dt.timezone.utc)
+    if real.tzinfo is None:
+        real = real.replace(tzinfo=dt.timezone.utc)
     monkeypatch.setattr(nvr_settings, "_utcnow", lambda: real + dt.timedelta(seconds=seconds))
 
 
@@ -143,13 +147,13 @@ def test_m2_unknown_outcome_waits_45_seconds_and_is_never_retryable(w, settings,
     assert r.json()["details"]["outcome"] == "unknown"
     [ch] = rows(app, "SELECT * FROM nvr_changes")
     fake.nvr["put"] = {"status": "ok"}
-    shift_clock(monkeypatch, 44)
+    shift_clock(monkeypatch, 44, ch["created_at"])
     again = put(c, ids[1], "101", {"svc": True})
     assert again.status_code == 409 and again.json()["code"] == "write_in_progress", "the device may still be applying the first PUT"
     assert nvr_settings.settle_pending(app.state.db, with_nvr(settings)) == 0, "the janitor waits as well"
     assert rows(app, "SELECT status FROM nvr_changes WHERE id = ?", ch["id"])[0]["status"] == "pending"
     assert len(fake.writes) == 1
-    shift_clock(monkeypatch, 46)
+    shift_clock(monkeypatch, 46, ch["created_at"])
     r = put(c, ids[1], "101", {"svc": True})
     assert r.status_code == 200, r.text
     assert rows(app, "SELECT status FROM nvr_changes WHERE id = ?", ch["id"])[0]["status"] == "applied"
