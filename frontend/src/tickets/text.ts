@@ -24,6 +24,7 @@ const he = {
   // the list
   newShort: '{f:חדשה|m:חדש}',
   newTitle: '{ticket} {f:חדשה|m:חדש}',
+  mapCreate: 'פתח {ticket}',
   search: 'חיפוש לפי מספר, כותרת או התקן',
   searchShort: 'חיפוש',
   allDepartments: 'כל המחלקות',
@@ -404,6 +405,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   tabAll: 'All',
   newShort: 'New',
   newTitle: 'New {ticket}',
+  mapCreate: 'Open a {ticket}',
   search: 'Search by number, title or device',
   searchShort: 'Search',
   allDepartments: 'All departments',

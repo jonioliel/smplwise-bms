@@ -30,7 +30,7 @@ import '../components/sw-cast-picker';
 import '../components/sw-cast-stop';
 // TKMAP1: "open a service request" for this camera (the camera's place on the map is attached to the new request)
 import '../tickets/map-create';
-import { MAP_CREATE_LABEL, mapTicketsOn } from '../tickets/map-create';
+import { mapCreateLabel, mapTicketsOn } from '../tickets/map-create';
 import { castTargets, type CastSession } from '../api/cast';
 import { CastWatch, castStore } from '../components/cast-store';
 import { castButtonVisible, isLow, leftText } from './cast-logic';
@@ -1248,7 +1248,7 @@ export class LiveCamera extends LitElement {
         ${this.renderRename()}
         <a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>
         <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
-        ${api && this.cam && mapTicketsOn() ? html`<sw-button slot="actions" variant="ghost" icon="plus" data-camera-ticket @click=${() => (this.mapTicket = true)}>${MAP_CREATE_LABEL}</sw-button>` : nothing}
+        ${api && this.cam && mapTicketsOn() ? html`<sw-button slot="actions" variant="ghost" icon="plus" data-camera-ticket @click=${() => (this.mapTicket = true)}>${mapCreateLabel()}</sw-button>` : nothing}
         ${this.mapTicket && this.cam ? html`<ticket-map-create open .element=${{ pick: { resource: { type: 'camera', id: this.cam.id } }, name: this.cam.alias || this.cam.name, floorName: '' }} @close=${() => (this.mapTicket = false)}></ticket-map-create>` : nothing}
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
