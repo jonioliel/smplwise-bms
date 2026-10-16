@@ -5,6 +5,7 @@
  * filled by `nwt(key, { name })`.
  */
 const he = {
+  keyUnreadable: 'מפתח ההודעות של המערכת לא נקרא - אי אפשר לאמת הסכמות, ולכן לא נשלחות התראות בוואטסאפ',
   normalized: 'ערך שמור לא היה בטווח ותוקן - שמרו כדי לאשר',
   budget: 'חלק מתקציב החשבון',
   budgetHint: 'השאר נשמר להודעות ניהול השירות ולקודי אימות',
@@ -65,6 +66,7 @@ const he = {
 type Key = keyof typeof he;
 
 const en: Partial<Record<Key, string>> = {
+  keyUnreadable: 'The system messaging key could not be read - consents cannot be verified, so no WhatsApp notifications are sent',
   normalized: 'A stored value was out of range and was corrected - save to confirm',
   budget: 'Share of the account budget',
   budgetHint: 'The rest stays for service-management messages and verification codes',
@@ -124,6 +126,7 @@ const en: Partial<Record<Key, string>> = {
 
 // initial translation - needs a native review
 const ar: Partial<Record<Key, string>> = {
+  keyUnreadable: 'تعذّرت قراءة مفتاح الرسائل في النظام - لا يمكن التحقق من الموافقات، لذلك لا تُرسل إشعارات واتساب',
   normalized: 'كانت قيمة محفوظة خارج النطاق وتم تصحيحها - احفظ للتأكيد',
   budget: 'حصة من ميزانية الحساب',
   budgetHint: 'الباقي محفوظ لرسائل إدارة الخدمة ورموز التحقق',
@@ -183,6 +186,7 @@ const ar: Partial<Record<Key, string>> = {
 
 // initial translation - needs a native review
 const ru: Partial<Record<Key, string>> = {
+  keyUnreadable: 'Не удалось прочитать ключ сообщений системы — согласия нельзя проверить, поэтому уведомления WhatsApp не отправляются',
   normalized: 'Сохранённое значение было вне диапазона и исправлено — сохраните для подтверждения',
   budget: 'Доля бюджета аккаунта',
   budgetHint: 'Остальное остаётся для сообщений управления сервисом и кодов подтверждения',

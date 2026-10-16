@@ -1041,3 +1041,91 @@ def test_rereview_r5_consent_put_on_the_remote_channel_needs_the_same_origin(set
     assert r.status_code == 403 and r.json()["code"] == "csrf_refused"
     r = c.put("/arx/api/v1/me/notify-whatsapp", json={"opted_in": False}, cookies={"arx_session": "x" * 43}, headers={"Origin": "http://testserver"})
     assert not (r.status_code == 403 and r.json().get("code") == "csrf_refused")  # same origin passes the CSRF layer (then auth refuses the unknown session)
+
+
+# ================================================================ second re-review 2026-10-16 (B-1 .. B-5), written before the fixes
+
+@pytest.mark.parametrize("confirm", ["ñ" * 16, "g" * 16, "0" * 15, "0" * 17, "ABCDEF0123456789", "١" * 16])
+def test_b1_a_malformed_confirm_is_422_not_500(w, confirm):
+    w.map_account()
+    w.contact(w.joni)
+    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "confirm": confirm})
+    assert r.status_code == 422, (confirm, r.status_code, r.text)
+
+
+def test_b2_the_sweep_never_undoes_a_fresh_opt_in(w, monkeypatch):
+    w.ready()
+    with w.db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET phone_e164 = ? WHERE user_id = ?", (SECOND_PHONE, w.joni))
+    real = w.db.connection
+    state = {"done": False}
+
+    def hook(*a, **kw):
+        if kw.get("label") == "notify.whatsapp.numbers" and kw.get("mode") != "read" and not state["done"]:
+            state["done"] = True
+            with real() as c:  # the user confirms the new number between the sweep's read and its write
+                wa.set_opt_in(c, w.joni, SECOND_PHONE)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(w.db, "connection", hook)
+    wa.number_change_sweep(w.db)
+    monkeypatch.setattr(w.db, "connection", real)
+    with w.db.connection(mode="read") as conn:
+        assert wa.opted_in_for(conn, w.joni, SECOND_PHONE) is True  # the fresh opt-in survived
+    assert w.c.get(f"{API}/me/notify-whatsapp").json()["opted_in"] is True
+
+
+def test_b3_a_second_change_to_the_same_number_is_told_again(w):
+    w.ready()
+
+    def set_number(n):
+        with w.db.connection() as conn:
+            conn.execute("UPDATE ticket_contacts SET phone_e164 = ? WHERE user_id = ?", (n, w.joni))
+
+    set_number(SECOND_PHONE)
+    assert wa.number_change_sweep(w.db) == 1
+    set_number(PHONE)  # reverted to the confirmed number
+    assert wa.number_change_sweep(w.db) == 0
+    set_number(SECOND_PHONE)  # changed to the same other number again
+    assert wa.number_change_sweep(w.db) == 1
+    assert wa.number_change_sweep(w.db) == 0
+
+
+def test_b4_an_unreadable_messaging_key_tells_nobody_and_warns_the_administrator(w, monkeypatch, caplog):
+    w.ready()
+    wa.reset_state()
+
+    def broken(*a, **kw):
+        raise RuntimeError("messaging key file is damaged")
+
+    monkeypatch.setattr(mr, "messaging_key", broken)
+    caplog.set_level(logging.ERROR)
+    assert wa.number_change_sweep(w.db) == 0
+    assert wa.number_change_sweep(w.db) == 0
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notifications WHERE source = ?", (wa.NUMBER_CHANGED_SOURCE,)).fetchone()[0] == 0
+    v = w.c.get(f"{API}/notify/whatsapp").json()
+    assert "messaging_key_unreadable" in v["warnings"]
+    assert sum("messaging key" in r.getMessage() for r in caplog.records) == 1  # one line, not one per call
+
+
+def test_b5_an_old_opt_in_can_be_withdrawn_after_the_number_changed(w):
+    w.ready()
+    with w.db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET phone_e164 = ? WHERE user_id = ?", (SECOND_PHONE, w.joni))
+    me = w.c.get(f"{API}/me/notify-whatsapp").json()
+    assert me["opted_in"] is False and me["stored_opt_in"] is True
+    me = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False}).json()
+    assert me["stored_opt_in"] is False and me["number_changed"] is False
+    with w.db.connection() as conn:  # the number goes back: nothing resumes without a new confirm
+        conn.execute("UPDATE ticket_contacts SET phone_e164 = ? WHERE user_id = ?", (PHONE, w.joni))
+    assert w.c.get(f"{API}/me/notify-whatsapp").json()["opted_in"] is False
+
+
+def test_b5_an_old_opt_in_can_be_withdrawn_after_the_number_was_removed(w):
+    w.ready()
+    with w.db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET erased_at = ? WHERE user_id = ?", (now_iso(), w.joni))
+    me = w.c.get(f"{API}/me/notify-whatsapp").json()
+    assert me["has_number"] is False and me["stored_opt_in"] is True
+    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False}).json()["stored_opt_in"] is False

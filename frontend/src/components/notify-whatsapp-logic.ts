@@ -27,9 +27,10 @@ export const waLogic = {
     if (key === 'budget_pct') return { budget_pct: next, budget_critical_pct: Math.max(next, v.budget_critical_pct) };
     return { budget_pct: Math.min(v.budget_pct, next), budget_critical_pct: next };
   },
-  /** re-review R5: the user can always withdraw an opt-in they gave, whatever the contact list says */
+  /** re-review R5 / second re-review B-5: the user can always withdraw an opt-in they gave - whatever the contact list says, and also
+   * after the number changed or was removed (`stored_opt_in`) */
   canStop(m: WaMine | null): boolean {
-    return !!m && m.channel_enabled && m.opted_in;
+    return !!m && m.channel_enabled && (m.opted_in || !!m.stored_opt_in);
   },
   /** the user's own row (review F2): hidden while the channel is off; otherwise what the user should see and may do */
   mineState(m: WaMine | null): 'hidden' | 'none' | 'declined' | 'changed' | 'on' | 'off' {

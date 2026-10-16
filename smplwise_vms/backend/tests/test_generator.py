@@ -743,7 +743,7 @@ def test_review_notifwa_f7_adding_whatsapp_needs_notify_manage(app):
     assert "whatsapp" not in json.loads(rows(db, "SELECT channels_json FROM generator_alert_policies WHERE alert_key = 'low_fuel'")[0]["channels_json"])
     assert rows(db, "SELECT 1 FROM audit_log WHERE action = 'notify.manage' AND decision = 'denied'") or rows(db, "SELECT 1 FROM audit_log WHERE decision = 'denied'")
     assert c.put(url, json={"channels": ["push", "whatsapp"]}).status_code == 200  # joni: system administrator
-    assert c.put(url, json={"channels": ["push", "whatsapp"], "after_s": 30}, headers=a).status_code == 200  # kept, not added (re-review R3: a field outside WhatsApp's reach)
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "template_he": "דלק {detail}"}, headers=a).status_code == 200  # kept, not added (a field outside WhatsApp's reach)
     assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "critical"}, headers=a).status_code == 403  # re-review R3: raising to critical is not
     assert c.put(url, json={"channels": ["push"]}, headers=a).status_code == 200  # removing is always allowed
 
@@ -766,3 +766,17 @@ def test_rereview_r3_whatsapp_relevant_fields_need_notify_manage(app):
     assert stored["severity"] == "alert" and json.loads(stored["recipients_json"])["roles"] == ["site_admin"]
     assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "alert", "template_he": "דלק {detail}"}, headers=a).status_code == 200  # unchanged + text
     assert c.put(url, json={"channels": ["push"], "severity": "critical"}, headers=a).status_code == 200  # without WhatsApp: allowed
+
+
+def test_second_rereview_after_s_is_a_whatsapp_reach_field(app):
+    """Second re-review (decided): the delay before an alert fires (`after_s`) decides how often a flapping condition reaches WhatsApp, so on a
+    policy that carries WhatsApp changing it needs notify.manage too."""
+    c, db, settings = app
+    g = _full(db)
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    a = as_user("adm")
+    url = f"{API}/devices/{g}/policies/low_fuel"
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "after_s": 120}).status_code == 200  # joni
+    assert c.put(url, json={"after_s": 0}, headers=a).status_code == 403
+    assert c.put(url, json={"after_s": 120, "template_he": "דלק {detail}"}, headers=a).status_code == 200  # unchanged value + another field
+    assert c.put(url, json={"channels": ["push"], "after_s": 0}, headers=a).status_code == 200  # without WhatsApp: allowed

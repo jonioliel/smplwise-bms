@@ -12,7 +12,7 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 
 function view(over: Partial<WaNotifyView> = {}): WaNotifyView {
   return {
-    enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], normalized: [], revision: 0,
+    enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], normalized: [], warnings: [], revision: 0,
     ranges: { per_user_hour: [1, 30], dedupe_min: [5, 1440], budget_pct: [10, 90], budget_critical_pct: [10, 90] },
     account: { mapped: true, label: 'וואטסאפ ····0191', state: 'connected' }, reachable_users: 2, accounts_href: '#/system/messaging-accounts',
     test: { own_number: true, masked: '····0191' }, ...over,
@@ -50,7 +50,7 @@ test.describe('notify-whatsapp review fixes', () => {
   });
 
   test('F1 / F2: the own row - hidden while off, a changed number asks for a new confirmation', () => {
-    const m = (over: Partial<WaMine> = {}): WaMine => ({ channel_enabled: true, has_number: true, masked: '····0191', source: 'directory', opted_in: false, number_changed: false, directory_declined: false, consent: 'declined', confirm: 'abcdabcdabcdabcd', ...over });
+    const m = (over: Partial<WaMine> = {}): WaMine => ({ channel_enabled: true, has_number: true, masked: '····0191', source: 'directory', opted_in: false, number_changed: false, directory_declined: false, consent: 'declined', confirm: 'abcdabcdabcdabcd', stored_opt_in: false, ...over });
     expect(waLogic.mineState(null)).toBe('hidden');
     expect(waLogic.mineState(m({ channel_enabled: false, opted_in: true }))).toBe('hidden');
     expect(waLogic.mineState(m({ has_number: false, masked: null }))).toBe('none');
@@ -60,6 +60,8 @@ test.describe('notify-whatsapp review fixes', () => {
     expect(waLogic.mineState(m({ directory_declined: true, opted_in: true }))).toBe('declined');
     expect(waLogic.canStop(m({ directory_declined: true, opted_in: true }))).toBe(true); // re-review R5: always withdrawable
     expect(waLogic.canStop(m())).toBe(false);
+    expect(waLogic.canStop(m({ number_changed: true, stored_opt_in: true }))).toBe(true); // B-5: an old opt-in can be withdrawn
+    expect(waLogic.canStop(m({ has_number: false, masked: null, stored_opt_in: true }))).toBe(true);
     expect(waLogic.canStop(m({ channel_enabled: false, opted_in: true }))).toBe(false);
   });
 });

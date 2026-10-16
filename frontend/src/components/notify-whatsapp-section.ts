@@ -204,6 +204,7 @@ export class NotifyWhatsappSection extends LitElement {
       <p class="sub">${nwt('sub')}</p>
       <div class="frow"><div class="l"><b>${nwt('enabled')}</b><small>${nwt('enabledHint')}</small></div><div class="r"><span class="tag ${tone === 'ok' ? 'ok' : tone === 'bad' ? 'bad' : ''}" data-wa-tone=${tone}>${nIcon(tone === 'ok' ? 'check' : tone === 'bad' ? 'warning' : 'moon')}${nwt(tone === 'ok' ? 'on' : tone === 'bad' ? 'attention' : 'off')}</span></div></div>
       ${warning ? html`<div class="warn" role="alert" data-wa-warning=${warning}>${nIcon('warning')}${nwt('warnOffAccount')}</div>` : nothing}
+      ${v.warnings?.includes('messaging_key_unreadable') ? html`<div class="warn" role="alert" data-wa-key-warning>${nIcon('warning')}${nwt('keyUnreadable')}</div>` : nothing}
       ${v.normalized?.length ? html`<div class="warn" role="status" data-wa-normalized=${v.normalized.join(',')}>${nIcon('warning')}${nwt('normalized')}</div>` : nothing}
       <div class="frow"><div class="l"><b>${nwt('account')}</b>${v.account.mapped && v.account.label ? html`<small data-wa-account-label>${v.account.label}</small>` : nothing}</div><div class="r">${this.stateTag(v)}<a class="lnk" href=${v.accounts_href} data-wa-accounts-link>${nwt('accountPick')}</a></div></div>
       <div class="frow"><div class="l"><b>${nwt('reach')}</b><small>${nwt('reachHint')}</small></div><div class="r"><span class="tag" data-wa-reach><span class="n">${v.reachable_users}</span></span></div></div>

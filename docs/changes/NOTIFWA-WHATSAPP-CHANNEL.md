@@ -98,3 +98,18 @@ outbox and this worker over one account (pre-existing design, noted by the revie
   `PUT /me/notify-whatsapp` by a test (no Origin, a foreign Origin: refused; same origin: passes to authentication). The local
   channel is HA Ingress (identity from the Supervisor proxy) and has no separate CSRF layer - unchanged pattern, as for every other
   PUT of the product.
+
+## Second re-review 2026-10-16 (private/planning/TK251R_NOTIFWA_R2_REVIEW_2026-10-16.md, part B)
+
+- **B-1** the opt-in token must be exactly 16 lowercase hex characters (anything else, non-ASCII included, is 422); compared as bytes.
+- **B-2** the number-change sweep writes compare-and-set on the stored value it read: a fresh opt-in or a withdrawal in between is
+  never overwritten, and a user is only told when the write succeeded.
+- **B-3** when the number goes back to the confirmed one the "already told" marker is cleared, so a later change (also to the same
+  other number) is told again.
+- **B-4** an unreadable messaging key means "unknown": the sweep tells nobody, the key error is logged once per data directory, and
+  the settings answer carries the warning  (shown in the section). Consent cannot be verified then, so
+  nothing is sent (fail closed). The directory resolver does not depend on the tickets module switch, so a module switched off
+  does not read as a removed number.
+- **B-5** an old opt-in (number changed or removed) can always be withdrawn (, the stop button).
+- **after_s** (decided): on a generator policy that carries WhatsApp, the delay before an alert fires is gated by notify.manage like
+  recipients / severity / quiet mode / escalation / enabled - a shorter delay raises how often a flapping alert reaches WhatsApp.

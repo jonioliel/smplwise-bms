@@ -357,7 +357,8 @@ class PolicyBody(_Body):
     row_version: int | None = None
 
 
-WHATSAPP_REACH_FIELDS = ("recipients", "severity", "quiet_mode", "escalate", "enabled")
+# second re-review (decided): `after_s` too - the delay before an alert fires decides how often a flapping condition reaches WhatsApp
+WHATSAPP_REACH_FIELDS = ("recipients", "severity", "quiet_mode", "escalate", "enabled", "after_s")
 
 
 def _whatsapp_change(conn: sqlite3.Connection, device_id: str, alert_key: str, body: "PolicyBody") -> bool:

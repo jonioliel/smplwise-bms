@@ -12,6 +12,7 @@ No route accepts a phone number and no answer carries one (masked to the last tw
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from typing import Any
 
@@ -27,6 +28,7 @@ from ..services.notify_visibility import MANAGE
 from .notifications import _expected_revision
 
 router = APIRouter()
+_TOKEN = re.compile(r"[0-9a-f]{16}")
 
 
 def _rid(request: Request) -> str | None:
@@ -91,7 +93,8 @@ def set_my_whatsapp(request: Request, body: dict[str, Any] = Body(...), principa
     later change of the number reads as declined until they confirm again); `{opted_in: false}` (or `{opted_out: true}`) withdraws it.
     Only ever for the caller - there is no user id in the request. 409 `no_address` when no number is resolved for the caller."""
     keys = set(body) if isinstance(body, dict) else set()
-    if keys == {"opted_in", "confirm"} and body["opted_in"] is True and isinstance(body["confirm"], str) and 0 < len(body["confirm"]) <= 64:
+    # second re-review B-1: the token is exactly 16 lowercase hex characters (anything else - non-ASCII included - is 422, never a 500)
+    if keys == {"opted_in", "confirm"} and body["opted_in"] is True and isinstance(body["confirm"], str) and _TOKEN.fullmatch(body["confirm"]):
         want = True
     elif (keys == {"opted_in"} and body["opted_in"] is False) or (keys == {"opted_out"} and body["opted_out"] is True):
         want = False  # withdrawing never needs a token
@@ -105,7 +108,7 @@ def set_my_whatsapp(request: Request, body: dict[str, Any] = Body(...), principa
         # re-review R2: only the number the caller was shown (the GET's token) can be confirmed - a change in between is refused
         import hmac as _hmac
 
-        if not _hmac.compare_digest(body["confirm"], wa.confirm_token(conn, found.digits)):
+        if not _hmac.compare_digest(body["confirm"].encode("ascii"), wa.confirm_token(conn, found.digits).encode("ascii")):
             raise ApiError(409, "number_changed", "המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.")
         digits = found.digits
     wa.set_opt_in(conn, principal.user_id, digits)

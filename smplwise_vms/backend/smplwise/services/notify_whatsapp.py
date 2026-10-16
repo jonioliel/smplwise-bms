@@ -204,6 +204,7 @@ def register_resolver(resolver: NumberResolver, *, first: bool = False) -> None:
 
 _PROCESS_KEY = os.urandom(32)
 _KEYS: dict[str, bytes] = {}
+_KEY_BROKEN: set[str] = set()  # data directories whose `k_messaging` could not be read (second re-review B-4)
 
 
 def _conn_data_dir(conn: sqlite3.Connection) -> Path:
@@ -221,9 +222,20 @@ def _consent_key(conn: sqlite3.Connection) -> bytes:
         try:
             _KEYS[d] = mr.messaging_key(Path(d)) or _PROCESS_KEY
         except Exception:  # noqa: BLE001 - a damaged key file: no stored opt-in can match, everyone reads as declined (fail closed)
-            log.error("messaging key unreadable; whatsapp opt-ins cannot be verified")
+            log.error("messaging key unreadable; whatsapp opt-ins cannot be verified")  # once per data directory (the key is cached)
             _KEYS[d] = _PROCESS_KEY
+            _KEY_BROKEN.add(d)
     return _KEYS[d]
+
+
+def key_unreadable(conn: sqlite3.Connection) -> bool:
+    """Second re-review B-4: the installation's `k_messaging` could not be read - no opt-in can be verified (everyone reads as declined)
+    and the number-change sweep must not tell anyone anything (an unknown key is not a changed number)."""
+    _consent_key(conn)
+    try:
+        return str(_conn_data_dir(conn)) in _KEY_BROKEN
+    except sqlite3.Error:
+        return True
 
 
 def number_hash(conn: sqlite3.Connection, digits: str) -> str:
@@ -305,8 +317,10 @@ def number_change_sweep(db: Any) -> int:
     is told ONCE per change: an in-app notification (`notify.whatsapp_number`, by push / the phone app per its policy, never WhatsApp)
     and an audit row `notify.whatsapp.number_changed`. No digits anywhere. Returns how many users were told."""
     with db.connection(mode="read", label="notify.whatsapp.numbers") as conn:
+        if key_unreadable(conn):
+            return 0  # B-4: an unreadable key is "unknown", not "changed" - nobody is told (the settings answer warns the administrator)
         rows = conn.execute("SELECT user_id, value_json FROM user_prefs WHERE key = ?", (OPT_IN_PREF,)).fetchall()
-        due: list[tuple[str, dict[str, Any], str]] = []
+        writes: list[tuple[str, str, dict[str, Any], str | None]] = []  # (user, the stored JSON as read, new value, marker to tell or None)
         for r in rows:
             try:
                 v = json.loads(r["value_json"])
@@ -317,18 +331,29 @@ def number_change_sweep(db: Any) -> int:
             found = raw_number(conn, r["user_id"])
             marker = number_hash(conn, found.digits) if found else "none"
             if found is not None and hmac.compare_digest(v["h"], marker):
-                continue  # still the confirmed number
+                if "noticed" in v:  # B-3: back on the confirmed number - forget the told change, so a new change is told again
+                    writes.append((r["user_id"], r["value_json"], {k: x for k, x in v.items() if k != "noticed"}, None))
+                continue
             if v.get("noticed") == marker:
                 continue  # this change was already told
-            due.append((r["user_id"], v, marker))
-    for uid, v, marker in due:
+            writes.append((r["user_id"], r["value_json"], {**v, "noticed": marker}, marker))
+    told = 0
+    for uid, old_json, new, marker in writes:
         with db.connection(label="notify.whatsapp.numbers") as conn:
-            notify.emit_full(conn, notify.Signal(NUMBER_CHANGED_SOURCE, "session", uid, dedupe_key=f"{NUMBER_CHANGED_SOURCE}:{uid}:{marker[:12]}",
+            # B-2: compare-and-set on the value that was read - a fresh opt-in (or a withdrawal) in between is never overwritten
+            changed = conn.execute("UPDATE user_prefs SET value_json = ?, updated_at = ? WHERE user_id = ? AND key = ? AND value_json = ?",
+                                   (json.dumps(new), now_iso(), uid, OPT_IN_PREF, old_json)).rowcount
+            if not changed or marker is None:
+                continue
+            notify.emit_full(conn, notify.Signal(NUMBER_CHANGED_SOURCE, "session", uid, dedupe_key=f"{NUMBER_CHANGED_SOURCE}:{uid}:{marker[:12]}:{new_id_short()}",
                                                  initiator_user_id=uid, link="#/system/notifications", origin={"kind": "whatsapp_number"}))
             audit(conn, actor=None, action="notify.whatsapp.number_changed", decision="allowed", resource_type="user", resource_id=uid, details={"removed": marker == "none"})
-            conn.execute("UPDATE user_prefs SET value_json = ?, updated_at = ? WHERE user_id = ? AND key = ?",
-                         (json.dumps({**v, "noticed": marker}), now_iso(), uid, OPT_IN_PREF))
-    return len(due)
+            told += 1
+    return told
+
+
+def new_id_short() -> str:
+    return os.urandom(4).hex()
 
 
 # ---------------------------------------------------------------- the texts (code-owned; values cleaned, rendered once)
@@ -606,6 +631,7 @@ def reset_state() -> None:
         _LIVE.clear()
         _TEST_SENDS.clear()
         _KEYS.clear()
+        _KEY_BROKEN.clear()
     if w is not None:
         w.stop()
 
@@ -931,7 +957,8 @@ def reachable_count(conn: sqlite3.Connection) -> int:
 def admin_view(conn: sqlite3.Connection, caller_id: str) -> dict[str, Any]:
     cfg = load_config(conn)
     own = resolve_number(conn, caller_id)
-    return {**cfg, "ranges": {k: list(v) for k, v in RANGES.items()}, "detail_levels": list(DETAIL_LEVELS), "account": account_view(conn), "reachable_users": reachable_count(conn),
+    warnings = ["messaging_key_unreadable"] if key_unreadable(conn) else []  # B-4: one administrator-visible warning
+    return {**cfg, "warnings": warnings, "ranges": {k: list(v) for k, v in RANGES.items()}, "detail_levels": list(DETAIL_LEVELS), "account": account_view(conn), "reachable_users": reachable_count(conn),
             "accounts_href": "#/system/messaging-accounts", "test": {"own_number": own is not None and own.consent == "granted", "masked": mask_own(own.digits) if own else None}}
 
 
@@ -945,7 +972,8 @@ def my_view(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     return {"channel_enabled": load_config(conn)["enabled"], "has_number": found is not None, "masked": mask_own(found.digits) if found else None,
             "confirm": confirm_token(conn, found.digits) if found else None,  # re-review R2: the PUT must echo it
             "source": found.source if found else None, "opted_in": opted, "number_changed": bool(stored) and found is not None and not opted,
-            "directory_declined": blocked, "consent": "granted" if (opted and not blocked) else ("declined" if found else None)}
+            "directory_declined": blocked, "consent": "granted" if (opted and not blocked) else ("declined" if found else None),
+            "stored_opt_in": bool(stored)}  # B-5: an old opt-in (number changed or removed) can still be withdrawn
 
 
 def test_text(lang: str) -> str:

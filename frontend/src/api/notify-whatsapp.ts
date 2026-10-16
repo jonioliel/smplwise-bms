@@ -19,6 +19,8 @@ export interface WaNotifyView {
   detail_levels: WaDetail[];
   /** re-review R5: stored values the server corrected (out of range) - shown, never silent */
   normalized: string[];
+  /** second re-review B-4: e.g. `messaging_key_unreadable` (no opt-in can be verified; nobody is told about number changes) */
+  warnings: string[];
   revision: number;
   ranges: { per_user_hour: [number, number]; dedupe_min: [number, number]; budget_pct: [number, number]; budget_critical_pct: [number, number] };
   account: { mapped: boolean; label: string | null; state: 'connected' | 'disconnected' | 'unknown' | 'missing' | null };
@@ -38,6 +40,8 @@ export interface WaMine {
   opted_in: boolean; number_changed: boolean; directory_declined: boolean; consent: 'granted' | 'declined' | null;
   /** re-review R2: opaque token of the number shown; the opt-in must echo it (null without a number) */
   confirm: string | null;
+  /** second re-review B-5: an opt-in is stored (also for an old / removed number) - it can always be withdrawn */
+  stored_opt_in: boolean;
 }
 
 export interface WaNotifyAdapter {
@@ -63,12 +67,12 @@ const http: WaNotifyAdapter = {
 /** The demo store: the switch starts OFF like the server; the account is mapped so the section can be reviewed in every state. */
 export function demoWaNotify(): WaNotifyAdapter {
   let v: WaNotifyView = {
-    enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], normalized: [], revision: 0,
+    enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], normalized: [], warnings: [], revision: 0,
     ranges: { per_user_hour: [1, 30], dedupe_min: [5, 1440], budget_pct: [10, 90], budget_critical_pct: [10, 90] },
     account: { mapped: true, label: 'וואטסאפ ····0191', state: 'connected' }, reachable_users: 3, accounts_href: '#/system/messaging-accounts',
     test: { own_number: true, masked: '····0191' },
   };
-  let mine: WaMine = { channel_enabled: false, has_number: true, masked: '····0191', source: 'directory', opted_in: false, number_changed: false, directory_declined: false, consent: 'declined', confirm: 'demo0123456789ab' };
+  let mine: WaMine = { channel_enabled: false, has_number: true, masked: '····0191', source: 'directory', opted_in: false, number_changed: false, directory_declined: false, consent: 'declined', confirm: 'demo0123456789ab', stored_opt_in: false };
   let tests = 0;
   const err = (status: number, code: string, user_message: string) => new ApiError(status, { code, user_message, retryable: status === 429, correlation_id: 'demo', details: {} });
   return {
@@ -95,11 +99,11 @@ export function demoWaNotify(): WaNotifyAdapter {
     mine: async () => ({ ...mine }),
     setOptIn: async (opted_in, confirm) => {
       if (opted_in && confirm !== mine.confirm) throw err(409, 'number_changed', 'המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.');
-      return (mine = { ...mine, opted_in, number_changed: false, consent: opted_in && !mine.directory_declined ? 'granted' : 'declined' });
+      return (mine = { ...mine, opted_in, stored_opt_in: opted_in, number_changed: false, consent: opted_in && !mine.directory_declined ? 'granted' : 'declined' });
     },
     setOptOut: async (opted_out, confirm) => {
       if (!opted_out && confirm !== mine.confirm) throw err(409, 'number_changed', 'המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.');
-      return (mine = { ...mine, opted_in: !opted_out, number_changed: false, consent: !opted_out && !mine.directory_declined ? 'granted' : 'declined' });
+      return (mine = { ...mine, opted_in: !opted_out, stored_opt_in: !opted_out, number_changed: false, consent: !opted_out && !mine.directory_declined ? 'granted' : 'declined' });
     },
   };
 }
