@@ -85,6 +85,9 @@ export interface TimelineItem {
   return_kind?: string | null;
 }
 
+/** RFQATT (contract 19.4): one file of a request as a vendor sees it (no author, no flags, no hash, no path). */
+export interface RfqFileRef { id: string; name: string; caption?: string; kind: 'image' | 'pdf' | 'docx' | 'xlsx'; bytes: number; width?: number | null; height?: number | null; thumb?: boolean }
+
 export interface TicketView {
   number: number;
   department: string;
@@ -120,6 +123,8 @@ export interface TicketView {
   kind?: 'vendor' | 'staff';
   timeline?: TimelineItem[];
   photos?: { id: string; at: string; width: number; height: number; mine: boolean }[];
+  /** RFQATT (contract 19.6): the request-for-quotation files a work order referenced (absent when none) */
+  rfq_files?: RfqFileRef[];
   history?: { at: string; from: string | null; to: string | null; actor: string }[] | null;
   limits?: { note_max: number; reason_max: number; photo_max_bytes: number; photos_left: number };
   /** TKMAP1: the request's map element - the stored text and whether the server can draw its picture (never an id or plan data) */
@@ -227,7 +232,7 @@ export interface RfqView {
   read_only_until?: string | null;
   page_state?: RfqPageState;
   rfq?: { title: string; description: string | null; place_text: string | null; due_at: string | null; work_from: string | null; work_to: string | null;
-    allowed_line_kinds: RfqKind[]; attachments: { id?: string; name: string }[] };
+    allowed_line_kinds: RfqKind[]; attachments: RfqFileRef[] };
   quote?: RfqQuote | null;
   declined?: { at: string; reason: string | null } | null;
   messages?: { id: string; mine: boolean; text: string; at: string }[];

@@ -79,6 +79,10 @@ JPEG_MAX_SCANS = 32  # progressive
 SEQUENTIAL_MAX_SCANS = 4
 PROGRESSIVE_MAX_PIXELS = 8_000_000  # code review V6: the coefficient buffer of a progressive decode is full size
 PNG_MAX_PIXELS = 8_000_000  # code review V6: phones send JPEG; a PNG is a screenshot (16 MP RGBA16 would decode to 128 MB)
+# RFQATT (owner 17.10): WebP is accepted ONLY where a caller opts in (`allow_webp=True`: the signed-in RFQ manager's upload - never
+# the anonymous public listener). The structure is walked first (webp_layout: a still image, VP8 / VP8L, at most this many pixels),
+# the decoder gets a metadata-free copy, and the output is the same fresh JPEG as for every other picture.
+WEBP_MAX_PIXELS = 8_000_000
 STORAGE_CAP_BYTES = 2 * GiB
 STORAGE_REFRESH_S = 60.0
 PHOTOS_PER_ASSIGNMENT = 30
@@ -281,6 +285,99 @@ def jpeg_layout(data: bytes) -> Layout:
     raise IntakeError("image_invalid", 422)  # more segments before a scan than any camera writes
 
 
+# ---------------------------------------------------------------- WebP structure walk (before Pillow; RFQATT, opt-in only)
+
+_WEBP_MAX_CHUNKS = 64
+_WEBP_IMAGE = (b"VP8 ", b"VP8L")
+_WEBP_REFUSED = frozenset({b"ANIM", b"ANMF"})
+_VP8X_ALPHA = 0x10
+_VP8X_ANIMATION = 0x02
+
+
+def _vp8_size(payload: bytes) -> tuple[int, int]:
+    """(width, height) of a lossy key frame (RFC 6386 9.1), IntakeError otherwise."""
+    if len(payload) < 10 or payload[0] & 1 or payload[3:6] != b"\x9d\x01\x2a":
+        raise IntakeError("image_invalid", 422)
+    w, h = struct.unpack("<HH", payload[6:10])
+    return w & 0x3FFF, h & 0x3FFF
+
+
+def _vp8l_size(payload: bytes) -> tuple[int, int]:
+    """(width, height) of a lossless image (the 0x2F signature, 14-bit sizes minus one), IntakeError otherwise."""
+    if len(payload) < 5 or payload[0] != 0x2F:
+        raise IntakeError("image_invalid", 422)
+    bits = struct.unpack("<I", payload[1:5])[0]
+    if bits >> 29:  # the version field must be 0
+        raise IntakeError("image_invalid", 422)
+    return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+
+
+def webp_layout(data: bytes) -> Layout:
+    """Walk a WebP's RIFF chunks and build the clean copy: a simple image (`VP8 ` / `VP8L` alone) or an extended one rebuilt as
+    VP8X (alpha flag only) + ALPH + the image chunk. Animation (the VP8X flag, ANIM / ANMF) is refused (415); ICC, EXIF, XMP and
+    unknown chunks are dropped; bytes after the RIFF size are dropped. The image chunk's own size must equal the canvas."""
+    n = len(data)
+    if n < 20 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        raise IntakeError("image_invalid", 422)
+    riff = struct.unpack("<I", data[4:8])[0]
+    if riff < 12 or riff + 8 > n:
+        raise IntakeError("image_invalid", 422)
+    end = riff + 8
+    pos = 12
+    chunks: list[tuple[bytes, bytes]] = []
+    while pos < end:
+        if len(chunks) >= _WEBP_MAX_CHUNKS or pos + 8 > end:
+            raise IntakeError("image_invalid", 422)
+        fourcc, size = data[pos:pos + 4], struct.unpack("<I", data[pos + 4:pos + 8])[0]
+        if size > end - pos - 8:
+            raise IntakeError("image_invalid", 422)
+        if fourcc in _WEBP_REFUSED:
+            raise IntakeError("unsupported_format", 415)
+        chunks.append((fourcc, data[pos + 8:pos + 8 + size]))
+        pos += 8 + size + (size & 1)
+    if not chunks:
+        raise IntakeError("image_invalid", 422)
+    first, payload = chunks[0]
+    alpha: bytes | None = None
+    canvas: tuple[int, int] | None = None
+    if first in _WEBP_IMAGE:
+        if any(c[0] in _WEBP_IMAGE for c in chunks[1:]):
+            raise IntakeError("image_invalid", 422)
+        image = chunks[0]
+    elif first == b"VP8X":
+        if len(payload) < 10:
+            raise IntakeError("image_invalid", 422)
+        flags = payload[0]
+        if flags & _VP8X_ANIMATION:
+            raise IntakeError("unsupported_format", 415)
+        canvas = (int.from_bytes(payload[4:7], "little") + 1, int.from_bytes(payload[7:10], "little") + 1)
+        images = [c for c in chunks[1:] if c[0] in _WEBP_IMAGE]
+        if len(images) != 1:
+            raise IntakeError("image_invalid", 422)
+        image = images[0]
+        alphas = [c for c in chunks[1:] if c[0] == b"ALPH"]
+        if len(alphas) > 1:
+            raise IntakeError("image_invalid", 422)
+        if alphas and image[0] == b"VP8 " and flags & _VP8X_ALPHA:
+            alpha = alphas[0][1]
+    else:
+        raise IntakeError("image_invalid", 422)
+    w, h = _vp8_size(image[1]) if image[0] == b"VP8 " else _vp8l_size(image[1])
+    if canvas is not None and canvas != (w, h):
+        raise IntakeError("image_invalid", 422)
+
+    def chunk(fourcc: bytes, body: bytes) -> bytes:
+        return fourcc + struct.pack("<I", len(body)) + body + (b"\x00" if len(body) & 1 else b"")
+
+    parts: list[bytes] = []
+    if alpha is not None:
+        vp8x = bytes([_VP8X_ALPHA, 0, 0, 0]) + (w - 1).to_bytes(3, "little") + (h - 1).to_bytes(3, "little")
+        parts += [chunk(b"VP8X", vp8x), chunk(b"ALPH", alpha)]
+    parts.append(chunk(image[0], image[1]))
+    body = b"WEBP" + b"".join(parts)
+    return Layout(w, h, b"RIFF" + struct.pack("<I", len(body)) + body)
+
+
 def exif_orientation(tiff: bytes) -> int:
     """Tag 0x0112 (Orientation) of IFD0 of an EXIF / TIFF block: 1..8, anything else 1. Reads one directory of at most 64
     entries; never raises, never follows another offset."""
@@ -349,22 +446,26 @@ def _flatten(im: Any) -> Any:
 
 
 def reencode(data: bytes, *, max_pixels: int = MAX_PIXELS, wait_s: float = DECODE_WAIT_S,
-             semaphore: threading.BoundedSemaphore | None = None) -> Reencoded:
+             semaphore: threading.BoundedSemaphore | None = None, allow_webp: bool = False) -> Reencoded:
     """The accepted, re-encoded JPEG of an upload, or IntakeError (413 too_large, 415 unsupported_format / webp_refused /
-    heic_refused, 422 image_invalid / too_many_pixels, 429 busy). Blocking (Pillow): run it in a worker thread."""
+    heic_refused, 422 image_invalid / too_many_pixels, 429 busy). Blocking (Pillow): run it in a worker thread. `allow_webp`
+    (RFQATT): a signed-in caller's opt-in to still WebP images (webp_layout); every public route keeps refusing WebP."""
     if not isinstance(data, (bytes, bytearray)) or len(data) == 0:
         raise IntakeError("unsupported_format", 415)
     if len(data) > MAX_BYTES:
         raise IntakeError("too_large", 413, max_bytes=MAX_BYTES)
     kind = sniff(bytes(data[:32]))
-    if kind == "webp":
+    if kind == "webp" and not allow_webp:
         raise IntakeError("webp_refused", 415)
     if kind == "heic":
         raise IntakeError("heic_refused", 415)
-    if kind not in ("jpeg", "png"):
+    if kind not in ("jpeg", "png", "webp"):
         raise IntakeError("unsupported_format", 415)
     raw = bytes(data)
-    if kind == "png":
+    if kind == "webp":
+        layout = webp_layout(raw)
+        cap = min(max_pixels, WEBP_MAX_PIXELS)
+    elif kind == "png":
         layout = png_layout(raw)
         if layout.bit_depth == 16:
             raise IntakeError("unsupported_format", 415)  # V6: 16-bit samples double every buffer of the decode
@@ -386,7 +487,7 @@ def reencode(data: bytes, *, max_pixels: int = MAX_PIXELS, wait_s: float = DECOD
         t0 = time.monotonic()
         try:
             # the metadata-free copy, header only, with Pillow restricted to the sniffed decoder
-            im = Image.open(io.BytesIO(layout.clean), formats=["JPEG"] if kind == "jpeg" else ["PNG"])
+            im = Image.open(io.BytesIO(layout.clean), formats=[{"jpeg": "JPEG", "png": "PNG", "webp": "WEBP"}[kind]])
             if image_guard.check_pixels(im, cap) is None or max(im.size) > MAX_SIDE_IN or im.size != (w, h):
                 raise IntakeError("too_many_pixels", 422, max_pixels=cap)
             if kind == "jpeg":

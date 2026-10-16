@@ -302,7 +302,8 @@ def test_the_order_rows_carry_ids_and_dates_only(s4, settings):
         events = [dict(r) for r in conn.execute("SELECT kind, data_json FROM ticket_rfq_events WHERE kind LIKE 'order_%'")]
     assert [e["kind"] for e in events] == ["order_created"]
     data = json.loads(events[0]["data_json"])
-    assert set(data) == {"award_id", "ticket_id", "ticket_number", "assignment_id", "quote_id", "work_from", "work_to", "documents"}
+    assert set(data) == {"award_id", "ticket_id", "ticket_number", "assignment_id", "quote_id", "work_from", "work_to", "documents", "files"}
+    assert data["files"] == 0  # RFQATT: the number of request files the order referenced (a count, never a name)
     assert data["documents"] is True and "סודית" not in events[0]["data_json"]
     kinds = [e["kind"] for e in detail(s4, d["id"])["timeline"]]
     assert "order_created" in kinds

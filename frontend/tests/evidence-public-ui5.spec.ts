@@ -229,7 +229,7 @@ test.describe('TKUI5: the public page in the approved look', () => {
     for (const f of fs.readdirSync(path.join(BUNDLE, 'assets'))) {
       if (!/\.(js|css)$/.test(f)) continue;
       const n = zlib.gzipSync(fs.readFileSync(path.join(BUNDLE, 'assets', f))).length;
-      if (/^rfq-page[-.]/.test(f)) rfq += n;
+      if (/^rfq-(page|files)[-.]/.test(f)) rfq += n; // RFQATT: the request files' chunk is the RFQ page's (lazy on a ticket link, only with an order's files)
       else gz += n;
     }
     test.info().annotations.push({ type: 'gzip-bytes', description: `${gz} (rfq-page ${rfq})` });

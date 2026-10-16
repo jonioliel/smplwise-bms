@@ -27,7 +27,8 @@ from .channel import CODE_PURPOSES, DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES
 
 PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "priority", "organization", "link", "code",
                 "manager", "eta", "module_name", "module_name_plural",
-                "due", "window")  # TKRFQ1: a request for quotation's deadline and wanted work window (local time, display text)
+                "due", "window",  # TKRFQ1: a request for quotation's deadline and wanted work window (local time, display text)
+                "files")  # RFQATT: "N files are attached (see the link)" in the vendor's language - a count only, never a name or a URL
 SECRET_PLACEHOLDERS = frozenset({"link", "code"})  # never in params_json; passed at send time only
 PARAM_KEYS = frozenset(PLACEHOLDERS) - SECRET_PLACEHOLDERS - {"module_name", "module_name_plural"}
 CODE_FORBIDDEN = frozenset({"link", "title", "place", "device"})
@@ -37,7 +38,7 @@ BODY_MAX = 1500
 # per-placeholder caps: worst-case values at save time, hard caps at send time
 VALUE_MAX = {"name": 80, "number": 7, "department": 60, "title": 120, "place": 200, "device": 80, "priority": 30,
              "organization": 60, "link": 120, "code": 6, "manager": 80, "eta": 24, "module_name": 30, "module_name_plural": 30,
-             "due": 24, "window": 40}
+             "due": 24, "window": 40, "files": 60}
 SECRET_MAX = {"link": 400, "code": 6}  # send time (slice 5b): the real URL is system-made and never cut (a cut link is a dead link)
 
 # 14.3 defaults - ONE source (slice 5b unified the two naming schemes): slice 1's naming.DEFAULTS (`tickets.name`, tokens {ticket} /
@@ -137,10 +138,10 @@ STARTERS: dict[str, dict[str, str]] = {
     # `{number}` is the RFQ's running number, `{due}` / `{window}` display texts in the installation's zone. An award never sends one
     # of these by itself (the manager confirms a draft); vendors who were not selected get nothing.
     "rfq_invite": {
-        "he": "שלום {name},\nבקשה להצעת מחיר מס' {number}: {title}\n{place}\nמועד אחרון להצעה: {due}\nחלון עבודה רצוי: {window}\nפרטים וטופס ההצעה: {link}\nאפשר גם לסמן בקישור שאינכם מעוניינים.\n{organization}",
-        "en": "Hello {name},\nRequest for quotation no. {number}: {title}\n{place}\nQuote deadline: {due}\nWanted work window: {window}\nDetails and the quote form: {link}\nYou can also mark in the link that you are not interested.\n{organization}",
-        "ar": "مرحبًا {name}،\nدعوة لتقديم عرض سعر رقم {number}: {title}\n{place}\nآخر موعد لتقديم العرض: {due}\nموعد العمل المرغوب: {window}\nالتفاصيل ونموذج العرض: {link}\nيمكنكم أيضًا الإشارة في الرابط إلى أنكم غير مهتمين.\n{organization}",
-        "ru": "Здравствуйте, {name}!\nЗапрос коммерческого предложения № {number}: {title}\n{place}\nСрок подачи предложения: {due}\nЖелательные сроки работ: {window}\nПодробности и форма предложения: {link}\nПо ссылке можно также отметить, что вам это не интересно.\n{organization}",
+        "he": "שלום {name},\nבקשה להצעת מחיר מס' {number}: {title}\n{place}\nמועד אחרון להצעה: {due}\nחלון עבודה רצוי: {window}\n{files}\nפרטים וטופס ההצעה: {link}\nאפשר גם לסמן בקישור שאינכם מעוניינים.\n{organization}",
+        "en": "Hello {name},\nRequest for quotation no. {number}: {title}\n{place}\nQuote deadline: {due}\nWanted work window: {window}\n{files}\nDetails and the quote form: {link}\nYou can also mark in the link that you are not interested.\n{organization}",
+        "ar": "مرحبًا {name}،\nدعوة لتقديم عرض سعر رقم {number}: {title}\n{place}\nآخر موعد لتقديم العرض: {due}\nموعد العمل المرغوب: {window}\n{files}\nالتفاصيل ونموذج العرض: {link}\nيمكنكم أيضًا الإشارة في الرابط إلى أنكم غير مهتمين.\n{organization}",
+        "ru": "Здравствуйте, {name}!\nЗапрос коммерческого предложения № {number}: {title}\n{place}\nСрок подачи предложения: {due}\nЖелательные сроки работ: {window}\n{files}\nПодробности и форма предложения: {link}\nПо ссылке можно также отметить, что вам это не интересно.\n{organization}",
     },
     "rfq_reminder": {
         "he": "תזכורת: המועד להגשת הצעת מחיר ל\"{title}\" (מס' {number}) מסתיים {due}.\nלהגשה: {link}",

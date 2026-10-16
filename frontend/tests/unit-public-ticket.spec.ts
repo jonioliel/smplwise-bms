@@ -210,7 +210,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
     const p = path.join(out, 'assets', f);
     if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
       const n = gzipSync(readFileSync(p)).length;
-      if (/^rfq-page[-.]/.test(f)) rfq += n;
+      // RFQATT: `rfq-files-*` (the request's files) belongs to the RFQ page; a ticket link fetches it only when a work order referenced files
+      if (/^rfq-(page|files)[-.]/.test(f)) rfq += n;
       else gz += n;
     }
     expect(f).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]*\.(js|css|svg|png|ico)$/); // the listener's asset name rule

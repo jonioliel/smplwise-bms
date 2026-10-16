@@ -81,6 +81,7 @@ token, link, code or phone number in the report.
 | 5.8 | CSV export neutralises formulas; templates reject hidden characters | PUBLIC-CORE 1 (`text_hygiene`); S6B 1 | |
 | 5.9 | Cost-claim files (slice 9 branch): PDF magic / trailer / size, refused names in the file and in every inflated zlib stream, remaining limit (other filters are not decoded) accepted explicitly; PDFs served as sandboxed downloads only | PUBLIC-CORE 4 (PDFs), 7; S9 | |
 | 5.10 | Cost claims: totals recomputed on the server from integer minor units, client totals ignored, immutable revisions, append-only decisions | TICKETS-MODULE 11A.13 (S21); S9 | |
+| 5.11 | RFQATT (not yet reviewed): `GET /t/api/rfq/file/<id>[/thumb]` and `GET /t/api/ticket/rfq-file/<id>[/thumb]` - READ routes only (no public upload); the file of THIS request / of a file THIS ticket references, live and "visible to vendors", past the code gate, not on a closed / cancelled page; the link row re-read per request; every other case byte-identical to the uniform 404; no list route; pictures are our own re-encoded JPEGs (inline), documents (PDF / DOCX / XLSX, structural refusal checks on the manager's upload) are downloads only with the listener's CSP; the page hands documents to the browser as `application/octet-stream` (the one reviewed W20 exception in `rfq/rfq-files.ts save()`) | RFQ contract 19.2 / 19.4 / 19.6; `tests/test_tickets_rfq_attachments.py` | |
 
 ## 6. WhatsApp and e-mail channel (internal side of the surface)
 

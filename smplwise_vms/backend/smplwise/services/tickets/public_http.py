@@ -164,6 +164,12 @@ ROUTES: tuple[RouteRule, ...] = (
     _json("/t/api/rfq/message", "token_write"),
     _json("/t/api/rfq/code/send", "code"),
     _json("/t/api/rfq/code/verify", "code"),
+    # RFQATT (RFQ contract section 19): the request's files - on the vendor's RFQ link, and (the reference copy of a work order) on
+    # the handler link of the service request the order opened; the photo read's window, never a body
+    RouteRule("GET", rf"/t/api/rfq/file/{_ID}", "/t/api/rfq/file/{attachment_id}", "photo_read"),
+    RouteRule("GET", rf"/t/api/rfq/file/{_ID}/thumb", "/t/api/rfq/file/{attachment_id}/thumb", "photo_read"),
+    RouteRule("GET", rf"/t/api/ticket/rfq-file/{_ID}", "/t/api/ticket/rfq-file/{attachment_id}", "photo_read"),
+    RouteRule("GET", rf"/t/api/ticket/rfq-file/{_ID}/thumb", "/t/api/ticket/rfq-file/{attachment_id}/thumb", "photo_read"),
 )
 
 

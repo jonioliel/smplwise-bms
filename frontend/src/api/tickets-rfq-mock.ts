@@ -153,7 +153,9 @@ function seed(): void {
   const r7 = mk(7, 'החלפת מזגן בחדר הישיבות (קומה 2)', 'dept-maintenance', 'collecting', 51, 20, {
     description: 'היחידה הפנימית הישנה דולפת שוב אחרי תיקון; נדרשת החלפה ליחידה חדשה 2.5 כ״ס כולל פינוי הישנה, חיבור לניקוז קיים והפעלה.',
     place_text: 'קומה 2 · חדר ישיבות גדול', work_from: iso(now + 2 * DAY), work_to: iso(now + 12 * DAY), source_ticket: { id: '00000000000c1042', number: 1042 },
-    files: [{ id: 'f-1', name: 'תמונות-היחידה.jpg', kind: 'photo', bytes: 412_000 }, { id: 'f-2', name: 'תוכנית-קומה-2.pdf', kind: 'pdf', bytes: 980_000 }],
+    files: [{ id: 'f-1', name: 'תמונות-היחידה.jpg', caption: 'היחידה הפנימית מלפנים', kind: 'image', bytes: 412_000, thumb: false, visible_vendors: true },
+      { id: 'f-2', name: 'תוכנית-קומה-2.pdf', caption: '', kind: 'pdf', bytes: 980_000, thumb: false, visible_vendors: true },
+      { id: 'f-3', name: 'תקציב-פנימי.xlsx', caption: 'פנימי', kind: 'xlsx', bytes: 24_000, thumb: false, visible_vendors: false }],
   });
   const alon = vendor('alon', 'אלון ד.', 'מיזוג אלון בע״מ', 'whatsapp', 'sent', sent, sent + 30 * 60_000);
   const kortek = vendor('kortek', 'שירה ב.', 'קור-טק מיזוג', 'email', 'sent', sent, sent + 3 * HOUR);
@@ -303,12 +305,13 @@ function detail(r: DRfq): RfqDetail {
     internal_owner: { id: 'u-me', name: r.owner, active: true }, created_by: { id: 'u-me', name: r.created_by }, created_at: r.created_at, updated_at: r.updated_at,
     sent_at: r.sent_at, awarded_at: r.awarded_at, closed_at: r.closed_at, cancelled_at: r.cancelled_at, cancel_reason: r.cancel_reason, revision: r.revision,
     kpis: kpis(r), vendors, awards: r.awards.map((a) => awardOut(r, a)), second_approval: { threshold_minor: threshold, enabled: threshold !== null },
-    timeline: [...r.events].map(amounts).sort((a, b) => b.at.localeCompare(a.at)), vendor_page: true, files: clone(r.files),
+    timeline: [...r.events].map(amounts).sort((a, b) => b.at.localeCompare(a.at)), vendor_page: true, attachments: clone(r.files.filter((f) => !f.removed)),
     can: {
       edit: !ended, add_vendor: state === 'draft' || open, send: (state === 'draft' || state === 'sent' || state === 'collecting') && r.vendors.some((v) => v.state === 'draft'),
       remind: state === 'sent' || state === 'collecting', cancel: (state === 'draft' || open) && !hasAward, close: (open || state === 'awarded' || state === 'ordered') && !pending,
       award: (open || state === 'awarded') && !pending, see_amounts: true, delete: true,
       order: r.awards.some((a) => awardOut(r, a).can?.order), send_order: r.awards.some((a) => awardOut(r, a).can?.send_order),
+      attach: state === 'draft' || open,
     },
   };
 }
@@ -488,7 +491,7 @@ export const mockRfq: RfqBackend = {
       place_text: body.place_text ?? null, source_ticket: body.source_ticket_id ? { id: body.source_ticket_id, number: 1042 } : null, due_at: body.due_at ?? null,
       work_from: body.work_from ?? null, work_to: body.work_to ?? null, kinds: body.allowed_line_kinds ?? ['labor', 'parts'], owner: ME, created_by: ME,
       created_at: iso(now), updated_at: iso(now), sent_at: null, awarded_at: null, closed_at: null, cancelled_at: null, cancel_reason: null, revision: 1,
-      vendors: [], awards: [], events: [], files: (body.file_ids ?? []).map((fid) => pending.get(fid)).filter((f): f is RfqFile => !!f),
+      vendors: [], awards: [], events: [], files: [],
     };
     for (const ref of body.vendors) {
       const c = contactNames.get(ref.contact_id) ?? { name: ref.contact_id, company: '' };
@@ -807,13 +810,63 @@ export const mockRfq: RfqBackend = {
     event(r, 'order_sent', Date.now(), v, ME, { award_id: a.id });
     return orderAnswer(r, awardId, { notified: { queued: true, channel: v.channel, already: false } });
   },
-  async uploadFile(file: File) {
+  // RFQATT: the demo store keeps the picked file in memory (an object URL) - the real server checks, re-encodes and stores it
+  async uploadAttachment(id, file, options = {}) {
     await sleep(150);
-    const f: RfqFile = { id: nid('f'), name: file.name || 'file', kind: file.type === 'application/pdf' ? 'pdf' : 'photo', bytes: file.size };
-    pending.set(f.id, f);
-    return f;
+    const r = find(id);
+    const state = effective(r);
+    if (!['draft', 'sent', 'collecting', 'due_passed'].includes(state)) fail(409, 'attachment_locked', 'אפשר לצרף קבצים רק בטיוטה או בזמן איסוף ההצעות');
+    const live = r.files.filter((f) => !f.removed);
+    if (live.length >= 10) fail(409, 'attachment_limit', 'הגעתם למספר הקבצים המרבי לבקשה', { max_files: 10 });
+    const kind = demoKind(file);
+    if (!kind) fail(415, 'unsupported_format', 'סוג הקובץ אינו נתמך');
+    if (file.size > (kind === 'image' ? 8 : 10) * 1024 * 1024) fail(413, 'payload_too_large', 'הקובץ גדול מדי');
+    const stem = (file.name || 'file').replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '') || 'file';
+    const f: RfqFile = { id: nid('f'), name: `${stem}.${kind === 'image' ? 'jpg' : kind}`, caption: options.caption ?? '', kind, bytes: file.size, thumb: kind === 'image',
+      visible_vendors: options.visible_vendors ?? true, created_at: iso(Date.now()) };
+    blobs.set(f.id, file);
+    r.files.push(f);
+    r.updated_at = iso(Date.now());
+    return { ...detail(r), attachment: clone(f) };
+  },
+  async editAttachment(id, attachmentId, options) {
+    await sleep(80);
+    const r = find(id);
+    const f = r.files.find((x) => x.id === attachmentId && !x.removed);
+    if (!f) fail(404, 'attachment_not_found', 'הקובץ לא נמצא');
+    if (options.caption !== undefined) f.caption = options.caption;
+    if (options.visible_vendors !== undefined) f.visible_vendors = options.visible_vendors;
+    return detail(r);
+  },
+  async removeAttachment(id, attachmentId) {
+    await sleep(80);
+    const r = find(id);
+    const i = r.files.findIndex((x) => x.id === attachmentId && !x.removed);
+    if (i < 0) fail(404, 'attachment_not_found', 'הקובץ לא נמצא');
+    r.files.splice(i, 1);
+    blobs.delete(attachmentId);
+    return detail(r);
+  },
+  attachmentUrl(_id, attachmentId) {
+    const b = blobs.get(attachmentId);
+    if (!b) return '';
+    let u = urls.get(attachmentId);
+    if (!u) {
+      u = URL.createObjectURL(b);
+      urls.set(attachmentId, u);
+    }
+    return u;
   },
 };
+
+function demoKind(file: File): RfqFile['kind'] | null {
+  const n = (file.name || '').toLowerCase();
+  if (/^image\/(jpeg|png|webp)$/.test(file.type) || /\.(jpe?g|png|webp)$/.test(n)) return 'image';
+  if (file.type === 'application/pdf' || n.endsWith('.pdf')) return 'pdf';
+  if (n.endsWith('.docx')) return 'docx';
+  if (n.endsWith('.xlsx')) return 'xlsx';
+  return null;
+}
 
 /** Back to the seeded requests (the evidence specs replay the demo store as a fake server, one clean store per test). */
 export function resetDemoRfq(): void {
@@ -829,7 +882,8 @@ export function resetDemoRfq(): void {
 
 /** The demo names of directory contacts the new-request sheet picked (the sheet tells the store; the real server reads its directory). */
 const contactNames = new Map<string, { name: string; company: string }>();
-const pending = new Map<string, RfqFile>();
+const blobs = new Map<string, Blob>();
+const urls = new Map<string, string>();
 export function rememberDemoContact(id: string, name: string, company: string): void {
   contactNames.set(id, { name, company });
 }

@@ -245,9 +245,17 @@ function code(file: string): string {
 
 test('the RFQ chunk builds DOM from text nodes only, never imports the app, builds no link, keeps nothing in localStorage', () => {
   const files = readdirSync(SRC).filter((x) => x.endsWith('.ts'));
-  expect(files.sort()).toEqual(['rfq-page.ts', 'rfq-state.ts', 'rfq-text.ts']);
+  expect(files.sort()).toEqual(['rfq-files.ts', 'rfq-page.ts', 'rfq-state.ts', 'rfq-text.ts']);
   for (const f of files) {
-    const src = code(f);
+    // RFQATT: the ONE reviewed W20 exception - rfq-files.ts `save()` hands a blob of OUR fetch to the browser's save dialog through an
+    // anchor that is never attached to the page; the rest of that file (and every other file) builds no link
+    const raw = code(f);
+    const src = f === 'rfq-files.ts' ? raw.replace(/function save\(blob: Blob, name: string\): void \{[\s\S]*?\n\}/, '') : raw;
+    if (f === 'rfq-files.ts') {
+      expect(src.length, 'save() was found and cut out').toBeLessThan(raw.length);
+      expect(raw.match(/createElement\(['"]a['"]\)/g)?.length ?? 0).toBe(1);
+      expect(raw).toContain("type: 'application/octet-stream'"); // a document can never render inline
+    }
     expect(src, f).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|unsafeHTML|new Function|eval\(/);
     expect(src, f).not.toMatch(/from '\.\.\/\.\.\/(shell|api|components|screens|design|arx|pwa|i18n|tickets)\//);
     expect(src, f).not.toMatch(/localStorage|document\.cookie|serviceWorker/);
@@ -258,6 +266,8 @@ test('the RFQ chunk builds DOM from text nodes only, never imports the app, buil
   const main = readFileSync(path.resolve(HERE, '../src/public-ticket/main.ts'), 'utf8');
   expect(main).toContain("import('./rfq/rfq-page')");
   expect(main).not.toMatch(/from '\.\/rfq\//);
+  // RFQATT: the ticket page loads the request files' chunk lazily too (only when a work order referenced files)
+  expect(main).toContain("import('./rfq/rfq-files')");
 });
 
 // ---------------------------------------------------------------- the manager board: the per-vendor verification-code switch (15.6)

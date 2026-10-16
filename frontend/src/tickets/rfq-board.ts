@@ -5,6 +5,7 @@ import '../components/sw-dialog';
 import './rfq-quote-dialog';
 import './rfq-message-dialog';
 import './rfq-order';
+import './rfq-files';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -14,7 +15,7 @@ import { bidi } from '../i18n/bidi';
 import { ApiError } from '../api/client';
 import { ticketsS4Api, type Contact } from '../api/tickets-s4';
 import type { LineKind } from '../api/tickets-costs';
-import { ticketsRfqApi, type RfqAward, type RfqDetail, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
+import { ticketsRfqApi, type RfqAward, type RfqDetail, type RfqFile, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
 import { rememberDemoContact } from '../api/tickets-rfq-mock';
 import { formatMoney } from './cost-model';
 import { ct, type CostTextKey } from './cost-text';
@@ -26,7 +27,9 @@ import {
   boardVendors, clientRequestId, dateTime, shortDate, dayToIso, eventLine, initials, invitable, invitePreview, isoToLocal, liveQuotes, localToIso, rfqHref, rfqStateTone,
   remindable, toggleKind, vendorStateTone, windowText,
 } from './rfq-model';
-import { rfqError } from './rfq-new';
+import { filesLine, rfqError } from './rfq-new';
+import type { FileRow } from './rfq-files';
+import { DEFAULT_LIMITS, formatBytes, vendorFiles } from './rfq-files-model';
 import { tt, ticketsLang } from './text';
 
 type Dlg =
@@ -361,6 +364,53 @@ export class TicketsRfqBoard extends LitElement {
     </section>`;
   }
 
+  // ---------------------------------------------------------------- RFQATT: the request's files
+
+  private fileRows(d: RfqDetail): FileRow[] {
+    const api = ticketsRfqApi();
+    return (d.attachments ?? []).map((f: RfqFile) => ({ key: f.id, name: f.name, kind: f.kind, bytes: f.bytes, caption: f.caption, visible: f.visible_vendors,
+      thumb: f.thumb ? api.attachmentUrl(d.id, f.id, true) : '', href: api.attachmentUrl(d.id, f.id), removed: f.removed }));
+  }
+
+  private async addFiles(files: File[]): Promise<void> {
+    const d = this.d as RfqDetail;
+    await this.run(async () => {
+      let cur = d;
+      for (const f of files) cur = await ticketsRfqApi().uploadAttachment(d.id, f, { visible_vendors: true });
+      return cur;
+    }, rt('fileAdded'), true);
+    if (this.error) this.notice({ error: this.error });
+  }
+
+  private filesCard(d: RfqDetail): TemplateResult | typeof nothing {
+    if (!this.meta?.attachments && !(d.attachments ?? []).length) return nothing;
+    const editable = !!d.can.attach;
+    if (!editable && !(d.attachments ?? []).length) return nothing;
+    const run = (fn: () => Promise<RfqDetail>, ok: string) => void this.run(fn, ok, true).then((done) => { if (!done) this.notice({ error: this.error }); });
+    return html`<section class="rcard" aria-labelledby="h-files" data-rfq-files-card>
+      <h2 id="h-files">${rIcon('clip')}${rt('secFiles')}<span class="mut">${(d.attachments ?? []).filter((f) => !f.removed).length || ''}</span></h2>
+      <tickets-rfq-files ?editable=${editable} ?busy=${this.busy} .rows=${this.fileRows(d)} .limits=${this.meta?.attachment_limits ?? DEFAULT_LIMITS}
+        @files-picked=${(e: CustomEvent<{ files: File[] }>) => void this.addFiles(e.detail.files)}
+        @file-caption=${(e: CustomEvent<{ key: string; caption: string }>) => run(() => ticketsRfqApi().editAttachment(d.id, e.detail.key, { caption: e.detail.caption }), rt('saved'))}
+        @file-visible=${(e: CustomEvent<{ key: string; visible: boolean }>) => run(() => ticketsRfqApi().editAttachment(d.id, e.detail.key, { visible_vendors: e.detail.visible }), rt('saved'))}
+        @file-remove=${(e: CustomEvent<{ key: string }>) => run(() => ticketsRfqApi().removeAttachment(d.id, e.detail.key), rt('fileRemoved'))}></tickets-rfq-files>
+    </section>`;
+  }
+
+  /** The send preview's list of what each vendor receives (names, sizes, thumbnails) and how many internal files stay behind. */
+  private sendFiles(d: RfqDetail): TemplateResult | typeof nothing {
+    const all = (d.attachments ?? []).filter((f) => !f.removed);
+    if (!this.meta?.attachments && !all.length) return nothing;
+    const out = vendorFiles(all);
+    const lang = ticketsLang() === 'en' ? 'en' : 'he';
+    const api = ticketsRfqApi();
+    return html`<div class="stack" data-rfq-send-files><b>${rt('sendFiles')}</b>
+      ${out.length ? html`<ul class="sendfiles">${out.map((f) => html`<li data-rfq-send-file><span class="th">${f.thumb ? html`<img src=${api.attachmentUrl(d.id, f.id, true)} alt="" />`
+        : rIcon(f.kind === 'xlsx' ? 'sheet' : 'file')}</span><span>${bidi(f.name)}</span><small>${formatBytes(f.bytes, lang)}</small></li>`)}</ul>`
+        : html`<span class="note">${rt('sendFilesNone')}</span>`}
+      ${all.length > out.length ? html`<span class="note" data-rfq-send-internal>${rt('sendFilesInternal', { n: all.length - out.length })}</span>` : nothing}</div>`;
+  }
+
   private timeline(d: RfqDetail): TemplateResult {
     return html`<section class="rcard" aria-labelledby="h-tl" data-rfq-timeline>
       <h2 id="h-tl">${rIcon('history')}${rt('timeline')}</h2>
@@ -393,12 +443,14 @@ export class TicketsRfqBoard extends LitElement {
         const pageOff = !d.vendor_page || this.meta?.vendor_page === false;
         const first = d.vendors.find((v) => v.state === 'draft');
         const pv = invitePreview({ name: first?.contact.name || rt('previewName'), number: String(d.number), title: d.title, place: d.place.text ?? '', due: dateTime(d.due_at),
-          window: windowText(d.work_from, d.work_to) || rt('previewFlexible'), link: rt('previewLink'), organization: '' }, ticketsLang());
+          window: windowText(d.work_from, d.work_to) || rt('previewFlexible'), link: rt('previewLink'), organization: '',
+          files: filesLine(vendorFiles(d.attachments ?? []).length) }, ticketsLang());
         const opt = (m: 'auto' | 'manual', title: RfqTextKey, sub: RfqTextKey, disabled: boolean) => html`<label aria-disabled=${String(disabled)} data-rfq-send-mode=${m}>
           <input type="radio" name="bmode" .checked=${this.sendMode === m} ?disabled=${disabled || this.busy} @change=${() => (this.sendMode = m)} /><b>${rt(title)}</b><small>${disabled ? rt('sendPageOff') : rt(sub)}</small></label>`;
         return dlg(rt('sendTitle'), 'send', html`<p class="note">${rt('sendTo', { n })}</p>
           <div class="choice" role="radiogroup" aria-label=${rt('sendTitle')}>${opt('auto', 'sendAuto', 'sendAutoSub', pageOff)}${opt('manual', 'sendManual', 'sendManualSub', false)}</div>
-          ${this.sendMode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${pv}</pre>` : nothing}`,
+          ${this.sendMode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${pv}</pre>` : nothing}
+          ${this.sendFiles(d)}`,
           foot(rt('sendNow'), 'send', () => void this.send(), pageOff && this.sendMode === 'auto'), true);
       }
       case 'more': {
@@ -500,6 +552,7 @@ export class TicketsRfqBoard extends LitElement {
       ${d.awards.some((a) => a.state === 'approved') ? html`<tickets-rfq-order .rfq=${d} @changed=${(e: CustomEvent<RfqDetail>) => (this.d = e.detail)}></tickets-rfq-order>` : nothing}
       ${this.kpis(d)}
       <div class="grid2">${this.vendorsCard(d)}${this.timeline(d)}</div>
+      ${this.filesCard(d)}
     </div>${this.dialog()}`;
   }
 }

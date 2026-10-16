@@ -1124,6 +1124,8 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     if _has_table(conn, "ticket_map_elements"):  # TKMAP1: the attached map element follows the ticket
         run("ticket_map_elements", "DELETE FROM ticket_map_elements WHERE ticket_id = ?", (ticket_id,))
     run("ticket_attachments", "DELETE FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,))
+    if _has_table(conn, "ticket_rfq_attachment_refs"):  # RFQATT: the ticket's references to request files (the files stay with the request)
+        run("ticket_rfq_attachment_refs", "DELETE FROM ticket_rfq_attachment_refs WHERE ticket_id = ?", (ticket_id,))
     run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
     conn.execute("UPDATE tickets SET current_assignment_id = NULL WHERE id = ?", (ticket_id,))
@@ -1140,13 +1142,19 @@ def folder_in_use(conn: sqlite3.Connection, ticket_id: str) -> bool:
     purged ticket keeps its files there, 11A.11)."""
     return any(conn.execute(sql, (ticket_id,)).fetchone() for sql in (
         "SELECT 1 FROM tickets WHERE id = ?", "SELECT 1 FROM ticket_attachments WHERE ticket_id = ? LIMIT 1",
-        "SELECT 1 FROM ticket_cost_files WHERE ticket_id = ? LIMIT 1"))
+        "SELECT 1 FROM ticket_cost_files WHERE ticket_id = ? LIMIT 1")) or (
+        # RFQATT: `<data>/tickets/<rfq id>/rfq/` - a request's files live in a folder named after the request (never a ticket id)
+        _has_table(conn, "ticket_rfq_attachments")
+        and conn.execute("SELECT 1 FROM ticket_rfq_attachments WHERE folder = ? LIMIT 1", (ticket_id,)).fetchone() is not None)
 
 
 def stored_paths(conn: sqlite3.Connection, ticket_id: str) -> set[str]:
     """Every relative file path a row names under `<data>/tickets/<ticket_id>/`: photos and invoice files (deep review A4 sweep)."""
     out = {r[0] for r in conn.execute("SELECT path FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,)).fetchall()}
     out |= {r[0] for r in conn.execute("SELECT path FROM ticket_cost_files WHERE ticket_id = ?", (ticket_id,)).fetchall()}
+    if _has_table(conn, "ticket_rfq_attachments"):  # RFQATT: a request's files and thumbnails (`<rfq id>/rfq/...`)
+        for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_attachments WHERE folder = ?", (ticket_id,)).fetchall():
+            out |= {p for p in (r[0], r[1]) if p}
     return out
 
 
@@ -1167,5 +1175,7 @@ def ticket_rows_left(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]
     if _has_table(conn, "ticket_quotes"):  # TKDETAILBE (0087)
         checks["ticket_quotes"] = "SELECT COUNT(*) FROM ticket_quotes WHERE ticket_id = ?"
         checks["ticket_owner_changes"] = "SELECT COUNT(*) FROM ticket_owner_changes WHERE ticket_id = ?"
+    if _has_table(conn, "ticket_rfq_attachment_refs"):  # RFQATT
+        checks["ticket_rfq_attachment_refs"] = "SELECT COUNT(*) FROM ticket_rfq_attachment_refs WHERE ticket_id = ?"
     left = {t: int(conn.execute(sql, (ticket_id,)).fetchone()[0]) for t, sql in checks.items()}
     return {t: n for t, n in left.items() if n}

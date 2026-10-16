@@ -23,6 +23,11 @@
     POST   /tickets/rfqs/{id}/awards/{award_id}/order                  TKRFQ4: open the vendor's service request (idempotent; sends nothing)
     GET    /tickets/rfqs/{id}/awards/{award_id}/order/preview          TKRFQ4: the exact order message, its channel, the refusals
     POST   /tickets/rfqs/{id}/awards/{award_id}/order/send             TKRFQ4: the explicit send of the order message
+    POST   /tickets/rfqs/{id}/attachments                              RFQATT: RFQ manager - one file (multipart: file, caption?, visible?)
+    PATCH  /tickets/rfqs/{id}/attachments/{aid}                        RFQATT: RFQ manager - caption / visible to vendors
+    DELETE /tickets/rfqs/{id}/attachments/{aid}                        RFQATT: RFQ manager - remove (marked only once a quote arrived)
+    GET    /tickets/rfqs/{id}/attachments/{aid}[/thumb]                RFQATT: visible - the file (a picture inline, a document as a download)
+    GET    /tickets/{ticket_id}/rfq-attachments/{aid}[/thumb]          RFQATT: the ticket's viewers - a request file a work order referenced
 
 Order of every route: signed in -> the module switch (router dependency) -> the request's visibility (the uniform 404) -> the role /
 permission (an audited 403). Every write is one transaction with its RFQ timeline row and an audit row (ids, states, totals). Registered
@@ -32,13 +37,17 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
+from ..audit import audit
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..db import commit_now, unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, model, rfq, rfq_orders, store, store_rfq
+from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_files, rfq_orders, store, store_rfq
+from ..services.tickets.image_intake import IntakeError, StorePathError
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
 from .tickets_detail import QuoteLine, quote_payload
@@ -178,7 +187,12 @@ def delete_rfq(request: Request, rfq_id: str = Path(..., pattern=ID), principal:
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
-    return {"deleted": True, "rows": rfq.purge(conn, viewer, seen, _rid(request))}
+    doomed: list[str] = []
+    rows = rfq.purge(conn, viewer, seen, _rid(request), files_out=doomed)
+    if doomed:  # RFQATT: the files go only after the rows are gone for good (the orphan sweep retries a failure)
+        commit_now(conn, keep_reading=False)
+        rfq_files.remove(attachments.root(settings_of(request).data_dir), *doomed)
+    return {"deleted": True, "rows": rows}
 
 
 class RevisionBody(BaseModel):
@@ -498,3 +512,137 @@ def post_close(body: RevisionBody, request: Request, rfq_id: str = Path(..., pat
     out = _detail(conn, viewer, rfq_id)
     out["closed"] = res
     return out
+
+
+# ---------------------------------------------------------------- RFQATT: files and pictures on a request (contract section 19)
+
+def _root(request: Request):
+    return attachments.root(settings_of(request).data_dir)
+
+
+def _bool_form(conn: sqlite3.Connection, value: str | None, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    if value in ("true", "1", "on"):
+        return True
+    if value in ("false", "0", "off"):
+        return False
+    raise rfq.invalid(conn, "visible_vendors", "type")
+
+
+@router.post("/tickets/rfqs/{rfq_id}/attachments", status_code=201)
+def post_attachment(request: Request, rfq_id: str = Path(..., pattern=ID), file: UploadFile = File(...),
+                    caption: str | None = Form(None, max_length=2000), visible_vendors: str | None = Form(None, max_length=8),
+                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One file: the role, the state and the quota BEFORE the body is decoded (an audited 403, 409, 413); the checks and the stored
+    copy outside the write lock (rfq_files.store); everything re-checked in the write transaction before the row (rfq_attach.record).
+    Answers the detail plus `attachment` (the new row)."""
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    seen = rfq.require_visible(viewer, rfq_id)
+    visible = _bool_form(conn, visible_vendors, True)
+    data = file.file.read(rfq_files.DOCUMENT_MAX_BYTES + 1)
+    name = file.filename or ""
+    rfq_attach.check_add(conn, viewer, seen, len(data), rid)
+    root = _root(request)
+    try:
+        attachments.check_capacity(settings_of(request).data_dir, len(data))
+    except attachments.Refused as exc:
+        raise ApiError(exc.status, exc.code, exc.message, details=dict(exc.details)) from None
+    try:
+        with unlocked(conn):  # the decode / the scan never hold the database write lock
+            stored = rfq_files.store(root, seen.row["id"], data)
+    except IntakeError as exc:
+        audit(conn, actor=principal, action="ticket.rfq.attachment_add", decision="denied", resource_type="ticket_rfq", resource_id=seen.row["id"],
+              reason=exc.code, request_id=rid, details={"number": seen.row["number"]})
+        raise rfq_attach.refused(conn, exc) from None
+    except StorePathError:
+        raise rfq_attach.not_found(conn) from None
+    finally:
+        del data
+    try:
+        seen = rfq.require_visible(viewer, rfq_id)  # the lock was released for the decode: read the request again
+        aid = rfq_attach.record(conn, viewer, seen, stored, name=name, caption=caption, visible=visible, rid=rid)
+    except BaseException:
+        rfq_files.remove(root, stored.rel_path, stored.thumb_rel)
+        raise
+    out = _detail(conn, viewer, rfq_id)
+    out["attachment"] = next((a for a in out.get("attachments", []) if a["id"] == aid), None)
+    return out
+
+
+class AttachmentPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    caption: str | None = Field(default=None, max_length=2000)
+    visible_vendors: bool | None = None
+
+
+@router.patch("/tickets/rfqs/{rfq_id}/attachments/{attachment_id}")
+def patch_attachment(body: AttachmentPatch, request: Request, rfq_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                     principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    given = body.model_dump(exclude_unset=True)
+    changed = rfq_attach.update(conn, viewer, seen, attachment_id, caption=given.get("caption"), caption_given="caption" in given,
+                                visible=given.get("visible_vendors"), rid=_rid(request))
+    out = _detail(conn, viewer, rfq_id)
+    out["changed"] = changed
+    return out
+
+
+@router.delete("/tickets/rfqs/{rfq_id}/attachments/{attachment_id}")
+def delete_attachment(request: Request, rfq_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                      principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    doomed = rfq_attach.remove(conn, viewer, seen, attachment_id, _rid(request))
+    out = _detail(conn, viewer, rfq_id)
+    if doomed:
+        commit_now(conn, keep_reading=False)  # the row is gone for good before the file is touched
+        rfq_files.remove(_root(request), *doomed)
+    return out
+
+
+def _file_response(request: Request, a: dict[str, Any], number: int, thumb: bool, conn: sqlite3.Connection) -> FileResponse:
+    path = rfq_attach.file_path(_root(request), a, thumb)
+    if path is None:
+        raise rfq_attach.not_found(conn)
+    h = rfq_files.headers("image" if thumb else a["kind"], ref_number=number, file_id=a["id"], name=a["name"])
+    media = h.pop("Content-Type")
+    return FileResponse(path, media_type=media, headers=h)
+
+
+@router.get("/tickets/rfqs/{rfq_id}/attachments/{attachment_id}")
+def get_attachment(request: Request, rfq_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    seen = rfq.require_visible(Viewer(conn, principal), rfq_id)
+    return _file_response(request, rfq_attach.for_manager(conn, seen, attachment_id), int(seen.row["number"]), False, conn)
+
+
+@router.get("/tickets/rfqs/{rfq_id}/attachments/{attachment_id}/thumb")
+def get_attachment_thumb(request: Request, rfq_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                         principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    seen = rfq.require_visible(Viewer(conn, principal), rfq_id)
+    return _file_response(request, rfq_attach.for_manager(conn, seen, attachment_id), int(seen.row["number"]), True, conn)
+
+
+def _ticket_file(request: Request, ticket_id: str, attachment_id: str, thumb: bool, principal: Principal, conn: sqlite3.Connection) -> FileResponse:
+    seen = access.require_visible(Viewer(conn, principal), ticket_id)  # the ticket's own rule (the uniform 404)
+    a = rfq_attach.for_ticket(conn, seen.row["id"], attachment_id)
+    if a is None:
+        raise rfq_attach.not_found(conn)
+    q = store_rfq.rfq_quote_of_ticket(conn, seen.row["id"])
+    v = store_rfq.vendor(conn, (q or {}).get("rfq_vendor_id")) or {}
+    return _file_response(request, a, rfq.number_of(conn, v.get("rfq_id")) or 0, thumb, conn)
+
+
+@router.get("/tickets/{ticket_id}/rfq-attachments/{attachment_id}")
+def get_ticket_rfq_file(request: Request, ticket_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                        principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    return _ticket_file(request, ticket_id, attachment_id, False, principal, conn)
+
+
+@router.get("/tickets/{ticket_id}/rfq-attachments/{attachment_id}/thumb")
+def get_ticket_rfq_thumb(request: Request, ticket_id: str = Path(..., pattern=ID), attachment_id: str = Path(..., pattern=ID),
+                         principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    return _ticket_file(request, ticket_id, attachment_id, True, principal, conn)

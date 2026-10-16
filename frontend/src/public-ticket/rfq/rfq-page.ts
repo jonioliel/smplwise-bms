@@ -24,6 +24,7 @@ import { formatDate, formatWhen, zoneNote } from '../time';
 import { computeForm, formatMoney, formatRate, newLine, type LineDraft, type LineKind } from '../claim/claim-model';
 import { claimLang, ct, errorText, type ClaimTextKey } from '../claim/claim-text';
 import { rfqText, isRfqKey, type RfqKey } from './rfq-text';
+import { filesCard } from './rfq-files';
 import {
   bodySig, cridFor, draftFromQuote, draftProblems, freshDraft, isoToDay, kindList, outsideWindow, parseRfqDraft, quoteWire, quoting, rfqFailure, rfqKinds, rfqScreen,
   rfqSettings, timeLeft, type RfqDraft, type RfqScreen,
@@ -454,6 +455,8 @@ class RfqPage {
       v.read_only && v.read_only_until ? h('div', { class: 'banner info', attrs: { role: 'status', 'data-rfq-readonly': true } }, this.t('readOnly', { when: this.when(v.read_only_until) })) : null,
       this.stateCard(v, screen),
       ended ? null : this.requestCard(v),
+      // RFQATT (contract 19.4): the request's files - pictures in a lightbox, documents only as downloads; never on an ended page
+      !ended && v.rfq?.attachments?.length ? filesCard(v.rfq.attachments, this.creds, 'rfq', this.lang) : null,
       ended ? null : this.quoteBlock(v, screen),
       !ended && can.decline && screen === 'open' ? this.declineBlock(v) : null,
       ended ? null : this.threadCard(v)),
@@ -492,7 +495,6 @@ class RfqPage {
     const row = (label: RfqKey, value: Node | string, attr: string) => h('div', { class: 'rfq-fact', attrs: { [`data-rfq-${attr}`]: true } },
       h('span', { class: 'lbl' }, this.t(label)), typeof value === 'string' ? h('span', { class: 'val' }, value) : value);
     const kinds = kindList(r.allowed_line_kinds);
-    const files = r.attachments ?? [];
     return h('section', { class: 'card hero', attrs: { 'data-rfq-request': true } },
       h('div', { class: 'chips' }, h('span', { class: 'chip num-chip' }, this.t('kind')), h('span', { class: 'spacer' }), left ? h('span', { class: 'chip rfq-left', attrs: { 'data-rfq-left': true } }, leftText) : null),
       h('h1', { class: 'title', attrs: { dir: 'auto', 'data-rfq-title': true } }, r.title),
@@ -501,9 +503,7 @@ class RfqPage {
         r.due_at ? row('due', h('span', { class: 'val' }, h('b', null, this.when(r.due_at))), 'due') : null,
         row('window', win, 'window'),
         kinds.length ? row('kinds', kinds.map((k) => this.kindName(k)).join(' · '), 'kinds') : null),
-      r.description ? h('p', { class: 'desc', attrs: { dir: 'auto' } }, r.description) : null,
-      files.length ? h('div', { class: 'rfq-files', attrs: { 'data-rfq-files': true } }, h('span', { class: 'lbl' }, this.t('files')),
-        h('ul', null, ...files.map((f) => h('li', { attrs: { dir: 'auto' } }, f.name)))) : null);
+      r.description ? h('p', { class: 'desc', attrs: { dir: 'auto' } }, r.description) : null);
   }
 
   private editingForm(v: RfqView): boolean {

@@ -686,22 +686,40 @@ export const rfqStyles = css`
       min-block-size: 44px;
     }
   }
-  .files {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
-  .file {
-    display: inline-flex;
-    align-items: center;
+  /* RFQATT: the send preview's list of the files each vendor receives */
+  .sendfiles {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
     gap: 6px;
-    min-block-size: 36px;
-    padding-inline: 12px;
-    border-radius: var(--sw-r-pill);
+  }
+  .sendfiles li {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--sw-fs-sm);
+  }
+  .sendfiles li > span:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sendfiles .th {
+    inline-size: 40px;
+    block-size: 40px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
     border: 1px solid var(--dv-border);
     background: var(--dv-surface-2);
-    font-size: var(--sw-fs-sm);
+  }
+  .sendfiles .th img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
   }
   .vlist {
     display: flex;

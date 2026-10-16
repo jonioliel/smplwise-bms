@@ -590,7 +590,7 @@ def test_invitations_through_the_outbox_carry_no_link_text_or_amount(s4, monkeyp
     assert {x["purpose"] for x in rows} == {"rfq_invite"} and len(rows) == len(link_rows) == 2
     for x in rows:
         params = json.loads(x["params_json"])
-        assert set(params) <= {"name", "number", "title", "place", "department", "organization", "due", "window"}
+        assert set(params) <= {"name", "number", "title", "place", "department", "organization", "due", "window", "files"}  # RFQATT: "files" = a count text, never a name
         assert x["ticket_id"] is None and x["link_id"] in {lr["id"] for lr in link_rows}
         token = rfq_links.token_of(next(lr for lr in link_rows if lr["id"] == x["link_id"]))
         assert token not in json.dumps(x), "the token is derived at send time, never stored"
