@@ -163,6 +163,12 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("costs", "notify_vendor_approved"): (False, boolean),
     ("costs", "retention_days"): (2555, int_range(730, 3650)),
     ("costs", "allowed_line_kinds"): (["labor", "parts"], line_kinds),  # TKDETAILBE: request -> department -> this default
+    # TKRFQ1 (docs/tickets/RFQ_BACKEND_CONTRACT.md section 13): requests for quotation
+    ("rfq", "default_due_days"): (3, int_range(1, 60)),  # the deadline a new request proposes
+    ("rfq", "grace_hours"): (24, int_range(0, 168)),  # a closed / cancelled request's vendor links stay read-only this long
+    ("rfq", "link_keep_days"): (30, int_range(1, 365)),  # a link lives this long past the deadline; its row goes this long after closing
+    ("rfq", "retention_months"): (24, int_range(6, 120)),  # spec 6: quotes that were not selected (and the request) are kept this long
+    ("rfq", "reminder_hours"): (24, int_range(0, 168)),  # stage C2's automatic reminder before the deadline; 0 = off
 }
 
 

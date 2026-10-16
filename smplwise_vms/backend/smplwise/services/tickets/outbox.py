@@ -115,6 +115,7 @@ class OutboxRow:
     account_key: str | None = None  # written at claim time only
     sent_at: dt.datetime | None = None
     updated_at: dt.datetime | None = None
+    rfq_id: str | None = None  # TKRFQ1 (0089): the request for quotation a vendor message belongs to (ticket_id is NULL then)
 
 
 # ---------------------------------------------------------------- ports
@@ -383,7 +384,7 @@ class Outbox:
                 params: Mapping[str, Any] | None = None, template_id: str | None = None, template_revision: int | None = None,
                 channel: str = "whatsapp", requested_by: str | None = None, idempotency_key: str | None = None,
                 send_now: bool = False, code: str | None = None, test_target: str | None = None,
-                test_account_key: str | None = None, code_id: str | None = None) -> OutboxRow:
+                test_account_key: str | None = None, code_id: str | None = None, rfq_id: str | None = None) -> OutboxRow:
         """Write one message. Returns the existing row when `idempotency_key` was already used (no second message).
         A `test` row names its account at enqueue time (the per-account "שליחת בדיקה"); every other row gets its account when
         the worker claims it."""
@@ -417,7 +418,7 @@ class Outbox:
                 assignment_id=assignment_id, link_id=link_id, department_id=department_id, params=clean, template_id=template_id,
                 template_revision=template_revision, priority=priority_of(purpose), requested_by=requested_by,
                 idempotency_key=idempotency_key, send_now=bool(send_now) and purpose == "assign",
-                account_key=test_account_key if purpose == "test" else None, code_id=code_id if purpose == "code" else None,
+                account_key=test_account_key if purpose == "test" else None, code_id=code_id if purpose == "code" else None, rfq_id=rfq_id,
                 reply_nonce=self.p.new_nonce() if channel == "whatsapp" and purpose in REPLY_PURPOSES else None)
             if assignment_id:
                 for old in self.p.store.open_rows():
@@ -671,10 +672,11 @@ class Outbox:
         footer = ""
         if row.channel == "whatsapp" and row.reply_nonce and self.p.channels["whatsapp"].supports_buttons():
             buttons = templates.buttons_for(row.reply_nonce, tpl.lang)
-            footer = templates.footer_for(row.params, lang=tpl.lang, display_name=self.p.context.display_name())
+            footer = templates.footer_for(row.params, lang=tpl.lang, display_name=self.p.context.display_name(), purpose=row.purpose)
         return OutboundMessage(outbox_id=row.id, channel=row.channel, purpose=row.purpose, recipient=recipient, text=text,
                                account=account, buttons=buttons, footer=footer,
-                               subject=templates.footer_for(row.params, lang=tpl.lang, display_name=self.p.context.display_name())), None
+                               subject=templates.footer_for(row.params, lang=tpl.lang, display_name=self.p.context.display_name(),
+                                                            purpose=row.purpose)), None
 
     def _set(self, row: OutboxRow, *, state: str, now: dt.datetime, **changes: Any) -> OutboxRow:
         new = replace(row, state=state, updated_at=now.astimezone(UTC), **changes)

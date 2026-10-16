@@ -25,7 +25,8 @@ from . import naming as _naming
 from .channel import DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, Button, one_line, strip_controls
 
 PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "priority", "organization", "link", "code",
-                "manager", "eta", "module_name", "module_name_plural")
+                "manager", "eta", "module_name", "module_name_plural",
+                "due", "window")  # TKRFQ1: a request for quotation's deadline and wanted work window (local time, display text)
 SECRET_PLACEHOLDERS = frozenset({"link", "code"})  # never in params_json; passed at send time only
 PARAM_KEYS = frozenset(PLACEHOLDERS) - SECRET_PLACEHOLDERS - {"module_name", "module_name_plural"}
 CODE_FORBIDDEN = frozenset({"link", "title", "place", "device"})
@@ -34,7 +35,8 @@ BODY_MAX = 1500
 
 # per-placeholder caps: worst-case values at save time, hard caps at send time
 VALUE_MAX = {"name": 80, "number": 7, "department": 60, "title": 120, "place": 200, "device": 80, "priority": 30,
-             "organization": 60, "link": 120, "code": 6, "manager": 80, "eta": 24, "module_name": 30, "module_name_plural": 30}
+             "organization": 60, "link": 120, "code": 6, "manager": 80, "eta": 24, "module_name": 30, "module_name_plural": 30,
+             "due": 24, "window": 40}
 SECRET_MAX = {"link": 400, "code": 6}  # send time (slice 5b): the real URL is system-made and never cut (a cut link is a dead link)
 
 # 14.3 defaults - ONE source (slice 5b unified the two naming schemes): slice 1's naming.DEFAULTS (`tickets.name`, tokens {ticket} /
@@ -129,6 +131,39 @@ STARTERS: dict[str, dict[str, str]] = {
         "en": "You can submit the cost claim for {module_name} #{number} ({department}) again. Open the link you received to submit it.",
         "ar": "يمكنكم مجددًا تقديم مطالبة التكلفة لـ {module_name} رقم {number} ({department}). افتحوا الرابط الذي استلمتموه للتقديم.",
         "ru": "Вы снова можете отправить счёт по {module_name} № {number} ({department}). Откройте полученную ссылку, чтобы отправить его.",
+    },
+    # TKRFQ1 (docs/tickets/RFQ_BACKEND_CONTRACT.md section 8): requests for quotation. Never an amount, a phone number or free text;
+    # `{number}` is the RFQ's running number, `{due}` / `{window}` display texts in the installation's zone. An award never sends one
+    # of these by itself (the manager confirms a draft); vendors who were not selected get nothing.
+    "rfq_invite": {
+        "he": "שלום {name},\nבקשה להצעת מחיר מס' {number}: {title}\n{place}\nמועד אחרון להצעה: {due}\nחלון עבודה רצוי: {window}\nפרטים וטופס ההצעה: {link}\nאפשר גם לסמן בקישור שאינכם מעוניינים.\n{organization}",
+        "en": "Hello {name},\nRequest for quotation no. {number}: {title}\n{place}\nQuote deadline: {due}\nWanted work window: {window}\nDetails and the quote form: {link}\nYou can also mark in the link that you are not interested.\n{organization}",
+        "ar": "مرحبًا {name}،\nدعوة لتقديم عرض سعر رقم {number}: {title}\n{place}\nآخر موعد لتقديم العرض: {due}\nموعد العمل المرغوب: {window}\nالتفاصيل ونموذج العرض: {link}\nيمكنكم أيضًا الإشارة في الرابط إلى أنكم غير مهتمين.\n{organization}",
+        "ru": "Здравствуйте, {name}!\nЗапрос коммерческого предложения № {number}: {title}\n{place}\nСрок подачи предложения: {due}\nЖелательные сроки работ: {window}\nПодробности и форма предложения: {link}\nПо ссылке можно также отметить, что вам это не интересно.\n{organization}",
+    },
+    "rfq_reminder": {
+        "he": "תזכורת: המועד להגשת הצעת מחיר ל\"{title}\" (מס' {number}) מסתיים {due}.\nלהגשה: {link}",
+        "en": "Reminder: the quote deadline for \"{title}\" (no. {number}) is {due}.\nSubmit here: {link}",
+        "ar": "تذكير: آخر موعد لتقديم عرض السعر لـ\"{title}\" (رقم {number}) هو {due}.\nللتقديم: {link}",
+        "ru": "Напоминание: срок подачи предложения по «{title}» (№ {number}) истекает {due}.\nПодать: {link}",
+    },
+    "rfq_update": {
+        "he": "יש הודעה חדשה לגבי ההצעה שלכם ל\"{title}\" (מס' {number}).\nלצפייה ולתשובה: {link}",
+        "en": "There is a new message about your quote for \"{title}\" (no. {number}).\nView and reply: {link}",
+        "ar": "توجد رسالة جديدة بخصوص عرض السعر الخاص بكم لـ\"{title}\" (رقم {number}).\nللاطلاع والرد: {link}",
+        "ru": "Новое сообщение по вашему предложению «{title}» (№ {number}).\nПосмотреть и ответить: {link}",
+    },
+    "rfq_cancelled": {
+        "he": "הבקשה להצעת מחיר \"{title}\" (מס' {number}) בוטלה. תודה על ההצעה.",
+        "en": "The request for quotation \"{title}\" (no. {number}) was cancelled. Thank you for your quote.",
+        "ar": "تم إلغاء الدعوة لتقديم عرض السعر \"{title}\" (رقم {number}). شكرًا على عرضكم.",
+        "ru": "Запрос предложения «{title}» (№ {number}) отменён. Спасибо за ваше предложение.",
+    },
+    "rfq_order": {
+        "he": "ההצעה שלכם ל\"{title}\" (מס' {number}) אושרה. מועד העבודה: {window}.\nהזמנת העבודה והמסמכים: {link}\nנא לאשר את המועד בקישור.",
+        "en": "Your quote for \"{title}\" (no. {number}) was approved. Work dates: {window}.\nThe work order and documents: {link}\nPlease confirm the dates through the link.",
+        "ar": "تمت الموافقة على عرض السعر الخاص بكم لـ\"{title}\" (رقم {number}). موعد العمل: {window}.\nأمر العمل والمستندات: {link}\nيرجى تأكيد الموعد عبر الرابط.",
+        "ru": "Ваше предложение по «{title}» (№ {number}) утверждено. Сроки работ: {window}.\nЗаказ-наряд и документы: {link}\nПожалуйста, подтвердите сроки по ссылке.",
     },
     "test": {
         "he": "הודעת בדיקה. אין צורך להשיב.",
@@ -319,6 +354,14 @@ def buttons_for(nonce: str, lang: str) -> tuple[Button, ...]:
     return tuple(Button(id=f"t:{nonce}:{action}", text=texts[action]) for action in BUTTON_ACTIONS)
 
 
-def footer_for(params: Mapping[str, Any], *, lang: str, display_name: Mapping[str, Any] | None = None) -> str:
+RFQ_LABEL = {"he": "בקשה להצעת מחיר", "en": "Request for quotation", "ar": "عرض سعر", "ru": "Запрос предложения"}
+
+
+def footer_for(params: Mapping[str, Any], *, lang: str, display_name: Mapping[str, Any] | None = None, purpose: str | None = None) -> str:
+    """The WhatsApp footer / e-mail subject: the module's noun and the number - or, for a request for quotation (TKRFQ1), its own
+    label (an RFQ is not a ticket)."""
+    number = one_line(params.get('number'), VALUE_MAX['number'])
+    if purpose and purpose.startswith("rfq_"):
+        return f"{RFQ_LABEL.get(lang, RFQ_LABEL[DEFAULT_LANG])} {number}".strip()
     names = names_for(display_name, lang)
-    return f"{names['one']} {one_line(params.get('number'), VALUE_MAX['number'])}".strip()
+    return f"{names['one']} {number}".strip()

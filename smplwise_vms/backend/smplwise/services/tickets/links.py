@@ -54,15 +54,21 @@ def is_link_id(value: object) -> bool:
 # ---------------------------------------------------------------- handler-link tokens
 
 
-def derive_token(key: bytes, link_id: str, generation: int) -> str:
-    """The token of (link_id, generation) under the module key."""
+TOKEN_DOMAINS = ("tkt", "rfq")  # TKRFQ1: an RFQ vendor link (ticket_rfq_links) derives under its own domain - never a ticket token
+
+
+def derive_token(key: bytes, link_id: str, generation: int, *, domain: str = "tkt") -> str:
+    """The token of (link_id, generation) under the module key. `domain` separates the handler links of tickets (`tkt`, the default)
+    from the vendor links of requests for quotation (`rfq`): the same id and generation never give the same token in both."""
+    if domain not in TOKEN_DOMAINS:
+        raise ValueError("unknown token domain")
     if not is_link_id(link_id):
         raise ValueError("link_id must be 32 lowercase hex characters")
     if isinstance(generation, bool) or not isinstance(generation, int) or generation < 1:
         raise ValueError("generation must be a positive integer")
     if not isinstance(key, (bytes, bytearray)) or len(key) < 16:
         raise ValueError("the module key must be at least 16 bytes")
-    mac = hmac.new(bytes(key), f"tkt|{link_id}|{generation}".encode("ascii"), hashlib.sha256).digest()
+    mac = hmac.new(bytes(key), f"{domain}|{link_id}|{generation}".encode("ascii"), hashlib.sha256).digest()
     return base64.urlsafe_b64encode(mac).decode("ascii")[:TOKEN_LENGTH]
 
 

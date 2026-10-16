@@ -34,7 +34,11 @@ DEFAULT_LANG = "he"
 
 # `ticket_outbox.purpose` (7.3). Cost-claim purposes belong to slice 9 (11A) - the model accepts them, no starter text ships here.
 PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "update",
-            "cost_rejected", "cost_approved", "cost_reopened", "test")
+            "cost_rejected", "cost_approved", "cost_reopened", "test",
+            # TKRFQ1 (migration 0089): requests for quotation - the invitation, a reminder, "a new message about your quote", the
+            # cancellation notice to vendors who quoted (owner decision 2) and the work order (stage C4)
+            "rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order")
+RFQ_PURPOSES = frozenset({"rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order"})
 
 # The kinds of the brief (assignment link, reminder, verification code, status notice). "Escalation" is NOT a channel message:
 # escalation goes to managers through CR-018 (13.3 step 2), never to the handler. A "status echo" is a notice the MANAGER's act
@@ -45,10 +49,12 @@ KIND_OF_PURPOSE = {
     "code": "code",
     "closed": "status", "reassigned": "status", "cost_rejected": "status", "cost_approved": "status", "cost_reopened": "status",
     "test": "test",
+    "rfq_invite": "link", "rfq_update": "link", "rfq_order": "link", "rfq_reminder": "reminder", "rfq_cancelled": "status",
 }
 # 7.3: 0 = code (sent first), 1 = assign / update / reopened, 2 = reminder / closed / reassigned (and the rest)
-PRIORITY_OF_PURPOSE = {"code": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1}
-LINK_PURPOSES = frozenset({"assign", "reminder", "reopened", "update"})  # {link} is mandatory in these templates (9.7)
+PRIORITY_OF_PURPOSE = {"code": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1, "rfq_invite": 1, "rfq_update": 1, "rfq_order": 1}
+LINK_PURPOSES = frozenset({"assign", "reminder", "reopened", "update",
+                           "rfq_invite", "rfq_reminder", "rfq_update", "rfq_order"})  # {link} is mandatory in these templates (9.7)
 REPLY_PURPOSES = frozenset({"assign", "reminder", "reopened", "update"})  # messages that invite "1 / 2" replies (carry a nonce)
 
 CHANNELS = ("whatsapp", "email")  # the outbox CHECK; with the fallback order below the only places that name channels

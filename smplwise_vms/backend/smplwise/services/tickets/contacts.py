@@ -451,6 +451,9 @@ def raise_code_requirement(conn, contact_id: str) -> None:
     for cid in ids:
         for link_row in store_links.live_links_of_contact(conn, cid):
             store_links.update_link(conn, link_row["id"], {"require_code": 1})
+    from . import rfq_links  # TKRFQ1: the contact's live RFQ vendor links ask for the code too
+
+    rfq_links.raise_code(conn, ids)
 
 
 def revoke_contact_links(conn, contact_id: str, reason: str, now, *, rid: str | None = None) -> int:
@@ -465,6 +468,9 @@ def revoke_contact_links(conn, contact_id: str, reason: str, now, *, rid: str | 
             store.update_ticket(conn, ticket_id, {"waiting_on": "manager", "waiting_reason": "contact_changed"}, bump=False)
             store.insert_event(conn, ticket_id, "contact_changed", actor_kind="system", data={"reason": reason})
             notify_bridge.contact_changed(conn, ticket_id)
+    from . import rfq_links  # TKRFQ1: the contact's live RFQ vendor links die with the change / erase too
+
+    n += rfq_links.revoke_contact_links(conn, contact_id, reason, now)
     return n
 
 
