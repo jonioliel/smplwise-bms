@@ -1,6 +1,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installWizardMock, type StepStatuses } from './secrets-setup-mocks';
 
 // Evidence for the setup wizard (T071, AT141): הגדרות › אשף התקנה (#/system/wizard) driven by GET /setup/state and
 // POST /setup/check/{step}.
@@ -159,5 +160,113 @@ test.describe('setup wizard in demo mode (fixture data, no backend)', () => {
     await expect(page.locator('sw-app [data-setup-hint]')).toHaveCount(0); // the hint is for a real installation only
     await noHorizontalOverflow(page);
     await page.screenshot({ path: path.join(OUT, `wizard-demo-ready-${testInfo.project.name}.png`), fullPage: true });
+  });
+});
+
+// TKSPECS (TKWIZHINT): the wizard's optional steps and the shell hint, against the MOCKED backend of secrets-setup-mocks.ts (GET /setup/state,
+// POST /setup/check/*, GET / PUT /me/prefs `setup.hint`) - no live backend. The rules themselves are shell/setup-hint.ts; this proves the screens.
+test.describe('setup hint and optional steps (mocked backend)', () => {
+  test.describe.configure({ timeout: 3 * 60_000 });
+  test.use({ actionTimeout: 20_000, navigationTimeout: 30_000 });
+  // two required steps are done (install, go2rtc), nvr failed, ha open; floor and camera (optional) open
+  const REQUIRED_OPEN: StepStatuses = { nvr: 'failed', ha: 'todo', floor: 'todo', camera: 'todo' };
+  const ONLY_OPTIONAL_OPEN: StepStatuses = { floor: 'todo', camera: 'todo' };
+  const hint = (page: Page) => page.locator('sw-app [data-setup-hint]');
+  const phone = (name: string) => name === 'mobile'; // under 768 px the progress lives in the user menu, not as a row
+
+  async function goLive(page: Page) {
+    const state = page.waitForResponse((r) => r.url().includes('/setup/state'), { timeout: 20_000 });
+    await page.goto('/?design=a#/explore/sites');
+    await page.waitForSelector('sw-app');
+    await state;
+    await page.waitForTimeout(500); // the shell turns the answer into the row
+  }
+
+  for (const sendsField of [true, false]) {
+    test(`the optional steps are labelled, the required ones are not${sendsField ? '' : ' (an older backend without the optional field: the id fallback)'}`, async ({ page }) => {
+      await installWizardMock(page, { steps: REQUIRED_OPEN, noOptionalField: !sendsField });
+      await openWizard(page);
+      await expect(page.locator('system-wizard [data-step]')).toHaveCount(6);
+      await expect(page.locator('system-wizard [data-step-optional]')).toHaveCount(2);
+      for (const id of ['floor', 'camera']) await expect(step(page, id).locator('[data-step-optional]')).toContainText('אופציונלי');
+      for (const id of ['install', 'nvr', 'ha', 'go2rtc']) await expect(step(page, id).locator('[data-step-optional]')).toHaveCount(0);
+      // the progress counts the required steps only: 2 of 4, one failed
+      await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('2 מתוך 4 שלבים הושלמו · 1 נכשלו');
+      await noHorizontalOverflow(page);
+    });
+  }
+
+  test('only optional steps open: the wizard is ready ("N אופציונליים נותרו") and the shell shows no hint', async ({ page }) => {
+    await installWizardMock(page, { steps: ONLY_OPTIONAL_OPEN });
+    await openWizard(page);
+    const ready = page.locator('system-wizard [data-wizard-ready]');
+    await expect(ready).toContainText('מוכן לעבודה');
+    await expect(ready).toContainText('2 אופציונליים נותרו');
+    await expect(page.locator('system-wizard [data-wizard-progress]')).toHaveCount(0);
+    await expect(step(page, 'floor')).toHaveAttribute('data-status', 'todo'); // the optional steps still say what they are missing
+    await goLive(page);
+    await expect(hint(page)).toHaveCount(0);
+  });
+
+  test('a required step open: the hint shows "השלם את ההתקנה", counts required steps only and points to the wizard', async ({ page }, info) => {
+    test.skip(phone(info.project.name), 'the phone shows the setup progress in the user menu, not as a row');
+    await installWizardMock(page, { steps: REQUIRED_OPEN });
+    await goLive(page);
+    await expect(hint(page)).toBeVisible();
+    await expect(hint(page)).toContainText('השלם את ההתקנה');
+    await expect(hint(page)).toContainText('2 מתוך 4 שלבים הושלמו');
+    await expect(hint(page).locator('a')).toHaveAttribute('href', '#/system/wizard');
+    await noHorizontalOverflow(page);
+    await hint(page).locator('a').click();
+    await expect(page.locator('system-wizard [data-wizard]')).toBeVisible();
+    await expect(hint(page)).toHaveCount(0); // not on the wizard itself
+  });
+
+  test('dismissal: "הסתר את ההתראה" is stored in /me/prefs setup.hint with the failing required steps, survives a reload, and "הצג שוב את ההתראה" clears it', async ({ page }, info) => {
+    test.skip(phone(info.project.name), 'the phone shows the setup progress in the user menu, not as a row');
+    const mock = await installWizardMock(page, { steps: REQUIRED_OPEN });
+    await goLive(page);
+    await expect(hint(page)).toBeVisible();
+    await hint(page).locator('[data-setup-hint-dismiss]').click();
+    await expect(hint(page)).toHaveCount(0);
+    await expect.poll(() => mock.hint).toEqual({ dismissed: true, failed: ['nvr'] });
+    expect(mock.puts).toEqual([{ 'setup.hint': { dismissed: true, failed: ['nvr'] } }]);
+    const state = page.waitForResponse((r) => r.url().includes('/setup/state'), { timeout: 20_000 });
+    await page.reload(); // per user on the server, not per browser session
+    await page.waitForSelector('sw-app');
+    await state;
+    await page.waitForTimeout(800);
+    await expect(hint(page)).toHaveCount(0);
+    await page.evaluate(() => { window.location.hash = '#/system/wizard'; });
+    const restore = page.locator('system-wizard [data-setup-hint-restore]');
+    await expect(restore).toContainText('הצג שוב את ההתראה');
+    await restore.click();
+    await expect.poll(() => mock.hint).toBeNull();
+    expect(mock.puts.at(-1)).toEqual({ 'setup.hint': null });
+    await page.evaluate(() => { window.location.hash = '#/explore/sites'; });
+    await expect(hint(page)).toBeVisible();
+  });
+
+  test('a dismissal covers exactly the situation it was made in: a required step that fails afterwards brings the hint back', async ({ page }, info) => {
+    test.skip(phone(info.project.name), 'the phone shows the setup progress in the user menu, not as a row');
+    // dismissed while nvr failed: the same situation stays hidden ...
+    await installWizardMock(page, { steps: REQUIRED_OPEN, dismissal: { dismissed: true, failed: ['nvr'] } });
+    await goLive(page);
+    await expect(hint(page)).toHaveCount(0);
+    // ... and ha failing as well (not in the stored set) shows it again
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await installWizardMock(page, { steps: { ...REQUIRED_OPEN, ha: 'failed' }, dismissal: { dismissed: true, failed: ['nvr'] } });
+    await page.goto('about:blank');
+    await goLive(page);
+    await expect(hint(page)).toBeVisible();
+    await expect(hint(page)).toContainText('2 מתוך 4 שלבים הושלמו');
+  });
+
+  test('a refused prefs write still hides the hint for this page (it is only a hint)', async ({ page }, info) => {
+    test.skip(phone(info.project.name), 'the phone shows the setup progress in the user menu, not as a row');
+    await installWizardMock(page, { steps: REQUIRED_OPEN, prefsWriteFails: true });
+    await goLive(page);
+    await hint(page).locator('[data-setup-hint-dismiss]').click();
+    await expect(hint(page)).toHaveCount(0);
   });
 });
