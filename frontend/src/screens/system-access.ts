@@ -19,6 +19,8 @@ import '../components/sw-state-panel';
 import '../components/sw-dialog';
 import '../components/sw-chip';
 import './system-doors'; // CR-033: the door opening grant card (tab "פתיחת דלתות")
+import './system-ha-users'; // USR1: home-system users created from Arx (tab "משתמשי מערכת הבית", users.ha_manage)
+import { ht } from '../i18n/ha-users';
 import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
 import { can, isApi, session } from '../api/session';
@@ -395,7 +397,8 @@ export class SystemAccess extends LitElement {
    * (in place, no history entry) when the user switches, so the settings navigation and the address agree. */
   private readTab() {
     const want = parseRoute().params.get('tab') ?? '';
-    if (TABS.some((t) => t.id === want) && want !== this.tab) this.setTab(want);
+    const known = TABS.some((t) => t.id === want) || (want === 'ha-users' && (!isApi() || can('users.ha_manage'))); // USR1: the tab exists only with the permission
+    if (known && want !== this.tab) this.setTab(want);
   }
 
   private onHash = () => {
@@ -1151,6 +1154,8 @@ export class SystemAccess extends LitElement {
       ...(!dir.delegated || (dir as { assignable_roles?: string[] }).assignable_roles?.includes('door_opener') ? [{ id: 'doors', label: 'פתיחת דלתות' }] : []),
       // a delegated administrator holds no audit.read: the tab would only show a refusal
       ...(dir.delegated && !this.groupsMeta.can_manage ? [] : [{ id: 'audit', label: 'אודיט הרשאות' }]),
+      // USR1: creating / deactivating / deleting home-system users - users.ha_manage (built-in system_admin only)
+      ...(can('users.ha_manage') ? [{ id: 'ha-users', label: ht('tab') }] : []),
     ];
     const sub = dir.delegated && !this.groupsMeta.can_manage
       ? `מנהל אתר · שיוך תפקידים מרשימת ההאצלה בתוך ההיקף שלך בלבד · ${dir.users.length} משתמשים פעילים · רוויזיית הרשאות ${dir.revision}`
@@ -1159,9 +1164,9 @@ export class SystemAccess extends LitElement {
       <sw-page heading="משתמשים והרשאות" subheading=${sub}>
         ${dir.delegated ? nothing : html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון משתמשים מ־HA</sw-button>`}
         <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הרשאות" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>
-        <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
+        <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. ${can('users.ha_manage') ? 'משתמש חדש נוצר בלשונית "משתמשי מערכת הבית" (תמיד כמשתמש רגיל) או במסך של מערכת הבית.' : 'אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.'}</div>
         ${this.message || this.error ? html`<div class="bar">${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>` : nothing}
-        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.renderAuditApi()}
+        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.tab === 'ha-users' ? html`<sw-ha-users data-ha-users-tab></sw-ha-users>` : this.renderAuditApi()}
       </sw-page>
     `;
   }
@@ -1262,9 +1267,9 @@ export class SystemAccess extends LitElement {
     return html`
       <sw-page heading="משתמשים והרשאות" subheading="זהות מ־Home Assistant · הרשאות בתוך Arx בלבד · נתוני הדגמה">
         <sw-button slot="actions" icon="refresh">סנכרון משתמשים מ־HA</sw-button>
-        <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הרשאות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>
-        <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
-        ${this.tab === 'users' ? this.renderUsers() : this.tab === 'groups' ? this.renderGroups() : this.tab === 'roles' ? this.renderRoles() : this.tab === 'effective' ? this.renderEffective() : this.renderAudit()}
+        <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הרשאות" .items=${[...TABS, { id: 'ha-users', label: ht('tab') }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>
+        <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. ${can('users.ha_manage') ? 'משתמש חדש נוצר בלשונית "משתמשי מערכת הבית" (תמיד כמשתמש רגיל) או במסך של מערכת הבית.' : 'אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.'}</div>
+        ${this.tab === 'users' ? this.renderUsers() : this.tab === 'groups' ? this.renderGroups() : this.tab === 'roles' ? this.renderRoles() : this.tab === 'effective' ? this.renderEffective() : this.tab === 'ha-users' ? html`<sw-ha-users data-ha-users-tab></sw-ha-users>` : this.renderAudit()}
       </sw-page>
     `;
   }

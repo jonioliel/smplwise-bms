@@ -401,6 +401,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy
+    from .routers import ha_users as ha_users_router
+
+    app.include_router(ha_users_router.router, prefix=api, tags=["access"])  # USR1: home-system users created from Arx (users.ha_manage + an HA administrator)
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])

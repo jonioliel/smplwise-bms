@@ -78,6 +78,12 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      shares the add-on's own identity, and the diagnostics card in הגדרות › מתגי מסכי כניסה ("WisKey רואה את Arx כ־") says so. The token is used only by the background
      channel, on Home Assistant core (it is not valid on the Supervisor proxy), and is never logged or shown. The
      door, call, announcement, people and card-reader writes keep using the add-on's own user (`ha_token`).
+   - `ha_users_token` (optional, default empty) — an **administrator** long-lived access token, used only by הגדרות ›
+     משתמשים והרשאות › משתמשי מערכת הבית to create, deactivate and delete the home-system users Arx itself created (never
+     the owner, an administrator or any other user; new users are always ordinary, non-administrator users). Leave it empty
+     while the add-on's own identity is allowed to manage users (the screen's "בדיקת הרשאה" says so); fill it only when that
+     check reports that the add-on is not authorised. Used on Home Assistant core directly, never logged or shown. See
+     `docs/design/USR1_HA_USERS_FROM_ARX.md` (the one-time live check is still pending).
 4. Start the add-on and open it from the sidebar (**SmplWise Arx**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and

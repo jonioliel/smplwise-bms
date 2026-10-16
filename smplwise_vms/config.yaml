@@ -59,6 +59,9 @@ options:
   # WisKey background (read) channel: the long-lived token of the dedicated non-admin Home Assistant account (DOCS "WisKey
   # background account"). Empty = the background channel shares the add-on's own identity.
   wiskey_background_token: ""
+  # USR1: an optional administrator token for creating / deactivating / deleting home-system users from Arx (DOCS "Home system
+  # users"). Empty = the add-on's own identity is used.
+  ha_users_token: ""
   openai_api_key: ""
   # CR-008 SmplWise Arx: https://<your HA hostname>/arx through a Cloudflare tunnel path route (DOCS "Remote access").
   remote_access: false
@@ -88,6 +91,7 @@ schema:
   wiskey_username: str?
   wiskey_password: password?
   wiskey_background_token: password?
+  ha_users_token: password?
   openai_api_key: password?
   remote_access: bool
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
