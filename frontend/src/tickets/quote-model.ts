@@ -11,8 +11,10 @@
  *     "לא עכשיו" never writes; only the explicit send produces a vendor message (with the draft's `source`).
  */
 import type { CostClaim, CostMode, ExternalAssignment, LineKind, TicketCostBlock } from '../api/tickets-costs';
-import type { CostFlow, FlowStage, MessageDraft, Quote, QuoteLine, QuoteState } from '../api/tickets-quotes';
-import { vatOf, type Tone } from './cost-model';
+import type { CostFlow, FlowStage, MessageDraft, Quote, QuoteLine, QuoteOnBehalfBody, QuoteState } from '../api/tickets-quotes';
+import type { TicketStatus } from '../api/tickets';
+import { lineProblem, vatOf, wireLine, type EditLine, type Tone } from './cost-model';
+import { fromLocalInput, HANDLING } from './model';
 import type { QuoteTextKey } from './quote-text';
 
 export const KIND_ORDER: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
@@ -241,4 +243,105 @@ export function sendPlanOf(d: SendDialog | null): { text: string; notify: boolea
 /** The claim decision's draft key: an exclusion of the exceptional lines is still an approval in the dialog's title. */
 export function claimDecisionOf(action: 'approve' | 'adjust' | 'reject'): 'approved' | 'rejected' {
   return action === 'reject' ? 'rejected' : 'approved';
+}
+
+// ---------------------------------------------------------------- a quote entered on the vendor's behalf (TKUI3B, contract v1.4 POST /quotes)
+
+/** The vendor assignment a manager may enter a quote for, and whether the new version replaces a pending one. */
+export interface OnBehalfTarget { assignmentId: string; name: string; replaces: boolean }
+
+/** The server's work-window bounds for a quote (services/tickets/quotes.py `_instant`): from yesterday to WORK_HORIZON_DAYS ahead. */
+export const WORK_PAST_DAYS = 1;
+export const WORK_HORIZON_DAYS = 366;
+
+/**
+ * Whether the viewer is offered "הזנת הצעה בשם הספק" now, and for which assignment - or null. The route needs tickets.costs +
+ * tickets.costs.view (`cost.can_decide`) and answers 409 `quote_not_open` unless the request is in handling with an OPEN assignment that can
+ * carry money; `quote_off` when the quote requirement is "none"; `quote_already_approved` once a quote of that assignment is approved.
+ * A staff assignment (`quote_capable: false`) and a closed / done / unassigned request never offer it.
+ */
+export function onBehalfTarget(
+  t: { status: TicketStatus; cost?: Pick<TicketCostBlock, 'can_decide'> } | null | undefined,
+  d: { flow?: Pick<CostFlow, 'assignment_id'>; external_assignments?: readonly ExternalAssignment[]; quotes?: readonly Quote[] } | null | undefined,
+): OnBehalfTarget | null {
+  if (!t?.cost?.can_decide || !d || !HANDLING.includes(t.status)) return null;
+  const open = (d.external_assignments ?? []).filter((a) => !a.ended_at && isMoneyAssignment(a));
+  const flowId = d.flow?.assignment_id;
+  if (flowId && !open.some((a) => a.id === flowId)) return null; // the flow describes an ended or staff assignment
+  const a = open.find((x) => x.id === flowId) ?? open.at(-1);
+  if (!a || (a.quote_mode ?? 'optional') === 'off') return null;
+  const mine = (d.quotes ?? []).filter((q) => q.assignment_id === a.id);
+  if (mine.some((q) => QUOTE_APPROVED.includes(q.state))) return null;
+  return { assignmentId: a.id, name: a.name, replaces: mine.some((q) => q.state === 'submitted' || q.state === 'fix_requested') };
+}
+
+/** The same user cannot approve a quote they entered on the vendor's behalf (409 `self_approval`): the viewer entered this one. */
+export function enteredByViewer(q: Pick<Quote, 'source' | 'created_by_name'> | undefined, viewerName: string | null | undefined): boolean {
+  const who = (q?.created_by_name ?? '').trim();
+  return !!q && q.source === 'manager' && !!who && !!viewerName && who === viewerName.trim();
+}
+
+/** A quote entered on the vendor's behalf by SOMEONE (shown to everyone as such; only the one who entered it cannot approve). */
+export function isOnBehalf(q: Pick<Quote, 'source'> | undefined): boolean {
+  return q?.source === 'manager';
+}
+
+/** The kinds the line editor offers: the request's allowed kinds, labour always on, in the canonical order. */
+export function editorKinds(allowed: readonly LineKind[] | undefined): LineKind[] {
+  return KIND_ORDER.filter((k) => k === 'labor' || (allowed ?? []).includes(k));
+}
+
+export interface QuoteForm {
+  assignment: string;
+  currency: string;
+  /** the amounts typed include VAT (the server turns it into the vat mode; an exempt vendor is 'none' whatever this says) */
+  include: boolean;
+  /** `datetime-local` values in the viewer's zone, '' = not given */
+  from: string;
+  to: string;
+  note: string;
+  lines: EditLine[];
+}
+
+export type WorkProblem = '' | 'format' | 'range' | 'order';
+
+/** The work window as the server checks it: both ends optional, each a real instant between yesterday and a year ahead, `to` not before `from`. */
+export function workWindowProblem(from: string, to: string, now: Date = new Date()): WorkProblem {
+  const lo = now.getTime() - WORK_PAST_DAYS * 86_400_000;
+  const hi = now.getTime() + WORK_HORIZON_DAYS * 86_400_000;
+  for (const v of [from, to]) {
+    if (!v) continue;
+    const iso = fromLocalInput(v);
+    if (!iso) return 'format';
+    const ms = Date.parse(iso);
+    if (ms < lo || ms > hi) return 'range';
+  }
+  return from && to && Date.parse(fromLocalInput(to)) < Date.parse(fromLocalInput(from)) ? 'order' : '';
+}
+
+export type QuoteFormProblem = '' | 'lines' | 'kind' | 'work_format' | 'work_range' | 'work_order';
+
+/** The first problem of the form (nothing is sent while there is one). The server re-checks everything. */
+export function quoteFormProblem(f: QuoteForm, allowed: readonly LineKind[] | undefined, now: Date = new Date()): QuoteFormProblem {
+  if (!f.lines.length || f.lines.some((l) => lineProblem(l))) return 'lines';
+  const ok = editorKinds(allowed);
+  if (f.lines.some((l) => !ok.includes(l.kind))) return 'kind';
+  const w = workWindowProblem(f.from, f.to, now);
+  return w ? (`work_${w}` as QuoteFormProblem) : '';
+}
+
+/** The body of POST /tickets/{id}/quotes. Decimal strings, instants in UTC; empty optionals are left out; no valid-until (the server has none). */
+export function quoteBodyOf(f: QuoteForm, o: { multiCurrency: boolean }): QuoteOnBehalfBody {
+  const note = f.note.trim();
+  const from = fromLocalInput(f.from);
+  const to = fromLocalInput(f.to);
+  return {
+    assignment_id: f.assignment,
+    lines: f.lines.map(wireLine),
+    ...(o.multiCurrency ? { currency: f.currency } : {}),
+    amounts_include_vat: f.include,
+    ...(from ? { work_from: from } : {}),
+    ...(to ? { work_to: to } : {}),
+    ...(note ? { note } : {}),
+  };
 }

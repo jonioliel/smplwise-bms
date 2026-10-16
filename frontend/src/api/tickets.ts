@@ -148,7 +148,12 @@ export interface TicketCan {
   manage: boolean;
   /** owner 14.10: full deletion - manager rights here AND tickets.delete where the ticket lies (absent from older servers) */
   delete?: boolean;
+  /** TKUI3B (contract v1.4 §2): the manager of an open request may change the internal owner (absent from older servers) */
+  change_owner?: boolean;
 }
+
+/** TKUI3B (contract v1.4 §2): "אחראי בארגון" - the internal person responsible; `source` says how it was set. */
+export interface InternalOwner { id: string; name: string; since: string; source: 'handoff' | 'manual' | 'rfq'; active: boolean }
 
 export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   description: string;
@@ -165,6 +170,8 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   device_context?: DeviceContext | null;
   /** slice 9 (11A.3 / 11A.8): the cost status chip for everyone; amounts and actions only with tickets.costs.view */
   cost?: TicketCostBlock;
+  /** TKUI3B: the internal owner - full view only (null for a limited viewer or while nobody is responsible; absent from older servers) */
+  internal_owner?: InternalOwner | null;
 }
 
 /** TKUI1 (2.6.0): the request drawer's defaults - the tab it opens on, its desktop size (a viewer's own switch wins) and the phone sheet. */

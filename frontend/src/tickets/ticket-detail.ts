@@ -15,6 +15,8 @@ import { ticketsApi, type DetailMode, type Handler, type Meta, type PatchBody, t
 import type { LinkBlock } from '../api/tickets-s4';
 import { messagesApi } from '../api/tickets-messages';
 import { assigneeRef, handlersOf } from './assignee-model';
+import { ticketOwnerApi } from '../api/tickets-owner'; // TKUI3B: the internal owner (contract v1.4 section 2)
+import { canChangeOwner, ownerChoices, ownerPlan } from './owner-model';
 import { assignPlan, handlerMessageApplies, messageTarget, outgoingMessage, HANDLER_MESSAGE_MAX } from './assign-message-model';
 import { conversationApi } from '../api/tickets-conversation';
 import {
@@ -52,6 +54,7 @@ type Dialog =
   | { kind: 'return' }
   | { kind: 'edit' }
   | { kind: 'eta' }
+  | { kind: 'owner' }
   | null;
 
 type Detail = TicketDetail & { link?: LinkBlock | null };
@@ -120,6 +123,8 @@ export class TicketDetailView extends LitElement {
   @state() private dlgReturnKind: 'cannot_handle' | 'not_mine' = 'cannot_handle';
   /** TKSTAFF2: the handlers of the assign dialog - account holders and staff contacts without an account, one list (assignee-model.ts) */
   @state() private eligible: Handler[] | null = null;
+  /** TKUI3B: the owner dialog's choice - a user id, '' = nobody, null = nothing picked yet */
+  @state() private ownerPick: string | null = null;
   @state() private deleting = false; // owner 14.10: the deletion dialog is open
   @state() private meta: Meta | null = null;
   @state() private edit: EditForm | null = null;
@@ -629,6 +634,11 @@ export class TicketDetailView extends LitElement {
       this.ext.reset();
       void ticketsApi().assignees(t.department?.id ?? '', t.id).then((r) => { this.eligible = handlersOf(r); this.ext.take(r, t); }).catch((e) => { this.eligible = []; this.dlgError = describeError(e); });
     }
+    if (d.kind === 'owner') {
+      this.eligible = null;
+      this.ownerPick = null;
+      void ticketsApi().assignees(t.department?.id ?? '', t.id).then((r) => { this.eligible = handlersOf(r); }).catch((e) => { this.eligible = []; this.dlgError = describeError(e); });
+    }
     if (d.kind === 'eta') this.dlgText = toLocalInput(t.eta_at);
     if (d.kind === 'edit') {
       this.edit = { title: t.title, description: t.description, department_id: t.department?.id ?? '', category_id: t.category?.id ?? '', priority_id: t.priority?.id ?? '' };
@@ -672,6 +682,55 @@ export class TicketDetailView extends LitElement {
     }
     const body = { to, note: note || null, duplicate_of: duplicateOf, revision: t.revision, ...(override ? { override_claim_reason: override } : {}) };
     if (await this.run(() => ticketsApi().status(t.id, body), tt('saved'))) this.closeDialog();
+  }
+
+  /** TKUI3B: PUT /tickets/{id}/owner with the ticket's revision; a stale answer reloads the request. Changing the owner never touches the handler. */
+  private async submitOwner(): Promise<void> {
+    const t = this.t;
+    if (!t || this.busy) return;
+    const plan = ownerPlan(this.ownerPick, t.internal_owner, this.dlgText, t.revision);
+    if (!plan) {
+      this.dlgError = tt('required');
+      return;
+    }
+    this.busy = true;
+    this.dlgError = '';
+    try {
+      await ticketOwnerApi.change(t.id, plan);
+      this.closeDialog();
+      await this.load();
+      if (this.t) this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
+      this.say(dwt('ownerSaved'));
+    } catch (e) {
+      this.dlgError = describeError(e);
+      if (e instanceof ApiError && e.status === 409 && e.code === 'ticket_stale') await this.load();
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private ownerDialog(t: Detail, err: TemplateResult | typeof nothing, foot: (ok: TemplateResult) => TemplateResult): TemplateResult {
+    const owner = t.internal_owner ?? null;
+    const people = this.eligible === null ? null : ownerChoices(this.eligible, owner);
+    const pick = this.ownerPick;
+    const plan = ownerPlan(pick, owner, this.dlgText, t.revision);
+    const name = pick ? people?.find((h) => h.id === pick)?.name ?? '' : '';
+    const radio = (value: string, label: TemplateResult | string, attr: string, hint?: string) => html`<label data-owner-choice=${attr}>
+      <input type="radio" name="owner" .checked=${pick === value} @change=${() => { this.ownerPick = value; this.dlgError = ''; }} />${label}${hint ? html` <small>${hint}</small>` : nothing}</label>`;
+    return html`<sw-dialog open heading=${dwt('ownerTitle')} data-dialog="owner" @close=${this.onDialogClose}>
+      <div class="form">
+        <p class="muted" data-owner-help>${dwt('ownerHelp')}</p>
+        ${people === null ? html`<span class="skl" style="block-size:44px"></span>`
+          : html`<div class="pick" role="radiogroup" aria-label=${dwt('ownerPick')} data-owner-pick>
+            ${people.map((h) => radio(h.id, bidi(h.name), h.id, h.id === owner?.id ? dwt('ownerCurrent') : h.member_role === 'manager' ? tt('depManager') : undefined))}
+            ${owner ? radio('', dwt('ownerNoOne'), 'none') : nothing}
+            ${people.length || owner ? nothing : html`<div data-owner-none>${dwt('ownerNoCandidates')}</div>`}</div>`}
+        <label class="fld"><span>${dwt('ownerReason')}</span>
+          <textarea class="inp" maxlength="2000" data-owner-reason .value=${this.dlgText} @input=${(e: Event) => { this.dlgText = (e.target as HTMLTextAreaElement).value; this.dlgError = ''; }}></textarea></label>
+        ${plan ? html`<div class="banner info" role="status" data-owner-confirm>${tIcon('check')}<div>${pick ? bidi(dwt('ownerConfirm', { name })) : dwt('ownerConfirmClear')}</div></div>` : nothing}
+        ${err}</div>
+      ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || !plan} @click=${() => void this.submitOwner()}>${tIcon('user')}${dwt('ownerSave')}</button>`)}
+    </sw-dialog>`;
   }
 
   private async submitAssign(): Promise<void> {
@@ -924,6 +983,7 @@ export class TicketDetailView extends LitElement {
       onTab: (tab) => this.selectTab(tab, false),
       onReassign: t.can.assign && t.assignee ? () => this.openDialog({ kind: 'assign' }) : null,
       onEdit: t.can.edit_fields.length ? () => this.openDialog({ kind: 'edit' }) : null,
+      onChangeOwner: canChangeOwner(t) ? () => this.openDialog({ kind: 'owner' }) : null,
       duplicateHref: t.duplicate_of ? this.hrefOf(t.duplicate_of.id) : '',
       link: this.linkPanel.render(t),
       photos: this.photosSection(t),
@@ -976,6 +1036,7 @@ export class TicketDetailView extends LitElement {
     const foot = (ok: TemplateResult) => html`<div slot="footer" class="sheetfoot">${ok}<button type="button" class="btn" data-dialog-cancel @click=${() => this.closeDialog()}>${tt('back')}</button></div>`;
     const text = (label: string, required: boolean) => html`<label class="fld"><span>${label}${required ? html` <b class="req">*</b>` : nothing}</span>
       <textarea class="inp" maxlength="2000" data-dialog-text .value=${this.dlgText} @input=${(e: Event) => { this.dlgText = (e.target as HTMLTextAreaElement).value; this.dlgError = ''; }}></textarea></label>`;
+    if (d.kind === 'owner') return this.ownerDialog(t, err, foot);
     if (d.kind === 'move') {
       const heading = d.to === 'closed' ? tt('closeTitle') : d.to === 'cancelled' ? tt('cancelTitle') : tt('reopenTitle');
       const label = d.to === 'closed' ? (d.noteRequired ? tt('closeReason') : tt('closeSummary')) : d.to === 'cancelled' ? tt('reason') : tt('reasonOptional');

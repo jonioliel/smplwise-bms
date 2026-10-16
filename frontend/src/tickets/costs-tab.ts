@@ -3,9 +3,11 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import './ticket-cost-card';
+import './quote-form'; // TKUI3B: a quote entered on the vendor's behalf
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../api/automations-demo';
 import { SkinController } from '../design/skin';
+import { session } from '../api/session';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
@@ -21,8 +23,9 @@ import { ticketsLang } from './text';
 import { onTicketNames } from './naming';
 import { canWriteVendor, vendorOf, type ConvTicket } from './conversation-tab';
 import {
-  askQuoteTarget, currentQuote, flowIsStaff, lineMark, MODES, moneyClaims, moneyQuotes, olderQuotes, partialValid, quoteActions, quoteShownTotal, quoteTone,
-  requirementTargets, selectionTotals, sendDialogOf, sendPlanOf, sendTitleKey, stageView, toggleKind, VENDOR_TEXT_MAX, type SendDialog,
+  askQuoteTarget, currentQuote, enteredByViewer, flowIsStaff, lineMark, MODES, moneyClaims, moneyQuotes, olderQuotes, onBehalfTarget, partialValid, quoteActions,
+  quoteShownTotal, quoteTone, requirementTargets, selectionTotals, sendDialogOf, sendPlanOf, sendTitleKey, stageView, toggleKind, VENDOR_TEXT_MAX,
+  type OnBehalfTarget, type SendDialog,
 } from './quote-model';
 import { qt, type QuoteTextKey } from './quote-text';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
@@ -66,6 +69,8 @@ export class TicketCostsTab extends LitElement {
   @state() private send: SendDialog | null = null;
   @state() private sendErr = '';
   @state() private sending = false;
+  /** TKUI3B: the on-behalf quote dialog is open */
+  @state() private entering = false;
   private loadedKey = '';
   private flashTimer = 0;
   private offNames: (() => void) | null = null;
@@ -105,6 +110,7 @@ export class TicketCostsTab extends LitElement {
     this.picking = null;
     this.moreFor = '';
     this.send = null;
+    this.entering = false;
     this.failed = '';
   }
 
@@ -166,6 +172,8 @@ export class TicketCostsTab extends LitElement {
       if (e instanceof ApiError && e.status === 409 && e.code === 'quote_stale') {
         this.err = qt('stale');
         await this.load();
+      } else if (e instanceof ApiError && e.status === 409 && e.code === 'self_approval') {
+        this.err = qt('selfApproval'); // TKUI3B: the person who entered a quote for the vendor cannot approve it
       } else {
         this.err = describeError(e);
       }
@@ -259,6 +267,32 @@ export class TicketCostsTab extends LitElement {
     }
   }
 
+  /** TKUI3B: the server accepted a quote entered for the vendor: re-read the costs, tell the manager plainly who must approve it. */
+  private onEntered = (e: Event) => {
+    e.stopPropagation();
+    this.entering = false;
+    void this.load().then(() => {
+      this.changed();
+      this.say(qt('obSaved'));
+    });
+  };
+
+  private onFormClose = (e: Event) => {
+    e.stopPropagation();
+    this.entering = false;
+  };
+
+  /** The entry point of a quote on the vendor's behalf (the empty quote stage and the card's menu open the same dialog). */
+  private entryButton(target: OnBehalfTarget | null, quiet = true): TemplateResult | typeof nothing {
+    if (!target) return nothing;
+    return html`<button type="button" class=${`btn sm${quiet ? ' quiet' : ''}`} data-ob-entry ?disabled=${this.busy} @click=${() => { this.err = ''; this.entering = true; }}>${cIcon('plus')}${qt('obEntry')}</button>`;
+  }
+
+  private onBehalfDialog(d: TicketCostsFull, target: OnBehalfTarget | null): TemplateResult | typeof nothing {
+    if (!this.entering || !target || !this.ticket) return nothing;
+    return html`<ticket-quote-form .ticketId=${this.ticket.id} .costs=${d} .target=${target} @quote-entered=${this.onEntered} @quote-form-close=${this.onFormClose}></ticket-quote-form>`;
+  }
+
   private notNow = (e?: Event) => {
     e?.stopPropagation(); // the drawer around must not close with it
     if (!this.send) return;
@@ -327,28 +361,37 @@ export class TicketCostsTab extends LitElement {
     </dl>`;
   }
 
-  private quoteActionsRow(q: Quote, d: TicketCostsFull): TemplateResult | typeof nothing {
+  private quoteActionsRow(q: Quote, d: TicketCostsFull, target: OnBehalfTarget | null): TemplateResult | typeof nothing {
     const a = quoteActions(q, d.external_assignments);
+    // TKUI3B: a quote the viewer entered on the vendor's behalf cannot be approved by the same person (server rule `self_approval`)
+    const own = enteredByViewer(q, session.me?.user.display_name);
+    if (own) {
+      a.approve = false;
+      a.partial = false;
+    }
     if (this.picking?.quoteId === q.id) {
       const ok = partialValid(q, this.picking.selected);
       return html`<div class="acts" data-pick-actions><span class="hint">${qt('pickLines')}</span>
         <button type="button" class="btn sm primary" data-pick-approve ?disabled=${this.busy || !ok} @click=${() => this.openDialog('partial', q)}>${cIcon('check')}${qt('approveSelected')}</button>
         <button type="button" class="btn sm quiet" data-pick-cancel @click=${() => (this.picking = null)}>${qt('cancel')}</button></div>`;
     }
-    if (!a.approve && !a.partial && !a.fix && !a.reject) return nothing;
+    const ownWaiting = own && q.state === 'submitted';
+    if (!a.approve && !a.partial && !a.fix && !a.reject && !target && !ownWaiting) return nothing;
     const open = this.moreFor === q.id;
     return html`<div class="acts" data-quote-actions>
+      ${ownWaiting ? html`<span class="hint" data-quote-own>${cIcon('lock')}${qt('obOwn')}</span>` : nothing}
       ${a.approve ? html`<button type="button" class="btn sm primary" data-quote-approve ?disabled=${this.busy} @click=${() => this.openDialog('approve', q)}>${cIcon('check')}${qt('approveQuote')}</button>` : nothing}
       ${a.partial ? html`<button type="button" class="btn sm" data-quote-partial ?disabled=${this.busy}
         @click=${() => { this.moreFor = ''; this.picking = { quoteId: q.id, selected: new Set((q.lines ?? []).map((l) => l.index)) }; }}>${cIcon('list')}${qt('partialQuote')}</button>` : nothing}
       ${a.fix ? html`<button type="button" class="btn sm quiet" data-quote-fix ?disabled=${this.busy} @click=${() => this.openDialog('fix', q)}>${cIcon('refresh')}${qt('fixQuote')}</button>` : nothing}
-      ${a.reject ? html`<span class="more"><button type="button" class="btn sm quiet icon" aria-label=${qt('more')} aria-expanded=${String(open)} data-quote-more
+      ${a.reject || target ? html`<span class="more"><button type="button" class="btn sm quiet icon" aria-label=${qt('more')} aria-expanded=${String(open)} data-quote-more
           @click=${() => (this.moreFor = open ? '' : q.id)}>…</button>
-        ${open ? html`<button type="button" class="btn sm quiet dz" data-quote-reject ?disabled=${this.busy} @click=${() => this.openDialog('reject', q)}>${cIcon('x')}${qt('rejectQuote')}</button>` : nothing}</span>` : nothing}
+        ${open && target ? html`<button type="button" class="btn sm quiet" data-quote-on-behalf ?disabled=${this.busy} @click=${() => { this.moreFor = ''; this.err = ''; this.entering = true; }}>${cIcon('plus')}${qt('obNewVersion')}</button>` : nothing}
+        ${open && a.reject ? html`<button type="button" class="btn sm quiet dz" data-quote-reject ?disabled=${this.busy} @click=${() => this.openDialog('reject', q)}>${cIcon('x')}${qt('rejectQuote')}</button>` : nothing}</span>` : nothing}
     </div>`;
   }
 
-  private quoteCard(q: Quote, d: TicketCostsFull): TemplateResult {
+  private quoteCard(q: Quote, d: TicketCostsFull, target: OnBehalfTarget | null): TemplateResult {
     const decided = q.decision?.at ? qt('decidedBy', { state: qt(`qs_${q.state}` as QuoteTextKey), who: q.decision.by || '', when: shortDateTime(q.decision.at) }) : '';
     const picking = this.picking?.quoteId === q.id ? this.picking.selected : null;
     const ok = q.state === 'approved' || q.state === 'partially_approved';
@@ -357,7 +400,7 @@ export class TicketCostsTab extends LitElement {
         ${q.version > 1 ? html`<span class="muted">· ${qt('quoteVersion', { n: q.version })}</span>` : nothing}
         <span class="sp"></span><span class=${`chip ${quoteTone(q.state)}`} data-quote-chip>${decided && ok ? decided : qt(`qs_${q.state}` as QuoteTextKey)}</span></div>
       <div class="meta"><span>${qt('quoteSubmitted', { when: shortDateTime(q.created_at) })}</span>
-        ${q.source === 'manager' && q.created_by_name ? html`<span>${bidi(qt('quoteOnBehalf', { who: q.created_by_name }))}</span>` : nothing}
+        ${q.source === 'manager' ? html`<span data-quote-by-manager>${bidi(q.created_by_name ? qt('quoteOnBehalf', { who: q.created_by_name }) : qt('obEntry'))}</span>` : nothing}
         ${q.vendor ? html`<span>${bidi(q.vendor)}</span>` : nothing}</div>
       ${q.lines ? html`${this.quoteLines(q, picking)}${this.quoteTotals(q)}` : html`<p class="muted" data-amounts-hidden>${qt('amountsHidden')}</p>`}
       ${q.work_from || q.work_to ? html`<div class="line" data-work-window><span>${qt('workWindow')}</span><span class="num">${[q.work_from, q.work_to].filter(Boolean).map((x) => shortDateTime(x as string)).join(' – ')}</span></div>` : nothing}
@@ -365,7 +408,7 @@ export class TicketCostsTab extends LitElement {
       ${q.note ? html`<p class="qnote" data-quote-note><b>${qt('quoteNote')}:</b> ${bidi(q.note)}</p>` : nothing}
       ${!ok && q.decision?.reason && (q.state === 'fix_requested' || q.state === 'rejected') ? html`<p class="why" data-quote-reason>${bidi(q.decision.reason)}</p>` : nothing}
       ${!ok && decided ? html`<div class="meta"><span>${decided}</span></div>` : nothing}
-      ${this.quoteActionsRow(q, d)}
+      ${this.quoteActionsRow(q, d, target)}
     </section>`;
   }
 
@@ -379,12 +422,13 @@ export class TicketCostsTab extends LitElement {
   }
 
   /** No quote yet but one is asked for (required) or possible (optional): the vendor sends it from the link page. */
-  private quotePending(d: TicketCostsFull): TemplateResult | typeof nothing {
+  private quotePending(d: TicketCostsFull, target: OnBehalfTarget | null): TemplateResult | typeof nothing {
     const stage = d.flow?.stage;
     if (stage !== 'quote_requested' && stage !== 'quote_optional') return nothing;
     return html`<section class="cstage" data-quote="none" data-quote-state="none">
       <div class="csh"><span class="ic">${cIcon('file')}</span><b>${qt('quoteTitle')}</b><span class="muted">${qt('quoteSub')}</span><span class="sp"></span>
         ${stage === 'quote_requested' ? html`<span class="chip warn">${qt('quoteRequired')}</span>` : html`<span class="muted">${qt('quoteNone')}</span>`}</div>
+      ${target ? html`<div class="acts" data-quote-empty-actions>${this.entryButton(target, false)}</div>` : nothing}
     </section>`;
   }
 
@@ -527,13 +571,16 @@ export class TicketCostsTab extends LitElement {
     if (empty) {
       const ask = staff ? null : askQuoteTarget(d.external_assignments, t.cost, d.flow);
       const a = ask ? d.external_assignments?.find((x) => x.id === ask) : undefined;
+      const emptyTarget = staff ? null : onBehalfTarget(t, d);
       return html`<div class="ct" data-costs-tab data-costs-state=${staff ? 'staff' : 'empty'}>${banner}
         <p class="slot-note" data-costs-empty>${staff ? qt('noMoneyStaff') : qt('emptyCosts')}</p>
-        ${a ? html`<div><button type="button" class="btn sm quiet" data-ask-quote ?disabled=${this.busy} @click=${() => void this.setQuoteMode(a, 'required')}>${cIcon('file')}${qt('askQuote')}</button></div>` : nothing}
+        ${a || emptyTarget ? html`<div class="acts">${a ? html`<button type="button" class="btn sm quiet" data-ask-quote ?disabled=${this.busy} @click=${() => void this.setQuoteMode(a, 'required')}>${cIcon('file')}${qt('askQuote')}</button>` : nothing}${this.entryButton(emptyTarget)}</div>` : nothing}
         ${staff ? nothing : this.requirementFold(d)}
+        ${this.onBehalfDialog(d, emptyTarget)}
       </div>`;
     }
     const stage = d.flow?.stage ?? 'none';
+    const target = onBehalfTarget(t, { ...d, quotes });
     // the payment demand: its card once a demand exists, or (a decider) from the work on - to enter one on the vendor's behalf; before
     // that, only a dim placeholder under an approved quote ("תוגש אחרי העבודה, מול ההצעה המאושרת")
     const openMoney = (d.external_assignments ?? []).some((a) => !a.ended_at && a.quote_capable !== false);
@@ -542,7 +589,7 @@ export class TicketCostsTab extends LitElement {
     return html`<div class="ct" data-costs-tab data-costs-state="ready">
       ${banner}
       ${this.header(d, !!shown)}
-      ${shown ? html`${this.quoteCard(shown, d)}${this.olderFold(olderQuotes(quotes, shown))}` : this.quotePending(d)}
+      ${shown ? html`${this.quoteCard(shown, d, target)}${this.olderFold(olderQuotes(quotes, shown))}` : this.quotePending(d, target)}
       ${this.baselineRow(d)}
       ${demandLater ? html`<section class="cstage dim" data-demand-later><div class="csh"><span class="ic">${cIcon('coins')}</span><b>${qt('demandTitle')}</b><span class="muted">${qt('demandLater')}</span></div></section>` : nothing}
       ${showCard ? html`<ticket-cost-card embedded .ticket=${t} .costs=${{ ...d, claims }}
@@ -550,6 +597,7 @@ export class TicketCostsTab extends LitElement {
       ${this.kindsFold(d)}
       ${this.requirementFold(d)}
       ${this.quoteDialog(d)}
+      ${this.onBehalfDialog(d, target)}
       ${this.sendDialog()}
     </div>`;
   }

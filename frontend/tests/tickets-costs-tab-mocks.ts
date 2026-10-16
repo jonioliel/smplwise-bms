@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { installTicketsMock } from './tickets-mocks';
+import { installTicketsMock, PEOPLE } from './tickets-mocks';
 
 // TKUI3 (2.6.0): the mock layer of the Costs tab specs - one request handed to an outside vendor over slice 1's mock layer, with the
 // quote / payment-demand routes of the detail backend contract v1.3 (§3-§7) and the vendor message of §6.1. Scenarios:
@@ -7,13 +7,17 @@ import { installTicketsMock } from './tickets-mocks';
 //   demand  - done, the approved quote (labour + parts) is the baseline, the payment demand has an exceptional travel line
 //   staff   - a staff contact without an account (`quote_capable: false`): no money surface at all
 //   empty   - a vendor, no quote asked, nothing submitted
+//   own     - TKUI3B: the viewer (the manager) entered the submitted quote on the vendor's behalf - the same person cannot approve it
+//   closed  - TKUI3B: a closed request (its vendor assignment ended): no entry on the vendor's behalf, no owner change
+// TKUI3B also: `PUT /tickets/{id}/owner` (the internal owner, optimistic revision, 409 ticket_stale / owner_not_allowed / owner_unchanged) and
+// `POST /tickets/{id}/quotes` (a quote on the vendor's behalf; the server rules: lines required, allowed kinds, work window, self approval).
 // Every decision answers a `message_draft`; NOTHING is sent unless the spec presses "שלח לספק" (the calls list proves it).
 // Fake data only: no real person, number, address or account.
 
 export const CID = '0000000000000a03'; // a row of slice 1's list (the drawer opens over the list), its detail replaced here
 export const VENDOR = 'קירור הצפון';
 export type Call = { method: string; path: string; body: Record<string, unknown> | null };
-export type Scenario = 'quote' | 'demand' | 'staff' | 'empty';
+export type Scenario = 'quote' | 'demand' | 'staff' | 'empty' | 'own' | 'closed';
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const NOW = Date.parse('2026-10-16T10:00:00Z');
@@ -49,15 +53,17 @@ function approve(q: Quote, idx: number[], by = 'רונית לוי'): void {
   q.can = { decide: false, reject: false };
 }
 
-export interface CostsMock { calls: Call[] }
+export interface CostsMock { calls: Call[]; owner: { id: string; name: string } | null }
 
 export async function installCostsTabMock(page: Page, scenario: Scenario = 'quote'): Promise<CostsMock> {
   await installTicketsMock(page, { persona: 'admin' });
-  const st: CostsMock = { calls: [] };
+  const st: CostsMock = { calls: [], owner: scenario === 'empty' ? null : { id: 'u-dana', name: 'דנה פרץ' } };
+  let revision = 5;
   const staff = scenario === 'staff';
-  const status = scenario === 'demand' ? 'done' : 'in_progress';
+  const closed = scenario === 'closed';
+  const status = scenario === 'demand' ? 'done' : closed ? 'closed' : 'in_progress';
   const contact = staff ? 'יוסי טכנאי' : VENDOR;
-  const asg = { id: 'asg-v', name: contact, assigned_at: at(48), ended_at: null, cost_claim: staff ? 'off' : 'required', quote_mode: scenario === 'empty' ? 'optional' : 'required', quote_capable: !staff };
+  const asg = { id: 'asg-v', name: contact, assigned_at: at(48), ended_at: closed ? at(2) : null, cost_claim: staff ? 'off' : 'required', quote_mode: scenario === 'empty' ? 'optional' : 'required', quote_capable: !staff };
   let kinds: string[] | null = null;
   const quotes: Quote[] = [];
   if (scenario === 'quote') {
@@ -67,6 +73,12 @@ export async function installCostsTabMock(page: Page, scenario: Scenario = 'quot
       { index: 1, kind: 'parts', description: 'מדחס רוטורי', quantity: '1', unit_minor: 95_000, total_minor: 95_000 },
       { index: 2, kind: 'parts', description: 'גז קירור', quantity: '2', unit_minor: 8_500, total_minor: 17_000 },
     ]));
+  }
+  if (scenario === 'own') {
+    quotes.push(quoteOf('q-7', 1, 'submitted', [
+      { index: 0, kind: 'labor', description: 'החלפת מדחס', hours: '3', rate_minor: 20_000, total_minor: 60_000 },
+      { index: 1, kind: 'parts', description: 'מדחס רוטורי', quantity: '1', unit_minor: 95_000, total_minor: 95_000 },
+    ], { source: 'manager', created_by_name: 'רונית לוי', created_at: at(1), note: 'הוזן לפי שיחת טלפון עם הספק.' }));
   }
   if (scenario === 'demand') {
     const q = quoteOf('q-9', 1, 'submitted', [
@@ -135,14 +147,20 @@ export async function installCostsTabMock(page: Page, scenario: Scenario = 'quot
     place_text: 'קומה 2 · חדר ישיבות גדול', device_name: '', created_by: { id: 'u-ronit', name: 'רונית לוי' }, created_at: at(50), last_activity_at: at(1),
     assignee: { kind: 'contact', id: 'c-v', name: contact, since: at(48), acknowledged_at: at(47) },
     last_assignee_name: null, eta_at: null, waiting_on: status === 'done' ? 'manager' : 'assignee', waiting_reason: status === 'done' ? 'done' : null, reopen_count: 0, external_stale: false,
-    closed_at: null, revision: 5, view: 'full', description: 'מים על השטיח ליד החלון.', close_note: null, closed_by_name: null, duplicate_of: null, reopen_until: null,
+    closed_at: closed ? at(2) : null, revision, view: 'full', description: 'מים על השטיח ליד החלון.', close_note: null, closed_by_name: null, duplicate_of: null, reopen_until: null,
     attachments: [], events: [{ id: 'e1', at: at(50), kind: 'created', actor: me, from: null, to: 'new', body: null, data: {}, via: 'ui', external: false }],
-    can: { edit_fields: ['title'], assign: true, assign_external: true, note: true, note_external: true, attach: true, attach_external: true, eta: true, return: false, manage: true, delete: true, vendor_message: true },
-    transitions: [{ to: 'closed', note_required: false }],
+    can: { edit_fields: ['title'], assign: true, assign_external: true, note: true, note_external: true, attach: true, attach_external: true, eta: true, return: false, manage: true, delete: true, vendor_message: true, change_owner: !closed },
+    transitions: closed ? [] : [{ to: 'closed', note_required: false }],
+    internal_owner: st.owner ? { id: st.owner.id, name: st.owner.name, since: at(40), source: 'handoff', active: true } : null,
     assignments: [{ id: 'asg-v', kind: 'contact', name: contact, channel: 'whatsapp', assigned_at: at(48), assigned_by_name: 'רונית לוי', acknowledged_at: at(47), ended_at: null,
       end_reason: null, return_kind: null, return_reason: null, cost_claim: asg.cost_claim }],
     cost: { status: costStatus(), can_view: true, total_minor: null, currency: null, can_decide: true, can_set_requirement: true },
     messages: [],
+  });
+
+  const ownerAnswer = () => ({
+    ticket_id: CID, revision, owner: st.owner ? { id: st.owner.id, name: st.owner.name, since: at(40), source: 'handoff', active: true } : null, history: [],
+    candidates: PEOPLE.slice(1).map((x) => ({ id: x.id, name: x.name })), can: { change: !closed },
   });
 
   await page.route(`**/api/v1/tickets/${CID}**`, async (route) => {
@@ -155,11 +173,45 @@ export async function installCostsTabMock(page: Page, scenario: Scenario = 'quot
     if (sub === '' && method === 'GET') return json(route, detail());
     if (sub === 'costs' && method === 'GET') return json(route, costs());
     if (sub === 'quotes' && method === 'GET') return json(route, block());
+    if (sub === 'owner' && method === 'GET') return json(route, ownerAnswer());
+    if (sub === 'owner' && method === 'PUT') {
+      const refuse = (code: string, text: string) => json(route, { code, user_message: text, retryable: false, correlation_id: 'm', details: {} }, 409);
+      if (closed) return refuse('ticket_closed', 'הבקשה סגורה.');
+      if (Number(body?.revision) !== revision) return refuse('ticket_stale', 'הבקשה השתנתה בינתיים. טענו מחדש.');
+      const to = (body?.user_id as string | null) ?? null;
+      const person = PEOPLE.find((x) => x.id === to);
+      if (to && !person) return refuse('owner_not_allowed', 'אי אפשר לקבוע אותו כאחראי: הוא אינו חבר במחלקה.');
+      if ((st.owner?.id ?? null) === to) return refuse('owner_unchanged', 'הוא כבר האחראי.');
+      st.owner = person ? { id: person.id, name: person.name } : null;
+      revision += 1;
+      return json(route, ownerAnswer());
+    }
+    if (sub === 'quotes' && method === 'POST') {
+      const lines = (body?.lines as Record<string, string>[] | undefined) ?? [];
+      const bad = (code: string, text: string, status = 409) => json(route, { code, user_message: text, retryable: false, correlation_id: 'm', details: {} }, status);
+      if (closed || staff || status !== 'in_progress') return bad('quote_not_open', 'אי אפשר להזין הצעה בשלב הזה.');
+      if (quotes.some((q) => q.state === 'approved' || q.state === 'partially_approved')) return bad('quote_already_approved', 'כבר יש הצעה מאושרת.');
+      if (!lines.length) return bad('required', 'ערך לא תקין.', 422);
+      const allowed = kinds ?? ['labor', 'parts'];
+      if (lines.some((l) => !allowed.includes(l.kind))) return bad('line_kind_not_allowed', 'סוג השורה אינו מותר בבקשה הזו.', 422);
+      for (const q of quotes) if (q.state === 'submitted' || q.state === 'fix_requested') { q.state = 'superseded'; q.can = { decide: false, reject: false }; }
+      const stored: Line[] = lines.map((l, index) => {
+        const minor = l.kind === 'labor' ? Math.round(Number(l.hours) * Number(l.rate) * 100) : l.kind === 'parts' ? Math.round(Number(l.quantity) * Number(l.unit_price) * 100) : Math.round(Number(l.amount) * 100);
+        return { index, kind: l.kind, description: l.description ?? '', total_minor: minor };
+      });
+      quotes.push(quoteOf(`q-${quotes.length + 10}`, quotes.length + 1, 'submitted', stored, {
+        source: 'manager', created_by_name: me.name, created_at: at(0), note: (body?.note as string | undefined) ?? null, work_from: (body?.work_from as string | undefined) ?? null, work_to: (body?.work_to as string | undefined) ?? null,
+      }));
+      return json(route, block(), 201);
+    }
     const qd = /^quotes\/([\w-]+)\/(approve|request-fix|reject)$/.exec(sub);
     if (qd && method === 'POST') {
       const q = quotes.find((x) => x.id === qd[1]);
       if (!q) return json(route, { code: 'quote_not_found', user_message: 'ההצעה לא נמצאה.', retryable: false, correlation_id: 'm', details: {} }, 404);
       if (Number(body?.revision) !== q.revision) return json(route, { code: 'quote_stale', user_message: 'ההצעה השתנתה בינתיים.', retryable: false, correlation_id: 'm', details: {} }, 409);
+      if (qd[2] === 'approve' && q.source === 'manager' && q.created_by_name === me.name) {
+        return json(route, { code: 'self_approval', user_message: 'את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.', retryable: false, correlation_id: 'm', details: {} }, 409);
+      }
       if (qd[2] === 'approve') approve(q, (body?.line_indexes as number[] | undefined) ?? q.lines.map((l) => l.index));
       else {
         q.state = qd[2] === 'reject' ? 'rejected' : 'fix_requested';
