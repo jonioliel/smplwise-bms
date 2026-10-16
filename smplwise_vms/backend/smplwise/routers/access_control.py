@@ -408,7 +408,7 @@ def set_station_credentials(
     station_id: str = Path(min_length=1, max_length=MAX_STATION_ID),
 ) -> dict[str, Any]:
     body = _parse_credentials(conn, principal, request, station_id, raw)
-    replaced = wiskey_camera.set_override(conn, station_id, body.username, body.password, principal.user_id)
+    replaced = wiskey_camera.set_override(conn, settings_of(request), station_id, body.username, body.password, principal.user_id)
     _drop_still(request, station_id)
     audit(conn, actor=principal, action="intercom.credentials.set", decision="allowed", resource_type="intercom_station", resource_id=station_id,
           request_id=getattr(request.state, "correlation_id", None), details={"replaced": replaced})
