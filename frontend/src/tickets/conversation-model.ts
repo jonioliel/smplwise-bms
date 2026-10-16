@@ -144,7 +144,7 @@ export function linkAuditRows(items: readonly FeedItem[]): FeedItem[] {
 export type ConvSub = 'vendor' | 'team';
 
 /**
- * Which sub-tabs the Conversation tab offers. `vendorMode` = an outside contact was ever assigned (`marksInternal`): then "עם הספק" and
+ * Which sub-tabs the Conversation tab offers (vendor photos show in "עם הספק", internal photos in "הצוות"). `vendorMode` = an outside contact was ever assigned (`marksInternal`): then "עם הספק" and
  * "הצוות"; otherwise one feed "הערות" with the team composer only (IA §4.2).
  */
 export function convSubs(vendorMode: boolean): ConvSub[] {
@@ -158,7 +158,7 @@ export function convSubs(vendorMode: boolean): ConvSub[] {
  */
 export function inSub(it: FeedItem, sub: ConvSub, vendorMode: boolean): boolean {
   if (!vendorMode) return it.type === 'internal_note' || (it.type === 'message' && it.kind === 'note') || it.kind === 'inbound' || it.kind === 'late_reply' || (it.type === 'photo' && it.kind === 'photo');
-  if (sub === 'vendor') return it.type === 'message' || it.type === 'quote' || it.type === 'demand' || (it.type === 'status_event' && it.external);
+  if (sub === 'vendor') return it.type === 'message' || it.type === 'quote' || it.type === 'demand' || ((it.type === 'status_event' || (it.type === 'photo' && it.kind === 'photo')) && it.external);
   return it.type === 'internal_note' || (it.type === 'photo' && it.kind === 'photo' && !it.external);
 }
 

@@ -65,8 +65,8 @@ const PHONE_QUERY = '(max-width: 767px)';
  *     block.ts: one chip, the one-sentence status, one warning line, SLA only when near / crossed, ONE role-resolved primary + ≤ 1 quiet);
  *   - the tabs סקירה / שיחה / עלויות / היסטוריה (tickets/drawer-tabs.ts) - ONLY the active tab is rendered, inside the drawer body, so each
  *     tab is exactly one scroll container (tests/layout-tickets-drawer.spec.ts counts them);
- *   - Overview is complete (tickets/overview-tab.ts); שיחה / עלויות / היסטוריה are SLOTS that reuse the existing blocks (messages, notes and
- *     timeline; the cost card; the link audit and the timeline) until TKUI2 / TKUI3 rebuild them - look for `data-slot`.
+ *   - Overview is complete (tickets/overview-tab.ts); שיחה (tickets/conversation-tab.ts) and היסטוריה (tickets/history-tab.ts) are TKUI2's;
+ *     עלויות is a SLOT that reuses the cost card until TKUI3 rebuilds it - look for `data-slot`.
  * Every action calls the API and shows the server's answer; nothing is decided here. The default tab is the module setting (`ui.detail_tab`,
  * else Overview); a deep link may pass `?tab=` (`initialTab`) and the card's "ציר זמן" opens History.
  * Events (bubble, composed): `ticket-changed` {ticket}, `ticket-gone` {id} (returned by a non-member handler), `drawer-close`.

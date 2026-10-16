@@ -94,7 +94,7 @@ test('the two sub-tabs: what each shows; without a vendor one "notes" feed', () 
     ev('eta', '2026-10-16T07:08:00Z'),
   ] });
   const ids = (sub: 'vendor' | 'team', vm: boolean) => subItems(items, sub, vm).map((i) => `${i.kind}:${i.external ? 'x' : 'i'}`);
-  expect(ids('vendor', true)).toEqual(['note:x', 'note:x', 'status:x', 'cost_submitted:i']);
+  expect(ids('vendor', true)).toEqual(['note:x', 'note:x', 'status:x', 'photo:x', 'cost_submitted:i']);
   expect(ids('team', true)).toEqual(['note:i', 'photo:i']);
   // an internal note never lands in the vendor feed, a vendor message never in the team feed
   for (const it of items) if (it.type === 'internal_note') expect(inSub(it, 'vendor', true)).toBe(false);
