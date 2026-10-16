@@ -224,6 +224,18 @@ export class SystemTickets extends LitElement {
     .btnlink:hover {
       border-color: var(--dv-accent);
     }
+    /* a narrow page: the seven tabs wrap onto rows instead of scrolling sideways (nothing hidden behind a scroll) */
+    @container (max-width: 900px) {
+      .stabs .seg {
+        flex-wrap: wrap;
+        overflow: visible;
+        justify-content: center;
+        border-radius: var(--sw-r-xl);
+      }
+      .stabs .seg button {
+        flex: 1 1 auto;
+      }
+    }
     @media (max-width: 767px) {
       .page {
         padding: 0 14px 26px;
