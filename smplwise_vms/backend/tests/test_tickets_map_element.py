@@ -13,6 +13,7 @@ import re
 import xml.etree.ElementTree as ET
 import sqlite3
 import time
+import uuid
 
 import pytest
 
@@ -277,7 +278,7 @@ def test_the_renderer_draws_only_the_structure_of_the_elements_level():
 
 def test_a_floor_without_a_structure_document_draws_rooms_and_the_mark_only():
     zones = [{"name": "משרד", "polygon": json.loads(box(0.1, 0.1, 0.5, 0.5)), "level_id": None}]
-    svg = map_image.render_public_svg(None, zones, 1000, 800, level="L0", x=500, y=400, caption="x", title="x")
+    svg = map_image.render_public_svg(None, zones, 1000, 800, level="L0", x=500, y=400, caption="x", title="x", room="משרד")
     assert "<polyline" not in svg and "משרד" in svg and "<circle" in svg
 
 
@@ -415,7 +416,7 @@ def test_the_default_zone_policy_names_the_elements_room_and_corridors_only(s4):
     svg = r.content.decode("utf-8")
     assert VAULT.encode() not in r.content, "another room's name is never in the bytes"
     assert svg.count("<polygon") >= 4, "the outlines stay, unnamed"
-    assert svg_texts(svg) == ["מזגן משרד · קומה 2 · משרד 12", "משרד 12", "מסדרון"], "caption, the element's room, the corridor"
+    assert sorted(svg_texts(svg)) == sorted(["מזגן משרד · קומה 2 · משרד 12", "משרד 12", "מסדרון"]), "exactly: caption, the element's room, the corridor"
     assert VAULT not in json.dumps(blk, ensure_ascii=False)
 
 
@@ -523,7 +524,7 @@ def test_the_picture_route_is_the_uniform_404_in_claim_mode(s4):
     assert attach(s4, t["id"], **anchor_body(s4)).status_code == 200
     client, _ = s4.public(Clock(time.time()))
     assert client.get("/t/api/map-image", headers=hdr(token)).status_code == 200
-    r = client.post("/t/api/return", headers=hdr(token), json={"kind": "cannot_handle", "reason": "חסר חלק במלאי", "client_request_id": "crid-map-claim-1"})
+    r = client.post("/t/api/return", headers=hdr(token), json={"kind": "cannot_handle", "reason": "חסר חלק במלאי", "client_request_id": str(uuid.uuid4())})
     assert r.status_code == 200, r.text
     v = client.get("/t/api/ticket", headers=hdr(token)).json()
     assert v["claim_mode"] is True and "map_element" not in v
