@@ -91,10 +91,10 @@ test.describe('tickets weekly calendar evidence', () => {
       await expect(ev.nth(i).locator('ticket-elapsed'), `event ${i}: the running clock`).toHaveCount(1);
       await expect(ev.nth(i).locator('time')).toHaveText(/^\d\d:\d\d$/);
     }
-    // the visit of 1042 is Wed 14.10 13:42 (the mock's waiting_part ETA, +27 h)
+    // the visit of 1042 is Wed 14.10 16:42 local (the mock's ETA, now + 27 h = 13:42 UTC; Asia/Jerusalem is UTC+3 until 25.10)
     const wed = page.locator(`${C} [data-cal-day="2026-10-14"] [data-cal-event="visit"]`);
     await expect(wed).toHaveCount(1);
-    await expect(wed.locator('time')).toHaveText('13:42');
+    await expect(wed.locator('time')).toHaveText('16:42');
     // tones come from the existing states: visits info, a crossed target bad, a target under 24 h warn
     await expect(page.locator(`${C} [data-cal-event="visit"]`).first()).toHaveAttribute('data-cal-tone', 'info');
     await expect(page.locator(`${C} [data-cal-day="2026-10-13"] [data-cal-event="resolve"]`)).toHaveAttribute('data-cal-tone', 'bad');
