@@ -252,7 +252,7 @@ export const settingsStyles = css`
     padding: var(--sw-seg-pad, 0);
     gap: var(--sw-seg-gap, 0);
   }
-  /* the knobs `--sw-seg-*` belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
+  /* the knobs --sw-seg-* belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
   .seg button {
     border: 0;
     border-radius: var(--sw-seg-btn-radius, 0);
