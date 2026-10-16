@@ -623,6 +623,9 @@ export const rfqStyles = css`
   .frm .wide {
     grid-column: 1 / -1;
   }
+  textarea.inp {
+    border-radius: var(--sw-r-lg);
+  }
   .fld textarea.inp {
     min-block-size: 96px;
     padding-block: 10px;

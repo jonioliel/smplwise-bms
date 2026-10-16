@@ -316,7 +316,7 @@ export class TicketsRfqNew extends LitElement {
       </section>
       <section aria-labelledby="h-vendors">
         <h3 id="h-vendors">${tIcon('users')}${rt('secVendors')}<span class="mut" data-rfq-chosen>${rt('vendorsChosen', { n: d.vendors.length })}</span></h3>
-        <label class="search">${tIcon('search')}<span class="vh">${rt('vendorsSearch')}</span><input type="search" data-rfq-vendor-search maxlength="60" placeholder=${rt('vendorsSearch')}
+        <label class="fld"><span class="vh">${rt('vendorsSearch')}</span><input class="inp" type="search" data-rfq-vendor-search maxlength="60" placeholder=${rt('vendorsSearch')}
           .value=${this.query} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} /></label>
         ${this.contacts === null ? html`<span class="skl" style="block-size:52px" aria-label=${rt('vendorsLoading')}></span>`
           : chosenFirst.length ? html`<div class="vlist" role="group" aria-label=${rt('secVendors')}>${repeat(chosenFirst, (c) => c.id, (c) => this.vendorRow(c))}</div>`

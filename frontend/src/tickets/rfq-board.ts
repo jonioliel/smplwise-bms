@@ -22,7 +22,7 @@ import { rIcon } from './rfq-icons';
 import { rt, type RfqTextKey } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
 import {
-  boardVendors, clientRequestId, dateTime, dayToIso, eventLine, initials, invitable, invitePreview, isoToLocal, liveQuotes, localToIso, rfqHref, rfqStateTone,
+  boardVendors, clientRequestId, dateTime, shortDate, dayToIso, eventLine, initials, invitable, invitePreview, isoToLocal, liveQuotes, localToIso, rfqHref, rfqStateTone,
   remindable, toggleKind, vendorStateTone, windowText,
 } from './rfq-model';
 import { rfqError } from './rfq-new';
@@ -297,8 +297,8 @@ export class TicketsRfqBoard extends LitElement {
         ${v.decline_reason ? html`<span class="reason">${bidi(v.decline_reason)}</span>` : nothing}</span></td>
       <td data-l=${rt('colSent')} class="num">${dateTime(v.sent_at) || '—'}</td>
       <td data-l=${rt('colOpened')} class="num">${dateTime(v.first_opened_at) || '—'}</td>
-      <td data-l=${rt('colQuote')} class="num" data-rfq-quote-cell>${q && q.total_minor !== undefined ? html`<b>${this.money(q.total_minor, q.currency)}</b> <span class="mut">${dateTime(q.created_at)}</span>`
-        : q ? html`<span class="mut">${dateTime(q.created_at)}</span>` : '—'}</td>
+      <td data-l=${rt('colQuote')} class="num" data-rfq-quote-cell>${q && q.total_minor !== undefined ? html`<b>${this.money(q.total_minor, q.currency)}</b> <span class="mut">${shortDate(q.created_at)}</span>`
+        : q ? html`<span class="mut">${shortDate(q.created_at)}</span>` : '—'}</td>
       <td data-l=${rt('colActions')}><div class="rowacts">
         ${v.can.remind ? html`<button type="button" class="btn sm quiet" data-rfq-remind=${v.id} @click=${() => this.open({ kind: 'remind', ids: [v.id] })}>${rIcon('bell')}${rt('remind')}</button>` : nothing}
         ${q && d.can.see_amounts ? html`<a class="btn sm quiet" href=${rfqHref({ id: d.id, view: 'compare' })} data-rfq-row-compare>${rIcon('columns')}${rt('compare')}</a>` : nothing}
