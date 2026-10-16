@@ -416,8 +416,8 @@ def test_n3_a_confirmed_number_still_gets_its_queued_message_after_the_switch_go
     n = len(env.fake.calls)
     t = env.s4.ticket(title="נורה שרופה")
     assert env.s4.assign_contact(t["id"]).json()["messages"][0]["channel"] == "whatsapp"
-    env.tick()
-    assert len(env.fake.calls) == n + 1 and env.rows(t["id"])[0].state == "sent"
+    env.tick(minutes=16)  # past the per-recipient pacing after the code message
+    assert len(env.fake.calls) == n + 1 and env.rows(t["id"])[0].state == "sent", [(r.state, r.held_reason, r.outcome_code, r.not_before) for r in env.rows(t["id"])]
 
 
 def test_n4_the_persons_own_switch_fails_closed_for_a_number_from_another_source(env):
