@@ -22,6 +22,7 @@ import { settingsStyles } from '../styles/settings';
 import '../components/nvr-connection-form';
 import '../components/nvr-recorders-card';
 import '../components/frigate-summary';
+import '../components/sw-secrets-card'; // TKSECRETS2: הגדרות › חיבורים › סודות
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -43,9 +44,8 @@ interface RawHealth {
 const OPTIONS: { key: string; label: string }[] = [
   { key: 'go2rtc_url', label: 'כתובת go2rtc' },
   { key: 'go2rtc_api_username', label: 'משתמש go2rtc (אם מוגן)' },
-  { key: 'go2rtc_api_password', label: 'סיסמת go2rtc' },
   { key: 'wiskey_username', label: 'משתמש עמדות WisKey (מצלמות)' },
-  { key: 'wiskey_password', label: 'סיסמת עמדות WisKey' },
+  // TKSECRETS2: the go2rtc / WisKey passwords are no add-on options any more - they are in the "סודות" card
   { key: 'bootstrap_admin_username', label: 'שם משתמש של המנהל הראשון' },
   { key: 'log_level', label: 'רמת לוג' },
 ];
@@ -350,7 +350,7 @@ export class SystemSetup extends LitElement {
       ${this.wiskeyError ? html`<div class="hint" data-wiskey-cred-error>${this.wiskeyError}</div>` : nothing}
       ${!w
         ? this.wiskeyError ? nothing : html`<div class="hint">קורא את רשימת העמדות…</div>`
-        : html`${this.row('חשבון משותף (wiskey_username / wiskey_password)', w.default_configured ? 'מוגדר' : 'לא מוגדר', w.default_configured ? 'ok' : 'warn')}
+        : html`${this.row('חשבון משותף (wiskey_username, הסיסמה בכרטיס סודות)', w.default_configured ? 'מוגדר' : 'לא מוגדר', w.default_configured ? 'ok' : 'warn')}
           ${w.state !== 'ready' ? html`<div class="hint" data-wiskey-cred-feed=${w.state}>WisKey אינו מחובר כרגע (מצב: <span class="ltr">${w.state}</span>); מוצג מה שידוע ל־Arx.</div>` : nothing}
           ${w.stations.length ? w.stations.map((s) => this.renderWiskeyStation(s, w)) : html`<div class="hint" data-wiskey-cred-empty>אין עמדות ברשימה.</div>`}
           ${this.wiskeyMsg ? html`<div class="hint" data-wiskey-cred-msg>${this.wiskeyMsg}</div>` : nothing}`}
@@ -484,6 +484,7 @@ export class SystemSetup extends LitElement {
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
               </sw-card>
               ${this.renderWiskeyCard()}
+              ${can('system.configure') ? html`<sw-secrets-card></sw-secrets-card>` : nothing}
               ${can('system.configure') ? html`<sw-door-setup data-door-setup></sw-door-setup><sw-door-inventory data-door-inventory></sw-door-inventory><sw-door-blocks data-door-blocks></sw-door-blocks>` : nothing}
               <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
@@ -503,7 +504,7 @@ export class SystemSetup extends LitElement {
                 ${this.check('backups') ? this.row('גיבויים', this.check('backups')!.detail, this.check('backups')!.status === 'ok' ? 'ok' : 'warn') : nothing}
               </sw-card>
             </div>
-            <sw-card heading="איפה מגדירים" subheading="חיבורים נוספים מוגדרים בהגדרות SmplWise Arx בתשתית המערכת; הערכים אינם מוצגים כאן ושינוי דורש הפעלה מחדש">
+            <sw-card heading="איפה מגדירים" subheading="חיבורים נוספים מוגדרים בהגדרות SmplWise Arx בתשתית המערכת; הערכים אינם מוצגים כאן ושינוי דורש הפעלה מחדש; סיסמאות ומפתחות בכרטיס סודות">
               <div class="opts" data-connection-options>
                 ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
               </div>

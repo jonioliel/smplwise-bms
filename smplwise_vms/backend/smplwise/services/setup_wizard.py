@@ -616,7 +616,7 @@ GO2RTC_ERRORS = {
     # NN1: operator wording without infrastructure branding (the connection settings move into the product with NN4)
     "media_not_configured": ("כתובת שרת המדיה (go2rtc) לא הוגדרה.", "השלימו את כתובת שרת המדיה (go2rtc_url, בדרך כלל בפורט 1984) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש."),
     "media_unavailable": ("go2rtc לא ענה.", "ודאו שה־Add-on של go2rtc מותקן ופועל ושהכתובת go2rtc_url נכונה (כולל הפורט, בדרך כלל 1984)."),
-    "media_error": ("go2rtc החזיר שגיאה.", "אם ה־API של go2rtc מוגן בסיסמה, מלאו go2rtc_api_username ו־go2rtc_api_password ב־Configuration של ה־Add-on."),
+    "media_error": ("go2rtc החזיר שגיאה.", "אם ה־API של go2rtc מוגן בסיסמה, מלאו go2rtc_api_username בהגדרות החיבור של ההתקנה ואת הסיסמה בהגדרות › חיבורים › סודות."),
 }
 
 

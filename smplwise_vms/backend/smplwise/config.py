@@ -90,6 +90,10 @@ class Settings:
     # CR-038 S4: the handler page's own bundle (frontend/public-ticket.html -> smplwise_vms/www-public), NEVER inside www_dir (the
     # main app mounts www_dir at / and would then serve /t/ under the Ingress / arx origin - code review W16).
     www_public_dir: Path | None = None
+    # TKSECRETS2: the secrets that used to be add-on options of type `password` live in the in-app store (services/secrets_store.py,
+    # הגדרות › חיבורים › סודות). The values an older options.json still carries - from the options FILE only, never an environment
+    # variable - are kept here for the one-time migration into the store at start-up; never in a repr.
+    legacy_secret_options: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def plans_dir(self) -> Path:
@@ -133,6 +137,10 @@ def _truthy(value: object) -> bool:
 DEV_NVR_PLACEHOLDER = "nvr-placeholder.test"
 
 
+# TKSECRETS2: the former add-on options of type `password`, now in the in-app secrets store (services/secrets_store.SPECS).
+LEGACY_SECRET_OPTIONS = ("go2rtc_api_password", "wiskey_password", "wiskey_background_token", "openai_api_key", "push_relay_key")
+
+
 def _opt(options: dict, key: str, env: str, default: str | None = None) -> str | None:
     value = options.get(key)
     if value in (None, ""):
@@ -147,8 +155,10 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
     if path.exists():
         options = json.loads(path.read_text(encoding="utf-8"))
         in_addon = path == Path("/data/options.json")
-    # CR-027: the SmplWise push relay (the phone app's notifications) - the add-on options reach the channel as runtime
-    # environment only (services/mobile_push.py); the key is never stored in the database, a backup, a log or an error
+    # CR-027: the SmplWise push relay (the phone app's notifications) - the URL option reaches the channel as runtime environment
+    # (services/mobile_push.py). TKSECRETS2: the key is no add-on option any more; it lives encrypted in the secrets store and
+    # secrets_store.apply_at_startup puts it into SW_PUSH_RELAY_KEY once the database is open. A legacy `push_relay_key` an older
+    # options.json still carries is honoured here until that start-up step moved it into the store.
     for key, env in (("push_relay_url", "SW_PUSH_RELAY_URL"), ("push_relay_key", "SW_PUSH_RELAY_KEY")):
         value = _opt(options, key, env)
         if value:
@@ -190,11 +200,15 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         log_level=(_opt(options, "log_level", "SW_LOG_LEVEL", "info") or "info").lower(),
         nvr_rtsp_port=int(_opt(options, "nvr_rtsp_port", "NVR_RTSP_PORT", "554") or 554),
         go2rtc_user=_opt(options, "go2rtc_api_username", "GO2RTC_API_USER"),
+        # TKSECRETS2: the four secrets below are no add-on options any more (config.yaml). The legacy option of an older
+        # options.json (then the developer environment) is only the fallback; secrets_store.apply_at_startup moves the option into
+        # the encrypted store once and overlays the store's values. A missing key never raises (`_opt` reads with .get).
         go2rtc_password=_opt(options, "go2rtc_api_password", "GO2RTC_API_PASSWORD"),
         wiskey_user=_opt(options, "wiskey_username", "WISKEY_USER"),
         wiskey_password=_opt(options, "wiskey_password", "WISKEY_PASSWORD"),
         wiskey_background_token=_opt(options, "wiskey_background_token", "WISKEY_BACKGROUND_TOKEN"),
         openai_api_key=_opt(options, "openai_api_key", "OPENAI_API_KEY"),
+        legacy_secret_options={k: str(options[k]) for k in LEGACY_SECRET_OPTIONS if options.get(k) not in (None, "")},
         # Home Assistant Core API: the Supervisor injects SUPERVISOR_TOKEN when config.yaml sets homeassistant_api;
         # never taken from the options file (no user token is stored in options).
         ha_url=("http://supervisor/core" if os.environ.get("SUPERVISOR_TOKEN") else (os.environ.get("HA_URL") or None)),

@@ -3,8 +3,8 @@
 A station's camera is pulled by go2rtc from the station itself, exactly as WisKey's own live view does
 (`rtsp://<user>:<pass>@<host>:554/Streaming/Channels/101`, WISKEY_SOURCE_EXTRACTION.md 0.4): the host comes from WisKey's
 `overview` (kept server-side by the feed, never served), the credentials are SMPLWISE's own - a per-station override
-(`wiskey_station_credentials`) if a system administrator set one, else the shared add-on options `wiskey_username` /
-`wiskey_password`. Nothing here ever returns, logs or audits a credential."""
+(`wiskey_station_credentials`) if a system administrator set one, else the shared account: the add-on option `wiskey_username`
+and `wiskey_password` from the in-app secrets store (TKSECRETS2). Nothing here ever returns, logs or audits a credential."""
 from __future__ import annotations
 
 import sqlite3
@@ -27,7 +27,7 @@ def credentials(conn: sqlite3.Connection, settings: Settings, station_id: str) -
         return row["username"], row["password"]
     if default_configured(settings):
         return settings.wiskey_user or "", settings.wiskey_password or ""
-    raise ApiError(503, "source_not_configured", "פרטי הגישה למצלמות עמדות WisKey לא הוגדרו (wiskey_username / wiskey_password בהגדרות ה־Add-on).")
+    raise ApiError(503, "source_not_configured", "פרטי הגישה למצלמות עמדות WisKey לא הוגדרו (wiskey_username בהגדרות החיבור של ההתקנה, הסיסמה בהגדרות › חיבורים › סודות).")
 
 
 def status(conn: sqlite3.Connection, settings: Settings, station_id: str) -> dict[str, Any]:
