@@ -133,6 +133,24 @@ DEFAULTS["tickets.board"] = None
 VALIDATORS["tickets.board.tree_hidden"] = _choice("tickets.board.tree_hidden", ("hidden", "shown"))
 DEFAULTS["tickets.board.tree_hidden"] = None
 
+# `setup.hint` (2.6.0 TKWIZHINT): the user dismissed the shell's "complete the installation" hint. {"dismissed": true, "failed": [step ids]}
+# - `failed` is the set of REQUIRED steps that were failing when it was dismissed; a newly failed required step shows the hint again.
+# null = not dismissed. Presentation only: no permission needed.
+SETUP_HINT_STEPS: tuple[str, ...] = ("install", "nvr", "ha", "go2rtc", "floor", "camera")
+
+
+def _setup_hint(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) - {"dismissed", "failed"} or value.get("dismissed") is not True:
+        raise ValueError('setup.hint must be {"dismissed": true, "failed": [step ids]}')
+    failed = value.get("failed", [])
+    if not isinstance(failed, list) or any(not isinstance(s, str) or s not in SETUP_HINT_STEPS for s in failed):
+        raise ValueError("setup.hint failed must list known setup step ids")
+    return {"dismissed": True, "failed": sorted(set(failed))}
+
+
+VALIDATORS["setup.hint"] = _setup_hint
+DEFAULTS["setup.hint"] = None
+
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None

@@ -53,6 +53,8 @@ TITLES = {
     "camera": "מצלמה על המפה",
 }
 DEVICE_STEPS = ("nvr", "ha", "go2rtc")
+# 2.6.0 TKWIZHINT: a step the installation works without. It stays visible in the wizard (labelled optional) but never keeps the shell hint alive.
+OPTIONAL_STEPS = frozenset({"floor", "camera"})
 
 DRIFT_OK_S = 2
 DRIFT_FAIL_S = 30
@@ -125,7 +127,7 @@ def _fact(label: str, value: Any, tone: str = "") -> dict[str, Any]:
 def _step(step_id: str, status: str, summary: str, *, facts: list[dict[str, Any]], evidence: dict[str, Any], settings_link: dict[str, str],
           problem: dict[str, Any] | None = None, warnings: list[dict[str, Any]] | None = None, source: str = "local", checked_at: str | None = None) -> dict[str, Any]:
     return {
-        "id": step_id, "index": STEPS.index(step_id) + 1, "title": TITLES[step_id], "status": status, "summary": summary,
+        "id": step_id, "index": STEPS.index(step_id) + 1, "title": TITLES[step_id], "optional": step_id in OPTIONAL_STEPS, "status": status, "summary": summary,
         "facts": facts, "evidence": evidence, "problem": problem, "warnings": warnings or [], "settings_link": settings_link,
         "source": source, "checked_at": checked_at or now_iso(),
     }
@@ -915,10 +917,14 @@ def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: s
     done = sum(1 for s in required if s["status"] == "done")
     nxt = next((s["id"] for s in required if s["status"] != "done"), None)
     caps = resolve_capabilities(settings)
+    must = [s for s in required if not s["optional"]]  # TKWIZHINT: the shell hint and `ready` follow the required steps only
+    must_done = sum(1 for s in must if s["status"] == "done")
+    must_next = next((s["id"] for s in must if s["status"] != "done"), None)
     return {
         "version": __version__, "mode": installation_mode(settings), "checked_at": now_iso(), "steps": ordered, "done": done, "total": len(required),
+        "required_done": must_done, "required_total": len(must), "required_failed": [s["id"] for s in must if s["status"] == "failed"],
         # NN1: an unsupported installation (an NVR without go2rtc) never reaches "ready", whatever the steps say
-        "ready": done == len(required) and caps.supported, "next": nxt,
+        "ready": must_done == len(must) and caps.supported, "next": must_next or nxt,
         "capabilities": caps.as_dict(with_recorders=True), "installation": installation_block(caps),  # system.configure only
         "thresholds": {"drift_ok_s": DRIFT_OK_S, "drift_fail_s": DRIFT_FAIL_S}, "check_every_s": CHECK_EVERY_S, "live_ttl_s": LIVE_TTL_S,
     }

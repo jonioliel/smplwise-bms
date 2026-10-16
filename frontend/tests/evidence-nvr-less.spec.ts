@@ -148,7 +148,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     const nvr = page.locator('system-wizard section[data-step="nvr"]');
     await expect(nvr).toHaveAttribute('data-status', 'todo');
     await expect(nvr.locator('nvr-connection-form [data-conn-vendor]')).toBeVisible();
-    await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('מתוך 4');
+    await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('מתוך 3'); // floors and the camera are optional: install, NVR choice, HA, go2rtc minus the NVR skipped on purpose
     await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('מצב ללא NVR');
     await expect(page.locator('system-wizard section[data-status="failed"][data-step="nvr"]')).toHaveCount(0);
     await shot(page, 'wizard', testInfo.project.name);

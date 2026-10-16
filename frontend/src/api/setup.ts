@@ -3,6 +3,7 @@
  * on it finds the camera placed - so the design review sees both an explanation and the "ready" summary. */
 import { get, post } from './client';
 import type { InstallationBlock } from './health';
+import { summarizeSetup } from '../shell/setup-hint';
 
 export type StepId = 'install' | 'nvr' | 'ha' | 'go2rtc' | 'floor' | 'camera';
 /** not_applicable: skipped on purpose (NVR-less mode) - neither done nor failed, and not counted in `total`. */
@@ -17,6 +18,8 @@ export interface SetupStep {
   id: StepId;
   index: number;
   title: string;
+  /** TKWIZHINT: the installation works without this step - shown in the wizard (labelled optional), never counted by the shell hint. Absent from an older backend (shell/setup-hint.ts falls back to floor + camera). */
+  optional?: boolean;
   status: StepStatus;
   summary: string;
   facts: { label: string; value: string; tone: '' | 'ok' | 'warn' | 'err' }[];
@@ -39,6 +42,10 @@ export interface SetupState {
   steps: SetupStep[];
   done: number;
   total: number;
+  /** TKWIZHINT: the same counts over the REQUIRED steps only; `ready` and `next` follow the required steps too. */
+  required_done?: number;
+  required_total?: number;
+  required_failed?: StepId[];
   ready: boolean;
   next: StepId | null;
   thresholds: { drift_ok_s: number; drift_fail_s: number };
@@ -94,7 +101,7 @@ export function demoSetupState(placed = false, checked?: StepId): SetupState {
   const steps = demoSteps(placed);
   const done = steps.filter((s) => s.status === 'done').length;
   return {
-    version: '0.1.132', checked_at: AT, steps, done, total: steps.length, ready: done === steps.length, next: steps.find((s) => s.status !== 'done')?.id ?? null,
+    version: '0.1.132', checked_at: AT, steps, done, total: steps.length, ready: summarizeSetup({ steps }).ready, next: steps.find((s) => s.status !== 'done')?.id ?? null,
     thresholds: { drift_ok_s: 2, drift_fail_s: 30 }, check_every_s: 5, live_ttl_s: 600, ...(checked ? { checked } : {}),
   };
 }

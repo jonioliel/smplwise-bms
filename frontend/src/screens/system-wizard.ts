@@ -9,13 +9,15 @@ import { openArchitectRequest } from '../components/architect-request-dialog';
 import { can, isApi } from '../api/session';
 import '../components/nvr-connection-form';
 import { ApiError, describeError } from '../api/client';
+import { currentDismissal, dismissalLoaded, loadDismissal, onDismissal, restoreHint } from '../api/setup-hint';
+import { isOptionalStep, SETUP_HINT_TEXT, summarizeSetup, type SetupSummary } from '../shell/setup-hint';
 import { demoSetupState, setupCheck, setupState, STATUS_TEXT, type SetupState, type SetupStep, type StepId } from '../api/setup';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** Tells the shell's "השלם את ההתקנה" hint what the wizard just learned, so it does not wait for its own next read. */
 export function announceSetup(s: SetupState) {
-  window.dispatchEvent(new CustomEvent('sw-setup-state', { detail: { ready: s.ready, done: s.done, total: s.total, next: s.next } }));
+  window.dispatchEvent(new CustomEvent('sw-setup-state', { detail: summarizeSetup(s) satisfies SetupSummary }));
 }
 
 const STATUS_ICON: Record<SetupStep['status'], string> = { done: 'check', todo: 'info', failed: 'warning', skipped: 'minus', not_applicable: 'minus' };
@@ -50,9 +52,19 @@ export class SystemWizard extends LitElement {
   @state() private notes: Partial<Record<StepId, string>> = {};
   private demoPlaced = false;
 
+  private stopDismissal: (() => void) | null = null;
+
   connectedCallback() {
     super.connectedCallback();
+    this.stopDismissal = onDismissal(() => this.requestUpdate());
+    if (!dismissalLoaded()) void loadDismissal();
     void this.load(true);
+  }
+
+  disconnectedCallback() {
+    this.stopDismissal?.();
+    this.stopDismissal = null;
+    super.disconnectedCallback();
   }
 
   private set(s: SetupState) {
@@ -110,9 +122,11 @@ export class SystemWizard extends LitElement {
       return;
     }
     const steps = this.data.steps.map((x) => (x.id === id ? fresh : x));
-    const required = steps.filter((x) => x.status !== 'not_applicable'); // NVR-less mode: a step skipped on purpose is not counted
-    const done = required.filter((x) => x.status === 'done').length;
-    this.set({ ...this.data, steps, done, total: required.length, ready: done === required.length && s.installation?.supported !== false, installation: s.installation ?? this.data.installation, next: required.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
+    const applicable = steps.filter((x) => x.status !== 'not_applicable'); // NVR-less mode: a step skipped on purpose is not counted
+    const done = applicable.filter((x) => x.status === 'done').length;
+    const installation = s.installation ?? this.data.installation;
+    const sum = summarizeSetup({ steps, installation }); // ready / next follow the REQUIRED steps only (optional ones never block)
+    this.set({ ...this.data, steps, done, total: applicable.length, ready: sum.ready, installation, next: sum.next, checked_at: s.checked_at, checked: id });
   }
 
   private checkAll() {
@@ -128,7 +142,7 @@ export class SystemWizard extends LitElement {
       ${d.steps.map((s) => html`<li class=${s.status} data-rail-step=${s.id} data-status=${s.status}>
         <button type="button" @click=${() => this.jump(s.id)} aria-label=${`${s.index}. ${s.title}: ${STATUS_TEXT[s.status]}`}>
           <span class="dot">${s.status === 'done' ? html`<sw-icon name="check" size=${13}></sw-icon>` : s.status === 'failed' ? '!' : s.index}</span>
-          <span class="lbl">${s.title}</span>
+          <span class="lbl">${s.title}${isOptionalStep(s) ? html` <small class="opt">· ${SETUP_HINT_TEXT.optional}</small>` : nothing}</span>
         </button>
       </li>`)}
     </ol>`;
@@ -147,20 +161,22 @@ export class SystemWizard extends LitElement {
 
   private renderProgress(d: SetupState) {
     const skipped = d.steps.filter((s) => s.status === 'not_applicable').length;
-    if (d.ready && d.mode === 'ha_only') {
+    const sum = summarizeSetup(d);
+    const optionalOpen = d.steps.filter((s) => isOptionalStep(s) && s.status !== 'not_applicable' && s.status !== 'done').length;
+    if (sum.ready && d.mode === 'ha_only') {
       return html`<div class="summary ready" role="status" data-wizard-ready data-wizard-mode="ha_only">
         <span class="big"><sw-icon name="check" size=${22}></sw-icon></span>
-        <div class="txt"><b>מוכן לעבודה</b><span>כל ${d.total} השלבים הנדרשים עברו · ${skipped} דולגו (מצב ללא NVR) · נבדק ${when(d.checked_at)}</span></div>
+        <div class="txt"><b>מוכן לעבודה</b><span>כל ${sum.total} השלבים הנדרשים עברו · ${skipped} דולגו (מצב ללא NVR)${optionalOpen ? ` · ${optionalOpen} אופציונליים` : ''} · נבדק ${when(d.checked_at)}</span></div>
         <div class="go">
           <sw-button size="sm" variant="primary" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>למפה</sw-button>
           <sw-button size="sm" icon="bolt" @click=${() => (window.location.hash = '#/devices/building')}>לחשמל והתקנים</sw-button>
         </div>
       </div>`;
     }
-    if (d.ready) {
+    if (sum.ready) {
       return html`<div class="summary ready" role="status" data-wizard-ready>
         <span class="big"><sw-icon name="check" size=${22}></sw-icon></span>
-        <div class="txt"><b>מוכן לעבודה</b><span>${skipped ? `כל ${d.total} השלבים הנדרשים עברו · ${skipped} דולגו` : 'כל ששת השלבים עברו'} · נבדק ${when(d.checked_at)}</span></div>
+        <div class="txt"><b>מוכן לעבודה</b><span>${skipped || optionalOpen ? `כל ${sum.total} השלבים הנדרשים עברו${skipped ? ` · ${skipped} דולגו` : ''}${optionalOpen ? ` · ${optionalOpen} אופציונליים נותרו` : ''}` : 'כל ששת השלבים עברו'} · נבדק ${when(d.checked_at)}</span></div>
         <div class="go">
           <sw-button size="sm" variant="primary" icon="live" @click=${() => (window.location.hash = '#/live/wall')}>לכל המצלמות</sw-button>
           <sw-button size="sm" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>למפה</sw-button>
@@ -168,13 +184,20 @@ export class SystemWizard extends LitElement {
         </div>
       </div>`;
     }
-    const next = d.steps.find((s) => s.id === d.next);
+    const next = d.steps.find((s) => s.id === sum.next);
     const failed = d.steps.filter((s) => s.status === 'failed').length;
     return html`<div class="summary" role="status" data-wizard-progress>
-      <span class="count"><b>${d.done}</b>/${d.total}</span>
-      <div class="txt"><b>${d.done} מתוך ${d.total} שלבים הושלמו${failed ? ` · ${failed} נכשלו` : ''}${skipped ? ` · ${skipped} דולגו${d.mode === 'ha_only' ? ' (מצב ללא NVR)' : ''}` : ''}</b>${next ? html`<span>השלב הבא: ${next.index}. ${next.title} — ${b(next.summary)}</span>` : nothing}</div>
+      <span class="count"><b>${sum.done}</b>/${sum.total}</span>
+      <div class="txt"><b>${sum.done} מתוך ${sum.total} שלבים הושלמו${failed ? ` · ${failed} נכשלו` : ''}${skipped ? ` · ${skipped} דולגו${d.mode === 'ha_only' ? ' (מצב ללא NVR)' : ''}` : ''}</b>${next ? html`<span>השלב הבא: ${next.index}. ${next.title} — ${b(next.summary)}</span>` : nothing}</div>
       ${next ? html`<div class="go"><sw-button size="sm" variant="primary" @click=${() => this.jump(next.id)}>לשלב ${next.index}</sw-button></div>` : nothing}
+      ${this.renderRestore()}
     </div>`;
+  }
+
+  /** TKWIZHINT: the way back after "הסתר את ההתראה" - the shell's hint comes back at once. */
+  private renderRestore() {
+    if (!currentDismissal()) return nothing;
+    return html`<div class="go"><sw-button size="sm" variant="ghost" icon="info" data-setup-hint-restore @click=${() => void restoreHint()}>${SETUP_HINT_TEXT.show}</sw-button></div>`;
   }
 
   private renderStep(s: SetupStep) {
@@ -184,7 +207,7 @@ export class SystemWizard extends LitElement {
       <header>
         <span class="num">${s.index}</span>
         <div class="head">
-          <h3 id=${`h-${s.id}`}>${s.title}</h3>
+          <h3 id=${`h-${s.id}`}>${s.title}${isOptionalStep(s) ? html` <small class="opt" data-step-optional>(${SETUP_HINT_TEXT.optional})</small>` : nothing}</h3>
           <span class="meta">${SOURCE_TEXT[s.source]}${s.checked_at ? ` · ${when(s.checked_at)}` : ''}</span>
         </div>
         <span class="pill ${s.status}" data-step-status><sw-icon name=${STATUS_ICON[s.status] as 'check'} size=${13}></sw-icon>${s.status_label ?? STATUS_TEXT[s.status]}</span>
@@ -321,6 +344,11 @@ export class SystemWizard extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       max-inline-size: 100%;
+    }
+    .opt {
+      font-weight: 400;
+      opacity: 0.75;
+      font-size: 0.85em;
     }
     .summary {
       display: flex;
