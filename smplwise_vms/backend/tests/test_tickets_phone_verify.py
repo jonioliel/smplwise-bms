@@ -352,3 +352,38 @@ def test_notifications_to_a_users_number_wait_for_the_code_while_verification_is
     assert env.c.post(f"{API}/tickets/me/phone-verify/check", json={"code": code}, headers=env.h("tom")).status_code == 200
     with env.s4.db.connection(mode="read") as conn:
         assert wa.resolve_number(conn, "dev-tom").consent == "granted"
+
+
+# ---------------------------------------------------------------- release 2.6.3, delta review N-1 (lead decision): staff rows are stricter
+
+
+def _tom_member(env) -> dict:
+    depts = env.c.get(f"{API}/tickets/admin/departments").json()["departments"]
+    return next(m for d in depts for m in d["members"] if m["id"] == "dev-tom")
+
+
+def test_n1_a_tickets_configurer_cannot_mark_a_staff_members_number(env, settings):
+    from conftest import bind
+
+    bind(env.c, settings, "ruth", "tickets_configure", "installation", "*")
+    assert set_mobile(env, "tom", TOM_PHONE).status_code == 200
+    tom = _tom_member(env)
+    r = env.c.post(f"{CONTACTS}/{tom['contact_id']}/phone-confirm", json={"confirm": tom["mobile_confirm"]}, headers=env.h("ruth"))
+    assert r.status_code == 403, r.text
+    assert mine(env, "tom")["confirmed"] is False, "the staff links still wait for the user's own confirmation"
+    denied = [a for a in audits(env, "ticket.contact.phone_confirm") if a["decision"] == "denied"]
+    assert denied and denied[-1]["reason"] == "staff_needs_system_configure"
+    # a vendor / contact row keeps the tickets.configure mark (as built)
+    c = contact(env)
+    r = env.c.post(f"{CONTACTS}/{c['id']}/phone-confirm", json={"confirm": c["phone_confirm_token"]}, headers=env.h("ruth"))
+    assert r.status_code == 200 and r.json()["confirmed_via"] == "manager", r.text
+
+
+def test_n1_the_persons_own_switch_blocks_the_mark_even_for_a_system_administrator(env):
+    require_installation(env, False)
+    assert set_mobile(env, "tom", TOM_PHONE, phone_verify=True).status_code == 200
+    tom = _tom_member(env)
+    token = tom["mobile_confirm"] or "a" * 16
+    r = env.c.post(f"{CONTACTS}/{tom['contact_id']}/phone-confirm", json={"confirm": token})
+    assert r.status_code == 409 and r.json()["code"] == "code_required", r.text
+    assert mine(env, "tom")["confirmed"] is False

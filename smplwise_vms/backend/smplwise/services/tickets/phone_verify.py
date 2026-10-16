@@ -46,7 +46,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from ...errors import ApiError
-from ...rbac import INSTALLATION, require
+from ...rbac import INSTALLATION, authorize, require
 from . import access, codes as codes_mod, handler_links, settings_doc, store_links
 from .access import Viewer, text
 from .keyring import KEYS
@@ -340,6 +340,19 @@ def manager_confirm(conn, viewer: Viewer, contact_id: str, body: Any, rid: str |
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "confirm", "code": "type"}]})
     if not row.get("phone_e164"):
         raise ApiError(409, "no_number", text(conn, "לא הוגדר מספר."))
+    if row.get("user_id"):
+        # delta review N-1 (2.6.3, lead decision - the stricter option): a STAFF row (linked to a user) decides where that user's
+        # no-login staff links go, so marking its number needs system.configure (tickets.configure alone could point them at any
+        # number), and the person's own "verify with a code" switch is never bypassed (checked below, also when the installation
+        # switch is off). Vendor / contact rows keep tickets.configure.
+        if row.get("phone_verify"):
+            audit(conn, actor=viewer.principal, action="ticket.contact.phone_confirm", decision="denied", resource_type="ticket_contact",
+                  resource_id=row["id"], reason="code_required", request_id=rid)
+            raise ApiError(409, "code_required", text(conn, "אימות המספר בקוד פעיל: המספר ייחשב מאושר רק אחרי הקלדת הקוד שנשלח אליו."))
+        if not authorize(conn, viewer.principal, "system.configure", INSTALLATION).allowed:
+            audit(conn, actor=viewer.principal, action="ticket.contact.phone_confirm", decision="denied", resource_type="ticket_contact",
+                  resource_id=row["id"], reason="staff_needs_system_configure", request_id=rid)
+            raise ApiError(403, "forbidden", text(conn, "אישור הנייד של משתמש מחייב הרשאת מנהל מערכת. המשתמש יכול לאשר בעצמו בתפריט החשבון שלי."))
     if required(conn, row):
         audit(conn, actor=viewer.principal, action="ticket.contact.phone_confirm", decision="denied", resource_type="ticket_contact",
               resource_id=row["id"], reason="code_required", request_id=rid)
