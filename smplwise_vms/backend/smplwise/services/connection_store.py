@@ -417,6 +417,8 @@ def import_legacy(conn: sqlite3.Connection, settings: Settings) -> bool:
         log.warning("the NVR connection of the add-on options was not imported (the host or a port is not valid); the options stay in use")
         return False
     username = settings.nvr_user if _from_options(settings, "nvr_username") else None
+    # TKSECRETS1: nvr_password is no longer an add-on option (load_settings never lists it in nvr_option_keys), so a first-run import
+    # carries no password; the operator enters it in the NVR connection screen, where it is stored encrypted.
     password = settings.nvr_password if _from_options(settings, "nvr_password") else None
     try:
         write_row(conn, settings, vendor=DEFAULT_VENDOR, host=host, http_port=http_port, rtsp_port=rtsp_port,

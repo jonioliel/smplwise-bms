@@ -92,7 +92,8 @@ def test_load_settings_without_nvr_options(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "Path", lambda p: real_path(opts) if str(p) == "/data/options.json" else real_path(p))
     addon = load_settings("/data/options.json")
     assert addon.nvr_host is None and installation_mode(addon) == HA_ONLY
-    opts.write_text('{"nvr_host": "nvr.local", "nvr_username": "v", "nvr_password": "p"}', encoding="utf-8")
+    opts.write_text('{"nvr_host": "nvr.local", "nvr_username": "v"}', encoding="utf-8")
+    monkeypatch.setenv("NVR_PASSWORD", "p")  # TKSECRETS1: nvr_password is no longer an add-on option; the password is stored encrypted
     assert installation_mode(load_settings("/data/options.json")) == FULL
 
 
