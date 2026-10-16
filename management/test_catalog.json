@@ -9603,5 +9603,50 @@
     "expected": "Service management 2.5.8: assignable staff, the vendor account screen, the staff link, the WhatsApp notification channel (OFF by default), the handler-page path and the TK251 remainder work, the migration 0087 applies: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/258."
+  },
+  {
+    "id": "AT-USR2-1",
+    "requirement_ids": [
+      "R-USR2-1"
+    ],
+    "task_ids": [
+      "USR2-P1"
+    ],
+    "title": "USR2 P0+P1: Arx-only identities - negative-first fixture tests",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device, no Home Assistant"
+    ],
+    "procedure": [
+      "backend tests/test_local_identity.py, tests/test_local_identity_units.py (and the touched suites: test_remote_access, test_remote_hardening, test_remote_auth_first, test_second_factor*, test_access, test_rbac*, test_custom_roles, test_backup, test_migrations, test_body_limit, test_alarm)",
+      "frontend tests/unit-arx-local-login.spec.ts (--project=desktop)"
+    ],
+    "expected": "Every listed test passes on the branch; with the switch off the HA sign-in answers are unchanged.",
+    "status": "NOT_RUN",
+    "notes": "Run by the lead's tier-M gate after integration (P1 asks for a tier-L gate at the end of the phase)."
+  },
+  {
+    "id": "AT-USR2-2",
+    "requirement_ids": [
+      "R-USR2-2"
+    ],
+    "task_ids": [
+      "USR2-P1"
+    ],
+    "title": "USR2 P1 on a real installation: tunnel sign-in, phone-app cookie lifetime, hash cost",
+    "kind": "hardware/manual",
+    "preconditions": [
+      "The owner's installation with remote access on and security.local_identity switched on by the owner",
+      "A real Android phone with the app and an iPhone with the shell"
+    ],
+    "procedure": [
+      "Sign in as an Arx-only user through the real tunnel; check the audit row's masked address and that X-Forwarded-Proto is https",
+      "Restart the phone apps over several days; the session cookie keeps the sign-in until its lifetime",
+      "Measure one sign-in's hash time and memory on the host (choose the profile from the measurement)"
+    ],
+    "expected": "Sign-in works through the tunnel, the apps keep the session, one hash stays well under a second within the memory budget.",
+    "status": "NOT_RUN",
+    "notes": "Needs the real installation and devices; not run by the agent."
   }
 ]
