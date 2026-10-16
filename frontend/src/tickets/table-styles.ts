@@ -320,6 +320,28 @@ export const ticketTableStyles = css`
     color: var(--dv-text-3);
     margin-block-start: 2px;
   }
+  /* TKUI4: the sentence column - what is happening, in the drawer's words; two lines at most */
+  th.c-sentence,
+  td.c-sentence {
+    min-inline-size: 240px;
+  }
+  td.c-sentence .cv {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    max-inline-size: 360px;
+    color: var(--dv-text);
+  }
+  :host([data-density='compact']) td.c-sentence .cv {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  td .chip .subst {
+    font-weight: 600;
+    opacity: 0.85;
+  }
   td.c-number {
     color: var(--dv-text-2);
     font-variant-numeric: tabular-nums;
@@ -393,10 +415,11 @@ export const ticketTableStyles = css`
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    margin-block-end: 12px;
     border-radius: var(--sw-r-2xl);
-    background: var(--dv-accent-soft);
+    /* TKUI4: the bar floats over the rows (sticky at the bottom of the screen), so its fill is opaque under the accent tint */
+    background: linear-gradient(var(--dv-accent-soft), var(--dv-accent-soft)), var(--dv-surface-solid);
     border: 1px solid color-mix(in srgb, var(--dv-accent) 35%, transparent);
+    box-shadow: var(--dv-shadow-2);
   }
   .bulk .sel {
     display: inline-flex;
@@ -422,7 +445,7 @@ export const ticketTableStyles = css`
   .cl a.ci {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: 't s' 'm a';
+    grid-template-areas: 't s' 'x x' 'm a';
     align-items: center;
     gap: 4px 10px;
     min-block-size: 56px;
@@ -450,6 +473,20 @@ export const ticketTableStyles = css`
     font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
     font-variant-numeric: tabular-nums;
+  }
+  .cl .ci-x {
+    grid-area: x;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--sw-fs-base);
+    line-height: 1.45;
+    color: var(--dv-text);
+  }
+  :host([data-density='compact']) .cl .ci-x {
+    display: none;
   }
   .cl .ci-s {
     grid-area: s;

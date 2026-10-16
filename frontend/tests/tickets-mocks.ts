@@ -227,6 +227,25 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
         .sort((a, b) => a.hours - b.hours);
       return json(route, { items: list.map(item), next_cursor: null });
     }
+    // TKUI4: the counts of the list's page frame (GET tickets/facets: per state group, per department, the total) over the same visible set as the list
+    if (p === 'tickets/facets' && method === 'GET') {
+      if (!perms.includes('tickets.view')) return err(route, 403, 'forbidden', 'אין הרשאה');
+      const dept = url.searchParams.get('department_id');
+      const q = (url.searchParams.get('q') ?? '').trim();
+      const scope = url.searchParams.get('scope') ?? 'visible';
+      const status = url.searchParams.get('status') ?? 'all';
+      const base = rows
+        .filter((r) => !dept || r.dept === dept)
+        .filter((r) => !q || r.title.includes(q) || String(r.number) === q.replace(/^#/, ''))
+        .filter((r) => scope !== 'department' || r.dept === 'dept-maintenance');
+      const inState = base.filter((r) => status === 'all' || (GROUPS[status] ?? [status]).includes(r.status));
+      const departments: Record<string, number> = {};
+      for (const r of inState) departments[r.dept] = (departments[r.dept] ?? 0) + 1;
+      return json(route, {
+        status: {}, groups: Object.fromEntries(Object.entries(GROUPS).map(([g, sts]) => [g, base.filter((r) => sts.includes(r.status)).length])),
+        departments, stuck: {}, waiting: 0, tree: [], total: inState.length, truncated: false,
+      });
+    }
     if (p === 'tickets' && method === 'POST') {
       const b = body as { title: string; description?: string; department_id: string; priority_id?: string; category_id?: string };
       const r: Row = { id: `00000000000${String(rows.length + 100).padStart(5, '0')}`, number: 1050 + rows.length, title: b.title, description: b.description ?? '', status: 'new', dept: b.department_id, cat: b.category_id ?? null, prio: (b.priority_id ?? 'x-normal').split('-').pop() ?? 'normal', hours: 0, assignee: null };

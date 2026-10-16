@@ -14,7 +14,12 @@ import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type Handler, type Meta, type TicketDetail, type TicketStatus } from '../api/tickets';
 import { assigneeRef, handlersOf, holdersOf, holds } from '../tickets/assignee-model';
 import { boardPrefs, saveBoardPrefs, tableApi, type BulkAnswer, type ColumnKey, type SavedView, type TableRow } from '../api/tickets-table';
-import { chipLabel, menuMoves, priorityTone, relTime, statusLabel, statusTone } from '../tickets/model';
+import { chipLabel, menuMoves, priorityTone, relTime, statusLabel } from '../tickets/model';
+import { roleFor, rowSentence } from '../tickets/list-card-model';
+import { statusChip as chipOf } from '../tickets/status-sentence';
+import { lt } from '../tickets/list-text';
+import '../tickets/elapsed-clock';
+import { readSentenceOn, writeSentenceOn } from '../tickets/list-prefs';
 import {
   activeExtraCount, ageText, applyView, ariaSort, bulkSummary, columnLabel, keepAfterBulk, layoutFromPrefs, nextIndex, NO_TABLE_FILTERS, pageState, queryParams,
   rangeSelect, slaText, sortMark, sortText, stuckText, tableFilters, toggleOne, togglePage, toggleSort, viewDoc, type BaseFilters, type ExtraFilters, type TableLayout,
@@ -83,6 +88,8 @@ export class TicketsTable extends LitElement {
   @state() private now = new Date();
   @state() private exporting = false;
   @state() private defaultView = '';
+  /** TKUI4: the "what is happening" column (the status sentence); a client-only choice, kept in this browser */
+  @state() private sentenceOn = readSentenceOn();
   private anchor: string | null = null;
   private seq = 0;
   private pages = 0;
@@ -104,6 +111,14 @@ export class TicketsTable extends LitElement {
     }
     .statebox {
       padding-block: 40px;
+    }
+    /* TKUI4: the bulk bar floats at the bottom of the screen over the rows (sticky: the selection is always one tap from its actions) */
+    tickets-table-bulk {
+      display: block;
+      position: sticky;
+      inset-block-end: 16px;
+      z-index: 12;
+      margin-block-start: 12px;
     }
   `];
 
@@ -491,9 +506,28 @@ export class TicketsTable extends LitElement {
   // ---------------------------------------------------------------- render: cells
 
   private statusChip(s: TicketStatus): TemplateResult {
-    const tone = statusTone(s);
-    return html`<span class=${`chip ${tone}`}><i class=${`dot ${tone === 'ok' ? 'ok' : tone === 'info' ? 'run' : ''}`}></i>${chipLabel(s)}</span>`;
+    const c = chipOf({ status: s });
+    return html`<span class=${`chip ${c.tone}`} aria-label=${c.text}><i class=${`dot ${c.tone === 'ok' ? 'ok' : c.tone === 'info' ? 'run' : ''}`}></i>${c.label}${c.sub ? html`<span class="subst"> · ${c.sub}</span>` : nothing}</span>`;
   }
+
+  /** TKUI4: the sentence cell - the drawer's own words for this row, resolved for the reader (the role of the row's department). */
+  private sentenceOf(r: TableRow): string {
+    return rowSentence(r, roleFor(r, this.meta), this.now, !isApi() || can('tickets.costs'));
+  }
+
+  /** The shown columns: the sentence follows the title when it is on (a client-only column - the server knows nothing about it). */
+  private shownColumns(): (ColumnKey | 'sentence')[] {
+    if (!this.sentenceOn || this.phone) return this.layout.columns;
+    const i = this.layout.columns.indexOf('title');
+    const cols: (ColumnKey | 'sentence')[] = [...this.layout.columns];
+    cols.splice(i < 0 ? 0 : i + 1, 0, 'sentence');
+    return cols;
+  }
+
+  private onSentenceToggle = (e: CustomEvent<{ on: boolean }>) => {
+    this.sentenceOn = e.detail.on;
+    writeSentenceOn(e.detail.on);
+  };
 
   private cell(r: TableRow, c: ColumnKey): TemplateResult {
     switch (c) {
@@ -528,7 +562,7 @@ export class TicketsTable extends LitElement {
       case 'device':
         return html`<td><span class="cv">${r.device_name ? bidi(r.device_name) : ''}</span></td>`;
       case 'created':
-        return html`<td class="c-created">${ageText(r, this.now)}</td>`;
+        return html`<td class="c-created"><ticket-elapsed .item=${r} data-row-elapsed></ticket-elapsed></td>`;
       case 'activity':
         return html`<td class="c-activity">${relTime(r.last_activity_at, this.now)}</td>`;
       case 'stuck':
@@ -553,7 +587,8 @@ export class TicketsTable extends LitElement {
     return html`<thead><tr>
       ${this.canSelect() ? html`<th class="ck" scope="col"><label class="ckb"><span class="vh">${tbt('selectPage')}</span><input type="checkbox" data-select-page .checked=${ps === 'all'} .indeterminate=${ps === 'some'}
         @change=${() => { this.selected = togglePage(ids, this.selected); }} /></label></th>` : nothing}
-      ${this.layout.columns.map((c) => {
+      ${this.shownColumns().map((c) => {
+        if (c === 'sentence') return html`<th scope="col" class="c-sentence" data-col="sentence">${lt('ltSentence')}</th>`;
         const mark = sortMark(sort, c);
         return html`<th scope="col" aria-sort=${ariaSort(sort, c)} data-col=${c}>
           <button type="button" class=${`sh${mark && mark.order > 1 ? ' second' : ''}`} data-sort=${c} aria-label=${tbt('sortBy', { col: columnLabel(c) })}
@@ -592,7 +627,7 @@ export class TicketsTable extends LitElement {
               tabindex=${this.focusIdx === i || (this.focusIdx < 0 && i === 0) ? '0' : '-1'} @focus=${() => (this.focusIdx = i)} @click=${(e: MouseEvent) => this.onRowClick(e, r)}>
             ${select ? html`<td class="ck"><label class="ckb"><span class="vh">${tbt('selectRow', { n: r.number })}</span><input type="checkbox" tabindex="-1" data-select=${r.id} .checked=${sel}
               @click=${(e: MouseEvent) => this.onCheck(e, r.id)} /></label></td>` : nothing}
-            ${this.layout.columns.map((c) => this.cell(r, c))}
+            ${this.shownColumns().map((c) => (c === 'sentence' ? html`<td class="c-sentence"><span class="cv" title=${this.sentenceOf(r)} data-row-sentence>${this.sentenceOf(r)}</span></td>` : this.cell(r, c)))}
           </tr>`;
         })}</tbody>
       </table>
@@ -606,6 +641,7 @@ export class TicketsTable extends LitElement {
       ${repeat(rows, (r) => r.id, (r) => html`<a class="ci" href=${this.hrefOf(r.id)} data-row=${r.id} data-status=${r.status}>
         <span class="ci-t">${r.title}</span>
         <span class="ci-s">${this.statusChip(r.status)}</span>
+        <span class="ci-x" data-row-sentence>${this.sentenceOf(r)}</span>
         <span class="ci-m">#${r.number}${r.assignee?.name ? html` · ${bidi(r.assignee.name)}` : nothing}</span>
         <span class="ci-a">${ageText(r, this.now)}</span>
       </a>`)}
@@ -639,15 +675,15 @@ export class TicketsTable extends LitElement {
     const picked = rows.filter((r) => this.selected.has(r.id));
     const showBulk = this.canSelect() && picked.length > 0;
     return html`<div data-screen="tickets-table" data-view="table">
-      ${showBulk
-        ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} @bulk-done=${this.onBulkDone} @ticket-deleted=${this.onOneDeleted} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>`
-        : html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .holders=${holdersOf(rows)} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
+      ${html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .holders=${holdersOf(rows)} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
             .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView}
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
             @view-apply=${(e: CustomEvent<{ view: SavedView }>) => this.applySaved(e.detail.view)} @default-view=${(e: CustomEvent<{ id: string | null }>) => (this.defaultView = e.detail.id ?? '')}
+            .sentence=${this.sentenceOn} @sentence-change=${this.onSentenceToggle}
             @export-csv=${() => void this.exportCsv()}></tickets-table-toolbar>`}
       ${this.toast ? html`<div class=${`banner toast ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-table-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div><b>${this.toast.head}</b>${this.toast.rest ? html`<small>${this.toast.rest}</small>` : nothing}</div></div>` : nothing}
       ${this.body()}
+      ${showBulk ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} @bulk-done=${this.onBulkDone} @ticket-deleted=${this.onOneDeleted} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>` : nothing}
     </div>
     ${this.cellMenu()}
     ${this.move ? html`<sw-dialog open heading=${tbt('moveTitle', { status: statusLabel(this.move.to) })} data-dialog="table-move" @close=${() => (this.move = null)}>

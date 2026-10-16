@@ -53,8 +53,11 @@ test.describe('tickets board evidence', () => {
     await expect(page.locator(`${B} [data-state-strip] [data-state="all"] small`)).toHaveText('9');
     await expect(page.locator(`${B} [data-state-strip] [data-state="closed"]`)).toContainText('סגורות (הכול)');
     await expect(page.locator(`${B} [data-stuck-banner]`)).toContainText('2 תקועות');
-    await expect(page.locator(`${B} [data-section="stuck"] [data-chip="stuck"]`)).toContainText('תקועה · ללא עדכון');
-    await expect(page.locator(`${B} [data-section="waiting"] [data-chip="waiting"]`).first()).toBeVisible();
+    // TKUI4 (v5): the board card shows the ONE ranked warning line instead of its chips (never both)
+    await expect(page.locator(`${B} [data-section="stuck"] [data-card-warning="stuck"]`)).toContainText('ללא עדכון');
+    await expect(page.locator(`${B} [data-section="stuck"] [data-card-warning="stuck"]`)).toContainText('נשלחו 2 תזכורות');
+    await expect(page.locator(`${B} [data-section="waiting"] [data-card-warning]`).first()).toBeVisible();
+    await expect(page.locator(`${B} [data-section="stuck"] [data-card-chips]`)).toHaveCount(0);
     if (!isPhone(page)) {
       await expect(page.locator(`${B} ticket-board-tree`)).toBeVisible();
       await expect(page.locator(`${B} ticket-board-tree [data-place=""] .n`)).toHaveText('9');
