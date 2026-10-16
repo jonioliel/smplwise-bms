@@ -7,7 +7,8 @@ Secrets (CR-022 section 3, the narrow owner-approved exception to DEPENDENCY_AND
   `v1:<base64(nonce|ciphertext|tag)>`;
 - the key is 32 random bytes in its own file `<data>/keys/connections.key` (mode 0600 in a 0700 directory, created
   atomically: a temporary file hard-linked into place, so the loser of a creation race reads the winner's key), not shared
-  with the alarm-code key; `keys/` never enters an Arx backup (services/backup._rel) and the table is not a backup table;
+  with the alarm-code key; `keys/` never enters an ARX backup (services/backup._rel) and the table is not a backup table - but a Home Assistant add-on backup
+  contains the key file AND the database together (delta review S-6);
 - the plaintext exists only inside `load_effective` (start-up) and inside the connection test of one request; no function
   here logs, audits, raises or returns it. Errors are fixed text (`SecretError`).
 Honest limit (section 3.3): the key lives beside the database, so this protects a leaked database file or Arx backup,

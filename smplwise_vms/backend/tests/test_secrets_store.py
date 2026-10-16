@@ -349,7 +349,9 @@ def test_the_wiskey_test_uses_the_shared_account_on_a_station_without_its_own(se
             raise ApiError(503, "snapshot_unavailable", "x")
         return b"\xff\xd8\xff"
 
+    deleted: list[str] = []
     monkeypatch.setattr(g2.Go2rtc, "frame_jpeg", fake_frame)
+    monkeypatch.setattr(g2.Go2rtc, "delete_stream", lambda self, name: deleted.append(name))
     s = dataclasses.replace(settings, go2rtc_url="http://go2rtc.test:1984", wiskey_user="door")
     app = create_app(s)
     with Database(s.db_path).connection() as conn:  # the gate has its own account: the shared one is tested on the lobby
@@ -359,5 +361,7 @@ def test_the_wiskey_test_uses_the_shared_account_on_a_station_without_its_own(se
     assert r.json() == {"ok": False, "code": "station_failed"}
     r = client.post(f"{BASE}/wiskey_password/test", json={"value": VALUES["wiskey_password"]})
     assert r.json() == {"ok": True, "code": "ok"} and "wk-" not in r.text
-    assert all(name == g2.wiskey_stream_name("lobby") for name, _ in grabs)
+    # delta review S-4: a throwaway stream in our namespace, never the live station stream, deleted after every test
+    assert all(name.startswith("smplwise_wiskey_probe_") and name != g2.wiskey_stream_name("lobby") for name, _ in grabs)
+    assert len({name for name, _ in grabs}) == len(grabs) == len(deleted) and deleted == [name for name, _ in grabs]
     assert grabs[-1][1].startswith("rtsp://door:")

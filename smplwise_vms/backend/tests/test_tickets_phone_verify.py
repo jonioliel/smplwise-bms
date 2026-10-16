@@ -387,3 +387,89 @@ def test_n1_the_persons_own_switch_blocks_the_mark_even_for_a_system_administrat
     r = env.c.post(f"{CONTACTS}/{tom['contact_id']}/phone-confirm", json={"confirm": token})
     assert r.status_code == 409 and r.json()["code"] == "code_required", r.text
     assert mine(env, "tom")["confirmed"] is False
+
+
+# ---------------------------------------------------------------- TKHARDEN: 2.6.3 delta review N-3, N-4, N-5
+
+
+def test_n3_switching_verification_on_stops_what_was_already_queued_with_a_visible_reason(env):
+    t = env.s4.ticket()
+    r = env.s4.assign_contact(t["id"])
+    assert r.status_code == 200 and r.json()["messages"][0]["channel"] == "whatsapp"
+    before = len(env.fake.calls)
+    require_installation(env)  # the owner turns verification on while the message is still queued
+    env.tick()
+    assert len(env.fake.calls) == before, "nothing leaves for a number nobody confirmed by code"
+    row = env.rows(t["id"])[0]
+    assert row.state == "not_sent" and row.outcome_code == "number_unverified", "visible end state with a reason, not a silent drop"
+    # the verification code itself still goes out (it is how the number gets verified)
+    assert send(env).status_code == 200
+    env.tick()
+    assert len(env.fake.calls) == before + 1 and "קוד לאימות מספר הטלפון" in env.fake.calls[-1]["data"]["message"]
+
+
+def test_n3_a_confirmed_number_still_gets_its_queued_message_after_the_switch_goes_on(env):
+    require_installation(env)
+    assert send(env).status_code == 200
+    env.tick()
+    assert check(env, code_of(env, env.s4.contact["id"])).status_code == 200
+    n = len(env.fake.calls)
+    t = env.s4.ticket(title="נורה שרופה")
+    assert env.s4.assign_contact(t["id"]).json()["messages"][0]["channel"] == "whatsapp"
+    env.tick()
+    assert len(env.fake.calls) == n + 1 and env.rows(t["id"])[0].state == "sent"
+
+
+def test_n4_the_persons_own_switch_fails_closed_for_a_number_from_another_source(env):
+    assert set_mobile(env, "tom", TOM_PHONE).status_code == 200
+    with env.s4.db.connection() as conn:
+        row = dict(mine_row_for(conn, "dev-tom"))
+        directory = row["phone_e164"]
+        assert phone_verify.installation_required(conn) is False
+        # a FAKE second source: a number that is not the directory row's
+        assert phone_verify.user_number_ok(conn, "dev-tom", "999111222333") is True, "switch off everywhere: unchanged"
+        conn.execute("UPDATE ticket_contacts SET phone_verify = 1 WHERE id = ?", (row["id"],))
+        assert phone_verify.user_number_ok(conn, "dev-tom", "999111222333") is False, "the per-person switch is on: a non-directory number is refused"
+        assert phone_verify.user_number_ok(conn, "dev-tom", directory.lstrip("+")) is False, "and the directory number waits for its code"
+    # a user with no directory row at all: only the installation switch can decide
+    with env.s4.db.connection() as conn:
+        assert phone_verify.user_number_ok(conn, "no-such-user", "999111222333") is True
+
+
+def mine_row_for(conn, user_id: str):
+    from smplwise.services.tickets import store_links
+
+    return store_links.contact_by_user(conn, user_id)
+
+
+def _seed_sends(env, n: int, *, by: str, actor: str, tag: str) -> None:
+    """n verification rows made `n` minutes-ish ago by `actor` (direct inserts: the per-row / per-number caps are not the subject)."""
+    import datetime as dt
+
+    now = phone_verify.handler_links.now_utc()
+    with env.s4.db.connection() as conn:
+        for i in range(n):
+            conn.execute("INSERT INTO ticket_phone_verifications(id, contact_id, phone_key, key_id, code_hash, requested_by, requester_id, created_at, expires_at, invalidated_at) "
+                         "VALUES (?,?,?,?,?,?,?,?,?,?)", (codes_mod.new_code_id(), env.s4.vendor["id"], f"{tag}{i}", "k", "h", by, actor,
+                                                        phone_verify._iso(now - dt.timedelta(minutes=5)), phone_verify._iso(now + dt.timedelta(minutes=5)),
+                                                        phone_verify._iso(now - dt.timedelta(minutes=4))))
+
+
+def test_n5_one_actor_is_capped_below_the_installation_cap(env):
+    assert phone_verify.PER_ACTOR_DAY < phone_verify.PER_INSTALLATION_MANAGER_DAY < phone_verify.PER_INSTALLATION_DAY
+    _seed_sends(env, phone_verify.PER_ACTOR_DAY, by="manager", actor="dev-joni", tag="a")
+    r = send(env)
+    assert r.status_code == 429 and r.json()["code"] == "code_rate_limited", "one actor used up its share"
+    # the installation as a whole is still open: another configurer-capable actor and the users' own path are unaffected
+    assert set_mobile(env, "tom", TOM_PHONE, caller="joni").status_code == 200
+    assert env.c.post(f"{API}/tickets/me/phone-verify/send", headers=env.h("tom")).status_code == 200
+
+
+def test_n5_configurers_together_cannot_take_the_share_reserved_for_users(env):
+    _seed_sends(env, phone_verify.PER_INSTALLATION_MANAGER_DAY, by="manager", actor="dev-mona", tag="b")
+    r = send(env)
+    assert r.status_code == 429 and r.json()["code"] == "code_rate_limited", "the configurer share of the installation cap is used up"
+    assert set_mobile(env, "tom", TOM_PHONE).status_code == 200
+    assert env.c.post(f"{API}/tickets/me/phone-verify/send", headers=env.h("tom")).status_code == 200, "a user verifying their own number still can"
+    _seed_sends(env, phone_verify.PER_INSTALLATION_DAY, by="self", actor="dev-x", tag="c")
+    assert env.c.post(f"{API}/tickets/me/phone-verify/send", headers=env.h("tom")).status_code == 429, "the installation cap itself still holds"

@@ -260,3 +260,71 @@ def test_status_shows_the_last_event_seen_and_staleness(world):
     assert stale["stale"] is True and stale["last_event_seen_at"] is None
     failed = fe.events_health(None, "nvr-1", {"last_poll_error": "source_unavailable"})  # type: ignore[arg-type]
     assert failed["stale"] is True
+
+
+# ---------------------------------------------------------------------------------------------- TKHARDEN (2.6.3 delta review F-1, F-3)
+
+def test_f3_review_trust_resets_on_a_websocket_reconnect_and_stale_reads_true_before_the_first_poll():
+    import threading
+    from types import SimpleNamespace
+
+    st = fe.FrigateState()
+    st.ws_review_frames = 7  # trust earned on an earlier connection
+    stop = threading.Event()
+    seen: list[int] = []
+
+    class Ws:
+        def __call__(self, url, **kw):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def recv(self, timeout=None):
+            seen.append(st.ws_review_frames)
+            stop.set()
+            raise TimeoutError
+
+    http = SimpleNamespace(websocket_url=lambda: "ws://x", websocket_headers=lambda: {}, websocket_ssl=lambda: None)
+    feed = fe.WsFeed(SimpleNamespace(recorder_id="r", http=http), __import__("queue").Queue(), stop, st, Ws())
+    feed.run()
+    assert seen == [0] and st.ws_review_frames == 0, "a fresh connection starts untrusted"
+    assert fe.poll_interval(fe.FrigateState(ws_state="connected", ws_review_frames=0), 10.0) == 10.0
+    # a started reader that has not completed a poll yet is stale, not healthy; a stopped one stays "unknown" (not stale)
+    assert fe.events_health(None, "r", {"loop_running": True})["stale"] is True  # type: ignore[arg-type]
+    assert fe.events_health(None, "r", {"loop_running": False})["stale"] is False  # type: ignore[arg-type]
+    fresh = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    assert fe.events_health(None, "r", {"loop_running": True, "last_poll_at": fresh, "poll_interval_s": 10})["stale"] is False  # type: ignore[arg-type]
+
+
+def test_f1_an_unreachable_frigate_is_retried_with_backoff_once_per_recorder_and_deletes_nothing(world, monkeypatch):
+    go, s = _on(world, monkeypatch)
+    with world.app.state.db.connection() as conn:
+        assert autosync.ensure_streams(s, conn, reason="manual")["created"] == 2
+    live = sorted(n for n in go.streams if n.startswith("smplwise_"))
+    assert live
+    fr.clear_cache()  # a restart: no discovery in memory
+    world.fake.down = True
+    calls: list[int] = []
+    orig = fr.FrigateAdapter.discover
+
+    def counting(self, *a, **kw):
+        calls.append(1)
+        return orig(self, *a, **kw)
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(fr.FrigateAdapter, "discover", counting)
+    monkeypatch.setattr(autosync.time, "sleep", lambda x: sleeps.append(x))
+    go.writes.clear()
+    with world.app.state.db.connection() as conn:
+        r = autosync.ensure_streams(s, conn, reason="startup")
+    assert len(calls) == len(autosync.FRIGATE_DISCOVERY_BACKOFF_S) == 3, "one discovery sequence for the recorder, not one per camera and profile"
+    assert sleeps == [2.0, 6.0]
+    assert r["removed"] == 0 and go.writes == [] and sorted(n for n in go.streams if n.startswith("smplwise_")) == live
+    # Frigate back: the same run works and a restream that really vanished is still removed
+    world.fake.down = False
+    with world.app.state.db.connection() as conn:
+        assert autosync.ensure_streams(s, conn, reason="startup")["unchanged"] == 2

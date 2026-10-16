@@ -83,10 +83,15 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      detected in app configuration"), so the secrets are entered in Arx instead: **הגדרות › חיבורים › סודות** (system
      administrator only; not reachable on the remote channel). Five of them: the go2rtc API password, the WisKey stations'
      camera password, the WisKey background token, the OpenAI API key and the push relay key. Each is stored encrypted
-     (AES-256-GCM with the installation's own key, the same as the NVR password; never in an Arx backup) and is write-only:
+     (AES-256-GCM with the installation's own key, the same as the NVR password; the key file is not in an Arx backup - but
+     a Home Assistant add-on backup contains BOTH the key file and the database, so anyone who can open an HA backup can read the
+     secrets) and is write-only:
      the screen shows only whether it is set, since when and by whom; "replace" and "clear" are audited without the value;
      "test connection" exists for the go2rtc password (the go2rtc API) and the WisKey password (one station camera through
-     go2rtc) and answers only an outcome. The go2rtc / WisKey values reach the background stream sync at the next add-on
+     go2rtc) and answers only an outcome. The WisKey test uses a throwaway `smplwise_wiskey_probe_*` stream that is deleted right
+     after and never touches the live station stream; go2rtc older than 1.9.14 writes a stream's whole source URL into its own log when it
+     is created, so on those versions the candidate password reaches go2rtc's log once per test (update go2rtc, or avoid testing a
+     candidate on a shared go2rtc). The go2rtc / WisKey values reach the background stream sync at the next add-on
      start (the screen says "restart required"); the OpenAI and push relay keys apply at once. **Upgrade:** on the first
      start of this version, a value still present in the old add-on options (`go2rtc_api_password`, `wiskey_password`,
      `wiskey_background_token`, `openai_api_key`, `push_relay_key`) is copied once into the encrypted store and the log names
@@ -190,6 +195,12 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   Frigate recorders: the write-class approvals, change log, profile mapping and per-user reviewed state are in the backup
   (since 2.2.1); review items and sync state are re-read from Frigate, and a restore never writes to Frigate. The
   second-factor secrets, the signing keys and the push-relay key are not part of an Arx backup.
+  Frigate live video (TKFRIGLIVE): with the recorder extra `restream_auth` = `account` the Frigate account's user AND password go
+  into the RTSP URL of the `smplwise_` stream, i.e. over RTSP on the LAN (go2rtc may authenticate with Basic, which is cleartext) and
+  into go2rtc's in-memory stream source, which anyone who can reach go2rtc's `GET /api/streams` can read and which go2rtc older than
+  1.9.14 also writes to its log when the stream is created - the same model as the NVR sources. It is off by default (`none`), and
+  turning it on needs the password typed again. Prefer a Frigate go2rtc without credentials on a trusted LAN, or a dedicated
+  read-only Frigate account for this.
 - Rollback after a bad upgrade: install the previous version from Home Assistant, then restore the
   "לפני עדכון" backup with "החלפה".
 

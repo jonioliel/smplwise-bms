@@ -130,8 +130,10 @@ class DbDirectory:
         if row is None or row.get("erased_at"):
             return None
         lang = row.get("lang") if row.get("lang") in LANGS else "he"
+        with self.io.read() as conn:
+            blocked = not _verified_for_whatsapp(conn, row)  # N-3: re-checked at send time, not only when the message was planned
         return Recipient(contact_id=row["id"], display_name=row.get("display_name") or "", lang=lang, phone=row.get("phone_e164"),
-                         email=row.get("email") or None, user_id=row.get("user_id"), opted_out=False)
+                         email=row.get("email") or None, user_id=row.get("user_id"), opted_out=False, whatsapp_blocked=blocked)
 
 
 class DbLinks:

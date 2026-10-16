@@ -158,6 +158,9 @@ class Recipient:
     email: str | None = field(default=None, repr=False)
     user_id: str | None = None  # set when the directory row belongs to an internal user (9.6 step 7)
     opted_out: bool = False
+    # TKHARDEN (delta review N-3): number verification is required for this row and its number was not confirmed by code - computed by
+    # the directory AT SEND TIME, so switching verification on also stops what was queued or held before the switch.
+    whatsapp_blocked: bool = False
 
 
 @dataclass(frozen=True)

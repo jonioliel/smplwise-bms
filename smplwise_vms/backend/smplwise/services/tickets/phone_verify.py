@@ -3,7 +3,7 @@ one-time code sent to that number and typed back. OFF by default and never manda
 
 Why: anyone holding `tickets.configure` can set the mobile of a vendor, a contact or a staff member (and through the directory, the
 number NOTIFWA notifications resolve to). With verification on, a number counts as confirmed only once the code that went to it was
-typed back, so a mistyped or hostile number never receives links or notifications.
+typed back, so a mistyped number, or one that belongs to a stranger, never receives links or notifications. It does NOT stop a dishonest configurer: for a vendor / contact the configurer who set the number also types the code, so a number of their own that they can read passes (delta review N-2). Insider resistance would need the vendor to type the code himself on the public handler page.
 
 Switches (raise only, like `require_code`):
 - the installation: `tickets.settings.phone_verify.required` (default False, edited with the channel settings, system.configure);
@@ -32,8 +32,8 @@ Who types the code:
 Code rules: 6 digits (codes.derive_code from a 128-bit row id under the module key - the W9 pattern: the outbox renders the message
 from the row id, the digits are never stored, queued, logged or audited); stored as HMAC-SHA256(k_tickets, 'pv|' id | phone_key |
 code); bound to the number (`phone_key`) and the row; valid 10 minutes; single use; one live code per row (a new one ends the old);
-5 wrong guesses end the code; at most 1 send per 60 s and 5 per day per row, 5 per day per number (across rows) and 50 per day per
-installation. Refusals are uniform: every failed check answers the same 422 `code_invalid`, every send cap the same 429
+5 wrong guesses end the code; at most 1 send per 60 s and 5 per day per row, 5 per day per number (across rows), 10 per day per requesting
+actor and 50 per day per installation (at most 30 of them by configurers - the rest is reserved for people verifying their own number). Refusals are uniform: every failed check answers the same 422 `code_invalid`, every send cap the same 429
 `code_rate_limited`. The message is the fixed `phone_verify` starter (message_templates.FIXED_PURPOSES), WhatsApp only, never held
 by the send hours, never a fallback channel."""
 from __future__ import annotations
@@ -59,6 +59,11 @@ COOLDOWN = dt.timedelta(seconds=60)
 PER_ROW_DAY = 5
 PER_NUMBER_DAY = 5
 PER_INSTALLATION_DAY = 50
+# delta review N-5 (TKHARDEN): one actor must not be able to use up the installation cap for everybody. A sub-cap per requesting actor,
+# and the configurer path (`by = manager`) may use only part of the installation cap - the rest is reserved for people verifying their
+# OWN number. (Viewer carries no client address, so the actor is the signed-in user; the answer stays the same uniform 429.)
+PER_ACTOR_DAY = 10
+PER_INSTALLATION_MANAGER_DAY = 30
 KEEP = dt.timedelta(days=2)
 DAY = dt.timedelta(days=1)
 
@@ -106,8 +111,12 @@ def user_number_ok(conn, user_id: str, digits: str) -> bool:
         row = store_links.contact_by_user(conn, user_id)
     except Exception:  # noqa: BLE001 - an installation without the tickets tables: nothing to verify against
         return not installation_required(conn)
-    if row is None or not row.get("active", 1) or (row.get("phone_e164") or "") != digits:
+    if row is None:
         return not installation_required(conn)
+    if not row.get("active", 1) or (row.get("phone_e164") or "") != digits:
+        # delta review N-4: a number from any other source than the directory cannot be verified here, so it fails closed whenever
+        # verification is required FOR THIS PERSON - the installation switch or the person's own switch.
+        return not required(conn, row)
     return whatsapp_allowed(conn, row)
 
 
@@ -144,6 +153,8 @@ def _live(conn, contact_id: str, now: dt.datetime) -> dict[str, Any] | None:
 
 
 def _count(conn, column: str, value: str | None, since: dt.datetime) -> int:
+    if column == "requested_by":
+        return conn.execute("SELECT COUNT(*) FROM ticket_phone_verifications WHERE requested_by = ? AND created_at > ?", (value, _iso(since))).fetchone()[0]
     if column == "*":
         return conn.execute("SELECT COUNT(*) FROM ticket_phone_verifications WHERE created_at > ?", (_iso(since),)).fetchone()[0]
     return conn.execute(f"SELECT COUNT(*) FROM ticket_phone_verifications WHERE {column} = ? AND created_at > ?",  # noqa: S608 - fixed names
@@ -234,7 +245,9 @@ def send_code(conn, viewer: Viewer, row: Mapping[str, Any] | None, *, by: str, r
     last = _last_sent(conn, target["id"])
     since = now - DAY
     if ((last and last > _iso(now - COOLDOWN)) or _count(conn, "contact_id", target["id"], since) >= PER_ROW_DAY
-            or _count(conn, "phone_key", target["phone_key"], since) >= PER_NUMBER_DAY or _count(conn, "*", None, since) >= PER_INSTALLATION_DAY):
+            or _count(conn, "phone_key", target["phone_key"], since) >= PER_NUMBER_DAY or _count(conn, "*", None, since) >= PER_INSTALLATION_DAY
+            or _count(conn, "requester_id", viewer.uid, since) >= PER_ACTOR_DAY
+            or (by != "self" and _count(conn, "requested_by", by, since) >= PER_INSTALLATION_MANAGER_DAY)):
         audit(conn, actor=viewer.principal, action="ticket.contact.phone_verify_send", decision="denied", resource_type="ticket_contact",
               resource_id=target["id"], reason="rate_limited", request_id=rid, details={"by": by})
         raise _limited(conn)

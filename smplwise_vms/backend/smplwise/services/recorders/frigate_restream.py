@@ -17,7 +17,8 @@ Rules:
 - The feature flag (`frigate_enabled`, `SW_FRIGATE=1`) gates it, and the connection extra `restream` = `off` switches it off per recorder.
 - Credentials: Frigate's restream has no authentication unless its go2rtc config sets `rtsp.username/password`. The extra
   `restream_auth` = `account` sends the Frigate connection's user and password in the RTSP URL (server-side only, like every
-  NVR source); default `none`.
+  NVR source); default `none`. The password then also travels over RTSP (cleartext Basic is possible on the LAN) and sits in go2rtc's
+  in-memory stream source (readable via go2rtc's GET /api/streams, logged by go2rtc < 1.9.14 on create) - delta review F-2.
 
 Without a matching stream a camera stays a refreshing still (the media route answers 409 `live_not_available`, `fallback: still`)."""
 from __future__ import annotations

@@ -208,6 +208,27 @@ def _removed_recorders(conn: sqlite3.Connection) -> list[str]:
         return []
 
 
+FRIGATE_DISCOVERY_BACKOFF_S = (0.0, 2.0, 6.0)  # delta review F-1: attempts per recorder and run, the wait before each
+
+
+def _frigate_plan(rs: Settings, recorder_id: str, reason: str) -> dict[str, dict[str, str]] | None:
+    """The recorder's restream plan, computed ONCE per run. None = Frigate could not be read (every attempt failed): the caller
+    leaves that recorder's streams exactly as they are. A manual run tries once (a person waits); the background run backs off."""
+    from .recorders import frigate_io
+
+    delays = (0.0,) if reason == "manual" else FRIGATE_DISCOVERY_BACKOFF_S
+    code = "?"
+    for wait in delays:
+        if wait:
+            time.sleep(wait)
+        try:
+            return frigate_io.restream_plan(rs, recorder_id, fetch=True)
+        except ApiError as exc:
+            code = exc.code
+    log.info("frigate discovery for %s failed after %d attempt(s): %s - its live streams are left untouched", recorder_id, len(delays), code)
+    return None
+
+
 def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | None = None, request_id: str | None = None, reason: str = "manual") -> dict[str, Any]:
     """Create/refresh the product's namespaced live streams in go2rtc for every enabled camera (idempotent). CR-024: each
     camera's source is built from its own recorder's connection; a camera whose recorder has no usable connection is skipped
@@ -232,15 +253,22 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
 
     stale: list[str] = []  # TKFRIGLIVE: our streams of a Frigate camera that has no restream (any more): removed by exact name
     with unlocked(conn):
+        plans: dict[str, dict[str, dict[str, str]] | None] = {}  # F-1: one discovery per Frigate recorder and run
         for cam in cams:
             rs = settings_for(settings, cam["recorder_id"])
             if frigate_io.handles(rs):
                 # TKFRIGLIVE: a Frigate camera gets live video only through Frigate's own restream (read-only toward Frigate); without
                 # one it stays a refreshing still and nothing is created
+                if cam["recorder_id"] not in plans:
+                    plans[cam["recorder_id"]] = _frigate_plan(rs, cam["recorder_id"], reason)
+                plan = plans[cam["recorder_id"]]
+                if plan is None:  # Frigate unreachable: an outage is not "no restream" - nothing is created and NOTHING is deleted
+                    result["skipped"] += 2
+                    continue
                 for profile in ("sub", "main"):
                     name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
                     try:
-                        found = frigate_io.restream_source(rs, cam["recorder_id"], cam["source_ref"] if "source_ref" in cam.keys() else None, profile, fetch=True)
+                        found = frigate_io.restream_source(rs, cam["recorder_id"], cam["source_ref"] if "source_ref" in cam.keys() else None, profile, plan=plan)
                     except ApiError as exc:
                         log.info("frigate restream for %s skipped: %s", name, exc.code)
                         found = None
