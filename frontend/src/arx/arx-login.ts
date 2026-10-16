@@ -4,7 +4,7 @@ import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSignIn
 import { t } from '../i18n/he';
 import { inAndroidApp, switchServer } from './android-app';
 import { formatSize, loadAndroidOffer, offerText, type AndroidOffer } from './android-download';
-import { changePassword, localMe, localSecondFactor, localSignIn } from './local-auth';
+import { changePassword, confirmReset, localMe, localSecondFactor, localSignIn, requestReset } from './local-auth';
 import { lit } from '../i18n/local-identity';
 import '../components/sw-second-factor';
 
@@ -41,7 +41,9 @@ export class ArxLogin extends LitElement {
   /** USR2: open straight in the "משתמש Arx" mode (after the welcome page saved a password). */
   @property() initialMode: '' | 'infra' | 'local' = '';
   @state() private mode: 'infra' | 'local' = 'infra';
-  @state() private step: 'credentials' | 'mfa' | 'factor' | 'lfactor' | 'enrol' | 'change' = hasPendingSecondFactor() ? 'factor' : 'credentials';
+  @state() private step: 'credentials' | 'mfa' | 'factor' | 'lfactor' | 'enrol' | 'change' | 'forgot' | 'reset' = hasPendingSecondFactor() ? 'factor' : 'credentials';
+  /** USR2 phase 2: the username of the self-service reset in progress (the steps 'forgot' -> 'reset'). */
+  @state() private resetUser = '';
   @state() private busy = false;
   @state() private error = '';
   @state() private mfaName = '';
@@ -53,6 +55,8 @@ export class ArxLogin extends LitElement {
   @query('#current') private currentEl?: HTMLInputElement;
   @query('#next') private nextEl?: HTMLInputElement;
   @query('#again') private againEl?: HTMLInputElement;
+  @query('#rcode') private rcodeEl?: HTMLInputElement;
+  @query('#runame') private runameEl?: HTMLInputElement;
   private flow: LoginFlow | null = null;
 
   static styles = css`
@@ -276,6 +280,11 @@ export class ArxLogin extends LitElement {
       background: none;
       color: var(--sw-text);
     }
+    .hint {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      line-height: 1.5;
+    }
     .app-servers {
       display: flex;
       justify-content: center;
@@ -348,6 +357,58 @@ export class ArxLogin extends LitElement {
       await changePassword(current, next);
       await this.afterLocal(false);
     }, false);
+  }
+
+  /** USR2 phase 2: "שכחתי את הסיסמה" - the username step (prefilled from the sign-in form). */
+  private openForgot() {
+    if (this.busy) return;
+    this.resetUser = this.usernameEl?.value.trim() ?? '';
+    this.error = '';
+    this.notice = '';
+    this.step = 'forgot';
+    void this.updateComplete.then(() => this.runameEl?.focus());
+  }
+
+  private async onForgot(e: Event) {
+    e.preventDefault();
+    const username = this.runameEl?.value.trim() ?? this.resetUser;
+    if (!username) {
+      this.error = lit('fillUsername');
+      return;
+    }
+    await this.run(async () => {
+      await requestReset(username);  // the same answer for every account: the page always moves on to the code step
+      this.resetUser = username;
+      this.step = 'reset';
+      await this.updateComplete;
+      this.rcodeEl?.focus();
+    }, false);
+  }
+
+  private async onReset(e: Event) {
+    e.preventDefault();
+    const code = this.rcodeEl?.value.replace(/[\s-]+/g, '') ?? '';
+    const next = this.nextEl?.value ?? '';
+    if (!code || !next || !(this.againEl?.value ?? '')) {
+      this.error = lit('fillCode');
+      return;
+    }
+    if (next !== (this.againEl?.value ?? '')) {
+      this.error = lit('mismatch');
+      return;
+    }
+    await this.run(async () => {
+      const r = await confirmReset(this.resetUser, code, next);
+      this.step = 'credentials';
+      this.mode = 'local';
+      this.noticeKind = 'info';
+      const done = r.must_enrol ? lit('resetEnrol') : lit('resetDone');
+      await this.updateComplete;
+      this.notice = done;
+      if (this.usernameEl) this.usernameEl.value = this.resetUser;
+      this.passwordEl?.focus();
+    }, false);
+    if (this.error && this.rcodeEl && this.step === 'reset') this.rcodeEl.select();
   }
 
   firstUpdated() {
@@ -446,6 +507,7 @@ export class ArxLogin extends LitElement {
       await fn();
     } catch (err) {
       this.error = err instanceof ArxAuthError ? err.message : 'שגיאה לא צפויה. נסה שוב.';
+      if (err instanceof ArxAuthError && err.code === 'code_invalid') this.error = lit('resetCodeInvalid');
       if (!haFlow) {
         // USR2: a wrong code keeps the code step; an expired / locked second step goes back to the credentials
         if (this.step === 'lfactor' && err instanceof ArxAuthError && ['second_factor_expired', 'second_factor_locked'].includes(err.code)) this.step = 'credentials';
@@ -485,8 +547,12 @@ export class ArxLogin extends LitElement {
         <span class="name"><b>SmplWise <span>Arx</span></b><small>גישה מרחוק מאובטחת</small></span>
       </div>
       <div>
-        <h1 id="arx-title">${this.step === 'credentials' ? (this.localEnabled ? lit('signInTitle') : 'כניסה') : this.step === 'enrol' ? lit('enrolTitle') : this.step === 'change' ? lit('changeTitle') : 'אימות דו־שלבי'}</h1>
-        <p class="sub">${this.step === 'factor'
+        <h1 id="arx-title">${this.step === 'credentials' ? (this.localEnabled ? lit('signInTitle') : 'כניסה') : this.step === 'enrol' ? lit('enrolTitle') : this.step === 'change' ? lit('changeTitle') : this.step === 'forgot' || this.step === 'reset' ? lit('forgotTitle') : 'אימות דו־שלבי'}</h1>
+        <p class="sub">${this.step === 'forgot'
+          ? lit('forgotSub')
+          : this.step === 'reset'
+          ? lit('resetSub')
+          : this.step === 'factor'
           ? t('secondFactor.loginPrompt')
           : this.step === 'lfactor'
           ? lit('codePrompt')
@@ -518,11 +584,30 @@ export class ArxLogin extends LitElement {
             <label>${lit('repeatPassword')}<input id="again" class="ltr" type="password" autocomplete="new-password" required ?disabled=${this.busy} /></label>
             <button type="submit" ?disabled=${this.busy} data-arx-change-save>${this.busy ? lit('saving') : lit('save')}</button>
           </form>`
+        : this.step === 'forgot'
+        ? html`<form @submit=${this.onForgot} novalidate data-arx-forgot-form>
+            <label>${lit('username')}<input id="runame" class="ltr" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" .value=${this.resetUser} required ?disabled=${this.busy} /></label>
+            <button type="submit" ?disabled=${this.busy} data-arx-send-code>${this.busy ? lit('sending') : lit('sendCode')}</button>
+            <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
+          </form>`
+        : this.step === 'reset'
+        ? html`<form @submit=${this.onReset} novalidate data-arx-reset-form>
+            <label>${lit('resetCode')}<input id="rcode" class="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required ?disabled=${this.busy} /></label>
+            <label>${lit('newPassword')}<input id="next" class="ltr" type="password" autocomplete="new-password" required ?disabled=${this.busy} /></label>
+            <label>${lit('repeatPassword')}<input id="again" class="ltr" type="password" autocomplete="new-password" required ?disabled=${this.busy} /></label>
+            <button type="submit" ?disabled=${this.busy} data-arx-reset-save>${this.busy ? lit('saving') : lit('resetSave')}</button>
+            <span class="hint" data-arx-no-code>${lit('noCodeHint')}</span>
+            <button type="button" class="link" ?disabled=${this.busy} @click=${() => (this.step = 'forgot')} data-arx-resend>${lit('resendCode')}</button>
+            <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
+          </form>`
         : this.step === 'credentials'
         ? html`<form @submit=${this.onCredentials} novalidate>
             <label>שם משתמש<input id="username" class="ltr" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required ?disabled=${this.busy} /></label>
             <label>סיסמה<input id="password" class="ltr" name="password" type="password" autocomplete="current-password" required ?disabled=${this.busy} /></label>
             <button type="submit" ?disabled=${this.busy} data-arx-submit>${this.busy ? 'מתחבר…' : 'כניסה'}</button>
+            ${this.localEnabled && this.mode === 'local'
+              ? html`<button type="button" class="link" ?disabled=${this.busy} @click=${() => this.openForgot()} data-arx-forgot>${lit('forgot')}</button>`
+              : nothing}
           </form>`
         : html`<form @submit=${this.onCode} novalidate>
             <label>קוד אימות<input id="code" class="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required ?disabled=${this.busy} /></label>

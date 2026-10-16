@@ -32,6 +32,10 @@ export interface LocalUser {
   must_change_password: boolean;
   sessions: number;
   ha_user_id: string | null;
+  /** USR2 phase 2: the user's WhatsApp number when it is VERIFIED (masked: the last two digits). */
+  whatsapp?: { verified: boolean; masked: string | null };
+  /** Why a self-service reset would be refused right now (null = it would work, or the mode is manager_only). */
+  self_service_blocked?: 'admin_target' | 'no_verified_number' | null;
 }
 
 export interface LocalUsersReply {
@@ -39,6 +43,17 @@ export interface LocalUsersReply {
   can_manage: boolean;
   channel: 'local' | 'remote';
   users: LocalUser[];
+  /** USR2 phase 2: a WhatsApp account is mapped for the reset use and connected. */
+  whatsapp_ready?: boolean;
+  /** Where links sent by WhatsApp point (the configured address, or this remote session's host), or null. */
+  public_url?: string | null;
+}
+
+/** USR2 phase 2: a link that went by WhatsApp - nothing secret is shown, only where and until when. */
+interface LinkSent {
+  user: string;
+  to: string;
+  expires_at: string;
 }
 
 interface LinkShown {
@@ -71,6 +86,11 @@ export function linkText(link: LinkShown): string {
   return link.url ?? `https://<כתובת הגישה מרחוק>${link.path}`;
 }
 
+/** A masked number (`····91`) inside Hebrew text keeps its left-to-right order (Unicode isolate). */
+function ltr(text: string): string {
+  return text ? `⁦${text}⁩` : '';
+}
+
 /**
  * USR2: Settings › משתמשים והרשאות › משתמשי Arx - people who exist only in Arx. A system administrator creates them (exactly one role
  * at one scope; never system_admin), hands over the first-login link (shown ONCE), resets, disables, deletes and ends their sessions.
@@ -91,6 +111,9 @@ export class SystemLocalUsers extends LitElement {
   @state() private suggest = '';
   @state() private form = { username: '', display_name: '', role_id: 'viewer', scope: 'installation:*', email: '', notes: '', reset_mode: 'manager_only' };
   @state() private roleEdit: { role_id: string; scope: string } | null = null;
+  @state() private sent: LinkSent | null = null;
+  @state() private publicUrl = '';
+  @state() private publicUrlNote = '';
 
   static styles = css`
     :host {
@@ -203,6 +226,7 @@ export class SystemLocalUsers extends LitElement {
   private async load() {
     try {
       this.data = await get<LocalUsersReply>('/identity/local-users');
+      if (!this.publicUrl) this.publicUrl = this.data.public_url ?? '';
       this.error = '';
     } catch (err) {
       this.error = describeError(err);
@@ -259,7 +283,27 @@ export class SystemLocalUsers extends LitElement {
     void this.run(async () => {
       const r = await post<{ link: Omit<LinkShown, 'user'> }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'shown', temporary });
       this.link = { ...r.link, user: u.display_name };
+      this.sent = null;
       this.copied = false;
+      await this.load();
+    });
+  }
+
+  /** USR2 phase 2: the link goes to the user's verified WhatsApp number; the answer never carries it. */
+  private issueWhatsapp(u: LocalUser, purpose: 'first_login' | 'reset') {
+    void this.run(async () => {
+      const r = await post<{ link: { expires_at: string } }>(`/identity/local-users/${encodeURIComponent(u.id)}/link`, { purpose, via: 'whatsapp' });
+      this.link = null;
+      this.sent = { user: u.display_name, to: u.whatsapp?.masked ?? '', expires_at: r.link.expires_at };
+      await this.load();
+    });
+  }
+
+  private savePublicUrl() {
+    void this.run(async () => {
+      await patch('/settings', { 'security.local_public_url': this.publicUrl.trim() });
+      this.publicUrlNote = lit('publicUrlSaved');
+      this.publicUrl = '';
       await this.load();
     });
   }
@@ -366,6 +410,29 @@ export class SystemLocalUsers extends LitElement {
     </sw-card>`;
   }
 
+  private renderSent(): TemplateResult | typeof nothing {
+    const s = this.sent;
+    if (!s) return nothing;
+    return html`<div class="note" role="status" data-local-link-sent>${s.user} · ${lit('waSent', { to: ltr(s.to), until: fmtWhen(s.expires_at) })}
+      <sw-button variant="ghost" @click=${() => (this.sent = null)}>${lit('close')}</sw-button></div>`;
+  }
+
+  /** The WhatsApp delivery actions of a NON-administrative target (hidden, with the reason, for an administrative one). */
+  private renderWhatsapp(u: LocalUser): TemplateResult {
+    const ready = this.data?.whatsapp_ready ?? false;
+    const verified = !!u.whatsapp?.verified;
+    const purpose: 'first_login' | 'reset' = u.status === 'pending_first_login' ? 'first_login' : 'reset';
+    if (u.admin) return html`<div class="muted full" data-local-wa-admin>${lit('waAdminNote')}</div>`;
+    return html`<div class="full cell" data-local-wa>
+      <span class="muted" data-local-wa-state>${verified ? lit('waVerified', { masked: ltr(u.whatsapp?.masked ?? '') }) : lit('waNone')}</span>
+      ${!ready ? html`<span class="muted" data-local-wa-off>${lit('waChannelOff')}</span>` : nothing}
+      ${ready && verified
+        ? html`<div class="actions"><sw-button @click=${() => this.issueWhatsapp(u, purpose)} ?disabled=${this.busy || !u.active} data-local-issue-wa=${purpose}>
+            ${purpose === 'first_login' ? lit('issueFirstWa') : lit('issueResetWa')}</sw-button></div>`
+        : nothing}
+    </div>`;
+  }
+
   private renderSelected(u: LocalUser): TemplateResult {
     const manage = this.data?.can_manage ?? false;
     const adminLocked = u.admin && this.remote;
@@ -396,7 +463,12 @@ export class SystemLocalUsers extends LitElement {
               <option value="manager_only">${lit('reset_manager_only')}</option>
               <option value="self_service">${lit('reset_self_service')}</option>
             </select></label>
-            ${u.admin ? html`<div class="muted full">${lit('resetAdminNote')}</div>` : nothing}
+            ${u.admin
+              ? html`<div class="muted full" data-local-reset-admin>${lit('resetAdminNote')}</div>`
+              : u.self_service_blocked
+              ? html`<div class="note warn full" data-local-reset-blocked=${u.self_service_blocked}>${lit(`blocked_${u.self_service_blocked}` as LocalIdentityKey)}</div>`
+              : html`<div class="muted full">${lit('resetModeHelp')}</div>`}
+            ${this.renderWhatsapp(u)}
             ${edit
               ? html`<label>${lit('role')}<select .value=${edit.role_id} @change=${(e: Event) => (this.roleEdit = { ...edit, role_id: (e.target as HTMLSelectElement).value })}>
                     ${roles.map((r) => html`<option value=${r.id} ?selected=${r.id === edit.role_id} ?disabled=${this.remote && roleIsAdmin(r)}>${r.name}</option>`)}
@@ -407,6 +479,20 @@ export class SystemLocalUsers extends LitElement {
                   <div class="actions"><sw-button variant="primary" @click=${() => this.saveRole(u)} ?disabled=${this.busy}>${lit('save')}</sw-button><sw-button variant="ghost" @click=${() => (this.roleEdit = null)}>${lit('cancel')}</sw-button></div>`
               : nothing}`
           : nothing}
+      </div>
+    </sw-card>`;
+  }
+
+  /** USR2 phase 2: where WhatsApp links point (a system administrator sets it; the server refuses anyone else). */
+  private renderPublicUrl(d: LocalUsersReply): TemplateResult {
+    return html`<sw-card flush data-local-public-url>
+      <div class="panel">
+        <label class="full">${lit('publicUrl')}
+          <input class="ltr" type="url" inputmode="url" placeholder=${d.public_url ?? 'https://'} .value=${this.publicUrl}
+            @input=${(e: Event) => (this.publicUrl = (e.target as HTMLInputElement).value)} maxlength="300" data-local-public-url-input /></label>
+        <div class="muted full">${lit('publicUrlHint')}</div>
+        ${this.publicUrlNote ? html`<div class="note full" role="status">${this.publicUrlNote}</div>` : nothing}
+        <div class="actions"><sw-button @click=${() => this.savePublicUrl()} ?disabled=${this.busy} data-local-public-url-save>${lit('publicUrlSave')}</sw-button></div>
       </div>
     </sw-card>`;
   }
@@ -446,6 +532,7 @@ export class SystemLocalUsers extends LitElement {
       ${this.error ? html`<div class="note err" role="alert" data-local-error>${this.error}</div>` : nothing}
       ${this.suggest ? html`<div class="note warn" role="status">${this.suggest}</div>` : nothing}
       ${this.renderLink()}
+      ${this.renderSent()}
       ${this.creating && d.enabled ? this.renderCreate() : nothing}
       ${d.users.length
         ? html`<sw-table .columns=${columns} .rows=${d.users as unknown as Record<string, unknown>[]} rowKey="id" .selected=${this.selected}
@@ -455,6 +542,7 @@ export class SystemLocalUsers extends LitElement {
             }}></sw-table>`
         : html`<div class="muted" data-local-empty>${lit('empty')}</div>`}
       ${sel ? this.renderSelected(sel) : nothing}
+      ${d.can_manage && d.enabled ? this.renderPublicUrl(d) : nothing}
     </div>`;
   }
 }

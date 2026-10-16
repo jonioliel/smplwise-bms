@@ -300,6 +300,9 @@ DEFAULTS: dict[str, str] = {
     # USR2-FIX F2: the per-(account, network) delay and the per-account ceiling lock behave the same in both modes; the value only names
     # the network-tier refusal in the audit (account_delay | account_locked). See CR-USR2 §6 (brute-force semantics).
     "security.local_lock_mode": "delay",
+    # USR2 phase 2: the public address (https://<host>) a link sent by WhatsApp points to; "" = only links issued on the remote channel
+    # (its own host) can be sent. A system administrator sets it (whoever sets it decides where reset tokens go).
+    "security.local_public_url": "",
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top
@@ -726,6 +729,7 @@ class SettingsPatch(BaseModel):
     security_local_password_min: int | None = Field(default=None, ge=10, le=64, alias="security.local_password_min")
     security_local_link_ttl_h: int | None = Field(default=None, ge=1, le=168, alias="security.local_link_ttl_h")
     security_local_lock_mode: str | None = Field(default=None, pattern="^(delay|lock)$", alias="security.local_lock_mode")
+    security_local_public_url: str | None = Field(default=None, max_length=300, alias="security.local_public_url")  # USR2 phase 2: system_admin only (checked below)
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=128, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
     app_android_url: str | None = Field(default=None, max_length=app_download.MAX_URL, alias="app.android_url")  # https only, checked in app_download.normalize
@@ -937,6 +941,25 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
                       reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את משתמשי Arx.")
             local_switch = changes["security.local_identity"]
+    if "security.local_public_url" in changes:
+        # USR2 phase 2: where a link sent by WhatsApp points. Whoever sets it decides where reset tokens go, so - like the switch - only a
+        # system administrator changes it (system.configure alone could aim every reset link at a host of its choice); https + a DNS
+        # name only, no path / query / IP literal; "" clears it.
+        from ..rbac import is_system_admin
+        from ..services import local_reset
+
+        raw = changes["security.local_public_url"].strip()
+        value = local_reset.normalize_public_url(raw) if raw else ""
+        if value is None:
+            raise ApiError(422, "validation", "כתובת הגישה מרחוק: https://שם-מארח בלבד (בלי נתיב, בלי כתובת IP).", details={"field": "security.local_public_url"})
+        if value != (get_setting(conn, "security.local_public_url", "") or ""):
+            if not is_system_admin(conn, principal.user_id):
+                audit(conn, actor=principal, action="identity.local.public_url", decision="denied", resource_type="installation", resource_id="local_identity",
+                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None))
+                raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את כתובת הקישורים של משתמשי Arx.")
+            audit(conn, actor=principal, action="identity.local.public_url", decision="allowed", resource_type="installation", resource_id="local_identity",
+                  request_id=getattr(request.state, "correlation_id", None), details={"to": value or None})
+        changes["security.local_public_url"] = value
     tickets_switch = None  # CR-038: the module switch gets its own audit row when it actually changes
     if "tickets.enabled" in changes:
         current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]

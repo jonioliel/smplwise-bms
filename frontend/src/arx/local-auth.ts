@@ -3,7 +3,8 @@
  * (`POST api/v1/auth/local/sign-in`), the add-on answers with its own opaque session cookie (HttpOnly - this page never sees it)
  * or asks for the TOTP code (`202` + a pending cookie, then `POST api/v1/auth/local/sign-in/second-factor`). Nothing is kept in
  * localStorage: the cookie IS the session, so resuming is a `GET api/v1/me`. The welcome page redeems a first-login / reset link
- * (`POST api/v1/auth/local/set-password`); the token comes from the URL fragment and never reaches a log.
+ * (`POST api/v1/auth/local/set-password`); the token comes from the URL fragment and never reaches a log. Phase 2: the
+ * self-service reset by a WhatsApp code (`POST api/v1/auth/local/reset/request`, then `.../reset/confirm`).
  */
 import { ArxAuthError } from './auth';
 import { lit } from '../i18n/local-identity';
@@ -44,6 +45,19 @@ export async function localSecondFactor(code: string): Promise<LocalSignIn> {
 
 export async function setPassword(token: string, password: string): Promise<{ must_enrol: boolean }> {
   return (await call<{ must_enrol: boolean }>('api/v1/auth/local/set-password', { method: 'POST', body: JSON.stringify({ token, password }) })).data;
+}
+
+/** USR2 phase 2: ask for a self-service reset code. The answer is the same whatever the account (no "this user exists" signal). */
+export async function requestReset(username: string): Promise<void> {
+  await call('api/v1/auth/local/reset/request', { method: 'POST', body: JSON.stringify({ username }) });
+}
+
+/** USR2 phase 2: the code from WhatsApp + the new password. No session is created: the page signs in normally afterwards. */
+export async function confirmReset(username: string, code: string, password: string): Promise<{ must_enrol: boolean }> {
+  return (await call<{ must_enrol: boolean }>('api/v1/auth/local/reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ username, code: code.replace(/[\s-]+/g, ''), password }),
+  })).data;
 }
 
 export async function changePassword(current: string, next: string, code?: string): Promise<void> {

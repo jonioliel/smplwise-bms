@@ -137,6 +137,105 @@ test('welcome: the token leaves the address bar, a mismatch is caught, the passw
   expect(JSON.parse(posted[0].body)).toEqual({ token, password: 'tree river lamp 47' });
 });
 
+// ---------------------------------------------------------------- USR2 phase 2: self-service reset, WhatsApp links
+
+test('forgot password: offered only in the local mode; the request answer is the same, the code step posts code + password once', async ({ page }) => {
+  const calls = await setup(page, {
+    'POST /arx/api/v1/auth/local/reset/request': { status: 202, body: { accepted: true, expires_in_s: 600, resend_after_s: 60 } },
+    'POST /arx/api/v1/auth/local/reset/confirm': { status: 200, body: { must_enrol: false } },
+  });
+  await mountLogin(page, true);
+  await page.locator('arx-login [data-arx-mode="infra"]').click();
+  await expect(page.locator('arx-login [data-arx-forgot]')).toHaveCount(0); // never for the infrastructure sign-in
+  await page.locator('arx-login [data-arx-mode="local"]').click();
+  await page.locator('arx-login #username').fill('maria');
+  await page.locator('arx-login [data-arx-forgot]').click();
+  await expect(page.locator('arx-login #runame')).toHaveValue('maria');
+  await page.locator('arx-login [data-arx-send-code]').click();
+  await expect(page.locator('arx-login [data-arx-reset-form]')).toBeVisible();
+  await page.locator('arx-login #rcode').fill('123 456');
+  await page.locator('arx-login #next').fill('silver canyon morning tide');
+  await page.locator('arx-login #again').fill('silver canyon morning tidx');
+  await page.locator('arx-login [data-arx-reset-save]').click();
+  await expect(page.locator('arx-login [data-arx-error]')).toBeVisible(); // the mismatch is caught on the page
+  expect(calls.some((c) => c.path.endsWith('/reset/confirm'))).toBe(false);
+  await page.locator('arx-login #again').fill('silver canyon morning tide');
+  await page.locator('arx-login [data-arx-reset-save]').click();
+  await expect(page.locator('arx-login [data-arx-notice]')).toBeVisible();
+  await expect(page.locator('arx-login #username')).toHaveValue('maria');
+  const req = calls.filter((c) => c.path === '/arx/api/v1/auth/local/reset/request');
+  const conf = calls.filter((c) => c.path === '/arx/api/v1/auth/local/reset/confirm');
+  expect(req.map((c) => JSON.parse(c.body))).toEqual([{ username: 'maria' }]);
+  expect(conf.map((c) => JSON.parse(c.body))).toEqual([{ username: 'maria', code: '123456', password: 'silver canyon morning tide' }]);
+  expect(calls.some((c) => c.path.startsWith('/auth/'))).toBe(false);
+  expect(await page.evaluate(() => JSON.stringify({ ...window.localStorage, ...window.sessionStorage }))).not.toContain('silver canyon');
+});
+
+test('forgot password: a refused code shows the uniform text and keeps the step', async ({ page }) => {
+  await setup(page, {
+    'POST /arx/api/v1/auth/local/reset/request': { status: 202, body: { accepted: true } },
+    'POST /arx/api/v1/auth/local/reset/confirm': { status: 422, body: { code: 'code_invalid', user_message: 'הקוד שגוי או שפג תוקפו. אפשר לבקש קוד חדש.', retryable: false, details: {} } },
+  });
+  await mountLogin(page, true);
+  await page.locator('arx-login [data-arx-mode="local"]').click();
+  await page.locator('arx-login [data-arx-forgot]').click();
+  await page.locator('arx-login #runame').fill('ghost');
+  await page.locator('arx-login [data-arx-send-code]').click();
+  await page.locator('arx-login #rcode').fill('000000');
+  await page.locator('arx-login #next').fill('silver canyon morning tide');
+  await page.locator('arx-login #again').fill('silver canyon morning tide');
+  await page.locator('arx-login [data-arx-reset-save]').click();
+  await expect(page.locator('arx-login [data-arx-error]')).toHaveText('הקוד שגוי או שפג תוקפו. אפשר לבקש קוד חדש.');
+  await expect(page.locator('arx-login [data-arx-reset-form]')).toBeVisible();
+});
+
+const P2_ROWS = {
+  enabled: true, can_manage: true, channel: 'local', whatsapp_ready: true, public_url: 'https://arx.example.com',
+  users: [
+    { ...ROWS_BASE('l_01JTEST0000000000000000011', 'noa', 'נועה'), reset_mode: 'self_service', whatsapp: { verified: true, masked: '····91' }, self_service_blocked: null },
+    { ...ROWS_BASE('l_01JTEST0000000000000000012', 'site.lead', 'אבי לוי'), role_id: 'site_admin', role_name: 'מנהל אתר', admin: true, whatsapp: { verified: true, masked: '····22' }, self_service_blocked: null },
+    { ...ROWS_BASE('l_01JTEST0000000000000000013', 'guard2', 'שומר'), reset_mode: 'self_service', whatsapp: { verified: false, masked: null }, self_service_blocked: 'no_verified_number' },
+  ],
+};
+
+function ROWS_BASE(id: string, username: string, display: string) {
+  return { id, username, display_name: display, email: null, notes: null, status: 'active', active: true, created_at: '2026-10-16T08:00:00Z', last_sign_in_at: null,
+    last_sign_in_from: null, role_id: 'viewer', role_name: 'צופה', scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה', admin: false, second_factor: false,
+    reset_mode: 'manager_only', must_change_password: false, sessions: 0, ha_user_id: null };
+}
+
+async function mountUsers(page: import('@playwright/test').Page) {
+  await page.evaluate(() => {
+    const el = document.createElement('system-local-users') as HTMLElement & { roles: unknown[]; scopes: unknown[] };
+    el.roles = [{ id: 'viewer', name: 'צופה', permissions: ['map.read'] }, { id: 'site_admin', name: 'מנהל אתר', permissions: ['rbac.assign'] }];
+    el.scopes = [{ type: 'installation', id: '*', name: 'כל ההתקנה' }];
+    document.body.appendChild(el);
+  });
+  await expect(page.locator('system-local-users [data-local-users]')).toBeVisible();
+}
+
+test('settings: a plain user\'s link goes by WhatsApp and is never shown; an administrator gets no WhatsApp action', async ({ page }) => {
+  const calls = await setup(page, {
+    'GET /arx/api/v1/identity/local-users': { status: 200, body: P2_ROWS },
+    'POST /arx/api/v1/identity/local-users/l_01JTEST0000000000000000011/link': { status: 200, body: { user_id: 'l_01JTEST0000000000000000011', link: { purpose: 'reset', via: 'whatsapp', expires_at: '2026-10-19T08:00:00Z', queued: true } } },
+  });
+  await mountUsers(page);
+  await page.locator('system-local-users').getByText('אבי לוי').click();
+  await expect(page.locator('system-local-users [data-local-wa-admin]')).toBeVisible();
+  await expect(page.locator('system-local-users [data-local-issue-wa]')).toHaveCount(0);
+  await expect(page.locator('system-local-users [data-local-reset-admin]')).toBeVisible();
+  await page.locator('system-local-users').getByText('שומר').click();
+  await expect(page.locator('system-local-users [data-local-reset-blocked="no_verified_number"]')).toBeVisible();
+  await expect(page.locator('system-local-users [data-local-issue-wa]')).toHaveCount(0);
+  await page.locator('system-local-users').getByText('נועה').click();
+  await expect(page.locator('system-local-users [data-local-wa-state]')).toContainText('····91');
+  await page.locator('system-local-users [data-local-issue-wa="reset"]').click();
+  await expect(page.locator('system-local-users [data-local-link-sent]')).toBeVisible();
+  await expect(page.locator('system-local-users [data-local-link-text]')).toHaveCount(0); // nothing to copy: the link went by WhatsApp only
+  const posted = calls.filter((c) => c.method === 'POST' && c.path.endsWith('/link'));
+  expect(posted.map((c) => JSON.parse(c.body))).toEqual([{ purpose: 'reset', via: 'whatsapp' }]);
+});
+
 // Build screenshots for the design review (desktop / mobile, RTL; error and ready states; the settings tab with mocked rows).
 // Written to docs/evidence/USR2/ - mocked data only, no real name, address or secret.
 const EVIDENCE = path.join(HERE, '../../docs/evidence/USR2');
@@ -191,5 +290,29 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
     await page.locator('system-local-users [data-local-role]').selectOption('site_admin');
     await expect(page.locator('system-local-users [data-local-admin-note]')).toBeVisible();
     await page.screenshot({ path: path.join(EVIDENCE, `settings-local-users-${view.name}.png`), fullPage: true });
+  });
+}
+
+// USR2 phase 2 screenshots for the design review (mocked data only): the reset code step and the WhatsApp actions of the settings tab.
+for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 390, h: 844 }]) {
+  test(`phase 2 screens for review (${view.name})`, async ({ page }) => {
+    await page.setViewportSize({ width: view.w, height: view.h });
+    await setup(page, {
+      'POST /arx/api/v1/auth/local/reset/request': { status: 202, body: { accepted: true } },
+      'GET /arx/api/v1/identity/local-users': { status: 200, body: P2_ROWS },
+    });
+    await mountLogin(page, true);
+    await page.locator('arx-login [data-arx-mode="local"]').click();
+    await page.locator('arx-login [data-arx-forgot]').click();
+    await page.screenshot({ path: path.join(EVIDENCE, `login-local-forgot-${view.name}.png`) });
+    await page.locator('arx-login #runame').fill('noa');
+    await page.locator('arx-login [data-arx-send-code]').click();
+    await expect(page.locator('arx-login [data-arx-reset-form]')).toBeVisible();
+    await page.screenshot({ path: path.join(EVIDENCE, `login-local-reset-code-${view.name}.png`) });
+    await page.evaluate(() => document.querySelector('arx-login')?.remove());
+    await mountUsers(page);
+    await page.locator('system-local-users').getByText('נועה').click();
+    await expect(page.locator('system-local-users [data-local-wa]')).toBeVisible();
+    await page.screenshot({ path: path.join(EVIDENCE, `settings-local-users-whatsapp-${view.name}.png`), fullPage: true });
   });
 }

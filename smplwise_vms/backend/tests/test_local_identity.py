@@ -425,6 +425,7 @@ def test_global_storm_waits_and_refuses_accounts_without_a_recent_success(lx, mo
     stale = lx.create("stale")
     assert lx.set_password(lx.link_token(stale)).status_code == 200
     monkeypatch.setattr(li, "GLOBAL_STORM_AT", 3)
+    monkeypatch.setattr(li, "GLOBAL_STORM_NETWORKS", 3)  # USR2 phase 2 (F7): the storm counts distinct networks too
     for i in range(3):
         lx.sign_in(lx.remote(**{"CF-Connecting-IP": f"203.0.113.{i + 20}"}), "nobody")
     lx.sleeps.clear()
@@ -604,7 +605,7 @@ def test_administrative_targets_are_local_channel_only(lx, settings):
     r = lx.admin.post(f"/api/v1/identity/local-users/{aid}/link", json={"purpose": "first_login", "via": "whatsapp"})
     assert r.status_code == 422 and r.json()["code"] == "whatsapp_not_for_admins"
     r = lx.admin.post(f"/api/v1/identity/local-users/{plain}/link", json={"purpose": "first_login", "via": "whatsapp"})
-    assert r.status_code == 422 and r.json()["code"] == "via_not_available"
+    assert r.status_code == 409 and r.json()["code"] == "no_verified_number"  # USR2 phase 2: WhatsApp is real now - but needs a verified number
     # self-service reset is refused for an administrative target (create, patch) and switched off by an admin role
     r = lx.admin.patch(f"/api/v1/identity/local-users/{aid}", json={"reset_mode": "self_service"})
     assert r.status_code == 422 and r.json()["code"] == "self_service_not_for_admins"

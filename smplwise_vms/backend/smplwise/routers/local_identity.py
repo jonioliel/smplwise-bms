@@ -5,7 +5,10 @@ Public routes (remote channel only; 404 on the local channel; 403 `local_identit
                                                       401 `sign_in_failed` (uniform) | 429 `rate_limited` (Retry-After) | 403 `csrf_refused`
 `POST auth/local/sign-in/second-factor {code}`        the pending cookie + a TOTP code -> the session cookie
 `POST auth/local/set-password {token, password}`      a first-login / reset link -> 200 {must_enrol} | 400 `password_policy` | 401 `link_invalid`
-Login CSRF (section 8.2): the three require `Sec-Fetch-Site: same-origin` or an `Origin` equal to this origin.
+`POST auth/local/reset/request {username}`            phase 2: self-service reset - ALWAYS 202 (uniform); a code to the verified WhatsApp number
+                                                      of an eligible user (services/local_reset.py) | 429
+`POST auth/local/reset/confirm {username, code, password}`  200 {must_enrol} | 422 `code_invalid` (uniform) | 400 `password_policy` | 429
+Login CSRF (section 8.2): the public routes require `Sec-Fetch-Site: same-origin` or an `Origin` equal to this origin.
 
 Self:
 `PUT   auth/local/password {current_password, new_password, code?}`   a local identity changes its own password (the session rotates,
@@ -28,7 +31,9 @@ Administration (`identity.directory.read` to read, `identity.local.manage` - sys
 Owner answer Q3 (administrative targets = a local user whose role carries an administrative permission): creating one, issuing its
 links and giving it an administrative role are LOCAL-CHANNEL ONLY (404 on the remote channel, like BLOCKED_ON_REMOTE); its links
 are never sent by WhatsApp; self-service reset is refused for it. Owner answer Q5: `reset_mode` per user, `manager_only` (default)
-| `self_service` (the self-service flow itself is phase 2; the setting is stored and enforced now).
+| `self_service` (phase 2: the code flow above, refused at the moment of use for a user holding an administrative permission now).
+Phase 2: `POST .../link {via: whatsapp}` sends a non-administrative target's link to the user's verified WhatsApp number (the answer
+never carries the link); an administrative target's link stays local-channel only and is never sent by WhatsApp.
 """
 from __future__ import annotations
 
@@ -54,6 +59,7 @@ from ..remote_channel import csrf_reason, is_remote
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passwords as lp
+from ..services import local_reset as lr
 from ..services import presence, revocation
 from ..services import second_factor as sf
 
@@ -67,7 +73,6 @@ TRANSPORT_HE = "הכניסה מותרת רק בחיבור מאובטח (https)."
 SELF_SERVICE_ADMIN_HE = ("איפוס עצמי אינו זמין למשתמש עם הרשאות ניהול: מי שמשתלט על מספר הטלפון היה משתלט על חשבון מנהל. "
                          "איפוס של משתמש כזה הוא קישור שמנהל מפיק מכניסה מקומית.")
 WHATSAPP_ADMIN_HE = "קישור למשתמש עם הרשאות ניהול לא נשלח בוואטסאפ; הוא מוצג רק בכניסה מקומית."
-VIA_LATER_HE = "שליחה בוואטסאפ תתווסף בשלב הבא. בינתיים העתק את הקישור ומסור אותו בעצמך."
 SELF_ONLY_HE = "הפעולה זמינה רק למשתמשי Arx."
 PW_LIMITS: list[tuple[float, int]] = [(60.0, 5), (3600.0, 30)]
 
@@ -135,6 +140,7 @@ async def _overloaded(request: Request) -> JSONResponse:
         def _row() -> None:
             li._audit(request.app.state.db, actor=None, action="auth.local.storm", decision="denied", reason="admission", resource_id="installation",
                       details={"in_flight": lp.ADMISSION.in_flight, **({"suppressed_since_last": suppressed} if suppressed else {})}, request_id=_rid(request))
+            li._notify(request.app.state.db, "security.local_storm", "installation", reason="admission")  # phase 2: to the managers (folds for an hour)
 
         try:
             await run_in_threadpool(_row)
@@ -207,6 +213,48 @@ async def local_set_password(body: SetPasswordBody, request: Request) -> dict[st
     admitted, out = await lp.run_admitted(li.use_link, request.app.state.db, settings_of(request), request, body.token, body.password, _rid(request))
     if not admitted or out is None:
         await _overloaded(request)  # the audit row; the answer is the route's usual 429 (same as its per-address limit)
+        raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
+    return out
+
+
+# ---------------------------------------------------------------- self-service reset by a WhatsApp code (public; USR2 phase 2)
+
+class ResetRequestBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/auth/local/reset/request", status_code=202)
+async def local_reset_request(body: ResetRequestBody, request: Request) -> dict[str, Any]:
+    """Always the same 202 - an unknown name, a user without self-service, an administrator, no verified number, a cap: alike. The
+    message leaves later from the sender thread, so the answer never waits for WhatsApp (local_reset module docstring)."""
+    _public_guard(request)
+    if not hua.LIMITER.hit(f"lreset:{hua.limit_ip(hua.client_ip(request))}", lr.REQUEST_LIMITS):
+        raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
+    try:
+        await run_in_threadpool(lr.request_code, request.app.state.db, request, body.username, _rid(request))
+    except Exception:  # noqa: BLE001 - whatever happened inside, the caller learns nothing from the answer
+        lr.log.warning("local reset request failed")
+    return {"accepted": True, "user_message": lr.REQUEST_ACCEPTED_HE, "expires_in_s": int(lr.CODE_TTL_S), "resend_after_s": int(lr.COOLDOWN_S)}
+
+
+class ResetConfirmBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(min_length=1, max_length=64)
+    code: str = Field(min_length=1, max_length=16)
+    password: str = Field(min_length=1, max_length=1024)
+
+
+@router.post("/auth/local/reset/confirm")
+async def local_reset_confirm(body: ResetConfirmBody, request: Request) -> dict[str, Any]:
+    """200 {must_enrol} | 422 `code_invalid` (uniform) | 400 `password_policy` (only after a correct code; the code stays live) |
+    429. No session is created; every session and open link of the user ends."""
+    _public_guard(request)
+    if not hua.LIMITER.hit(f"lresetc:{hua.limit_ip(hua.client_ip(request))}", lr.CONFIRM_LIMITS):
+        raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
+    admitted, out = await lp.run_admitted(lr.confirm, request.app.state.db, settings_of(request), request, body.username, body.code, body.password, _rid(request))
+    if not admitted or out is None:
+        await _overloaded(request)
         raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
     return out
 
@@ -340,6 +388,8 @@ def _user_dict(conn: sqlite3.Connection, row: sqlite3.Row, live: dict[str, int] 
     link = conn.execute("SELECT ha_user_id FROM identity_links WHERE local_user_id = ?", (row["id"],)).fetchone()
     if live is None:
         live = {row["id"]: len(li.chains(conn, row["id"]))}
+    number = lr.verified_number(conn, row["id"])  # USR2 phase 2: the self-service reset / WhatsApp link needs it (masked: last two digits)
+    admin = li.holds_admin(conn, row["id"])
     return {
         "id": row["id"], "username": row["username"], "display_name": row["display_name"], "email": row["email"], "notes": row["notes"],
         "status": _status(row), "active": bool(row["active"]), "created_at": row["first_seen_at"], "created_by": row["created_by"],
@@ -347,8 +397,11 @@ def _user_dict(conn: sqlite3.Connection, row: sqlite3.Row, live: dict[str, int] 
         "role_id": b["role_id"] if b else None, "role_name": role_name(conn, b["role_id"]) if b else None,
         "scope_type": b["scope_type"] if b else None, "scope_id": b["scope_id"] if b else None,
         "scope_name": scope_name(conn, b["scope_type"], b["scope_id"]) if b else None, "binding_id": b["id"] if b else None,
-        "admin": li.holds_admin(conn, row["id"]), "second_factor": sf.is_enrolled(conn, row["id"]), "reset_mode": row["reset_mode"],
+        "admin": admin, "second_factor": sf.is_enrolled(conn, row["id"]), "reset_mode": row["reset_mode"],
         "must_change_password": bool(row["must_change"]), "sessions": live.get(row["id"], 0), "ha_user_id": link["ha_user_id"] if link else None,
+        "whatsapp": {"verified": number is not None, "masked": f"····{number.digits[-2:]}" if number is not None else None},
+        # why a self-service reset would be refused right now (None = it would work): the UI shows the reason next to the switch
+        "self_service_blocked": None if row["reset_mode"] != "self_service" else ("admin_target" if admin else None if number is not None else "no_verified_number"),
     }
 
 
@@ -380,7 +433,9 @@ def list_local_users(request: Request, include_deleted: bool = Query(False), pri
     for c in li.chains(conn, None):
         live[c["user_id"]] = live.get(c["user_id"], 0) + 1
     return {"enabled": li.enabled(conn), "can_manage": authorize(conn, principal, "identity.local.manage", INSTALLATION).allowed,
-            "channel": "remote" if is_remote(request) else "local", "users": [_user_dict(conn, r, live) for r in rows]}
+            "channel": "remote" if is_remote(request) else "local", "users": [_user_dict(conn, r, live) for r in rows],
+            # USR2 phase 2: can a code / a link leave by WhatsApp at all (an account mapped and connected), and where links point
+            "whatsapp_ready": lr.channel_ready(conn), "public_url": lr.public_origin(conn, request)}
 
 
 def _validate_email(email: str | None) -> str | None:
@@ -504,6 +559,7 @@ def _end_access(conn: sqlite3.Connection, user_id: str, reason: str) -> dict[str
     ended = li.revoke_user_sessions(conn, user_id, reason)
     links = li.invalidate_links(conn, user_id)
     li.drop_pending_of(user_id)
+    lr.kill_codes(user_id)  # a live self-service code ends too (the confirm would refuse it anyway)
     tokens = presence.revoke_tokens(conn, user_id)
     revocation.mark([user_id])
     return {"sessions_ended": ended, "links_invalidated": links, "device_tokens_revoked": tokens}
@@ -536,6 +592,8 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
             raise ApiError(422, "self_service_not_for_admins", SELF_SERVICE_ADMIN_HE)
         conn.execute("UPDATE auth_local_credentials SET reset_mode = ?, updated_at = ? WHERE user_id = ?", (fields["reset_mode"], now_iso(), user_id))
         changed["reset_mode"] = fields["reset_mode"]
+        if fields["reset_mode"] == "manager_only":
+            lr.kill_codes(user_id)
     suggest: str | None = None
     if fields.get("active") is not None and bool(fields["active"]) != bool(row["active"]):
         if not fields["active"]:
@@ -627,17 +685,42 @@ def issue_local_link(user_id: str, body: LinkBody, request: Request, principal: 
     b = _binding(conn, user_id)
     admin = admin or bool(b and li.role_is_admin(conn, b["role_id"]))
     _admin_target_local_only(request, admin)
-    if body.via == "whatsapp":
-        if admin:
-            raise ApiError(422, "whatsapp_not_for_admins", WHATSAPP_ADMIN_HE)
-        raise ApiError(422, "via_not_available", VIA_LATER_HE)
+    channel = "remote" if is_remote(request) else "local"
+
+    def refuse(status: int, code: str, message: str, reason: str) -> ApiError:
+        audit(conn, actor=principal, action="auth.local.link.issued", decision="denied", resource_type="user", resource_id=user_id, request_id=_rid(request),
+              reason=reason, details={"purpose": body.purpose, "via": body.via, "channel": channel, "admin_target": admin})
+        return ApiError(status, code, message)
+
+    if body.via == "whatsapp" and admin:  # owner answer Q3: an administrative target's link never travels by WhatsApp
+        raise refuse(422, "whatsapp_not_for_admins", WHATSAPP_ADMIN_HE, "whatsapp_admin_target")
     if not row["active"]:
         raise ApiError(409, "user_disabled", "המשתמש מושבת. הפעל אותו לפני הפקת קישור.")
     expected = "reset" if row["has_password"] else "first_login"
     if body.purpose != expected:
         raise ApiError(409, "purpose_mismatch", "למשתמש שכבר בחר סיסמה מפיקים קישור איפוס; למשתמש חדש - קישור כניסה ראשונה.", details={"expected": expected})
-    channel = "remote" if is_remote(request) else "local"
-    token, expires = li.issue_link(conn, user_id=user_id, purpose=body.purpose, via="shown", channel=channel, actor=principal, temporary=body.temporary)
+    number = origin = None
+    if body.via == "whatsapp":  # USR2 phase 2: a non-administrative target's link to the user's VERIFIED number (never shown, never returned)
+        number = lr.verified_number(conn, user_id)
+        if number is None:
+            raise refuse(409, "no_verified_number", lr.NO_NUMBER_HE, "no_verified_number")
+        if not lr.channel_ready(conn):
+            raise refuse(409, "whatsapp_unavailable", lr.CHANNEL_HE, "channel_unavailable")
+        origin = lr.public_origin(conn, request)
+        if origin is None:
+            raise refuse(409, "public_url_unknown", lr.PUBLIC_URL_HE, "public_url_unknown")
+    token, expires = li.issue_link(conn, user_id=user_id, purpose=body.purpose, via=body.via, channel=channel, actor=principal, temporary=body.temporary)
+    if number is not None and origin is not None:
+        hours = max(1, int(round(li.link_ttl_s(conn) / 3600)))
+        ref = li.token_hash(token)[:12]
+        if not lr.send_link(request.app.state.db, user_id=user_id, number=number, url=origin + li.link_path(settings_of(request), token), purpose=body.purpose,
+                            hours=hours, ref=ref):
+            li.invalidate_links(conn, user_id)  # an ApiError commits the transaction: the link that never left must not stay usable
+            raise ApiError(503, "busy", lr.BUSY_HE, retryable=True)
+        del token
+        audit(conn, actor=principal, action="auth.local.link.issued", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
+              details={"purpose": body.purpose, "via": "whatsapp", "channel": channel, "temporary": body.temporary, "admin_target": False, "ref": ref})
+        return {"user_id": user_id, "link": {"purpose": body.purpose, "via": "whatsapp", "expires_at": li.iso(expires), "queued": True}}
     audit(conn, actor=principal, action="auth.local.link.issued", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
           details={"purpose": body.purpose, "via": "shown", "channel": channel, "temporary": body.temporary, "admin_target": admin})
     return {"user_id": user_id, "link": _link_answer(request, token, expires, body.purpose)}

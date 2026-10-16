@@ -10,7 +10,8 @@ path ... uses HA authentication and not an additional password database"), and -
 `MASTER_SPEC_HE.md` and `docs/security/` > `AGENTS.md`) - the sentence of the `AGENTS.md` v1.1 amendment "HA is the only human
 identity source; local VMS records contain bindings, not passwords". `AGENTS.md` itself is not edited by this change (it is the
 agents' operating contract); the lead / owner updates its wording, and until then this CR takes precedence over that sentence.
-**Implementation:** phase P0 + P1 on `pilot/USR2-P1` (migration 0097 provisional, the lead renumbers).
+**Implementation:** phase P0 + P1 on `pilot/USR2-P1` (migration 0097 provisional, the lead renumbers); USR2-FIX on `pilot/USR2-FIX`
+(section 7); phase 2 on `pilot/USR2-P2` (section 8, no migration).
 
 ---
 
@@ -84,7 +85,7 @@ agents' operating contract); the lead / owner updates its wording, and until the
 | 2 | An Arx-only user is always allowed remotely; the role is the permission | No flag / `remote.policy` check on the local path; `access._users` shows `remote_access_basis: "local"` |
 | 3 | Any role except system_admin, with every administrative-target protection | `services/local_identity.role_refusal`, `routers/access.local_binding_check`; `rbac.LOCAL_ADMIN_PERMISSIONS` + `local_factor_gate` in `authorize` / `effective_permissions` / `permissions_anywhere`; 7-day / 24 h cap at creation and on every use; local-channel-only create / link / admin role; WhatsApp refused for admin targets |
 | 4 | Alarm arm / disarm through the service identity per role and PIN rules | Phase 3 (service identity). Phase 1: the remote alarm rules (`alarm.remote_control`, `alarm.remote_disarm`, `alarm.remote_codeless`) already apply to local principals (`routers/alarm.py`, `services/schedule_view.py` treat `source = local` as remote) |
-| 5 | Both reset kinds, chosen per user (`manager_only` default / `self_service`), self-service refused for admins | `auth_local_credentials.reset_mode`, create / PATCH validation, admin role switches back to `manager_only`; manager-issued links (`POST .../link`). The self-service flow (WhatsApp code) is phase 2 |
+| 5 | Both reset kinds, chosen per user (`manager_only` default / `self_service`), self-service refused for admins | `auth_local_credentials.reset_mode`, create / PATCH validation, admin role switches back to `manager_only`; manager-issued links (`POST .../link`). Phase 2 (section 8): the self-service flow (WhatsApp code), refused at the moment of use for an administrator; links by WhatsApp for non-administrators only |
 | 6 | App refresh token, app only - later (P5) | Not built. Schema compatible: `auth_local_sessions.kind IN ('browser','app')`, chain model, hashed ids |
 | 7 | Both identities allowed, manual link, disable suggests | `identity_links` (migration 0097), `PUT/DELETE /identity/local-users/{id}/ha-link`, PATCH active answers `suggest_also` |
 | 8 | Hashes in the project backup; sessions / links / failures / TOTP excluded | `services/backup.py` ACCESS_TABLES gains `auth_local_credentials`, `identity_links`; `NEVER_EXPORTED_COLUMNS` keeps the failure counter / lock columns out (USR2-FIX F9) |
@@ -108,7 +109,7 @@ never delegable); the settings keys; migration 0097; `services/local_passwords.p
 sign-in step and the administrative-permission rule; the sign-in page mode and the welcome (set-password) page; the settings tab
 "משתמשי Arx".
 
-Later phases (design record §18): P2 self-service reset through WhatsApp, WhatsApp link delivery, notifications
+Later phases (design record §18) - **P2 is built (section 8)**: P2 self-service reset through WhatsApp, WhatsApp link delivery, notifications
 (`auth.local.account_delayed`, `auth.local.account_locked`, `auth.local.storm` - global tier and hashing admission - and new
 location; phase 1 writes them as audit rows only: wiring them into the notification centre (`services/notify.emit`, a `security.*`
 source to managers) is a phase-2 item and should ship with the switch if the owner turns it on before P2 - security review F7), the
@@ -194,3 +195,51 @@ on 7ee88ea6 (`tests/test_local_identity.py`, `tests/test_local_identity_units.py
   `X-Forwarded-Proto: https` (NOT_VERIFIED item 3).
 - F13 (P3) - accepted: same address-trust posture as the existing HA sign-in limiter; the per-account and global tiers do not depend
   on it; prerequisite as F12.
+
+## 8. Phase 2 (USR2-P2, 2026-10-16) - self-service reset, WhatsApp links, notifications
+
+Branch `pilot/USR2-P2` (cut from `pilot/USR2-FIX` @ f5ea0c2d). **No migration** (the provisional number 0098 stays unused; the
+lead renumbers nothing for this phase). Everything stays behind `security.local_identity` (off by default): the new public routes
+answer 403 `local_identity_off` while it is off and 404 on the local channel, and nothing else changes with the switch off.
+
+**Owner answer Q5 (final), as built:** both reset modes, chosen per user (`reset_mode`).
+
+| Item | Built | Where |
+|---|---|---|
+| Self-service "forgot password" | `POST /arx/api/v1/auth/local/reset/request {username}` - **always the same 202** (unknown name, `manager_only`, no password yet, administrator, no verified number, channel down, a cap: alike; the message leaves later on the sender thread, so no answer waits for WhatsApp). `POST /arx/api/v1/auth/local/reset/confirm {username, code, password}` - 200 `{must_enrol}` / uniform 422 `code_invalid` / 400 `password_policy` (only after a correct code; the code stays live) / 429. Success: the password policy of §6.2, `set_by = 'self_service'`, every session and open link of the user ends, the per-network delays of the name and the ceiling counter clear, **no session is created** (the page signs in normally, so the TOTP step still applies). | `services/local_reset.py`, `routers/local_identity.py` |
+| Code rules (as the tickets code engine) | 6 digits (OS random); stored only as HMAC-SHA256(process key, `lr`, code id, user id, **credential fingerprint** (password hash + set_at), **number key**, code) - a password set in between, or a changed number, kills it; 10 minutes; single use (consumed under a lock before the hash); one live code per user; 5 wrong guesses end it; 1 send / 60 s and 5 / day per user, 5 / day per number, 50 / day per installation; per address 5 / min + 20 / h (request) and 10 / min + 40 / h (confirm); the confirm runs in the bounded hashing admission (F3) and hashes only after a correct code. | `services/local_reset.py` |
+| Administrative user refused at the moment of use (F6) | The eligibility rule (`active`, has a password, `reset_mode = self_service`, **not `holds_admin` now**) runs at the request AND again at the confirm, whatever `reset_mode` says; a custom role that gained `rbac.assign` after the code was sent makes the correct code fail (audited `admin_target`). The live code also ends on disable / delete / switch back to `manager_only`. | `local_reset._refusal` |
+| Verified number | The user's own tickets directory row (`ticket_contacts.user_id`, active, not erased) with `phone_confirmed_at` (TKSTAFF1: confirmed by the user). Where 2.6.3's number verification is merged (`phone_confirmed_via`), only `user` / `code` count (never a manager's mark) and `tickets.phone_verify.confirmed()` must agree. | `local_reset.verified_number` |
+| Delivery | The tickets / NOTIFWA WhatsApp infrastructure through its public functions: a new account use `identity.local` ("איפוס סיסמה וקישורי כניסה של משתמשי Arx", Settings › ערוץ ההודעות; inherits the `tickets.messages` account when not set; shown while the switch is on), the adapter `WhatsAppChannel`, the pacing gate over the shared send ledger (kind `code` / `message`), `notify_whatsapp.transport()`. Fixed code-owned texts in he / en / ar / ru by the contact's language (**ar and ru need a native review**), no username or name, never editable, never held by send hours. A code that ended before its message left is never sent. | `local_reset.Sender`, `TEXTS` |
+| Manager link by WhatsApp | `POST identity/local-users/{id}/link {via: whatsapp}` is real for a **non-administrative** target: 409 `no_verified_number` / `whatsapp_unavailable` / `public_url_unknown`; on success the link row says `issued_via = whatsapp`, the token exists only in the sender's memory and **the answer never carries it** (`{via, expires_at, queued}`). An **administrative target** keeps 422 `whatsapp_not_for_admins` on every channel (and its links stay local-channel only - phase 1). | `routers/local_identity.issue_local_link` |
+| Where WhatsApp links point | New setting `security.local_public_url` (`https://<dns name>` only - no IP literal, path, query, user part, port other than 443; default empty). **System administrators only** (whoever sets it decides where reset tokens go), audited `identity.local.public_url`, never restored from a backup (`SETTINGS_KEEP`). Without it a link can be sent only from a remote session (its own host). | `routers/settings.py`, `local_reset.normalize_public_url` |
+| Notifications (F7) | `auth.local.storm` (global tier and hashing admission), `auth.local.account_delayed` (10th failure from one network) and `auth.local.account_locked` (the ceiling) now also emit notification-centre signals `security.local_storm` / `security.local_account_delayed` / `security.local_account_locked` (category security, recipients `managers`, subject `system` = system.configure visibility, fold window 1 h, content-free: never a username, address or person). | `services/notify_policy.py`, `local_identity._notify` |
+| Storm cost (F7) | The global storm now needs `GLOBAL_STORM_AT` (300) failures **from at least `GLOBAL_STORM_NETWORKS` (5) distinct networks** (IPv4 address / IPv6 /64); restored counters count as one network. Two addresses at the per-address allowance no longer refuse every dormant account. | `local_identity._Tiers.storm` |
+| Settings UI | Per-user reset mode with the reasons it is refused (administrator; no verified number), the user's verified WhatsApp state (`····NN`), "link by WhatsApp" for non-administrators only (the administrator note otherwise), the "sent to ····NN, valid until" confirmation without the link, the public link address field. The sign-in page: "שכחתי את הסיסמה" (local mode only) -> username -> code + new password twice -> back to sign-in with the username filled. he / en strings. | `frontend/src/screens/system-local-users.ts`, `frontend/src/arx/arx-login.ts`, `frontend/src/arx/local-auth.ts`, `frontend/src/i18n/local-identity.ts` |
+
+New audit actions (ids only; never a code, a number, a token or a typed username): `auth.local.reset.requested` (reason:
+`unknown_user` (throttled per address), `inactive`, `no_password`, `manager_only`, `admin_target`, `no_verified_number`,
+`channel_unavailable`, `cooldown`, `cap_user`, `cap_number`, `cap_installation`, `busy`; allowed rows carry a 12-hex code id),
+`auth.local.reset.refused` (`unknown_user`, `no_code`, `malformed`, `invalid`, plus the eligibility reasons), `auth.local.reset.completed`,
+`auth.local.password.changed` (`via: self_service`), `auth.local.delivery` (kind, ref, outcome, account key), `identity.local.public_url`.
+
+**Exposed surfaces added to §4:** `POST /arx/api/v1/auth/local/reset/request` and `.../reset/confirm` - anyone on the internet
+(through the tunnel); remote only; 403 while off; login CSRF; https; the limits and the uniformity above.
+
+**Deviations from the brief / design record (recorded, not silently resolved):**
+1. The brief named "the existing WhatsApp outbox (fixed template purpose like phone_verify)". `phone_verify` and the outbox's fixed
+   purposes exist only on `integ/263` (2.6.3), not on this base; adding a purpose to `ticket_outbox` needs a table rebuild (its CHECK)
+   that would collide with 2.6.3's single rebuild (0089). Chosen instead: the same WhatsApp infrastructure (account use, adapter,
+   pacing, shared ledger, transport) with an in-memory sender - so there is **no outbox row at all** and the code is never stored.
+2. Codes and caps live in memory (no migration): a restart ends every live code (the user asks again - safe direction) and starts
+   the caps afresh (weaker direction; the per-address limits are persisted by the existing limiter). The persistent variant would
+   be migration 0098 (a `auth_local_reset_codes` table like `ticket_phone_verifications`) - a lead / owner decision.
+3. The design record's "notification after the 10th failure" fires only when one network really reaches 10 counted failures
+   (the per-network delay stops counting while it runs, so a single guesser reaches it after the delays expire); the ceiling
+   notification covers the many-network case.
+4. Notification texts follow the catalogue rule "never a person": they do not name the account; the audit row and the Settings tab
+   show which one.
+
+**NOT_VERIFIED (phase 2):** WhatsApp delivery of a code / a link to a real phone through the real `ha-whatsapp` (fakes only); ar / ru
+texts (native review); the mapping UI of the new account use on a real installation; link previews of WhatsApp clients (the token is
+in the URL fragment, which a preview fetch does not send - by HTTP semantics, not tested on a device).

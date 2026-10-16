@@ -100,6 +100,17 @@ SOURCES: tuple[Source, ...] = (
     _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, subject="session", resolves=False),
     # TFA2: an administrator reset the account's second factor - the account's own user is told (never who, never a secret)
     _s("security.second_factor_reset", "איפוס אימות דו־שלבי", "security", "alert", "האימות הדו־שלבי של החשבון אופס", "מנהל המערכת אפס את האימות הדו־שלבי של החשבון שלך. אם לא ביקשת זאת - פנה למנהל המערכת. אפשר להפעיל אותו מחדש ב״החשבון שלי״.", window_s=3600, who="initiator", subject="session", resolves=False),
+    # USR2 phase 2 (CR-USR2 §3, security review F7): the Arx-only sign-in's security events, to the managers (a `system` subject:
+    # system.configure). Content-free - never a username, an address or a person; the audit rows carry the user id.
+    _s("security.local_storm", "ניסיונות כניסה רבים של משתמשי Arx", "security", "alert", "ניסיונות כניסה רבים של משתמשי Arx",
+       "מספר חריג של כניסות כושלות או עומס על בדיקת הסיסמאות. כניסות של חשבונות רדומים נדחות זמנית. פרטים באודיט.", window_s=3600, who="managers",
+       subject="system", resolves=False),
+    _s("security.local_account_delayed", "חשבון Arx מושהה מרשת אחת", "security", "alert", "ניסיונות שגויים לחשבון Arx",
+       "עשרה ניסיונות כניסה שגויים לחשבון אחד מאותה רשת; הכניסות מהרשת הזו מושהות. פרטים בהגדרות › משתמשי Arx ובאודיט.", window_s=3600, who="managers",
+       subject="system", resolves=False),
+    _s("security.local_account_locked", "חשבון Arx ננעל", "security", "alert", "חשבון Arx ננעל זמנית",
+       "חשבון של משתמש Arx ננעל ל־15 דקות אחרי ניסיונות שגויים רבים מכמה רשתות. אפשר לשחרר בהגדרות › משתמשי Arx.", window_s=3600, who="managers",
+       subject="system", resolves=False),
     # ---- alerts (rules, and the NVR smart events that only rules turn into notifications)
     _s("rule.alert", "התראות מחוקים", "alerts", "alert", "{name}", "{message}", window_s=300, subject="camera", resolve_text="טופל", resolves=False),
     _s("camera.motion", "תנועה (רק דרך חוקים)", "alerts", "info", "תנועה", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),

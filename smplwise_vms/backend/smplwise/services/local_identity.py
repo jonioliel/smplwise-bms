@@ -91,6 +91,7 @@ DELAY_SLEEP_CAP_S = 3.0
 IP_WINDOWS: tuple[tuple[int, int], ...] = ((60, 20), (3600, 100), (86400, 300))
 GLOBAL_WINDOW_S = 600
 GLOBAL_STORM_AT = 300
+GLOBAL_STORM_NETWORKS = 5  # USR2 phase 2 (security review F7): distinct source networks (IPv4 address / IPv6 /64) a storm needs
 GLOBAL_WAIT_S = 2.0
 STALE_ACCOUNT_DAYS = 30
 SET_PASSWORD_LIMITS: list[tuple[float, int]] = [(60.0, 10)]
@@ -544,6 +545,17 @@ def _audit(db_or_conn: Any, *, actor: Principal | None, action: str, decision: s
         log.exception("could not write the %s audit row", action)
 
 
+def _notify(db: Any, source: str, subject_id: str, *, reason: str | None = None) -> None:
+    """USR2 phase 2 (security review F7, CR §3): the security events also reach the managers through the notification centre - never
+    a username, an address or a person in the text (services/local_reset.notify_managers). Never raises."""
+    try:
+        from . import local_reset
+
+        local_reset.notify_managers(db, source, subject_id, params={"reason": reason} if reason else None)
+    except Exception:  # noqa: BLE001
+        log.warning("could not emit %s", source)
+
+
 def _lookup(db: Any, sid_hash: str) -> tuple[Any, Any] | None:
     """(row, successor row or None) of a cookie through a short read."""
     with db.connection(mode="read", label="local session") as conn:
@@ -783,7 +795,7 @@ class _Tiers:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._ip: dict[str, dict[int, list[float]]] = {}  # key -> {window: [start, count]}
-        self._global: collections.deque[float] = collections.deque(maxlen=20000)
+        self._global: collections.deque[tuple[float, str]] = collections.deque(maxlen=20000)  # (time, network key) - F7: networks counted
         # USR2-FIX F2: (uname hash, network key) -> (failures, last failure, delay until), for known AND unknown names alike
         self._acct: dict[tuple[str, str], tuple[int, float, float]] = {}
         # the ceiling twin of auth_local_credentials for names that do not exist: uname hash -> (window index, failures, locked until)
@@ -820,20 +832,29 @@ class _Tiers:
                     self._ip.pop(k, None)
             return 0.0
 
-    def fail_global(self) -> None:
+    def fail_global(self, ip: str = "") -> None:
+        net = self.ip_key(ip) if ip else ""
         with self._lock:
-            self._global.append(time.time())
+            self._global.append((time.time(), net))
             self._dirty = True
 
     def global_count(self) -> int:
         cutoff = time.time() - GLOBAL_WINDOW_S
         with self._lock:
-            while self._global and self._global[0] < cutoff:
+            while self._global and self._global[0][0] < cutoff:
                 self._global.popleft()
             return len(self._global)
 
+    def global_networks(self) -> int:
+        """Distinct source networks among the failures of the window (security review F7)."""
+        cutoff = time.time() - GLOBAL_WINDOW_S
+        with self._lock:
+            return len({n for t, n in self._global if t >= cutoff})
+
     def storm(self) -> bool:
-        return self.global_count() >= GLOBAL_STORM_AT
+        """USR2 phase 2 (security review F7): the storm needs GLOBAL_STORM_AT failures from at least GLOBAL_STORM_NETWORKS distinct
+        networks - two addresses at the per-address allowance no longer switch on the refusal of every dormant account."""
+        return self.global_count() >= GLOBAL_STORM_AT and self.global_networks() >= GLOBAL_STORM_NETWORKS
 
     def storm_should_notify(self) -> bool:
         now = time.time()
@@ -906,7 +927,7 @@ class _Tiers:
                 return 0
             self._dirty = False
             ips = {k: {w: list(v) for w, v in wins.items()} for k, wins in self._ip.items()}
-            glob = list(self._global)
+            glob = [t for t, _n in self._global]
         now = time.time()
         n = 0
         try:
@@ -941,7 +962,7 @@ class _Tiers:
                 if key == "global":
                     start, count = float(r["window_start"]), int(r["count"])
                     if now - start < GLOBAL_WINDOW_S:
-                        self._global.extend([start] * min(count, 20000))
+                        self._global.extend([(start, "restored")] * min(count, 20000))  # one pseudo-network: a storm needs fresh evidence
                         n += 1
                     continue
                 parts = key.split(":")
@@ -1073,7 +1094,8 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
     storm = TIERS.storm()
     if storm and TIERS.storm_should_notify():
         _audit(db, actor=None, action="auth.local.storm", decision="denied", reason="global_tier", resource_id="installation",
-               details={"failures_10min": TIERS.global_count()}, request_id=request_id)
+               details={"failures_10min": TIERS.global_count(), "networks": TIERS.global_networks()}, request_id=request_id)
+        _notify(db, "security.local_storm", "installation", reason="global_tier")
     base_sleep = GLOBAL_WAIT_S if storm else 0.0
     uname = username_key(username)
     now = time.time()
@@ -1088,7 +1110,7 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
 
     def fail(tier: str, *, user_id: str | None, sleep_s: float = 0.0, count: bool = True) -> SignInResult:
         if count:
-            TIERS.fail_global()
+            TIERS.fail_global(ip)
         details = {"tier": tier, "ip": masked}
         if user_id is None:
             write, suppressed = REFUSAL_AUDITS.admit(f"local_sign_in_failed|{ip}")
@@ -1153,9 +1175,11 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
         if locked:
             _audit(db, actor=None, action="auth.local.account_locked", decision="denied", reason="ceiling", resource_id=uid,
                    details={"failures_15min": failures, "lock_seconds": int(ACCOUNT_LOCK_S), "unlock": "identity.local.manage"}, request_id=request_id)
+            _notify(db, "security.local_account_locked", uid)
         if net_failures == ACCOUNT_NOTIFY_AT:
             _audit(db, actor=None, action="auth.local.account_delayed", decision="denied", reason="ten_failures", resource_id=uid,
                    details={"failures": net_failures, "ip": masked}, request_id=request_id)
+            _notify(db, "security.local_account_delayed", uid)
         return fail("password" if usable else ("disabled" if not user["active"] else "no_password"), user_id=uid)
     # success
     TIERS.acct_clear(uname, ip)
@@ -1432,6 +1456,9 @@ def reset_for_tests() -> None:
         _pending.clear()
     flag_changed()
     local_passwords.reset_for_tests()
+    from . import local_reset
+
+    local_reset.reset_for_tests()
 
 
 _ = dataclasses  # kept for type tooling
