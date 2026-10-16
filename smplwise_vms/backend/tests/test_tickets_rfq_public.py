@@ -120,7 +120,7 @@ def test_another_vendors_quote_cannot_be_withdrawn_and_reads_like_a_closed_one(s
     qa = quote(c, token(s4, a))
     assert qa.status_code == 201, qa.text
     r = c.post("/t/api/rfq/withdraw", json={"quote_id": qa.json()["quote"]["id"], "client_request_id": crid()}, headers=hdr(token(s4, b)))
-    assert r.status_code == 409 and r.json() == {"code": "quote_closed", "reason": "quote"}
+    assert r.status_code == 409 and r.json() == {"code": "quote_closed", "reason": "vendor"}  # review F2 (2.6.3): the fixed vocabulary
     assert view(c, token(s4, a))["quote"]["state"] == "submitted"
 
 
@@ -382,3 +382,114 @@ def test_the_vendor_options_route_needs_an_rfq_manager(s4):
     ch = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{a}/options", json={"revision": d["revision"], "channel": "email"},
                    headers=s4.h("mona"))
     assert ch.status_code == 409 and ch.json()["code"] == "rfq_field_locked", "the channel is fixed once the vendor was invited"
+
+
+# ---------------------------------------------------------------- release 2.6.3: the public RFQ review (F1-F4, F6), negative first
+
+def _coded_rfq(s4) -> tuple[dict, str]:
+    d = sent_rfq(s4, vendors=[{"contact_id": s4.vendor["id"], "require_code": True}, {"contact_id": s4.contact["id"]}])
+    return d, vid(d, s4.vendor["id"])
+
+
+def test_f1_a_code_protected_link_read_without_the_code_is_not_an_open(s4):
+    d, a = _coded_rfq(s4)
+    c = pub(s4)
+    v = view(c, token(s4, a))
+    assert v["code_required"] is True and v["code_ok"] is False
+    with s4.db.connection(mode="read") as conn:
+        row = store_rfq.vendor(conn, a)
+        assert row["state"] == "sent" and not row["open_count"] and row["first_opened_at"] is None
+        assert [e for e in store_rfq.events_of(conn, d["id"]) if e["kind"] == "opened"] == []
+        assert conn.execute("SELECT state FROM ticket_rfqs WHERE id = ?", (d["id"],)).fetchone()[0] == "sent"
+    # the code-less vendor's read still counts as an open
+    view(c, token(s4, vid(d, s4.contact["id"])))
+    with s4.db.connection(mode="read") as conn:
+        assert store_rfq.vendor(conn, vid(d, s4.contact["id"]))["state"] == "opened"
+
+
+def test_f2_a_refusal_after_an_award_never_names_the_award(s4, settings):
+    bind(s4.c, settings, "kim", "system_admin", "installation", "*")
+    d = sent_rfq(s4)
+    a, b = vid(d, s4.vendor["id"]), vid(d, s4.contact["id"])
+    c = pub(s4)
+    assert quote(c, token(s4, a)).status_code == 201
+    qb = quote(c, token(s4, b), lines=[{"kind": "labor", "hours": "1", "rate": "99"}])
+    assert qb.status_code == 201
+    cmp = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/comparison", headers=s4.h("joni")).json()
+    qa = next(x for x in cmp["quotes"] if x["vendor_id"] == a)
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards", json={"quote_id": qa["quote_id"], "revision": qa["revision"]}, headers=s4.h("kim"))
+    assert r.status_code == 201, r.text
+    tb = token(s4, b)
+    for w in (quote(c, tb, base=1), c.post("/t/api/rfq/message", json={"text": "שאלה", "client_request_id": crid()}, headers=hdr(tb)),
+              c.post("/t/api/rfq/decline", json={"client_request_id": crid()}, headers=hdr(tb)),
+              c.post("/t/api/rfq/withdraw", json={"quote_id": qb.json()["quote"]["id"], "client_request_id": crid()}, headers=hdr(tb))):
+        assert w.status_code == 409 and w.json() == {"code": "quote_closed", "reason": "ended"}, w.text
+        assert "award" not in w.text and "ordered" not in w.text
+
+
+def test_f2_a_pending_second_approval_closes_the_form_and_refuses_with_the_fixed_vocabulary(s4, settings):
+    for n in ("kim", "lea"):
+        bind(s4.c, settings, n, "system_admin", "installation", "*")
+    assert s4.c.put(f"{API}/tickets/rfqs/departments/dept-maintenance", json={"second_approval_minor": 100000}).status_code == 200
+    d = sent_rfq(s4)
+    a = vid(d, s4.vendor["id"])
+    c = pub(s4)
+    ta = token(s4, a)
+    assert quote(c, ta).status_code == 201
+    cmp = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/comparison", headers=s4.h("joni")).json()
+    qa = next(x for x in cmp["quotes"] if x["vendor_id"] == a)
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards", json={"quote_id": qa["quote_id"], "revision": qa["revision"]}, headers=s4.h("kim"))
+    assert r.status_code == 201 and r.json()["award"]["state"] == "pending_second", r.text
+    v = view(c, ta)
+    assert v["page_state"] == "open" and not any(v["can"].values()), "the page offers no write the server would refuse"
+    assert "award" not in json.dumps(v)
+    for w in (quote(c, ta, base=1), c.post("/t/api/rfq/withdraw", json={"quote_id": v["quote"]["id"], "client_request_id": crid()}, headers=hdr(ta))):
+        assert w.status_code == 409 and w.json() == {"code": "quote_closed", "reason": "vendor"}, w.text
+
+
+def test_f3_the_public_quote_audit_row_carries_ids_only(s4):
+    d = sent_rfq(s4)
+    c = pub(s4)
+    assert quote(c, token(s4, vid(d, s4.vendor["id"]))).status_code == 201
+    with s4.db.connection(mode="read") as conn:
+        rows = [json.loads(r[0]) for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'ticket.rfq.vendor_quote'")]
+    assert len(rows) == 1
+    assert "total_minor" not in rows[0] and "currency" not in rows[0] and {"quote_id", "version", "vendor_id"} <= set(rows[0])
+
+
+@pytest.mark.parametrize("change", ["revoke", "generation", "staff"])
+def test_f4_a_link_changed_between_the_lookup_and_the_write_lands_nothing(s4, monkeypatch, change):
+    from smplwise.services.tickets import public_rfq
+
+    d = sent_rfq(s4)
+    a = vid(d, s4.vendor["id"])
+    tok = token(s4, a)
+    real = public_rfq.SqlRfqLinkStore.lookup
+
+    def lookup_then_change(self, token_hash):
+        rec = real(self, token_hash)  # the dependency's view of the link ...
+        with s4.db.connection() as conn:  # ... then the manager acts before the write transaction opens
+            if change == "revoke":
+                conn.execute("UPDATE ticket_rfq_links SET revoked_at = ?, revoked_reason = 'manual' WHERE rfq_vendor_id = ?", (_at(), a))
+            elif change == "generation":
+                conn.execute("UPDATE ticket_rfq_links SET generation = generation + 1 WHERE rfq_vendor_id = ?", (a,))
+            else:
+                conn.execute("UPDATE ticket_contacts SET employee = 1 WHERE id = ?", (s4.vendor["id"],))
+        return rec
+
+    c = pub(s4)
+    monkeypatch.setattr(public_rfq.SqlRfqLinkStore, "lookup", lookup_then_change)
+    w = quote(c, tok)
+    assert w.status_code == 404 and w.content == UNIFORM_404
+    with s4.db.connection(mode="read") as conn:
+        assert store_rfq.quotes_of_vendor(conn, a) == []
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ticket.rfq.vendor_quote'").fetchone()[0] == 0
+
+
+def test_f6_the_rfq_code_message_footer_is_the_rfq_label():
+    from smplwise.services.tickets import message_templates as mt
+
+    for lang in ("he", "en", "ar", "ru"):
+        rfq_footer = mt.footer_for({"number": "7"}, lang=lang, purpose="code", rfq=True)
+        assert rfq_footer == mt.footer_for({"number": "7"}, lang=lang, purpose="rfq_invite"), lang
+        assert rfq_footer != mt.footer_for({"number": "7"}, lang=lang, purpose="code"), "the ticket code keeps the ticket noun"

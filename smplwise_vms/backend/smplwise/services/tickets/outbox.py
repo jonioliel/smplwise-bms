@@ -689,11 +689,12 @@ class Outbox:
         footer = ""
         if row.channel == "whatsapp" and row.reply_nonce and self.p.channels["whatsapp"].supports_buttons():
             buttons = templates.buttons_for(row.reply_nonce, tpl.lang)
-            footer = templates.footer_for(row.params, lang=tpl.lang, display_name=self.p.context.display_name(), purpose=row.purpose)
+            footer = templates.footer_for(row.params, lang=tpl.lang, display_name=self.p.context.display_name(), purpose=row.purpose,
+                                              rfq=bool(row.rfq_id))
         return OutboundMessage(outbox_id=row.id, channel=row.channel, purpose=row.purpose, recipient=recipient, text=text,
                                account=account, buttons=buttons, footer=footer,
                                subject=templates.footer_for(row.params, lang=tpl.lang, display_name=self.p.context.display_name(),
-                                                            purpose=row.purpose)), None
+                                                            purpose=row.purpose, rfq=bool(row.rfq_id))), None
 
     def _set(self, row: OutboxRow, *, state: str, now: dt.datetime, **changes: Any) -> OutboxRow:
         new = replace(row, state=state, updated_at=now.astimezone(UTC), **changes)

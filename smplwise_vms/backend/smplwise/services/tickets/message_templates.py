@@ -409,11 +409,13 @@ def buttons_for(nonce: str, lang: str) -> tuple[Button, ...]:
 RFQ_LABEL = {"he": "בקשה להצעת מחיר", "en": "Request for quotation", "ar": "عرض سعر", "ru": "Запрос предложения"}
 
 
-def footer_for(params: Mapping[str, Any], *, lang: str, display_name: Mapping[str, Any] | None = None, purpose: str | None = None) -> str:
+def footer_for(params: Mapping[str, Any], *, lang: str, display_name: Mapping[str, Any] | None = None, purpose: str | None = None,
+               rfq: bool = False) -> str:
     """The WhatsApp footer / e-mail subject: the module's noun and the number - or, for a request for quotation (TKRFQ1), its own
-    label (an RFQ is not a ticket)."""
+    label (an RFQ is not a ticket). `rfq`: the outbox row belongs to an RFQ (its `rfq_id`), e.g. the RFQ link's verification `code`
+    (review F6, 2.6.3: RFQ-07's code must not read like ticket 7's)."""
     number = one_line(params.get('number'), VALUE_MAX['number'])
-    if purpose and purpose.startswith("rfq_"):
+    if rfq or (purpose and purpose.startswith("rfq_")):
         return f"{RFQ_LABEL.get(lang, RFQ_LABEL[DEFAULT_LANG])} {number}".strip()
     names = names_for(display_name, lang)
     return f"{names['one']} {number}".strip()

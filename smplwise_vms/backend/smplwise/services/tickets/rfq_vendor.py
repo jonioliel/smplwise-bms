@@ -158,9 +158,11 @@ def _form(conn, row: Mapping[str, Any], v: Mapping[str, Any], cur: Mapping[str, 
                        "message": MESSAGE_MAX, "decline_reason": DECLINE_MAX, "max_total_minor": s.max_claim_total_minor}}
 
 
-def _writable(row: Mapping[str, Any], v: Mapping[str, Any], state: str, read_only: bool, now: dt.datetime) -> bool:
+def _writable(row: Mapping[str, Any], v: Mapping[str, Any], state: str, read_only: bool, now: dt.datetime, *, award_live: bool = False) -> bool:
+    """Review F2 (2.6.3): agrees with `_open_for_writes` - an award on this vendor that is pending a second approval (or approved) closes
+    the form too, so the page never offers a write that the server then refuses."""
     return (not read_only and state in ("open", "declined") and row["state"] in ("sent", "collecting") and not rfq._due_passed(row, now)
-            and v["state"] not in ("draft", "removed", "awarded", "not_awarded"))
+            and v["state"] not in ("draft", "removed", "awarded", "not_awarded") and not award_live)
 
 
 def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: str | None, now: dt.datetime) -> dict[str, Any]:
@@ -178,7 +180,7 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
     if link.require_code and not code_ok:
         return out  # 15.3: a forwarded link alone discloses nothing beyond "a request exists"
     state = page_state(conn, row, v, now)
-    writable = _writable(row, v, state, read_only, now)
+    writable = _writable(row, v, state, read_only, now, award_live=rfq._award_live_of_vendor(conn, v["id"]) is not None)
     cur = _shown_quote(conn, v)
     submitted = _submitted(conn, v)
     pending = submitted is not None and any(a["quote_id"] == submitted["id"] and a["state"] == "pending_second"
@@ -225,8 +227,11 @@ def _open_for_writes(conn, link: Any, now: dt.datetime) -> tuple[dict[str, Any],
     v = store_rfq.vendor(conn, v["id"]) or v
     if row["state"] == "due_passed" or (row["state"] in ("sent", "collecting") and rfq._due_passed(row, now)):
         raise VendorRefused(409, "rfq_due_passed")
+    # review F2 (2.6.3): a FIXED refusal vocabulary - `ended` (the request no longer takes quotes, whatever the reason: awarded,
+    # ordered, closed, cancelled) and `vendor` (this vendor's own row is closed, or a decision on his quote is pending) - never the
+    # request's internal state, so a non-awarded vendor never learns from a refusal that anyone was awarded
     if row["state"] not in ("sent", "collecting"):
-        raise VendorRefused(409, "quote_closed", reason=row["state"])
+        raise VendorRefused(409, "quote_closed", reason="ended")
     if v["state"] in ("draft", "removed", "awarded", "not_awarded") or rfq._award_live_of_vendor(conn, v["id"]):
         raise VendorRefused(409, "quote_closed", reason="vendor")
     return row, v
@@ -293,8 +298,7 @@ def submit(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> dict[s
     store_rfq.update_rfq(conn, row["id"], fields)  # the managers' copies go stale: a new quote arrived
     store_rfq.insert_event(conn, row["id"], "quote_submitted", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
                            data={"quote_id": qid, "version": version, "on_behalf": False, "late": False}, at=at)
-    _audit(conn, link, "ticket.rfq.vendor_quote", row, vendor_id=v["id"], quote_id=qid, version=version, total_minor=c.total_minor,
-           currency=currency)
+    _audit(conn, link, "ticket.rfq.vendor_quote", row, vendor_id=v["id"], quote_id=qid, version=version)  # review F3: ids only, no amount
     return present_quote(row, store_quotes.quote(conn, qid) or {})
 
 
@@ -302,9 +306,9 @@ def withdraw(conn, link: Any, quote_id: str, now: dt.datetime) -> None:
     row, v = _open_for_writes(conn, link, now)
     q = store_quotes.quote(conn, quote_id) if isinstance(quote_id, str) else None
     if q is None or q.get("rfq_vendor_id") != v["id"] or q["state"] != "submitted":
-        raise VendorRefused(409, "quote_closed", reason="quote")  # another vendor's / an unknown quote reads exactly like a closed one
+        raise VendorRefused(409, "quote_closed", reason="vendor")  # another vendor's / an unknown quote reads exactly like a closed one
     if any(a["quote_id"] == q["id"] and a["state"] == "pending_second" for a in store_rfq.awards_of(conn, row["id"])):
-        raise VendorRefused(409, "award_pending")
+        raise VendorRefused(409, "quote_closed", reason="vendor")  # review F2: defensive (`_open_for_writes` refuses first), same vocabulary
     at = iso(now)
     store_quotes.update_quote(conn, q["id"], {"state": "withdrawn"}, now=at)
     store_quotes.insert_decision(conn, {"quote_id": q["id"], "action": "withdrawn", "by_user": f"contact:{v['contact_id']}", "at": at})

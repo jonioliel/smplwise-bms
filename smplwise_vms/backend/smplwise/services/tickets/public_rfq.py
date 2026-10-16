@@ -336,6 +336,20 @@ def _code_refused(exc: CodeRefused) -> PublicError:
     return PublicError(422, codes_map.get(exc.reason, "code_invalid"), **extra)
 
 
+def _still_serving(conn, ctx: LinkContext, t: float) -> None:
+    """Review F4 (2.6.3): re-read the LINK row inside the write transaction. A revoke, a new generation, a contact change (erased /
+    inactive / now staff), a vendor removal or a close without grace that landed between the dependency's lookup and this write is the
+    uniform 404; a read-only grace that began meanwhile is 409 `read_only`; a code switched on meanwhile needs the code session."""
+    link: RfqLink = ctx.link  # type: ignore[assignment]
+    fresh = fold(store_rfq.link_by_id_joined(conn, link.link_id))
+    if fresh is None or fresh.generation != link.generation or fresh.contact_id != link.contact_id or not fresh.available(t):
+        raise VendorLinkGone()
+    if fresh.read_only(t):
+        raise VendorRefused(409, "read_only")
+    if fresh.require_code and not link.require_code:
+        raise VendorRefused(403, "code_required")
+
+
 def build_router(db: Database, *, clock: Callable[[], float] | None = None, limiter: Any = None,
                  policy: CodePolicy | Callable[[], CodePolicy] | None = None) -> APIRouter:
     """The RFQ routes over the real store. `clock` (epoch seconds) is the public app's clock in tests; `limiter` is the public app's own
@@ -382,6 +396,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
         def tx() -> tuple[int, dict[str, Any], bool]:
             when = now()
             with db.connection(label="tickets.public.rfq.write") as conn:
+                _still_serving(conn, ctx, float(epoch_now()))
                 replay = claim_request(conn, ctx.link, crid, route, when)  # type: ignore[arg-type]
                 if replay is not None:
                     return replay[0], replay[1], False
@@ -409,7 +424,8 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
             when = now()
             until = iso(link.grace_until) if ctx.read_only and link.grace_until else None
             with db.connection(label="tickets.public.rfq.open") as conn:
-                rfq_vendor.record_open(conn, link, when)
+                if ctx.code_ok:  # review F1 (2.6.3): an open counts only past the code gate - a forwarded link alone forges no "opened"
+                    rfq_vendor.record_open(conn, link, when)
                 return rfq_vendor.view(conn, link, code_ok=ctx.code_ok, read_only=ctx.read_only, read_only_until=until, now=when)
 
         try:
