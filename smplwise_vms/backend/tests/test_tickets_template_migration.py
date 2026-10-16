@@ -16,10 +16,10 @@ NEW = {"he": "חובה להיכנס לקישור כדי להמשיך בטיפו�
 AT = "2026-10-01T08:00:00Z"
 
 
-
 def _from_92() -> list[int]:
     """0092 and every later migration file, in order (property, not a literal list)."""
     return sorted(n for n in (int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql")) if n >= 92)
+
 
 def _older(settings, tmp_path, monkeypatch):
     real = dbmod.MIGRATIONS_DIR
