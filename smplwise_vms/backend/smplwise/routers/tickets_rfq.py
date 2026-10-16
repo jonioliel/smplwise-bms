@@ -20,6 +20,9 @@
     GET    /tickets/rfqs/{id}/comparison                               + tickets.costs.view
     POST   /tickets/rfqs/{id}/awards                                   tickets.costs + view (+ message_draft; nothing is sent)
     POST   /tickets/rfqs/{id}/awards/{award_id}/confirm | decline      the second approver
+    POST   /tickets/rfqs/{id}/awards/{award_id}/order                  TKRFQ4: open the vendor's service request (idempotent; sends nothing)
+    GET    /tickets/rfqs/{id}/awards/{award_id}/order/preview          TKRFQ4: the exact order message, its channel, the refusals
+    POST   /tickets/rfqs/{id}/awards/{award_id}/order/send             TKRFQ4: the explicit send of the order message
 
 Order of every route: signed in -> the module switch (router dependency) -> the request's visibility (the uniform 404) -> the role /
 permission (an audited 403). Every write is one transaction with its RFQ timeline row and an audit row (ids, states, totals). Registered
@@ -35,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, model, rfq, store, store_rfq
+from ..services.tickets import access, model, rfq, rfq_orders, store, store_rfq
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
 from .tickets_detail import QuoteLine, quote_payload
@@ -420,6 +423,52 @@ def post_award_decline(body: AwardDeclineBody, request: Request, rfq_id: str = P
     seen = rfq.require_visible(viewer, rfq_id)
     rfq.decline_award(conn, viewer, seen, award_id, body.revision, body.reason, _rid(request))
     return _detail(conn, viewer, rfq_id)
+
+
+# ---------------------------------------------------------------- the work order (TKRFQ4, stage C4 - contract section 16)
+
+class OrderBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    work_from: str | None = Field(default=None, max_length=40)
+    work_to: str | None = Field(default=None, max_length=40)
+    documents: str | None = Field(default=None, max_length=5000)
+    request_key: str = Field(min_length=8, max_length=64, pattern=model.CLIENT_REQUEST_RE.pattern)
+
+
+def _order_answer(conn: sqlite3.Connection, viewer: Viewer, rfq_id: str, award_id: str, extra: dict[str, Any]) -> dict[str, Any]:
+    d = _detail(conn, viewer, rfq_id)
+    item = next((a for a in d["awards"] if a["id"] == award_id), None)
+    return {"rfq": d, "award": item, **extra}
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/order", status_code=201)
+def post_order(body: OrderBody, request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+               principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Opens the service request of one awarded vendor (the baseline, the scope, the dates, the documents). Sends NOTHING."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    res = rfq_orders.create_order(conn, viewer, seen, award_id, body.model_dump(exclude={"request_key"}), body.request_key, _rid(request))
+    ticket = {"id": res["ticket_id"], "number": res["number"]}
+    return _order_answer(conn, viewer, rfq_id, award_id, {"ticket": ticket, "replayed": res["replayed"]})
+
+
+@router.get("/tickets/rfqs/{rfq_id}/awards/{award_id}/order/preview")
+def get_order_preview(request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                      principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The exact text of the order message, its channel and every refusal - no side effect (a refusal of the role is audited)."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    return rfq_orders.preview(conn, viewer, seen, award_id, _rid(request))
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/order/send")
+def post_order_send(request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The manager's explicit click: ONE `rfq_order` message to the awarded vendor (a repeat answers the first send)."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    res = rfq_orders.send_order(conn, viewer, seen, award_id, _rid(request))
+    return _order_answer(conn, viewer, rfq_id, award_id, {"notified": res})
 
 
 class CancelBody(BaseModel):

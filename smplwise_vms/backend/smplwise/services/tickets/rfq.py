@@ -79,6 +79,12 @@ MESSAGES = {
     "department_not_found": "המחלקה לא נמצאה.",
     "vendor_code_locked": "פרטי איש הקשר דורשים קוד אימות לספק הזה; אי אפשר לבטל אותו כאן.",
     "code_channel_unavailable": "אין כרגע ערוץ שיכול לשלוח קוד אימות לספק הזה. בטלו את הקוד או בחרו פנייה ידנית.",
+    # TKRFQ4 (stage C4, the work order)
+    "order_exists": "כבר נפתחה הזמנת עבודה לספק הזה.",
+    "order_not_found": "עדיין לא נפתחה הזמנת עבודה לספק הזה.",
+    "order_channel_unavailable": "אין כרגע ערוץ שיכול לשלוח את הזמנת העבודה לספק. אפשר להעתיק את הקישור מבקשת השירות ולשלוח בעצמכם.",
+    "order_link_unavailable": "הקישור של הספק בבקשת השירות אינו פעיל. צרו קישור חדש בבקשת השירות.",
+    "order_ticket_closed": "בקשת השירות שנפתחה כבר סגורה.",
 }
 
 
@@ -151,6 +157,20 @@ def require_visible(viewer: Viewer, rfq_id: str) -> RfqSeen:
     if seen is None:
         raise _err(viewer.conn, 404, "rfq_not_found")
     return seen
+
+
+def visible_by_id(viewer: Viewer, rfq_id: str | None) -> RfqSeen | None:
+    """TKRFQ4: a request named by another record (the ticket an order opened) - None when the caller may not know it exists."""
+    if not rfq_id:
+        return None
+    return visible(viewer, store_rfq.rfq_row_unchecked(viewer.conn, rfq_id))
+
+
+def number_of(conn, rfq_id: str | None) -> int | None:
+    """TKRFQ4: the running number of a request (the ticket an order opened says "opened from RFQ-07" to its viewers even when they
+    cannot open the request itself) - the number only, never another field."""
+    row = store_rfq.rfq_row_unchecked(conn, rfq_id) if rfq_id else None
+    return int(row["number"]) if row else None
 
 
 def row_of_link(conn, rfq_id: str) -> dict[str, Any] | None:
@@ -1427,6 +1447,10 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
         s = access.visible_by_id(viewer, row["source_ticket_id"])
         source = {"id": s.row["id"], "number": s.row["number"]} if s else None
     threshold = store_rfq.department_threshold(conn, row["department_id"])
+    from .rfq_orders import award_extras  # TKRFQ4 (contract 16.4): the work order of each award
+
+    extras = award_extras(conn, viewer, seen, awards, amounts)
+    out_awards = [{**present_award(conn, a, amounts), **extras.get(a["id"], {})} for a in awards]
     return {
         "id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": state, "title": row["title"], "description": row["description"],
         "department": {"id": row["department_id"], "name": dept.get("name") or ""},
@@ -1439,7 +1463,7 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
         "updated_at": row["updated_at"], "sent_at": row.get("sent_at"), "awarded_at": row.get("awarded_at"), "closed_at": row.get("closed_at"),
         "cancelled_at": row.get("cancelled_at"), "cancel_reason": row.get("cancel_reason") if manager else None, "revision": row["revision"],
         "kpis": kpis(conn, row, vendors, live, now, amounts), "vendors": out_vendors,
-        "awards": [present_award(conn, a, amounts) for a in awards],
+        "awards": out_awards,
         "second_approval": {"threshold_minor": threshold if amounts else None, "enabled": threshold is not None},
         "timeline": present_events(conn, row, amounts), "vendor_page": vendor_page_ready(conn),
         "can": {"edit": manager and state not in ENDED, "add_vendor": manager and (state == "draft" or open_),
@@ -1447,7 +1471,8 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
                 "remind": manager and state in ("sent", "collecting"), "cancel": manager and (state == "draft" or open_) and not has_award,
                 "close": manager and (open_ or state in ("awarded", "ordered")) and not pending,
                 "award": decide and (open_ or state == "awarded") and not pending, "see_amounts": amounts,
-                "delete": viewer.holds_installation(DELETE)},
+                "delete": viewer.holds_installation(DELETE),
+                "order": any(a["can"]["order"] for a in out_awards), "send_order": any(a["can"]["send_order"] for a in out_awards)},
     }
 
 

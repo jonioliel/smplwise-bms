@@ -1,7 +1,7 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.1 (section 15 = the public vendor page, contract first)** - 2026-10-16. v1.0 implemented on `pilot/TKRFQ1-core`;
-v1.1 on `pilot/TKRFQVP` (from `integ/260`). Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
+Status: **v1.2 (section 16 = the work order, stage C4)** - 2026-10-16. v1.0 implemented on `pilot/TKRFQ1-core`;
+v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ4` (from `integ/263`). Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
 (final)"), `docs/tickets/DETAIL_BACKEND_CONTRACT.md` v1.2 (the quote entity, money, drafts), the approved mock-up v5
 (`private/planning/_mockups/ticket-module-v4/rfq.js`: new request, vendors board, comparison, order). Backend only. Changes after this
 version are listed in section 14.
@@ -97,7 +97,7 @@ rfq:        draft --send--> sent --(first open or quote)--> collecting --(due pa
             sent|collecting|due_passed --award (approved)--> awarded --close--> closed
             sent|collecting|due_passed --close (no award)--> closed
             draft|sent|collecting|due_passed --cancel--> cancelled          (refused once any award exists: 409 rfq_has_award)
-            (C4: awarded --orders sent--> ordered --close--> closed)
+            awarded --every approved award has its order (section 16)--> ordered --close--> closed
 vendor:     draft --send--> sent --> opened --> quoted | declined
             sent|opened --(due passes)--> expired
             quoted --award--> awarded ;  quoted --finalize / close--> not_awarded (internal only, NO message)
@@ -425,7 +425,107 @@ approval (2.6.3 review F2).
 ticket code tables' columns; `link_id` -> `ticket_rfq_links(id)` ON DELETE CASCADE). Retention and full deletion remove them with
 the links.
 
+## 16. The work order (stage C4, TKRFQ4)
+
+After an award is FINAL (`approved`; a `pending_second` award has none) the manager opens, for each awarded vendor, the service request
+the vendor will work on. Owner decisions (RFQ_SPEC section 9): one service request per vendor when the award is split, linked to each
+other; a vendor that was not selected gets nothing; the selected quote is the approved cost baseline automatically; an approval never
+sends a message by itself - the order message leaves only on the manager's explicit click, after a preview of the exact text.
+
+### 16.1 No new table (no migration)
+
+An order IS the award (its id names the order) + the awarded quote's `ticket_id` / `assignment_id` (set by the create, DETAIL 4.2:
+"the latest approved quote of an assignment IS its baseline" - no copy) + the RFQ timeline rows `order_created` (`{award_id,
+ticket_id, ticket_number, assignment_id, quote_id, work_from, work_to, documents: bool}`) and `order_sent` (`{award_id, ticket_id,
+outbox_id, channel}`) + the `rfq_order` outbox row (0089 reserved the purpose). Idempotency of the create: the module's request ledger
+(`ticket_requests`, scope `rfqorder:<award_id>`, the body's `request_key`). Nothing else is stored: the dates live in the timeline row
+and in the request's description, the agreed documents in the request's description only (requests carry no files yet - text).
+
+### 16.2 Routes
+
+| Route | Who | Body / answer |
+|---|---|---|
+| `POST /tickets/rfqs/{id}/awards/{award_id}/order` | order (16.3) | `{work_from?, work_to?, documents? (<= 1000), request_key}` -> 201 `{rfq: detail, award: <the award with its order>, ticket: {id, number}, replayed: bool}` |
+| `GET /tickets/rfqs/{id}/awards/{award_id}/order/preview` | order | `{award_id, text, lang, channel: whatsapp\|email\|manual, refusals: [code], sent: bool, sent_at}` - no side effect |
+| `POST /tickets/rfqs/{id}/awards/{award_id}/order/send` | order | no body -> `{rfq, award, notified: {queued, channel, outbox_id, already}}` |
+
+Create, in this order - every refusal before the first write (the writes then run in a savepoint, so a late refusal of the reused
+create / assign code leaves nothing half-made):
+1. the request is visible (else the uniform 404 `rfq_not_found`), the caller may order (16.3, audited 403 `not_manager` /
+   `external_permission_missing` / `not_department_manager` / `create_not_allowed`);
+2. the award exists on this request (404 `award_not_found`); the same `request_key` again answers the first answer (`replayed: true`);
+3. 409 `award_pending` (a second approval is pending); 409 `rfq_invalid_transition` (`{from, action: "order"}`) for a declined award
+   or a request that is not `awarded` / `ordered` (closed, cancelled, still collecting); 409 `order_exists` (`details.ticket_id`
+   when the caller may open it) for an award that already has its request;
+4. the vendor: still `awarded` (else 409 `vendor_not_allowed`, reason `vendor_state`) and still a contact that may receive a link -
+   the section-3 rule again (`vendor_not_allowed` with reason `employee` / `internal_user` / `inactive` / `kind` / `department` /
+   `not_found`: NEVER a staff contact);
+5. the handler page is ready (409 `public_link_unavailable` - the vendor works through the request's handler link);
+6. the dates: `work_from` / `work_to` (UTC instants, `rfq._instant` rules); omitted = the awarded quote's work window, else the
+   request's wanted window; `work_from` is required in the end (422 `required`), `work_to >= work_from` (422 `order`);
+   `documents` text hygiene, <= 1000.
+
+Then, one transaction: `create.create_ticket` (title = the request's title; description = the request's description + the order block:
+"הזמנת עבודה מבקשת הצעת מחיר RFQ-07", the scope - "ההצעה במלואה" / "סעיפי עבודה בלבד" / "סעיפים נבחרים: ..." -, the dates, the
+documents; NEVER an amount); the request's place (`site_id` / `building_id` / `floor_id` / `place_text`) and allowed line kinds; the
+internal owner = the request's (`owners.set_from_rfq`, source `rfq`); `external.assign_contact` (the existing external assignment: a
+handler link, the cost demand `required`, the request `assigned`) with `dispatch=False` - the assignment message is NOT queued; the
+awarded quote gets `ticket_id` / `assignment_id` (the baseline; the flow stage reads `quote_approved`); a ticket timeline row `rfq_order`
+(`{rfq_id, number, award_id, quote_id, version}`); the RFQ row `order_created`; the request becomes `ordered` when every approved award
+has its order AND an award was final (`finalize`; a split still being decided stays `awarded`); audit `ticket.rfq.order` (ids only).
+
+Send: the order exists (404 `order_not_found`) and the caller may open its request; refusals (also listed by the preview):
+`order_ticket_closed` (the request is closed / cancelled), `order_link_unavailable` (the handler link is not live / the assignment
+ended), `vendor_not_allowed`, `order_channel_unavailable` (no WhatsApp / e-mail can reach the vendor: the manager copies the link
+from the request - nothing is queued). Then ONE outbox row: purpose `rfq_order`, the vendor's contact, `ticket_id`, `assignment_id`,
+the request's handler `link_id`, `rfq_id`, idempotency key `rfqorder:<award_id>:<link generation>`; a repeat answers `already: true`
+and queues nothing. Timeline rows `order_sent` (RFQ) and `rfq_order_sent` (ticket); audit `ticket.rfq.order_send`. When the row leaves,
+the ticket's line reads `link_sent` (the order carries the link) and the RFQ timeline reads `message_sent`.
+
+The message (`rfq_order`, he / en / ar / ru starters, editable like every template; ar / ru pending a native review): the request's
+title and number, the order's dates as `{window}`, the link - no amount, no phone, no free text. The preview renders the same template
+the outbox will pick for the vendor's language, the link shown as a placeholder.
+
+### 16.3 Permissions
+
+"order" = an RFQ manager (section 6: creator / internal owner / department manager, with `tickets.external` on the place) who ALSO
+manages the department where the request lies (`tickets.manage` + department manager / all departments - the external assignment is
+a manager act) and may open a request there (`tickets.create`, member or `open_to_all`). The cost permissions are NOT required (the
+award already decided the money; the order carries no amount). The detail's `can.order` / `can.send_order` and each award's
+`can.{order, send_order}` follow this rule.
+
+### 16.4 The detail and the ticket answer
+
+`GET /tickets/rfqs/{id}` `awards[]` add: `order` (null, or `{ticket: {id (null when the caller may not open it), number, status},
+work_from, work_to, created_at, created_by, sent: null | {at, channel, by}}`), `ticket` (the same `{id, number, status}` - kept from
+v0.9's gap), `scope` (`{kind: all | kinds | lines, kinds: [..], lines: n}`), `order_defaults` (`{work_from, work_to}` while no order
+exists, for a caller who may order), `can: {order, send_order}`. `can` of the request adds `order` and `send_order`. Timeline kinds
+`order_created` / `order_sent`.
+
+`GET /tickets/{ticket_id}` adds `rfq_origin` (full view only; null for a ticket not opened from a request): `{id (null when the
+caller may not see the request), number, ref, work_from, work_to, siblings: [{id, number}]}` - siblings = the other requests the same
+RFQ opened (a split), only those the caller may see.
+
+### 16.5 Retention and deletion
+
+A ticket an order opened keeps its baseline quote when the request is deleted / purged (section 12: the quote's `rfq_vendor_id` is
+cleared; `rfq_origin` becomes null); the order's outbox row stays with the ticket (its `rfq_id` is cleared, not deleted). A ticket
+purge removes its quotes (DETAIL section 1) - the request then shows the award without a request.
+
+### 16.6 Not in this version (recorded)
+
+* The vendor's date confirmation / alternative dates on the page (RFQ_SPEC "order: sent -> confirmed | alt_dates_proposed"): the vendor
+  confirms through the request's handler page as for any request (acknowledge, notes, ETA); no separate order state is stored.
+* Files: requests and orders carry no files yet - the agreed documents are text in the request's description.
+
 ## 14. Change log
+
+* v1.2 (2026-10-16, TKRFQ4, stage C4): section 16 - the work order: create (opens one service request per awarded vendor through the
+  existing create and external-assignment code, the assignment message suppressed; the awarded quote becomes its baseline with no
+  copy; idempotent by `request_key`), the preview of the exact `rfq_order` text and the explicit send (one outbox row; never on the
+  create), `ordered` once every approved award has its order, the detail's `awards[].order / ticket / scope / order_defaults / can`,
+  the ticket's `rfq_origin`. No migration (an order is derived from the award, the quote's ticket and two timeline rows). Section 12:
+  the purge keeps an order's outbox row with its ticket.
 
 * v1.1.1 (2026-10-16, integration 2.6.3, public RFQ review F1-F4 / F6): the open counts only past the code gate (15.3); the fixed
   refusal vocabulary `ended` / `vendor` and the form closed while an award on the vendor is pending (15.3 / 15.4; the public withdraw
