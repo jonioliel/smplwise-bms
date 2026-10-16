@@ -165,6 +165,12 @@ def _writable(row: Mapping[str, Any], v: Mapping[str, Any], state: str, read_onl
             and v["state"] not in ("draft", "removed", "awarded", "not_awarded") and not award_live)
 
 
+def _logo(conn) -> str | None:
+    from . import brand
+
+    return brand.logo_name(conn)
+
+
 def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: str | None, now: dt.datetime) -> dict[str, Any]:
     row, v = _fresh(conn, link)
     contact = store_links.contact(conn, v["contact_id"]) or {}
@@ -173,6 +179,7 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
     dept = store.department_any(conn, row["department_id"]) or {}
     out: dict[str, Any] = {
         "kind": "rfq", "ref": rfq.ref(row["number"]), "organization": doc["organization_name"], "department": dept.get("name") or "",
+        "logo": _logo(conn),  # VPORTAL: the organisation's logo file (services/tickets/brand.py) or None
         "lang": lang, "dir": "rtl" if lang in RTL else "ltr", "theme": doc["public"].get("theme", "light"),
         "time_zone": get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem",
         "code_required": bool(link.require_code), "code_ok": bool(code_ok), "read_only": bool(read_only), "read_only_until": read_only_until,

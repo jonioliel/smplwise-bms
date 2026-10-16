@@ -22,7 +22,9 @@ Per request, before any database read and before one byte of the body is read:
    (spec 10.1) - and an IDLE limit between two chunks (BODY_IDLE_S, 5 s; code review V2): a trickle of one byte every few
    seconds is cut long before the deadline; past either, 408 and the connection closes;
 8. the request's `Cookie`, `Range` and conditional headers are removed before the app sees them (no partial or 304 answers);
-   the app never sets a cookie (any `Set-Cookie` is dropped), nor `ETag` / `Last-Modified` / `Accept-Ranges`;
+   the app never sets a cookie (any `Set-Cookie` is dropped), nor `ETag` / `Last-Modified` / `Accept-Ranges`. VPORTAL exception,
+   narrow: the vendor portal's ONE session cookie (PORTAL_COOKIE) is read for PORTAL_SESSION_ROUTES (its strictly shaped value in
+   PublicRequest.portal_session - the header itself still never reaches the app) and set only by PORTAL_COOKIE_SETTERS;
 9. every response carries the headers of spec 10.4 (CSP without 'unsafe-inline', frame / referrer / sniffing / opener /
    resource / permissions policies, `X-Robots-Tag`, `Strict-Transport-Security`), `Cache-Control: no-store` unless the route
    set its own, no `Server`, no CORS headers, all in one canonical order (two answers with the same status and body are
@@ -164,7 +166,44 @@ ROUTES: tuple[RouteRule, ...] = (
     _json("/t/api/rfq/message", "token_write"),
     _json("/t/api/rfq/code/send", "code"),
     _json("/t/api/rfq/code/verify", "code"),
+    # VPORTAL (services/tickets/vendor_portal.py, public_portal.py): the vendor portal - no token; per client network in the rate gate;
+    # the session is the one cookie PORTAL_COOKIE, passed to the app on PORTAL_SESSION_ROUTES only. While the portal switch is off
+    # every one of them answers the uniform 404 (the app's check)
+    RouteRule("GET", r"/t/api/portal/config", "/t/api/portal/config", "portal_read"),
+    _json("/t/api/portal/start", "portal_start", 1024),
+    _json("/t/api/portal/verify", "portal_verify", 1024),
+    RouteRule("GET", r"/t/api/portal/items", "/t/api/portal/items", "portal_read"),
+    _json("/t/api/portal/open", "portal_read", 1024),
+    _json("/t/api/portal/logout", "portal_read", 1024),
+    # VPORTAL: the organisation's logo (services/tickets/brand.py) - a separate image file, its name carries its stamp (immutable)
+    RouteRule("GET", r"/t/brand/[0-9a-f]{16}\.jpg", "/t/brand/{name}", "asset"),
 )
+# VPORTAL: the portal session cookie. `__Secure-` (the browser keeps it only from an HTTPS answer and sends it only over HTTPS),
+# HttpOnly (no script reads it), SameSite=Strict (no cross-site request carries it), Path = the portal's API path under the public
+# prefix (no other route ever receives it). The edge passes ONLY this cookie, and only to these routes; any other cookie is dropped as
+# before, and a `Set-Cookie` leaves only from the routes in PORTAL_COOKIE_SETTERS and only for this name.
+PORTAL_COOKIE = "__Secure-arx_vp"
+PORTAL_SESSION_ROUTES = frozenset({"/t/api/portal/items", "/t/api/portal/open", "/t/api/portal/logout"})
+PORTAL_COOKIE_SETTERS = frozenset({"/t/api/portal/verify", "/t/api/portal/logout"})
+_PORTAL_VALUE = re.compile(r"[A-Za-z0-9_-]{43}")
+
+
+def portal_cookie(values: Sequence[bytes]) -> str | None:
+    """The portal session value of the request's Cookie header(s), or None: exactly one `__Secure-arx_vp` pair whose value is a
+    session value's shape (43 base64url characters). Two of them (a planted second cookie) or any other shape is None."""
+    found: list[str] = []
+    for raw in values:
+        try:
+            text = raw.decode("latin-1")
+        except UnicodeDecodeError:  # pragma: no cover - latin-1 decodes every byte
+            return None
+        for part in text.split(";"):
+            name, sep, value = part.strip().partition("=")
+            if sep and name == PORTAL_COOKIE:
+                found.append(value.strip())
+    if len(found) != 1 or _PORTAL_VALUE.fullmatch(found[0]) is None:
+        return None
+    return found[0]
 
 
 @dataclass(frozen=True)
@@ -183,6 +222,7 @@ class PublicRequest:
     cost: RequestCost  # what this request costs - every exit path decides through it (ratelimit part 4)
     source: str = "peer"  # where the client address came from: header | peer | trusted_no_header | unknown
     prefix: str = "t"  # TK255: the public prefix this request used (`support`, or `t` for a legacy link): the shell points its assets at it
+    portal_session: str | None = None  # VPORTAL: the portal cookie's value (PORTAL_SESSION_ROUTES only; strictly shaped, never logged)
 
 
 class BodyTooLarge(Exception):
@@ -200,7 +240,7 @@ def payload(code: str, **extra: Any) -> bytes:
 _RANK = {b"content-type": 0, b"content-length": 1}
 
 
-def final_headers(headers: Sequence[tuple[bytes, bytes]], *, close: bool) -> list[tuple[bytes, bytes]]:
+def final_headers(headers: Sequence[tuple[bytes, bytes]], *, close: bool, portal_cookie_ok: bool = False) -> list[tuple[bytes, bytes]]:
     """Every response's header list, in ONE canonical order whoever built it (the edge or a route): the route's own headers
     minus what the public surface never sends (cookies, a server banner, CORS, a connection header, our security headers in
     another spelling), sorted (content-type, content-length, then by name), `cache-control: no-store` unless the route chose,
@@ -208,6 +248,8 @@ def final_headers(headers: Sequence[tuple[bytes, bytes]], *, close: bool) -> lis
     same status and body are therefore byte-identical (the uniform 404)."""
     kept = [(k.lower(), v) for k, v in headers
             if k.lower() not in _DROPPED_RESPONSE and not k.lower().startswith(b"access-control-")]
+    if portal_cookie_ok:  # VPORTAL: the portal session cookie, from PORTAL_COOKIE_SETTERS only, and never another name
+        kept += [(b"set-cookie", v) for k, v in headers if k.lower() == b"set-cookie" and v.startswith(PORTAL_COOKIE.encode("ascii") + b"=")]
     if not any(k == b"cache-control" for k, _ in kept):
         kept.append((b"cache-control", b"no-store"))
     kept.sort(key=lambda kv: (_RANK.get(kv[0], 2), kv[0]))
@@ -264,6 +306,11 @@ class PublicEdge:
         self._bodies: dict[str, int] = {}
         self.prefix = public_prefix.validate_prefix(path_prefix)
         self.legacy_t = bool(legacy_t)
+        self.loose_root = False  # VPORTAL: the bare root in any letter case - only while the vendor portal is on (public_runtime)
+
+    def set_portal(self, on: bool) -> None:
+        """VPORTAL: the vendor portal's switch reaches the edge (the bare `/<prefix>` / `/Support` root is served only while it is on)."""
+        self.loose_root = bool(on)
 
     def set_prefix(self, path_prefix: str, legacy_t: bool) -> None:
         """TK255: a changed `public.path_prefix` / `public.legacy_t_paths` reaches the running edge at once. An invalid prefix raises
@@ -396,7 +443,7 @@ class PublicEdge:
         path = scope.get("path") or ""
         raw_headers: list[tuple[bytes, bytes]] = list(scope.get("headers") or [])
         wanted: dict[bytes, list[bytes]] = {k: [] for k in (b"content-length", b"transfer-encoding", b"content-type", b"x-ticket-token",
-                                                            b"x-ticket-session", self.client_ip_header, b"user-agent")}
+                                                            b"x-ticket-session", self.client_ip_header, b"user-agent", b"cookie")}
         head_bytes = 0
         for k, v in raw_headers:
             head_bytes += len(k) + len(v) + 4
@@ -443,7 +490,8 @@ class PublicEdge:
         if not self.switch.module_on():
             await refuse(404, UNIFORM_404)  # never waits for a body (V1); closes when one was announced
             return
-        resolved = public_prefix.resolve_path(path, scope.get("raw_path"), self.prefix, self.legacy_t)  # TK255: `/<prefix>/x` -> `/t/x`
+        resolved = public_prefix.resolve_path(path, scope.get("raw_path"), self.prefix, self.legacy_t,  # TK255: `/<prefix>/x` -> `/t/x`
+                                              self.loose_root)
         rule = self.match(method, resolved[0]) if resolved is not None else None
         if rule is None or resolved is None:
             # a path scan pays like a static request (120 / minute per network): a flood of guesses is not free
@@ -518,7 +566,8 @@ class PublicEdge:
                                          session=_single(wanted[b"x-ticket-session"]),
                                          user_agent=(_single(wanted[b"user-agent"]) or "")[:512],
                                          content_type=content_type, content_length=declared, started=started,
-                                         cost=cost, source=source, prefix=box["public_prefix"])
+                                         cost=cost, source=source, prefix=box["public_prefix"],
+                                         portal_session=portal_cookie(wanted[b"cookie"]) if rule.template in PORTAL_SESSION_ROUTES else None)
         child["state"] = state
         deadline = started + rule.deadline_s
 
@@ -559,7 +608,8 @@ class PublicEdge:
                 box["status"] = int(message.get("status") or 500)
                 # an answer before the body was read (a dead link's 404, a 409, a busy 429): drained only for a proved token
                 ended = await self._drain(receive, flags, deadline, declared, cost, box)
-                message = {**message, "headers": final_headers(message.get("headers") or [], close=not ended)}
+                message = {**message, "headers": final_headers(message.get("headers") or [], close=not ended,
+                                                               portal_cookie_ok=rule.template in PORTAL_COOKIE_SETTERS)}
             await send(message)
 
         # The public app maps BodyTooLarge / BodyDeadline to 413 / 408 itself (its exception handlers) and answers any other

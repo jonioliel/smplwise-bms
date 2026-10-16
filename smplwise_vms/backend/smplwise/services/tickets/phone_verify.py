@@ -160,6 +160,11 @@ def kill_codes(conn, contact_id: str, now: dt.datetime | None = None) -> None:
     at = _iso(now or handler_links.now_utc())
     conn.execute("UPDATE ticket_phone_verifications SET invalidated_at = ? WHERE contact_id = ? AND consumed_at IS NULL AND invalidated_at IS NULL",
                  (at, contact_id))
+    try:  # VPORTAL: a portal sign-in code that went to the old number ends too
+        conn.execute("UPDATE ticket_portal_codes SET invalidated_at = ? WHERE contact_id = ? AND consumed_at IS NULL AND invalidated_at IS NULL",
+                     (at, contact_id))
+    except Exception:  # noqa: BLE001 - a database before 0110
+        pass
     _cancel_queued(conn, contact_id)
 
 
@@ -179,6 +184,9 @@ def forget(conn, contact_id: str) -> None:
     """Erase (15.2): the row's verification rows go (they hold its keyed number index)."""
     _cancel_queued(conn, contact_id)
     conn.execute("DELETE FROM ticket_phone_verifications WHERE contact_id = ?", (contact_id,))
+    from . import vendor_portal  # VPORTAL: the portal's code rows sent to this row hold its keyed number index too
+
+    vendor_portal.forget_contact(conn, contact_id)
 
 
 def derive_for_outbox(conn, vid: str | None, contact_id: str | None) -> str | None:
@@ -187,7 +195,12 @@ def derive_for_outbox(conn, vid: str | None, contact_id: str | None) -> str | No
     if not vid or not codes_mod.is_link_id(vid):
         return None
     r = conn.execute("SELECT * FROM ticket_phone_verifications WHERE id = ?", (vid,)).fetchone()
-    if r is None or r["contact_id"] != contact_id or r["consumed_at"] or r["invalidated_at"] or r["expires_at"] <= _iso(handler_links.now_utc()):
+    if r is None:
+        # VPORTAL: the vendor portal's sign-in code uses the same fixed message (purpose `phone_verify`); its row is its own table
+        from . import vendor_portal
+
+        return vendor_portal.derive_for_outbox(conn, vid, contact_id)
+    if r["contact_id"] != contact_id or r["consumed_at"] or r["invalidated_at"] or r["expires_at"] <= _iso(handler_links.now_utc()):
         return None
     try:
         return codes_mod.derive_code(KEYS.get(r["key_id"]), vid)

@@ -11,6 +11,7 @@
  */
 import './styles.css';
 import { homePath } from './base';
+import { brandMark } from './brand';
 import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
 import { mapBlock } from './map-block';
@@ -107,11 +108,10 @@ class Page {
       this.phase = 'redeem';
       this.render();
     } else {
-      this.phase = 'unavailable';
-      this.render();
+      this.tryPortal(); // VPORTAL: no link at all - the vendor portal when it is on, else the unavailable screen as before
     }
     document.addEventListener('visibilitychange', () => {
-      if (this.mode === 'rfq') return; // the RFQ chunk reloads itself
+      if (this.mode === 'rfq') return; // the RFQ chunk reloads itself (the portal never holds a token: nothing reloads here)
       if (document.visibilityState === 'visible' && this.creds.token && ['ready', 'readonly', 'code', 'busy', 'error'].includes(this.phase)) void this.load();
     });
     window.addEventListener('online', () => {
@@ -167,6 +167,30 @@ class Page {
       this.phase = 'error';
       this.render();
     });
+  }
+
+  /**
+   * VPORTAL: no link - the vendor portal (a lazy chunk). It asks the server first (`GET /t/api/portal/config`); while the portal is off
+   * that is the uniform 404 and the chunk hands back the unavailable screen, exactly as before.
+   */
+  private tryPortal(): void {
+    this.render(); // the boot phase is 'loading'
+    const back = (): void => {
+      this.phase = 'unavailable';
+      this.render();
+    };
+    import('./portal/portal-page').then((m) => m.mountPortal({
+      root: this.root, chosenLang: this.chosenLang, fallbackLang: this.lang, unavailable: back,
+      setLang: (lang) => { this.chosenLang = lang; store(STORE.lang, lang); },
+      openTicket: (token) => this.openFromPortal(token),
+    })).catch(back);
+  }
+
+  /** VPORTAL: the portal handed over one item's handler token - the ordinary handler page takes it (its own code / grace rules). */
+  private openFromPortal(token: string): void {
+    this.forget();
+    this.setToken(token); // "סיום" ends at the finished screen as for any link; /support again shows the list while the session lives
+    void this.load();
   }
 
   private saveDraft(): void {
@@ -456,7 +480,7 @@ class Page {
     const org = v?.organization || '';
     return h('header', { class: 'top' },
       h('div', { class: 'brand' },
-        h('div', { class: 'avatar', attrs: { 'aria-hidden': 'true' } }, (org.trim()[0] ?? '#').toUpperCase()),
+        brandMark(org, v?.logo), // VPORTAL: the logo when one is set, else the initial
         h('div', { class: 'who' },
           org ? h('div', { class: 'org' }, org) : null,
           v ? h('div', { class: 'sub' }, this.t('number', { number: v.number }), v.department ? ` · ${v.department}` : '') : null)),

@@ -13,7 +13,8 @@ import json
 import sqlite3
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, File, Path, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..audit import audit
@@ -135,6 +136,13 @@ class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; depart
     allowed_line_kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)  # TKDETAILBE
 
 
+class VendorPortalPatch(BaseModel):
+    """VPORTAL: the vendor portal on the public page (OFF by default) and how far back closed requests are listed (1-24 months)."""
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool | None = None
+    closed_months: StrictInt | None = Field(default=None, ge=1, le=24)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -148,6 +156,7 @@ class SettingsBody(BaseModel):
     code: CodePatch | None = None  # slice 7
     costs: CostsPatch | None = None  # slice 9
     staff_links: StaffLinksPatch | None = None  # TKSTAFF1
+    vendor_portal: VendorPortalPatch | None = None  # VPORTAL
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -202,7 +211,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links"):  # slice 2 / slice 4 / slice 7 / slice 9 / TKSTAFF1
+    for block in ("links", "public", "code", "costs", "staff_links", "vendor_portal"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / VPORTAL
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}
@@ -236,9 +245,72 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         from ..services.tickets.public_runtime import RUNTIME
 
         RUNTIME.set_prefix(doc)
+    if "vendor_portal.enabled" in changed:  # VPORTAL: the running edge serves the bare / any-case root only while the portal is on
+        from ..services.tickets.public_runtime import RUNTIME
+
+        RUNTIME.set_portal(doc)
     audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"revision": doc["revision"], "changed": changed, **({"links_capped": pulled} if pulled else {})})
     return doc
+
+
+# ---------------------------------------------------------------- VPORTAL: the organisation's logo on the public pages
+
+_LOGO_WORDS = {
+    "too_large": "קובץ הלוגו גדול מדי (עד 512KB).",
+    "too_many_pixels": "הלוגו גדול מדי ברזולוציה.",
+    "busy": "עיבוד תמונה אחר מתבצע כעת. נסו שוב בעוד רגע.",
+}
+
+
+@router.post("/tickets/settings/logo", status_code=201)
+def upload_logo(request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The logo the public pages show next to the organisation name (services/tickets/brand.py): JPEG or PNG by content only (SVG and
+    every other type refused), at most 512 KB, re-encoded to a fresh JPEG of at most 512 px. `system.configure`, audited."""
+    from ..auth import settings_of
+    from ..db import unlocked
+    from ..services.tickets import brand
+
+    require(conn, principal, "system.configure", INSTALLATION)
+    data = file.file.read(brand.LOGO_MAX_BYTES + 1)
+    with unlocked(conn):  # the decode never holds the write lock
+        try:
+            jpeg = brand.prepare(data)
+        except brand.LogoRefused as exc:
+            word = _LOGO_WORDS.get(exc.code, "הלוגו חייב להיות קובץ JPG או PNG תקין (הזיהוי לפי התוכן).")
+            raise ApiError(exc.status, exc.code, text(conn, word), details=dict(exc.details)) from None
+        stamp = brand.write(settings_of(request).data_dir, jpeg)
+    doc, changed = settings_doc.apply_patch(conn, {"brand": {"logo": stamp}})
+    audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
+          request_id=_rid(request), details={"revision": doc["revision"], "changed": changed or ["brand.logo"]})
+    return {"logo": brand.logo_name(conn), "revision": doc["revision"]}
+
+
+@router.delete("/tickets/settings/logo")
+def delete_logo(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    from ..auth import settings_of
+    from ..services.tickets import brand
+
+    require(conn, principal, "system.configure", INSTALLATION)
+    doc, changed = settings_doc.apply_patch(conn, {"brand": {"logo": ""}})
+    brand.remove(settings_of(request).data_dir)
+    audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
+          request_id=_rid(request), details={"revision": doc["revision"], "changed": changed})
+    return {"logo": None, "revision": doc["revision"]}
+
+
+@router.get("/tickets/settings/logo")
+def read_logo(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    """The current logo for the settings preview (`system.configure`)."""
+    from ..auth import settings_of
+    from ..services.tickets import brand
+
+    require(conn, principal, "system.configure", INSTALLATION)
+    p = brand.resolve(settings_of(request).data_dir, brand.logo_name(conn) or "", brand.stamp(conn))
+    if p is None:
+        raise ApiError(404, "not_found", text(conn, "לא הוגדר לוגו."))
+    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 # ---------------------------------------------------------------- the display name (D33)

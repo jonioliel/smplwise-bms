@@ -1,0 +1,47 @@
+/* VPORTAL: the vendor portal - the public page's tokens and cards (styles.css); only what the portal adds. A file of its own
+   (`portal-page-<hash>.css`), linked by the portal chunk when it mounts: the handler page never downloads it (its gzip budget). */
+
+.portal-form {
+  display: grid;
+  gap: var(--sw-s-3);
+  inline-size: 100%;
+  max-inline-size: 440px;
+}
+
+.portal-links {
+  justify-content: space-between;
+  gap: var(--sw-s-3);
+}
+
+.portal-h {
+  margin: 18px 4px 6px;
+  font-size: var(--sw-fs-md);
+  color: var(--sw-text-2);
+}
+
+.portal-item {
+  display: grid;
+  gap: 8px;
+}
+
+.portal-money {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--sw-r-sm);
+  background: var(--sw-cost-soft);
+  color: var(--sw-cost);
+  font-size: var(--sw-fs-sm);
+}
+
+.portal-money.paid {
+  background: var(--sw-success-soft);
+  color: var(--sw-success);
+}
+
+.btn.small {
+  min-block-size: 36px;
+  padding-inline: 12px;
+  font-size: var(--sw-fs-sm);
+}

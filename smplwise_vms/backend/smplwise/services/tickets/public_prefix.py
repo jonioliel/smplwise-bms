@@ -9,7 +9,10 @@ Fail closed (nothing here ever redirects or guesses):
   a double encoding or an overlong UTF-8 spelling is refused instead of being normalised into something that matches;
 - the first segment must be EXACTLY the configured prefix (case-sensitive), or `t` while `legacy_t` is on (links already sent to
   vendors before the prefix existed); when the configured prefix is `t` only `t` is served;
-- `/<prefix>` without the slash, and every other path, is `None` (the caller answers the one uniform 404)."""
+- VPORTAL, ONLY while the vendor portal is on (`loose_root`): the bare page root `/<prefix>` / `/<prefix>/` in ANY letter case
+  (`/Support`) is the page root `/t/` (the portal's address is typed by people); nothing deeper is case-insensitive. With the portal
+  off (the default) nothing here changed;
+- every other path is `None` (the caller answers the one uniform 404)."""
 from __future__ import annotations
 
 import re
@@ -35,8 +38,9 @@ def validate_prefix(value: object) -> str:
     return text
 
 
-def resolve_path(path: str, raw_path: bytes | None, prefix: str, legacy_t: bool) -> tuple[str, str] | None:
-    """(`/t/<rest>`, the public prefix the request used) or None. `prefix` is a validated bare prefix."""
+def resolve_path(path: str, raw_path: bytes | None, prefix: str, legacy_t: bool, loose_root: bool = False) -> tuple[str, str] | None:
+    """(`/t/<rest>`, the public prefix the request used) or None. `prefix` is a validated bare prefix. `loose_root` (VPORTAL: only
+    while the vendor portal is on) also serves the bare root in any letter case."""
     if not isinstance(path, str) or not path.startswith("/") or len(path) > MAX_PATH:
         return None
     if raw_path is not None:
@@ -47,6 +51,10 @@ def resolve_path(path: str, raw_path: bytes | None, prefix: str, legacy_t: bool)
             return None
     if any(ord(ch) < 0x21 or ord(ch) > 0x7E for ch in path) or "%" in path or "\\" in path or "?" in path or "#" in path or ";" in path:
         return None
+    if loose_root and path.lower() in (f"/{prefix}", f"/{prefix}/"):
+        # VPORTAL (portal on): the page ROOT alone - the address a vendor types (`/support`, `/Support`, `/SUPPORT/`) - is served in any
+        # letter case and without the slash (the same shell, never a redirect). Every deeper path keeps the exact, case-sensitive rule.
+        return "/t/", prefix
     segments = path.split("/")  # ['', first, ...]
     if "" in segments[1:-1] or any(s in (".", "..") for s in segments):
         return None  # `//`, `/./`, `/../`; a trailing empty segment (the page root `/support/`) is the one allowed shape

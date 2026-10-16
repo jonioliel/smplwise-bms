@@ -86,7 +86,7 @@ class Runtime:
 
     def build_app(self, db: Database, *, clock=None) -> PublicApp:
         """The public app over the real store (the public-core notes, wiring item 2)."""
-        from . import public_claims, public_quotes, public_rfq  # slice 9: the cost claim step (11A); TK257: the quote; TKRFQVP: RFQ vendor page
+        from . import public_claims, public_portal, public_quotes, public_rfq  # slice 9: claims (11A); TK257: quote; TKRFQVP: RFQ; VPORTAL
         from .public_routes import build_router
 
         switch = CachedSwitch(lambda: _module_on(db))
@@ -117,7 +117,8 @@ class Runtime:
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
             extra_routers=(build_router(db, clock=clock), public_claims.build_router(db, clock=clock),
                            public_quotes.build_router(db, clock=clock),
-                           public_rfq.build_router(db, clock=clock, limiter=limiter, policy=engine_kw["policy"])),
+                           public_rfq.build_router(db, clock=clock, limiter=limiter, policy=engine_kw["policy"]),
+                           public_portal.build_router(db, clock=clock, data_dir=self.data_dir)),  # VPORTAL: the vendor portal + the logo
             rfq_redeem=public_rfq.redeem_releaser(db),
             client_ip_header=doc["public"]["client_ip_header"],
             path_prefix=links.effective_prefix(doc["public"]["base_url"], doc["public"]["path_prefix"]),  # TK255
@@ -125,6 +126,7 @@ class Runtime:
             claim_files=public_claims.SqlClaimFileSink(db, clock=clock), **deps_kw,
         )
         app = create_public_app(deps)
+        app.edge.set_portal(bool(doc.get("vendor_portal", {}).get("enabled")))  # VPORTAL: the bare / any-case root only while it is on
         try:
             app.gate.restore_from(db)  # both scopes: the windows and the known-good marks (wiring item 2; after migrate - W15)
         except Exception:  # noqa: BLE001 - empty counters are the old behaviour, never a reason not to start
@@ -173,6 +175,11 @@ class Runtime:
             switch.refresh()  # W3: the module switch follows the setting within one tick even without the settings route
         if app is not None:
             app.gate.flush_to(db)  # its own scopes only; no write transaction when nothing changed
+            try:  # VPORTAL: the portal switch follows the setting within one tick even without the settings route
+                with db.connection(mode="read", label="tickets.portal.switch") as conn:
+                    self.set_portal(settings_doc.read(conn))
+            except Exception:  # noqa: BLE001
+                pass
         now = time.monotonic()
         if force or now - self._retention_at >= RETENTION_EVERY_S:
             self._retention_at = now
@@ -186,6 +193,9 @@ class Runtime:
                     store_rfq.prune_codes(conn, _iso(stamp - dt.timedelta(days=CODES_KEEP_DAYS)))
                 except Exception:  # noqa: BLE001 - a database before 0089
                     pass
+                from . import vendor_portal  # VPORTAL: portal code rows (2 days) and ended sessions
+
+                vendor_portal.prune(conn, stamp)
                 in_use = store_links.key_ids_in_use(conn)
             if KEYS.configured and KEYS.can_rotate():
                 KEYS.retire_unused(in_use)  # a key file no live link and no phone key names any more (after a rotation)
@@ -226,6 +236,13 @@ class Runtime:
             app.edge.set_prefix(links.effective_prefix(pub["base_url"], pub["path_prefix"]), bool(pub["legacy_t_paths"]))
         except ValueError:
             return
+
+    def set_portal(self, doc: dict[str, Any]) -> None:
+        """VPORTAL: a changed `vendor_portal.enabled` reaches the running edge (the bare / any-case page root)."""
+        app = self.app
+        if app is None:
+            return
+        app.edge.set_portal(bool((doc.get("vendor_portal") or {}).get("enabled")))
 
     def ready(self, conn) -> bool:
         return self.option_on and self.listening and bool(settings_doc.read(conn)["public"]["base_url"])
