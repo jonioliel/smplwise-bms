@@ -9579,5 +9579,29 @@
     "expected": "Service management 2.5.7: the quote / payment card, the theme setting, the PDF and message hardening and the expand-arrow fix work, the migrations 0085 and 0086 apply: the listed tests pass on the merged tree.",
     "status": "NOT_RUN",
     "notes": "Runs in the tier-L gate of integ/257."
+  },
+  {
+    "id": "AT354",
+    "requirement_ids": [
+      "R338"
+    ],
+    "task_ids": [
+      "TKFIX258"
+    ],
+    "title": "Service management 2.5.8: assignable staff, vendor account screen, no-login staff link (migration 0087), WhatsApp notification channel, handler-page path, TK251 remainder hardening",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device"
+    ],
+    "procedure": [
+      "TKFIX258 (integ/258):",
+      "frontend specs unit-tickets-assignees, unit-tickets-vendor-accounts, unit-tickets-handlers, unit-tickets-public-address, unit-notify-whatsapp, unit-public-ticket, evidence-tickets-vendor-accounts, evidence-notifications",
+      "backend test_tickets_assignees.py, test_tickets_vendor_accounts.py, test_tickets_staff_links.py, test_tickets_public_prefix.py, test_tickets_tk251r.py, test_notify_whatsapp.py, test_tickets_migration.py, test_migrations.py",
+      "gate run of integ/258"
+    ],
+    "expected": "Service management 2.5.8: assignable staff, the vendor account screen, the staff link, the WhatsApp notification channel (OFF by default), the handler-page path and the TK251 remainder work, the migration 0087 applies: the listed tests pass on the merged tree.",
+    "status": "NOT_RUN",
+    "notes": "Runs in the tier-L gate of integ/258."
   }
 ]

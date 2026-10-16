@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-16T01:00:56.145982+00:00
+Generated: 2026-10-16T07:24:37.554394+00:00
 
-Tasks: 229 | Requirements: 336 | Tests: 352 | Screens: 32
+Tasks: 230 | Requirements: 337 | Tests: 353 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 37
+- REVIEW: 38
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 135
+- V1: 136
 - V2: 29
 - V3: 2
 
@@ -267,3 +267,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [TKFIX255](tasks/TKFIX255.md) | V1 | REVIEW | Service management 2.5.5: table menus open above the table (no clipping), settings lists refresh after changes, one-row bulk delete drops the row | — |
 | [TKFIX256](tasks/TKFIX256.md) | V1 | REVIEW | Service management 2.5.6: 'waiting for a part' is a sub-state of 'in progress' (status strip, chips, menus, vendor toggle), no API or stored-status change | — |
 | [TKFIX257](tasks/TKFIX257.md) | V1 | REVIEW | Service management 2.5.7: vendor page quote / payment-request card and light/dark setting (migration 0085), deep-review security hardening (migration 0086), expand-arrow fix | — |
+| [TKFIX258](tasks/TKFIX258.md) | V1 | REVIEW | Service management 2.5.8: assignable staff, vendor account screen, no-login staff link (migration 0087), WhatsApp notification channel, handler-page path, TK251 remainder hardening | — |

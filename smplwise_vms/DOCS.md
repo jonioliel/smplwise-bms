@@ -1030,7 +1030,7 @@ in a build that contains them.
 4. **Cloudflare, required:** a rate-limiting rule on `/t/api/*`, and every script-injecting feature off for that hostname (Rocket
    Loader, e-mail obfuscation, Bot Fight Mode and similar): the page runs under `script-src 'self'; style-src 'self'` with no inline
    code.
-   **Path prefix (2.5.7, TK255).** The public address is `https://<host>`; the listener serves ITSELF under one path segment, the
+   **Path prefix (2.5.8, TK255).** The public address is `https://<host>`; the listener serves ITSELF under one path segment, the
    setting `public.path_prefix` (default `support`; single segment, `[a-z0-9_-]`, 2-32 characters, not a reserved word such as `api`,
    `assets`, `arx`; `t` selects the old form). Vendor links are built as `<host>/<prefix>/#<token>` (e-mail: `<host>/<prefix>/r/<rid>`).
    Cloudflare needs ONE tunnel route, path `^/support(/.*)?$` -> `http://<add-on host>:18093`, placed BEFORE the empty-path Home

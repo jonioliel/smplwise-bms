@@ -6403,5 +6403,21 @@
     "test_ids": [
       "AT353"
     ]
+  },
+  {
+    "id": "R338",
+    "title": "Service management 2.5.8: assignable staff, vendor account screen, no-login staff link (migration 0087), WhatsApp notification channel, handler-page path, TK251 remainder hardening",
+    "statement": "Staff without an account are assignable like handlers; a vendor account screen lists amounts to pay, paid and awaiting approval with bulk mark-paid and CSV; an employee with an account gets a no-login WhatsApp staff link on assignment (confirmed number, no cost surface, revoked on the listed triggers); a WhatsApp notification channel exists with its master switch OFF by default; the handler page is served under a configurable path (default support, existing installs pinned to t); the orphan-file sweep, staff photo pipeline, sealed table cursor, SLA hiding and the other items of the 2.5.8 changelog hold.",
+    "task_ids": [
+      "TKFIX258"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT354"
+    ]
   }
 ]
