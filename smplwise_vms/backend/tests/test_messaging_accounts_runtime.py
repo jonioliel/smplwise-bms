@@ -173,7 +173,8 @@ def test_another_module_registers_a_use_and_a_shared_account_warns(database, mon
         mr.store_doc(conn, ma.MappingDoc(1, (), {"tickets.messages": KEY_A, "access.notices": KEY_A}))
         v = mr.view(conn, can_manage=True, now=T0)
     assert [u["key"] for u in v["uses"]] == ["tickets.messages", "tickets.codes", "access.notices"]
-    assert v["modules"] == {"access": "בקרת כניסה", "tickets": naming.DEFAULTS["he"]["module"]}
+    # NOTIFWA registers the notification channel's use (module "notifications") at import - a real second module next to tickets
+    assert v["modules"] == {"access": "בקרת כניסה", "tickets": naming.DEFAULTS["he"]["module"], "notifications": "התראות"}
     shared = [w for w in v["warnings"] if w["code"] == "shared_module"]
     assert {(w["use"], w["module"]) for w in shared} >= {("tickets.messages", "access"), ("access.notices", "tickets")}
     acc = {a["key"]: a for a in v["accounts"]}

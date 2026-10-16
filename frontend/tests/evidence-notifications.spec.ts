@@ -474,9 +474,9 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(sys(page).locator('[data-set-state="ready"]')).toBeVisible();
     await expect(page.locator('sw-app .subnav sw-tabs [aria-current="page"]')).toHaveText('התראות');
     if (!narrow(page, info)) {
-      expect(await sys(page).locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources', 'quiet', 'esc', 'lock', 'keep', 'mail', 'chan', 'log']);
+      expect(await sys(page).locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources', 'quiet', 'esc', 'lock', 'keep', 'mail', 'wa', 'chan', 'log']); // NOTIFWA: the WhatsApp section after the mail
       expect(await sys(page).locator('[data-set-nav]').evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim()))).toEqual([
-        'מקורות והרשאות – מה נשלח', 'שעות שקט ומה עובר', 'הסלמה', 'פרטיות מסך נעול', 'שמירה', 'דואר יוצא', 'ערוצים', 'יומן מסירה וכשלים',
+        'מקורות והרשאות – מה נשלח', 'שעות שקט ומה עובר', 'הסלמה', 'פרטיות מסך נעול', 'שמירה', 'דואר יוצא', 'וואטסאפ', 'ערוצים', 'יומן מסירה וכשלים',
       ]);
       await expect(sys(page).locator('[data-pol-row]')).toHaveCount(28); // every source of CR §5
       await expect(sys(page).locator('[data-pol-count]')).toHaveText('24 מתוך 28 פעילים'); // the rule-only sources and alarm.state are off by default
@@ -502,6 +502,60 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
       await expect(sys(page).locator('[data-pol-row]')).toHaveCount(28);
       await shot(page, 'settings-820-light');
     }
+  });
+
+  test('NOTIFWA: the WhatsApp section - off by default, the switch, the cap, the no-repeat window, the own-number test; the source chip and the quiet column', async ({ page }, info) => {
+    await openSettings(page);
+    if (narrow(page, info)) await sys(page).locator('[data-set-nav="wa"]').click();
+    const wa = sys(page).locator('notify-whatsapp-section [data-wa-section]');
+    await expect(wa).toHaveAttribute('data-wa-phase', 'ready');
+    await expect(wa).toHaveAttribute('data-wa-enabled', 'false'); // the master switch is OFF by default
+    await expect(wa.locator('[data-wa-tone]')).toHaveAttribute('data-wa-tone', 'off');
+    await expect(wa.locator('[data-wa-account-state]')).toHaveAttribute('data-wa-account-state', 'connected');
+    await expect(wa.locator('[data-wa-reach]')).toHaveText('3');
+    await expect(wa.locator('[data-wa-test-hint]')).toContainText('····0191'); // re-review R2: the caller's own last four
+    await expect(wa).not.toContainText(/\d{7,}/); // never a whole number
+    await shot(page, `notifwa-section-off-${vp(info)}-light`);
+    await wa.locator('[data-wa-switch]').click();
+    await expect(wa).toHaveAttribute('data-wa-enabled', 'true');
+    await expect(wa.locator('[data-wa-tone]')).toHaveAttribute('data-wa-tone', 'ok');
+    await wa.locator('[data-wa-cap-step="1"]').click();
+    await expect(wa.locator('[data-wa-cap]')).toHaveText('5');
+    await wa.locator('[data-wa-dedupe="60"]').click();
+    await expect(wa.locator('[data-wa-dedupe="60"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(wa.locator('[data-wa-dedupe="5"]')).toBeVisible(); // review F4: no "without de-duplication" choice
+    await expect(wa.locator('[data-wa-detail="type_place"]')).toHaveAttribute('aria-pressed', 'true'); // review F9: never the body
+    await expect(wa.locator('[data-wa-budget="budget_pct"]')).toHaveText('50%');
+    await wa.locator('[data-wa-budget-step="budget_critical_pct:10"]').click();
+    await expect(wa.locator('[data-wa-budget="budget_critical_pct"]')).toHaveText('90%');
+    await wa.locator('[data-wa-test]').click();
+    await expect(wa.locator('[data-wa-test-result]')).toHaveAttribute('data-wa-test-result', 'ok');
+    await shot(page, `notifwa-section-on-${vp(info)}-light`);
+    await sys(page).evaluate((el) => el.setAttribute('data-devices-scheme', 'dark'));
+    await shot(page, `notifwa-section-on-${vp(info)}-dark`);
+    await sys(page).evaluate((el) => el.setAttribute('data-devices-scheme', 'light'));
+    if (!narrow(page, info)) {
+      // the per-source chip is a real switch now, and the quiet-hours matrix has a WhatsApp column (critical passes by default)
+      const chip = sys(page).locator('[data-pol-ch="sensor.leak:whatsapp"]');
+      await expect(chip).toHaveAttribute('aria-pressed', 'false');
+      await chip.click();
+      await expect.poll(() => mockState(page, (m) => m.policyRows.find((p) => p.source === 'sensor.leak')!.channels.whatsapp)).toBe(true);
+      await expect(sec(page, 'quiet').locator('[data-pass="critical:whatsapp"]')).toHaveAttribute('aria-checked', 'true');
+      await expect(sec(page, 'quiet').locator('[data-pass="alert:whatsapp"]')).toHaveAttribute('aria-checked', 'false');
+      await expect(sys(page)).not.toContainText('WhatsApp – בקרוב');
+    }
+    // review F1 / F2: the administrator's OWN row - not opted in by default; the confirm is the user's own act
+    if (narrow(page, info)) await sys(page).locator('[data-set-nav="chan"]').click();
+    const mine = sys(page).locator('notify-whatsapp-mine [data-wa-mine]');
+    await expect(mine).toHaveAttribute('data-wa-mine-state', 'off');
+    await expect(mine.locator('[data-wa-mine-number]')).toHaveText('····0191');
+    await mine.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await shot(page, `notifwa-mine-off-${vp(info)}-light`);
+    await mine.locator('[data-wa-mine-confirm]').click();
+    await expect(mine).toHaveAttribute('data-wa-mine-state', 'on');
+    await shot(page, `notifwa-mine-on-${vp(info)}-light`);
+    await mine.locator('[data-wa-mine-stop]').click();
+    await expect(mine).toHaveAttribute('data-wa-mine-state', 'off');
   });
 
   test('sources: switch off, severity, recipients, channels - saved at once through the revisioned PUT, and shown again after a reload', async ({ page }, info) => {
@@ -690,7 +744,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     const c = sec(page, 'chan');
     await expect(c.locator('[data-channel="inbox"]')).toContainText('פעיל תמיד');
     await expect(c.locator('[data-channel="ha_mobile"]')).toContainText('בקרוב');
-    await expect(c.locator('[data-channel="whatsapp"]')).toContainText('בקרוב');
+    await expect(c.locator('[data-channel="whatsapp"]')).toContainText('כבוי'); // NOTIFWA: a real channel, its master switch off by default
     await expect(c.locator('[data-channel="email"]')).toContainText('פעיל');
     await expect(c.locator('arx-notifications-settings')).toHaveCount(1); // this device's registration lives here
     await c.locator('[data-layout="page"]').click();

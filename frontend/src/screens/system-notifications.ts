@@ -3,6 +3,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import '../components/sw-dialog';
 import '../pwa/notifications-settings';
+import '../components/notify-whatsapp-section'; // NOTIFWA: the WhatsApp section, one separable element
+import '../components/notify-whatsapp-mine'; // NOTIFWA review F2: the user's own number and consent
+import { waNotify, type WaNotifyView } from '../api/notify-whatsapp';
 import {
   CENTER_LAYOUTS, CENTER_LAYOUT_LABEL, CHANNEL_LABEL, DELIVERY_STATUS_LABEL, FAILURES_AUDIENCES, FAILURE_SOURCES, LOCKSCREEN_LABEL, LOCKSCREEN_LEVELS, RECIPIENT_LABEL, RETENTION_CHOICES,
   SEVERITIES, SEVERITY_LABEL, SOURCE_CATALOG, TICKET_SOURCES, WEEKDAYS, WEEKDAY_LETTER, channelCell, channelStatus, clockText, deliveryReasonText, errorCode, hhmmToMin, notify, notifyErrorText,
@@ -26,7 +29,7 @@ import { applyNotifyGlass, notifyStore } from '../components/notify-store';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
-type SecId = 'sources' | 'quiet' | 'esc' | 'lock' | 'keep' | 'mail' | 'chan' | 'log';
+type SecId = 'sources' | 'quiet' | 'esc' | 'lock' | 'keep' | 'mail' | 'wa' | 'chan' | 'log';
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
   { id: 'sources', label: 'מקורות והרשאות – מה נשלח', icon: 'list' },
   { id: 'quiet', label: 'שעות שקט ומה עובר', icon: 'moon' },
@@ -34,6 +37,7 @@ const SECTIONS: { id: SecId; label: string; icon: string }[] = [
   { id: 'lock', label: 'פרטיות מסך נעול', icon: 'lock' },
   { id: 'keep', label: 'שמירה', icon: 'calendar' },
   { id: 'mail', label: 'דואר יוצא', icon: 'mail' },
+  { id: 'wa', label: 'וואטסאפ', icon: 'chat' }, // NOTIFWA
   { id: 'chan', label: 'ערוצים', icon: 'phone' },
   { id: 'log', label: 'יומן מסירה וכשלים', icon: 'inbox' },
 ];
@@ -73,6 +77,8 @@ export class SystemNotifications extends LitElement {
   @state() private titles: Record<string, string> = {};
   @state() private users: Person[] | null = null;
   @state() private devices = 0;
+  /** NOTIFWA: the WhatsApp channel's switch and account (the chips and the channel card read it; the section edits it) */
+  @state() private wa: WaNotifyView | null = null;
   @state() private onlyFailed = false;
   @state() private sec: SecId = 'sources';
   @state() private phone = window.matchMedia('(max-width: 1099px)').matches;
@@ -941,10 +947,11 @@ export class SystemNotifications extends LitElement {
         }
         throw err;
       }
-      const [policies, stats, log, rows, users, devices, clock] = await Promise.all([
+      const [policies, stats, log, rows, users, devices, clock, wa] = await Promise.all([
         a.policies(), a.stats().catch(() => null), a.adminDeliveries({ limit: 200 }).catch(() => [] as Delivery[]), a.list({ limit: 100 }).catch(() => null),
-        this.loadUsers(), this.countDevices(), this.clockAndZone(),
+        this.loadUsers(), this.countDevices(), this.clockAndZone(), waNotify().view().catch(() => null),
       ]);
+      this.wa = wa;
       this.settings = s;
       this.rev = s.revision;
       this.policies = policies;
@@ -1152,8 +1159,10 @@ export class SystemNotifications extends LitElement {
     const push = channelCell(p, 'webpush', s);
     const mail = channelCell(p, 'email', s);
     const app = channelCell(p, 'app', s);
-    const chip = (c: Channel, cell: ReturnType<typeof channelCell>, icon: string) => html`<button type="button" class=${classMap({ chip: true, unconf: cell.note === 'unconfigured' })} aria-pressed=${String(cell.on)} data-pol-ch=${`${p.source}:${c}`} title=${cell.note === 'unconfigured' ? 'הדוא"ל לא מוגדר' : ''} @click=${() => this.patchPolicy(p.source, (x) => policyWithChannel(x, c, !cell.on))}>${nIcon(icon)}${CHANNEL_LABEL[c]}</button>`;
-    return html`<span class="chs"><span class="chip lock" title="תמיד">${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}<span class="chip soon" aria-disabled="true" title="Companion – בקרוב" aria-label="Companion – בקרוב">${nIcon('phone')}</span><span class="chip soon" aria-disabled="true" title="WhatsApp – בקרוב" aria-label="WhatsApp – בקרוב">${nIcon('chat')}</span></span>`;
+    const wa = channelCell(p, 'whatsapp', s, this.wa); // NOTIFWA: editable; "unconfigured" while the channel's master switch is off
+    const unconfTitle: Partial<Record<Channel, string>> = { email: 'הדוא"ל לא מוגדר', whatsapp: 'וואטסאפ כבוי' };
+    const chip = (c: Channel, cell: ReturnType<typeof channelCell>, icon: string) => html`<button type="button" class=${classMap({ chip: true, unconf: cell.note === 'unconfigured' })} aria-pressed=${String(cell.on)} data-pol-ch=${`${p.source}:${c}`} title=${cell.note === 'unconfigured' ? unconfTitle[c] ?? '' : ''} @click=${() => this.patchPolicy(p.source, (x) => policyWithChannel(x, c, !cell.on))}>${nIcon(icon)}${CHANNEL_LABEL[c]}</button>`;
+    return html`<span class="chs"><span class="chip lock" title="תמיד">${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}<span class="chip soon" aria-disabled="true" title="Companion – בקרוב" aria-label="Companion – בקרוב">${nIcon('phone')}</span></span>`;
   }
   private tog(on: boolean, attr: string, label: string, click: () => void, disabled = false) {
     return html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${label} ?disabled=${disabled} data-tog=${attr} @click=${click}></button>`;
@@ -1185,7 +1194,7 @@ export class SystemNotifications extends LitElement {
         <div class="ln"><small>מי מקבל</small>${this.whoSel(p)}</div>
         <div class="ln"><small>ערוצים</small>${this.chans(p)}</div></section>`)}</div>`;
     }
-    return html`<section class="glass sec" data-set-section="sources" id="sec-sources"><header><h2>${nIcon('list')}${SECTIONS[0].label}</h2><div class="sp"><span class="tag soon">${nIcon('phone')}Companion – בקרוב</span><span class="tag soon">${nIcon('chat')}WhatsApp – בקרוב</span><span class="tag" data-pol-count>${enabledCount(this.policies)} מתוך ${total} פעילים</span></div></header>
+    return html`<section class="glass sec" data-set-section="sources" id="sec-sources"><header><h2>${nIcon('list')}${SECTIONS[0].label}</h2><div class="sp"><span class="tag soon">${nIcon('phone')}Companion – בקרוב</span><span class="tag" data-pol-count>${enabledCount(this.policies)} מתוך ${total} פעילים</span></div></header>
       <div class="frow"><div class="l"><b>כשל בתזמון או באוטומציה מגיע אל</b></div><div class="r"><div class="seg sm" role="group" aria-label="כשל בתזמון או באוטומציה">${FAILURES_AUDIENCES.map((a: FailuresAudience) => html`<button type="button" aria-pressed=${String(s.failures_audience === a)} data-failures-audience=${a} @click=${() => this.patchSettings({ failures_audience: a })}>${a === 'admins' ? 'מנהלים' : 'כל מי שרואה'}</button>`)}</div></div></div>
       ${body}</section>`;
   }
@@ -1199,8 +1208,8 @@ export class SystemNotifications extends LitElement {
       ${this.invalid === 'quiet_invalid' ? html`<div class="errline" data-set-error>${NOTIFY_ERROR_LABEL.quiet_invalid}</div>` : nothing}
       <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>ימים</b></div><div class="r"><div class="days" role="group" aria-label="ימים">${WEEKDAYS.map((d: Weekday) => html`<button type="button" aria-pressed=${String(q.days.includes(d))} data-quiet-day=${d} ?disabled=${dis} @click=${() => this.patchSettings({ quiet: { ...q, days: toggleDay(q.days, d) } })}>${WEEKDAY_LETTER[d]}</button>`)}</div></div></div>
       <div class="frow ${dis ? 'dis' : ''}" style="align-items:flex-start"><div class="l"><b>מה עובר בשעות שקט</b></div></div>
-      <table class="qmx ${dis ? 'dis' : ''}"><thead><tr><th>חומרה</th><th>${CHANNEL_LABEL.webpush}</th><th>${CHANNEL_LABEL.email}</th><th>Companion</th></tr></thead><tbody>${SEVERITIES.slice().reverse().map((sv) => html`<tr><td><span class="sv" style=${`--sev:var(--nt-sev-${sv})`}><i></i>${SEVERITY_LABEL[sv]}</span></td>
-        ${(['webpush', 'email'] as const).map((c) => html`<td><button type="button" class="chk" role="checkbox" aria-checked=${String(s.pass_through[sv][c])} aria-label=${`${SEVERITY_LABEL[sv]} · ${CHANNEL_LABEL[c]}`} data-pass=${`${sv}:${c}`} ?disabled=${dis} @click=${() => this.patchSettings({ pass_through: togglePass(s.pass_through, sv, c) })}>${nIcon('check')}</button></td>`)}
+      <table class="qmx ${dis ? 'dis' : ''}"><thead><tr><th>חומרה</th><th>${CHANNEL_LABEL.webpush}</th><th>${CHANNEL_LABEL.email}</th><th>${CHANNEL_LABEL.whatsapp}</th><th>Companion</th></tr></thead><tbody>${SEVERITIES.slice().reverse().map((sv) => html`<tr><td><span class="sv" style=${`--sev:var(--nt-sev-${sv})`}><i></i>${SEVERITY_LABEL[sv]}</span></td>
+        ${(['webpush', 'email', 'whatsapp'] as const).map((c) => html`<td><button type="button" class="chk" role="checkbox" aria-checked=${String(s.pass_through[sv][c] ?? false)} aria-label=${`${SEVERITY_LABEL[sv]} · ${CHANNEL_LABEL[c]}`} data-pass=${`${sv}:${c}`} ?disabled=${dis} @click=${() => this.patchSettings({ pass_through: togglePass(s.pass_through, sv, c) })}>${nIcon('check')}</button></td>`)}
         <td><button type="button" class="chk" role="checkbox" aria-checked=${String(s.pass_through[sv].ha_mobile)} aria-label="Companion – בקרוב" disabled>${nIcon('check')}</button></td></tr>`)}</tbody></table></section>`;
   }
   private setTime(which: 'from' | 'to', value: string) {
@@ -1271,12 +1280,22 @@ export class SystemNotifications extends LitElement {
       <div class="frow" style="border-block-start:0;justify-content:flex-end;gap:8px"><button type="button" class="btn quiet" data-mail-test ?disabled=${this.mailBusy !== null || !e.configured} @click=${() => void this.testMail()}>${nIcon(this.mailBusy === 'test' ? 'refresh' : 'send')}${this.mailBusy === 'test' ? 'שולח…' : 'שליחת בדיקה'}</button><button type="button" class="btn primary" data-mail-save ?disabled=${this.mailBusy !== null} @click=${() => void this.saveMail()}>שמירה</button></div></section>`;
   }
 
+  /** NOTIFWA: the WhatsApp section is its own element (the module's look is being redesigned); this screen only places it and refreshes the chips after a save. */
+  private renderWa() {
+    return html`<div data-set-section="wa" id="sec-wa"><notify-whatsapp-section section-id="wa-inner" @notify-saved=${(e: CustomEvent<{ text: string }>) => {
+      this.say(e.detail.text);
+      void waNotify().view().then((v) => (this.wa = v)).catch(() => undefined);
+      this.renderRoot.querySelectorAll('notify-whatsapp-mine').forEach((el) => el.reload());
+    }}></notify-whatsapp-section></div>`;
+  }
+
   private renderChannels() {
     const s = this.settings as NotifySettings;
     const push = channelStatus('webpush', s, this.devices);
     const mail = channelStatus('email', s, this.devices);
+    const wa = channelStatus('whatsapp', s, this.devices, this.wa ? { enabled: this.wa.enabled, mapped: this.wa.account.mapped } : null);
     const pill = (state: string, text: string) => html`<span class="tag ${state === 'on' || state === 'always' ? 'ok' : state === 'soon' ? 'soon' : ''}">${state === 'on' || state === 'always' ? 'פעיל' : text}</span>`;
-    return html`<section class="glass sec" data-set-section="chan" id="sec-chan"><header><h2>${nIcon('phone')}${SECTIONS[6].label}</h2></header>
+    return html`<section class="glass sec" data-set-section="chan" id="sec-chan"><header><h2>${nIcon('phone')}${SECTIONS[7].label}</h2></header>
       <div class="frow"><div class="l"><b>מרכז ההתראות במחשב</b></div><div class="r"><div class="seg sm" role="group" aria-label="מרכז ההתראות במחשב">${CENTER_LAYOUTS.map((l: CenterLayout) => html`<button type="button" aria-pressed=${String(s.center_layout === l)} data-layout=${l} @click=${() => this.patchSettings({ center_layout: l })}>${CENTER_LAYOUT_LABEL[l]}</button>`)}</div></div></div>
       <div class="chgrid">
         <div class="chc" data-channel="inbox"><span class="ring">${nIcon('inbox')}</span><b>מרכז ההתראות</b><small>פעיל תמיד · לכל המשתמשים</small>${pill('always', '')}</div>
@@ -1284,18 +1303,18 @@ export class SystemNotifications extends LitElement {
         <div class="chc" data-channel="email"><span class="ring">${nIcon('mail')}</span><b>דוא"ל</b><small>${mail.state === 'on' ? 'תקלות מערכת וגיבויים' : 'לא מוגדר'}</small>${pill(mail.state, mail.text)}</div>
         <div class="chc" data-channel="app"><span class="ring">${nIcon('phone')}</span><b>אפליקציה לנייד</b><small>לפי המכשירים שנרשמו באפליקציה · שעות השקט כמו דחיפה</small>${pill('on', '')}</div>
         <div class="chc soon" data-channel="ha_mobile"><span class="ring">${nIcon('phone')}</span><b>Companion</b><small>טלפונים לפי משתמש</small><span class="tag soon">בקרוב</span></div>
-        <div class="chc soon" data-channel="whatsapp"><span class="ring">${nIcon('chat')}</span><b>WhatsApp</b><small></small><span class="tag soon">בקרוב</span></div>
+        <div class="chc" data-channel="whatsapp"><span class="ring">${nIcon('chat')}</span><b>WhatsApp</b><small>${wa.text}</small>${pill(wa.state, wa.text)}</div>
       </div>
-      <div class="devbox"><arx-notifications-settings devices-only embedded></arx-notifications-settings></div></section>`;
+      <div class="devbox"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></div></section>`;
   }
 
   private renderLog() {
     const cards = failurePanel(this.stats);
     const list = logRows(this.log, this.onlyFailed);
     const fails = failedCount(this.log);
-    return html`<section class="glass sec" data-set-section="log" id="sec-log"><header><h2>${nIcon('inbox')}${SECTIONS[7].label}</h2><div class="sp"><span class="tag" data-log-window>${s14()}</span><div class="seg sm" role="group" aria-label="סינון היומן"><button type="button" aria-pressed=${String(!this.onlyFailed)} data-log-filter="all" @click=${() => (this.onlyFailed = false)}>הכל</button><button type="button" aria-pressed=${String(this.onlyFailed)} data-log-filter="failed" @click=${() => (this.onlyFailed = true)}>רק כשלים${fails ? html`<small class="n">${fails}</small>` : nothing}</button></div></div></header>
+    return html`<section class="glass sec" data-set-section="log" id="sec-log"><header><h2>${nIcon('inbox')}${SECTIONS[8].label}</h2><div class="sp"><span class="tag" data-log-window>${s14()}</span><div class="seg sm" role="group" aria-label="סינון היומן"><button type="button" aria-pressed=${String(!this.onlyFailed)} data-log-filter="all" @click=${() => (this.onlyFailed = false)}>הכל</button><button type="button" aria-pressed=${String(this.onlyFailed)} data-log-filter="failed" @click=${() => (this.onlyFailed = true)}>רק כשלים${fails ? html`<small class="n">${fails}</small>` : nothing}</button></div></div></header>
       <div class="fails" data-fail-panel>${cards.map((c) => html`<div class="fstat ${c.tone}" data-fail-card=${c.channel}><span class="ch">${c.label} · 24 שעות</span><b class="n">${c.failed > 0 ? c.failed : c.sent}</b><small>${c.failed > 0 ? 'נכשלו' : 'נשלחו'}${c.skipped ? ` · ${c.skipped} לא נשלחו` : ''}</small></div>`)}</div>
-      <div class="lgw"><table class="lg"><thead><tr><th>שעה</th><th>התראה</th><th>משתמש</th><th>ערוץ</th><th>מצב</th><th>סיבה</th></tr></thead><tbody>${list.length ? list.map((d) => html`<tr data-log-row=${d.id} data-log-status=${d.status}><td class="n" style="direction:rtl">${relativeTime(d.at, this.now, this.tz)}</td><td>${this.titles[d.notification_id] ?? '—'}</td><td>${d.user_display}</td><td>${nIcon(d.channel === 'email' ? 'mail' : 'phone')}${CHANNEL_LABEL[d.channel]}</td><td class=${STATUS_TONE[d.status]}>${nIcon(STATUS_ICON[d.status])}${DELIVERY_STATUS_LABEL[d.status]}</td><td>${deliveryReasonText(d.reason) || '—'}</td></tr>`) : html`<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--dv-text-3)">אין רשומות</td></tr>`}</tbody></table></div></section>`;
+      <div class="lgw"><table class="lg"><thead><tr><th>שעה</th><th>התראה</th><th>משתמש</th><th>ערוץ</th><th>מצב</th><th>סיבה</th></tr></thead><tbody>${list.length ? list.map((d) => html`<tr data-log-row=${d.id} data-log-status=${d.status}><td class="n" style="direction:rtl">${relativeTime(d.at, this.now, this.tz)}</td><td>${this.titles[d.notification_id] ?? '—'}</td><td>${d.user_display}</td><td>${nIcon(d.channel === 'email' ? 'mail' : d.channel === 'whatsapp' ? 'chat' : 'phone')}${CHANNEL_LABEL[d.channel]}</td><td class=${STATUS_TONE[d.status]}>${nIcon(STATUS_ICON[d.status])}${DELIVERY_STATUS_LABEL[d.status]}</td><td>${deliveryReasonText(d.reason) || '—'}</td></tr>`) : html`<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--dv-text-3)">אין רשומות</td></tr>`}</tbody></table></div></section>`;
   }
 
   private renderPicker() {
@@ -1314,8 +1333,8 @@ export class SystemNotifications extends LitElement {
   private renderBody() {
     if (this.phase === 'loading') return html`<div class="skbox" data-set-state="loading" aria-busy="true"><span class="skl"></span><span class="skl"></span><span class="skl"></span></div>`;
     if (this.phase === 'error') return html`<div class="errbar" role="alert" data-set-state="error">${nIcon('warning')}<span>${this.error || 'לא ניתן לטעון את ההגדרות'}</span><button type="button" class="btn sm" data-set-retry @click=${() => void this.load()}>${nIcon('refresh')}נסה שוב</button></div>`;
-    if (this.phase === 'user') return html`<div class="secs" data-set-state="user"><section class="glass sec"><arx-notifications-settings devices-only embedded></arx-notifications-settings></section></div>`;
-    const sections: Record<SecId, () => TemplateResult> = { sources: () => this.renderSources(), quiet: () => this.renderQuiet(), esc: () => this.renderEsc(), lock: () => this.renderLock(), keep: () => this.renderKeep(), mail: () => this.renderMail(), chan: () => this.renderChannels(), log: () => this.renderLog() };
+    if (this.phase === 'user') return html`<div class="secs" data-set-state="user"><section class="glass sec"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></section></div>`;
+    const sections: Record<SecId, () => TemplateResult> = { sources: () => this.renderSources(), quiet: () => this.renderQuiet(), esc: () => this.renderEsc(), lock: () => this.renderLock(), keep: () => this.renderKeep(), mail: () => this.renderMail(), wa: () => this.renderWa(), chan: () => this.renderChannels(), log: () => this.renderLog() };
     return html`<div class="set" data-set-state="ready"><nav class="glass setnav" aria-label="מדורים">${SECTIONS.map((x) => html`<button type="button" aria-current=${String(this.sec === x.id)} data-set-nav=${x.id} @click=${() => this.setSec(x.id)}>${nIcon(x.icon)}${x.label}</button>`)}</nav>
       <div class="secs">${this.phone ? sections[this.sec]() : SECTIONS.map((x) => sections[x.id]())}</div></div>`;
   }

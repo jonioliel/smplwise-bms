@@ -28,7 +28,7 @@ import { tt } from '../tickets/text'; // CR-038 (spec 13.4 names this file): the
 
 export type Severity = 'info' | 'alert' | 'critical';
 export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets'; // tickets: CR-038
-/** v1: inbox, webpush, email. Reserved (enum values only): ha_mobile (Companion step), whatsapp (WhatsApp step), app (CR-012). */
+/** inbox, webpush, email, app (CR-027), whatsapp (NOTIFWA: the user's own number; sends only while its master switch is on). Reserved (enum value only): ha_mobile (Companion step). */
 export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
 export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket';
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
@@ -99,7 +99,7 @@ export interface QuietHours {
   to: string;
   days: Weekday[];
 }
-export type PassThrough = Record<Severity, { webpush: boolean; email: boolean; ha_mobile: boolean }>;
+export type PassThrough = Record<Severity, { webpush: boolean; email: boolean; ha_mobile: boolean; whatsapp?: boolean }>; // whatsapp: NOTIFWA (absent = off)
 export interface EscalationSettings {
   enabled: boolean;
   /** 1-60, default 5. */
@@ -165,8 +165,8 @@ export interface NotifyPolicy {
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
   recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users'; user_ids?: string[] };
-  /** inbox is fixed on; ha_mobile / whatsapp are fixed false in v1 (reserved). */
-  channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: false };
+  /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
+  channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
 }
 
@@ -250,7 +250,7 @@ export const LOCKSCREEN_LABEL: Record<LockscreenLevel, string> = { generic: 'ג�
 export const CHANNEL_LABEL: Record<Channel, string> = { inbox: 'מרכז', webpush: 'דחיפה', email: 'דוא"ל', ha_mobile: 'Companion', whatsapp: 'WhatsApp', app: 'אפליקציה' };
 /** Channels a v1 policy can switch; the rest are reserved. */
 export const EDITABLE_CHANNELS: readonly Channel[] = ['webpush', 'email', 'app']; // CR-027: app = the SmplWise Arx phone app through the push relay
-export const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile', 'whatsapp'];
+export const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile']; // NOTIFWA: whatsapp left the reserved list (its policy flag is editable; the section in Settings holds its master switch)
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   safety: 'בטיחות', device_faults: 'תקלות', system: 'מערכת', doors: 'דלתות וכניסה', automations: 'אוטומציות ותזמונים', security: 'אבטחת חשבון', alerts: 'מצלמות (חוקים)',
@@ -460,9 +460,9 @@ export function sourcesByCategory(catalog: readonly SourceInfo[] = SOURCE_CATALO
 // ------------------------------------------------------------------------------------------------ defaults (CR §5, §8, §10)
 
 export const DEFAULT_PASS_THROUGH = (): PassThrough => ({
-  info: { webpush: false, email: false, ha_mobile: false },
-  alert: { webpush: false, email: false, ha_mobile: false },
-  critical: { webpush: true, email: true, ha_mobile: true },
+  info: { webpush: false, email: false, ha_mobile: false, whatsapp: false },
+  alert: { webpush: false, email: false, ha_mobile: false, whatsapp: false },
+  critical: { webpush: true, email: true, ha_mobile: true, whatsapp: true },
 });
 export const DEFAULT_EMAIL = (): EmailSettings => ({ configured: false, host: '', port: 587, security: 'starttls', user: '', password_set: false, from: '', recipients: [], last_test: null });
 /** The installation defaults (the mockup's quiet hours: 22:00-07:00, every day; CR §8.1 leaves "enabled" open). */
@@ -690,6 +690,9 @@ export function stateText(n: Pick<Notification, 'state' | 'acked_by_display'>): 
 export const DELIVERY_REASON_LABEL: Record<string, string> = {
   quiet_hours: 'שעות שקט', category_off: 'ערוץ כבוי למקור', rate_limited: 'הוגבל בקצב', no_reach: 'אין מכשיר רשום', muted: 'מושתק', channel_unavailable: 'הערוץ לא מוגדר',
   timeout: 'שירות הדחיפה לא ענה (timeout)', dns: 'שם השרת לא נמצא (dns)', connect: 'החיבור נדחה (connect)', tls: 'כשל בהצפנה (tls)', auth: 'פרטי ההתחברות שגויים (auth)', refused: 'השרת דחה את ההודעה (refused)',
+  // NOTIFWA (WhatsApp)
+  no_consent: 'בלי הסכמה לוואטסאפ', no_address: 'המספר השתנה או הוסר', deduped: 'כבר נשלח', snoozed: 'מושתק', channel_down: 'חשבון הוואטסאפ מנותק', provider_refused: 'וואטסאפ דחה את ההודעה',
+  unknown_outcome: 'לא ידוע אם נשלח', interrupted: 'נקטע בהפעלה מחדש', ha_unavailable: 'תשתית המערכת לא זמינה', service_not_found: 'רכיב הוואטסאפ לא נמצא', account_not_found: 'חשבון הוואטסאפ לא נמצא',
 };
 /** "שעות שקט", "ההרשמה פגה (410)", "שירות הדחיפה סירב (500)". */
 export function deliveryReasonText(reason: string | null): string {
@@ -893,7 +896,7 @@ export function quietWindow(q: QuietHours, now: number, tz?: string): QuietWindo
 export const isQuietNow = (q: QuietHours, now: number, tz?: string): boolean => quietWindow(q, now, tz).active;
 export interface PassDecision { send: boolean; reason: 'quiet_hours' | null }
 /** The pass-through matrix: outside quiet hours everything is sent; inside, the center always receives, push / email / Companion follow the severity x
- * channel matrix, a reserved channel without a matrix column (whatsapp, app) is held, and an ESCALATION step bypasses quiet hours (CR §8.3). */
+ * channel matrix, whatsapp has its own column (NOTIFWA), the app follows push, and an ESCALATION step bypasses quiet hours (CR §8.3). */
 export function passThrough(settings: Pick<NotifySettings, 'quiet' | 'pass_through'>, severity: Severity, channel: Channel, now: number, tz?: string, opts: { escalation?: boolean } = {}): PassDecision {
   if (channel === 'inbox' || opts.escalation || !isQuietNow(settings.quiet, now, tz)) return { send: true, reason: null };
   const col = settings.pass_through[severity] as Record<string, boolean | undefined>;
@@ -992,13 +995,14 @@ export interface ChannelCell {
   /** `always`: the center; `soon`: a reserved channel ("בקרוב"); `unconfigured`: email without a mail server. */
   note: 'always' | 'soon' | 'unconfigured' | null;
 }
-/** One cell of the sources matrix. The center is on and fixed; Companion / WhatsApp are off, fixed and "בקרוב"; push, email and the app are editable; email says "לא מוגדר"
- * until the mail server is configured (the policy flag is kept: it takes effect when it is). */
-export function channelCell(policy: Pick<NotifyPolicy, 'channels'>, channel: Channel, settings?: Pick<NotifySettings, 'email'> | null): ChannelCell {
+/** One cell of the sources matrix. The center is on and fixed; Companion is off, fixed and "בקרוב"; push, email, the app and WhatsApp are editable; email says
+ * "לא מוגדר" until the mail server is configured and WhatsApp while its master switch is off (`wa`; the policy flag is kept: it takes effect when it is). */
+export function channelCell(policy: Pick<NotifyPolicy, 'channels'>, channel: Channel, settings?: Pick<NotifySettings, 'email'> | null, wa?: { enabled: boolean } | null): ChannelCell {
   if (channel === 'inbox') return { on: true, editable: false, note: 'always' };
   if (RESERVED_CHANNELS.includes(channel)) return { on: false, editable: false, note: 'soon' };
-  const on = !!policy.channels[channel as 'webpush' | 'email' | 'app'];
-  return { on, editable: true, note: channel === 'email' && settings && !settings.email.configured ? 'unconfigured' : null };
+  const on = !!policy.channels[channel as 'webpush' | 'email' | 'app' | 'whatsapp'];
+  const unconf = (channel === 'email' && settings && !settings.email.configured) || (channel === 'whatsapp' && wa && !wa.enabled);
+  return { on, editable: true, note: unconf ? 'unconfigured' : null };
 }
 /** The same switch the server validates: a reserved channel -> `channel_reserved` (422); the center stays on. */
 export function withChannel(policy: NotifyPolicy, channel: Channel, on: boolean): NotifyPolicy {
@@ -1010,11 +1014,12 @@ export function withChannel(policy: NotifyPolicy, channel: Channel, on: boolean)
   return { ...policy, channels: { ...policy.channels, [channel]: on } };
 }
 /** The state of a channel in the settings "ערוצים" section. */
-export function channelStatus(channel: Channel, settings: Pick<NotifySettings, 'email'>, devices: number): { state: 'always' | 'on' | 'off' | 'unconfigured' | 'soon'; text: string } {
+export function channelStatus(channel: Channel, settings: Pick<NotifySettings, 'email'>, devices: number, wa?: { enabled: boolean; mapped: boolean } | null): { state: 'always' | 'on' | 'off' | 'unconfigured' | 'soon'; text: string } {
   if (channel === 'inbox') return { state: 'always', text: 'פעיל תמיד' };
   if (channel === 'webpush') return { state: devices > 0 ? 'on' : 'off', text: devices > 0 ? `${devices} מכשירים רשומים` : 'אין מכשירים רשומים' };
   if (channel === 'email') return settings.email.configured ? { state: 'on', text: `${settings.email.recipients.length} נמענים` } : { state: 'unconfigured', text: 'לא מוגדר' };
   if (channel === 'app') return { state: 'on', text: 'לפי המכשירים שנרשמו באפליקציה' };
+  if (channel === 'whatsapp') return !wa ? { state: 'off', text: 'כבוי' } : !wa.mapped ? { state: 'unconfigured', text: 'לא נבחר חשבון' } : wa.enabled ? { state: 'on', text: 'למספר האישי של המשתמש' } : { state: 'off', text: 'כבוי' };
   return { state: 'soon', text: 'בקרוב' };
 }
 export const policyBody = (p: NotifyPolicy): PolicyBody => ({
@@ -1050,10 +1055,10 @@ export function validateSettings(s: Pick<SettingsBody, 'quiet' | 'escalation'>):
     && Number.isInteger(e.steps) && e.steps >= ESCALATION_STEPS.min && e.steps <= ESCALATION_STEPS.max && (e.to === 'managers' || e.to.length > 0);
   return ok ? null : 'escalation_invalid';
 }
-/** `channel_reserved` when a reserved channel is on. */
+/** `channel_reserved` when a reserved channel is on (NOTIFWA: whatsapp is no longer reserved). */
 export function validatePolicy(p: Pick<PolicyBody, 'channels'>): 'channel_reserved' | null {
   const c = p.channels as Record<string, unknown>;
-  return c.ha_mobile === true || c.whatsapp === true || c.app === true ? 'channel_reserved' : null;
+  return c.ha_mobile === true || c.app === true ? 'channel_reserved' : null;
 }
 const ADDRESS_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 /** "a@b.c" or "Name <a@b.c>". */

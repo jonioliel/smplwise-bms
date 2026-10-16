@@ -159,7 +159,7 @@ test.describe('settings drafts', () => {
     expect(policyWithRule(p, 'managers').recipients).toEqual({ rule: 'managers' });
     expect(policyWithRule(p, 'users').recipients).toEqual({ rule: 'users', user_ids: [] });
     expect(policyWithChannel(p, 'email', true).channels.email).toBe(true);
-    expect(() => policyWithChannel(p, 'whatsapp', true)).toThrow();
+    expect(policyWithChannel(p, 'whatsapp', true).channels.whatsapp).toBe(true); // NOTIFWA: a real channel
     expect(() => policyWithChannel(p, 'ha_mobile', true)).toThrow();
     expect(policyWithChannel(p, 'inbox', false).channels.inbox).toBe(true); // the center stays on
   });
