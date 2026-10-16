@@ -134,7 +134,7 @@ def test_open_note_a_new_link_generation_gets_its_own_opened_line_and_counters(s
     assert client.get("/t/api/ticket", headers=hdr(token)).content == UNIFORM_404, "the old token is dead"
     assert client.get("/t/api/ticket", headers=hdr(s4.token_of(t["id"]))).status_code == 200
     opened = [e for e in s4.w.detail(t["id"])["events"] if e["kind"] == "link_opened"]
-    assert [e["data"].get("generation") for e in opened] == [1, 2]
+    assert sorted(e["data"].get("generation") for e in opened) == [1, 2]  # same-second rows may come in either order
     assert s4.w.detail(t["id"])["link"]["devices"] == 1
 
 
