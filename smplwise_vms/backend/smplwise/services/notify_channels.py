@@ -416,6 +416,7 @@ def housekeeping(db: Any) -> None:
         notify.retention_sweep(conn)
     notify_email.recover_orphans(db)  # e-mail rows left in `retry` by a process that is gone (CR-018 S4)
     notify_whatsapp.recover_orphans(db)  # WhatsApp rows left `queued` / `retry` by a process that is gone (NOTIFWA): failed, never re-sent
+    notify_whatsapp.number_change_sweep(db)  # NOTIFWA re-review R2: tell a user once when the number behind their opt-in changed
 
 
 # the e-mail channel registers itself here (CR-018 S4); imported last because it uses the interface defined above

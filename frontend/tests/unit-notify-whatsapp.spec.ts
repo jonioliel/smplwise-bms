@@ -12,10 +12,10 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 
 function view(over: Partial<WaNotifyView> = {}): WaNotifyView {
   return {
-    enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], revision: 0,
-    ranges: { per_user_hour: [1, 30], dedupe_min: [5, 1440], budget_pct: [10, 100], budget_critical_pct: [10, 100] },
+    enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], normalized: [], revision: 0,
+    ranges: { per_user_hour: [1, 30], dedupe_min: [5, 1440], budget_pct: [10, 90], budget_critical_pct: [10, 90] },
     account: { mapped: true, label: 'וואטסאפ ····0191', state: 'connected' }, reachable_users: 2, accounts_href: '#/system/messaging-accounts',
-    test: { own_number: true, masked: '····91' }, ...over,
+    test: { own_number: true, masked: '····0191' }, ...over,
   };
 }
 
@@ -45,11 +45,12 @@ test.describe('notify-whatsapp review fixes', () => {
     expect(waLogic.stepPct(view({ budget_pct: 80 }), 'budget_pct', 10)).toEqual({ budget_pct: 90, budget_critical_pct: 90 });
     expect(waLogic.stepPct(view(), 'budget_critical_pct', -40)).toEqual({ budget_pct: 40, budget_critical_pct: 40 });
     expect(waLogic.stepPct(view({ budget_pct: 10, budget_critical_pct: 10 }), 'budget_pct', -10)).toEqual({ budget_pct: 10, budget_critical_pct: 10 });
-    expect(waLogic.stepPct(view({ budget_critical_pct: 100 }), 'budget_critical_pct', 10).budget_critical_pct).toBe(100);
+    expect(waLogic.stepPct(view({ budget_critical_pct: 90 }), 'budget_critical_pct', 10).budget_critical_pct).toBe(90); // re-review R4: never above 90 %
+    expect(waLogic.stepPct(view({ budget_pct: 90, budget_critical_pct: 90 }), 'budget_pct', 10)).toEqual({ budget_pct: 90, budget_critical_pct: 90 });
   });
 
   test('F1 / F2: the own row - hidden while off, a changed number asks for a new confirmation', () => {
-    const m = (over: Partial<WaMine> = {}): WaMine => ({ channel_enabled: true, has_number: true, masked: '····91', source: 'directory', opted_in: false, number_changed: false, directory_declined: false, consent: 'declined', ...over });
+    const m = (over: Partial<WaMine> = {}): WaMine => ({ channel_enabled: true, has_number: true, masked: '····0191', source: 'directory', opted_in: false, number_changed: false, directory_declined: false, consent: 'declined', confirm: 'abcdabcdabcdabcd', ...over });
     expect(waLogic.mineState(null)).toBe('hidden');
     expect(waLogic.mineState(m({ channel_enabled: false, opted_in: true }))).toBe('hidden');
     expect(waLogic.mineState(m({ has_number: false, masked: null }))).toBe('none');
@@ -57,6 +58,9 @@ test.describe('notify-whatsapp review fixes', () => {
     expect(waLogic.mineState(m({ opted_in: true, consent: 'granted' }))).toBe('on');
     expect(waLogic.mineState(m({ number_changed: true }))).toBe('changed');
     expect(waLogic.mineState(m({ directory_declined: true, opted_in: true }))).toBe('declined');
+    expect(waLogic.canStop(m({ directory_declined: true, opted_in: true }))).toBe(true); // re-review R5: always withdrawable
+    expect(waLogic.canStop(m())).toBe(false);
+    expect(waLogic.canStop(m({ channel_enabled: false, opted_in: true }))).toBe(false);
   });
 });
 
@@ -66,7 +70,7 @@ test.describe('notify-whatsapp texts', () => {
       const missing = NWT_KEYS.filter((k) => !NWT_TABLES[lang][k]);
       expect(missing, lang).toEqual([]);
     }
-    expect(nwt('testHint', { masked: '····91' }, 'he')).toBe('נשלחת רק למספר שלך (····91)');
+    expect(nwt('testHint', { masked: '····0191' }, 'he')).toBe('נשלחת רק למספר שלך (····0191)');
     expect(nwt('testHint', { masked: '····91' }, 'ru')).toContain('····91');
     expect(nwt('title', undefined, 'ar')).toBe('واتساب');
   });

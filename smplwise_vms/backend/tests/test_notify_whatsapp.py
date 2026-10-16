@@ -92,7 +92,8 @@ class World:
 
     def opt_in(self, username: str = "joni", on: bool = True):
         """The user's OWN consent through the API (review F1): only the caller, bound to the number they confirm."""
-        r = self.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": on}, headers=as_user(username))
+        token = self.c.get(f"{API}/me/notify-whatsapp", headers=as_user(username)).json()["confirm"]  # re-review R2: confirm what was shown
+        r = self.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "confirm": token} if on else {"opted_in": False}, headers=as_user(username))
         assert r.status_code == 200, r.text
         return r.json()
 
@@ -256,7 +257,9 @@ def test_consent_follows_the_contacts_preferred_channel(w):
 def test_own_opt_in_withdraw_and_confirm_again(w):
     w.ready()
     me = w.c.get(f"{API}/me/notify-whatsapp").json()
-    assert me == {"channel_enabled": True, "has_number": True, "masked": "····91", "source": "directory", "opted_in": True, "number_changed": False,
+    token = me.pop("confirm")
+    assert len(token) == 16
+    assert me == {"channel_enabled": True, "has_number": True, "masked": "····0191", "source": "directory", "opted_in": True, "number_changed": False,
                   "directory_declined": False, "consent": "granted"}
     r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False})
     assert r.status_code == 200 and r.json()["opted_in"] is False and r.json()["consent"] == "declined"
@@ -297,7 +300,7 @@ def test_a_directory_editor_redirecting_the_number_gets_nothing_until_the_user_c
     assert [(r["status"], r["reason"], r["target_ref"]) for r in w.rows(nid)] == [("skipped", "no_consent", "····77")]
     assert w.fake.calls == []  # nothing ever reaches the new number
     me = w.c.get(f"{API}/me/notify-whatsapp").json()
-    assert me["number_changed"] is True and me["opted_in"] is False and me["masked"] == "····77"
+    assert me["number_changed"] is True and me["opted_in"] is False and me["masked"] == "····0277"
     w.opt_in()  # the user sees ····77 and confirms it themselves
     nid2 = w.emit()
     w.outbox()
@@ -308,7 +311,8 @@ def test_opt_in_is_only_the_callers_own_and_stores_no_number(w):
     w.ready()
     mallory = w.user_id("mallory")
     bind(w.c, w.settings, "mallory", "tickets_configure", "installation", "*")
-    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True}, headers=as_user("mallory"))
+    assert w.c.get(f"{API}/me/notify-whatsapp", headers=as_user("mallory")).json()["confirm"] is None
+    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "confirm": "0" * 16}, headers=as_user("mallory"))
     assert r.status_code == 409 and r.json()["code"] == "no_address"  # mallory has no number; joni's consent is untouched
     w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False}, headers=as_user("mallory"))
     with w.db.connection(mode="read") as conn:
@@ -324,7 +328,7 @@ def test_a_user_sees_only_their_own_masked_number(w):
     vera = w.user_id("vera")
     w.contact(vera, SECOND_PHONE, name="ורה")
     mine = w.c.get(f"{API}/me/notify-whatsapp", headers=as_user("vera")).json()
-    assert mine["masked"] == "····77"
+    assert mine["masked"] == "····0277"
     assert w.c.get(f"{API}/notify/whatsapp", headers=as_user("vera")).status_code == 403  # the admin view is notify.manage only
     assert w.c.put(f"{API}/notify/whatsapp", json={"enabled": False}, headers=as_user("vera")).status_code == 403
 
@@ -622,12 +626,12 @@ def test_a_number_change_between_planning_and_sending_is_not_sent_to_the_old_num
 
 def test_settings_put_validates_and_audits(w):
     v = w.c.get(f"{API}/notify/whatsapp").json()
-    assert v["revision"] == 0 and v["ranges"] == {"per_user_hour": [1, 30], "dedupe_min": [5, 1440], "budget_pct": [10, 100], "budget_critical_pct": [10, 100]}
+    assert v["revision"] == 0 and v["ranges"] == {"per_user_hour": [1, 30], "dedupe_min": [5, 1440], "budget_pct": [10, 90], "budget_critical_pct": [10, 90]}
     assert (v["budget_pct"], v["budget_critical_pct"], v["detail"], v["detail_levels"]) == (50, 80, "type_place", ["generic", "type_place"])
     assert w.c.put(f"{API}/notify/whatsapp", json={"dedupe_min": 0}).status_code == 422  # review F4: never without de-duplication
     assert w.c.put(f"{API}/notify/whatsapp", json={"detail": "full"}).status_code == 422  # review F9: never the body
     assert w.c.put(f"{API}/notify/whatsapp", json={"budget_pct": 60, "budget_critical_pct": 50}).status_code == 422
-    assert w.c.put(f"{API}/notify/whatsapp", json={"budget_pct": 101}).status_code == 422
+    assert w.c.put(f"{API}/notify/whatsapp", json={"budget_pct": 91}).status_code == 422
     assert w.c.put(f"{API}/notify/whatsapp", json={"enabled": "true"}).status_code == 422
     assert w.c.put(f"{API}/notify/whatsapp", json={"per_user_hour": 0}).status_code == 422
     assert w.c.put(f"{API}/notify/whatsapp", json={"dedupe_min": 99999}).status_code == 422
@@ -646,7 +650,7 @@ def test_corrupt_setting_reads_as_switched_off(w):
         assert wa.load_config(conn)["enabled"] is False
         conn.execute("UPDATE settings SET value = ? WHERE key = 'notify.whatsapp'", (json.dumps({"enabled": 1, "per_user_hour": 999}),))
         cfg = wa.load_config(conn)
-    assert cfg["enabled"] is False and cfg["per_user_hour"] == 4  # only a real `true` switches it on
+    assert cfg["enabled"] is False and cfg["per_user_hour"] == 30 and cfg["normalized"] == ["per_user_hour"]  # only a real `true` switches it on; 999 -> the max, visibly
 
 
 def test_the_switch_is_never_exported_or_restored_and_not_in_get_settings(w):
@@ -660,7 +664,7 @@ def test_reachable_users_is_a_count_only(w):
     vera = w.user_id("vera")
     w.contact(vera, SECOND_PHONE, preferred="email", name="ורה")
     v = w.c.get(f"{API}/notify/whatsapp").json()
-    assert v["reachable_users"] == 1 and v["test"] == {"own_number": True, "masked": "····91"}
+    assert v["reachable_users"] == 1 and v["test"] == {"own_number": True, "masked": "····0191"}
     assert SECOND_PHONE not in json.dumps(v) and DIGITS not in json.dumps(v)
 
 
@@ -749,7 +753,7 @@ def test_ticket_sends_do_not_count_against_the_notifications_share(w):
 
 
 def test_the_share_is_configurable(w):
-    w.ready(budget_pct=100, budget_critical_pct=100)
+    w.ready(budget_pct=90, budget_critical_pct=90)
     _seed_ledger(w, wa.USE_KEY, 15)
     nid = w.emit(severity="alert")
     w.outbox()
@@ -930,3 +934,110 @@ def test_jobs_beyond_the_heap_cap_fail_unavailable(w, monkeypatch):
         got = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT id, status, reason FROM notification_deliveries WHERE id IN ('j1', 'j2')")}
     assert got == {"j1": ("queued", None), "j2": ("failed", "unavailable")}
     assert worker.pending() == 1
+
+
+# ================================================================ re-review 2026-10-16 (R1-R5), written before the fixes
+
+# ---------------------------------------------------------------- R1: markup before the link filter; NFKC; any letter TLD; IDN
+@pytest.mark.parametrize("value", [
+    "evil*.com", "evil~.com", "evil`.com", "evil_.com", "evil._com", "10*.1.2.3", "10_.1.2.3", "пример.рф", "evil。com", "evil．com", "ｅｖｉｌ．ｃｏｍ",
+    "evil｡com", "ev‍il.com", "evil.c​om", "hxxp://evil.com", "hxxps://evil.com/x", "bаnk.com", "xn--e1afmkfd.xn--p1ai", "evil.中国", "*evil*.*com*",
+])
+def test_rereview_r1_bypasses_are_masked(value):
+    out = wa.clean(f"לפני {value} אחרי", 120)
+    assert out == "לפני […] אחרי", (value, out)
+
+
+@pytest.mark.parametrize("value", ["evil . com", "evil [.] com", "evil[.]com"])
+def test_rereview_r1_spaced_or_defanged_dots_stay_text_and_never_join_into_a_link(value):
+    out = wa.clean(value, 80)
+    assert "evil.com" not in out  # never rejoined into a clickable `evil.com`
+
+
+# ---------------------------------------------------------------- R2: confirm token, last four, the number-change notice
+def test_rereview_r2_get_returns_a_confirm_token_and_the_last_four(w):
+    w.map_account()
+    w.contact(w.joni)
+    me = w.c.get(f"{API}/me/notify-whatsapp").json()
+    assert me["masked"] == "····0191" and isinstance(me["confirm"], str) and len(me["confirm"]) == 16
+    assert DIGITS not in json.dumps(me)
+
+
+def test_rereview_r2_opt_in_needs_the_token_of_the_number_shown(w):
+    w.map_account()
+    w.contact(w.joni)
+    token = w.c.get(f"{API}/me/notify-whatsapp").json()["confirm"]
+    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True})
+    assert r.status_code == 422, r.text  # no token: refused
+    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "confirm": "0" * 16})
+    assert r.status_code == 409 and r.json()["code"] == "number_changed"
+    with w.db.connection() as conn:  # the number changes between the GET and the PUT
+        conn.execute("UPDATE ticket_contacts SET phone_e164 = ? WHERE user_id = ?", (SECOND_PHONE, w.joni))
+    r = w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "confirm": token})
+    assert r.status_code == 409 and r.json()["code"] == "number_changed"
+    assert w.c.get(f"{API}/me/notify-whatsapp").json()["opted_in"] is False
+    token2 = w.c.get(f"{API}/me/notify-whatsapp").json()["confirm"]
+    assert token2 != token
+    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": True, "confirm": token2}).json()["opted_in"] is True
+    assert w.c.put(f"{API}/me/notify-whatsapp", json={"opted_in": False}).status_code == 200  # withdrawing needs no token
+
+
+def test_rereview_r2_a_changed_number_notifies_the_user_never_on_whatsapp(w):
+    w.ready()
+    with w.db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET phone_e164 = ? WHERE user_id = ?", (SECOND_PHONE, w.joni))
+    assert wa.number_change_sweep(w.db) == 1
+    assert wa.number_change_sweep(w.db) == 0  # once per change
+    with w.db.connection(mode="read") as conn:
+        rows = [dict(r) for r in conn.execute("SELECT * FROM notifications WHERE source = ?", (wa.NUMBER_CHANGED_SOURCE,)).fetchall()]
+        rec = [r[0] for r in conn.execute("SELECT user_id FROM notification_recipients WHERE notification_id = ?", (rows[0]["id"],)).fetchall()]
+    assert len(rows) == 1 and rec == [w.joni]
+    blob = json.dumps(rows, ensure_ascii=False)
+    assert SECOND_PHONE not in blob and DIGITS not in blob and "0277" not in blob
+    pol = w.c.get(f"{API}/notify/policies/{wa.NUMBER_CHANGED_SOURCE}").json()
+    assert pol["channels"]["app"] is True and pol["channels"]["whatsapp"] is False
+    r = w.c.put(f"{API}/notify/policies/{wa.NUMBER_CHANGED_SOURCE}", json={"channels": {"inbox": True, "whatsapp": True}})
+    assert r.status_code == 422  # this notice never goes to WhatsApp (it would reach the new number)
+    w.outbox()
+    assert w.rows(rows[0]["id"]) == [] and w.fake.calls == []
+    assert w.audits("notify.whatsapp.number_changed")[-1]["resource_id"] == w.joni
+
+
+# ---------------------------------------------------------------- R4: the shares are capped; small budgets never round up to all
+def test_rereview_r4_shares_are_capped_at_90(w):
+    assert w.c.put(f"{API}/notify/whatsapp", json={"budget_pct": 100, "budget_critical_pct": 100}).status_code == 422
+    assert w.c.put(f"{API}/notify/whatsapp", json={"budget_critical_pct": 95}).status_code == 422
+    r = w.c.put(f"{API}/notify/whatsapp", json={"budget_pct": 90, "budget_critical_pct": 90})
+    assert r.status_code == 200 and r.json()["ranges"]["budget_pct"] == [10, 90]
+
+
+def test_rereview_r4_a_tiny_hourly_budget_never_goes_to_notifications(w):
+    w.ready()
+    with w.db.connection() as conn:
+        mr.store_doc(conn, ma.MappingDoc(2, (ma.Account(KEY, "discovered", label="משרד", pacing=ma.Pacing(per_hour=1, per_day=1)),), {wa.USE_KEY: KEY}))
+    nid = w.emit(severity="alert")
+    w.outbox()
+    assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "rate_limited")]  # 50 % of 1 is 0: the one slot stays with tickets
+    assert w.fake.calls == []
+
+
+# ---------------------------------------------------------------- R5: visible normalisation; CSRF on the consent PUT
+def test_rereview_r5_a_stored_out_of_range_value_is_normalised_visibly(w):
+    with w.db.connection() as conn:
+        conn.execute("INSERT INTO settings(key, value) VALUES ('notify.whatsapp', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                     (json.dumps({"enabled": False, "dedupe_min": 0, "budget_pct": 100}),))
+    v = w.c.get(f"{API}/notify/whatsapp").json()
+    assert v["dedupe_min"] == 5 and v["budget_pct"] == 90  # clamped to the nearest allowed value, not silently reset to a default
+    assert sorted(v["normalized"]) == ["budget_critical_pct", "budget_pct", "dedupe_min"] and v["budget_critical_pct"] == 90  # critical never below normal
+
+
+def test_rereview_r5_consent_put_on_the_remote_channel_needs_the_same_origin(settings):
+    import dataclasses
+
+    c = TestClient(create_app(dataclasses.replace(settings, remote_access=True)))
+    r = c.put("/arx/api/v1/me/notify-whatsapp", json={"opted_in": False}, cookies={"arx_session": "x" * 43})
+    assert r.status_code == 403 and r.json()["code"] == "csrf_refused"
+    r = c.put("/arx/api/v1/me/notify-whatsapp", json={"opted_in": False}, cookies={"arx_session": "x" * 43}, headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403 and r.json()["code"] == "csrf_refused"
+    r = c.put("/arx/api/v1/me/notify-whatsapp", json={"opted_in": False}, cookies={"arx_session": "x" * 43}, headers={"Origin": "http://testserver"})
+    assert not (r.status_code == 403 and r.json().get("code") == "csrf_refused")  # same origin passes the CSRF layer (then auth refuses the unknown session)

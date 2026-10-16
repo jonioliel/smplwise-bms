@@ -357,20 +357,46 @@ class PolicyBody(_Body):
     row_version: int | None = None
 
 
+WHATSAPP_REACH_FIELDS = ("recipients", "severity", "quiet_mode", "escalate", "enabled")
+
+
+def _whatsapp_change(conn: sqlite3.Connection, device_id: str, alert_key: str, body: "PolicyBody") -> bool:
+    """True when the save would add WhatsApp to the policy, or change a field that decides who / how often WhatsApp reaches while the
+    policy carries WhatsApp after the save."""
+    before = alerts._policy_dict(alerts._policy_row(conn, device_id, alert_key)) or {}  # noqa: SLF001
+    had = "whatsapp" in (before.get("channels") or [])
+    sent = body.model_dump(exclude_unset=True)
+    after = "whatsapp" in (sent["channels"] if sent.get("channels") is not None else (before.get("channels") or []))
+    if not after:
+        return False
+    if not had:
+        return True
+    for f in WHATSAPP_REACH_FIELDS:
+        if f not in sent:
+            continue
+        if f == "recipients":
+            cur = before.get("recipients") or {"roles": [], "users": []}
+            new = sent["recipients"] or {}
+            if sorted(new.get("roles") or []) != sorted(cur.get("roles") or []) or sorted(new.get("users") or []) != sorted(cur.get("users") or []):
+                return True
+        elif sent[f] != before.get(f):
+            return True
+    return False
+
+
 @router.put("/generator/devices/{device_id}/policies/{alert_key}")
 def put_policy(device_id: str, alert_key: str, body: PolicyBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _device(conn, device_id)
     if alert_key not in cat.TYPE_BY_KEY:
         raise not_found("סוג ההתראה לא נמצא.")
-    if body.channels is not None and "whatsapp" in body.channels:
-        # NOTIFWA review F7: WhatsApp is an external, budget-limited channel shared with the tickets module - ADDING it to a generator
-        # policy also needs notify.manage (keeping it while editing other fields, or removing it, does not)
-        before = alerts._policy_dict(alerts._policy_row(conn, device_id, alert_key))  # noqa: SLF001
-        if "whatsapp" not in ((before or {}).get("channels") or []):
-            from ..rbac import INSTALLATION, require
-            from ..services.notify_visibility import MANAGE
+    if _whatsapp_change(conn, device_id, alert_key, body):
+        # NOTIFWA review F7 / re-review R3: WhatsApp is an external, budget-limited channel shared with the tickets module. ADDING it, or
+        # changing who / how often it reaches on a policy that carries it (recipients, severity, quiet mode, escalation, switching it
+        # on), also needs notify.manage. Other edits, and removing WhatsApp, do not.
+        from ..rbac import INSTALLATION, require
+        from ..services.notify_visibility import MANAGE
 
-            require(conn, principal, MANAGE, INSTALLATION)
+        require(conn, principal, MANAGE, INSTALLATION)
     try:
         return alerts.save_policy(conn, principal, device_id, alert_key, body.model_dump(exclude_unset=True))
     except alerts.RoutingInvalid as exc:

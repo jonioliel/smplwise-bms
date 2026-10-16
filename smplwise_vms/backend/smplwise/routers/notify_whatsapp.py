@@ -91,17 +91,22 @@ def set_my_whatsapp(request: Request, body: dict[str, Any] = Body(...), principa
     later change of the number reads as declined until they confirm again); `{opted_in: false}` (or `{opted_out: true}`) withdraws it.
     Only ever for the caller - there is no user id in the request. 409 `no_address` when no number is resolved for the caller."""
     keys = set(body) if isinstance(body, dict) else set()
-    if keys == {"opted_in"} and isinstance(body["opted_in"], bool):
-        want = body["opted_in"]
-    elif keys == {"opted_out"} and isinstance(body["opted_out"], bool):
-        want = not body["opted_out"]
+    if keys == {"opted_in", "confirm"} and body["opted_in"] is True and isinstance(body["confirm"], str) and 0 < len(body["confirm"]) <= 64:
+        want = True
+    elif (keys == {"opted_in"} and body["opted_in"] is False) or (keys == {"opted_out"} and body["opted_out"] is True):
+        want = False  # withdrawing never needs a token
     else:
-        raise ApiError(422, "validation", "opted_in: כן/לא בלבד.", details={"field": "opted_in"})
+        raise ApiError(422, "validation", "אישור דורש opted_in: true עם confirm מהקריאה האחרונה; ביטול: opted_in: false.", details={"field": "confirm"})
     digits = None
     if want:
         found = wa.raw_number(conn, principal.user_id)
         if found is None:
             raise ApiError(409, "no_address", "לא נמצא מספר וואטסאפ עבורך.")
+        # re-review R2: only the number the caller was shown (the GET's token) can be confirmed - a change in between is refused
+        import hmac as _hmac
+
+        if not _hmac.compare_digest(body["confirm"], wa.confirm_token(conn, found.digits)):
+            raise ApiError(409, "number_changed", "המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.")
         digits = found.digits
     wa.set_opt_in(conn, principal.user_id, digits)
     audit(conn, actor=principal, action="notify.whatsapp.optin", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request),

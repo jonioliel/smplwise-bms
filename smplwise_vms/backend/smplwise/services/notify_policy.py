@@ -24,6 +24,7 @@ CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "syst
 RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee")  # ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
+NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
 SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket")
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
@@ -46,6 +47,7 @@ class Source:
     subject: str = "entity"
     resolve_text: str = "הסתיים"
     resolves: bool = True  # the source emits resolve signals; False = the acknowledge closes the row (rule alerts, results, sign-ins)
+    app: bool = False  # the phone-app channel on by default (NOTIFWA: the WhatsApp number-change notice)
 
 
 def _s(*a: Any, **k: Any) -> Source:
@@ -90,6 +92,11 @@ SOURCES: tuple[Source, ...] = (
     _s("bulk.partial", "תוצאת פעולה קבוצתית / סצנה", "automations", "info", "פעולה קבוצתית", "{name}: {detail}.", window_s=3600, who="initiator", push=False, subject="bulk_job", resolves=False),
     # ---- security
     _s("security.new_signin", "כניסה חדשה / גישה מרחוק", "security", "alert", "כניסה חדשה לחשבון", "כניסה ממכשיר חדש. אם זה לא אתה - נתק את הכניסה.", window_s=3600, who="initiator", subject="session", resolves=False),
+    # NOTIFWA re-review R2: the number behind the user's own WhatsApp opt-in changed - told in the app (and by push / the phone app),
+    # NEVER on WhatsApp (that would reach the new number); no digits in it
+    _s("notify.whatsapp_number", "מספר הוואטסאפ שלך השתנה", "security", "alert", "מספר הוואטסאפ שלך השתנה",
+       "התראות בוואטסאפ הופסקו עד שתאשר את המספר בהגדרות › התראות. אם לא ביקשת שינוי - פנה למנהל המערכת.", who="initiator", subject="session",
+       resolves=False, app=True),
     _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, subject="session", resolves=False),
     # TFA2: an administrator reset the account's second factor - the account's own user is told (never who, never a secret)
     _s("security.second_factor_reset", "איפוס אימות דו־שלבי", "security", "alert", "האימות הדו־שלבי של החשבון אופס", "מנהל המערכת אפס את האימות הדו־שלבי של החשבון שלך. אם לא ביקשת זאת - פנה למנהל המערכת. אפשר להפעיל אותו מחדש ב״החשבון שלי״.", window_s=3600, who="initiator", subject="session", resolves=False),
@@ -167,7 +174,7 @@ def _clip(text: str, n: int) -> str:
 def default_row(s: Source) -> dict[str, Any]:
     return {
         "source": s.key, "enabled": s.enabled, "severity": s.severity, "category": s.category, "after_s": s.after_s, "dedupe_window_s": s.window_s,
-        "resolve_notice": s.resolve_notice, "recipients": {"rule": s.who}, "channels": {"inbox": True, "webpush": s.push, "email": s.email, "app": False, "announce": False, "ha_mobile": False, "whatsapp": False},  # NOTIFWA: WhatsApp is never on by default
+        "resolve_notice": s.resolve_notice, "recipients": {"rule": s.who}, "channels": {"inbox": True, "webpush": s.push, "email": s.email, "app": s.app, "announce": False, "ha_mobile": False, "whatsapp": False},  # NOTIFWA: WhatsApp is never on by default
     }
 
 
@@ -318,6 +325,8 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
         for reserved in CHANNELS_RESERVED:
             if ch.get(reserved):
                 raise PolicyInvalid("channel_reserved", "הערוץ הזה עדיין לא זמין.", {"channel": reserved})
+        if ch.get("whatsapp") and source in NO_WHATSAPP_SOURCES:
+            raise PolicyInvalid("channel_not_allowed", "ההודעה הזו לא נשלחת בוואטסאפ.", {"channel": "whatsapp"})
         if ch.get("inbox") is False:
             raise PolicyInvalid("validation", "מרכז ההתראות פעיל תמיד.", {"field": "channels.inbox"})
         out["channels_json"] = json.dumps({"inbox": True, "webpush": bool(ch.get("webpush")), "email": bool(ch.get("email")), "app": bool(ch.get("app")), "announce": bool(ch.get("announce")), "ha_mobile": False, "whatsapp": bool(ch.get("whatsapp"))})

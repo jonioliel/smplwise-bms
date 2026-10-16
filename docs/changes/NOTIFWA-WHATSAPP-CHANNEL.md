@@ -74,3 +74,27 @@ F1-F10 addressed on this branch (see the sections above). Correction: the first 
 `test_notify_whatsapp.py`; the file had 40 (the reviewer's count is right). Open for the owner: the 50 % / 80 % budget defaults
 (F3) and the `type_place` default detail level (F9). Not changed: the cross-worker check-then-record race between the ticket
 outbox and this worker over one account (pre-existing design, noted by the reviewer); restore notes (F11).
+
+## Re-review 2026-10-16 (private/planning/NOTIFWA_SECURITY_REREVIEW_2026-10-16.md)
+
+- **R1** `clean()` now normalises first (NFKC; ideographic / fullwidth / halfwidth dots -> `.`), strips the WhatsApp markup and a
+  leading `>`, and only then masks links; a TLD may start with any letter, so IDN names (`пример.рф`, `evil.中国`) are masked.
+  Zero-width characters were already stripped before matching. Spaced or bracketed dots (`evil . com`, `evil[.]com`) stay text:
+  they are not links. The probed inputs are tests.
+- **R2** (lead decision) the opt-in PUT must echo the `confirm` token the GET returned for the exact number shown (a change in
+  between is 409 `number_changed`); the user sees the last FOUR digits of their own number; when the number behind an opt-in
+  changes or disappears, the user is told once per change by the notification `notify.whatsapp_number` (inbox, push and the
+  phone app by default; it can never be routed to WhatsApp, so it never reaches the new number) plus an audit row
+  `notify.whatsapp.number_changed` (no digits). The sweep runs from the notification housekeeping. **Follow-up option (not
+  built):** a possession check - send a short code to the number and grant only when it is typed back.
+- **R3** on a generator policy that carries WhatsApp, changing recipients, severity, quiet mode, escalation or the enabled flag
+  (or adding WhatsApp) needs notify.manage; other edits and removing WhatsApp do not.
+- **R4** both shares are capped at 90 % (critical never below normal), and the share is `per_hour * pct // 100` with no round-up:
+  a share of 0 slots means notifications always wait (a 1-2 per hour account stays with tickets).
+- **R5** the user can withdraw an opt-in from the UI in every state (also while the contact list declines); a stored value out of
+  range is clamped to the nearest allowed value and listed in `normalized` (shown in the section) instead of silently reset.
+  **CSRF:** on the remote channel (`/arx`) the shared middleware refuses a state-changing request that carries the Arx session
+  cookie without `Sec-Fetch-Site: same-origin` or a matching `Origin` (403 `csrf_refused`) - verified for
+  `PUT /me/notify-whatsapp` by a test (no Origin, a foreign Origin: refused; same origin: passes to authentication). The local
+  channel is HA Ingress (identity from the Supervisor proxy) and has no separate CSRF layer - unchanged pattern, as for every other
+  PUT of the product.

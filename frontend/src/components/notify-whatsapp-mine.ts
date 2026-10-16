@@ -103,9 +103,10 @@ export class NotifyWhatsappMine extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      this.mine = await waNotify().setOptIn(on);
+      this.mine = await waNotify().setOptIn(on, on ? this.mine?.confirm ?? null : null); // re-review R2: confirm exactly the number shown
     } catch (err) {
       this.error = err instanceof ApiError ? err.body.user_message || err.code : nwt('error');
+      if (err instanceof ApiError && err.code === 'number_changed') void this.load(); // show the number as it is now
     } finally {
       this.busy = false;
     }
@@ -127,7 +128,7 @@ export class NotifyWhatsappMine extends LitElement {
       ${m.has_number ? html`<div class="row"><b>${nwt('mine_number')}</b><span class="n" data-wa-mine-number>${m.masked}</span><small>${nwt(m.source === 'profile' ? 'mine_src_profile' : 'mine_src_directory')}</small></div>` : nothing}
       <div class="row"><b>${nwt('mine_status')}</b>${status}</div>
       ${st === 'off' || st === 'changed' ? html`<div class="acts"><button type="button" class="btn primary sm" data-wa-mine-confirm ?disabled=${this.busy} @click=${() => void this.set(true)}>${nIcon('check')}${nwt('mine_confirm')}</button></div>` : nothing}
-      ${st === 'on' ? html`<div class="acts"><button type="button" class="btn quiet sm" data-wa-mine-stop ?disabled=${this.busy} @click=${() => void this.set(false)}>${nwt('mine_stop')}</button></div>` : nothing}
+      ${waLogic.canStop(m) ? html`<div class="acts"><button type="button" class="btn quiet sm" data-wa-mine-stop ?disabled=${this.busy} @click=${() => void this.set(false)}>${nwt('mine_stop')}</button></div>` : nothing}
       ${this.error ? html`<div class="warn" role="alert" data-wa-mine-error>${this.error}</div>` : nothing}
     </div>`;
   }

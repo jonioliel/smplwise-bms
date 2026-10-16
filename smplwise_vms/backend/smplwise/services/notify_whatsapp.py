@@ -32,6 +32,7 @@ import re
 import sqlite3
 import threading
 import time
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -58,7 +59,7 @@ OPT_IN_PREF = "notify.whatsapp.opt_in"        # user_prefs row of the user's OWN
 DEFAULT_CONFIG = {"enabled": False, "per_user_hour": 4, "dedupe_min": 30, "budget_pct": 50, "budget_critical_pct": 80, "detail": "type_place"}
 # dedupe_min has a floor (review F4: no 0); budget_* = the share of the ACCOUNT's hourly / daily budget notifications may use (review F3:
 # alerts never starve ticket messages or verification codes; owner to confirm the 50 / 80 defaults)
-RANGES = {"per_user_hour": (1, 30), "dedupe_min": (5, 1440), "budget_pct": (10, 100), "budget_critical_pct": (10, 100)}
+RANGES = {"per_user_hour": (1, 30), "dedupe_min": (5, 1440), "budget_pct": (10, 90), "budget_critical_pct": (10, 90)}  # re-review R4: never more than 90 %
 # review F9: WhatsApp has its OWN detail level, never the alert body (a chat history is kept on the phone, in its backups and in the add-on)
 DETAIL_LEVELS = ("generic", "type_place")
 
@@ -85,12 +86,25 @@ def load_config(conn: sqlite3.Connection) -> dict[str, Any]:
         raw = {}
     raw = raw if isinstance(raw, dict) else {}
     out: dict[str, Any] = {"enabled": raw.get("enabled") is True}
+    fixed: list[str] = []  # re-review R5: a stored value outside the rules is corrected VISIBLY (`normalized`), never silently reset
     for k, (lo, hi) in RANGES.items():
         v = raw.get(k)
-        out[k] = v if isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi else DEFAULT_CONFIG[k]
+        if k not in raw:
+            out[k] = DEFAULT_CONFIG[k]
+        elif isinstance(v, int) and not isinstance(v, bool):
+            out[k] = min(hi, max(lo, v))
+            if out[k] != v:
+                fixed.append(k)
+        else:
+            out[k] = DEFAULT_CONFIG[k]
+            fixed.append(k)
     out["detail"] = raw.get("detail") if raw.get("detail") in DETAIL_LEVELS else DEFAULT_CONFIG["detail"]
+    if "detail" in raw and raw.get("detail") not in DETAIL_LEVELS:
+        fixed.append("detail")
     if out["budget_critical_pct"] < out["budget_pct"]:
         out["budget_critical_pct"] = out["budget_pct"]
+        fixed.append("budget_critical_pct")
+    out["normalized"] = sorted(set(fixed))
     out["revision"] = raw.get("revision") if isinstance(raw.get("revision"), int) and not isinstance(raw.get("revision"), bool) else 0
     return out
 
@@ -112,6 +126,7 @@ def update_config(conn: sqlite3.Connection, body: Any, expected_revision: int | 
     if unknown:
         raise ConfigInvalid("validation", "שדה לא מוכר.", details={"fields": unknown})
     new = {k: cur[k] for k in DEFAULT_CONFIG}
+    cur = {**cur, **{k: None for k in cur.get("normalized", [])}}  # a corrected value counts as changed when the PUT stores it
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
             raise ConfigInvalid("validation", "הערך חייב להיות כן/לא.", details={"field": "enabled"})
@@ -268,7 +283,52 @@ def resolve_number(conn: sqlite3.Connection, user_id: str) -> ResolvedNumber | N
 
 
 def mask(digits: str) -> str:
+    """Another person's number in a log row: the last two digits."""
     return f"····{digits[-2:]}" if digits else ""
+
+
+def mask_own(digits: str) -> str:
+    """The caller's OWN number (re-review R2): the last four digits, enough to recognise it."""
+    return f"····{digits[-4:]}" if digits else ""
+
+
+def confirm_token(conn: sqlite3.Connection, digits: str) -> str:
+    """Re-review R2: an opaque token of the exact number the GET showed; the opt-in PUT must echo it (no number in it)."""
+    return number_hash(conn, "confirm:" + digits)[:16]
+
+
+NUMBER_CHANGED_SOURCE = "notify.whatsapp_number"
+
+
+def number_change_sweep(db: Any) -> int:
+    """Re-review R2: every user whose opt-in no longer matches the number resolved now (changed or removed by whoever edits the source)
+    is told ONCE per change: an in-app notification (`notify.whatsapp_number`, by push / the phone app per its policy, never WhatsApp)
+    and an audit row `notify.whatsapp.number_changed`. No digits anywhere. Returns how many users were told."""
+    with db.connection(mode="read", label="notify.whatsapp.numbers") as conn:
+        rows = conn.execute("SELECT user_id, value_json FROM user_prefs WHERE key = ?", (OPT_IN_PREF,)).fetchall()
+        due: list[tuple[str, dict[str, Any], str]] = []
+        for r in rows:
+            try:
+                v = json.loads(r["value_json"])
+            except ValueError:
+                continue
+            if not isinstance(v, dict) or not isinstance(v.get("h"), str):
+                continue
+            found = raw_number(conn, r["user_id"])
+            marker = number_hash(conn, found.digits) if found else "none"
+            if found is not None and hmac.compare_digest(v["h"], marker):
+                continue  # still the confirmed number
+            if v.get("noticed") == marker:
+                continue  # this change was already told
+            due.append((r["user_id"], v, marker))
+    for uid, v, marker in due:
+        with db.connection(label="notify.whatsapp.numbers") as conn:
+            notify.emit_full(conn, notify.Signal(NUMBER_CHANGED_SOURCE, "session", uid, dedupe_key=f"{NUMBER_CHANGED_SOURCE}:{uid}:{marker[:12]}",
+                                                 initiator_user_id=uid, link="#/system/notifications", origin={"kind": "whatsapp_number"}))
+            audit(conn, actor=None, action="notify.whatsapp.number_changed", decision="allowed", resource_type="user", resource_id=uid, details={"removed": marker == "none"})
+            conn.execute("UPDATE user_prefs SET value_json = ?, updated_at = ? WHERE user_id = ? AND key = ?",
+                         (json.dumps({**v, "noticed": marker}), now_iso(), uid, OPT_IN_PREF))
+    return len(due)
 
 
 # ---------------------------------------------------------------- the texts (code-owned; values cleaned, rendered once)
@@ -297,18 +357,24 @@ TEXTS = {
 # review F6: ANY link-looking token - a scheme, `www.`, an IPv4 address (with a port / path), or a dotted name whose last label starts with
 # a letter (any TLD, also `.de`, `.dev`); a dotted identifier such as `ups.battery_level` is masked too (accepted)
 _URL = re.compile(r"(?i)(?:\b[a-z][a-z0-9+.\-]{1,15}://\S*|\bwww\.\S*|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:/\S*)?"
-                  r"|\b[\w\-]+(?:\.[\w\-]+)*\.[a-z][\w\-]{0,62}(?::\d+)?(?:/\S*)?)")
+                  r"|\b[\w\-]+(?:\.[\w\-]+)*\.[^\W\d_][\w\-]{0,62}(?::\d+)?(?:/\S*)?)")  # re-review R1: a TLD may start with ANY letter (IDN)
 _MARKUP = re.compile(r"[*~`_]")
 _QUOTE = re.compile(r"^[>\s]+")
+_DOTS = re.compile(r"[\u3002\uff0e\uff61\u2024\ufe52\u0701\u0702]")  # ideographic / fullwidth / halfwidth / one-dot leader / small full stop
 
 
 def clean(value: Any, limit: int) -> str:
     """A value placed into a message: one line, controls stripped, WhatsApp markup characters removed, every link-looking token
     replaced by `[…]`, capped. Never scanned again for placeholders (the texts are joined, not formatted, after this)."""
-    text = one_line(value, limit * 2)
-    text = _URL.sub("[…]", text)
+    text = one_line(value, limit * 2)  # Cc / Cf (zero-width, bidi) are gone here
+    # re-review R1: normalise FIRST (fullwidth letters and dots fold to ASCII, ideographic dots become '.'), strip the markup, and only
+    # then look for links - otherwise `evil*.com` is not a link when checked and becomes one when the `*` is removed
+    text = unicodedata.normalize("NFKC", text)
+    text = _DOTS.sub(".", text)
+    text = one_line(text, limit * 2)  # NFKC can produce new separators; one line again
     text = _MARKUP.sub("", text)
     text = _QUOTE.sub("", text)  # a leading `>` would turn the line into a WhatsApp quote
+    text = _URL.sub("[…]", text)
     return " ".join(text.split())[:limit]
 
 
@@ -622,7 +688,10 @@ def budget_wait(db: Any, account_key: str, pacing: ma.Pacing, urgent: bool, now:
         pct = cfg["budget_critical_pct"] if urgent else cfg["budget_pct"]
         waits: list[dt.datetime] = []
         for limit, span in ((pacing.per_hour, dt.timedelta(hours=1)), (pacing.per_day, dt.timedelta(days=1))):
-            cap = max(1, limit * pct // 100)
+            cap = limit * pct // 100  # re-review R4: no round-up - a share of 0 slots means notifications always wait
+            if cap <= 0:
+                waits.append(now + span)
+                continue
             times = [r[0] for r in conn.execute("SELECT at FROM messaging_send_ledger WHERE account_key = ? AND use_key = ? AND at > ? ORDER BY at",
                                                 (account_key, USE_KEY, _iso_ms(now - span))).fetchall()]
             if len(times) >= cap:
@@ -759,6 +828,10 @@ class WhatsAppNotifyChannel(Channel):
     name = CHANNEL
 
     def plan(self, d: Dispatch, conn: Any) -> list[Target]:
+        from .notify_policy import NO_WHATSAPP_SOURCES
+
+        if d.n.get("source") in NO_WHATSAPP_SOURCES:
+            return []  # re-review R2: a notice about the WhatsApp number never goes to WhatsApp (it would reach the new number)
         cfg = load_config(conn)
         if not cfg["enabled"]:
             return [] if d.mode == "resolved" else [Target(self.name, None, "", "skipped", "channel_unavailable")]
@@ -859,7 +932,7 @@ def admin_view(conn: sqlite3.Connection, caller_id: str) -> dict[str, Any]:
     cfg = load_config(conn)
     own = resolve_number(conn, caller_id)
     return {**cfg, "ranges": {k: list(v) for k, v in RANGES.items()}, "detail_levels": list(DETAIL_LEVELS), "account": account_view(conn), "reachable_users": reachable_count(conn),
-            "accounts_href": "#/system/messaging-accounts", "test": {"own_number": own is not None and own.consent == "granted", "masked": mask(own.digits) if own else None}}
+            "accounts_href": "#/system/messaging-accounts", "test": {"own_number": own is not None and own.consent == "granted", "masked": mask_own(own.digits) if own else None}}
 
 
 def my_view(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
@@ -869,7 +942,8 @@ def my_view(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     stored = opt_in_hash(conn, user_id)
     opted = bool(found) and opted_in_for(conn, user_id, found.digits)  # type: ignore[union-attr]
     blocked = bool(found) and found.consent != "granted"  # type: ignore[union-attr]
-    return {"channel_enabled": load_config(conn)["enabled"], "has_number": found is not None, "masked": mask(found.digits) if found else None,
+    return {"channel_enabled": load_config(conn)["enabled"], "has_number": found is not None, "masked": mask_own(found.digits) if found else None,
+            "confirm": confirm_token(conn, found.digits) if found else None,  # re-review R2: the PUT must echo it
             "source": found.source if found else None, "opted_in": opted, "number_changed": bool(stored) and found is not None and not opted,
             "directory_declined": blocked, "consent": "granted" if (opted and not blocked) else ("declined" if found else None)}
 

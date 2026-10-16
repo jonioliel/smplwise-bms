@@ -513,7 +513,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(wa.locator('[data-wa-tone]')).toHaveAttribute('data-wa-tone', 'off');
     await expect(wa.locator('[data-wa-account-state]')).toHaveAttribute('data-wa-account-state', 'connected');
     await expect(wa.locator('[data-wa-reach]')).toHaveText('3');
-    await expect(wa.locator('[data-wa-test-hint]')).toContainText('····91');
+    await expect(wa.locator('[data-wa-test-hint]')).toContainText('····0191'); // re-review R2: the caller's own last four
     await expect(wa).not.toContainText(/\d{7,}/); // never a whole number
     await shot(page, `notifwa-section-off-${vp(info)}-light`);
     await wa.locator('[data-wa-switch]').click();
@@ -548,7 +548,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     if (narrow(page, info)) await sys(page).locator('[data-set-nav="chan"]').click();
     const mine = sys(page).locator('notify-whatsapp-mine [data-wa-mine]');
     await expect(mine).toHaveAttribute('data-wa-mine-state', 'off');
-    await expect(mine.locator('[data-wa-mine-number]')).toHaveText('····91');
+    await expect(mine.locator('[data-wa-mine-number]')).toHaveText('····0191');
     await mine.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await shot(page, `notifwa-mine-off-${vp(info)}-light`);
     await mine.locator('[data-wa-mine-confirm]').click();

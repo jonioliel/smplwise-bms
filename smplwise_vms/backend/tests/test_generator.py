@@ -743,5 +743,26 @@ def test_review_notifwa_f7_adding_whatsapp_needs_notify_manage(app):
     assert "whatsapp" not in json.loads(rows(db, "SELECT channels_json FROM generator_alert_policies WHERE alert_key = 'low_fuel'")[0]["channels_json"])
     assert rows(db, "SELECT 1 FROM audit_log WHERE action = 'notify.manage' AND decision = 'denied'") or rows(db, "SELECT 1 FROM audit_log WHERE decision = 'denied'")
     assert c.put(url, json={"channels": ["push", "whatsapp"]}).status_code == 200  # joni: system administrator
-    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "critical"}, headers=a).status_code == 200  # kept, not added
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "after_s": 30}, headers=a).status_code == 200  # kept, not added (re-review R3: a field outside WhatsApp's reach)
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "critical"}, headers=a).status_code == 403  # re-review R3: raising to critical is not
     assert c.put(url, json={"channels": ["push"]}, headers=a).status_code == 200  # removing is always allowed
+
+
+def test_rereview_r3_whatsapp_relevant_fields_need_notify_manage(app):
+    """Re-review R3: on a policy that carries WhatsApp, a site administrator without notify.manage cannot widen the recipients, raise the
+    severity, switch the quiet mode or escalation (who or how often WhatsApp reaches); other edits and removing WhatsApp stay allowed."""
+    c, db, settings = app
+    g = _full(db)
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    a = as_user("adm")
+    url = f"{API}/devices/{g}/policies/low_fuel"
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "alert", "recipients": {"roles": ["site_admin"], "users": []}}).status_code == 200  # joni
+    for body in ({"severity": "critical"}, {"recipients": {"roles": ["operator", "site_admin"], "users": []}}, {"quiet_mode": "pass"}, {"escalate": True}):
+        r = c.put(url, json={"channels": ["push", "whatsapp"], **body}, headers=a)
+        assert r.status_code == 403, (body, r.text)
+        r = c.put(url, json=body, headers=a)  # channels omitted: the stored WhatsApp still applies
+        assert r.status_code == 403, (body, r.text)
+    stored = rows(db, "SELECT severity, recipients_json FROM generator_alert_policies WHERE alert_key = 'low_fuel'")[0]
+    assert stored["severity"] == "alert" and json.loads(stored["recipients_json"])["roles"] == ["site_admin"]
+    assert c.put(url, json={"channels": ["push", "whatsapp"], "severity": "alert", "template_he": "דלק {detail}"}, headers=a).status_code == 200  # unchanged + text
+    assert c.put(url, json={"channels": ["push"], "severity": "critical"}, headers=a).status_code == 200  # without WhatsApp: allowed
