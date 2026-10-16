@@ -606,8 +606,13 @@ export class SystemTickets extends LitElement {
    * are owned by the drawer rebuild (branch pilot/TKUI1-drawer), which adds their keys to the installation document. The place is here,
    * at the end of the "פתיחה והצגה" card; nothing is drawn until those keys exist (no setting is invented on this side).
    */
-  private requestDrawerRows(_doc: SettingsDoc): TemplateResult | typeof nothing {
-    return nothing;
+  private requestDrawerRows(doc: SettingsDoc): TemplateResult | typeof nothing {
+    const ui = doc.ui as unknown as Record<string, string | undefined>;
+    if (ui.detail_tab === undefined) return nothing; // the server does not carry the drawer keys: nothing to draw
+    const row = (key: 'detail_tab' | 'drawer_size' | 'phone_sheet', values: readonly string[], label: TicketTextKey, sub: TicketTextKey) => html`<div class="row"><span class="lbl">${tt(label)}<span class="muted">${tt(sub)}</span></span>
+      <span class="seg" role="radiogroup" aria-label=${tt(label)}>${values.map((v) => html`<button type="button" role="radio" aria-pressed=${String(ui[key] === v)} aria-checked=${String(ui[key] === v)} data-ui-drawer=${`${key}:${v}`} ?disabled=${this.busy}
+        @click=${() => void this.saveDoc({ ui: { [key]: v } as never })}>${tt(`u6Dr_${v}` as TicketTextKey)}</button>`)}</span></div>`;
+    return html`${row('detail_tab', ['overview', 'conv', 'costs', 'history'], 'u6DrTab', 'u6DrTabSub')}${row('drawer_size', ['drawer', 'wide', 'full'], 'u6DrSize', 'u6DrSizeSub')}${row('phone_sheet', ['full', 'half'], 'u6DrPhone', 'u6DrPhoneSub')}`;
   }
 
   // ---------------------------------------------------------------- departments (slice 2: list + editor)
