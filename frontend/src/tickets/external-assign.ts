@@ -371,7 +371,7 @@ export const externalAssignStyles = css`
     color: var(--dv-text-3);
   }
   .xkinds button.off small {
-    color: var(--sw-warning, var(--dv-text-3));
+    color: var(--sw-warning);
   }
   .xreason {
     display: flex;
