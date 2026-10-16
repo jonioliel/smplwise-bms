@@ -79,7 +79,7 @@ test.describe('tickets weekly calendar evidence', () => {
     const first = await days.first().boundingBox();
     const last = await days.last().boundingBox();
     expect(first!.x, 'RTL: Sunday is the rightmost column').toBeGreaterThan(last!.x);
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11 – 17 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11–17 אוקטובר');
     await expect(page.locator(`${C} [data-cal-count]`)).toHaveText('10 אירועים בשבוע');
     await expect(page.locator(`${C} [data-cal-day="2026-10-13"]`)).toHaveClass(/today/);
     await expect(page.locator(`${C} [data-cal-day="2026-10-13"]`)).toHaveAttribute('aria-current', 'date');
@@ -108,27 +108,27 @@ test.describe('tickets weekly calendar evidence', () => {
     await goCal(page);
     await page.waitForSelector(`${C} [data-cal-week]`);
     await page.locator(`${C} [data-cal-next]`).click();
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('18 – 24 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('18–24 אוקטובר');
     await expect(page.locator(`${C} [data-cal-state="empty"]`)).toBeVisible();
     await expect(page.locator(`${C} [data-cal-count]`)).toHaveText('אין אירועים בשבוע זה');
     await expect(page.locator(`${C} [data-cal-nearest]`)).toHaveCount(0); // nothing later: nothing offered
     await shot(page, 'week-empty');
     await page.locator(`${C} [data-cal-today]`).click();
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11 – 17 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11–17 אוקטובר');
     await page.locator(`${C} [data-cal-prev]`).click();
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('4 – 10 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('4–10 אוקטובר');
     await expect(page.locator(`${C} [data-cal-nearest]`)).toBeVisible(); // the earlier week is empty, the events are ahead
     await page.locator(`${C} [data-cal-nearest]`).click();
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11 – 17 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11–17 אוקטובר');
     // keyboard: in RTL ArrowLeft is "next", ArrowRight "previous", Home is today
     await page.locator(`${C} [data-cal-next]`).focus();
     await page.keyboard.press('ArrowLeft');
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('18 – 24 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('18–24 אוקטובר');
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('4 – 10 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('4–10 אוקטובר');
     await page.keyboard.press('Home');
-    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11 – 17 באוקטובר');
+    await expect(page.locator(`${C} [data-cal-range]`)).toHaveText('11–17 אוקטובר');
     // every control is reachable by Tab and shows a focus ring
     await page.locator(`${C} [data-cal-prev]`).focus();
     await page.keyboard.press('Tab');
