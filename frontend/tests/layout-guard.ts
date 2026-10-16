@@ -151,7 +151,7 @@ export function inPageCheck(args: GuardArgs): Finding[] {
       if (!el || !inScope(el) || skip(el) || el.closest('script, style') || hidden(el)) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
-      const tr = R(range.getBoundingClientRect());
+      let tr = R(range.getBoundingClientRect());
       if (empty(tr)) continue;
       let cornerDone = false;
       for (let e: Element | null = el; e; e = parentOf(e)) {
@@ -164,6 +164,8 @@ export function inPageCheck(args: GuardArgs): Finding[] {
           if (!ell) add('clipped', el, `text cut by ${desc(e)}`);
           break;
         }
+        // lines hidden by a vertical clip (a -webkit-line-clamp) are not painted: only the visible part can sit in a corner further up
+        if (s.overflowY !== 'visible') tr = { ...tr, t: Math.max(tr.t, er.t), b: Math.min(tr.b, er.b) };
         if (matches(e, BUBBLE) && outX) {
           add('escape', el, `text outside ${desc(e)}`);
           break;
