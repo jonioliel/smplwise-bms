@@ -16,28 +16,37 @@ present (`phone_confirmed_via`), confirmed by the user or by a typed code, never
 that module's own rule. A number changed after the code was sent kills the code (the number is bound into the code's MAC).
 
 Code rules (the tickets code engine's, TKNOTIFOTP): 6 digits from the OS random source; stored only as
-HMAC-SHA256(process key, 'lr' | code id | user id | credential fingerprint | number key | code) - bound to the credential row (a
+HMAC-SHA256(reset key, 'lr' | code id | user id | credential fingerprint | number key | code) - bound to the credential row (a
 password set in between kills it) and to the number; valid 10 minutes; single use; one live code per user (a new one ends the old);
 5 wrong guesses end it; at most 1 send per 60 s and 5 per day per user, 5 per day per number and 50 per day per installation.
 The request ALWAYS answers the same 202 (unknown name, wrong mode, administrator, no verified number, a cap - all alike, and the
 send itself happens later on the sender thread, so no answer waits for WhatsApp); every refusal of the confirm is the same 422
-`code_invalid`. The codes and the caps live in memory (no migration): a restart ends every live code (the user asks again) and
-starts the caps afresh - recorded as a deviation in the CR (the persistent variant would be migration 0098).
+`code_invalid`.
+
+Persistence (USR2-P2B, owner decision 2026-10-16 option b; migration 0097, provisional 0102): the live code (its MAC, the number key,
+created / expires, attempts used, the consumed flag) is a row of `auth_local_reset_codes`, and every send is a row of
+`auth_local_reset_sends` (the cooldown and the three daily caps are counted from it). Both survive a restart; nothing is kept in
+memory, so there is nothing to restore at start. The reset key is derived from the messaging key FILE (`k_messaging`,
+<data>/secrets/messaging_key: never in the database, never in a backup), so the database alone cannot brute-force a code or a
+number; when that file is unreadable a per-process key is used (codes then end with the process - the safe direction). Single use
+is one `UPDATE ... WHERE consumed = 0` inside the confirm's write transaction (rowcount 1 wins). Dead rows are deleted by the
+janitor (an hour after expiry; sends after 24 h); triggers of the migration delete a user's code on a password / reset-mode change,
+a disable or a delete, and every code when the identity switch changes. Neither table is a backup table. The per-address limits
+of the two routes are the shared sign-in limiter's (`ha_user_auth.LIMITER`), already written behind to `block_counters`.
 
 Delivery: the WhatsApp infrastructure of the tickets module / NOTIFWA, reused through its public functions - the messaging account
 use `identity.local` (Settings › ערוץ ההודעות; inherits the tickets messages account when not set), the adapter
 (tickets.channel_whatsapp.WhatsAppChannel), the pacing gate over the shared send ledger (kind `code` for a code, `message` for a link)
 and the transport (notify_whatsapp.transport, faked in tests). The message is a FIXED code-owned text (he / en / ar / ru by the
 contact's language; ar and ru need a native review), never a template an administrator can edit, never held by send hours. The
-digits, the link token and the number exist only in the sender's memory: no outbox row, ledger row, audit row or log line holds
-any of them (the ledger keeps an HMAC of the number, the audit the user id and the outcome).
+digits, the link token and the number exist only in the sender's memory: no outbox row, ledger row, code row, audit row or log
+line holds any of them (the ledger and the code rows keep keyed hashes of the number, the audit the user id and the outcome).
 
 Nothing here is reachable while `security.local_identity` is off (the routes refuse first) - behaviour with the switch off is
 unchanged.
 """
 from __future__ import annotations
 
-import collections
 import datetime as dt
 import hashlib
 import hmac
@@ -49,6 +58,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 from ..errors import ApiError
@@ -65,6 +75,7 @@ PER_USER_DAY = 5
 PER_NUMBER_DAY = 5
 PER_INSTALLATION_DAY = 50
 DAY_S = 86400.0
+CODE_RETAIN_S = 3600.0   # a dead code row (expired / consumed / five wrong guesses) is deleted within an hour of its expiry (<= 24 h)
 REQUEST_LIMITS: list[tuple[float, int]] = [(60.0, 5), (3600.0, 20)]   # per client address (the request route)
 CONFIRM_LIMITS: list[tuple[float, int]] = [(60.0, 10), (3600.0, 40)]  # per client address (the confirm route)
 HOLD_CODE_S = 180.0      # a code that cannot leave within 3 minutes is dropped (it lives 10)
@@ -177,68 +188,95 @@ def channel_ready(db_or_conn: Any) -> bool:
         return False
 
 
-# ---------------------------------------------------------------- codes and caps (memory)
+# ---------------------------------------------------------------- codes and caps (persistent: migration 0097)
 
-_KEY = os.urandom(32)
-
-
-@dataclass
-class _Code:
-    cid: str
-    user_id: str
-    mac: str
-    created: float
-    expires: float
-    attempts: int = 0
+_PROCESS_KEY = os.urandom(32)  # only when the messaging key file is unreadable: codes then end with the process (fail closed)
+_KEY_LABEL = b"smplwise-arx/usr2/local-reset/v1"
 
 
-_lock = threading.Lock()
-_codes: dict[str, _Code] = {}
-_sends: collections.deque[tuple[float, str, str]] = collections.deque(maxlen=5000)  # (time, user id, number key)
+def reset_key(db_or_path: Any) -> bytes:
+    """The key of the code MACs and the number keys: HMAC(k_messaging, label) - a domain-separated sub-key of the messaging key
+    FILE, so it survives a restart, never sits in the database and never travels in a backup. Never logged."""
+    from . import messaging_runtime as mr
+
+    data_dir = Path(db_or_path.path).parent if hasattr(db_or_path, "path") else Path(db_or_path)
+    try:
+        base = mr.messaging_key(data_dir)
+    except Exception:  # noqa: BLE001 - a damaged key file: a per-process key (never a constant, never a number)
+        log.error("messaging key unreadable; local reset codes use a process key")
+        base = None
+    return hmac.new(base or _PROCESS_KEY, _KEY_LABEL, hashlib.sha256).digest()
 
 
-def _number_key(digits: str) -> str:
-    return hmac.new(_KEY, ("num:" + digits).encode("ascii", "replace"), hashlib.sha256).hexdigest()[:32]
+def _number_key(key: bytes, digits: str) -> str:
+    return hmac.new(key, ("num:" + digits).encode("ascii", "replace"), hashlib.sha256).hexdigest()[:32]
 
 
 def cred_fingerprint(password_hash: str | None, set_at: str | None) -> str:
     return hashlib.sha256(f"{password_hash or ''}|{set_at or ''}".encode("utf-8", "replace")).hexdigest()
 
 
-def _mac(cid: str, user_id: str, cred_fp: str, number_key: str, code: str) -> str:
-    return hmac.new(_KEY, f"lr|{cid}|{user_id}|{cred_fp}|{number_key}|{code}".encode("utf-8", "replace"), hashlib.sha256).hexdigest()
+def _mac(key: bytes, cid: str, user_id: str, cred_fp: str, number_key: str, code: str) -> str:
+    return hmac.new(key, f"lr|{cid}|{user_id}|{cred_fp}|{number_key}|{code}".encode("utf-8", "replace"), hashlib.sha256).hexdigest()
 
 
-def _prune(now: float) -> None:
-    for uid in [u for u, c in _codes.items() if c.expires <= now or c.attempts >= CODE_ATTEMPTS]:
-        _codes.pop(uid, None)
-    while _sends and now - _sends[0][0] > DAY_S:
-        _sends.popleft()
-
-
-def _cap_reason(user_id: str, number_key: str, now: float) -> str | None:
-    """Under the lock: why another code may not be sent now (None = it may)."""
-    mine = [t for t, u, _n in _sends if u == user_id]
-    if mine and now - mine[-1] < COOLDOWN_S:
+def _cap_reason(conn: Any, user_id: str, number_key: str, now: float) -> str | None:
+    """Inside the request's write transaction: why another code may not be sent now (None = it may). Counted from the send rows
+    of the last 24 h, so the cooldown and the caps survive a restart."""
+    since = now - DAY_S
+    last, mine = conn.execute("SELECT MAX(sent_at), COUNT(*) FROM auth_local_reset_sends WHERE user_id = ? AND sent_at > ?", (user_id, since)).fetchone()
+    if last is not None and now - float(last) < COOLDOWN_S:
         return "cooldown"
-    if len(mine) >= PER_USER_DAY:
+    if mine >= PER_USER_DAY:
         return "cap_user"
-    if sum(1 for _t, _u, n in _sends if n == number_key) >= PER_NUMBER_DAY:
+    if conn.execute("SELECT COUNT(*) FROM auth_local_reset_sends WHERE number_key = ? AND sent_at > ?", (number_key, since)).fetchone()[0] >= PER_NUMBER_DAY:
         return "cap_number"
-    if len(_sends) >= PER_INSTALLATION_DAY:
+    if conn.execute("SELECT COUNT(*) FROM auth_local_reset_sends WHERE sent_at > ?", (since,)).fetchone()[0] >= PER_INSTALLATION_DAY:
         return "cap_installation"
     return None
 
 
-def kill_codes(user_id: str) -> None:
-    with _lock:
-        _codes.pop(user_id, None)
+def kill_codes(conn: Any, user_id: str, code_id: str | None = None) -> int:
+    """Delete the user's code row (only that code when `code_id` is given). Runs in the caller's transaction."""
+    if code_id is None:
+        return conn.execute("DELETE FROM auth_local_reset_codes WHERE user_id = ?", (user_id,)).rowcount
+    return conn.execute("DELETE FROM auth_local_reset_codes WHERE user_id = ? AND code_id = ?", (user_id, code_id)).rowcount
 
 
-def live_code(user_id: str) -> bool:
-    with _lock:
-        c = _codes.get(user_id)
-        return c is not None and c.expires > time.time() and c.attempts < CODE_ATTEMPTS
+_LIVE_SQL = "SELECT 1 FROM auth_local_reset_codes WHERE user_id = ? AND consumed = 0 AND attempts < ? AND expires_at > ?"
+
+
+def live_code(db: Any, user_id: str, code_id: str | None = None) -> bool:
+    """The user holds a usable code (that very code when `code_id` is given)."""
+    sql, args = _LIVE_SQL, [user_id, CODE_ATTEMPTS, time.time()]
+    if code_id is not None:
+        sql, args = sql + " AND code_id = ?", args + [code_id]
+    try:
+        with db.connection(mode="read", label="local reset live code") as conn:
+            return conn.execute(sql, args).fetchone() is not None
+    except Exception:  # noqa: BLE001 - fail closed: a code we cannot see is never sent
+        return False
+
+
+def janitor(db: Any, now: float | None = None) -> int:
+    """main.janitor_tick: code rows an hour past their expiry (dead ones included - a consumed or exhausted row expires like any
+    other) and send rows past the 24-hour window. A read first, so a quiet installation takes no write lock. Never raises."""
+    now = time.time() if now is None else now
+    try:
+        with db.connection(mode="read", label="local reset janitor read") as conn:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_local_reset_codes'").fetchone() is None:
+                return 0
+            due = conn.execute("SELECT 1 FROM auth_local_reset_codes WHERE expires_at <= ? LIMIT 1", (now - CODE_RETAIN_S,)).fetchone() \
+                or conn.execute("SELECT 1 FROM auth_local_reset_sends WHERE sent_at <= ? LIMIT 1", (now - DAY_S,)).fetchone()
+        if not due:
+            return 0
+        with db.connection(label="local reset janitor") as conn:
+            n = conn.execute("DELETE FROM auth_local_reset_codes WHERE expires_at <= ?", (now - CODE_RETAIN_S,)).rowcount
+            n += conn.execute("DELETE FROM auth_local_reset_sends WHERE sent_at <= ?", (now - DAY_S,)).rowcount
+            return n
+    except Exception:  # noqa: BLE001 - housekeeping never raises
+        log.warning("local reset janitor failed")
+        return 0
 
 
 def parse_code(raw: Any) -> str | None:
@@ -291,32 +329,41 @@ def request_code(db: Any, conn_like: Any, username: str, request_id: str | None)
         code = cid = None
         if reason is None:
             assert number is not None and user is not None
-            nkey = _number_key(number.digits)
-            with _lock:
-                _prune(now)
-                reason = _cap_reason(user["id"], nkey, now)
-                if reason is None:
-                    cid = secrets.token_hex(16)
-                    code = f"{secrets.randbelow(10 ** 6):06d}"
-                    _codes[user["id"]] = _Code(cid, user["id"], _mac(cid, user["id"], cred_fingerprint(user["password_hash"], user["set_at"]), nkey, code),
-                                               now, now + CODE_TTL_S)  # one live code per user: a new one replaces the old
-                    _sends.append((now, user["id"], nkey))
-        if reason is None:
-            assert number is not None and user is not None and code is not None and cid is not None
-            queued = sender_for(db).submit(Job(kind="code", user_id=user["id"], digits=number.digits, text=text_for("code", number.lang, code=code),
-                                               ref=cid[:12], hold_s=HOLD_CODE_S))
-            del code
-            if not queued:
-                kill_codes(user["id"])
-                reason = "busy"
+            key = reset_key(db)
+            nkey = _number_key(key, number.digits)
+            reason = _cap_reason(conn, user["id"], nkey, now)  # BEGIN IMMEDIATE: two parallel requests are counted one after the other
+            if reason is None:
+                cid = secrets.token_hex(16)
+                code = f"{secrets.randbelow(10 ** 6):06d}"
+                mac = _mac(key, cid, user["id"], cred_fingerprint(user["password_hash"], user["set_at"]), nkey, code)
+                # one live code per user: a new one replaces the old (attempts and the consumed flag start afresh with the new code)
+                conn.execute("""INSERT INTO auth_local_reset_codes(user_id, code_id, code_mac, number_key, created_at, expires_at, attempts, consumed)
+                                VALUES (?, ?, ?, ?, ?, ?, 0, 0)
+                                ON CONFLICT(user_id) DO UPDATE SET code_id = excluded.code_id, code_mac = excluded.code_mac, number_key = excluded.number_key,
+                                  created_at = excluded.created_at, expires_at = excluded.expires_at, attempts = 0, consumed = 0""",
+                             (user["id"], cid, mac, nkey, now, now + CODE_TTL_S))
+                conn.execute("INSERT INTO auth_local_reset_sends(sent_at, user_id, number_key) VALUES (?, ?, ?)", (now, user["id"], nkey))
         if user is None:
             write, suppressed = REFUSAL_AUDITS.admit(f"local_reset_unknown|{meta.get('client_ip', '')}")
             if write:
                 li._audit(conn, actor=None, action="auth.local.reset.requested", decision="denied", reason="unknown_user", resource_id="unknown",
                           details={"ip": masked, **({"suppressed_since_last": suppressed} if suppressed else {})}, request_id=request_id)
             return
-        li._audit(conn, actor=None, action="auth.local.reset.requested", decision="allowed" if reason is None else "denied", reason=reason,
-                  resource_id=user["id"], details={"ip": masked, **({"code_id": cid[:12]} if reason is None and cid else {})}, request_id=request_id)
+        if reason is not None:
+            li._audit(conn, actor=None, action="auth.local.reset.requested", decision="denied", reason=reason, resource_id=user["id"],
+                      details={"ip": masked}, request_id=request_id)
+            return
+        uid = user["id"]
+    # the code row is committed before the job exists, so the sender (another connection) sees it when it checks the code is live
+    assert number is not None and code is not None and cid is not None
+    queued = sender_for(db).submit(Job(kind="code", user_id=uid, digits=number.digits, text=text_for("code", number.lang, code=code),
+                                       ref=cid[:12], hold_s=HOLD_CODE_S, code_id=cid))
+    del code
+    with db.connection(label="local reset request audit") as conn:
+        if not queued:
+            kill_codes(conn, uid, cid)
+        li._audit(conn, actor=None, action="auth.local.reset.requested", decision="allowed" if queued else "denied", reason=None if queued else "busy",
+                  resource_id=uid, details={"ip": masked, **({"code_id": cid[:12]} if queued else {})}, request_id=request_id)
 
 
 # ---------------------------------------------------------------- 2. the confirm (public; uniform refusals; hashing only on success)
@@ -341,9 +388,10 @@ def confirm(db: Any, settings: Any, conn_like: Any, username: str, presented: An
         user = conn.execute(_USER_SQL, (uname,)).fetchone() if uname else None
 
         def deny(reason: str, *, kill: bool = False) -> ApiError:
+            # an ApiError commits the transaction (db.connection): the attempt counted / the code deleted here is persistent
             if user is not None:
                 if kill:
-                    kill_codes(user["id"])
+                    kill_codes(conn, user["id"])
                 li._audit(conn, actor=None, action="auth.local.reset.refused", decision="denied", reason=reason, resource_id=user["id"],
                           details={"ip": masked}, request_id=request_id)
             else:
@@ -355,35 +403,31 @@ def confirm(db: Any, settings: Any, conn_like: Any, username: str, presented: An
 
         if user is None:
             raise deny("unknown_user")
-        with _lock:
-            _prune(now)
-            rec = _codes.get(user["id"])
-        if rec is None:
+        rec = conn.execute("SELECT code_id, code_mac FROM auth_local_reset_codes WHERE user_id = ? AND consumed = 0 AND attempts < ? AND expires_at > ?",
+                           (user["id"], CODE_ATTEMPTS, now)).fetchone()
+        if rec is None:  # none, expired, consumed or five wrong guesses: all alike
             raise deny("no_code")
+        cid = rec["code_id"]
         if code is None:
             raise deny("malformed")
         why = _refusal(conn, user)  # the rule again, at the moment of use (F6: an administrator NOW is refused, whatever reset_mode says)
         if why is not None:
             raise deny(why, kill=True)
+        key = reset_key(db)
         number = verified_number(conn, user["id"])
-        nkey = _number_key(number.digits) if number is not None else "none"
-        expected = _mac(rec.cid, user["id"], cred_fingerprint(user["password_hash"], user["set_at"]), nkey, code)
-        if not hmac.compare_digest(expected, rec.mac):
-            with _lock:
-                live = _codes.get(user["id"])
-                if live is not None and live.cid == rec.cid:
-                    live.attempts += 1
-                    if live.attempts >= CODE_ATTEMPTS:
-                        _codes.pop(user["id"], None)
+        nkey = _number_key(key, number.digits) if number is not None else "none"
+        expected = _mac(key, cid, user["id"], cred_fingerprint(user["password_hash"], user["set_at"]), nkey, code)
+        if not hmac.compare_digest(expected, rec["code_mac"]):
+            conn.execute("UPDATE auth_local_reset_codes SET attempts = attempts + 1 WHERE user_id = ? AND code_id = ? AND consumed = 0", (user["id"], cid))
             raise deny("invalid")
         reason = lp.check_policy(password, min_length=li.password_min(conn), context=li._context_words(conn, user), data_dir=settings.data_dir)
         if reason is not None:  # the code stays live (the person holds it); the policy answer never echoes the password
             raise ApiError(400, "password_policy", li.POLICY_HE.get(reason, li.POLICY_HE["too_short"]), details={"reason": reason, "min_length": li.password_min(conn)})
-        with _lock:  # single use: exactly one confirm consumes the code (a parallel one finds it gone)
-            live = _codes.get(user["id"])
-            if live is None or live.cid != rec.cid:
-                raise deny("no_code")
-            _codes.pop(user["id"], None)
+        # single use: exactly one confirm consumes the code - one conditional UPDATE in this write transaction (rowcount 1 wins; a
+        # parallel confirm waits for the write lock and then finds the row consumed / gone). A failure below rolls the consumption back.
+        if conn.execute("UPDATE auth_local_reset_codes SET consumed = 1 WHERE user_id = ? AND code_id = ? AND consumed = 0 AND attempts < ? AND expires_at > ?",
+                        (user["id"], cid, CODE_ATTEMPTS, now)).rowcount != 1:
+            raise deny("no_code")
         uid = user["id"]
         phc, version = lp.hash_password(password)
         conn.execute("""UPDATE auth_local_credentials SET password_hash = ?, params_version = ?, set_at = ?, set_by = 'self_service', must_change = 0,
@@ -395,7 +439,7 @@ def confirm(db: Any, settings: Any, conn_like: Any, username: str, presented: An
         li.TIERS.acct_clear_name(user["username"])  # the person's own failed tries before they asked for the code end with the reset
         must_enrol = not sf.is_enrolled(conn, uid) and (li.holds_admin(conn, uid) or li.factor_policy_required(conn, uid))
         li._audit(conn, actor=None, action="auth.local.reset.completed", decision="allowed", resource_id=uid,
-                  details={"code_id": rec.cid[:12], "sessions_ended": ended, "links_invalidated": links, "ip": masked}, request_id=request_id)
+                  details={"code_id": cid[:12], "sessions_ended": ended, "links_invalidated": links, "ip": masked}, request_id=request_id)
         li._audit(conn, actor=None, action="auth.local.password.changed", decision="allowed", resource_id=uid,
                   details={"via": "self_service", "other_sessions_ended": ended}, request_id=request_id)
     if ended:
@@ -469,6 +513,7 @@ class Job:
     ref: str = ""                   # the code id / link prefix in the audit (never the code or the token)
     hold_s: float = HOLD_CODE_S
     created: float = field(default_factory=time.monotonic)
+    code_id: str = field(default="", repr=False)  # a code job: the code row it carries (a replaced code is never sent)
 
     @property
     def ledger_kind(self) -> str:
@@ -559,7 +604,7 @@ class Sender:
         from .tickets.channel import NOT_SENT, SENT, OutboundMessage, Recipient
         from .tickets.channel_whatsapp import WhatsAppChannel
 
-        if job.kind == "code" and not live_code(job.user_id):
+        if job.kind == "code" and not live_code(self.db, job.user_id, job.code_id or None):
             self._outcome(job, "skipped", "code_ended")  # a newer code, the code used, or five wrong guesses: never send a dead code
             return
         waited = time.monotonic() - job.created
@@ -639,10 +684,13 @@ def notify_managers(db: Any, source: str, subject_id: str, *, dedupe: str | None
 
 # ---------------------------------------------------------------- tests
 
-def reset_for_tests() -> None:
-    with _lock:
-        _codes.clear()
-        _sends.clear()
+def reset_for_tests(db: Any = None) -> None:
+    """Stops the sender threads (a 'restart' of this module: nothing else lives in memory). With `db`, also empties the code and
+    send rows (the caps start afresh)."""
+    if db is not None:
+        with db.connection(label="local reset tests") as conn:
+            conn.execute("DELETE FROM auth_local_reset_codes")
+            conn.execute("DELETE FROM auth_local_reset_sends")
     with _senders_lock:
         for s in _senders.values():
             s.stop()
