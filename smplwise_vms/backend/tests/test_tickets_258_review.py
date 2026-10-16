@@ -242,3 +242,22 @@ def test_gap4_migration_0087_keeps_every_child_row_of_a_populated_database(tmp_p
             assert after[t] == before[t], t
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     conn.close()
+
+
+# ---------------------------------------------------------------- gap 7: the NOTIFWA opt-in never follows a re-linked row
+
+
+def test_gap7_a_relinked_row_does_not_carry_the_notifications_opt_in(env):
+    from smplwise.services import notify_whatsapp as wa
+
+    assert set_mobile(env, "tom", "050-000-0091").status_code == 200
+    with env.s4.db.connection() as conn:
+        found = wa.raw_number(conn, "dev-tom")
+        assert found is not None
+        wa.set_opt_in(conn, "dev-tom", found.digits)  # tom's own opt-in for his number
+        cid, rev = conn.execute("SELECT id, revision FROM ticket_contacts WHERE user_id = 'dev-tom'").fetchone()
+    r = env.c.patch(f"{API}/tickets/contacts/{cid}", json={"user_id": "dev-gil", "revision": rev})
+    assert r.status_code == 200, r.text
+    with env.s4.db.connection(mode="read") as conn:
+        got = wa.resolve_number(conn, "dev-gil")
+    assert got is None or got.consent != "granted", "gil never opted in for this number"
