@@ -34,6 +34,7 @@ import { type ClaimLang, type ItemLabels, claimDir, claimLang, ct, errorText, it
 import { type QuoteTextKey, qt } from './quote-text';
 
 export const QUOTE_PATH = '/t/api/quote';
+const DAY_MS = 86_400_000;
 
 export type QuoteState = 'none' | 'submitted' | 'approved' | 'rejected';
 
@@ -52,8 +53,10 @@ export interface QuoteView {
   reason?: string | null;
   /** TKFIX260 (public-surface review F4): a version the organisation entered on the vendor's behalf (never who entered it) */
   on_behalf?: boolean;
-  /** TKQVALID: the quote's validity (an instant); only ever the link's OWN quote. Display only here - the vendor form cannot send it yet. */
+  /** TKQVALID: the quote's validity (an instant); only ever the link's OWN quote. TKPOLISH: the form sends it (and the work window) too. */
   valid_until?: string | null;
+  work_from?: string | null;
+  work_to?: string | null;
 }
 
 export interface QuoteInfo {
@@ -156,6 +159,7 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
   let pendingCrid: string | null = null;
   let banner: { tone: 'error' | 'warn'; text: string } | null = null;
   let showErrors = false;
+  let win = { from: '', to: '', valid: '' }; // TKPOLISH: optional work window + validity, YYYY-MM-DD (the date inputs' own value)
   let destroyed = false;
   let linesHost: HTMLElement | null = null;
   let figuresHost: HTMLElement | null = null;
@@ -231,7 +235,8 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
       f.currency = q.currency;
       f.include_vat = q.vat_mode === 'included';
       f.notes = q.notes ?? '';
-    }
+      win = { from: (q.work_from ?? '').slice(0, 10), to: (q.work_to ?? '').slice(0, 10), valid: (q.valid_until ?? '').slice(0, 10) };
+    } else win = { from: '', to: '', valid: '' };
     return f;
   }
 
@@ -432,6 +437,26 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
     errorHost.hidden = true;
     f.appendChild(errorHost);
 
+    // TKPOLISH: the optional work window and quote validity (the server's rules: a day back, 366 days ahead, the end not before the start)
+    const dateField = (key: 'from' | 'to' | 'valid', label: string) => {
+      const l = el('label', 'swc-field swc-num');
+      l.appendChild(el('span', 'swc-label', `${label} ${c('optional')}`));
+      const i = el('input', 'swc-input');
+      i.type = 'date';
+      i.setAttribute('dir', 'ltr');
+      i.dataset.quoteDate = key;
+      i.value = win[key];
+      i.addEventListener('input', () => {
+        win[key] = i.value;
+        if (showErrors) paintErrors();
+      });
+      l.appendChild(i);
+      return l;
+    };
+    const dates = el('div', 'swc-nums');
+    dates.append(dateField('from', t('q_work_from')), dateField('to', t('q_work_to')));
+    f.append(dates, dateField('valid', t('q_valid_until', { date: '' }).trim())); // "Quote valid until" - the display sentence minus its date
+
     const lab = el('label', 'swc-field');
     lab.appendChild(el('span', 'swc-label', `${c('notes')} ${c('optional')}`));
     const notes = el('textarea', 'swc-input swc-area');
@@ -579,8 +604,17 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
     if (!errorHost) return;
     const errs = showErrors ? validateForm(form, { settings: settings(), docs: { docs: [] } }) : [];
     const first = errs[0];
-    errorHost.hidden = !first;
-    errorHost.textContent = first ? (first.field === 'lines' && first.code === 'required' ? c('e_lines_required') : errorText(lang, first.code)) : '';
+    const w = showErrors ? windowError() : null;
+    errorHost.hidden = !first && !w;
+    errorHost.textContent = first ? (first.field === 'lines' && first.code === 'required' ? c('e_lines_required') : errorText(lang, first.code)) : w ?? '';
+  }
+
+  /** The server's rules for the optional dates (quotes._instant / _valid_until): at most a day back, 366 days ahead, the end not before the start. */
+  function windowError(): string | null {
+    const d = Date.now() - DAY_MS;
+    const bad = (v: string, t: string) => !!v && !((d <= Date.parse(`${v}T${t}Z`)) && Date.parse(`${v}T${t}Z`) <= d + 367 * DAY_MS);
+    // one "out of range" text for a date outside the horizon and for an end before the start
+    return bad(win.from, '00:00:00') || bad(win.to, '23:59:59') || bad(win.valid, '23:59:59') || (win.to < win.from && !!win.to) ? errorText(lang, 'range') : null;
   }
 
   // ---------------------------------------------------------------- sending
@@ -590,12 +624,15 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
     showErrors = true;
     const errs = validateForm(form, { settings: settings(), docs: { docs: [] } });
     paintErrors();
-    if (errs.length) return;
+    if (errs.length || windowError()) return;
     submitting = true;
     banner = null;
     render();
     pendingCrid = pendingCrid ?? newRequestId(); // the same id while the outcome is unknown: a retry never makes a second quote
     const { documents: _d, vendor_ref: _v, no_charge: _n, ...body } = buildPayload(form, { docs: [] }, settings(), pendingCrid) as unknown as Record<string, unknown>;
+    if (win.from) body.work_from = `${win.from}T00:00:00Z`;
+    if (win.to) body.work_to = `${win.to}T23:59:59Z`;
+    if (win.valid) body.valid_until = win.valid; // a plain date: the server reads it as the END of that day
     let res: ApiResult;
     try {
       res = await opts.fetchJson(QUOTE_PATH, { method: 'POST', body });

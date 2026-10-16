@@ -331,7 +331,7 @@ test('TKFIX260: an on-behalf quote is labelled on the vendor card, and the note 
   expect(texts).toContain("q_on_behalf: 'הוזן על ידי המנהל'");
 });
 
-test('TKQVALID: the vendor card shows the validity of the link\'s own quote (display only: the public form cannot send it yet), in four languages', () => {
+test('TKQVALID: the vendor card shows the validity of the link\'s own quote (shown here; TKPOLISH below sends it), in four languages', () => {
   const card = code('claim/quote-card.ts');
   expect(card).toContain('quote.valid_until');
   expect(card).toContain("t('q_valid_until'");
@@ -340,4 +340,18 @@ test('TKQVALID: the vendor card shows the validity of the link\'s own quote (dis
   const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
   expect(texts.match(/q_valid_until:/g)?.length).toBe(4); // he / en / ar / ru
   expect(texts.match(/q_valid_until:[^\n]*\{date\}/g)?.length).toBe(4);
+});
+
+test('TKPOLISH: the quote form sends the optional work window and validity, validated like the server, in four languages', () => {
+  const card = code('claim/quote-card.ts');
+  expect(card).toContain("type = 'date'");
+  expect(card).toContain('dataset.quoteDate');
+  expect(card).toContain('body.work_from = ');
+  expect(card).toContain('body.work_to = ');
+  expect(card).toContain('body.valid_until = win.valid');
+  expect(card).toMatch(/d \+ 367 \* DAY_MS/); // the server's horizon (WORK_HORIZON_DAYS 366 days ahead of now, a day back from d = now - 1 day)
+  expect(card).toMatch(/win\.to < win\.from/); // the window order (422 order)
+  expect(card).toContain('if (errs.length || windowError()) return;'); // nothing is sent while a date is out of range
+  const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  for (const k of ['q_work_from', 'q_work_to']) expect(texts.match(new RegExp(`${k}:`, 'g'))?.length, k).toBe(4);
 });
