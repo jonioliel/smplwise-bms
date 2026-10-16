@@ -54,9 +54,11 @@ def remote_config(request: Request) -> dict[str, Any]:
     with request.app.state.db.connection(mode="read", label="auth/remote-config") as conn:
         rs = hua.remote_settings(conn)
         local = local_identity.enabled(conn)
+        local_min = local_identity.password_min(conn) if local else 0
     body = {"path": settings.remote_path + "/", "session": rs["remote.session"], "idle_lock_minutes": rs["remote.idle_lock_minutes"]}
     if local:  # USR2: the sign-in page offers the "משתמש Arx" mode only while the feature is on (absent otherwise: the answer is unchanged)
         body["local_identity"] = True
+        body["local_password_min"] = local_min
     return body
 
 

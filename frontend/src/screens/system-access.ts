@@ -19,6 +19,9 @@ import '../components/sw-state-panel';
 import '../components/sw-dialog';
 import '../components/sw-chip';
 import './system-doors'; // CR-033: the door opening grant card (tab "פתיחת דלתות")
+import './system-local-users'; // USR2: the Arx-only identities (tab "משתמשי Arx")
+import { localRoles } from './system-local-users';
+import { lit } from '../i18n/local-identity';
 import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
 import { can, isApi, session } from '../api/session';
@@ -395,7 +398,7 @@ export class SystemAccess extends LitElement {
    * (in place, no history entry) when the user switches, so the settings navigation and the address agree. */
   private readTab() {
     const want = parseRoute().params.get('tab') ?? '';
-    if (TABS.some((t) => t.id === want) && want !== this.tab) this.setTab(want);
+    if ((TABS.some((t) => t.id === want) || (want === 'local' && isApi() && can('identity.directory.read'))) && want !== this.tab) this.setTab(want);
   }
 
   private onHash = () => {
@@ -1151,6 +1154,8 @@ export class SystemAccess extends LitElement {
       ...(!dir.delegated || (dir as { assignable_roles?: string[] }).assignable_roles?.includes('door_opener') ? [{ id: 'doors', label: 'פתיחת דלתות' }] : []),
       // a delegated administrator holds no audit.read: the tab would only show a refusal
       ...(dir.delegated && !this.groupsMeta.can_manage ? [] : [{ id: 'audit', label: 'אודיט הרשאות' }]),
+      // USR2: the Arx-only identities - for holders of identity.directory.read (system administrators)
+      ...(can('identity.directory.read') ? [{ id: 'local', label: lit('tab') }] : []),
     ];
     const sub = dir.delegated && !this.groupsMeta.can_manage
       ? `מנהל אתר · שיוך תפקידים מרשימת ההאצלה בתוך ההיקף שלך בלבד · ${dir.users.length} משתמשים פעילים · רוויזיית הרשאות ${dir.revision}`
@@ -1161,7 +1166,7 @@ export class SystemAccess extends LitElement {
         <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הרשאות" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>
         <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
         ${this.message || this.error ? html`<div class="bar">${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>` : nothing}
-        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.renderAuditApi()}
+        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.tab === 'local' ? html`<system-local-users data-local-users-tab .roles=${localRoles(this.roles.roles)} .scopes=${this.scopeOptions}></system-local-users>` : this.renderAuditApi()}
       </sw-page>
     `;
   }
