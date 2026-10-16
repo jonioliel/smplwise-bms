@@ -75,6 +75,7 @@ class UiPatch(BaseModel):
     detail_tab: Literal["overview", "conv", "costs", "history"] | None = None  # TKUI1 (2.6.0)
     drawer_size: Literal["drawer", "wide", "full"] | None = None  # TKUI1
     phone_sheet: Literal["full", "half"] | None = None  # TKUI1
+    handled_days: StrictInt | None = None  # HANDLERLOAD: the default period of the "handled" number (days)
 
 
 class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose client-address header is believed

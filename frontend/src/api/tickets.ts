@@ -186,7 +186,7 @@ export interface RfqOrigin { id: string | null; number: number; ref: string; wor
 export type DetailTab = 'overview' | 'conv' | 'costs' | 'history';
 export type DrawerSizeSetting = 'drawer' | 'wide' | 'full';
 export type PhoneSheetSetting = 'full' | 'half';
-export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode; detail_tab?: DetailTab; drawer_size?: DrawerSizeSetting; phone_sheet?: PhoneSheetSetting }
+export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode; detail_tab?: DetailTab; drawer_size?: DrawerSizeSetting; phone_sheet?: PhoneSheetSetting; /* HANDLERLOAD */ handled_days?: 1 | 7 | 30 }
 export type NameEntries = Record<TicketLang, TicketName>;
 export type NameDoc = NameEntries & { revision: number };
 

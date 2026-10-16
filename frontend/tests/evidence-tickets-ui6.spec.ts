@@ -74,8 +74,12 @@ async function installTabsMock(page: Page): Promise<void> {
 }
 
 const boardCalls = { n: 0 };
+/** HANDLERLOAD: the `days` of every GET tickets/handler-load, and the installation default the mock answers with. */
+const loadCalls: (string | null)[] = [];
+let handledDefault = 7;
 async function go(page: Page, hash: string, o: S4MockOptions & { board?: boolean } = {}, scheme: 'light' | 'dark' = 'light', skin = 'classic'): Promise<S4Mock> {
   boardCalls.n = 0;
+  loadCalls.length = 0;
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   const base = test.info().project.use.baseURL;
   if (process.env.SW_DIST_ROUTE === '1' && base) await serveBuiltApp(page, new URL(base).origin);
@@ -87,6 +91,15 @@ async function go(page: Page, hash: string, o: S4MockOptions & { board?: boolean
       items: BOARD_ITEMS, closed: [], counts: { all: BOARD_ITEMS.length, waiting: 0, stuck: 1, unassigned: 1, closed_week: 0, closed_all: 0 }, handling: [], departments: [], tree: [],
       truncated: false, all_departments: true, now: '2026-10-13T10:42:00Z', ui: {},
     })));
+  }
+  if (o.board !== false) {
+    await page.route('**/api/v1/tickets/handler-load**', (route) => {
+      const days = new URL(route.request().url()).searchParams.get('days');
+      loadCalls.push(days);
+      const d = Number(days ?? handledDefault);
+      return json(route, { days: d, default_days: handledDefault, since: '2026-10-11T00:00:00Z', now: '2026-10-17T10:00:00Z', truncated: false,
+        handled: { 'user:u-ronit': d === 1 ? 2 : d === 7 ? 9 : 31 } });
+    });
   }
   await page.goto('about:blank');
   await page.goto(url(hash, skin, scheme));
@@ -134,6 +147,28 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
       await expect(page.locator(`${H} [data-readiness]`)).toHaveCount(0); // everything ready: no strip
       await shot(page, 'handlers', scheme, skin);
     }
+  });
+
+  test('handlers: the handled number - default period, the selector, the remembered choice, phone width', async ({ page }) => {
+    handledDefault = 7;
+    await go(page, '/tickets/handlers');
+    const card = `${H} tickets-handlers-members [data-member="user:u-ronit"]`;
+    await page.waitForSelector(`${card} [data-stat="handled"]`);
+    await expect(page.locator(`${card} [data-stat="handled"]`)).toHaveText('9'); // the installation default: 7 days
+    await expect(page.locator(`${card} [data-stat-period]`)).toHaveText('7 ימים');
+    await expect(page.locator(`${H} [data-handled-period]`)).toHaveValue('7');
+    await page.locator(`${H} [data-handled-period]`).selectOption('30');
+    await expect(page.locator(`${card} [data-stat="handled"]`)).toHaveText('31');
+    expect(loadCalls.at(-1)).toBe('30');
+    // the open / waiting / stuck numbers are the current state: the period does not touch them
+    await expect(page.locator(`${card} [data-stat="open"]`)).toHaveText('4');
+    await shot(page, 'handlers-handled', 'light', 'classic');
+    // the choice is remembered for this viewer and wins over the installation default
+    handledDefault = 1;
+    await go(page, '/tickets/handlers');
+    await page.waitForSelector(`${card} [data-stat="handled"]`);
+    await expect(page.locator(`${H} [data-handled-period]`)).toHaveValue('30');
+    expect(loadCalls[0]).toBe('30');
   });
 
   test('handlers: the load is for department managers only - nobody else sees a count', async ({ page }) => {

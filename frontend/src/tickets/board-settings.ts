@@ -47,11 +47,20 @@ export class TicketBoardSettings extends LitElement {
         ?disabled=${this.disabled || this.busy} @click=${() => void this.save({ ui: { [key]: v } as Partial<BoardUi> })}>${bt(`${prefix}${String(v)}` as BoardTextKey)}</button>`)}</span></div>`;
   }
 
+  /** HANDLERLOAD: the installation default of the "handled" period on the handler cards (1 = today, 7, 30; default 7). */
+  private handledRow(): TemplateResult {
+    const cur = this.doc?.ui?.handled_days ?? 7;
+    return html`<div class="row"><span class="lbl">${bt('setHandledDays')}<span class="muted">${bt('setHandledDaysSub')}</span></span>
+      <span class="seg" role="radiogroup" aria-label=${bt('setHandledDays')}>${([1, 7, 30] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(cur === v)} aria-checked=${String(cur === v)} data-ui-board=${`handled_days:${v}`}
+        ?disabled=${this.disabled || this.busy} @click=${() => void this.save({ ui: { handled_days: v } })}>${bt(`hd_${v}` as BoardTextKey)}</button>`)}</span></div>`;
+  }
+
   render() {
     return html`
       ${this.seg('board_floors', 'setBoardFloors', 'setBoardFloorsSub', ['tree', 'chips', 'chips_tree'], 'bf_')}
       ${this.seg('grouping', 'setGrouping', 'setGroupingSub', ['no_status_filter', 'always', 'never'], 'g_')}
       ${this.seg('closed_strip', 'setClosedStrip', 'setClosedStripSub', ['all', 'week', 'hidden'], 'cs_')}
+      ${this.handledRow()}
       ${this.error ? html`<div class="row"><span class="field-error" role="alert" data-board-settings-error>${this.error}</span></div>` : ''}`;
   }
 }

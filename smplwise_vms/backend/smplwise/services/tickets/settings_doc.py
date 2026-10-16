@@ -37,6 +37,15 @@ def int_range(lo: int, hi: int) -> Callable[[Any], int]:
     return check
 
 
+def int_choice(*allowed: int) -> Callable[[Any], int]:
+    def check(v: Any) -> int:
+        if isinstance(v, bool) or not isinstance(v, int) or v not in allowed:
+            raise ValueError("choice")
+        return v
+
+    return check
+
+
 def boolean(v: Any) -> bool:
     if not isinstance(v, bool):
         raise ValueError("boolean")
@@ -140,6 +149,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail_tab"): ("overview", _choice("overview", "conv", "costs", "history")),
     ("ui", "drawer_size"): ("wide", _choice("drawer", "wide", "full")),
     ("ui", "phone_sheet"): ("full", _choice("full", "half")),
+    # HANDLERLOAD (owner 2026-10-17): the period of the "handled" number on the handler cards, in days (1 = today, 7, 30); each viewer's
+    # own choice (kept in the browser) wins over this installation default
+    ("ui", "handled_days"): (7, int_choice(1, 7, 30)),
     ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
     # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5

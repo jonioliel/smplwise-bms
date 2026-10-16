@@ -17,7 +17,7 @@ import { ApiError } from '../api/client';
 import { onTicketNames } from '../tickets/naming';
 import { HANDLERS_SEGMENTS, missingItems, type HandlersSegment } from '../tickets/readiness-model';
 import { handlersGlass } from '../tickets/handlers-glass';
-import { loadsFromBoard, managedDepartments, type MemberLoad } from '../tickets/handler-load';
+import { asHandledDays, HANDLED_DEFAULT, HANDLED_PERIODS, loadsFromBoard, managedDepartments, readStoredPeriod, storePeriod, withHandled, type HandledDays, type MemberLoad } from '../tickets/handler-load';
 import { rovingIndex } from '../tickets/settings-tabs';
 import { tIcon } from '../tickets/icons';
 import { tt } from '../tickets/text';
@@ -53,6 +53,12 @@ export class TicketsHandlersPage extends LitElement {
   @state() private q = '';
   @state() private counts: Partial<Record<HandlersSegment, number>> = {};
   @state() private loads: Map<string, MemberLoad> | null = null;
+  /** HANDLERLOAD: the viewer's own period (remembered in the browser; null = follow the installation default), the default the server
+   * answered, the handled counts of the period actually shown (null = not available) */
+  @state() private period: HandledDays | null = readStoredPeriod();
+  @state() private installDefault: HandledDays = HANDLED_DEFAULT;
+  @state() private handled: { days: HandledDays; counts: Record<string, number> } | null = null;
+  private handledSeq = 0;
   @state() private adding = false;
   @state() private ok = '';
   @state() private error = '';
@@ -224,14 +230,43 @@ export class TicketsHandlersPage extends LitElement {
   private async loadLoads(): Promise<void> {
     if (!managedDepartments(this.meta?.departments ?? []).length) {
       this.loads = null;
+      void this.loadHandled();
       return;
     }
+    void this.loadHandled();
     try {
       this.loads = loadsFromBoard((await boardApi().board({})).items);
     } catch {
       this.loads = null; // the board is the manager's: any failure leaves the cards without numbers (never an error line on this page)
     }
   }
+
+  /** HANDLERLOAD: the "handled" counts of the chosen period - a count per handler, from the board's gate (department managers only). A
+   * failure leaves the fourth number out; it never shows an error on this page. */
+  private async loadHandled(): Promise<void> {
+    const seq = ++this.handledSeq;
+    if (!this.managed().length) {
+      this.handled = null;
+      return;
+    }
+    try {
+      const r = await boardApi().handlerLoad(this.period ?? undefined);
+      if (seq !== this.handledSeq) return;
+      this.installDefault = asHandledDays(r.default_days) ?? HANDLED_DEFAULT;
+      const days = asHandledDays(r.days);
+      this.handled = days ? { days, counts: r.handled } : null;
+    } catch {
+      if (seq === this.handledSeq) this.handled = null;
+    }
+  }
+
+  private onPeriod = (e: Event) => {
+    const d = asHandledDays((e.target as HTMLSelectElement).value);
+    if (!d) return;
+    this.period = d;
+    storePeriod(d);
+    void this.loadHandled();
+  };
 
   private onNotice = (e: CustomEvent<{ ok?: string; error?: string }>) => {
     window.clearTimeout(this.okTimer);
@@ -288,13 +323,30 @@ export class TicketsHandlersPage extends LitElement {
     </div>`;
   }
 
+  /** The loads with the handled count merged in, and the label of its period (null = no fourth number). */
+  private shownLoads(): { loads: Map<string, MemberLoad> | null; label: string | null } {
+    if (!this.handled) return { loads: this.loads, label: null };
+    return { loads: withHandled(this.loads, this.handled.counts), label: tt(`u6HandledP${this.handled.days}` as 'u6HandledP7') };
+  }
+
+  /** HANDLERLOAD: the period selector of the "handled" number - for department managers, on the people segment only. */
+  private periodPicker(): TemplateResult | typeof nothing {
+    if (this.seg !== 'handlers' || !this.loads) return nothing;
+    const cur = this.period ?? this.installDefault;
+    return html`<label class="hperiod" data-handled-period-wrap><span class="vh">${tt('u6HandledPeriodLabel')}</span>
+      <select class="in" data-handled-period aria-label=${tt('u6HandledPeriodLabel')} @change=${this.onPeriod}>
+        ${HANDLED_PERIODS.map((d) => html`<option value=${String(d)} ?selected=${cur === d}>${tt('u6Handled')} · ${tt(`u6HandledP${d}` as 'u6HandledP7')}</option>`)}
+      </select></label>`;
+  }
+
   private body(): TemplateResult {
+    const { loads, label } = this.shownLoads();
     if (this.seg === 'vendors') return html`<tickets-contacts kind="vendor" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     if (this.seg === 'contacts') return html`<tickets-contacts kind="person" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     return html`<div class="body" data-handlers-segment>
-      <tickets-handlers-members .dept=${this.dept} .query=${this.q} .loads=${this.loads} .managed=${this.managed()}
+      <tickets-handlers-members .dept=${this.dept} .query=${this.q} .loads=${loads} .handledLabel=${label} .managed=${this.managed()}
         ?adding=${this.adding} @add-done=${this.onAddDone} @notice=${this.onNotice}></tickets-handlers-members>
-      <tickets-contacts kind="employee" head newbtn .loads=${this.loads} .managed=${this.managed()} .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>
+      <tickets-contacts kind="employee" head newbtn .loads=${loads} .handledLabel=${label} .managed=${this.managed()} .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>
     </div>`;
   }
 
@@ -319,6 +371,7 @@ export class TicketsHandlersPage extends LitElement {
             ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(this.dept === d.id)} data-handlers-dept=${d.id} @click=${() => (this.dept = d.id)}>${bidi(d.name)}</button>`)}
           </div>` : nothing}
           <span class="grow"></span>
+          ${this.periodPicker()}
           <label class="search">${tIcon('search')}<span class="vh">${tt('u6SearchPh')}</span><input type="search" data-handlers-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('u6SearchPh')}
             .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
           ${canAdd ? html`<button type="button" class="btn primary newbtn" data-handlers-new aria-expanded=${this.seg === 'handlers' ? String(this.adding) : nothing} @click=${() => this.onAdd()}>${tIcon('plus')}${this.addLabel()}</button>` : nothing}

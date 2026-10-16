@@ -3,6 +3,8 @@
     GET /tickets/board    tickets.manage (a manager member of a department) or tickets.all_departments with it: the sections
                           (waiting for me / stuck / in handling by assignee / recently closed), the state-strip counts (D21), the
                           department chips and the floors tree (D19) - over the tickets the caller MANAGES
+    GET /tickets/handler-load?days=1|7|30   the board's gate: how many requests each handler resolved in the period (HANDLERLOAD, count per
+                          assignee key only; services/tickets/handler_load.py has the definition)
     GET /tickets/facets   tickets.view: counts per status / group / department / place / stuck kind over the caller's VISIBLE set
                           (the state strip and the tree of every tickets screen; slice 6b's table uses it too)
 
@@ -20,7 +22,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, board, model, settings_doc, store
+from ..services.tickets import access, board, handler_load, messaging, model, settings_doc, store
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, STATUS_FILTER, module_gate
 
@@ -88,3 +90,20 @@ def get_facets(
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה ל{tickets}."), details={"permission": access.VIEW})
     statuses = None if status == "all" else store.STATUS_GROUPS.get(status, (status,))
     return board.facets(conn, viewer, scope=scope, statuses=statuses, f=_filters(department_id, priority, assignee, place, stuck_kind, waiting, q))
+
+
+@router.get("/tickets/handler-load")
+def get_handler_load(
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    days: str | None = Query(None, pattern=r"^(1|7|30)$"),
+) -> dict[str, Any]:
+    """HANDLERLOAD: the "handled" count per handler for the period (`days` allow-list 1 / 7 / 30; omitted = the installation default
+    `ui.handled_days`). The open / waiting / stuck numbers stay the board's - they are the current state, the period is for this one."""
+    viewer = Viewer(conn, principal)
+    _manager_gate(conn, viewer)
+    ui = settings_doc.read(conn)["ui"]
+    chosen = int(days) if days else int(ui["handled_days"])
+    out = handler_load.handled_counts(conn, viewer, chosen, dt.datetime.now(dt.timezone.utc), messaging.time_zone(conn))
+    out["default_days"] = int(ui["handled_days"])
+    return out
