@@ -4,7 +4,7 @@
  * table (services/tickets/model.py STATUS_MOVES) in a simplified form. Nothing here is a security rule - the server decides.
  */
 import type {
-  AdminDepartment, AssignBody, CreateAnswer, CreateBody, DepartmentBody, Eligible, EntityTickets, HistorySummary, HoldersResponse, InstallationDefaults, ListPage, ListQuery, Meta, ModuleState,
+  AdminDepartment, AssignBody, AssigneesList, CreateAnswer, CreateBody, DepartmentBody, Eligible, EntityTickets, Handler, HistorySummary, HoldersResponse, InstallationDefaults, ListPage, ListQuery, Meta, ModuleState,
   NameDoc, NameEntries, PatchBody, PriorityKey, ReturnAnswer, ReturnBody, SettingsDoc, SlaRow, StatusBody, TicketDetail, TicketEvent, TicketStatus, TicketsBackend, UiSettings,
 } from './tickets';
 import { DEFAULT_TICKET_NAMES } from '../tickets/naming';
@@ -200,6 +200,9 @@ function view(t: TicketDetail): TicketDetail {
 }
 
 export const mockStore = { me: ME, all: () => tickets, find: (id: string) => find(id), view: (t: TicketDetail) => view(t), touch: (t: TicketDetail) => touch(t), event: ev };
+/** TKSTAFF2, the demo store: the slice-4 demo directory lends its staff contacts (employees without an account) to the picker list and
+ * takes their assignment (tickets-s4-mock.ts registers both; without it the demo offers account holders only). */
+export const demoStaff: { list: ((departmentId: string) => Handler[]) | null; assign: ((id: string, body: AssignBody) => Promise<TicketDetail>) | null } = { list: null, assign: null };
 // slice 4: the handler page's installation keys of the settings document (organisation name, public address, proxies)
 let publicDoc: Pick<SettingsDoc, 'organization_name' | 'public'> = {
   organization_name: 'מגדלי הדר', public: { base_url: 'https://t-demo.arx.example.test', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip', theme: 'light' },
@@ -316,6 +319,7 @@ export const mockBackend: TicketsBackend = {
     return view(t);
   },
   async assign(id, body: AssignBody) {
+    if (body.assignee.kind === 'contact' && demoStaff.assign) return demoStaff.assign(id, body);
     await sleep();
     const t = find(id);
     const who = PEOPLE.find((p) => p.id === body.assignee.id) ?? PEOPLE[1];
@@ -372,10 +376,13 @@ export const mockBackend: TicketsBackend = {
     return view(t);
   },
   photoUrl: (att) => att.url,
-  async assignees(departmentId): Promise<{ users: Eligible[] }> {
+  async assignees(departmentId): Promise<AssigneesList> {
     await sleep(60);
     const d = departments.find((x) => x.id === departmentId);
-    return { users: (d?.members ?? []).filter((m) => m.kind === 'user').map((m) => ({ kind: 'user', id: m.id, name: m.name, member_role: m.role })) };
+    const users: Eligible[] = (d?.members ?? []).filter((m) => m.kind === 'user').map((m) => ({ kind: 'user', id: m.id, name: m.name, member_role: m.role }));
+    const handlers: Handler[] = [...users.map((u) => ({ key: `user:${u.id}`, kind: 'user' as const, id: u.id, name: u.name, account: true, member_role: u.member_role,
+      phone: null, has_phone: false, preferred_channel: 'inapp' })), ...(demoStaff.list?.(departmentId) ?? [])];
+    return { users, handlers };
   },
   async settings(): Promise<SettingsDoc> {
     await sleep(40);

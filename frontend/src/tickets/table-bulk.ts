@@ -7,7 +7,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { describeError } from '../api/client';
-import { newRequestId, ticketsApi, type Eligible, type Meta } from '../api/tickets';
+import { newRequestId, ticketsApi, type Handler, type Meta } from '../api/tickets';
+import { assigneeRef, handlersOf, mergeHandlers } from './assignee-model';
 import { tableApi, type BulkAction, type BulkAnswer, type TableRow } from '../api/tickets-table';
 import { PRIORITY_KEYS } from './table-model';
 import { tbt, type TableTextKey } from './table-text';
@@ -24,7 +25,8 @@ import { dlt } from './delete-text';
  * remind, change priority, close (13.6), "clear the selection". Each action opens a short dialog (the handler / the priority / the
  * reason / a confirmation) and posts ONE request to POST tickets/bulk with each ticket's revision as the table showed it; the server
  * checks and saves every ticket on its own and answers per ticket (never all-or-nothing). Events (bubble, composed): `bulk-done`
- * {answer}, `bulk-clear`. Assigning to an outside contact (and its message preview) arrives with the public page (slice 4).
+ * {answer}, `bulk-clear`. TKSTAFF2: the handlers are account holders and staff contacts without an account (one list, one reference -
+ * tickets/assignee-model.ts); outside contacts (vendors) are sent one ticket at a time from the ticket's assign dialog.
  */
 @customElement('tickets-table-bulk')
 export class TicketsTableBulk extends LitElement {
@@ -32,7 +34,7 @@ export class TicketsTableBulk extends LitElement {
   @property({ attribute: false }) rows: TableRow[] = [];
   @property({ attribute: false }) meta: Meta | null = null;
   @state() private dialog: BulkAction | null = null;
-  @state() private eligible: Eligible[] | null = null;
+  @state() private eligible: Handler[] | null = null;
   @state() private pick = '';
   @state() private note = '';
   @state() private error = '';
@@ -70,15 +72,13 @@ export class TicketsTableBulk extends LitElement {
     if (action === 'assign') void this.loadEligible();
   }
 
-  /** Who may be assigned: the eligible members of every department of the selection (the server checks each ticket again). */
+  /** Who may be assigned: the handlers of every department of the selection (the server checks each ticket again); pick is a key. */
   private async loadEligible(): Promise<void> {
     this.eligible = null;
     const depts = [...new Set(this.rows.map((r) => r.department?.id).filter((d): d is string => !!d))];
     try {
-      const lists = await Promise.all(depts.map((d) => ticketsApi().assignees(d).catch(() => ({ users: [] as Eligible[] }))));
-      const byId = new Map<string, Eligible>();
-      for (const l of lists) for (const u of l.users) if (!byId.has(u.id)) byId.set(u.id, u);
-      this.eligible = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+      const lists = await Promise.all(depts.map((d) => ticketsApi().assignees(d).then(handlersOf).catch(() => [] as Handler[])));
+      this.eligible = mergeHandlers(lists);
     } catch (e) {
       this.eligible = [];
       this.error = describeError(e);
@@ -93,7 +93,8 @@ export class TicketsTableBulk extends LitElement {
       this.error = tbt('required');
       return;
     }
-    const params = action === 'assign' ? { assignee: { kind: 'user' as const, id: this.pick } } : action === 'priority' ? { priority_key: this.pick } : action === 'close' ? { note: this.note.trim() } : {};
+    const picked = (this.eligible ?? []).find((h) => h.key === this.pick);
+    const params = action === 'assign' && picked ? { assignee: assigneeRef(picked) } : action === 'priority' ? { priority_key: this.pick } : action === 'close' ? { note: this.note.trim() } : {};
     this.busy = true;
     try {
       const answer: BulkAnswer = await tableApi().bulk({ action, items: this.rows.map((r) => ({ id: r.id, revision: r.revision })), params, client_request_id: newRequestId() });
@@ -111,7 +112,7 @@ export class TicketsTableBulk extends LitElement {
     const err = this.error ? html`<div class="err" role="alert" data-bulk-error>${this.error}</div>` : nothing;
     if (action === 'assign') {
       return html`<div class="form">${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
-        ? html`<div class="pick" role="radiogroup" aria-label=${tbt('fAssignee')}>${this.eligible.map((u) => html`<label data-bulk-eligible=${u.id}><input type="radio" name="basg" .checked=${this.pick === u.id} @change=${() => { this.pick = u.id; this.error = ''; }} />${bidi(u.name)}</label>`)}</div>`
+        ? html`<div class="pick" role="radiogroup" aria-label=${tbt('fAssignee')}>${this.eligible.map((h) => html`<label data-bulk-eligible=${h.id} data-handler=${h.key}><input type="radio" name="basg" .checked=${this.pick === h.key} @change=${() => { this.pick = h.key; this.error = ''; }} />${bidi(h.name)}</label>`)}</div>`
         : html`<div class="muted" data-bulk-eligible-none>${tbt('noAssignees')}</div>`}${err}</div>`;
     }
     if (action === 'priority') {

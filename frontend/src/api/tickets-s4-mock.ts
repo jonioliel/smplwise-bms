@@ -4,9 +4,9 @@
  * `link` block to the demo ticket views (`extendMockView`). Every name, number and address here is invented (the 050-000-xxxx block,
  * example.test hosts). Nothing leaves the page.
  */
-import { extendMockView, mockStore } from './tickets-mock';
+import { demoStaff, extendMockView, mockStore } from './tickets-mock';
 import { tn } from '../tickets/naming';
-import type { TicketDetail } from './tickets';
+import type { AssignBody, Handler, TicketDetail } from './tickets';
 import type {
   AssignPreview, AssigneesAnswer, Contact, ContactBody, ContactExport, ExternalAssignee, LinkBlock, ProbeAnswer, Readiness, TicketWithLink, TicketsHealth,
   TicketsS4Backend,
@@ -213,7 +213,8 @@ export const s4Mock: TicketsS4Backend = {
   },
   async externalAssignees(departmentId): Promise<AssigneesAnswer> {
     await sleep(60);
-    const list: ExternalAssignee[] = contacts.filter((c) => !c.erased && c.active && (!c.departments.length || c.departments.includes(departmentId))).map((c) => {
+    // TKSTAFF2: staff contacts (employees without an account) are handlers (demoStaff below), not outside rows
+    const list: ExternalAssignee[] = contacts.filter((c) => c.kind !== 'employee' && !c.erased && c.active && (!c.departments.length || c.departments.includes(departmentId))).map((c) => {
       const vendor = c.vendor_id ? contacts.find((v) => v.id === c.vendor_id) : undefined;
       return { kind: 'contact', id: c.id, contact_kind: c.kind, name: c.display_name, company: c.company, vendor_name: vendor?.display_name ?? null, phone: c.phone, has_phone: c.has_phone,
         has_email: !!c.email, preferred_channel: c.preferred_channel, require_code: c.require_code || !!vendor?.require_code, share_history: c.share_history, lang: c.lang };
@@ -322,3 +323,12 @@ function demoReadiness(): Readiness {
     contacts_count: { employee: live.filter((c) => c.kind === 'employee').length, vendor: live.filter((c) => c.kind === 'vendor').length, person: live.filter((c) => c.kind === 'person').length },
   };
 }
+
+// TKSTAFF2: the demo directory's staff contacts (employees without an account) are handlers of the slice-1 demo store's picker list,
+// assigned through the same demo contact assignment (a handler link)
+demoStaff.list = (departmentId: string): Handler[] => contacts
+  .filter((c) => c.kind === 'employee' && !c.erased && c.active && (!c.departments.length || c.departments.includes(departmentId)))
+  .map((c) => ({ key: `contact:${c.id}`, kind: 'contact', id: c.id, name: c.display_name, account: false, member_role: null, phone: c.phone, has_phone: c.has_phone,
+    preferred_channel: c.preferred_channel }));
+demoStaff.assign = (id: string, body: AssignBody): Promise<TicketDetail> =>
+  s4Mock.assignContact(id, { contactId: body.assignee.id, note: body.note ?? null, noteExternal: body.note_external ?? true, revision: body.revision });

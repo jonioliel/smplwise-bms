@@ -3,6 +3,8 @@
 Assignment to a contact (`POST /tickets/{id}/assign {assignee: {kind: contact}}`), in this order - every refusal before anything is
 written:
 1. manager rights in the ticket's department (`seen.manager`) AND `tickets.external` where the ticket lies (D25) - audited 403s;
+   TKSTAFF2: a staff contact (an employee without an account) needs manager rights only, like an account holder
+   (services/tickets/assignees.py `may_send`; the same rule for the copy / new / resend link actions);
 2. the public page exists (`access.public_ready`: the add-on option, its listener, a public address) - else 409
    `public_link_unavailable`;
 3. the contact: known, active, not erased, allowed in the ticket's department; NEVER a row that names an internal user (409
@@ -27,7 +29,7 @@ from typing import Any, Protocol
 
 from ...audit import audit
 from ...errors import ApiError
-from . import access, codes as codes_mod, handler_links, links, model, naming, notify_bridge, sla, store, store_links
+from . import access, assignees, codes as codes_mod, handler_links, links, model, naming, notify_bridge, sla, store, store_links
 from .access import Seen, Viewer, text
 from .module_key import ModuleKeyError
 from .present import can_reopen
@@ -176,7 +178,7 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", None)
-    if not viewer.holds(access.EXTERNAL, row):
+    if not assignees.may_send(viewer, row, store_links.contact(conn, contact_id)):  # TKSTAFF2: a staff contact is assigned like a user
         raise _refuse(conn, viewer, "ticket.assign", row, "external_permission_missing", None, permission=access.EXTERNAL)
     contact, vendor = contact_for(conn, row, contact_id)
     refusals: list[str] = []
@@ -224,7 +226,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
-    if not viewer.holds(access.EXTERNAL, row):
+    if not assignees.may_send(viewer, row, store_links.contact(conn, contact_id)):  # TKSTAFF2: a staff contact is assigned like a user
         raise _refuse(conn, viewer, "ticket.assign", row, "external_permission_missing", rid, permission=access.EXTERNAL)
     if not access.public_ready(conn):
         raise _unavailable(conn)
@@ -320,7 +322,9 @@ def _current_link(conn, seen: Seen) -> dict[str, Any]:
 def _need(conn, viewer: Viewer, seen: Seen, action: str, rid: str | None, *, external: bool) -> None:
     if not seen.manager:
         raise _refuse(conn, viewer, action, seen.row, "not_manager", rid)
-    if external and not viewer.holds(access.EXTERNAL, seen.row):
+    # TKSTAFF2: the link of a staff contact (an employee without an account) follows assignees.may_send, like its assignment
+    staff_link = not assignees.STAFF_NEEDS_EXTERNAL and assignees.link_contact_is_staff(conn, seen.row)
+    if external and not staff_link and not viewer.holds(access.EXTERNAL, seen.row):
         raise _refuse(conn, viewer, action, seen.row, "external_permission_missing", rid, permission=access.EXTERNAL)
 
 

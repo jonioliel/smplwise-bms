@@ -124,7 +124,7 @@ function demoItem(t: TicketItem, i: number, now: number): BoardItem {
     ...t, group, place_keys: places, manager: true,
     stuck: stuckKind ? { kind: stuckKind, level: 1, reminders: 1, since: new Date(now - (age - 1) * HOUR).toISOString() } : null,
     sla_cell: open ? { kind: 'stuck', at: new Date(now + 5 * HOUR).toISOString(), over: false } : null,
-    assignee_key: t.assignee ? `user:${t.assignee.id}` : 'none',
+    assignee_key: t.assignee ? `${t.assignee.kind === 'contact' ? 'contact' : 'user'}:${t.assignee.id}` : 'none', // TKSTAFF2: both handler kinds
     auto_close_at: null,
   };
 }
@@ -148,7 +148,7 @@ const demo: BoardBackend = {
     if (none) tree.push({ key: 'none', kind: 'none', name: '', parent: null, count: none, order: 1 << 30 });
     const handling = new Map<string, BoardResponse['handling'][number]>();
     for (const x of items.filter((y) => y.group === 'handling')) {
-      const h = handling.get(x.assignee_key) ?? { key: x.assignee_key, kind: x.assignee ? 'user' : 'none', name: x.assignee?.name ?? '', count: 0, oldest_at: x.created_at, last_activity_at: x.last_activity_at, eta_at: x.eta_at, ids: [] };
+      const h = handling.get(x.assignee_key) ?? { key: x.assignee_key, kind: x.assignee ? (x.assignee.kind === 'contact' ? 'contact' : 'user') : 'none', name: x.assignee?.name ?? '', count: 0, oldest_at: x.created_at, last_activity_at: x.last_activity_at, eta_at: x.eta_at, ids: [] };
       h.count += 1;
       h.ids.push(x.id);
       handling.set(x.assignee_key, h);

@@ -11,7 +11,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
-import { ticketsApi, type Eligible, type Meta, type TicketDetail, type TicketStatus } from '../api/tickets';
+import { ticketsApi, type Handler, type Meta, type TicketDetail, type TicketStatus } from '../api/tickets';
+import { assigneeRef, handlersOf, holdersOf, holds } from '../tickets/assignee-model';
 import { boardPrefs, saveBoardPrefs, tableApi, type BulkAnswer, type ColumnKey, type SavedView, type TableRow } from '../api/tickets-table';
 import { chipLabel, menuMoves, priorityTone, relTime, statusLabel, statusTone } from '../tickets/model';
 import {
@@ -71,7 +72,8 @@ export class TicketsTable extends LitElement {
   @state() private selected: Set<string> = new Set();
   @state() private focusIdx = -1;
   @state() private menu: CellMenu = null;
-  @state() private eligible: Eligible[] | null = null;
+  /** TKSTAFF2: the handler menu's list - account holders and staff contacts without an account (tickets/assignee-model.ts) */
+  @state() private eligible: Handler[] | null = null;
   @state() private move: { id: string; to: TicketStatus } | null = null;
   @state() private moveNote = '';
   @state() private moveError = '';
@@ -411,7 +413,7 @@ export class TicketsTable extends LitElement {
     if (kind === 'assignee') {
       this.eligible = null;
       try {
-        this.eligible = r.department ? (await ticketsApi().assignees(r.department.id, r.id)).users : [];
+        this.eligible = r.department ? handlersOf(await ticketsApi().assignees(r.department.id, r.id)) : [];
       } catch (e) {
         this.eligible = [];
         this.say(describeError(e), undefined, 'bad');
@@ -462,10 +464,10 @@ export class TicketsTable extends LitElement {
     await this.act(r, () => ticketsApi().status(r.id, { to: m.to, note: this.moveNote.trim(), revision: r.revision }));
   }
 
-  private pickAssignee(r: TableRow, u: Eligible): void {
+  private pickAssignee(r: TableRow, h: Handler): void {
     this.menu = null;
-    if (r.assignee?.kind === 'user' && r.assignee.id === u.id) return;
-    void this.act(r, () => ticketsApi().assign(r.id, { assignee: { kind: 'user', id: u.id }, revision: r.revision }));
+    if (holds(r.assignee, h)) return;
+    void this.act(r, () => ticketsApi().assign(r.id, { assignee: assigneeRef(h), revision: r.revision }));
   }
 
   /** 2.5.5: one selected row deleted through the bulk bar ends as `ticket-deleted`, not `bulk-done`: its row leaves at once as well. */
@@ -574,7 +576,7 @@ export class TicketsTable extends LitElement {
     const name = r.assignee?.name || '';
     return html`<div class="pop ov" popover="manual" role="menu" data-overlay="assignee" aria-label=${tbt('assigneeMenu', { name: name || tbt('unassigned') })} @keydown=${this.onMenuKey}>
       ${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : this.eligible.length
-        ? this.eligible.map((u) => html`<button type="button" role="menuitemradio" aria-checked=${String(r.assignee?.id === u.id)} data-assign-to=${u.id} @click=${() => this.pickAssignee(r, u)}>${tIcon('user')}${bidi(u.name)}</button>`)
+        ? this.eligible.map((h) => html`<button type="button" role="menuitemradio" aria-checked=${String(holds(r.assignee, h))} data-assign-to=${h.id} data-handler=${h.key} @click=${() => this.pickAssignee(r, h)}>${tIcon('user')}${bidi(h.name)}</button>`)
         : html`<div class="note">${tbt('noAssignees')}</div>`}
     </div>`;
   }
@@ -639,7 +641,7 @@ export class TicketsTable extends LitElement {
     return html`<div data-screen="tickets-table" data-view="table">
       ${showBulk
         ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} @bulk-done=${this.onBulkDone} @ticket-deleted=${this.onOneDeleted} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>`
-        : html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
+        : html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .holders=${holdersOf(rows)} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
             .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView}
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
             @view-apply=${(e: CustomEvent<{ view: SavedView }>) => this.applySaved(e.detail.view)} @default-view=${(e: CustomEvent<{ id: string | null }>) => (this.defaultView = e.detail.id ?? '')}

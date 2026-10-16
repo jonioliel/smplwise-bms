@@ -229,11 +229,17 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await expect(page).toHaveURL(/#\/tickets\/handlers\?seg=vendors/);
   });
 
-  test('the assign dialog, a manager without the outside permission: the outside groups say so', async ({ page }) => {
-    await go(page, `/tickets/mine?t=${FRESH}`, { persona: 'manager' });
+  test('the assign dialog, a manager without the outside permission: staff without an account are handlers, the outside group says why', async ({ page }) => {
+    // TKSTAFF2: an employee without an account is assigned like an account holder (no "send outside" permission); vendors still need it
+    const mock = await go(page, `/tickets/mine?t=${FRESH}`, { persona: 'manager' });
     await openAssign(page);
-    await expect(page.locator(`${D} [data-assign-kind="employee"]`)).toHaveAttribute('data-kind-blocked', 'external');
+    await expect(page.locator(`${D} [data-assign-kind="employee"]`)).toHaveAttribute('data-kind-blocked', '');
     await expect(page.locator(`${D} [data-assign-kind="person"]`)).toHaveAttribute('data-kind-blocked', 'external');
+    await page.locator(`${D} [data-assign-kind="employee"]`).click();
+    await expect(page.locator(`${D} [data-handler="contact:c000000000000e01"]`)).toContainText('אבי לוי');
+    await page.locator(`${D} [data-handler="contact:c000000000000e01"] input`).check();
+    await page.locator(`${D} [data-dialog-ok]`).click();
+    await expect.poll(() => last(mock, 'POST', new RegExp(`^tickets/${FRESH}/assign$`))?.body).toMatchObject({ assignee: { kind: 'contact', id: 'c000000000000e01' } });
   });
 
   test('everything ready: an employee without an account is assigned through the handler link; WhatsApp off shows a note', async ({ page }) => {
@@ -241,8 +247,9 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await openAssign(page);
     await page.locator(`${D} [data-assign-kind="employee"]`).click();
     await expect(page.locator(`${D} [data-contact-kind="vendor"]`)).toHaveCount(0);
-    await page.locator(`${D} [data-contact="c000000000000e01"] input`).check();
-    await page.waitForSelector(`${D} [data-assign-preview]`);
+    // TKSTAFF2: the staff group is the same handler picker as the account holders (one list, one submit)
+    await expect(page.locator(`${D} [data-handler^="user:"]`)).toHaveCount(0);
+    await page.locator(`${D} [data-handler="contact:c000000000000e01"] input`).check();
     await shot(page, 'assign-employee', 'light', 'classic', false);
     await page.locator(`${D} [data-dialog-ok]`).click();
     await expect.poll(() => last(mock, 'POST', new RegExp(`^tickets/${FRESH}/assign$`))?.body).toMatchObject({ assignee: { kind: 'contact', id: 'c000000000000e01' } });

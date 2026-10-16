@@ -250,12 +250,16 @@ def assignees(
         audit(conn, actor=principal, action="ticket.assignees", decision="denied", resource_type="ticket_department", resource_id=department_id, reason="not_manager")
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"reason": "not_manager"})
     # slice 4: the outside contacts allowed in the department - only for a caller who may send outside (D25)
+    from ..services.tickets import assignees as assignees_svc
     from ..services.tickets import contacts as contacts_svc
     from ..services.tickets import readiness as readiness_svc
 
     outside = contacts_svc.assignable_for(viewer, row or {"department_id": department_id})
+    # TKSTAFF2: `handlers` is THE picker list - account holders and staff contacts without an account, one shape
+    # (services/tickets/assignees.py); `users` stays for older clients; `contacts` holds the outside contacts only (vendors, persons)
     # owner request 2026-10-14: the dialog always shows its three groups and says in one line what stops the outside ones
-    return {"users": service.eligible_assignees(conn, department_id, row), "contacts": outside,
+    return {"users": service.eligible_assignees(conn, department_id, row), "handlers": assignees_svc.handlers(viewer, department_id, row),
+            "contacts": outside,
             "external": access.EXTERNAL in viewer.anywhere, "public_ready": access.public_ready(conn),
             "readiness": readiness_svc.readiness(conn, department_id)}
 

@@ -250,12 +250,19 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
     if (p === 'tickets/assignees') {
       mine();
       const users = o.empty ? [] : [{ kind: 'user', id: 'u-avi', name: 'אבי כהן', member_role: 'manager' }, { kind: 'user', id: 'u-yossi', name: 'יוסי מזרחי', member_role: 'member' }];
-      const outside = external ? contacts.filter((c) => c.active && (!c.departments.length || c.departments.includes('dept-maintenance'))).map((c) => {
+      const allowed = (c: Contact) => c.active && (!c.departments.length || c.departments.includes('dept-maintenance'));
+      // TKSTAFF2: staff contacts (employees without an account) are handlers for every manager; `contacts` = the outside ones only
+      const outside = external ? contacts.filter((c) => c.kind !== 'employee' && allowed(c)).map((c) => {
         const vendor = c.vendor_id ? contacts.find((v) => v.id === c.vendor_id) : undefined;
         return { kind: 'contact', id: c.id, contact_kind: c.kind, name: c.display_name, company: c.company, vendor_name: vendor?.display_name ?? null, phone: c.phone,
           has_phone: !!c.phone, has_email: !!c.email, preferred_channel: c.preferred_channel, require_code: c.require_code || !!vendor?.require_code, share_history: c.share_history, lang: c.lang };
       }) : [];
-      return json(route, { users, contacts: outside, external, public_ready: ready, readiness: readiness() });
+      const handlers = [
+        ...users.map((u) => ({ key: `user:${u.id}`, kind: 'user', id: u.id, name: u.name, account: true, member_role: u.member_role, phone: null, has_phone: false, preferred_channel: 'inapp' })),
+        ...contacts.filter((c) => c.kind === 'employee' && allowed(c)).map((c) => ({ key: `contact:${c.id}`, kind: 'contact', id: c.id, name: c.display_name, account: false,
+          member_role: null, phone: external || configure ? c.phone : c.phone ? `•••• ${c.phone.slice(-4)}` : null, has_phone: !!c.phone, preferred_channel: c.preferred_channel })),
+      ];
+      return json(route, { users, handlers, contacts: outside, external, public_ready: ready, readiness: readiness() });
     }
     if (p === 'tickets/settings') {
       if (method === 'PUT') {

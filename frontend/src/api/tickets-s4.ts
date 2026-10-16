@@ -12,7 +12,7 @@
 import { get, patch, post } from './client';
 import { isApi } from './session';
 import { s4Mock } from './tickets-s4-mock';
-import type { Eligible, PublicSettings, TicketDetail } from './tickets';
+import type { Eligible, Handler, PublicSettings, TicketDetail } from './tickets';
 
 /** 'employee' (owner request 2026-10-14, migration 0084): an employee WITHOUT an account - assigned through a handler link like a contact. */
 export type ContactKind = 'person' | 'vendor' | 'employee';
@@ -109,7 +109,7 @@ export interface Readiness {
   email_configured: boolean;
   contacts_count: { employee: number; vendor: number; person: number };
 }
-export interface AssigneesAnswer { users: Eligible[]; contacts?: ExternalAssignee[]; external?: boolean; public_ready?: boolean; readiness?: Readiness }
+export interface AssigneesAnswer { users: Eligible[]; handlers?: Handler[]; contacts?: ExternalAssignee[]; external?: boolean; public_ready?: boolean; readiness?: Readiness }
 
 export type Refusal = 'public_link_unavailable' | 'code_channel_unavailable' | string;
 export interface AssignPreview {
