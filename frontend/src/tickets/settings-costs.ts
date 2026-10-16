@@ -10,10 +10,15 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
-import { COST_MODES, CURRENCIES, ticketCostsApi, type CostMode, type CostsSettings, type CostsSettingsDoc, type DepartmentCosts, type DepartmentCostsAnswer } from '../api/tickets-costs';
+import {
+  COST_MODES, CURRENCIES, LINE_KINDS, ticketCostsApi, type CostMode, type CostsSettings, type CostsSettingsDoc, type DepartmentCosts, type DepartmentCostsAnswer, type DepartmentCostsBody,
+  type LineKind,
+} from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
 import { ct } from './cost-text';
 import { bpToPercent, costFieldValue, minorToInput, type CostField } from './cost-model';
+import { qt } from './quote-text';
+import { toggleKind } from './quote-model';
 
 type Field = CostField;
 
@@ -24,6 +29,9 @@ const RANGE: Record<Field, [string, string]> = { vat: ['0', '50'], window: ['1',
  * department defaults). The `costs` block of `PUT /tickets/settings` (default requirement, currencies, VAT, submission window, invoice
  * required, caps, vendor notice, retention) and the per-department overrides (`PUT /tickets/costs/departments/{id}`; empty = the
  * installation value). Amounts are typed in main units and travel as minor units. Events: `notice` {ok | error}.
+ * TKUI3 (2.6.0): the card "סעיפים מותרים לספק" - the installation default (`costs.allowed_line_kinds`) and each department's own list
+ * (`allowed_line_kinds` of `PUT /tickets/costs/departments/{id}`; "לפי ההתקנה" = null). Labour is always allowed (the server refuses a list
+ * without it). A quote may carry only these kinds; a payment-demand line of another kind is marked exceptional.
  */
 @customElement('tickets-costs-settings')
 export class TicketsCostsSettings extends LitElement {
@@ -95,7 +103,7 @@ export class TicketsCostsSettings extends LitElement {
     }
   }
 
-  private async saveDept(dept: DepartmentCosts, body: { cost_claim: CostMode | null; claim_window_days: number | null }): Promise<void> {
+  private async saveDept(dept: DepartmentCosts, body: DepartmentCostsBody): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     try {
@@ -195,12 +203,34 @@ export class TicketsCostsSettings extends LitElement {
     </sw-card>`;
   }
 
+  /** The kind chips of one row: labour fixed on; `current` null = the row follows the installation (its chips show the inherited list). */
+  private kindChips(current: readonly LineKind[] | null, inherited: readonly LineKind[], attr: string, onPick: (kinds: LineKind[] | null) => void, nullable: boolean): TemplateResult {
+    const shown = current ?? inherited;
+    return html`<span class="chipsrow" role="group" aria-label=${qt('kindsFold')} data-kinds-row=${attr}>
+      ${nullable ? html`<button type="button" class="rc" aria-pressed=${String(current === null)} data-kinds-default=${attr} ?disabled=${this.busy || current === null}
+        @click=${() => onPick(null)}>${qt('kindsDefault')}</button>` : nothing}
+      ${LINE_KINDS.map((k) => html`<button type="button" class="rc" aria-pressed=${String(shown.includes(k))} data-kind=${`${attr}:${k}`}
+        ?disabled=${this.busy || k === 'labor'} title=${k === 'labor' ? qt('kindsFixed') : ''} @click=${() => onPick(toggleKind(shown, k))}>${ct(`k_${k}` as 'k_labor')}</button>`)}
+    </span>`;
+  }
+
+  private kindsCard(s: CostsSettings): TemplateResult {
+    const inst = s.allowed_line_kinds ?? ['labor', 'parts'];
+    const depts = this.depts;
+    return html`<sw-card heading=${qt('kindsFold')} subheading=${qt('setKindsHint')} data-card="costs-kinds">
+      <div class="row stack" data-kinds-installation><span class="lbl">${qt('kindsInstallation')}</span>
+        ${this.kindChips(inst, inst, 'installation', (k) => { if (k) void this.save({ allowed_line_kinds: k }); }, false)}</div>
+      ${depts ? depts.departments.filter((d) => d.active).map((d) => html`<div class="row stack" data-kinds-dept=${d.id}><span class="lbl">${bidi(d.name)}</span>
+        ${this.kindChips(d.allowed_line_kinds ?? null, inst, d.id, (k) => void this.saveDept(d, { cost_claim: d.cost_claim, claim_window_days: d.claim_window_days, allowed_line_kinds: k }), true)}</div>`) : nothing}
+    </sw-card>`;
+  }
+
   render() {
     if (this.forbidden) return html`<sw-state-panel state="forbidden"></sw-state-panel>`;
     if (this.failed) return html`<sw-state-panel state="error" heading=${this.failed}></sw-state-panel>`;
     const d = this.doc;
     if (!d) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    return html`<div class="stack cols" data-costs-settings>${this.installationCard(d.costs)}${this.depts ? this.departmentsCard(this.depts) : nothing}</div>`;
+    return html`<div class="stack cols" data-costs-settings>${this.installationCard(d.costs)}${this.depts ? this.departmentsCard(this.depts) : nothing}${this.kindsCard(d.costs)}</div>`;
   }
 }
 
