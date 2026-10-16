@@ -1121,8 +1121,6 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
             (ticket_id,))
         run("ticket_quotes", "DELETE FROM ticket_quotes WHERE ticket_id = ?", (ticket_id,))
         run("ticket_owner_changes", "DELETE FROM ticket_owner_changes WHERE ticket_id = ?", (ticket_id,))
-    if _has_table(conn, "ticket_map_elements"):  # TKMAP1: the attached map element follows the ticket
-        run("ticket_map_elements", "DELETE FROM ticket_map_elements WHERE ticket_id = ?", (ticket_id,))
     run("ticket_attachments", "DELETE FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,))
     run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))

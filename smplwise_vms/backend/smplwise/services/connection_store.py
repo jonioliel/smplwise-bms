@@ -212,24 +212,6 @@ def open_service_secret(data_dir: Path, kind: str, ident: str, field: str, blob:
     return _open(_Home(data_dir), _service_aad(kind, ident, field), blob)
 
 
-# ---------------------------------------------------------------- the in-app secrets store (TKSECRETS2, services/secrets_store.py)
-# The same key file and `v1:` format again; the associated data is `"app_secret|<name>|value"` - the kind `app_secret` is never a
-# service kind, so a blob moved between this store, a service secret or an NVR row does not decrypt.
-
-def _app_secret_aad(name: str) -> bytes:
-    if not isinstance(name, str) or not name or len(name) > 64 or not all(ch.islower() or ch.isdigit() or ch == "_" for ch in name):
-        raise SecretError("not a secret field")
-    return f"app_secret|{name}|value".encode("utf-8")
-
-
-def seal_app_secret(data_dir: Path, name: str, plaintext: str) -> str:
-    return _seal(_Home(data_dir), _app_secret_aad(name), plaintext)
-
-
-def open_app_secret(data_dir: Path, name: str, blob: str) -> str:
-    return _open(_Home(data_dir), _app_secret_aad(name), blob)
-
-
 # ---------------------------------------------------------------- rows
 
 def get_row(conn: sqlite3.Connection, recorder_id: str = DEFAULT_RECORDER) -> sqlite3.Row | None:
@@ -435,8 +417,6 @@ def import_legacy(conn: sqlite3.Connection, settings: Settings) -> bool:
         log.warning("the NVR connection of the add-on options was not imported (the host or a port is not valid); the options stay in use")
         return False
     username = settings.nvr_user if _from_options(settings, "nvr_username") else None
-    # TKSECRETS1: nvr_password is no longer an add-on option (load_settings never lists it in nvr_option_keys), so a first-run import
-    # carries no password; the operator enters it in the NVR connection screen, where it is stored encrypted.
     password = settings.nvr_password if _from_options(settings, "nvr_password") else None
     try:
         write_row(conn, settings, vendor=DEFAULT_VENDOR, host=host, http_port=http_port, rtsp_port=rtsp_port,

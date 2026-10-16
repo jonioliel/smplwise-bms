@@ -235,17 +235,7 @@ def system_status(request: Request, principal: Principal = Depends(current_princ
     """Clock + NTP, disks with S.M.A.R.T., alarm outputs - read-only, with what this user may write."""
     _require_read(conn, principal)
     settings = recorder_settings(request, conn, recorder_id)
-    vendor = str(settings.nvr_vendor or "").strip().lower()
-    if vendor not in nvr.ISAPI_VENDORS:
-        # TKFRIGLIVE: the clock / disks / outputs card speaks Hikvision ISAPI only. A recorder of another vendor (Frigate,
-        # Provision-ISR) is answered 200 `supported: false` so the screen shows that recorder's own health card instead of a 409
-        # on every load; nothing is sent to the device and no write is offered
-        from ..mode import ensure_recorder_enabled
-
-        ensure_recorder_enabled(settings)  # a disabled recorder keeps its 409 recorder_unavailable
-        return {"time": None, "disks": [], "outputs": [], "errors": {}, "can": {k: False for k in _can(conn, principal)}, "recorder_id": recorder_id,
-                "supported": False, "reason": "not_supported_for_recorder", "vendor": vendor}
-    out: dict[str, Any] = {"time": None, "disks": [], "outputs": [], "errors": {}, "can": _can(conn, principal), "recorder_id": recorder_id, "supported": True}
+    out: dict[str, Any] = {"time": None, "disks": [], "outputs": [], "errors": {}, "can": _can(conn, principal), "recorder_id": recorder_id}
     tz = zone(read_settings(conn)["time.zone"])
     with unlocked(conn):
         client = nvr_write._client(settings)

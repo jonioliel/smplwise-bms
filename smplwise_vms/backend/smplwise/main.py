@@ -289,11 +289,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # CR-022: the NVR connection stored in Arx (recorder_connections), overlaid ONCE here - after the migrations, before any
     # background worker - and the one-time import of the add-on options. Every later reader sees the effective settings; a
     # save or a removal waits for the next start (connection_pending_restart).
-    from .services import connection_probe, connection_store, secrets_store
+    from .services import connection_probe, connection_store
 
-    # TKSECRETS2: the in-app secrets store (go2rtc / WisKey / OpenAI / push relay secrets): the one-time move of legacy add-on
-    # options into it, then its values overlaid - before the NVR overlay, so every recorder's settings inherit them
-    settings = secrets_store.apply_at_startup(app.state.db, settings)
     settings, legacy_differ = connection_store.apply_at_startup(app.state.db, settings)
     app.state.settings = settings
     app.state.legacy_options_differ = legacy_differ
@@ -409,9 +406,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(views.router, prefix=api, tags=["views"])
     app.include_router(wall_router.router, prefix=api, tags=["wall"])
     app.include_router(nvr_connection.router, prefix=api, tags=["nvr"])  # CR-022: vendors, the stored connection, its test, the restart that applies it
-    from .routers import app_secrets as app_secrets_router  # TKSECRETS2: the in-app secrets store (its own line)
-
-    app.include_router(app_secrets_router.router, prefix=api, tags=["settings"])
     from .routers import recorders as recorders_router
 
     app.include_router(recorders_router.router, prefix=api, tags=["nvr"])  # CR-024: recorders (multi-NVR) - list, add, edit, remove, connection, health
@@ -474,9 +468,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import tickets_detail as tickets_detail_router  # TKDETAILBE: owner, timeline, quotes, vendor messages, drafts
 
     app.include_router(tickets_detail_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
-    from .routers import tickets_map as tickets_map_router  # TKMAP1: the map element of a request
-
-    app.include_router(tickets_map_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
     from .routers import tickets_messages as tickets_messages_router  # CR-038 S5b (its own lines)
 
     app.include_router(tickets_messages_router.router, prefix=api, tags=["tickets"])  # channel, outbox, inbound, message templates - BEFORE /tickets/{ticket_id}

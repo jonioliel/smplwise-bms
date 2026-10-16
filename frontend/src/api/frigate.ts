@@ -41,10 +41,6 @@ export interface FrigateCapabilities {
   retention?: { mode: RecordingMode; days?: number | null; alert_days?: number | null };
   /** `true` when Frigate offers a restream the live wall could use; `false` = still tiles only (the F1 default). */
   restream?: boolean;
-  /** TKFRIGLIVE: how many cameras Arx shows as live video (through the recorder's own restream) */
-  live?: { cameras_live: number; cameras_total: number } | null;
-  /** TKFRIGLIVE: the event path's visible facts (the newest item Arx holds, whether reading has stopped) */
-  events?: { last_event_seen_at: string | null; last_poll_at: string | null; stale: boolean } | null;
 }
 
 /** The feature rows in screen order. */
@@ -79,12 +75,6 @@ export function retentionText(r: NonNullable<FrigateCapabilities['retention']>):
   return [mode, r.days != null && r.mode !== 'off' ? `${r.days} ${s.days}` : null].filter(Boolean).join(' · ');
 }
 
-/** A short local date and time (the browser's zone) for a UTC instant. */
-function whenText(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
-}
-
 /** Rows of the summary card, ready to render: only what is known. Pure so the unit tests pin the wording. */
 export function summaryRows(c: FrigateCapabilities): { key: string; label: string; value: string }[] {
   const s = he.frigate.summary;
@@ -99,11 +89,6 @@ export function summaryRows(c: FrigateCapabilities): { key: string; label: strin
   if (c.retention) {
     const text = retentionText(c.retention);
     if (text) rows.push({ key: 'retention', label: s.retention, value: text });
-  }
-  if (c.live) rows.push({ key: 'live', label: s.live, value: c.live.cameras_live > 0 ? `${c.live.cameras_live} ${s.liveOf} ${c.live.cameras_total}` : s.liveNone });
-  if (c.events) {
-    const seen = c.events.last_event_seen_at ? whenText(c.events.last_event_seen_at) : s.lastEventNone;
-    rows.push({ key: 'last-event', label: s.lastEvent, value: c.events.stale ? `${seen} · ${s.eventsStale}` : seen });
   }
   return rows;
 }
@@ -125,9 +110,7 @@ export interface WireStatus {
   detectors: { name: string; type: string }[] | null;
   cameras: number;
   sync?: { last_poll_error?: string | null; ws_state?: string | null } | null;
-  /** TKFRIGLIVE: `cameras_live` / `cameras_total` / `reason` (a code: flag_off | off | no_streams | no_match | partial) */
-  live?: { mode: 'still' | 'restream'; cameras_live?: number; cameras_total?: number; reason?: string | null };
-  events?: { last_event_seen_at: string | null; last_poll_at: string | null; stale: boolean; loop_running?: boolean } | null;
+  live?: { mode: 'still' | 'restream' };
 }
 
 export interface WireCamera {
@@ -218,9 +201,7 @@ export function capabilitiesOf(st: WireStatus, cams: WireCamera[] | null): Friga
     detectors: (st.detectors ?? []).map((d) => ({ name: d.name, type: d.type })),
     features: st.features,
     retention: st.retention ? { mode, days: retentionDays(st.retention, mode), alert_days: typeof st.retention.alerts_days === 'number' ? (st.retention.alerts_days as number) : null } : undefined,
-    restream: st.live ? st.live.mode === 'restream' : st.features?.restream === true,
-    live: typeof st.live?.cameras_total === 'number' ? { cameras_live: st.live.cameras_live ?? 0, cameras_total: st.live.cameras_total } : null,
-    events: st.events ? { last_event_seen_at: st.events.last_event_seen_at, last_poll_at: st.events.last_poll_at, stale: !!st.events.stale } : null,
+    restream: st.live?.mode === 'restream' || st.features?.restream === true,
   };
 }
 

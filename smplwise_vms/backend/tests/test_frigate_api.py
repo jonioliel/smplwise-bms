@@ -446,8 +446,7 @@ def test_no_live_stream_is_created_for_a_frigate_camera(world, monkeypatch):
     with world.app.state.db.connection() as conn:
         r = autosync.ensure_streams(s, conn, reason="manual")
         cam = dict(conn.execute("SELECT * FROM cameras WHERE source_ref = 'cam_front'").fetchone())
-    # TKFRIGLIVE: without a restream (the default fake) each enabled camera's two profiles are skipped; test_frigate_restream.py has the restream path
-    assert r["skipped"] == 4 and created == [] and r["foreign_streams_untouched"] == 1
+    assert r["skipped"] == 2 and created == [] and r["foreign_streams_untouched"] == 1
     from smplwise.errors import ApiError
 
     with pytest.raises(ApiError) as e:

@@ -109,8 +109,6 @@ export interface TicketView {
   photos?: { id: string; at: string; width: number; height: number; mine: boolean }[];
   history?: { at: string; from: string | null; to: string | null; actor: string }[] | null;
   limits?: { note_max: number; reason_max: number; photo_max_bytes: number; photos_left: number };
-  /** TKMAP1: the request's map element - the stored text and whether the server can draw its picture (never an id or plan data) */
-  map_element?: { name: string; floor: string; room: string; image: boolean } | null;
 }
 
 export const api = {
@@ -135,19 +133,6 @@ export const api = {
         credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
       });
       return res.ok ? await res.blob() : null;
-    } catch {
-      return null;
-    }
-  },
-  /** TKMAP1: the server-drawn 2D picture of the map element (image/svg+xml), shown through a blob: URL like the photos */
-  mapBlob: async (c: Credentials): Promise<Blob | null> => {
-    try {
-      const res = await fetch(withBase('/t/api/map-image'), {
-        headers: { 'X-Ticket-Token': c.token ?? '', ...(c.session ? { 'X-Ticket-Session': c.session } : {}) },
-        credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
-      });
-      if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('image/svg+xml')) return null;
-      return await res.blob();
     } catch {
       return null;
     }

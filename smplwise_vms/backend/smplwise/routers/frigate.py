@@ -130,16 +130,12 @@ def status(recorder_id: str, request: Request, refresh: bool = Query(False), pri
     for item in rh.view(conn, settings_of(request)):
         if item["id"] == recorder_id:
             health = item
-    from ..services.recorders import frigate_restream as frs
-
-    events = fe.events_health(conn, recorder_id, sync)
-    warnings = a.http.warnings() + ([{"code": "frigate_events_stale", "since": events["last_poll_at"]}] if events["stale"] else [])
     return {
         "recorder": _frigate_info(conn, recorder_id), "version": doc["version"], "version_ok": doc["version_ok"], "min_version": doc["min_version"],
         "features": doc["features"], "routes_known": doc["routes_known"], "discovered_at": doc["discovered_at"],
         "retention": doc["summary"].get("retention"), "detectors": doc["summary"].get("detectors"), "cameras": len(doc["summary"]["cameras"]),
-        "sync": sync, "events": events, "health": health, "warnings": warnings,
-        "live": frs.summary(a.http._settings, doc),  # TKFRIGLIVE: mode restream|still, cameras_live / cameras_total, reason code
+        "sync": sync, "health": health, "warnings": a.http.warnings(),
+        "live": {"mode": "restream" if doc["features"].get("restream") else "still", "note": "no restream: live tiles are latest-frame stills"},
     }
 
 

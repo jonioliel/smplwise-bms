@@ -28,15 +28,11 @@ import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import '../components/sw-cast-picker';
 import '../components/sw-cast-stop';
-// TKMAP1: "open a service request" for this camera (the camera's place on the map is attached to the new request)
-import '../tickets/map-create';
-import { MAP_CREATE_LABEL, mapTicketsOn } from '../tickets/map-create';
 import { castTargets, type CastSession } from '../api/cast';
 import { CastWatch, castStore } from '../components/cast-store';
 import { castButtonVisible, isLow, leftText } from './cast-logic';
 import { isPhoneWidth } from '../shell/tabs-mode';
 import { t as tr } from '../i18n/he';
-import { fx } from '../i18n/frigate-text';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
@@ -49,8 +45,6 @@ export class LiveCamera extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
   @property() cameraId = 'cam-1';
-  /** TKMAP1: the create form for a service request about this camera is open */
-  @state() private mapTicket = false;
   @state() private cam: Camera | null = null;
   /** T075: the NVR's detection configuration for this camera (read-only), drawn over the snapshot. */
   @state() private zones: CameraZones | null = null;
@@ -1055,7 +1049,6 @@ export class LiveCamera extends LitElement {
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div>
-      ${canView && cam.live_kind === 'still' ? html`<div class="note" data-live-still-note>${fx().live.stillExplain.replace('{n}', String(cam.still_refresh_s ?? 10))}</div>` : nothing}
       <div class="controls">
         <div class="round" role="group" aria-label="פקדי מצלמה">
           <button title="רענון תמונה" aria-label="רענון תמונה" @click=${() => (this.posterBust = Date.now())}><sw-icon name="aperture" size=${16}></sw-icon></button>
@@ -1248,8 +1241,6 @@ export class LiveCamera extends LitElement {
         ${this.renderRename()}
         <a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>
         <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
-        ${api && this.cam && mapTicketsOn() ? html`<sw-button slot="actions" variant="ghost" icon="plus" data-camera-ticket @click=${() => (this.mapTicket = true)}>${MAP_CREATE_LABEL}</sw-button>` : nothing}
-        ${this.mapTicket && this.cam ? html`<ticket-map-create open .element=${{ pick: { resource: { type: 'camera', id: this.cam.id } }, name: this.cam.alias || this.cam.name, floorName: '' }} @close=${() => (this.mapTicket = false)}></ticket-map-create>` : nothing}
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
     `;

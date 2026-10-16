@@ -4,8 +4,8 @@ A provider turns a control image - our own deterministic level-2 isometric rende
 prompt into one image. The interface is provider-agnostic (`SkinProvider`); one implementation exists at a time, the
 first being OpenAI's image edit endpoint (owner decision 2026-09-28, CR-006 7.1 (a); Claude does not generate images).
 
-External-service rules, the go2rtc adapter's way (services/go2rtc.py): the API key lives in the in-app secrets store (`openai_api_key`,
-services/secrets_store.py, encrypted at rest; the process reads it from config.Settings) - never stored in clear, never logged, never in an audit row or an error payload; every text
+External-service rules, the go2rtc adapter's way (services/go2rtc.py): the API key is an add-on option (`openai_api_key`,
+config.Settings) - never stored in the database, never logged, never in an audit row or an error payload; every text
 that may carry it passes through `redact` before it leaves this module. Nothing is sent from here on its own: the
 caller (routers/skins.py) holds the privacy acknowledgement, the budget and the audit trail, and in slice 2a the only
 caller that sends is the owner's connection test with a synthetic 64x64 pattern.
@@ -138,7 +138,7 @@ class OpenAIImageProvider:
 
     def render(self, control_png: bytes, prompt: str, options: RenderOptions) -> RenderResult:
         if not self._key:
-            raise SkinProviderError("key_missing", "מפתח ה־API של OpenAI לא הוגדר (הגדרות › חיבורים › סודות).")
+            raise SkinProviderError("key_missing", "מפתח ה־API של OpenAI לא הוגדר באפשרויות ה־Add-on (openai_api_key).")
         if options.size not in OPENAI_SIZES or options.quality not in QUALITIES:
             raise SkinProviderError("bad_options", "גודל או איכות שאינם נתמכים.")
         model = options.model or self.model

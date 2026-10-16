@@ -41,8 +41,8 @@ Run the checks: `make test-push-relay` (or `powershell -File scripts/test_push_r
    installation's own `server_id` that the Arx server sends in the body; the first key that names a `server_id` owns it, and
    another key naming it is refused with `403 server_id_claimed`); keep it short and stable. Use hex secrets
    (`openssl rand -hex 32`): no commas or colons. Give each installation its own secret: in the add-on options `push_relay_url = https://<worker>.workers.dev`
-   (or the custom domain), and the secret in Arx › הגדרות › חיבורים › סודות › push relay key (stored encrypted; it was the
-   add-on option `push_relay_key` before TKSECRETS2). Rotating a key = replace the pair and update that one installation.
+   (or the custom domain) and `push_relay_key = <its secret>`. Rotating a key = replace the pair and update that one
+   add-on.
 6. **Stable relay tokens** (contract: register is idempotent per push token): `npx wrangler secret put RELAY_TOKEN_SECRET`
    with 32+ random characters. The relay token is then `HMAC-SHA256(secret, platform:push_token)`, so the same phone gets
    the same token back and only a hash is stored. **Required**: without it `POST /v1/register` answers `503

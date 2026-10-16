@@ -86,12 +86,10 @@ _SELF_SLUG: str | None = None    # the slug GET /addons/self/info last reported 
 # null), port, bool, bool?, remote_path, log_level.
 OPTION_TYPES: dict[str, str] = {
     "bootstrap_admin_username": "str", "nvr_host": "str?", "nvr_http_port": "port", "nvr_rtsp_port": "port", "nvr_username": "str?",
-    # TKSECRETS2: go2rtc_api_password, wiskey_password, wiskey_background_token, openai_api_key and push_relay_key left the manifest (the
-    # in-app secrets store, services/secrets_store.py): an options write can never carry them
-    "go2rtc_url": "str?", "go2rtc_api_username": "str?", "wiskey_username": "str?",
-    "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
+    "nvr_password": "str?", "go2rtc_url": "str?", "go2rtc_api_username": "str?", "go2rtc_api_password": "str?", "wiskey_username": "str?",
+    "wiskey_password": "str?", "wiskey_background_token": "str?", "openai_api_key": "str?", "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
     "log_level": "log_level",
-    "push_relay_url": "str?",  # CR-027: the SmplWise push relay's URL (config.py reads it into the environment; the key is in the secrets store)
+    "push_relay_url": "str?", "push_relay_key": "str?",  # CR-027: the SmplWise push relay (config.py reads them into the environment)
     "frigate_enabled": "bool?",  # CR-029: the Frigate recorder type is selectable (run.sh maps it to SW_FRIGATE)
     "cast_relay": "bool?",  # CR-028: the cast relay's listener (18092/tcp, unmapped by default)
     "tickets_public": "bool?",  # CR-038 S4: the tickets handler page's listener (18093/tcp, unmapped; the tunnel reaches it)

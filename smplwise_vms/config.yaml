@@ -50,16 +50,22 @@ options:
   nvr_http_port: 80
   nvr_rtsp_port: 554
   nvr_username: ""
+  nvr_password: ""
   go2rtc_url: ""
   go2rtc_api_username: ""
+  go2rtc_api_password: ""
   wiskey_username: ""
-  # TKSECRETS2: the go2rtc API password, the WisKey stations' password, the WisKey background token, the OpenAI API key and the
-  # push relay key are no add-on options: they are entered in Settings › Connections › Secrets (stored encrypted by Arx).
+  wiskey_password: ""
+  # WisKey background (read) channel: the long-lived token of the dedicated non-admin Home Assistant account (DOCS "WisKey
+  # background account"). Empty = the background channel shares the add-on's own identity.
+  wiskey_background_token: ""
+  openai_api_key: ""
   # CR-008 SmplWise Arx: https://<your HA hostname>/arx through a Cloudflare tunnel path route (DOCS "Remote access").
   remote_access: false
   remote_path: /arx
   # CR-027: the SmplWise push relay for the phone app's notifications (DOCS "Phone app push"). Empty = the app channel is off.
   push_relay_url: ""
+  push_relay_key: ""
   # CR-028: "send to screen" - the cast relay listener (container port 18092; map a host port in Network too). Off by default.
   cast_relay: false
   # CR-038: the service tickets' handler page (container port 18093, reached through the Cloudflare tunnel only). Off by default.
@@ -75,12 +81,18 @@ schema:
   nvr_http_port: port
   nvr_rtsp_port: port
   nvr_username: str?
+  nvr_password: password?
   go2rtc_url: str?
   go2rtc_api_username: str?
+  go2rtc_api_password: password?
   wiskey_username: str?
+  wiskey_password: password?
+  wiskey_background_token: password?
+  openai_api_key: password?
   remote_access: bool
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
   push_relay_url: str?
+  push_relay_key: password?
   cast_relay: bool?
   tickets_public: bool?
   frigate_enabled: bool?

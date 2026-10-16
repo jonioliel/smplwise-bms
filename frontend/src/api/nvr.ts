@@ -49,9 +49,7 @@ export interface NvrTime { mode: string | null; local_time: string | null; time_
 export interface NvrSmart { temperature_c: number | null; power_on_days: number | null; self_eval: string | null; all_eval: string | null; test_percent: number; test_status: string | null; test_type: string | null }
 export interface NvrDisk { id: number; name: string; type: string; status: string; capacity_mb: number; free_mb: number; property: string; smart: NvrSmart | null }
 export interface NvrOutput { id: number; name: string; use_type: string; enabled: boolean; io_type: string; pulse_ms: number | null; default_state: string; pulse_supported: boolean }
-export interface NvrSystem { time: NvrTime | null; disks: NvrDisk[]; outputs: NvrOutput[]; errors: Record<string, string>; can: Record<'time' | 'storage' | 'alarm' | 'reboot' | 'osd' | 'connection', boolean>;
-  /** TKFRIGLIVE: false for a recorder that is not Hikvision (no request reached it; `reason: not_supported_for_recorder`). */
-  supported?: boolean; reason?: string; vendor?: string | null }
+export interface NvrSystem { time: NvrTime | null; disks: NvrDisk[]; outputs: NvrOutput[]; errors: Record<string, string>; can: Record<'time' | 'storage' | 'alarm' | 'reboot' | 'osd' | 'connection', boolean> }
 export const nvrSystem = () => get<NvrSystem>('nvr/system');
 export const setNvrTime = (body: { sync_now?: boolean; mode?: 'NTP' | 'manual' }) => put<NvrChange>('nvr/time', body);
 export const setNvrNtp = (body: { host: string; port?: number; interval_min?: number | null }) => put<NvrChange>('nvr/ntp', body);

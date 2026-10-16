@@ -255,17 +255,14 @@ def _transport(extra: dict[str, Any] | None) -> tuple[Any, ...]:
     verified / pinned certificate to "trust any"."""
     e = extra or {}
     auth = str(e.get("auth") or "").lower()  # a changed auth method (e.g. to Basic) is a new destination too
-    # TKFRIGLIVE: a Frigate recorder may send its password to the restream port in the RTSP URL (`restream_auth: account`); switching
-    # that on, or moving that port, is a new destination of the stored password too
-    restream = ("account", str(e.get("restream_port") or "")) if str(e.get("restream_auth") or "").lower() == "account" else ()
     scheme = str(e.get("scheme") or "http").lower()
     if scheme != "https":
-        return ("http", None, None, auth, *restream)
+        return ("http", None, None, auth)
     try:
         port = int(e.get("https_port") or 443)
     except (TypeError, ValueError):
         port = None
-    return ("https", port, str(e.get("tls_mode") or "verify").lower(), auth, *restream)
+    return ("https", port, str(e.get("tls_mode") or "verify").lower(), auth)
 
 
 DESTINATION_CHANGED = "הכתובת, הפורט, סוג החיבור או סוג ה־NVR השתנו - יש להזין את הסיסמה מחדש."

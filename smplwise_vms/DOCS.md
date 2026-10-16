@@ -14,30 +14,34 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `bootstrap_admin_username` — the Home Assistant **username** (not display name) that becomes the
      VMS system administrator. The grant happens once, on that user's first visit, and is written to
      the audit log. Leave everything else empty for now if you only want to try the maps.
-   - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username` — **deprecated (CR-022)**: the
+   - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username`, `nvr_password` — **deprecated (CR-022)**: the
      NVR is now chosen and connected inside Arx (הגדרות › חיבורים, or the setup wizard's NVR step: choose the
      NVR type - Hikvision, or "ללא NVR"; Provision-ISR is listed as coming soon, and Frigate until the option `frigate_enabled` is on - then address, ports,
      user and password, test, save, restart). On the first start after the upgrade, values already present here
      are imported once into Arx and then ignored; the options themselves are never changed, so a downgrade keeps
-     working. The keys stay for at least two releases. The NVR password is no longer an add-on option (it is entered in Arx and stored encrypted; the option was removed so Home Assistant does not flag it as an insecure secret). Prefer a dedicated non-admin NVR account; the connection
+     working. The keys stay for at least two releases. Prefer a dedicated non-admin NVR account; the connection
      test only reads, and the add-on never changes NVR settings without an explicit, separate approval.
    - `go2rtc_url` — the external go2rtc API, e.g. `http://<ha-host>:1984` (the AlexxIT add-on). The
      product creates only streams named `smplwise_*` there and never touches other streams. Optional
-     `go2rtc_api_username` if the go2rtc API is protected; its password is entered in Arx (see "Secrets" below).
-   - `wiskey_username` — the user name of the RTSP account of the WisKey door stations (its password: see "Secrets" below), assumed the same on
+     `go2rtc_api_username` / `go2rtc_api_password` if the go2rtc API is protected.
+   - `wiskey_username`, `wiskey_password` — the RTSP account of the WisKey door stations, assumed the same on
      every station; the WisKey tab shows each station camera's still through go2rtc with it. A station with
      a different account gets its own in הגדרות › חיבורים › "מצלמות עמדות WisKey" (system administrator only;
      the stored account is never shown again, and each set/clear is audited without the password).
      go2rtc versions before 1.9.14 write a stream's source URL, including this account, to the go2rtc log each time
      SMPLWISE registers a station stream (after an add-on start, a go2rtc restart or a credential change). Use go2rtc
      1.9.14 or newer.
+   - `openai_api_key` (optional) — the OpenAI API key for AI-rendered floor skins (see "AI-rendered floor skins"
+     below). Stored only in the add-on options: never in the database, the logs, the audit log or an error message;
+     the settings screen shows only whether it is set. Leave it empty and nothing can be sent to OpenAI.
    - `remote_access` (default `false`) and `remote_path` (default `/arx`) — SmplWise Arx remote access (CR-008):
      `https://<your HA hostname>/arx` opens the product with its own sign-in page (your Home Assistant username and
      password) through a Cloudflare tunnel path route. Off by default; while off, `/arx` answers 404 even if a tunnel
      route exists. See "Remote access (SmplWise Arx)" below and `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`.
-   - `push_relay_url` (optional, CR-027) — the SmplWise push relay that delivers notifications to the SmplWise Arx phone
-     app (`services/push-relay/README.md`). Its key (this installation's credential at the relay) is entered in Arx (see
-     "Secrets" below). Without both, the "אפליקציה" channel in הגדרות › התראות plans nothing (`channel_unavailable`).
+   - `push_relay_url` and `push_relay_key` (optional, CR-027) — the SmplWise push relay that delivers notifications to
+     the SmplWise Arx phone app (`services/push-relay/README.md`). The key is this installation's credential at the relay:
+     kept only in the add-on options, never in the database, a backup, a log or an error. Empty = the "אפליקציה" channel
+     in הגדרות › התראות plans nothing (`channel_unavailable`).
    - `frigate_enabled` (default `false`, CR-029) — makes the **Frigate** recorder type selectable in the recorder type list
      (otherwise it shows "coming soon"; a recorder that already has the Frigate type is served either way). Off by default;
      takes effect after an add-on restart. Frigate write classes stay OFF per recorder until an administrator switches them on.
@@ -67,26 +71,13 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      source; it has not yet been verified against the lab installation. The WisKey tab's editor context shows
      whether WisKey lists the people commands for the add-on's user. Reading a card from a station's reader (card
      capture, `cards/*`) is in the same WisKey `users` area at `manage`.
-   - The WisKey background token (optional; entered in Arx, see "Secrets" below) — the long-lived access token of a **dedicated, non-administrator
+   - `wiskey_background_token` (optional, default empty) — the long-lived access token of a **dedicated, non-administrator
      Home Assistant user that the owner creates** for WisKey's background (read) channel, after the release that carries it (see
      `docs/integrations/wiskey/B0_STATUS_HE.md`). That user is meant to hold the WisKey `overview` area at `view`, an
-     explicit and narrow station scope, and `none` everywhere else. While the token is not set the background channel
+     explicit and narrow station scope, and `none` everywhere else. While the option is empty the background channel
      shares the add-on's own identity, and the diagnostics card in הגדרות › מתגי מסכי כניסה ("WisKey רואה את Arx כ־") says so. The token is used only by the background
      channel, on Home Assistant core (it is not valid on the Supervisor proxy), and is never logged or shown. The
      door, call, announcement, people and card-reader writes keep using the add-on's own user (`ha_token`).
-   - **Secrets (not add-on options, TKSECRETS2).** Home Assistant flags add-on options of type `password` ("Insecure secrets
-     detected in app configuration"), so the secrets are entered in Arx instead: **הגדרות › חיבורים › סודות** (system
-     administrator only; not reachable on the remote channel). Five of them: the go2rtc API password, the WisKey stations'
-     camera password, the WisKey background token, the OpenAI API key and the push relay key. Each is stored encrypted
-     (AES-256-GCM with the installation's own key, the same as the NVR password; never in an Arx backup) and is write-only:
-     the screen shows only whether it is set, since when and by whom; "replace" and "clear" are audited without the value;
-     "test connection" exists for the go2rtc password (the go2rtc API) and the WisKey password (one station camera through
-     go2rtc) and answers only an outcome. The go2rtc / WisKey values reach the background stream sync at the next add-on
-     start (the screen says "restart required"); the OpenAI and push relay keys apply at once. **Upgrade:** on the first
-     start of this version, a value still present in the old add-on options (`go2rtc_api_password`, `wiskey_password`,
-     `wiskey_background_token`, `openai_api_key`, `push_relay_key`) is copied once into the encrypted store and the log names
-     the secret (never the value); after that the old option is never read again, even if it lingers. What the Supervisor does
-     with a stale removed option is not verified yet (`docs/operations/ADDON_OPTION_REMOVAL_NOTE.md`).
 4. Start the add-on and open it from the sidebar (**SmplWise Arx**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and
@@ -274,7 +265,7 @@ consistent copy.
   default, and it can start commands through `exec:` stream sources), **8554** (RTSP) and **8555** (WebRTC). Do not forward
   any of them from the router, do not route them through the Cloudflare tunnel (only the `/arx` path goes there), and keep
   1984 on the LAN. If other devices must reach it, protect it with go2rtc's own `api.username` / `api.password` and set the
-  same user name in `go2rtc_api_username` here and the password in הגדרות › חיבורים › סודות. WebRTC media (8555, UDP) is the one port browsers on the
+  same pair in `go2rtc_api_username` / `go2rtc_api_password` here. WebRTC media (8555, UDP) is the one port browsers on the
   LAN use directly; it never needs to be reachable from the internet.
 - Arx writes only streams named `smplwise_*`, only from `rtsp` / `rtsps` sources that are not go2rtc itself or a loopback or
   link-local address, and lists other products' streams without their names or sources.
@@ -414,7 +405,7 @@ A later version will ask an image provider (OpenAI, the owner's choice) to turn 
 into a photoreal one, once per floor, and keep the answer for reuse. This version has the groundwork only; no floor
 picture is sent anywhere yet.
 
-- **Key.** Enter the OpenAI API key in הגדרות › חיבורים › סודות (stored encrypted, write-only). Without it nothing can be sent.
+- **Key.** Set the add-on option `openai_api_key`. Without it nothing can be sent.
 - **What may leave the installation** (הגדרות › וידאו ומדיה › "סקינים מרונדרים (AI)" lists it word for word): the
   product's schematic control image of the floor - an isometric render of walls, openings, floors, furniture and room
   colour, **without any labels** - and, only when the sender chooses it for a particular send, the original plan image.
@@ -945,7 +936,7 @@ The SmplWise Arx phone apps register with this installation (`presence/devices`)
 SmplWise **push relay** (`services/push-relay/`, a small Cloudflare Worker run by SmplWise); the contract is
 `docs/api/mobile-presence-contract.md` (v2).
 
-- **Options.** `push_relay_url` (see Installation) and the push relay key in הגדרות › חיבורים › סודות. Empty = the "אפליקציה" channel plans nothing.
+- **Options.** `push_relay_url` and `push_relay_key` (see Installation). Empty = the "אפליקציה" channel plans nothing.
 - **What travels.** The relay sees an opaque token, a category and a notification id, never the text: the app fetches the text
   from this installation with its own device token. Registration returns this installation's `server_id` and a `relay_url` (so
   one app can serve several installations and the relay can move without an app update). Registration at the relay is

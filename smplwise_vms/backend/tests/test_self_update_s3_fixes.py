@@ -356,8 +356,8 @@ def test_nvr_system_has_no_supervisor_door(settings, monkeypatch):
 
 def _options(**over):
     base = {"bootstrap_admin_username": "joni", "nvr_host": "nvr.invalid", "nvr_http_port": 80, "nvr_rtsp_port": 554, "nvr_username": "u",
-            "go2rtc_url": "", "go2rtc_api_username": "", "wiskey_username": "",
-            "remote_access": False, "remote_path": "/arx", "db_write_gate": True, "log_level": "info"}
+            "nvr_password": "p", "go2rtc_url": "", "go2rtc_api_username": "", "go2rtc_api_password": "", "wiskey_username": "", "wiskey_password": "",
+            "openai_api_key": "", "remote_access": False, "remote_path": "/arx", "db_write_gate": True, "log_level": "info"}
     return {**base, **over}
 
 

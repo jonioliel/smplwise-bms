@@ -290,13 +290,9 @@ class FrigateState:
     last_poll_ts: float | None = None
     polls: int = 0
     reviews_seen: int = 0
-    ws_review_frames: int = 0         # TKFRIGLIVE: `reviews` frames actually parsed; until one arrives the WebSocket is not trusted for reviews
-    poll_interval_s: float | None = None
-    loop_running: bool = False
 
     def as_dict(self) -> dict[str, Any]:
-        return {k: getattr(self, k) for k in ("ws_state", "ws_frames", "ws_unknown_frames", "ws_changed_at", "last_poll_at", "last_poll_error", "last_poll_ts", "polls", "reviews_seen",
-                                              "ws_review_frames", "poll_interval_s", "loop_running")}
+        return {k: getattr(self, k) for k in ("ws_state", "ws_frames", "ws_unknown_frames", "ws_changed_at", "last_poll_at", "last_poll_error", "last_poll_ts", "polls", "reviews_seen")}
 
 
 STATES: dict[str, FrigateState] = {}
@@ -358,45 +354,6 @@ class WsFeed:
             self.stop.wait(backoff)
             backoff = min(120.0, backoff * 2)
         self._set("off")
-
-
-STALE_MIN_S = 180.0
-
-
-def events_health(conn: "sqlite3.Connection", recorder_id: str, sync: dict[str, Any] | None = None, now: float | None = None) -> dict[str, Any]:
-    """TKFRIGLIVE: the visible facts of the event path for the status card - is the reader running, when did the last poll succeed
-    (or why not), the newest review item Arx holds (`last_event_seen_at`: its start in UTC), how many arrived in 24 h, and `stale`
-    when no poll succeeded for max(3 x the poll interval, 3 minutes) or the last poll failed. Read-only (Arx's own tables)."""
-    s = sync if sync is not None else state_of(recorder_id).as_dict()
-    now = time.time() if now is None else now
-    last_seen = stored_24h = None
-    try:
-        row = conn.execute("SELECT MAX(start_ts) AS ts, SUM(CASE WHEN start_ts >= ? THEN 1 ELSE 0 END) AS n FROM frigate_reviews WHERE recorder_id = ?",
-                           (now - 86400, recorder_id)).fetchone()
-        if row is not None and row["ts"] is not None:
-            last_seen, stored_24h = _iso(float(row["ts"])), int(row["n"] or 0)
-        else:
-            stored_24h = 0
-    except Exception:  # noqa: BLE001 - an older database without the table: the facts are unknown, not zero
-        pass
-    last_poll_at = s.get("last_poll_at")
-    interval = float(s.get("poll_interval_s") or WS_DOWN_POLL_S_DEFAULT)
-    stale = bool(s.get("last_poll_error"))
-    if not stale and last_poll_at:
-        try:
-            age = now - dt.datetime.fromisoformat(str(last_poll_at).replace("Z", "+00:00")).timestamp()
-            stale = age > max(3 * interval, STALE_MIN_S)
-        except ValueError:
-            stale = False
-    return {"loop_running": bool(s.get("loop_running")), "ws_state": s.get("ws_state"), "ws_review_frames": int(s.get("ws_review_frames") or 0),
-            "poll_interval_s": s.get("poll_interval_s"), "last_poll_at": last_poll_at, "last_poll_error": s.get("last_poll_error"),
-            "last_event_seen_at": last_seen, "stored_24h": stored_24h, "stale": stale}
-
-
-def poll_interval(st: FrigateState, down_interval: float) -> float:
-    """WS_HEALTHY_POLL_S only while the WebSocket is connected AND has delivered at least one readable review item; otherwise the
-    recorder's own polling interval (default 10 s, never below 5 s)."""
-    return WS_HEALTHY_POLL_S if st.ws_state == "connected" and st.ws_review_frames > 0 else down_interval
 
 
 def _poll_interval(extra: Any) -> float:
@@ -512,8 +469,6 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
     frames: "queue.Queue[Any]" = queue.Queue(maxsize=2000)
     feed = WsFeed(ad, frames, listener.stop, st, ws_connect)
     _load_cursor(listener, st)
-    st.loop_running = True
-    st.poll_interval_s = down_interval
     feed.start()
     tracker = OfflineTracker()
     last_poll = 0.0
@@ -535,7 +490,6 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
         except queue.Empty:
             pass
         reviews = [v for k, v in batch if k == "review"]
-        st.ws_review_frames += sum(1 for r in reviews if normalize_review(r) is not None)
         transitions: list[tuple[str, str, float]] = []
         for kind, val in batch:
             if kind == "status":
@@ -557,13 +511,10 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
                 auto_profile_tick(listener.db, ad, now)
             except Exception:  # noqa: BLE001 - a failed automatic switch is final for its row and never stops the reader
                 log.exception("frigate auto-profile pass failed (%s)", listener.recorder_id)
-        # 2) the poll: always on (backfill + gap detector); faster while the WebSocket is not connected. TKFRIGLIVE: a connected
-        # WebSocket slows the poll only once it has really delivered a review item - the `reviews` frame shape is NOT VERIFIED, and
-        # a socket that only carries status / motion frames must not leave the event log a minute behind
-        interval = poll_interval(st, down_interval)
+        # 2) the poll: always on (backfill + gap detector); faster while the WebSocket is not connected
+        interval = WS_HEALTHY_POLL_S if st.ws_state == "connected" else down_interval
         if hint:
             interval = min(interval, POLL_MIN_S)
-        st.poll_interval_s = interval
         if now - last_poll >= interval:
             last_poll = now
             hint = False
@@ -602,7 +553,6 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
                 stt.last_heartbeat_at = now_iso()
         wait(1.0 if max_rounds is None else 0.05)
     stt.connected = False
-    st.loop_running = False
 
 
 def _apply_frames(listener: "AlertStreamListener", reviews: list[Any], transitions: list[tuple[str, str, float]], now: float) -> None:

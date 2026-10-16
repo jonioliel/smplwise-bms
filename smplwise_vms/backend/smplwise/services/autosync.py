@@ -228,37 +228,11 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     sources = vendor_io.LiveSources()  # CR-025: a Provision recorder's source path comes from the device
     from .recorders import frigate_io
 
-    from .recorders import frigate_restream
-
-    stale: list[str] = []  # TKFRIGLIVE: our streams of a Frigate camera that has no restream (any more): removed by exact name
     with unlocked(conn):
         for cam in cams:
             rs = settings_for(settings, cam["recorder_id"])
-            if frigate_io.handles(rs):
-                # TKFRIGLIVE: a Frigate camera gets live video only through Frigate's own restream (read-only toward Frigate); without
-                # one it stays a refreshing still and nothing is created
-                for profile in ("sub", "main"):
-                    name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
-                    try:
-                        found = frigate_io.restream_source(rs, cam["recorder_id"], cam["source_ref"] if "source_ref" in cam.keys() else None, profile, fetch=True)
-                    except ApiError as exc:
-                        log.info("frigate restream for %s skipped: %s", name, exc.code)
-                        found = None
-                    if found is None:
-                        result["skipped"] += 1
-                        stale.append(name)
-                        continue
-                    try:
-                        outcome = client.ensure_stream(name, found[1], check=frigate_restream.refuse_foreign(found[0]))
-                    except ApiError as exc:
-                        if not exc.code.startswith("frigate_restream"):
-                            raise  # go2rtc itself failed: the run's outcome, as for every other recorder
-                        log.info("frigate restream for %s refused: %s", name, exc.code)
-                        result["skipped"] += 1
-                        stale.append(name)
-                        continue
-                    result[outcome] += 1
-                    result["streams"].append(name)
+            if frigate_io.handles(rs):  # NN5 F1: no restream yet - a Frigate camera is shown as still tiles, never as a go2rtc stream
+                result["skipped"] += 1
                 continue
             for profile in ("sub", "main"):
                 name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
@@ -274,7 +248,7 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
                 result[outcome] += 1
                 result["streams"].append(name)
         listed = client.list_streams()
-        for name in [*gone, *stale]:
+        for name in gone:
             if name in listed and name.startswith(g2.STREAM_PREFIX):
                 client.delete_stream(name)
                 result["removed"] += 1

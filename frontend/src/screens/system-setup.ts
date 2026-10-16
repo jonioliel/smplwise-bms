@@ -21,8 +21,6 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import '../components/nvr-connection-form';
 import '../components/nvr-recorders-card';
-import '../components/frigate-summary';
-import '../components/sw-secrets-card'; // TKSECRETS2: הגדרות › חיבורים › סודות
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -44,8 +42,9 @@ interface RawHealth {
 const OPTIONS: { key: string; label: string }[] = [
   { key: 'go2rtc_url', label: 'כתובת go2rtc' },
   { key: 'go2rtc_api_username', label: 'משתמש go2rtc (אם מוגן)' },
+  { key: 'go2rtc_api_password', label: 'סיסמת go2rtc' },
   { key: 'wiskey_username', label: 'משתמש עמדות WisKey (מצלמות)' },
-  // TKSECRETS2: the go2rtc / WisKey passwords are no add-on options any more - they are in the "סודות" card
+  { key: 'wiskey_password', label: 'סיסמת עמדות WisKey' },
   { key: 'bootstrap_admin_username', label: 'שם משתמש של המנהל הראשון' },
   { key: 'log_level', label: 'רמת לוג' },
 ];
@@ -77,7 +76,7 @@ export class SystemSetup extends LitElement {
   @state() private sys: NvrSystem | null = null;
   /** CR-024: the recorder the NVR system card reads and acts on (a selector appears with two or more recorders). */
   @state() private sysRecorder = 'nvr-1';
-  @state() private sysRecorders: { id: string; name: string; vendor?: string | null }[] = [];
+  @state() private sysRecorders: { id: string; name: string }[] = [];
   private get sysApi() {
     return nvrSystemApi(this.sysRecorder);
   }
@@ -154,18 +153,7 @@ export class SystemSetup extends LitElement {
     void this.loadSystem();
   }
 
-  /** TKFRIGLIVE: the clock / disks / outputs card is a Hikvision card; a Frigate recorder is never asked (it answered 409 on every
-   * load) and shows its own summary instead. */
-  private get sysVendor(): string | null {
-    return this.sysRecorders.find((r) => r.id === this.sysRecorder)?.vendor ?? this.sys?.vendor ?? null;
-  }
-
   private async loadSystem() {
-    if (this.sysRecorders.find((r) => r.id === this.sysRecorder)?.vendor === 'frigate') {
-      this.sys = null;
-      this.sysError = '';
-      return;
-    }
     try {
       this.sys = await this.sysApi.nvrSystem();
       this.sysError = '';
@@ -201,11 +189,7 @@ export class SystemSetup extends LitElement {
             ${this.sysRecorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.sysRecorder}>${r.name}</option>`)}
           </select></sw-field>`
         : nothing}
-      ${this.sysVendor === 'frigate'
-        ? html`<frigate-summary recorder-id=${this.sysRecorder} data-nvr-system-frigate></frigate-summary>`
-        : s && s.supported === false
-        ? html`<div class="hint" data-nvr-system-unsupported>פרטי השעון, הדיסקים והיציאות אינם זמינים עבור מקליט מסוג זה.</div>`
-        : html`${this.sysError ? html`<div class="hint" data-nvr-system-error>${this.sysError}</div>` : nothing}
+      ${this.sysError ? html`<div class="hint" data-nvr-system-error>${this.sysError}</div>` : nothing}
       ${!s
         ? this.sysError ? nothing : html`<div class="hint">קורא את מצב המערכת מה־NVR…</div>`
         : html`
@@ -250,7 +234,7 @@ export class SystemSetup extends LitElement {
           ${s.can.reboot
             ? html`<div class="actions"><sw-button size="sm" variant="danger" icon="refresh" ?disabled=${this.sysBusy} data-nvr-reboot @click=${() => { this.rebootWord = ''; this.rebootOpen = true; }}>הפעל מחדש את ה־NVR…</sw-button><span class="hint">1–2 דקות בלי לייב ובלי הקלטה</span></div>`
             : html`<div class="hint">הפעלה מחדש: הרשאה nvr.system.reboot (תפקיד מותאם).</div>`}
-          ${this.sysMsg ? html`<div class="hint" data-nvr-system-msg>${this.sysMsg}</div>` : nothing}`}`}
+          ${this.sysMsg ? html`<div class="hint" data-nvr-system-msg>${this.sysMsg}</div>` : nothing}`}
       ${this.rebootOpen
         ? html`<sw-dialog open heading="הפעלה מחדש של ה־NVR" subheading="במשך 1–2 דקות אין לייב ואין הקלטה" data-nvr-reboot-dialog @close=${() => (this.rebootOpen = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">הקלד <b>RESTART</b> כדי לאשר. הפעולה נרשמת באודיט עם שם המשתמש.</div>
@@ -350,7 +334,7 @@ export class SystemSetup extends LitElement {
       ${this.wiskeyError ? html`<div class="hint" data-wiskey-cred-error>${this.wiskeyError}</div>` : nothing}
       ${!w
         ? this.wiskeyError ? nothing : html`<div class="hint">קורא את רשימת העמדות…</div>`
-        : html`${this.row('חשבון משותף (wiskey_username, הסיסמה בכרטיס סודות)', w.default_configured ? 'מוגדר' : 'לא מוגדר', w.default_configured ? 'ok' : 'warn')}
+        : html`${this.row('חשבון משותף (wiskey_username / wiskey_password)', w.default_configured ? 'מוגדר' : 'לא מוגדר', w.default_configured ? 'ok' : 'warn')}
           ${w.state !== 'ready' ? html`<div class="hint" data-wiskey-cred-feed=${w.state}>WisKey אינו מחובר כרגע (מצב: <span class="ltr">${w.state}</span>); מוצג מה שידוע ל־Arx.</div>` : nothing}
           ${w.stations.length ? w.stations.map((s) => this.renderWiskeyStation(s, w)) : html`<div class="hint" data-wiskey-cred-empty>אין עמדות ברשימה.</div>`}
           ${this.wiskeyMsg ? html`<div class="hint" data-wiskey-cred-msg>${this.wiskeyMsg}</div>` : nothing}`}
@@ -484,7 +468,6 @@ export class SystemSetup extends LitElement {
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
               </sw-card>
               ${this.renderWiskeyCard()}
-              ${can('system.configure') ? html`<sw-secrets-card></sw-secrets-card>` : nothing}
               ${can('system.configure') ? html`<sw-door-setup data-door-setup></sw-door-setup><sw-door-inventory data-door-inventory></sw-door-inventory><sw-door-blocks data-door-blocks></sw-door-blocks>` : nothing}
               <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
@@ -504,7 +487,7 @@ export class SystemSetup extends LitElement {
                 ${this.check('backups') ? this.row('גיבויים', this.check('backups')!.detail, this.check('backups')!.status === 'ok' ? 'ok' : 'warn') : nothing}
               </sw-card>
             </div>
-            <sw-card heading="איפה מגדירים" subheading="חיבורים נוספים מוגדרים בהגדרות SmplWise Arx בתשתית המערכת; הערכים אינם מוצגים כאן ושינוי דורש הפעלה מחדש; סיסמאות ומפתחות בכרטיס סודות">
+            <sw-card heading="איפה מגדירים" subheading="חיבורים נוספים מוגדרים בהגדרות SmplWise Arx בתשתית המערכת; הערכים אינם מוצגים כאן ושינוי דורש הפעלה מחדש">
               <div class="opts" data-connection-options>
                 ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
               </div>

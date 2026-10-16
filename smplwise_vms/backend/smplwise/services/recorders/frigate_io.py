@@ -80,34 +80,6 @@ def discover(settings: Settings, recorder_id: str, cmap: dict[str, int]) -> tupl
     return {"model": "Frigate", "firmware": doc["version"]}, channels, encodings, None
 
 
-# ---------------------------------------------------------------------------------------------- live video (TKFRIGLIVE)
-
-def restream_plan(settings: Settings, recorder_id: str, *, fetch: bool = False) -> dict[str, dict[str, str]]:
-    """camera key -> {"main", "sub"} Frigate restream names (frigate_restream.pick), from the cached discovery (no I/O); `fetch`
-    reads Frigate (GETs) when nothing is cached yet. Empty when the flag or the recorder's switch is off."""
-    from . import frigate_restream as frs
-
-    if frs.disabled_reason(settings):
-        return {}
-    a = FrigateAdapter(recorder_id, settings)
-    doc = a.cached_discovery()
-    if doc is None and fetch:
-        doc = a.discover()
-    return frs.plan(doc)
-
-
-def restream_source(settings: Settings, recorder_id: str, source_ref: str | None, profile: str, *, fetch: bool = False) -> tuple[str, str] | None:
-    """(Frigate stream name, RTSP source for Arx's go2rtc) of one camera and profile, or None when the camera has no restream.
-    Raises 409 `frigate_restream_refused` when the source policy refuses the URL."""
-    from . import frigate_restream as frs
-
-    p = restream_plan(settings, recorder_id, fetch=fetch).get(source_ref or "")
-    if not p:
-        return None
-    stream = p["main" if profile == "main" else "sub"]
-    return stream, frs.source_url(settings, stream)
-
-
 # ---------------------------------------------------------------------------------------------- pictures
 
 _STILLS: dict[tuple[str, str, int | None], tuple[float, bytes, str]] = {}

@@ -67,10 +67,6 @@ import '../tickets/ticket-count-chip';
 import { openDeviceTickets } from '../tickets/ticket-count-chip';
 import { deviceTicketsOn } from '../tickets/device-entry';
 import { dt } from '../tickets/device-text';
-// TKMAP1: "open a service request" from a camera / device on the live map (the element is attached to the new request)
-import '../tickets/map-create';
-import { MAP_CREATE_LABEL, mapTicketsOn } from '../tickets/map-create';
-import type { MapElementDraft } from '../api/tickets-map';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
@@ -158,8 +154,6 @@ export class ExploreFloorMap extends LitElement {
   @state() private loadError = '';
   @state() private noFloors = false;
   @state() private selectedId: string | null = null;
-  /** TKMAP1: the element a new service request is being opened for (the create form over the map) */
-  @state() private ticketFor: MapElementDraft | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
   @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors', 'states', 'photo']);
   /** The loaded plan picture under the structure (owner request 2026-09-26). Not an anchor layer: a switch of its own,
@@ -2721,7 +2715,6 @@ export class ExploreFloorMap extends LitElement {
           ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline' || a.camera?.recorder_enabled === false} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה מלאה</sw-button>
             <sw-button size="sm" icon="history" ?disabled=${!a.camera || a.camera.recorder_enabled === false} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
           : nothing}
-        ${mapTicketsOn() ? html`<sw-button variant="ghost" size="sm" icon="plus" data-map-ticket @click=${() => (this.ticketFor = { pick: { element: { floor_id: a.floor_id || b.floorId, kind: 'anchor', id: a.id } }, name: entityName(a), floorName: b.floorName, entityId: a.resource_type === 'ha_entity' ? a.resource_id : undefined })}>${MAP_CREATE_LABEL}</sw-button>` : nothing}
         ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
         ${b.permissions.edit && !this.phone.restricted('structure') ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
@@ -3038,7 +3031,6 @@ export class ExploreFloorMap extends LitElement {
       </div>`}
       ${this.renderCard()}
       ${this.renderConfirm()}
-      ${this.ticketFor ? html`<ticket-map-create open .element=${this.ticketFor} @close=${() => (this.ticketFor = null)}></ticket-map-create>` : nothing}
     `;
   }
 
