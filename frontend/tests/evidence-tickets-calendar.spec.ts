@@ -143,7 +143,7 @@ test.describe('tickets weekly calendar evidence', () => {
     await ev.focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/[?&]t=0000000000000a01/);
-    await expect(page.locator('sw-app tickets-list ticket-detail[mode="drawer"]')).toBeVisible();
+    await expect(page.locator('sw-app tickets-list ticket-detail[mode="drawer"] [data-ticket-detail]')).toBeVisible(); // (the host has no box)
     await expect(ev).toHaveAttribute('aria-current', 'true');
     await expect(page.locator(`${C} [data-cal]`)).toBeVisible();
     await shot(page, 'drawer-open');

@@ -26,7 +26,7 @@ const SCREENS: Screen[] = [
   { name: 'week', wait: `${C} [data-cal]` },
   { name: 'next-week-empty', wait: `${C} [data-cal]`, prep: async (p) => p.locator(`${C} [data-cal-next]`).click() },
   { name: 'filter-row', wait: `${C} [data-cal]`, prep: async (p) => p.locator('sw-app tickets-list [data-filter-toggle]').click() },
-  { name: 'drawer', wait: `${C} [data-cal]`, prep: async (p) => { await p.locator(`${C} [data-cal-event]`).first().click(); await p.waitForSelector('sw-app tickets-list ticket-detail[mode="drawer"]'); } },
+  { name: 'drawer', wait: `${C} [data-cal]`, prep: async (p) => { await p.locator(`${C} [data-cal-event]`).first().click(); await p.waitForSelector('sw-app tickets-list ticket-detail[mode="drawer"] [data-ticket-detail]'); } },
   { name: 'empty', wait: 'sw-app tickets-list [data-tickets-state="empty"]', mock: { empty: true } },
   { name: 'error', wait: 'sw-app tickets-list [data-tickets-state="error"]', mock: { failList: true } },
 ];
@@ -35,7 +35,11 @@ const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAni
 test.use({ timezoneId: 'Asia/Jerusalem', locale: 'he-IL' });
 
 test.describe('tickets calendar layout guard', () => {
-  test.describe.configure({ timeout: 60 * 60_000 });
+  // A failure must never burn an hour of a gate: the sweep takes well under a minute per skin, every wait / click is bounded.
+  // (The open drawer is waited for by its panel [data-ticket-detail]: the <ticket-detail> host is display: inline with a fixed-position
+  // shadow panel, so the host itself has no box and is never "visible" - an unbounded wait on it hung each skin until the 1 h timeout.)
+  test.describe.configure({ timeout: 4 * 60_000 });
+  test.use({ actionTimeout: 20_000, navigationTimeout: 30_000 });
   for (const skin of SKIN_IDS) {
     test(`every calendar screen, width and theme [${skin}]`, async ({ page }, info) => {
       test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
