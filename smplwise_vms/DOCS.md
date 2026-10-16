@@ -14,12 +14,12 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `bootstrap_admin_username` — the Home Assistant **username** (not display name) that becomes the
      VMS system administrator. The grant happens once, on that user's first visit, and is written to
      the audit log. Leave everything else empty for now if you only want to try the maps.
-   - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username`, `nvr_password` — **deprecated (CR-022)**: the
+   - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username` — **deprecated (CR-022)**: the
      NVR is now chosen and connected inside Arx (הגדרות › חיבורים, or the setup wizard's NVR step: choose the
      NVR type - Hikvision, or "ללא NVR"; Provision-ISR is listed as coming soon, and Frigate until the option `frigate_enabled` is on - then address, ports,
      user and password, test, save, restart). On the first start after the upgrade, values already present here
      are imported once into Arx and then ignored; the options themselves are never changed, so a downgrade keeps
-     working. The keys stay for at least two releases. Prefer a dedicated non-admin NVR account; the connection
+     working. The keys stay for at least two releases. The NVR password is no longer an add-on option (it is entered in Arx and stored encrypted; the option was removed so Home Assistant does not flag it as an insecure secret). Prefer a dedicated non-admin NVR account; the connection
      test only reads, and the add-on never changes NVR settings without an explicit, separate approval.
    - `go2rtc_url` — the external go2rtc API, e.g. `http://<ha-host>:1984` (the AlexxIT add-on). The
      product creates only streams named `smplwise_*` there and never touches other streams. Optional
