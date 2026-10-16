@@ -107,6 +107,9 @@ def set_placement(conn: sqlite3.Connection, station_id: str, site_id: str | None
     elif site_id:
         if conn.execute("SELECT 1 FROM sites WHERE id = ? AND deleted_at IS NULL", (site_id,)).fetchone() is None:
             raise ApiError(422, "scope_unknown", "האתר לא נמצא.")
+    from . import capture_lease  # CR-WISKEY-LEASE-REVOCATION-EVENT T7: the station's binding changed under any live lease there
+
+    capture_lease.on_authority_change("binding_changed", station_ids=[station_id])
     if not site_id and not building_id:
         conn.execute("DELETE FROM intercom_station_placement WHERE config_entry_id = ?", (station_id,))
         return None
@@ -206,6 +209,10 @@ def set_mapping(conn: sqlite3.Connection, entity_id: str, station_id: str, relay
     other = conn.execute("SELECT entity_id FROM intercom_door_map WHERE config_entry_id = ? AND physical_index = ? AND entity_id != ?", (station_id, relay, entity_id)).fetchone()
     if other is not None:
         raise ApiError(409, "intercom_relay_taken", "הממסר הזה כבר משויך למנעול אחר.")
+    from . import capture_lease  # CR-WISKEY-LEASE-REVOCATION-EVENT T7: a door-map row of the station changes
+
+    before = conn.execute("SELECT config_entry_id FROM intercom_door_map WHERE entity_id = ?", (entity_id,)).fetchone()
+    capture_lease.on_authority_change("binding_changed", station_ids=[station_id] + ([before[0]] if before and before[0] and before[0] != station_id else []))
     conn.execute(
         """INSERT INTO intercom_door_map(entity_id, config_entry_id, physical_index, source, mapped_by, mapped_at, revision) VALUES (?,?,?,?,?,?,1)
            ON CONFLICT(entity_id) DO UPDATE SET config_entry_id = excluded.config_entry_id, physical_index = excluded.physical_index, source = excluded.source,
@@ -216,4 +223,9 @@ def set_mapping(conn: sqlite3.Connection, entity_id: str, station_id: str, relay
 
 
 def clear_mapping(conn: sqlite3.Connection, entity_id: str) -> bool:
+    before = conn.execute("SELECT config_entry_id FROM intercom_door_map WHERE entity_id = ?", (entity_id,)).fetchone()
+    if before and before[0]:
+        from . import capture_lease  # CR-WISKEY-LEASE-REVOCATION-EVENT T7
+
+        capture_lease.on_authority_change("binding_changed", station_ids=[before[0]])
     return conn.execute("DELETE FROM intercom_door_map WHERE entity_id = ?", (entity_id,)).rowcount > 0

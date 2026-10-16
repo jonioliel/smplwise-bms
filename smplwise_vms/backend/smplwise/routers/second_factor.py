@@ -28,7 +28,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
-from ..services import notify_sources, presence
+from ..services import capture_lease, notify_sources, presence
 from ..services import second_factor as sf
 
 router = APIRouter()
@@ -97,6 +97,7 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
     # TFA2: a phone device token issued before the factor existed ends too; the app re-registers through a session (which owes the code)
     tokens = presence.revoke_tokens(conn, principal.user_id)
     _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended, device_tokens_revoked=tokens)
+    capture_lease.on_authority_change("second_factor_changed", user_ids=[principal.user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     return sf.status(conn, principal.user_id)
 
 
@@ -112,6 +113,7 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
         raise _fail(exc) from None
     sf.remove(conn, principal.user_id)
     _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self")
+    capture_lease.on_authority_change("second_factor_changed", user_ids=[principal.user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     return sf.status(conn, principal.user_id)
 
 
@@ -196,6 +198,7 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
             raise _fail(exc) from None
     was_active = sf.is_enrolled(conn, user_id)
     removed = sf.remove(conn, user_id)
+    capture_lease.on_authority_change("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=getattr(request.state, "correlation_id", None))
     tokens = presence.revoke_tokens(conn, user_id)  # TFA2: the phone app's device tokens end with the factor (it re-registers through a session)
     if was_active:

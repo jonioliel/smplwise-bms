@@ -632,6 +632,14 @@ def permission_revision(conn: sqlite3.Connection) -> int:
 def bump_permission_revision(conn: sqlite3.Connection) -> int:
     rev = permission_revision(conn) + 1
     set_setting(conn, "permission_revision", str(rev))
+    # CR-WISKEY-LEASE-REVOCATION-EVENT T1 (owner decision 2026-10-16, strict): ANY revision bump revokes every live capture lease,
+    # with no re-check. Called here so no caller can forget it; the hook never touches the database and never raises.
+    try:
+        from .services import capture_lease
+
+        capture_lease.on_authority_change("permission_revision", all=True)
+    except Exception:  # noqa: BLE001 - a permission change never fails because of the lease hook
+        log.exception("capture lease hook (permission_revision) failed")
     return rev
 
 @contextmanager

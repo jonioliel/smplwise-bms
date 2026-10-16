@@ -605,11 +605,21 @@ def bridge_install_now(request: Request, principal: Principal = Depends(current_
     return bridge_install.install(db, settings_of(request), force=True, announce=True, conn=conn)
 
 
+def _lease_repair(reason: str) -> None:
+    """T9: unpair / re-pair / key regeneration revokes every live capture lease and asks the lease worker for a new stream.
+    EXTENSION POINT (CR-034, origin/pilot/WISKEY-CRs): the key-rotation gate tool calls this with `key_rotation`."""
+    from ..services import capture_lease, lease_events
+
+    capture_lease.on_authority_change("key_rotation" if reason == "key_rotation" else "repair", all=True)
+    lease_events.WORKER.request_reset(reason)
+
+
 @router.get("/ha/bridge/pairing")
 def pairing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), regenerate: bool = False) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     secret = ha_bridge.ensure_pairing(conn, regenerate=regenerate)
     if regenerate:
+        _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: a new pairing key - every capture lease goes, a new stream
         audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
     host = socket.gethostname()
     return {"pairing_code": secret, "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": get_setting(conn, "bridge.paired_at") or None}
@@ -619,6 +629,7 @@ def pairing(request: Request, principal: Principal = Depends(current_principal),
 def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Called by the integration during its config flow: proves the pairing code and marks the bridge paired."""
     ha_bridge.verify(ha_bridge.signing_key(conn), message)
+    _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: (re-)paired - every capture lease goes, a new stream
     set_setting(conn, "bridge.paired_at", now_iso())
     set_setting(conn, "bridge.integration_version", str(message.get("version") or ""))
     audit(conn, actor=None, action="bridge.paired", decision="allowed", resource_type="installation", resource_id="*", details={"integration_version": message.get("version")})
@@ -694,6 +705,12 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
         else:
             revocation.changed([r["id"]])  # re-enabled: the shell re-fetches /me (T055)
     if disabled:
+        # CR-WISKEY-LEASE-REVOCATION-EVENT T2: the actor's capture lease first, with its own reason (the bump below then revokes
+        # every other live lease too - the owner's strict T1 rule)
+        from ..services import capture_lease
+
+        capture_lease.on_authority_change("actor_disabled", user_ids=[u for u in disabled if u in pushed])
+        capture_lease.on_authority_change("actor_removed", user_ids=[u for u in disabled if u not in pushed])
         bump_permission_revision(conn)
         revocation.mark(disabled)
 

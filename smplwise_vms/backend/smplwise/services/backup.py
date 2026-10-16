@@ -75,7 +75,10 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # docs/changes/CR-038-S1-NOTES.md: a replace restore must not delete departments that open tickets reference).
                  "tickets.enabled", "tickets.settings", "tickets.name", "messaging.whatsapp",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
-                 "notify.whatsapp"}
+                 "notify.whatsapp",
+                 # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: the capture-lease route switch, its lease length and the C03 lookup scope are
+                 # this installation's security policy - never taken from an archive, so a restore can never loosen them
+                 "access.capture_lease", "access.capture_lease_seconds", "access.lookup_scope"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
@@ -463,6 +466,13 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             energy = energy_backup.restore_from_zip(settings, z, names, allowed_meters=allowed, replace=(mode == "replace"))
     if scope == "project+access":
         bump_permission_revision(conn)
+    # CR-WISKEY-LEASE-REVOCATION-EVENT 2.3: a restored database gets a fresh revocation stream (never the archive's counter - the
+    # lease tables are not backup tables) and no capture lease survives a restore
+    from . import capture_lease, lease_events
+
+    capture_lease.on_authority_change("restore", all=True)
+    lease_events.WORKER.request_reset("restore")
+    lease_settings = _lease_settings_report(conn, data)
     # CR-006 2a review: a replaced project may no longer have a floor whose skin control images are stored
     from .skins import store as skins_store
 
@@ -476,7 +486,19 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
             "kept_current": kept_current, "roles_pruned": roles_pruned, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
-            "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected}
+            "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings}
+
+
+def _lease_settings_report(conn: sqlite3.Connection, data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """CR-WISKEY-LEASE-REVOCATION-EVENT 5 / 7.3 (the CR-033 section 9 rule): `access.capture_lease`, `access.capture_lease_seconds`
+    and `access.lookup_scope` are never taken from an archive (SETTINGS_KEEP) - a restore never loosens them. The answer lists
+    the archive values that were dropped (`dropped`: key -> archive value) next to the values kept."""
+    from . import capture_lease
+
+    archive = {r.get("key"): r.get("value") for r in data.get("settings") or [] if isinstance(r, dict) and r.get("key") in capture_lease.KEYS}
+    kept = {k: get_setting(conn, k) or capture_lease.DEFAULTS[k] for k in capture_lease.KEYS}
+    dropped = {k: v for k, v in archive.items() if isinstance(v, str) and v != kept[k]}
+    return {"kept": kept, "dropped": dropped}
 
 
 def _update_switch(conn: sqlite3.Connection, data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:

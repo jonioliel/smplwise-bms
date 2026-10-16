@@ -16,10 +16,22 @@ _generation: dict[str, int] = {}
 _lock = threading.Lock()
 
 
+def _lease_hook(user_ids: list[str] | set[str]) -> None:
+    """CR-WISKEY-LEASE-REVOCATION-EVENT T3: a moved generation (a narrowing - or a grant: the fresh decision WisKey holds is no
+    longer the one Arx would make) revokes the user's live capture lease. Never raises, never touches the database."""
+    try:
+        from . import capture_lease
+
+        capture_lease.on_authority_change("access_changed", user_ids=list(user_ids))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def changed(user_ids: list[str] | set[str]) -> None:
     with _lock:
         for uid in user_ids:
             _generation[uid] = _generation.get(uid, 0) + 1
+    _lease_hook(user_ids)
 
 
 def mark(user_ids: list[str] | set[str]) -> None:
@@ -28,6 +40,7 @@ def mark(user_ids: list[str] | set[str]) -> None:
         for uid in user_ids:
             _marks[uid] = now
             _generation[uid] = _generation.get(uid, 0) + 1
+    _lease_hook(user_ids)
 
 
 def generation(user_id: str) -> int:

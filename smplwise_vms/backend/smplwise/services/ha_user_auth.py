@@ -453,6 +453,12 @@ class SessionStore:
         s = self._sessions.pop(sid, None)
         if s is not None and s.token_key:
             self._by_token.pop(s.token_key, None)
+        if s is not None:
+            # CR-WISKEY-LEASE-REVOCATION-EVENT T4: a session that ENDS (logout, sign out everywhere, an administrator's revoke,
+            # expiry, eviction) revokes the actor's live capture lease. A cookie rotation is `_drop_quietly_locked` - not an
+            # end. The hook takes only its own lock and never blocks. EXTENSION POINT (USR2 branches): the local identity's
+            # `auth_local_sessions` revoke / rotation on a privilege change must call the same hook (`session_ended`).
+            _lease_session_ended(s.principal.user_id)
         socks = self._sockets.pop(sid, None)
         if socks:
             self._to_close.extend(list(socks))
@@ -1217,6 +1223,15 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
 
     await run_in_threadpool(touch_and_audit)
     return session, max(1, int(exp - time.time()))
+
+
+def _lease_session_ended(user_id: str) -> None:
+    try:
+        from . import capture_lease
+
+        capture_lease.on_authority_change("session_ended", user_ids=[user_id])
+    except Exception:  # noqa: BLE001 - never breaks a session store operation
+        pass
 
 
 def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
