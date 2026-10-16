@@ -28,8 +28,8 @@ const DAY = 24 * 3_600_000;
 const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
 
 let BUNDLE = '';
-const LIGHT_BG = 'rgb(243, 245, 249)';
-const DARK_BG = 'rgb(13, 17, 23)';
+const LIGHT_BG = 'rgb(242, 244, 248)';
+const DARK_BG = 'rgb(17, 23, 34)';
 
 type Json = Record<string, unknown>;
 

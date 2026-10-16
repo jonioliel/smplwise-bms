@@ -13,8 +13,8 @@ import './styles.css';
 import { homePath } from './base';
 import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
-import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, lineOf, partToggle, planSend, statusChoices, validSession,
-  type Draft, type Phase, type Step } from './state';
+import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, linkKind, parseDraft, phaseOf, lineOf, partToggle, planSend, primaryAction, statusChoices, statusLine, validSession,
+  type Draft, type LinkKind, type Phase, type Step } from './state';
 import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
 import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, storedServerMode, type ThemeMode } from './theme';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
@@ -290,7 +290,7 @@ class Page {
       return;
     }
     // the code's lifetime is a setting (slice 7, code.ttl_min): the server says it in expires_in_s
-    this.code = { sent: true, value: '', message: { key: 'codeSent', n: Math.max(1, Math.round((r.data.expires_in_s || 600) / 60)) } };
+    this.code = { sent: true, value: '', message: { key: r.data.channel === 'whatsapp' ? 'codeSentWa' : 'codeSent', n: Math.max(1, Math.round((r.data.expires_in_s || 600) / 60)) } };
     this.render();
   }
 
@@ -430,7 +430,7 @@ class Page {
         h('h1', { class: 'msg-title' }, this.t('codeTitle')),
         h('p', { class: 'msg-body' }, this.t('codeBody')),
         v ? h('p', { class: 'msg-sub' }, `${this.t('number', { number: v.number })}${v.department ? ` · ${v.department}` : ''}`) : null,
-        m ? h('div', { class: `banner ${m.key === 'codeSent' ? 'ok' : 'bad'}`, attrs: { role: 'status', 'data-code-message': m.key } }, this.t(m.key, { n: m.n ?? '' })) : null,
+        m ? h('div', { class: `banner ${m.key.startsWith('codeSent') ? 'ok' : 'bad'}`, attrs: { role: 'status', 'data-code-message': m.key } }, this.t(m.key, { n: m.n ?? '' })) : null,
         this.code.sent ? h('div', { class: 'row' }, input,
           h('button', { class: 'btn primary', attrs: { type: 'button', disabled: this.busy, 'data-code-verify': true }, on: { click: () => void this.codeVerify() } }, this.t('codeVerify'))) : null,
         h('button', { class: `btn ${this.code.sent ? 'ghost' : 'primary'} block`, attrs: { type: 'button', disabled: this.busy, 'data-code-send': true },
@@ -439,27 +439,94 @@ class Page {
       this.footer()));
   }
 
+  /**
+   * TKUI5: ONE component, the layout chosen by the link's kind (state.ts linkKind). First screen: organisation (top bar), number + title,
+   * place, ONE status line, ONE big primary button (sticky at the bottom). Below: numbered cards - status, when, what was done, photos,
+   * costs (vendor) or the device history (staff), updates. A staff link has no cost card and no claim surface at all (the cost chunk is
+   * never even fetched).
+   */
   private ticketScreen(): HTMLElement {
     const v = this.view;
     if (!v) return this.message('errorTitle', 'errorBody', 'clock', true);
     const readOnly = this.phase === 'readonly';
-    return h('div', { class: 'page' }, this.header(), h('main', { class: 'col' },
+    const kind = linkKind(v);
+    const writable = !readOnly && !!v.actions;
+    return h('div', { class: `page kind-${kind}`, attrs: { 'data-kind': kind } }, this.header(), h('main', { class: 'col' },
       this.bannerEl(),
       readOnly && !v.claim_mode ? h('section', { class: 'card closed', attrs: { 'data-readonly': true } },
         h('div', { class: 'msg-icon ok' }, icon('done')),
         h('h1', { class: 'msg-title' }, this.t('closedTitle')),
         v.read_only_until ? h('p', { class: 'msg-body' }, this.t('closedBody', { when: this.when(v.read_only_until) })) : null) : null,
-      this.ticketCard(v),
-      this.costBlock(v),
-      !readOnly && v.actions ? this.updateCard(v) : null,
+      this.hero(v, kind),
+      v.claim_mode ? this.costBlock(v) : null,
+      writable ? this.statusCard(v) : null,
+      writable ? this.etaCard(v) : null,
+      writable ? this.noteCard(v) : null,
+      writable ? this.photosCard(v) : null,
+      v.claim_mode ? null : kind === 'staff' ? this.historyCard(v) : this.costBlock(v),
       v.claim_mode ? null : this.timelineCard(v),
-      !readOnly && v.actions?.return ? this.returnBlock() : null,
-      this.footer()));
+      writable && v.actions?.return ? this.returnBlock() : null),
+    this.primaryBar(v, kind),
+    this.footer());
+  }
+
+  /** The ONE status line, in the vendor's words (state.ts statusLine); `data-status` carries the ticket's status for tests and tooling. */
+  private statusLineEl(v: TicketView): HTMLElement {
+    const l = statusLine(v, this.costHandle?.quoteState() ?? null);
+    return h('div', { class: `statusline ${l.tone}`, attrs: { 'data-statusline': true, 'data-status': v.status ?? null, 'aria-live': 'polite' } },
+      icon(l.icon), h('span', null, this.t(l.key)));
+  }
+
+  /**
+   * The ONE big button (state.ts primaryAction): confirm receipt, correct the quote, send the payment request, or send the update. Always
+   * the same place (sticky at the bottom), always full width, 56 px. A page that cannot be written has none.
+   */
+  private primaryBar(v: TicketView, kind: LinkKind): HTMLElement | null {
+    const p = primaryAction(v, kind, this.hasDraft(), this.costHandle?.quoteState() ?? null);
+    if (p === 'none') return null;
+    const key: Key = p === 'ack' ? 'btn_ack' : p === 'quote_fix' ? 'btn_quote_fix' : p === 'demand' ? 'btn_demand' : this.busy ? 'sending' : 'send';
+    const ic = p === 'ack' ? 'check' : p === 'send' ? 'send' : 'coin';
+    const attrs: Record<string, string | boolean> = { type: 'button', disabled: this.busy && (p === 'send' || p === 'ack'), 'data-primary': p };
+    if (p === 'send') attrs['data-send'] = true;
+    if (p === 'ack') attrs['data-ack'] = true;
+    const click = () => {
+      if (p === 'ack') {
+        this.draft = { ...this.draft, status: 'acknowledged' };
+        this.saveDraft();
+        void this.send();
+      } else if (p === 'send') void this.send();
+      else this.scrollTo(p === 'quote_fix' ? '[data-quote-part]' : '[data-claim-host]');
+    };
+    return h('div', { class: 'bar', attrs: { 'data-bar': p } },
+      h('button', { class: 'btn primary block', attrs, on: { click } }, icon(ic), this.t(key)));
+  }
+
+  /** Brings a part of the page into view (no smooth scroll under reduced motion) and puts the keyboard on its first field. */
+  private scrollTo(selector: string): void {
+    const target = this.root.querySelector<HTMLElement>(selector);
+    if (!target) return;
+    const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+    (target.querySelector<HTMLElement>('input, textarea') ?? target.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true });
+  }
+
+  /** Replaces the status line and the primary button in place (the quote's state arrives after the first draw; a note changes the primary). */
+  private syncChrome(): void {
+    const v = this.view;
+    if (!v || !['ready', 'readonly'].includes(this.phase)) return;
+    const line = this.root.querySelector('[data-statusline]');
+    if (line) line.replaceWith(this.statusLineEl(v));
+    const bar = this.root.querySelector<HTMLElement>('[data-bar]');
+    const next = this.primaryBar(v, linkKind(v));
+    if (bar && next && bar.dataset.bar === next.dataset.bar && !this.busy) return;
+    if (bar && next) bar.replaceWith(next);
+    else if (bar) bar.remove();
+    else if (next) this.root.querySelector('.foot')?.before(next);
   }
 
   /**
    * TK257: the quote / payment card, on the page from the first moment (the claim step lives inside it once a claim exists). In claim mode
-   * (the page no longer serves) it is the bare claim step, as before.
+   * (the page no longer serves) it is the bare claim step, as before. Vendor kind only.
    */
   private costBlock(v: TicketView): HTMLElement | null {
     if (v.claim_mode) return this.claimBlock(v);
@@ -474,6 +541,7 @@ class Page {
         this.costHandle = m.mountCostCard({
           fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body),
           lang: this.lang, dir: v.dir, labels: v.labels, demandSlot: slot, onCodeRequired: () => void this.load(),
+          onState: () => this.syncChrome(),
         });
         this.costHandle.update(ctx);
         this.render();
@@ -512,72 +580,95 @@ class Page {
     return this.claimHost;
   }
 
-  private ticketCard(v: TicketView): HTMLElement {
+  /** The first card: number and priority, the title, the place, the one status line, the description, who sent it (and, for a vendor, the folded device history). */
+  private hero(v: TicketView, kind: LinkKind): HTMLElement {
     const prio = v.priority ? (this.lang === 'he' && v.priority.name ? v.priority.name : this.t(`priority_${v.priority.key}`)) : '';
-    const place = [v.place_text, v.device_name].filter(Boolean);
-    return h('section', { class: 'card ticket', attrs: { 'data-ticket': v.number } },
+    const place = (v.place_text ?? '').trim();
+    const device = (v.device_name ?? '').trim();
+    return h('section', { class: 'card hero', attrs: { 'data-ticket': v.number } },
       h('div', { class: 'chips' },
-        v.status ? h('span', { class: `chip st-${v.status}`, attrs: { 'data-status': v.status } }, v.status === 'waiting_part' ? `${this.t('s_in_progress')} · ${this.t('s_waiting_part')}` : this.t(`s_${v.status}`)) : null,
+        h('span', { class: 'chip num-chip' }, this.t('number', { number: v.number })),
         prio ? h('span', { class: `chip pr-${v.priority?.key ?? ''}` }, prio) : null,
         h('span', { class: 'spacer' }),
         v.created_at ? h('span', { class: 'muted small' }, this.t('openedAt', { when: formatDate(v.created_at, v.time_zone, this.lang) })) : null),
       // the ticket's own words keep their own direction (a Hebrew title on a Russian page reads right to left, its period last)
-      h('h2', { class: 'title', attrs: { dir: 'auto' } }, v.title ?? ''),
-      place.length ? h('div', { class: 'where' }, icon('pin'), h('span', { attrs: { dir: 'auto' } }, place.join(' · '))) : null,
+      h('h1', { class: 'title', attrs: { dir: 'auto' } }, v.title ?? ''),
+      place || device ? h('div', { class: 'where' }, icon('pin'),
+        h('span', null, place ? h('span', { attrs: { dir: 'auto' } }, place) : null, place && device ? ' · ' : null, device ? h('span', { attrs: { dir: 'auto' } }, device) : null)) : null,
+      this.statusLineEl(v),
       v.description ? h('p', { class: 'desc', attrs: { dir: 'auto' } }, v.description) : null,
-      v.history && v.history.length ? this.historyBlock(v) : null,
-      v.assigned_by ? h('div', { class: 'muted small by' }, this.t('sentBy', { who: v.assigned_by })) : null);
+      kind === 'vendor' && v.history && v.history.length ? this.historyBlock(v) : null,
+      v.assigned_by ? h('div', { class: 'by-row' }, h('span', { class: 'avi', attrs: { 'aria-hidden': 'true' } }, (v.assigned_by.trim()[0] ?? '').toUpperCase()),
+        h('span', { class: 'muted small' }, this.t('sentBy', { who: v.assigned_by }))) : null);
   }
 
-  private historyBlock(v: TicketView): HTMLElement {
+  private historyLines(v: TicketView): HTMLElement {
     const list = h('ul', { class: 'history' });
     for (const item of v.history ?? []) {
       const actor = this.t(`h_${item.actor}`);
-      list.appendChild(h('li', null, h('span', { class: 'when' }, this.when(item.at)), ' · ',
-        h('span', { attrs: { dir: 'auto' } }, `${item.from ?? '—'} → ${item.to ?? '—'}`), actor ? ` · ${actor}` : ''));
+      list.appendChild(h('li', null, h('span', { attrs: { dir: 'auto' } }, `${item.from ?? '—'} → ${item.to ?? '—'}${actor ? ` · ${actor}` : ''}`),
+        h('span', { class: 'when' }, this.when(item.at))));
     }
-    return h('details', { class: 'hist' }, h('summary', null, this.t('history')), list);
+    return list;
   }
 
-  private updateCard(v: TicketView): HTMLElement {
+  private historyBlock(v: TicketView): HTMLElement {
+    return h('details', { class: 'hist' }, h('summary', null, this.t('history')), this.historyLines(v));
+  }
+
+  /** The staff kind: the device's recent states in a card of their own (only when the department shares them - the server sends `history` or null). */
+  private historyCard(v: TicketView): HTMLElement | null {
+    if (!v.history || !v.history.length) return null;
+    return h('section', { class: 'card num', attrs: { 'data-device-history': true } }, h('h2', null, this.t('history')), this.historyLines(v));
+  }
+
+  private statusCard(v: TicketView): HTMLElement | null {
     const a = v.actions!;
-    const card = h('section', { class: 'card update' }, h('h3', null, this.t('updateStatus')));
     const choices = statusChoices(v);
-    if (choices.length) {
-      const grid = h('div', { class: 'statuses', attrs: { role: 'radiogroup', 'aria-label': this.t('updateStatus') } });
-      const icons: Record<string, string> = { acknowledged: 'check', in_progress: 'wrench', done: 'done' };
-      const eff = this.draft.status ?? v.status;
-      for (const s of choices) {
-        const current = lineOf(v.status) === s;
-        const chosen = lineOf(eff) === s;
-        const allowed = a.statuses.includes(s);
-        grid.appendChild(h('button', {
-          class: `status ${chosen ? 'on' : ''}`,
-          attrs: { type: 'button', role: 'radio', 'aria-checked': String(chosen), disabled: !allowed && !current, 'data-status-choice': s },
-          on: { click: () => { if (!allowed && !current) return; this.draft = { ...this.draft, status: current ? null : s }; this.saveDraft(); this.render(); } },
-        }, icon(icons[s] ?? 'check'), h('span', { class: 'st-name' }, this.t(`btn_${s}`)),
-        h('span', { class: 'st-sub' }, this.t(`btn_${s}_sub`)),
-        s === 'in_progress' && eff === 'waiting_part' ? h('span', { class: 'st-wait', attrs: { 'data-waiting-sub': true } }, this.t('s_waiting_part')) : null));
-      }
-      card.appendChild(grid);
-      const tg = partToggle(v, this.draft.status);
-      if (tg) {
-        card.appendChild(h('button', { class: `pill wait ${tg.on ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(tg.on), 'data-waiting-toggle': tg.on ? 'back' : 'mark' },
-          on: { click: () => { this.draft = { ...this.draft, status: tg.next }; this.saveDraft(); this.render(); } } }, icon('box'), this.t(tg.on ? 'wait_back' : 'wait_mark')));
-      }
+    if (!choices.length) return null;
+    const card = h('section', { class: 'card num' }, h('h2', null, this.t('updateStatus')));
+    const grid = h('div', { class: 'statuses', attrs: { role: 'radiogroup', 'aria-label': this.t('updateStatus') } });
+    const eff = this.draft.status ?? v.status;
+    for (const s of choices) {
+      const current = lineOf(v.status) === s;
+      const chosen = lineOf(eff) === s;
+      const allowed = a.statuses.includes(s);
+      grid.appendChild(h('button', {
+        class: `status ${chosen ? 'on' : ''}`,
+        attrs: { type: 'button', role: 'radio', 'aria-checked': String(chosen), disabled: !allowed && !current, 'data-status-choice': s },
+        on: { click: () => { if (!allowed && !current) return; this.draft = { ...this.draft, status: current ? null : s }; this.saveDraft(); this.render(); } },
+      }, icon('check'), h('span', { class: 'st-name' }, this.t(`btn_${s}`)),
+      h('span', { class: 'st-sub' }, this.t(`btn_${s}_sub`)),
+      s === 'in_progress' && eff === 'waiting_part' ? h('span', { class: 'st-wait', attrs: { 'data-waiting-sub': true } }, this.t('s_waiting_part')) : null));
     }
-    if (a.eta) card.appendChild(this.etaBlock(v));
-    if (a.note) {
-      const ta = h('textarea', { class: 'input note', attrs: { rows: 3, maxlength: v.limits?.note_max ?? 2000, placeholder: this.t('notePlaceholder'),
-        'aria-label': this.t('note'), dir: 'auto', 'data-note': true },
-      on: { input: (e) => { this.draft = { ...this.draft, note: (e.target as HTMLTextAreaElement).value }; this.saveDraft(); } } });
-      ta.value = this.draft.note;
-      card.appendChild(h('label', { class: 'field' }, h('span', { class: 'lbl' }, this.t('note')), ta));
+    card.appendChild(grid);
+    const tg = partToggle(v, this.draft.status);
+    if (tg) {
+      card.appendChild(h('button', { class: `pill wait ${tg.on ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(tg.on), 'data-waiting-toggle': tg.on ? 'back' : 'mark' },
+        on: { click: () => { this.draft = { ...this.draft, status: tg.next }; this.saveDraft(); this.render(); } } },
+      h('span', { class: 'sw', attrs: { 'aria-hidden': 'true' } }), h('span', null, this.t(tg.on ? 'wait_back' : 'wait_mark'))));
     }
-    if (a.photo || (v.photos ?? []).length) card.appendChild(this.photosBlock(v, a.photo));
-    card.appendChild(h('button', { class: 'btn primary block send', attrs: { type: 'button', disabled: this.busy, 'data-send': true },
-      on: { click: () => void this.send() } }, icon('send'), this.t(this.busy ? 'sending' : 'send')));
     return card;
+  }
+
+  private etaCard(v: TicketView): HTMLElement | null {
+    if (!v.actions?.eta) return null;
+    return h('section', { class: 'card num' }, h('h2', null, this.t('cardWhen')), this.etaBlock(v));
+  }
+
+  private noteCard(v: TicketView): HTMLElement | null {
+    if (!v.actions?.note) return null;
+    const ta = h('textarea', { class: 'input note', attrs: { rows: 3, maxlength: v.limits?.note_max ?? 2000, placeholder: this.t('notePlaceholder'),
+      'aria-label': this.t('note'), dir: 'auto', 'data-note': true },
+    on: { input: (e) => { this.draft = { ...this.draft, note: (e.target as HTMLTextAreaElement).value }; this.saveDraft(); this.syncChrome(); } } });
+    ta.value = this.draft.note;
+    return h('section', { class: 'card num' }, h('h2', null, this.t('cardDone')), ta);
+  }
+
+  private photosCard(v: TicketView): HTMLElement | null {
+    const a = v.actions!;
+    if (!a.photo && !(v.photos ?? []).length) return null;
+    return h('section', { class: 'card num' }, h('h2', null, this.t('photos')), this.photosBlock(v, a.photo));
   }
 
   private etaBlock(v: TicketView): HTMLElement {
@@ -589,12 +680,12 @@ class Page {
       return h('button', { class: `pill ${on ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(on), 'data-eta': choice },
         on: { click: () => { this.etaOther = false; this.draft = { ...this.draft, eta: on ? undefined : iso }; this.saveDraft(); this.render(); } } }, this.t(key));
     };
-    const pills = h('div', { class: 'pills' }, chip('today', 'etaToday'), chip('tomorrow', 'etaTomorrow'), chip('two_days', 'etaTwoDays'),
+    const pills = h('div', { class: 'pills', attrs: { role: 'group', 'aria-label': this.t('eta') } }, chip('today', 'etaToday'), chip('tomorrow', 'etaTomorrow'), chip('two_days', 'etaTwoDays'),
       h('button', { class: `pill ${this.etaOther ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(this.etaOther), 'data-eta': 'other' },
         on: { click: () => { this.etaOther = !this.etaOther; this.render(); } } }, this.t('etaOther')));
-    const block = h('div', { class: 'field' }, h('span', { class: 'lbl' }, this.t('eta')), pills);
+    const block = h('div', { class: 'field' }, pills);
     if (this.etaOther) {
-      const input = h('input', { class: 'input', attrs: { type: 'datetime-local', 'data-eta-input': true, dir: 'ltr' },
+      const input = h('input', { class: 'input', attrs: { type: 'datetime-local', 'data-eta-input': true, dir: 'ltr', 'aria-label': this.t('eta') },
         on: { change: (e) => { const iso = localInputToIso((e.target as HTMLInputElement).value, zone); if (iso) { this.draft = { ...this.draft, eta: iso }; this.saveDraft(); this.render(); } } } });
       input.value = isoToLocalInput(current, zone);
       block.appendChild(input);
@@ -614,18 +705,17 @@ class Page {
       const url = this.photos.get(p.id);
       row.appendChild(url ? img(url, this.t('t_photo'), 'thumb') : h('div', { class: 'thumb empty', attrs: { 'aria-hidden': 'true' } }, icon('image')));
     }
-    const block = h('div', { class: 'field' }, h('span', { class: 'lbl' }, this.t('photos')));
+    const block = h('div', { class: 'field' });
     if (canAdd) {
       const pick = (capture: boolean) => {
         const input = h('input', { attrs: { type: 'file', accept: 'image/jpeg,image/png', capture: capture ? 'environment' : null, hidden: true,
           'data-photo-input': capture ? 'camera' : 'gallery' },
         on: { change: (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void this.upload(f); } } });
-        return h('label', { class: 'btn' }, icon(capture ? 'camera' : 'image'), h('span', null, this.t(capture ? 'takePhoto' : 'pickPhoto')), input);
+        return h('label', { class: `btn ${capture ? 'cam' : ''}` }, icon(capture ? 'camera' : 'image'), h('span', null, this.t(capture ? 'takePhoto' : 'pickPhoto')), input);
       };
       block.appendChild(h('div', { class: 'row wrap' }, pick(true), pick(false)));
     }
     if ((v.photos ?? []).length) block.appendChild(row);
-    block.appendChild(h('div', { class: 'muted small' }, this.t('documentsHint')));
     return block;
   }
 
@@ -647,7 +737,7 @@ class Page {
         it.body ? h('div', { class: 'body', attrs: { dir: 'auto' } }, it.body) : null,
         it.photo_id && this.photos.get(it.photo_id) ? img(this.photos.get(it.photo_id)!, this.t('t_photo'), 'thumb') : null));
     }
-    return h('section', { class: 'card' }, h('h3', null, this.t('timeline')), list);
+    return h('section', { class: 'card num' }, h('h2', null, this.t('timeline')), list);
   }
 
   private returnBlock(): HTMLElement {
@@ -690,6 +780,7 @@ class Page {
     return h('footer', { class: 'foot' },
       until ? h('div', null, this.t('linkFooter', { when: until })) : null,
       note ? h('div', null, this.t('timeZone', { zone: note })) : null,
+      this.lang === 'ar' || this.lang === 'ru' ? h('div', { class: 'prelim', attrs: { 'data-prelim': true } }, this.t('prelim')) : null,
       h('button', { class: 'linkish', attrs: { type: 'button', 'data-finish': true }, on: { click: () => this.finish() } }, this.t('finish')));
   }
 }

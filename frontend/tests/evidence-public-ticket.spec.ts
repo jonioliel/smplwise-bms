@@ -97,7 +97,7 @@ function view(lang: Lang, over: View = {}): View {
       { id: 13, at: iso(now - 17 * HOUR), kind: 'photo', mine: true, name: '', from: null, to: null, body: null, photo_id: 'p1' },
     ],
     photos: [{ id: 'p1', at: iso(now - 17 * HOUR), width: 480, height: 320, mine: true }],
-    history: null,
+    claim: null, history: null,
     limits: { note_max: 2000, reason_max: 500, photo_max_bytes: 10 * 1024 * 1024, photos_left: 9 },
     ...over,
   };
