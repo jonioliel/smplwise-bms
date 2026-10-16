@@ -78,6 +78,7 @@ test.describe('outside contacts - internal screens (slice 4)', () => {
     await page.locator(`${C} [data-contact-save]`).click();
     await expect(page.locator(`${C} [data-contact-problem]`)).toBeVisible();
     expect(last(mock, 'POST', /^tickets\/contacts$/)).toBeUndefined();
+    await page.locator(`${C} [data-contact-cancel]`).click();
     // erase asks first, with the history option
     await page.locator(`${C} [data-contact-item="c000000000000p02"]`).click();
     await page.locator(`${C} [data-contact-erase]`).click();
