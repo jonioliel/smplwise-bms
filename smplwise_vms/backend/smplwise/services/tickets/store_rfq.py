@@ -378,6 +378,25 @@ def quotes_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]
         (rfq_id,)).fetchall()]
 
 
+def rfq_quote_of_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
+    """TKRFQ4: the awarded RFQ quote an order linked to this ticket (its cost baseline), or None for a ticket not opened from an RFQ."""
+    return _dict(conn.execute("SELECT * FROM ticket_quotes WHERE ticket_id = ? AND rfq_vendor_id IS NOT NULL ORDER BY created_at, rowid LIMIT 1",
+                              (ticket_id,)).fetchone())
+
+
+def ordered_quotes_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
+    """TKRFQ4: the quotes of a request that an order linked to a ticket (one per awarded vendor)."""
+    return [dict(r) for r in conn.execute(
+        "SELECT q.* FROM ticket_quotes q JOIN ticket_rfq_vendors v ON v.id = q.rfq_vendor_id WHERE v.rfq_id = ? AND q.ticket_id IS NOT NULL "
+        "ORDER BY q.created_at, q.rowid", (rfq_id,)).fetchall()]
+
+
+def order_events(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
+    """TKRFQ4: the order rows of a request's timeline (every one - not the presentation window of events_of)."""
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_events WHERE rfq_id = ? AND kind IN ('order_created', 'order_sent') ORDER BY id",
+                                          (rfq_id,)).fetchall()]
+
+
 def next_version_of_vendor(conn: sqlite3.Connection, rfq_vendor_id: str) -> int:
     return int(conn.execute("SELECT COALESCE(MAX(version), 0) + 1 FROM ticket_quotes WHERE rfq_vendor_id = ?", (rfq_vendor_id,)).fetchone()[0])
 
@@ -529,6 +548,8 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
 
     vendors = "(SELECT id FROM ticket_rfq_vendors WHERE rfq_id = ?)"
     links = "(SELECT id FROM ticket_rfq_links WHERE rfq_id = ?)"
+    # TKRFQ4: an order message belongs to the ticket it was sent for (its delivery line) - it stays, without the request's id
+    conn.execute("UPDATE ticket_outbox SET rfq_id = NULL WHERE rfq_id = ? AND ticket_id IS NOT NULL", (rfq_id,))
     run("ticket_outbox", f"DELETE FROM ticket_outbox WHERE rfq_id = ? OR link_id IN {links}", (rfq_id, rfq_id))
     run("ticket_rfq_link_redeems", f"DELETE FROM ticket_rfq_link_redeems WHERE link_id IN {links}", (rfq_id,))
     for table in CODE_TABLES:  # TKRFQVP (contract 15.7)

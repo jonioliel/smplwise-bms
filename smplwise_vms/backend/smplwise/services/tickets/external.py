@@ -224,7 +224,10 @@ def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dic
 
 
 def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: str | None, note_external: bool, require_code: bool | None,
-                   share_history: bool | None, send_now: bool, revision: int, rid: str | None = None, cost_claim: str | None = None) -> str:
+                   share_history: bool | None, send_now: bool, revision: int, rid: str | None = None, cost_claim: str | None = None,
+                   dispatch: bool = True) -> str:
+    """`dispatch=False` (TKRFQ4, the RFQ work order): everything an assignment does EXCEPT queueing the assignment message - the order
+    message leaves only on the manager's explicit click (owner rule: an approval never sends anything by itself)."""
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
@@ -302,7 +305,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     owners.on_handoff(conn, row, by=viewer.uid, actor_name=who, at=now)
     store_links.touch_contact_assigned(conn, contact_id, now)
     dispatched = DISPATCH.queue(conn, purpose="assign", ticket=row, assignment_id=aid, link=link_row, contact=contact,
-                                send_now=bool(send_now), requested_by=viewer.uid)
+                                send_now=bool(send_now), requested_by=viewer.uid) if dispatch else {"queued": False, "channel": channel}
     audit(conn, actor=viewer.principal, action="ticket.assign", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "assignee_kind": "contact", "contact_id": contact_id, "reassign": bool(current), "reopened": reopened,
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued")),

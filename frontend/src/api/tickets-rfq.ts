@@ -127,9 +127,37 @@ export interface RfqAward {
   total_minor: number | null;
   threshold_minor?: number | null;
   decline_reason?: string | null;
-  /** C4 / C2 gap: the item and the order the award opened */
-  ticket?: { id: string; number: number } | null;
+  /** TKRFQ4 (contract 18.4): the service request the order opened (`id` null when the viewer may not open it) */
+  ticket?: RfqOrderTicket | null;
+  /** TKRFQ4: the work order of this award - null until the manager opens it */
+  order?: RfqOrder | null;
+  /** TKRFQ4: what was agreed - the whole quote, the lines of some kinds, or chosen lines */
+  scope?: RfqScope | null;
+  /** TKRFQ4: the order form's dates (the quote's work window, else the request's) - while no order exists, for a viewer who may order */
+  order_defaults?: { work_from: string | null; work_to: string | null } | null;
+  can?: { order: boolean; send_order: boolean };
 }
+
+export interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
+export interface RfqScope { kind: 'all' | 'kinds' | 'lines'; kinds: LineKind[]; lines: number }
+
+/** TKRFQ4 (contract 18): the work order of one award - no table of its own (the award + the quote's request + two timeline rows). */
+export interface RfqOrder {
+  ticket: RfqOrderTicket;
+  work_from: string | null;
+  work_to: string | null;
+  created_at: string | null;
+  created_by: string | null;
+  /** null until the manager's explicit send */
+  sent: { at: string; channel: string | null; by: string | null } | null;
+}
+
+/** `POST tickets/rfqs/{id}/awards/{award_id}/order` - opens the vendor's service request; sends nothing. */
+export interface RfqOrderBody { work_from?: string; work_to?: string; documents?: string; request_key: string }
+export interface RfqOrderAnswer { rfq: RfqDetail; award: RfqAward | null; ticket?: { id: string; number: number }; replayed?: boolean;
+  notified?: { queued: boolean; channel: string | null; outbox_id?: string | null; already?: boolean } }
+/** `GET .../order/preview`: the exact text of the order message (the link as a placeholder), its channel and the refusals. */
+export interface RfqOrderPreview { award_id: string; text: string; lang: string; channel: string; refusals: string[]; sent: boolean; sent_at: string | null }
 
 export interface RfqEvent {
   id: number | string;
@@ -175,7 +203,9 @@ export interface RfqDetail {
   vendor_page: boolean;
   /** C2 gap: the request's files */
   files?: RfqFile[];
-  can: { edit: boolean; add_vendor: boolean; send: boolean; remind: boolean; cancel: boolean; close: boolean; award: boolean; see_amounts: boolean; delete: boolean };
+  can: { edit: boolean; add_vendor: boolean; send: boolean; remind: boolean; cancel: boolean; close: boolean; award: boolean; see_amounts: boolean; delete: boolean;
+    /** TKRFQ4: an award waits for its work order / an order waits for its message (absent from older servers) */
+    order?: boolean; send_order?: boolean };
 }
 
 export interface RfqLine extends StoredLine { index: number }
@@ -327,6 +357,12 @@ export interface RfqBackend {
   messages(id: string, vendorId: string): Promise<{ items: RfqMessage[] }>;
   writeMessage(id: string, vendorId: string, text: string, notify: boolean, source?: { kind: 'award'; id: string }): Promise<RfqMessageAnswer>;
   setThreshold(departmentId: string, minor: number | null): Promise<{ department_id: string; second_approval_minor: number | null }>;
+  /** TKRFQ4 (contract 18.2): open the awarded vendor's service request (idempotent by request_key; nothing is sent) */
+  createOrder(id: string, awardId: string, body: RfqOrderBody): Promise<RfqOrderAnswer>;
+  /** TKRFQ4: the exact order message before the explicit send */
+  orderPreview(id: string, awardId: string): Promise<RfqOrderPreview>;
+  /** TKRFQ4: the manager's explicit send of the order message (a repeat answers the first send) */
+  sendOrder(id: string, awardId: string): Promise<RfqOrderAnswer>;
   /** C2 gap: upload one file for a request that is being created (returns its id) */
   uploadFile?(file: File): Promise<RfqFile>;
 }
@@ -384,6 +420,9 @@ const rest: RfqBackend = {
   messages: (id, vendorId) => get<{ items: RfqMessage[] }>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages`),
   writeMessage: (id, vendorId, text, notify, source) => post<RfqMessageAnswer>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages`, { text, notify, ...(source ? { source } : {}) }),
   setThreshold: (departmentId, minor) => put(`${R}/departments/${enc(departmentId)}`, { second_approval_minor: minor }),
+  createOrder: (id, awardId, body) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order`, body),
+  orderPreview: (id, awardId) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview`),
+  sendOrder: (id, awardId) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/send`),
 };
 
 /** The backend in force: REST with a server, the demo store without one. */

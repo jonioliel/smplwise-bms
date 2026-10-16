@@ -8,7 +8,8 @@
 import type { LineKind, VatMode } from '../api/tickets-costs';
 import type { Contact } from '../api/tickets-s4';
 import type {
-  RfqAwardBody, RfqChannel, RfqCompareQuote, RfqDetail, RfqEvent, RfqFilter, RfqKpis, RfqState, RfqSummary, RfqVendor, RfqVendorState,
+  RfqAward, RfqAwardBody, RfqChannel, RfqCompareQuote, RfqDetail, RfqEvent, RfqFilter, RfqKpis, RfqOrderBody, RfqScope, RfqState, RfqSummary, RfqVendor,
+  RfqVendorState,
 } from '../api/tickets-rfq';
 import { vatOf } from './cost-model';
 
@@ -266,7 +267,8 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
   if (e.kind === 'quote_submitted' && amount) return { key: 'ev_quote_submitted_amount', vars };
   if (e.kind === 'awarded' && amount) return { key: 'ev_awarded_amount', vars };
   const known = ['created', 'edited', 'vendor_added', 'vendor_removed', 'sent', 'reminder', 'quote_submitted', 'quote_withdrawn', 'declined', 'link_revoked', 'message',
-    'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback'];
+    'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',
+    'order_created', 'order_sent'];
   return { key: known.includes(e.kind) ? `ev_${e.kind}` : 'ev_other', vars };
 }
 
@@ -373,7 +375,9 @@ export function notSelected(quotes: readonly RfqCompareQuote[], sel: readonly Se
 /** A refusal code of the server mapped to the screen's words (`err_<code>`), or null for the server's own message. */
 export function refusalKey(code: string | undefined): string | null {
   const known = ['rfq_stale', 'quote_stale', 'rfq_vendor_page_unavailable', 'self_approval', 'second_approver_required', 'award_pending', 'rfq_has_award',
-    'vendor_not_allowed', 'vendor_duplicate', 'rfq_no_vendors', 'rfq_due_passed', 'rfq_field_locked', 'rfq_invalid_transition', 'vendor_code_locked'];
+    'vendor_not_allowed', 'vendor_duplicate', 'rfq_no_vendors', 'rfq_due_passed', 'rfq_field_locked', 'rfq_invalid_transition', 'vendor_code_locked',
+    // TKRFQ4: the work order
+    'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 
@@ -420,4 +424,42 @@ export function clientRequestId(): string {
   const a = new Uint8Array(12);
   (globalThis.crypto ?? { getRandomValues: (x: Uint8Array) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a);
   return `rfq-${[...a].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// ---------------------------------------------------------------- TKRFQ4: the work order (contract section 18)
+
+/** The approved awards in the order the board lists them (the awards that get a work order). */
+export function orderAwards(d: Pick<RfqDetail, 'awards'>): RfqAward[] {
+  return d.awards.filter((a) => a.state === 'approved');
+}
+
+/** Vendors that quoted and were NOT selected (they get no message at all - owner decision). */
+export function notSelectedCount(d: Pick<RfqDetail, 'vendors' | 'awards'>): number {
+  const picked = new Set(orderAwards(d).map((a) => a.vendor_id));
+  return d.vendors.filter((v) => !picked.has(v.id) && (v.state === 'not_awarded' || (v.quote !== null && v.state !== 'awarded' && v.state !== 'removed'))).length;
+}
+
+/** The scope line of an award: the whole quote, the lines of some kinds, or n chosen lines (kind names from the caller). */
+export function scopeText(s: RfqScope | null | undefined, kindName: (k: LineKind) => string): { key: 'ordScopeAll' | 'ordScopeKinds' | 'ordScopeLines'; vars: Record<string, string | number> } | null {
+  if (!s) return null;
+  if (s.kind === 'all') return { key: 'ordScopeAll', vars: {} };
+  if (s.kind === 'kinds') return { key: 'ordScopeKinds', vars: { kinds: s.kinds.map(kindName).join(', ') } };
+  return { key: 'ordScopeLines', vars: { n: s.lines } };
+}
+
+/** The order form of one award: its dates as local days (the server's defaults = the quote's work window, else the request's). */
+export function orderForm(a: Pick<RfqAward, 'order_defaults'>): { from: string; to: string; docs: string } {
+  return { from: isoToLocal(a.order_defaults?.work_from).date, to: isoToLocal(a.order_defaults?.work_to ?? a.order_defaults?.work_from).date, docs: '' };
+}
+
+/** Whether the order form can be sent: a start day, and an end day not before it. */
+export function orderFormValid(f: { from: string; to: string }): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(f.from) && (!f.to || f.to >= f.from);
+}
+
+/** The create body (idempotent by request_key; empty documents are not sent). */
+export function orderBody(f: { from: string; to: string; docs: string }, requestKey: string): RfqOrderBody {
+  const out: RfqOrderBody = { work_from: dayToIso(f.from), work_to: dayToIso(f.to || f.from), request_key: requestKey };
+  if (f.docs.trim()) out.documents = f.docs.trim();
+  return out;
 }

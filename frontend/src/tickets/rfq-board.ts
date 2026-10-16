@@ -4,6 +4,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import './rfq-quote-dialog';
 import './rfq-message-dialog';
+import './rfq-order';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -43,7 +44,7 @@ type Dlg =
  * vendors table (channel, state with the decline reason, sent, opened, quote with its time, the row's actions) and the timeline card.
  * A draft offers "send" (the confirmation with the channel mode - never an automatic send); a pending second approval shows its banner
  * with confirm / decline for an approver; an award shows the selected vendor (the approved cost baseline) and, when the server names
- * it, the item it opened. Actions follow the server's `can` flags only - what the viewer may not do is not shown. Events: `notice`
+ * it, the item it opened; TKRFQ4: below it the work-order step (<tickets-rfq-order>, one card per selected vendor). Actions follow the server's `can` flags only - what the viewer may not do is not shown. Events: `notice`
  * ({ok} | {error}), `gone` (deleted).
  */
 @customElement('tickets-rfq-board')
@@ -496,6 +497,7 @@ export class TicketsRfqBoard extends LitElement {
     return html`<div class="page" data-rfq-board data-phase="ready" data-rfq-id=${d.id}>
       ${this.header(d)}
       ${this.banners(d)}
+      ${d.awards.some((a) => a.state === 'approved') ? html`<tickets-rfq-order .rfq=${d} @changed=${(e: CustomEvent<RfqDetail>) => (this.d = e.detail)}></tickets-rfq-order>` : nothing}
       ${this.kpis(d)}
       <div class="grid2">${this.vendorsCard(d)}${this.timeline(d)}</div>
     </div>${this.dialog()}`;

@@ -22,6 +22,7 @@ const he = {
   p_cost_rejected: 'דרישת תשלום הוחזרה',
   p_cost_approved: 'דרישת תשלום אושרה',
   p_cost_reopened: 'הגשת עלות נפתחה שוב',
+  p_rfq_order: 'הזמנת עבודה',
   st_sent_whatsapp: 'נשלח בוואטסאפ - מסירה לא ידועה · {when}',
   st_sent_email: 'נשלח במייל - מסירה לא ידועה · {when}',
   st_unknown: 'ייתכן שנשלח · {when}',
@@ -66,6 +67,8 @@ const he = {
   e_link_copied: 'הקישור הועתק',
   e_link_new: 'נוצר קישור חדש',
   e_link_revoked: 'הקישור בוטל',
+  e_rfq_order: 'נפתח מהזמנת עבודה של בקשת הצעת מחיר RFQ-{number}',
+  e_rfq_order_sent: 'הזמנת העבודה נשלחה לספק',
   e_via_account: 'מחשבון {account}',
 
   // Settings › the module › ערוץ הודעות
@@ -166,6 +169,7 @@ const en: Partial<Record<keyof typeof he, string>> = {
   p_cost_rejected: 'Cost claim sent back',
   p_cost_approved: 'Cost claim approved',
   p_cost_reopened: 'Cost claim reopened',
+  p_rfq_order: 'Work order',
   st_sent_whatsapp: 'Sent on WhatsApp - delivery unknown · {when}',
   st_sent_email: 'Sent by e-mail - delivery unknown · {when}',
   st_unknown: 'Maybe sent · {when}',
@@ -206,6 +210,8 @@ const en: Partial<Record<keyof typeof he, string>> = {
   e_link_copied: 'The link was copied',
   e_link_new: 'A new link was made',
   e_link_revoked: 'The link was revoked',
+  e_rfq_order: 'Opened from the work order of request for quotation RFQ-{number}',
+  e_rfq_order_sent: 'The work order was sent to the vendor',
   e_via_account: 'from {account}',
   tabChannel: 'Message channel',
   tabTemplates: 'Message templates',

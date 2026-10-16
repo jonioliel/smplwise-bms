@@ -257,6 +257,10 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
     asg_external = row.get("asg_kind") == "contact" and bool(row.get("current_assignment_id")) and not row.get("asg_ended_at")
     out["can"]["change_owner"] = bool(seen.manager and open_)
     out["can"]["vendor_message"] = bool(seen.manager and open_ and asg_external and viewer.holds("tickets.external", row))
+    # TKRFQ4 (RFQ contract 18.5): "נפתחה מבקשת הצעת מחיר N" - full view only (a limited viewer learns nothing about the RFQ)
+    from .rfq_orders import origin_block
+
+    out["rfq_origin"] = origin_block(conn, viewer, row) if seen.full else None
     return out
 
 

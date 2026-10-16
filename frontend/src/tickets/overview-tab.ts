@@ -35,6 +35,8 @@ export interface OverviewCtx {
   onChangeOwner?: (() => void) | null;
   /** the address of the ticket this one duplicates (cancelled as a duplicate), or '' */
   duplicateHref: string;
+  /** TKRFQ4: the address of another item (the siblings of a split work order) in the host's mode */
+  hrefOf?: (id: string) => string;
   /** the photo row (the host's existing block, limited to one row) */
   photos: TemplateResult | typeof nothing;
   /** the handler link panel (tickets/link-panel.ts, managers only) under the handler card: copy / new / revoke / send again stay one tap away */
@@ -145,6 +147,7 @@ function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
       ${f('dept', dwt('fDept'), dc)}
       ${f('priority', dwt('fPriority'), t.priority?.name ?? '')}
       ${f('opened', dwt('fOpened'), `${shortDateTime(t.created_at)} · ${t.created_by.name}`)}
+      ${rfqOriginFact(t, ctx)}
       ${t.duplicate_of ? html`<div class="f" data-fact="duplicate"><small>${dwt('fDuplicate')}</small><a href=${ctx.duplicateHref} data-duplicate-of>${dwt('sn_duplicate', { n: t.duplicate_of.number })}</a></div>` : nothing}
       ${t.close_note && (t.status === 'closed' || t.status === 'cancelled') ? html`<div class="f wide" data-fact="close-note"><small>${dwt('fCloseNote')}</small><span data-close-note>${t.close_note}</span></div>` : nothing}
       ${t.description ? html`<div class="f wide" data-fact="description"><small>${dwt('fDescription')}</small>
@@ -153,6 +156,16 @@ function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
       </div>` : nothing}
     </div>
   </section>`;
+}
+
+/** TKRFQ4: "נפתחה מבקשת הצעת מחיר RFQ-07" - the request (a link when the viewer may open it), and the other items of a split. */
+function rfqOriginFact(t: TicketDetail, ctx: OverviewCtx): TemplateResult | typeof nothing {
+  const o = t.rfq_origin;
+  if (!o) return nothing;
+  const label = dwt('rfqOrigin', { ref: o.ref });
+  const sib = o.siblings.length ? html`<small class="muted" data-rfq-siblings>${dwt('rfqSiblings', { list: '' })}${o.siblings.map((s, i) => html`${i ? ', ' : ''}<a href=${ctx.hrefOf ? ctx.hrefOf(s.id) : `#/tickets/${s.id}`} data-rfq-sibling=${s.id}>#${s.number}</a>`)}</small>` : nothing;
+  return html`<div class="f wide" data-fact="rfq-origin"><small>${dwt('fRfqOrigin')}</small>
+    <span>${o.id ? html`<a href=${`#/tickets/rfqs?rfq=${encodeURIComponent(o.id)}`} data-rfq-origin=${o.id}>${label}</a>` : html`<span data-rfq-origin>${label}</span>`}</span>${sib}</div>`;
 }
 
 export function overviewTab(t: TicketDetail & { link?: LinkBlock | null }, ctx: OverviewCtx): TemplateResult {

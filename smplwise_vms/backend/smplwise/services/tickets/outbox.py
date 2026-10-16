@@ -334,7 +334,8 @@ def code_request_check(previous: Iterable[dt.datetime], now: dt.datetime) -> tup
     return True, None, None
 
 
-_SENT_KIND = {"assign": "link_sent", "reopened": "link_sent", "update": "update_sent", "reminder": "reminder", "code": "code_sent"}
+_SENT_KIND = {"assign": "link_sent", "reopened": "link_sent", "update": "update_sent", "reminder": "reminder", "code": "code_sent",
+              "rfq_order": "link_sent"}  # TKRFQ4: the work order carries the new request's handler link
 
 
 def timeline_kind(row: OutboxRow, *, fallback_step: str | None = None) -> str | None:

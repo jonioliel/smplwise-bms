@@ -985,6 +985,7 @@ export class TicketDetailView extends LitElement {
       onEdit: t.can.edit_fields.length ? () => this.openDialog({ kind: 'edit' }) : null,
       onChangeOwner: canChangeOwner(t) ? () => this.openDialog({ kind: 'owner' }) : null,
       duplicateHref: t.duplicate_of ? this.hrefOf(t.duplicate_of.id) : '',
+      hrefOf: (id: string) => this.hrefOf(id),
       link: this.linkPanel.render(t),
       photos: this.photosSection(t),
       device: historySection(t.device_context),
