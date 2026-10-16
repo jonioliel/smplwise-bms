@@ -14,7 +14,7 @@ const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 82
 const THEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const SKIP = '.skl, sw-icon, svg, sw-toggle, [role="switch"], .vh, input[type="file"]';
-const BUBBLE = '.tcard, .chip, .blk, .sentence, .rc, .seg, .ph, .banner, .statebox, .similar, .pick label, .person, .tag';
+const BUBBLE = '.tcard, .chip, .blk, .sentence, .rc, .seg, .ph, .banner, .statebox, .similar, .pick label, .person, .tag, .cwarn, .av, .frow';
 
 interface Screen {
   name: string;
@@ -26,6 +26,8 @@ interface Screen {
 }
 const SCREENS: Screen[] = [
   { name: 'list', hash: '/tickets/mine', wait: 'sw-app tickets-list ticket-card', within: 'tickets-list' },
+  { name: 'list-filter-row', hash: '/tickets/mine', wait: 'sw-app tickets-list ticket-card', within: 'tickets-list',
+    prep: async (p) => { await p.locator('sw-app tickets-list [data-filter-toggle]').click(); await p.locator('sw-app tickets-list [data-filter-row]').waitFor(); } },
   { name: 'drawer', hash: '/tickets/mine?t=0000000000000a01', wait: 'sw-app tickets-list ticket-detail [data-ticket-detail]', within: 'tickets-list' },
   { name: 'drawer-returned', hash: '/tickets/mine?t=0000000000000a04', wait: 'sw-app tickets-list ticket-detail [data-ticket-detail]', within: 'tickets-list', mock: { persona: 'operator' } },
   { name: 'full', hash: '/tickets/0000000000000a01', wait: 'sw-app tickets-detail ticket-detail [data-ticket-page]', within: 'tickets-detail' },

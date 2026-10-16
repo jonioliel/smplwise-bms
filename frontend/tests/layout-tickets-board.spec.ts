@@ -13,7 +13,7 @@ const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 82
 const THEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const SKIP = '.skl, sw-icon, svg, sw-toggle, [role="switch"], .vh, input[type="file"]';
-const BUBBLE = '.tcard, .chip, .blk, .sentence, .rc, .seg, .ph, .banner, .statebox, .tag, .tree .row';
+const BUBBLE = '.tcard, .chip, .blk, .sentence, .rc, .seg, .ph, .banner, .statebox, .tag, .tree .row, .cwarn, .av, .today, .frow, .hgroup, .closedrows';
 
 interface Screen { name: string; hash: string; wait: string; mock?: BoardMockOptions; within: string; prep?: (p: Page) => Promise<void> }
 const SCREENS: Screen[] = [
@@ -24,6 +24,8 @@ const SCREENS: Screen[] = [
   { name: 'board-stuck', hash: '/tickets/board?state=stuck', wait: 'sw-app tickets-board ticket-card', within: 'tickets-board' },
   { name: 'board-closed-open', hash: '/tickets/board', wait: 'sw-app tickets-board ticket-card', within: 'tickets-board',
     prep: async (p) => { await p.locator('sw-app tickets-board [data-closed-toggle]').click(); } },
+  { name: 'board-filter-row', hash: '/tickets/board', wait: 'sw-app tickets-board ticket-card', within: 'tickets-board',
+    prep: async (p) => { await p.locator('sw-app tickets-board [data-filter-toggle]').click(); await p.locator('sw-app tickets-board [data-filter-row]').waitFor(); } },
   { name: 'board-drawer', hash: '/tickets/board?t=0000000000000a01', wait: 'sw-app tickets-board ticket-detail [data-ticket-detail]', within: 'tickets-board' },
   { name: 'board-forbidden', hash: '/tickets/board', wait: 'sw-app tickets-board [data-tickets-state="forbidden"]', within: 'tickets-board', mock: { persona: 'operator' } },
   { name: 'settings-display', hash: '/system/tickets?tab=display', wait: 'sw-app system-tickets ticket-board-settings [data-ui-board]', within: 'system-tickets', mock: { persona: 'admin' } },
