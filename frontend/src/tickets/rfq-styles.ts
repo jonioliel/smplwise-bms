@@ -847,6 +847,12 @@ export const rfqStyles = css`
       grid-template-columns: minmax(0, 1fr);
     }
   }
+  @media (pointer: coarse), (max-width: 767px) {
+    a.chip {
+      block-size: auto;
+      min-block-size: 44px;
+    }
+  }
   @media (max-width: 767px) {
     .dh-row {
       grid-template-areas: 't .';

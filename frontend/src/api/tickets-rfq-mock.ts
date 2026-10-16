@@ -688,6 +688,15 @@ export const mockRfq: RfqBackend = {
   },
 };
 
+/** Back to the seeded requests (the evidence specs replay the demo store as a fake server, one clean store per test). */
+export function resetDemoRfq(): void {
+  rfqs.length = 0;
+  seq = 6;
+  DEPTS[0].threshold = null;
+  DEPTS[1].threshold = 500_000;
+  seed();
+}
+
 /** The demo names of directory contacts the new-request sheet picked (the sheet tells the store; the real server reads its directory). */
 const contactNames = new Map<string, { name: string; company: string }>();
 const pending = new Map<string, RfqFile>();
