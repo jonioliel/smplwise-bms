@@ -54,7 +54,7 @@ def uid(s4, username: str) -> str:
 def inbox(s4, user: str) -> list[dict]:
     r = s4.c.get(f"{API}/notifications", headers=s4.h(user))
     assert r.status_code == 200, r.text
-    return [n for n in r.json()["items"] if n["source"].startswith("rfq.")]
+    return [n for n in r.json()["notifications"] if n["source"].startswith("rfq.")]
 
 
 def set_policy(s4, source: str, **body) -> None:
