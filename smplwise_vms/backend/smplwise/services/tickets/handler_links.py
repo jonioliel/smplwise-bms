@@ -176,7 +176,9 @@ def extend(conn, link_id: str, department_id: str, at: dt.datetime) -> None:
 
 def new_generation(conn, link_row: dict[str, Any], ticket: dict[str, Any], at: dt.datetime) -> dict[str, Any]:
     """"קישור חדש": generation + 1 under the CURRENT key, a new cap and first expiry, every earlier token, code session and code
-    of the link dead (codes and their windows are generation-scoped; the old sessions are deleted here)."""
+    of the link dead (codes and their windows are generation-scoped; the old sessions are deleted here). TK251: the open record
+    is generation-scoped too - the first open of the NEW link writes its own "הקישור נפתח" line, the manager's card shows when the
+    new link was opened (not the old one) and the "link not opened" clock (monitor, `generation_at`) starts again."""
     key_id, key = KEYS.current(create=False)
     gen = int(link_row["generation"]) + 1
     token = links.derive_token(key, link_row["id"], gen)
@@ -185,6 +187,7 @@ def new_generation(conn, link_row: dict[str, Any], ticket: dict[str, Any], at: d
     store_links.update_link(conn, link_row["id"], {
         "generation": gen, "key_id": key_id, "token_hash": links.token_hash(token), "generation_at": iso(at), "expires_at": iso(expires),
         "cap_at": iso(cap), "grace_until": None, "revoked_at": None, "revoked_reason": None, "sent_via": None, "sent_at": None,
+        "first_opened_at": None, "last_opened_at": None, "open_count": 0,
     })
     store_links.drop_sessions(conn, link_row["id"])
     return store_links.link(conn, link_row["id"]) or link_row
@@ -260,7 +263,8 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
         "first_opened_at": row.get("first_opened_at"),
         "last_opened_at": row.get("last_opened_at"),
         "open_count": int(row.get("open_count") or 0),
-        "devices": store_links.access_devices(conn, row["id"]),
+        # TK251: the devices of THIS generation (none before its first open; access rows carry no generation, so the time decides)
+        "devices": store_links.access_devices(conn, row["id"], since=row.get("generation_at")) if row.get("first_opened_at") else 0,
         "update_count": int(row.get("update_count") or 0),
         "require_code": bool(row["require_code"]),
         "code_locked": locked,

@@ -49,6 +49,10 @@ BULK_MAX = 50
 LOCKED_CLAIMS = ("approved", "paid")
 ORPHAN_MIN_AGE_S = 3600.0
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+# deep review A4 (TK251): the only names the module writes inside a ticket folder - a stored picture / invoice (16 hex + .jpg / .pdf,
+# image_intake.store_image / cost_storage.store_pdf) and the temporary file of an atomic write (image_intake.write_atomic)
+_STORED_NAME = re.compile(r"^(?:[0-9a-f]{16}\.(?:jpg|pdf)|\.up\.[A-Za-z0-9_-]{1,32}\.tmp)$")
+ORPHAN_FILES_MAX = 2000  # per sweep: a huge backlog is worked off over several janitor ticks
 _RATE: dict[str, collections.deque[float]] = {}
 _RATE_LOCK = threading.Lock()
 
@@ -238,3 +242,63 @@ def sweep_orphans(db: Database, root: Path, *, min_age_s: float = ORPHAN_MIN_AGE
     with db.connection(mode="read", label="tickets.delete.sweep") as conn:
         orphans = [tid for tid in candidates if not store.folder_in_use(conn, tid)]
     return remove_files(root, orphans) if orphans else 0
+
+
+def sweep_orphan_files(db: Database, root: Path, *, min_age_s: float = ORPHAN_MIN_AGE_S, now: float | None = None,
+                       limit: int = ORPHAN_FILES_MAX) -> int:
+    """Deep review A4: a picture or invoice written to `<ticket>/` or `<ticket>/costs/` whose row was never recorded (a process
+    crash between the write and the row - not an exception, which cleans up itself) would count toward the 2 GiB cap forever.
+    A file is removed only when ALL hold: its name is one the module writes (_STORED_NAME), it has not changed for `min_age_s`
+    (its row may still be on the way), and no `ticket_attachments` / `ticket_cost_files` row names its path. Anything else -
+    another name, a sub-folder other than `costs`, a symbolic link - is left alone. Returns the number removed."""
+    from . import attachments
+
+    if not root.is_dir():
+        return 0
+    now = time.time() if now is None else now
+    base = root.resolve()
+    candidates: dict[str, list[tuple[str, Path]]] = {}
+    found = 0
+    for folder in root.iterdir():
+        try:
+            if folder.is_symlink() or not folder.is_dir() or not _ID.fullmatch(folder.name):
+                continue
+            for sub, rel_dir in ((folder, folder.name), (folder / "costs", f"{folder.name}/costs")):
+                if sub.is_symlink() or not sub.is_dir():
+                    continue
+                for f in sub.iterdir():
+                    if not _STORED_NAME.fullmatch(f.name) or f.is_symlink() or not f.is_file():
+                        continue
+                    if now - f.stat().st_mtime < min_age_s:
+                        continue
+                    candidates.setdefault(folder.name, []).append((f"{rel_dir}/{f.name}", f))
+                    found += 1
+                    if found >= limit:
+                        break
+        except OSError:
+            continue
+        if found >= limit:
+            break
+    if not candidates:
+        return 0
+    with db.connection(mode="read", label="tickets.files.sweep") as conn:
+        named: set[str] = set()
+        for tid in candidates:
+            named |= store.stored_paths(conn, tid)
+    removed = 0
+    for tid, files in candidates.items():
+        for rel, f in files:
+            if rel in named:
+                continue
+            try:
+                p = f.resolve()
+                if base not in p.parents:
+                    continue
+                p.unlink()
+                removed += 1
+            except OSError as exc:
+                log.warning("orphan ticket file was not removed (%s)", type(exc).__name__)
+    if removed:
+        attachments.forget_size_cache()
+        log.info("orphan ticket files removed: %d", removed)
+    return removed

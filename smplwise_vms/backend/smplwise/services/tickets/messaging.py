@@ -50,7 +50,7 @@ from . import codes as codes_mod
 from . import inbound as inbound_mod
 from . import links as links_mod
 from . import message_templates as mt
-from .channel import LANGS, LINK_PURPOSES, SENT, AccountRef, Recipient, SendResult, phone_digits
+from .channel import CLAIM_LINK_PURPOSES, LANGS, LINK_PURPOSES, SENT, AccountRef, Recipient, SendResult, phone_digits
 from .channel_email import EmailChannel, mail_config
 from .channel_whatsapp import HaServiceTransport, WhatsAppChannel
 from .keyring import KEYS
@@ -136,22 +136,35 @@ class DbLinks:
         self.io = io
         self.clock = clock
 
-    def url(self, link_id: str) -> str | None:
+    @staticmethod
+    def _serves(conn, row: Mapping[str, Any] | None, now: dt.datetime, claim: bool) -> bool:
+        """The link opens the page now - or, for a cost message (`claim`, TK251), at least the claim step (claim mode)."""
+        if row is None:
+            return False
+        if handler_links.state(dict(row), now) == "live":
+            return True
+        if not claim:
+            return False
+        from . import costs
+
+        return costs.claim_mode_ok(conn, row["id"], int(row["generation"]), now) is not None
+
+    def url(self, link_id: str, *, claim: bool = False) -> str | None:
         with self.io.read() as conn:
             row = store_links.link(conn, link_id)
-            if row is None or handler_links.state(row, self.clock()) != "live":
+            if not self._serves(conn, row, self.clock(), claim):
                 return None
             try:
                 return handler_links.handler_url(conn, row)
             except Exception:  # noqa: BLE001 - no public address, a missing key: the message cannot carry a link
                 return None
 
-    def redeem_url(self, link_id: str) -> str | None:
+    def redeem_url(self, link_id: str, *, claim: bool = False) -> str | None:
         """The e-mail form (10.2): a fresh 128-bit redeem id, stored as its hash for 24 h (3 releases)."""
         conn = self.io.write()
         row = store_links.link(conn, link_id)
         now = self.clock()
-        if row is None or handler_links.state(row, now) != "live":
+        if not self._serves(conn, row, now, claim):
             return None
         base = handler_links.public_base_url(conn)
         if not base:
@@ -182,7 +195,7 @@ class DbLinks:
         row = store_links.link(conn, link_id)
         if row is None:
             return
-        if purpose in LINK_PURPOSES:
+        if purpose in LINK_PURPOSES or purpose in CLAIM_LINK_PURPOSES:  # TK251: a cost message carries the link too (D6)
             handler_links.mark_sent(conn, link_id, via, at)
         if purpose in ("reminder", "update"):
             t = obs.ticket_for_worker(conn, row["ticket_id"])
@@ -616,7 +629,8 @@ class MessagingRuntime:
                 return obs.recent_account_keys(c, since)
 
         return inbound_mod.InboundProcessor(key=key, directory=DbMatchDirectory(io, self.clock), dedupe=DbDedupe(io),
-                                            account_filter=inbound_mod.TicketAccountFilter(lambda: svc.mapped_keys("tickets"), recent, lambda: window),
+                                            account_filter=inbound_mod.TicketAccountFilter(lambda: svc.mapped_keys("tickets"), recent, lambda: window,
+                                                                                           visible_keys=svc.all_keys),
                                             reply_window_h=lambda: window)
 
     def drain_inbound(self, now: dt.datetime) -> int:

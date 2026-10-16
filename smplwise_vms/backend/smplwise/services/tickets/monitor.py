@@ -95,7 +95,9 @@ def _link_info(conn, row: dict[str, Any]) -> stuck.LinkInfo | None:
     link = store.current_link(conn, row.get("current_assignment_id"))
     if link is None:
         return None
-    return stuck.LinkInfo(sent_at=link.get("created_at"), first_opened_at=link.get("first_opened_at"), expires_at=link.get("expires_at"),
+    # TK251: "link not opened" counts from the current generation (a "new link" restarts it; first_opened_at is per generation)
+    return stuck.LinkInfo(sent_at=link.get("generation_at") or link.get("created_at"), first_opened_at=link.get("first_opened_at"),
+                          expires_at=link.get("expires_at"),
                           cap_at=link.get("cap_at"), revoked=bool(link.get("revoked_at")))
 
 

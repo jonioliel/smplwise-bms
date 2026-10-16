@@ -341,7 +341,10 @@ def _table_scan(viewer: Viewer, query: Any, after: tuple[list[Any], str] | None,
         for row in batch:
             scanned += 1
             after = ([row[f"_s{i}"] for i in range(n)], row["id"])
-            yield row, visible(viewer, row), after
+            seen = visible(viewer, row)
+            if seen is not None and query.filters.stuck and not seen.full:
+                seen = None  # TK251: the stuck kind is management information - a filter on it never matches a limited row
+            yield row, seen, after
         if len(batch) < want:
             return
 

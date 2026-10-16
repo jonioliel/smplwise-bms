@@ -2,7 +2,8 @@
 a template for a contact's language, and rendering.
 
 Rules (9.7):
-- Allow-listed placeholders only (PLACEHOLDERS). `{link}` is mandatory in assign / reminder / reopened / update; `{code}` is
+- Allow-listed placeholders only (PLACEHOLDERS). `{link}` is mandatory in assign / reminder / reopened / update and in the cost messages that ask the vendor to act
+  (cost_rejected / cost_reopened - TK251, 11A.7); `{code}` is
   mandatory in, and allowed only in, the `code` template, which carries no link and no ticket title (this module is stricter and
   also refuses `{place}` and `{device}` there: a forwarded code message discloses nothing about the ticket).
 - No Unicode Cc / Cf characters (control, bidi, zero-width - review T9), no URL other than `{link}`, at most 1000 rendered
@@ -22,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 from . import naming as _naming
-from .channel import DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, Button, one_line, strip_controls
+from .channel import DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, TEMPLATE_LINK_PURPOSES, Button, one_line, strip_controls
 
 PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "priority", "organization", "link", "code",
                 "manager", "eta", "module_name", "module_name_plural")
@@ -110,13 +111,13 @@ STARTERS: dict[str, dict[str, str]] = {
         "ar": "تحديث: {module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة: {link}",
         "ru": "Обновление: {module_name} № {number} ({department}): {title}\n{place}\nОбновить статус: {link}",
     },
-    # slice 9 (11A.7): the vendor's cost claim - never an amount in a message; the vendor reopens the handler link it already
-    # received (the claim step opens on it until the claim window ends)
+    # slice 9 (11A.7): the vendor's cost claim - never an amount in a message. TK251: a message that asks the vendor to act
+    # carries the handler link ({link}, the claim step - claim mode until the claim window ends); the approval carries none
     "cost_rejected": {
-        "he": "דרישת העלות ל{module_name} {number} ({department}) הוחזרה לתיקון. פתחו את הקישור שקיבלתם כדי לעיין בהערה ולהגיש מחדש.",
-        "en": "The cost claim for {module_name} #{number} ({department}) was sent back for correction. Open the link you received to see the note and resubmit.",
-        "ar": "أعيدت مطالبة التكلفة لـ {module_name} رقم {number} ({department}) للتصحيح. افتحوا الرابط الذي استلمتموه للاطلاع على الملاحظة وإعادة التقديم.",
-        "ru": "Счёт по {module_name} № {number} ({department}) возвращён на исправление. Откройте полученную ссылку, чтобы увидеть замечание и отправить снова.",
+        "he": "דרישת העלות ל{module_name} {number} ({department}) הוחזרה לתיקון.\nלעיון בהערה ולהגשה מחדש: {link}",
+        "en": "The cost claim for {module_name} #{number} ({department}) was sent back for correction.\nSee the note and resubmit: {link}",
+        "ar": "أعيدت مطالبة التكلفة لـ {module_name} رقم {number} ({department}) للتصحيح.\nللاطلاع على الملاحظة وإعادة التقديم: {link}",
+        "ru": "Счёт по {module_name} № {number} ({department}) возвращён на исправление.\nЗамечание и повторная отправка: {link}",
     },
     "cost_approved": {
         "he": "דרישת העלות ל{module_name} {number} ({department}) אושרה. תודה.",
@@ -125,10 +126,10 @@ STARTERS: dict[str, dict[str, str]] = {
         "ru": "Счёт по {module_name} № {number} ({department}) одобрен. Спасибо.",
     },
     "cost_reopened": {
-        "he": "אפשר שוב להגיש דרישת עלות ל{module_name} {number} ({department}). פתחו את הקישור שקיבלתם כדי להגיש.",
-        "en": "You can submit the cost claim for {module_name} #{number} ({department}) again. Open the link you received to submit it.",
-        "ar": "يمكنكم مجددًا تقديم مطالبة التكلفة لـ {module_name} رقم {number} ({department}). افتحوا الرابط الذي استلمتموه للتقديم.",
-        "ru": "Вы снова можете отправить счёт по {module_name} № {number} ({department}). Откройте полученную ссылку, чтобы отправить его.",
+        "he": "אפשר שוב להגיש דרישת עלות ל{module_name} {number} ({department}).\nלהגשה: {link}",
+        "en": "You can submit the cost claim for {module_name} #{number} ({department}) again.\nSubmit it here: {link}",
+        "ar": "يمكنكم مجددًا تقديم مطالبة التكلفة لـ {module_name} رقم {number} ({department}).\nللتقديم: {link}",
+        "ru": "Вы снова можете отправить счёт по {module_name} № {number} ({department}).\nОтправить: {link}",
     },
     "test": {
         "he": "הודעת בדיקה. אין צורך להשיב.",
@@ -262,7 +263,7 @@ def problems(purpose: str, body: Any, *, for_contacts: bool = True) -> list[dict
     else:
         if "code" in names:
             add("code_not_allowed")
-        if for_contacts and purpose in LINK_PURPOSES and "link" not in names:
+        if for_contacts and purpose in TEMPLATE_LINK_PURPOSES and "link" not in names:
             add("link_required")
     if not any(p["code"] in ("brace_unbalanced", "gender_malformed") for p in out):
         worst = render(body, _WORST, lang="he", display_name={l: {"one": "W" * 30, "many": "W" * 30} for l in LANGS},

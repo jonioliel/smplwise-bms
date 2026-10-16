@@ -1137,6 +1137,13 @@ def folder_in_use(conn: sqlite3.Connection, ticket_id: str) -> bool:
         "SELECT 1 FROM ticket_cost_files WHERE ticket_id = ? LIMIT 1"))
 
 
+def stored_paths(conn: sqlite3.Connection, ticket_id: str) -> set[str]:
+    """Every relative file path a row names under `<data>/tickets/<ticket_id>/`: photos and invoice files (deep review A4 sweep)."""
+    out = {r[0] for r in conn.execute("SELECT path FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,)).fetchall()}
+    out |= {r[0] for r in conn.execute("SELECT path FROM ticket_cost_files WHERE ticket_id = ?", (ticket_id,)).fetchall()}
+    return out
+
+
 def ticket_rows_left(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     """Tests and the orphan sweep: rows still naming the ticket, per table (empty = nothing left)."""
     checks = {

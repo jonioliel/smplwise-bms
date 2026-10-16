@@ -156,8 +156,10 @@ def ticket_item(conn: sqlite3.Connection, seen: Seen, lk: Lookups, last_names: d
         "closed_at": row.get("closed_at"),
         "revision": row["revision"],
         "view": "full" if seen.full else "limited",
-        # slice 2: the SLA dues (services/tickets/sla.py; the board and the table of slices 6 / 6b show them)
-        "sla": {"ack_due_at": row.get("ack_due_at"), "stuck_due_at": row.get("stuck_due_at"), "resolve_due_at": row.get("resolve_due_at")},
+        # slice 2: the SLA dues (services/tickets/sla.py; the board and the table of slices 6 / 6b show them). TK251: management
+        # information (13.6) - a limited viewer (a creator / internal assignee who is not a member) gets None, as in the table
+        "sla": ({"ack_due_at": row.get("ack_due_at"), "stuck_due_at": row.get("stuck_due_at"), "resolve_due_at": row.get("resolve_due_at")}
+                if seen.full else None),
     }
 
 
