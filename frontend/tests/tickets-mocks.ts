@@ -27,6 +27,8 @@ export interface TicketsMockOptions {
   ui?: { detail?: 'drawer' | 'fullscreen' | 'drawer_fullscreen'; new_ticket?: 'sheet' | 'dialog'; /* TKUI1 */ detail_tab?: string; drawer_size?: string; phone_sheet?: string };
   /** the list answers 500 */
   failList?: boolean;
+  /** TKCAL: visit times and SLA targets on the list items (the weekly calendar); the mock clock is Tue 13.10.2026 10:42 UTC */
+  schedule?: boolean;
   /** permissions beyond the persona's (the other areas of the rail, for the phone dock evidence) */
   extraPerms?: string[];
 }
@@ -73,7 +75,15 @@ const ROWS: Row[] = [
 const OPEN = ['new', 'assigned', 'acknowledged', 'in_progress', 'waiting_part', 'done', 'returned'];
 const GROUPS: Record<string, string[]> = { open: OPEN, unassigned: ['new', 'returned'], handling: ['assigned', 'acknowledged', 'in_progress', 'waiting_part'], done: ['done'], closed: ['closed', 'cancelled'] };
 
-function item(r: Row) {
+// TKCAL: hours from the mock "now" - a visit time (eta) and the SLA targets (ack / stuck / resolve) of a few rows
+const SCHEDULE: Record<string, { eta?: number; ack?: number; stuck?: number; resolve?: number }> = {
+  '0000000000000a01': { eta: -27 }, '0000000000000a02': { ack: -0.4, resolve: -30 }, '0000000000000a03': { eta: -5, resolve: 1 },
+  '0000000000000a05': { eta: -2 }, '0000000000000a06': { eta: -52, resolve: -80, stuck: -50 }, '0000000000000a07': { eta: -100 },
+};
+const dueAt = (h: number | undefined) => (h === undefined ? null : ago(h));
+
+function item(r: Row, schedule = false) {
+  const sc = schedule ? SCHEDULE[r.id] : undefined;
   const d = DEPTS.find((x) => x.id === r.dept)!;
   const p = PRIOS(r.dept).find((x) => x.key === r.prio)!;
   const c = (CATS[r.dept] ?? []).find((x) => x.id === r.cat) ?? null;
@@ -83,9 +93,10 @@ function item(r: Row) {
     department: { ...d, icon: null, color: null }, category: c, priority: { id: p.id, key: p.key, name: p.name, rank: p.rank, severity: p.severity },
     place_text: '', device_name: '', created_by: { id: 'u-ronit', name: 'רונית לוי' }, created_at: ago(r.hours + 2), last_activity_at: ago(r.hours),
     assignee: a ? { kind: 'user', id: a.id, name: a.name, since: ago(r.hours + 1), acknowledged_at: r.status === 'assigned' ? null : ago(r.hours + 0.5) } : null,
-    last_assignee_name: r.status === 'returned' ? 'יוסי מזרחי' : null, eta_at: r.status === 'waiting_part' ? ago(-27) : null,
+    last_assignee_name: r.status === 'returned' ? 'יוסי מזרחי' : null, eta_at: sc ? dueAt(sc.eta) : r.status === 'waiting_part' ? ago(-27) : null,
     waiting_on: a ? 'assignee' : r.status === 'closed' ? 'none' : 'manager', waiting_reason: a ? null : 'unassigned', reopen_count: r.reopen ?? 0, external_stale: false,
     closed_at: r.status === 'closed' ? ago(r.hours) : null, revision: 3, view: 'full',
+    ...(sc ? { sla: { ack_due_at: dueAt(sc.ack), stuck_due_at: dueAt(sc.stuck), resolve_due_at: dueAt(sc.resolve) } } : {}),
   };
 }
 
@@ -225,7 +236,7 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
         .filter((r) => scope !== 'department' || r.dept === 'dept-maintenance')
         .filter((r) => scope !== 'mine' || r.assignee === 'u-ronit' || true)
         .sort((a, b) => a.hours - b.hours);
-      return json(route, { items: list.map(item), next_cursor: null });
+      return json(route, { items: list.map((r) => item(r, o.schedule)), next_cursor: null });
     }
     // TKUI4: the counts of the list's page frame (GET tickets/facets: per state group, per department, the total) over the same visible set as the list
     if (p === 'tickets/facets' && method === 'GET') {

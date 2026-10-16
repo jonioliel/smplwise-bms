@@ -70,16 +70,16 @@ BUTTON_ACTIONS = ("ack", "wip")
 # Starter templates (one per purpose x language). ar / ru need a native speaker's review before the release (slice 8, 9.7).
 STARTERS: dict[str, dict[str, str]] = {
     "assign": {
-        "he": "שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול",
-        "en": "Hello {name},\nNew {module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling: {link}\nQuick reply: 1 = received, 2 = in progress",
-        "ar": "مرحبًا {name}،\n{module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة: {link}\nللرد السريع: 1 = تم الاستلام، 2 = قيد المعالجة",
-        "ru": "Здравствуйте, {name}!\n{g:f=Новая|m=Новый|n=Новое} {module_name} № {number} ({department}): {title}\n{place}\nОбновить статус: {link}\nБыстрый ответ: 1 = получено, 2 = в работе",
+        "he": "שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}\nחובה להיכנס לקישור כדי להמשיך בטיפול.",
+        "en": "Hello {name},\nNew {module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling: {link}\nYou must open the link to continue the handling.",
+        "ar": "مرحبًا {name}،\n{module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة: {link}\nيجب فتح الرابط لمتابعة المعالجة.",
+        "ru": "Здравствуйте, {name}!\n{g:f=Новая|m=Новый|n=Новое} {module_name} № {number} ({department}): {title}\n{place}\nОбновить статус: {link}\nЧтобы продолжить работу, необходимо открыть ссылку.",
     },
     "reminder": {
-        "he": "תזכורת: {module_name} {number} ({department}): {title}\nלעדכון הטיפול: {link}\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול",
-        "en": "Reminder: {module_name} #{number} ({department}): {title}\nUpdate the handling: {link}\nQuick reply: 1 = received, 2 = in progress",
-        "ar": "تذكير: {module_name} رقم {number} ({department}): {title}\nلتحديث المعالجة: {link}\nللرد السريع: 1 = تم الاستلام، 2 = قيد المعالجة",
-        "ru": "Напоминание: {module_name} № {number} ({department}): {title}\nОбновить статус: {link}\nБыстрый ответ: 1 = получено, 2 = в работе",
+        "he": "תזכורת: {module_name} {number} ({department}): {title}\nלעדכון הטיפול: {link}\nחובה להיכנס לקישור כדי להמשיך בטיפול.",
+        "en": "Reminder: {module_name} #{number} ({department}): {title}\nUpdate the handling: {link}\nYou must open the link to continue the handling.",
+        "ar": "تذكير: {module_name} رقم {number} ({department}): {title}\nلتحديث المعالجة: {link}\nيجب فتح الرابط لمتابعة المعالجة.",
+        "ru": "Напоминание: {module_name} № {number} ({department}): {title}\nОбновить статус: {link}\nЧтобы продолжить работу, необходимо открыть ссылку.",
     },
     "code": {
         "he": "קוד האימות: {code}\nהקוד בתוקף 10 דקות. אין למסור אותו לאחרים.",
@@ -100,10 +100,10 @@ STARTERS: dict[str, dict[str, str]] = {
         "ru": "{module_name} № {number} ({department}) {g:f=передана|m=передан|n=передано} другому исполнителю. Ваша ссылка больше не действует.",
     },
     "reopened": {
-        "he": "{module_name} {number} ({department}) {g:f=נפתחה|m=נפתח|n=נפתח} מחדש: {title}\n{place}\nלעדכון הטיפול: {link}\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול",
-        "en": "{module_name} #{number} ({department}) was reopened: {title}\n{place}\nUpdate the handling: {link}\nQuick reply: 1 = received, 2 = in progress",
-        "ar": "أعيد فتح {module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة: {link}\nللرد السريع: 1 = تم الاستلام، 2 = قيد المعالجة",
-        "ru": "{module_name} № {number} ({department}) {g:f=открыта|m=открыт|n=открыто} снова: {title}\n{place}\nОбновить статус: {link}\nБыстрый ответ: 1 = получено, 2 = в работе",
+        "he": "{module_name} {number} ({department}) {g:f=נפתחה|m=נפתח|n=נפתח} מחדש: {title}\n{place}\nלעדכון הטיפול: {link}\nחובה להיכנס לקישור כדי להמשיך בטיפול.",
+        "en": "{module_name} #{number} ({department}) was reopened: {title}\n{place}\nUpdate the handling: {link}\nYou must open the link to continue the handling.",
+        "ar": "أعيد فتح {module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة: {link}\nيجب فتح الرابط لمتابعة المعالجة.",
+        "ru": "{module_name} № {number} ({department}) {g:f=открыта|m=открыт|n=открыто} снова: {title}\n{place}\nОбновить статус: {link}\nЧтобы продолжить работу, необходимо открыть ссылку.",
     },
     "update": {
         "he": "עדכון: {module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}",
@@ -152,10 +152,10 @@ STAFF_STARTERS: dict[str, dict[str, str]] = {
         "ru": "Здравствуйте, {name}!\n{module_name} № {number} ({department}): {title}\n{place}\nОбновить статус без входа в систему: {link}",
     },
     "staff_assign": {
-        "he": "שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול ללא כניסה למערכת: {link}\nלאישור מהיר השב 1 = התקבל, 2 = בטיפול",
-        "en": "Hello {name},\n{module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling without signing in: {link}\nQuick reply: 1 = received, 2 = in progress",
-        "ar": "مرحبًا {name}،\n{module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة دون تسجيل الدخول: {link}\nللرد السريع: 1 = تم الاستلام، 2 = قيد المعالجة",
-        "ru": "Здравствуйте, {name}!\n{module_name} № {number} ({department}): {title}\n{place}\nОбновить статус без входа в систему: {link}\nБыстрый ответ: 1 = получено, 2 = в работе",
+        "he": "שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול ללא כניסה למערכת: {link}\nחובה להיכנס לקישור כדי להמשיך בטיפול.",
+        "en": "Hello {name},\n{module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling without signing in: {link}\nYou must open the link to continue the handling.",
+        "ar": "مرحبًا {name}،\n{module_name} رقم {number} ({department}): {title}\n{place}\nلتحديث المعالجة دون تسجيل الدخول: {link}\nيجب فتح الرابط لمتابعة المعالجة.",
+        "ru": "Здравствуйте, {name}!\n{module_name} № {number} ({department}): {title}\n{place}\nОбновить статус без входа в систему: {link}\nЧтобы продолжить работу, необходимо открыть ссылку.",
     },
 }
 

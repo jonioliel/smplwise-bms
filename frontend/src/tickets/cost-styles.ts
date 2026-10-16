@@ -216,6 +216,64 @@ export const costCardStyles = css`
   :host([data-skin='bubble']) .doc {
     border-radius: var(--sw-r-md);
   }
+  /* TKUI3: the payment demand against the approved quote (the baseline line, the exceptional lines, the difference) */
+  .vsq {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-block-start: 8px;
+    border-block-start: 1px dashed var(--dv-border);
+    font-size: var(--sw-fs-sm);
+  }
+  .vline {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--dv-text-2);
+  }
+  .vline.delta {
+    font-weight: 700;
+    color: var(--dv-text);
+  }
+  .vline.delta.warn .num {
+    color: var(--au-warn-text);
+  }
+  .exc {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .exc li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    color: var(--au-warn-text);
+  }
+  .exc .el {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+  .exc .el svg {
+    inline-size: 14px;
+    block-size: 14px;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+  }
+  .sect[data-embedded] > h4 .muted {
+    font-weight: 500;
+    color: var(--dv-text-3);
+  }
 `;
 
 /** The dialogs of the card: the line editor, the totals preview, the files list, the page viewer. */

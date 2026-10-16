@@ -11,7 +11,7 @@ import { installTableMock, type TableMock, type TableMockOptions } from './ticke
 // status sentence, the sub-state inside the chip, at most three chips, the avatar pair), the table (the "what is happening" column, the
 // floating bulk bar), and the manager board (the today row - the board only - the load meter, the warning line, the quiet closed rows).
 // Desktop 1440 and phone 390, light / dark, classic / domus (the five-skin sweep is layout-tickets*.spec.ts). Screenshots in
-// docs/design/evidence/tickets-ui4/. No weekly calendar mode exists (task TKCAL): the switch offers cards, table and the manager board.
+// docs/design/evidence/tickets-ui4/. The weekly calendar (task TKCAL) is the fourth mode: evidence-tickets-calendar.spec.ts.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/evidence-tickets-ui4.spec.ts --project=desktop --project=mobile --workers=1
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/tickets-ui4');
 const L = 'sw-app tickets-list';
@@ -144,11 +144,11 @@ test.describe('tickets list v5 evidence', () => {
     await expect(page.locator(`${L} ticket-card`)).toHaveCount(total);
   });
 
-  test('the view switch: cards and table for everyone, the manager board for managers; no calendar mode', async ({ page }) => {
+  test('the view switch: cards and table for everyone, the manager board for managers; the weekly calendar for everyone (TKCAL)', async ({ page }) => {
     await goBoard(page, '/tickets/mine');
     await page.waitForSelector(`${L} ticket-card`);
-    await expect(page.locator(`${L} [data-view-switch] [data-view]`)).toHaveCount(3);
-    await expect(page.locator(`${L} [data-view-switch] [data-view="calendar"]`)).toHaveCount(0);
+    await expect(page.locator(`${L} [data-view-switch] [data-view]`)).toHaveCount(4);
+    await expect(page.locator(`${L} [data-view-switch] [data-view="calendar"]`)).toHaveCount(1);
     await expect(page.locator(`${L} [data-view-switch] [data-view="cards"]`)).toHaveAttribute('aria-checked', 'true');
     await page.locator(`${L} [data-view-switch] [data-view="board"]`).click();
     await expect(page).toHaveURL(/#\/tickets\/board/);
@@ -159,7 +159,7 @@ test.describe('tickets list v5 evidence', () => {
     // not a manager: no board entry in the switch
     await goList(page, '/tickets/mine', { persona: 'operator' });
     await page.waitForSelector(`${L} ticket-card`);
-    await expect(page.locator(`${L} [data-view-switch] [data-view]`)).toHaveCount(2);
+    await expect(page.locator(`${L} [data-view-switch] [data-view]`)).toHaveCount(3);
     await expect(page.locator(`${L} [data-view-switch] [data-view="board"]`)).toHaveCount(0);
   });
 
