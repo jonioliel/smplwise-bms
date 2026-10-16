@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import './ticket-cost-card'; // slice 9 (11A.7): the cost card (the Costs tab until TKUI3 rebuilds it)
+import './costs-tab'; // TKUI3: the Costs tab (its payment demand is slice 9's cost card, embedded)
 import { ct } from './cost-text';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -66,7 +66,7 @@ const PHONE_QUERY = '(max-width: 767px)';
  *   - the tabs סקירה / שיחה / עלויות / היסטוריה (tickets/drawer-tabs.ts) - ONLY the active tab is rendered, inside the drawer body, so each
  *     tab is exactly one scroll container (tests/layout-tickets-drawer.spec.ts counts them);
  *   - Overview is complete (tickets/overview-tab.ts); שיחה (tickets/conversation-tab.ts) and היסטוריה (tickets/history-tab.ts) are TKUI2's;
- *     עלויות is a SLOT that reuses the cost card until TKUI3 rebuilds it - look for `data-slot`.
+ *     עלויות is TKUI3's (tickets/costs-tab.ts: quote, baseline, payment demand, the "send to the vendor?" dialog).
  * Every action calls the API and shows the server's answer; nothing is decided here. The default tab is the module setting (`ui.detail_tab`,
  * else Overview); a deep link may pass `?tab=` (`initialTab`) and the card's "ציר זמן" opens History.
  * Events (bubble, composed): `ticket-changed` {ticket}, `ticket-gone` {id} (returned by a non-member handler), `drawer-close`.
@@ -905,11 +905,8 @@ export class TicketDetailView extends LitElement {
         // TKUI2: the conversation of IA §4.2 - two sub-tabs, one composer (sticky at the bottom of this one scroller), tickets/conversation-tab.ts
         return html`<div class="one" data-tab-content="conv" data-slot="conv">${this.conv.render(t as ConvTicket)}</div>`;
       case 'costs':
-        // SLOT (TKUI3): the two-stage costs of IA §6.3 replace the claim card of slice 9
-        return html`<div class="one" data-tab-content="costs" data-slot="costs">
-          ${!t.cost || t.cost.status === 'not_required' ? html`<p class="slot-note" data-costs-empty>${dwt('costsEmpty')}</p>` : nothing}
-          <ticket-cost-card .ticket=${t} @cost-changed=${() => void this.load()}></ticket-cost-card>
-        </div>`;
+        // TKUI3: the two-stage costs of IA §6.3 (quote → work → payment demand → paid), tickets/costs-tab.ts
+        return html`<div class="one" data-tab-content="costs" data-slot="costs"><ticket-costs-tab .ticket=${t} @cost-changed=${() => void this.load()}></ticket-costs-tab></div>`;
       case 'history':
         // TKUI2: the full timeline with its filters, the files and the audit card (the link panel and its audit rows), tickets/history-tab.ts
         return html`<div class="one" data-tab-content="history" data-slot="history">${this.history.render(t, { link: this.linkPanel.render(t) })}</div>`;

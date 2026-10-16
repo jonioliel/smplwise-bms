@@ -4,12 +4,17 @@
  * needs, the once-only window reopen, the close gate of a required claim) and computes figures with the same integer rules
  * (tickets/cost-model.ts). The slice-1 demo store (./tickets-mock.ts) asks `demoCostBlock` for a ticket's `cost` and `demoCloseGate`
  * before a close.
+ * TKUI3 (2.6.0): the quotes of the detail backend too (contract 4) - the flow stage, the allowed line kinds, the baseline (the approved quote),
+ * the exceptional lines of a payment demand, partial approval, approval without the exceptional lines, and the editable message draft of
+ * every decision (nothing is ever sent by a decision). Demo tickets: 1043 a quote waiting for approval, 1046 an approved quote and a payment
+ * demand with an exceptional travel line, 1047 a staff contact without an account (no money surface at all).
  */
 import { ApiError } from './client';
 import type {
   AccountClaim, AssignPreview, BulkPaidAnswer, ClaimStatus, CostClaim, CostDecision, CostMode, CostReport, CostRevision, CostsBackend, CostsSettings, DecisionBody, DecisionKind,
-  DepartmentCosts, LineInput, OnBehalfBody, PendingFile, ReportGroupRow, ReportQuery, StoredLine, TicketCostBlock, TicketCosts, VatMode,
+  DepartmentCosts, ExceptionalLine, LineInput, LineKind, OnBehalfBody, PendingFile, ReportGroupRow, ReportQuery, StoredLine, TicketCostBlock, TicketCostsFull, VatMode,
 } from './tickets-costs';
+import type { CostFlow, MessageDraft, Quote, QuoteBlock, QuotesAnswer, QuotesBackend, QuoteState } from './tickets-quotes';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, minorToDecimal, quantityToMilli, vatOf } from '../tickets/cost-model';
 import { csvCell } from '../tickets/vendor-account-model';
 
@@ -24,11 +29,12 @@ const ME = 'יוני';
 let settingsRevision = 0;
 let costs: CostsSettings = {
   mode: 'optional', currencies: ['ILS'], vat_rate_bp: 1800, claim_window_days: 14, require_invoice: false,
-  max_claim_total_minor: 100_000_000, review_flag_above_minor: 1_000_000, notify_vendor_approved: true, retention_days: 2555,
+  max_claim_total_minor: 100_000_000, review_flag_above_minor: 1_000_000, notify_vendor_approved: false, retention_days: 2555,
+  allowed_line_kinds: ['labor', 'parts'],
 };
 const depts: DepartmentCosts[] = [
-  { id: 'dept-maintenance', key: 'maintenance', name: 'אחזקה', active: true, cost_claim: 'required', claim_window_days: null },
-  { id: 'dept-cleaning', key: 'cleaning', name: 'ניקיון', active: true, cost_claim: null, claim_window_days: 7 },
+  { id: 'dept-maintenance', key: 'maintenance', name: 'אחזקה', active: true, cost_claim: 'required', claim_window_days: null, allowed_line_kinds: null },
+  { id: 'dept-cleaning', key: 'cleaning', name: 'ניקיון', active: true, cost_claim: null, claim_window_days: 7, allowed_line_kinds: ['labor', 'parts', 'travel'] },
 ];
 
 interface DemoTicket {
@@ -36,7 +42,10 @@ interface DemoTicket {
   number: number;
   status: string;
   claims: CostClaim[];
-  assignments: { id: string; name: string; assigned_at: string; ended_at: string | null; cost_claim: CostMode | null }[];
+  assignments: { id: string; name: string; assigned_at: string; ended_at: string | null; cost_claim: CostMode | null; quote_mode: CostMode | null; quote_capable: boolean }[];
+  /** TKUI3: the quotes (contract 4) and the request's own allowed kinds (null = the department / installation default) */
+  quotes: Quote[];
+  kinds: LineKind[] | null;
   dept: string;
   device: string;
   room: string;
@@ -114,7 +123,12 @@ function seed(t: DemoTicket): void {
   const now = Date.now();
   if (t.number === 1046) {
     const vendor = 'קירור הצפון';
-    t.assignments = [{ id: nid('asg'), name: vendor, assigned_at: iso(now - 4 * DAY), ended_at: null, cost_claim: 'required' }];
+    t.assignments = [{ id: nid('asg'), name: vendor, assigned_at: iso(now - 4 * DAY), ended_at: null, cost_claim: 'required', quote_mode: 'required', quote_capable: true }];
+    // the approved quote (labour + parts) is the baseline: the demand's travel line is exceptional ("לבדיקה")
+    t.quotes = [quoteOf(t.assignments[0].id, 1, 'approved', [
+      storedLine({ kind: 'labor', description: 'החלפת מסנן וניקוי מאייד', hours: '2.5', rate: '180' }),
+      storedLine({ kind: 'parts', description: 'מסנן אוויר 60x60', quantity: '1', unit_price: '240' }),
+    ], now - 3 * DAY, { decided: { by: 'דנה כ.', at: now - 3 * DAY + 3_600_000 } })];
     const rev = revisionOf(1, [
       storedLine({ kind: 'labor', description: 'החלפת מסנן וניקוי מאייד', hours: '2.5', rate: '180' }),
       storedLine({ kind: 'parts', description: 'מסנן אוויר 60x60', quantity: '1', unit_price: '240' }),
@@ -123,7 +137,7 @@ function seed(t: DemoTicket): void {
     t.claims = [claimOf(t, t.assignments[0].id, vendor, 'שמעון', 'submitted', true, now + 12 * DAY, [rev])];
   } else if (t.number === 1048) {
     const vendor = 'חשמל אורן';
-    t.assignments = [{ id: nid('asg'), name: vendor, assigned_at: iso(now - 9 * DAY), ended_at: iso(now - 6 * DAY), cost_claim: 'optional' }];
+    t.assignments = [{ id: nid('asg'), name: vendor, assigned_at: iso(now - 9 * DAY), ended_at: iso(now - 6 * DAY), cost_claim: 'optional', quote_mode: 'off', quote_capable: true }];
     const r1 = revisionOf(1, [storedLine({ kind: 'labor', description: 'החלפת גוף תאורה', hours: '3', rate: '200' }), storedLine({ kind: 'parts', description: 'גוף תאורה לד', quantity: '1', unit_price: '800' })], 'excluded', now - 6 * DAY, { vendor_ref: '7781', documents: [photoDoc(1, 1, vendor)] });
     const r2 = revisionOf(2, [storedLine({ kind: 'labor', description: 'החלפת גוף תאורה', hours: '2', rate: '200' }), storedLine({ kind: 'parts', description: 'גוף תאורה לד', quantity: '1', unit_price: '800' })], 'excluded', now - 5 * DAY,
       { source: 'manager', kind: 'adjustment', based_on: r1.id, reason: 'שעת עבודה אחת כבר שולמה בביקור הקודם', created_by_kind: 'user', created_by_name: ME, vendor_ref: '7781', documents: r1.documents });
@@ -135,8 +149,19 @@ function seed(t: DemoTicket): void {
     t.claims = [c];
   } else if (t.number === 1043) {
     const vendor = 'מיזוג דרום';
-    t.assignments = [{ id: nid('asg'), name: vendor, assigned_at: iso(now - 20 * DAY), ended_at: null, cost_claim: 'required' }];
+    t.assignments = [{ id: nid('asg'), name: vendor, assigned_at: iso(now - 20 * DAY), ended_at: null, cost_claim: 'required', quote_mode: 'required', quote_capable: true }];
     t.claims = [claimOf(t, t.assignments[0].id, vendor, 'רמי', 'awaiting', true, now - DAY, [])];
+    // a first version replaced by the second one, which waits for the manager (approve / partial / correction / reject)
+    const v1 = quoteOf(t.assignments[0].id, 1, 'superseded', [storedLine({ kind: 'labor', description: 'אבחון ותיקון', hours: '4', rate: '200' })], now - 3 * DAY);
+    const v2 = quoteOf(t.assignments[0].id, 2, 'submitted', [
+      storedLine({ kind: 'labor', description: 'החלפת מדחס', hours: '3', rate: '200' }),
+      storedLine({ kind: 'parts', description: 'מדחס רוטורי 18000 BTU', quantity: '1', unit_price: '950' }),
+      storedLine({ kind: 'parts', description: 'גז קירור R32', quantity: '2', unit_price: '85' }),
+    ], now - 5 * 3_600_000, { work: [now + DAY, now + DAY + 4 * 3_600_000], note: 'המדחס במלאי אצלנו, אפשר מחר בבוקר.' });
+    t.quotes = [v1, v2];
+  } else if (t.number === 1047) {
+    // TKSTAFF1 / TKUI3: a staff contact without an account - an assignment of kind contact that never gets a money surface
+    t.assignments = [{ id: nid('asg'), name: 'יוסי טכנאי', assigned_at: iso(now - DAY), ended_at: null, cost_claim: 'off', quote_mode: 'optional', quote_capable: false }];
   }
   t.claims.forEach(refresh);
 }
@@ -144,7 +169,7 @@ function seed(t: DemoTicket): void {
 function ticketOf(id: string, number: number, status: string): DemoTicket {
   let t = byId.get(id);
   if (!t) {
-    t = { id, number, status, claims: [], assignments: [], dept: number === 1047 ? 'dept-cleaning' : 'dept-maintenance', device: number === 1046 ? 'מזגן חדר ישיבות' : '', room: number === 1046 ? 'חדר ישיבות' : 'לובי' };
+    t = { id, number, status, claims: [], assignments: [], quotes: [], kinds: null, dept: number === 1047 ? 'dept-cleaning' : 'dept-maintenance', device: number === 1046 ? 'מזגן חדר ישיבות' : '', room: number === 1046 ? 'חדר ישיבות' : 'לובי' };
     seed(t);
     byId.set(id, t);
     byNumber.set(number, t);
@@ -176,19 +201,222 @@ export function demoCloseGate(id: string, overrideReason: string | undefined): v
   const pending = t.claims.filter((c) => c.required && c.status !== 'approved' && c.status !== 'paid');
   if (!pending.length) return;
   if (!overrideReason?.trim()) {
-    throw new ApiError(409, { code: 'cost_claim_pending', user_message: 'יש דרישת עלות חובה שעדיין לא אושרה. אשרו אותה, או סגרו עם נימוק.', retryable: false, correlation_id: 'demo', details: { can_override: true } });
+    throw new ApiError(409, { code: 'cost_claim_pending', user_message: 'יש דרישת תשלום חובה שעדיין לא אושרה. אשרו אותה, או סגרו עם נימוק.', retryable: false, correlation_id: 'demo', details: { can_override: true } });
   }
   for (const c of pending) c.decisions?.push({ id: nid('dec'), action: 'override_close', revision_id: c.current_revision_id ?? null, reason: overrideReason.trim(), amount_minor: null, payment_ref: null, by: ME, at: iso(Date.now()) });
 }
 
-function answer(t: DemoTicket): TicketCosts {
+function answer(t: DemoTicket): TicketCostsFull {
   t.claims.forEach(refresh);
   return {
-    ticket_id: t.id, number: t.number, cost: block(t), claims: clone(t.claims),
+    ticket_id: t.id, number: t.number, cost: block(t), claims: t.claims.map((c) => ({ ...clone(c), ...demandView(t, c) })),
     settings: { currencies: [...costs.currencies], vat_rate_bp: costs.vat_rate_bp, review_flag_above_minor: costs.review_flag_above_minor, max_claim_total_minor: costs.max_claim_total_minor, require_invoice: costs.require_invoice },
     external_assignments: clone(t.assignments),
+    ...quoteBlock(t),
   };
 }
+
+// ---------------------------------------------------------------- TKUI3: quotes, the flow, the baseline, the exceptional lines (contract 4 / 5)
+
+const APPROVED_Q: readonly QuoteState[] = ['approved', 'partially_approved'];
+const KINDS: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
+
+interface QuoteExtra { decided?: { by: string; at: number; reason?: string }; approvedIdx?: number[]; work?: [number, number]; note?: string; source?: 'vendor' | 'manager' }
+
+function quoteOf(asgId: string, version: number, state: QuoteState, lines: StoredLine[], at: number, extra: QuoteExtra = {}): Quote {
+  const k = { labor: 0, parts: 0, travel: 0, other: 0 };
+  for (const l of lines) k[l.kind] += l.total_minor;
+  const subtotal = k.labor + k.parts + k.travel + k.other;
+  const v = vatOf(subtotal, 'excluded', costs.vat_rate_bp);
+  const q: Quote = {
+    id: nid('qt'), version, state, source: extra.source ?? 'vendor', created_at: iso(at), assignment_id: asgId, currency: 'ILS', vat_mode: 'excluded', vat_rate_bp: costs.vat_rate_bp,
+    lines: lines.map((l, index) => ({ ...l, index })), labor_minor: k.labor, parts_minor: k.parts, travel_minor: k.travel, other_minor: k.other, subtotal_minor: subtotal,
+    vat_minor: v.vat, total_minor: v.total, net_minor: v.net, work_from: extra.work ? iso(extra.work[0]) : null, work_to: extra.work ? iso(extra.work[1]) : null,
+    note: extra.note ?? null, vendor_ref: null, approved: null, vendor: '', revision: 1, created_by_name: extra.source === 'manager' ? ME : '',
+    decision: extra.decided ? { by: extra.decided.by, at: iso(extra.decided.at), reason: extra.decided.reason ?? null } : null, can: { decide: false, reject: false },
+  };
+  if (APPROVED_Q.includes(state)) approveLines(q, extra.approvedIdx ?? lines.map((_, i) => i));
+  return q;
+}
+
+function approveLines(q: Quote, idx: number[]): void {
+  const lines = q.lines ?? [];
+  const sub = lines.filter((l) => idx.includes(l.index)).reduce((n, l) => n + l.total_minor, 0);
+  const v = vatOf(sub, q.vat_mode ?? 'excluded', q.vat_rate_bp ?? costs.vat_rate_bp);
+  q.lines = lines.map((l) => ({ ...l, approved: idx.includes(l.index) }));
+  q.approved = { line_indexes: [...idx], subtotal_minor: sub, vat_minor: v.vat, total_minor: v.total };
+}
+
+function effectiveKinds(t: DemoTicket): QuoteBlock['allowed_line_kinds'] {
+  if (t.kinds) return { kinds: [...t.kinds], level: 'request' };
+  const d = depts.find((x) => x.id === t.dept);
+  if (d?.allowed_line_kinds) return { kinds: [...d.allowed_line_kinds], level: 'department' };
+  return { kinds: [...(costs.allowed_line_kinds ?? ['labor', 'parts'])], level: 'installation' };
+}
+
+function currentAsg(t: DemoTicket): DemoTicket['assignments'][number] | undefined {
+  return t.assignments.find((a) => !a.ended_at) ?? t.assignments.at(-1);
+}
+
+function baselineOf(t: DemoTicket, asgId: string | undefined): Quote | undefined {
+  return t.quotes.filter((q) => q.assignment_id === asgId && APPROVED_Q.includes(q.state)).at(-1);
+}
+
+function kindsOf(q: Quote): LineKind[] {
+  const on = (q.lines ?? []).filter((l) => l.approved);
+  return KINDS.filter((k) => on.some((l) => l.kind === k));
+}
+
+/** The server's quotes.flow (contract 4.3). */
+function flowOf(t: DemoTicket): CostFlow {
+  const sub = t.status === 'waiting_part' ? 'waiting_part' : null;
+  const a = currentAsg(t);
+  if (!a) return { stage: 'none', sub_state: sub, assignment_id: null, quote_mode: null };
+  const out: CostFlow = { stage: 'none', sub_state: sub, assignment_id: a.id, quote_mode: a.quote_mode ?? 'optional' };
+  const c = t.claims.find((x) => x.assignment_id === a.id);
+  if (c && c.status !== 'awaiting') return { ...out, stage: ({ submitted: 'demand_submitted', rejected: 'demand_rejected', approved: 'demand_approved', paid: 'paid' } as const)[c.status] };
+  if (c && ['done', 'closed', 'returned'].includes(t.status)) return { ...out, stage: 'demand_awaiting' };
+  const mine = t.quotes.filter((q) => q.assignment_id === a.id);
+  const last = mine.filter((q) => !['superseded', 'withdrawn', 'not_awarded'].includes(q.state)).at(-1);
+  const working = t.status === 'in_progress' || t.status === 'waiting_part';
+  if (mine.some((q) => APPROVED_Q.includes(q.state))) return { ...out, stage: working ? 'work' : 'quote_approved' };
+  if (last?.state === 'submitted') return { ...out, stage: 'quote_submitted' };
+  if (last?.state === 'fix_requested') return { ...out, stage: 'quote_fix_requested' };
+  if (last?.state === 'rejected') return { ...out, stage: 'quote_rejected' };
+  if (out.quote_mode === 'off') return { ...out, stage: working ? 'work' : 'none' };
+  return { ...out, stage: out.quote_mode === 'required' ? 'quote_requested' : 'quote_optional' };
+}
+
+function quoteBlock(t: DemoTicket): QuoteBlock {
+  const a = currentAsg(t);
+  const base = baselineOf(t, a?.id);
+  const capable = (q: Quote) => t.assignments.find((x) => x.id === q.assignment_id)?.quote_capable !== false;
+  return {
+    flow: flowOf(t),
+    allowed_line_kinds: effectiveKinds(t),
+    quote_mode: a?.quote_mode ?? null,
+    quotes: t.quotes.map((q) => ({
+      ...clone(q), vendor: t.assignments.find((x) => x.id === q.assignment_id)?.name ?? '',
+      can: { decide: q.state === 'submitted' && capable(q), reject: (q.state === 'submitted' || q.state === 'fix_requested') && capable(q) },
+    })),
+    baseline: base ? {
+      quote_id: base.id, version: base.version, state: base.state, total_minor: base.approved?.total_minor ?? null, subtotal_minor: base.approved?.subtotal_minor ?? null,
+      currency: base.currency ?? 'ILS', line_kinds: kindsOf(base),
+    } : null,
+  };
+}
+
+/** The server's quotes.demand_view + the per-revision exceptional lines (contract 5.2), computed for the demo. */
+function demandView(t: DemoTicket, c: CostClaim): Partial<CostClaim> {
+  const base = baselineOf(t, c.assignment_id);
+  const allowed = base ? kindsOf(base) : effectiveKinds(t).kinds;
+  const reason: ExceptionalLine['reason'] = base ? 'not_in_quote' : 'kind_not_allowed';
+  const approvedRev = c.revisions?.find((r) => r.id === c.approved_revision_id);
+  const revisions = (c.revisions ?? []).map((r) => {
+    const review: ExceptionalLine['review'] = c.approved_revision_id === r.id ? 'accepted'
+      : approvedRev?.based_on === r.id ? 'excluded'
+        : c.current_revision_id === r.id && c.status === 'submitted' ? 'pending' : undefined;
+    const exceptional: ExceptionalLine[] = r.lines.map((l, index) => ({ l, index })).filter(({ l }) => !allowed.includes(l.kind))
+      .map(({ l, index }) => ({ index, kind: l.kind, description: l.description, total_minor: l.total_minor, reason, ...(review ? { review } : {}) }));
+    return { ...clone(r), exceptional };
+  });
+  const cur = revisions.find((r) => r.id === (c.approved_revision_id ?? c.current_revision_id));
+  const bTotal = base?.approved?.total_minor ?? null;
+  const sum = (lines: StoredLine[], k: LineKind) => lines.filter((l) => l.kind === k).reduce((n, l) => n + l.total_minor, 0);
+  const bLines = (base?.lines ?? []).filter((l) => l.approved);
+  return {
+    revisions,
+    baseline: base ? { quote_id: base.id, version: base.version, total_minor: bTotal, currency: base.currency ?? 'ILS' } : null,
+    delta_minor: cur && bTotal !== null ? cur.total_minor - bTotal : null,
+    kind_deltas: cur && base ? { labor: cur.labor_minor - sum(bLines, 'labor'), parts: cur.parts_minor - sum(bLines, 'parts'), travel: cur.travel_minor - sum(bLines, 'travel'), other: cur.other_minor - sum(bLines, 'other') } : null,
+    needs_review: c.status === 'submitted' && !!cur?.exceptional?.length,
+  };
+}
+
+const KIND_HE: Record<LineKind, string> = { labor: 'עבודה', parts: 'חלקים', travel: 'נסיעה', other: 'אחר' };
+
+/** The server's quotes.draft_message (contract 7), Hebrew only in the demo - never an amount. */
+function draftOf(t: DemoTicket, subject: 'quote' | 'claim', id: string, decision: string, extra: { kinds?: LineKind[]; reason?: string; window?: string } = {}): MessageDraft {
+  const asgId = subject === 'quote' ? t.quotes.find((q) => q.id === id)?.assignment_id : t.claims.find((c) => c.id === id)?.assignment_id;
+  const name = t.assignments.find((a) => a.id === asgId)?.name ?? '';
+  const title = 'הבקשה';
+  const kinds = (extra.kinds ?? []).map((k) => KIND_HE[k]).join(', ');
+  const window = extra.window ? ` (חלון עבודה: ${extra.window})` : '';
+  const texts: Record<string, string> = {
+    quote_approved: `שלום ${name}, ההצעה שלכם עבור "${title}" אושרה${window}. אפשר להתחיל בעבודה.`,
+    quote_partially_approved: `שלום ${name}, ההצעה שלכם עבור "${title}" אושרה חלקית: ${kinds}${window}. אפשר להתחיל בעבודה על הסעיפים שאושרו.`,
+    quote_fix_requested: `שלום ${name}, נדרש תיקון בהצעה שלכם עבור "${title}": ${extra.reason ?? ''}. אפשר לשלוח הצעה מעודכנת בקישור.`,
+    quote_rejected: `שלום ${name}, ההצעה שלכם עבור "${title}" לא אושרה: ${extra.reason ?? ''}.`,
+    claim_approved: `שלום ${name}, דרישת התשלום שלכם עבור "${title}" אושרה.`,
+    claim_approved_without_exceptional: `שלום ${name}, דרישת התשלום שלכם עבור "${title}" אושרה ללא הסעיפים החריגים: ${kinds}.`,
+    claim_rejected: `שלום ${name}, דרישת התשלום שלכם עבור "${title}" לא אושרה: ${extra.reason ?? ''}.`,
+  };
+  return { text: texts[`${subject}_${decision}`] ?? '', lang: 'he', notify_default: true, send: { route: `POST /tickets/${t.id}/vendor-message`, source: { kind: subject, id } } };
+}
+
+function quotesAnswer(t: DemoTicket, draft?: MessageDraft): QuotesAnswer {
+  return { ...quoteBlock(t), ...(draft ? { message_draft: draft } : {}) };
+}
+
+const HANDLING_DEMO = ['assigned', 'acknowledged', 'in_progress', 'waiting_part'];
+
+export const mockQuotes: QuotesBackend = {
+  async decide(id, quoteId, action, body) {
+    await sleep(200);
+    const t = find(id);
+    const q = t.quotes.find((x) => x.id === quoteId);
+    if (!q) return refuse(404, 'quote_not_found', 'ההצעה לא נמצאה.');
+    if (body.revision !== q.revision) return refuse(409, 'quote_stale', 'ההצעה השתנתה בינתיים. טענו מחדש.');
+    if (t.assignments.find((a) => a.id === q.assignment_id)?.quote_capable === false) return refuse(409, 'quote_not_open', 'אין הצעת מחיר לשיוך הזה.');
+    const reason = body.reason?.trim() ?? '';
+    if (action !== 'approve' && !reason) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'reason', code: 'required' }] });
+    const open = action === 'reject' ? q.state === 'submitted' || q.state === 'fix_requested' : q.state === 'submitted';
+    if (!open) return refuse(409, 'quote_not_submitted', 'ההצעה אינה ממתינה להחלטה.');
+    if (action === 'approve') {
+      const all = (q.lines ?? []).map((l) => l.index);
+      const idx = body.line_indexes ?? all;
+      if (!idx.length || idx.some((i) => !all.includes(i))) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'line_indexes', code: 'invalid' }] });
+      q.state = idx.length === all.length ? 'approved' : 'partially_approved';
+      approveLines(q, idx);
+    } else {
+      q.state = action === 'reject' ? 'rejected' : 'fix_requested';
+    }
+    q.decision = { by: ME, at: iso(Date.now()), reason: reason || null };
+    q.revision = (q.revision ?? 1) + 1;
+    const window = q.work_from ? new Date(q.work_from).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : undefined;
+    return quotesAnswer(t, draftOf(t, 'quote', q.id, q.state, { kinds: q.state === 'partially_approved' ? kindsOf(q) : undefined, reason, window }));
+  },
+  async onBehalf(id, body) {
+    await sleep(220);
+    const t = find(id);
+    const a = t.assignments.find((x) => !x.ended_at);
+    if (!a || !a.quote_capable || !HANDLING_DEMO.includes(t.status) || (body.assignment_id && body.assignment_id !== a.id)) return refuse(409, 'quote_not_open', 'אי אפשר להזין הצעה בשלב הזה.');
+    if (!body.lines.length) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'lines', code: 'required' }] });
+    const allowed = effectiveKinds(t).kinds;
+    const bad = body.lines.findIndex((l) => !allowed.includes(l.kind));
+    if (bad >= 0) return refuse(422, 'line_kind_not_allowed', 'סוג השורה אינו מותר בבקשה הזו.', { fields: [{ field: `lines.${bad}.kind`, code: 'line_kind_not_allowed' }] });
+    const mine = t.quotes.filter((q) => q.assignment_id === a.id);
+    if (mine.some((q) => APPROVED_Q.includes(q.state))) return refuse(409, 'quote_already_approved', 'כבר יש הצעה מאושרת.');
+    for (const q of mine) if (q.state === 'submitted' || q.state === 'fix_requested') q.state = 'superseded';
+    t.quotes.push(quoteOf(a.id, mine.length + 1, 'submitted', body.lines.map(storedLine), Date.now(), { source: 'manager', note: body.note }));
+    return quotesAnswer(t);
+  },
+  async setMode(id, assignmentId, mode) {
+    await sleep();
+    const t = find(id);
+    const a = t.assignments.find((x) => x.id === assignmentId);
+    if (!a) return refuse(404, 'assignment_not_found', 'השיוך לא נמצא.');
+    a.quote_mode = mode;
+    return quotesAnswer(t);
+  },
+  async setKinds(id, kinds) {
+    await sleep();
+    const t = find(id);
+    if (kinds && !kinds.includes('labor')) return refuse(422, 'labor_required', 'עבודה תמיד מותרת.', { fields: [{ field: 'kinds', code: 'labor_required' }] });
+    t.kinds = kinds ? [...new Set(kinds)] : null;
+    return quotesAnswer(t);
+  },
+};
 
 function refuse(status: number, code: string, msg: string, details: Record<string, unknown> = {}): never {
   throw new ApiError(status, { code, user_message: msg, retryable: false, correlation_id: 'demo', details });
@@ -243,20 +471,38 @@ export const mockCosts: CostsBackend = {
     await sleep(200);
     const t = find(id);
     const c = t.claims.find((x) => x.id === claimId);
-    if (!c) return refuse(404, 'claim_not_found', 'דרישת העלות לא נמצאה.');
-    if (body.revision !== c.revision || (body.revision_id && body.revision_id !== c.current_revision_id)) return refuse(409, 'claim_stale', 'דרישת העלות השתנתה בינתיים. טענו מחדש.');
+    if (!c) return refuse(404, 'claim_not_found', 'דרישת התשלום לא נמצאה.');
+    if (body.revision !== c.revision || (body.revision_id && body.revision_id !== c.current_revision_id)) return refuse(409, 'claim_stale', 'דרישת התשלום השתנתה בינתיים. טענו מחדש.');
     const now = iso(Date.now());
     const dec = (a: CostDecision['action'], extra: Partial<CostDecision> = {}) => c.decisions?.push({ id: nid('dec'), action: a, revision_id: c.current_revision_id ?? null, reason: null, amount_minor: null, payment_ref: null, by: ME, at: now, ...extra });
     const needs = (s: ClaimStatus, code: string) => { if (c.status !== s) refuse(409, code, 'הפעולה נדחתה.'); };
     if (action === 'approve' || action === 'adjust' || action === 'reject') needs('submitted', 'claim_not_submitted');
     if ((action === 'adjust' || action === 'reject' || action === 'unmark-paid') && !body.reason?.trim()) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'reason', code: 'required' }] });
-    if (action === 'approve') {
+    let draft: MessageDraft | undefined;
+    if (action === 'approve' && body.exceptional === 'exclude') {
+      // contract 5.3: a manager adjustment WITHOUT the exceptional lines, approved at once (the default reason in the vendor's language)
+      const base = c.revisions?.find((r) => r.id === c.current_revision_id);
+      const view = demandView(t, c).revisions?.find((r) => r.id === base?.id);
+      const drop = new Set((view?.exceptional ?? []).map((e) => e.index));
+      if (!base || !drop.size) return refuse(409, 'no_exceptional_lines', 'אין שורות חריגות בדרישה.');
+      const rev = revisionOf((c.revisions?.length ?? 0) + 1, base.lines.filter((_, i) => !drop.has(i)), base.vat_mode, Date.now(), { source: 'manager', kind: 'adjustment', based_on: base.id, reason: body.reason?.trim() || 'אושר ללא הסעיפים החריגים', created_by_kind: 'user', created_by_name: ME, vendor_ref: base.vendor_ref, documents: base.documents });
+      c.revisions?.push(rev);
+      c.current_revision_id = rev.id;
+      c.status = 'approved';
+      c.approved_revision_id = rev.id;
+      c.approved_total_minor = rev.total_minor;
+      c.approved_at = now;
+      c.approved_by = ME;
+      dec('adjust', { reason: rev.reason ?? null, amount_minor: rev.total_minor });
+      draft = draftOf(t, 'claim', c.id, 'approved_without_exceptional', { kinds: [...new Set(base.lines.filter((_, i) => drop.has(i)).map((l) => l.kind))] });
+    } else if (action === 'approve') {
       c.status = 'approved';
       c.approved_revision_id = c.current_revision_id;
       c.approved_total_minor = c.revisions?.find((r) => r.id === c.current_revision_id)?.total_minor ?? 0;
       c.approved_at = now;
       c.approved_by = ME;
       dec('approve', { amount_minor: c.approved_total_minor });
+      draft = draftOf(t, 'claim', c.id, 'approved');
     } else if (action === 'adjust') {
       const base = c.revisions?.find((r) => r.id === c.current_revision_id);
       if (!base || !body.lines?.length) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'lines', code: 'required' }] });
@@ -269,10 +515,12 @@ export const mockCosts: CostsBackend = {
       c.approved_at = now;
       c.approved_by = ME;
       dec('adjust', { reason: body.reason ?? null, amount_minor: rev.total_minor });
+      draft = draftOf(t, 'claim', c.id, 'approved');
     } else if (action === 'reject') {
       c.status = 'rejected';
       c.claim_until = iso(Date.now() + costs.claim_window_days * DAY);
       dec('reject', { reason: body.reason ?? null });
+      draft = draftOf(t, 'claim', c.id, 'rejected', { reason: body.reason?.trim() });
     } else if (action === 'mark-paid') {
       needs('approved', 'claim_not_approved');
       if (!body.payment_ref?.trim() || !body.payment_date) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'payment_ref', code: 'required' }] });
@@ -289,14 +537,14 @@ export const mockCosts: CostsBackend = {
       c.payment_date = null;
       dec('unmark_paid', { reason: body.reason ?? null });
     } else {
-      if (c.status !== 'awaiting' && c.status !== 'rejected') return refuse(409, 'claim_not_open', 'דרישת העלות אינה פתוחה להגשה.');
+      if (c.status !== 'awaiting' && c.status !== 'rejected') return refuse(409, 'claim_not_open', 'דרישת התשלום אינה פתוחה להגשה.');
       if (c.window_open) return refuse(409, 'window_still_open', 'חלון ההגשה עדיין פתוח.');
       if (c.reopen_used) return refuse(409, 'already_reopened', 'חלון ההגשה כבר נפתח מחדש פעם אחת.');
       c.claim_until = iso(Date.now() + costs.claim_window_days * DAY);
       dec('reopen_window');
     }
     c.revision = (c.revision ?? 1) + 1;
-    return answer(t);
+    return { ...answer(t), ...(draft ? { message_draft: draft } : {}) };
   },
   async setRequirement(id, assignmentId, mode) {
     await sleep();
@@ -304,7 +552,7 @@ export const mockCosts: CostsBackend = {
     const a = t.assignments.find((x) => x.id === assignmentId);
     if (!a) return refuse(404, 'assignment_not_found', 'השיוך לא נמצא.');
     const c = t.claims.find((x) => x.assignment_id === assignmentId);
-    if (c && c.status !== 'awaiting') return refuse(409, 'claim_already_submitted', 'אי אפשר לשנות את הדרישה אחרי שהוגשה דרישת עלות.');
+    if (c && c.status !== 'awaiting') return refuse(409, 'claim_already_submitted', 'אי אפשר לשנות את הדרישה אחרי שהוגשה דרישת תשלום.');
     a.cost_claim = mode;
     if (c) {
       c.required = mode === 'required';
@@ -329,8 +577,9 @@ export const mockCosts: CostsBackend = {
     if (!asg) return refuse(409, 'no_external_assignment', 'אין שיוך לגורם חיצוני.');
     if (!body.no_charge && !body.lines.length) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'lines', code: 'required' }] });
     let c = t.claims.find((x) => x.assignment_id === asg.id);
-    if (c && (c.status === 'approved' || c.status === 'paid')) return refuse(409, 'claim_closed', 'דרישת העלות כבר אושרה.');
+    if (c && (c.status === 'approved' || c.status === 'paid')) return refuse(409, 'claim_closed', 'דרישת התשלום כבר אושרה.');
     if (!c) {
+      if (!asg.quote_capable) return refuse(409, 'not_external', 'אין דרישת תשלום לשיוך הזה.');
       c = claimOf(t, asg.id, asg.name, '', 'awaiting', asg.cost_claim === 'required', Date.now() + costs.claim_window_days * DAY, []);
       t.claims.push(c);
     }
@@ -447,14 +696,16 @@ export const mockCosts: CostsBackend = {
   },
   async departments() {
     await sleep(60);
-    return { departments: clone(depts), installation: { mode: costs.mode, claim_window_days: costs.claim_window_days } };
+    return { departments: clone(depts), installation: { mode: costs.mode, claim_window_days: costs.claim_window_days, allowed_line_kinds: [...(costs.allowed_line_kinds ?? ['labor', 'parts'])] } };
   },
   async saveDepartment(id, body) {
     await sleep(80);
     const d = depts.find((x) => x.id === id);
     if (!d) return refuse(404, 'department_not_found', 'המחלקה לא נמצאה.');
+    if (body.allowed_line_kinds && !body.allowed_line_kinds.includes('labor')) return refuse(422, 'labor_required', 'עבודה תמיד מותרת.', { fields: [{ field: 'allowed_line_kinds', code: 'labor_required' }] });
     d.cost_claim = body.cost_claim;
     d.claim_window_days = body.claim_window_days;
+    if (body.allowed_line_kinds !== undefined) d.allowed_line_kinds = body.allowed_line_kinds ? [...new Set(body.allowed_line_kinds)] : null;
     return mockCosts.departments();
   },
   async settings() {

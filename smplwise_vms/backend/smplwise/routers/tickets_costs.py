@@ -90,13 +90,17 @@ def _answer(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[st
     claims = [costs.present_claim(conn, c, full=full) for c in store_costs.claims_of_ticket(conn, ticket_id)]
     s = costs.cost_settings(conn)
     out: dict[str, Any] = {"ticket_id": ticket_id, "number": seen.row["number"], "cost": present.cost_block(viewer, seen), "claims": claims}
+    from ..services.tickets import quotes  # TKDETAILBE: quotes, the cost flow, the allowed kinds and the baseline (contract 4.4)
+
     if full:
         out["settings"] = {"currencies": list(s.currencies), "vat_rate_bp": s.vat_rate_bp, "review_flag_above_minor": s.review_flag_above_minor,
                            "max_claim_total_minor": s.max_claim_total_minor, "require_invoice": s.require_invoice}
+        # TKUI3: `quote_capable` (quotes.quote_capable) - false for a staff contact without an account, whose assignment is of kind
+        # `contact` too; the Costs tab never offers a quote, a payment demand or a requirement for such an assignment (no money surface)
         out["external_assignments"] = [{"id": a["id"], "name": a["assignee_name"], "assigned_at": a["assigned_at"], "ended_at": a.get("ended_at"),
-                                        "cost_claim": a.get("cost_claim"), "quote_mode": a.get("quote_mode") or "optional"}
+                                        "cost_claim": a.get("cost_claim"), "quote_mode": a.get("quote_mode") or "optional",
+                                        "quote_capable": quotes.quote_capable(conn, a)}
                                        for a in store.assignments(conn, ticket_id) if a["assignee_kind"] == "contact"]
-    from ..services.tickets import quotes  # TKDETAILBE: quotes, the cost flow, the allowed kinds and the baseline (contract 4.4)
 
     out.update(quotes.answer(conn, seen.row, full=full, can_decide=full and viewer.holds(costs.COSTS, seen.row)))
     return out
