@@ -10,10 +10,25 @@ import { dismissalFor, parseDismissal, type SetupDismissal, type SetupSummary } 
 
 let current: SetupDismissal | null = null;
 let loaded = false;
+let owner: string | null = null;
 const listeners = new Set<(d: SetupDismissal | null) => void>();
 
 function emit() {
   for (const l of listeners) l(current);
+}
+
+/**
+ * TKFIX260 (review A F13): the cache is per USER, not per page - the shell calls this on every session change with the signed-in user
+ * (null after a sign-out / while loading). Another user on the same tab starts clean and reads their own stored choice. Returns
+ * whether the store was reset (the shell then reloads the hint).
+ */
+export function resetDismissalFor(userId: string | null): boolean {
+  if (userId === owner) return false;
+  owner = userId;
+  current = null;
+  loaded = false;
+  emit();
+  return true;
 }
 
 export const currentDismissal = (): SetupDismissal | null => current;

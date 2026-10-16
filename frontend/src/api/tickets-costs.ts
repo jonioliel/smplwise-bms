@@ -189,6 +189,8 @@ export interface DecisionBody {
   payment_date?: string;
   /** TKDETAILBE (5.3): approve with or without the exceptional lines (approve only; omitted = include) */
   exceptional?: 'include' | 'exclude';
+  /** TKFIX260: approve / adjust / reject - the manager's internal note, stored apart from `reason`; never shown to the vendor */
+  internal_note?: string;
 }
 
 export interface OnBehalfBody {
@@ -280,7 +282,6 @@ export interface CostsSettings {
   require_invoice: boolean;
   max_claim_total_minor: number;
   review_flag_above_minor: number;
-  notify_vendor_approved: boolean;
   retention_days: number;
   /** TKDETAILBE: the installation default of the allowed cost line kinds (labor is always one of them) */
   allowed_line_kinds?: LineKind[];

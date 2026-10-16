@@ -50,6 +50,8 @@ export interface QuoteView {
   currency: string;
   notes?: string | null;
   reason?: string | null;
+  /** TKFIX260 (public-surface review F4): a version the organisation entered on the vendor's behalf (never who entered it) */
+  on_behalf?: boolean;
 }
 
 export interface QuoteInfo {
@@ -332,6 +334,11 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
 
   function summary(quote: QuoteView): HTMLElement {
     const wrap = el('div', 'swq-summary');
+    if (quote.on_behalf) {
+      const by = el('p', 'swc-muted swq-on-behalf', t('q_on_behalf'));
+      by.dataset.quoteOnBehalf = '';
+      wrap.appendChild(by);
+    }
     const list = el('ul', 'swc-rev-lines');
     for (const ln of quote.lines) {
       const li = el('li', 'swc-rev-line');
@@ -419,7 +426,7 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
     lab.appendChild(el('span', 'swc-label', `${c('notes')} ${c('optional')}`));
     const notes = el('textarea', 'swc-input swc-area');
     notes.value = form.notes;
-    notes.maxLength = (s?.limits.notes ?? 1000) * 2;
+    notes.maxLength = s?.limits.notes ?? 1000; // TKFIX260 (public-surface review F7): the server refuses more (quotes.NOTE_MAX)
     notes.addEventListener('input', () => {
       form.notes = notes.value;
     });

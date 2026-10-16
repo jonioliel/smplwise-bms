@@ -71,6 +71,7 @@ export class TicketCostCard extends LitElement {
   @state() private dialog: Dialog = null;
   @state() private flash: { text: string; tone: 'ok' | 'bad' } | null = null;
   @state() private reason = '';
+  @state() private internalNote = '';
   @state() private payRef = '';
   @state() private payDate = todayIso();
   @state() private lines: EditLine[] = [];
@@ -186,6 +187,7 @@ export class TicketCostCard extends LitElement {
 
   private open(d: Exclude<Dialog, null>): void {
     this.reason = '';
+    this.internalNote = '';
     this.payRef = '';
     this.payDate = todayIso();
     this.err = '';
@@ -226,6 +228,7 @@ export class TicketCostCard extends LitElement {
       if (!this.reason.trim()) return;
       body.reason = this.reason.trim();
     }
+    if ((kind === 'approve' || kind === 'reject') && this.internalNote.trim()) body.internal_note = this.internalNote.trim();
     if (kind === 'markPaid') {
       if (!this.payRef.trim() || !this.payDate) return;
       body.payment_ref = this.payRef.trim();
@@ -241,6 +244,7 @@ export class TicketCostCard extends LitElement {
     if (!this.reason.trim() || !this.lines.length || this.lines.some((l) => lineProblem(l))) return;
     const tid = this.ticket?.id ?? '';
     const body: DecisionBody = { revision: c.revision ?? 1, revision_id: c.current_revision_id ?? undefined, reason: this.reason.trim(), lines: this.lines.map(wireLine) };
+    if (this.internalNote.trim()) body.internal_note = this.internalNote.trim();
     if (await this.write(() => ticketCostsApi().decide(tid, c.id, 'adjust', body), 'adjust')) this.close();
   }
 
@@ -461,11 +465,18 @@ export class TicketCostCard extends LitElement {
 
   // ---------------------------------------------------------------- render: dialogs
 
-  private reasonField(label = ct('reason')): TemplateResult {
+  /** `vendor`: the reason reaches the vendor (a rejection / adjustment - its page and the draft) - TKFIX260 (public-surface review
+   * F1) says so on the field and adds a separate internal note that is never sent. */
+  private reasonField(label = ct('reason'), vendor = false): TemplateResult {
     const bad = this.tried && !this.reason.trim();
-    return html`<label class="fld"><span>${label} <b class="req">*</b></span>
+    return html`<label class="fld"><span>${label} <b class="req">*</b>${vendor ? html` <span class="muted" data-cost-reason-public>· ${ct('vendorSees')}</span>` : nothing}</span>
       <textarea class="inp" maxlength="500" data-cost-reason aria-invalid=${String(bad)} .value=${this.reason} @input=${(e: Event) => { this.reason = (e.target as HTMLTextAreaElement).value; this.err = ''; }}></textarea>
-      ${bad ? html`<span class="err">${ct('required')}</span>` : nothing}</label>`;
+      ${bad ? html`<span class="err">${ct('required')}</span>` : nothing}</label>${vendor ? this.internalNoteField() : nothing}`;
+  }
+
+  private internalNoteField(): TemplateResult {
+    return html`<label class="fld"><span>${ct('internalNote')}</span>
+      <textarea class="inp" maxlength="500" data-cost-internal-note .value=${this.internalNote} @input=${(e: Event) => (this.internalNote = (e.target as HTMLTextAreaElement).value)}></textarea></label>`;
   }
 
   private foot(ok: TemplateResult): TemplateResult {
@@ -599,19 +610,19 @@ export class TicketCostCard extends LitElement {
     if (d.kind === 'adjust') {
       const currency = rev?.currency ?? c.currency ?? 'ILS';
       return html`<sw-dialog open wide heading=${ct('adjustTitle')} data-dialog="cost-adjust" @close=${this.onDialogClose}>
-        <div class="form">${total}${this.lineEditor(currency, c.labor_rate_minor)}${this.preview(rev?.vat_mode ?? 'excluded', rev?.vat_rate_bp ?? 0, currency)}${this.reasonField()}${this.errRow()}</div>
+        <div class="form">${total}${this.lineEditor(currency, c.labor_rate_minor)}${this.preview(rev?.vat_mode ?? 'excluded', rev?.vat_rate_bp ?? 0, currency)}${this.reasonField(ct('reason'), true)}${this.errRow()}</div>
         ${this.foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.submitAdjust(c)}>${cIcon('check')}${ct('adjust')}</button>`)}
       </sw-dialog>`;
     }
     const titles: Record<Simple, CostTextKey> = { approve: 'approveTitle', reject: 'rejectTitle', markPaid: 'markPaidTitle', unmarkPaid: 'unmarkPaidTitle', reopen: 'reopenTitle' };
     const oks: Record<Simple, CostTextKey> = { approve: 'approve', reject: 'reject', markPaid: 'markPaid', unmarkPaid: 'unmarkPaid', reopen: 'reopen' };
     const badRef = this.tried && !this.payRef.trim();
-    const body = d.kind === 'reject' || d.kind === 'unmarkPaid' ? this.reasonField()
+    const body = d.kind === 'reject' ? this.reasonField(ct('reason'), true) : d.kind === 'unmarkPaid' ? this.reasonField()
       : d.kind === 'markPaid' ? html`<div class="two">
           <label class="fld"><span>${ct('paymentRef')} <b class="req">*</b></span><input class="inp" maxlength="60" dir="auto" data-pay-ref aria-invalid=${String(badRef)} .value=${this.payRef} @input=${(e: Event) => { this.payRef = (e.target as HTMLInputElement).value; this.err = ''; }} />${badRef ? html`<span class="err">${ct('required')}</span>` : nothing}</label>
           <label class="fld"><span>${ct('paymentDate')} <b class="req">*</b></span><input class="inp" type="date" max=${todayIso(new Date(Date.now() + 86_400_000))} data-pay-date .value=${this.payDate} @input=${(e: Event) => (this.payDate = (e.target as HTMLInputElement).value)} /></label>
         </div>`
-      : d.kind === 'approve' && rev ? html`${this.breakdown(rev)}${this.againstQuote(c, rev)}` : nothing;
+      : d.kind === 'approve' && rev ? html`${this.breakdown(rev)}${this.againstQuote(c, rev)}${this.internalNoteField()}` : nothing;
     // TKUI3: a demand with exceptional lines is approved WITH them or WITHOUT them (a manager adjustment, contract 5.3); the send-back
     // of a demand is "בקשת תיקון" in the tab's words (the vendor may submit a new version)
     const emb = this.embedded;

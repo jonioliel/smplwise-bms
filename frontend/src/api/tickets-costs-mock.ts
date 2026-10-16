@@ -29,7 +29,7 @@ const ME = 'יוני';
 let settingsRevision = 0;
 let costs: CostsSettings = {
   mode: 'optional', currencies: ['ILS'], vat_rate_bp: 1800, claim_window_days: 14, require_invoice: false,
-  max_claim_total_minor: 100_000_000, review_flag_above_minor: 1_000_000, notify_vendor_approved: false, retention_days: 2555,
+  max_claim_total_minor: 100_000_000, review_flag_above_minor: 1_000_000, retention_days: 2555,
   allowed_line_kinds: ['labor', 'parts'],
 };
 const depts: DepartmentCosts[] = [

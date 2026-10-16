@@ -67,7 +67,7 @@ export interface ConvMock {
 
 /**
  * The vendor request (`VID`) over slice 1's layer as the persona `admin` (tickets.external: may write to the vendor). `vendorMessage:
- * false` = a server before the detail backend (the new routes answer 404: the screen falls back to the external note).
+ * false` = the new routes answer 404 (TKFIX260: the screen shows the error - there is no fallback to the external note).
  */
 export async function installConvMock(page: Page, o: { vendorMessage?: boolean; closed?: boolean } = {}): Promise<ConvMock> {
   await installTicketsMock(page, { persona: 'admin' });

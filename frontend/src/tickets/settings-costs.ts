@@ -179,9 +179,6 @@ export class TicketsCostsSettings extends LitElement {
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ require_invoice: e.detail.checked })}></sw-toggle></div>
       ${this.numRow('max', ct('setMax'), s, ct('setAmountsHint'))}
       ${this.numRow('flag', ct('setFlag'), s)}
-      <div class="row"><span class="lbl">${ct('setNotify')}</span>
-        <sw-toggle label=${ct('setNotify')} labelHidden .checked=${s.notify_vendor_approved} ?disabled=${this.busy} data-costs-toggle="notify_vendor_approved"
-          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ notify_vendor_approved: e.detail.checked })}></sw-toggle></div>
       ${this.numRow('retention', ct('setRetention'), s)}
     </sw-card>`;
   }
