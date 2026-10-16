@@ -12,7 +12,7 @@ import json
 from typing import Any, Mapping
 
 from ...db import new_id
-from . import costs, model, store, store_costs, store_quotes
+from . import costs, model, store, store_costs, store_links, store_quotes
 from .costs import CostRefused, iso
 
 DEFAULT_KINDS: tuple[str, ...] = ("labor", "parts")
@@ -115,6 +115,10 @@ def public_quote(conn, assignment_id: str, ticket_id: str) -> dict[str, Any]:
     # TKSTAFF1 (security review F1): only `assignee_kind = 'contact'` is an external assignment - a staff member's own assignment
     # also names their directory row in `contact_id`, and must never get a quote card
     external = asg.get("assignee_kind") == "contact" and bool(asg.get("contact_id"))
+    if external:  # 2.5.8 review F4: a staff contact without an account is internal staff - no quote card
+        from .assignees import is_staff
+
+        external = not is_staff(store_links.contact(conn, asg["contact_id"]))
     contact, vendor = costs._contact_pair(conn, asg["contact_id"]) if external else ({}, None)
     exempt = bool(contact.get("vat_exempt") or (vendor or {}).get("vat_exempt"))
     rate = contact.get("labor_rate_minor")
@@ -142,7 +146,9 @@ def public_quote(conn, assignment_id: str, ticket_id: str) -> dict[str, Any]:
 def submit(conn, assignment: Mapping[str, Any], ticket: Mapping[str, Any], body: Mapping[str, Any], *, at: dt.datetime) -> dict[str, Any]:
     """A vendor's quote through its handler link. The same arithmetic and validation as a claim (costs.draft), then: only the allowed
     line kinds; the request must still be before "done"; an approved quote is closed. A new quote supersedes the open one."""
-    if assignment.get("assignee_kind") != "contact":
+    from .assignees import is_staff
+
+    if assignment.get("assignee_kind") != "contact" or is_staff(store_links.contact(conn, assignment.get("contact_id"))):
         raise CostRefused(409, "quote_closed")  # TKSTAFF1 (security review F1): never for an internal (staff) assignment
     rows = quotes_of_assignment(conn, assignment["id"])
     if ticket["status"] not in QUOTE_STATUSES:

@@ -133,7 +133,15 @@ def check_new_generation(conn, ticket: dict[str, Any], contact: dict[str, Any]) 
     """The manager's "new link" on a staff link: only while the user may still hold the ticket and the row can still receive it."""
     from .external import _not_allowed
 
-    if not contact["active"] or not contact.get("phone_e164") or not still_holds(conn, ticket, ticket.get("asg_user_id")):
+    uid = ticket.get("asg_user_id")
+    if not contact["active"] or not contact.get("phone_e164") or not still_holds(conn, ticket, uid):
+        raise _not_allowed(conn)
+    # 2.5.8 review F2 / F5: the same gate as at assignment - the row is the user's, the number CONFIRMED by the user, their switch on,
+    # and WhatsApp can carry it (a staff link leaves by WhatsApp only)
+    from .external import DISPATCH
+
+    rec = recipient(conn, uid)
+    if rec is None or rec["id"] != contact["id"] or DISPATCH.channel(conn, rec) != "whatsapp":
         raise _not_allowed(conn)
 
 
@@ -299,7 +307,7 @@ def set_mine(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None)
     fields: dict[str, Any] = {}
     if "confirm" in keys:
         tok = body["confirm"]
-        if not isinstance(tok, str) or not 0 < len(tok) <= 64:
+        if not isinstance(tok, str) or not 0 < len(tok) <= 64 or not tok.isascii():  # 2.5.8 review F6: compare_digest needs ASCII
             raise _bad(conn, "confirm", "type")
         if not hmac.compare_digest(tok, confirm_token(row)):
             raise ApiError(409, "number_changed", text(conn, "המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר."))

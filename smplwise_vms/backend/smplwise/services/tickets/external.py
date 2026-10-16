@@ -217,6 +217,8 @@ def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dic
     """S9 (D32): the assign dialog's "דרישת עלות: חובה / רשות / בלי" and where its preselection came from."""
     from . import costs
 
+    if assignees.is_staff(contact):  # 2.5.8 review F4 (lead decision): an internal employee is never in the vendor-payment pipeline
+        return {"default": "off", "from": "staff", "choices": ["off"]}
     mode, level = costs.preselected_mode(conn, contact=contact, vendor=vendor, department=store.department_any(conn, row["department_id"]))
     return {"default": mode, "from": level, "choices": list(costs.MODES)}
 
@@ -253,6 +255,8 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     if cost_claim is not None and cost_claim not in costs.MODES:
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "cost_claim", "code": "unknown"}]})
     claim_mode = cost_claim or costs.preselected_mode(conn, contact=contact, vendor=vendor, department=dept)[0]
+    if assignees.is_staff(contact):
+        claim_mode = "off"  # 2.5.8 review F4 (lead decision, fail closed): no cost claim / quote for a staff contact, whatever was sent
     try:
         note_text = model.text_field(note, "note", required=False, max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
@@ -435,6 +439,10 @@ def resend(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[str
     if handler_links.state(link_row, now) != "live":
         raise ApiError(409, "link_not_live", text(conn, "הקישור אינו פעיל. צרו קישור חדש."))
     contact = store_links.contact(conn, link_row["contact_id"]) or {}
+    if link_row.get("kind") == "staff":
+        from . import staff_links  # 2.5.8 review F5: a resend honours the confirmed number and the user's own WhatsApp switch
+
+        staff_links.check_new_generation(conn, seen.row, contact)
     if DISPATCH.channel(conn, contact) == "manual":
         raise ApiError(409, "channel_unavailable", text(conn, "אין ערוץ שליחה להודעות. העתיקו את הקישור ושלחו אותו בעצמכם."))
     result = DISPATCH.queue(conn, purpose="assign", ticket=seen.row, assignment_id=link_row["assignment_id"], link=link_row, contact=contact,

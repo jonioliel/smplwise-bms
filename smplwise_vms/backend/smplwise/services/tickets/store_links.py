@@ -105,7 +105,7 @@ def erase_contact(conn: sqlite3.Connection, contact_id: str, tombstone: str) -> 
     now = now_iso()
     conn.execute(
         "UPDATE ticket_contacts SET display_name = ?, company = '', phone_e164 = NULL, phone_key = NULL, phone_key_id = NULL, "
-        "email = NULL, notes = '', user_id = NULL, active = 0, erased_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ?",
+        "email = NULL, notes = '', user_id = NULL, phone_confirmed_at = NULL, active = 0, erased_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ?",
         (tombstone, now, now, contact_id),
     )
 
@@ -186,7 +186,8 @@ LINK_COLUMNS = ("id", "ticket_id", "assignment_id", "contact_id", "generation", 
 LOOKUP_SQL = (
     "SELECT l.id, l.ticket_id, l.assignment_id, l.contact_id, l.generation, l.key_id, l.require_code, l.sent_via, l.expires_at, l.kind, "
     "l.cap_at, l.grace_until, l.revoked_at, a.ended_at AS asg_ended_at, a.end_reason AS asg_end_reason, "
-    "t.current_assignment_id AS t_current, t.status AS t_status, t.number AS t_number, c.phone_key AS c_phone_key "
+    "t.current_assignment_id AS t_current, t.status AS t_status, t.number AS t_number, c.phone_key AS c_phone_key, "
+    "c.kind AS c_kind, c.employee AS c_employee, c.user_id AS c_user_id, c.vendor_id AS c_vendor_id "
     "FROM ticket_links l JOIN tickets t ON t.id = l.ticket_id JOIN ticket_assignments a ON a.id = l.assignment_id "
     "LEFT JOIN ticket_contacts c ON c.id = l.contact_id "
 )

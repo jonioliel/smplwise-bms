@@ -74,3 +74,17 @@ same submit over the `handlers` list; only "vendors and contacts" uses the outsi
 - `notify_new` is unchanged: it decides who is told (in the app / by the notification engine, with a signed-in deep link) about NEW
   tickets; the staff link goes only to the CURRENT assignee, gated by their mobile and `notify_whatsapp` (security design R11 / R12).
 - Security rules, revocation triggers and the spec amendment: CR-038 spec 8.1 (amendment 2026-10-16) and the module docstring.
+
+## Decision 2026-10-16 (release 2.5.8 consolidated review F4, lead decision, fail closed): no money surface for staff
+
+A staff contact without an account (TKSTAFF2) is internal staff, like an account holder with a TKSTAFF1 staff link: it is never put
+into the vendor-payment pipeline. Built as the minimal safe change (its link stays `kind = 'external'`, so the TKSTAFF2 channels -
+WhatsApp, e-mail redeem, "copy link" - keep working; minting `kind = 'staff'` would have dropped e-mail / copy and would be revoked by
+the staff-link recheck, which keys on a user assignment):
+- `external.assign_contact` forces the assignment's `cost_claim` to `off` for `assignees.is_staff(contact)`, whatever the request sent;
+  the preview offers `cost_claim: {default: off, choices: [off]}`;
+- the public surface keys on `LinkRecord.no_money` (`kind = 'staff'` OR the joined contact is a staff contact): `/t/api/claim`,
+  `/t/api/claim/file` and `/t/api/quote` answer the uniform 404, no claim mode, no `claim` block in the view, "done" opens no claim;
+- `quotes.public_quote` / `submit` treat a staff contact's assignment as not external.
+Managers still assign staff contacts without `tickets.external` (unchanged). Residual: a `tickets.costs` holder can still enter a cost
+on the manager side for such an assignment (an authorised internal act, not a public surface).

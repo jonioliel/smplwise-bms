@@ -166,7 +166,7 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     sla.refresh(conn, f.ticket["id"])  # slice 2: the dues follow every change of a ticket
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
     notify_bridge.ticket_status(conn, f.ticket["id"], frm, to)
-    if to == "done" and f.link.kind != "staff":  # S9 (11A.1): the vendor's cost claim is asked from here on; TKSTAFF1 (R2): never staff
+    if to == "done" and not f.link.no_money:  # S9 (11A.1): the vendor's cost claim is asked from here on; TKSTAFF1 (R2): never staff
         from . import costs
 
         costs.on_assignment_done(conn, f.ticket["id"], f.assignment["id"], now)

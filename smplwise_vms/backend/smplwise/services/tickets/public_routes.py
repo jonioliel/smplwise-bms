@@ -119,7 +119,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 when = now()
                 handler_actions.record_open(conn, ctx.link, when, ck)
                 data = handler_actions.view(conn, ctx.link, code_ok=ctx.code_ok, read_only=ctx.read_only, now=when)
-                if (ctx.code_ok or not ctx.link.require_code) and ctx.link.kind != "staff":  # TKSTAFF1 (R2): never on a staff link
+                if (ctx.code_ok or not ctx.link.require_code) and not ctx.link.no_money:  # TKSTAFF1 (R2): never on a staff link
                     data["claim"] = costs.public_summary(conn, ctx.link.assignment_id, when)
                 return data
 

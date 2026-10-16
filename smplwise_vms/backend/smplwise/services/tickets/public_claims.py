@@ -50,7 +50,7 @@ def _error(exc: costs.CostRefused) -> PublicError:
 
 def claim_window(db: Database) -> Callable[[LinkRecord, float], float | None]:
     def ask(link: LinkRecord, now: float) -> float | None:
-        if getattr(link, "kind", "external") == "staff":
+        if getattr(link, "no_money", getattr(link, "kind", "external") == "staff"):  # + review F4
             return None  # TKSTAFF1 (R2): a staff link never enters claim mode
         with db.connection(mode="read", label="tickets.public.claim_window") as conn:
             until = costs.claim_mode_ok(conn, link.link_id, link.generation, _when(now))
@@ -77,7 +77,7 @@ class SqlClaimFileSink(ClaimFileSink):
         return claim
 
     def check_open(self, link: LinkRecord) -> None:
-        if getattr(link, "kind", "external") == "staff":
+        if getattr(link, "no_money", getattr(link, "kind", "external") == "staff"):  # + review F4
             raise PublicError(404, "link_unavailable")  # TKSTAFF1 (R2): defence in depth behind link_context(claim_surface=True)
         with self.db.connection(mode="read", label="tickets.public.claim") as conn:
             self._open_claim(conn, link, _when(self._clock()))

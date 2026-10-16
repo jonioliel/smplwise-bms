@@ -203,7 +203,8 @@ def validate_public_base_url(url: object) -> str:
         try:
             validate_prefix(candidate)
         except ValueError:
-            raise PublicUrlError("path") from None
+            # 2.5.8 review F7: its own code, so a STORED address that predates the rule can say why it no longer serves
+            raise PublicUrlError("path_reserved") from None
         prefix = candidate
     if port not in (None, 443):
         raise PublicUrlError("port")

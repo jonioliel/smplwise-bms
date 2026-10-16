@@ -217,7 +217,7 @@ def link_context(*, write: bool = False, need_code: bool = True, allow_claim: bo
         link = await run_in_threadpool(deps.links.lookup, pr.token_hash)
         now = deps.clock()
         claim_mode = False
-        staff = link is not None and getattr(link, "kind", "external") == "staff"
+        staff = link is not None and bool(getattr(link, "no_money", getattr(link, "kind", "external") == "staff"))  # + review F4
         if link is not None and not link.available(now) and allow_claim and deps.claim_window is not None and not staff:
             # slice 9 (11A.5): one more read, only for a token that matched a link row - nothing is learned without a real token
             until = await run_in_threadpool(deps.claim_window, link, now)
@@ -536,7 +536,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         released = await run_in_threadpool(deps.redeems.release, links.redeem_hash(rid), now, REDEEM_MAX_USES) if rid else None
         link = await run_in_threadpool(deps.links.by_id, released[0]) if released else None
         if (released is not None and link is not None and link.generation == released[1] and not link.available(now)
-                and deps.claim_window is not None and getattr(link, "kind", "external") != "staff"):
+                and deps.claim_window is not None and not getattr(link, "no_money", getattr(link, "kind", "external") == "staff")):
             # TK251 review R2 A-2: the e-mail form of a cost message (cost_rejected / cost_reopened) - a link that no longer serves
             # the page may still open the CLAIM step, exactly as link_context decides it (same generation, claim window open)
             until = await run_in_threadpool(deps.claim_window, link, now)

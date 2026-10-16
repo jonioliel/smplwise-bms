@@ -51,6 +51,14 @@ class LinkRecord:
     sent_via: str | None = None  # 'whatsapp' | 'email' | 'manual' (D6 code-channel rule)
     ticket_number: int | None = None
     kind: str = "external"  # TKSTAFF1: 'external' (vendor / contact) | 'staff' (an internal employee's no-login link, no claim surface)
+    # 2.5.8 review F4 (lead decision, fail closed): the link's contact is a STAFF contact without an account (TKSTAFF2: an employee
+    # directory row) - internal staff, so no money surface either
+    staff_contact: bool = False
+
+    @property
+    def no_money(self) -> bool:
+        """No cost claim, no quote, no claim mode: a staff link, or a link of a staff contact without an account (R2 / review F4)."""
+        return self.kind == "staff" or self.staff_contact
 
     def available(self, now: float) -> bool:
         """Serves at all: not revoked, not past its (sliding / capped) expiry, not past the read-only grace. A grace never

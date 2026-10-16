@@ -215,13 +215,20 @@ def read(conn: sqlite3.Connection) -> dict[str, Any]:
     out: dict[str, Any] = {}
     rev = stored.get("revision")
     out["revision"] = rev if isinstance(rev, int) and not isinstance(rev, bool) and rev >= 0 else 0
+    refused: str | None = None
     for path, (default, check) in SCHEMA.items():
         raw = _get(stored, path)
         try:
             value = check(raw) if raw is not None else copy.deepcopy(default)
-        except ValueError:
+        except ValueError as exc:
             value = copy.deepcopy(default)
+            if path == ("public", "base_url"):
+                refused = "reserved" if str(exc) == "path_reserved" else (str(exc) or "invalid")
         _set(out, path, value)
+    if refused:
+        # 2.5.8 review F7: a stored public address that a newer rule refuses (e.g. a path that became a reserved word) reads as "" -
+        # fail closed: no link is derived from it - and the reason is served so Settings / readiness can say why the page is off
+        out["public"]["base_url_refused"] = refused
     for prefix in (("links",), ("staff_links",)):  # a stored pair that breaks the cross-key rule reads as the default pair (fail safe)
         if _get(out, prefix + ("cap_days",)) < _get(out, prefix + ("sliding_days",)):
             for path in (prefix + ("sliding_days",), prefix + ("cap_days",)):

@@ -44,6 +44,7 @@ def contact_counts(conn) -> dict[str, int]:
 
 
 def readiness(conn, department_id: str | None = None) -> dict[str, Any]:
+    from . import settings_doc
     from . import messaging
     from .public_runtime import RUNTIME
 
@@ -61,6 +62,8 @@ def readiness(conn, department_id: str | None = None) -> dict[str, Any]:
         "module_key": "key" not in missing,
         "public_ready": not missing,
         "public_missing": missing,
+        # 2.5.8 review F7: why the stored public address no longer serves (None when it does or was never set)
+        "base_url_refused": settings_doc.read(conn)["public"].get("base_url_refused"),
         "master_switch": bool(cs["whatsapp"]["enabled"]),
         "account_mapped": account_mapped(conn, department_id),
         "email_fallback": bool(cs["email_fallback"]),
