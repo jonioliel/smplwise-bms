@@ -33,7 +33,7 @@ export class TicketsStaffMine extends LitElement {
     button { font: inherit; padding: 4px 10px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: transparent; color: inherit; cursor: pointer; }
     button:disabled { opacity: 0.5; cursor: default; }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-xs); }
-    .hint { font-size: var(--sw-fs-xs); color: var(--sw-text-2, inherit); }
+    .hint { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
     input { font: inherit; width: 9ch; padding: 4px 8px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: transparent; color: inherit;
       direction: ltr; text-align: center; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; }
   `;

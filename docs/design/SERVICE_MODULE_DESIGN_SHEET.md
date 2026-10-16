@@ -55,3 +55,7 @@ may read, and the rules the gate enforces. Source of the structure: `private/pla
 - The table view (`table-styles.ts`, `.tw`) is a bounded scroller (`max-block-size: max(420px, calc(100dvh - 300px))`): a wide table needs a
   horizontal scroller anyway, and the sticky header relies on it (owner decision 2.5.5). It is the one list view with a scroller of its own.
 - The public sheet keeps a few off-scale literals (13 / 15 / 17 px text, 9 / 14 / 18 / 28 px radii) of the approved v5 vendor page.
+- Public bundle size guards (TKGATEFIX1): the 60 KB gzip budget is the ticket page's (page + CSS + the lazy claim chunks); the lazy
+  vendor RFQ chunk (`rfq-page-*`, never fetched by a ticket link) has its own 20 KB budget. `unit-public-ticket.spec.ts` (TKRFQVP) already
+  split them; `evidence-public-ui5.spec.ts` summed every chunk (about 73 KB on integ/263) and was brought to the same rule. Measured on a
+  fresh build: ticket page 58.7 KB, rfq-page 14.1 KB. No code was shrunk; the guard now matches the intended meaning.

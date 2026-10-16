@@ -33,9 +33,9 @@ export class TicketsPhoneVerify extends LitElement {
     :host { display: block; }
     .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
     .tag { font-size: var(--sw-fs-xs); padding: 2px 8px; border-radius: 999px; background: var(--sw-surface-2); }
-    .ok { color: var(--sw-success-text, inherit); }
+    .ok { color: var(--sw-success-text); }
     .warn { color: var(--sw-warning-text); }
-    .hint { font-size: var(--sw-fs-xs); color: var(--sw-text-2, inherit); }
+    .hint { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
     input { font: inherit; width: 9ch; padding: 4px 8px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: transparent; color: inherit;
       direction: ltr; text-align: center; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; }
     button { font: inherit; padding: 4px 10px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: transparent; color: inherit; cursor: pointer; }
