@@ -183,9 +183,9 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
             else DEV_NVR_PLACEHOLDER),  # SUPERVISOR_TOKEN: inside the add-on, never a placeholder
         nvr_http_port=int(_opt(options, "nvr_http_port", "NVR_HTTP_PORT", "80") or 80),
         nvr_user=_opt(options, "nvr_username", "NVR_USER"),
-        nvr_password=_opt(options, "nvr_password", "NVR_PASSWORD"),
+        nvr_password=_opt({}, "nvr_password", "NVR_PASSWORD"),  # TKSECRETS1: no add-on option any more; only the NVR_PASSWORD env of a dev run (the stored connection is encrypted in recorder_connections)
         nvr_from_options=options.get("nvr_host") not in (None, ""),
-        nvr_option_keys=frozenset(k for k in ("nvr_host", "nvr_http_port", "nvr_rtsp_port", "nvr_username", "nvr_password") if options.get(k) not in (None, "")),
+        nvr_option_keys=frozenset(k for k in ("nvr_host", "nvr_http_port", "nvr_rtsp_port", "nvr_username") if options.get(k) not in (None, "")),
         go2rtc_url=_opt(options, "go2rtc_url", "GO2RTC_URL"),
         log_level=(_opt(options, "log_level", "SW_LOG_LEVEL", "info") or "info").lower(),
         nvr_rtsp_port=int(_opt(options, "nvr_rtsp_port", "NVR_RTSP_PORT", "554") or 554),

@@ -50,7 +50,6 @@ options:
   nvr_http_port: 80
   nvr_rtsp_port: 554
   nvr_username: ""
-  nvr_password: ""
   go2rtc_url: ""
   go2rtc_api_username: ""
   go2rtc_api_password: ""
@@ -81,7 +80,6 @@ schema:
   nvr_http_port: port
   nvr_rtsp_port: port
   nvr_username: str?
-  nvr_password: password?
   go2rtc_url: str?
   go2rtc_api_username: str?
   go2rtc_api_password: password?
