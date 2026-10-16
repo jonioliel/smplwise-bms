@@ -2,7 +2,8 @@
  * Every route needs `system.configure` and none exists on the remote channel. A value is WRITE-ONLY: no answer ever carries it. */
 import { api, get, post, put } from './client';
 
-export type SecretName = 'go2rtc_api_password' | 'wiskey_password' | 'wiskey_background_token' | 'openai_api_key' | 'push_relay_key';
+export type SecretName = 'go2rtc_api_password' | 'wiskey_password' | 'wiskey_background_token' | 'openai_api_key' | 'push_relay_key'
+  | 'ha_users_token';  // USR1-263: the optional home-system users administrator token (store-only, never an add-on option)
 
 /** set | not_set | unreadable (a stored row decides) · legacy (no row yet: the old add-on option or a developer variable is in use). */
 export type SecretState = 'set' | 'not_set' | 'unreadable' | 'legacy';

@@ -104,7 +104,7 @@ def test_0050_nvr_stream_changes_on_a_0049_database(settings, tmp_path, monkeypa
     # integ/263 (2.6.3): the property, not a literal list - every migration from 0050 up to the newest file runs once, in order,
     # with no gap (0088 detail, 0089 RFQ + the single ticket_outbox rebuild, 0090 map element, 0091 number verification,
     # 0092 quick-reply template data migration, 0093 app secrets, ... follow the CR-038 and earlier numbers)
-    assert applied == list(range(50, max(int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob('*.sql')) + 1)) and applied[-1] >= 93, applied
+    assert applied == sorted(n for n in (int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob('*.sql')) if n >= 50) and applied[-1] >= 93, applied  # USR1-263: every file, in order (0094 is reserved for TKWISECRYPT; contiguity is release_check's job)
     with database.connection() as conn:
         old = dict(conn.execute("SELECT * FROM nvr_changes WHERE id = 'old'").fetchone())
         assert (old["recorder_id"], old["camera_id"], old["stream_ref"], old["reboot_required"], old["batch_id"], old["status"], old["before_xml"]) == ("nvr-1", None, None, 0, None, "applied", "<a/>")

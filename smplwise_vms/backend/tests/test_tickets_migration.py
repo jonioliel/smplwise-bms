@@ -94,7 +94,8 @@ def test_on_top_of_the_previous_schema_nothing_else_moves(settings, tmp_path, mo
     applied = dbmod.Database(settings.db_path).migrate()
     # 93: TKSECRETS2's app_secrets (not a ticket migration) follows the CR-038 range
     assert [n for n in applied if n in CR038] == [n for n in CR038 if any(dbmod.MIGRATIONS_DIR.glob(f"{n:04d}_*.sql"))]
-    assert [n for n in applied if n not in CR038] == [93]
+    later = sorted(n for n in (int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql")) if n > max(CR038))
+    assert [n for n in applied if n not in CR038] == later and later[0] == 93  # 0093 app secrets, 0095 USR1 home-system users, ...
     with database.connection(mode="read") as conn:
         assert conn.execute("SELECT value FROM settings WHERE key = 'ui.start_route'").fetchone()[0] == "live"
         tables, _ = _schema(conn)

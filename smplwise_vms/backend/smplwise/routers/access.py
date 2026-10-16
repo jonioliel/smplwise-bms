@@ -75,6 +75,11 @@ PERMISSION_LABELS: dict[str, str] = {
     "audit.read": "צפייה באודיט",
     "backup.manage": "גיבוי ושחזור",
     "system.update": "עדכון המערכת",  # CR-021: check for and (S3) install a new version; system administrators only, never delegable
+    # USR1 (docs/design/USR1_HA_USERS_FROM_ARX.md): create home-system users (ordinary, never administrators) with one Arx role,
+    # and deactivate / activate / delete ONLY the users Arx itself created. A SYSTEM permission (built-in system_admin only,
+    # never a custom role, never delegable: the security spec gives site administrators no home-system management); the actor
+    # must also be an active home-system administrator in the synced directory (routers/ha_users.py).
+    "users.ha_manage": "ניהול משתמשי מערכת הבית: יצירה, השבתה ומחיקה",
     "video.export": "ייצוא וידאו",
     "ha.entity.control": "שליטה בישויות HA",
     "audio.talk": "דיבור דו־כיווני",
@@ -304,7 +309,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",
 }
-SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update"}  # rbac.assign is delegable (T082)
+SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update", "users.ha_manage"}  # rbac.assign is delegable (T082)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a
