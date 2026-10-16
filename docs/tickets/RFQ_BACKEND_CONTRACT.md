@@ -1,6 +1,6 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v0.9 (draft for the UI, first commit)** - 2026-10-16. Branch `pilot/TKRFQ1-core` (from `pilot/TKDETAILBE-backend`). Release
+Status: **v1.0 (implemented)** - 2026-10-16. Branch `pilot/TKRFQ1-core` (from `pilot/TKDETAILBE-backend`). Release
 target 2.6.1. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
 (final)"), `docs/tickets/DETAIL_BACKEND_CONTRACT.md` v1.2 (the quote entity, money, drafts), the approved mock-up v5
 (`private/planning/_mockups/ticket-module-v4/rfq.js`: new request, vendors board, comparison, order). Backend only. Changes after this
@@ -263,3 +263,16 @@ Audit actions (ids, states, totals, counts - never a text): `ticket.rfq.create`,
 ## 14. Change log
 
 * v0.9 (2026-10-16): first version, before the implementation (the UI may start on sections 9-11).
+* v1.0 (2026-10-16, after the implementation):
+  - Status moved to v1.0. Place: only `floor_id` is accepted (building / site derived); `site_id` / `building_id` in the body are not.
+  - Section 7: the second approver also may not be the user who entered that quote on the vendor's behalf (the decision code's
+    self-approval rule would refuse him anyway); `second_approval` in the detail is `{threshold_minor (costs.view only), enabled}`.
+  - Section 8: the RFQ purposes are NOT yet listed by the message-template editor (`routers/tickets_messages.TEMPLATE_PURPOSES`) -
+    the starters are used until the C2 UI adds labels; the cancellation notice goes only to vendors whose invitation went through
+    WhatsApp / e-mail (a vendor reached by hand gets no first system message). Reminders: one per vendor per hour (idempotency key).
+  - `send` takes `channel: "auto" | "manual"` (default auto); `auto` with the vendor page off answers 409
+    `rfq_vendor_page_unavailable` before any write.
+  - Detail extras: `vendors[].delivery` (newest outbox state of the vendor's link, managers only), `vendors[].revision`.
+  - Retention runs inside the cost janitor (`costs_retention.janitor`, every 10 min): deadlines, link rows, purge.
+  - Inbound WhatsApp replies are not matched to RFQs (residual: a vendor's text reply to an RFQ message is handled by the ticket
+    matcher as today - usually `unknown_sender`).
