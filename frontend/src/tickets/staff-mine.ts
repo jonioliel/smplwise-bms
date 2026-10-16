@@ -22,11 +22,11 @@ export class TicketsStaffMine extends LitElement {
     :host { display: block; }
     .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; }
     .num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
-    .tag { font-size: var(--sw-type-xs, 12px); padding: 2px 8px; border-radius: 999px; background: var(--sw-surface-2, rgba(127, 127, 127, 0.15)); }
-    .warn { color: var(--sw-warn, #b45309); }
-    button { font: inherit; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--sw-border, rgba(127, 127, 127, 0.4)); background: transparent; color: inherit; cursor: pointer; }
+    .tag { font-size: var(--sw-fs-xs); padding: 2px 8px; border-radius: 999px; background: var(--sw-surface-2); }
+    .warn { color: var(--sw-warning-text); }
+    button { font: inherit; padding: 4px 10px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: transparent; color: inherit; cursor: pointer; }
     button:disabled { opacity: 0.5; cursor: default; }
-    .err { color: var(--sw-danger, #b91c1c); font-size: var(--sw-type-xs, 12px); }
+    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-xs); }
   `;
 
   connectedCallback(): void {
