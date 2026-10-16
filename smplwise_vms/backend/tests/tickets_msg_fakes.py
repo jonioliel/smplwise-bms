@@ -62,6 +62,7 @@ class FakeLinks:
         self.revoked: set[str] = set()
         self.via: dict[str, str] = {}
         self.code_links: set[str] = set()
+        self.claim_only: set[str] = set()  # TK251: links that serve only the claim step (claim mode)
         self.notes: list[tuple[str, str, str]] = []
         self.redeems = 0
 
@@ -72,13 +73,13 @@ class FakeLinks:
             self.code_links.add(link_id)
         return token
 
-    def url(self, link_id: str) -> str | None:
-        if link_id in self.revoked or link_id not in self.tokens:
+    def url(self, link_id: str, *, claim: bool = False) -> str | None:
+        if link_id in self.revoked or link_id not in self.tokens or (link_id in self.claim_only and not claim):
             return None
         return f"https://t-demo.example.test/t/#{self.tokens[link_id]}"
 
-    def redeem_url(self, link_id: str) -> str | None:
-        if self.url(link_id) is None:
+    def redeem_url(self, link_id: str, *, claim: bool = False) -> str | None:
+        if self.url(link_id, claim=claim) is None:
             return None
         self.redeems += 1
         return f"https://t-demo.example.test/t/r/RID{self.redeems:04d}{self.tokens[link_id][:8]}"

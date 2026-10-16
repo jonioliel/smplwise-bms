@@ -1,26 +1,26 @@
-"""CR-038 section 10.6: the ONE image validator and store of the module - the internal upload route (slice 1) and the public
-handler page (slice 4) both call `store()`.
+"""CR-038 section 10.6: the internal photo upload of a ticket (slice 1's route) - its quotas, its translation of refusals into the
+route's Hebrew answers, and its stored-path helpers. The decoding itself is NOT here (deep review A6, TK251): both paths - this
+staff route and the public handler page (slice 4) - run the ONE intake pipeline, services/tickets/image_intake.reencode: a
+structure walk of the PNG / JPEG before Pillow sees anything (16-bit PNG, ancillary-chunk, scan-count and segment limits), the
+header-judged pixel budget (16 MP; 8 MP for PNG and for progressive JPEG), a METADATA-FREE copy handed to Pillow (EXIF is read by the
+bounded IFD0 reader for the orientation only - Pillow's TIFF reader, whose DEBUG log quotes tag values, never sees an upload), the
+strict load, RGB, at most 2048 px on the long side, a FRESH JPEG q82, then image_intake.store_image (a random name, an atomic
+fsync'd write, confined paths).
 
-Order (review R1 / T7 / C2 / T8): the installation's storage cap (a cached directory size, refreshed at most every 60 s; checked
-BEFORE any decode) -> magic bytes (JPEG and PNG only; WebP refused on purpose - a large decoder surface phones do not need; HEIC
-refused with a clear message) -> the header-declared size against 16 MP (image_guard.check_pixels, no decode) -> JPEG `draft` (the
-decoder downsamples) -> the decode under this module's OWN one-slot semaphore (5 s wait, then 429 `busy`; never the background
-upload's slot, so anonymous uploads can never starve an administrator's) -> EXIF orientation applied -> RGB -> at most 2048 px on the
-long side -> a FRESH JPEG q82 (no EXIF / GPS, ICC, XMP, thumbnails or trailing bytes survive) -> a random file name -> an atomic
-write -> SHA-256 recorded. The whole decode is wrapped: any decoder failure is 422 `image_invalid`. The original bytes are never
-stored or served. Files live on the data volume: `<data>/tickets/<ticket id>/<16 hex>.jpg` (relative path in the row)."""
+What stays this route's own: the installation's storage cap (a cached directory size, refreshed at most every 60 s; checked
+BEFORE any decode), the 8 MiB body, and its OWN one-slot decode semaphore (`_DECODE`, 5 s wait, then 429 `busy`) - passed to the
+pipeline, so anonymous uploads can never starve a staff member's and the reverse (never the background upload's slot either). The
+original bytes are never stored or served. Files live on the data volume: `<data>/tickets/<ticket id>/<16 hex>.jpg` (relative
+path in the row)."""
 from __future__ import annotations
 
 import contextlib
 import hashlib
 import os
 import re
-import secrets
-import tempfile
 import threading
 import time
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
 
 MAX_BYTES = 8 * 1024 * 1024
@@ -36,7 +36,6 @@ _DECODE = threading.BoundedSemaphore(1)
 _SIZE: dict[str, tuple[float, int]] = {}
 _SIZE_LOCK = threading.Lock()
 _REL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}/[0-9a-f]{16}\.jpg$")
-_HEIF_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1", b"heif", b"avif", b"avis"}
 
 
 class Refused(Exception):
@@ -96,66 +95,35 @@ def forget_size_cache() -> None:
         _SIZE.clear()
 
 
-def sniff(data: bytes) -> str:
-    """'jpeg' | 'png' by content (the declared type and the file name are ignored); Refused otherwise."""
-    if data[:3] == b"\xff\xd8\xff":
-        return "jpeg"
-    if data[:8] == b"\x89PNG\r\n\x1a\n":
-        return "png"
-    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        raise Refused(415, "webp_refused", "תמונות WebP אינן נתמכות. יש להעלות JPEG או PNG.")
-    if data[4:8] == b"ftyp" and data[8:12] in _HEIF_BRANDS:
-        raise Refused(415, "heic_refused", "תמונות HEIC אינן נתמכות. יש להעלות JPEG (בטלפון: הגדרות המצלמה › \"התואם ביותר\").")
-    raise Refused(415, "unsupported_format", "יש להעלות תמונת JPEG או PNG.")
+# the pipeline's refusal codes -> this route's answers (the public page has its own vocabulary)
+_MESSAGES: dict[str, tuple[int, str, str]] = {
+    "too_large": (413, "payload_too_large", "התמונה גדולה מ־8 MB."),
+    "webp_refused": (415, "webp_refused", "תמונות WebP אינן נתמכות. יש להעלות JPEG או PNG."),
+    "heic_refused": (415, "heic_refused", "תמונות HEIC אינן נתמכות. יש להעלות JPEG (בטלפון: הגדרות המצלמה › \"התואם ביותר\")."),
+    "unsupported_format": (415, "unsupported_format", "יש להעלות תמונת JPEG או PNG."),
+    "too_many_pixels": (422, "too_many_pixels", "התמונה גדולה מדי (רזולוציה)."),
+    "image_invalid": (422, "image_invalid", "התמונה פגומה ואי אפשר לפתוח אותה."),
+    "busy": (429, "busy", "העלאת תמונה אחרת מתבצעת כעת. נסו שוב בעוד רגע."),
+}
+
+
+def _refused(exc: Exception) -> Refused:
+    code = getattr(exc, "code", "image_invalid")
+    status, out_code, message = _MESSAGES.get(code, _MESSAGES["image_invalid"])
+    details = {k: v for k, v in (getattr(exc, "details", None) or {}).items() if isinstance(v, int)}
+    return Refused(status, out_code, message, **details)
 
 
 def reencode(data: bytes) -> tuple[bytes, int, int]:
-    """The validated, re-encoded picture: (fresh JPEG bytes, width, height). Raises Refused."""
-    from PIL import Image, ImageOps
+    """The validated, re-encoded picture through the ONE intake pipeline (image_intake.reencode) in THIS route's decode slot:
+    (fresh JPEG bytes, width, height). Raises Refused."""
+    from . import image_intake
 
-    from ..image_guard import check_pixels
-    from .image_intake import _load_strict
-
-    kind = sniff(data)
     try:
-        im = Image.open(BytesIO(data), formats=["JPEG"] if kind == "jpeg" else ["PNG"])  # the header only
-        if check_pixels(im, MAX_PIXELS) is None:
-            w, h = im.size
-            raise Refused(422, "too_many_pixels", "התמונה גדולה מדי (רזולוציה).", width=w, height=h, max_pixels=MAX_PIXELS)
-        if im.format == "JPEG":
-            im.draft("RGB", (LONG_SIDE, LONG_SIDE))  # the decoder itself downsamples: never the full grid of a large photo
-        if not _DECODE.acquire(timeout=DECODE_WAIT_S):
-            raise Refused(429, "busy", "העלאת תמונה אחרת מתבצעת כעת. נסו שוב בעוד רגע.", retry_after_s=5)
-        try:
-            _load_strict(im)  # 2.5.0 gate: never with LOAD_TRUNCATED_IMAGES on (WeasyPrint sets it process-wide)
-            im = ImageOps.exif_transpose(im)  # after the pixel check (review T7-4)
-            im = im.convert("RGB")
-            if max(im.size) > LONG_SIDE:
-                im.thumbnail((LONG_SIDE, LONG_SIDE), Image.Resampling.LANCZOS)
-            out = BytesIO()
-            im.save(out, format="JPEG", quality=QUALITY, optimize=True)
-            width, height = im.size
-        finally:
-            _DECODE.release()
-    except Refused:
-        raise
-    except Image.DecompressionBombError:
-        raise Refused(422, "too_many_pixels", "התמונה גדולה מדי (רזולוציה).", max_pixels=MAX_PIXELS) from None
-    except Exception as exc:  # noqa: BLE001 - any decoder failure is the upload's problem (review T7-4)
-        raise Refused(422, "image_invalid", "התמונה פגומה ואי אפשר לפתוח אותה.", error=type(exc).__name__) from None
-    return out.getvalue(), width, height
-
-
-def _write_atomic(target: Path, data: bytes) -> None:
-    fd, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=".up.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(data)
-        os.replace(tmp, target)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
+        image = image_intake.reencode(data, max_pixels=MAX_PIXELS, wait_s=DECODE_WAIT_S, semaphore=_DECODE)
+    except image_intake.IntakeError as exc:
+        raise _refused(exc) from None
+    return image.data, image.width, image.height
 
 
 def check_capacity(data_dir: Path, incoming: int) -> None:
@@ -175,12 +143,16 @@ def store(data_dir: Path, ticket_id: str, data: bytes) -> Stored:
         raise Refused(422, "image_invalid", "מזהה לא תקין.")
     check_capacity(data_dir, len(data))
     out, width, height = reencode(data)
-    folder = root(data_dir) / ticket_id
-    folder.mkdir(parents=True, exist_ok=True)
-    name = f"{secrets.token_hex(8)}.jpg"
-    _write_atomic(folder / name, out)
-    _account(data_dir, len(out))
-    return Stored(rel_path=f"{ticket_id}/{name}", sha256=hashlib.sha256(out).hexdigest(), bytes=len(out), width=width, height=height)
+    from . import image_intake
+
+    base = root(data_dir)
+    base.mkdir(parents=True, exist_ok=True)
+    try:
+        stored = image_intake.store_image(base, ticket_id, image_intake.Reencoded(out, width, height, hashlib.sha256(out).hexdigest()))
+    except image_intake.StorePathError:
+        raise Refused(422, "image_invalid", "מזהה לא תקין.") from None
+    _account(data_dir, stored.bytes)
+    return Stored(rel_path=stored.rel_path, sha256=stored.sha256, bytes=stored.bytes, width=stored.width, height=stored.height)
 
 
 def path_of(data_dir: Path, rel_path: str) -> Path:

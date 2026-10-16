@@ -747,6 +747,12 @@ class AccountsService:
             return AccountRef(key=key, value=account.value or "", label=account.label or "וואטסאפ (ידני)")
         return None
 
+    def all_keys(self) -> set[str]:
+        """Every WhatsApp account this add-on can see: configured, discovered in the mirror, or named by a use (the tickets
+        inbound filter's "is there more than one account at all" - deep review B6)."""
+        doc = self._load()
+        return {a.key for a in doc.accounts} | set(self.discovered()) | {v for v in doc.uses.values() if v}
+
     def mapped_keys(self, module: str) -> set[str]:
         """Every account a use of `module` resolves to now (installation values, department overrides, inherited values) - the
         inbound account filter's "mapped to a ticket use now" (9.6)."""

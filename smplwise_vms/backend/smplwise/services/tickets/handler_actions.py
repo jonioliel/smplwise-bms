@@ -286,7 +286,8 @@ def record_open(conn, link: LinkRecord, now: dt.datetime, client_key: str) -> No
             store_links.insert_contact_event(conn, ticket["id"], "link_opened", contact_id=link.contact_id,
                                              actor_name=(asg or {}).get("assignee_name") or "", assignment_id=link.assignment_id, at=at,
                                              data={"generation": link.generation}, visible_external=False)
-    if not store_links.recent_access(conn, link.link_id, "open", client_key, iso(now - OPEN_ACCESS_GAP)):
+    # the first open of a generation always counts its device (TK251: the device count is per generation, like the open line)
+    if first or not store_links.recent_access(conn, link.link_id, "open", client_key, iso(now - OPEN_ACCESS_GAP)):
         store_links.insert_access(conn, link.link_id, at, "open", client_key)
 
 

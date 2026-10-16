@@ -40,7 +40,7 @@ from zoneinfo import ZoneInfo
 
 from . import hours
 from . import message_templates as templates  # renamed in slice 5b: slice 2 owns `templates.py` (ticket templates)
-from .channel import (LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, SENT, UNKNOWN, AccountRef, OutboundMessage,
+from .channel import (CLAIM_LINK_PURPOSES, LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, SENT, UNKNOWN, AccountRef, OutboundMessage,
                       Recipient, SendResult, TicketChannel, keyed_hash, phone_digits, priority_of)
 
 log = logging.getLogger("smplwise.tickets.outbox")
@@ -142,9 +142,11 @@ class Directory(Protocol):
 
 
 class Links(Protocol):
-    def url(self, link_id: str) -> str | None: ...  # the handler URL with the fragment token; None when not live
+    # the handler URL with the fragment token; None when not live. `claim=True` (TK251, the cost messages): also while the link
+    # serves only the CLAIM step (claim mode after close / a cannot-handle return, until the claim window ends)
+    def url(self, link_id: str, *, claim: bool = False) -> str | None: ...
 
-    def redeem_url(self, link_id: str) -> str | None: ...  # the e-mail form /t/r/<rid> (mints a redeem id)
+    def redeem_url(self, link_id: str, *, claim: bool = False) -> str | None: ...  # the e-mail form /t/r/<rid> (mints a redeem id)
 
     def sent_via(self, link_id: str) -> str | None: ...
 
@@ -391,7 +393,7 @@ class Outbox:
             raise OutboxError("purpose_unknown")
         if channel not in self.p.channels:
             raise OutboxError("channel_unknown")
-        if purpose in LINK_PURPOSES and not link_id:
+        if (purpose in LINK_PURPOSES or purpose in CLAIM_LINK_PURPOSES) and not link_id:
             raise OutboxError("link_required")
         if purpose == "code" and (not code or not code.isdigit() or len(code) != 6 or not link_id):
             raise OutboxError("code_invalid")
@@ -536,6 +538,9 @@ class Outbox:
         if row.link_id and (row.purpose in LINK_PURPOSES or row.purpose == "code") and self.p.links.url(row.link_id) is None:
             self._cancel(row, "link_not_live", now)
             return 0
+        if row.purpose in CLAIM_LINK_PURPOSES and (not row.link_id or self.p.links.url(row.link_id, claim=True) is None):
+            self._cancel(row, "link_not_live", now)  # TK251: a cost message never goes out with a link that opens nothing
+            return 0
         if row.recipient_kind == "contact":
             tz = self.p.context.time_zone()
             decision = hours.decide(row.purpose, now, self.p.context.send_window(row.department_id), tz, send_now=row.send_now)
@@ -656,6 +661,12 @@ class Outbox:
             if not url:
                 return None, "link_not_live"
             secrets["link"] = url
+        elif row.purpose in CLAIM_LINK_PURPOSES:
+            claim_url = (self.p.links.redeem_url(row.link_id, claim=True) if row.channel == "email"
+                         else self.p.links.url(row.link_id, claim=True)) if row.link_id else None
+            if not claim_url:
+                return None, "link_not_live"
+            secrets["link"] = claim_url
         if row.purpose == "code":
             code = self.p.secrets.code(row.id)
             if not code and row.code_id and self.p.derive_code is not None:

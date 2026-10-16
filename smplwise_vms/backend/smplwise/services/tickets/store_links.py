@@ -328,7 +328,11 @@ def recent_access(conn: sqlite3.Connection, link_id: str, kind: str, client_key:
         (link_id, kind, client_key, since)).fetchone() is not None
 
 
-def access_devices(conn: sqlite3.Connection, link_id: str) -> int:
+def access_devices(conn: sqlite3.Connection, link_id: str, *, since: str | None = None) -> int:
+    """Distinct devices that used the link (`since`: from that instant on - the current generation's, TK251)."""
+    if since:
+        return int(conn.execute("SELECT COUNT(DISTINCT client_key) FROM ticket_link_access WHERE link_id = ? AND at >= ?",
+                                (link_id, since)).fetchone()[0])
     return int(conn.execute("SELECT COUNT(DISTINCT client_key) FROM ticket_link_access WHERE link_id = ?", (link_id,)).fetchone()[0])
 
 

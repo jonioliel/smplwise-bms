@@ -128,12 +128,17 @@ def test_the_pixel_budget_is_judged_on_the_header_before_any_decode(w, monkeypat
     real_load = ImageFile.ImageFile.load
     monkeypatch.setattr(ImageFile.ImageFile, "load", lambda self, *a, **k: decoded.append(self.size) or real_load(self, *a, **k))
     r = _upload(w, t["id"], buf.getvalue(), name="bomb.png")
-    assert r.status_code == 422 and r.json()["code"] == "too_many_pixels" and r.json()["details"]["max_pixels"] == attachments.MAX_PIXELS
+    # TK251 (deep review A6): the staff path runs the ONE intake pipeline - a PNG is capped at 8 MP there (code review V6)
+    assert r.status_code == 422 and r.json()["code"] == "too_many_pixels" and r.json()["details"]["max_pixels"] == 8_000_000
     assert decoded == [], "refused before a single pixel was decoded"
-    exact = Image.new("1", (4000, 4000))
-    buf = io.BytesIO()
-    exact.save(buf, format="PNG", optimize=True)
-    assert _upload(w, t["id"], buf.getvalue(), name="ok.png").status_code == 201, "exactly 16 MP passes"
+    over = io.BytesIO()
+    Image.new("RGB", (4001, 4000), (200, 200, 200)).save(over, format="JPEG", quality=30)
+    r = _upload(w, t["id"], over.getvalue())
+    assert r.status_code == 422 and r.json()["details"]["max_pixels"] == attachments.MAX_PIXELS, "16 MP + 1 pixel (baseline JPEG)"
+    assert decoded == []
+    exact = io.BytesIO()
+    Image.new("RGB", (4000, 4000), (200, 200, 200)).save(exact, format="JPEG", quality=30)
+    assert _upload(w, t["id"], exact.getvalue()).status_code == 201, "exactly 16 MP passes (baseline JPEG)"
 
 
 def test_a_decompression_bomb_is_refused(w):

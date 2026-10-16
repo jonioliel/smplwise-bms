@@ -49,8 +49,8 @@ export interface TicketItem {
   closed_at: string | null;
   revision: number;
   view: 'full' | 'limited';
-  /** slice 2: the SLA dues (null = no threshold applies now / off) */
-  sla?: { ack_due_at: string | null; stuck_due_at: string | null; resolve_due_at: string | null };
+  /** slice 2: the SLA dues (null = no threshold applies now / off). TK251: null for a limited viewer (management information) */
+  sla?: { ack_due_at: string | null; stuck_due_at: string | null; resolve_due_at: string | null } | null;
   /** slice 3: a device's ticket */
   entity_id?: string | null;
 }

@@ -351,7 +351,7 @@ def list_templates(principal: Principal = Depends(current_principal_ro), conn: s
     rows = messaging.message_template_rows(conn, include_all_departments=True, include_inactive=True)
     return {
         "purposes": list(TEMPLATE_PURPOSES), "langs": list(messaging.LANGS), "placeholders": list(mt.PLACEHOLDERS),
-        "rules": {"link_required": sorted(p for p in TEMPLATE_PURPOSES if p in mt.LINK_PURPOSES), "code_only": ["code"],
+        "rules": {"link_required": sorted(p for p in TEMPLATE_PURPOSES if p in mt.TEMPLATE_LINK_PURPOSES), "code_only": ["code"],
                   "code_forbidden": sorted(mt.CODE_FORBIDDEN), "max_rendered": mt.RENDERED_MAX},
         "items": [_template_dict(r) for r in rows],
         "starters": {p: dict(mt.STARTERS.get(p, {})) for p in TEMPLATE_PURPOSES},

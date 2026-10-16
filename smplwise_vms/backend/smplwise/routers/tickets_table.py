@@ -108,7 +108,7 @@ def table_page(
     filters: dict[str, Any] = Depends(filter_params),
     sort: str | None = Query(None, max_length=60),
     limit: int | None = Query(None),
-    cursor: str | None = Query(None, max_length=600),
+    cursor: str | None = Query(None, max_length=table.CURSOR_MAX),  # TK251: the sealed cursor
 ) -> dict[str, Any]:
     """`{items, next_cursor, sort, limit}`: one page in the requested order, each row checked by access.visible(); a page may come back
     SHORT with a `next_cursor` (5 x limit candidates scanned) - the client keeps loading."""

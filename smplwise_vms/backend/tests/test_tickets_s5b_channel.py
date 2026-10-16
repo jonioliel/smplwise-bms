@@ -414,7 +414,12 @@ def test_the_account_filter_drops_events_of_other_accounts_before_any_row(env):
     with env.s4.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM ticket_inbound").fetchone()[0] == 0
     assert env.s4.w.detail(t["id"])["status"] == "assigned"
-    env.inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock()))  # no entry_id: processed as in r1
+    # no entry_id while Home Assistant holds two WhatsApp accounts (one of them not a ticket account): the reply cannot be placed
+    # on an account - ignored, fail closed (deep review B6, TK251); with its entry_id it is taken
+    env.inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock()))
+    assert env.s4.w.detail(t["id"])["status"] == "assigned"
+    assert (_last_inbound(env)["result"], _last_inbound(env)["reason"]) == ("ignored", "account_unknown")
+    env.inbound(FakeHaWhatsapp.received(PHONE_A_E164, "1", at=env.clock(), entry_id=ENTRY_A))
     assert env.s4.w.detail(t["id"])["status"] == "acknowledged"
 
 

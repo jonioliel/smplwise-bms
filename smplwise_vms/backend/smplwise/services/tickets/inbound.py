@@ -221,11 +221,19 @@ class AccountFilter(Protocol):
 class TicketAccountFilter:
     """9.6 first step: an event carrying `entry_id` is processed only when that account is mapped to a ticket use now, or sent a
     ticket outbox row within the reply window (`recent_keys(since)`). Everything else (the owner's other numbers, the intercom,
-    private chats) is dropped before any row is written."""
+    private chats) is dropped before any row is written.
+
+    Deep review B6 (TK251): an event WITHOUT `entry_id` cannot be placed on an account, so the processor needs to know whether the
+    installation has more than one WhatsApp account AT ALL - not only more than one ticket account: with one ticket account and
+    the intercom's number in the same Home Assistant, a reply to the intercom would otherwise be matched by sender to a ticket.
+    `visible_keys` lists every ha-whatsapp account the add-on can see (configured, discovered, used); a failure to read it counts
+    as "more than one" (fail closed)."""
 
     def __init__(self, mapped_keys: Callable[[], Iterable[str]], recent_keys: Callable[[dt.datetime], Iterable[str]],
-                 reply_window_h: Callable[[], int] = lambda: DEFAULT_REPLY_WINDOW_H) -> None:
+                 reply_window_h: Callable[[], int] = lambda: DEFAULT_REPLY_WINDOW_H, *,
+                 visible_keys: Callable[[], Iterable[str]] | None = None) -> None:
         self._mapped, self._recent, self._window = mapped_keys, recent_keys, reply_window_h
+        self._visible = visible_keys
 
     def accepts(self, account_key: str, now: dt.datetime) -> bool:
         if account_key in set(self._mapped()):
@@ -233,8 +241,16 @@ class TicketAccountFilter:
         return account_key in set(self._recent(now - dt.timedelta(hours=self._window())))
 
     def account_count(self, now: dt.datetime) -> int:
-        """How many accounts the module listens to now (mapped to a ticket use, or sent within the reply window)."""
-        return len(set(self._mapped()) | set(self._recent(now - dt.timedelta(hours=self._window()))))
+        """How many accounts an event without `entry_id` might have come from: the ones the module listens to now (mapped to a
+        ticket use, or sent within the reply window) plus every account the add-on can see (B6). Unreadable -> 2 (fail closed)."""
+        keys = set(self._mapped()) | set(self._recent(now - dt.timedelta(hours=self._window())))
+        if self._visible is not None:
+            try:
+                keys |= {k for k in self._visible() if k}
+            except Exception as exc:  # noqa: BLE001 - the account list could not be read: never guess "only one"
+                log.warning("inbound account list unreadable (%s)", type(exc).__name__)
+                return max(2, len(keys))
+        return len(keys)
 
 
 class MemoryDedupe:

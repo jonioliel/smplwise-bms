@@ -4,7 +4,9 @@
 - pending invoice files (uploaded, never submitted) older than 24 h: the file and its row go;
 - claims past their own `purge_after` (approval / payment + `costs.retention_days`, default 7 years - D32): the claim, its
   revisions, decisions and files go, whatever happened to the ticket (financial records outlive the ticket, 11A.11);
-- unapproved claims of a ticket that was purged (ticket_id NULL) follow the ticket.
+- unapproved claims of a ticket that was purged (ticket_id NULL) follow the ticket;
+- deep review A4 (TK251): files under a ticket folder that no row names and that are older than an hour (a crash between the
+  write and the row) - deletion.sweep_orphan_files, after the whole-folder sweep.
 A failure is logged by type and never stops the tick; file deletions happen after the rows are gone (a crash leaves an orphan
 file at worst, never a row pointing at nothing)."""
 from __future__ import annotations
@@ -56,4 +58,10 @@ def janitor(db: Database, root: Path, *, force: bool = False, now: dt.datetime |
         out["orphan_folders"] = deletion.sweep_orphans(db, root)
     except Exception as exc:  # noqa: BLE001 - never stops the tick
         log.warning("ticket folder sweep failed (%s)", type(exc).__name__)
+    try:
+        from . import deletion
+
+        out["orphan_files"] = deletion.sweep_orphan_files(db, root)
+    except Exception as exc:  # noqa: BLE001 - never stops the tick
+        log.warning("ticket file sweep failed (%s)", type(exc).__name__)
     return out
