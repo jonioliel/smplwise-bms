@@ -69,7 +69,7 @@ const en: Partial<Record<Key, string>> = {
   budgetCritical: 'Share for critical',
   budgetCriticalHint: 'Critical notifications and escalations may use up to this',
   detail: 'Detail in the message',
-  detailHint: 'The alert's own text is never sent to WhatsApp',
+  detailHint: 'The text of the alert itself is never sent to WhatsApp',
   detail_generic: 'Generic',
   detail_type_place: 'Type and place',
   mine_title: 'My WhatsApp',
