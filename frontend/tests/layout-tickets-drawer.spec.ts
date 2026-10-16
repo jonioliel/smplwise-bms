@@ -32,7 +32,7 @@ async function scrollers(page: Page): Promise<string[]> {
       }
       return null;
     };
-    const td = find(document, 'tickets-list ticket-detail') as HTMLElement;
+    const td = find(document, 'ticket-detail') as HTMLElement; // (a selector never crosses a shadow root: the one drawer of the list)
     const dlg = td.shadowRoot!.querySelector('sw-drawer')!.shadowRoot!.querySelector('dialog')!;
     const out: string[] = [];
     const scrolls = (e: Element) => {
