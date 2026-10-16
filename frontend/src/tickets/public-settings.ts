@@ -37,7 +37,7 @@ export class TicketsPublicCard extends LitElement {
   @state() private org: string | null = null;
   @state() private address: string | null = null;
   @state() private cidrs: string | null = null;
-  @state() private prefix: string | null = null;
+  @state() private pathPrefix: string | null = null;
   @state() private probe: ProbeAnswer | null = null;
   @state() private probing = false;
   @state() private advanced = false;
@@ -116,7 +116,7 @@ export class TicketsPublicCard extends LitElement {
         this.org = null;
         this.address = null;
         this.cidrs = null;
-        this.prefix = null;
+        this.pathPrefix = null;
         void this.loadHealth();
       }
     }
@@ -178,6 +178,8 @@ export class TicketsPublicCard extends LitElement {
     const p = this.pub;
     const org = this.org ?? this.doc?.organization_name ?? '';
     const address = this.address ?? p.base_url;
+    const prefix = this.pathPrefix ?? p.path_prefix ?? 'support';
+    const prefixOk = /^\/?(?:t|[a-z0-9][a-z0-9_-]{1,31})$/.test(prefix.trim());
     const cidrs = this.cidrs ?? p.trusted_proxy_cidrs.join('\n');
     const cidrList = cidrs.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
     return html`<sw-card heading=${tt('pubCard')} subheading=${tt('pubSub')} data-card="public">
@@ -204,7 +206,7 @@ export class TicketsPublicCard extends LitElement {
         ${this.probe ? this.probeLine() : nothing}</div>
       <div class="row stack"><span class="lbl">${tt('pubPrefix')}</span>
         <div class="line"><input class="in" dir="ltr" maxlength="33" autocomplete="off" data-public-prefix aria-label=${tt('pubPrefix')} ?readonly=${this.remote}
-          .value=${prefix} @input=${(e: Event) => (this.prefix = (e.target as HTMLInputElement).value)} />
+          .value=${prefix} @input=${(e: Event) => (this.pathPrefix = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-public-prefix-save ?disabled=${this.busy || this.remote || !prefixOk || prefix.trim().replace(/^\//, '') === (p.path_prefix ?? 'support')}
             @click=${() => this.save({ public: { path_prefix: prefix.trim().replace(/^\//, '') } })}>${tt('save')}</sw-button></div>
         <div class="hint" data-public-prefix-note>${tt('pubPrefixNote', { p: prefixOk ? prefix.trim().replace(/^\//, '') : 'support' })}</div>
