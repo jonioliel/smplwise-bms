@@ -41,6 +41,8 @@ for (const prefix of ['', '/arx/']) {
       test.skip(dev, 'served by a dev server, not the built preview');
     }
     await open(page, prefix);
+    // TKUI1: the full-page link lives in the drawer's "⋯" menu
+    await page.locator(`${L} tickets-list ticket-detail [data-more]`).click();
     const full = page.locator(`${L} tickets-list ticket-detail [data-full-screen]`);
     await full.waitFor();
     await full.click();
@@ -53,6 +55,7 @@ for (const prefix of ['', '/arx/']) {
     await expect(page).toHaveURL(new RegExp(`#/tickets/mine[?]t=${ID}$`));
     await expect(page.locator(`${L} tickets-list [data-ticket-detail="${ID}"]`)).toBeVisible();
     // the other way: the full page's back link returns to the list
+    await page.locator(`${L} tickets-list ticket-detail [data-more]`).click();
     await page.locator(`${L} tickets-list ticket-detail [data-full-screen]`).click();
     await expect(page.locator(`${L} tickets-detail`)).toBeVisible();
     await page.locator(`${L} tickets-detail [data-back]`).click(); // the back link of the full page
@@ -67,6 +70,7 @@ test('TK260 the manager board drawer expands to the full screen too', async ({ p
   await installBoardMock(page, {});
   await page.goto('about:blank');
   await page.goto(`/?design=a&skin=classic&scheme=light#/tickets/board?t=${ID}`);
+  await page.locator(`${L} tickets-board ticket-detail [data-more]`).click();
   const full = page.locator(`${L} tickets-board ticket-detail [data-full-screen]`);
   await full.waitFor();
   await full.click();

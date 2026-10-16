@@ -266,11 +266,11 @@ test.describe('tickets message channel evidence (slice 5b)', () => {
 
   test('the ticket page: delivery lines (D14), send now (D29), send again, send update, send the link again', async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) {
-      await go(page, `/tickets/${TID}`, scheme);
+      await go(page, `/tickets/${TID}?tab=conv`, scheme); // TKUI1: the delivery lines live in the Conversation tab
       await page.waitForSelector(`${D} [data-sect="messages"]`);
       await shot(page, 'ticket-messages', scheme);
     }
-    const calls = await go(page, `/tickets/${TID}`);
+    const calls = await go(page, `/tickets/${TID}?tab=conv`);
     const M = `${D} [data-sect="messages"]`;
     await page.waitForSelector(M);
     await expect(page.locator(`${M} [data-message="ob-1"] [data-message-line]`)).toContainText('נשלח בוואטסאפ - מסירה לא ידועה');
@@ -286,6 +286,7 @@ test.describe('tickets message channel evidence (slice 5b)', () => {
     await page.locator(`${M} [data-send-update]`).click();
     await expect.poll(() => last(calls, 'POST', /send-update$/)?.path).toBe(`tickets/${TID}/send-update`);
     await expect(page.locator(`${M} [data-stale]`)).toHaveCount(0);
+    await page.locator(`${D} [role="tab"][data-tab="overview"]`).click(); // the link panel sits under the handler card
     await page.locator(`${D} [data-link-panel] [data-link-resend]`).click();
     await expect.poll(() => last(calls, 'POST', /link\/resend$/)?.path).toBe(`tickets/${TID}/link/resend`);
   });

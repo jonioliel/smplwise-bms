@@ -44,6 +44,7 @@ test.describe('tickets deletion evidence', () => {
     for (const skin of ['classic', 'domus'])
       for (const scheme of ['light', 'dark'] as const) {
         await go(page, `/tickets/mine?t=${A02}`, {}, scheme, skin);
+        await page.locator(`${D} [data-more]`).click(); // TKUI1: the deletion lives in the drawer's "⋯" menu
         const btn = page.locator(`${D} [data-delete-ticket]`);
         await btn.waitFor();
         await expect(btn).toContainText('מחיקת בקשת שירות');
@@ -56,6 +57,7 @@ test.describe('tickets deletion evidence', () => {
         await shot(page, 'dialog-ready', scheme, skin);
       }
     const mock = await go(page, `/tickets/mine?t=${A02}`);
+    await page.locator(`${D} [data-more]`).click();
     await page.locator(`${D} [data-delete-ticket]`).click();
     const go_ = page.locator(`${DLG} [data-delete-go]`);
     await expect(page.locator(`${DLG} [data-delete-goes]`)).toContainText('הערות, תמונות, קישורים');
@@ -77,6 +79,7 @@ test.describe('tickets deletion evidence', () => {
 
   test('a refusal is shown as the server sent it (an approved cost claim)', async ({ page }) => {
     await go(page, `/tickets/mine?t=${A02}`, { costBlocked: [A02] });
+    await page.locator(`${D} [data-more]`).click();
     await page.locator(`${D} [data-delete-ticket]`).click();
     await page.locator(`${DLG} [data-delete-confirm]`).fill('1043');
     await page.locator(`${DLG} [data-delete-reason]`).fill('כפילות');
@@ -88,7 +91,10 @@ test.describe('tickets deletion evidence', () => {
   test('without tickets.delete: no action in the drawer, no entry in the bulk bar', async ({ page }) => {
     await go(page, `/tickets/mine?t=${A02}`, { noDelete: true });
     await page.locator(`${D} [data-ticket-detail]`).waitFor();
+    await page.locator(`${D} [data-more]`).click();
+    await expect(page.locator(`${D} [data-drawer-menu]`)).toBeVisible();
     await expect(page.locator(`${D} [data-delete-ticket]`)).toHaveCount(0);
+    await page.keyboard.press('Escape');
     test.skip(isPhone(page), 'the bar on desktop');
     await page.goto(url('/tickets/mine'));
     await page.locator(`${T} tbody [data-select]`).first().click();

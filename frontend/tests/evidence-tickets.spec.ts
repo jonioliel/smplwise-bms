@@ -58,16 +58,18 @@ test.describe('tickets evidence', () => {
         await shot(page, 'drawer', scheme, skin);
       }
     const d = page.locator(`${L} ticket-detail`);
-    // 2.5.6: the part wait is a sub-state of "in progress": six steps, the active one is "בטיפול" with a small secondary label
-    await expect(d.locator('[data-strip] button')).toHaveCount(6);
-    await expect(d.locator('[data-strip] [data-move="waiting_part"]')).toHaveCount(0);
-    await expect(d.locator('[data-strip] button[aria-pressed="true"]')).toContainText('בטיפול');
-    await expect(d.locator('[data-strip] [data-waiting-sub]')).toHaveText('ממתין לחלק');
-    await expect(d.locator('[data-current-status]')).toHaveText('בטיפול · ממתין לחלק');
-    await expect(d.locator('[data-waiting-toggle="back"]')).toHaveText('חזרה לטיפול');
-    await expect(d.locator('[data-strip] [data-move="new"]')).toBeDisabled();
-    await expect(d.locator('[data-timeline] li')).toHaveCount(5);
+    // 2.5.6 + TKUI1 (v5): the part wait is a sub-state of "in progress": a read-only flow of six steps, the current one "בטיפול", the ONE status
+    // chip carries the "ממתין לחלק" sub-label; the moves live in the "⋯" menu ("חזרה לטיפול" there, never a waiting_part step)
+    await expect(d.locator('[data-flow] li')).toHaveCount(6);
+    await expect(d.locator('[data-flow] li[aria-current="step"]')).toHaveText('בטיפול');
+    await expect(d.locator('[data-status-chip] [data-waiting-sub]')).toHaveText('ממתין לחלק');
+    await d.locator('[data-more]').click();
+    await expect(d.locator('[data-drawer-menu] [data-waiting-toggle="back"]')).toHaveText('חזרה לטיפול');
+    await expect(d.locator('[data-drawer-menu] [data-move="waiting_part"]')).toHaveCount(0);
     await expect(d.locator('[data-full-screen]')).toHaveAttribute('href', '#/tickets/0000000000000a01');
+    await page.keyboard.press('Escape');
+    await d.locator('[role="tab"][data-tab="history"]').click();
+    await expect(d.locator('[data-timeline] li')).toHaveCount(5);
   });
 
   test('a card opens the drawer; a move posts to the API with the revision', async ({ page }) => {
@@ -79,9 +81,11 @@ test.describe('tickets evidence', () => {
     await d.locator('[data-ticket-detail]').waitFor();
     await page.goto(url('/tickets/mine?t=0000000000000a07'));
     await d.locator('[data-ticket-detail="0000000000000a07"]').waitFor();
+    await d.locator('[data-more]').click();
     await d.locator('[data-move="in_progress"]').click();
     await expect.poll(() => mock.calls.find((c) => c.method === 'POST' && c.path.endsWith('/status'))?.body).toEqual({ to: 'in_progress', revision: 3 });
     // closing without "done" asks for the reason first (the server requires it)
+    await d.locator('[data-more]').click();
     await d.locator('[data-move="closed"]').click();
     await expect(d.locator('sw-dialog[data-dialog="move"] [data-dialog-text]')).toBeVisible(); // (the dialog's host is display: contents)
     await d.locator('sw-dialog[data-dialog="move"] [data-dialog-ok]').click();

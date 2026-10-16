@@ -54,7 +54,7 @@ type Dialog =
 type Detail = TicketDetail & { link?: LinkBlock | null };
 
 /** The rows of the Conversation tab until TKUI2 splits it into "עם הספק" / "הצוות": notes, replies and messages. */
-const CONV_KINDS = new Set(['note', 'inbound', 'late_reply', 'message', 'photo']);
+const CONV_KINDS = new Set(['note', 'photo', 'inbound', 'late_reply', 'link_sent', 'update_sent', 'code_sent', 'message_unknown', 'message_failed', 'message_fallback']);
 /** The photos the Overview shows before "+N" (one row, IA §5). */
 const PHOTO_ROW = 4;
 const PHONE_QUERY = '(max-width: 767px)';
@@ -933,6 +933,7 @@ export class TicketDetailView extends LitElement {
       onReassign: t.can.assign && t.assignee ? () => this.openDialog({ kind: 'assign' }) : null,
       onEdit: t.can.edit_fields.length ? () => this.openDialog({ kind: 'edit' }) : null,
       duplicateHref: t.duplicate_of ? this.hrefOf(t.duplicate_of.id) : '',
+      link: this.linkPanel.render(t),
       photos: this.photosSection(t),
       device: historySection(t.device_context),
     };
@@ -954,9 +955,9 @@ export class TicketDetailView extends LitElement {
           <ticket-cost-card .ticket=${t} @cost-changed=${() => void this.load()}></ticket-cost-card>
         </div>`;
       case 'history':
-        // SLOT (TKUI2): the timeline, the files and the audit card of IA §4.1 - today's timeline and the link panel (the audit)
+        // SLOT (TKUI2): the timeline, the files and the audit card of IA §4.1 - today's full timeline (the link panel stays under the
+        // handler card in Overview until the audit card exists: its copy / new / revoke are actions a manager needs one tap away)
         return html`<div class="one" data-tab-content="history" data-slot="history">
-          ${this.linkPanel.render(t)}
           ${this.timeline(t, { id: 'timeline', sect: 'timeline' })}
         </div>`;
       default:

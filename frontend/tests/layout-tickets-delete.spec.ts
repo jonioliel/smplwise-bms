@@ -27,8 +27,9 @@ interface Screen {
   minWidth?: number;
 }
 const SCREENS: Screen[] = [
-  { name: 'drawer', hash: `/tickets/mine?t=${A02}`, wait: `${D} [data-delete-ticket]` },
-  { name: 'dialog', hash: `/tickets/mine?t=${A02}`, wait: `${D} [data-delete-ticket]`, prep: async (p) => {
+  { name: 'drawer', hash: `/tickets/mine?t=${A02}`, wait: `${D} [data-more]` },
+  { name: 'dialog', hash: `/tickets/mine?t=${A02}`, wait: `${D} [data-more]`, prep: async (p) => {
+    await p.locator(`${D} [data-more]`).click(); // TKUI1: the deletion is in the "⋯" menu
     await p.locator(`${D} [data-delete-ticket]`).click();
     await p.locator(`${D} tickets-delete-dialog [data-delete-confirm]`).fill('1043');
     await p.locator(`${D} tickets-delete-dialog [data-delete-reason]`).fill('נפתחה פעמיים בטעות, אותה תקלה בדיוק כמו בבקשה הקודמת של אותו חדר');

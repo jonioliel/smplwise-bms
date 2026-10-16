@@ -33,6 +33,8 @@ export interface OverviewCtx {
   duplicateHref: string;
   /** the photo row (the host's existing block, limited to one row) */
   photos: TemplateResult | typeof nothing;
+  /** the handler link panel (tickets/link-panel.ts, managers only) under the handler card: copy / new / revoke / send again stay one tap away */
+  link: TemplateResult | typeof nothing;
   /** the device-history section (tickets/ticket-device-context.ts) or nothing */
   device: TemplateResult | typeof nothing;
 }
@@ -84,7 +86,7 @@ function people(t: TicketDetail & { link?: LinkBlock | null }, ctx: OverviewCtx)
           ${t.eta_at ? html`<span class="chan">${tIcon('clock')}${dwt('nowEta')}: ${etaText(t.eta_at, ctx.now)}</span>` : nothing}
         </div>` : nothing}
       </div>
-      ${ctx.onReassign ? html`<button type="button" class="btn sm quiet" data-ov-reassign ?disabled=${ctx.busy} @click=${ctx.onReassign}>${tIcon('refresh')}${dwt('a_reassign')}</button>` : nothing}
+      ${ctx.onReassign ? html`<button type="button" class="btn sm quiet" data-ov-reassign data-assign ?disabled=${ctx.busy} @click=${ctx.onReassign}>${tIcon('refresh')}${dwt('a_reassign')}</button>` : nothing}
     </div>` : html`<div class="oline muted" data-person="none">${tIcon('user')}<span>${dwt('noHandler')}</span></div>`}
     <div class="oline" data-person="requester"><span class="av xs" aria-hidden="true">${initials(t.created_by.name)}</span>
       <span>${bidi(dwt('requesterLine', { who: t.created_by.name, when: shortDateTime(t.created_at) }))}</span></div>
@@ -139,6 +141,7 @@ function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
 export function overviewTab(t: TicketDetail & { link?: LinkBlock | null }, ctx: OverviewCtx): TemplateResult {
   return html`<div class="one" data-tab-content="overview">
     ${people(t, ctx)}
+    ${ctx.link}
     ${nowRows(t, ctx)}
     ${facts(t, ctx)}
     ${ctx.photos}
@@ -266,6 +269,13 @@ export const overviewStyles = css`
     gap: 6px;
     min-inline-size: 0;
     font-size: var(--sw-fs-md);
+  }
+  .orow .ot > div b {
+    flex: 0 1 auto;
+    max-inline-size: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .orow .clip {
     min-inline-size: 0;
