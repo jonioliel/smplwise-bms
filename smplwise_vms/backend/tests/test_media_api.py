@@ -569,7 +569,7 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
     # integ/263 (2.6.3): the property, not a literal list - every migration from 0040 up to the newest file runs once, in order,
     # with no gap (0088 detail, 0089 RFQ + the single ticket_outbox rebuild, 0090 map element, 0091 number verification,
     # 0092 quick-reply template data migration, 0093 app secrets, ... follow the CR-038 and earlier numbers)
-    assert applied == list(range(40, max(int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob('*.sql')) + 1)) and applied[-1] >= 93, applied
+    assert applied == sorted(n for n in (int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob('*.sql')) if n >= 40) and applied[-1] >= 93, applied  # USR1-263: every file, in order (0094 is reserved for TKWISECRYPT; contiguity is release_check's job)
     with database.connection() as conn:
         roles = {r["id"]: (json.loads(r["permissions_json"]), json.loads(r["sensitive_json"])) for r in conn.execute("SELECT * FROM custom_roles")}
         assert roles["r-read"][0] == ["devices.read", "map.read", "media.read"]

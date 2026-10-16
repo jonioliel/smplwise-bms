@@ -162,7 +162,7 @@ def test_0089_keeps_every_outbox_row_and_widens_only_the_purposes(settings, tmp_
                      "'tickets.messages', '{\"number\":\"1\"}', 'sent', 't', 'k1', 2, 't', 't')")
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
     applied = dbmod.Database(settings.db_path).migrate()
-    assert applied[0] == 89 and applied == list(range(89, applied[-1] + 1))  # 0090..0093 follow in the real set (none rebuilds ticket_outbox again)
+    assert applied[0] == 89 and applied == sorted(n for n in (int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql")) if n >= 89)  # 0090..0093, 0095 follow in the real set (none rebuilds ticket_outbox again)
     with database.connection() as conn:
         row = dict(conn.execute("SELECT * FROM ticket_outbox WHERE id = 'o1'").fetchone())
         assert (row["purpose"], row["state"], row["idempotency_key"], row["link_generation"], row["rfq_id"]) == ("assign", "sent", "k1", 2, None)

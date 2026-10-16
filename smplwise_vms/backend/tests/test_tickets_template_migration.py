@@ -16,6 +16,11 @@ NEW = {"he": "חובה להיכנס לקישור כדי להמשיך בטיפו�
 AT = "2026-10-01T08:00:00Z"
 
 
+def _from_92() -> list[int]:
+    """0092 and every later migration file, in order (property, not a literal list)."""
+    return sorted(n for n in (int(f.name[:4]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql")) if n >= 92)
+
+
 def _older(settings, tmp_path, monkeypatch):
     real = dbmod.MIGRATIONS_DIR
     older = tmp_path / "older"
@@ -67,7 +72,7 @@ def test_0092_rewrites_only_the_old_line_in_every_language_and_position(settings
         _put(conn, "t-off", "he", "{link}\n" + OLD["he"], active=0, deleted=AT)          # inactive / deleted rows are rewritten too
         # negative first: the old line is there before the migration
         assert conn.execute("SELECT count(*) FROM ticket_templates WHERE instr(body, ?) > 0 OR instr(body, ?) > 0", (OLD["he"], OLD["en"])).fetchone()[0] == 5
-    assert dbmod.Database(settings.db_path).migrate() == [92, 93]  # 0093 (app secrets) follows in the real set
+    assert dbmod.Database(settings.db_path).migrate() == _from_92()  # 0093 (app secrets), 0095 (USR1) ... follow in the real set
 
     expected = {
         "t-he": "שלום {name},\nלעדכון: {link}\n" + NEW["he"],
@@ -98,7 +103,7 @@ def test_0092_is_idempotent_when_its_statement_runs_again(settings, tmp_path, mo
     with database.connection() as conn:
         _put(conn, "t1", "he", "{link}\n" + OLD["he"])
         _put(conn, "t2", "en", "x {link}", purpose="reminder")
-    assert dbmod.Database(settings.db_path).migrate() == [92, 93]  # 0093 (app secrets) follows in the real set
+    assert dbmod.Database(settings.db_path).migrate() == _from_92()  # 0093 (app secrets), 0095 (USR1) ... follow in the real set
     first = {t: _row(database, t) for t in ("t1", "t2")}
     sql = (dbmod.MIGRATIONS_DIR / "0092_ticket_template_quick_reply.sql").read_text(encoding="utf-8")
     with database.connection() as conn:

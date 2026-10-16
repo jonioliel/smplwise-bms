@@ -39,6 +39,12 @@ class Settings:
     # Home Assistant account the OWNER creates after B0. Unset: the background channel shares the service identity
     # (SUPERVISOR_TOKEN) and the diagnostics say so. Server-side only, never logged; valid on HA core, not on the proxy.
     wiskey_background_token: str | None = field(default=None, repr=False)
+    # USR1 (docs/design/USR1_HA_USERS_FROM_ARX.md): an OPTIONAL administrator long-lived token the owner supplies when the
+    # add-on's own token may not manage home-system users. Used only by services/ha_user_admin.py, on HA core directly (never
+    # the Supervisor proxy). Server-side only, never logged, never shown. USR1-263: it lives in the secrets store (entry
+    # `ha_users_token`, Settings > Connections > Secrets) and is NOT an add-on option; this field carries the store value
+    # (secrets_store overlay / apply_live) or, with no store row, the developer environment HA_USERS_TOKEN.
+    ha_users_token: str | None = field(default=None, repr=False)
     # CR-006 phase 2 (AI-rendered floor skins): the OpenAI API key - an add-on option like the NVR password, server-side
     # only, never stored in the database, never in logs, audit rows or error payloads (services/skins/provider.redact).
     openai_api_key: str | None = field(default=None, repr=False)
@@ -211,6 +217,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         wiskey_user=_opt(options, "wiskey_username", "WISKEY_USER"),
         wiskey_password=_opt(options, "wiskey_password", "WISKEY_PASSWORD"),
         wiskey_background_token=_opt(options, "wiskey_background_token", "WISKEY_BACKGROUND_TOKEN"),
+        ha_users_token=_opt({}, "ha_users_token", "HA_USERS_TOKEN"),  # USR1-263: never read from the options file (secrets store)
         openai_api_key=_opt(options, "openai_api_key", "OPENAI_API_KEY"),
         legacy_secret_options={k: str(options[k]) for k in LEGACY_SECRET_OPTIONS if options.get(k) not in (None, "")},
         # Home Assistant Core API: the Supervisor injects SUPERVISOR_TOKEN when config.yaml sets homeassistant_api;

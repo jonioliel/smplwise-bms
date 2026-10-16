@@ -58,6 +58,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'access', label: 'תפקידים', href: '#/system/access?tab=roles', sub: true, keywords: 'תפקיד מותאם הרשאה' },
       { tab: 'access', label: 'הרשאות אפקטיביות', href: '#/system/access?tab=effective', sub: true, keywords: 'מה מותר למשתמש' },
       { tab: 'access', label: 'אודיט הרשאות', href: '#/system/access?tab=audit', sub: true },
+      { tab: 'access', label: 'משתמשי מערכת הבית', href: '#/system/access?tab=ha-users', sub: true, keywords: 'משתמש חדש יצירה מחיקה השבתה סיסמה' },
       { tab: 'general', label: 'גישה מרחוק', href: `${GEN}?tab=remote`, keywords: 'arx remote כניסה מרחוק אימות דו שלבי MFA סשן CSP אפליקציית android הורדה' },
       { tab: 'security', label: 'אבטחה', href: '#/system/security', keywords: 'אזעקה alarm לוח קוד NVR מצלמות' },
       { tab: 'security', label: 'ניהול אזעקה', href: '#/system/security/manage', sub: true, keywords: 'לוחות קוד חיישנים עקיפה' },

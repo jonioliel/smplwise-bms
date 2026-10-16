@@ -70,7 +70,8 @@ def test_a_populated_258_database_upgrades_to_0093(settings, tmp_path, monkeypat
                      "VALUES ('c2', 'vendor', 'Example Vendor', 'u', ?, ?)", (AT, AT))
         before = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM ticket_outbox")}
 
-    assert dbmod.Database(settings.db_path).migrate() == RELEASE + [94]  # 94: TKWISECRYPT (provisional number), applied after the release set
+    applied = dbmod.Database(settings.db_path).migrate()
+    assert applied[:len(RELEASE)] == RELEASE and applied[len(RELEASE):] == [n for n in _numbers() if n > RELEASE[-1]]  # later changes (0094 TKWISECRYPT, 0095 USR1, ...) follow
     assert dbmod.Database(settings.db_path).migrate() == [], "each migration runs once"
 
     with database.connection() as conn:

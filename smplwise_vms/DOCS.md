@@ -81,8 +81,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      door, call, announcement, people and card-reader writes keep using the add-on's own user (`ha_token`).
    - **Secrets (not add-on options, TKSECRETS2).** Home Assistant flags add-on options of type `password` ("Insecure secrets
      detected in app configuration"), so the secrets are entered in Arx instead: **הגדרות › חיבורים › סודות** (system
-     administrator only; not reachable on the remote channel). Five of them: the go2rtc API password, the WisKey stations'
-     camera password, the WisKey background token, the OpenAI API key and the push relay key. Each is stored encrypted
+     administrator only; not reachable on the remote channel). Six of them: the go2rtc API password, the WisKey stations'
+     camera password, the WisKey background token, the OpenAI API key, the push relay key and the home-system users
+     administrator token (below). Each is stored encrypted
      (AES-256-GCM with the installation's own key, the same as the NVR password; never in an Arx backup) and is write-only:
      the screen shows only whether it is set, since when and by whom; "replace" and "clear" are audited without the value;
      "test connection" exists for the go2rtc password (the go2rtc API) and the WisKey password (one station camera through
@@ -92,6 +93,14 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      `wiskey_background_token`, `openai_api_key`, `push_relay_key`) is copied once into the encrypted store and the log names
      the secret (never the value); after that the old option is never read again, even if it lingers. What the Supervisor does
      with a stale removed option is not verified yet (`docs/operations/ADDON_OPTION_REMOVAL_NOTE.md`).
+   - **Home-system users administrator token (optional, USR1).** הגדרות › משתמשים והרשאות › משתמשי מערכת הבית creates ordinary
+     (never administrator) home-system users and deactivates / activates / deletes only the users Arx itself created. It uses
+     the add-on's own identity while that identity may manage users (the screen's "בדיקת הרשאה" says so); only when the check
+     reports that it is not authorised, create a long-lived access token in a home-system **administrator** account's profile
+     and save it in הגדרות › חיבורים › סודות as "אסימון מנהל לניהול משתמשי מערכת הבית" (stored encrypted, write-only, read
+     on each request, used on Home Assistant core directly, never logged or shown; no restart needed). It is not an add-on
+     option. The one-time live check is still pending (`docs/operations/USR1_LIVE_CHECK_HE.md`,
+     `docs/changes/CR-USR1-HA-USERS-FROM-ARX.md`).
 4. Start the add-on and open it from the sidebar (**SmplWise Arx**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and

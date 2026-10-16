@@ -52,6 +52,9 @@ SPECS: tuple[SecretSpec, ...] = (
     SecretSpec("wiskey_background_token", "wiskey_background_token", "WISKEY_BACKGROUND_TOKEN", "אסימון חשבון הרקע של WisKey", "WisKey background account token", True, None),
     SecretSpec("openai_api_key", "openai_api_key", "OPENAI_API_KEY", "מפתח ה־API של OpenAI (עורות קומה)", "OpenAI API key (floor skins)", False, None),
     SecretSpec("push_relay_key", None, "SW_PUSH_RELAY_KEY", "מפתח ממסר ה־Push (אפליקציית הנייד)", "Push relay key (phone app)", False, None),
+    # USR1-263: the optional home-system ADMINISTRATOR token of הגדרות › משתמשים והרשאות › משתמשי מערכת הבית (routers/ha_users.py reads it
+    # from the store per request). Store-only: it never was an add-on option, so it is not in config.LEGACY_SECRET_OPTIONS.
+    SecretSpec("ha_users_token", "ha_users_token", "HA_USERS_TOKEN", "אסימון מנהל לניהול משתמשי מערכת הבית", "Home-system users administrator token", False, None),
 )
 BY_NAME: dict[str, SecretSpec] = {s.name: s for s in SPECS}
 NAMES: tuple[str, ...] = tuple(BY_NAME)
@@ -82,6 +85,19 @@ def read_value(data_dir: Path, row: sqlite3.Row | None) -> str | None:
     if row is None or not row["value_enc"]:
         return None
     return open_app_secret(data_dir, row["name"], row["value_enc"])
+
+
+def current_value(conn: sqlite3.Connection, settings: Settings, name: str) -> str | None:
+    """The value a request handler uses for `name` now: a store row decides (set = that value; cleared or unreadable = None, fail
+    closed - never a stale option); no row at all = the start-up value (legacy option / developer environment). Never logged."""
+    spec = _spec(name)
+    row = get_row(conn, name)
+    if row is None:
+        return legacy_value(settings, spec)
+    try:
+        return read_value(settings.data_dir, row)
+    except SecretError:
+        return None
 
 
 def _readable(data_dir: Path, row: sqlite3.Row | None) -> bool:
