@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import json
 import re
+import xml.etree.ElementTree as ET
 import sqlite3
 import time
+import uuid
 
 import pytest
 
@@ -20,9 +22,10 @@ from smplwise.services.tickets.public_http import ROUTES, UNIFORM_404
 from tickets_s4_world import API, Clock, build_s4
 
 PV = "pv-mapone-0001"
+VAULT = "חדר-כספות-רגיש"
 SECRETS = ("מצלמה-סודית-אחרת", "כיסא-נסתר-7", "תווית-חופשית-סודית", "מדרגות-לקומה-סודית", "חדר-בקומה-3-סודי", "obj-secret-cam-77",
            "obj-chair-88", "wall-alpha-777", "zone-id-office-9", "a-other-cam-55", "label-free-66", "conn-stairs-44", PV, "cam-other-2",
-           "camera.secret", "data-")
+           "camera.secret", "data-", VAULT)
 
 
 def hdr(token: str, session: str | None = None) -> dict[str, str]:
@@ -82,8 +85,10 @@ def seed_map(s4) -> dict[str, str]:
                  ("geo-1", PV, f2, "published", json.dumps(DOC, ensure_ascii=False), "h", now, now))
     conn.execute("INSERT INTO spatial_zones(id, floor_id, name, kind, polygon_json, created_at, updated_at) VALUES (?,?,?,'room',?,?,?)",
                  ("zone-id-office-9", f2, "משרד 12", box(0.1, 0.1, 0.5, 0.5), now, now))
-    conn.execute("INSERT INTO spatial_zones(id, floor_id, name, kind, polygon_json, created_at, updated_at) VALUES (?,?,?,'room',?,?,?)",
+    conn.execute("INSERT INTO spatial_zones(id, floor_id, name, kind, polygon_json, created_at, updated_at) VALUES (?,?,?,'corridor',?,?,?)",
                  ("z-hall", f2, "מסדרון", box(0.1, 0.1, 0.9, 0.9), now, now))
+    conn.execute("INSERT INTO spatial_zones(id, floor_id, name, kind, polygon_json, created_at, updated_at) VALUES (?,?,?,'room',?,?,?)",
+                 ("z-vault", f2, VAULT, box(0.7, 0.5, 0.85, 0.8), now, now))
     conn.execute("INSERT INTO spatial_zones(id, floor_id, name, kind, polygon_json, created_at, updated_at) VALUES (?,?,?,'room',?,?,?)",
                  ("z-f3", f3, "חדר-בקומה-3-סודי", box(0.0, 0.0, 1.0, 1.0), now, now))
     anchors = (("a-ac-1", f2, "ha_entity", "climate.office_ac", 0.2, 0.2, "מזגן משרד"),
@@ -273,7 +278,7 @@ def test_the_renderer_draws_only_the_structure_of_the_elements_level():
 
 def test_a_floor_without_a_structure_document_draws_rooms_and_the_mark_only():
     zones = [{"name": "משרד", "polygon": json.loads(box(0.1, 0.1, 0.5, 0.5)), "level_id": None}]
-    svg = map_image.render_public_svg(None, zones, 1000, 800, level="L0", x=500, y=400, caption="x", title="x")
+    svg = map_image.render_public_svg(None, zones, 1000, 800, level="L0", x=500, y=400, caption="x", title="x", room="משרד")
     assert "<polyline" not in svg and "משרד" in svg and "<circle" in svg
 
 
@@ -376,3 +381,152 @@ def test_the_module_off_hides_the_routes(s4):
     t = s4.ticket()
     assert s4.c.patch(f"{API}/settings", json={"tickets.enabled": "false"}).status_code == 200
     assert s4.c.get(f"{API}/tickets/{t['id']}/map-element").status_code == 404
+
+
+# ---------------------------------------------------------------- TKMAPFIX (review F1 / F3 / F4 / F2 policy)
+
+
+def svg_texts(svg: str) -> list[str]:
+    root = ET.fromstring(svg)  # raises on ill-formed XML
+    return [t.text or "" for t in root.iter("{http://www.w3.org/2000/svg}text")]
+
+
+def set_labels_null(s4, *ids: str) -> None:
+    conn = raw(s4.w.settings)
+    for i in ids:
+        conn.execute("UPDATE map_anchors SET label = NULL WHERE id = ?", (i,))
+    conn.close()
+
+
+def sql(s4, query: str, *args) -> None:
+    conn = raw(s4.w.settings)
+    conn.execute(query, args)
+    conn.close()
+
+
+def public_pair(s4, token: str):
+    client, _ = s4.public(Clock(time.time()))
+    return client.get("/t/api/ticket", headers=hdr(token)).json()["map_element"], client.get("/t/api/map-image", headers=hdr(token))
+
+
+def test_the_default_zone_policy_names_the_elements_room_and_corridors_only(s4):
+    assert map_image.MAP_ZONE_NAMES == "element_room_only"
+    t, token = sent_with_element(s4)
+    blk, r = public_pair(s4, token)
+    svg = r.content.decode("utf-8")
+    assert VAULT.encode() not in r.content, "another room's name is never in the bytes"
+    assert svg.count("<polygon") >= 4, "the outlines stay, unnamed"
+    assert sorted(svg_texts(svg)) == sorted(["מזגן משרד · קומה 2 · משרד 12", "משרד 12", "מסדרון"]), "exactly: caption, the element's room, the corridor"
+    assert VAULT not in json.dumps(blk, ensure_ascii=False)
+
+
+def test_the_all_policy_can_be_switched_back_in_one_place(s4, monkeypatch):
+    monkeypatch.setattr(map_image, "MAP_ZONE_NAMES", "all")
+    t, token = sent_with_element(s4)
+    _, r = public_pair(s4, token)
+    assert VAULT in r.content.decode("utf-8")
+
+
+def test_unnamed_anchors_never_fall_back_to_an_id(s4):
+    set_labels_null(s4, "a-ac-1", "a-cam-1")
+    ins = ("INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, layer_id, label, revision, "
+           "effective_from, created_by, updated_by, updated_at) VALUES (?,?,?,?,?,0.3,0.3,0,'devices',?,1,'t','t','t','t')")
+    sql(s4, ins, "a-norow", s4.map["f2"], PV, "camera", "cam-no-row-9", "  ")  # a camera with no row at all, a blank label
+    sql(s4, ins, "a-noent", s4.map["f2"], PV, "ha_entity", "binary_sensor.vault_pir_1", None)  # an entity with no ha_entities row
+    cases = (("a-ac-1", "רכיב"), ("a-cam-1", "מצלמה"), ("a-norow", "מצלמה"), ("a-noent", "רכיב"))  # entity row absent; camera row absent/unnamed
+    for aid, word in cases:
+        t, token = sent_with_element(s4, **anchor_body(s4, aid))
+        blk, r = public_pair(s4, token)
+        assert blk["name"] == word, (aid, blk)
+        blob = json.dumps(blk, ensure_ascii=False) + r.content.decode("utf-8")
+        for ident in ("climate.office_ac", "cam-lobby-1", "cam-no-row-9", "binary_sensor.vault_pir_1", "vault_pir"):
+            assert ident not in blob, (aid, ident)
+    internal = s4.c.get(f"{API}/tickets/{t['id']}/map-element").json()["element"]
+    assert internal["resource_id"] == "binary_sensor.vault_pir_1", "the ids stay in the internal answer"
+
+
+def test_an_object_without_a_label_or_catalog_name_gets_the_generic_word_not_its_item_id(s4):
+    doc = json.loads(json.dumps(DOC))
+    doc["objects"].append({"id": "obj-bare-1", "item_id": "item-unknown-xyz", "level_id": "L0", "position": [0.4, 0.3], "rotation_deg": 0,
+                           "size": {"w_m": 0.5, "d_m": 0.5}, "label": "  ", "anchor_ref": None})
+    sql(s4, "UPDATE plan_geometry SET doc_json = ?, updated_at = '2026-10-16T09:00:00Z'", json.dumps(doc, ensure_ascii=False))
+    t, token = sent_with_element(s4, element={"floor_id": s4.map["f2"], "kind": "object", "id": "obj-bare-1"})
+    blk, r = public_pair(s4, token)
+    assert blk["name"] == "רכיב" and "item-unknown-xyz" not in json.dumps(blk) + r.content.decode("utf-8")
+
+
+def test_the_generic_words():
+    assert map_element.generic_name("camera", "en") == "Camera" and map_element.generic_name("x", "en") == "Item"
+    assert map_element.generic_name("camera") == "מצלמה" and map_element.generic_name("ha_entity") == "רכיב"
+
+
+HOSTILE = "ח\x01דר‮‏\x00 ﻿א\x1f\n&<b>\"'"
+
+
+def test_hostile_names_yield_a_well_formed_svg_without_control_or_format_characters():
+    zones = [{"name": HOSTILE + "x" * 10000, "kind": "corridor", "polygon": json.loads(box(0.1, 0.1, 0.5, 0.5)), "level_id": None}]
+    svg = map_image.render_public_svg(DOC, zones, 1000, 800, level="L0", x=200, y=160, caption=HOSTILE * 3, title=HOSTILE)
+    texts = svg_texts(svg)  # parses as XML
+    assert all(len(t) <= 3 * map_image.TEXT_MAX for t in texts) and len(svg) < 60000
+    for ch in svg:
+        assert ch == "\n" or not (0xD800 <= ord(ch) <= 0xDFFF or ord(ch) < 32 or ch in "‮‏﻿\x7f"), hex(ord(ch))
+    assert map_image.clean_text(HOSTILE).startswith("חדר א")
+
+
+def test_hostile_names_end_to_end_floor_room_and_label_snapshots_are_clean_and_short(s4):
+    sql(s4, "UPDATE floors SET name = ? WHERE id = ?", "קומה‮\x01" + "f" * 500, s4.map["f2"])
+    sql(s4, "UPDATE spatial_zones SET name = ? WHERE id = 'zone-id-office-9'", "משרד\x02‮" + "r" * 500)
+    sql(s4, "UPDATE map_anchors SET label = ? WHERE id = 'a-ac-1'", "מזגן\x01‮" + "n" * 500)
+    t, token = sent_with_element(s4)
+    blk, r = public_pair(s4, token)
+    assert len(blk["floor"]) <= map_element.NAME_MAX and len(blk["room"]) <= map_element.NAME_MAX and len(blk["name"]) <= map_element.NAME_MAX
+    assert "‮" not in json.dumps(blk, ensure_ascii=False) and "\x01" not in blk["name"]
+    svg_texts(r.content.decode("utf-8"))
+
+
+def test_the_public_picture_is_cached_and_a_republish_or_rename_invalidates_it(s4, monkeypatch):
+    calls = []
+    real = map_image.render_public_svg
+    monkeypatch.setattr(map_image, "render_public_svg", lambda *a, **k: calls.append(1) or real(*a, **k))
+    map_element._snapshot_cache.clear()
+    t, token = sent_with_element(s4)
+    client, _ = s4.public(Clock(time.time()))
+    first = client.get("/t/api/map-image", headers=hdr(token))
+    second = client.get("/t/api/map-image", headers=hdr(token))
+    assert first.content == second.content and len(calls) == 1, "the second request is served from the cache"
+    assert second.headers["cache-control"] == "private, no-store"
+    sql(s4, "UPDATE spatial_zones SET name = 'משרד חדש' WHERE id = 'zone-id-office-9'")  # the element's room renamed
+    third = client.get("/t/api/map-image", headers=hdr(token))
+    assert len(calls) == 2 and "משרד חדש" in third.content.decode("utf-8")
+    doc = json.loads(json.dumps(DOC))
+    doc["walls"].append({"id": "w-new", "level_id": "L0", "polyline": [[0.2, 0.8], [0.8, 0.8]], "thickness_m": 0.2})
+    sql(s4, "UPDATE plan_geometry SET doc_json = ?, doc_hash = 'h2', updated_at = '2026-10-16T10:00:00Z'", json.dumps(doc, ensure_ascii=False))
+    fourth = client.get("/t/api/map-image", headers=hdr(token))
+    assert len(calls) == 3 and fourth.content != third.content, "a republished geometry"
+    assert attach(s4, t["id"], **anchor_body(s4, "a-cam-1")).status_code == 200
+    fifth = client.get("/t/api/map-image", headers=hdr(token))
+    assert len(calls) == 4 and "מצלמת לובי" in fifth.content.decode("utf-8"), "a re-attach"
+
+
+def test_the_block_does_not_parse_the_plan_document_for_an_anchor(s4, monkeypatch):
+    t, token = sent_with_element(s4)
+
+    def boom(*a, **k):
+        raise AssertionError("parsed")
+
+    monkeypatch.setattr(map_element, "published_doc", boom)
+    client, _ = s4.public(Clock(time.time()))
+    assert client.get("/t/api/ticket", headers=hdr(token)).json()["map_element"]["image"] is True
+
+
+def test_the_picture_route_is_the_uniform_404_in_claim_mode(s4):
+    t, token = s4.sent(cost_claim="required")
+    assert attach(s4, t["id"], **anchor_body(s4)).status_code == 200
+    client, _ = s4.public(Clock(time.time()))
+    assert client.get("/t/api/map-image", headers=hdr(token)).status_code == 200
+    r = client.post("/t/api/return", headers=hdr(token), json={"kind": "cannot_handle", "reason": "חסר חלק במלאי", "client_request_id": str(uuid.uuid4())})
+    assert r.status_code == 200, r.text
+    v = client.get("/t/api/ticket", headers=hdr(token)).json()
+    assert v["claim_mode"] is True and "map_element" not in v
+    img = client.get("/t/api/map-image", headers=hdr(token))
+    assert img.status_code == 404 and img.content == UNIFORM_404

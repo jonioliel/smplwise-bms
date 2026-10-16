@@ -25,4 +25,3 @@ CREATE TABLE ticket_map_elements (
   attached_at     TEXT NOT NULL,
   revision        INTEGER NOT NULL DEFAULT 1
 );
-CREATE INDEX idx_ticket_map_elements_element ON ticket_map_elements (floor_id, element_kind, element_id);
