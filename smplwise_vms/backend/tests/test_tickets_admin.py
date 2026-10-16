@@ -66,7 +66,7 @@ def test_a_creator_without_all_departments_becomes_the_first_manager(w, settings
     r = w.c.post(f"{API}/tickets/admin/departments", json={"key": "it", "name": "מחשוב"}, headers=as_user("cara"))
     assert r.status_code == 201
     assert r.json()["members"] == [{"kind": "user", "id": "dev-cara", "name": "cara", "role": "manager", "notify_new": True, "added_at": r.json()["members"][0]["added_at"],
-                                  "mobile": None, "notify_whatsapp": True, "lang": "he"}]  # TKSTAFF1: the staff mobile line
+                                  "mobile": None, "mobile_confirmed": False, "notify_whatsapp": True, "lang": "he"}]  # TKSTAFF1: the staff mobile line
 
 
 def test_categories_one_level_inside_the_department(w):

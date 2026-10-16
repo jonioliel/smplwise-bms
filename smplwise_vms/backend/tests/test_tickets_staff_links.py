@@ -504,7 +504,8 @@ def test_01b_every_cost_route_closes_the_staff_link_by_construction():
     for mod in (public_claims, public_quotes):
         calls = re.findall(r"link_context\(([^)]*)\)", inspect.getsource(mod).split("def build_router", 1)[-1])
         assert calls and all("claim_surface=True" in c for c in calls), (mod.__name__, calls)
-    assert 'asg.get("contact_id")' not in inspect.getsource(quotes.public_quote)
+    src = inspect.getsource(quotes.public_quote)
+    assert 'asg.get("assignee_kind") == "contact"' in src and 'if ticket and asg.get("contact_id")' not in src
 
 
 def test_01c_the_quote_card_and_submit_refuse_a_user_assignment(env):
