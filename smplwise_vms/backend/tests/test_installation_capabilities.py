@@ -239,7 +239,7 @@ def test_unsupported_installation_never_reaches_ready(settings, monkeypatch, fak
     """Even if every step read "done" (a stale cache, a future step change), an NVR without go2rtc is not ready."""
     s = combo_settings(settings, "C", "up", monkeypatch)
     app = create_app(s)
-    done = {"status": "done", "summary": "ok", "facts": [], "evidence": {}, "warnings": []}
+    done = {"status": "done", "optional": False, "summary": "ok", "facts": [], "evidence": {}, "warnings": []}
     monkeypatch.setattr(wizard, "floor_step", lambda conn: {**done, "id": "floor"})
     monkeypatch.setattr(wizard, "camera_step", lambda conn, st: {**done, "id": "camera"})
     for sid in wizard.DEVICE_STEPS:
