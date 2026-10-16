@@ -45,6 +45,7 @@ from ..db import get_setting, now_iso, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from . import cast_relay, ha_bridge, ha_client, media_model as mm, media_store as store
+from . import service_identity
 
 log = logging.getLogger("smplwise.cast")
 
@@ -449,7 +450,9 @@ def bridge_ready(conn: sqlite3.Connection) -> tuple[bool, str | None]:
 def _bridge(conn: sqlite3.Connection, settings: Settings, user_id: str, op: str, entity_id: str, *, url: str | None = None, title: str | None = None) -> tuple[bool, str | None, str]:
     """ONE signed cast_stream call (never retried). (ok, error code, request id). Raises ApiError when Home Assistant is unreachable."""
     request_id = uuid.uuid4().hex[:12]
-    body: dict[str, Any] = {"user_id": user_id, "op": op, "entity_id": entity_id, "request_id": request_id}
+    # USR2 P3: a local (Arx-only) session owner acts through the service identity (`cast` feature: play / stop / off); refused = ApiError, nothing sent
+    subj = service_identity.subject_for_user(conn, user_id, "cast", bridge_service="cast_stream", item=op)
+    body: dict[str, Any] = {**subj, "op": op, "entity_id": entity_id, "request_id": request_id}
     if url is not None:
         body["url"] = url
     if title:
@@ -702,8 +705,12 @@ def start(conn: sqlite3.Connection, settings: Settings, principal: Principal, re
     if duration == "permanent" and not sc["permanent"]:
         raise _deny(conn, principal, request_id, key, err(403, "permanent_not_allowed"))
     # 4. who acts in Home Assistant, and the bridge
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+    if not service_identity.identity_ok(principal, settings):  # USR2 P3: a local principal goes on to the service identity's allow-list
         raise _deny(conn, principal, request_id, key, err(403, "identity_unmapped"))
+    try:  # USR2 P3: refuse a local principal outside the service identity's allow-list before any session row exists
+        service_identity.subject(conn, principal, "cast", bridge_service="cast_stream", item="play", request_id=request_id)
+    except ApiError as exc:
+        raise _deny(conn, principal, request_id, key, exc) from None
     b_ok, b_why = bridge_ready(conn)
     if not b_ok:
         raise _deny(conn, principal, request_id, key, err(503, b_why or "bridge_outdated", required=BRIDGE_CAST_REQUIRED))

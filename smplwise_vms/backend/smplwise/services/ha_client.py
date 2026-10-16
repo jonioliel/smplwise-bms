@@ -192,6 +192,13 @@ def reset_bridge_session() -> None:
         _bridge_session = None
 
 
+def _guard_subject(payload: dict[str, Any]) -> None:
+    """USR2 P3: the last line before a signed message leaves - see services/service_identity.guard_payload (raised before anything is sent)."""
+    from . import service_identity  # local import: ha_client stays free of the identity modules at load time
+
+    service_identity.guard_payload(payload)
+
+
 def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/smplwise_bridge/execute?return_response — the only write path to HA. Sent ONCE over the kept
     connection (LAT1); a transport error drops the pool and is reported, never retried (a command that may have left is not
@@ -199,6 +206,7 @@ def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: fl
     services/door_execute_guard.py: refused before the request, `wiskey_door_execute_blocked`, nothing sent)."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     from . import door_execute_guard  # local import: ha_client stays free of the door modules at load time
 
     door_execute_guard.check_payload(settings, payload)
@@ -227,6 +235,7 @@ def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: f
     helper) so each write path stays a single, easily audited block of code."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(_rest_base(settings) + "/services/smplwise_bridge/set_entity_area?return_response", headers=_headers(settings), content=json.dumps(payload))
@@ -252,6 +261,7 @@ def call_bridge_schedule(settings: Settings, payload: dict[str, Any], timeout: f
     operation is then recorded as unknown). Same envelope as call_bridge_execute; the answer is the service response."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(_rest_base(settings) + "/services/smplwise_bridge/schedule?return_response", headers=_headers(settings), content=json.dumps(payload))
@@ -303,6 +313,7 @@ def call_bridge_config_item(settings: Settings, payload: dict[str, Any], timeout
     that timed out may have been applied (504 `config_timeout`, the operation is then recorded as unknown). Same envelope as call_bridge_execute."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(_rest_base(settings) + "/services/smplwise_bridge/config_item?return_response", headers=_headers(settings), content=json.dumps(payload))
@@ -330,6 +341,7 @@ def call_bridge_cast_stream(settings: Settings, payload: dict[str, Any], timeout
     The error never carries the body: a refusal could echo the URL, whose path is the token."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(_rest_base(settings) + "/services/smplwise_bridge/cast_stream?return_response", headers=_headers(settings), content=json.dumps(payload))
@@ -359,6 +371,7 @@ def call_bridge_stream_source(settings: Settings, payload: dict[str, Any], timeo
     answer are kept. Errors carry a status or a class name, never the body (a refusal text could echo an address)."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(_rest_base(settings) + "/services/smplwise_bridge/stream_source?return_response", headers=_headers(settings), content=json.dumps(payload))

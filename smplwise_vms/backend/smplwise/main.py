@@ -469,6 +469,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import local_identity as local_identity_router
 
     app.include_router(local_identity_router.router, prefix=api, tags=["identity"])  # USR2: Arx-only identities (off by default: security.local_identity)
+    from .routers import service_identity as service_identity_router
+
+    app.include_router(service_identity_router.router, prefix=api, tags=["identity"])  # USR2 P3: the service identity (local channel only)
     from .routers import cast as cast_router
 
     app.include_router(cast_router.router, prefix=api, tags=["multimedia"])  # CR-028: שדר למסך - cast sessions, targets, the cast administration

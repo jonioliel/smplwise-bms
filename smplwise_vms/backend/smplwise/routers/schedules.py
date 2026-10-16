@@ -28,6 +28,7 @@ from ..services import schedule_model as model
 from ..services import schedule_ops as ops
 from ..services import schedule_view as view
 from ..services import schedules as store
+from ..services import service_identity
 
 router = APIRouter()
 
@@ -225,6 +226,14 @@ def _writer(request: Request, conn: sqlite3.Connection, principal: Principal) ->
     return ops.W(conn, principal, settings_of(request), _rid(request))
 
 
+def _bridge_writer(request: Request, conn: sqlite3.Connection, principal: Principal) -> ops.W:
+    """_writer() for the routes that write through the bridge. USR2 P3: a local (Arx-only) principal is checked against the service identity first -
+    refused (audited) before any op is recorded when the switch is off, the user inactive, or the service identity missing / an administrator /
+    the bridge too old; every schedule op is in the `schedules` feature."""
+    service_identity.subject(conn, principal, "schedules", bridge_service="schedule", item="add", request_id=_rid(request))
+    return _writer(request, conn, principal)
+
+
 def _reply(result: tuple[int, dict[str, Any]]) -> JSONResponse:
     return JSONResponse(status_code=result[0], content=result[1])
 
@@ -298,7 +307,7 @@ def preview(request: Request, principal: Principal = Depends(_viewer_gate), raw:
 def create_schedule(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, CreateBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
-    return _reply(ops.create(_writer(request, conn, principal), body.draft.model_dump(), body.enabled, body.client_request_id, body.confirm_lowering, code))
+    return _reply(ops.create(_bridge_writer(request, conn, principal), body.draft.model_dump(), body.enabled, body.client_request_id, body.confirm_lowering, code))
 
 
 @router.get("/schedules/trash")
@@ -311,7 +320,7 @@ def list_trash(request: Request, principal: Principal = Depends(_viewer), conn: 
 def restore_trash(trash_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, RestoreBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
-    return _reply(ops.restore(_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm_lowering, code))
+    return _reply(ops.restore(_bridge_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm_lowering, code))
 
 
 @router.post("/schedules/trash/{trash_id}/purge")
@@ -323,7 +332,7 @@ def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(
 @router.post("/schedules/bulk")
 def bulk_schedules(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, BulkBody)
-    return ops.bulk(_writer(request, conn, principal), body.op, body.ids, body.confirm, body.client_request_id)
+    return ops.bulk(_bridge_writer(request, conn, principal), body.op, body.ids, body.confirm, body.client_request_id)
 
 
 @router.get("/schedules/organisation")
@@ -403,37 +412,37 @@ def get_schedule(schedule_id: str, request: Request, principal: Principal = Depe
 def update_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, UpdateBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
-    return _reply(ops.update(_writer(request, conn, principal), schedule_id, body.draft.model_dump(), body.base_revision, body.client_request_id, body.confirm_lowering, code))
+    return _reply(ops.update(_bridge_writer(request, conn, principal), schedule_id, body.draft.model_dump(), body.base_revision, body.client_request_id, body.confirm_lowering, code))
 
 
 @router.post("/schedules/{schedule_id}/enable")
 def enable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, ToggleBody, ("alarm_code",))
-    return _reply(ops.set_enabled(_writer(request, conn, principal), schedule_id, True, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), schedule_id, True, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/disable")
 def disable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, ToggleBody, ("alarm_code",))
-    return _reply(ops.set_enabled(_writer(request, conn, principal), schedule_id, False, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), schedule_id, False, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/run")
 def run_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, RunBody, ("alarm_code",))
-    return _reply(ops.run(_writer(request, conn, principal), schedule_id, body.slot_index, body.skip_conditions, body.confirm, body.client_request_id, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.run(_bridge_writer(request, conn, principal), schedule_id, body.slot_index, body.skip_conditions, body.confirm, body.client_request_id, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/split")
 def split_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, SplitBody, ("alarm_code",))
-    return _reply(ops.split(_writer(request, conn, principal), schedule_id, body.base_revision, list(body.days), body.name, body.confirm, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.split(_bridge_writer(request, conn, principal), schedule_id, body.base_revision, list(body.days), body.name, body.confirm, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/delete")
 def delete_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, _ = _parse(request, raw, DeleteBody)
-    return _reply(ops.delete(_writer(request, conn, principal), schedule_id, body.base_revision, body.confirm, body.client_request_id))
+    return _reply(ops.delete(_bridge_writer(request, conn, principal), schedule_id, body.base_revision, body.confirm, body.client_request_id))
 
 
 @router.post("/schedules/{schedule_id}/acknowledge")
@@ -446,4 +455,4 @@ def acknowledge_schedule(schedule_id: str, request: Request, principal: Principa
 @router.post("/schedules/{schedule_id}/copy")
 def copy_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, CopyBody, ("alarm_code",))
-    return _reply(ops.copy(_writer(request, conn, principal), schedule_id, body.name, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
+    return _reply(ops.copy(_bridge_writer(request, conn, principal), schedule_id, body.name, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))

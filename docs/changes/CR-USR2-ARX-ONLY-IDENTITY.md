@@ -279,3 +279,48 @@ restart. Migration **0097 (`0097_local_reset_codes.sql`; provisional 0102, renum
 **NOT_VERIFIED (phase 2):** WhatsApp delivery of a code / a link to a real phone through the real `ha-whatsapp` (fakes only); ar / ru
 texts (native review); the mapping UI of the new account use on a real installation; link previews of WhatsApp clients (the token is
 in the URL fragment, which a preview fetch does not send - by HTTP semantics, not tested on a device).
+
+## 9. USR2-P3 - the service identity (2026-10-16)
+
+Branch `pilot/USR2-P3` (cut from `pilot/USR2-FIX` @ f5ea0c2d). No migration. Bridge **0.9.0**. Everything stays behind
+`security.local_identity` (off by default); a Home Assistant principal's bridge message is byte-for-byte what it was.
+
+**Message shape (both sides).** For a local principal the signed bridge message carries
+`user_id = <service HA user id>` and `on_behalf_of = {"kind": "local", "user_id": "<the session principal's l_ id>", "feature": "<key>"}`.
+`on_behalf_of.user_id` is taken from the authenticated principal only (never from a body or a header) and is ATTRIBUTION ONLY: the bridge
+runs the call with `Context(user_id = service id)`.
+
+**Allow-list (identical tables, drift-tested):** add-on `services/service_identity.FEATURES`, bridge `service_identity.SERVICE_FEATURES`.
+
+| Feature | Bridge service | Items |
+|---|---|---|
+| `devices.control` | `execute` | the bridge's execute allow-list minus `alarm_control_panel.*` and minus `lock.unlock` |
+| `alarm` (owner answer Q4) | `execute` | `alarm_arm_home/away/night/vacation/custom_bypass`, `alarm_disarm` - after the Arx permission, remote rules and PIN rules |
+| `media` | `execute`, `media_query` | the media pairs (`media_player`, `remote`, `webostv`, `music_assistant`); queries `queue`, `library` |
+| `cast` | `cast_stream` | `play`, `stop`, `off` |
+| `schedules` | `schedule` | every scheduler op |
+
+Never for a local identity: `config_item` (automations, scenes, scripts - writes AND runs: `automation_write_requires_ha_identity`, also
+refused by the add-on before any op is recorded), `set_entity_area` (the spec's `devices.area`, default off - not offered), `stream_source`,
+voice announcements (USR2-FIX F4, unchanged), door actions (`door_authority.identity_ok` unchanged), zone bypass (not in `alarm`).
+
+**The service identity.** `identity.service_user_id` (add-on, `PUT /identity/service-identity`, local channel + `system.configure`) and the
+bridge's options-flow field `service_user_id` (only an HA administrator opens it). Both refuse an HA administrator; the add-on also refuses an
+Arx system administrator, an unknown or inactive directory user and a malformed id. The bridge refuses: `on_behalf_of` with any other
+`user_id`, an unconfigured / inactive / system-generated / administrator service user, a malformed or padded `on_behalf_of`, an item outside the
+feature; and - without `on_behalf_of` - the service id acting as itself or an `l_` id as `user_id`. The directory push carries the bridge's
+copy (`service_identity`, `service_user_id`) so the settings card can show whether both sides agree.
+
+**Add-on refusals (before anything is recorded or sent):** `local_identity_off`, `user_inactive`, `service_identity_refused`,
+`service_identity_unconfigured` (503), `service_identity_admin`, `service_identity_bridge_outdated` (503, bridge < 0.9.0); all audited
+`identity.service_identity.refused`. Every bridge transport (`ha_client.call_bridge_*`, `media_query.call_bridge_media_query`) refuses an
+`l_` id as `user_id` and a malformed `on_behalf_of` before sending.
+
+**Attribution.** `ha_actions.principal_user_id` stays the local id; `device_activity._user_name` names an `l_` id from `users`; a state change
+under the service user's context that is not (yet) linked to an Arx request is recorded as `person / via arx / inferred` without a name -
+never as the service user - and `link_context` rewrites it to the person when the bridge's answer arrives. Audit rows: actor = the local
+principal; `details.service_identity = true` on the device-action and alarm rows.
+
+**Open questions for the owner (kept refused until answered):** (1) doors / `lock.unlock` for Arx-only users; (2) alarm zone bypass;
+(3) HA camera entities' live stream source; (4) the area write (`devices.area`); (5) running scripts / scenes from the automations screen
+(device control can still `script.turn_on` / `scene.turn_on` an entity the role controls).

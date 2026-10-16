@@ -6771,5 +6771,37 @@
     "test_ids": [
       "AT-USR2-2"
     ]
+  },
+  {
+    "id": "R-USR2-3",
+    "title": "Arx-only identities act in Home Assistant only through the service identity (USR2 P3)",
+    "statement": "A local (Arx-only) principal's Home Assistant action runs as ONE configured non-administrator HA user, named with the person for attribution only, under a per-feature allow-list enforced by the add-on and the bridge; automations, doors, the area write and the stream source are refused; activity rows name the person; nothing changes while security.local_identity is off.",
+    "task_ids": [
+      "USR2-P3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-USR2-3"
+    ]
+  },
+  {
+    "id": "R-USR2-4",
+    "title": "The service identity against the owner's Home Assistant",
+    "statement": "With a real non-administrator service user configured on both sides, a local user's device, alarm, media, cast and schedule actions work and are attributed to the person.",
+    "task_ids": [
+      "USR2-P3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-USR2-4"
+    ]
   }
 ]

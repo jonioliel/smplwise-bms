@@ -25,6 +25,7 @@ from ..db import Database, bump_permission_revision, get_setting, now_iso, retry
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from ..services import bridge_install, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
+from ..services import service_identity
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -292,8 +293,11 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
+    if not service_identity.identity_ok(principal, settings):  # CR-008: the Arx remote channel is the same HA user; USR2 P3: a local one, the service identity
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
+    # USR2 P3: a local (Arx-only) principal acts through the service identity, `devices.control` allow-list only (the alarm panel goes through the
+    # alarm section and its PIN rules); a Home Assistant principal keeps {"user_id": its own id}. Refused here = nothing recorded, nothing sent.
+    subj = service_identity.subject(conn, principal, "devices.control", bridge_service="execute", item=(spec["domain"], spec["service"]), request_id=rid)
     secret = ha_bridge.signing_key(conn)
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
     aid, now = uuid.uuid4().hex[:12], now_iso()
@@ -330,7 +334,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
             _unclaim(key, claim)
             return _action_row(r, again["id"])
     try:
-        payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
+        payload = ha_bridge.sign(secret or "", {**subj, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
         timing.mark("checks")
 
         # SEC246 L3 (owner 2026-10-11): record, then send. The pending row and the attempt audit row are committed in ONE
@@ -345,7 +349,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
                 w.execute(insert_sql, row_args)
                 audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="attempt",
                       request_id=rid, details={"action": body.allowed_action_id, "id": aid, "phase": "attempt", "arguments": body.arguments,
-                                               "sensitive": spec["sensitive"]})
+                                               "sensitive": spec["sensitive"], **({"service_identity": True} if "on_behalf_of" in subj else {})})
                 written = timing.clock()
             timing.span("pending_commit", written)
 
@@ -664,6 +668,8 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
             set_setting(conn, "bridge.delegated_authoring", new)
             set_setting(conn, "bridge.delegation_changed_at", changed)
             audit(conn, actor=None, action="bridge.delegation_seen", decision="allowed", resource_type="installation", resource_id="*", details={"delegated_authoring": new == "true", "changed_at": changed})
+    # USR2 P3 (bridge 0.9.0): the bridge's own copy of the service identity - state for the settings self-check, never a request
+    service_identity.note_directory_push(conn, message)
     # CR-028 (bridge 0.7.0): the cast origin the bridge may let a TV fetch from - signed with the pairing secret under its own purpose (a
     # captured call of another kind can never pass for it); null while casting is not ready. Older bridges ignore the key.
     from ..services import cast_sessions

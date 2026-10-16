@@ -11803,5 +11803,47 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "USR2-P3",
+    "title": "USR2 phase P3: the service identity - Arx-only users act in Home Assistant through ONE non-administrator HA user under a per-feature allow-list enforced by the add-on and the bridge (0.9.0); behind security.local_identity (off)",
+    "epic": "IDENTITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A local principal's Home Assistant action carries the configured service identity (32-hex, never an HA or Arx administrator) plus on_behalf_of {kind: local, user_id: the session's principal, feature}; both sides refuse every feature / service / item outside the allow-list (devices.control, alarm arm/disarm under the PIN rules, media, cast, schedules); automations writes and runs are refused (automation_write_requires_ha_identity); doors, the area write and the stream source stay refused; the bridge refuses a non-service user_id with on_behalf_of, the service id acting as itself, an l_ id as user_id and an administrator service user; activity rows name the person; the settings card explains in Hebrew what is missing; with the switch off nothing changes for anyone.",
+      "Against the owner's Home Assistant: an HA administrator creates the non-admin service user, sets its id in the bridge options flow (bridge 0.9.0) and in Arx; a local user switches a light, arms / disarms under the PIN rules, casts, plays media and edits a schedule; the activity log shows the person; HA's own logbook shows the service user."
+    ],
+    "requirement_ids": [
+      "R-USR2-3",
+      "R-USR2-4"
+    ],
+    "test_ids": [
+      "AT-USR2-3",
+      "AT-USR2-4"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. A security review of the bridge's service-identity screen before the bridge 0.9.0 ships. No live HA contact."
+    },
+    "deliverables": [
+      "custom_components/smplwise_bridge/service_identity.py (+ mirror), bridge 0.9.0 (const / manifest / card / options flow / strings), services/service_identity.py, routers/service_identity.py, the allow-listed path in routers/ha.py, routers/alarm.py, services/device_bulk.py, media_commands.py, media_query.py, cast_sessions.py, schedule_ops.py / schedules.py, the automations refusal, device_activity attribution, frontend screens/system-service-identity.ts on pilot/USR2-P3 (builds on USR2-P1, still in REVIEW)",
+      "Acceptance evidence tied to commit and environment"
+    ],
+    "evidence": [
+      "2026-10-16 (pilot/USR2-P3): backend tests/test_service_identity.py + tests/test_bridge_service_identity.py (+ version bumps in the bridge suites); frontend tests/unit-service-identity.spec.ts; screenshots docs/evidence/USR2/service-identity-*. Fakes only. Status REVIEW until the lead's gate and the security review."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

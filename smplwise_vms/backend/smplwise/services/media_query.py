@@ -38,6 +38,7 @@ from ..db import database_of, get_setting, read_mode, set_setting
 from ..errors import ApiError
 from ..rbac import Principal
 from . import ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_store as store
+from . import service_identity
 
 log = logging.getLogger("smplwise.media")
 
@@ -187,6 +188,7 @@ def resolve_item(ref: Any, user_id: str | None, device_key: str) -> dict[str, An
 def call_bridge_media_query(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/smplwise_bridge/media_query?return_response (bridge >= 0.5.0): ONE read-only question about the music layer, fixed arguments, a
     trimmed answer. Errors carry a status or a class name, never the body."""
+    ha_client._guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     if not ha_client.configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
     try:
@@ -212,7 +214,7 @@ def call_bridge_media_query(settings: Settings, payload: dict[str, Any], timeout
 
 def _ask(conn: Any, settings: Settings, principal: Principal, query: str, **fields: Any) -> dict[str, Any]:
     """One signed read as the caller. 503 bridge_not_paired / bridge_outdated before anything is sent; the bridge's own refusal is `{ok: false, error}`."""
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+    if not service_identity.identity_ok(principal, settings):  # USR2 P3: a local principal goes on to the service identity's allow-list
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     bridge = store.bridge_state(conn)
     if not bridge["paired"]:
@@ -221,7 +223,8 @@ def _ask(conn: Any, settings: Settings, principal: Principal, query: str, **fiel
         raise ApiError(503, "bridge_outdated", "נדרש עדכון של רכיב החיבור", details={"required": store.BRIDGE_PLAYERS_REQUIRED})
     _spend_read(principal.user_id)
     secret = ha_bridge.signing_key(conn) or ""
-    payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "query": query, **fields, "request_id": uuid.uuid4().hex[:12]})
+    subj = service_identity.subject(conn, principal, "media", bridge_service="media_query", item=query)  # USR2 P3: the service identity for a local principal
+    payload = ha_bridge.sign(secret, {**subj, "query": query, **fields, "request_id": uuid.uuid4().hex[:12]})
     return call_bridge_media_query(settings, payload)
 
 

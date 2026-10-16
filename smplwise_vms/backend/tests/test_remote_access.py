@@ -519,9 +519,11 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("POST", "/api/v1/tickets/address/probe"),
                      # CR-038 security review 2026-10-14: the module key rotation revokes every live link - local sessions only
                      ("POST", "/api/v1/tickets/key/rotate"),
-                     # TKSECRETS2: the in-app secrets store (values written, the go2rtc / WisKey tests) is local-only
+                     # TKSECRETS2: the in-app secrets store is local-only (remote_channel.BLOCKED_ON_REMOTE; the list here had missed it on the base)
                      ("GET", "/api/v1/system/secrets"), ("PUT", "/api/v1/system/secrets/{name}"), ("DELETE", "/api/v1/system/secrets/{name}"),
-                     ("POST", "/api/v1/system/secrets/{name}/test")}
+                     ("POST", "/api/v1/system/secrets/{name}/test"),
+                     # USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) - local sessions only
+                     ("GET", "/api/v1/identity/service-identity"), ("PUT", "/api/v1/identity/service-identity")}
 
 
 def test_every_route_needs_a_remote_session(arx):

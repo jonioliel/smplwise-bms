@@ -331,9 +331,11 @@ def test_the_service_is_registered_read_only_with_a_closed_schema_and_removed_on
     for key in ("user_id", "entity_id", "request_id", "ts", "nonce", "sig"):
         assert f"'{key}'" in schema, key
     assert set(svc.REQUEST_KEYS) == {"user_id", "entity_id", "request_id", "ts", "nonce", "sig"}
-    # the handler is the only thing the service does: it hands the call to the module and returns its answer as it is
+    # the handler hands the call to the module and returns its answer as it is - after the service-identity screen (bridge 0.9.0, USR2 P3),
+    # which verifies the signature once and refuses any `on_behalf_of` (the stream source is in no feature of a local identity)
     handler = next(n for n in ast.walk(init_tree()) if isinstance(n, ast.AsyncFunctionDef) and n.name == "stream_source")
-    assert "async_handle_stream_source(hass, verifier, dict(call.data))" in ast.unparse(handler)
+    assert "await screened(SERVICE_STREAM_SOURCE, call)" in ast.unparse(handler)
+    assert "async_handle_stream_source(hass, service_identity.PREVERIFIED, msg)" in ast.unparse(handler)
     assert "_LOGGER" not in ast.unparse(handler)
 
 
@@ -353,7 +355,7 @@ def test_description_translations_version_and_mirror():
     for rel in ("strings.json", "translations/en.json", "translations/he.json"):
         data = json.loads((SRC / rel).read_text(encoding="utf-8"))
         assert data["services"]["stream_source"]["name"] and data["services"]["stream_source"]["description"], rel
-    assert const.VERSION == "0.8.0" and json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.8.0"
+    assert const.VERSION == "0.9.0" and json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.0"
     import sync_integration
 
     assert sync_integration.differences() == [], "run python scripts/sync_integration.py"

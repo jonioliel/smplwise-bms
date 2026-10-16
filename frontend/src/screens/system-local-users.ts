@@ -4,6 +4,7 @@ import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-table';
+import './system-service-identity'; // USR2 P3: the service-identity card (local channel, system.configure)
 import type { TableColumn } from '../components/sw-table';
 import { apiUrl, del, describeError, get, patch, post, put } from '../api/client';
 import { fmtWhen, type RoleInfo, type ScopeRef } from '../api/access';
@@ -529,6 +530,7 @@ export class SystemLocalUsers extends LitElement {
           : nothing}
       </div>
       ${!d.enabled ? html`<div class="note warn" data-local-off>${lit('off')}</div>` : nothing}
+      ${d.can_manage ? html`<system-service-identity ?remote=${this.remote}></system-service-identity>` : nothing}
       ${this.error ? html`<div class="note err" role="alert" data-local-error>${this.error}</div>` : nothing}
       ${this.suggest ? html`<div class="note warn" role="status">${this.suggest}</div>` : nothing}
       ${this.renderLink()}

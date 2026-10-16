@@ -577,7 +577,10 @@ def test_every_allow_listed_action_is_allowed_by_the_bridge():
         have = _bridge_allowed_services(copy / "__init__.py")
         assert not want - have, f"{copy}: missing in the bridge allow-list: {sorted(want - have)}"
     manifest = json.loads((ROOT / "custom_components" / "smplwise_bridge" / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == ha_bridge.BRIDGE_EQUIPMENT_REQUIRED, "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
+    # a new bridge allow-list ships as a new bridge version (HA must restart to load it); a later bridge (0.9.0, USR2 P3: the service identity,
+    # same execute allow-list) still covers it
+    as_t = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+    assert as_t(manifest["version"]) >= as_t(ha_bridge.BRIDGE_EQUIPMENT_REQUIRED), "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
 
 
 def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app, monkeypatch):

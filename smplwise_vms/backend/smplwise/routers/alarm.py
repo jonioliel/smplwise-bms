@@ -31,7 +31,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Decision, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import alarm as svc
 from ..services import alarm_codes as codes
-from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync
+from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity
 from ..services.timeutil import parse_utc
 
 router = APIRouter()
@@ -407,9 +407,18 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
     """The device-action path: allow-list, ha_actions record (never the code), signed bridge call, honest status."""
     conn, principal = act.conn, act.principal
     settings = settings_of(request)
-    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+    if not service_identity.identity_ok(principal, settings):
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     spec, data = ha_bridge.validate_action(action_id, entity_id, args)
+    # USR2 P3 (owner answer Q4): a local (Arx-only) principal arms / disarms through the service identity - after the same Arx permission, remote
+    # rules and PIN rules as everyone (all checked by the callers above); the `alarm` feature holds arm / disarm only, so a zone bypass stays refused
+    try:
+        subj = service_identity.subject(conn, principal, "alarm", bridge_service="execute", item=(spec["domain"], spec["service"]),
+                                        request_id=getattr(request.state, "correlation_id", None))
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    if "on_behalf_of" in subj:
+        act.details["service_identity"] = True
     secret = ha_bridge.signing_key(conn)
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
     aid, now = uuid.uuid4().hex[:12], now_iso()
@@ -425,7 +434,7 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
     service_data = dict(data)
     if send_code:
         service_data["code"] = send_code  # the service call's data only - signed, sent, never stored
-    payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": service_data, "request_id": aid})
+    payload = ha_bridge.sign(secret or "", {**subj, "domain": spec["domain"], "service": spec["service"], "data": service_data, "request_id": aid})
     try:
         with unlocked(conn):
             result = ha_client.call_bridge_execute(settings, payload)
