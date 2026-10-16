@@ -264,6 +264,9 @@ export class TicketsCalendar extends LitElement {
     }
     .ev ticket-elapsed {
       font-size: var(--sw-fs-xs);
+      --sw-elapsed-fs: var(--sw-fs-xs);
+      --sw-elapsed-wrap: normal;
+      max-inline-size: 100%;
     }
     /* ---- the phone: one day at a time */
     .strip {

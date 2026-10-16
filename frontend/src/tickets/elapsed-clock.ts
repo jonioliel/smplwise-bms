@@ -49,11 +49,14 @@ export class TicketElapsed extends LitElement {
       align-items: center;
       min-inline-size: 0;
     }
+    /* a narrow host (the calendar's week columns) sets --sw-elapsed-wrap: normal and its own --sw-elapsed-fs */
     span {
-      font-size: var(--sw-fs-base);
+      font-size: var(--sw-elapsed-fs, var(--sw-fs-base));
       font-variant-numeric: tabular-nums;
       color: var(--dv-text-2);
-      white-space: nowrap;
+      white-space: var(--sw-elapsed-wrap, nowrap);
+      overflow-wrap: anywhere;
+      min-inline-size: 0;
     }
     span.warn {
       color: var(--au-warn-text);
