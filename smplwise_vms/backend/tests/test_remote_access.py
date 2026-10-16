@@ -513,7 +513,10 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      # CR-038 S4: the tickets handler page's address probe fetches an administrator-typed URL - local sessions only
                      ("POST", "/api/v1/tickets/address/probe"),
                      # CR-038 security review 2026-10-14: the module key rotation revokes every live link - local sessions only
-                     ("POST", "/api/v1/tickets/key/rotate")}
+                     ("POST", "/api/v1/tickets/key/rotate"),
+                     # TKSECRETS2: the in-app secrets store (values written, the go2rtc / WisKey tests) is local-only
+                     ("GET", "/api/v1/system/secrets"), ("PUT", "/api/v1/system/secrets/{name}"), ("DELETE", "/api/v1/system/secrets/{name}"),
+                     ("POST", "/api/v1/system/secrets/{name}/test")}
 
 
 def test_every_route_needs_a_remote_session(arx):
