@@ -33,6 +33,7 @@ from typing import Any, Protocol
 from ..db import Database, get_setting
 from . import capture_lease as cl
 from . import ha_bridge, trusted_caller
+from .wiskey_channels import LEASE_SIGNED
 
 log = logging.getLogger("smplwise.capture_lease")
 
@@ -40,6 +41,8 @@ MESSAGE_LIFETIME_S = 15  # 0 < expires_at - issued_at <= 15 s for every lease-ro
 MAX_MESSAGE_BYTES = 8192
 EVENT_ACTIONS = ("lease_revoke", "lease_heartbeat", "lease_stream_reset")
 REQUEST_ACTIONS = cl.LEASE_ACTIONS
+if frozenset(REQUEST_ACTIONS) != LEASE_SIGNED:  # one closed list of the four signed lease actions
+    raise RuntimeError("capture lease actions out of step with wiskey_channels.LEASE_SIGNED")
 ALL_ACTIONS = EVENT_ACTIONS + REQUEST_ACTIONS
 RETRY_S = 2.0
 CANCEL_AFTER_S = 5.0

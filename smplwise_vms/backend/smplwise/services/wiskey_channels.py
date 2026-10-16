@@ -71,6 +71,10 @@ TECHNICAL = frozenset({
 # CR-036 WA: the message dialog's commands. All three are non-READ in the pinned catalog (so `api_contract` goes on every frame);
 # `whatsapp/preview` and `whatsapp/send` need `users: manage` in WisKey, `whatsapp/status` `users: view`.
 MESSAGING = frozenset({"whatsapp/status", "whatsapp/preview", "whatsapp/send"})
+# CR-WISKEY-LEASE-REVOCATION-EVENT L5: the capture-lease route's four SIGNED actions (protocol wiskey-capture-lease-v1). NOT a
+# WebSocket channel - they leave through the bridge's trusted-caller transport (services/lease_events.py), never through a
+# guarded `call`, so they are deliberately absent from ALLOWLISTS; the classic `cards/capture_*` WS commands stay on `service`.
+LEASE_SIGNED = frozenset({"capture_start", "capture_status", "capture_confirm", "capture_cancel"})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING}
 ADAPTER_CHANNELS = ("read", "technical", "messaging")  # the guards the service session builds for the adapters (intercom_sync on_ready)

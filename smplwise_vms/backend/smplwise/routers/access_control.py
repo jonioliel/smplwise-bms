@@ -45,10 +45,10 @@ from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
-from ..db import Database, commit_now, get_setting, now_iso, unlocked
+from ..db import Database, commit_now, get_setting, now_iso, permission_revision, unlocked
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, STATION, Principal, authorize, note_grant, require
-from ..services import door_authority, ha_bridge, trusted_door
+from ..services import capture_lease, capture_lease_route, door_authority, ha_bridge, lease_events, trusted_door
 from ..services import go2rtc as g2
 from ..services import intercom_adapter, intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from ..services import intercom_authority as ia
@@ -740,6 +740,8 @@ def _perform(
         outcome = str(exc.details.get("outcome") or "unknown")
         if outcome == "unknown" and on_unknown:
             on_unknown()
+        if outcome == "unknown" and act.resource_type == PERSON and act.action != "intercom.card_capture.start":
+            capture_lease.on_authority_change("person_changed", person_ids=[act.resource_id])  # T12: the person may have changed
         code = str(exc.details.get("wiskey_code") or exc.code)
         act.outcome(outcome, code, {"error": exc.code, "wiskey_code": code})
         raise
@@ -752,6 +754,9 @@ def _perform(
         act.conn.execute("BEGIN")  # deferred: takes no lock, cannot wait on a busy database; nothing more is written here
     act.outcome("ok", None, {"result": summary(reply[key]) if summary else reply[key]})
     reply["command_id"] = act.details["command_id"]
+    if act.resource_type == PERSON and act.action != "intercom.card_capture.start":
+        # CR-WISKEY-LEASE-REVOCATION-EVENT T12: the person changed under any live capture lease for them (non-blocking, never raises)
+        capture_lease.on_authority_change("person_changed", person_ids=[act.resource_id])
     return reply
 
 
@@ -1510,6 +1515,214 @@ def _capture_or_refuse(act: _Action, session_id: str) -> Any:
     return capture
 
 
+# ---------------------------------------------------------------- the capture-lease route (CR-WISKEY-LEASE-REVOCATION-EVENT L5)
+#
+# Reached only while `access.capture_lease` is `on` (default `off`; it cannot be switched on in this build - no bridge offers the
+# lease service). Same permissions, same body, same attempt / outcome audit rows as the classic path; the WisKey traffic is the
+# signed lease route instead of the WS capture lane, and every start carries an Arx-issued lease (services/capture_lease.py).
+
+def _lease_refused(act: _Action, exc: ApiError) -> ApiError:
+    exc.details.setdefault("outcome", "not_sent")
+    return act.refuse(exc)
+
+
+def _lease_start(request: Request, act: _Action, conn: sqlite3.Connection, auth: ia.Authority, body: "CaptureStartBody", user_id: str, target: Any,
+                 station: dict[str, Any] | None, token: str, lease_rev: int, lease_snap: Any) -> dict[str, Any]:
+    principal = auth.principal
+    settings = settings_of(request)
+    db: Database = request.app.state.db
+    try:
+        capture_lease.ensure_issuable(conn)
+    except ApiError as exc:
+        raise _lease_refused(act, exc) from None
+    lease_events.WORKER.attach(db, settings)
+    with unlocked(conn):  # the stream must be known to the host before a lease of it is signed (a round trip: no write lock held)
+        announced = lease_events.WORKER.ensure_announced()
+    if not announced:
+        raise _lease_refused(act, capture_lease.unavailable())
+    binding_revision = station.get("binding_revision") if isinstance(station, dict) and isinstance(station.get("binding_revision"), str) else None
+    try:
+        lease = capture_lease.issue(conn, principal=principal, station_id=body.station_id, reader_id=body.reader_id, person_id=user_id, person_revision=body.revision,
+                                    binding_revision=binding_revision, decision_revision=lease_rev, start_request_id=lease_events_request_id(), snap=lease_snap)
+    except ApiError as exc:
+        raise _lease_refused(act, exc) from None
+    act.details.update(lease_ref=lease.lease_ref, lease_seconds=lease.seconds, transport="capture_lease")
+    try:
+        signed = lease_events.sign(conn, "capture_start", principal.user_id, trusted_door.actor_name(principal), body.station_id, {"lease": lease.lease_object()},
+                                   request_id=lease.start_request_id)
+    except lease_events.NotSendable as exc:
+        capture_lease.discard(conn, lease.lease_ref, "start_refused")
+        raise _lease_refused(act, capture_lease.unavailable("bridge_not_paired" if exc.code == "bridge_not_paired" else "capture_lease_unavailable")) from None
+    act.details["body_sha256"] = signed.body_sha256  # computed after signing, recorded only in the audit
+    act.attempt()  # commits the ledger row and the attempt row together: no record, no command
+    try:
+        try:
+            answer = lease_events.TRANSPORT.request(settings, "capture_start", signed.text)
+        except ApiError as exc:
+            not_sent = exc.code in _NOT_SENT_CODES or (exc.code == "ha_unavailable" and exc.details.get("error") in _NOT_SENT_ERRORS)
+            if not_sent:
+                capture_lease.finish(db, lease.lease_ref, "destroyed", "start_refused")
+                act.outcome("not_sent", exc.code, {"error": exc.code})
+                raise ApiError(503, exc.code, capture_lease.UNAVAILABLE_TEXT, details={"outcome": "not_sent"}) from None
+            answer = None
+        except Exception as exc:  # noqa: BLE001 - a timeout after a possible delivery
+            log.warning("capture lease start: no clear answer (%s)", type(exc).__name__)
+            answer = None
+    finally:
+        conn.execute("BEGIN")  # deferred, lock-free: nothing more is written on the request connection
+    kind, data = capture_lease_route.classify_request(answer, signed.request_id) if answer is not None else ("unknown", {"code": "no_answer"})
+    capture_lease_route._clock_check(kind, data)
+    session = None
+    if kind == "ok":
+        try:
+            session = intercom_sync.project_capture_session(data.get("session"))
+        except (ValueError, TypeError):
+            kind, data = "unknown", {"code": "invalid_session"}  # F9: acknowledged without a usable session id = unknown start
+    if kind in ("refused", "rejected"):
+        capture_lease.finish(db, lease.lease_ref, "destroyed", "start_refused")
+        act.outcome("refused", data["code"], {"code": data["code"]})
+        text = capture_lease.CLOCK_TEXT if data["code"] in lease_events.CLOCK_CODES else intercom_client_text(data["code"])
+        raise ApiError(409, "intercom_refused", text, details={"outcome": "refused", "wiskey_code": data["code"]})
+    if kind != "ok" or session is None:
+        capture_lease.on_authority_change("start_unknown", lease_refs=[lease.lease_ref])  # a session Arx cannot see may drive the reader
+        held = CAPTURES.hold_unknown(token)
+        act.outcome("unknown", data.get("code"), {"code": data.get("code")})
+        raise ApiError(504, "intercom_outcome_unknown", "לא ידוע אם הקורא הופעל. הקריאה בוטלה, והעמדה תהיה פנויה בעוד זמן קצר.",
+                       details={"outcome": "unknown", "retry_after_s": round(held, 1)})
+    if not capture_lease.activate(db, lease.lease_ref, session["session_id"]):
+        # revoked between the send and the answer: the host's session is cancelled with the lease's own signed cancel
+        capture_lease_route.cancel_known(db, settings, principal.user_id, body.station_id, lease.lease_ref, session["session_id"])
+        CAPTURES.release(token)
+        act.outcome("refused", "capture_lease_gone", {"code": "capture_lease_gone"})
+        raise capture_lease_route.gone()
+    capture = CAPTURES.register(token, session, principal, user_id, body.station_id, act.details.get("station_name"), body.reader_id, body.revision, settings, db,
+                                lease_ref=lease.lease_ref)
+    capture.person_stations = target.stations
+    act.outcome("ok", None, {"result": {"session_id": session["session_id"], "state": session["state"]}})
+    return {"state": "ready", "configured": True, "last_error": None, "capture": CAPTURES.view(capture), "note": CAPTURE_NOTE, "command_id": act.details["command_id"],
+            **iw.effect_fields("cards/capture_start")}
+
+
+def lease_events_request_id() -> str:
+    return str(uuid.uuid4())
+
+
+def intercom_client_text(code: str) -> str:
+    """The operator text for a WisKey refusal code on the lease route (never the code itself, never input)."""
+    return {
+        "capture_station_busy": "בעמדה הזו כבר פתוחה קריאת כרטיס. הקורא לא הופעל שוב.",
+        "capture_limit": "כבר פתוחות שלוש קריאות כרטיס במערכת. נסו שוב בעוד רגע.",
+        "revision_conflict": "הרשומה השתנתה מאז שנטענה. טענו אותה מחדש ונסו שוב.",
+        "lease_gone": capture_lease_route.GONE_TEXT,
+    }.get(code, "הפקודה נדחתה ולא בוצעה.")
+
+
+def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: Any, label: str, not_after: datetime) -> dict[str, Any]:
+    """F8: refused locally while the lease is not usable; otherwise ONE signed capture_confirm, never retried."""
+    db: Database = request.app.state.db
+    settings = settings_of(request)
+    act.details.update(lease_ref=capture.lease_ref, transport="capture_lease")
+    if not capture_lease.usable(capture.lease_ref):
+        CAPTURES.back_to_captured(capture)
+        capture_lease_route.stop(CAPTURES, capture, audit=False)
+        raise act.refuse(capture_lease_route.gone())
+    if datetime.now(timezone.utc) >= not_after:
+        CAPTURES.back_to_captured(capture)
+        raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שנשלחה."))
+    p = act.principal
+    try:
+        signed = lease_events.sign(act.conn, "capture_confirm", p.user_id, trusted_door.actor_name(p), capture.station_id,
+                                   {"lease_ref": capture.lease_ref, "session_id": capture.session_id, "label": label})
+    except lease_events.NotSendable:
+        CAPTURES.back_to_captured(capture)
+        raise act.refuse(capture_lease.unavailable()) from None
+    act.details["body_sha256"] = signed.body_sha256
+    act.attempt()
+    answer: Any = None
+    try:
+        try:
+            answer = lease_events.TRANSPORT.request(settings, "capture_confirm", signed.text)
+        except ApiError as exc:
+            if exc.code in _NOT_SENT_CODES or (exc.code == "ha_unavailable" and exc.details.get("error") in _NOT_SENT_ERRORS):
+                CAPTURES.back_to_captured(capture)
+                act.outcome("not_sent", exc.code, {"error": exc.code})
+                raise ApiError(503, exc.code, capture_lease.UNAVAILABLE_TEXT, details={"outcome": "not_sent", "capture": CAPTURES.view(capture)}) from None
+        except Exception as exc:  # noqa: BLE001 - after a possible delivery
+            log.warning("capture lease confirm: no clear answer (%s)", type(exc).__name__)
+    finally:
+        act.conn.execute("BEGIN")
+    kind, data = capture_lease_route.classify_request(answer, signed.request_id) if answer is not None else ("unknown", {"code": "no_answer"})
+    capture_lease_route._clock_check(kind, data)
+    if kind in ("refused", "rejected"):
+        code = data["code"]
+        if code in ("capture_not_ready", "invalid_text") or kind == "rejected":
+            CAPTURES.back_to_captured(capture)
+        else:
+            CAPTURES.set_state(capture, "lost" if code in ("capture_not_found", "lease_gone") else "closed", code, only_from=("applying",))
+            capture_lease.finish(db, capture.lease_ref, "destroyed", "lost" if code in ("capture_not_found", "lease_gone") else "error")
+        act.outcome("refused", code, {"code": code})
+        raise ApiError(409, "intercom_refused", intercom_client_text(code), details={"outcome": "refused", "wiskey_code": code, "capture": CAPTURES.view(capture)})
+    person = None
+    if kind == "ok":
+        try:
+            person = iw.project_editor(data.get("person"))
+        except (ValueError, TypeError, KeyError):
+            person = None
+    if kind != "ok" or person is None:
+        CAPTURES.set_state(capture, "unconfirmed", data.get("code"), only_from=("applying",))
+        capture_lease.finish(db, capture.lease_ref, "destroyed", "confirm_unknown")
+        act.outcome("unknown", data.get("code"), {"code": data.get("code")})
+        raise ApiError(504, "intercom_outcome_unknown", capture_lease_route.CONFIRM_UNKNOWN_TEXT, details={"outcome": "unknown", "capture": CAPTURES.view(capture)})
+    CAPTURES.set_state(capture, "confirmed", only_from=("applying",))
+    capture_lease.finish(db, capture.lease_ref, "destroyed", "confirmed")
+    act.outcome("ok", None, {"result": _person_summary(person)})
+    return {"state": "ready", "configured": True, "last_error": None, "person": iw.view_editor_person(auth, person), "capture": CAPTURES.view(capture),
+            "note": "WisKey הוסיף את הכרטיס לאדם וביקש לסנכרן את התחנות שלו. מצב הסנכרון של כל תחנה מוצג ברשומה.", "command_id": act.details["command_id"],
+            **iw.effect_fields("cards/capture_confirm")}
+
+
+def _lease_cancel(request: Request, act: _Action, capture: Any) -> dict[str, Any]:
+    """ONE signed capture_cancel. Acknowledged -> destroyed(cancelled); no clear answer -> the lease is revoked (cancel_unknown)."""
+    db: Database = request.app.state.db
+    settings = settings_of(request)
+    act.details.update(lease_ref=capture.lease_ref, transport="capture_lease")
+    p = act.principal
+    try:
+        signed = lease_events.sign(act.conn, "capture_cancel", p.user_id, trusted_door.actor_name(p), capture.station_id,
+                                   {"lease_ref": capture.lease_ref, "session_id": capture.session_id})
+    except lease_events.NotSendable:
+        capture_lease.on_authority_change("cancel_unknown", lease_refs=[capture.lease_ref])  # nothing could be sent: the lease is revoked instead
+        CAPTURES.set_state(capture, "cancel_unknown", only_from=POLLED)
+        raise act.refuse(capture_lease.unavailable()) from None
+    act.details["body_sha256"] = signed.body_sha256
+    act.attempt()
+    answer: Any = None
+    try:
+        try:
+            answer = lease_events.TRANSPORT.request(settings, "capture_cancel", signed.text)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("capture lease cancel: no clear answer (%s)", type(exc).__name__)
+    finally:
+        act.conn.execute("BEGIN")
+    kind, data = capture_lease_route.classify_request(answer, signed.request_id) if answer is not None else ("unknown", {"code": "no_answer"})
+    capture_lease_route._clock_check(kind, data)
+    if kind == "ok" and data.get("cancelled") is True:
+        CAPTURES.set_state(capture, "cancelled", only_from=POLLED)
+        capture_lease.finish(db, capture.lease_ref, "destroyed", "cancelled")
+        act.outcome("ok", None, {"result": {"cancelled": True}})
+        return {"state": "ready", "configured": True, "last_error": None, "cancelled": True, "capture": CAPTURES.view(capture), "command_id": act.details["command_id"],
+                "note": "WisKey הפסיק להמתין לכרטיס ושום כרטיס לא נוסף. זמן ההמתנה של הקורא עצמו נקבע בקושחה שלו.", **iw.effect_fields("cards/capture_cancel")}
+    if kind == "refused" and data["code"] in ("capture_not_found", "lease_gone"):
+        CAPTURES.set_state(capture, "lost", only_from=POLLED)
+        capture_lease.finish(db, capture.lease_ref, "destroyed", "lost")
+        act.outcome("refused", data["code"], {"code": data["code"]})
+        raise ApiError(409, "intercom_capture_not_found", "קריאת הכרטיס כבר אינה קיימת ב־WisKey.", details={"outcome": "refused", "capture": CAPTURES.view(capture)})
+    capture_lease.on_authority_change("cancel_unknown", lease_refs=[capture.lease_ref])
+    CAPTURES.set_state(capture, "cancel_unknown", only_from=POLLED)
+    act.outcome("unknown", data.get("code"), {"code": data.get("code")})
+    raise ApiError(504, "intercom_outcome_unknown", "לא ידוע אם הביטול התקבל. הקריאה בוטלה בצד Arx.", details={"outcome": "unknown", "capture": CAPTURES.view(capture)})
+
+
 @router.get("/intercom/stations/{station_id}/card-readers")
 def card_readers(request: Request, station_id: str, auth: ia.Authority = Depends(_capturer_ro)) -> dict[str, Any]:
     """The station's card readers (WisKey `cards/reader_capabilities`, a read that reaches the device - WisKey allows it
@@ -1543,8 +1756,12 @@ def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depe
     with the sensitive level (a card is a credential); not unrestricted = checked against a fresh read whose revision the start
     must carry. UNKNOWN_EFFECT: `pending: true` (the session state the dialog polls is what tells)."""
     principal = auth.principal
+    # capture-lease route (CR-WISKEY-LEASE-REVOCATION-EVENT L5): the authority epochs and the permission revision BEFORE the
+    # decision - a trigger between here and the ledger insert makes the issue refuse (capture_lease.issue). Harmless when off.
+    lease_rev = permission_revision(conn)
     act = _Action(request, conn, principal, "intercom.card_capture.start", user_id, PERSON)
     body: CaptureStartBody = _parse(act, CaptureStartBody, raw)
+    lease_snap = capture_lease.REG.snapshot(principal.user_id, body.station_id, user_id)
     act.details.update(client_request_id=body.client_request_id, expires_at=body.expires_at, station_id=body.station_id, reader_id=body.reader_id, revision=body.revision,
                        **iw.effect_fields("cards/capture_start"))
     settings = settings_of(request)
@@ -1567,6 +1784,12 @@ def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depe
         token = CAPTURES.reserve(principal.user_id, body.station_id)
     except ApiError as exc:
         raise act.refuse(exc) from None
+    if capture_lease.mode(conn) == "on":  # the lease route (fails closed with 503 unless it can really serve: route_on, not degraded, clock)
+        try:
+            return _lease_start(request, act, conn, auth, body, user_id, target, station, token, lease_rev, lease_snap)
+        except BaseException:
+            CAPTURES.release(token)  # a no-op after hold_unknown / register
+            raise
     held = {"s": 0.0}
 
     def unknown() -> None:
@@ -1624,6 +1847,8 @@ def card_capture_cancel(request: Request, session_id: str, auth: ia.Authority = 
         raise act.refuse(ApiError(409, "intercom_capture_applying", "הכרטיס נמצא בשמירה. יש להמתין לתוצאה לפני פעולה נוספת."))
     if capture.state not in POLLED:
         raise act.refuse(ApiError(409, "intercom_capture_over", "קריאת הכרטיס הזו כבר הסתיימה; אין מה לבטל.", details={"capture": CAPTURES.view(capture)}))
+    if capture.lease_ref is not None:  # the capture-lease route (L5): the lease's own signed cancel
+        return _lease_cancel(request, act, capture)
     not_after = datetime.now(timezone.utc) + timedelta(seconds=SEND_WITHIN_S)
 
     def record(reply: dict[str, Any], outcome: str) -> None:
@@ -1674,8 +1899,13 @@ def card_capture_confirm(request: Request, session_id: str, auth: ia.Authority =
         iw.check_stations(auth, capture.person_stations, permissions=(MANAGE, CAPTURE), extra_stations=[capture.station_id], sensitive=True)
     except ApiError as exc:
         raise act.refuse(exc) from None
+    if capture.lease_ref is not None and not capture_lease.usable(capture.lease_ref):  # F8: refused locally, nothing signed
+        capture_lease_route.stop(CAPTURES, capture, audit=False)
+        raise act.refuse(capture_lease_route.gone())
     if not CAPTURES.begin_applying(capture):
         raise act.refuse(ApiError(409, "intercom_capture_not_ready", "אין כרטיס שנקרא וממתין לאישור.", details={"capture": CAPTURES.view(capture)}))
+    if capture.lease_ref is not None:  # the capture-lease route (L5): ONE signed capture_confirm
+        return _lease_confirm(request, act, auth, capture, body.label, not_after)
     label = body.label
     try:
         reply = _perform(act, "person", lambda call: intercom_client.capture_confirm(call, capture.session_id, label), iw.project_editor, not_after,

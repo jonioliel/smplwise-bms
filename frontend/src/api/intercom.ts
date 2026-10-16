@@ -513,7 +513,8 @@ export interface IntercomCaptureCard {
 }
 
 /** preparing | waiting | captured | applying (active; WisKey's own states) or error | cancelled | cancel_unknown | expired
- * | lost | confirmed | unconfirmed | closed (over; SMPLWISE's reading of how it ended). */
+ * | lost | confirmed | unconfirmed | closed | revoked (over; SMPLWISE's reading of how it ended). `revoked`: the capture-lease
+ * route only (CR-WISKEY-LEASE-REVOCATION-EVENT L5, OFF by default) - the lease's authority went away mid-session. */
 export type IntercomCaptureState =
   | 'preparing'
   | 'waiting'
@@ -526,7 +527,8 @@ export type IntercomCaptureState =
   | 'lost'
   | 'confirmed'
   | 'unconfirmed'
-  | 'closed';
+  | 'closed'
+  | 'revoked';
 
 /** One capture session as the backend's poller last read it from WisKey (routers/access_control.py
  * `card_capture_status`); only its owner ever gets it. The countdowns are the server's (WisKey's 70 s collection, its

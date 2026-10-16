@@ -61,10 +61,11 @@ ACTIVE = (*POLLED, "applying")  # a session that still holds its station and its
 # cancel was sent, no clear answer); `expired` (WisKey's 120 s passed); `lost` (WisKey no longer knows the session
 # before its TTL - HA restarted, the station detached); `confirmed` (the card was added); `unconfirmed` (the confirm
 # was sent, no clear answer); `closed` (WisKey refused the confirm and dropped the session)
-TERMINAL = ("error", "cancelled", "cancel_unknown", "expired", "lost", "confirmed", "unconfirmed", "closed")
+# `revoked` (capture-lease route only, CR-WISKEY-LEASE-REVOCATION-EVENT L5): the lease's authority went away mid-session
+TERMINAL = ("error", "cancelled", "cancel_unknown", "expired", "lost", "confirmed", "unconfirmed", "closed", "revoked")
 # states in which WisKey may still be driving the reader, or the reader's own (firmware-controlled, UNVERIFIED)
 # collection timeout may still run: the UI says so instead of "done"
-MAYBE_COLLECTING = ("preparing", "waiting", "cancel_unknown", "lost")
+MAYBE_COLLECTING = ("preparing", "waiting", "cancel_unknown", "lost", "revoked")
 
 
 @dataclass(eq=False)
@@ -90,6 +91,8 @@ class Capture:
     # CR-036 S11: the person's stations the start was authorised over (None = the unrestricted shortcut decided it); the
     # confirm checks the caller's scope over them again (routers/access_control.py, services/intercom_writes.check_stations)
     person_stations: list[str] | None = None
+    # CR-WISKEY-LEASE-REVOCATION-EVENT L5: the ledger id of the lease this session runs under (None = the classic WS path)
+    lease_ref: str | None = None
 
     def elapsed(self, now: float | None = None) -> float:
         return (time.monotonic() if now is None else now) - self.started
@@ -148,12 +151,14 @@ class CaptureRegistry:
             return max(0.0, until - time.monotonic())
 
     def register(self, token: str, session: dict[str, Any], owner: Principal, person_id: str, station_id: str, station_name: str | None,
-                 reader_id: int, revision: int, settings: Any, db: Database) -> Capture:
-        """WisKey answered the start with a session: it is the owner's from now on, and the poller follows it."""
+                 reader_id: int, revision: int, settings: Any, db: Database, lease_ref: str | None = None) -> Capture:
+        """WisKey answered the start with a session: it is the owner's from now on, and the poller follows it. `lease_ref`: the
+        capture-lease route's ledger id (set before the poller can see the session, so it never reads it over the WS lane)."""
         with self._lock:
             reservation = self._pending.pop(token, None)
             capture = Capture(session["session_id"], owner, person_id, station_id, station_name, reader_id, revision, settings, db,
-                              started=reservation.since if reservation else time.monotonic(), state=session["state"] if session["state"] in POLLED else "preparing")
+                              started=reservation.since if reservation else time.monotonic(), state=session["state"] if session["state"] in POLLED else "preparing",
+                              lease_ref=lease_ref)
             self._sessions[capture.session_id] = capture
             self._ensure_poller()
         return capture
@@ -267,6 +272,11 @@ class CaptureRegistry:
             stop.wait(POLL_S / 3)
 
     def _tick(self, capture: Capture, now: float, busy: bool = False) -> None:
+        if capture.lease_ref is not None:  # the capture-lease route: the signed status read only (services/capture_lease_route.py)
+            from . import capture_lease_route
+
+            capture_lease_route.tick(self, capture, now, busy)
+            return
         elapsed = capture.elapsed(now)
         if elapsed >= SESSION_S + EXPIRE_GRACE_S:
             self._finish_polled(capture, "expired", None)
