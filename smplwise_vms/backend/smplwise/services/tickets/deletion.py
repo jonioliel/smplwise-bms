@@ -24,8 +24,11 @@ from __future__ import annotations
 
 import collections
 import logging
+import os
+import random
 import re
 import shutil
+import stat
 import threading
 import time
 from dataclasses import dataclass, field
@@ -250,54 +253,63 @@ def sweep_orphan_files(db: Database, root: Path, *, min_age_s: float = ORPHAN_MI
     crash between the write and the row - not an exception, which cleans up itself) would count toward the 2 GiB cap forever.
     A file is removed only when ALL hold: its name is one the module writes (_STORED_NAME), it has not changed for `min_age_s`
     (its row may still be on the way), and no `ticket_attachments` / `ticket_cost_files` row names its path. Anything else -
-    another name, a sub-folder other than `costs`, a symbolic link - is left alone. Returns the number removed."""
+    another name, a sub-folder other than `costs`, a symbolic link - is left alone. Returns the number removed.
+
+    Review R2 (TK251): `limit` counts REMOVALS only (files a row names never use it up - A-1), the rows are looked up per ticket
+    folder as the walk goes, and the walk starts at a random folder each sweep (a file that cannot be removed never keeps the
+    others waiting). A-4: the entry removed is the one checked - `os.lstat` before and right before the unlink must agree (a
+    regular file, same device / inode / mtime) and `os.unlink` never follows a symbolic link."""
     from . import attachments
 
     if not root.is_dir():
         return 0
     now = time.time() if now is None else now
-    base = root.resolve()
-    candidates: dict[str, list[tuple[str, Path]]] = {}
-    found = 0
-    for folder in root.iterdir():
-        try:
-            if folder.is_symlink() or not folder.is_dir() or not _ID.fullmatch(folder.name):
-                continue
-            for sub, rel_dir in ((folder, folder.name), (folder / "costs", f"{folder.name}/costs")):
-                if sub.is_symlink() or not sub.is_dir():
-                    continue
-                for f in sub.iterdir():
-                    if not _STORED_NAME.fullmatch(f.name) or f.is_symlink() or not f.is_file():
-                        continue
-                    if now - f.stat().st_mtime < min_age_s:
-                        continue
-                    candidates.setdefault(folder.name, []).append((f"{rel_dir}/{f.name}", f))
-                    found += 1
-                    if found >= limit:
-                        break
-        except OSError:
-            continue
-        if found >= limit:
-            break
-    if not candidates:
+    try:
+        folders = [f for f in root.iterdir() if _ID.fullmatch(f.name)]
+    except OSError:
         return 0
-    with db.connection(mode="read", label="tickets.files.sweep") as conn:
-        named: set[str] = set()
-        for tid in candidates:
-            named |= store.stored_paths(conn, tid)
+    if folders:
+        k = random.randrange(len(folders))
+        folders = folders[k:] + folders[:k]
     removed = 0
-    for tid, files in candidates.items():
-        for rel, f in files:
-            if rel in named:
-                continue
+    with db.connection(mode="read", label="tickets.files.sweep") as conn:
+        for folder in folders:
+            if removed >= limit:
+                break
             try:
-                p = f.resolve()
-                if base not in p.parents:
+                if folder.is_symlink() or not folder.is_dir():
                     continue
-                p.unlink()
-                removed += 1
-            except OSError as exc:
-                log.warning("orphan ticket file was not removed (%s)", type(exc).__name__)
+                old: list[tuple[str, Path, os.stat_result]] = []
+                for sub, rel_dir in ((folder, folder.name), (folder / "costs", f"{folder.name}/costs")):
+                    if sub.is_symlink() or not sub.is_dir():
+                        continue
+                    for f in sub.iterdir():
+                        if not _STORED_NAME.fullmatch(f.name):
+                            continue
+                        st = os.lstat(f)
+                        if not stat.S_ISREG(st.st_mode) or now - st.st_mtime < min_age_s:
+                            continue
+                        old.append((f"{rel_dir}/{f.name}", f, st))
+            except OSError:
+                continue
+            if not old:
+                continue
+            named = store.stored_paths(conn, folder.name)
+            for rel, f, seen in old:
+                if removed >= limit:
+                    break
+                if rel in named:
+                    continue
+                try:
+                    if folder.is_symlink() or (f.parent != folder and f.parent.is_symlink()):
+                        continue
+                    st = os.lstat(f)
+                    if (not stat.S_ISREG(st.st_mode) or (st.st_dev, st.st_ino, st.st_mtime_ns) != (seen.st_dev, seen.st_ino, seen.st_mtime_ns)):
+                        continue  # the entry changed after the scan: not the file that was judged
+                    os.unlink(f)
+                    removed += 1
+                except OSError as exc:
+                    log.warning("orphan ticket file was not removed (%s)", type(exc).__name__)
     if removed:
         attachments.forget_size_cache()
         log.info("orphan ticket files removed: %d", removed)

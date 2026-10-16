@@ -319,11 +319,16 @@ def note_update(conn: sqlite3.Connection, link_id: str) -> None:
     conn.execute("UPDATE ticket_links SET update_count = update_count + 1 WHERE id = ?", (link_id,))
 
 
-def note_open(conn: sqlite3.Connection, link_id: str, at: str) -> bool:
-    """An open of the page with the token (GET /t/api/ticket); True for the first one (the timeline's "הקישור נפתח" line)."""
-    first = conn.execute("UPDATE ticket_links SET first_opened_at = ? WHERE id = ? AND first_opened_at IS NULL", (at, link_id)).rowcount == 1
-    conn.execute("UPDATE ticket_links SET last_opened_at = ?, open_count = open_count + 1 WHERE id = ?", (at, link_id))
-    return first
+def note_open(conn: sqlite3.Connection, link_id: str, at: str, generation: int | None = None) -> bool | None:
+    """An open of the page with the token (GET /t/api/ticket); True for the first one (the timeline's "הקישור נפתח" line).
+    `generation` (TK251 review R2 A-5): the generation the request authenticated with - an open that commits after a "new link"
+    must not stamp the NEW generation; None is returned when the link is no longer at that generation (nothing written)."""
+    gen = "" if generation is None else " AND generation = ?"
+    args: tuple = () if generation is None else (int(generation),)
+    if conn.execute(f"UPDATE ticket_links SET last_opened_at = ?, open_count = open_count + 1 WHERE id = ?{gen}", (at, link_id, *args)).rowcount != 1:
+        return None
+    return conn.execute(f"UPDATE ticket_links SET first_opened_at = ? WHERE id = ? AND first_opened_at IS NULL{gen}",
+                        (at, link_id, *args)).rowcount == 1
 
 
 def resolve_within_min(conn: sqlite3.Connection, department_id: str, priority_id: str) -> int | None:

@@ -74,7 +74,7 @@ def _unguarded(cells: list[str]) -> list[str]:
 def test_csv_every_csv_writer_of_the_module_is_known_and_uses_the_cell_guard():
     """A tripwire: a new CSV in the tickets module must be added here, and it must route its cells through text_hygiene.csv_cell."""
     files = sorted(SMPLWISE.joinpath("services", "tickets").glob("*.py")) + sorted(SMPLWISE.joinpath("routers").glob("tickets*.py"))
-    writers = {p.name for p in files if "csv.writer(" in p.read_text(encoding="utf-8")}
+    writers = {p.name for p in files if re.search(r"csv\.(writer|DictWriter)\(", p.read_text(encoding="utf-8"))}  # DictWriter too (R2)
     assert writers == {"export.py", "costs_report.py"}
     for name in writers:
         src = SMPLWISE.joinpath("services", "tickets", name).read_text(encoding="utf-8")
@@ -545,3 +545,221 @@ def test_b6_the_accounts_service_lists_every_account_it_can_see():
 def test_b6_the_runtime_processor_is_wired_with_every_visible_account():
     src = SMPLWISE.joinpath("services", "tickets", "messaging.py").read_text(encoding="utf-8")
     assert "visible_keys=svc.all_keys" in src
+
+
+# ================================================================ review R2 (2026-10-16): A-1 .. A-5 and the CSV tripwire
+
+def _named_world(root: Path, folders: int, per_folder: int, orphan_folder: str | None = None) -> tuple[set[str], list[Path]]:
+    """Ticket folders full of OLD files that rows name (the named set is returned for a patched store.stored_paths) and two
+    orphans in `orphan_folder` (one in its costs/ sub-folder)."""
+    named: set[str] = set()
+    for i in range(folders):
+        tid = f"t{i:05d}"
+        (root / tid).mkdir(parents=True, exist_ok=True)
+        for j in range(per_folder):
+            name = f"{i:08x}{j:08x}.jpg"
+            p = root / tid / name
+            p.write_bytes(b"x")
+            _age(p, 3)
+            named.add(f"{tid}/{name}")
+    orphans = []
+    if orphan_folder:
+        (root / orphan_folder / "costs").mkdir(parents=True, exist_ok=True)
+        for p in (root / orphan_folder / "aaaaaaaaaaaaaaaa.jpg", root / orphan_folder / "costs" / "bbbbbbbbbbbbbbbb.pdf"):
+            p.write_bytes(b"orphan")
+            _age(p, 3)
+            orphans.append(p)
+    return named, orphans
+
+
+def _db_of(settings):
+    from smplwise.db import Database
+
+    db = Database(settings.db_path)
+    db.migrate()
+    return db
+
+
+def test_r2_a1_named_files_never_use_up_the_sweep_quota(tmp_path, monkeypatch, settings):
+    from smplwise.services.tickets import deletion, store
+
+    root = tmp_path / "tickets"
+    named, orphans = _named_world(root, folders=22, per_folder=100, orphan_folder="zzzzlast")  # 2,200 referenced old files
+    monkeypatch.setattr(store, "stored_paths", lambda conn, tid: {n for n in named if n.startswith(tid + "/")})
+    assert deletion.sweep_orphan_files(_db_of(settings), root) == 2, "the real orphans are reached whatever the named files before them"
+    assert not any(p.exists() for p in orphans)
+    assert all((root / n).exists() for n in named)
+
+
+def test_r2_a1_the_quota_counts_deletions_and_the_walk_is_fair(tmp_path, monkeypatch, settings):
+    from smplwise.services.tickets import deletion, store
+
+    root = tmp_path / "tickets"
+    named, _ = _named_world(root, folders=3, per_folder=3)
+    orphans = []
+    for tid in ("o1", "o2", "o3"):
+        (root / tid).mkdir()
+        p = root / tid / "cccccccccccccccc.jpg"
+        p.write_bytes(b"o")
+        _age(p, 3)
+        orphans.append(p)
+    monkeypatch.setattr(store, "stored_paths", lambda conn, tid: {n for n in named if n.startswith(tid + "/")})
+    db = _db_of(settings)
+    assert deletion.sweep_orphan_files(db, root, limit=1) == 1, "the limit counts removals, not files looked at"
+    # an orphan that cannot be removed must not block the others forever: the walk starts elsewhere every sweep
+    stuck = next(p for p in orphans if p.exists())
+    real_unlink = os.unlink
+
+    def guarded(path, *a, **k):
+        if Path(path) == stuck:
+            raise PermissionError("held")
+        return real_unlink(path, *a, **k)
+
+    monkeypatch.setattr(deletion.os, "unlink", guarded)
+    for _ in range(30):
+        deletion.sweep_orphan_files(db, root, limit=1)
+    assert [p for p in orphans if p.exists()] == [stuck]
+
+
+def test_r2_a4_a_file_swapped_after_the_scan_is_not_deleted(tmp_path, monkeypatch, settings):
+    from smplwise.services.tickets import deletion, store
+
+    root = tmp_path / "tickets"
+    (root / "t1").mkdir(parents=True)
+    victim = root / "t1" / "dddddddddddddddd.jpg"
+    victim.write_bytes(b"orphan")
+    _age(victim, 3)
+
+    def swap(conn, tid):  # runs between the scan and the unlink: another file takes the scanned name
+        victim.unlink()
+        victim.write_bytes(b"a different, legitimate file")
+        _age(victim, 3)
+        return set()
+
+    monkeypatch.setattr(store, "stored_paths", swap)
+    assert deletion.sweep_orphan_files(_db_of(settings), root) == 0 and victim.read_bytes().startswith(b"a different")
+
+
+def test_r2_a4_symbolic_links_are_never_followed(tmp_path, monkeypatch, settings):
+    from smplwise.services.tickets import deletion, store
+
+    root = tmp_path / "tickets"
+    keep = tmp_path / "keep"
+    (keep / "costs").mkdir(parents=True)
+    target = keep / "eeeeeeeeeeeeeeee.jpg"
+    target.write_bytes(b"precious")
+    (keep / "costs" / "ffffffffffffffff.pdf").write_bytes(b"precious")
+    _age(target, 3)
+    _age(keep / "costs" / "ffffffffffffffff.pdf", 3)
+    (root / "t2").mkdir(parents=True)
+    try:
+        os.symlink(keep, root / "t1", target_is_directory=True)  # a symlinked ticket folder
+        os.symlink(keep / "costs", root / "t2" / "costs", target_is_directory=True)  # a symlinked costs folder
+        os.symlink(target, root / "t2" / "0000000000000001.jpg")  # a symlinked file
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links are not available here (Windows without the privilege); the runner covers it")
+    monkeypatch.setattr(store, "stored_paths", lambda conn, tid: set())
+    assert deletion.sweep_orphan_files(_db_of(settings), root) == 0
+    assert target.exists() and (keep / "costs" / "ffffffffffffffff.pdf").exists()
+    assert (root / "t2" / "0000000000000001.jpg").is_symlink()
+
+
+def _redeem(s4, port, link_id, **kw):
+    """DbLinks.redeem_url mints a redeem row: it writes through the caller's bound connection (as the outbox does)."""
+    from smplwise.services.tickets import outbox_store as obs
+
+    with s4.db.connection() as conn, obs.bound(conn):
+        return port.redeem_url(link_id, **kw)
+
+
+def test_r2_a2_the_e_mail_link_of_a_cost_message_opens_the_claim_step_of_a_closed_ticket(s4):
+    from smplwise.services.tickets import messaging
+    from smplwise.services.tickets import outbox_store as obs
+
+    t, token, _client, _ = done(s4, "optional")
+    assert s4.w.status("joni", t["id"], "closed").status_code == 200
+    link = s4.link_row(t["id"])
+    with s4.db.connection() as conn:  # the read-only grace after close is over: only the claim step still serves the link
+        conn.execute("UPDATE ticket_links SET grace_until = '2026-01-01T00:00:00Z' WHERE id = ?", (link["id"],))
+    port = messaging.DbLinks(obs.Access(s4.db), lambda: dt.datetime.now(dt.timezone.utc))
+    assert _redeem(s4, port, link["id"]) is None, "the page no longer serves the link"
+    url = _redeem(s4, port, link["id"], claim=True)
+    assert url
+    prefix, _r, rid = url.rstrip("/").rsplit("/", 3)[-3:]
+    assert _r == "r"
+    client, _ = s4.public(Clock(time.time()))
+    r = client.post(f"/{prefix}/api/redeem", json={"rid": rid})  # the public prefix the e-mail link carries (TK255)
+    assert r.status_code == 200, r.text
+    assert r.json()["token"] == token
+    claim = client.get("/t/api/claim", headers=hdr(r.json()["token"]))
+    assert claim.status_code == 200 and claim.json()["claim_mode"] is True, claim.text
+    # the window closed: a fresh redeem id releases nothing (fail closed, the uniform answer)
+    rid2 = _redeem(s4, port, link["id"], claim=True).rstrip("/").rsplit("/", 1)[-1]
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_cost_claims SET claim_until = '2000-01-01T00:00:00Z'")
+    assert client.post("/t/api/redeem", json={"rid": rid2}).content == UNIFORM_404
+
+
+def test_r2_a2_a_link_revoked_outside_claim_mode_never_redeems(s4):
+    from smplwise.services.tickets import messaging
+    from smplwise.services.tickets import outbox_store as obs
+
+    t, _token, _client, _ = done(s4, "optional")
+    link = s4.link_row(t["id"])
+    port = messaging.DbLinks(obs.Access(s4.db), lambda: dt.datetime.now(dt.timezone.utc))
+    rid = _redeem(s4, port, link["id"]).rstrip("/").rsplit("/", 1)[-1]  # minted while live
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_links SET revoked_at = '2026-01-01T00:00:00Z', revoked_reason = 'manual' WHERE id = ?", (link["id"],))
+    client, _ = s4.public(Clock(time.time()))
+    assert client.post("/t/api/redeem", json={"rid": rid}).content == UNIFORM_404
+
+
+def test_r2_a3_the_cursor_is_bound_to_the_caller_the_filters_and_a_time(monkeypatch):
+    sort = table.parse_sort("title:asc")
+    cur = table.encode_cursor(sort, ["x"], "abcdef0123456789", uid="dev-gil", fingerprint="f1")
+    assert table.decode_cursor(cur, sort, uid="dev-gil", fingerprint="f1") == (["x"], "abcdef0123456789")
+    for uid, fp in (("dev-tom", "f1"), ("dev-gil", "f2"), ("", "")):
+        with pytest.raises(table.TableError):
+            table.decode_cursor(cur, sort, uid=uid, fingerprint=fp)
+    real = time.time
+    monkeypatch.setattr(table.time, "time", lambda: real() + table.CURSOR_TTL_S + 5)
+    with pytest.raises(table.TableError):
+        table.decode_cursor(cur, sort, uid="dev-gil", fingerprint="f1")
+
+
+def test_r2_a3_another_user_or_other_filters_cannot_replay_a_cursor(w):
+    for i in range(130):
+        t = w.create("tom", f"קומה 2 #{i:03d}")
+        w.place(t["id"], "floor2")
+    page = w.c.get(f"{API}/tickets/table?status=all&sort=title:asc&limit=25", headers=w.h("gil")).json()
+    cur = page["next_cursor"]
+    assert cur
+    assert w.c.get(f"{API}/tickets/table?status=all&sort=title:asc&limit=25&cursor={cur}", headers=w.h("gil")).status_code == 200
+    r = w.c.get(f"{API}/tickets/table?status=all&sort=title:asc&limit=25&cursor={cur}", headers=w.h("tom"))
+    assert r.status_code == 422, "another caller"
+    r = w.c.get(f"{API}/tickets/table?status=open&sort=title:asc&limit=25&cursor={cur}", headers=w.h("gil"))
+    assert r.status_code == 422, "other filters"
+
+
+def test_r2_a5_an_open_with_an_old_generation_never_stamps_the_new_one(s4):
+    from smplwise.services.tickets import handler_actions
+    from smplwise.services.tickets.public_ports import LinkRecord
+
+    t, _token = s4.sent()
+    old = s4.link_row(t["id"])
+    rec = LinkRecord(link_id=old["id"], generation=int(old["generation"]), ticket_id=t["id"], assignment_id=old["assignment_id"],
+                     contact_id=old["contact_id"], require_code=False, expires_at=time.time() + 3600, key_id=old["key_id"])
+    assert s4.c.post(f"{API}/tickets/{t['id']}/link/new").status_code == 200  # the manager's click wins the race
+    with s4.db.connection() as conn:
+        handler_actions.record_open(conn, rec, dt.datetime.now(dt.timezone.utc), "ck-old")  # the old token's request commits after
+    fresh = s4.link_row(t["id"])
+    assert fresh["first_opened_at"] is None and fresh["open_count"] == 0
+    assert [e for e in s4.w.detail(t["id"])["events"] if e["kind"] == "link_opened"] == []
+
+
+def test_r2_the_csv_tripwire_also_sees_dict_writers():
+    files = sorted(SMPLWISE.joinpath("services", "tickets").glob("*.py")) + sorted(SMPLWISE.joinpath("routers").glob("tickets*.py"))
+    writers = {p.name for p in files if re.search(r"csv\.(writer|DictWriter)\(", p.read_text(encoding="utf-8"))}
+    assert writers == {"export.py", "costs_report.py"}
+    tripwire = Path(__file__).read_text(encoding="utf-8").split("def test_csv_every_csv_writer_of_the_module")[1].split("\ndef ")[0]
+    assert "DictWriter" in tripwire, "the first tripwire matches DictWriter too"

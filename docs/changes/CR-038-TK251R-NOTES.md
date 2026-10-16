@@ -18,6 +18,17 @@ Tests: `smplwise_vms/backend/tests/test_tickets_tk251r.py`.
 | CSV | Both CSVs of the module (`tickets/export.csv`, `tickets/costs/export.csv`) already routed every cell through `text_hygiene.csv_cell`; regression tests cover hostile values on every text column, and a tripwire test fails when a new `csv.writer` appears in the module without the guard. |
 | Cost evidence | Already correct; negative tests added: 403 without `tickets.costs.view` (audited), 403 for a limited viewer holding it, the uniform 404 for an invisible ticket, no crossing of file / claim / revision ids between tickets, a pending file is never served, the vendor page never serves an invoice file. |
 
+## Review R2 (2026-10-16, TK251R_NOTIFWA_R2_REVIEW Part A) - fixes and decisions
+
+| Finding | Fix / decision |
+|---|---|
+| A-1 the sweep quota | `limit` counts removals only; the rows are looked up per ticket folder as the walk goes (one indexed query per folder that holds old candidates); the walk starts at a random folder each sweep, so a file that cannot be removed never blocks the rest. Test: 2,200 referenced old files plus orphans in a later folder; a stuck orphan with `limit=1`. |
+| A-2 e-mail link in claim mode | `POST /t/api/redeem` (reached as `/<prefix>/api/redeem` under TK255) takes the same claim-mode branch as `link_context`: a released redeem id whose link no longer serves the page releases the token only when `claim_window` is open for that generation; staff links never; the 3-use / 24 h limits are unchanged; everything else stays the uniform 404. Test: close, grace over, e-mail redeem under the prefix, the claim step opens; window closed and a manual revoke stay 404. |
+| A-3 cursor binding | The AES-GCM AAD carries the caller's user id and a fingerprint of the filters + sort; the sealed body carries the issue time; a cursor older than 30 min (or from the future by more than 60 s), from another caller or with other filters is the same `422 cursor`. **Residual, accepted and documented:** a short page still ends on the last SCANNED row, so a caller who can edit a sort value of a ticket they see (e.g. the title of their own ticket) can learn, one audited edit per step, where a hidden row of a department they belong to sorts relative to their own row. Values are never readable; each probe is an audited write; anchoring short pages on the last visible row plus a skip count is the follow-up if the owner wants it closed. |
+| A-4 delete the checked entry | The sweep records `os.lstat` during the scan and compares device / inode / mtime (and regular-file) again right before `os.unlink(entry)`; `os.unlink` never follows a symbolic link; no resolve-then-unlink. Symbolic-link folder / `costs` / file test (skipped on Windows without the privilege, runs on the runner) and a swap-after-scan test. |
+| A-5 open vs new generation | `note_open(..., generation)` updates only `WHERE generation = ?`; an open whose token generation is gone writes nothing (no counter, no line, no device row). |
+| CSV tripwire | Also matches `csv.DictWriter(`. |
+
 ## Files
 
 Backend: `services/tickets/{access,attachments,board,channel,costs_retention,deletion,handler_actions,handler_links,inbound,

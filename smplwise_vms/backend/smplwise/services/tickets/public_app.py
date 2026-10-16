@@ -535,6 +535,13 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         now = deps.clock()
         released = await run_in_threadpool(deps.redeems.release, links.redeem_hash(rid), now, REDEEM_MAX_USES) if rid else None
         link = await run_in_threadpool(deps.links.by_id, released[0]) if released else None
+        if (released is not None and link is not None and link.generation == released[1] and not link.available(now)
+                and deps.claim_window is not None and getattr(link, "kind", "external") != "staff"):
+            # TK251 review R2 A-2: the e-mail form of a cost message (cost_rejected / cost_reopened) - a link that no longer serves
+            # the page may still open the CLAIM step, exactly as link_context decides it (same generation, claim window open)
+            until = await run_in_threadpool(deps.claim_window, link, now)
+            if until is not None and now < until:
+                link = dataclasses.replace(link, expires_at=until, grace_until=None, revoked=False)
         if released is None or link is None or link.generation != released[1] or not link.available(now):
             gate.failure(pr.net, kind="redeem", lookup=rid is not None)  # the redeem route's own exit cost
             raise unavailable()
