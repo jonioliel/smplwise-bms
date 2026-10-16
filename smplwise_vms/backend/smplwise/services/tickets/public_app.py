@@ -160,6 +160,10 @@ class PublicDeps:
     processing_wait_s: float = PROCESSING_WAIT_S
     # where a TRUSTED proxy puts the client address (V3): cf-connecting-ip (cloudflared) or x-forwarded-for (last hop)
     client_ip_header: str = "cf-connecting-ip"
+    # TK255: the public path prefix the listener serves itself under (`/t` routes stay the internal names) and whether the
+    # old `/t/...` links still work; the default keeps `/t` alone (what every existing test and caller meant)
+    path_prefix: str = "t"
+    legacy_t_paths: bool = True
     # slice 9 (11A.5): a link that no longer serves the page may still open the CLAIM step until the claim's own window ends -
     # `claim_window(link, now)` answers that window's end (epoch seconds) or None; asked ONLY for a token that matched a row
     claim_window: Callable[[LinkRecord, float], float | None] | None = None
@@ -472,16 +476,22 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
                 pass
         return FALLBACK_SHELL
 
-    def shell() -> Response:
-        return Response(shell_bytes(), media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
+    def shell(request: Request) -> Response:
+        # TK255: the built page names its assets `/t/assets/...`; under another prefix they must name that prefix (the page's own
+        # API calls and address bar follow the path it was opened on - frontend/src/public-ticket/base.ts)
+        body = shell_bytes()
+        prefix = public_request(request).prefix
+        if prefix != "t":
+            body = body.replace(b"/t/assets/", b"/" + prefix.encode("ascii") + b"/assets/")
+        return Response(body, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
 
     @api.get("/t/")
-    async def page() -> Response:
-        return shell()
+    async def page(request: Request) -> Response:
+        return shell(request)
 
     @api.get("/t/r/{rid}")
-    async def redeem_page(rid: str) -> Response:  # the same shell; the id is read by the page script, never looked up here
-        return shell()
+    async def redeem_page(rid: str, request: Request) -> Response:  # the same shell; the id is read by the page script, never looked up here
+        return shell(request)
 
     @api.get("/t/assets/{name}")
     async def asset(name: str) -> Response:
@@ -775,7 +785,7 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         api.include_router(router)
 
     edge = PublicEdge(api, switch=deps.switch, gate=gate, trusted=deps.trusted_proxies, stats=stats, rules=deps.rules,
-                      client_ip_header=deps.client_ip_header)
+                      client_ip_header=deps.client_ip_header, path_prefix=deps.path_prefix, legacy_t=deps.legacy_t_paths)
     return PublicApp(edge, api, deps, gate, stats)
 
 

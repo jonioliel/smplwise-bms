@@ -12,7 +12,7 @@ import { ticketSettingsCss } from './settings-styles';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { sampleLink } from './public-address';
 
-const DEFAULT_PUBLIC: PublicSettings = { base_url: '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip', theme: 'light' };
+const DEFAULT_PUBLIC: PublicSettings = { base_url: '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip', theme: 'light', path_prefix: 'support', legacy_t_paths: true };
 const THEMES: PublicSettings['theme'][] = ['light', 'dark', 'auto'];
 const HEADERS: PublicSettings['client_ip_header'][] = ['cf-connecting-ip', 'x-forwarded-for'];
 
@@ -37,6 +37,7 @@ export class TicketsPublicCard extends LitElement {
   @state() private org: string | null = null;
   @state() private address: string | null = null;
   @state() private cidrs: string | null = null;
+  @state() private prefix: string | null = null;
   @state() private probe: ProbeAnswer | null = null;
   @state() private probing = false;
   @state() private advanced = false;
@@ -115,6 +116,7 @@ export class TicketsPublicCard extends LitElement {
         this.org = null;
         this.address = null;
         this.cidrs = null;
+        this.prefix = null;
         void this.loadHealth();
       }
     }
@@ -196,10 +198,17 @@ export class TicketsPublicCard extends LitElement {
             @click=${() => this.save({ public: { base_url: address.trim() } })}>${tt('save')}</sw-button>
           <sw-button size="sm" data-public-probe ?disabled=${this.probing || this.remote || !address.trim()} @click=${() => void this.runProbe()}>${this.probing ? '…' : tt('pubProbe')}</sw-button></div>
         <div class="hint" data-public-address-note>${tt('pubAddressNote')}</div>
-        ${sampleLink(address) ? html`<div class="hint" dir="ltr" data-public-sample>${tt('pubSampleLink', { url: sampleLink(address) })}</div>` : nothing}
+        ${sampleLink(address, prefix.trim().replace(/^\//, '')) ? html`<div class="hint" dir="ltr" data-public-sample>${tt('pubSampleLink', { url: sampleLink(address, prefix.trim().replace(/^\//, '')) })}</div>` : nothing}
         ${this.remote ? html`<div class="hint" data-public-local-only>${tt('pubLocalOnly')}</div>` : nothing}
         ${this.saveError ? html`<div class="probe bad" role="alert" data-public-save-error>${this.saveError}</div>` : nothing}
         ${this.probe ? this.probeLine() : nothing}</div>
+      <div class="row stack"><span class="lbl">${tt('pubPrefix')}</span>
+        <div class="line"><input class="in" dir="ltr" maxlength="33" autocomplete="off" data-public-prefix aria-label=${tt('pubPrefix')} ?readonly=${this.remote}
+          .value=${prefix} @input=${(e: Event) => (this.prefix = (e.target as HTMLInputElement).value)} />
+          <sw-button size="sm" variant="primary" data-public-prefix-save ?disabled=${this.busy || this.remote || !prefixOk || prefix.trim().replace(/^\//, '') === (p.path_prefix ?? 'support')}
+            @click=${() => this.save({ public: { path_prefix: prefix.trim().replace(/^\//, '') } })}>${tt('save')}</sw-button></div>
+        <div class="hint" data-public-prefix-note>${tt('pubPrefixNote', { p: prefixOk ? prefix.trim().replace(/^\//, '') : 'support' })}</div>
+        ${prefixOk ? nothing : html`<div class="probe bad" role="alert" data-public-prefix-bad>${tt('pubPrefixBad')}</div>`}</div>
       <div class="row"><button type="button" class="fold" aria-expanded=${String(this.advanced)} aria-controls="public-advanced" data-public-advanced
         @click=${() => (this.advanced = !this.advanced)}>${tt('pubAdvanced')}</button></div>
       ${this.advanced ? html`<div id="public-advanced" data-public-advanced-body>
@@ -211,6 +220,11 @@ export class TicketsPublicCard extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('pubClientHeader')}>${HEADERS.map((hd) => html`<button type="button" role="radio" dir="ltr"
             aria-checked=${String(p.client_ip_header === hd)} aria-pressed=${String(p.client_ip_header === hd)} data-public-header=${hd} ?disabled=${this.busy || this.remote}
             @click=${() => this.save({ public: { client_ip_header: hd } })}>${hd}</button>`)}</span></div>
+        <div class="row"><span class="lbl">${tt('pubLegacyT')}</span>
+          <span class="seg" role="radiogroup" aria-label=${tt('pubLegacyT')}>${[true, false].map((on) => html`<button type="button" role="radio"
+            aria-checked=${String((p.legacy_t_paths ?? true) === on)} aria-pressed=${String((p.legacy_t_paths ?? true) === on)} data-public-legacy=${String(on)} ?disabled=${this.busy || this.remote}
+            @click=${() => { if ((p.legacy_t_paths ?? true) !== on) this.save({ public: { legacy_t_paths: on } }); }}>${tt(on ? 'pubLegacyOn' : 'pubLegacyOff')}</button>`)}</span></div>
+        <div class="hint" data-public-legacy-note>${tt('pubLegacyTNote')}</div>
       </div>` : nothing}
     </sw-card>`;
   }

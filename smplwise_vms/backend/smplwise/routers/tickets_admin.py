@@ -78,6 +78,8 @@ class PublicPatch(BaseModel):  # slice 4: the handler page's address and the pee
     base_url: str | None = Field(default=None, max_length=300)
     trusted_proxy_cidrs: list[str] | None = Field(default=None, max_length=8)
     client_ip_header: Literal["cf-connecting-ip", "x-forwarded-for"] | None = None
+    path_prefix: str | None = Field(default=None, max_length=40)  # TK255: the one path segment the listener serves itself under
+    legacy_t_paths: bool | None = None  # TK255: keep answering the old /t/... links
     theme: Literal["light", "dark", "auto"] | None = None  # TK259: the handler page's look (harmless: allowed from a remote session too)
 
 
@@ -184,6 +186,10 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
 
         RUNTIME.set_trusted(doc["public"]["trusted_proxy_cidrs"])
         RUNTIME.set_client_ip_header(doc["public"]["client_ip_header"])
+    if {"public.path_prefix", "public.legacy_t_paths", "public.base_url"} & set(changed):  # TK255: the prefix the listener serves
+        from ..services.tickets.public_runtime import RUNTIME
+
+        RUNTIME.set_prefix(doc)
     audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"revision": doc["revision"], "changed": changed, **({"links_capped": pulled} if pulled else {})})
     return doc

@@ -89,13 +89,17 @@ async def probe(body: ProbeBody, request: Request, principal: Principal = Depend
     require(conn, principal, "system.configure", INSTALLATION)
     if not address_probe.admit():
         raise ApiError(429, "rate_limited", text(conn, "יותר מדי בדיקות. נסו שוב בעוד דקה."), retryable=True, details={"retry_after_s": 60})
-    base = body.base_url if body.base_url is not None else settings_doc.read(conn)["public"]["base_url"]
+    pub = settings_doc.read(conn)["public"]
+    base = body.base_url if body.base_url is not None else pub["base_url"]
+    from ..services.tickets import links as links_mod
+
+    prefix = links_mod.effective_prefix(base or "", pub["path_prefix"])
     from ..services.tickets.public_server import SERVER
 
     def last_probe() -> dict[str, Any] | None:  # the running listener's note of the probe's nonce (wiring item 5, W13)
         return ((SERVER.snapshot() or {}).get("stats") or {}).get("last_probe")
 
-    result = await run_in_threadpool(lambda: address_probe.probe(base or "", last_probe=last_probe if SERVER.running else None))
+    result = await run_in_threadpool(lambda: address_probe.probe(base or "", last_probe=last_probe if SERVER.running else None, prefix=prefix))
     audit(conn, actor=principal, action="tickets.address.probe", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"result": result["result"]})
     return result

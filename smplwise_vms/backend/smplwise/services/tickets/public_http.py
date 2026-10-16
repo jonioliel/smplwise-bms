@@ -50,7 +50,7 @@ from typing import Any, Callable, Sequence
 
 from starlette.requests import ClientDisconnect
 
-from . import image_intake, links
+from . import image_intake, links, public_prefix
 from .cost_files import PDF_MAX_BYTES
 from .public_log import SERVER_LOG, PublicStats, exception_summary, log_request
 from .public_ports import ModuleSwitch
@@ -170,6 +170,7 @@ class PublicRequest:
     started: float
     cost: RequestCost  # what this request costs - every exit path decides through it (ratelimit part 4)
     source: str = "peer"  # where the client address came from: header | peer | trusted_no_header | unknown
+    prefix: str = "t"  # TK255: the public prefix this request used (`support`, or `t` for a legacy link): the shell points its assets at it
 
 
 class BodyTooLarge(Exception):
@@ -229,7 +230,8 @@ class PublicEdge:
     def __init__(self, app: Any, *, switch: ModuleSwitch, gate: PublicRateGate, trusted: Sequence[Network], stats: PublicStats,
                  rules: Sequence[RouteRule] = ROUTES, monotonic: Callable[[], float] = time.monotonic,
                  client_ip_header: str = "cf-connecting-ip", max_in_flight: int = MAX_IN_FLIGHT,
-                 max_drains: int = MAX_DRAINS, body_requests_per_token: int = MAX_BODY_REQUESTS_PER_TOKEN) -> None:
+                 max_drains: int = MAX_DRAINS, body_requests_per_token: int = MAX_BODY_REQUESTS_PER_TOKEN,
+                 path_prefix: str = "t", legacy_t: bool = True) -> None:
         self.app = app
         self.switch = switch
         self.gate = gate
@@ -248,6 +250,14 @@ class PublicEdge:
         self._in_flight = 0
         self._drains = 0
         self._bodies: dict[str, int] = {}
+        self.prefix = public_prefix.validate_prefix(path_prefix)
+        self.legacy_t = bool(legacy_t)
+
+    def set_prefix(self, path_prefix: str, legacy_t: bool) -> None:
+        """TK255: a changed `public.path_prefix` / `public.legacy_t_paths` reaches the running edge at once. An invalid prefix raises
+        and changes nothing."""
+        prefix = public_prefix.validate_prefix(path_prefix)
+        self.prefix, self.legacy_t = prefix, bool(legacy_t)
 
     def match(self, method: str, path: str) -> RouteRule | None:
         for rule in self.rules:
@@ -421,8 +431,9 @@ class PublicEdge:
         if not self.switch.module_on():
             await refuse(404, UNIFORM_404)  # never waits for a body (V1); closes when one was announced
             return
-        rule = self.match(method, path)
-        if rule is None:
+        resolved = public_prefix.resolve_path(path, scope.get("raw_path"), self.prefix, self.legacy_t)  # TK255: `/<prefix>/x` -> `/t/x`
+        rule = self.match(method, resolved[0]) if resolved is not None else None
+        if rule is None or resolved is None:
             # a path scan pays like a static request (120 / minute per network): a flood of guesses is not free
             self.stats.bump("unmatched")
             scanned = self.gate.admit("static", net)
@@ -433,6 +444,7 @@ class PublicEdge:
             await refuse(404, UNIFORM_404)
             return
         box["template"] = rule.template
+        box["public_path"], box["public_prefix"] = resolved
         token_hash = token_key = None
         if rule.kind in TOKEN_KINDS:
             token = links.parse_token(_single(wanted[b"x-ticket-token"]))
@@ -486,13 +498,15 @@ class PublicEdge:
                        flags: dict[str, Any], declared: int | None, cost: RequestCost, net: str, source: str,
                        token_hash: str | None, token_key: str | None, content_type: str) -> None:
         child = dict(scope)
+        child["path"] = box["public_path"]  # the app only knows `/t/...`; the edge already proved the public spelling
+        child["raw_path"] = box["public_path"].encode("ascii")
         child["headers"] = [(k, v) for k, v in raw_headers if k.lower() not in _DROPPED_REQUEST]
         state = dict(scope.get("state") or {})
         state[STATE_KEY] = PublicRequest(rule=rule, net=net, token_hash=token_hash, token_key=token_key,
                                          session=_single(wanted[b"x-ticket-session"]),
                                          user_agent=(_single(wanted[b"user-agent"]) or "")[:512],
                                          content_type=content_type, content_length=declared, started=started,
-                                         cost=cost, source=source)
+                                         cost=cost, source=source, prefix=box["public_prefix"])
         child["state"] = state
         deadline = started + rule.deadline_s
 

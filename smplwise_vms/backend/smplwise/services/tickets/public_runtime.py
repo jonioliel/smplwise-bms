@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from ...db import Database, get_setting
-from . import settings_doc, store_links
+from . import links, settings_doc, store_links
 from .codes import CodeEngine
 from .image_intake import StorageMeter
 from .keyring import KEYS
@@ -111,7 +111,9 @@ class Runtime:
             storage=StorageMeter(root), shell_dir=Path(shell) if shell else None, limiter=limiter,
             extra_routers=(build_router(db, clock=clock), public_claims.build_router(db, clock=clock),
                            public_quotes.build_router(db, clock=clock)),
-            client_ip_header=doc["public"]["client_ip_header"], claim_window=public_claims.claim_window(db),
+            client_ip_header=doc["public"]["client_ip_header"],
+            path_prefix=links.effective_prefix(doc["public"]["base_url"], doc["public"]["path_prefix"]),  # TK255
+            legacy_t_paths=doc["public"]["legacy_t_paths"], claim_window=public_claims.claim_window(db),
             claim_files=public_claims.SqlClaimFileSink(db, clock=clock), **deps_kw,
         )
         app = create_public_app(deps)
@@ -198,6 +200,18 @@ class Runtime:
         if app is None or header not in CLIENT_IP_HEADERS:
             return
         app.edge.client_ip_header = header.encode("ascii")
+
+    def set_prefix(self, doc: dict[str, Any]) -> None:
+        """TK255: a changed `public.path_prefix` / `public.legacy_t_paths` / address path reaches the running edge at once. The
+        stored values were validated on save; a value the edge still refuses leaves the edge as it was."""
+        app = self.app
+        if app is None:
+            return
+        pub = doc["public"]
+        try:
+            app.edge.set_prefix(links.effective_prefix(pub["base_url"], pub["path_prefix"]), bool(pub["legacy_t_paths"]))
+        except ValueError:
+            return
 
     def ready(self, conn) -> bool:
         return self.option_on and self.listening and bool(settings_doc.read(conn)["public"]["base_url"])

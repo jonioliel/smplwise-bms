@@ -10,6 +10,7 @@
  * with the draft until confirmed, so a retry on bad reception never applies an update twice.
  */
 import './styles.css';
+import { homePath } from './base';
 import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
 import { afterFailure, afterStep, bootFrom, codeMessage, EMPTY_DRAFT, parseDraft, phaseOf, lineOf, partToggle, planSend, statusChoices, validSession,
@@ -79,7 +80,7 @@ class Page {
     const boot = bootFrom(window.location.hash, window.location.pathname, stored(STORE.token));
     if (boot.fromFragment || boot.rid) {
       try {
-        history.replaceState(null, '', '/t/'); // the token never stays in the address bar, the history or a bookmark
+        history.replaceState(null, '', homePath()); // the token never stays in the address bar, the history or a bookmark
       } catch {
         /* ignore */
       }

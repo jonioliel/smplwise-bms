@@ -83,6 +83,14 @@ def _base_url(v: Any) -> str:
         raise ValueError(exc.code) from None
 
 
+def _path_prefix(v: Any) -> str:
+    """TK255: the one path segment the public listener serves itself under (`support` -> `https://host/support/...`); `t` keeps the
+    old `/t/...` form. Single segment, [a-z0-9_-], at most 32, no reserved word (public_prefix.validate_prefix)."""
+    from .public_prefix import validate_prefix
+
+    return validate_prefix(v)
+
+
 def _cidrs(v: Any) -> list[str]:
     """Slice 4: the peers whose client-address header is believed (spec 10.2, review T1a); at most 8, none broader than /8."""
     from .ratelimit import parse_trusted_cidrs
@@ -125,6 +133,8 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # slice 4: the handler page (section 10 / 14.1)
     ("organization_name",): ("", _org_name),
     ("public", "base_url"): ("", _base_url),
+    ("public", "path_prefix"): ("support", _path_prefix),  # TK255: used when the address itself carries no path
+    ("public", "legacy_t_paths"): (True, boolean),  # TK255: links already sent as /t/... keep working (turn off once none is live)
     ("public", "trusted_proxy_cidrs"): (["172.30.32.0/23"], _cidrs),
     # slice 7: option B verification codes (section 10.5 / 14.1); the length is fixed at 6 (D2) and is NOT a setting
     ("code", "ttl_min"): (10, int_range(1, 30)),

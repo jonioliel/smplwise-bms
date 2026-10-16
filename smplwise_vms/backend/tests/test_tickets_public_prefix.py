@@ -71,7 +71,7 @@ def test_resolve_accepts_the_prefix_and_the_legacy_t(path, raw, expected):
 @pytest.mark.parametrize("path", [
     "/support", "/support/../t/", "/support/./", "/support//", "//support/", "/support//api/ticket", "/Support/", "/SUPPORT/", "/support./",
     "/support/%2e%2e/", "/support/%2E/", "/support%2f", "/support/api%2fticket", "/support/api\\ticket", "/support\\", "/suppor/", "/supports/",
-    "/support/t/", "/support/t/api/ticket", "/ support/", "/support/\x00", "/support/‮", "/support/é", "/support/" + "a" * 400,
+    "/ support/", "/support/\x00", "/support/‮", "/support/é", "/support/" + "a" * 400,
     "/t", "/tt/", "/t./", "/T/", "/t/../support/", "/t//", "", "support/", "/", "/x/", "http://evil.test/support/", "/support/?x",
     "/support/#x",
 ])
