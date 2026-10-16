@@ -294,6 +294,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # TKSECRETS2: the in-app secrets store (go2rtc / WisKey / OpenAI / push relay secrets): the one-time move of legacy add-on
     # options into it, then its values overlaid - before the NVR overlay, so every recorder's settings inherit them
     settings = secrets_store.apply_at_startup(app.state.db, settings)
+    from .services import wiskey_camera
+
+    wiskey_camera.apply_at_startup(app.state.db, settings)  # TKWISECRYPT: seal any plaintext per-station WisKey camera password
     settings, legacy_differ = connection_store.apply_at_startup(app.state.db, settings)
     # 2.6.3 transitional (delta review S-1): empty the deprecated secret options whose values the stores now hold (names-only logs)
     secrets_store.clear_lingering_options(app.state.db, settings)

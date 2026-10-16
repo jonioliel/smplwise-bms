@@ -230,6 +230,24 @@ def open_app_secret(data_dir: Path, name: str, blob: str) -> str:
     return _open(_Home(data_dir), _app_secret_aad(name), blob)
 
 
+# ---------------------------------------------------------------- per-station WisKey camera passwords (TKWISECRYPT)
+# The same key file and `v1:` format; associated data `"wiskey_station|<station id>|password"` - a blob of another station, store or
+# NVR row does not decrypt.
+
+def _station_aad(station_id: str) -> bytes:
+    if not isinstance(station_id, str) or not station_id or len(station_id) > 200:
+        raise SecretError("not a secret field")
+    return f"wiskey_station|{station_id}|password".encode("utf-8")
+
+
+def seal_station_secret(data_dir: Path, station_id: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _station_aad(station_id), plaintext)
+
+
+def open_station_secret(data_dir: Path, station_id: str, blob: str) -> str:
+    return _open(_Home(data_dir), _station_aad(station_id), blob)
+
+
 # ---------------------------------------------------------------- rows
 
 def get_row(conn: sqlite3.Connection, recorder_id: str = DEFAULT_RECORDER) -> sqlite3.Row | None:
