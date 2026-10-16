@@ -167,7 +167,11 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   cost?: TicketCostBlock;
 }
 
-export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode }
+/** TKUI1 (2.6.0): the request drawer's defaults - the tab it opens on, its desktop size (a viewer's own switch wins) and the phone sheet. */
+export type DetailTab = 'overview' | 'conv' | 'costs' | 'history';
+export type DrawerSizeSetting = 'drawer' | 'wide' | 'full';
+export type PhoneSheetSetting = 'full' | 'half';
+export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode; detail_tab?: DetailTab; drawer_size?: DrawerSizeSetting; phone_sheet?: PhoneSheetSetting }
 export type NameEntries = Record<TicketLang, TicketName>;
 export type NameDoc = NameEntries & { revision: number };
 

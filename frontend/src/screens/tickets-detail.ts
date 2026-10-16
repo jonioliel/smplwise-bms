@@ -53,7 +53,11 @@ export class TicketsDetailPage extends LitElement {
       return html`<div class="page"><div class="statebox glass" role="status" data-tickets-state="error"><span class="ring">${tIcon('warning')}</span><b>${this.failed}</b></div></div>`;
     }
     if (!this.module) return html`<div class="page" aria-busy="true"></div>`;
-    return html`<ticket-detail mode="page" .ticketId=${this.ticketId} .detailMode=${this.module.ui.detail} .scope=${lastScope()} data-screen="tickets-detail"></ticket-detail>${nothing}`;
+    // TKUI1: a deep link may pass `?tab=` (a push / WhatsApp link made for that purpose); else the module's default tab
+    const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+    const tab = params.get('tab') ?? (params.get('view') === 'timeline' ? 'history' : '');
+    return html`<ticket-detail mode="page" .ticketId=${this.ticketId} .detailMode=${this.module.ui.detail} .scope=${lastScope()} .initialTab=${tab}
+      .defaultTab=${this.module.ui.detail_tab ?? ''} data-screen="tickets-detail"></ticket-detail>${nothing}`;
   }
 }
 

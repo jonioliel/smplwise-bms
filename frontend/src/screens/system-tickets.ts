@@ -8,6 +8,7 @@ import '../components/sw-tabs';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import { drawerSettingsRows } from '../tickets/settings-drawer'; // TKUI1: the request drawer's display rows
 import '../tickets/settings-dept';
 import '../tickets/public-settings';
 import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
@@ -441,6 +442,7 @@ export class SystemTickets extends LitElement {
           <span class="seg" role="radiogroup" aria-label=${tt('setDetail')}>${(['drawer', 'fullscreen', 'drawer_fullscreen'] as DetailMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.detail === v)} aria-checked=${String(this.doc?.ui.detail === v)} data-ui-detail=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { detail: v } })}>${tt(`d_${v}` as TicketTextKey)}</button>`)}</span></div>
         <div class="row"><span class="lbl">${tt('setNewTicket')}<span class="muted">${tt('setNewTicketSub')}</span></span>
           <span class="seg" role="radiogroup" aria-label=${tt('setNewTicket')}>${(['sheet', 'dialog'] as NewTicketMode[]).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.doc?.ui.new_ticket === v)} aria-checked=${String(this.doc?.ui.new_ticket === v)} data-ui-new=${v} ?disabled=${this.busy} @click=${() => void this.saveDoc({ ui: { new_ticket: v } })}>${tt(`n_${v}` as TicketTextKey)}</button>`)}</span></div>
+        ${drawerSettingsRows(this.doc?.ui, this.busy, (ui) => void this.saveDoc({ ui }))}
         <ticket-board-settings .doc=${this.doc as unknown as BoardSettingsDoc} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<BoardSettingsDoc>) => { this.doc = e.detail as unknown as SettingsDoc; this.say(tt('setSaved')); }}></ticket-board-settings>
         ${this.longPressRow()}
       </sw-card>

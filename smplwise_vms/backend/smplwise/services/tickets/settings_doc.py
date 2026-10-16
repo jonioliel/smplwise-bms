@@ -123,6 +123,11 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "board_floors"): ("tree", _choice("chips", "tree", "chips_tree")),  # D19 / D30 (slice 6)
     ("ui", "grouping"): ("no_status_filter", _choice("always", "no_status_filter", "never")),  # D20 (slice 6)
     ("ui", "closed_strip"): ("all", _choice("week", "all", "hidden")),  # D21 (slice 6)
+    # TKUI1 (2.6.0, the v5 request drawer): the tab a request opens on (a deep link's ?tab= still wins), the desktop drawer size (each
+    # viewer's own switch wins, kept in the browser) and how the phone sheet opens
+    ("ui", "detail_tab"): ("overview", _choice("overview", "conv", "costs", "history")),
+    ("ui", "drawer_size"): ("wide", _choice("drawer", "wide", "full")),
+    ("ui", "phone_sheet"): ("full", _choice("full", "half")),
     ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
     # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5

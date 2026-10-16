@@ -71,6 +71,9 @@ class UiPatch(BaseModel):
     board_floors: Literal["chips", "tree", "chips_tree"] | None = None  # D19 / D30 (slice 6)
     grouping: Literal["always", "no_status_filter", "never"] | None = None  # D20 (slice 6)
     closed_strip: Literal["week", "all", "hidden"] | None = None  # D21 (slice 6)
+    detail_tab: Literal["overview", "conv", "costs", "history"] | None = None  # TKUI1 (2.6.0)
+    drawer_size: Literal["drawer", "wide", "full"] | None = None  # TKUI1
+    phone_sheet: Literal["full", "half"] | None = None  # TKUI1
 
 
 class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose client-address header is believed

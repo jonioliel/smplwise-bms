@@ -162,7 +162,8 @@ def test_facets_count_the_visible_set_of_each_caller(w, scene):
 
 def test_display_settings_d19_d21_and_d28(w):
     m = w.c.get(f"{API}/tickets/module", headers=w.h("tom")).json()
-    assert m["ui"] == {"detail": "drawer_fullscreen", "new_ticket": "sheet", "board_floors": "tree", "grouping": "no_status_filter", "closed_strip": "all"}
+    assert m["ui"] == {"detail": "drawer_fullscreen", "new_ticket": "sheet", "board_floors": "tree", "grouping": "no_status_filter", "closed_strip": "all",
+                       "detail_tab": "overview", "drawer_size": "wide", "phone_sheet": "full"}
     doc = w.c.get(f"{API}/tickets/settings").json()
     assert doc["urgent_is_critical"] is True
     body = {"revision": doc["revision"], "ui": {"board_floors": "chips", "grouping": "never", "closed_strip": "week"}, "urgent_is_critical": False}

@@ -177,6 +177,23 @@ def test_display_settings_document(w, settings):
     assert got["revision"] == 4 and got["ui"].items() >= {"detail": "drawer_fullscreen", "new_ticket": "sheet"}.items(), "invalid reads as default"
 
 
+def test_drawer_settings_default_tab_size_and_phone_sheet(w, settings):
+    """TKUI1 (2.6.0): the v5 request drawer's three display keys - defaults, a valid save served to every viewer by GET tickets/module,
+    a refused value (422), and a corrupt stored value that reads as the default."""
+    doc = w.c.get(f"{API}/tickets/settings").json()
+    assert doc["ui"].items() >= {"detail_tab": "overview", "drawer_size": "wide", "phone_sheet": "full"}.items()
+    r = w.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "ui": {"detail_tab": "costs", "drawer_size": "drawer", "phone_sheet": "half"}})
+    assert r.status_code == 200 and r.json()["ui"].items() >= {"detail_tab": "costs", "drawer_size": "drawer", "phone_sheet": "half"}.items()
+    rev = r.json()["revision"]
+    assert w.c.get(f"{API}/tickets/module", headers=as_user("vic")).json()["ui"].items() >= {"detail_tab": "costs", "drawer_size": "drawer", "phone_sheet": "half"}.items()
+    for bad in ({"detail_tab": "timeline"}, {"drawer_size": "980"}, {"phone_sheet": "auto"}):
+        assert w.c.put(f"{API}/tickets/settings", json={"revision": rev, "ui": bad}).status_code == 422, bad
+    with w.c.app.state.db.connection() as conn:
+        conn.execute("UPDATE settings SET value = '{\"revision\": 9, \"ui\": {\"detail_tab\": \"x\", \"drawer_size\": 3, \"phone_sheet\": null}}' WHERE key = 'tickets.settings'")
+    got = w.c.get(f"{API}/tickets/settings").json()["ui"]
+    assert got.items() >= {"detail_tab": "overview", "drawer_size": "wide", "phone_sheet": "full"}.items(), "invalid reads as default"
+
+
 # ---------------------------------------------------------------- pickers and the permissions overview
 
 def test_directory_and_holders(w, settings):
