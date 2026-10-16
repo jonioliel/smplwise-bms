@@ -8,7 +8,9 @@ one transaction each; everything here works on the link's own vendor row and req
     quote     a new version (supersedes his `submitted` one); only the allowed line kinds; money computed here (money.py)
     withdraw  his `submitted` quote (not while a second approval is pending on it)
     decline   "not interested" with a short reason (no live quote)
-    ask       a clarification question, stored in his private thread; NOTHING is sent anywhere
+    ask       a clarification question, stored in his private thread; NOTHING is sent to anyone outside
+TKRFQ5: quote / withdraw / decline / ask also raise the RFQ managers' notification (rfq_notify: the reference and the place only - never
+an amount, the vendor's name or his text); the notification centre is internal, nothing reaches a vendor.
 Every write stops at the deadline (owner decision: no late quote) and records an RFQ timeline row (ids and versions only) and an audit
 row (actor `contact:<id>`, source `rfq_link`; ids / versions / totals - never a text)."""
 from __future__ import annotations
@@ -19,7 +21,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from ...db import get_setting
-from . import money, quotes, rfq, settings_doc, store, store_links, store_quotes, store_rfq
+from . import money, quotes, rfq, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
 from .costs import CostRefused, cost_settings, iso, parse
 
 LANGS = ("he", "en", "ar", "ru")
@@ -136,7 +138,10 @@ def present_quote(row: Mapping[str, Any], q: Mapping[str, Any]) -> dict[str, Any
 
 
 def present_messages(conn, v: Mapping[str, Any]) -> list[dict[str, Any]]:
-    return [{"id": m["id"], "mine": m["direction"] == "in", "text": m["body"], "at": m["created_at"]} for m in store_rfq.messages_of_vendor(conn, v["id"])]
+    """His own thread. TKRFQ5: a message that came by a WhatsApp reply (an unverified sender - rfq_inbound) is the managers' only; the
+    page never shows words a forged event could have put in his mouth."""
+    return [{"id": m["id"], "mine": m["direction"] == "in", "text": m["body"], "at": m["created_at"]} for m in store_rfq.messages_of_vendor(conn, v["id"])
+            if not str(m.get("source_id") or "").startswith("whatsapp:")]
 
 
 def _form(conn, row: Mapping[str, Any], v: Mapping[str, Any], cur: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -299,6 +304,7 @@ def submit(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> dict[s
     store_rfq.insert_event(conn, row["id"], "quote_submitted", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
                            data={"quote_id": qid, "version": version, "on_behalf": False, "late": False}, at=at)
     _audit(conn, link, "ticket.rfq.vendor_quote", row, vendor_id=v["id"], quote_id=qid, version=version)  # review F3: ids only, no amount
+    rfq_notify.quote(conn, row, v["id"], "updated" if previous else "new")
     return present_quote(row, store_quotes.quote(conn, qid) or {})
 
 
@@ -318,6 +324,7 @@ def withdraw(conn, link: Any, quote_id: str, now: dt.datetime) -> None:
     store_rfq.insert_event(conn, row["id"], "quote_withdrawn", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
                            data={"quote_id": q["id"], "version": q["version"], "on_behalf": False}, at=at)
     _audit(conn, link, "ticket.rfq.vendor_withdraw", row, vendor_id=v["id"], quote_id=q["id"], version=q["version"])
+    rfq_notify.quote(conn, row, v["id"], "withdrawn")
 
 
 def _clean(value: Any, field_name: str, max_len: int, *, required: bool = False) -> str:
@@ -345,6 +352,7 @@ def decline(conn, link: Any, reason: Any, now: dt.datetime) -> None:
     store_rfq.insert_event(conn, row["id"], "declined", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
                            data={"on_behalf": False}, at=at)
     _audit(conn, link, "ticket.rfq.vendor_decline", row, vendor_id=v["id"])
+    rfq_notify.declined(conn, row, v["id"])
 
 
 def ask(conn, link: Any, text: Any, now: dt.datetime) -> dict[str, Any]:
@@ -359,4 +367,5 @@ def ask(conn, link: Any, text: Any, now: dt.datetime) -> dict[str, Any]:
     store_rfq.insert_event(conn, row["id"], "vendor_message", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
                            data={"message_id": mid}, at=at)
     _audit(conn, link, "ticket.rfq.vendor_message", row, vendor_id=v["id"], message_id=mid)
+    rfq_notify.question(conn, row, v["id"], mid)
     return {"id": mid, "mine": True, "text": body, "at": at}

@@ -294,7 +294,9 @@ export interface RfqMessageDraft {
 
 export interface RfqAwardAnswer { rfq: RfqDetail; award: RfqAward; message_draft: RfqMessageDraft | null }
 
-export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string; at: string; by: string; source: { kind: string; id: string | null } | null; notified: boolean }
+export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string; at: string; by: string; source: { kind: string; id: string | null } | null; notified: boolean;
+  /** TKRFQ5: a vendor's WhatsApp reply matched to the thread - an unverified sender (the vendor page never shows it). */
+  via?: 'whatsapp' | null; unverified?: boolean }
 export interface RfqMessageAnswer { item: RfqMessage; notified: { queued: boolean; channel: string | null } }
 
 export interface RfqSendAnswer extends RfqDetail { sent?: Record<string, unknown> }

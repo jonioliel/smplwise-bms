@@ -21,11 +21,11 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee")  # ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers")  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket")
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq")  # rfq: TKRFQ5
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 

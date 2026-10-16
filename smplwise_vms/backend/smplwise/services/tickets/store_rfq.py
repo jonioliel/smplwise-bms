@@ -191,6 +191,25 @@ def link_by_id_joined(conn: sqlite3.Connection, link_id: str) -> dict[str, Any] 
     return _dict(conn.execute(LOOKUP_SQL + "WHERE l.id = ?", (link_id,)).fetchone())
 
 
+# TKRFQ5 (contract 16.2): the inbound matcher's read - the not-revoked links of an open request whose contact's phone key is the
+# sender's, each with the newest RFQ message that went to that contact by WhatsApp over THIS link after `since` (sent / unknown)
+_LAST_RFQ_WHATSAPP = ("(SELECT o.{col} FROM ticket_outbox o WHERE o.link_id = l.id AND o.rfq_id = l.rfq_id AND o.channel = 'whatsapp' "
+                      "AND o.purpose IN ('rfq_invite', 'rfq_reminder', 'rfq_update') AND o.state IN ('sent', 'unknown') AND o.sent_at > ? "
+                      "ORDER BY o.sent_at DESC LIMIT 1)")
+INBOUND_SQL = LOOKUP_SQL.replace(
+    "SELECT l.*, ", "SELECT l.*, " + ", ".join(f"{_LAST_RFQ_WHATSAPP.format(col=c)} AS o_{c}" for c in ("id", "sent_at", "account_key")) + ", ", 1)
+
+
+def inbound_links(conn: sqlite3.Connection, sender_key: str, since: str) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute(
+        INBOUND_SQL + "WHERE c.phone_key = ? AND c.erased_at IS NULL AND l.revoked_at IS NULL AND r.state IN ('sent', 'collecting') "
+        "ORDER BY l.created_at, l.id", (since, since, since, sender_key)).fetchall()]
+
+
+def link_of_vendor_joined(conn: sqlite3.Connection, rfq_vendor_id: str) -> dict[str, Any] | None:
+    return _dict(conn.execute(LOOKUP_SQL + "WHERE l.rfq_vendor_id = ?", (rfq_vendor_id,)).fetchone())
+
+
 def release_redeem(conn: sqlite3.Connection, id_hash: str, now: str, max_uses: int) -> tuple[str, int] | None:
     """ONE statement (W4, as store_links.release_redeem): check and increment together."""
     row = conn.execute(

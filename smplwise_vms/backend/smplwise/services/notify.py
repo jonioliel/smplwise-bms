@@ -108,6 +108,7 @@ def _default_link(s: Signal) -> str:
         "schedule": f"#/devices/schedules/{s.subject_id}" if s.subject_id else "#/devices/schedules", "automation": "#/devices/schedules", "bulk_job": "#/devices",
         "system": "#/system/diagnostics", "session": "#/system/security",
         "ticket": f"#/tickets/{s.subject_id}" if s.subject_id else "#/tickets",  # CR-038: the ticket (one-tap "received" for its assignee)
+        "rfq": f"#/tickets/rfqs?rfq={s.subject_id}" if s.subject_id else "#/tickets/rfqs",  # TKRFQ5: the request on the manager's board
     }.get(s.subject_kind, "#/system/notifications")
 
 
@@ -174,6 +175,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from .tickets import notify_bridge
 
         candidates = notify_bridge.recipient_users(conn, rule, n)
+    elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
+        from .tickets import rfq_notify
+
+        candidates = rfq_notify.recipient_users(conn, n)
     else:
         candidates = list(rec.get("user_ids") or [])
     out = []

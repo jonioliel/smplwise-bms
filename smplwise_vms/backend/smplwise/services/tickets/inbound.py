@@ -20,6 +20,14 @@ Rules kept here:
   `late` (a flagged note, never a status change); an event WITHOUT a usable timestamp is treated as late (UNVERIFIED shape);
 - dedupe 24 h on sha256(account | sender | provider_at | type | selected_id | content) (the received event has no message id);
 - no automatic replies (Q14).
+
+TKRFQ5 (RFQ contract 16.2): a text reply may also answer an RFQ message. The directory's optional `rfq_candidates` lists the sender's
+OPEN requests (services/tickets/rfq_inbound.py decides what open means); the reply becomes a `note` decision carrying `rfq_id` /
+`rfq_vendor_id` (reason `rfq`), stored by the worker as a clarification in that vendor's thread - never a ticket note, never a state.
+Order: an `RFQ-<n>` reference that names exactly one of his open requests wins; with no live ticket, his only open request takes it;
+several requests and no reference -> ignored (`rfq_several`, envelope only - never guessed); a live ticket AND an open request and no
+reference of either kind -> ambiguous (a manager looks at it, the ticket flow). A sender with no open request and no live ticket stays
+`unknown_sender`, whatever requests he had before.
 """
 from __future__ import annotations
 
@@ -51,6 +59,7 @@ DEFAULT_REPLY_WINDOW_H = 72
 QUEUE_MAX = 200
 
 NONCE_ID = re.compile(r"^t:([0-9a-f]{16}):(ack|wip)$")
+RFQ_REF = re.compile(r"(?<![A-Za-z0-9])rfq[\s\-#]{0,2}0*(\d{1,9})(?!\d)", re.I)  # TKRFQ5: "RFQ-07", "rfq 7", "RFQ#7"
 ACTION_STATUS = {"ack": "acknowledged", "wip": "in_progress"}
 
 RESULTS = ("status", "note", "late", "ignored", "ambiguous", "unknown_sender", "stale", "duplicate", "refused")
@@ -204,10 +213,26 @@ class Candidate:
     requires_code: bool
 
 
+@dataclass(frozen=True)
+class RfqCandidate:
+    """TKRFQ5: an OPEN request on which the sender's contact is an invited vendor, with the last RFQ message sent to him by WhatsApp."""
+
+    rfq_id: str
+    rfq_number: int
+    department_id: str
+    rfq_vendor_id: str
+    contact_id: str
+    outbox_id: str
+    last_sent_at: dt.datetime
+    account_key: str | None
+
+
 class MatchDirectory(Protocol):
     def by_nonce(self, nonce: str) -> NonceTarget | None: ...
 
     def candidates(self, sender_key: str, *, since: dt.datetime, account_key: str | None) -> list[Candidate]: ...
+
+    # optional (TKRFQ5): def rfq_candidates(self, sender_key: str, *, since: dt.datetime, account_key: str | None) -> list[RfqCandidate]
 
 
 class DedupeStore(Protocol):
@@ -290,11 +315,16 @@ class InboundDecision:
     candidate_department_ids: tuple[str, ...] = ()
     reason: str | None = None  # why ignored / refused / stale / a note instead of a status
     sender_display: str | None = field(default=None, repr=False)  # shown to managers for ambiguous replies (name only)
+    rfq_id: str | None = None  # TKRFQ5: a reply matched to an RFQ vendor thread (result `note`, reason `rfq`)
+    rfq_vendor_id: str | None = None
 
     def audit(self) -> dict[str, Any]:
         """The `ticket.inbound` audit details: envelope only (never a number, a key or content)."""
-        return {"result": self.result, "ticket_id": self.ticket_id, "outbox_id": self.outbox_id, "reason": self.reason,
-                "action": self.action, "event_type": self.event_type}
+        out = {"result": self.result, "ticket_id": self.ticket_id, "outbox_id": self.outbox_id, "reason": self.reason,
+               "action": self.action, "event_type": self.event_type}
+        if self.rfq_id:
+            out["rfq_id"] = self.rfq_id
+        return out
 
 
 def dedupe_key(msg: InboundMessage, sender_key: str | None) -> str:
@@ -393,9 +423,14 @@ class InboundProcessor:
         found = self._dir.candidates(sender_key, since=since, account_key=msg.account_key)
         if msg.account_key:
             found = [c for c in found if c.account_key in (None, msg.account_key)]
+        rfqs = self._rfq_candidates(sender_key, since, msg.account_key)
+        if rfqs:
+            decided = self._rfq(msg, rfqs, found, base)
+            if decided is not None:
+                return decided
         if not found:
             return InboundDecision("unknown_sender", True, **base)
-        refs, action = parse_reply(msg.content)
+        refs, action = parse_reply(RFQ_REF.sub(" ", msg.content) if rfqs else msg.content)
         if refs:
             narrowed = [c for c in found if c.ticket_number in refs]
             # a reference that names none of the sender's live tickets is never guessed away: a manager looks at it
@@ -413,6 +448,37 @@ class InboundProcessor:
             return InboundDecision("status", True, **base, **ids, action=to)
         reason = "code_protected" if action and c.requires_code else ("not_forward" if action else None)
         return InboundDecision("note", True, **base, **ids, note=msg.content, content=msg.content, reason=reason)
+
+    def _rfq_candidates(self, sender_key: str, since: dt.datetime, account_key: str | None) -> list[RfqCandidate]:
+        get = getattr(self._dir, "rfq_candidates", None)
+        if get is None:
+            return []
+        found = list(get(sender_key, since=since, account_key=account_key))
+        return [c for c in found if c.account_key in (None, account_key)] if account_key else found
+
+    def _rfq(self, msg: InboundMessage, rfqs: list[RfqCandidate], tickets: list[Candidate], base: dict[str, Any]) -> InboundDecision | None:
+        """TKRFQ5: the RFQ part of a text reply (None = go on with the ticket rules)."""
+        refs = {int(n) for n in RFQ_REF.findall(_fold(msg.content))}
+        if refs:
+            named = [c for c in rfqs if c.rfq_number in refs]
+            if len(named) == 1:
+                return self._rfq_note(msg, named[0], base)
+            if not tickets:  # a reference naming none (or several) of his open requests is never guessed
+                return InboundDecision("ignored", True, **base, reason="rfq_reference_unknown")
+            return self._ambiguous(msg, tickets, base, reason="ticket_or_rfq")
+        if not tickets:
+            if len(rfqs) == 1:
+                return self._rfq_note(msg, rfqs[0], base)
+            return InboundDecision("ignored", True, **base, reason="rfq_several")
+        ticket_refs, _action = parse_reply(msg.content)
+        if ticket_refs:
+            return None  # he named a ticket: the ticket rules decide
+        return self._ambiguous(msg, tickets, base, reason="ticket_or_rfq")
+
+    @staticmethod
+    def _rfq_note(msg: InboundMessage, c: RfqCandidate, base: dict[str, Any]) -> InboundDecision:
+        return InboundDecision("note", True, **base, outbox_id=c.outbox_id, contact_id=c.contact_id, rfq_id=c.rfq_id, rfq_vendor_id=c.rfq_vendor_id,
+                               note=msg.content, reason="rfq")
 
     @staticmethod
     def _ambiguous(msg: InboundMessage, found: list[Candidate], base: dict[str, Any], *, reason: str) -> InboundDecision:

@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, Principal
-from . import access, model, money, quotes, rfq_links, settings_doc, store, store_links, store_quotes, store_rfq
+from . import access, model, money, quotes, rfq_links, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
@@ -159,6 +159,13 @@ def row_of_link(conn, rfq_id: str) -> dict[str, Any] | None:
     return store_rfq.rfq_row_unchecked(conn, rfq_id)
 
 
+def system_row(conn, rfq_id: str) -> dict[str, Any] | None:
+    """TKRFQ5: the request a notification or an inbound WhatsApp reply names, read by the module itself (the notification engine's
+    recipient / visibility hooks, the inbound worker). Never an answer to a person: rfq_notify filters every recipient through
+    `visible()` + `is_manager()`, and the inbound worker writes only to the matched vendor's own thread."""
+    return store_rfq.rfq_row_unchecked(conn, rfq_id)
+
+
 def is_manager(viewer: Viewer, seen: RfqSeen) -> bool:
     row = seen.row
     if not viewer.holds(EXTERNAL, row):
@@ -260,7 +267,10 @@ def apply_due(conn, row: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
             if v["state"] in ("sent", "opened"):
                 store_rfq.update_vendor(conn, v["id"], {"state": "expired", "updated_at": at})
         store_rfq.insert_event(conn, row["id"], "due_passed", at=at)
-        return store_rfq.rfq_row_unchecked(conn, row["id"]) or row
+        fresh = store_rfq.rfq_row_unchecked(conn, row["id"]) or row
+        vendors = [v for v in store_rfq.vendors_of(conn, row["id"]) if v["state"] not in ("draft", "removed")]
+        rfq_notify.due_passed(conn, fresh, invited=len(vendors), quoted=sum(1 for v in vendors if live_quote(conn, v["id"]) is not None))
+        return fresh
     return row
 
 
@@ -504,6 +514,8 @@ def edit(conn, viewer: Viewer, seen: RfqSeen, patch: Mapping[str, Any], revision
     _touch(conn, row, fields, revision, now)
     if "due_at" in changed:
         rfq_links.on_due_changed(conn, {**row, **fields}, now)
+        if state == "due_passed":
+            rfq_notify.due_moved(conn, row["id"])  # TKRFQ5: the collection reopened
     store_rfq.insert_event(conn, row["id"], "edited", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            data={"fields": changed}, at=iso(now))
     _audit(conn, viewer, "ticket.rfq.edit", row, rid, fields=changed)
@@ -966,6 +978,7 @@ def _finalize(conn, viewer: Viewer, row: Mapping[str, Any], award: Mapping[str, 
     store_rfq.insert_event(conn, row["id"], "awarded", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            rfq_vendor_id=award["rfq_vendor_id"], data={"award_id": award["id"], "quote_id": q.get("id"), "version": q.get("version"),
                                                                       "state": fresh["state"], "second": second, "not_awarded": not_awarded}, at=at)
+    rfq_notify.ended(conn, row["id"])  # TKRFQ5: no more answers can arrive - the request's notifications are over
     return fresh
 
 
@@ -1094,6 +1107,7 @@ def cancel(conn, viewer: Viewer, seen: RfqSeen, revision: int, reason: Any, noti
                 store_quotes.insert_decision(conn, {"quote_id": q["id"], "action": "not_awarded", "by_user": viewer.uid, "at": at})
     rfq_links.on_end(conn, row["id"], "cancelled", now)
     _touch(conn, row, {"state": "cancelled", "cancelled_at": at, "closed_at": at, "cancel_reason": why}, revision, now)
+    rfq_notify.ended(conn, row["id"])
     store_rfq.insert_event(conn, row["id"], "cancelled", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            data={"notified": notified}, at=at)
     _audit(conn, viewer, "ticket.rfq.cancel", row, rid, notified=notified)
@@ -1117,6 +1131,7 @@ def close(conn, viewer: Viewer, seen: RfqSeen, revision: int, rid: str | None = 
     store_rfq.cancel_open_outbox(conn, row["id"], at)
     rfq_links.on_end(conn, row["id"], "closed", now)
     _touch(conn, row, {"state": "closed", "closed_at": at}, revision, now)
+    rfq_notify.ended(conn, row["id"])
     store_rfq.insert_event(conn, row["id"], "closed", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            data={"not_awarded": n, "awarded": len(awarded)}, at=at)
     _audit(conn, viewer, "ticket.rfq.close", row, rid, not_awarded=n, awarded=len(awarded))
@@ -1155,6 +1170,7 @@ def write_message(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body:
             store_rfq.set_message_notified(conn, mid, oid)
             notified["queued"] = True
     _touch(conn, seen.row, {}, None, now)
+    rfq_notify.answered(conn, seen.row["id"], v["id"])  # TKRFQ5: the vendor's question row is over
     store_rfq.insert_event(conn, seen.row["id"], "message", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            rfq_vendor_id=v["id"], data={"message_id": mid, "notified": notified["queued"]}, at=at)
     _audit(conn, viewer, "ticket.rfq.message", seen.row, rid, vendor_id=v["id"], message_id=mid, notified=notified["queued"])
@@ -1163,8 +1179,10 @@ def write_message(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body:
 
 def present_message(conn, m: Mapping[str, Any]) -> dict[str, Any]:
     by = store.display_name(conn, m["author_id"]) if m["author_kind"] == "user" else (store_links.contact(conn, m["author_id"]) or {}).get("display_name", "")
+    whatsapp = str(m.get("source_id") or "").startswith("whatsapp:")  # TKRFQ5: a WhatsApp reply matched to the thread (unverified sender)
     return {"id": m["id"], "direction": m["direction"], "text": m["body"], "at": m["created_at"], "by": by,
-            "source": {"kind": m["source_kind"], "id": m["source_id"]} if m.get("source_kind") else None, "notified": bool(m["notified"])}
+            "source": None if whatsapp else ({"kind": m["source_kind"], "id": m["source_id"]} if m.get("source_kind") else None),
+            "notified": bool(m["notified"]), "via": "whatsapp" if whatsapp else None, "unverified": whatsapp}
 
 
 # ---------------------------------------------------------------- award drafts (never sent by the system)
@@ -1221,6 +1239,7 @@ def set_threshold(conn, viewer: Viewer, department_id: str, value: Any, rid: str
 def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None) -> dict[str, int]:
     if not viewer.holds_installation(DELETE):
         raise refuse(conn, viewer, "ticket.rfq.delete", seen.row, "delete_permission_missing", rid, permission=DELETE)
+    rfq_notify.ended(conn, seen.row["id"])
     counts = store_rfq.purge_rfq(conn, seen.row["id"])
     audit(conn, actor=viewer.principal, action="ticket.rfq.delete", decision="allowed", resource_type="ticket_rfq", resource_id=seen.row["id"],
           request_id=rid, details={"number": seen.row["number"], "rows": counts})
@@ -1236,6 +1255,7 @@ def retention(conn, now: dt.datetime) -> dict[str, int]:
         out["links"] += store_rfq.drop_links_of_rfq(conn, row["id"])
     months = int(doc["retention_months"])
     for row in store_rfq.ended_before(conn, iso(now - dt.timedelta(days=30 * months))):
+        rfq_notify.ended(conn, row["id"])
         store_rfq.purge_rfq(conn, row["id"])
         out["purged"] += 1
     store_rfq.prune_redeems(conn, iso(now))

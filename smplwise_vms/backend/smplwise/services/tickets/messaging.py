@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import dataclasses
 import datetime as dt
 import difflib
 import json
@@ -1133,6 +1134,13 @@ class DbMatchDirectory:
                                              requires_code=bool(r.get("require_code"))))
         return out
 
+    def rfq_candidates(self, sender_key: str, *, since: dt.datetime, account_key: str | None) -> list[inbound_mod.RfqCandidate]:
+        """TKRFQ5: the sender's OPEN requests (services/tickets/rfq_inbound.py)."""
+        from . import rfq_inbound
+
+        with self.io.read() as conn:
+            return rfq_inbound.candidates(conn, sender_key, since=since, now=self.clock())
+
 
 class DbDedupe:
     def __init__(self, io: obs.Access) -> None:
@@ -1159,24 +1167,37 @@ def apply_decision(conn, decision: inbound_mod.InboundDecision, now: dt.datetime
         first = obs.ticket_for_worker(conn, decision.candidate_ticket_ids[0])
         asg = store.assignment(conn, first.get("current_assignment_id")) if first else None
         contact_id = (asg or {}).get("contact_id")
-    keep = decision.result in ("ambiguous", "note", "late")
+    rfq_reason = None
+    if decision.result == "note" and decision.rfq_vendor_id:
+        # TKRFQ5: a reply matched to an RFQ vendor thread - re-checked and stored there by rfq_inbound.apply; the inbound row keeps the
+        # envelope only (the text lives in the vendor's thread, or nowhere when the request closed meanwhile)
+        from . import rfq_inbound
+
+        iid = obs.new_inbound_id()
+        rfq_reason = rfq_inbound.apply(conn, decision, iid, now)
+        decision = dataclasses.replace(decision, content=None, **({"result": "ignored", "reason": rfq_reason} if rfq_reason else {}))
+    keep = decision.result in ("ambiguous", "note", "late") and not decision.rfq_vendor_id
     candidates = {"tickets": list(decision.candidate_ticket_ids), "departments": list(decision.candidate_department_ids)} \
         if decision.result == "ambiguous" else {}
     iid = obs.insert_inbound(conn, {
+        **({"id": iid} if decision.rfq_vendor_id else {}),
         "received_at": obs.iso(now), "provider_at": obs.iso(decision.provider_at) if decision.provider_at else None,
         "event_type": decision.event_type, "msg_type": decision.msg_type, "sender_key": decision.sender_key, "account_key": decision.account_key,
         "dedupe_key": decision.dedupe_key or obs.new_inbound_id(), "contact_id": contact_id, "ticket_id": decision.ticket_id,
         "assignment_id": decision.assignment_id, "outbox_id": decision.outbox_id, "result": decision.result, "reason": decision.reason,
         "action": decision.action, "content": (decision.content or "")[:inbound_mod.CONTENT_MAX] if keep else None,
         "candidates_json": json.dumps(candidates, separators=(",", ":"))})
-    if decision.result == "status":
+    if decision.rfq_vendor_id:
+        pass  # TKRFQ5: done above (the thread, the timeline row, the notification)
+    elif decision.result == "status":
         _apply_status(conn, decision, iid, now)
     elif decision.result in ("note", "late"):
         _apply_note(conn, decision, iid, now, late=decision.result == "late")
     elif decision.result == "ambiguous":
         _notify("reply_unmatched", conn, iid, list(decision.candidate_ticket_ids))
-    audit(conn, actor=None, action="ticket.inbound", decision="allowed", resource_type="ticket" if decision.ticket_id else "installation",
-          resource_id=decision.ticket_id or "tickets", details={**decision.audit(), "inbound_id": iid})
+    audit(conn, actor=None, action="ticket.inbound", decision="allowed",
+          resource_type="ticket" if decision.ticket_id else "ticket_rfq" if decision.rfq_id else "installation",
+          resource_id=decision.ticket_id or decision.rfq_id or "tickets", details={**decision.audit(), "inbound_id": iid})
     return iid
 
 

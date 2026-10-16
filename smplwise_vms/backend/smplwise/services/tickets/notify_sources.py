@@ -18,6 +18,13 @@ CATEGORY = "tickets"
 RULE_MANAGERS = "ticket_managers"
 RULE_ASSIGNEE = "ticket_assignee"
 SUBJECT = "ticket"
+# TKRFQ5 (RFQ contract section 16): the requests-for-quotation sources. Subject kind `rfq` (visibility = rfq.visible, the request's own
+# rule), recipients `rfq_managers` (the RFQ manager rule: the creator, the internal owner and the department's managers, each with
+# tickets.external where the request lies). Rendered by services/tickets/rfq_notify.py; never an amount, a vendor name or a text.
+RFQ_PREFIX = "rfq."
+RULE_RFQ_MANAGERS = "rfq_managers"
+SUBJECT_RFQ = "rfq"
+PREFIXES = (PREFIX, RFQ_PREFIX)
 
 # key, label (settings matrix, no module noun), severity (the default; a ticket's priority decides at emit time), who, push, resolves, subject
 SOURCE_DEFS: tuple[dict[str, Any], ...] = (
@@ -37,8 +44,18 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     # only (subject `session` = the user), never the number
     {"key": "ticket.staff_mobile", "label": "הנייד שלי לקישורי עבודה השתנה", "severity": "info", "who": "initiator", "resolves": False,
      "subject": "session"},
+    # TKRFQ5: what a vendor did on his quote page (or by a WhatsApp reply) and the deadline - to the RFQ managers only
+    {"key": "rfq.quote_received", "label": "הצעת מחיר התקבלה או עודכנה", "label_en": "Quote received or updated", "severity": "info",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    {"key": "rfq.declined", "label": "ספק השיב שאינו מעוניין", "label_en": "Vendor declined", "severity": "info", "who": RULE_RFQ_MANAGERS,
+     "resolves": True, "subject": SUBJECT_RFQ, "push": False},
+    {"key": "rfq.question", "label": "שאלת הבהרה מספק", "label_en": "Clarification question from a vendor", "severity": "alert",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    {"key": "rfq.due_passed", "label": "המועד להגשת הצעות עבר", "label_en": "Quote deadline passed", "severity": "info",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
+LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}
 
 
 def module_on(conn: Any) -> bool:
@@ -51,8 +68,8 @@ def module_on(conn: Any) -> bool:
 
 
 def listed(conn: Any, source_key: str) -> bool:
-    """Whether the policy matrix lists a source now: every non-ticket source; the ticket sources only while the module is on."""
-    return not source_key.startswith(PREFIX) or module_on(conn)
+    """Whether the policy matrix lists a source now: every non-ticket source; the ticket and RFQ sources only while the module is on."""
+    return not source_key.startswith(PREFIXES) or module_on(conn)
 
 
 def source_kwargs() -> list[dict[str, Any]]:
