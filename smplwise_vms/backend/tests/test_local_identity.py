@@ -743,3 +743,13 @@ def test_janitor_prunes_old_links_and_sessions(lx):
         conn.execute("UPDATE auth_local_links SET used_at = '2000-01-01T00:00:00Z'")
     assert li.janitor(lx.db) >= 2
     assert lx.rows("SELECT * FROM auth_local_sessions") == [] and lx.rows("SELECT * FROM auth_local_links") == []
+
+
+def test_a_rename_is_not_reverted_by_the_users_next_request(lx):
+    lx.enable()
+    created, c = lx.ready("maria")
+    uid = created["user"]["id"]
+    assert c.get("/arx/api/v1/me").json()["user"]["display_name"] == "Maria"
+    assert lx.admin.patch(f"/api/v1/identity/local-users/{uid}", json={"display_name": "מריה כהן"}).status_code == 200
+    assert c.get("/arx/api/v1/me").json()["user"]["display_name"] == "מריה כהן"
+    assert lx.rows("SELECT display_name FROM users WHERE id = ?", (uid,)) == [{"display_name": "מריה כהן"}]

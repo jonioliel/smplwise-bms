@@ -1,7 +1,7 @@
 """VMS-local authorization: built-in roles (contracts/examples/role-catalog.design.json), scoped
-bindings (installation ג‡ site ג‡ building ג‡ floor ג‡ camera) and default deny. Every action is evaluated as a
+bindings (installation ⊇ site ⊇ building ⊇ floor ⊇ camera) and default deny. Every action is evaluated as a
 (permission, target) pair; capabilities are never unioned across scopes. An explicit deny anywhere on the
-target's chain beats every allow on it (docs/security/HA_IDENTITY_RBAC_HE.md ֲ§15)."""
+target's chain beats every allow on it (docs/security/HA_IDENTITY_RBAC_HE.md §15)."""
 from __future__ import annotations
 
 import json
@@ -158,11 +158,11 @@ def camera_floors(conn: sqlite3.Connection, camera_id: str) -> list[str]:
 
 
 def scope_chain(conn: sqlite3.Connection, target_type: str, target_id: str) -> list[tuple[str, str]]:
-    """Return the target and all its ancestors, e.g. floor ג†’ building ג†’ site ג†’ installation.
+    """Return the target and all its ancestors, e.g. floor → building → site → installation.
 
     A camera (T055) is its own node; its ancestors are EVERY floor it is anchored on (with their buildings and
     sites) and the installation - an unanchored camera hangs off the installation alone. Deny-overrides in
-    authorize() then applies across the whole chain (docs/security/HA_IDENTITY_RBAC_HE.md ֲ§15)."""
+    authorize() then applies across the whole chain (docs/security/HA_IDENTITY_RBAC_HE.md §15)."""
     if target_type == "camera":
         chain = [("camera", target_id)]
         for fid in camera_floors(conn, target_id):
@@ -359,16 +359,16 @@ def bindings_of(conn: sqlite3.Connection, principal: Principal) -> list[dict]:
 
 def scope_name(conn: sqlite3.Connection, scope_type: str, scope_id: str) -> str:
     if scope_type == "installation":
-        return "׳›׳ ׳”׳”׳×׳§׳ ׳”"
+        return "כל ההתקנה"
     if scope_type == "camera":
         row = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (scope_id,)).fetchone()
-        return f"׳׳¦׳׳׳” ֲ· {row['alias'] or row['name_source'] or '׳¢׳¨׳•׳¥ ' + str(row['channel'])}" if row else scope_id
+        return f"מצלמה · {row['alias'] or row['name_source'] or 'ערוץ ' + str(row['channel'])}" if row else scope_id
     if scope_type == STATION:
         # the station's name from the WisKey copy the add-on serves; never its opaque id on a screen
         from .services import intercom_sync
 
         station = intercom_sync.SYNC.station(scope_id)
-        return f"׳¢׳׳“׳” ֲ· {station['name']}" if station and station.get("name") else "׳¢׳׳“׳× ׳׳™׳ ׳˜׳¨׳§׳•׳ (׳׳ ׳–׳׳™׳ ׳” ׳›׳¨׳’׳¢)"
+        return f"עמדה · {station['name']}" if station and station.get("name") else "עמדת אינטרקום (לא זמינה כרגע)"
     table = {"site": "sites", "building": "buildings", "floor": "floors"}[scope_type]
     row = conn.execute(f"SELECT name FROM {table} WHERE id = ?", (scope_id,)).fetchone()
     return row["name"] if row else scope_id

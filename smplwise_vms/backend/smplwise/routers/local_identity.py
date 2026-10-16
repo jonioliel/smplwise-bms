@@ -529,6 +529,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
         if effects.get("sessions_ended"):
             li.close_sockets_from_thread()
     if changed:
+        li.CACHE.drop_user(user_id)  # a cached principal must not write the old display name back (auth.touch_user)
         audit(conn, actor=principal, action="identity.local.user.updated", decision="allowed", resource_type="user", resource_id=user_id,
               request_id=_rid(request), details={"fields": sorted(changed), **({"reset_mode": changed["reset_mode"]} if "reset_mode" in changed else {})})
     out = _user_dict(conn, _user_row(conn, user_id))

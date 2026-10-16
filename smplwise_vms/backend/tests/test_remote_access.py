@@ -495,7 +495,10 @@ def test_remote_config_is_public_on_the_remote_channel_only(arx):
 
 # every route of the app, reached on the remote channel without a session, is refused (CR-008 §3e.2)
 # config; an idempotent sign-out; the CSP report sink (CR-008 P2: counters only, rate-limited, bounded)
-PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("GET", "/api/v1/auth/app-download"), ("GET", "/api/v1/auth/app-download/file"), ("DELETE", "/api/v1/auth/session"), ("POST", "/api/v1/csp-report")}
+PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("GET", "/api/v1/auth/app-download"), ("GET", "/api/v1/auth/app-download/file"), ("DELETE", "/api/v1/auth/session"), ("POST", "/api/v1/csp-report"),
+                    # USR2: the Arx-only sign-in, its second step and the first-login / reset link page are public by nature (403 while
+                    # security.local_identity is off; tests/test_local_identity.py covers their guards)
+                    ("POST", "/api/v1/auth/local/sign-in"), ("POST", "/api/v1/auth/local/sign-in/second-factor"), ("POST", "/api/v1/auth/local/set-password")}
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory"),  # 404: the bridge's signed calls
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
