@@ -281,7 +281,7 @@ export class TicketsRfqCompare extends LitElement {
     const sel = this.selections();
     const totals = selectionTotals(sel);
     const valid = sel.length > 0 && sel.every((s) => scopeValid(s.quote, s.scope));
-    return html`<div class="bar2" data-cmp-bar>
+    return html`<div class="bar2" data-cmp-bar ?data-empty=${sel.length === 0}>
       <button type="button" class="btn primary" data-cmp-approve ?disabled=${!valid || this.busy} @click=${() => { this.error = ''; this.confirm = true; }}>
         ${tIcon('check')}${sel.length > 1 ? rt('approveSplit', { n: sel.length }) : rt('approveOne')}</button>
       <div class="sum" data-cmp-sum>${sel.length ? html`${sel.map((s) => html`<span>${bidi(this.name(s.quote))} · ${this.scopeLabel(s.quote, s.scope)} · <b class="num">${this.money(awardPreview(s.quote, s.scope).total, s.quote.currency)}</b></span>`)}

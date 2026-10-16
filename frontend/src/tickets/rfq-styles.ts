@@ -7,6 +7,14 @@ import { css } from 'lit';
  * action bar, the new-request sheet. Knobs only (--dv-* palette, --sw-* type / radius / space), logical properties only (RTL first).
  */
 export const rfqStyles = css`
+  /* the page frame (mediaPageStyles) makes every host a scroll container (overflow: auto); a step nested in tickets-rfqs must NOT be one:
+     its sticky action bar would stick to this non-scrolling host (and stay at the end of the content) instead of the screen's scroller */
+  :host(tickets-rfq-compare),
+  :host(tickets-rfq-board),
+  :host(tickets-rfq-order),
+  :host(tickets-rfq-new) {
+    overflow: visible;
+  }
   sw-dialog {
     --sw-surface: var(--dv-surface-solid);
     --sw-glass-blur: none;
@@ -388,7 +396,7 @@ export const rfqStyles = css`
   /* the sticky action bar at the bottom of a step */
   .bar2 {
     position: sticky;
-    inset-block-end: 12px;
+    inset-block-end: 8px;
     z-index: 5;
     display: flex;
     flex-wrap: wrap;
@@ -989,11 +997,33 @@ export const rfqStyles = css`
     .qline .desc {
       grid-column: 1 / -1;
     }
+    /* the phone's dock is a row of the shell grid BELOW the scroller (and carries the safe-area inset itself): the bar only needs to sit at
+       the scroller's bottom edge. While it only shows the hint it is one compact line; with a selection the summary scrolls inside it. */
     .bar2 {
-      inset-block-end: calc(76px + env(safe-area-inset-bottom, 0px));
+      inset-block-end: 6px;
+      flex-wrap: nowrap;
+      gap: 8px 10px;
+      padding: 8px 10px;
     }
     .bar2 .btn {
-      flex: 1 1 auto;
+      flex: 0 0 auto;
+      min-block-size: 44px;
+    }
+    .bar2 .sum {
+      flex: 1 1 0;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      gap: 2px;
+      max-block-size: 76px;
+      overflow-y: auto;
+      font-size: var(--sw-fs-xs, 12px);
+      line-height: 1.35;
+    }
+    .bar2[data-empty] .sum {
+      max-block-size: none;
+    }
+    :host(tickets-rfqs) {
+      scroll-padding-block-end: 112px;
     }
   }
 `;
