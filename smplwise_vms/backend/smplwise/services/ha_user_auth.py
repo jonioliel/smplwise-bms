@@ -457,7 +457,8 @@ class SessionStore:
             # CR-WISKEY-LEASE-REVOCATION-EVENT T4: a session that ENDS (logout, sign out everywhere, an administrator's revoke,
             # expiry, eviction) revokes the actor's live capture lease. A cookie rotation is `_drop_quietly_locked` - not an
             # end. The hook takes only its own lock and never blocks. EXTENSION POINT (USR2 branches): the local identity's
-            # `auth_local_sessions` revoke / rotation on a privilege change must call the same hook (`session_ended`).
+            # `auth_local_sessions` revoke / rotation on a privilege change calls the same hook (`session_ended`) through
+            # `local_identity.lease_hook` (wired at integ/264, risk 8).
             _lease_session_ended(s.principal.user_id)
         socks = self._sockets.pop(sid, None)
         if socks:

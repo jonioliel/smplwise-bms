@@ -614,6 +614,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
         if fields["passkey_first"]:
             raise ApiError(422, "passkey_first_self_only", "רק המשתמש עצמו מפעיל כניסה במפתח גישה (עם מפתח הגישה שלו); מנהל יכול רק לכבות אותה.")
         if lpk.user_first_on(conn, user_id):
+            li.lease_hook("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE T6: the sign-in factor mode changed
             conn.execute("UPDATE auth_local_credentials SET passkey_first = 0, updated_at = ? WHERE user_id = ?", (now_iso(), user_id))
             audit(conn, actor=principal, action="auth.local.passkey.first_disabled", decision="allowed", resource_type="user", resource_id=user_id,
                   reason="admin", request_id=_rid(request))
@@ -621,6 +622,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     suggest: str | None = None
     if fields.get("active") is not None and bool(fields["active"]) != bool(row["active"]):
         if not fields["active"]:
+            li.lease_hook("actor_disabled", user_ids=[user_id])  # CR-WISKEY-LEASE T2 (then T4 / T3 / strict T1 below)
             conn.execute("UPDATE users SET active = 0, disabled_at = ?, disabled_by = ? WHERE id = ?", (now_iso(), principal.user_id, user_id))
             effects = _end_access(conn, user_id, "user_disabled")
             bump_permission_revision(conn)
@@ -651,6 +653,7 @@ def delete_local_user(user_id: str, request: Request, principal: Principal = Dep
     _manage(conn, principal)
     _user_row(conn, user_id)
     now = now_iso()
+    li.lease_hook("actor_removed", user_ids=[user_id])  # CR-WISKEY-LEASE T2 (then T4 / T3 / strict T1 below)
     conn.execute("UPDATE users SET active = 0, deleted_at = ?, disabled_at = COALESCE(disabled_at, ?), disabled_by = COALESCE(disabled_by, ?) WHERE id = ?",
                  (now, now, principal.user_id, user_id))
     effects = _end_access(conn, user_id, "user_deleted")

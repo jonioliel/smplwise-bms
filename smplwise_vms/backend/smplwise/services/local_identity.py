@@ -602,9 +602,14 @@ def resolve(db: Any, settings: Settings, conn_like: Any, cookie_value: str, *, o
     grace = False
     if row["revoked_at"]:
         if succ is None or not _usable(succ, now):
+            if succ is not None:
+                lease_hook("session_ended", user_ids=[succ["user_id"]])  # T4: the chain's live row ran out / its user was disabled
             return None
         row, grace = succ, True  # the 60-second grace of a rotation (two tabs racing): the old value resolves to the new row, no new cookie
     if not _usable(row, now):
+        # T4: an expired / idle session, or one whose user was disabled / deleted, ends the actor's capture lease (before the
+        # offline retry below: the hook never touches the database)
+        lease_hook("session_ended", user_ids=[row["user_id"]])
         if not row["revoked_at"] and not grace:
             if offline:
                 raise NeedsUnlock
@@ -636,10 +641,11 @@ def resolve(db: Any, settings: Settings, conn_like: Any, cookie_value: str, *, o
         raise NeedsUnlock
     meta = request_meta(conn_like)
     with db.connection(label="local session use") as conn:
+        uid = row["user_id"]
         row = conn.execute(_SESSION_SQL, (row["sid_hash"],)).fetchone()
         if row is None or not _usable(row, now):
+            lease_hook("session_ended", user_ids=[uid])  # T4: ended between the read and this write
             return None
-        uid = row["user_id"]
         admin = holds_admin(conn, uid)
         if admin:  # Q3: an administrative permission caps the session (also one gained after the sign-in)
             cap = epoch(row["chain_started_at"]) + session_policy(conn, True)[0]
@@ -649,11 +655,14 @@ def resolve(db: Any, settings: Settings, conn_like: Any, cookie_value: str, *, o
                              (iso(cap), iso(idle_cap), row["sid_hash"]))
                 row = conn.execute(_SESSION_SQL, (row["sid_hash"],)).fetchone()
                 if not _usable(row, now):
+                    lease_hook("session_ended", user_ids=[uid])  # T4: the administrative cap ended it
                     return None
         fp = permissions_fingerprint(conn, _internal(uid))
         rotate_reason = None
         if rotate:
             rotate_reason = "permissions" if fp != (row["perm_fingerprint"] or "") else "age" if now - epoch(row["created_at"]) >= ROTATE_EVERY_S else None
+        if rotate_reason == "permissions":
+            lease_hook("session_ended", user_ids=[uid])  # T4: the chain rotated for a privilege change (an age rotation is not an end)
         if rotate_reason:
             value, sh2 = _rotate(conn, row, meta)
             row = conn.execute(_SESSION_SQL, (sh2,)).fetchone()
@@ -735,7 +744,26 @@ def holds_live_cookie(cookie_value: str | None) -> bool:
 
 # ---------------------------------------------------------------- revocation
 
+def lease_hook(reason: str, *, user_ids: list[str] | None = None, all: bool = False) -> None:
+    """CR-WISKEY-LEASE-REVOCATION-EVENT T4 / T6 / T2 for Arx-only (local) actors (integ/264 risk 8; the extension point named in
+    ha_user_auth._drop_locked). Every USR2 path that ends or narrows a local actor's authority - a session revoked (logout, sign out
+    everywhere, an administrator's revoke, expiry, a password change / reset, the switch off), a factor added / removed / reset, the
+    passkey-first mode changed, the user disabled / deleted - calls this. Strict (owner decision 2026-10-16): the actor's live
+    capture leases are revoked at once, no re-check. Called BEFORE the database write it accompanies: a write that then rolls back
+    has only over-revoked (the safe side). Never raises, never touches the database, never blocks."""
+    try:
+        from . import capture_lease
+
+        capture_lease.on_authority_change(reason, user_ids=[u for u in (user_ids or []) if u], all=all)
+    except Exception:  # noqa: BLE001 - never breaks a revocation; on_authority_change itself degrades the route on an internal error
+        log.warning("capture lease hook %s could not run", reason)
+
+
 def revoke_user_sessions(conn, user_id: str, reason: str, *, keep_chain: str | None = None) -> int:
+    # T4: every caller is an authority change of the user (disable, delete, administrator revoke, sign out everywhere, password
+    # change / reset, factor enrolled / reset, passkey removed) - so the lease goes even when no other chain is left to end
+    # (a password change from the user's only session keeps that chain).
+    lease_hook("session_ended", user_ids=[user_id])
     rows = conn.execute("SELECT DISTINCT chain_id FROM auth_local_sessions WHERE user_id = ? AND revoked_at IS NULL", (user_id,)).fetchall()
     chains = {r["chain_id"] for r in rows if r["chain_id"] != keep_chain}
     if not chains:
@@ -748,6 +776,9 @@ def revoke_user_sessions(conn, user_id: str, reason: str, *, keep_chain: str | N
 
 
 def revoke_chain(conn, chain_id: str, reason: str) -> int:
+    owner = conn.execute("SELECT user_id FROM auth_local_sessions WHERE chain_id = ? LIMIT 1", (chain_id,)).fetchone()
+    if owner is not None:
+        lease_hook("session_ended", user_ids=[owner["user_id"]])  # T4: logout / one sign-in revoked by its owner or an administrator
     n = conn.execute("UPDATE auth_local_sessions SET revoked_at = ?, revoked_reason = ? WHERE chain_id = ? AND revoked_at IS NULL",
                      (iso(time.time()), reason, chain_id)).rowcount
     CACHE.drop_chains({chain_id})
@@ -755,6 +786,8 @@ def revoke_chain(conn, chain_id: str, reason: str) -> int:
 
 
 def revoke_all(conn, reason: str) -> int:
+    # T4 for every local actor at once (the switch turned off): installation scope - over-revoking an HA actor's lease is the safe side
+    lease_hook("session_ended", all=True)
     rows = conn.execute("SELECT DISTINCT chain_id FROM auth_local_sessions WHERE revoked_at IS NULL").fetchall()
     chains = {r["chain_id"] for r in rows}
     if chains:
@@ -1421,6 +1454,7 @@ def on_factor_enabled(conn, settings: Settings, conn_like: Any, principal: Princ
     shown the factor (they typed a code a moment ago)."""
     from .ha_user_auth import session_of
 
+    lease_hook("second_factor_changed", user_ids=[principal.user_id])  # T6: a factor enrolled (TOTP confirm or the first passkey)
     s = session_of(conn_like)
     keep = s.chain_id if isinstance(s, LocalSession) and s.user_id == principal.user_id else None
     ended = revoke_user_sessions(conn, principal.user_id, "factor_enabled", keep_chain=keep)
@@ -1435,6 +1469,7 @@ def on_factor_removed(conn, user_id: str) -> bool:
     counting as factor-verified (review RELEASE_264 F2): `factor_at` is cleared on every row of the user (the caller's kept chain
     included), so the administrative permissions close at once (rbac `factor_ok`); the user re-enrols from an ordinary session. The
     cached sessions are dropped so the change is seen on the next request. True when the factor flag was cleared."""
+    lease_hook("second_factor_changed", user_ids=[user_id])  # T6: any factor removed (strict: also when another factor is left)
     CACHE.drop_user(user_id)
     if has_factor(conn, user_id):
         return False
@@ -1446,6 +1481,7 @@ def on_factor_removed(conn, user_id: str) -> bool:
 def on_factor_reset(conn, user_id: str) -> int:
     if not is_local_id(user_id):
         return 0
+    lease_hook("second_factor_changed", user_ids=[user_id])  # T6: an administrator reset the factor (routers/second_factor also hooks)
     drop_pending_of(user_id)
     return revoke_user_sessions(conn, user_id, "factor_reset")
 

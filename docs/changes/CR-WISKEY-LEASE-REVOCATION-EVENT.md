@@ -1,8 +1,13 @@
 # CR-WISKEY-LEASE-REVOCATION-EVENT - the Arx-side revocation event and lease ledger for WisKey's explicit-Arx-lease card capture (C04 route b)
 
-Status: PROPOSED (design and documents only, 2026-10-16). No product code, no migration file, no device, reader, door, key,
-secret or live system was touched to write this. Branch `pilot/CR-LEASE-REVOKE` from `origin/main` 886ef3f4 (2.5.8).
-**The lease route stays OFF until the owner approves implementation. This document is not that approval.**
+Status: APPROVED by the owner 2026-10-16 (Arx side built and merged OFF; GO_LIVE_PERMITTED=False; go-live needs a separate owner permit)
+
+History: written as PROPOSED (design and documents only, 2026-10-16) on branch `pilot/CR-LEASE-REVOKE` from `origin/main` 886ef3f4
+(2.5.8); no device, reader, door, key, secret or live system was touched to write it. The Arx side (LEASE-BUILD / LEASE-FIX) is merged
+on integ/264 with the route OFF (`access.capture_lease` default `off`, `MIN_BRIDGE_FOR_CAPTURE_LEASE = None`, `GO_LIVE_PERMITTED = False`
+in code). **This approval is not the go-live permit:** switching the route on needs the owner's separate written permit (section 7.3).
+Arx-only (USR2 local) actors: their authority changes are wired to the same triggers since `pilot/LEASE-ARXONLY` (integ/264 risk 8,
+see section 1.4 note and `docs/release/2.6.4-INTEGRATION-NOTES.md`).
 
 Owner decision encoded (2026-10-16, question 2 of the C04 reply): **option א** - open a separate Arx change request to design
 the revocation event; the lease stays OFF until the event exists on the Arx side. Owner decision for C03 (question 1):
@@ -146,6 +151,19 @@ only add a code path that can be wrong. Per-user and per-station triggers revoke
 | T11 | System shutdown; and startup (Arx holds no lease in memory after a restart) | `main.py` shutdown hook, before `intercom_sync.SYNC.shutdown()`, with a 2 s budget; startup hook | `all` | `shutdown` / `startup` (as `lease_stream_reset`) |
 | T12 | Person changed under the lease (the person's revision moved - edited elsewhere, archived, deactivated) | the people write paths of `routers/access_control.py` (S11) when `person_id` matches a live lease; a feed `refresh` that moves the person's revision | `lease` | `person_changed` |
 | T13 | Clock no longer trusted (section 3.4) | `capture_lease` clock guard | `all` | `clock_invalid` |
+
+USR2 (Arx-only, local) actors - as built on `pilot/LEASE-ARXONLY` (integ/264 risk 8), strict, no new reason value (all are in the
+closed enum of `lease.schema.json`): every local-session end goes through `services/local_identity.lease_hook` -> T4 `session_ended`
+(`revoke_user_sessions`: administrator revoke, sign out everywhere, disable / delete, password change - also from the only session -,
+link / self-service reset, factor enrolled / reset, passkey removed; `revoke_chain`: logout / one sign-in revoked; `revoke_all`: the
+local identity switch off, scope `all`; `resolve`: a session found expired / idle / of a disabled or deleted user, a rotation for a
+privilege change). T6 `second_factor_changed`: factor enrolled (TOTP confirm, first passkey), any passkey registered or removed,
+`on_factor_removed` (also with a factor left), `on_factor_reset`, the passkey-first mode changed (user or administrator). T2:
+`actor_disabled` / `actor_removed` on the local disable / delete routes (followed by T4, T3 and the strict T1). Role / group changes are
+covered by T1 (`insert_binding` / `revoke_one` bump the revision) and T3 (`revocation.mark`) - verified by test, not assumed. Fail
+closed at the issue: only principal sources whose triggers are wired (`ingress`, `remote`, `local`; `dev` in tests only) reach the
+signer, and a `local` principal needs a local id, the switch on, a live account and a live session chain, read inside the issuing
+write transaction (this closes the window between the request's authentication and the gate's mark).
 
 Not triggers (deliberately): the lease's own expiry (both sides enforce `now < lease_expires_at`; Arx marks the row `expired`
 and sends nothing), a status poll (never renews), an unrelated user's permission change under T3 (only the actor's generation
