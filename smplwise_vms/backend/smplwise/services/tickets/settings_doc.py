@@ -173,6 +173,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("whatsapp", "use_buttons"): (False, boolean),  # 9.3: buttons may show as text only on multi-device clients - numbered replies
     ("whatsapp", "reply_window_h"): (72, int_range(1, 336)),  # 9.6: replies are matched to messages sent within this window
     ("email_fallback",): (True, boolean),  # 9.5 / D13: a contact with an e-mail address gets the redeem link when WhatsApp fails
+    # TKNOTIFOTP (owner 2026-10-16): verify every WhatsApp number with a one-time code before links / notifications go to it.
+    # OPTIONAL, OFF by default; a contact's own `phone_verify` raises it for that row only (services/tickets/phone_verify.py)
+    ("phone_verify", "required"): (False, boolean),
     # slice 9: cost claims (11A.14, D31 / D32); department and vendor overrides live on their rows (11A.1)
     ("costs", "mode"): ("optional", _choice("required", "optional", "off")),
     ("costs", "currencies"): (["ILS"], _currencies),

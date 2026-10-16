@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from . import access, store_links
+from . import access, phone_verify, store_links
 
 STAFF_NEEDS_EXTERNAL = False
 KINDS = ("user", "contact")
@@ -96,7 +96,7 @@ def handlers(viewer: access.Viewer, department_id: str, row: dict[str, Any] | No
         mobile = mrow.get("phone_e164")
         out.append({"key": f"user:{u['id']}", "kind": "user", "id": u["id"], "name": u["name"], "account": True, "member_role": u["member_role"],
                     "phone": (contacts.display_phone(mobile) if configure else contacts.mask_phone(mobile)) if mobile else None,
-                    "has_phone": bool(mobile), "phone_confirmed": bool(mobile) and bool(mrow.get("phone_confirmed_at")),  # review F3
+                    "has_phone": bool(mobile), "phone_confirmed": phone_verify.confirmed(conn, mrow),  # review F3; TKNOTIFOTP: by code when required
                     "preferred_channel": "inapp"})
     managed = None if configure else contacts.managed_departments(viewer)
     where = row or {"department_id": department_id}

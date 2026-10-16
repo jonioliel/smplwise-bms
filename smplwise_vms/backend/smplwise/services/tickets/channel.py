@@ -34,7 +34,10 @@ DEFAULT_LANG = "he"
 
 # `ticket_outbox.purpose` (7.3). Cost-claim purposes belong to slice 9 (11A) - the model accepts them, no starter text ships here.
 PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "update",
-            "cost_rejected", "cost_approved", "cost_reopened", "test")
+            "cost_rejected", "cost_approved", "cost_reopened", "test",
+            "phone_verify")  # TKNOTIFOTP (0092): the fixed number-verification code (no ticket, no link, WhatsApp only)
+# the purposes whose message carries a six-digit code ({code} mandatory, rendered at send time only)
+CODE_PURPOSES = frozenset({"code", "phone_verify"})
 
 # The kinds of the brief (assignment link, reminder, verification code, status notice). "Escalation" is NOT a channel message:
 # escalation goes to managers through CR-018 (13.3 step 2), never to the handler. A "status echo" is a notice the MANAGER's act
@@ -45,9 +48,10 @@ KIND_OF_PURPOSE = {
     "code": "code",
     "closed": "status", "reassigned": "status", "cost_rejected": "status", "cost_approved": "status", "cost_reopened": "status",
     "test": "test",
+    "phone_verify": "code",
 }
 # 7.3: 0 = code (sent first), 1 = assign / update / reopened, 2 = reminder / closed / reassigned (and the rest)
-PRIORITY_OF_PURPOSE = {"code": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1}
+PRIORITY_OF_PURPOSE = {"code": 0, "phone_verify": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1}
 LINK_PURPOSES = frozenset({"assign", "reminder", "reopened", "update"})  # {link} is mandatory in these templates (9.7)
 # TK251 (11A.7: "sent back to the vendor ... with the link"): the cost messages that ask the vendor to act carry the handler link
 # too - the link that opens the CLAIM step (claim mode, costs.claim_mode_ok), which keeps working after the ticket closed while the

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 from . import naming as _naming
-from .channel import DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, TEMPLATE_LINK_PURPOSES, Button, one_line, strip_controls
+from .channel import CODE_PURPOSES, DEFAULT_LANG, LANGS, LINK_PURPOSES, PURPOSES, TEMPLATE_LINK_PURPOSES, Button, one_line, strip_controls
 
 PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "priority", "organization", "link", "code",
                 "manager", "eta", "module_name", "module_name_plural")
@@ -137,7 +137,16 @@ STARTERS: dict[str, dict[str, str]] = {
         "ar": "رسالة اختبار. لا حاجة للرد.",
         "ru": "Тестовое сообщение. Отвечать не нужно.",
     },
+    # TKNOTIFOTP: the number-verification code - a FIXED, code-owned text (never editable in Settings, no free text, no ticket
+    # detail, no link). ar / ru need a native review like every starter.
+    "phone_verify": {
+        "he": "קוד לאימות מספר הטלפון: {code}\nהקוד בתוקף 10 דקות. אין למסור אותו לאחרים. אם לא ביקשתם אימות, התעלמו מההודעה.",
+        "en": "Phone number verification code: {code}\nValid for 10 minutes. Do not share it. If you did not ask for this, ignore this message.",
+        "ar": "رمز التحقق من رقم الهاتف: {code}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد. إذا لم تكن أنت من بادر بالتحقق، تجاهل هذه الرسالة.",
+        "ru": "Код подтверждения номера телефона: {code}\nДействует 10 минут. Никому его не сообщайте. Если вы не запрашивали код, проигнорируйте это сообщение.",
+    },
 }
+FIXED_PURPOSES = frozenset({"phone_verify"})  # TKNOTIFOTP: always the starter above - a stored template is never used or accepted
 
 
 # TKSTAFF1 (owner 2026-10-16): the assignment message of an internal employee's no-login STAFF link (services/tickets/staff_links.py),
@@ -297,7 +306,7 @@ def problems(purpose: str, body: Any, *, for_contacts: bool = True) -> list[dict
         names.append(token)
     if _URL.search(_TOKEN.sub("", body)):
         add("url_not_link")
-    if purpose == "code":
+    if purpose in CODE_PURPOSES:
         if "code" not in names:
             add("code_required")
         if CODE_FORBIDDEN.intersection(names):

@@ -6,6 +6,7 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
+import './phone-verify';
 import { settingsStyles } from '../styles/settings';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -33,6 +34,8 @@ interface Draft {
   kind: ContactKind; display_name: string; company: string; vendor_id: string; phone: string; email: string; preferred_channel: ContactChannel;
   require_code: boolean; share_history: 'default' | 'on' | 'off'; lang: ContactLang; notes: string; active: boolean; departments: string[];
   cost_claim: CostMode | ''; vat_exempt: boolean; vat_default: 'included' | 'excluded'; labor_rate: string; rate_currency: string;
+  /** TKNOTIFOTP: "verify the number with a code" for this row */
+  phone_verify: boolean;
 }
 
 function draftOf(c: Contact | null, kind: ContactKind = 'person'): Draft {
@@ -43,6 +46,7 @@ function draftOf(c: Contact | null, kind: ContactKind = 'person'): Draft {
     lang: c?.lang ?? 'he', notes: c?.notes ?? '', active: c?.active ?? true, departments: [...(c?.departments ?? [])],
     cost_claim: c?.cost_claim ?? '', vat_exempt: c?.vat_exempt ?? false, vat_default: c?.vat_default ?? 'excluded',
     labor_rate: minorToInput(c?.labor_rate_minor), rate_currency: c?.rate_currency ?? 'ILS',
+    phone_verify: c?.phone_verify ?? false,
   };
 }
 
@@ -85,6 +89,7 @@ export class TicketsContacts extends LitElement {
   @state() private eraseHistory = false;
   @state() private problem = '';
   @state() private liveLinks = 0;
+  @state() private full: Contact | null = null;
   @state() private denied = false;
   private searchTimer = 0;
   private loadedKind: ContactKind | '' = '';
@@ -259,7 +264,21 @@ export class TicketsContacts extends LitElement {
     this.problem = '';
     this.liveLinks = 0;
     // how many live links a phone / e-mail change would revoke (the row of the list does not carry it)
-    if (c && this.canEdit) void ticketsS4Api().contact(c.id).then((full) => { if (this.selected === c.id) this.liveLinks = full.live_links ?? 0; }).catch(() => undefined);
+    this.full = null;
+    if (c && this.canEdit) void this.loadFull(c.id);
+  }
+
+  /** the one-row answer (live links; TKNOTIFOTP: the verification facts and the manager-mark token) */
+  private async loadFull(id: string): Promise<void> {
+    try {
+      const full = await ticketsS4Api().contact(id);
+      if (this.selected === id) {
+        this.liveLinks = full.live_links ?? 0;
+        this.full = full;
+      }
+    } catch {
+      /* the editor works without it */
+    }
   }
 
   private set(p: Partial<Draft>): void {
@@ -281,6 +300,7 @@ export class TicketsContacts extends LitElement {
     if (d.email.trim() !== before.email) out.email = d.email.trim() || null;
     if (d.preferred_channel !== before.preferred_channel) out.preferred_channel = d.preferred_channel;
     if (d.require_code !== before.require_code) out.require_code = d.require_code;
+    if (d.phone_verify !== before.phone_verify) out.phone_verify = d.phone_verify;
     if (d.share_history !== before.share_history) out.share_history = d.share_history === 'default' ? null : d.share_history === 'on';
     if (d.lang !== before.lang) out.lang = d.lang;
     if (d.notes !== before.notes) out.notes = d.notes;
@@ -516,6 +536,13 @@ export class TicketsContacts extends LitElement {
           <span class="hint">${tt('ctPhoneHint')}</span>
           ${c && this.liveLinks > 0 && (d.phone.trim() !== draftOf(c).phone || d.email.trim() !== draftOf(c).email)
             ? html`<span class="err" role="status" data-contact-links-warning>${tt('ctChangeRevokes', { n: this.liveLinks })}</span>` : nothing}</label>
+        ${c && this.full && this.full.id === c.id ? html`<div class="fld wide"><tickets-phone-verify data-contact-phone-verify .contactId=${c.id} ?hasPhone=${this.full.has_phone}
+            ?userLinked=${this.full.user_linked} ?required=${!!this.full.phone_verify_required} ?confirmed=${!!this.full.phone_confirmed}
+            .via=${this.full.phone_confirmed_via ?? null} .confirmToken=${this.full.phone_confirm_token ?? null}
+            @changed=${() => void this.loadFull(c.id)}></tickets-phone-verify></div>` : nothing}
+        <div class="row wide"><span class="lbl">${tt('otpRowSwitch')}<span class="muted">${tt('otpSettingHint')}</span></span>
+          <sw-toggle label=${tt('otpRowSwitch')} labelHidden .checked=${d.phone_verify} data-field="phone_verify"
+            @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ phone_verify: e.detail.checked })}></sw-toggle></div>
         <label class="fld"><span>${tt('ctEmail')}</span><input class="in" type="email" dir="ltr" maxlength="254" autocomplete="off" data-field="email" .value=${d.email}
           @input=${(e: Event) => this.set({ email: (e.target as HTMLInputElement).value })} /></label>
         ${seg(tt('ctChannel'), CONTACT_CHANNELS, d.preferred_channel, (v) => tt(`ch_${v}` as TicketTextKey), (v) => this.set({ preferred_channel: v }), 'channel')}

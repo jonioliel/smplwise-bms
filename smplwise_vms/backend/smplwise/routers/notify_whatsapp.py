@@ -110,6 +110,8 @@ def set_my_whatsapp(request: Request, body: dict[str, Any] = Body(...), principa
 
         if not _hmac.compare_digest(body["confirm"].encode("ascii"), wa.confirm_token(conn, found.digits).encode("ascii")):
             raise ApiError(409, "number_changed", "המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר.")
+        if not wa.number_verified(conn, principal.user_id, found.digits):  # TKNOTIFOTP: verification by code is on for this number
+            raise ApiError(409, "verify_required", "יש לאמת את המספר בקוד שנשלח אליו (החשבון שלי › נייד) לפני ההצטרפות.")
         digits = found.digits
     wa.set_opt_in(conn, principal.user_id, digits)
     audit(conn, actor=principal, action="notify.whatsapp.optin", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request),

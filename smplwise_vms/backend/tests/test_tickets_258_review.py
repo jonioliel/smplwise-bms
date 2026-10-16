@@ -231,7 +231,7 @@ def test_gap4_migration_0087_keeps_every_child_row_of_a_populated_database(tmp_p
     before = {t: conn.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall() for t in tables}
     conn.close()
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(path).migrate() == [87]
+    assert dbmod.Database(path).migrate()[0] == 87  # later migrations follow (0088, TKNOTIFOTP 0091 / 0092 rebuilds ticket_outbox too)
     conn = sqlite3.connect(path)
     after = {t: conn.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall() for t in tables}
     assert all(len(before[t]) == 1 for t in tables)

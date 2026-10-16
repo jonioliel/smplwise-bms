@@ -5,6 +5,7 @@ import { LiveRefresh } from './live-refresh';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import './phone-verify';
 import { settingsStyles } from '../styles/settings';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -181,7 +182,7 @@ export class TicketsHandlersMembers extends LitElement {
     this.drafts = { ...this.drafts, [m.id]: { ...this.draftOf(m), ...patch } };
   }
 
-  private async saveStaff(m: AdminMember, body: { phone?: string | null; lang?: Lang; notify_whatsapp?: boolean }): Promise<void> {
+  private async saveStaff(m: AdminMember, body: { phone?: string | null; lang?: Lang; notify_whatsapp?: boolean; phone_verify?: boolean }): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     try {
@@ -214,7 +215,13 @@ export class TicketsHandlersMembers extends LitElement {
       ${m.mobile && m.mobile_confirmed === false ? html`<span class="chip warn" data-member-mobile-pending>${tt('hdMobilePending')}</span>` : nothing}
       ${m.mobile ? html`<sw-toggle label=${tt('hdMobileWhatsapp')} .checked=${m.notify_whatsapp !== false} ?disabled=${this.busy || m.notify_whatsapp === false} data-member-whatsapp
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveStaff(m, { notify_whatsapp: e.detail.checked })}></sw-toggle>` : nothing}
-    </div>`;
+    </div>
+    ${m.mobile ? html`<div class="line" data-member-phone-verify=${m.id}>
+      <sw-toggle label=${tt('otpRowSwitch')} .checked=${!!m.phone_verify} ?disabled=${this.busy} data-member-phone-verify-switch
+        @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveStaff(m, { phone_verify: e.detail.checked })}></sw-toggle>
+      <tickets-phone-verify .contactId=${m.contact_id ?? null} hasPhone userLinked ?required=${!!m.verify_required} ?confirmed=${!!m.mobile_confirmed}
+        .confirmToken=${m.mobile_confirm ?? null} @changed=${() => void this.load()}></tickets-phone-verify>
+    </div>` : nothing}`;
   }
 
   private add(): void {

@@ -518,3 +518,26 @@ def set_my_staff_mobile(request: Request, body: dict[str, Any], principal: Princ
     from ..services.tickets import staff_links
 
     return staff_links.set_mine(conn, Viewer(conn, principal), body, getattr(request.state, "correlation_id", None))
+
+
+# ---------------------------------------------------------------- TKNOTIFOTP: the caller verifies their OWN number with a code
+
+
+@router.post("/tickets/me/phone-verify/send")
+def my_phone_verify_send(request: Request, principal: Principal = Depends(current_principal),
+                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Send the fixed code message to the caller's own directory number (no id, no number in the request)."""
+    from ..services.tickets import phone_verify
+
+    return phone_verify.my_send(conn, Viewer(conn, principal), getattr(request.state, "correlation_id", None))
+
+
+@router.post("/tickets/me/phone-verify/check")
+def my_phone_verify_check(request: Request, body: dict[str, Any], principal: Principal = Depends(current_principal),
+                          conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """`{code}`: a match confirms the caller's number BY CODE; anything else the uniform 422 `code_invalid`."""
+    from ..services.tickets import phone_verify, staff_links
+
+    viewer = Viewer(conn, principal)
+    phone_verify.my_check(conn, viewer, body, getattr(request.state, "correlation_id", None))
+    return staff_links.my_view(conn, principal.user_id)

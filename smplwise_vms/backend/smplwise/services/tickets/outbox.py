@@ -40,8 +40,8 @@ from zoneinfo import ZoneInfo
 
 from . import hours
 from . import message_templates as templates  # renamed in slice 5b: slice 2 owns `templates.py` (ticket templates)
-from .channel import (CLAIM_LINK_PURPOSES, LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, SENT, UNKNOWN, AccountRef, OutboundMessage,
-                      Recipient, SendResult, TicketChannel, keyed_hash, phone_digits, priority_of)
+from .channel import (CLAIM_LINK_PURPOSES, CODE_PURPOSES, LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, SENT, UNKNOWN, AccountRef,
+                      OutboundMessage, Recipient, SendResult, TicketChannel, keyed_hash, phone_digits, priority_of)
 
 log = logging.getLogger("smplwise.tickets.outbox")
 UTC = dt.timezone.utc
@@ -77,7 +77,7 @@ def can_transition(a: str, b: str) -> bool:
 
 
 def ledger_kind(purpose: str) -> str:
-    return "code" if purpose == "code" else "test" if purpose == "test" else "message"
+    return "code" if purpose in CODE_PURPOSES else "test" if purpose == "test" else "message"
 
 
 @dataclass(frozen=True)
@@ -397,6 +397,9 @@ class Outbox:
             raise OutboxError("link_required")
         if purpose == "code" and (not code or not code.isdigit() or len(code) != 6 or not link_id):
             raise OutboxError("code_invalid")
+        if purpose == "phone_verify" and (not code or not code.isdigit() or len(code) != 6 or not code_id or link_id or ticket_id
+                                          or channel != "whatsapp"):
+            raise OutboxError("code_invalid")  # TKNOTIFOTP: the number check goes to the number itself - WhatsApp only, never a fallback
         if purpose == "test":
             if phone_digits(test_target or "") is None or channel != "whatsapp" or not test_account_key:
                 raise OutboxError("test_target_invalid")
@@ -412,14 +415,14 @@ class Outbox:
                 if existing is not None:
                     return existing
             now = now.astimezone(UTC)
-            use = USE_EMAIL if channel == "email" else (USE_CODES if purpose == "code" else USE_MESSAGES)
+            use = USE_EMAIL if channel == "email" else (USE_CODES if purpose in CODE_PURPOSES else USE_MESSAGES)
             row = OutboxRow(
                 id=self.p.new_id(), purpose=purpose, channel=channel, use_key=use, created_at=now, not_before=now, updated_at=now,
                 recipient_kind="test" if purpose == "test" else "contact", contact_id=contact_id, ticket_id=ticket_id,
                 assignment_id=assignment_id, link_id=link_id, department_id=department_id, params=clean, template_id=template_id,
                 template_revision=template_revision, priority=priority_of(purpose), requested_by=requested_by,
                 idempotency_key=idempotency_key, send_now=bool(send_now) and purpose == "assign",
-                account_key=test_account_key if purpose == "test" else None, code_id=code_id if purpose == "code" else None,
+                account_key=test_account_key if purpose == "test" else None, code_id=code_id if purpose in CODE_PURPOSES else None,
                 reply_nonce=self.p.new_nonce() if channel == "whatsapp" and purpose in REPLY_PURPOSES else None)
             if assignment_id:
                 for old in self.p.store.open_rows():
@@ -455,7 +458,7 @@ class Outbox:
                 raise OutboxError("not_found")
             if old.state not in (UNKNOWN, NOT_SENT, REFUSED):
                 raise OutboxError("not_resendable")
-            if old.purpose in ("code", "test"):
+            if old.purpose in CODE_PURPOSES or old.purpose == "test":
                 raise OutboxError("not_resendable")  # a code is asked for again by the vendor; a test is typed again
             now = now.astimezone(UTC)
             row = replace(old, id=self.p.new_id(), state="queued", held_reason=None, held_since=None, attempts=0, first_attempt_at=None,
@@ -563,10 +566,10 @@ class Outbox:
         else:
             account = self.p.accounts.resolve(row.use_key, row.department_id)
         if account is None:
-            return self._hold_down(row, "account_unmapped", CODE_HOLD_MIN if row.purpose == "code" else DEFAULT_HOLD_MIN, now)
+            return self._hold_down(row, "account_unmapped", CODE_HOLD_MIN if row.purpose in CODE_PURPOSES else DEFAULT_HOLD_MIN, now)
         pacing = self.p.accounts.pacing(account.key)
         if not account.value or not self.p.accounts.status(account.key).sendable:
-            hold = min(pacing.hold_when_down_min, CODE_HOLD_MIN) if row.purpose == "code" else pacing.hold_when_down_min
+            hold = min(pacing.hold_when_down_min, CODE_HOLD_MIN) if row.purpose in CODE_PURPOSES else pacing.hold_when_down_min
             return self._hold_down(row, "channel_down", hold, now)
         if account.key in busy:
             return 0
@@ -651,8 +654,11 @@ class Outbox:
 
     def _message(self, row: OutboxRow, recipient: Recipient, account: AccountRef | None, now: dt.datetime) -> tuple[OutboundMessage | None, str | None]:
         lang = recipient.lang if recipient.lang in templates.LANGS else templates.DEFAULT_LANG
-        tpl = self.p.templates.pick(purpose=row.purpose, lang=lang, department_id=row.department_id, template_id=row.template_id) \
-            or templates.starter(row.purpose, lang)
+        if row.purpose in templates.FIXED_PURPOSES:
+            tpl = templates.starter(row.purpose, lang)  # TKNOTIFOTP: the code-owned text, whatever the template store holds
+        else:
+            tpl = self.p.templates.pick(purpose=row.purpose, lang=lang, department_id=row.department_id, template_id=row.template_id) \
+                or templates.starter(row.purpose, lang)
         if tpl is None:
             return None, "template_missing"
         secrets: dict[str, str] = {}
@@ -667,7 +673,7 @@ class Outbox:
             if not claim_url:
                 return None, "link_not_live"
             secrets["link"] = claim_url
-        if row.purpose == "code":
+        if row.purpose in CODE_PURPOSES:
             code = self.p.secrets.code(row.id)
             if not code and row.code_id and self.p.derive_code is not None:
                 code = self.p.derive_code(row)  # slice 5b (W9): derived from the code row id at render time, never stored
@@ -757,8 +763,8 @@ class Outbox:
 
     def _fallback(self, row: OutboxRow, now: dt.datetime) -> None:
         """9.5. Called only for not_sent / refused (never for unknown)."""
-        if row.purpose == "test":
-            return
+        if row.purpose in ("test", "phone_verify"):
+            return  # TKNOTIFOTP: a number check proves the NUMBER - it never takes another channel (the person asks again)
         if row.channel == "whatsapp":
             self.p.hooks.send_failed(row)
         recipient, _ = self._recipient(row) if row.recipient_kind == "contact" else (None, "")

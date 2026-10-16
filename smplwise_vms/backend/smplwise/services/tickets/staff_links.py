@@ -38,7 +38,7 @@ from typing import Any
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, require
-from . import access, codes as codes_mod, handler_links, model, notify_bridge, settings_doc, store, store_links
+from . import access, codes as codes_mod, handler_links, model, notify_bridge, phone_verify, settings_doc, store, store_links
 from .access import Viewer, text
 from .module_key import ModuleKeyError
 
@@ -59,8 +59,8 @@ def recipient(conn, user_id: str | None) -> dict[str, Any] | None:
     row = directory_row(conn, user_id)
     if row is None or not row["active"] or row.get("erased_at") or not row.get("phone_e164") or not row.get("notify_whatsapp", 1):
         return None
-    if not row.get("phone_confirmed_at"):
-        return None  # review F3: a number nobody confirmed (set by a configurer) never receives a staff link
+    if not phone_verify.confirmed(conn, row):
+        return None  # review F3: a number nobody confirmed (set by a configurer) never receives a staff link; TKNOTIFOTP: by code when required
     return row
 
 
@@ -203,8 +203,12 @@ def view(conn, user_id: str) -> dict[str, Any]:
 
     row = directory_row(conn, user_id)
     phone = (row or {}).get("phone_e164")
+    pv = phone_verify.view(conn, row)  # TKNOTIFOTP: the row's switch, whether a code is required, how it was confirmed
     return {"user_id": user_id, "contact_id": (row or {}).get("id"), "phone": display_phone(phone), "has_phone": bool(phone),
-            "confirmed": bool(phone) and bool((row or {}).get("phone_confirmed_at")),
+            "confirmed": pv["confirmed"], "confirmed_via": pv["confirmed_via"], "phone_verify": pv["phone_verify"],
+            "verify_required": pv["verify_required"],
+            # the manager's "אני בטוח שזה המספר שלו" echoes this token; only while verification is off and the number is unconfirmed
+            "confirm": phone_verify.confirm_token(row) if row and phone and not pv["confirmed"] and not pv["verify_required"] else None,
             "notify_whatsapp": bool((row or {}).get("notify_whatsapp", 1)), "lang": (row or {}).get("lang") or "he",
             "active": bool((row or {}).get("active", 1)),
             "live_links": len(store_links.live_links_of_contact(conn, row["id"])) if row else 0}
@@ -232,6 +236,10 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
             if not isinstance(body["notify_whatsapp"], bool):
                 raise contacts.ContactInvalid("notify_whatsapp", "type")
             fields["notify_whatsapp"] = 1 if body["notify_whatsapp"] else 0
+        if "phone_verify" in body:  # TKNOTIFOTP: the person's own "verify the number with a code" switch
+            if not isinstance(body["phone_verify"], bool):
+                raise contacts.ContactInvalid("phone_verify", "type")
+            fields["phone_verify"] = 1 if body["phone_verify"] else 0
     except contacts.ContactInvalid as exc:
         raise contacts.invalid(conn, exc.field, exc.code) from None
     row = directory_row(conn, user_id)
@@ -253,16 +261,18 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
     if phone_changed:
         contacts._keyed(conn, fields)
         fields["phone_confirmed_at"] = None  # review F3: the user confirms the new number again
+        fields["phone_confirmed_via"] = None
     else:
         fields.pop("phone_e164", None)
     changed = sorted(("phone" if k == "phone_e164" else k) for k, v in fields.items()
-                     if k not in ("phone_key", "phone_key_id", "phone_confirmed_at") and row.get(k) != v)
+                     if k not in ("phone_key", "phone_key_id", "phone_confirmed_at", "phone_confirmed_via") and row.get(k) != v)
     if not changed:
         return view(conn, user_id)
     store_links.update_contact(conn, row["id"], fields, None)
     revoked = 0
     if phone_changed:
         revoked = contacts.revoke_contact_links(conn, row["id"], "contact_changed", handler_links.now_utc(), rid=rid)
+        phone_verify.kill_codes(conn, row["id"])  # TKNOTIFOTP: a code sent to the old number can confirm nothing
     audit(conn, actor=viewer.principal, action="ticket.contact.update", decision="allowed", resource_type="ticket_contact", resource_id=row["id"],
           request_id=rid, details={"fields": changed, "links_revoked": revoked, "user_linked": True})
     if user_id != viewer.uid and ("phone" in changed or "notify_whatsapp" in changed):
@@ -285,9 +295,12 @@ def my_view(conn, user_id: str) -> dict[str, Any]:
     confirmed it, the confirmation token (only while unconfirmed), their WhatsApp switch and the message language."""
     row = directory_row(conn, user_id)
     phone = (row or {}).get("phone_e164")
-    confirmed = bool(phone) and bool((row or {}).get("phone_confirmed_at"))
+    pv = phone_verify.view(conn, row)
+    confirmed = pv["confirmed"]
+    # TKNOTIFOTP: while verification is required the number is confirmed by typing the code (no one-tap token is offered)
     return {"has_phone": bool(phone), "phone": f"•••• {phone[-4:]}" if phone else None, "confirmed": confirmed,
-            "confirm": confirm_token(row) if row and phone and not confirmed else None,
+            "confirm": confirm_token(row) if row and phone and not confirmed and not pv["verify_required"] else None,
+            "verify_required": pv["verify_required"], "code_pending": pv["code_pending"], "confirmed_via": pv["confirmed_via"],
             "notify_whatsapp": bool((row or {}).get("notify_whatsapp", 1)), "lang": (row or {}).get("lang") or "he"}
 
 
@@ -309,13 +322,17 @@ def set_mine(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None)
         tok = body["confirm"]
         if not isinstance(tok, str) or not 0 < len(tok) <= 64 or not tok.isascii():  # 2.5.8 review F6: compare_digest needs ASCII
             raise _bad(conn, "confirm", "type")
+        if phone_verify.required(conn, row):  # TKNOTIFOTP: only the code typed back confirms the number while verification is on
+            raise ApiError(409, "code_required", text(conn, "אימות המספר בקוד פעיל: בקשו קוד והקלידו אותו."))
         if not hmac.compare_digest(tok, confirm_token(row)):
             raise ApiError(409, "number_changed", text(conn, "המספר השתנה מאז שהוצג. טענו מחדש ובדקו את המספר."))
         fields["phone_confirmed_at"] = handler_links.iso(handler_links.now_utc())
+        fields["phone_confirmed_via"] = "user"
     if "confirmed" in keys:
         if body["confirmed"] is not False:
             raise _bad(conn, "confirmed", "type")
         fields["phone_confirmed_at"] = None
+        fields["phone_confirmed_via"] = None
     if "notify_whatsapp" in keys:
         if not isinstance(body["notify_whatsapp"], bool):
             raise _bad(conn, "notify_whatsapp", "type")
