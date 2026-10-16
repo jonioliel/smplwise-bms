@@ -146,7 +146,7 @@ def test_registration_challenge_is_single_use_and_expires(px):
     replay = c.post(REG, json={"credential": cred})  # the same challenge again
     assert replay.status_code == 400 and px.audit("auth.local.passkey.refused")[-1]["reason"] == "challenge_unknown"
     opts = c.post(REG_OPTS).json()
-    for ch in lpk._challenges.values():
+    for ch in lpk.all_challenges():
         ch.created -= lpk.CHALLENGE_TTL_S + 1
     r = c.post(REG, json={"credential": FakeAuthenticator().create(opts)})
     assert r.status_code == 400 and px.audit("auth.local.passkey.refused")[-1]["reason"] == "challenge_unknown"
@@ -247,7 +247,7 @@ def test_second_factor_replayed_and_expired_challenges(px):
     r = c3.post(SF, json={"credential": cred})  # a recorded assertion replayed on a new pending step
     assert r.status_code == 401 and px.audit("auth.local.passkey.refused")[-1]["reason"] == "challenge_unknown"
     opts = c3.post(SF_OPTS).json()
-    for ch in lpk._challenges.values():
+    for ch in lpk.all_challenges():
         ch.created -= lpk.CHALLENGE_TTL_S + 1
     r = c3.post(SF, json={"credential": auth.get(opts)})
     assert r.status_code == 401 and px.audit("auth.local.passkey.refused")[-1]["reason"] == "challenge_unknown"
@@ -537,6 +537,235 @@ def test_no_audit_row_or_log_carries_a_credential_id_a_key_a_challenge_or_a_sign
         dump = json.dumps([dict(r) for r in conn.execute("SELECT * FROM audit_log").fetchall()], default=str)
     assert not any(s in dump for s in secrets_seen)
     assert not any(s in caplog.text for s in secrets_seen)
+
+
+# ---------------------------------------------------------------- 6b. security review RELEASE_264 (private/planning/RELEASE_264_REVIEW_USR2_P4.md)
+
+def _code_at(secret_b32: str, offset: int) -> str:
+    from smplwise.services import second_factor as sf
+
+    pad = "=" * (-len(secret_b32) % 8)
+    return sf.hotp(base64.b32decode(secret_b32 + pad), sf.step_of() + offset)
+
+
+def _admin_ready(px: Px, username: str = "sitey"):
+    created = px.create(username, "site_admin")
+    assert px.set_password(px.link_token(created)).status_code == 200
+    c = px.remote()
+    assert px.sign_in(c, username).json()["second_factor"] == "enroll_required"
+    return created["user"]["id"], c
+
+
+def test_f3_a_non_uv_passkey_and_a_later_administrative_role_never_make_an_unpassable_step(px):
+    """F3: the non-UV passkey would be offered as THE factor while every assertion is refused for lack of UV. It no longer counts for an
+    administrative user: the password signs in to the enrolment path, the administrative permissions stay closed, and a UV passkey
+    registered from that session becomes the factor."""
+    px.configure()
+    uid, _c, weak = _with_passkey(px, uv=False)
+    assert px.rows("SELECT uv_registered FROM auth_webauthn_credentials") == [{"uv_registered": 0}]
+    px.bind(uid, "site_admin")  # an administrative role arrives later
+    li.CACHE.clear()
+    c = px.remote()
+    r = px.sign_in(c, "maria")
+    assert r.status_code == 200 and r.json()["second_factor"] == "enroll_required", r.text  # never a 202 step nothing can pass
+    assert c.get("/arx/api/v1/access/bindings").status_code == 403  # Q3: administrative permissions closed without a factor
+    me = c.get("/arx/api/v1/me").json()["local_identity"]
+    assert me["factor_enrolled"] is False and me["passkeys"] == 0
+    listed = c.get("/arx/api/v1/auth/passkeys").json()["credentials"]
+    assert len(listed) == 1 and listed[0]["usable"] is False and listed[0]["user_verifying"] is False
+    # the way out: a UV passkey from this ordinary session (no factor yet -> a fresh sign-in suffices)
+    strong = FakeAuthenticator()
+    r = px.register(c, strong)
+    assert r.status_code == 201 and r.json()["first_factor"] is True
+    assert c.get("/arx/api/v1/access/bindings").status_code == 200
+    c2, r = px.pending("maria")
+    assert r.json()["methods"] == ["passkey"]
+    opts = c2.post(SF_OPTS).json()
+    assert [a["id"] for a in opts["publicKey"]["allowCredentials"]] == [b64u(strong.credential_id)]  # the weak key is never offered
+    assert c2.post(SF, json={"credential": weak.get(opts)}).status_code == 401
+    assert c2.post(SF, json={"credential": strong.get(c2.post(SF_OPTS).json())}).status_code == 200
+
+
+def test_f3_a_non_administrative_users_non_uv_passkey_still_counts(px):
+    px.configure()
+    _uid, _c, _auth = _with_passkey(px, uv=False)
+    _c2, r = px.pending("maria")
+    assert r.json()["methods"] == ["passkey"]
+
+
+def test_f2_removing_the_last_passkey_closes_the_administrative_permissions_of_the_current_session(px):
+    px.configure()
+    uid, c = _admin_ready(px)
+    assert px.register(c, FakeAuthenticator()).status_code == 201
+    assert c.get("/arx/api/v1/access/bindings").status_code == 200  # the first factor made in-session counts (F10)
+    pk = c.get("/arx/api/v1/auth/passkeys").json()["credentials"][0]["id"]
+    r = c.delete(f"/arx/api/v1/auth/passkeys/{pk}")  # a fresh sign-in: allowed
+    assert r.status_code == 200 and r.json()["factor_cleared"] is True, r.text
+    assert c.get("/arx/api/v1/me").status_code == 200  # the session stays (the user re-enrols from it) ...
+    assert c.get("/arx/api/v1/access/bindings").status_code == 403  # ... but no longer with the administrative permissions
+    assert c.get("/arx/api/v1/me").json()["local_identity"]["admin_permissions_blocked"] is True
+    assert px.rows("SELECT COUNT(*) AS n FROM auth_local_sessions WHERE user_id = ? AND factor_at IS NOT NULL", (uid,)) == [{"n": 0}]
+    removed = px.audit("auth.local.passkey.removed")[-1]
+    assert json.loads(removed["details_json"])["factor_cleared"] is True
+
+
+def test_f2_removing_one_of_two_factors_keeps_the_session_verified(px):
+    px.configure()
+    uid, c = _admin_ready(px)
+    assert px.register(c, FakeAuthenticator()).status_code == 201
+    assert px.register(c, FakeAuthenticator()).status_code == 201
+    pk = c.get("/arx/api/v1/auth/passkeys").json()["credentials"][0]["id"]
+    r = c.delete(f"/arx/api/v1/auth/passkeys/{pk}")
+    assert r.status_code == 200 and r.json()["factor_cleared"] is False
+    assert c.get("/arx/api/v1/access/bindings").status_code == 200
+
+
+def test_f2_disabling_totp_as_the_last_factor_closes_the_administrative_permissions(px):
+    px.configure()
+    uid, c = _admin_ready(px)
+    secret = c.post("/arx/api/v1/auth/second-factor/enroll").json()["secret"]
+    assert c.post("/arx/api/v1/auth/second-factor/confirm", json={"code": _code_at(secret, 0)}).status_code == 200
+    assert c.get("/arx/api/v1/access/bindings").status_code == 200
+    r = c.post("/arx/api/v1/auth/second-factor/disable", json={"code": _code_at(secret, 1)})
+    assert r.status_code == 200 and r.json()["enabled"] is False, r.text
+    assert c.get("/arx/api/v1/me").status_code == 200
+    assert c.get("/arx/api/v1/access/bindings").status_code == 403
+    assert px.rows("SELECT COUNT(*) AS n FROM auth_local_sessions WHERE user_id = ? AND factor_at IS NOT NULL", (uid,)) == [{"n": 0}]
+    assert json.loads(px.audit("auth.second_factor.removed")[-1]["details_json"])["factor_cleared"] is True
+
+
+def test_f2_disabling_totp_while_a_passkey_remains_keeps_the_session_verified(px):
+    px.configure()
+    uid, c = _admin_ready(px)
+    secret = c.post("/arx/api/v1/auth/second-factor/enroll").json()["secret"]
+    assert c.post("/arx/api/v1/auth/second-factor/confirm", json={"code": _code_at(secret, 0)}).status_code == 200
+    assert px.register(c, FakeAuthenticator()).status_code == 201
+    assert c.post("/arx/api/v1/auth/second-factor/disable", json={"code": _code_at(secret, 1)}).status_code == 200
+    assert c.get("/arx/api/v1/access/bindings").status_code == 200
+
+
+def test_f1_a_flood_of_passwordless_options_never_blocks_registration_or_the_second_step(px, monkeypatch):
+    px.configure(first=True)
+    monkeypatch.setattr(lpk, "MAX_PASSWORDLESS", 40)
+    uid, c, auth = _with_passkey(px)
+    for n in range(400):  # many addresses (a botnet / an IPv6 /48): far more than the pool holds
+        lpk.passwordless_options(px.db, f"2001:db8:{n:x}::/64")
+    assert lpk.live_challenges("passwordless") == 40  # full, evicting its oldest - never a 429
+    r = c.post(REG_OPTS)
+    assert r.status_code == 200, r.text  # registration is in its own pool
+    c2, _ = px.pending("maria")
+    opts = c2.post(SF_OPTS)
+    assert opts.status_code == 200, opts.text  # so is the second step
+    assert c2.post(SF, json={"credential": auth.get(opts.json())}).status_code == 200
+    # a passwordless ceremony started after the flood still works (the flood only evicted its own entries)
+    assert c.put("/arx/api/v1/auth/passkeys/first", json={"on": True}).status_code == 200
+    c3 = px.remote()
+    r = c3.post(PL, json={"credential": auth.get(c3.post(PL_OPTS).json())})
+    assert r.status_code == 200, r.text
+
+
+def test_f1_one_address_holds_only_a_handful_of_live_passwordless_challenges(px):
+    px.configure(first=True)
+    first = [lpk.passwordless_options(px.db, "198.51.100.7")["publicKey"]["challenge"] for _ in range(10)]
+    assert lpk.live_challenges("passwordless") == lpk.PASSWORDLESS_PER_ADDRESS
+    assert lpk.take(wa.b64url_decode(first[0])) is None  # the oldest went first
+    assert lpk.take(wa.b64url_decode(first[-1])) is not None
+    lpk.passwordless_options(px.db, "198.51.100.8")  # another address is unaffected
+    assert lpk.live_challenges("passwordless") == lpk.PASSWORDLESS_PER_ADDRESS  # (2 left of .7) + 1 of .8
+    # through the route: the caller's address bucket is what counts
+    c = px.remote(**_net(31))
+    for _ in range(6):
+        assert c.post(PL_OPTS).status_code == 200
+    assert sum(1 for ch in lpk.all_challenges() if ch.purpose == "passwordless" and ch.bind == hua.limit_ip("203.0.113.31")) == lpk.PASSWORDLESS_PER_ADDRESS
+
+
+def test_f1_the_bound_pools_keep_their_ceiling(px, monkeypatch):
+    px.configure()
+    monkeypatch.setattr(lpk, "MAX_CHALLENGES", 1)
+    _ca, ca = px.ready("anna")
+    _cb, cb = px.ready("boris")
+    assert ca.post(REG_OPTS).status_code == 200
+    r = cb.post(REG_OPTS)
+    assert r.status_code == 429 and r.json()["code"] == "rate_limited"
+
+
+def test_f10_passwordless_options_have_their_own_per_address_budget(px):
+    px.configure(first=True)
+    _uid, _c, _auth = _with_passkey(px)
+    c2, _ = px.pending("maria", **_net(44))
+    codes = [c2.post(PL_OPTS).status_code for _ in range(31)]
+    assert codes[:30] == [200] * 30 and codes[30] == 429
+    assert c2.post(SF_OPTS).status_code == 200  # the second-step options from the same address are untouched
+
+
+def _remote_admin(px: Px):
+    px.flag("u-owner")
+    px.bind("u-owner", "system_admin")
+    assert px.login(px.owner).status_code == 200
+    return px.client
+
+
+@pytest.mark.parametrize("key, value", [
+    ("security.local_passkey_first", "on"),
+    ("security.local_passkey_android", "com.smplwise.arx.app:" + ":".join(["AB"] * 32)),
+    ("security.local_public_url", "https://elsewhere.example.net"),
+])
+def test_f4_the_sign_in_shaping_settings_change_only_from_the_local_channel(px, key, value):
+    px.configure()
+    remote_admin = _remote_admin(px)
+    before = px.admin.get("/api/v1/settings").json()["settings"][key]
+    r = remote_admin.patch("/arx/api/v1/settings", json={key: value})
+    assert r.status_code == 403 and r.json()["code"] == "local_only" and r.json()["details"]["field"] == key, r.text
+    assert px.admin.get("/api/v1/settings").json()["settings"][key] == before
+    assert px.audit("identity.local.setting_local_only")[-1]["reason"] == "remote_channel"
+    # repeating the current value through the tunnel is no change and passes; the local channel changes it
+    assert remote_admin.patch("/arx/api/v1/settings", json={key: before}).status_code == 200
+    assert px.admin.patch("/api/v1/settings", json={key: value}).status_code == 200
+
+
+def test_f4_a_remote_patch_with_one_local_only_key_writes_nothing(px):
+    px.configure()
+    remote_admin = _remote_admin(px)
+    r = remote_admin.patch("/arx/api/v1/settings", json={"security.local_passkey_first": "on", "security.local_link_ttl_h": 24})
+    assert r.status_code == 403
+    s = px.admin.get("/api/v1/settings").json()["settings"]
+    assert s["security.local_passkey_first"] == "off" and str(s["security.local_link_ttl_h"]) != "24"
+
+
+def test_f5_an_assertion_for_the_old_address_is_refused_after_a_change(px):
+    px.configure(first=True)
+    _uid, c, auth = _with_passkey(px)
+    assert c.put("/arx/api/v1/auth/passkeys/first", json={"on": True}).status_code == 200
+    c2, _ = px.pending("maria")
+    sf_opts = c2.post(SF_OPTS).json()
+    c3 = px.remote()
+    pl_opts = c3.post(PL_OPTS).json()
+    assert px.admin.patch("/api/v1/settings", json={"security.local_public_url": "https://other.example.com"}).status_code == 200
+    assert c2.post(SF, json={"credential": auth.get(sf_opts)}).status_code == 401
+    assert px.audit("auth.local.passkey.refused")[-1]["reason"] == "rp_changed"
+    assert c3.post(PL, json={"credential": auth.get(pl_opts)}).status_code == 401
+    assert px.audit("auth.local.passkey.refused")[-1]["reason"] == "rp_changed"
+
+
+@pytest.mark.parametrize("value", ["YW=Jj", "YWJj=", "YWI==", "YWJ", "Y", "=", "YWI=x"])
+def test_f6_base64url_is_strict(value):
+    with pytest.raises(wa.WebAuthnError):
+        wa.b64url_decode(value)
+
+
+def test_f6_base64url_accepts_the_canonical_spellings():
+    assert wa.b64url_decode("YWJj") == b"abc" and wa.b64url_decode("YWI") == b"ab" and wa.b64url_decode("YWI=") == b"ab"
+
+
+def test_f7_a_changed_backup_eligibility_is_refused(px):
+    px.configure()
+    _uid, _c, auth = _with_passkey(px)  # registered BE = 0
+    auth.be = True
+    c2, _ = px.pending("maria")
+    r = c2.post(SF, json={"credential": auth.get(c2.post(SF_OPTS).json())})
+    assert r.status_code == 401 and px.audit("auth.local.passkey.refused")[-1]["reason"] == "backup_eligibility_changed"
+    auth.be = False
+    assert c2.post(SF, json={"credential": auth.get(c2.post(SF_OPTS).json())}).status_code == 200
 
 
 # ---------------------------------------------------------------- 7. the verifier itself (services/webauthn.py)

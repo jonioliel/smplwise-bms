@@ -800,6 +800,26 @@ def get_settings(principal: Principal = Depends(current_principal), conn: sqlite
     return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, **_capacity_info(conn)}
 
 
+LOCAL_ONLY_IDENTITY_KEYS = ("security.local_public_url", "security.local_passkey_first", "security.local_passkey_android")
+LOCAL_ONLY_HE = "שינוי ההגדרה הזו אפשרי רק בגישה מקומית: פתחו את המערכת מתוך Home Assistant או ברשת המקומית."
+
+
+def _local_only_identity_key(conn: sqlite3.Connection, request: Request, principal: Principal, key: str) -> None:
+    """USR2 review RELEASE_264 F4 (and the P2B/P3 review's F9): the settings that shape WHO can sign in to an Arx-only identity - the
+    public address (= the passkey RP id and where reset links point), passwordless sign-in, the Android app allowed to use this
+    site's passkeys - change only from the local channel (Ingress / the LAN), like the tickets public address (routers/tickets_admin).
+    The path itself cannot sit in remote_channel.BLOCKED_ON_REMOTE (every other setting stays remote-editable), so the refusal is per
+    key and only for an actual change: a remote PATCH that repeats the current value is untouched. Audited; the whole PATCH fails
+    (no partial write)."""
+    from ..remote_channel import is_remote
+
+    if not is_remote(request):
+        return
+    audit(conn, actor=principal, action="identity.local.setting_local_only", decision="denied", resource_type="installation", resource_id="local_identity",
+          reason="remote_channel", request_id=getattr(request.state, "correlation_id", None), details={"key": key})
+    raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": key})
+
+
 @router.patch("/settings")
 def patch_settings(body: SettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
@@ -960,6 +980,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if value is None:
             raise ApiError(422, "validation", "כתובת הגישה מרחוק: https://שם-מארח בלבד (בלי נתיב, בלי כתובת IP).", details={"field": "security.local_public_url"})
         if value != (get_setting(conn, "security.local_public_url", "") or ""):
+            _local_only_identity_key(conn, request, principal, "security.local_public_url")
             if not is_system_admin(conn, principal.user_id):
                 audit(conn, actor=principal, action="identity.local.public_url", decision="denied", resource_type="installation", resource_id="local_identity",
                       reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None))
@@ -984,6 +1005,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if value == (get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]):
             changes.pop(key)
             continue
+        _local_only_identity_key(conn, request, principal, key)
         if not is_system_admin(conn, principal.user_id):
             audit(conn, actor=principal, action="identity.local.passkey_setting", decision="denied", resource_type="installation", resource_id="local_identity",
                   reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key})

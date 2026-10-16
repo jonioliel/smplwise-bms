@@ -67,16 +67,24 @@ def b64url(data: bytes) -> str:
 
 
 def b64url_decode(value: Any, *, limit: int = 128 * 1024) -> bytes:
-    """Strict base64url (padding optional); WebAuthnError('malformed') otherwise."""
+    """Strict base64url; WebAuthnError('malformed') otherwise. Padding is optional but, when present, only at the end and of exactly the
+    right length; the encoding must be canonical (unused trailing bits zero), so one value has exactly one accepted spelling
+    (review RELEASE_264 F6: Python's decoder alone accepts inner '=' - `YW=Jj` -> `abc`)."""
     if not isinstance(value, str) or len(value) > limit or not value:
         raise WebAuthnError("malformed")
     if any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_=" for c in value):
         raise WebAuthnError("malformed")
     raw = value.rstrip("=")
+    pad = len(value) - len(raw)
+    if not raw or "=" in raw or len(raw) % 4 == 1 or (pad and pad != -len(raw) % 4):
+        raise WebAuthnError("malformed")
     try:
-        return base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
+        out = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
     except (binascii.Error, ValueError):
         raise WebAuthnError("malformed") from None
+    if b64url(out) != raw:
+        raise WebAuthnError("malformed")
+    return out
 
 
 # ---------------------------------------------------------------- CBOR (the subset WebAuthn uses)
@@ -384,6 +392,7 @@ class Asserted:
     sign_count: int
     uv: bool
     backup_state: bool
+    backup_eligible: bool = False
 
 
 def verify_assertion(*, public_key: bytes, alg: int, authenticator_data: bytes, client_data_json: bytes, signature: bytes, challenge: bytes,
@@ -401,4 +410,4 @@ def verify_assertion(*, public_key: bytes, alg: int, authenticator_data: bytes, 
     verify_signature(public_key, alg, signature, authenticator_data + hashlib.sha256(client_data_json).digest())
     if (stored_sign_count or ad.sign_count) and ad.sign_count <= int(stored_sign_count or 0):
         raise WebAuthnError("counter_regression")  # checked after the signature: only a genuine assertion can report a clone
-    return Asserted(sign_count=ad.sign_count, uv=ad.uv, backup_state=ad.backup_state)
+    return Asserted(sign_count=ad.sign_count, uv=ad.uv, backup_state=ad.backup_state, backup_eligible=ad.backup_eligible)

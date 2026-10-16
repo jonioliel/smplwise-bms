@@ -115,7 +115,12 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
         _audit_failed(conn, request, principal, "disable", exc)
         raise _fail(exc) from None
     sf.remove(conn, principal.user_id)
-    _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self")
+    factor_cleared = False
+    if principal.source == "local":  # USR2 review RELEASE_264 F2: no factor left -> this session no longer counts as factor-verified
+        from ..services import local_identity
+
+        factor_cleared = local_identity.on_factor_removed(conn, principal.user_id)
+    _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self", factor_cleared=factor_cleared)
     return sf.status(conn, principal.user_id)
 
 

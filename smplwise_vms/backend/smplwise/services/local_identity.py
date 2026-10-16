@@ -1430,6 +1430,19 @@ def on_factor_enabled(conn, settings: Settings, conn_like: Any, principal: Princ
     return ended
 
 
+def on_factor_removed(conn, user_id: str) -> bool:
+    """The user removed one of their own factors (a passkey, or TOTP `disable`). When none is left, no session of the user may keep
+    counting as factor-verified (review RELEASE_264 F2): `factor_at` is cleared on every row of the user (the caller's kept chain
+    included), so the administrative permissions close at once (rbac `factor_ok`); the user re-enrols from an ordinary session. The
+    cached sessions are dropped so the change is seen on the next request. True when the factor flag was cleared."""
+    CACHE.drop_user(user_id)
+    if has_factor(conn, user_id):
+        return False
+    conn.execute("UPDATE auth_local_sessions SET factor_at = NULL WHERE user_id = ? AND factor_at IS NOT NULL", (user_id,))
+    CACHE.drop_user(user_id)
+    return True
+
+
 def on_factor_reset(conn, user_id: str) -> int:
     if not is_local_id(user_id):
         return 0

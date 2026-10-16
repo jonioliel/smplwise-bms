@@ -10,7 +10,10 @@ Verification: services/webauthn.py (own minimal implementation on `cryptography`
   that nothing can pass - the user falls back to the password + TOTP, or to enrolment).
 - Challenges: 32 random bytes, in memory only (never in the database, never in a backup), 60 s, single use (taken - and so spent -
   by the first verification that names them, whatever its outcome), bound to their purpose and to the pending sign-in / the session
-  chain / nothing (passwordless) that asked; at most MAX_CHALLENGES live (beyond: 429).
+  chain / nothing (passwordless) that asked. One pool per purpose (review RELEASE_264 F1): `register` / `second_factor` at most
+  MAX_CHALLENGES live each (beyond: 429); the anonymous `passwordless` pool holds at most PASSWORDLESS_PER_ADDRESS per address bucket
+  and evicts its oldest entry when full (never a 429, never a refusal of the other two purposes). The assertion re-checks the
+  challenge's RP against the CURRENT setting (F5).
 - Registration: a local principal on its own session, signed in less than RECENT_AUTH_S ago, and - when the user already has a factor
   (TOTP or a usable passkey) - a session whose sign-in presented it (`factor_at`). Attestation `none`; resident key required;
   user verification `required` for a user holding an administrative permission (rbac.LOCAL_ADMIN_PERMISSIONS), else `preferred`.
@@ -105,11 +108,25 @@ def rows(conn: Any, user_id: str) -> list[Any]:
         return []
 
 
+def _counts(row: Any, rp_id: str | None, admin: bool) -> bool:
+    """Does this credential count as a usable factor? Made for the current RP id - and, for a user who holds an administrative
+    permission, registered WITH user verification (review RELEASE_264 F3: a non-UV passkey of a user who later gets an administrative
+    role would otherwise be offered as THE factor while every assertion is refused for lack of UV - a step nothing can pass. Not
+    counting it lets the user fall back to the password + the enrolment path, exactly like the RP-change case)."""
+    return rp_id is not None and row["rp_id"] == rp_id and (not admin or bool(row["uv_registered"]))
+
+
 def usable_rows(conn: Any, user_id: str) -> list[Any]:
+    from .local_identity import holds_admin
+
     r = rp(conn)
     if r is None:
         return []
-    return [row for row in rows(conn, user_id) if row["rp_id"] == r[0]]
+    found = [row for row in rows(conn, user_id) if row["rp_id"] == r[0]]
+    if not found:
+        return []
+    admin = holds_admin(conn, user_id)
+    return [row for row in found if _counts(row, r[0], admin)]
 
 
 def usable(conn: Any, user_id: str) -> bool:
@@ -131,19 +148,22 @@ def user_first_on(conn: Any, user_id: str) -> bool:
     return bool(r and r["passkey_first"])
 
 
-def view(row: Any, rp_id: str | None) -> dict[str, Any]:
+def view(row: Any, rp_id: str | None, admin: bool = False) -> dict[str, Any]:
     """What the lists show: never the credential id or the public key."""
     return {"id": row["id"], "label": row["label"], "created_at": row["created_at"], "last_used_at": row["last_used_at"],
             "synced": bool(row["backup_eligible"]), "backed_up": bool(row["backup_state"]), "transports": [t for t in (row["transports"] or "").split(",") if t],
-            "usable": rp_id is not None and row["rp_id"] == rp_id, "user_verifying": bool(row["uv_registered"])}
+            "usable": _counts(row, rp_id, admin), "user_verifying": bool(row["uv_registered"])}
 
 
 def summary(conn: Any, user_id: str) -> dict[str, Any]:
+    from .local_identity import holds_admin
+
     r = rp(conn)
     found = rows(conn, user_id)
+    admin = bool(found) and holds_admin(conn, user_id)
     return {"available": r is not None, "rp_id": r[0] if r else None, "origin": r[1] if r else None,
             "first_allowed": first_enabled(conn), "first_on": user_first_on(conn, user_id),
-            "credentials": [view(x, r[0] if r else None) for x in found]}
+            "credentials": [view(x, r[0] if r else None, admin) for x in found]}
 
 
 def recent_auth(conn: Any, s: Any) -> bool:
@@ -168,21 +188,36 @@ class _Challenge:
 
 
 _lock = threading.Lock()
-_challenges: dict[bytes, _Challenge] = {}
+# Review RELEASE_264 F1: one pool per purpose. `register` and `second_factor` are bound to a session / a pending record (one open
+# ceremony per user and purpose), so their size follows the number of real users; they keep the 429 ceiling. `passwordless` is
+# anonymous: at most PASSWORDLESS_PER_ADDRESS live per address bucket (hua.limit_ip: an IPv4 address or an IPv6 /64), and a full pool
+# evicts its OLDEST entry instead of refusing - a flood only spends the flooder's own ceremonies and never blocks a registration or a
+# second step.
+_pools: dict[str, dict[bytes, _Challenge]] = {"register": {}, "second_factor": {}, "passwordless": {}}
+MAX_PASSWORDLESS = 2000
+PASSWORDLESS_PER_ADDRESS = 3
 
 
-def _issue(purpose: str, user_id: str | None, bind: str | None, relying: tuple[str, str], uv_required: bool) -> bytes:
+def _issue(purpose: str, user_id: str | None, bind: str | None, relying: tuple[str, str], uv_required: bool, *, addr: str | None = None) -> bytes:
     now = time.time()
     value = secrets.token_bytes(32)
+    pool = _pools[purpose]
     with _lock:
-        for k in [k for k, v in _challenges.items() if now - v.created > CHALLENGE_TTL_S]:
-            _challenges.pop(k, None)
-        if len(_challenges) >= MAX_CHALLENGES:
-            raise ApiError(429, "rate_limited", BUSY_HE, retryable=True)
-        if user_id is not None:  # one open ceremony per user and purpose
-            for k in [k for k, v in _challenges.items() if v.user_id == user_id and v.purpose == purpose]:
-                _challenges.pop(k, None)
-        _challenges[value] = _Challenge(value, purpose, user_id, bind, relying[0], relying[1], uv_required, now)
+        for k in [k for k, v in pool.items() if now - v.created > CHALLENGE_TTL_S]:
+            pool.pop(k, None)
+        if purpose == "passwordless":
+            mine = [k for k, v in pool.items() if v.bind == addr]  # insertion order = oldest first
+            for k in mine[:max(0, len(mine) - PASSWORDLESS_PER_ADDRESS + 1)]:
+                pool.pop(k, None)
+            while len(pool) >= MAX_PASSWORDLESS:
+                pool.pop(next(iter(pool)), None)
+        else:
+            if len(pool) >= MAX_CHALLENGES:
+                raise ApiError(429, "rate_limited", BUSY_HE, retryable=True)
+            if user_id is not None:  # one open ceremony per user and purpose
+                for k in [k for k, v in pool.items() if v.user_id == user_id]:
+                    pool.pop(k, None)
+        pool[value] = _Challenge(value, purpose, user_id, addr if purpose == "passwordless" else bind, relying[0], relying[1], uv_required, now)
     return value
 
 
@@ -191,15 +226,24 @@ def take(value: bytes | None) -> _Challenge | None:
     if not value:
         return None
     with _lock:
-        c = _challenges.pop(value, None)
+        c = None
+        for pool in _pools.values():
+            c = pool.pop(value, None)
+            if c is not None:
+                break
     if c is None or time.time() - c.created > CHALLENGE_TTL_S:
         return None
     return c
 
 
-def live_challenges() -> int:
+def all_challenges() -> list[_Challenge]:
     with _lock:
-        return len(_challenges)
+        return [c for pool in _pools.values() for c in pool.values()]
+
+
+def live_challenges(purpose: str | None = None) -> int:
+    with _lock:
+        return sum(len(p) for k, p in _pools.items() if purpose is None or k == purpose)
 
 
 # ---------------------------------------------------------------- the credential JSON a browser sends (PublicKeyCredential.toJSON)
@@ -325,7 +369,7 @@ def register(conn: Any, settings: Any, request: Any, s: Any, body: Any, label: s
     _audit(conn, actor=s.principal, action="auth.local.passkey.registered", decision="allowed", resource_id=s.user_id,
            details={"passkey": pk, "alg": reg.alg, "synced": reg.backup_eligible, "uv": reg.uv, "first_factor": first_factor,
                     "other_sessions_ended": ended, "device_tokens_revoked": tokens}, request_id=request_id)
-    return {"passkey": view(conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (pk,)).fetchone(), relying[0]),
+    return {"passkey": view(conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (pk,)).fetchone(), relying[0], li.holds_admin(conn, s.user_id)),
             "first_factor": first_factor, "other_sessions_ended": ended}
 
 
@@ -352,9 +396,11 @@ def remove(conn: Any, user_id: str, pk_id: str, *, actor: Any, by: str, keep_cha
                request_id=request_id)
     li.drop_pending_of(user_id)
     ended = li.revoke_user_sessions(conn, user_id, "factor_reset", keep_chain=keep_chain)
+    factor_cleared = li.on_factor_removed(conn, user_id)  # review F2: the last factor gone -> the kept session is no longer factor-verified
     _audit(conn, actor=actor, action="auth.local.passkey.removed", decision="allowed", resource_id=user_id,
-           details={"passkey": pk_id, "by": by, "sessions_ended": ended, "passkey_first_switched_off": first_off}, request_id=request_id)
-    return {"removed": pk_id, "sessions_ended": ended, "passkey_first": user_first_on(conn, user_id)}
+           details={"passkey": pk_id, "by": by, "sessions_ended": ended, "passkey_first_switched_off": first_off, "factor_cleared": factor_cleared},
+           request_id=request_id)
+    return {"removed": pk_id, "sessions_ended": ended, "passkey_first": user_first_on(conn, user_id), "factor_cleared": factor_cleared}
 
 
 def set_first(conn: Any, s: Any, on: bool, request_id: str | None) -> dict[str, Any]:
@@ -393,7 +439,8 @@ def second_factor_options(db: Any, pid: str | None) -> dict[str, Any]:
                                                for r in found]}}
 
 
-def passwordless_options(db: Any) -> dict[str, Any]:
+def passwordless_options(db: Any, addr: str | None = None) -> dict[str, Any]:
+    """`addr`: the caller's address bucket (hua.limit_ip) - at most PASSWORDLESS_PER_ADDRESS live challenges each (review F1)."""
     with db.connection(mode="read", label="passkey options") as conn:
         relying = rp(conn)
         on = first_enabled(conn)
@@ -401,7 +448,7 @@ def passwordless_options(db: Any) -> dict[str, Any]:
         raise ApiError(403, "passkey_first_off", FIRST_OFF_HE)
     if relying is None:
         raise ApiError(409, "passkey_unavailable", UNAVAILABLE_HE)
-    challenge = _issue("passwordless", None, None, relying, True)
+    challenge = _issue("passwordless", None, None, relying, True, addr=addr)
     return {"publicKey": {"challenge": wa.b64url(challenge), "rpId": relying[0], "timeout": TIMEOUT_MS, "userVerification": "required", "allowCredentials": []}}
 
 
@@ -410,9 +457,13 @@ def _check(conn: Any, row: Any, cred: _Cred, rec: _Challenge, require_uv: bool) 
     counter value loses). WebAuthnError on any failure."""
     if row["rp_id"] != rec.rp_id:
         raise wa.WebAuthnError("wrong_rp_id")
+    if rp(conn) != (rec.rp_id, rec.origin):  # review F5: the address changed since the options were issued (registration does the same)
+        raise wa.WebAuthnError("rp_changed")
     out = wa.verify_assertion(public_key=wa.b64url_decode(row["public_key"], limit=4096), alg=int(row["alg"]), authenticator_data=cred.authenticator_data or b"",
                               client_data_json=cred.client_data, signature=cred.signature or b"", challenge=rec.value, origin=rec.origin, rp_id=rec.rp_id,
                               require_uv=require_uv, stored_sign_count=int(row["sign_count"] or 0))
+    if out.backup_eligible != bool(row["backup_eligible"]):  # review F7 (WebAuthn L3 6.1.3): BE never changes for a credential
+        raise wa.WebAuthnError("backup_eligibility_changed")
     if conn.execute("UPDATE auth_webauthn_credentials SET sign_count = ?, backup_state = ?, last_used_at = ? WHERE id = ? AND sign_count = ?",
                     (out.sign_count, int(out.backup_state), _now_iso(), row["id"], int(row["sign_count"] or 0))).rowcount != 1:
         raise wa.WebAuthnError("counter_regression")
@@ -598,4 +649,5 @@ def assetlinks(conn: Any) -> list[dict[str, Any]] | None:
 
 def reset_for_tests() -> None:
     with _lock:
-        _challenges.clear()
+        for pool in _pools.values():
+            pool.clear()

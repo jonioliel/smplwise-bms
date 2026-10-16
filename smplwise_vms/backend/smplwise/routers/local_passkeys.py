@@ -5,7 +5,8 @@ https - the same guard as the password sign-in, routers/local_identity._public_g
 `POST auth/local/sign-in/passkey/options`   the pending second step (cookie `arx_pending`) -> assertion options for THAT user's passkeys
 `POST auth/local/sign-in/passkey {credential}`  the pending second step answered by a passkey -> the session cookie | 401 `passkey_invalid`
 `POST auth/local/passkey/options`           passkey first: options for a discoverable credential (403 `passkey_first_off` unless the owner
-                                            switch `security.local_passkey_first` is on)
+                                            switch `security.local_passkey_first` is on); its own per-address budget and
+                                            challenge pool (review RELEASE_264 F1 / F10)
 `POST auth/local/passkey {credential}`      passkey first: the session cookie | 401 `passkey_invalid` (uniform) | 429 (the sign-in's
                                             per-address tier, shared with the password route)
 
@@ -93,10 +94,11 @@ async def second_step_passkey(body: CredentialBody, request: Request) -> Respons
 @router.post("/auth/local/passkey/options")
 async def passwordless_options(request: Request) -> Response:
     _public_guard(request)
-    refused = _ip_limit(request, "lpko", OPTIONS_LIMITS)
+    refused = _ip_limit(request, "lpkp", OPTIONS_LIMITS)  # review F10: its own budget - never starves the second-step options
     if refused is not None:
         return refused
-    return JSONResponse(await run_in_threadpool(lpk.passwordless_options, request.app.state.db))
+    addr = hua.limit_ip(hua.client_ip(request))  # review F1: a handful of live passwordless challenges per address bucket
+    return JSONResponse(await run_in_threadpool(lpk.passwordless_options, request.app.state.db, addr))
 
 
 @router.post("/auth/local/passkey")

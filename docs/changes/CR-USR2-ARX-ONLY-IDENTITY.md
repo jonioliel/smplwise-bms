@@ -258,7 +258,9 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
   validator); expected origin = `https://<that host>`, exact match. Never derived from a request header. Without the setting passkeys
   are unavailable (409 `passkey_unavailable`). A passkey stored for another RP id (the address changed) is listed as not usable,
   never offered, never accepted, and **does not count as a factor** - a changed address can never leave a user at a step nothing can
-  pass (they fall back to password + TOTP, or to enrolment).
+  pass (they fall back to password + TOTP, or to enrolment). The same rule covers a passkey registered **without** UV (allowed under
+  `preferred` for a non-administrative user): for a user who holds an administrative permission (now or later) only a passkey
+  registered with UV counts as the factor (§9.6 F3).
 - **Verification library.** Own minimal implementation (`services/webauthn.py`) on the already pinned `cryptography`: CBOR subset
   (definite lengths; tags, floats, indefinite lengths, duplicates, trailing bytes refused; depth / item bounds), COSE ES256 (P-256, point
   validated) and RS256 (>= 2048 bit), authenticatorData (rpIdHash, UP / UV / BE / BS / AT / ED, BS-without-BE refused, trailing bytes
@@ -266,7 +268,10 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
   Attestation conveyance `none`: the attestation statement is not verified whatever `fmt` says; the AAGUID is display-only.
 - **Challenges.** 32 random bytes, memory only, 60 s, single use (spent by the first verification that names them, whatever the
   outcome), bound to the purpose (`register` | `second_factor` | `passwordless`), to the session chain (register) or the pending
-  sign-in (second factor), one open ceremony per user and purpose, at most 5000 live (beyond: 429). Never stored, so never in a backup.
+  sign-in (second factor), one open ceremony per user and purpose. One pool per purpose (§9.6 F1): `register` and `second_factor` at
+  most 5000 live each (beyond: 429); the anonymous `passwordless` pool at most 3 live per address bucket (an IPv4 address / an IPv6 /64)
+  and 2000 in all, evicting its oldest entry when full (never a 429, never a refusal of the other two purposes). An assertion is
+  refused (`rp_changed`) when the address changed since its options were issued (§9.6 F5). Never stored, so never in a backup.
 - **Registration** (`POST auth/passkeys/register[/options]`): a local principal on its own session, signed in < 5 minutes ago, and -
   when the user already has a factor (TOTP or a usable passkey) - a session whose sign-in presented it (`factor_at`); otherwise 403
   `reauth_required`. Resident key required; UV `required` for a user holding an administrative permission (LOCAL_ADMIN_PERMISSIONS),
@@ -284,7 +289,8 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
 - **Passkey first** (passwordless): only while the owner switch `security.local_passkey_first` is on (default off; system administrators
   only; audited `identity.local.passkey_setting`; never restored from a backup) AND the user opted in (`PUT auth/passkeys/first {on}`:
   needs a usable passkey and a fresh sign-in; off always allowed; an administrator may switch it **off** - never on - through
-  `PATCH identity/local-users/{id} {passkey_first: false}`). Discoverable credential, empty allow list, UV always required, the user
+  `PATCH identity/local-users/{id} {passkey_first: false}`). Discoverable credential, empty allow list, UV always required (as asserted
+  by the authenticator: attestation `none` means the UV flag is the authenticator's word, not verified - §9.6 F11), the user
   handle must match the credential's owner. The session counts as factor-verified (the authenticator's biometric / PIN is the second
   factor). Every refusal is the same 401 `passkey_invalid`. The route consumes the password sign-in's per-address budget
   (`TIERS.hit_ip`: 20 / min, 100 / h, 300 / day) and the global storm wait; a failure counts towards the global storm.
@@ -296,7 +302,8 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
   the update is conditional on the stored value (a concurrent use of the same value loses). A regression refuses the assertion and writes
   `auth.local.passkey.counter_regression`. Both zero = an authenticator without a counter (synced passkeys) - accepted.
 - **Removal.** Self: `DELETE auth/passkeys/{id}` needs a fresh sign-in (as registration) or the current TOTP code; the user's other
-  sessions end (`factor_reset`). Administrator: `DELETE identity/local-users/{id}/passkeys/{pk}` (`identity.local.manage`; an
+  sessions end (`factor_reset`); when no factor is left, the caller's kept session stops counting as factor-verified (`factor_at`
+  cleared - administrative permissions close at once; the same for TOTP `disable` of a local user; §9.6 F2). Administrator: `DELETE identity/local-users/{id}/passkeys/{pk}` (`identity.local.manage`; an
   administrator who has a TOTP factor shows their own code - the CR-011 M1 step-up, now shared as `routers/second_factor.require_step_up`
   by both resets); every local session of the user ends; the password is never touched.
 - **Password change of a passkey-only user** (no TOTP): needs a fresh sign-in that presented the passkey (403 `reauth_required`
@@ -307,7 +314,11 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
 - **Android app WebView.** `GET /.well-known/assetlinks.json` (outside `/api/v1`, public by nature) serves the Digital Asset Links
   statement (`delegate_permission/common.get_login_creds`) built from `security.local_passkey_android` (`<package>:<SHA-256
   fingerprint>` lines; validated; system administrators only; never restored) - only while the feature is on, else 404. Each site
-  still needs a tunnel route for that root path to the add-on (CR-011 §4.C).
+  still needs a tunnel route for that root path to the add-on (CR-011 §4.C) - **the exact path `/.well-known/assetlinks.json`, never a
+  wildcard** (a non-prefixed path lands on the local channel; §9.6 F9).
+- **Local-channel-only settings** (§9.6 F4): `security.local_public_url`, `security.local_passkey_first` and
+  `security.local_passkey_android` change only from the local channel (Ingress / LAN); a remote PATCH that changes one answers 403
+  `local_only` (audited `identity.local.setting_local_only`; the whole PATCH writes nothing); repeating the current value passes.
 - **Audit** (ids only - the credential's public `pk_` id, never a credential id, a public key, a challenge or a signature):
   `auth.local.passkey.registered|removed|used|refused|counter_regression|first_enabled|first_disabled`,
   `identity.local.user.passkey_removed`, `identity.local.passkey_setting`; the sign-in rows carry `factor: passkey | passkey_first`.
@@ -320,7 +331,7 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
 |---|---|---|
 | `POST /arx/api/v1/auth/local/sign-in/passkey/options` | holder of a pending cookie (a correct password < 5 min ago) | public guard (remote, switch, https, login CSRF); 30 / min + 300 / h per address; 401 without a live pending record; reveals only that user's credential ids (to the password holder) |
 | `POST /arx/api/v1/auth/local/sign-in/passkey` | holder of a pending cookie | public guard; 20 / min per address shared with the TOTP step; challenge bound to the pending record + user; cross-user credential refused; UV for administrative users; the pending record's 5 attempts; uniform 401 |
-| `POST /arx/api/v1/auth/local/passkey/options` | anyone on the internet (through the tunnel) | public guard; 403 unless `security.local_passkey_first` is on; 30 / min + 300 / h per address; empty allow list (no user enumeration); challenge store bounded (5000, 60 s) |
+| `POST /arx/api/v1/auth/local/passkey/options` | anyone on the internet (through the tunnel) | public guard; 403 unless `security.local_passkey_first` is on; 30 / min + 300 / h per address; empty allow list (no user enumeration); its own options budget (not shared with the second-step options); its own challenge pool (3 live per address, 2000 in all, evict-oldest, 60 s) |
 | `POST /arx/api/v1/auth/local/passkey` | anyone on the internet | public guard; the sign-in's per-address tier (shared with the password route) and the global storm wait; owner switch + user opt-in + UV + user handle; uniform 401; unknown-credential audit rows throttled per address |
 | `/arx/api/v1/auth/passkeys*` | the local user itself | own session only (`LocalSession` of the same user); fresh sign-in rule for register / remove / passkey-first on; 20 / min + 100 / h per user; part of the enrolment gate's allowed paths |
 | `/api/v1/identity/local-users/{id}/passkeys*` | `identity.directory.read` (list) / `identity.local.manage` (remove) - system administrators | audited; CR-011 step-up when the administrator has TOTP; lists never carry credential ids or keys |
@@ -352,7 +363,9 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
   5. The Android app WebView: androidx.webkit >= 1.12.1, `setWebAuthenticationSupport(...FOR_APP)`, the tunnel route for
      `/.well-known/assetlinks.json`, and which `origin` the WebView puts into clientDataJSON (assumed the page origin).
   6. iOS app shell WebView: passkey support NOT_VERIFIED.
-  7. An administrative user with a non-UV security key: refused at registration and at the second step.
+  7. An administrative user with a non-UV security key: refused at registration; a non-UV key registered before an administrative
+     role arrived is not offered at the second step and does not count as the factor (the user signs in with the password to the
+     enrolment path - §9.6 F3). Real-device check NOT_RUN.
 - Frontend: `tsc` and the node-only helper spec ran; the browser spec `unit-arx-local-login.spec.ts` and the UI screenshots
   (desktop / mobile / RTL, loading / empty / error / ready) were NOT_RUN (local light checks only during this round).
 - Timing uniformity of the passwordless route between a known and an unknown credential: not measured (an unknown credential skips
@@ -362,3 +375,37 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
 
 Switch `security.local_passkey_first` off (passwordless stops at once) or `security.local_identity` off (everything stops). Code
 rollback: revert the branch; migration 0098 is additive (a new table, a defaulted column) and older code ignores both.
+
+### 9.6 Security review RELEASE_264 (USR2-P4) - fixes on `pilot/USR2-P4-FIX` (2026-10-16)
+
+Review: `private/planning/RELEASE_264_REVIEW_USR2_P4.md` (verdict: no blocker, no account-takeover path). Migration number unchanged
+(0098, provisional); no migration added. Tests: `tests/test_local_passkeys.py` section 6b (written first and seen failing on the
+unfixed code).
+
+| # | Fix | Choice and reason |
+|---|---|---|
+| F3 | For a user who holds an administrative permission, `usable_rows` (hence `has_factor`, the 202 `methods`, `allowCredentials`, `me.passkeys`, the list's `usable`) counts only passkeys registered with UV (`uv_registered = 1`). | The smaller safe change of the two the review offered: requiring UV at every registration would refuse every non-UV security key for ordinary users (a behaviour change for them) and would not help keys registered before. Counting only UV keys makes the user fall back to password + enrolment - the same path as the RP-change case - so there is never a step nothing can pass. |
+| F2 | `local_identity.on_factor_removed`: after a self-removal (passkey `remove`, TOTP `disable` of a local user), when no factor is left, `factor_at` is cleared on every session row of the user and the session cache dropped; audited `factor_cleared`. | Option (a) (clear) instead of (b) (refuse the last-factor removal for administrative users): the administrative permissions close at once, the user keeps an ordinary session to re-enrol from, and no new refusal path / recovery dependency is introduced. HA identities' TOTP `disable` is unchanged (their remote sign-in is outside this CR). |
+| F1 | One challenge pool per purpose; `passwordless` at most 3 live per address bucket and 2000 in all with evict-oldest; `register` / `second_factor` keep their own 5000 + 429. | As the review proposed; the passwordless TTL stays 60 s (a shorter one would cut slow device prompts). |
+| F4 / P2B-P3 F9 | `security.local_public_url`, `security.local_passkey_first`, `security.local_passkey_android`: an actual change from the remote channel answers 403 `local_only` (`routers/settings._local_only_identity_key`, `remote_channel.is_remote`, the `routers/tickets_admin` pattern). | `/api/v1/settings` cannot go into `BLOCKED_ON_REMOTE` as a path (every other setting stays remote-editable), so the refusal is per key. `pilot/USR2-P3-FIX` had not touched `routers/settings.py` when this was written (checked, not merged); whichever branch merges second must keep one implementation (this helper covers `local_public_url` too). |
+| F5 | Both assertion paths refuse `rp_changed` when the current `security.local_public_url` differs from the challenge's RP. | As registration already did. |
+| F6 | `b64url_decode` is strict: `=` only as trailing padding of the right length, canonical encoding (unused bits zero). | The docstring's claim is now true. |
+| F7 | An assertion whose BE flag differs from the registered value is refused (`backup_eligibility_changed`). | WebAuthn L3. |
+| F10 | `POST auth/local/passkey/options` has its own per-address budget (`lpkp`), no longer shared with the second-step options (`lpko`). | |
+| F8 | NOT fixed: pydantic validation before `_public_guard` (422 instead of 404 / 403) - the same pattern as the existing sign-in routes; changing it means moving body parsing into every public route. Recorded. | |
+| F9 | Documentation only (exact tunnel path, §9.1). The middleware handling of `/.well-known/assetlinks.json` (strip identity headers, 404 for other non-prefixed paths from a non-proxy peer) is NOT built - a `remote_channel` change outside this branch's scope. | |
+| F11 | Recorded (§9.1): UV is the authenticator's assertion under attestation `none`. | Inherent to the owner-approved conveyance. |
+
+Contract / documentation mismatches the review listed (item 3), recorded rather than silently resolved:
+
+1. §9.1 "a changed address can never leave a user at a step nothing can pass" was true only for the RP change; the non-UV-passkey +
+   later administrative role case contradicted it until F3. Now covered and stated in §9.1; §9.4 item 7 reworded (the old wording
+   "refused ... at the second step" meant a lock-out).
+2. §9.1 "at most 5000 live (beyond: 429)" described one shared pool reachable anonymously once passkey first is on (F1). Replaced by
+   the per-purpose description.
+3. `services/webauthn.py` "Strict base64url" was not strict (F6). Code fixed to match the docstring.
+4. §9.1 "UV always required" (passwordless) did not say UV is self-asserted under attestation `none` (F11). Added.
+5. §9.1 Android: the tunnel route's exact-path requirement was missing (F9). Added.
+6. §9.1 "the session counts as having shown the factor" had no converse rule for the last factor leaving (F2); `routers/second_factor.disable`
+   and `local_passkeys.remove_own` cleared nothing. The converse rule now exists (§9.1 Removal) for local users; for HA identities the
+   TOTP `disable` still leaves their remote sign-in as it was (pre-existing, outside CR-USR2).
