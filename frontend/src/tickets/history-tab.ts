@@ -67,7 +67,7 @@ export class HistoryTab implements ReactiveController {
         </ol>
         ${rows.length ? nothing : html`<p class="slot-note" data-history-empty>${cvt('h_empty_filter')}</p>`}
         ${win.hidden ? html`<button type="button" class="btn sm quiet hv-all" data-history-all @click=${() => { this.all = true; this.host.requestUpdate(); }}>
-          ${tIcon('clock')}${cvt('older', { n: win.hidden })}</button>` : nothing}
+          ${tIcon('clock')}${cvt('h_more', { n: win.hidden })}</button>` : nothing}
       </section>
       ${this.files(t)}
       ${this.audit(items, ctx)}`;

@@ -3,6 +3,7 @@ import {
   activeSub, afterSend, buildTimeline, canForward, convSubs, dayLabel, editDraft, enterSends, eventItem, filterCounts, filterItems, forwardedNotes,
   initialConv, inSub, linkAuditRows, openedAfter, outboxDelivery, prefillFromNote, sendPlan, subItems, switchSub, unreadIn, windowLast, withDays, CONV_WINDOW,
 } from '../src/tickets/conversation-model';
+import { CONV_TEXT_EN_KEYS, CONV_TEXT_KEYS, convTemplate } from '../src/tickets/conversation-text';
 import type { TicketEvent } from '../src/api/tickets';
 import type { TicketMessage } from '../src/api/tickets-messages';
 
@@ -169,4 +170,20 @@ test('the last 20 items, "הודעות קודמות" renders the rest in place; 
   const items = buildTimeline({ events: [ev('note', '2026-10-16T07:00:00Z', { actor: me, external: true, body: 'x' }), ev('link_opened', '2026-10-16T08:00:00Z', { actor: vendor })] });
   expect(openedAfter(items[0], items)).toBe(true);
   expect(openedAfter(items[0], items.slice(0, 1))).toBe(false);
+});
+
+test('the catalogue: every Hebrew text has an English one; the verbs and captions of IA §4.2; no retired word, no default name', () => {
+  const en = new Set(CONV_TEXT_EN_KEYS);
+  expect(CONV_TEXT_KEYS.filter((k) => !en.has(k))).toEqual([]);
+  for (const k of CONV_TEXT_KEYS)
+    for (const lang of ['he', 'en'] as const) {
+      const s = convTemplate(k, lang);
+      expect(s.trim(), `${lang}.${k}`).not.toBe('');
+      expect(s, `${lang}.${k}`).not.toMatch(/קריא(ה|ות|ת)|\bTickets?\b|Home Assistant/);
+    }
+  expect(convTemplate('save_team', 'he')).toBe('שמירה');
+  expect(convTemplate('send_vendor', 'he')).toBe('שליחה ל{name}');
+  expect(convTemplate('cap_team', 'he')).toBe('הצוות בלבד · הספק לא רואה');
+  // the placeholders stay within the IA §5 budget (≤ 40 characters with a short name)
+  for (const k of ['ph_vendor_whatsapp', 'ph_vendor_email', 'ph_vendor_page', 'ph_team'] as const) expect(convTemplate(k, 'he').replace('{name}', 'משה').length, k).toBeLessThanOrEqual(40);
 });

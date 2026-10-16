@@ -78,7 +78,7 @@ test.describe('TKUI2 conversation / history evidence', () => {
   });
 
   test('"הצוות": the yellow notes, the team composer only; "שלח לספק" pre-fills the vendor composer and the send is a forward', async ({ page }) => {
-    const mock = await go(page, CONV);
+    await go(page, CONV);
     const c = d(page).locator('[data-conv]');
     await c.locator('[data-conv-sub="team"]').click();
     await expect(c.locator('[data-conv-sub="team"]')).toHaveAttribute('aria-pressed', 'true');
@@ -96,7 +96,7 @@ test.describe('TKUI2 conversation / history evidence', () => {
       await shot(page, 'conv-team', scheme);
     }
     // the forward: switches to "עם הספק", pre-fills and focuses the vendor composer - nothing is sent yet
-    await go(page, CONV);
+    const mock = await go(page, CONV);
     await c.locator('[data-conv-sub="team"]').click();
     const note = c.locator('[data-type="internal_note"]').last();
     const noteId = await note.getAttribute('data-item');
