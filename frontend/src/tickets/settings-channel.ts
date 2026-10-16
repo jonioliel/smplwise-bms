@@ -230,7 +230,7 @@ export class TicketsChannelSettings extends LitElement {
     if (this.failed) return html`<sw-state-panel state="error" heading=${this.failed}></sw-state-panel>`;
     const v = this.view;
     if (!v) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    return html`<div class="stack" data-channel-settings>${this.whatsappCard(v)}${this.usesCard(v)}${this.accountsCard(v)}${this.healthCard(v)}</div>`;
+    return html`<div class="stack cols" data-channel-settings>${this.whatsappCard(v)}${this.usesCard(v)}${this.accountsCard(v)}${this.healthCard(v)}</div>`;
   }
 }
 

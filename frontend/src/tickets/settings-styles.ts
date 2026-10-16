@@ -18,21 +18,33 @@ export const ticketSettingsCss = css`
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-medium);
   }
+  /* TKUI6: the label / hint / control rows of mock-up v5 (a hairline from the palette, a calm minimum height) */
+  .row {
+    min-block-size: 54px;
+    border-block-end-color: var(--dv-border, var(--sw-border));
+  }
+  .row .lbl {
+    font-weight: var(--sw-fw-semibold);
+  }
   /* a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
   .row.stack .lbl {
     flex: none;
   }
   .in {
     box-sizing: border-box;
-    min-block-size: 36px;
-    padding-inline: 10px;
-    border: 1px solid var(--sw-border-strong);
-    border-radius: var(--sw-r-sm);
-    background: var(--sw-surface);
+    min-block-size: var(--sw-touch-desktop);
+    padding-inline: 12px;
+    border: 1px solid var(--dv-border, var(--sw-border-strong));
+    border-radius: var(--dv-radius-control, var(--sw-r-sm));
+    background: var(--dv-surface-2, var(--sw-surface));
     color: var(--sw-text);
     font: inherit;
     font-size: var(--sw-fs-sm);
     min-inline-size: 0;
+  }
+  .in:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 1px;
   }
   .in[aria-invalid='true'] {
     border-color: var(--sw-danger);
@@ -44,8 +56,9 @@ export const ticketSettingsCss = css`
     inline-size: 104px;
   }
   textarea.in {
-    padding-block: 8px;
-    min-block-size: 72px;
+    padding-block: 10px;
+    min-block-size: 88px;
+    border-radius: var(--dv-radius-sm, var(--sw-r-sm));
     resize: vertical;
     inline-size: 100%;
   }
@@ -126,7 +139,7 @@ export const ticketSettingsCss = css`
     font: inherit;
     cursor: pointer;
     padding: 0 2px;
-    min-block-size: 24px;
+    min-block-size: var(--sw-touch-desktop);
   }
   .rm:hover {
     color: var(--sw-danger);
@@ -135,15 +148,19 @@ export const ticketSettingsCss = css`
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    min-block-size: 36px;
-    padding-inline: 14px;
+    min-block-size: var(--sw-touch-desktop);
+    padding-inline: 16px;
     border-radius: 999px;
-    border: 1px solid var(--sw-border-strong);
-    background: var(--sw-surface);
+    border: 1px solid var(--dv-border, var(--sw-border-strong));
+    background: var(--dv-surface-2, var(--sw-surface));
     color: var(--sw-text-2);
     font: inherit;
     font-size: var(--sw-fs-sm);
     cursor: pointer;
+  }
+  .rc:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 2px;
   }
   .rc[aria-pressed='true'] {
     background: var(--sw-accent);
@@ -208,6 +225,7 @@ export const ticketSettingsCss = css`
     display: flex;
     align-items: center;
     gap: 10px;
+    min-block-size: var(--sw-touch-desktop);
     padding: 10px;
     border-radius: var(--sw-r-md);
     cursor: pointer;
@@ -379,6 +397,22 @@ export const ticketSettingsCss = css`
     font-size: var(--sw-fs-sm);
     min-inline-size: 0;
     overflow-wrap: anywhere;
+  }
+  /* TKUI6: a stack of cards in two columns (the channel and the costs screens), one column on a narrow page */
+  .stack.cols {
+    display: block;
+    columns: 2 380px;
+    column-gap: 18px;
+    max-inline-size: none;
+  }
+  .stack.cols > * {
+    break-inside: avoid;
+    margin-block-end: 18px;
+  }
+  @container (max-width: 900px) {
+    .stack.cols {
+      columns: 1;
+    }
   }
   /* the layout follows the space the component really has (a settings page sits beside the settings index), not the window */
   :host {

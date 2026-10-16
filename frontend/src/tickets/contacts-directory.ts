@@ -500,7 +500,6 @@ export class TicketsContacts extends LitElement {
     const seg = <T extends string>(label: string, values: readonly T[], current: T, text: (v: T) => string, on: (v: T) => void, attr: string) => html`
       <div class="fld"><span>${label}</span><span class="seg" role="radiogroup" aria-label=${label}>${values.map((v) => html`<button type="button" role="radio"
         aria-checked=${String(current === v)} aria-pressed=${String(current === v)} data-field=${`${attr}:${v}`} @click=${() => on(v)}>${text(v)}</button>`)}</span></div>`;
-    const fresh = this.kind ? tt(`ctNew_${this.kind}` as TicketTextKey) : tt('ctFormNew');
     return html`<div class="drawer-body" data-card="contact-editor" data-contact=${c?.id ?? 'new'} data-contact-kind=${d.kind}>
       <div class="form">
         ${kinds.length ? seg(tt('ctColKind'), kinds, d.kind, (v) => tt(`ctKind_${v}` as TicketTextKey), (v) => this.set({ kind: v, vendor_id: v === 'person' ? d.vendor_id : '' }), 'kind') : nothing}

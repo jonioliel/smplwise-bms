@@ -158,9 +158,9 @@ export class TicketsHandlersPage extends LitElement {
     this.offNames?.();
   }
 
-  protected willUpdate(changed: PropertyValues<this>): void {
+  protected willUpdate(changed: PropertyValues): void {
     // a department chip that left the list (or a viewer who sees fewer departments) never leaves the page filtered by nothing
-    if (changed.has('meta') && this.dept && !this.meta?.departments.some((d) => d.id === this.dept)) this.dept = '';
+    if (changed.has('meta' as never) && this.dept && !this.meta?.departments.some((d) => d.id === this.dept)) this.dept = '';
   }
 
   private onHash = () => {

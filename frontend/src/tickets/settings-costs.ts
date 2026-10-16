@@ -200,7 +200,7 @@ export class TicketsCostsSettings extends LitElement {
     if (this.failed) return html`<sw-state-panel state="error" heading=${this.failed}></sw-state-panel>`;
     const d = this.doc;
     if (!d) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    return html`<div class="stack" data-costs-settings>${this.installationCard(d.costs)}${this.depts ? this.departmentsCard(this.depts) : nothing}</div>`;
+    return html`<div class="stack cols" data-costs-settings>${this.installationCard(d.costs)}${this.depts ? this.departmentsCard(this.depts) : nothing}</div>`;
   }
 }
 
