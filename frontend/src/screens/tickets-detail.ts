@@ -8,7 +8,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type ModuleState } from '../api/tickets';
-import { lastScope } from '../tickets/model';
+import { lastScope, ticketHref } from '../tickets/model';
+import { parseAssignParam } from '../tickets/create-assign-model';
 import { tt } from '../tickets/text';
 import { tIcon } from '../tickets/icons';
 import { setTicketNames } from '../tickets/naming';
@@ -53,7 +54,13 @@ export class TicketsDetailPage extends LitElement {
       return html`<div class="page"><div class="statebox glass" role="status" data-tickets-state="error"><span class="ring">${tIcon('warning')}</span><b>${this.failed}</b></div></div>`;
     }
     if (!this.module) return html`<div class="page" aria-busy="true"></div>`;
-    return html`<ticket-detail mode="page" .ticketId=${this.ticketId} .detailMode=${this.module.ui.detail} .scope=${lastScope()} data-screen="tickets-detail"></ticket-detail>${nothing}`;
+    // TKUI1: a deep link may pass `?tab=` (a push / WhatsApp link made for that purpose); else the module's default tab
+    const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+    const tab = params.get('tab') ?? (params.get('view') === 'timeline' ? 'history' : '');
+    return html`<ticket-detail mode="page" .ticketId=${this.ticketId} .detailMode=${this.module.ui.detail} .scope=${lastScope()} .initialTab=${tab}
+      .defaultTab=${this.module.ui.detail_tab ?? ''} .assignContact=${parseAssignParam(params.get('assign'))}
+      @assign-consumed=${() => history.replaceState(history.state, '', `${window.location.pathname}${window.location.search}${ticketHref(this.ticketId)}`)}
+      data-screen="tickets-detail"></ticket-detail>${nothing}`;
   }
 }
 

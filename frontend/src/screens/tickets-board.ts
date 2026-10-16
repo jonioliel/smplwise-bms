@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../tickets/ticket-card';
+import { parseAssignParam, withAssign } from '../tickets/create-assign-model'; // TKUI1: the new-request sheet's vendor flow
 import '../tickets/ticket-detail';
 import '../tickets/ticket-create';
 import '../tickets/board-tree';
@@ -515,13 +516,16 @@ export class TicketsBoard extends LitElement {
       ${this.header()}
       ${this.body()}
     </div>
-    ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${'department'} .focusTimeline=${this.route?.params.get('view') === 'timeline'}
+    ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${'department'} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
+      .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
+      @assign-consumed=${() => writeHref(boardHref(this.r, { t: this.r.ticketId }), true)}
       @drawer-close=${this.closeDrawer} @ticket-changed=${() => void this.load(true)} @ticket-gone=${this.onGone}></ticket-detail>` : nothing}
     ${this.module?.enabled && this.meta?.can.create ? html`<ticket-create .open=${this.r.creating && this.screen === 'ready'} .meta=${this.meta} .mode=${ui?.new_ticket ?? 'sheet'} .scope=${'department'} .detailMode=${ui?.detail ?? 'drawer_fullscreen'}
-      @close=${() => writeHref(boardHref(this.r), false)} @created=${(e: CustomEvent<{ ticket: TicketDetail | null; id: string; number: number; result: 'created' | 'absorbed'; failedPhotos: number }>) => {
+      @close=${() => writeHref(boardHref(this.r), false)} @created=${(e: CustomEvent<{ ticket: TicketDetail | null; id: string; number: number; result: 'created' | 'absorbed'; failedPhotos: number; assignContact?: string }>) => {
         const x = e.detail;
         this.say(x.failedPhotos ? tt('photosFailed', { n: x.failedPhotos }) : tt(x.result === 'absorbed' ? 'absorbed' : 'created', { n: x.number }), x.failedPhotos ? 'bad' : 'ok');
-        writeHref(this.detailMode() === 'fullscreen' ? ticketHref(x.id) : boardHref(this.r, { t: x.id }), true);
+        const href = this.detailMode() === 'fullscreen' ? ticketHref(x.id) : boardHref(this.r, { t: x.id });
+        writeHref(x.assignContact && x.result === 'created' ? withAssign(href, x.assignContact) : href, true); // TKUI1: the vendor flow, step two
         void this.load(false);
       }}></ticket-create>` : nothing}
     ${this.toast ? html`<div class=${`banner flt ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-tickets-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div>${this.toast.text}</div></div>` : nothing}`;

@@ -2323,6 +2323,9 @@ Dragging a card calls the same status route; drop zones of transitions the calle
 | `grouping` (D20) | `always` / `no_status_filter` / `never` | `no_status_filter` | whether the cards view groups into ממתין לי / תקועות / בטיפול |
 | `closed_strip` (D21) | `week` / `all` / `hidden` | `all` | the last item of the state strip: "נסגרו השבוע", "סגורות (הכול)" or nothing |
 | `new_ticket` (D22) | `sheet` / `dialog` | `sheet` | the create form as a side sheet or a centred dialog |
+| `detail_tab` (TKUI1, 2.6.0) | `overview` / `conv` / `costs` / `history` | `overview` | the tab a request opens on; a deep link's `?tab=` wins |
+| `drawer_size` (TKUI1) | `drawer` / `wide` / `full` | `wide` | the desktop drawer size (520 / 640 / full screen); each viewer's own switch wins (kept in the browser) |
+| `phone_sheet` (TKUI1) | `full` / `half` | `full` | the phone sheet opens at full height or as the half sheet (status block + the Now rows + "הצג הכול") |
 
 The values reach every signed-in user through `GET /tickets/module` (`ui: {...}`), so no settings read is needed.
 

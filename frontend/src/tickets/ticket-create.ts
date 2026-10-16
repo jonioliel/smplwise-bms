@@ -16,6 +16,10 @@ import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
 import { deviceBlock, deviceBlockStyles, type DeviceRef } from './ticket-device-context';
+import { isApi } from '../api/session';
+import { ticketsS4Api, type AssigneesAnswer, type ExternalAssignee, type Readiness } from '../api/tickets-s4';
+import { LATER, createAssignGroups, parsePick, type CreateGroupKey } from './create-assign-model';
+import { dwt, type DrawerTextKey } from './drawer-text';
 
 /**
  * CR-038 `<ticket-create .open .meta mode="sheet|dialog">`: the create form (D22: a side sheet - the automation builder's 620 px sheet - or a
@@ -47,6 +51,12 @@ export class TicketCreate extends LitElement {
   @state() private assignTo = '';
   /** TKSTAFF2: the department's handlers (account holders and staff contacts without an account); ssignTo is a handler key */
   @state() private eligible: Handler[] | null = null;
+  /** TKUI1 (owner 16.10): the outside contacts of the department (the vendor flow, two steps) and what sending outside needs */
+  @state() private contacts: ExternalAssignee[] | null = null;
+  @state() private external = false;
+  @state() private publicReady = false;
+  @state() private readiness: Readiness | null = null;
+  @state() private asgQuery = '';
   @state() private similar: TicketItem[] = [];
   @state() private busy = false;
   @state() private error = '';
@@ -63,6 +73,34 @@ export class TicketCreate extends LitElement {
     sw-dialog {
       --sw-surface: var(--dv-surface-solid);
       --sw-glass-blur: none;
+    }
+    .pick.grouped .ghead {
+      padding: 6px 4px 0;
+      font-size: var(--sw-fs-xs);
+      font-weight: 700;
+      color: var(--dv-text-3);
+    }
+    .xreason {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: var(--sw-r-lg);
+      border: 1px dashed var(--dv-border);
+      color: var(--dv-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .xreason a {
+      color: var(--dv-accent-text);
+      font-weight: 600;
+    }
+    .hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--dv-text-2);
+      font-size: var(--sw-fs-sm);
     }
   `];
 
@@ -101,6 +139,8 @@ export class TicketCreate extends LitElement {
     this.files = [];
     this.assignTo = '';
     this.eligible = null;
+    this.contacts = null;
+    this.asgQuery = '';
     this.similar = [];
     this.error = '';
     this.tried = false;
@@ -122,7 +162,12 @@ export class TicketCreate extends LitElement {
     if (byDomain) this.pickCategory(byDomain.id);
     this.assignTo = '';
     this.eligible = null;
-    if (d?.can_manage) void ticketsApi().assignees(id).then((r) => { if (this.dept === id) this.eligible = handlersOf(r); }).catch(() => (this.eligible = []));
+    this.contacts = null;
+    if (d?.can_manage) void ticketsApi().assignees(id).then((r) => {
+      if (this.dept !== id) return;
+      this.eligible = handlersOf(r);
+      this.takeOutside(r as AssigneesAnswer, id);
+    }).catch(() => { this.eligible = []; this.contacts = []; });
   }
 
   private pickCategory(id: string): void {
@@ -181,9 +226,24 @@ export class TicketCreate extends LitElement {
     return url;
   }
 
-  /** The picked handler as the create route's `assign` ({kind, id}), or null ("assign later"). */
+  /** The outside part of GET tickets/assignees (a server carries it; the demo store answers it from the slice-4 store). */
+  private takeOutside(r: AssigneesAnswer, dept: string): void {
+    const set = (x: AssigneesAnswer) => {
+      if (this.dept !== dept) return;
+      this.contacts = x.contacts ?? [];
+      this.external = !!x.external;
+      this.publicReady = !!x.public_ready;
+      this.readiness = x.readiness ?? null;
+    };
+    if (r.contacts !== undefined || isApi()) set(r);
+    else void ticketsS4Api().externalAssignees(dept, '').then(set).catch(() => (this.contacts = []));
+  }
+
+  /** The picked handler as the create route's `assign` ({kind, id}), or null ("assign later" - and a vendor: never assigned here). */
   private assignee(): { kind: 'user' | 'contact'; id: string } | null {
-    const h = (this.eligible ?? []).find((x) => x.key === this.assignTo);
+    const p = parsePick(this.assignTo);
+    if (p.kind !== 'handler') return null;
+    const h = (this.eligible ?? []).find((x) => x.key === p.id);
     return h ? assigneeRef(h) : null;
   }
 
@@ -209,7 +269,10 @@ export class TicketCreate extends LitElement {
           }
         }
       }
-      this.dispatchEvent(new CustomEvent('created', { detail: { ticket, id: answer.id, number: answer.number, result: answer.result, failedPhotos: failed }, bubbles: true, composed: true }));
+      // TKUI1: a vendor is assigned in step two - the screen opens the new request with the external-assign dialog prefilled
+      const pick = parsePick(this.assignTo);
+      const assignContact = pick.kind === 'vendor' && answer.result === 'created' ? pick.id : undefined;
+      this.dispatchEvent(new CustomEvent('created', { detail: { ticket, id: answer.id, number: answer.number, result: answer.result, failedPhotos: failed, assignContact }, bubbles: true, composed: true }));
     } catch (e) {
       this.error = describeError(e);
     } finally {
@@ -262,13 +325,39 @@ export class TicketCreate extends LitElement {
           <label class="ph add" data-create-photo-add>${tIcon('plus')}<span>${tt('addPhoto')}</span><input type="file" accept="image/jpeg,image/png" multiple aria-label=${tt('addPhoto')} @change=${this.onFiles} /></label>
         </div>
       </div>
-      ${d?.can_manage ? html`<div class="fld" data-create-assignee><span>${tt('fAssignee')}</span>
-        ${this.eligible === null ? html`<span class="skl" style="block-size:44px"></span>` : html`<div class="pick" role="radiogroup" aria-label=${tt('fAssignee')}>
-          <label><input type="radio" name="asg" .checked=${!this.assignTo} @change=${() => (this.assignTo = '')} />${tt('fAssignLater')}</label>
-          ${this.eligible.map((h) => html`<label data-eligible=${h.id} data-handler=${h.key}><input type="radio" name="asg" .checked=${this.assignTo === h.key} @change=${() => (this.assignTo = h.key)} />${bidi(h.name)}</label>`)}
-        </div>`}
-      </div>` : nothing}
+      ${d?.can_manage ? this.assigneePicker() : nothing}
       ${this.error ? html`<div class="banner bad" role="alert" data-create-error>${tIcon('warning')}<div>${this.error}</div></div>` : nothing}
+    </div>`;
+  }
+
+  /** TKUI1 (owner 16.10): "assign later" first, then three headed groups - with an account / without an account / vendors and outside
+   * contacts (a disabled group says why, with the link to its setting); a search field above six entries (tickets/create-assign-model.ts). */
+  private assigneePicker(): TemplateResult {
+    if (this.eligible === null) return html`<div class="fld" data-create-assignee><span>${tt('fAssignee')}</span><span class="skl" style="block-size:44px"></span></div>`;
+    const { groups, searchable } = createAssignGroups({ handlers: this.eligible, contacts: this.contacts, external: this.external, publicReady: this.publicReady || !isApi(), readiness: this.readiness, query: this.asgQuery });
+    const cur = this.assignTo || LATER;
+    const radio = (value: string, label: TemplateResult | string, attrs: { handler?: string; id?: string; vendor?: string }, sub = '') =>
+      html`<label data-handler=${attrs.handler ?? nothing} data-eligible=${attrs.id ?? nothing} data-create-vendor=${attrs.vendor ?? nothing} data-create-option=${value}>
+        <input type="radio" name="asg" .checked=${cur === value} @change=${() => (this.assignTo = value === LATER ? '' : value)} />${label}${sub ? html`<small>${bidi(sub)}</small>` : nothing}</label>`;
+    const shown = groups.filter((g) => g.key !== 'later' && (g.total > 0 || g.key === 'vendor'));
+    const none = !!this.asgQuery.trim() && shown.every((g) => !g.options.length);
+    const picked = parsePick(cur);
+    const heading = (k: CreateGroupKey) => html`<div class="ghead" role="presentation" data-create-group=${k}>${dwt(`cg_${k}` as DrawerTextKey)}</div>`;
+    return html`<div class="fld" data-create-assignee><span>${tt('fAssignee')}</span>
+      ${searchable ? html`<input class="inp" type="search" data-create-asg-search placeholder=${dwt('cgSearch')} aria-label=${dwt('cgSearch')} .value=${this.asgQuery}
+        @input=${(e: Event) => (this.asgQuery = (e.target as HTMLInputElement).value)} />` : nothing}
+      <div class="pick grouped" role="radiogroup" aria-label=${tt('fAssignee')}>
+        ${radio(LATER, tt('fAssignLater'), {})}
+        ${shown.map((g) => html`${heading(g.key)}
+          ${g.blocked ? html`<div class="xreason" data-create-vendor-blocked=${g.blocked.key}>${tIcon('lock')}<span>${tt(g.blocked.text)}</span><a href=${g.blocked.href}>${tt(g.blocked.link)}</a></div>` : nothing}
+          ${g.options.map((o) => {
+            const p = parsePick(o.value);
+            const h = p.kind === 'handler' ? this.eligible?.find((x) => x.key === p.id) : undefined;
+            return radio(o.value, bidi(o.label), p.kind === 'vendor' ? { vendor: p.id } : { handler: p.id, id: h?.id }, p.kind === 'vendor' ? o.sub : '');
+          })}`)}
+        ${none ? html`<div class="muted" data-create-asg-none>${dwt('cgNoMatch')}</div>` : nothing}
+      </div>
+      ${picked.kind === 'vendor' ? html`<small class="hint" data-create-vendor-note>${tIcon('send')}${dwt('cgVendorNext')}</small>` : nothing}
     </div>`;
   }
 

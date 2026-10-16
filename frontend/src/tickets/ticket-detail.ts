@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import './ticket-cost-card'; // slice 9 (11A.7): the cost card
+import './ticket-cost-card'; // slice 9 (11A.7): the cost card (the Costs tab until TKUI3 rebuilds it)
 import { ct } from './cost-text';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -12,10 +12,12 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type DetailMode, type Handler, type Meta, type PatchBody, type TicketDetail, type TicketStatus } from '../api/tickets';
+import type { LinkBlock } from '../api/tickets-s4';
+import { messagesApi } from '../api/tickets-messages';
 import { assigneeRef, handlersOf } from './assignee-model';
 import {
-  FINAL, STATUS_LINE, actorName, eventLine, fromLocalInput, listHref, marksInternal, moveTo, priorityTone, relTime, shortDateTime, sideMoves,
-  chipLabel, isWaitingPart, lineStatus, statusLabel, statusTone, waitingToggle, ticketHref, toLocalInput, type TicketsRoute,
+  actorName, eventLine, fromLocalInput, listHref, marksInternal, moveTo, priorityTone, shortDateTime,
+  ticketHref, toLocalInput, type TicketsRoute,
 } from './model';
 import { tt } from './text';
 import { tIcon } from './icons';
@@ -27,7 +29,17 @@ import { ExternalAssign, externalAssignStyles } from './external-assign';
 import { LinkPanel, linkPanelStyles } from './link-panel';
 import { deviceBlockStyles, historySection } from './ticket-device-context'; // CR-038 slice 3: the frozen device history
 import './delete-dialog'; // owner 14.10: full deletion (tickets.delete)
-import { dlt } from './delete-text';
+import { openOverlay, menuKey } from './overlay-menu';
+import {
+  SIZE_WIDTH, effectiveSize, initialTab, menuActions, parseSheet, primaryAction, quietAction, tabItems,
+  type DrawerAction, type DrawerSize, type DrawerTab, type PhoneSheet,
+} from './drawer-model';
+import { dwt } from './drawer-text';
+import { drawerTabs, drawerTabsStyles, tabId, TAB_PANEL_ID } from './drawer-tabs';
+import { statusBlock, statusBlockStyles } from './status-block';
+import { nowSection, overviewStyles, overviewTab, type OverviewCtx } from './overview-tab';
+import { viewerRole } from './status-sentence';
+import { loadOwnSize, saveOwnSize } from './drawer-prefs';
 
 interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
 
@@ -39,12 +51,26 @@ type Dialog =
   | { kind: 'eta' }
   | null;
 
+type Detail = TicketDetail & { link?: LinkBlock | null };
+
+/** The rows of the Conversation tab until TKUI2 splits it into "עם הספק" / "הצוות": notes, replies and messages. */
+const CONV_KINDS = new Set(['note', 'photo', 'inbound', 'late_reply', 'link_sent', 'update_sent', 'code_sent', 'message_unknown', 'message_failed', 'message_fallback']);
+/** The photos the Overview shows before "+N" (one row, IA §5). */
+const PHOTO_ROW = 4;
+const PHONE_QUERY = '(max-width: 767px)';
+
 /**
- * CR-038 `<ticket-detail .ticketId mode="drawer|page">`: one ticket - the drawer over the list (`sw-drawer` modal, 480 px; a bottom sheet on a
- * phone) or the full screen `#/tickets/<id>` (D18), in the approved mock-up's anatomy: the sentence box (description, number, department,
- * who opened it), the state strip (the moves this caller may make are the enabled buttons - `transitions` from the server), the handler
- * block (assign / reassign for a manager, return and ETA for the handler), the photos (internal ones marked once a ticket went outside -
- * slice 4) and the timeline with the note composer. Every action calls the API and shows the server's answer; nothing is decided here.
+ * CR-038 `<ticket-detail .ticketId mode="drawer|page">`, rebuilt for release 2.6.0 (TKUI1) on the owner-approved mock-up v5 and the binding
+ * IA document (SERVICE_MODULE_UX_IA_2026-10-16): one ticket - the modal drawer over the list (520 / 640 / full screen, the viewer's own
+ * choice remembered; on a phone a full or a half sheet) or the full page `#/tickets/<id>` (D18).
+ *   - fixed: the header (title ≤ 2 lines, number · place · ONE priority chip, the size switch, "⋯") and the STATUS BLOCK (tickets/status-
+ *     block.ts: one chip, the one-sentence status, one warning line, SLA only when near / crossed, ONE role-resolved primary + ≤ 1 quiet);
+ *   - the tabs סקירה / שיחה / עלויות / היסטוריה (tickets/drawer-tabs.ts) - ONLY the active tab is rendered, inside the drawer body, so each
+ *     tab is exactly one scroll container (tests/layout-tickets-drawer.spec.ts counts them);
+ *   - Overview is complete (tickets/overview-tab.ts); שיחה / עלויות / היסטוריה are SLOTS that reuse the existing blocks (messages, notes and
+ *     timeline; the cost card; the link audit and the timeline) until TKUI2 / TKUI3 rebuild them - look for `data-slot`.
+ * Every action calls the API and shows the server's answer; nothing is decided here. The default tab is the module setting (`ui.detail_tab`,
+ * else Overview); a deep link may pass `?tab=` (`initialTab`) and the card's "ציר זמן" opens History.
  * Events (bubble, composed): `ticket-changed` {ticket}, `ticket-gone` {id} (returned by a non-member handler), `drawer-close`.
  */
 @customElement('ticket-detail')
@@ -57,9 +83,18 @@ export class TicketDetailView extends LitElement {
   @property() detailMode: DetailMode = 'drawer_fullscreen';
   /** the list the page returns to and the drawer is opened over */
   @property() scope: TicketsRoute['scope'] = 'mine';
-  /** the card's "ציר זמן" link: scroll to the timeline once loaded */
+  /** the card's "ציר זמן" link: open the History tab at the timeline */
   @property({ type: Boolean }) focusTimeline = false;
-  @state() private t: TicketDetail | null = null;
+  /** TKUI1: a deep link's tab (`?tab=conv|costs|history|overview`), else the module setting `ui.detail_tab` (`defaultTab`) */
+  @property() initialTab = '';
+  @property() defaultTab = '';
+  /** TKUI1: the module settings `ui.drawer_size` (the desktop default - a viewer's own switch wins) and `ui.phone_sheet` (full / half) */
+  @property() sizeSetting = '';
+  @property() sheetSetting = '';
+  /** TKUI1: the new-request sheet's vendor flow, step two (`?assign=contact:<id>`): open the external-assign dialog prefilled, once */
+  @property() assignContact = '';
+  private assignedFor = '';
+  @state() private t: Detail | null = null;
   @state() private failed = '';
   @state() private gone = false;
   @state() private busy = false;
@@ -69,6 +104,13 @@ export class TicketDetailView extends LitElement {
   @state() private noteText = '';
   @state() private noteExternal = false;
   @state() private uploading = 0;
+  @state() private tab: DrawerTab = 'overview';
+  @state() private size: DrawerSize = 'wide';
+  @state() private sheet: PhoneSheet = 'full';
+  @state() private phone = false;
+  @state() private menu = false;
+  @state() private descOpen = false;
+  @state() private photosAll = false;
   // dialog fields
   @state() private dlgText = '';
   @state() private costGate: { canOverride: boolean } | null = null; // slice 9 (11A.3): the close met a pending required claim
@@ -86,32 +128,201 @@ export class TicketDetailView extends LitElement {
   private loadedFor = '';
   private flashTimer = 0;
   private offNames: (() => void) | null = null;
-  // slice 4: sending outside from the assign dialog, and the link panel of the handler block
+  private mq: MediaQueryList | null = null;
+  // slice 4: sending outside from the assign dialog, and the link panel (the History tab's audit card)
   private readonly ext = new ExternalAssign(this, { busy: () => this.busy, run: (fn, done) => this.run(fn, done) });
   private readonly linkPanel = new LinkPanel(this, {
     busy: () => this.busy, run: (fn, done) => this.run(fn, done || undefined), say: (m, tone) => this.say(m, tone), reload: () => void this.load(),
   });
 
-  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, deviceBlockStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, deviceBlockStyles,
+    statusBlockStyles, drawerTabsStyles, overviewStyles, css`
     sw-drawer {
-      --sw-drawer-modal-w: 480px;
+      --sw-drawer-modal-w: 640px;
+    }
+    /* the title of the header: two lines at most, then an ellipsis (IA §5) */
+    sw-drawer::part(title) {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      font-size: var(--sw-fs-xl);
+      font-weight: 700;
+      line-height: 1.25;
     }
     sw-dialog {
       --sw-surface: var(--dv-surface-solid);
       --sw-glass-blur: none;
     }
+    .hsub {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 8px;
+      margin-block-start: 3px;
+      color: var(--dv-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .hsub .id {
+      font-weight: 700;
+      color: var(--dv-text);
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .hsub .ic {
+      color: var(--dv-text-3);
+    }
+    .hsub .chip {
+      block-size: 22px;
+      padding-inline: 8px;
+      font-size: var(--sw-fs-xs);
+    }
+    .hacts {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sizes {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--dv-surface-3);
+    }
+    .sizes button {
+      display: grid;
+      place-items: center;
+      inline-size: 34px;
+      block-size: 30px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--dv-text-2);
+      cursor: pointer;
+    }
+    .sizes button[aria-pressed='true'] {
+      background: var(--mm-seg-thumb, var(--dv-surface-solid));
+      color: var(--dv-accent-text);
+      box-shadow: var(--dv-shadow-control);
+    }
+    .sizes button:focus-visible,
+    .rb:focus-visible {
+      outline: 2px solid var(--dv-focus, var(--dv-accent));
+      outline-offset: 1px;
+    }
+    .sizes .ic {
+      font-size: var(--sw-fs-md);
+    }
+    .strip {
+      display: block;
+      background: var(--dv-surface-solid);
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-inline-size: 0;
+    }
+    .slot-note {
+      margin: 0;
+      color: var(--dv-text-3);
+      font-size: var(--sw-fs-sm);
+    }
+    .half {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .half .btn {
+      align-self: center;
+      min-block-size: 44px;
+    }
+    .photos-more {
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: var(--sw-fs-md);
+      color: var(--dv-text-2);
+      border-style: dashed;
+      cursor: pointer;
+    }
+    /* the "⋯" menu: a top-layer popover (tickets/overlay-menu.ts) - never a scroll box inside a tab */
+    .pop.ov {
+      position: fixed;
+      inset: auto;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 220px;
+      max-inline-size: calc(100vw - 16px);
+      padding: 6px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--dv-shadow-2);
+      color: var(--dv-text);
+    }
+    .pop .mh {
+      padding: 8px 12px 4px;
+      font-size: var(--sw-fs-xs);
+      font-weight: 700;
+      color: var(--dv-text-3);
+    }
+    .pop hr {
+      border: 0;
+      border-block-start: 1px solid var(--dv-border);
+      margin: 4px 6px;
+    }
+    .pop [role='menuitem'] {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-block-size: 44px;
+      padding-inline: 12px;
+      border: 0;
+      border-radius: var(--sw-r-md);
+      background: transparent;
+      color: var(--dv-text);
+      font: inherit;
+      font-size: var(--sw-fs-md);
+      text-align: start;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .pop [role='menuitem']:hover,
+    .pop [role='menuitem']:focus-visible {
+      background: var(--dv-surface-3);
+      outline: none;
+    }
+    .pop [role='menuitem'] .ic {
+      font-size: var(--sw-fs-lg);
+      color: var(--dv-text-2);
+    }
+    .pop [role='menuitem'].dz,
+    .pop [role='menuitem'].dz .ic {
+      color: var(--dv-danger);
+    }
+    /* ---- the full page: the status block as a hero, the same tabs in one card (IA §4.1: no columns) ---- */
     .page {
       padding: 0 36px 44px;
       display: flex;
       flex-direction: column;
-      gap: 22px;
+      gap: 18px;
     }
     .phead {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 12px 16px;
+      gap: 10px 14px;
       padding-block-start: 18px;
+    }
+    .phead .tt {
+      flex: 1;
+      min-inline-size: 0;
     }
     .phead h1 {
       margin: 0;
@@ -119,45 +330,33 @@ export class TicketDetailView extends LitElement {
       font-weight: 800;
       letter-spacing: -0.02em;
       line-height: 1.15;
-      min-inline-size: 0;
       overflow-wrap: anywhere;
     }
     .phead .acts {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-inline-start: auto;
-    }
-    .pmeta {
-      display: flex;
-      flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
-      color: var(--dv-text-2);
-      font-size: var(--sw-fs-md);
     }
-    .cols {
-      display: grid;
-      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-      gap: 22px;
-      align-items: start;
-    }
-    .cols > .stack {
-      min-inline-size: 0;
-    }
-    .card {
-      padding: 16px;
+    .hero,
+    .tabcard {
+      padding: 0;
+      overflow: clip;
       border-radius: var(--sw-r-2xl);
+    }
+    .hero .stat {
+      border-block-end: 0;
+    }
+    .tabcard .rtabs {
+      background: transparent;
+    }
+    .tabcard .panel {
+      padding: 16px 18px 20px;
     }
     .flash {
       position: sticky;
       inset-block-start: 0;
       z-index: 5;
-    }
-    @media (max-width: 1023px) {
-      .cols {
-        grid-template-columns: minmax(0, 1fr);
-      }
     }
     @media (max-width: 767px) {
       .page {
@@ -166,6 +365,13 @@ export class TicketDetailView extends LitElement {
       .phead h1 {
         font-size: var(--sw-fs-2xl);
       }
+      .tabcard .panel {
+        padding: 12px 14px 16px;
+      }
+      .rb {
+        inline-size: 44px;
+        block-size: 44px;
+      }
     }
   `];
 
@@ -173,15 +379,31 @@ export class TicketDetailView extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.offNames = onTicketNames(() => this.requestUpdate());
+    this.size = effectiveSize(loadOwnSize(), this.sizeSetting);
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      this.mq = window.matchMedia(PHONE_QUERY);
+      this.phone = this.mq.matches;
+      this.mq.addEventListener?.('change', this.onMq);
+    }
+    window.addEventListener('pointerdown', this.onOutside, true);
+    window.addEventListener('resize', this.placeMenu);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearTimeout(this.flashTimer);
     this.offNames?.();
+    this.mq?.removeEventListener?.('change', this.onMq);
+    window.removeEventListener('pointerdown', this.onOutside, true);
+    window.removeEventListener('resize', this.placeMenu);
   }
 
+  private onMq = (e: MediaQueryListEvent) => {
+    this.phone = e.matches;
+  };
+
   protected willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('sizeSetting')) this.size = effectiveSize(loadOwnSize(), this.sizeSetting);
     if (changed.has('open') && !this.open && this.mode === 'drawer') this.loadedFor = ''; // a ticket opened again is read again
     if ((changed.has('ticketId') || changed.has('open')) && this.ticketId && (this.mode === 'page' || this.open) && this.loadedFor !== this.ticketId) {
       this.loadedFor = this.ticketId;
@@ -190,8 +412,15 @@ export class TicketDetailView extends LitElement {
       this.gone = false;
       this.dialog = null;
       this.composing = false;
+      this.menu = false;
+      this.descOpen = false;
+      this.photosAll = false;
+      this.tab = initialTab({ deepLink: this.initialTab, focusTimeline: this.focusTimeline, setting: this.defaultTab });
+      this.sheet = parseSheet(this.sheetSetting) ?? 'full';
       this.linkPanel.reset();
       void this.load();
+    } else if (changed.has('initialTab') && this.initialTab && this.t) {
+      this.tab = initialTab({ deepLink: this.initialTab, setting: this.defaultTab });
     }
   }
 
@@ -200,7 +429,14 @@ export class TicketDetailView extends LitElement {
     try {
       const t = await ticketsApi().get(id);
       if (id !== this.ticketId) return;
-      this.t = t;
+      this.t = t as Detail;
+      if (this.assignContact && this.assignedFor !== id && t.can.assign) {
+        this.assignedFor = id;
+        this.openDialog({ kind: 'assign' });
+        this.ext.preselect(this.assignContact);
+        // the screen drops the parameter from the address (a reload never reopens the dialog); cancelling leaves the request unassigned
+        this.dispatchEvent(new CustomEvent('assign-consumed', { detail: { id }, bubbles: true, composed: true }));
+      }
       if (this.focusTimeline) void this.updateComplete.then(() => this.renderRoot.querySelector('#timeline')?.scrollIntoView({ block: 'start' }));
     } catch (e) {
       if (id !== this.ticketId) return;
@@ -226,7 +462,7 @@ export class TicketDetailView extends LitElement {
         this.gone = true;
         this.t = null;
       } else {
-        this.t = next as TicketDetail;
+        this.t = next as Detail;
         this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
       }
       if (done) this.say(done);
@@ -259,6 +495,120 @@ export class TicketDetailView extends LitElement {
     }
     void this.run(() => ticketsApi().status(t.id, { to, revision: t.revision }), tt('saved'));
   }
+
+  /** The one entry of the status block, the menu and the Overview buttons (tickets/drawer-model.ts decides what is offered). */
+  private onAction = (a: DrawerAction): void => {
+    const t = this.t;
+    this.setMenu(false);
+    if (!t) return;
+    switch (a.kind) {
+      case 'assign':
+      case 'reassign':
+        this.openDialog({ kind: 'assign' });
+        return;
+      case 'move':
+      case 'toggle_wait':
+      case 'close':
+      case 'cancel':
+      case 'reopen':
+        if (a.to) this.move(a.to);
+        return;
+      case 'costs':
+      case 'conv':
+        this.selectTab(a.tab ?? (a.kind === 'costs' ? 'costs' : 'conv'), false);
+        if (a.kind === 'conv' && t.can.note) {
+          this.composing = true;
+          void this.updateComplete.then(() => (this.renderRoot.querySelector('.composer textarea') as HTMLTextAreaElement | null)?.focus());
+        }
+        return;
+      case 'resend_link':
+        void this.run(() => messagesApi().resendLink(t.id), dwt('a_resend'));
+        return;
+      case 'eta':
+        this.openDialog({ kind: 'eta' });
+        return;
+      case 'return':
+        this.openDialog({ kind: 'return' });
+        return;
+      case 'edit':
+        this.openDialog({ kind: 'edit' });
+        return;
+      case 'delete':
+        this.deleting = true;
+        return;
+      case 'page':
+        window.location.href = ticketHref(t.id);
+        return;
+    }
+  };
+
+  private selectTab(tab: DrawerTab, focus: boolean): void {
+    this.tab = tab;
+    this.composing = tab === 'conv' ? this.composing : false;
+    void this.updateComplete.then(() => {
+      if (focus) (this.renderRoot.querySelector(`#${tabId(tab)}`) as HTMLElement | null)?.focus();
+      const body = this.scrollBox();
+      if (body) body.scrollTop = 0;
+    });
+  }
+
+  /** The tab's one scroll container: the drawer body (inside sw-drawer's shadow), or nothing on the page (the page scrolls). */
+  private scrollBox(): HTMLElement | null {
+    const d = this.renderRoot.querySelector('sw-drawer');
+    return (d?.shadowRoot?.querySelector('.body') as HTMLElement | null) ?? null;
+  }
+
+  private setSize(s: DrawerSize): void {
+    this.size = s;
+    saveOwnSize(s);
+  }
+
+  private setMenu(on: boolean): void {
+    if (this.menu === on) return;
+    this.menu = on;
+    if (on) void this.updateComplete.then(() => {
+      this.placeMenu();
+      (this.renderRoot.querySelector('.pop.ov [role="menuitem"]') as HTMLElement | null)?.focus();
+    });
+    else {
+      const pop = this.renderRoot.querySelector('.pop.ov') as (HTMLElement & { hidePopover?: () => void }) | null;
+      try {
+        pop?.hidePopover?.();
+      } catch {
+        /* already hidden */
+      }
+    }
+  }
+
+  private placeMenu = (): void => {
+    if (!this.menu) return;
+    const pop = this.renderRoot.querySelector('.pop.ov') as HTMLElement | null;
+    const btn = this.renderRoot.querySelector('[data-more]') as HTMLElement | null;
+    if (pop && btn) openOverlay(pop, btn);
+  };
+
+  private onOutside = (e: PointerEvent): void => {
+    if (!this.menu) return;
+    const path = e.composedPath();
+    const pop = this.renderRoot.querySelector('.pop.ov');
+    const btn = this.renderRoot.querySelector('[data-more]');
+    if ((pop && path.includes(pop)) || (btn && path.includes(btn))) return;
+    this.setMenu(false);
+  };
+
+  private onMenuKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      this.setMenu(false);
+      (this.renderRoot.querySelector('[data-more]') as HTMLElement | null)?.focus();
+      return;
+    }
+    if (e.key === 'Tab') {
+      this.setMenu(false);
+      return;
+    }
+    menuKey(e, e.currentTarget as HTMLElement);
+  };
 
   private openDialog(d: Exclude<Dialog, null>): void {
     this.dlgText = '';
@@ -414,7 +764,7 @@ export class TicketDetailView extends LitElement {
       this.uploading += 1;
       try {
         const next = await ticketsApi().upload(t.id, f, false);
-        this.t = next;
+        this.t = next as Detail;
       } catch (err) {
         failed += 1;
         this.say(describeError(err), 'bad');
@@ -447,113 +797,121 @@ export class TicketDetailView extends LitElement {
     if (this.mode === 'page') window.location.href = listHref(this.scope);
   };
 
-  private deleteButton(t: TicketDetail, cls: string): TemplateResult | typeof nothing {
-    if (!t.can.delete) return nothing;
-    return html`<button type="button" class=${cls} data-delete-ticket ?disabled=${this.busy} @click=${() => (this.deleting = true)}>${tIcon('trash')}${dlt('action')}</button>`;
-  }
-
   private deleteDialog(t: TicketDetail): TemplateResult | typeof nothing {
     if (!t.can.delete) return nothing;
     return html`<tickets-delete-dialog .targets=${[{ id: t.id, number: t.number }]} ?open=${this.deleting}
       @delete-close=${() => (this.deleting = false)} @ticket-deleted=${this.onDeleted}></tickets-delete-dialog>`;
   }
 
+  // ---------------------------------------------------------------- the model of this viewer
+
+  private actions(t: Detail): { role: ReturnType<typeof viewerRole>; primary: DrawerAction | null; quiet: DrawerAction | null; menu: DrawerAction[] } {
+    const role = viewerRole(t);
+    const primary = primaryAction(t, role);
+    const quiet = quietAction(t, role, primary);
+    const menu = menuActions(t, role, [primary, quiet], { detailMode: this.detailMode, page: this.mode === 'page' });
+    return { role, primary, quiet, menu };
+  }
+
   // ---------------------------------------------------------------- render pieces
 
-  private sentence(t: TicketDetail): TemplateResult {
-    const meta = [`#${t.number}`, t.department?.name, t.category?.name, t.priority?.name].filter(Boolean).join(' · ');
-    return html`<div class="sentence" data-sect="sentence">${tIcon('ticket')}<div>
-      <span class="desc">${t.description || t.title}</span>
-      <small>${bidi(meta)} · ${tt('openedBy', { when: shortDateTime(t.created_at), who: t.created_by.name })}</small>
-      ${t.duplicate_of ? html`<small><a href=${this.hrefOf(t.duplicate_of.id)} data-duplicate-of>${tt('duplicateOfLine', { n: t.duplicate_of.number })}</a></small>` : nothing}
-      ${t.close_note && FINAL.includes(t.status) ? html`<small data-close-note>${tt('closedNote', { note: t.close_note })}</small>` : nothing}
-    </div></div>`;
+  /** The header's second line: number · place · ONE priority chip (IA §5). */
+  private subLine(t: TicketDetail): TemplateResult {
+    const tone = priorityTone(t.priority);
+    const place = t.place_text || [t.department?.name, t.category?.name].filter(Boolean).join(' · ');
+    return html`<span class="id" data-ticket-number>#${t.number}</span>
+      ${place ? html`<span>·</span><span>${tIcon('layers')} ${bidi(place)}</span>` : nothing}
+      ${t.priority ? html`<span class=${`chip ${tone}`} data-chip="priority"><i class=${`dot ${tone === 'bad' ? 'bad' : tone === 'info' ? 'run' : ''}`}></i>${t.priority.name}</span>` : nothing}`;
   }
 
-  private statusSection(t: TicketDetail): TemplateResult {
-    const side = sideMoves(t);
-    const shown = lineStatus(t.status);
-    const onLine = (STATUS_LINE as readonly string[]).includes(shown);
-    const toggle = waitingToggle(t);
-    return html`<section class="sect" data-sect="status">
-      <h4><span class="tag t3">${tIcon('check')}</span>${tt('sStatus')}<span class=${`chip ${statusTone(t.status)}`} data-current-status>${chipLabel(t.status)}</span></h4>
-      ${onLine ? html`<div class="seg strip" role="group" aria-label=${tt('sStatus')} data-strip>
-        ${STATUS_LINE.map((s) => {
-          const m = moveTo(t, s);
-          const current = s === shown;
-          return html`<button type="button" aria-pressed=${String(current)} ?disabled=${current || !m.allowed || this.busy} data-move=${s} @click=${() => this.move(s)}>${statusLabel(s)}${current && isWaitingPart(t.status) ? html`<small class="sub" data-waiting-sub>${statusLabel('waiting_part')}</small>` : nothing}</button>`;
-        })}
-      </div>` : nothing}
-      ${onLine && toggle ? html`<div class="side"><button type="button" class="btn sm quiet" data-waiting-toggle=${toggle.to === 'waiting_part' ? 'mark' : 'back'} ?disabled=${this.busy} @click=${() => this.move(toggle.to)}>${tIcon(toggle.to === 'waiting_part' ? 'clock' : 'refresh')}${toggle.label}</button></div>` : nothing}
-      ${side.cancel || side.reopen || (t.reopen_until && t.status === 'closed') ? html`<div class="side">
-        ${side.reopen ? html`<button type="button" class="btn sm" data-reopen ?disabled=${this.busy} @click=${() => this.move('new')}>${tIcon('refresh')}${tt('reopen')}</button>` : nothing}
-        ${side.cancel ? html`<button type="button" class="btn sm quiet dz" data-cancel ?disabled=${this.busy} @click=${() => this.move('cancelled')}>${tIcon('x')}${tt('cancelTicket')}</button>` : nothing}
-        ${t.reopen_until && t.status === 'closed' ? html`<span class="muted">${tt('reopenUntil', { when: shortDateTime(t.reopen_until) })}</span>` : nothing}
-      </div>` : nothing}
-    </section>`;
+  private moreButton(): TemplateResult {
+    return html`<button type="button" class="rb sm" aria-label=${dwt('more')} aria-haspopup="menu" aria-expanded=${String(this.menu)} data-more
+      @click=${() => this.setMenu(!this.menu)}>${tIcon('dots')}</button>`;
   }
 
-  private assigneeSection(t: TicketDetail): TemplateResult {
-    const a = t.assignee;
-    const lastReturn = t.status === 'returned' ? t.assignments.find((x) => x.end_reason === 'returned') : undefined;
-    return html`<section class="sect" data-sect="assignee">
-      <h4><span class="tag">${tIcon('user')}</span>${tt('sAssignee')}<span class="sp"></span>
-        ${t.can.assign ? html`<button type="button" class="btn sm" data-assign ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'assign' })}>${tIcon('user')}${a ? tt('reassign') : tt('assign')}</button>` : nothing}
-      </h4>
-      <div class="blk" data-assignee=${a?.id ?? ''}>
-        <span class="bi">${tIcon(a ? 'user' : 'users')}</span>
-        <div class="bt"><span class="who">${a ? bidi(a.name) : tt('noAssignee')}</span>
-          ${a ? html`<small>${tt('assignedSince', { when: relTime(a.since) })}${a.acknowledged_at ? ` · ${tt('acknowledgedAt', { when: relTime(a.acknowledged_at) })}` : ''}</small>` : nothing}
-          ${lastReturn?.return_reason ? html`<small data-return-reason>${tt('returnedBy', { reason: lastReturn.return_reason })}</small>` : nothing}
-          ${t.eta_at ? html`<small data-eta>${tt('etaLine', { when: shortDateTime(t.eta_at) })}</small>` : nothing}
-        </div>
-        <div class="acts">
-          ${t.can.eta ? html`<button type="button" class="btn sm quiet" data-eta-edit ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'eta' })}>${tIcon('clock')}${tt('etaSet')}</button>` : nothing}
-          ${t.can.return ? html`<button type="button" class="btn sm quiet" data-return ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'return' })}>${tIcon('refresh')}${tt('giveBack')}</button>` : nothing}
-        </div>
-      </div>
-      ${this.linkPanel.render(t)}
-    </section>`;
+  private sizeSwitch(): TemplateResult {
+    const b = (s: DrawerSize, icon: 'layers' | 'grid' | 'expand') => html`<button type="button" aria-pressed=${String(this.size === s)} aria-label=${dwt(`size_${s}`)} title=${dwt(`size_${s}`)}
+      data-size-btn=${s} @click=${() => this.setSize(s)}>${tIcon(icon)}</button>`;
+    return html`<span class="sizes" role="group" aria-label=${dwt('size')}>${b('drawer', 'layers')}${b('wide', 'grid')}${b('full', 'expand')}</span>`;
+  }
+
+  private sheetToggle(): TemplateResult {
+    const full = this.sheet === 'full';
+    return html`<button type="button" class="rb sm" aria-label=${full ? dwt('sheetHalf') : dwt('sheetFull')} aria-pressed=${String(full)} data-sheet-toggle=${this.sheet}
+      @click=${() => (this.sheet = full ? 'half' : 'full')}>${tIcon(full ? 'shrink' : 'expand')}</button>`;
+  }
+
+  /** The "⋯" menu (top layer): every action not on screen, with the hooks the older specs click (data-move, data-assign, ...). */
+  private menuPopover(t: Detail, items: DrawerAction[]): TemplateResult | typeof nothing {
+    if (!this.menu) return nothing;
+    const firstMove = items.findIndex((a) => a.kind === 'move');
+    const row = (a: DrawerAction, i: number): TemplateResult => {
+      const head = i === firstMove ? html`<div class="mh" role="presentation">${dwt('moveGroup')}</div>` : nothing;
+      const sep = a.kind === 'cancel' || (a.kind === 'delete' && !items.some((x) => x.kind === 'cancel')) ? html`<hr role="separator" />` : nothing;
+      const cls = a.tone === 'danger' ? 'dz' : '';
+      if (a.kind === 'page') return html`${head}${sep}<a role="menuitem" class=${cls} href=${ticketHref(t.id)} data-menu-item=${a.key} data-full-screen>${tIcon(a.icon)}${a.label}</a>`;
+      return html`${head}${sep}<button type="button" role="menuitem" class=${cls} data-menu-item=${a.key} ?disabled=${this.busy}
+        data-move=${a.kind === 'move' && a.to ? a.to : nothing}
+        ?data-assign=${a.kind === 'assign' || a.kind === 'reassign'} ?data-return=${a.kind === 'return'} ?data-eta-edit=${a.kind === 'eta'} ?data-edit=${a.kind === 'edit'}
+        ?data-cancel=${a.kind === 'cancel'} ?data-reopen=${a.kind === 'reopen'} ?data-delete-ticket=${a.kind === 'delete'}
+        data-waiting-toggle=${a.kind === 'toggle_wait' ? (a.to === 'waiting_part' ? 'mark' : 'back') : nothing}
+        @click=${() => this.onAction(a)}>${tIcon(a.icon)}${a.label}</button>`;
+    };
+    return html`<div class="pop ov" popover="manual" role="menu" aria-label=${dwt('more')} data-drawer-menu data-nested-open @keydown=${this.onMenuKey}>
+      ${items.map(row)}
+    </div>`;
   }
 
   /** slice 5b: the messages to the outside handler (D14 lines, "send now" D29, "send again", "send update") - tickets/ticket-messages.ts */
-  private messagesSection(t: TicketDetail): TemplateResult | typeof nothing {
+  private messagesSection(t: Detail): TemplateResult | typeof nothing {
     return messagesBlock(t, { busy: this.busy, act: (fn, done) => void this.run(fn, done) });
   }
 
+  /** The photos: one row in Overview with "+N" (expands in place - never an inner scroll box); add / remove as before. */
   private photosSection(t: TicketDetail): TemplateResult | typeof nothing {
     if (!t.attachments.length && !t.can.attach) return nothing;
     const marks = marksInternal(t);
+    const shown = this.photosAll ? t.attachments : t.attachments.slice(0, PHOTO_ROW);
+    const more = t.attachments.length - shown.length;
     return html`<section class="sect" data-sect="photos">
       <h4><span class="tag">${tIcon('image')}</span>${tt('sPhotos')}<span class="cnt">${t.attachments.length || ''}</span></h4>
       <div class="photos">
-        ${repeat(t.attachments, (a) => a.id, (a, i) => html`<figure class="ph" data-photo=${a.id} style="margin:0">
+        ${repeat(shown, (a) => a.id, (a, i) => html`<figure class="ph" data-photo=${a.id} style="margin:0">
           <img src=${ticketsApi().photoUrl(a)} alt=${tt('photoAlt', { n: i + 1 })} loading="lazy" decoding="async" />
           ${marks && !a.external ? html`<span class="chip tag">${tIcon('lock')}${tt('internal')}</span>` : nothing}
           ${a.can_delete ? html`<button type="button" class="rm" aria-label=${tt('removePhoto')} data-photo-remove ?disabled=${this.busy} @click=${() => this.removePhoto(a.id)}>${tIcon('trash')}</button>` : nothing}
         </figure>`)}
+        ${more > 0 ? html`<button type="button" class="ph photos-more" aria-label=${dwt('photosAll')} data-photos-more @click=${() => (this.photosAll = true)}>${dwt('photosMore', { n: more })}</button>` : nothing}
         ${t.can.attach ? html`<label class="ph add" data-photo-add>${tIcon(this.uploading ? 'clock' : 'camera')}<span>${this.uploading ? tt('uploading') : tt('addPhoto')}</span>
           <input type="file" accept="image/jpeg,image/png" multiple ?disabled=${this.uploading > 0} aria-label=${tt('addPhoto')} @change=${this.onFiles} /></label>` : nothing}
       </div>
     </section>`;
   }
 
-  private timelineSection(t: TicketDetail): TemplateResult {
+  /** The note composer of the Conversation slot (TKUI2 replaces it with the two composers of IA §4.2). */
+  private composer(t: TicketDetail): TemplateResult | typeof nothing {
+    if (!t.can.note) return nothing;
     const marks = marksInternal(t);
-    const rows = [...t.events].reverse();
-    return html`<section class="sect" data-sect="timeline" id="timeline">
-      <h4><span class="tag t1">${tIcon('clock')}</span>${tt('sTimeline')}<span class="cnt">${t.events.length}</span><span class="sp"></span>
-        ${t.can.note && !this.composing ? html`<button type="button" class="btn sm" data-note-open @click=${() => { this.composing = true; void this.updateComplete.then(() => (this.renderRoot.querySelector('.composer textarea') as HTMLTextAreaElement | null)?.focus()); }}>${tIcon('note')}${tt('note')}</button>` : nothing}
-      </h4>
-      ${this.composing ? html`<div class="composer" data-composer>
-        <textarea class="inp" maxlength="2000" aria-label=${tt('addNote')} placeholder=${tt('notePlaceholder')} .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)}></textarea>
-        <div class="row">
-          ${t.can.note_external && marks ? html`<label class="chk"><input type="checkbox" .checked=${this.noteExternal} @change=${(e: Event) => (this.noteExternal = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
-          <span class="grow"></span>
-          <button type="button" class="btn sm" @click=${() => { this.composing = false; this.noteText = ''; }}>${tt('cancel')}</button>
-          <button type="button" class="btn sm primary" data-note-send ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.sendNote()}>${tIcon('send')}${tt('send')}</button>
-        </div>
-      </div>` : nothing}
+    if (!this.composing) {
+      return html`<div class="side"><button type="button" class="btn sm" data-note-open @click=${() => { this.composing = true; void this.updateComplete.then(() => (this.renderRoot.querySelector('.composer textarea') as HTMLTextAreaElement | null)?.focus()); }}>${tIcon('note')}${tt('note')}</button></div>`;
+    }
+    return html`<div class="composer" data-composer>
+      <textarea class="inp" maxlength="2000" aria-label=${tt('addNote')} placeholder=${tt('notePlaceholder')} .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)}></textarea>
+      <div class="row">
+        ${t.can.note_external && marks ? html`<label class="chk"><input type="checkbox" .checked=${this.noteExternal} @change=${(e: Event) => (this.noteExternal = (e.target as HTMLInputElement).checked)} />${tt('noteExternal')}</label>` : nothing}
+        <span class="grow"></span>
+        <button type="button" class="btn sm" @click=${() => { this.composing = false; this.noteText = ''; }}>${tt('cancel')}</button>
+        <button type="button" class="btn sm primary" data-note-send ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.sendNote()}>${tIcon('send')}${tt('send')}</button>
+      </div>
+    </div>`;
+  }
+
+  /** The timeline (newest first). `only` limits it to some kinds (the Conversation slot); `id` anchors the card's "ציר זמן". */
+  private timeline(t: TicketDetail, opts: { only?: Set<string>; id?: string; sect: string }): TemplateResult {
+    const marks = marksInternal(t);
+    const rows = [...t.events].reverse().filter((e) => !opts.only || opts.only.has(e.kind));
+    return html`<section class="sect" data-sect=${opts.sect} id=${opts.id ?? nothing}>
+      <h4><span class="tag t1">${tIcon('clock')}</span>${tt('sTimeline')}<span class="cnt">${rows.length}</span></h4>
       <ol class="tline" data-timeline>
         ${repeat(rows, (e) => e.id, (e) => {
           const line = messageEventLine(e) ?? eventLine(e, t.department ? { [t.department.id]: t.department.name } : {});
@@ -573,6 +931,56 @@ export class TicketDetailView extends LitElement {
   private flashRow(): TemplateResult | typeof nothing {
     if (!this.flash) return nothing;
     return html`<div class=${`banner flash ${this.flash.tone === 'bad' ? 'bad' : 'info'}`} role=${this.flash.tone === 'bad' ? 'alert' : 'status'} data-flash=${this.flash.tone}>${tIcon(this.flash.tone === 'bad' ? 'warning' : 'check')}<div>${this.flash.text}</div></div>`;
+  }
+
+  private overviewCtx(t: Detail): OverviewCtx {
+    return {
+      now: new Date(),
+      busy: this.busy,
+      descOpen: this.descOpen,
+      onToggleDesc: () => (this.descOpen = !this.descOpen),
+      onTab: (tab) => this.selectTab(tab, false),
+      onReassign: t.can.assign && t.assignee ? () => this.openDialog({ kind: 'assign' }) : null,
+      onEdit: t.can.edit_fields.length ? () => this.openDialog({ kind: 'edit' }) : null,
+      duplicateHref: t.duplicate_of ? this.hrefOf(t.duplicate_of.id) : '',
+      link: this.linkPanel.render(t),
+      photos: this.photosSection(t),
+      device: historySection(t.device_context),
+    };
+  }
+
+  /** The active tab's content - the ONLY tab rendered (one scroll container per tab). */
+  private tabContent(t: Detail): TemplateResult {
+    switch (this.tab) {
+      case 'conv':
+        // SLOT (TKUI2): the conversation of IA §4.2 replaces this - the delivery lines, the note composer and the message rows of today
+        return html`<div class="one" data-tab-content="conv" data-slot="conv">
+          ${this.messagesSection(t)}
+          ${this.composer(t)}
+          ${this.timeline(t, { only: CONV_KINDS, sect: 'conversation' })}
+        </div>`;
+      case 'costs':
+        // SLOT (TKUI3): the two-stage costs of IA §6.3 replace the claim card of slice 9
+        return html`<div class="one" data-tab-content="costs" data-slot="costs">
+          ${!t.cost || t.cost.status === 'not_required' ? html`<p class="slot-note" data-costs-empty>${dwt('costsEmpty')}</p>` : nothing}
+          <ticket-cost-card .ticket=${t} @cost-changed=${() => void this.load()}></ticket-cost-card>
+        </div>`;
+      case 'history':
+        // SLOT (TKUI2): the timeline, the files and the audit card of IA §4.1 - today's full timeline (the link panel stays under the
+        // handler card in Overview until the audit card exists: its copy / new / revoke are actions a manager needs one tap away)
+        return html`<div class="one" data-tab-content="history" data-slot="history">
+          ${this.timeline(t, { id: 'timeline', sect: 'timeline' })}
+        </div>`;
+      default:
+        return html`${codeLockSection(t, { busy: this.busy, onNew: () => void this.run(() => sendNewLink(t.id), lockText('done')) })}${overviewTab(t, this.overviewCtx(t))}`;
+    }
+  }
+
+  private panel(t: Detail): TemplateResult {
+    return html`<div class="panel stack" role="tabpanel" id=${TAB_PANEL_ID} aria-labelledby=${tabId(this.tab)} tabindex="0"
+      data-ticket-detail=${t.id} data-view=${t.view} data-tab-panel=${this.tab}>
+      ${this.tabContent(t)}
+    </div>`;
   }
 
   // ---------------------------------------------------------------- dialogs
@@ -671,38 +1079,35 @@ export class TicketDetailView extends LitElement {
     return this.detailMode === 'fullscreen' || this.mode === 'page' ? ticketHref(id) : listHref(this.scope, undefined, { t: id });
   }
 
-  private body(t: TicketDetail): TemplateResult {
-    return html`<div class="stack" data-ticket-detail=${t.id} data-view=${t.view}>
-      ${this.flashRow()}
-      ${this.sentence(t)}
-      ${this.statusSection(t)}
-      ${codeLockSection(t, { busy: this.busy, onNew: () => void this.run(() => sendNewLink(t.id), lockText('done')) })}
-      ${this.assigneeSection(t)}
-      <ticket-cost-card .ticket=${t} @cost-changed=${() => void this.load()}></ticket-cost-card>
-      ${this.messagesSection(t)}
-      ${this.photosSection(t)}
-      ${historySection(t.device_context)}
-      ${this.timelineSection(t)}
-    </div>`;
-  }
-
   private stateBox(): TemplateResult {
     if (this.gone) return html`<div class="statebox glass" role="status" data-ticket-state="gone"><span class="ring">${tIcon('ticket')}</span><b>${tt('notFound')}</b></div>`;
     if (this.failed) return html`<div class="statebox glass" role="status" data-ticket-state="error"><span class="ring">${tIcon('warning')}</span><b>${this.failed}</b><button type="button" class="btn sm" @click=${() => { this.failed = ''; void this.load(); }}>${tIcon('refresh')}${tt('retry')}</button></div>`;
-    return html`<div class="stack" data-ticket-state="loading" aria-busy="true"><span class="skl" style="block-size:96px"></span><span class="skl" style="block-size:44px"></span><span class="skl" style="block-size:64px"></span><span class="skl" style="block-size:160px"></span></div>`;
+    // IA §5: a skeleton of the header + status block + three rows, never a spinner alone
+    return html`<div class="stack" data-ticket-state="loading" aria-busy="true"><span class="skl" style="block-size:96px"></span><span class="skl" style="block-size:44px"></span><span class="skl" style="block-size:64px"></span><span class="skl" style="block-size:64px"></span><span class="skl" style="block-size:64px"></span></div>`;
   }
 
   private drawer(): TemplateResult {
     const t = this.t;
-    const sub = t ? [`#${t.number}`, chipLabel(t.status), t.priority?.name].filter(Boolean).join(' · ') : '';
-    const footer = t && (t.can.edit_fields.length || this.detailMode === 'drawer_fullscreen' || t.can.delete);
-    return html`<sw-drawer modal .open=${this.open} heading=${t?.title ?? ''} subheading=${sub} data-ticket-drawer @close=${(e: Event) => { if (e.target === e.currentTarget) this.close(); }}>
-      ${t && this.detailMode === 'drawer_fullscreen' ? html`<a slot="action" class="btn sm quiet" href=${ticketHref(t.id)} data-full-screen aria-label=${tt('fullScreen')}>${tIcon('expand')}</a>` : nothing}
-      ${t ? this.body(t) : this.stateBox()}
-      ${footer && t ? html`<div slot="footer" class="foot2">
-        ${t.can.edit_fields.length ? html`<button type="button" class="btn sm" data-edit ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'edit' })}>${tIcon('edit')}${tt('edit')}</button>` : nothing}
-        ${this.deleteButton(t, 'btn sm quiet dz')}
+    const half = this.phone && this.sheet === 'half';
+    const width = this.phone ? '100vw' : SIZE_WIDTH[this.size];
+    const sheetH = this.phone && !half ? '100dvh' : 'auto';
+    const style = `--sw-drawer-modal-w:${width};--sw-drawer-sheet-h:${sheetH};--sw-drawer-sheet-max-h:${this.phone && !half ? '100dvh' : '88dvh'}`;
+    const m = t ? this.actions(t) : null;
+    const now = new Date();
+    return html`<sw-drawer modal .open=${this.open} heading=${t?.title ?? ''} style=${style} data-ticket-drawer data-size=${this.phone ? 'phone' : this.size} data-sheet=${this.phone ? this.sheet : nothing}
+      @close=${(e: Event) => { if (e.target === e.currentTarget) this.close(); }}>
+      ${t ? html`<span slot="sub" class="hsub">${this.subLine(t)}</span>` : nothing}
+      ${t ? html`<span slot="action" class="hacts">${this.phone ? this.sheetToggle() : this.sizeSwitch()}${this.moreButton()}</span>` : nothing}
+      ${t && m ? html`<div slot="strip" class="strip">
+        ${statusBlock(t, { role: m.role, now, busy: this.busy, primary: m.primary, quiet: m.quiet, onAction: this.onAction })}
+        ${half ? nothing : drawerTabs(tabItems(t), this.tab, (id, focus) => this.selectTab(id, focus))}
       </div>` : nothing}
+      ${this.flashRow()}
+      ${!t ? this.stateBox() : half
+        ? html`<div class="half" data-ticket-detail=${t.id} data-half-sheet>${nowSection(t, this.overviewCtx(t))}
+            <button type="button" class="btn quiet" data-show-all @click=${() => (this.sheet = 'full')}>${tIcon('expand')}${dwt('showAll')}</button></div>`
+        : this.panel(t)}
+      ${t && m ? this.menuPopover(t, m.menu) : nothing}
       ${this.dialogs()}
       ${t ? this.deleteDialog(t) : nothing}
     </sw-drawer>`;
@@ -711,29 +1116,30 @@ export class TicketDetailView extends LitElement {
   private page(): TemplateResult {
     const t = this.t;
     if (!t) return html`<div class="page"><div class="phead"><a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a></div>${this.stateBox()}</div>`;
-    const meta = [`#${t.number}`, t.department?.name, t.category?.name, t.priority?.name].filter(Boolean).join(' · ');
+    const m = this.actions(t);
     return html`<div class="page" data-ticket-page=${t.id}>
       <div class="phead">
         <a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a>
-        <h1 data-ticket-title>${t.title}</h1>
-        <span class=${`chip ${statusTone(t.status)}`}>${chipLabel(t.status)}</span>
+        <div class="tt"><h1 data-ticket-title>${t.title}</h1><div class="hsub">${this.subLine(t)}</div></div>
         <div class="acts">
-          ${t.can.assign ? html`<button type="button" class="btn primary" data-assign-top ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'assign' })}>${tIcon('user')}${t.assignee ? tt('reassign') : tt('assign')}</button>` : nothing}
-          ${t.can.note ? html`<button type="button" class="btn" @click=${() => { this.composing = true; this.renderRoot.querySelector('#timeline')?.scrollIntoView({ block: 'start' }); }}>${tIcon('note')}${tt('note')}</button>` : nothing}
-          ${t.can.edit_fields.length ? html`<button type="button" class="btn" data-edit ?disabled=${this.busy} @click=${() => this.openDialog({ kind: 'edit' })}>${tIcon('edit')}${tt('edit')}</button>` : nothing}
-          ${this.detailMode === 'drawer_fullscreen' ? html`<a class="btn" href=${listHref(this.scope, undefined, { t: t.id })} data-to-drawer>${tIcon('shrink')}${tt('toDrawer')}</a>` : nothing}
-          ${this.deleteButton(t, 'btn quiet dz')}
+          ${this.detailMode === 'drawer_fullscreen' ? html`<a class="btn sm quiet" href=${listHref(this.scope, undefined, { t: t.id })} data-to-drawer>${tIcon('shrink')}${dwt('a_toDrawer')}</a>` : nothing}
+          ${this.moreButton()}
         </div>
       </div>
-      <div class="pmeta">${tIcon('layers')}${bidi(meta)}</div>
       ${this.flashRow()}
-      <div class="cols">
-        <div class="stack">${this.sentence(t)}${this.statusSection(t)}<div class="glass card">${this.timelineSection(t)}</div></div>
-        <div class="stack">${this.assigneeSection(t)}${this.messagesSection(t)}${this.photosSection(t)}${historySection(t.device_context)}</div>
+      <div class="glass hero">${statusBlock(t, { role: m.role, now: new Date(), busy: this.busy, primary: m.primary, quiet: m.quiet, onAction: this.onAction })}</div>
+      <div class="glass tabcard">
+        ${drawerTabs(tabItems(t), this.tab, (id, focus) => this.selectTab(id, focus))}
+        ${this.panel(t)}
       </div>
+      ${this.menuPopover(t, m.menu)}
       ${this.dialogs()}
       ${this.deleteDialog(t)}
     </div>`;
+  }
+
+  protected updated(): void {
+    this.placeMenu();
   }
 
   render() {

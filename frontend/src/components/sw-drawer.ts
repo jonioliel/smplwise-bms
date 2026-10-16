@@ -45,6 +45,11 @@ function deepActive(): HTMLElement | null {
  * the control that opened it. Content that opens its own dialog (a confirmation) must render it inside the drawer,
  * since everything outside the top layer is inert. No transform on the open panel (a transform would become the
  * containing block of a nested fixed confirmation dialog).
+ *
+ * TKUI1 (2.6.0): slot `sub` (a rich second header line under the title), slot `strip` (a fixed band between the header and the
+ * scrolling body - the request's status block and tabs, so the body stays the ONE scroll container), parts `title` / `strip` / `body`,
+ * and the phone sheet's height vars `--sw-drawer-sheet-h` / `--sw-drawer-sheet-max-h` (default auto / 88dvh). An element marked
+ * `data-nested-open` inside the drawer (an open menu) keeps Escape for itself, like an open confirmation.
  */
 /** One reference count per locked scroll container, shared by every drawer: the inline `overflow` is saved by the FIRST lock and
  * restored by the LAST release. Per-drawer save/restore left a container locked for good when two drawers overlapped (the second
@@ -145,6 +150,11 @@ export class SwDrawer extends LitElement {
       font-size: var(--sw-fs-sm);
       font-variant-numeric: tabular-nums;
     }
+    /* TKUI1: a fixed band between the header and the scrolling body (the request's status block and tabs); empty = no room taken */
+    .strip {
+      flex: none;
+      min-inline-size: 0;
+    }
     .body {
       flex: 1;
       overflow: auto;
@@ -234,8 +244,9 @@ export class SwDrawer extends LitElement {
         inset-block: auto 0;
         inset-inline: 0;
         inline-size: 100%;
-        block-size: auto;
-        max-block-size: 88dvh;
+        /* TKUI1: a host may open the sheet at full height (the request's phone sheet) - the default stays the 88 % sheet */
+        block-size: var(--sw-drawer-sheet-h, auto);
+        max-block-size: var(--sw-drawer-sheet-max-h, 88dvh);
         border-inline-end: 0;
         border-block-start: 1px solid var(--sw-border);
         border-start-start-radius: var(--sw-r-lg);
@@ -342,10 +353,12 @@ export class SwDrawer extends LitElement {
   private nestedDialogOpen(): boolean {
     const dlg = this.dialog;
     if (!dlg) return false;
+    // an open confirmation, or a menu that marks itself `data-nested-open` (TKUI1: the request's "⋯" popover) keeps Escape for itself
+    const nested = (el: Element) => (el.tagName === 'SW-DIALOG' && el.hasAttribute('open')) || el.hasAttribute('data-nested-open');
     const walk = (root: Node): boolean => {
       for (const el of Array.from((root as ParentNode).querySelectorAll?.('*') ?? [])) {
-        if (el.tagName === 'SW-DIALOG' && el.hasAttribute('open')) return true;
-        if (el instanceof HTMLSlotElement && el.assignedElements({ flatten: true }).some((a) => (a.tagName === 'SW-DIALOG' && a.hasAttribute('open')) || walk(a) || (a.shadowRoot ? walk(a.shadowRoot) : false))) return true;
+        if (nested(el)) return true;
+        if (el instanceof HTMLSlotElement && el.assignedElements({ flatten: true }).some((a) => nested(a) || walk(a) || (a.shadowRoot ? walk(a.shadowRoot) : false))) return true;
         if (el.shadowRoot && walk(el.shadowRoot)) return true;
       }
       return false;
@@ -394,13 +407,15 @@ export class SwDrawer extends LitElement {
     return html`<div class="grip" aria-hidden="true"></div>
       <header>
         <div class="titles">
-          <h3 id="dh">${this.heading}</h3>
+          <h3 id="dh" part="title">${this.heading}</h3>
           ${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}
+          <slot name="sub"></slot>
         </div>
         <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${t('actions.close')} data-drawer-close @click=${this.close}></sw-button>
         <slot name="action"></slot>
       </header>
-      <div class="body"><slot></slot></div>
+      <div class="strip" part="strip"><slot name="strip"></slot></div>
+      <div class="body" part="body"><slot></slot></div>
       <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${this.onFooterSlot}></slot></footer>`;
   }
 
