@@ -58,3 +58,47 @@ test('the texts: English for every Hebrew key, and never the words of a "call" i
     expect(readFileSync(path.join(root, f), 'utf8'), f).not.toMatch(/קריא(ה|ות|ת)/);
   }
 });
+
+// HANDLERLOAD (owner 2026-10-17): the "handled" number and its period
+import { asHandledDays, HANDLED_DEFAULT, HANDLED_STORAGE_KEY, installationHandledDays, readStoredPeriod, storePeriod, withHandled } from '../src/tickets/handler-load';
+
+test('handled period: only 1 / 7 / 30 are accepted, in every spelling the browser or server may give', () => {
+  expect(asHandledDays(1)).toBe(1);
+  expect(asHandledDays('30')).toBe(30);
+  for (const bad of [0, 2, 8, 31, '07', '7 ', '7.0', '', null, undefined, true, NaN, '1;7', {}]) expect(asHandledDays(bad), String(bad)).toBeNull();
+  expect(installationHandledDays({ handled_days: 30 })).toBe(30);
+  expect(installationHandledDays({ handled_days: 14 })).toBe(HANDLED_DEFAULT);
+  expect(installationHandledDays(undefined)).toBe(7);
+});
+
+test('handled period: the viewer\'s choice is remembered; any storage failure or stale value falls back', () => {
+  const mem = new Map<string, string>();
+  const ok = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
+  expect(readStoredPeriod(ok)).toBeNull();
+  storePeriod(30, ok);
+  expect(mem.get(HANDLED_STORAGE_KEY)).toBe('30');
+  expect(readStoredPeriod(ok)).toBe(30);
+  mem.set(HANDLED_STORAGE_KEY, '14'); // an old / tampered value
+  expect(readStoredPeriod(ok)).toBeNull();
+  const broken = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+  expect(readStoredPeriod(broken)).toBeNull();
+  expect(() => storePeriod(7, broken)).not.toThrow();
+});
+
+test('handled counts merge into the loads without touching open / waiting / stuck', () => {
+  const loads = loadsFromBoard([{ assignee_key: 'user:a', waiting_on: 'assignee' }]);
+  const merged = withHandled(loads, { 'user:a': 4, 'user:b': 2 })!;
+  expect(merged.get('user:a')).toEqual({ open: 1, waiting: 1, stuck: 0, handled: 4 });
+  expect(merged.get('user:b')).toEqual({ open: 0, waiting: 0, stuck: 0, handled: 2 }); // handled something, nothing open now
+  expect(loads.get('user:a')).toEqual({ open: 1, waiting: 1, stuck: 0 }); // the input is not mutated
+  expect(withHandled(loads, null)).toBe(loads); // not available -> no fourth number
+  expect(withHandled(null, { 'user:a': 1 })).toBeNull(); // a viewer who manages nothing gets no numbers at all
+});
+
+test('handled texts exist in both languages and avoid the word "call"', () => {
+  for (const k of ['u6Handled', 'u6HandledPeriodLabel', 'u6HandledP1', 'u6HandledP7', 'u6HandledP30'] as const) {
+    expect(UI6_HE[k], k).toBeTruthy();
+    expect(UI6_EN[k], k).toBeTruthy();
+  }
+  expect(UI6_HE.u6Handled).toBe('טופלו');
+});

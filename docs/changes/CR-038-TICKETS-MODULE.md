@@ -2329,6 +2329,7 @@ Dragging a card calls the same status route; drop zones of transitions the calle
 | `detail_tab` (TKUI1, 2.6.0) | `overview` / `conv` / `costs` / `history` | `overview` | the tab a request opens on; a deep link's `?tab=` wins |
 | `drawer_size` (TKUI1) | `drawer` / `wide` / `full` | `wide` | the desktop drawer size (520 / 640 / full screen); each viewer's own switch wins (kept in the browser) |
 | `phone_sheet` (TKUI1) | `full` / `half` | `full` | the phone sheet opens at full height or as the half sheet (status block + the Now rows + "הצג הכול") |
+| `handled_days` (HANDLERLOAD) | `1` / `7` / `30` | `7` | the default period of the "טופלו" number on the handler cards of "מטפלים וספקים" (today / 7 days / 30 days); each viewer's own choice (browser) wins; edited with `system.configure` |
 
 The values reach every signed-in user through `GET /tickets/module` (`ui: {...}`), so no settings read is needed.
 

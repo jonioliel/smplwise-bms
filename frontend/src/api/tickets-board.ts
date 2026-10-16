@@ -16,7 +16,7 @@ export type StuckKind = 'unassigned' | 'overdue' | 'unopened' | 'ack' | 'stuck' 
 export type BoardGroup = 'waiting' | 'stuck' | 'handling' | 'closed';
 
 /** The board's part of `tickets.settings.ui` (GET /tickets/module carries it to every signed-in user). */
-export interface BoardUi { board_floors: BoardFloors; grouping: Grouping; closed_strip: ClosedStrip }
+export interface BoardUi { board_floors: BoardFloors; grouping: Grouping; closed_strip: ClosedStrip; /** HANDLERLOAD: the default period (days) of the handled number; optional - an older server does not send it */ handled_days?: 1 | 7 | 30 }
 export const BOARD_UI_DEFAULTS: BoardUi = { board_floors: 'tree', grouping: 'no_status_filter', closed_strip: 'all' };
 
 export interface BoardItem extends TicketItem {
@@ -68,11 +68,16 @@ export interface Facets {
   truncated: boolean;
 }
 
+/** GET /tickets/handler-load: the handled count per assignee key for the period (a count only; the days are the allow-list 1 / 7 / 30). */
+export interface HandlerLoadResponse { days: 1 | 7 | 30; default_days: 1 | 7 | 30; since: string; now: string; handled: Record<string, number>; truncated: boolean }
+
 export interface BoardSettingsDoc { revision: number; ui: Record<string, unknown> & Partial<BoardUi>; urgent_is_critical?: boolean }
 
 export interface BoardBackend {
   board(q: BoardQuery): Promise<BoardResponse>;
   facets(q: BoardQuery & { scope?: string; status?: string }): Promise<Facets>;
+  /** HANDLERLOAD: requests handled per handler in the period (omitted days = the installation default) */
+  handlerLoad(days?: 1 | 7 | 30): Promise<HandlerLoadResponse>;
   saveSettings(revision: number, patch: { ui?: Partial<BoardUi>; urgent_is_critical?: boolean }): Promise<BoardSettingsDoc>;
   treeHidden(): Promise<boolean>;
   setTreeHidden(hidden: boolean): Promise<void>;
@@ -88,6 +93,7 @@ const qs = (o: Record<string, string | undefined>): string => {
 const rest: BoardBackend = {
   board: (q) => get<BoardResponse>(`tickets/board${qs({ department_id: q.department_id, priority: q.priority, assignee: q.assignee, place: q.place, stuck: q.stuck, state: q.state && q.state !== 'all' ? q.state : undefined, q: q.q?.trim() })}`),
   facets: (q) => get<Facets>(`tickets/facets${qs({ scope: q.scope, status: q.status, department_id: q.department_id, priority: q.priority, assignee: q.assignee, place: q.place, stuck: q.stuck, q: q.q?.trim() })}`),
+  handlerLoad: (days) => get<HandlerLoadResponse>(`tickets/handler-load${qs({ days: days ? String(days) : undefined })}`),
   saveSettings: (revision, patch) => put<BoardSettingsDoc>('tickets/settings', { revision, ...patch }),
   treeHidden: async () => {
     const r = await get<{ prefs: Record<string, unknown> }>('me/prefs');
@@ -164,6 +170,16 @@ const demo: BoardBackend = {
   async facets() {
     const b = await demo.board({});
     return { status: {}, groups: { open: b.counts.all, unassigned: b.counts.unassigned, handling: 0, done: 0, closed: b.counts.closed_all }, departments: {}, stuck: {}, waiting: b.counts.waiting, tree: b.tree, total: b.counts.all, truncated: false };
+  },
+  async handlerLoad(days) {
+    // the demo has no history of completions: the recently closed demo requests count by their closing time
+    const d = days ?? demoUi.handled_days ?? 7;
+    const now = Date.now();
+    const handled: Record<string, number> = {};
+    for (const x of (await demo.board({ state: 'closed' })).items) {
+      if (x.assignee_key !== 'none' && x.closed_at && now - Date.parse(x.closed_at) < d * 24 * HOUR) handled[x.assignee_key] = (handled[x.assignee_key] ?? 0) + 1;
+    }
+    return { days: d, default_days: demoUi.handled_days ?? 7, since: new Date(now - d * 24 * HOUR).toISOString(), now: new Date(now).toISOString(), handled, truncated: false };
   },
   async saveSettings(_revision, patch) {
     demoUi = { ...demoUi, ...(patch.ui ?? {}) };

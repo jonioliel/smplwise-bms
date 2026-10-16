@@ -73,6 +73,8 @@ export class TicketsContacts extends LitElement {
   @property({ type: Boolean }) newbtn = false;
   /** the load by assignee key (`contact:<id>` for an employee without an account), from the board - department managers only */
   @property({ attribute: false }) loads: Map<string, MemberLoad> | null = null;
+  /** HANDLERLOAD: the period label of the "handled" number; null = the count is not available -> no fourth number */
+  @property({ attribute: false }) handledLabel: string | null = null;
   /** the departments the viewer manages (the load of an employee is shown only to a manager of one of the employee's departments) */
   @property({ attribute: false }) managed: readonly string[] = [];
   @state() private rows: Contact[] | null = null;
@@ -438,7 +440,8 @@ export class TicketsContacts extends LitElement {
         ? (load ? html`<div class="stats" data-contact-stats>
             <div><b data-stat="open">${load.open}</b>${tt('u6Open')}</div>
             <div><b class=${load.waiting ? 'warn' : ''} data-stat="waiting">${load.waiting}</b>${tt('u6WaitingHim')}</div>
-            <div><b class=${load.stuck ? 'bad' : ''} data-stat="stuck">${load.stuck}</b>${tt('u6Stuck')}</div></div>` : nothing)
+            <div><b class=${load.stuck ? 'bad' : ''} data-stat="stuck">${load.stuck}</b>${tt('u6Stuck')}</div>
+            ${this.handledLabel === null ? nothing : html`<div data-stat-cell="handled"><b data-stat="handled">${load.handled ?? 0}</b>${tt('u6Handled')}<small data-stat-period>${this.handledLabel}</small></div>`}</div>` : nothing)
         : html`<div class="stats" data-contact-stats><div><b data-stat="open">${c.open_tickets}</b>${tt('u6Open')}</div></div>`}
       <footer>
         <span class="fchips">${c.departments.map((id) => html`<span class="chip">${bidi(this.deptName(id))}</span>`)}</span>

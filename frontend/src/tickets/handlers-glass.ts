@@ -98,9 +98,42 @@ export const handlersGlass = css`
     padding-inline: 8px;
     font-size: var(--sw-fs-xs);
   }
+  .hperiod {
+    display: flex;
+    flex: none;
+  }
+  .hperiod select {
+    block-size: 38px;
+    padding-inline: 12px;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    border-radius: var(--dv-radius-control);
+    background: var(--mm-sheen), var(--dv-surface);
+    border: 1px solid var(--dv-border);
+    color: var(--dv-text);
+    font: inherit;
+    font-size: var(--sw-fs-base);
+  }
+  .hperiod select:focus-visible {
+    outline: 2px solid var(--dv-focus);
+    outline-offset: 1px;
+  }
+  @media (max-width: 767px) {
+    .dh-det .hperiod {
+      order: 2;
+      flex: 1 1 100%;
+    }
+    .dh-det .hperiod select {
+      inline-size: 100%;
+    }
+    .hcard .stats {
+      gap: 6px 14px;
+    }
+  }
   .hcard .stats {
     display: flex;
-    gap: 18px;
+    flex-wrap: wrap;
+    gap: 6px 18px;
     font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
   }
@@ -115,6 +148,11 @@ export const handlersGlass = css`
   }
   .hcard .stats b.warn {
     color: var(--au-warn-text);
+  }
+  .hcard .stats small[data-stat-period] {
+    display: block;
+    font-size: var(--sw-fs-xs);
+    color: var(--dv-text-3, var(--dv-text-2));
   }
   .hcard .stats b.bad {
     color: var(--dv-danger);

@@ -51,6 +51,8 @@ export class TicketsHandlersMembers extends LitElement {
   @property() query = '';
   /** the load by assignee key (`user:<id>`), from the board; null = not available (the viewer manages no department) */
   @property({ attribute: false }) loads: Map<string, MemberLoad> | null = null;
+  /** HANDLERLOAD: the period label of the "handled" number ("7 ימים"); null = the count is not available -> no fourth number */
+  @property({ attribute: false }) handledLabel: string | null = null;
   /** the departments the viewer manages: only there the load is shown (owner decision TKUI6) */
   @property({ attribute: false }) managed: readonly string[] = [];
   /** the page's "+ מטפל": the add panel is open */
@@ -248,6 +250,7 @@ export class TicketsHandlersMembers extends LitElement {
       <div><b data-stat="open">${l.open}</b>${tt('u6Open')}</div>
       <div><b class=${l.waiting ? 'warn' : ''} data-stat="waiting">${l.waiting}</b>${tt('u6WaitingHim')}</div>
       <div><b class=${l.stuck ? 'bad' : ''} data-stat="stuck">${l.stuck}</b>${tt('u6Stuck')}</div>
+      ${this.handledLabel === null ? nothing : html`<div data-stat-cell="handled"><b data-stat="handled">${l.handled ?? 0}</b>${tt('u6Handled')}<small data-stat-period>${this.handledLabel}</small></div>`}
     </div>`;
   }
 
