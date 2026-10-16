@@ -122,7 +122,8 @@ def test_the_key_is_a_legacy_addon_option_with_an_env_fallback(tmp_path, monkeyp
 
     cfg = (pathlib.Path(__file__).resolve().parents[2] / "config.yaml").read_text(encoding="utf-8")
     # TKSECRETS2: the key left the add-on manifest (the in-app secrets store); an older options.json is still read as the legacy value
-    assert "openai_api_key" not in cfg
+    # 2.6.3 transitional: only a deprecated, empty `password?` declaration remains (emptied by Arx, removed in the next version)
+    assert 'openai_api_key: ""' in cfg and "openai_api_key: password?" in cfg and cfg.count("openai_api_key") == 2
 
 
 # ---------- the connection test ----------

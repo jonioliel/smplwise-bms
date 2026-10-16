@@ -295,6 +295,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # options into it, then its values overlaid - before the NVR overlay, so every recorder's settings inherit them
     settings = secrets_store.apply_at_startup(app.state.db, settings)
     settings, legacy_differ = connection_store.apply_at_startup(app.state.db, settings)
+    # 2.6.3 transitional (delta review S-1): empty the deprecated secret options whose values the stores now hold (names-only logs)
+    secrets_store.clear_lingering_options(app.state.db, settings)
     app.state.settings = settings
     app.state.legacy_options_differ = legacy_differ
     app.state.connection_probe_limiter = connection_probe.probe_limiter()

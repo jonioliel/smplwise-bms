@@ -54,6 +54,11 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      on, restart the add-on, route the tunnel's public hostname to the container port, then in הגדרות › the module › כללי
      enter the public address in "דף המטפלים" and press "בדיקת כתובת". Sending to an outside contact stays unavailable until
      all of this is in place. See `docs/changes/CR-038-TICKETS-MODULE.md` sections 10 and 14.
+   - `nvr_password`, `go2rtc_api_password`, `wiskey_password`, `wiskey_background_token`, `openai_api_key`, `push_relay_key` —
+     **deprecated, leave empty (2.6.3 only)**: the former secret options stay declared for this one version so an upgrade keeps
+     their old values until Arx has moved them into its encrypted store (הגדרות › חיבורים › סודות; the NVR password lives in the
+     NVR connection screen) at the first start; Arx then empties them itself. If a value remains, the system report says "old
+     secret still in add-on options": remove it here. They are removed in the next version.
    - `log_level` (default `info`; `debug`, `info`, `warning`, `error`) — the add-on log verbosity; `debug` adds request-level
      detail and never prints secrets.
    - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on

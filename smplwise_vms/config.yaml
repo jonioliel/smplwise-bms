@@ -55,6 +55,15 @@ options:
   wiskey_username: ""
   # TKSECRETS2: the go2rtc API password, the WisKey stations' password, the WisKey background token, the OpenAI API key and the
   # push relay key are no add-on options: they are entered in Settings › Connections › Secrets (stored encrypted by Arx).
+  # DEPRECATED (2.6.3 only, transitional): the six former secret options below stay declared for ONE version so an upgrade keeps
+  # their old values until Arx has moved them into its encrypted store at the first start; Arx then empties them. Leave them empty.
+  # They are removed in the next version.
+  nvr_password: ""
+  go2rtc_api_password: ""
+  wiskey_password: ""
+  wiskey_background_token: ""
+  openai_api_key: ""
+  push_relay_key: ""
   # CR-008 SmplWise Arx: https://<your HA hostname>/arx through a Cloudflare tunnel path route (DOCS "Remote access").
   remote_access: false
   remote_path: /arx
@@ -86,3 +95,9 @@ schema:
   frigate_enabled: bool?
   db_write_gate: bool?
   log_level: list(debug|info|warning|error)
+  nvr_password: password?
+  go2rtc_api_password: password?
+  wiskey_password: password?
+  wiskey_background_token: password?
+  openai_api_key: password?
+  push_relay_key: password?

@@ -153,10 +153,14 @@ def test_an_unreadable_key_fails_closed(settings, caplog):
 def test_a_removed_option_can_never_be_written_back_through_the_supervisor():
     from smplwise.services import self_update
 
-    for key in LEGACY_SECRET_OPTIONS:
-        assert key not in self_update.OPTION_TYPES
-        with pytest.raises(self_update.ProbeRefused):
-            self_update.check_allowed("POST", self_update.P_OPTIONS, {"options": {key: "x"}})
+    for key in ("nvr_password",) + LEGACY_SECRET_OPTIONS:
+        # 2.6.3 transitional: declared (deprecated) so an options write may carry the key - but ONLY empty, never a value
+        assert self_update.OPTION_TYPES[key] == "cleared"
+        for value in ("x", "a-real-looking-secret", 0, False, [], {}):
+            with pytest.raises(self_update.ProbeRefused):
+                self_update.check_allowed("POST", self_update.P_OPTIONS, {"options": {key: value}})
+        assert self_update.check_allowed("POST", self_update.P_OPTIONS, {"options": {key: ""}}) == self_update.P_OPTIONS
+        assert self_update.check_allowed("POST", self_update.P_OPTIONS, {"options": {key: None}}) == self_update.P_OPTIONS
 
 
 def test_the_store_is_not_a_backup_table():

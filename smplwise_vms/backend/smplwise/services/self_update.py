@@ -83,11 +83,15 @@ SLUG_RE = re.compile(r"[a-z0-9_]{1,64}")
 _SELF_SLUG: str | None = None    # the slug GET /addons/self/info last reported for this add-on (never stored, never returned)
 
 # The add-on options (config.yaml `schema`); a test keeps this equal to the manifest. Kinds: str (required string), str? (string or
-# null), port, bool, bool?, remote_path, log_level.
+# null), port, bool, bool?, remote_path, log_level, cleared (a deprecated `password?` option: only "" / null may be written).
 OPTION_TYPES: dict[str, str] = {
     "bootstrap_admin_username": "str", "nvr_host": "str?", "nvr_http_port": "port", "nvr_rtsp_port": "port", "nvr_username": "str?",
-    # TKSECRETS2: go2rtc_api_password, wiskey_password, wiskey_background_token, openai_api_key and push_relay_key left the manifest (the
-    # in-app secrets store, services/secrets_store.py): an options write can never carry them
+    # TKSECRETS1/2 + 2.6.3 transitional (delta review S-1): the former secret options are re-declared as DEPRECATED `password?` for one
+    # version so an upgrade keeps their values for the one-time import into the in-app secrets store; an options write may carry
+    # them ONLY empty (kind "cleared"), which is how secrets_store.clear_lingering_options removes a lingering value. Next version:
+    # removed from the manifest and from here.
+    "nvr_password": "cleared", "go2rtc_api_password": "cleared", "wiskey_password": "cleared", "wiskey_background_token": "cleared",
+    "openai_api_key": "cleared", "push_relay_key": "cleared",
     "go2rtc_url": "str?", "go2rtc_api_username": "str?", "wiskey_username": "str?",
     "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
     "log_level": "log_level",
@@ -155,6 +159,8 @@ def _option_ok(kind: str, value: Any) -> bool:
         return isinstance(value, bool) or (kind == "bool?" and value is None)
     if kind == "log_level":
         return value in LOG_LEVELS
+    if kind == "cleared":  # a deprecated secret option: Arx may only empty it, never write a value into it
+        return value in ("", None)
     return False
 
 

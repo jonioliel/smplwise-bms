@@ -226,6 +226,78 @@ def apply_at_startup(db: Any, settings: Settings) -> Settings:
     return out
 
 
+# ---------------------------------------------------------------- 2.6.3 transitional: empty the deprecated add-on options
+
+# The deprecated option names still holding a value after the start-up step (the health report shows "old secret still in add-on
+# options: remove it"). Names only, never a value.
+LINGERING_OPTIONS: list[str] = []
+
+
+def _options_path() -> Path:
+    return Path(os.environ.get("SW_OPTIONS_FILE", "/data/options.json"))
+
+
+def clear_lingering_options(db: Any, settings: Settings, *, options_path: Path | None = None) -> list[str]:
+    """Delta review S-1 (2.6.3, lead decision): config.yaml re-declares the former secret options as DEPRECATED `password?` for this
+    one version, so an upgraded install still has its old values at the first start and the one-time import (import_legacy) finds
+    them. After that import, every deprecated option that still carries a value AND whose value is no longer needed - the store has a
+    row for it (set or cleared: the store decides), or for `nvr_password` the stored NVR connection holds a password - is emptied
+    through the ONE self-options writer (self_update.call, POST /addons/self/options; its allow-list accepts only an empty value for
+    these keys). The whole options document is written back with only those keys emptied (the Supervisor replaces the options).
+    While any value is still needed (its import failed) nothing is written. If the write is impossible or refused, nothing changes: one WARN line
+    with the NAMES only, and the health report lists them. Runs after the database work (no connection is held during the call).
+    Returns the names emptied."""
+    from ..config import DEPRECATED_SECRET_OPTIONS
+    from . import connection_store, self_update
+
+    LINGERING_OPTIONS.clear()
+    path = options_path or _options_path()
+    if options_path is None and not settings.in_addon:
+        return []
+    try:
+        import json
+
+        options = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        return []
+    if not isinstance(options, dict):
+        return []
+    lingering = [k for k in DEPRECATED_SECRET_OPTIONS if options.get(k) not in (None, "")]
+    if not lingering:
+        return []
+    try:
+        with db.connection(mode="read", label="secrets_store.lingering") as conn:
+            rows = _rows(conn)
+            nvr = connection_store.get_row(conn)
+            nvr_has_password = bool(nvr is not None and nvr["password_enc"])
+    except Exception:  # noqa: BLE001 - never block the start
+        LINGERING_OPTIONS.extend(lingering)
+        log.warning("old secrets are still in the add-on options (%s): remove them in the add-on configuration", ", ".join(lingering))
+        return []
+    safe = [k for k in lingering if (k == "nvr_password" and nvr_has_password) or (k != "nvr_password" and k in rows)]
+    keep = [k for k in lingering if k not in safe]
+    if keep:  # a value still needed: nothing is written (the writer may only empty these keys), every lingering name is reported
+        LINGERING_OPTIONS.extend(lingering)
+        log.warning("old secrets are still in the add-on options and %s not moved yet (%s); enter them in Settings, then remove them "
+                    "from the add-on configuration", "some were" if safe else "they were", ", ".join(lingering))
+        return []
+    body = {"options": {**options, **{k: "" for k in safe}}}
+    try:
+        reply = self_update.call(settings, "POST", self_update.P_OPTIONS, body=body, timeout=10.0)
+        ok = reply.kind == "ok"
+    except self_update.ProbeRefused:
+        ok = False
+    except Exception:  # noqa: BLE001 - never block the start
+        ok = False
+    if not ok:
+        LINGERING_OPTIONS.extend(safe)
+        log.warning("old secrets are still in the add-on options (%s): they are no longer used - remove them in the add-on configuration",
+                    ", ".join(safe))
+        return []
+    log.info("the old secret options were emptied in the add-on configuration (%s); the secrets store decides", ", ".join(safe))
+    return safe
+
+
 def apply_live(app: Any, name: str, value: str | None) -> None:
     """After a save / clear: request handlers see the new value at once (app.state.settings is replaced); background workers keep
     their start-up copy until the next start (`restart_required`)."""

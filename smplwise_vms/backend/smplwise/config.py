@@ -139,6 +139,10 @@ DEV_NVR_PLACEHOLDER = "nvr-placeholder.test"
 
 # TKSECRETS2: the former add-on options of type `password`, now in the in-app secrets store (services/secrets_store.SPECS).
 LEGACY_SECRET_OPTIONS = ("go2rtc_api_password", "wiskey_password", "wiskey_background_token", "openai_api_key", "push_relay_key")
+# 2.6.3 transitional compatibility (delta review S-1, lead decision): these keys are re-declared in config.yaml as DEPRECATED optional
+# `password?` options for ONE version, so the Supervisor keeps an upgraded install's old values long enough for the one-time import;
+# secrets_store.clear_lingering_options then empties them through the self-options writer. They are removed in the next version.
+DEPRECATED_SECRET_OPTIONS = ("nvr_password",) + LEGACY_SECRET_OPTIONS
 
 
 def _opt(options: dict, key: str, env: str, default: str | None = None) -> str | None:
@@ -157,12 +161,12 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         in_addon = path == Path("/data/options.json")
     # CR-027: the SmplWise push relay (the phone app's notifications) - the URL option reaches the channel as runtime environment
     # (services/mobile_push.py). TKSECRETS2: the key is no add-on option any more; it lives encrypted in the secrets store and
-    # secrets_store.apply_at_startup puts it into SW_PUSH_RELAY_KEY once the database is open. A legacy `push_relay_key` an older
-    # options.json still carries is honoured here until that start-up step moved it into the store.
-    for key, env in (("push_relay_url", "SW_PUSH_RELAY_URL"), ("push_relay_key", "SW_PUSH_RELAY_KEY")):
-        value = _opt(options, key, env)
-        if value:
-            os.environ[env] = value
+    # secrets_store owns SW_PUSH_RELAY_KEY (apply_at_startup / apply_live; without a store row the legacy option is applied there,
+    # once, at start-up). Delta review S-2 (2.6.3): load_settings() runs again at runtime (rules.py, ha_history.py), so it must NEVER
+    # write the legacy `push_relay_key` back into the environment - a key rotated or cleared in the store would come back.
+    value = _opt(options, "push_relay_url", "SW_PUSH_RELAY_URL")
+    if value:
+        os.environ["SW_PUSH_RELAY_URL"] = value
 
     data_dir = Path(os.environ.get("SW_DATA_DIR") or ("/data" if in_addon else Path.cwd() / "data"))
     # CR-022: the workstation file <data>/nvr_connection.json of 0.1.71 is gone - the NVR connection is a database row

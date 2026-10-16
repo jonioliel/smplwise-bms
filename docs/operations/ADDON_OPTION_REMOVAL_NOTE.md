@@ -52,3 +52,34 @@ behind a protected API, WisKey stills, AI skins and phone push stay off until th
 
 Also check on that install: whether the "Insecure secrets detected" repair issue clears by itself after the upgrade, or only
 after the options are saved once.
+
+## 2.6.3: transitional compatibility for ONE version (delta review S-1, lead decision 2026-10-16)
+
+Because the Supervisor may drop option keys the new schema no longer declares at the first start of the new version (then the
+one-time import would find nothing and every secret would become `not_set` - with a password-protected go2rtc API that is an
+outage of live video), 2.6.3 declares the six former secret options again, as DEPRECATED optional `password?` options with empty
+defaults: `nvr_password`, `go2rtc_api_password`, `wiskey_password`, `wiskey_background_token`, `openai_api_key`, `push_relay_key`
+(config.yaml options + schema; `self_update.OPTION_TYPES` kind `cleared`, which lets an options write carry them ONLY empty).
+
+- At start-up, after the migrations, `secrets_store.apply_at_startup` imports a lingering value into the store exactly as before
+  (only when the store has no row for that name). `nvr_password` is still NOT imported (TKSECRETS1: the NVR password lives in the
+  NVR connection screen).
+- Then `secrets_store.clear_lingering_options` empties, through the one self-options writer (`self_update.call`,
+  `POST /addons/self/options`, the whole options document written back with only those keys emptied), every deprecated option that
+  still holds a value whose value is no longer needed: the store has a row for it (set or cleared), or - for `nvr_password` - the
+  stored NVR connection holds a password. While any lingering value is still needed (its import failed), nothing is written.
+- If the write is not possible (no Supervisor API, refused, an unknown key in options.json, a value still needed), nothing changes:
+  one WARN line naming the options (never a value) and the system report (`/health/report`, system administrators) shows
+  "סוד ישן עדיין שמור בהגדרות התוסף: יש להסיר אותו (<names>)". Home Assistant's "Insecure secrets" warning disappears once the
+  options are empty.
+- `load_settings()` no longer writes the legacy `push_relay_key` into `SW_PUSH_RELAY_KEY` (delta review S-2: it also runs at
+  runtime, so a key rotated or cleared in the store came back). Without a store row the legacy value is applied once at start-up by
+  the store's overlay.
+
+FOLLOW-UP (next version): remove the six keys from config.yaml (options + schema), from `self_update.OPTION_TYPES` (kind
+`cleared`), `config.DEPRECATED_SECRET_OPTIONS` and `secrets_store.clear_lingering_options`.
+
+STILL NOT VERIFIED - check on the first install of 2.6.3 (upgrade from a build whose options carry values): (1) what the Supervisor
+does with the old values (kept because the keys are declared again - expected - or dropped); (2) that the import log lines name the
+secrets and the store shows them `set`; (3) that the options are empty afterwards (Arx's options write was accepted) and the
+"Insecure secrets" repair issue cleared; (4) if not, that the system report lists the names.

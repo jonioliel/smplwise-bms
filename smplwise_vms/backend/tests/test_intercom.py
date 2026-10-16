@@ -2590,8 +2590,10 @@ def test_wiskey_account_options(tmp_path, monkeypatch):
     s = load_settings(tmp_path / "missing.json")
     assert (s.wiskey_user, s.wiskey_password) == ("env-door", "env-pw")
     cfg = (ROOT / "smplwise_vms" / "config.yaml").read_text(encoding="utf-8")
-    # TKSECRETS2: the user name stays an add-on option; the password left the manifest (the in-app secrets store)
-    assert 'wiskey_username: ""' in cfg and "wiskey_username: str?" in cfg and "wiskey_password" not in cfg
+    # TKSECRETS2: the user name stays an add-on option; the password moved to the in-app secrets store. 2.6.3 transitional: the
+    # password key stays declared ONLY as a deprecated, empty `password?` option (emptied by Arx, removed in the next version)
+    assert 'wiskey_username: ""' in cfg and "wiskey_username: str?" in cfg
+    assert 'wiskey_password: ""' in cfg and "wiskey_password: password?" in cfg and cfg.count("wiskey_password") == 2
 
 
 # ---------------------------------------------------------------- security review round (S1-S3, N2, N4a)

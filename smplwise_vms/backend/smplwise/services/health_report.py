@@ -256,6 +256,14 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     bage = _age_s(last["created_at"]) if last else None
     checks.append(_check("backups", "גיבויים", "error" if not last else ("warn" if bage is not None and bage > 2 * 86400 else "ok"), f"{len(backups)} גיבויים · אחרון {last['name'] + ' (' + last['kind'] + ')' if last else 'אין עדיין'}{' · לפני ' + str(int(bage // 3600)) + ' שע׳' if bage is not None else ''}", count=len(backups), last=last["name"] if last else None, last_kind=last["kind"] if last else None, last_age_s=bage))
 
+    # 2.6.3 transitional (delta review S-1): a former secret option still holds a value in the add-on configuration (names only)
+    from . import secrets_store
+
+    if secrets_store.LINGERING_OPTIONS:
+        names = ", ".join(secrets_store.LINGERING_OPTIONS)
+        checks.append(_check("secret_options", "סודות ישנים בהגדרות התוסף", "warn",
+                             f"סוד ישן עדיין שמור בהגדרות התוסף: יש להסיר אותו ({names}). הערכים נשמרים מוצפנים בהגדרות › חיבורים › סודות.",
+                             names=list(secrets_store.LINGERING_OPTIONS)))
     worst = "ok"  # "off" (not part of this installation) never lowers the overall status
     for c in checks:
         if c["status"] == "error":

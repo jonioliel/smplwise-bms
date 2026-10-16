@@ -390,7 +390,8 @@ def test_nothing_in_the_product_writes_the_add_on_options():
     (test_options_content_is_validated) so a future caller is still bounded."""
     users = sorted(f.relative_to(PKG).as_posix() for f in PKG.rglob("*.py")
                    if f.name != "self_update.py" and ("P_OPTIONS" in f.read_text(encoding="utf-8") or "/addons/self/options" in f.read_text(encoding="utf-8")))
-    assert users == [], users
+    # 2.6.3 transitional (delta review S-1): the one caller - it may only EMPTY the deprecated secret options (kind "cleared")
+    assert users == ["services/secrets_store.py"], users
 
 
 # ================================================================ discovery and /core/info through the central door
