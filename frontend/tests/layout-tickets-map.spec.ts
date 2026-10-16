@@ -83,6 +83,30 @@ async function chipScrollers(page: Page): Promise<{ own: string[]; picker: strin
   });
 }
 
+/** the picker dialog's box against the viewport, and whether its "צרף לבקשה" button is reachable (inside the box and the viewport) */
+async function pickerBox(page: Page): Promise<{ l: number; t: number; r: number; b: number; vw: number; vh: number; saveOut: boolean } | null> {
+  return page.evaluate(() => {
+    const find = (root: ParentNode, sel: string): Element | null => {
+      for (const el of Array.from(root.querySelectorAll('*'))) {
+        if (el.matches(sel)) return el;
+        if (el.shadowRoot) {
+          const f = find(el.shadowRoot, sel);
+          if (f) return f;
+        }
+      }
+      return null;
+    };
+    const pk = find(document, 'ticket-map-picker');
+    const dlg = pk?.shadowRoot?.querySelector('sw-dialog');
+    const box = dlg?.shadowRoot?.querySelector('.box');
+    if (!box) return null;
+    const r = box.getBoundingClientRect();
+    const save = pk?.shadowRoot?.querySelector('[data-map-save]')?.getBoundingClientRect();
+    const saveOut = !save || save.left < r.left - 1 || save.right > r.right + 1 || save.bottom > Math.min(r.bottom, innerHeight) + 1 || save.top < Math.max(r.top, 0) - 1;
+    return { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom), vw: innerWidth, vh: innerHeight, saveOut };
+  });
+}
+
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 test.use({ timezoneId: 'Asia/Jerusalem', locale: 'he-IL' });
 
@@ -121,7 +145,20 @@ test.describe('tickets map chip and picker layout guard', () => {
             if (own.own.length) scrollFindings.push(`${s.name} ${skin} ${theme} ${w}: the chip adds scroll containers [${own.own.join(', ')}]`);
             for (const x of own.picker) pickerScrollers.add(x);
             const found = await page.evaluate(inPageCheck, { ctx: `${s.name} ${skin} ${theme} ${w}`, bubble: BUBBLE, skip: SKIP, roots: [], within: 'tickets-list' });
-            for (const f of found) (f.cls === 'target' || f.cls === 'floating' ? targets : results).push(f);
+            // the picker's modal overlay (`div.backdrop`) is a viewport-fixed layer that lives inside the Overview panel's DOM: the guard's
+            // escape rule has no exemption for a fixed element that is itself the descendant, so it is not a finding (the dialog box is
+            // checked against the viewport below)
+            for (const f of found) {
+              if (f.cls === 'escape' && f.el.startsWith('div.backdrop')) continue;
+              (f.cls === 'target' || f.cls === 'floating' ? targets : results).push(f);
+            }
+            if (s.picker) {
+              const box = await pickerBox(page);
+              if (!box) scrollFindings.push(`${s.name} ${skin} ${theme} ${w}: the picker dialog box was not found`);
+              else if (box.l < -1 || box.t < -1 || box.r > box.vw + 1 || box.b > box.vh + 1 || box.saveOut) {
+                results.push({ cls: 'escape', el: 'sw-dialog .box', detail: `the picker dialog leaves the viewport (${JSON.stringify(box)})`, ctx: `${s.name} ${skin} ${theme} ${w}` });
+              }
+            }
           }
         }
       }
