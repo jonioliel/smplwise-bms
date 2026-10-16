@@ -1,5 +1,5 @@
 -- USR2 phase 1 (docs/design/USR2_ARX_ONLY_IDENTITY_SPEC.md section 5.1, owner answers 2026-10-16): Arx-only (local) identities.
--- Provisional number 0097 (the lead renumbers at integration; contiguous sequence rule). Additive only: no existing row changes,
+-- Number 0096 (provisional 0097 on pilot/USR2-P1; renumbered at integ/264 - contiguous sequence rule). Additive only: no existing row changes,
 -- no CHECK is added to users.source (the service layer validates it), and nothing here is used while the setting
 -- `security.local_identity` is `off` (the default).
 

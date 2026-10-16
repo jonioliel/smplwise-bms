@@ -10,7 +10,7 @@ path ... uses HA authentication and not an additional password database"), and -
 `MASTER_SPEC_HE.md` and `docs/security/` > `AGENTS.md`) - the sentence of the `AGENTS.md` v1.1 amendment "HA is the only human
 identity source; local VMS records contain bindings, not passwords". `AGENTS.md` itself is not edited by this change (it is the
 agents' operating contract); the lead / owner updates its wording, and until then this CR takes precedence over that sentence.
-**Implementation:** phase P0 + P1 on `pilot/USR2-P1` (migration 0097 provisional, the lead renumbers); USR2-FIX on `pilot/USR2-FIX`
+**Implementation:** phase P0 + P1 on `pilot/USR2-P1` (migration 0096 - provisional 0097, renumbered at integ/264); USR2-FIX on `pilot/USR2-FIX`
 (section 7); phase 2 on `pilot/USR2-P2` (section 8, no migration).
 
 ---
@@ -87,7 +87,7 @@ agents' operating contract); the lead / owner updates its wording, and until the
 | 4 | Alarm arm / disarm through the service identity per role and PIN rules | Phase 3 (service identity). Phase 1: the remote alarm rules (`alarm.remote_control`, `alarm.remote_disarm`, `alarm.remote_codeless`) already apply to local principals (`routers/alarm.py`, `services/schedule_view.py` treat `source = local` as remote) |
 | 5 | Both reset kinds, chosen per user (`manager_only` default / `self_service`), self-service refused for admins | `auth_local_credentials.reset_mode`, create / PATCH validation, admin role switches back to `manager_only`; manager-issued links (`POST .../link`). Phase 2 (section 8): the self-service flow (WhatsApp code), refused at the moment of use for an administrator; links by WhatsApp for non-administrators only |
 | 6 | App refresh token, app only - later (P5) | Not built. Schema compatible: `auth_local_sessions.kind IN ('browser','app')`, chain model, hashed ids |
-| 7 | Both identities allowed, manual link, disable suggests | `identity_links` (migration 0097), `PUT/DELETE /identity/local-users/{id}/ha-link`, PATCH active answers `suggest_also` |
+| 7 | Both identities allowed, manual link, disable suggests | `identity_links` (migration 0096), `PUT/DELETE /identity/local-users/{id}/ha-link`, PATCH active answers `suggest_also` |
 | 8 | Hashes in the project backup; sessions / links / failures / TOTP excluded | `services/backup.py` ACCESS_TABLES gains `auth_local_credentials`, `identity_links`; `NEVER_EXPORTED_COLUMNS` keeps the failure counter / lock columns out (USR2-FIX F9) |
 
 **Exact rule implemented for answer 3 (normative for the code):** `rbac.authorize(conn, principal, permission, target)` returns
@@ -103,7 +103,7 @@ and `/auth/remote-config` (403 `second_factor_enrollment_required` elsewhere).
 ## 3. Phase 1 scope (built) and what follows
 
 Built (P0 + P1): this CR; the permission `identity.local.manage` (system_admin only, a system permission: never in a custom role,
-never delegable); the settings keys; migration 0097; `services/local_passwords.py` (hashing, policy, local denylist);
+never delegable); the settings keys; migration 0096; `services/local_passwords.py` (hashing, policy, local denylist);
 `services/local_identity.py` (sessions, tiers, links, janitor); `routers/local_identity.py`; the cookie branch in
 `services/ha_user_auth.py`; the sessions list / revoke extension; the one-binding rule; the directory-sync exemption (R11); the TOTP
 sign-in step and the administrative-permission rule; the sign-in page mode and the welcome (set-password) page; the settings tab
@@ -134,7 +134,7 @@ days, `GET /me/export`, the Hebrew user guide, the API inventory and the securit
 ## 5. Rollback
 
 Switch `security.local_identity` off (every local session ends; nothing else changes). Code rollback: revert the branch; migration
-0097 is additive (new tables, nullable columns) - older code ignores them; the `identity.local.manage` permission in `roles.json`
+0096 is additive (new tables, nullable columns) - older code ignores them; the `identity.local.manage` permission in `roles.json`
 is unknown to older code and harmless.
 
 ## 6. NOT_VERIFIED

@@ -11794,7 +11794,7 @@
       "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. A fresh security review of the public surfaces (sign-in, set-password) before release. No live HA contact."
     },
     "deliverables": [
-      "docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md (P0), migration 0097 (provisional), services/local_passwords.py, services/local_identity.py, routers/local_identity.py, the cookie branch in services/ha_user_auth.py, frontend arx/local-auth.ts, arx/arx-welcome.ts, the sign-in page mode, screens/system-local-users.ts on pilot/USR2-P1",
+      "docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md (P0), migration 0096 (provisional 0097, renumbered at integ/264), services/local_passwords.py, services/local_identity.py, routers/local_identity.py, the cookie branch in services/ha_user_auth.py, frontend arx/local-auth.ts, arx/arx-welcome.ts, the sign-in page mode, screens/system-local-users.ts on pilot/USR2-P1",
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [

@@ -27,7 +27,7 @@
 - **R-USR2-2 / AT-USR2-2:** On a real installation: sign-in through the real Cloudflare tunnel (CF-Connecting-IP, X-Forwarded-Proto), the cookie surviving 30 days of Android WebView / iOS shell restarts, the scrypt cost on the owner's host.
 
 ## Deliverables
-- docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md (P0), migration 0097 (provisional), services/local_passwords.py, services/local_identity.py, routers/local_identity.py, the cookie branch in services/ha_user_auth.py, frontend arx/local-auth.ts, arx/arx-welcome.ts, the sign-in page mode, screens/system-local-users.ts on pilot/USR2-P1
+- docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md (P0), migration 0096 (provisional 0097, renumbered at integ/264), services/local_passwords.py, services/local_identity.py, routers/local_identity.py, the cookie branch in services/ha_user_auth.py, frontend arx/local-auth.ts, arx/arx-welcome.ts, the sign-in page mode, screens/system-local-users.ts on pilot/USR2-P1
 - Acceptance evidence tied to commit and environment
 
 ## Guardrails
