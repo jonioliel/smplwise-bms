@@ -484,7 +484,7 @@ def test_16_migration_kind_defaults_external_and_the_reason_check_accepts_user_i
 
 @pytest.mark.parametrize("lang", ["he", "ar", "ru", "en"])
 def test_20_the_staff_starters_carry_one_url_and_no_quick_reply_line_with_a_code(lang):
-    for tid, quick in (("staff_assign_code", False), ("staff_assign", True)):
+    for tid, quick in (("staff_assign_code", False), ("staff_assign", False)):  # owner 16.10: no starter advertises the numeric quick reply any more
         tpl = mt.staff_starter(tid, lang)
         assert tpl is not None and tpl.id == f"starter:{tid}:{lang}"
         out = mt.render(tpl.body, {"name": "x", "number": "12", "department": "d", "title": "t"}, lang=lang,
