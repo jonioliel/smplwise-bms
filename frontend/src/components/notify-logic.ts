@@ -4,6 +4,7 @@
  * The binding helpers (layout, filters, state machine, lock-screen text, door flow, validation) live in api/notifications.ts; this file only
  * adds what the screens need on top, so it can be unit-tested without a browser (tests/unit-notify-center.spec.ts).
  */
+import { rnt } from '../i18n/rfq-notify'; // TKRFQ5
 import {
   CATEGORY_LABEL, CATEGORY_ORDER, ESCALATION_AFTER_MIN, SEVERITY_LABEL, WEEKDAYS, clockText, validateEmailBody, deliveryChip, deliveryLine, escalationPreview, filterInbox, isSnoozed, isUnread,
   lockscreenInputOf, lockscreenText, pushActions, sourceInfo, withChannel,
@@ -55,11 +56,13 @@ export function placeText(n: Pick<Notification, 'subject' | 'category'> & { plac
 const KIND_LABEL: Record<SubjectKind, string> = {
   camera: 'מצלמה', entity: 'התקן', area: 'אזור', alarm_panel: 'לוח אזעקה', door: 'עמדת כניסה', schedule: 'תזמון', automation: 'אוטומציה', bulk_job: 'פעולה קבוצתית', system: 'מערכת', session: 'כניסות', generator: 'גנרטור',
   get ticket() { return boardText('kindTicket'); }, // CR-038 D33: the configured name
+  get rfq() { return rnt('kind'); }, // TKRFQ5
 };
 const OPEN_LABEL: Record<SubjectKind, string> = {
   camera: 'פתח את המצלמה', entity: 'פתח את ההתקן', area: 'פתח את האזור', alarm_panel: 'פתח את האזעקה', door: 'פתח את העמדה', schedule: 'פתח את התזמון', automation: 'פתח את האוטומציה',
   bulk_job: 'פתח את התוצאה', system: 'פתח את הבריאות', session: 'פתח את הכניסות', generator: 'פתח את הגנרטור',
   get ticket() { return boardText('openTicket'); }, // CR-038 D33
+  get rfq() { return rnt('open'); }, // TKRFQ5
 };
 /** The label of the "open the device" menu item: "פתח את המצלמה". */
 export const openLabel = (n: Pick<Notification, 'subject'>): string => OPEN_LABEL[n.subject.kind];

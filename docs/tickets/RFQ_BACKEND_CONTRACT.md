@@ -1,7 +1,7 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.1 (section 15 = the public vendor page, contract first)** - 2026-10-16. v1.0 implemented on `pilot/TKRFQ1-core`;
-v1.1 on `pilot/TKRFQVP` (from `integ/260`). Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
+Status: **v1.2 (section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = attachments, DESIGN ONLY)** -
+2026-10-16. v1.0 implemented on `pilot/TKRFQ1-core`; v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ5` (from `integ/263`). Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
 (final)"), `docs/tickets/DETAIL_BACKEND_CONTRACT.md` v1.2 (the quote entity, money, drafts), the approved mock-up v5
 (`private/planning/_mockups/ticket-module-v4/rfq.js`: new request, vendors board, comparison, order). Backend only. Changes after this
 version are listed in section 14.
@@ -343,7 +343,8 @@ vendor opened it"); the first read after `code/verify` is the open. Answer:
   award on this vendor is pending a second approval (2.6.3 review F2: the page and the write path agree - the form simply closes,
   `page_state` stays `open`, nothing names the pending decision) (`withdraw` needs a `submitted` quote, `decline` needs no live
   quote, `ask` needs fewer than 30 questions).
-* `attachments` is always `[]` in this version (requests carry no files yet); the page shows no upload either.
+* `attachments` is always `[]` in this version (requests carry no files yet); the page shows no upload either (design: section 17).
+* `messages` never includes a message that came by a WhatsApp reply (16.2 - an unverified sender; managers only).
 
 ### 15.4 Writes (JSON, strict models, `client_request_id` mandatory, replayed per link generation; the write budget is spent only
 by a NEW stored effect; read-only grace 409 `read_only`; no code session 403 `code_required`)
@@ -363,7 +364,8 @@ page warns; `in_window` is computed on the server). Money is computed on the ser
 manager may still enter one on the vendor's behalf). Every write records an RFQ timeline row (`quote_submitted` / `quote_withdrawn` /
 `declined` / `vendor_message`, actor `contact`, ids and versions only) and an audit row (`ticket.rfq.vendor_quote`,
 `.vendor_withdraw`, `.vendor_decline`, `.vendor_message`; actor `contact:<id>`, source `rfq_link`, ids / versions / totals - never a
-text). A vendor question is stored in the thread only; NOTHING is sent anywhere.
+text). A vendor question is stored in the thread only; NOTHING is sent to anyone outside (v1.2: the RFQ managers get an internal
+notification - section 16.1).
 
 Refusal vocabulary (2.6.3 review F2): `quote_closed.reason` is ONLY `ended` (the request no longer takes quotes - awarded, ordered,
 closed or cancelled, never said which) or `vendor` (this vendor's own row is closed, a decision on his quote is pending, or the quote
@@ -425,8 +427,102 @@ approval (2.6.3 review F2).
 ticket code tables' columns; `link_id` -> `ticket_rfq_links(id)` ON DELETE CASCADE). Retention and full deletion remove them with
 the links.
 
+## 16. Notifications and inbound replies (v1.2, TKRFQ5)
+
+### 16.1 The RFQ managers' notifications (CR-018 notification centre)
+
+Four sources (catalogue `services/tickets/notify_sources.py`, rendered by `services/tickets/rfq_notify.py`), category `tickets`, subject
+kind `rfq`, recipient rule `rfq_managers`. Listed in Settings › התראות (the policy matrix, next to the ticket sources) only while the
+module is on; each has the usual switch, severity, recipients and channels there.
+
+| Source | When | Default | Row (dedupe key) | Resolved by |
+|---|---|---|---|---|
+| `rfq.quote_received` "הצעת מחיר התקבלה או עודכנה" / "Quote received or updated" | a vendor's page: a new quote, a new version, a withdrawal | info, push on | one per request, folded (`rfq:<id>:quote`; the title says new / updated / withdrawn) | award (final), close, cancel, delete |
+| `rfq.declined` "ספק השיב שאינו מעוניין" / "Vendor declined" | a vendor's "not interested" | info, push off | one per request, folded (`rfq:<id>:declined`) | the same |
+| `rfq.question` "שאלת הבהרה מספק" / "Clarification question from a vendor" | a page question, or a WhatsApp reply matched by 16.2 | alert, push on | one per vendor (`rfq:<id>:question:<rv_id>`) | a manager writes to that vendor; the same |
+| `rfq.due_passed` "המועד להגשת הצעות עבר" / "Quote deadline passed" | the deadline passed (janitor or the first write after it) | info, push on | one per request (`rfq:<id>:due`) | a later deadline (the edit reopens the collection); the same |
+
+* Defaults: enabled, inbox always, WhatsApp OFF (NOTIFWA: never on by default; when an administrator turns it on, it reaches an Arx
+  user's own confirmed number only, with the channel's own detail rule). E-mail off. Nothing is ever sent to a vendor.
+* Recipients (`rfq_managers`, the section 6 manager rule): the creator, the internal owner and the department's manager members (when
+  the department has none: the `tickets.manage` + `tickets.all_departments` holders where the request lies), each kept only when
+  `rfq.visible()` sees the request and `rfq.is_manager()` holds (`tickets.external` on the place). A plain member, another department's
+  manager, an all-departments viewer without manage, a user without `tickets.external` and the vendors are never told. Visibility of a
+  row (subject `rfq`) is `rfq.visible()` now - a moved department, a revoked binding or a deleted request hides old rows.
+* Texts: `RFQ-07: <what happened>` + the place (place text, else the department name); the deadline row adds the counts "N of M
+  quoted". NEVER an amount, a vendor's name / phone / text, the request title, or anything about another vendor (the origin carries ids
+  only: the request, the department, the vendor row, the message). Hebrew is the notification centre's language; the English column
+  is kept in `rfq_notify.TEXTS` and the settings labels follow the UI language (`frontend/src/i18n/rfq-notify.ts`).
+* Not raised: entries the manager makes on the vendor's behalf (he did it himself), awards, second approvals, close / cancel.
+* Link: `#/tickets/rfqs?rfq=<id>`.
+
+### 16.2 Inbound WhatsApp replies to RFQ messages
+
+A vendor's TEXT reply to an RFQ message (`rfq_invite`, `rfq_reminder`, `rfq_update`; RFQ messages carry no buttons / nonce, so the
+nonce path is not involved) is matched by the sender's keyed number (`ticket_contacts.phone_key`, as for tickets) to an OPEN request:
+
+* Candidate = the contact is an invited vendor whose link is live (not revoked / expired / in a read-only grace; contact not erased,
+  inactive or staff - the `public_rfq.fold` rule), the request is `sent` / `collecting` before its deadline, the vendor row is not
+  `draft` / `removed` / `awarded` / `not_awarded` and no award on him is pending, and an RFQ message went to him by WhatsApp over that
+  link (`sent` / `unknown`) within `reply_window_h`. The account filter, the `account_unknown` fail-closed rule, freshness and the 24 h
+  dedupe run first, unchanged.
+* Order: an `RFQ-<n>` reference naming exactly one of his open requests wins; with no live ticket, his only open request takes it;
+  several open requests and no reference -> `ignored` / `rfq_several` (envelope only, never guessed); a reference naming none of them ->
+  `ignored` / `rfq_reference_unknown`; a live ticket AND an open request with no reference of either kind -> the ticket flow's
+  `ambiguous` (`ticket_or_rfq`, the managers' claim-before-reveal list); a `#<ticket>` reference -> the ticket rules.
+* A sender with no candidate at all (a stranger, or a vendor whose request closed, passed its deadline or removed him) is
+  `unknown_sender`, exactly as before - nothing tells him or the log which requests exist. No automatic reply, ever.
+* Applied (worker transaction, everything re-checked first; a change meanwhile -> `ignored` / `rfq_closed`): a `ticket_rfq_messages`
+  row `direction = 'in'`, `author_kind = 'contact'`, `source_kind = 'clarify'`, `source_id = 'whatsapp:<inbound id>'`; the RFQ timeline
+  row `vendor_message` (`data.via = whatsapp`, `unverified`); audit `ticket.rfq.vendor_message` (source `whatsapp`, ids only); the
+  `rfq.question` notification ("הודעה מספק בוואטסאפ" / "שולח לא מאומת"). The `ticket_inbound` envelope is `result = note`,
+  `reason = rfq`, `ticket_id` NULL, `content` NULL (the text lives in the thread only); audit `ticket.inbound` names the request id.
+* Trust: an HA event is not authenticated (9.6), so the message is shown to managers as "via WhatsApp - unverified sender"
+  (`messages[].via = "whatsapp"`, `unverified = true`, `source = null`), it never moves a state (no quote / decline / withdrawal from a
+  text), and it is NOT shown on the vendor's public page (15.3 `messages` excludes it - a forged event must not put words in the
+  vendor's own thread). The 30-message cap of a thread counts these too (`rfq_message_limit`).
+* Residual: a reply to an RFQ message from a vendor who also has a live ticket and names neither lands in the ticket managers'
+  ambiguous list (claim-before-reveal), which can be a different department's managers than the request's.
+* No migration: `ticket_inbound` keeps its result CHECK (`note`), `ticket_rfq_messages.source_id` is free text.
+
+## 17. Attachments - DESIGN ONLY (v1.2, not built; `rfq.attachments` stays `[]`)
+
+What files on a request would need, so a later version can build it without re-deciding. Nothing here exists in code.
+
+* **Two directions.** (a) Manager -> vendors: drawings / photos attached to the request, shown on every invited vendor's page after the
+  code gate (15.5 row `rfq.attachments`). (b) Vendor -> manager: a vendor's own files on HIS quote (a PDF quote, a spec sheet), seen by
+  that vendor and the managers only - never by another vendor.
+* **Storage.** Reuse the ticket photo store (`services/tickets/attachments.py` / `image_intake.py` / `cost_storage.py`: files under the
+  add-on data directory, content-addressed names, metadata rows) with two new tables in a future migration: `ticket_rfq_attachments`
+  (request files: `id, rfq_id, kind (image|pdf), mime, bytes, sha256, width, height, created_by, created_at, removed_at`) and
+  `ticket_rfq_quote_files` (`id, rfq_vendor_id, quote_id NULL, ...` with `created_by_kind = contact`). Retention and full deletion
+  follow section 12 (purged with the request; the awarded quote's files move with it to the ticket in C4).
+* **Limits.** Request: 10 files, 10 MB each, 40 MB per request. Vendor: 5 files, 10 MB each, 25 MB per vendor per request; a write
+  budget of its own on the public listener (uploads per link per hour) and the existing body caps raised only for the upload route.
+* **Image pipeline.** The ticket photos' path: magic-byte type check (JPEG / PNG / WebP / HEIC -> re-encoded JPEG), EXIF / GPS stripped,
+  re-encode to a bounded size (max 2560 px, thumbnail 480 px), decompression-bomb limits (pixel count), never served from the original
+  bytes. PDF: accepted as is only after a structural check (header / trailer, no JavaScript / embedded files / launch actions - refused,
+  not sanitised), served with `Content-Disposition: attachment` and `Content-Type: application/pdf`, never rendered inline by us.
+* **Malware / privacy.** No server-side antivirus exists in the add-on; the rule is therefore "refuse what cannot be proven simple"
+  (the image re-encode, the PDF structural refusal list), no Office / archive / executable types at all, and every download as an
+  attachment with `X-Content-Type-Options: nosniff` and the public listener's CSP. Files are personal data (a vendor's letterhead,
+  phone numbers in a PDF): never in logs, audit (ids / sizes / hashes only), notifications or outbox rows; access is checked on every
+  read (manager side: `rfq.visible`; vendor side: his link + code gate, and a vendor file only for its own vendor).
+* **Vendor upload route (public listener).** `POST /t/api/rfq/files` (multipart, the existing `public_multipart.py` parser and its
+  limits, `client_request_id`, the link re-check of 15.4, code gate, deadline and `quote_closed` rules as for a quote) -> 201
+  `{file: {id, name, kind, bytes}}`; `DELETE /t/api/rfq/files/{id}` before the deadline; `GET /t/api/rfq/files/{id}` streams his own
+  file or a request file. Manager side: `POST /tickets/rfqs/{id}/attachments` (RFQ manager, draft or open), `DELETE ...`, `GET ...`.
+* **Contract changes when built:** 15.3 `rfq.attachments: [{id, name, kind, bytes, thumb}]`, `quote.files: [...]`, `form.limits.files`;
+  15.5 rows for both; a security review of the public upload surface before release (new public surface = a dedicated review); the
+  migration number is assigned by the lead at integration.
+
 ## 14. Change log
 
+* v1.2 (2026-10-16, TKRFQ5, `pilot/TKRFQ5` from `integ/263`): section 16 - the RFQ managers' notifications (`rfq.quote_received`,
+  `rfq.declined`, `rfq.question`, `rfq.due_passed`; subject `rfq`, rule `rfq_managers`; no amount, no vendor name, WhatsApp off by
+  default) and inbound WhatsApp text replies matched to the vendor's thread (unverified, managers only, never on the vendor page;
+  closes the v1.0 residual "inbound replies are not matched to RFQs"); section 17 - attachments designed, not built. 15.3: WhatsApp
+  messages are not in the page's `messages`. Manager thread items add `via` / `unverified`. No migration.
 * v1.1.1 (2026-10-16, integration 2.6.3, public RFQ review F1-F4 / F6): the open counts only past the code gate (15.3); the fixed
   refusal vocabulary `ended` / `vendor` and the form closed while an award on the vendor is pending (15.3 / 15.4; the public withdraw
   no longer answers `award_pending`); public audit rows carry no amount (section 13 audit line, 15.4); writes re-read the link row
@@ -446,7 +542,7 @@ the links.
   - Detail extras: `vendors[].delivery` (newest outbox state of the vendor's link, managers only), `vendors[].revision`.
   - Retention runs inside the cost janitor (`costs_retention.janitor`, every 10 min): deadlines, link rows, purge.
   - Inbound WhatsApp replies are not matched to RFQs (residual: a vendor's text reply to an RFQ message is handled by the ticket
-    matcher as today - usually `unknown_sender`).
+    matcher as today - usually `unknown_sender`). Closed in v1.2 (section 16.2).
 * v1.1 (2026-10-16, TKRFQVP): section 15 - the public vendor quote page (routes on the existing public listener, `#q.<token>` URL,
   shared e-mail redeem, optional per-vendor verification code - owner decision: off by default, exposed-fields table), the manager-side
   vendor options (`meta.vendor_options`, `vendors[].channel / require_code`, `POST .../vendors/{rv_id}/options`), `rfq.VENDOR_PAGE = True`,

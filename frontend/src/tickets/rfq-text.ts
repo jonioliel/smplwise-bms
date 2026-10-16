@@ -191,6 +191,7 @@ const he = {
   writeSend: 'שמירת ההודעה',
   writeDone: 'ההודעה נשמרה',
   writeDoneNotified: 'ההודעה נשמרה והספק קיבל התראה',
+  viaWhatsapp: 'בוואטסאפ · שולח לא מאומת', // TKRFQ5: a WhatsApp reply matched to the thread (never shown on the vendor page)
   thread: 'השרשור',
   threadEmpty: 'אין הודעות',
   edit: 'עריכה',
@@ -534,6 +535,7 @@ const en: Partial<Record<RfqTextKey, string>> = {
   writeSend: 'Save the message',
   writeDone: 'The message was saved',
   writeDoneNotified: 'The message was saved and the vendor was notified',
+  viaWhatsapp: 'via WhatsApp · unverified sender',
   thread: 'Thread',
   threadEmpty: 'No messages',
   edit: 'Edit',

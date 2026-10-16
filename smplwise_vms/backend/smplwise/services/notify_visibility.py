@@ -175,6 +175,10 @@ class Reach:
             from .tickets import notify_bridge
 
             return notify_bridge.can_see(self.conn, self.principal, sid)
+        if kind == "rfq":  # TKRFQ5: exactly who may see the request (services/tickets/rfq.visible - module on, place, department, creator / owner)
+            from .tickets import rfq_notify
+
+            return rfq_notify.can_see(self.conn, self.principal, sid)
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "session":
