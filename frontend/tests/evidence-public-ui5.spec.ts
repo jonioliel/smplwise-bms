@@ -105,6 +105,8 @@ function view(lang: Lang, over: Json = {}): Json {
 function staffView(lang: Lang, over: Json = {}): Json {
   const v = view(lang, over);
   delete v.claim;
+  const tl = v.timeline as { id: number; body: string | null }[];
+  v.timeline = tl.map((e) => (e.id === 11 ? { ...e, body: 'שלום, נפתחה בקשה. הדלת למחסן פתוחה.' } : e));
   return v;
 }
 
@@ -254,9 +256,10 @@ test.describe('TKUI5: the public page in the approved look', () => {
 
   test('the cards are numbered in the page order and the cost card keeps the words "הצעת מחיר" / "דרישת תשלום"', async ({ page }) => {
     await open(page, view('he'), { wait: '[data-cost-card]:not([hidden])' });
+    // the badge numbers are a CSS counter (the screenshots show them); the order of the cards is the contract here
     const marks = await page.locator('.card.num > h2, .swq > .swc-head .swc-title').evaluateAll((els) => els.map((e) => ({ text: (e.textContent ?? '').trim(), n: getComputedStyle(e, '::before').content })));
-    expect(marks.map((m) => m.n)).toEqual(marks.map((_, i) => `"${i + 1}"`));
-    expect(marks.map((m) => m.text).slice(0, 4)).toEqual(['עדכון מצב', 'מתי תגיעו / תסיימו?', 'מה נעשה / מה נשאר', 'תמונות']);
+    expect(marks.map((m) => m.text)).toEqual(['עדכון מצב', 'מתי תגיעו / תסיימו?', 'מה נעשה / מה נשאר', 'תמונות', 'הצעת מחיר / דרישת תשלום', 'עדכונים']);
+    expect(marks.every((m) => m.n !== 'none' && m.n !== 'normal')).toBe(true);
     await expect(page.locator('[data-cost-card]')).toContainText('הצעת מחיר / דרישת תשלום');
     const text = await page.locator('body').innerText();
     expect(text).not.toMatch(/קריא/);
