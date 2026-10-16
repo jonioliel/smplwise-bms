@@ -198,6 +198,12 @@ def validate_public_base_url(url: object) -> str:
         candidate = parts.path[:-1] if parts.path.endswith("/") else parts.path
         if _PREFIX_RE.fullmatch(candidate) is None:
             raise PublicUrlError("path")
+        from .public_prefix import validate_prefix  # TK255 review F1: the listener would refuse a reserved word at start
+
+        try:
+            validate_prefix(candidate)
+        except ValueError:
+            raise PublicUrlError("path") from None
         prefix = candidate
     if port not in (None, 443):
         raise PublicUrlError("port")
@@ -228,22 +234,39 @@ def split_base(base: str) -> tuple[str, str]:
     return f"{parts.scheme}://{parts.netloc}", parts.path
 
 
-def public_url(base_url: str, rest: str) -> str:
-    """`<origin><prefix>/<rest>`: `rest` is the part after the listener's `/t/` (the listener serves `/t/<rest>`; with a prefix the
-    edge rewrite maps `<prefix>/<rest>` to it; without one the URL keeps today's `/t/<rest>`)."""
-    origin, prefix = split_base(validate_public_base_url(base_url))
-    return f"{origin}{prefix or '/t'}/{rest}"
+def effective_prefix(base_url: str, setting_prefix: str) -> str:
+    """TK255: the one bare prefix (`support`) the vendor URLs and the listener use: the address's own path segment when it has one
+    (an address saved since 2.5.4 as `https://host/support` keeps working unchanged), else `public.path_prefix`."""
+    if base_url:
+        try:
+            _origin, path = split_base(validate_public_base_url(base_url))
+        except PublicUrlError:
+            path = ""
+        if path:
+            return path.lstrip("/")
+    return setting_prefix
 
 
-def handler_url(base_url: str, token: str) -> str:
-    """The URL a WhatsApp message carries: the token in the fragment (`<base>/t/#<token>`, or `<base><prefix>/#<token>`)."""
+def public_url(base_url: str, rest: str, prefix: str | None = None) -> str:
+    """`<origin>/<prefix>/<rest>`: the listener serves `/<prefix>/<rest>` itself (TK255; the prefix is `effective_prefix`). Without
+    a `prefix` argument the legacy rule applies: the address's own path, else today's `/t/<rest>`."""
+    origin, base_prefix = split_base(validate_public_base_url(base_url))
+    if prefix is not None:
+        from .public_prefix import validate_prefix
+
+        return f"{origin}/{validate_prefix(prefix)}/{rest}"
+    return f"{origin}{base_prefix or '/t'}/{rest}"
+
+
+def handler_url(base_url: str, token: str, prefix: str | None = None) -> str:
+    """The URL a WhatsApp message carries: the token in the fragment (`<base>/<prefix>/#<token>`)."""
     if parse_token(token) is None:
         raise ValueError("not a handler-link token")
-    return public_url(base_url, f"#{token}")
+    return public_url(base_url, f"#{token}", prefix)
 
 
-def redeem_url(base_url: str, rid: str) -> str:
-    """The URL an e-mail carries instead (`<base>/t/r/<rid>`, or `<base><prefix>/r/<rid>`): no token anywhere in it."""
+def redeem_url(base_url: str, rid: str, prefix: str | None = None) -> str:
+    """The URL an e-mail carries instead (`<base>/<prefix>/r/<rid>`): no token anywhere in it."""
     if parse_redeem_id(rid) is None:
         raise ValueError("not a redeem id")
-    return public_url(base_url, f"r/{rid}")
+    return public_url(base_url, f"r/{rid}", prefix)

@@ -101,11 +101,17 @@ def public_base_url(conn) -> str:
     return settings_doc.read(conn)["public"]["base_url"]
 
 
+def public_prefix(conn) -> str:
+    """TK255: the bare path prefix the vendor URLs carry (the address's own path, else `public.path_prefix`)."""
+    pub = settings_doc.read(conn)["public"]
+    return links.effective_prefix(pub["base_url"], pub["path_prefix"])
+
+
 def handler_url(conn, link_row: dict[str, Any]) -> str:
     """The URL of a live link (the token in the fragment). Raises links.PublicUrlError when no public address is configured and
     ModuleKeyError when the key the row names is missing."""
     token = links.derive_token(KEYS.get(link_row["key_id"]), link_row["id"], int(link_row["generation"]))
-    return links.handler_url(public_base_url(conn), token)
+    return links.handler_url(public_base_url(conn), token, public_prefix(conn))
 
 
 # ---------------------------------------------------------------- mint, revoke, extend, grace, new generation

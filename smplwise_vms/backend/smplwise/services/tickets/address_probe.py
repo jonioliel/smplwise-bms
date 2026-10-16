@@ -101,7 +101,7 @@ def _fetch(addr: str, host: str, timeout_s: float, nonce: str, path: str = "/t/h
 
 def probe(base_url: str, *, resolve: Callable[[str], list[str]] | None = None,
           fetch: Callable[..., tuple[int, bytes]] | None = None,
-          last_probe: Callable[[], dict[str, Any] | None] | None = None) -> dict[str, Any]:
+          last_probe: Callable[[], dict[str, Any] | None] | None = None, prefix: str | None = None) -> dict[str, Any]:
     """{result: reachable | not_configured | invalid | unresolved | blocked_address | tls_error | unreachable | wrong_answer,
     code?, status_class?, listener?}. Never the body, never the resolved addresses.
 
@@ -119,7 +119,7 @@ def probe(base_url: str, *, resolve: Callable[[str], list[str]] | None = None,
     except PublicUrlError as exc:
         return {"result": "invalid", "code": exc.code}
     host = urlsplit(base).hostname or ""
-    path = f"{split_base(base)[1] or '/t'}/healthz"
+    path = f"/{prefix}/healthz" if prefix else f"{split_base(base)[1] or '/t'}/healthz"  # TK255: the listener serves the prefix itself
     try:
         addrs = resolve(host)
     except (OSError, UnicodeError):

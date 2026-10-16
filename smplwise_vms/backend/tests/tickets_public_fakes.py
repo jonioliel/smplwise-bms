@@ -296,7 +296,7 @@ class World:
 
 def build_world(tmp_path: Path, *, now: float | None = None, storage_cap: int | None = None, routers: tuple = (), rules: tuple | None = None,
                 shell_dir: Path | None = None, trusted: tuple[str, ...] | None = None, decode_wait_s: float = 5.0,
-                client_ip_header: str = "cf-connecting-ip") -> World:
+                client_ip_header: str = "cf-connecting-ip", path_prefix: str = "t", legacy_t: bool = True) -> World:
     from smplwise.services.tickets.codes import CodeEngine
     from smplwise.services.tickets.image_intake import StorageMeter
     from smplwise.services.tickets.public_app import PublicDeps, create_public_app
@@ -319,6 +319,6 @@ def build_world(tmp_path: Path, *, now: float | None = None, storage_cap: int | 
                       requests=world.requests, redeems=world.redeems, codes=engine, code_sender=world.sender, photos=world.photos,
                       attachments_root=root, storage=world.storage, shell_dir=shell_dir, limiter=limiter, clock=clock,
                       extra_routers=routers, rules=rules or ROUTES, decode_wait_s=decode_wait_s,
-                      client_ip_header=client_ip_header)
+                      client_ip_header=client_ip_header, path_prefix=path_prefix, legacy_t_paths=legacy_t)
     world.app = create_public_app(deps)
     return world

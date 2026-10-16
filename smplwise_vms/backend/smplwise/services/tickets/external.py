@@ -338,7 +338,7 @@ def copy_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[
     contact = store_links.contact(conn, link_row["contact_id"]) or {}
     try:
         url = handler_links.handler_url(conn, link_row)
-    except links.PublicUrlError:
+    except (links.PublicUrlError, ValueError):  # a ValueError: a prefix the listener refuses (TK255 review F1) - degrade, never a 500
         raise _unavailable(conn) from None
     except ModuleKeyError:
         raise ApiError(409, "module_key_missing", text(conn, "מפתח המודול חסר (שחזור ללא secrets/). שחזרו את התיקייה מהגיבוי.")) from None

@@ -173,7 +173,7 @@ class DbLinks:
         store_links.insert_redeem(conn, links_mod.redeem_hash(rid), link_id, int(row["generation"]), handler_links.iso(now),
                                   handler_links.iso(now + dt.timedelta(hours=24)))
         try:
-            return links_mod.redeem_url(base, rid)
+            return links_mod.redeem_url(base, rid, handler_links.public_prefix(conn))
         except ValueError:
             return None
 

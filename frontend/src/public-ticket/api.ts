@@ -5,6 +5,8 @@
  * `{code, ...}` when it is not a success; the page maps the codes to its own words (strings.ts).
  */
 
+import { withBase } from './base';
+
 export interface ApiFailure {
   status: number;
   code: string;
@@ -44,7 +46,7 @@ async function call<T>(creds: Credentials, method: 'GET' | 'POST', path: string,
   }
   let res: Response;
   try {
-    res = await fetch(path, { method, headers, body: payload, credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    res = await fetch(withBase(path), { method, headers, body: payload, credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
   } catch {
     return { ok: false, error: failure(0, null, true) };
   }
@@ -126,7 +128,7 @@ export const api = {
   /** a photo of the ticket as a blob (shown through a blob: URL - the CSP allows `img-src 'self' blob:` only) */
   photoBlob: async (c: Credentials, id: string): Promise<Blob | null> => {
     try {
-      const res = await fetch(`/t/api/photo/${encodeURIComponent(id)}`, {
+      const res = await fetch(withBase(`/t/api/photo/${encodeURIComponent(id)}`), {
         headers: { 'X-Ticket-Token': c.token ?? '', ...(c.session ? { 'X-Ticket-Session': c.session } : {}) },
         credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
       });

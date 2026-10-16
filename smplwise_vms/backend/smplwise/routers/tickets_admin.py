@@ -78,6 +78,9 @@ class PublicPatch(BaseModel):  # slice 4: the handler page's address and the pee
     base_url: str | None = Field(default=None, max_length=300)
     trusted_proxy_cidrs: list[str] | None = Field(default=None, max_length=8)
     client_ip_header: Literal["cf-connecting-ip", "x-forwarded-for"] | None = None
+    path_prefix: str | None = Field(default=None, max_length=40)  # TK255: the one path segment the listener serves itself under
+    legacy_t_paths: bool | None = None  # TK255: keep answering the old /t/... links
+    confirm_live_links: bool | None = None  # TK255 review F2b: required to change the page path while live links exist (not a setting)
     theme: Literal["light", "dark", "auto"] | None = None  # TK259: the handler page's look (harmless: allowed from a remote session too)
 
 
@@ -140,6 +143,30 @@ def _problem(exc: ValueError) -> tuple[str, str]:
     return field, code or "invalid"
 
 
+def _confirm_prefix_change(conn: sqlite3.Connection, current: dict[str, Any], sent: "PublicPatch", confirmed: bool) -> None:
+    """TK255 review F2b: a change of the path vendors' links carry breaks the links already sent under the old one (only the `/t/`
+    spelling survives, and only while `public.legacy_t_paths` is on). With live links it needs an explicit `confirm_live_links`."""
+    from ..services.tickets import handler_links, links as links_mod, store_links
+
+    pub = current["public"]
+    new_base = sent.base_url if sent.base_url is not None else pub["base_url"]
+    new_prefix = sent.path_prefix if sent.path_prefix is not None else pub["path_prefix"]
+    try:
+        from ..services.tickets.public_prefix import validate_prefix
+
+        before = links_mod.effective_prefix(pub["base_url"], pub["path_prefix"])
+        after = links_mod.effective_prefix(new_base or "", validate_prefix(new_prefix))
+    except Exception:  # noqa: BLE001 - an invalid value is judged (422) by the document itself
+        return
+    if before == after or confirmed:
+        return
+    live = int(store_links.link_state_counts(conn, handler_links.iso(handler_links.now_utc())).get("live", 0))
+    if live > 0:
+        raise ApiError(409, "confirm_live_links",
+                       text(conn, "יש קישורים פעילים שכבר נשלחו לספקים. אחרי שינוי נתיב הדף הם ימשיכו לעבוד רק בצורת /t/ וכל עוד קבלת הקישורים הישנים פעילה. אשרו כדי להמשיך."),
+                       details={"live_links": live})
+
+
 @router.put("/tickets/settings")
 def put_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
@@ -151,6 +178,9 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
     current = settings_doc.read(conn)
     if body.revision != current["revision"]:
         raise ApiError(409, "settings_stale", text(conn, "ההגדרות השתנו בינתיים. טענו מחדש."), details={"revision": current["revision"]})
+    confirm_live = bool(body.public.confirm_live_links) if body.public is not None else False
+    if body.public is not None:
+        _confirm_prefix_change(conn, current, body.public, confirm_live)
     patch: dict[str, Any] = {}
     if body.ui is not None:
         ui = {k: v for k, v in body.ui.model_dump().items() if v is not None}
@@ -161,7 +191,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
     for block in ("links", "public", "code", "costs"):  # slice 2 / slice 4 / slice 7 / slice 9
         sent = getattr(body, block)
         if sent is not None:
-            values = {k: v for k, v in sent.model_dump().items() if v is not None}
+            values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}
             if values:
                 patch[block] = values
     if body.send_hours is not None:
@@ -184,6 +214,10 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
 
         RUNTIME.set_trusted(doc["public"]["trusted_proxy_cidrs"])
         RUNTIME.set_client_ip_header(doc["public"]["client_ip_header"])
+    if {"public.path_prefix", "public.legacy_t_paths", "public.base_url"} & set(changed):  # TK255: the prefix the listener serves
+        from ..services.tickets.public_runtime import RUNTIME
+
+        RUNTIME.set_prefix(doc)
     audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"revision": doc["revision"], "changed": changed, **({"links_capped": pulled} if pulled else {})})
     return doc
