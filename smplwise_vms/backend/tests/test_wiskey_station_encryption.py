@@ -132,7 +132,7 @@ def test_a_changed_key_fails_closed_without_falling_back_to_the_shared_account(s
     with client.app.state.db.connection() as conn:
         with pytest.raises(ApiError) as exc:
             wiskey_camera.credentials(conn, client.app.state.settings, "gate")
-    assert exc.value.status_code == 503 and exc.value.code == "credentials_unreadable" and PW not in str(exc.value.message)
+    assert exc.value.status == 503 and exc.value.code == "credentials_unreadable" and PW not in exc.value.user_message
 
 
 def test_the_sealed_value_is_bound_to_its_station(settings):
