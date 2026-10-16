@@ -11,9 +11,11 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import type { TicketDetail } from '../api/tickets';
 import {
-  COST_MODES, LINE_KINDS, ticketCostsApi, type CostClaim, type CostDocument, type CostMode, type CostRevision, type DecisionBody, type DecisionKind, type LineKind,
-  type TicketCosts,
+  COST_MODES, LINE_KINDS, ticketCostsApi, type CostClaim, type CostDocument, type CostMode, type CostRevision, type DecisionAnswer, type DecisionBody, type DecisionKind,
+  type LineKind, type TicketCosts, type TicketCostsFull,
 } from '../api/tickets-costs';
+import { claimDecisionOf, deltaTone, isMoneyAssignment, signed } from './quote-model';
+import { qt, type QuoteTextKey } from './quote-text';
 import {
   blankLine, bpToPercent, claimActions, costStatusTone, editLineOf, formatBytes, formatMoney, lineProblem, lineTotal, onBehalfTargets, previewTotals,
   requirementEditable, todayIso, vatModeFor, wireLine, type EditLine,
@@ -50,11 +52,19 @@ const ACTION_OF: Record<Simple | 'adjust', DecisionKind> = { approve: 'approve',
  * files); with `cost.can_set_requirement` the per-assignment requirement while nothing was submitted. Every write sends the claim's
  * `revision` (and `revision_id` where the server needs it); a 409 claim_stale reloads. No explanatory text (clean operator screens).
  * Event (bubble, composed): `cost-changed` {costs} after a write (the detail re-reads the ticket's cost chip).
+ * TKUI3 (2.6.0) `embedded`: the payment-demand part of the request's Costs tab (tickets/costs-tab.ts) - the tab lends its answer
+ * (`.costs`, so nothing is fetched twice; a reload is asked with `cost-reload`), the requirement rows move to the tab's fold, a staff
+ * assignment (`quote_capable: false`) gets no entry on its behalf, the demand shows its baseline (the approved quote), the difference from
+ * it and its exceptional lines, and an approval offers "with" / "without the exceptional lines". After an approval or a send-back the
+ * server's editable draft goes up as `cost-draft` {draft, decision} - the tab asks "לשלוח הודעה לספק?"; nothing is sent from here.
  */
 @customElement('ticket-cost-card')
 export class TicketCostCard extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) ticket: TicketDetail | null = null;
+  /** TKUI3: the Costs tab's own answer (embedded mode only) */
+  @property({ attribute: false }) costs: TicketCostsFull | null = null;
+  @property({ type: Boolean }) embedded = false;
   @state() private data: TicketCosts | null = null;
   @state() private failed = '';
   @state() private busy = false;
@@ -90,6 +100,10 @@ export class TicketCostCard extends LitElement {
   }
 
   protected willUpdate(changed: PropertyValues<this>): void {
+    if (this.embedded) {
+      if (changed.has('costs')) this.data = this.costs;
+      return;
+    }
     if (!changed.has('ticket')) return;
     const t = this.ticket;
     const key = t?.cost?.can_view ? `${t.id}|${t.revision}|${t.cost.status}` : '';
@@ -104,6 +118,10 @@ export class TicketCostCard extends LitElement {
   }
 
   private async load(): Promise<void> {
+    if (this.embedded) {
+      this.dispatchEvent(new CustomEvent('cost-reload', { bubbles: true, composed: true }));
+      return;
+    }
     const id = this.ticket?.id;
     if (!id) return;
     this.failed = '';
@@ -140,14 +158,18 @@ export class TicketCostCard extends LitElement {
   // ---------------------------------------------------------------- writes
 
   /** One write: the busy flag, the new answer, `cost-changed`; a 409 claim_stale reloads and says so; other refusals stay in the dialog. */
-  private async write(fn: () => Promise<TicketCosts>): Promise<boolean> {
+  private async write(fn: () => Promise<TicketCosts | DecisionAnswer>, decision?: 'approve' | 'adjust' | 'reject'): Promise<boolean> {
     if (this.busy) return false;
     this.busy = true;
     this.err = '';
     try {
-      this.data = await fn();
+      const answer: DecisionAnswer = await fn();
+      const { message_draft: draft, ...costs } = answer;
+      this.data = costs;
       this.dispatchEvent(new CustomEvent('cost-changed', { detail: { costs: this.data }, bubbles: true, composed: true }));
-      this.say(ct('saved'));
+      // TKUI3: the decision's editable draft goes to the Costs tab, which ASKS before anything is sent (owner 15.10 evening)
+      if (decision && this.embedded) this.dispatchEvent(new CustomEvent('cost-draft', { detail: { draft, decision: claimDecisionOf(decision) }, bubbles: true, composed: true }));
+      else this.say(ct('saved'));
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && e.body.code === 'claim_stale') {
@@ -195,10 +217,11 @@ export class TicketCostCard extends LitElement {
     this.close();
   };
 
-  private async submitSimple(kind: Simple, c: CostClaim): Promise<void> {
+  private async submitSimple(kind: Simple, c: CostClaim, exceptional?: 'include' | 'exclude'): Promise<void> {
     this.tried = true;
     const body: DecisionBody = { revision: c.revision ?? 1 };
     if (kind === 'approve' || kind === 'reject') body.revision_id = c.current_revision_id ?? undefined;
+    if (kind === 'approve' && exceptional) body.exceptional = exceptional; // TKDETAILBE 5.3: with / without the exceptional lines
     if (kind === 'reject' || kind === 'unmarkPaid') {
       if (!this.reason.trim()) return;
       body.reason = this.reason.trim();
@@ -209,7 +232,8 @@ export class TicketCostCard extends LitElement {
       body.payment_date = this.payDate;
     }
     const tid = this.ticket?.id ?? '';
-    if (await this.write(() => ticketCostsApi().decide(tid, c.id, ACTION_OF[kind], body))) this.close();
+    const decision = kind === 'approve' || kind === 'reject' ? kind : undefined;
+    if (await this.write(() => ticketCostsApi().decide(tid, c.id, ACTION_OF[kind], body), decision)) this.close();
   }
 
   private async submitAdjust(c: CostClaim): Promise<void> {
@@ -217,7 +241,7 @@ export class TicketCostCard extends LitElement {
     if (!this.reason.trim() || !this.lines.length || this.lines.some((l) => lineProblem(l))) return;
     const tid = this.ticket?.id ?? '';
     const body: DecisionBody = { revision: c.revision ?? 1, revision_id: c.current_revision_id ?? undefined, reason: this.reason.trim(), lines: this.lines.map(wireLine) };
-    if (await this.write(() => ticketCostsApi().decide(tid, c.id, 'adjust', body))) this.close();
+    if (await this.write(() => ticketCostsApi().decide(tid, c.id, 'adjust', body), 'adjust')) this.close();
   }
 
   private async submitOnBehalf(): Promise<void> {
@@ -302,7 +326,9 @@ export class TicketCostCard extends LitElement {
   }
 
   private onBehalfIds(): string[] {
-    return onBehalfTargets(this.data?.claims ?? [], this.data?.external_assignments ?? [], this.ticket?.cost);
+    // TKUI3 / TKSTAFF1: never a payment demand on behalf of a staff assignment (an employee without an account has no money surface)
+    const money = (this.data?.external_assignments ?? []).filter(isMoneyAssignment);
+    return onBehalfTargets(this.data?.claims ?? [], money, this.ticket?.cost);
   }
 
   // ---------------------------------------------------------------- render: the claim
@@ -369,9 +395,26 @@ export class TicketCostCard extends LitElement {
     return html`<details class="hist" data-history><summary>${cIcon('refresh')}${ct('history')} (${rows.length})</summary><ol>${rows.map((r) => r.tpl)}</ol></details>`;
   }
 
+  /** TKUI3: the demand against the approved quote - the baseline line, the difference, the exceptional lines with their review state. */
+  private againstQuote(c: CostClaim, rev: CostRevision | undefined): TemplateResult | typeof nothing {
+    const exc = rev?.exceptional ?? [];
+    if (!c.baseline && !exc.length) return nothing;
+    const cur = rev?.currency ?? c.currency;
+    return html`<div class="vsq" data-against-quote>
+      ${c.baseline ? html`<div class="vline" data-claim-baseline=${c.baseline.quote_id}><span>${qt('againstQuote', { n: c.baseline.version, total: this.money(c.baseline.total_minor, c.baseline.currency) })}</span></div>` : nothing}
+      ${exc.length ? html`<ul class="exc" aria-label=${qt('exceptional')} data-exceptional>${exc.map((e) => html`<li data-exc=${e.index} data-exc-kind=${e.kind} data-exc-review=${e.review ?? 'none'}>
+        <span class="el">${cIcon('warning')}${bidi([ct(`k_${e.kind}` as CostTextKey), e.description].filter(Boolean).join(' · '))}
+          <span class=${`chip ${e.review === 'pending' ? 'warn' : e.review === 'excluded' ? '' : e.review === 'accepted' ? 'ok' : 'warn'}`}>${qt(e.review ? (`exc_${e.review}` as QuoteTextKey) : (`exc_${e.reason}` as QuoteTextKey))}</span></span>
+        <span class="num">${this.money(e.total_minor, cur)}</span></li>`)}</ul>` : nothing}
+      ${c.delta_minor !== null && c.delta_minor !== undefined ? html`<div class=${`vline delta ${deltaTone(c.delta_minor)}`} data-claim-delta=${c.delta_minor}><span>${qt('delta')}</span>
+        <span class="num">${signed(c.delta_minor, (m) => this.money(m, cur))}</span></div>` : nothing}
+    </div>`;
+  }
+
   private claimBlock(c: CostClaim, many: boolean): TemplateResult {
     const rev = this.currentRev(c);
     const a = claimActions(c, this.ticket?.cost);
+    const emb = this.embedded;
     const name = [c.vendor, c.contact_name].filter(Boolean).join(' · ');
     const late = (c.status === 'awaiting' || c.status === 'rejected') && !c.window_open;
     return html`<div class=${`claim${c.high_amount ? ' high' : ''}`} data-claim=${c.id} data-claim-status=${c.status}>
@@ -384,6 +427,7 @@ export class TicketCostCard extends LitElement {
         ${c.total_minor !== null && c.total_minor !== undefined ? html`<span class="amt" data-claim-total>${this.money(c.total_minor, c.currency)}</span>` : nothing}
       </div>
       ${rev && !c.no_charge ? this.breakdown(rev) : nothing}
+      ${this.againstQuote(c, rev)}
       <div class="meta">
         ${c.status === 'awaiting' || c.status === 'rejected' ? html`<span class=${late ? 'late' : ''} data-window>${late ? ct('windowClosed') : ct('until', { when: shortDateTime(c.claim_until) })}</span>` : nothing}
         ${c.approved_at ? html`<span data-approved>${ct('approvedBy', { when: shortDateTime(c.approved_at), who: c.approved_by ?? '' })}</span>` : nothing}
@@ -391,9 +435,10 @@ export class TicketCostCard extends LitElement {
       </div>
       ${rev ? this.documents(c, rev) : nothing}
       ${Object.values(a).some(Boolean) ? html`<div class="acts" data-claim-actions>
-        ${a.approve ? html`<button type="button" class="btn sm primary" data-cost-approve ?disabled=${this.busy} @click=${() => this.open({ kind: 'approve', claimId: c.id })}>${cIcon('check')}${ct('approve')}</button>` : nothing}
+        ${a.approve ? html`<button type="button" class="btn sm primary" data-cost-approve ?disabled=${this.busy} @click=${() => this.open({ kind: 'approve', claimId: c.id })}>${cIcon('check')}${emb ? qt(c.needs_review ? 'approveWithExc' : 'approveDemand') : ct('approve')}</button>` : nothing}
+        ${a.approve && emb && c.needs_review ? html`<button type="button" class="btn sm" data-cost-approve-noexc ?disabled=${this.busy} @click=${() => this.open({ kind: 'approve', claimId: c.id })}>${cIcon('check')}${qt('approveNoExc')}</button>` : nothing}
         ${a.adjust ? html`<button type="button" class="btn sm" data-cost-adjust ?disabled=${this.busy} @click=${() => this.open({ kind: 'adjust', claimId: c.id })}>${cIcon('edit')}${ct('adjust')}</button>` : nothing}
-        ${a.reject ? html`<button type="button" class="btn sm quiet dz" data-cost-reject ?disabled=${this.busy} @click=${() => this.open({ kind: 'reject', claimId: c.id })}>${cIcon('x')}${ct('reject')}</button>` : nothing}
+        ${a.reject ? html`<button type="button" class="btn sm quiet dz" data-cost-reject ?disabled=${this.busy} @click=${() => this.open({ kind: 'reject', claimId: c.id })}>${cIcon(emb ? 'refresh' : 'x')}${emb ? qt('fixDemand') : ct('reject')}</button>` : nothing}
         ${a.markPaid ? html`<button type="button" class="btn sm primary" data-cost-paid ?disabled=${this.busy} @click=${() => this.open({ kind: 'markPaid', claimId: c.id })}>${cIcon('paid')}${ct('markPaid')}</button>` : nothing}
         ${a.unmarkPaid ? html`<button type="button" class="btn sm quiet" data-cost-unpaid ?disabled=${this.busy} @click=${() => this.open({ kind: 'unmarkPaid', claimId: c.id })}>${cIcon('undo')}${ct('unmarkPaid')}</button>` : nothing}
         ${a.reopen ? html`<button type="button" class="btn sm" data-cost-reopen ?disabled=${this.busy} @click=${() => this.open({ kind: 'reopen', claimId: c.id })}>${cIcon('refresh')}${ct('reopen')}</button>` : nothing}
@@ -402,11 +447,11 @@ export class TicketCostCard extends LitElement {
     </div>`;
   }
 
-  /** "דרישת עלות: חובה / רשות / בלי" of each external assignment that has no submitted claim yet (a manager of the ticket). */
+  /** "דרישת תשלום: חובה / רשות / בלי" of each external assignment that has no submitted claim yet (a manager of the ticket). */
   private requirementRows(): TemplateResult | typeof nothing {
     const d = this.data;
     const cost = this.ticket?.cost;
-    if (!d || !cost?.can_set_requirement) return nothing;
+    if (this.embedded || !d || !cost?.can_set_requirement) return nothing; // TKUI3: the Costs tab has its own requirement fold
     const rows = (d.external_assignments ?? []).filter((a) => !a.ended_at && requirementEditable(a.id, d.claims, cost));
     if (!rows.length) return nothing;
     return html`${rows.map((a) => html`<div class="reqrow" data-requirement=${a.id}><span class="lbl">${ct('mode')} · ${bidi(a.name)}</span>
@@ -566,10 +611,18 @@ export class TicketCostCard extends LitElement {
           <label class="fld"><span>${ct('paymentRef')} <b class="req">*</b></span><input class="inp" maxlength="60" dir="auto" data-pay-ref aria-invalid=${String(badRef)} .value=${this.payRef} @input=${(e: Event) => { this.payRef = (e.target as HTMLInputElement).value; this.err = ''; }} />${badRef ? html`<span class="err">${ct('required')}</span>` : nothing}</label>
           <label class="fld"><span>${ct('paymentDate')} <b class="req">*</b></span><input class="inp" type="date" max=${todayIso(new Date(Date.now() + 86_400_000))} data-pay-date .value=${this.payDate} @input=${(e: Event) => (this.payDate = (e.target as HTMLInputElement).value)} /></label>
         </div>`
-      : d.kind === 'approve' && rev ? this.breakdown(rev) : nothing;
-    return html`<sw-dialog open heading=${ct(titles[d.kind])} data-dialog=${`cost-${d.kind}`} @close=${this.onDialogClose}>
+      : d.kind === 'approve' && rev ? html`${this.breakdown(rev)}${this.againstQuote(c, rev)}` : nothing;
+    // TKUI3: a demand with exceptional lines is approved WITH them or WITHOUT them (a manager adjustment, contract 5.3); the send-back
+    // of a demand is "בקשת תיקון" in the tab's words (the vendor may submit a new version)
+    const emb = this.embedded;
+    const heading = emb && d.kind === 'reject' ? qt('fixDemandTitle') : ct(titles[d.kind]);
+    const okLabel = emb && d.kind === 'reject' ? qt('fixDemand') : emb && d.kind === 'approve' && c.needs_review ? qt('approveWithExc') : ct(oks[d.kind]);
+    return html`<sw-dialog open heading=${heading} data-dialog=${`cost-${d.kind}`} @close=${this.onDialogClose}>
       <div class="form">${total}${body}${this.errRow()}</div>
-      ${this.foot(html`<button type="button" class=${`btn ${d.kind === 'reject' ? 'danger' : 'primary'}`} data-dialog-ok ?disabled=${this.busy} @click=${() => void this.submitSimple(d.kind, c)}>${ct(oks[d.kind])}</button>`)}
+      ${this.foot(html`<button type="button" class=${`btn ${d.kind === 'reject' && !emb ? 'danger' : 'primary'}`} data-dialog-ok ?disabled=${this.busy}
+          @click=${() => void this.submitSimple(d.kind, c, d.kind === 'approve' && c.needs_review ? 'include' : undefined)}>${okLabel}</button>
+        ${d.kind === 'approve' && c.needs_review ? html`<button type="button" class="btn" data-dialog-ok-noexc ?disabled=${this.busy}
+          @click=${() => void this.submitSimple('approve', c, 'exclude')}>${qt('approveNoExc')}</button>` : nothing}`)}
     </sw-dialog>`;
   }
 
@@ -583,8 +636,11 @@ export class TicketCostCard extends LitElement {
     const hasDetail = cost.can_view && !!d && (d.claims.length > 0 || (d.external_assignments ?? []).length > 0);
     if (cost.status === 'not_required' && !hasDetail && !(cost.can_view && this.failed)) return nothing;
     const obTargets = this.onBehalfIds();
-    return html`<section class="sect" data-sect="cost" data-cost-section=${cost.status}>
-      <h4><span class="tag">${cIcon('coins')}</span>${ct('sCost')}${cost.status !== 'not_required' ? this.statusChip(cost.status) : nothing}<span class="sp"></span>
+    if (this.embedded && !d?.claims.length && !(cost.can_decide && obTargets.length)) return nothing;
+    // TKUI3 (embedded): the payment demand of the Costs tab - its own title, the stage chip lives in the tab's header
+    const title = this.embedded ? html`${qt('demandTitle')}<span class="muted">${qt('demandSub')}</span>` : html`${ct('sCost')}${cost.status !== 'not_required' ? this.statusChip(cost.status) : nothing}`;
+    return html`<section class="sect" data-sect="cost" data-cost-section=${cost.status} ?data-embedded=${this.embedded}>
+      <h4><span class="tag">${cIcon('coins')}</span>${title}<span class="sp"></span>
         ${cost.can_decide && d && obTargets.length ? html`<button type="button" class="btn sm" data-cost-on-behalf ?disabled=${this.busy} @click=${() => this.open({ kind: 'onBehalf' })}>${cIcon('plus')}${ct('onBehalf')}</button>` : nothing}
       </h4>
       ${this.flash ? html`<div class=${`banner ${this.flash.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-cost-flash=${this.flash.tone}>${cIcon(this.flash.tone === 'bad' ? 'warning' : 'check')}<div>${this.flash.text}</div></div>` : nothing}

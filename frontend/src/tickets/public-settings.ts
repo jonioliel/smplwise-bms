@@ -100,7 +100,7 @@ export class TicketsPublicCard extends LitElement {
       content: '▾';
     }
     textarea.in {
-      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      font-family: var(--sw-font-mono);
     }
   `, bubbleChrome];
 
