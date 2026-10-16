@@ -16,6 +16,10 @@
 -- re-priced: a correction is a new version (the previous one `superseded`); decisions are append-only rows.
 -- `ticket_quotes.ticket_id` is NULLABLE (an RFQ quote exists before an order opens a ticket - the RFQ change sets `rfq_vendor_id`);
 -- the state CHECK already carries the RFQ states (`withdrawn`, `not_awarded`) so the RFQ change needs no rebuild.
+-- TKFIX260 (release 2.6.0 reviews, before release): a version is unique per assignment (as 0085's UNIQUE (assignment_id, seq));
+-- every migrated 2.5.7 decision gets its append-only row - also the correction request of a quote the vendor later replaced, and
+-- the `superseded` row of each replaced version; a decision's INTERNAL note (`internal_note`, never shown to the vendor, never in
+-- a draft) is stored apart from the vendor-facing reason, on quote decisions and on the 0083 claim decisions.
 
 ALTER TABLE tickets ADD COLUMN internal_owner_user_id TEXT;
 ALTER TABLE tickets ADD COLUMN allowed_line_kinds TEXT;
@@ -23,6 +27,7 @@ ALTER TABLE ticket_departments ADD COLUMN allowed_line_kinds TEXT;
 ALTER TABLE ticket_assignments ADD COLUMN quote_mode TEXT CHECK (quote_mode IN ('required', 'optional', 'off'));
 ALTER TABLE ticket_cost_claims ADD COLUMN quote_id TEXT;
 ALTER TABLE ticket_cost_revisions ADD COLUMN exceptional_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE ticket_cost_decisions ADD COLUMN internal_note TEXT;
 
 CREATE INDEX idx_tickets_internal_owner ON tickets (internal_owner_user_id) WHERE internal_owner_user_id IS NOT NULL;
 
@@ -72,6 +77,7 @@ CREATE TABLE ticket_quotes (
   decided_by              TEXT,
   decided_at              TEXT,
   decision_reason         TEXT,
+  decision_internal_note  TEXT,
   created_by_kind         TEXT NOT NULL CHECK (created_by_kind IN ('contact', 'user')),
   created_by              TEXT NOT NULL,
   created_at              TEXT NOT NULL,
@@ -80,7 +86,7 @@ CREATE TABLE ticket_quotes (
   CHECK (ticket_id IS NOT NULL OR rfq_vendor_id IS NOT NULL)
 );
 CREATE INDEX idx_ticket_quotes_ticket ON ticket_quotes (ticket_id, created_at);
-CREATE INDEX idx_ticket_quotes_assignment ON ticket_quotes (assignment_id, version) WHERE assignment_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_ticket_quotes_assignment ON ticket_quotes (assignment_id, version) WHERE assignment_id IS NOT NULL;
 CREATE INDEX idx_ticket_quotes_rfq_vendor ON ticket_quotes (rfq_vendor_id, version) WHERE rfq_vendor_id IS NOT NULL;
 
 CREATE TABLE ticket_quote_decisions (
@@ -89,6 +95,7 @@ CREATE TABLE ticket_quote_decisions (
   action       TEXT NOT NULL CHECK (action IN ('approve', 'partial_approve', 'request_fix', 'reject', 'superseded', 'withdrawn',
                                                'not_awarded')),
   reason       TEXT,
+  internal_note TEXT,
   lines_json   TEXT,
   amount_minor INTEGER,
   by_user      TEXT NOT NULL,
@@ -135,7 +142,14 @@ INSERT INTO ticket_quote_decisions (id, quote_id, action, reason, lines_json, am
 SELECT 'm0088-' || q.id, q.id, CASE q.state WHEN 'approved' THEN 'approve' ELSE 'request_fix' END, q.reason,
        CASE WHEN q.state = 'approved' THEN (SELECT json_group_array(CAST(j.key AS INTEGER)) FROM json_each(q.lines_json) j) END,
        CASE WHEN q.state = 'approved' THEN q.total_minor END, q.decided_by, q.decided_at
-FROM ticket_cost_quotes q WHERE q.state IN ('approved', 'rejected') AND q.decided_by IS NOT NULL AND q.decided_at IS NOT NULL;
+FROM ticket_cost_quotes q WHERE q.state IN ('approved', 'rejected', 'superseded') AND q.decided_by IS NOT NULL AND q.decided_at IS NOT NULL;
+
+-- a 2.5.7 resubmission superseded the open quote (submitted, or `rejected` = a correction request - the request_fix row above keeps
+-- that decision); the replacement is logged as this design's `superseded` row, by the vendor, at the next version's time
+INSERT INTO ticket_quote_decisions (id, quote_id, action, reason, lines_json, amount_minor, by_user, at)
+SELECT 'm0088s-' || q.id, q.id, 'superseded', NULL, NULL, NULL, 'contact:' || q.contact_id,
+       COALESCE((SELECT n.created_at FROM ticket_cost_quotes n WHERE n.assignment_id = q.assignment_id AND n.seq = q.seq + 1), q.created_at)
+FROM ticket_cost_quotes q WHERE q.state = 'superseded';
 
 DROP INDEX IF EXISTS idx_cost_quotes_ticket;
 DROP TABLE ticket_cost_quotes;

@@ -11,7 +11,11 @@ Wiring rules (code review section 3, as public_routes / public_claims): the toke
 `write=True` - the read-only grace answers 409 and a code-protected link without a code session 403); bodies through `read_json()`
 into strict models (client totals are not even accepted - `extra = forbid`); `client_request_id` mandatory and stored in the
 effect's own transaction; the write budget is spent once a NEW quote is stored. No claim mode: a quote needs a live link and a
-request in handling. The vendor never sees internal notes, other vendors' quotes or who decided."""
+request in handling. The vendor never sees internal notes, other vendors' quotes or who decided.
+TKFIX260 (public-surface review F3): inside the write transaction the link, its ticket and its assignment are read AGAIN
+(handler_actions.fresh - rule W2: a link revoked / regenerated / past its expiry since the lookup is the uniform 404, a read-only
+grace 409 `read_only`), and a stored quote counts as the handler's progress like every other write (sliding expiry, the link's
+update count, the access row). The audit row carries ids, the version and the currency - never an amount (review F2)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -23,8 +27,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
-from . import costs, quotes, store, store_costs, store_links
-from .handler_actions import _finish as finish_request, claim as claim_request
+from . import costs, links, quotes
+from .handler_actions import ActionRefused, LinkGone, _finish as finish_request, _progress as link_progress, claim as claim_request, fresh as fresh_link
+from .keyring import KEYS
+from .module_key import ModuleKeyError
 from .public_app import Idempotency, LinkContext, PublicError, idempotency_scope, link_context, parse_client_request_id, read_json, spend_budget
 from .public_claims import LineIn, _error
 from .public_store import audit_link
@@ -63,6 +69,15 @@ def _public_error(exc: costs.CostRefused) -> PublicError:
     return _error(exc)
 
 
+def client_key(ctx: LinkContext) -> str:
+    """The access-row device key, as public_routes' writes (links.client_key: network + UA family under the module key)."""
+    try:
+        key = KEYS.get(getattr(ctx.link, "key_id", None))
+    except ModuleKeyError:
+        raise PublicError(404, "link_unavailable") from None  # no key: fail closed, as public_routes
+    return links.client_key(key, ctx.request.net, links.ua_family(ctx.request.user_agent))
+
+
 def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> APIRouter:
     r = APIRouter()
     idem = Idempotency(None)
@@ -92,31 +107,38 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         crid = parse_client_request_id(body.client_request_id)
         payload = body.model_dump(exclude={"client_request_id"}, exclude_none=True)
         payload["lines"] = [{k: v for k, v in ln.items() if v is not None} for ln in payload.get("lines", [])]
+        ck = client_key(ctx)
 
         def tx() -> tuple[int, dict[str, Any], bool]:
             when = now()
             with db.connection(label="tickets.public.quote") as conn:
-                link = ctx.link
+                try:
+                    f = fresh_link(conn, ctx.link, when)  # W2: the link as it is NOW, inside the write transaction
+                except LinkGone:
+                    raise PublicError(404, "link_unavailable") from None
+                except ActionRefused as exc:
+                    raise PublicError(exc.status, exc.code, **exc.extra) from None
+                if f.link.no_money:  # defence in depth behind link_context(claim_surface=True): a staff link never quotes
+                    raise PublicError(404, "link_unavailable")
+                link = f.link
                 replay = claim_request(conn, link, crid, QUOTE_ROUTE, when)
                 if replay is not None:
                     return replay[0], replay[1], False
-                ticket = store_costs.ticket_row(conn, link.ticket_id)
-                asg = store.assignment(conn, link.assignment_id)
-                if ticket is None or asg is None:
-                    raise PublicError(409, "quote_closed")
-                contact = store_links.contact(conn, link.contact_id) or {}
                 try:
-                    q = quotes.submit(conn, ticket, asg, payload, by_kind="contact", by_id=link.contact_id, at=when,
-                                      actor_name=contact.get("display_name") or "")
+                    q = quotes.submit(conn, f.ticket, f.assignment, payload, by_kind="contact", by_id=link.contact_id, at=when,
+                                      actor_name=(f.contact or {}).get("display_name") or "")
                 except costs.CostRefused as exc:
                     raise _public_error(exc) from None
-                audit_link(conn, link, "ticket.quote.submit", quote_id=q["id"], version=q["version"], total_minor=q["total_minor"],
-                           currency=q["currency"])
+                link_progress(conn, f, when, ck)  # a quote is the handler's progress, as a status / note / ETA
+                audit_link(conn, link, "ticket.quote.submit", quote_id=q["id"], version=q["version"], currency=q["currency"])
                 answer = {"ok": True, "quote": quotes.present_public(q)}
                 return (*finish_request(conn, link, crid, 201, answer), True)
 
         async def work() -> tuple[int, dict[str, Any]]:
-            status, answer, new = await run_in_threadpool(tx)
+            try:
+                status, answer, new = await run_in_threadpool(tx)
+            except ActionRefused as exc:  # claim_request: request_id_reused / request_in_progress
+                raise PublicError(exc.status, exc.code, **exc.extra) from None
             if new:
                 spend_budget(request)
             return status, answer

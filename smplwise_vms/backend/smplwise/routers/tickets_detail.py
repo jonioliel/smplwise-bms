@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..db import new_id, now_iso
+from ..db import now_iso
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services.tickets import access, costs, model, owners, quotes, service, sla, store, store_costs, store_links, store_quotes, timeline
@@ -34,6 +34,7 @@ from .tickets import ID, module_gate
 from .tickets_costs import _need as need_costs
 
 router = APIRouter(dependencies=[Depends(module_gate)])
+NOTIFY_WINDOW_S = 600  # TKFIX260 (review A F9): one "update" notification per assignment per 10 minutes
 
 QUOTE_MESSAGES = {
     "quote_not_open": "אפשר להגיש הצעת מחיר רק כשהבקשה נמצאת אצל מטפל חיצוני ובטיפול.",
@@ -44,6 +45,7 @@ QUOTE_MESSAGES = {
     "self_approval": "את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.",
     "not_external": "הצעת מחיר קיימת רק לשיוך לגורם חיצוני.",
     "nothing_left": "אחרי הסרת הסעיפים החריגים לא נשאר מה לאשר.",
+    "demand_pending": "כבר הוגשה דרישת תשלום בשיוך הזה. החליטו עליה לפני אישור הצעת המחיר.",
 }
 
 
@@ -88,8 +90,8 @@ def get_timeline(ticket_id: str = Path(..., pattern=ID), flt: Literal["all", "me
 # ---------------------------------------------------------------- the internal owner
 
 def _owner_answer(conn: sqlite3.Connection, viewer: Viewer, seen: Seen) -> dict[str, Any]:
-    full = seen.full
-    return {"ticket_id": seen.row["id"], "revision": seen.row["revision"], "owner": owners.owner_block(conn, seen.row),
+    full = seen.full  # TKFIX260 (review A F7): the owner is for the members' full view (contract section 2), like its history
+    return {"ticket_id": seen.row["id"], "revision": seen.row["revision"], "owner": owners.owner_block(conn, seen.row) if full else None,
             "history": owners.history(conn, seen.row["id"]) if full else [],
             "candidates": [{"id": c["id"], "name": c["name"]} for c in service.eligible_assignees(conn, seen.row["department_id"], seen.row)]
             if seen.manager else [],
@@ -174,7 +176,7 @@ def post_quote(body: QuoteBody, request: Request, ticket_id: str = Path(..., pat
     except costs.CostRefused as exc:
         raise _refused(conn, exc) from None
     audit(conn, actor=principal, action="ticket.quote.on_behalf", decision="allowed", resource_type="ticket", resource_id=ticket_id, request_id=rid,
-          details={"number": seen.row["number"], "quote_id": q["id"], "version": q["version"], "total_minor": q["total_minor"], "currency": q["currency"]})
+          details={"number": seen.row["number"], "quote_id": q["id"], "version": q["version"], "currency": q["currency"]})  # TKFIX260: no amount
     return _quotes_answer(conn, viewer, ticket_id)
 
 
@@ -208,7 +210,8 @@ class QuoteDecisionBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=1)
     line_indexes: list[int] | None = Field(default=None, max_length=30)
-    reason: str | None = Field(default=None, max_length=5000)
+    reason: str | None = Field(default=None, max_length=5000)  # shown to the vendor (page + draft) for request-fix / reject
+    internal_note: str | None = Field(default=None, max_length=5000)  # TKFIX260: internal only - never public, never in the draft
 
 
 QUOTE_ACTIONS = {"approve": "approve", "request-fix": "request_fix", "reject": "reject"}
@@ -233,12 +236,11 @@ def post_quote_decision(body: QuoteDecisionBody, request: Request, ticket_id: st
     q = _quote_of(conn, seen, quote_id)
     try:
         fresh = quotes.decide(conn, q, act, by=viewer.uid, revision=body.revision, at=costs.now_utc(), line_indexes=body.line_indexes,
-                              reason=body.reason, actor_name=service.actor_name(viewer))
+                              reason=body.reason, actor_name=service.actor_name(viewer), note=body.internal_note)
     except costs.CostRefused as exc:
         raise _refused(conn, exc) from None
     audit(conn, actor=principal, action=f"ticket.quote.{act}", decision="allowed", resource_type="ticket", resource_id=ticket_id, request_id=rid,
-          details={"number": seen.row["number"], "quote_id": fresh["id"], "version": fresh["version"], "state": fresh["state"],
-                   "approved_total_minor": fresh.get("approved_total_minor")})
+          details={"number": seen.row["number"], "quote_id": fresh["id"], "version": fresh["version"], "state": fresh["state"]})  # TKFIX260: no amount
     out = _quotes_answer(conn, viewer, ticket_id)
     out["message_draft"] = quotes.draft_message(conn, seen.row, subject="quote", obj=fresh, decision=DRAFT_OF[fresh["state"]])
     return out
@@ -283,7 +285,10 @@ def _need_vendor_writer(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, ac
 
 def _notify(conn: sqlite3.Connection, row: dict[str, Any], asg: dict[str, Any], requested_by: str) -> dict[str, Any]:
     """The existing templated "update" notification with the link (WhatsApp / e-mail, held by the send hours) - the free text never
-    travels in it. A failure never fails the message itself."""
+    travels in it. A failure never fails the message itself.
+    TKFIX260 (review A F9): ONE notification per assignment (and link generation) per NOTIFY_WINDOW_S - the idempotency key names
+    the window, so five short messages in a minute queue one "there is an update" message (the outbox answers the existing row);
+    every message is still on the vendor's page."""
     from ..services.tickets import handler_links, messaging
 
     out: dict[str, Any] = {"queued": False, "channel": None}
@@ -293,14 +298,16 @@ def _notify(conn: sqlite3.Connection, row: dict[str, Any], asg: dict[str, Any], 
     if link is None or contact is None or contact.get("erased_at"):
         return out
     try:
-        if handler_links.state(link, rt.clock()) != "live":
+        now = rt.clock()
+        if handler_links.state(link, now) != "live":
             return out
         channel = messaging.plan_channel(conn, contact, rt.data_dir)
         out["channel"] = channel
         if channel != "manual" and rt.outbox is not None:
             queued = rt.enqueue(conn, purpose="update", contact_id=contact["id"], ticket_id=row["id"], assignment_id=asg["id"], link_id=link["id"],
                                 department_id=row["department_id"], params=messaging.message_params(conn, row, contact), channel=channel,
-                                requested_by=requested_by, idempotency_key=f"vmsg:{new_id()}")
+                                requested_by=requested_by,
+                                idempotency_key=f"vmsg:{asg['id']}:{int(link.get('generation') or 1)}:{int(now.timestamp()) // NOTIFY_WINDOW_S}")
             out.update({"queued": True, "outbox_id": getattr(queued, "id", None)})
     except Exception:  # noqa: BLE001 - the message is stored; the notification is best effort (the timeline shows its state)
         out["queued"] = False
@@ -329,7 +336,22 @@ def _item_of(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str, eid: int)
 class SourceRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Literal["quote", "claim", "note"]
-    id: str = Field(min_length=1, max_length=64)
+    id: str = Field(min_length=1, max_length=64, pattern=ID)
+
+
+def _check_source(conn: sqlite3.Connection, seen: Seen, src: SourceRef) -> None:
+    """TKFIX260 (review A F8): the decision / note a vendor message names must be one of THIS ticket's - else the uniform 404 of
+    that object (the audit row never points at another ticket's quote, claim or note)."""
+    if src.kind == "quote":
+        _quote_of(conn, seen, src.id)
+    elif src.kind == "claim":
+        claim = store_costs.claim(conn, src.id)
+        if claim is None or claim.get("ticket_id") != seen.row["id"]:
+            raise ApiError(404, "claim_not_found", text(conn, "דרישת התשלום לא נמצאה."))
+    else:
+        ev = store_quotes.event_of_ticket(conn, seen.row["id"], int(src.id)) if src.id.isdigit() and len(src.id) <= 18 else None
+        if ev is None or ev["kind"] != "note":
+            raise ApiError(404, "note_not_found", text(conn, "ההערה לא נמצאה."))
 
 
 class VendorMessageBody(BaseModel):
@@ -346,6 +368,8 @@ def post_vendor_message(body: VendorMessageBody, request: Request, ticket_id: st
     rid = _rid(request)
     seen = access.require_visible(viewer, ticket_id)
     asg = _need_vendor_writer(conn, viewer, seen, "ticket.vendor_message", rid)
+    if body.source is not None:
+        _check_source(conn, seen, body.source)
     try:
         msg = model.text_field(body.text, "text", required=True, max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
@@ -421,7 +445,7 @@ def post_draft(body: DraftBody, request: Request, ticket_id: str = Path(..., pat
     else:
         claim = store_costs.claim(conn, body.id)
         if claim is None or claim.get("ticket_id") != ticket_id:
-            raise ApiError(404, "claim_not_found", text(conn, "דרישת העלות לא נמצאה."))
+            raise ApiError(404, "claim_not_found", text(conn, "דרישת התשלום לא נמצאה."))
         if body.decision in ("partially_approved", "fix_requested"):
             raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "decision", "code": "unknown"}]})
         obj = claim_draft_object(conn, claim)

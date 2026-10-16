@@ -114,19 +114,19 @@ STARTERS: dict[str, dict[str, str]] = {
     # slice 9 (11A.7): the vendor's cost claim - never an amount in a message. TK251: a message that asks the vendor to act
     # carries the handler link ({link}, the claim step - claim mode until the claim window ends); the approval carries none
     "cost_rejected": {
-        "he": "דרישת העלות ל{module_name} {number} ({department}) הוחזרה לתיקון.\nלעיון בהערה ולהגשה מחדש: {link}",
+        "he": "דרישת התשלום ל{module_name} {number} ({department}) הוחזרה לתיקון.\nלעיון בהערה ולהגשה מחדש: {link}",
         "en": "The cost claim for {module_name} #{number} ({department}) was sent back for correction.\nSee the note and resubmit: {link}",
         "ar": "أعيدت مطالبة التكلفة لـ {module_name} رقم {number} ({department}) للتصحيح.\nللاطلاع على الملاحظة وإعادة التقديم: {link}",
         "ru": "Счёт по {module_name} № {number} ({department}) возвращён на исправление.\nЗамечание и повторная отправка: {link}",
     },
     "cost_approved": {
-        "he": "דרישת העלות ל{module_name} {number} ({department}) אושרה. תודה.",
+        "he": "דרישת התשלום ל{module_name} {number} ({department}) אושרה. תודה.",
         "en": "The cost claim for {module_name} #{number} ({department}) was approved. Thank you.",
         "ar": "تمت الموافقة على مطالبة التكلفة لـ {module_name} رقم {number} ({department}). شكرًا.",
         "ru": "Счёт по {module_name} № {number} ({department}) одобрен. Спасибо.",
     },
     "cost_reopened": {
-        "he": "אפשר שוב להגיש דרישת עלות ל{module_name} {number} ({department}).\nלהגשה: {link}",
+        "he": "אפשר שוב להגיש דרישת תשלום ל{module_name} {number} ({department}).\nלהגשה: {link}",
         "en": "You can submit the cost claim for {module_name} #{number} ({department}) again.\nSubmit it here: {link}",
         "ar": "يمكنكم مجددًا تقديم مطالبة التكلفة لـ {module_name} رقم {number} ({department}).\nللتقديم: {link}",
         "ru": "Вы снова можете отправить счёт по {module_name} № {number} ({department}).\nОтправить: {link}",

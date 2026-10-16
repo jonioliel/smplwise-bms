@@ -84,7 +84,7 @@ test.describe('tickets deletion evidence', () => {
     await page.locator(`${DLG} [data-delete-confirm]`).fill('1043');
     await page.locator(`${DLG} [data-delete-reason]`).fill('כפילות');
     await page.locator(`${DLG} [data-delete-go]`).click();
-    await expect(page.locator(`${DLG} [data-delete-error]`)).toContainText('דרישת עלות שאושרה');
+    await expect(page.locator(`${DLG} [data-delete-error]`)).toContainText('דרישת תשלום שאושרה');
     await shot(page, 'dialog-refused');
   });
 

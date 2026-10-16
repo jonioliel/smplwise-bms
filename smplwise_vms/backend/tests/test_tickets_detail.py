@@ -109,7 +109,7 @@ def test_0088_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, t
     with database.connection() as conn:
         prio = conn.execute("SELECT id FROM ticket_priorities WHERE department_id = 'dept-maintenance' LIMIT 1").fetchone()[0]
         conn.execute("UPDATE ticket_departments SET cost_line_kinds = 'travel' WHERE id = 'dept-maintenance'")
-        for n, tid in enumerate(("t1", "t2"), start=1):
+        for n, tid in enumerate(("t1", "t2", "t3"), start=1):
             conn.execute("INSERT INTO tickets(id, number, department_id, priority_id, title, status, origin, created_by, last_activity_at, "
                          "created_at, updated_at) VALUES (?, ?, 'dept-maintenance', ?, 'x', 'assigned', 'manual', 'u', ?, ?, ?)",
                          (tid, 900 + n, prio, now, now, now))
@@ -117,7 +117,9 @@ def test_0088_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, t
                          "assigned_at, cost_line_kinds) VALUES (?, ?, 'contact', 'c1', 'v', 'manual', 'u', ?, ?)",
                          (f"a{n}", tid, now, "other, travel" if n == 1 else None))
         rows = (("q1", "t1", "a1", 1, "superseded", None, None, None), ("q2", "t1", "a1", 2, "approved", None, "u1", now),
-                ("q3", "t2", "a2", 1, "rejected", "missing parts price", "u1", now))
+                ("q3", "t2", "a2", 1, "rejected", "missing parts price", "u1", now),
+                # TKFIX260 (review A F4): a correction request the vendor answered with a new version - 2.5.7 left it `superseded`
+                ("q5", "t3", "a3", 1, "superseded", "add a photo", "u1", now), ("q6", "t3", "a3", 2, "submitted", None, None, None))
         for qid, tid, aid, seq, state, reason, by, at in rows:
             conn.execute("INSERT INTO ticket_cost_quotes(id, ticket_id, assignment_id, contact_id, seq, state, lines_json, labor_minor, "
                          "parts_minor, travel_minor, other_minor, subtotal_minor, vat_mode, vat_rate_bp, vat_minor, total_minor, currency, notes, "
@@ -127,16 +129,26 @@ def test_0088_moves_the_2_5_7_quotes_and_line_kinds_into_this_design(settings, t
     assert dbmod.Database(settings.db_path).migrate() == [88]
     with database.connection(mode="read") as conn:
         q = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM ticket_quotes")}
-        assert {k: (v["version"], v["state"]) for k, v in q.items()} == {"q1": (1, "superseded"), "q2": (2, "approved"), "q3": (1, "fix_requested")}
+        assert {k: (v["version"], v["state"]) for k, v in q.items()} == {"q1": (1, "superseded"), "q2": (2, "approved"), "q3": (1, "fix_requested"),
+                                                                          "q5": (1, "superseded"), "q6": (2, "submitted")}
         assert q["q2"]["approved_lines_json"] == "[0,1]" and q["q2"]["approved_total_minor"] == 129800 and q["q2"]["supersedes_id"] == "q1"
         assert q["q3"]["decision_reason"] == "missing parts price" and q["q2"]["note"] == "n" and q["q2"]["department_id"] == "dept-maintenance"
-        d = [(r["quote_id"], r["action"]) for r in conn.execute("SELECT * FROM ticket_quote_decisions ORDER BY quote_id")]
-        assert d == [("q2", "approve"), ("q3", "request_fix")]
+        d = [(r["quote_id"], r["action"], r["by_user"], r["reason"]) for r in conn.execute("SELECT * FROM ticket_quote_decisions ORDER BY quote_id, at, action")]
+        assert d == [("q1", "superseded", "contact:c1", None), ("q2", "approve", "u1", None), ("q3", "request_fix", "u1", "missing parts price"),
+                     ("q5", "request_fix", "u1", "add a photo"), ("q5", "superseded", "contact:c1", None)], "every 2.5.7 decision keeps its row"
         kinds = {r[0]: r[1] for r in conn.execute("SELECT id, allowed_line_kinds FROM tickets")}
-        assert kinds == {"t1": '["labor","parts","travel","other"]', "t2": None}
+        assert kinds == {"t1": '["labor","parts","travel","other"]', "t2": None, "t3": None}
         dept = conn.execute("SELECT allowed_line_kinds FROM ticket_departments WHERE id = 'dept-maintenance'").fetchone()[0]
         assert dept == '["labor","parts","travel"]'
         assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'ticket_cost_quotes'").fetchone()
+    # TKFIX260 (review A F5): a version is unique per assignment again (0085 had UNIQUE (assignment_id, seq))
+    import sqlite3
+
+    with pytest.raises(sqlite3.IntegrityError), database.connection() as conn:
+        conn.execute("INSERT INTO ticket_quotes(id, ticket_id, assignment_id, contact_id, version, source, state, currency, vat_mode, vat_rate_bp, "
+                     "lines_json, labor_minor, parts_minor, travel_minor, other_minor, subtotal_minor, vat_minor, total_minor, created_by_kind, "
+                     "created_by, created_at, updated_at) SELECT 'dup', ticket_id, assignment_id, contact_id, version, source, 'submitted', currency, "
+                     "vat_mode, vat_rate_bp, lines_json, 0, 0, 0, 0, 0, 0, 0, 'contact', 'c1', created_at, updated_at FROM ticket_quotes WHERE id = 'q6'")
 
 
 # ---------------------------------------------------------------- the internal owner
@@ -188,11 +200,16 @@ def test_a_manager_changes_the_owner_with_history_and_others_cannot(s4):
     assert audits and "חזר מחופשה" not in str([a[0] for a in audits]), "the audit row carries ids only"
 
 
-def test_a_limited_viewer_sees_the_owner_but_not_its_history(s4):
+def test_a_limited_viewer_sees_neither_the_owner_nor_its_history(s4):
+    """TKFIX260 (review A F7): the contract (section 2) says "visible, full view" - a requester with a limited view does not learn
+    the internal responsible person (the earlier test pinned the opposite, against the contract)."""
     t = s4.ticket(user="nora")
     assert s4.assign_contact(t["id"], user="mona").status_code == 200
     o = s4.c.get(f"{API}/tickets/{t['id']}/owner", headers=s4.h("nora")).json()
-    assert o["owner"]["id"] == "dev-mona" and o["history"] == [] and o["candidates"] == [] and o["can"]["change"] is False
+    assert o["owner"] is None and o["history"] == [] and o["candidates"] == [] and o["can"]["change"] is False
+    r = s4.c.get(f"{API}/tickets/{t['id']}", headers=s4.h("nora"))
+    assert r.status_code == 200 and r.json()["internal_owner"] is None
+    assert s4.w.detail(t["id"])["internal_owner"]["id"] == "dev-mona", "the members' full view keeps it"
 
 
 def test_waiting_for_a_part_is_a_sub_state_of_in_progress(s4):
@@ -235,7 +252,8 @@ def test_allowed_kinds_default_to_labor_and_parts_and_follow_request_department_
 
 def test_the_installation_default_is_a_setting(s4):
     r = s4.c.get(f"{API}/tickets/settings")
-    assert r.json()["costs"]["allowed_line_kinds"] == ["labor", "parts"] and r.json()["costs"]["notify_vendor_approved"] is False
+    assert r.json()["costs"]["allowed_line_kinds"] == ["labor", "parts"]
+    assert "notify_vendor_approved" not in r.json()["costs"], "TKFIX260: an approval never sends - the 2.5.x toggle is gone"
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "costs": {"allowed_line_kinds": ["travel", "labor"]}})
     assert r.status_code == 200, r.text
     assert r.json()["costs"]["allowed_line_kinds"] == ["labor", "travel"]
@@ -486,7 +504,12 @@ def test_the_vendor_message_needs_an_active_external_assignment(s4):
     r = s4.c.post(f"{API}/tickets/{t['id']}/vendor-message", json={"text": "שלום"})
     assert r.status_code == 409 and r.json()["code"] == "no_external_assignment"
     t, token, client = sent(s4)
+    # TKFIX260 (review A F8): the source must be a quote / claim / note of THIS ticket
     r = s4.c.post(f"{API}/tickets/{t['id']}/vendor-message", json={"text": "ההצעה אושרה", "source": {"kind": "quote", "id": "q1"}})
+    assert r.status_code == 404 and r.json()["code"] == "quote_not_found"
+    assert vendor_quote(client, token).status_code == 201
+    qid = quotes_of(s4, t["id"])["quotes"][-1]["id"]
+    r = s4.c.post(f"{API}/tickets/{t['id']}/vendor-message", json={"text": "ההצעה אושרה", "source": {"kind": "quote", "id": qid}})
     assert r.status_code == 201, r.text
     assert r.json()["item"]["message"]["channel"] == "page" and r.json()["item"]["external"] is True
     assert s4.c.post(f"{API}/tickets/{t['id']}/vendor-message", json={"text": "  "}).status_code == 422
@@ -550,3 +573,244 @@ def test_the_purge_removes_quotes_decisions_and_owner_history(s4):
         removed = store.purge_ticket(conn, t["id"])
         assert removed.get("ticket_quotes") == 1 and removed.get("ticket_quote_decisions") == 1 and removed.get("ticket_owner_changes") == 1
         assert store.ticket_rows_left(conn, t["id"]) == {}
+
+
+# ---------------------------------------------------------------- TKFIX260: the release 2.6.0 review fixes (negative first)
+
+def _submitted_claim(s4):
+    t, token, client = sent(s4, cost_claim="required")
+    vendor_status(client, token, "acknowledged", "done")
+    r = client.post("/t/api/claim", headers=hdr(token), json={"lines": [{"kind": "labor", "hours": "2", "rate": "150"}], "client_request_id": crid()})
+    assert r.status_code == 201, r.text
+    claim = s4.c.get(f"{API}/tickets/{t['id']}/costs").json()["claims"][0]
+    return t, token, client, claim
+
+
+def _store_legacy_notify_true(s4) -> None:
+    """A 2.5.x installation that switched "הודעה לספק על אישור" on: the stored document still says true."""
+    import json
+
+    from smplwise.services.tickets import settings_doc
+
+    with s4.db.connection() as conn:
+        doc = settings_doc._stored(conn)
+        doc.setdefault("costs", {})["notify_vendor_approved"] = True
+        conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                     (settings_doc.SETTING_KEY, json.dumps(doc, ensure_ascii=False)))
+
+
+def test_tkfix260_a_stored_notify_true_never_sends_on_approve_or_adjust(s4):
+    """Review A F1 (owner rule 15.10 evening): an approval never sends a vendor message - not even where 2.5.x saved the toggle on.
+    The draft in the answer is the only path (the Costs tab asks "לשלוח הודעה לספק?")."""
+    _store_legacy_notify_true(s4)
+    t, _token, _client, claim = _submitted_claim(s4)
+    before = outbox_count(s4)
+    r = s4.c.post(f"{API}/tickets/{t['id']}/costs/{claim['id']}/approve", json={"revision": claim["revision"], "revision_id": claim["current_revision_id"]})
+    assert r.status_code == 200, r.text
+    assert outbox_count(s4) == before, "approve with the stored toggle true queued a message"
+    assert r.json()["message_draft"]["text"], "the draft is offered instead"
+    t2, _token2, _client2, claim2 = _submitted_claim(s4)
+    before = outbox_count(s4)
+    r = s4.c.post(f"{API}/tickets/{t2['id']}/costs/{claim2['id']}/adjust",
+                  json={"revision": claim2["revision"], "revision_id": claim2["current_revision_id"], "reason": "שעה אחת בלבד",
+                        "lines": [{"kind": "labor", "hours": "1", "rate": "150"}]})
+    assert r.status_code == 200, r.text
+    assert outbox_count(s4) == before, "adjust with the stored toggle true queued a message"
+    for tid in (t["id"], t2["id"]):
+        assert not [e for e in s4.w.detail(tid)["events"] if e["kind"] == "cost_message"]
+    s = s4.c.get(f"{API}/tickets/settings").json()
+    assert "notify_vendor_approved" not in s["costs"], "the stored key is never served"
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": s["revision"], "costs": {"notify_vendor_approved": True}})
+    assert r.status_code == 422, "the toggle cannot be saved any more"
+
+
+def _staff_assignment(s4):
+    e = s4.c.post(f"{API}/tickets/contacts", json={"kind": "employee", "display_name": "יוסי טכנאי", "phone": "050-000-0077", "lang": "he"})
+    assert e.status_code == 201, e.text
+    t = s4.ticket()
+    assert s4.assign_contact(t["id"], e.json()["id"]).status_code == 200
+    return t, e.json(), s4.w.detail(t["id"])["assignments"][-1]["id"]
+
+
+STAFF_LINES = '[{"kind":"labor","description":"","total_minor":10000,"hours":"1","rate_minor":10000}]'
+
+
+def test_tkfix260_a_staff_contact_assignment_has_no_quote_stage_mode_or_decision(s4):
+    """Review A F3: a staff contact (an employee without an account) is never in the vendor-payment pipeline - also internally."""
+    t, e, asg = _staff_assignment(s4)
+    q = quotes_of(s4, t["id"])
+    assert q["flow"] == {"stage": "none", "sub_state": None, "assignment_id": asg, "quote_mode": None}, q["flow"]
+    assert q["quote_mode"] is None and q["baseline"] is None
+    c = s4.c.get(f"{API}/tickets/{t['id']}/costs").json()
+    row = next(a for a in c["external_assignments"] if a["id"] == asg)
+    assert row["quote_capable"] is False and row["quote_mode"] is None
+    r = s4.c.post(f"{API}/tickets/{t['id']}/quotes/requirement", json={"assignment_id": asg, "mode": "required"}, headers=s4.h("mona"))
+    assert r.status_code == 409 and r.json()["code"] == "not_external", r.text
+    now = "2026-10-16T08:00:00Z"
+    with s4.db.connection() as conn:  # a 2.5.7-era staff quote that 0088 copied
+        conn.execute("INSERT INTO ticket_quotes(id, ticket_id, assignment_id, contact_id, version, source, state, currency, vat_mode, vat_rate_bp, "
+                     "lines_json, labor_minor, parts_minor, travel_minor, other_minor, subtotal_minor, vat_minor, total_minor, created_by_kind, "
+                     "created_by, created_at, updated_at) VALUES ('staffq', ?, ?, ?, 1, 'vendor', 'submitted', 'ILS', 'excluded', 1800, ?, "
+                     "10000, 0, 0, 0, 10000, 1800, 11800, 'contact', ?, ?, ?)", (t["id"], asg, e["id"], STAFF_LINES, e["id"], now, now))
+    r = s4.c.post(f"{API}/tickets/{t['id']}/quotes/staffq/approve", json={"revision": 1})
+    assert r.status_code == 409 and r.json()["code"] == "not_external", r.text
+    r = s4.c.post(f"{API}/tickets/{t['id']}/costs/quotes/staffq/approve", json={})
+    assert r.status_code == 409 and r.json()["code"] == "not_external", r.text
+    assert quotes_of(s4, t["id"])["baseline"] is None
+
+
+def test_tkfix260_kind_deltas_are_null_when_the_vat_basis_differs(s4):
+    """Review A F6: a quote "excluding VAT" against a demand "including VAT" - the per-kind sums are on different bases."""
+    t, token, client = _approved_labor_only(s4)  # the approved part: labour 300 + 18% VAT = 354 (entered excluding VAT)
+    r = client.post("/t/api/claim", headers=hdr(token), json={"lines": [{"kind": "labor", "hours": "2", "rate": "150"}],
+                                                               "amounts_include_vat": True, "client_request_id": crid()})
+    assert r.status_code == 201, r.text
+    claim = s4.c.get(f"{API}/tickets/{t['id']}/costs").json()["claims"][0]
+    assert claim["kind_deltas"] is None, "gross labour compared with net labour"
+    assert claim["delta_minor"] == 30000 - 35400, "the total difference stays"
+
+
+def test_tkfix260_vendor_message_source_must_be_of_this_ticket(s4):
+    """Review A F8: a quote / claim / note id of ANOTHER ticket (or none) is refused; the audit row never points elsewhere."""
+    t, _token, _client = sent(s4)
+    other, otoken, oclient = sent(s4, title="נזילה בצנרת")
+    assert vendor_quote(oclient, otoken).status_code == 201
+    foreign = quotes_of(s4, other["id"])["quotes"][-1]["id"]
+    url = f"{API}/tickets/{t['id']}/vendor-message"
+    r = s4.c.post(url, json={"text": "x", "source": {"kind": "quote", "id": foreign}})
+    assert r.status_code == 404 and r.json()["code"] == "quote_not_found"
+    r = s4.c.post(url, json={"text": "x", "source": {"kind": "claim", "id": "nope"}})
+    assert r.status_code == 404 and r.json()["code"] == "claim_not_found"
+    assert s4.c.post(url, json={"text": "x", "source": {"kind": "note", "id": "ev:1"}}).status_code == 422, "the id pattern"
+    assert s4.c.post(f"{API}/tickets/{other['id']}/notes", json={"text": "פנימי", "external": False}).status_code in (200, 201)
+    note = next(i for i in timeline(s4, other["id"])["items"] if i["type"] == "internal_note")
+    r = s4.c.post(url, json={"text": "x", "source": {"kind": "note", "id": note["id"][3:]}})
+    assert r.status_code == 404 and r.json()["code"] == "note_not_found"
+    with s4.db.connection(mode="read") as conn:
+        assert not conn.execute("SELECT 1 FROM audit_log WHERE action = 'ticket.vendor_message'").fetchone(), "nothing was written"
+
+
+def test_tkfix260_vendor_messages_share_one_update_notification_per_window(s4, monkeypatch):
+    """Review A F9: five short messages in a minute queue ONE "there is an update" WhatsApp - the key names the assignment and a
+    10-minute window (the outbox answers the existing row for a used key)."""
+    from smplwise.routers import tickets_detail
+    from smplwise.services.tickets import messaging
+
+    t, _token, _client = sent(s4)
+    asg = s4.w.detail(t["id"])["assignments"][-1]["id"]
+    keys: list[str] = []
+    now = [dt.datetime.now(dt.timezone.utc).replace(microsecond=0)]
+    monkeypatch.setattr(messaging.RUNTIME, "outbox", object())
+    monkeypatch.setattr(messaging.RUNTIME, "clock", lambda: now[0])
+    monkeypatch.setattr(messaging.RUNTIME, "enqueue", lambda conn, **kw: keys.append(kw["idempotency_key"]))
+    monkeypatch.setattr(messaging, "plan_channel", lambda *a, **k: "whatsapp")
+    for text in ("אני בדרך", "עוד 5 דקות"):
+        assert s4.c.post(f"{API}/tickets/{t['id']}/vendor-message", json={"text": text}).status_code == 201
+    now[0] += dt.timedelta(seconds=tickets_detail.NOTIFY_WINDOW_S + 1)
+    assert s4.c.post(f"{API}/tickets/{t['id']}/vendor-message", json={"text": "הגעתי"}).status_code == 201
+    assert len(keys) == 3 and keys[0] == keys[1], keys
+    assert keys[2] != keys[0] and all(asg in k for k in keys), keys
+
+
+def test_tkfix260_a_quote_is_not_approved_over_a_submitted_payment_demand(s4):
+    """Review A F12 (refuse, the safer option): the demand was checked against the baseline of its submission; the manager decides
+    the demand first."""
+    t, token, client = sent(s4, cost_claim="required")
+    vendor_status(client, token, "acknowledged")
+    assert vendor_quote(client, token).status_code == 201
+    vendor_status(client, token, "done")
+    r = client.post("/t/api/claim", headers=hdr(token), json={"lines": [{"kind": "labor", "hours": "2", "rate": "150"}], "client_request_id": crid()})
+    assert r.status_code == 201, r.text
+    r = decide_quote(s4, t["id"], "approve")
+    assert r.status_code == 409 and r.json()["code"] == "demand_pending", r.text
+    claim = s4.c.get(f"{API}/tickets/{t['id']}/costs").json()["claims"][0]
+    r = s4.c.post(f"{API}/tickets/{t['id']}/costs/{claim['id']}/reject",
+                  json={"revision": claim["revision"], "revision_id": claim["current_revision_id"], "reason": "נא לצרף חשבונית"})
+    assert r.status_code == 200, r.text
+    assert decide_quote(s4, t["id"], "approve").status_code == 200, "a rejected demand is checked again on resubmission"
+
+
+def test_tkfix260_the_internal_note_of_a_decision_never_reaches_the_vendor(s4):
+    """Public-surface review F1: the reason is shown to the vendor (page + draft); the internal note is stored apart and is never in
+    a public answer, a draft or an audit row."""
+    secret = "המחיר גבוה ב-30% מההצעה של ספק אחר"
+    t, token, client = sent(s4)
+    assert vendor_quote(client, token).status_code == 201
+    r = decide_quote(s4, t["id"], "request-fix", reason="חסר פירוט חלקים", internal_note=secret)
+    assert r.status_code == 200, r.text
+    assert secret not in r.json()["message_draft"]["text"], "the draft carries the vendor-facing reason only"
+    page = client.get("/t/api/quote", headers=hdr(token))
+    assert page.status_code == 200 and secret not in page.text and "חסר פירוט חלקים" in page.text
+    assert secret not in client.get("/t/api/ticket", headers=hdr(token)).text
+    mine = quotes_of(s4, t["id"])["quotes"][-1]["decision"]
+    assert mine["internal_note"] == secret and mine["reason"] == "חסר פירוט חלקים"
+    # a payment demand: reject with an internal note
+    t2, token2, client2, claim = _submitted_claim(s4)
+    r = s4.c.post(f"{API}/tickets/{t2['id']}/costs/{claim['id']}/reject",
+                  json={"revision": claim["revision"], "revision_id": claim["current_revision_id"], "reason": "נא לצרף חשבונית", "internal_note": secret})
+    assert r.status_code == 200, r.text
+    assert secret not in r.json()["message_draft"]["text"]
+    assert r.json()["claims"][0]["decisions"][-1]["internal_note"] == secret
+    pub = client2.get("/t/api/claim", headers=hdr(token2))
+    assert pub.status_code == 200 and secret not in pub.text and pub.json()["rejection_reason"] == "נא לצרף חשבונית"
+    fresh = r.json()["claims"][0]
+    r = s4.c.post(f"{API}/tickets/{t2['id']}/costs/{claim['id']}/reopen-window", json={"revision": fresh["revision"], "internal_note": "x"})
+    assert r.status_code == 422, "an internal note belongs to a decision only"
+    with s4.db.connection(mode="read") as conn:
+        blob = " ".join(row[0] or "" for row in conn.execute("SELECT details_json FROM audit_log"))
+        events = " ".join((row[0] or "") + (row[1] or "") for row in conn.execute("SELECT body, data_json FROM ticket_events"))
+    assert secret not in blob and secret not in events
+
+
+def test_tkfix260_quote_audit_rows_carry_no_amount(s4):
+    """Public-surface review F2: a quote audit row carries ids, the version, the state / currency - never an amount (a reader of the
+    audit log without tickets.costs.view must not learn quote totals). Claims keep their totals (a financial record, 11A.12)."""
+    import json
+
+    t, token, client = sent(s4)
+    assert vendor_quote(client, token).status_code == 201
+    assert decide_quote(s4, t["id"], "request-fix", reason="x").status_code == 200
+    t2, _token2, _client2 = sent(s4, title="נזילה בצנרת")
+    assert s4.c.post(f"{API}/tickets/{t2['id']}/quotes", json={"lines": QUOTE}).status_code == 201
+    with s4.db.connection(mode="read") as conn:
+        rows = [(row[0], json.loads(row[1] or "{}")) for row in conn.execute("SELECT action, details_json FROM audit_log WHERE action LIKE 'ticket.quote.%'")]
+    assert {a for a, _ in rows} >= {"ticket.quote.submit", "ticket.quote.request_fix", "ticket.quote.on_behalf"}
+    for action, d in rows:
+        assert not any(k.endswith("_minor") for k in d), (action, d)
+        assert "129800" not in json.dumps(d) and "110000" not in json.dumps(d), (action, d)
+
+
+def test_tkfix260_a_quote_on_a_link_revoked_after_the_lookup_is_refused(s4, monkeypatch):
+    """Public-surface review F3 (rule W2): the link is read again inside the write transaction - a revoke between the lookup and the
+    write is the uniform 404 and nothing is stored; a stored quote counts as the link's progress."""
+    from smplwise.services.tickets import public_quotes
+
+    t, token, client = sent(s4)
+    link = s4.link_row(t["id"])
+    assert vendor_quote(client, token).status_code == 201
+    with s4.db.connection(mode="read") as conn:
+        count = conn.execute("SELECT update_count FROM ticket_links WHERE id = ?", (link["id"],)).fetchone()[0]
+    assert count == link["update_count"] + 1, "a quote is the handler's progress"
+    original = public_quotes.read_json
+
+    async def revoke_then_read(request, model):
+        body = await original(request, model)
+        with s4.db.connection() as conn:  # the manager revokes the link while the request is in flight
+            conn.execute("UPDATE ticket_links SET revoked_at = ?, revoked_reason = 'manual' WHERE id = ?", ("2026-10-16T08:00:00Z", link["id"]))
+        return body
+
+    monkeypatch.setattr(public_quotes, "read_json", revoke_then_read)
+    r = vendor_quote(client, token)
+    assert r.status_code == 404, r.text
+    assert len(quotes_of(s4, t["id"])["quotes"]) == 1, "no quote stored on a revoked link"
+
+
+def test_tkfix260_an_on_behalf_quote_says_so_on_the_vendor_page(s4):
+    """Public-surface review F4: a version the organisation entered is marked (never who entered it); the vendor's own is not."""
+    t, token, client = sent(s4)
+    assert s4.c.post(f"{API}/tickets/{t['id']}/quotes", json={"lines": QUOTE}).status_code == 201
+    v = client.get("/t/api/quote", headers=hdr(token)).json()
+    assert v["quotes"][-1]["on_behalf"] is True and "created_by" not in v["quotes"][-1] and "created_by_name" not in v["quotes"][-1]
+    assert vendor_quote(client, token).status_code == 201
+    v = client.get("/t/api/quote", headers=hdr(token)).json()
+    assert [q["on_behalf"] for q in v["quotes"]] == [True, False]

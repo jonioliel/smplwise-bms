@@ -181,8 +181,8 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("costs", "require_invoice"): (False, boolean),
     ("costs", "max_claim_total_minor"): (100_000_000, int_range(100, 99_999_999_999)),
     ("costs", "review_flag_above_minor"): (1_000_000, int_range(0, 99_999_999_999)),
-    # owner 15.10 evening (TKDETAILBE): an approval never sends a message silently - the manager confirms a draft; default OFF
-    ("costs", "notify_vendor_approved"): (False, boolean),
+    # owner 15.10 evening: an approval never sends a message - the 2.5.x key `costs.notify_vendor_approved` is removed (TKFIX260);
+    # a stored value survives as an unknown key and is never served or read
     ("costs", "retention_days"): (2555, int_range(730, 3650)),
     ("costs", "allowed_line_kinds"): (["labor", "parts"], line_kinds),  # TKDETAILBE: request -> department -> this default
 }

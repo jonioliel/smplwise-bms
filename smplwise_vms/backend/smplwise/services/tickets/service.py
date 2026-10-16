@@ -230,19 +230,19 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
 
 
 COST_MESSAGES = {
-    "cost_claim_pending": "יש דרישת עלות חובה שעדיין לא אושרה. אשרו אותה, או סגרו עם נימוק.",
+    "cost_claim_pending": "יש דרישת תשלום חובה שעדיין לא אושרה. אשרו אותה, או סגרו עם נימוק.",
     "forbidden": "אין הרשאה לפעולה הזו.",
-    "claim_stale": "דרישת העלות השתנתה בינתיים. טענו מחדש.",
-    "claim_closed": "דרישת העלות כבר אושרה.",
+    "claim_stale": "דרישת התשלום השתנתה בינתיים. טענו מחדש.",
+    "claim_closed": "דרישת התשלום כבר אושרה.",
     "claim_not_submitted": "אין הגשה שממתינה לבדיקה.",
     "self_approval": "את ההגשה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.",
-    "claim_not_approved": "דרישת העלות עדיין לא אושרה.",
-    "claim_not_paid": "דרישת העלות אינה מסומנת כשולמה.",
-    "claim_not_open": "דרישת העלות אינה פתוחה להגשה.",
+    "claim_not_approved": "דרישת התשלום עדיין לא אושרה.",
+    "claim_not_paid": "דרישת התשלום אינה מסומנת כשולמה.",
+    "claim_not_open": "דרישת התשלום אינה פתוחה להגשה.",
     "window_still_open": "חלון ההגשה עדיין פתוח.",
     "already_reopened": "חלון ההגשה כבר נפתח מחדש פעם אחת.",
-    "claim_already_submitted": "אי אפשר לשנות את הדרישה אחרי שהוגשה דרישת עלות.",
-    "not_external": "דרישת עלות קיימת רק לשיוך לגורם חיצוני.",
+    "claim_already_submitted": "אי אפשר לשנות את הדרישה אחרי שהוגשה דרישת תשלום.",
+    "not_external": "דרישת תשלום קיימת רק לשיוך לגורם חיצוני.",
     "no_external_assignment": "ל{ticket} אין שיוך לגורם חיצוני.",
     "claim_window_closed": "חלון ההגשה נסגר.",
     "invoice_required": "יש לצרף חשבונית או קבלה.",
@@ -250,6 +250,7 @@ COST_MESSAGES = {
     "quote_closed": "ההצעה כבר אושרה או שהעבודה הסתיימה.",
     "quote_not_found": "ההצעה לא נמצאה.",
     "invalid_state": "ההצעה כבר טופלה.",
+    "demand_pending": "כבר הוגשה דרישת תשלום בשיוך הזה. החליטו עליה לפני אישור הצעת המחיר.",
 }
 
 

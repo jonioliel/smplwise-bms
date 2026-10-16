@@ -250,7 +250,7 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
     # TKDETAILBE (contract 8): the internal owner, "waiting for a part" as a sub-state of "in progress", the new abilities
     from .owners import owner_block
 
-    out["internal_owner"] = owner_block(conn, row)
+    out["internal_owner"] = owner_block(conn, row) if seen.full else None  # TKFIX260 (review A F7): contract section 2 - full view only
     status = row["status"]
     out["status_view"] = {"stage": "in_progress" if status == "waiting_part" else status, "sub_state": "waiting_part" if status == "waiting_part" else None}
     open_ = status not in model.FINAL

@@ -49,8 +49,8 @@ T_SEND_FAILED = ("ההודעה על {ticket} #{number} לא נשלחה", "{place
 T_CONTACT = ("פרטי המטפל ב{ticket} #{number} השתנו", "{place} · הקישור בוטל")
 T_UNMATCHED = ("תשובה שלא שויכה ל{ticket}", "לבדיקה בלוח המנהל")
 # S9b (11A.7): no amounts, no vendor text - the number and the place only
-T_COST_SUBMITTED = ("הוגשה דרישת עלות ל{ticket} #{number}", "{place}")
-T_COST_MISSING = ("לא הוגשה דרישת עלות ל{ticket} #{number}", "{place} · חלון ההגשה נסגר")
+T_COST_SUBMITTED = ("הוגשה דרישת תשלום ל{ticket} #{number}", "{place}")
+T_COST_MISSING = ("לא הוגשה דרישת תשלום ל{ticket} #{number}", "{place} · חלון ההגשה נסגר")
 T_CHANNEL = ("חשבון וואטסאפ מנותק", "{account} · הודעות {tickets} ממתינות")
 
 

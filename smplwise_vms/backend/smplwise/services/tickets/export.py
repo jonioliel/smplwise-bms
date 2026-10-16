@@ -48,7 +48,7 @@ STUCK_TEXT: dict[str, dict[str, str]] = {
 }
 OVERDUE_TEXT = {"he": "חריגה", "en": "overdue"}
 COST_STATUS_TEXT: dict[str, dict[str, str]] = {  # slice 9
-    "he": {"not_required": "", "awaiting": "ממתין לדרישת עלות", "submitted": "הוגשה", "rejected": "נדחתה", "approved": "אושרה", "paid": "שולמה"},
+    "he": {"not_required": "", "awaiting": "ממתין לדרישת תשלום", "submitted": "הוגשה", "rejected": "נדחתה", "approved": "אושרה", "paid": "שולמה"},
     "en": {"not_required": "", "awaiting": "Awaiting claim", "submitted": "Submitted", "rejected": "Rejected", "approved": "Approved", "paid": "Paid"},
 }
 
