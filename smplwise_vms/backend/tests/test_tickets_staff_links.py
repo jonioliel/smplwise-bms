@@ -603,3 +603,35 @@ def test_f4_the_whatsapp_switch_is_the_employees_own(env):
     r = env.c.put(f"{API}/tickets/me/staff-mobile", json={"notify_whatsapp": True}, headers=env.h("tom"))
     assert r.status_code == 200 and r.json()["notify_whatsapp"] is True
     assert set_mobile(env, "tom", TOM_PHONE, notify_whatsapp=False).status_code == 200
+
+
+# ---------------------------------------------------------------- owner clarification 2026-10-16: the employee's switch is ON by default
+
+
+def test_owner_default_the_whatsapp_switch_is_on_for_a_new_and_an_existing_row_and_an_assignment_sends(env):
+    """Assigned to an employee -> the employee gets the WhatsApp notice by DEFAULT (the switch is only an opt-out the employee
+    controls); the send still needs the number the employee confirmed."""
+    assert set_mobile(env, "tom", TOM_PHONE).status_code == 200  # nobody touches the switch
+    assert mine(env, "tom")["notify_whatsapp"] is True
+    with env.s4.db.connection() as conn:  # an existing row (made before 0087 / without the column value) reads the column default
+        cid = conn.execute("INSERT INTO ticket_contacts(id, kind, display_name, created_by, created_at, updated_at) "
+                           "VALUES ('c-old', 'person', 'old', 'test', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z') RETURNING id").fetchone()[0]
+        assert conn.execute("SELECT notify_whatsapp FROM ticket_contacts WHERE id = ?", (cid,)).fetchone()[0] == 1
+    t = env.s4.ticket()
+    assert env.s4.w.assign("joni", t["id"], "tom").status_code == 200
+    assert env.rows(t["id"]) == [], "unconfirmed number: nothing is sent"
+    confirm(env, "tom")
+    t2 = env.s4.ticket()
+    assert env.s4.w.assign("joni", t2["id"], "tom").status_code == 200
+    assert [(r.purpose, r.channel) for r in env.rows(t2["id"])] == [("assign", "whatsapp")], "default switch + confirmed number: sent"
+
+
+def test_owner_default_an_unassigned_new_ticket_tells_only_the_notify_new_managers(env):
+    staff_ticket(env)  # tom has a confirmed mobile and the default switch
+    t = env.s4.ticket(title="נורה שרופה")
+    assert env.rows(t["id"]) == [], "no WhatsApp staff message for an unassigned ticket"
+    with env.s4.db.connection(mode="read") as conn:
+        who = {r[0] for r in conn.execute(
+            "SELECT r.user_id FROM notifications n JOIN notification_recipients r ON r.notification_id = n.id "
+            "WHERE n.source = 'ticket.new_unassigned' AND n.subject_id = ?", (t["id"],)).fetchall()}
+    assert "dev-tom" not in who and who <= {"dev-mona", "dev-joni"}, who
