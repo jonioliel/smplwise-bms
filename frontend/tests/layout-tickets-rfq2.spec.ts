@@ -31,7 +31,8 @@ async function controls(page: Page, host: string): Promise<{ name: string; w: nu
         if (!r.width || !r.height) return;
         const st = getComputedStyle(el);
         if (st.visibility === 'hidden' || st.display === 'none') return;
-        const name = (el.getAttribute('aria-label') || (el as HTMLElement).innerText || (el as HTMLInputElement).placeholder || el.getAttribute('title') || '').trim();
+        const lab = (el as HTMLInputElement).labels?.[0]?.innerText ?? '';
+        const name = (el.getAttribute('aria-label') || lab || (el as HTMLElement).innerText || (el as HTMLInputElement).placeholder || el.getAttribute('title') || '').trim();
         const inText = !!el.closest('.crumbs, .note, p, .search');
         out.push({ name, w: r.width, h: r.height, tag, inText });
       });

@@ -366,7 +366,8 @@ export class TicketsRfqNew extends LitElement {
   render() {
     return html`<sw-drawer modal .open=${this.open} heading=${rt('newTitle')} subheading=${rt('newSub')} data-rfq-new @close=${() => this.close()}>
       ${this.open ? this.form() : nothing}${this.open ? this.footer() : nothing}
-    </sw-drawer>${this.open ? this.confirmDialog() : nothing}`;
+      ${this.open ? this.confirmDialog() : nothing}
+    </sw-drawer>`;
   }
 }
 

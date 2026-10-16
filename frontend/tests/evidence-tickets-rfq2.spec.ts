@@ -127,8 +127,7 @@ test.describe('requests for quotation - manager UI (TKRFQ2)', () => {
     await shot(page, 'new-filled', 'light', 'classic', false);
     expect(posts(m, /tickets\/rfqs/)).toHaveLength(0);
     await sheet.locator('[data-rfq-to-send]').click();
-    const dlg = sheet.locator('[data-rfq-send-dialog]');
-    await expect(dlg).toBeVisible();
+    await expect(sheet.locator('[data-rfq-send-dialog] [data-rfq-send-mode="auto"]')).toBeVisible(); // the dialog host has no box of its own
     await expect(sheet.locator('[data-rfq-send-preview]')).toBeVisible();
     await shot(page, 'new-confirm', 'light', 'classic', false);
     expect(posts(m, /tickets\/rfqs/)).toHaveLength(0); // still nothing - the confirmation is the only way out
@@ -256,7 +255,7 @@ test.describe('requests for quotation - manager UI (TKRFQ2)', () => {
     expect(posts(m2, /awards/)).toHaveLength(0);
     await c.locator('[data-cmp-confirm-ok]').click();
     const drafts = c.locator('[data-cmp-drafts]');
-    await expect(drafts).toBeVisible();
+    await expect(c.locator('[data-cmp-drafts] [data-cmp-draft]').first()).toBeVisible();
     await expect(c.locator('[data-draft-kind="winner"] [data-draft-send]')).toBeChecked();
     for (const x of await c.locator('[data-draft-kind="other"] [data-draft-send]').all()) await expect(x).not.toBeChecked();
     await shot(page, 'compare-drafts', 'light', 'classic', false);
