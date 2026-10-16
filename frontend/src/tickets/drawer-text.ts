@@ -162,6 +162,7 @@ const he = {
 
   // ---- the tabs whose content the sibling tasks build (TKUI2 / TKUI3): a quiet line above the reused blocks
   slotConv: 'הודעות והערות',
+  costsEmpty: 'לא נדרשת הצעת מחיר או דרישת תשלום',
   slotHistory: 'ציר זמן וביקורת',
 
   // ---- Settings › the module › display (the two drawer rows)
@@ -309,6 +310,7 @@ const en: Partial<Record<DrawerTextKey, string>> = {
   cs_approved: 'Payment demand approved',
   cs_paid: 'Paid',
   slotConv: 'Messages and notes',
+  costsEmpty: 'No quote or payment demand is required',
   slotHistory: 'Timeline and audit',
   setDrawerTab: 'Default tab',
   setDrawerTabSub: 'The tab a {ticket} opens on',

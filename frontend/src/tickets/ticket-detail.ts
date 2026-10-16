@@ -952,6 +952,7 @@ export class TicketDetailView extends LitElement {
       case 'costs':
         // SLOT (TKUI3): the two-stage costs of IA §6.3 replace the claim card of slice 9
         return html`<div class="one" data-tab-content="costs" data-slot="costs">
+          ${!t.cost || t.cost.status === 'not_required' ? html`<p class="slot-note" data-costs-empty>${dwt('costsEmpty')}</p>` : nothing}
           <ticket-cost-card .ticket=${t} @cost-changed=${() => void this.load()}></ticket-cost-card>
         </div>`;
       case 'history':
