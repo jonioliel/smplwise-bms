@@ -53,10 +53,21 @@ def public(env, clock: Clock | None = None, peer: str = "198.51.100.7"):
     return c, app
 
 
-def assigned(env, contact_id: str | None = None, title: str = "מזגן לא מקרר"):
+def confirm(env, contact_id: str | None = None, via: str | None = "code") -> None:
+    """How the row's CURRENT number was confirmed (0091): 'code' / 'user' / 'manager', or None = never confirmed."""
+    at = handler_links.iso(handler_links.now_utc()) if via else None
+    with env.s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET phone_confirmed_at = ?, phone_confirmed_via = ? WHERE id = ?",
+                     (at, via, contact_id or env.s4.contact["id"]))
+
+
+def assigned(env, contact_id: str | None = None, title: str = "מזגן לא מקרר", confirmed: str | None = "code"):
+    """A request assigned to the contact; its number confirmed by code by default (review F1: the portal serves only a number its
+    owner proved, whatever the installation's number-verification switch says)."""
     t = env.s4.ticket(title=title)
     r = env.s4.assign_contact(t["id"], contact_id=contact_id)
     assert r.status_code == 200, r.text
+    confirm(env, contact_id, confirmed)
     return t
 
 
@@ -129,7 +140,7 @@ def code_invalid(r) -> None:
 
 def test_the_portal_is_off_by_default_and_every_portal_route_is_the_uniform_404(env):
     doc = env.c.get(f"{API}/tickets/settings").json()
-    assert doc["vendor_portal"] == {"enabled": False, "closed_months": 2} and doc["brand"] == {"logo": ""}
+    assert doc["vendor_portal"] == {"enabled": False, "closed_months": 2, "require_confirmed_number": True} and doc["brand"] == {"logo": ""}
     assigned(env)
     c, _ = public(env)
     for path in PORTAL:
@@ -174,7 +185,7 @@ def test_the_answer_does_not_wait_for_the_lookup_a_failing_lookup_still_answers_
     portal_on(env)
     order: list[str] = []
 
-    def boom(conn, digits, now):
+    def boom(conn, digits, now, **kw):
         order.append("lookup")
         raise RuntimeError("database unavailable")
 
@@ -332,7 +343,7 @@ def test_a_staff_row_linked_to_a_user_never_uses_the_portal(env):
 
 def test_while_number_verification_is_required_an_unverified_number_receives_nothing(env):
     portal_on(env)
-    assigned(env)
+    assigned(env, confirmed="manager")  # a manager's mark never counts while verification is required
     env.channel(phone_verify={"required": True})
     c, _ = public(env)
     start(c)
@@ -357,6 +368,160 @@ def test_a_code_sent_to_an_old_number_signs_nobody_in(env):
     r = env.c.patch(f"{API}/tickets/contacts/{env.s4.contact['id']}", json={"revision": env.s4.contact_rev(env.s4.contact["id"]), "phone": "050-000-0077"})
     assert r.status_code == 200, r.text
     code_invalid(verify(c, code))
+
+
+# ---------------------------------------------------------------- 4b. the 2.6.4 review (private RELEASE_264_REVIEW_VPORTAL F1-F7)
+
+
+def test_f1_an_unconfirmed_number_receives_no_code_even_while_number_verification_is_off(env):
+    portal_on(env)
+    assigned(env, confirmed=None)
+    assert env.c.get(f"{API}/tickets/settings").json()["phone_verify"]["required"] is False
+    c, _ = public(env)
+    known, unknown = start(c, PHONE_A), start(c, UNKNOWN)
+    assert known.content == unknown.content and known.status_code == unknown.status_code == 202
+    assert [(k, v) for k, v in known.headers.items() if k != "date"] == [(k, v) for k, v in unknown.headers.items() if k != "date"]
+    assert portal_msgs(env) == [], "a number nobody proved is treated exactly like an unknown number"
+    assert rows(env)[-1]["contact_id"] is None and rows(env, "972500000099")[-1]["contact_id"] is None
+    code_invalid(verify(c, code_of(env)))
+
+
+def test_f1_a_managers_mark_is_not_enough_a_code_or_the_person_themself_is(env):
+    portal_on(env)
+    assigned(env, confirmed="manager")
+    c, _ = public(env)
+    start(c)
+    assert portal_msgs(env) == []
+    for via in ("user", "code"):
+        confirm(env, via=via)
+        back(env)
+        start(c)
+    assert len(portal_msgs(env)) == 2
+
+
+def test_f1_the_rule_is_on_by_default_system_configure_audited_and_switchable_from_a_remote_session(env, monkeypatch):
+    from smplwise.routers import tickets_admin
+
+    assert settings_put(env, vendor_portal={"require_confirmed_number": "no"}).status_code == 422
+    rev = env.c.get(f"{API}/tickets/settings").json()["revision"]
+    r = env.c.put(f"{API}/tickets/settings", json={"revision": rev, "vendor_portal": {"require_confirmed_number": False}}, headers=env.h("tom"))
+    assert r.status_code == 403
+    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)  # owner 2026-10-17: the portal keys are NOT local-only
+    doc = portal_on(env, require_confirmed_number=False)
+    assert doc["vendor_portal"] == {"enabled": True, "closed_months": 2, "require_confirmed_number": False}
+    with env.s4.db.connection(mode="read") as conn:
+        details = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'tickets.settings.update'")]
+    assert any("vendor_portal.require_confirmed_number" in d.get("changed", []) for d in details)
+    assigned(env, confirmed=None)
+    c, _ = public(env)
+    start(c)
+    assert len(portal_msgs(env)) == 1, "switched off by the owner: an unconfirmed number is served as before"
+
+
+def test_f2_the_sign_in_code_names_the_organisation_and_the_purpose_and_says_we_never_ask_for_it(env):
+    portal_on(env)
+    assigned(env)
+    c, _ = public(env)
+    start(c)
+    code = code_of(env)
+    env.tick()
+    [call] = [x for x in env.fake.calls if code in x["data"]["message"]]
+    text = call["data"]["message"]
+    for part in ("מגדלי הדר", "אזור הספקים", "10 דקות", "לעולם לא נבקש"):
+        assert part in text, part
+    assert "לאימות מספר הטלפון" not in text, "not the generic number-verification text"
+
+
+def test_f3_the_number_dependent_lookup_runs_on_a_read_connection_before_the_write_lock(env, monkeypatch):
+    portal_on(env)
+    assigned(env)
+    seen: list[int] = []
+    real = vendor_portal.contacts_of
+
+    def spy(conn, phone_key):
+        seen.append(conn.execute("PRAGMA query_only").fetchone()[0])
+        return real(conn, phone_key)
+
+    monkeypatch.setattr(vendor_portal, "contacts_of", spy)
+    c, _ = public(env)
+    start(c)
+    assert seen == [1] and len(portal_msgs(env)) == 1, "who the number belongs to is read outside the write transaction"
+
+
+def test_f4_a_live_portal_code_and_session_keep_their_module_key(env):
+    from smplwise.services.tickets import store_links
+
+    portal_on(env)
+    now = handler_links.now_utc()
+    import datetime as dt
+
+    later = handler_links.iso(now + dt.timedelta(minutes=10))
+    with env.s4.db.connection() as conn:
+        conn.execute("INSERT INTO ticket_portal_codes(id, phone_key, key_id, code_hash, created_at, expires_at) VALUES ('c1', 'pk', 'old-code-key', 'h', ?, ?)",
+                     (handler_links.iso(now), later))
+        conn.execute("INSERT INTO ticket_portal_sessions(id_hash, phone_key, key_id, created_at, expires_at) VALUES ('s1', 'pk', 'old-session-key', ?, ?)",
+                     (handler_links.iso(now), later))
+        conn.execute("INSERT INTO ticket_portal_codes(id, phone_key, key_id, code_hash, created_at, expires_at, consumed_at) VALUES ('c2', 'pk', 'spent-key', 'h', ?, ?, ?)",
+                     (handler_links.iso(now), later, handler_links.iso(now)))
+        in_use = store_links.key_ids_in_use(conn)
+    assert {"old-code-key", "old-session-key"} <= in_use and "spent-key" not in in_use
+
+
+def test_f5_open_checks_the_session_before_the_body_and_logout_answers_alike(env):
+    portal_on(env)
+    assigned(env)
+    c, _ = public(env)
+    for body in ({"item": 5}, {"nope": 1}, {}):
+        uniform_404(c.post("/t/api/portal/open", json=body))
+    value = signed_in(env, c)
+    assert c.post("/t/api/portal/open", json={"nope": 1}, headers=jar(value)).status_code == 422, "with a session the body is judged"
+    answers = [c.post("/t/api/portal/logout", json={}, headers=h) for h in ({}, jar("x" * 43), jar(value), jar(value))]
+    assert len({(r.status_code, r.content, r.headers.get("set-cookie")) for r in answers}) == 1
+    assert answers[0].status_code == 200
+
+
+def test_f6_a_stranger_on_another_network_cannot_burn_the_vendors_code(env):
+    portal_on(env)
+    assigned(env)
+    c, _ = public(env)
+    stranger, _ = public(env, peer="203.0.113.9")
+    start(c)
+    code = code_of(env)
+    for _ in range(vendor_portal.MAX_ATTEMPTS + 2):
+        code_invalid(verify(stranger, other(code)))
+    code_invalid(verify(stranger, code))  # the right code from another network signs nobody in either
+    assert rows(env)[-1]["attempts"] == 0 and rows(env)[-1]["invalidated_at"] is None
+    assert verify(c, code).status_code == 200, "the vendor on the requesting network still signs in"
+
+
+def test_f6_wrong_guesses_from_the_requesting_network_still_end_the_code(env):
+    portal_on(env)
+    assigned(env)
+    c, _ = public(env)
+    start(c)
+    code = code_of(env)
+    for _ in range(vendor_portal.MAX_ATTEMPTS):
+        code_invalid(verify(c, other(code)))
+    code_invalid(verify(c, code))
+
+
+@pytest.mark.parametrize("typed,digits", [("+972 050 000 0031", "972500000031"), ("+972-0-50-0000031", "972500000031"),
+                                          ("009720500000031", "972500000031"), ("+972 03 123 4567", "97231234567")])
+def test_f7_the_directory_itself_drops_the_trunk_zero_after_the_country_code(typed, digits):
+    from smplwise.services.tickets import contacts
+
+    assert contacts.normalize_phone(typed) == digits
+    assert vendor_portal.canonical_phone(typed) == digits
+
+
+def test_f7_a_contact_saved_with_the_slip_is_reachable_through_the_portal(env):
+    portal_on(env)
+    r = env.c.patch(f"{API}/tickets/contacts/{env.s4.contact['id']}", json={"revision": env.s4.contact_rev(env.s4.contact["id"]), "phone": "+972 050 000 0031"})
+    assert r.status_code == 200, r.text
+    assigned(env)
+    c, _ = public(env)
+    start(c, "050-000-0031")
+    assert len(portal_msgs(env)) == 1
 
 
 # ---------------------------------------------------------------- 5. the session: scope, cookie, expiry

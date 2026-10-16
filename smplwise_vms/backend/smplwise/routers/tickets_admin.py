@@ -137,10 +137,13 @@ class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; depart
 
 
 class VendorPortalPatch(BaseModel):
-    """VPORTAL: the vendor portal on the public page (OFF by default) and how far back closed requests are listed (1-24 months)."""
+    """VPORTAL: the vendor portal on the public page (OFF by default), how far back closed requests are listed (1-24 months) and
+    whether only a code-confirmed number may sign in (2.6.4 review F1, default ON). Editable from a remote session too (owner
+    2026-10-17) - system.configure, audited as tickets.settings.update with the changed keys."""
     model_config = ConfigDict(extra="forbid")
     enabled: StrictBool | None = None
     closed_months: StrictInt | None = Field(default=None, ge=1, le=24)
+    require_confirmed_number: StrictBool | None = None
 
 
 class SettingsBody(BaseModel):

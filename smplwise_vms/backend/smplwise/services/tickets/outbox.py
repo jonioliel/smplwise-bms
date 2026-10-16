@@ -656,7 +656,8 @@ class Outbox:
     def _message(self, row: OutboxRow, recipient: Recipient, account: AccountRef | None, now: dt.datetime) -> tuple[OutboundMessage | None, str | None]:
         lang = recipient.lang if recipient.lang in templates.LANGS else templates.DEFAULT_LANG
         if row.purpose in templates.FIXED_PURPOSES:
-            tpl = templates.starter(row.purpose, lang)  # TKNOTIFOTP: the code-owned text, whatever the template store holds
+            # TKNOTIFOTP: the code-owned text, whatever the template store holds (VPORTAL F2: or its code-owned variant the row names)
+            tpl = templates.fixed_starter(row.purpose, row.template_id, lang)
         else:
             tpl = self.p.templates.pick(purpose=row.purpose, lang=lang, department_id=row.department_id, template_id=row.template_id) \
                 or templates.starter(row.purpose, lang)

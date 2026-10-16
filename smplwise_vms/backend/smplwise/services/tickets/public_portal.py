@@ -10,8 +10,10 @@ their limits and kinds; docs/changes/CR-VENDOR-PORTAL.md has the design and the 
   extended); anything else -> the ONE refusal `422 {"code": "code_invalid"}`.
 - `GET  /t/api/portal/items`   - the session's items (read-only); no / dead session -> the uniform 404.
 - `POST /t/api/portal/open`    - `{item}`: the handler token of that item's live link (the page opens the existing handler page with
-  it); anything out of the session's scope -> the uniform 404.
-- `POST /t/api/portal/logout`  - ends the session and clears the cookie.
+  it); anything out of the session's scope -> the uniform 404. The session is checked BEFORE the body is parsed (2.6.4 review F5:
+  without a session every body is the same 404, never a 422).
+- `POST /t/api/portal/logout`  - ends the session and clears the cookie; idempotent - the SAME answer (200 + the clearing cookie)
+  with a live, a dead or no session (review F5: it reveals nothing; the route itself is visible through `config` while on).
 - `GET  /t/brand/<stamp>.jpg`  - the organisation's logo (brand.py), only the current stamp; immutable.
 Bodies are read with `read_json()` into strict models (W17: never FastAPI's Body); every answer is `{"code": ...}`-shaped or the
 uniform 404; no number, code or session value is ever logged."""
@@ -96,9 +98,14 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, data
             raise PublicError(404, "link_unavailable")
         return JSONResponse(body)
 
-    def request_in_background(digits: str) -> None:
+    def request_in_background(digits: str, net: str) -> None:
         try:
-            write(vendor_portal.request_code, digits, now())
+            at = now()
+            # 2.6.4 review F3: who the number belongs to is read on a READ connection first; the write transaction then walks the
+            # same statements for every number until a message really leaves
+            plan = read(vendor_portal.plan_request, digits, at)
+            with db.connection(label="tickets.portal.write") as conn:
+                vendor_portal.request_code(conn, digits, at, plan=plan, net=net)
         except Exception as exc:  # noqa: BLE001 - the answer already left; the number is never logged
             log.warning("portal code request failed (%s)", type(exc).__name__)
 
@@ -110,14 +117,19 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, data
         if digits is None:
             raise PublicError(422, "invalid", fields=[{"field": "phone", "code": "format"}])
         # the same answer for every well-formed number; who it belongs to is looked up only after this answer was sent
-        return JSONResponse(SENT, status_code=202, background=BackgroundTask(request_in_background, digits))
+        return JSONResponse(SENT, status_code=202, background=BackgroundTask(request_in_background, digits, public_request(request).net))
 
     @r.post("/t/api/portal/verify")
     async def portal_verify(request: Request) -> JSONResponse:
         await require_on()
         body: VerifyIn = await read_json(request, VerifyIn)
         digits = vendor_portal.canonical_phone(body.phone)
-        value = await run_in_threadpool(write, vendor_portal.verify, digits, body.code, now())  # a wrong guess is committed
+        net = public_request(request).net  # review F6: a code answers only on the network that asked for it
+
+        def go(conn) -> str | None:
+            return vendor_portal.verify(conn, digits, body.code, now(), net=net)
+
+        value = await run_in_threadpool(write, go)  # a wrong guess is committed
         if value is None:
             raise PublicError(422, "code_invalid")
         ttl = int(vendor_portal.SESSION_TTL.total_seconds())
@@ -145,8 +157,8 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, data
 
     @r.post("/t/api/portal/open")
     async def portal_open(request: Request) -> JSONResponse:
+        sess = await live_session(request)  # review F5: no session -> the uniform 404 before the body is even read
         body: OpenIn = await read_json(request, OpenIn)
-        sess = await live_session(request)
         found = await run_in_threadpool(write, vendor_portal.open_item, sess, body.item, now())
         if found is None:
             raise PublicError(404, "link_unavailable")

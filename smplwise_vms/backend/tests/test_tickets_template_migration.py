@@ -43,7 +43,7 @@ def _row(database, tid):
 
 def test_the_starters_and_the_migration_agree_and_no_starter_has_the_old_line():
     for lang in OLD:
-        for table in (mt.STARTERS, mt.STAFF_STARTERS):
+        for table in (mt.STARTERS, mt.STAFF_STARTERS, mt.FIXED_STARTERS):
             for texts in table.values():
                 assert OLD[lang] not in texts[lang]
     assert all(NEW[lang] in mt.STARTERS["assign"][lang] for lang in OLD)

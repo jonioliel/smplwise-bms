@@ -26,6 +26,8 @@ def listing(s4, user: str, **q):
 @pytest.mark.parametrize("raw,digits", [
     ("050-000-0031", "972500000031"), ("+972 50 000 0031", "972500000031"), ("00972500000031", "972500000031"),
     ("(050) 000.0031", "972500000031"), ("+1 202 555 0100", "12025550100"), ("", None), ("  ", None), (None, None),
+    # VPORTAL 2.6.4 review F7: the trunk 0 kept after the country code is dropped by the directory itself
+    ("+972 050 000 0031", "972500000031"), ("00972 03 123 4567", "97231234567"),
 ])
 def test_phone_numbers_become_e164_digits(raw, digits):
     assert contacts.normalize_phone(raw) == digits

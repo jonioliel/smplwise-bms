@@ -183,6 +183,33 @@ STARTERS: dict[str, dict[str, str]] = {
 }
 FIXED_PURPOSES = frozenset({"phone_verify"})  # TKNOTIFOTP: always the starter above - a stored template is never used or accepted
 
+# VPORTAL 2.6.4 review F2: code-owned VARIANTS of a fixed purpose, chosen by the outbox row's `template_id` ('starter:<name>') -
+# never editable, never a stored template. `portal_code` is the vendor portal's sign-in code (purpose `phone_verify`, the same
+# outbox rules: WhatsApp only, never held, never a fallback): it names the organisation (its own line, dropped when the name is not
+# set) and the purpose, says the code is valid 10 minutes (vendor_portal.CODE_TTL) and that the organisation never asks for it - so
+# a vendor phoned by someone "verifying the number" can tell a sign-in code from an office action. ar / ru need a native review.
+FIXED_STARTERS: dict[str, dict[str, str]] = {
+    "portal_code": {
+        "he": "{organization}\nקוד הכניסה לאזור הספקים: {code}\nהקוד בתוקף 10 דקות.\nלעולם לא נבקש מכם את הקוד הזה, גם לא בטלפון. אין למסור אותו לאיש.\nאם לא ביקשתם להיכנס, התעלמו מההודעה.",
+        "en": "{organization}\nVendor area sign-in code: {code}\nValid for 10 minutes.\nWe will never ask you for this code, not even by phone. Do not share it with anyone.\nIf you did not try to sign in, ignore this message.",
+        "ar": "{organization}\nرمز الدخول إلى منطقة الموردين: {code}\nصالح لمدة 10 دقائق.\nلن نسألكم عن هذا الرمز أبدًا، ولا حتى عبر الهاتف. لا تشاركوه مع أي شخص.\nإذا لم تحاولوا الدخول، تجاهلوا هذه الرسالة.",
+        "ru": "{organization}\nКод входа в кабинет поставщика: {code}\nДействует 10 минут.\nМы никогда не попросим вас сообщить этот код, даже по телефону. Никому его не сообщайте.\nЕсли вы не пытались войти, проигнорируйте это сообщение.",
+    },
+}
+FIXED_VARIANTS = {"phone_verify": frozenset({"portal_code"})}  # the fixed purpose each variant belongs to
+
+
+def fixed_starter(purpose: str, template_id: str | None, lang: str) -> TemplateText | None:
+    """The code-owned text of a FIXED purpose: its variant when the row names one ('starter:portal_code[:<lang>]'), else the purpose's
+    own starter. Any other template id is ignored (a fixed purpose never renders a stored or foreign text)."""
+    parts = (template_id or "").split(":")
+    name = parts[1] if len(parts) >= 2 and parts[0] == "starter" else ""
+    if name in FIXED_VARIANTS.get(purpose, ()):
+        texts = FIXED_STARTERS[name]
+        lang = lang if lang in texts else DEFAULT_LANG
+        return TemplateText(id=f"starter:{name}:{lang}", purpose=purpose, lang=lang, body=texts[lang])
+    return starter(purpose, lang)
+
 
 # TKSTAFF1 (owner 2026-10-16): the assignment message of an internal employee's no-login STAFF link (services/tickets/staff_links.py),
 # chosen by the outbox row's `template_id` ('starter:<id>:<lang>') - code-owned, not editable in Settings (a staff text must keep its

@@ -190,6 +190,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # default (nothing changes on upgrade); `closed_months`: how far back closed requests are listed (default 2)
     ("vendor_portal", "enabled"): (False, boolean),
     ("vendor_portal", "closed_months"): (2, int_range(1, 24)),
+    # 2.6.4 review F1 (owner decision 2026-10-17): the portal serves only a number its owner PROVED (confirmed by code, or by the
+    # signed-in person themself) - even while `phone_verify.required` is off. ON by default; only the owner (system.configure) may
+    # switch it off; allowed from a remote session too (not a key of the public address)
+    ("vendor_portal", "require_confirmed_number"): (True, boolean),
     # VPORTAL: the stamp of the organisation's logo on the public pages ("" = none) - written ONLY by the logo routes
     # (services/tickets/brand.py), never by PUT /tickets/settings
     ("brand", "logo"): ("", _logo_stamp),

@@ -26,7 +26,8 @@ CREATE TABLE ticket_portal_codes (
   attempts        INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   consumed_at     TEXT,
   invalidated_at  TEXT,                                -- a newer code, five wrong guesses, or the message could not be queued
-  outbox_id       TEXT
+  outbox_id       TEXT,
+  net_hash        TEXT                                 -- 2.6.4 review F6: HMAC(k, 'vpn|' requesting client network); a guess from another network is not counted
 );
 CREATE INDEX idx_ticket_portal_codes_number ON ticket_portal_codes (phone_key, created_at);
 CREATE INDEX idx_ticket_portal_codes_created ON ticket_portal_codes (created_at);

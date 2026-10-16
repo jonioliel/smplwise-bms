@@ -21,7 +21,10 @@ Security rules (docs/changes/CR-VENDOR-PORTAL.md, threat model):
   HMAC-SHA256(k_tickets, 'vp|' id | phone_key | code), the digits derived from the 128-bit row id at render time (codes.derive_code,
   W9); the session value (256 bits) only as its SHA-256. Nothing of a number, a code or a session reaches a log line or an audit row.
 - FAIL CLOSED: no module key, no WhatsApp channel, a changed number, a key rotation, an erased / deactivated / staff row, a row whose
-  number verification is required and not done (phone_verify.whatsapp_allowed): nothing is sent, nothing is shown.
+  number verification is required and not done (phone_verify.whatsapp_allowed), and - while `vendor_portal.require_confirmed_number`
+  is on (default; 2.6.4 review F1) - a row whose number its owner never proved (by code or by the person themself): nothing is sent,
+  nothing is shown, the answers are those of an unknown number.
+- BINDING (review F6): a code answers only on the client network that requested it; a guess from elsewhere is not counted.
 - SCOPE: a session sees the rows whose CURRENT keyed number is the session's (re-read on every request), never another number's;
   item ids are opaque per session (HMAC of the session and the assignment), so an id from another session or a guessed one is the
   uniform 404. Never bank details or other sensitive data: the item answer is an allow-list (ITEM_KEYS); the module collects no bank
@@ -43,7 +46,7 @@ from .keyring import KEYS
 
 log = logging.getLogger("smplwise.tickets.vendor_portal")
 
-CODE_TTL = dt.timedelta(minutes=10)  # the fixed `phone_verify` message says "valid for 10 minutes"
+CODE_TTL = dt.timedelta(minutes=10)  # the portal's code message (message_templates.FIXED_STARTERS["portal_code"]) says "10 minutes"
 MAX_ATTEMPTS = 5
 COOLDOWN = dt.timedelta(seconds=60)
 PER_NUMBER_HOUR = 3
@@ -105,6 +108,21 @@ def closed_months(conn) -> int:
         return 2
 
 
+def require_confirmed(conn) -> bool:
+    """2.6.4 review F1: only a number its owner proved may sign in (default ON; an unreadable document reads ON - fail closed)."""
+    try:
+        return bool(settings_doc.read(conn)["vendor_portal"]["require_confirmed_number"])
+    except Exception:  # noqa: BLE001
+        return True
+
+
+PROVED_VIA = ("code", "user")  # 0091: a typed code, or the signed-in person confirming their own number - never a manager's mark
+
+
+def number_proved(row: Mapping[str, Any]) -> bool:
+    return bool(row.get("phone_e164")) and bool(row.get("phone_confirmed_at")) and row.get("phone_confirmed_via") in PROVED_VIA
+
+
 def canonical_phone(raw: Any) -> str | None:
     """One canonical form (E.164 digits, no '+') of what a person types, or None. Israeli formats: `050-900-7676`, `0509007676`,
     `+972 50 900 7676`, `+972-50-9007676`, `00972509007676`, `972509007676`, and the common `+972 050...` (the trunk 0 kept after the
@@ -120,13 +138,11 @@ def canonical_phone(raw: Any) -> str | None:
         d = unicodedata.decimal(ch, None)
         chars.append(str(d) if d is not None else ch)
     try:
-        digits = normalize_phone("".join(chars))
+        digits = normalize_phone("".join(chars))  # 2.6.4 review F7: the `+972 0...` slip is the directory's own rule now
     except ContactInvalid:
         return None
     if digits is None:
         return None
-    if digits.startswith("9720") and len(digits) == 13:
-        digits = "972" + digits[4:]
     return digits if 8 <= len(digits) <= 15 else None
 
 
@@ -154,17 +170,23 @@ def _code_hash(key: bytes, vid: str, phone_key: str, code: str) -> str:
 def contacts_of(conn, phone_key: str) -> list[dict[str, Any]]:
     """The directory rows the portal serves for this keyed number: a live (active, not erased) contact or vendor row whose CURRENT
     number has this key - never a row that names an internal user (staff use the app), never an employee row without an account,
-    never a row whose WhatsApp number verification is required and not done (TKNOTIFOTP: a number nobody proved owns it)."""
+    never a row whose WhatsApp number verification is required and not done (TKNOTIFOTP: a number nobody proved owns it), and -
+    while `vendor_portal.require_confirmed_number` is on (the default, review F1) - never a row whose CURRENT number was not proved
+    by its owner (`number_proved`), whatever the installation's verification switch says. A row left out is indistinguishable from
+    an unknown number (the same 202, a code row with no recipient, the same 422)."""
     from . import phone_verify
 
     rows = conn.execute("SELECT * FROM ticket_contacts WHERE phone_key = ? AND erased_at IS NULL AND active = 1 AND user_id IS NULL "
                         "AND COALESCE(employee, 0) = 0 ORDER BY created_at, id", (phone_key,)).fetchall()
+    strict = require_confirmed(conn)
     out = []
     for r in rows:
         row = dict(r)
         if not row.get("phone_e164"):
             continue
         if not phone_verify.whatsapp_allowed(conn, row):
+            continue
+        if strict and not number_proved(row):
             continue
         out.append(row)
     return out
@@ -284,15 +306,57 @@ def _count(conn, where: str, args: tuple[Any, ...]) -> int:
     return int(conn.execute(f"SELECT COUNT(*) FROM ticket_portal_codes WHERE {where}", args).fetchone()[0])  # noqa: S608 - fixed text
 
 
-def request_code(conn, digits: str, now: dt.datetime) -> str:
-    """The work behind POST /t/api/portal/start, run AFTER the uniform answer left (public_portal.py). Returns what happened, for
-    tests only (`capped` | `unknown` | `sent` | `unavailable` | `nokey`) - never sent to the client, never logged with the number."""
+def _net_hash(key: bytes, net: str) -> str:
+    """2.6.4 review F6: the requesting client network (/24 or /64, ratelimit.client_network), keyed - never stored in clear."""
+    return hmac.new(bytes(key), f"vpn|{net or 'unknown'}".encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+PORTAL_TEMPLATE_ID = "starter:portal_code"  # message_templates.FIXED_STARTERS: the portal's own variant of the fixed code text (F2)
+
+
+@dataclass(frozen=True)
+class Plan:
+    """What a code request will do, decided on a READ connection before the write lock is taken (2.6.4 review F3)."""
+
+    phone_key: str
+    key_id: str
+    known: bool  # the number serves at least one row
+    recipient_id: str | None  # the row the message goes to (None: nothing is sent)
+
+
+def plan_request(conn, digits: str, now: dt.datetime) -> Plan | None:
+    """The number-dependent reads of a code request (who the number belongs to, whether it has something to show, the daily message
+    budget, a sendable WhatsApp account). Run on a read connection (public_portal.py) so that this work never holds the shared write
+    lock - a client timing its own next write learns nothing from it. None = no module key."""
     from . import messaging
 
     nk = number_key(digits)
     if nk is None:
-        return "nokey"
+        return None
     phone_key, key_id = nk
+    contacts = contacts_of(conn, phone_key)
+    recipient = None
+    rt = messaging.RUNTIME
+    if contacts and has_items(conn, contacts, now, closed_months(conn)):
+        sent_today = _count(conn, "contact_id IS NOT NULL AND created_at > ?", (_iso(now - DAY),))
+        if rt.outbox is not None and sent_today < SENT_PER_DAY:
+            recipient = next((c for c in contacts if messaging.whatsapp_code_ready(conn, c, rt)), None)
+    return Plan(phone_key=phone_key, key_id=key_id, known=bool(contacts), recipient_id=recipient["id"] if recipient else None)
+
+
+def request_code(conn, digits: str, now: dt.datetime, *, plan: Plan | None = None, net: str = "unknown") -> str:
+    """The work behind POST /t/api/portal/start, run AFTER the uniform answer left (public_portal.py), on a WRITE connection. `plan`
+    comes from `plan_request` on a read connection (when absent - direct callers - it is made here). Under the write lock every
+    number walks the same statements (prune, caps, one primary-key re-check, invalidate, insert) until the enqueue of a message that
+    really leaves. Returns what happened, for tests only (`capped` | `unknown` | `sent` | `unavailable` | `nokey`) - never sent to
+    the client, never logged with the number."""
+    from . import messaging
+
+    if plan is None:
+        plan = plan_request(conn, digits, now)
+    if plan is None:
+        return "nokey"
+    phone_key, key_id = plan.phone_key, plan.key_id
     conn.execute("DELETE FROM ticket_portal_codes WHERE created_at < ?", (_iso(now - KEEP),))
     last = conn.execute("SELECT MAX(created_at) FROM ticket_portal_codes WHERE phone_key = ?", (phone_key,)).fetchone()[0]
     if ((last and last > _iso(now - COOLDOWN)) or _count(conn, "phone_key = ? AND created_at > ?", (phone_key, _iso(now - HOUR))) >= PER_NUMBER_HOUR
@@ -302,25 +366,25 @@ def request_code(conn, digits: str, now: dt.datetime) -> str:
         key = KEYS.get(key_id)
     except Exception:  # noqa: BLE001
         return "nokey"
-    contacts = contacts_of(conn, phone_key)
-    recipient = None
-    rt = messaging.RUNTIME
-    if contacts and has_items(conn, contacts, now, closed_months(conn)):
-        sent_today = _count(conn, "contact_id IS NOT NULL AND created_at > ?", (_iso(now - DAY),))
-        if rt.outbox is not None and sent_today < SENT_PER_DAY:
-            recipient = next((c for c in contacts if messaging.whatsapp_code_ready(conn, c, rt)), None)
+    # the row may have changed between the read and this transaction (a new number, deactivated): one primary-key read, the same
+    # statement for every number (an empty id for nobody), and a changed row gets no message
+    still = conn.execute("SELECT 1 FROM ticket_contacts WHERE id = ? AND phone_key = ? AND active = 1 AND erased_at IS NULL",
+                         (plan.recipient_id or "", phone_key)).fetchone()
+    recipient_id = plan.recipient_id if still is not None else None
     conn.execute("UPDATE ticket_portal_codes SET invalidated_at = ? WHERE phone_key = ? AND consumed_at IS NULL AND invalidated_at IS NULL",
                  (_iso(now), phone_key))  # one live code per number
     vid = codes_mod.new_code_id()
     code = codes_mod.derive_code(key, vid)
-    conn.execute("INSERT INTO ticket_portal_codes(id, phone_key, key_id, code_hash, contact_id, created_at, expires_at) VALUES (?,?,?,?,?,?,?)",
-                 (vid, phone_key, key_id, _code_hash(key, vid, phone_key, code), recipient["id"] if recipient else None, _iso(now), _iso(now + CODE_TTL)))
-    if recipient is None:
+    conn.execute("INSERT INTO ticket_portal_codes(id, phone_key, key_id, code_hash, contact_id, created_at, expires_at, net_hash) VALUES (?,?,?,?,?,?,?,?)",
+                 (vid, phone_key, key_id, _code_hash(key, vid, phone_key, code), recipient_id, _iso(now), _iso(now + CODE_TTL), _net_hash(key, net)))
+    if recipient_id is None:
         del code
-        return "unknown" if not contacts else "unavailable"
+        return "unknown" if not plan.known else "unavailable"
+    rt = messaging.RUNTIME
+    org = (settings_doc.read(conn).get("organization_name") or "").strip()
     try:
-        out = rt.enqueue(conn, purpose="phone_verify", contact_id=recipient["id"], channel="whatsapp", code=code, code_id=vid,
-                         requested_by="vendor_portal")
+        out = rt.enqueue(conn, purpose="phone_verify", contact_id=recipient_id, channel="whatsapp", code=code, code_id=vid,
+                         requested_by="vendor_portal", template_id=PORTAL_TEMPLATE_ID, params={"organization": org} if org else None)
     except Exception as exc:  # noqa: BLE001 - the code stays dead (it still counts against the caps)
         log.warning("portal code not queued (%s)", type(exc).__name__)
         conn.execute("UPDATE ticket_portal_codes SET invalidated_at = ? WHERE id = ?", (_iso(now), vid))
@@ -328,8 +392,8 @@ def request_code(conn, digits: str, now: dt.datetime) -> str:
     finally:
         del code
     conn.execute("UPDATE ticket_portal_codes SET outbox_id = ? WHERE id = ?", (out.id, vid))
-    audit(conn, actor=PortalActor(recipient["id"]), action="ticket.portal.code_send", decision="allowed", resource_type="ticket_contact",
-          resource_id=recipient["id"], details={"source": "vendor_portal"})
+    audit(conn, actor=PortalActor(recipient_id), action="ticket.portal.code_send", decision="allowed", resource_type="ticket_contact",
+          resource_id=recipient_id, details={"source": "vendor_portal"})
     return "sent"
 
 
@@ -351,10 +415,15 @@ def derive_for_outbox(conn, vid: str | None, contact_id: str | None) -> str | No
         return None
 
 
-def verify(conn, digits: str | None, presented: Any, now: dt.datetime) -> str | None:
+def verify(conn, digits: str | None, presented: Any, now: dt.datetime, *, net: str = "unknown") -> str | None:
     """A typed code for a number. Correct (and the number still serves someone) -> a NEW session value (the caller sets the cookie);
     anything else -> None (the route answers the uniform 422). A wrong guess is counted (the 5th ends the code); the caller commits the
-    transaction in every case."""
+    transaction in every case.
+
+    2.6.4 review F6: a code is bound to the client network that requested it (`net_hash`). A guess from any other network is refused
+    WITHOUT being counted - a stranger who knows the vendor's number cannot burn the vendor's live code with five wrong guesses, and
+    the right code typed from elsewhere signs nobody in. The cost: a vendor who moves from Wi-Fi to cellular inside the 10 minutes asks
+    for a new code. Requests themselves stay capped per number (a new request still ends the older code - residual, CR section 6)."""
     code = codes_mod.parse_code(presented)
     nk = number_key(digits) if digits else None
     if nk is None:
@@ -368,6 +437,8 @@ def verify(conn, digits: str | None, presented: Any, now: dt.datetime) -> str | 
         key = KEYS.get(live["key_id"])
     except Exception:  # noqa: BLE001
         return None
+    if not hmac.compare_digest(_net_hash(key, net), str(live["net_hash"] or "")):
+        return None  # another network: not a guess, never counted (the same refusal)
     if not hmac.compare_digest(_code_hash(key, live["id"], live["phone_key"], code), live["code_hash"]):
         n = live["attempts"] + 1
         conn.execute("UPDATE ticket_portal_codes SET attempts = ?, invalidated_at = CASE WHEN ? >= ? THEN ? ELSE invalidated_at END WHERE id = ?",
