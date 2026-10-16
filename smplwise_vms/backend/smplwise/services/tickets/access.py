@@ -36,8 +36,9 @@ VIEW, CREATE, MANAGE, EXTERNAL, ALL_DEPARTMENTS, CONFIGURE = (
     "tickets.view", "tickets.create", "tickets.manage", "tickets.external", "tickets.all_departments", "tickets.configure",
 )
 DELETE = "tickets.delete"  # owner 14.10: full deletion (services/tickets/deletion.py)
+HANDLERS = "tickets.handlers"  # owner 2026-10-17: a department manager manages his departments' handlers (services/tickets/dept_handlers.py)
 TICKET_PERMISSIONS: tuple[str, ...] = (VIEW, CREATE, MANAGE, EXTERNAL, ALL_DEPARTMENTS, CONFIGURE, "tickets.costs.view", "tickets.costs",  # +S9 (D31)
-                                       DELETE)
+                                       DELETE, HANDLERS)
 PAGE_DEFAULT, PAGE_MAX = 50, 200
 SCAN_FACTOR = 5  # a page scans at most 5 x limit candidate rows, then returns short with a cursor (section 13.6)
 

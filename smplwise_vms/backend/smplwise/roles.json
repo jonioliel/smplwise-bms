@@ -274,6 +274,7 @@
         "tickets.costs.view",
         "tickets.costs",
         "tickets.delete",
+        "tickets.handlers",
         "messaging.accounts.manage"
       ]
     },
@@ -347,6 +348,13 @@
       "permissions": [
         "tickets.delete"
       ]
+    },
+    {
+      "id": "tickets_handlers",
+      "name_he": "ניהול מטפלים וספקים ב{tickets}",
+      "permissions": [
+        "tickets.handlers"
+      ]
     }
   ],
   "sensitive_permissions_not_implied": [
@@ -407,6 +415,7 @@
     "tickets.costs.view",
     "tickets.costs",
     "tickets.delete",
+    "tickets.handlers",
     "messaging.accounts.manage"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."

@@ -14,6 +14,8 @@ import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type AdminDepartment, type AdminMember } from '../api/tickets';
+import { deptHandlersApi, type ManagedDepartment } from '../api/tickets-dept-handlers';
+import { memberRemovable } from './dept-handlers-model';
 import { ticketSettingsCss } from './settings-styles';
 import { handlersGlass } from './handlers-glass';
 import { seesLoad, type MemberLoad } from './handler-load';
@@ -28,6 +30,15 @@ type Directory = { users: { id: string; name: string }[]; groups: { id: string; 
 interface Person { key: string; kind: 'user' | 'group'; id: string; name: string; ms: { d: AdminDepartment; m: AdminMember }[] }
 const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((s) => s[0] ?? '').join('');
 
+/** CR-DEPT-MANAGER-HANDLERS: the manager view's department in the shape the cards read (no policy fields: only the cards use it). */
+function fromManaged(d: ManagedDepartment): AdminDepartment {
+  return {
+    id: d.id, name: d.name, active: d.active, can_edit_members: d.can_manage,
+    members: d.members.map((m) => ({ kind: m.kind, id: m.id, name: m.name, role: m.role, notify_new: false, added_at: '', mobile: m.mobile ?? null,
+      mobile_confirmed: m.mobile_confirmed, notify_whatsapp: m.notify_whatsapp })),
+  } as unknown as AdminDepartment;
+}
+
 /**
  * CR-038 owner request 2026-10-14: "מטפלים וספקים" › מטפלים › "עם חשבון במערכת" - the handlers who have an Arx account are the members
  * of a department (slice 2's member routes; the server's rules are unchanged: tickets.configure, and a member edit also needs to manage
@@ -41,6 +52,9 @@ const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).
  * messages and the user's "WhatsApp on assignment" switch (PUT /tickets/admin/staff/{user_id}, tickets.configure). With a mobile, an
  * assignment sends the employee a WhatsApp message with a personal no-login link (services/tickets/staff_links.py) - once the employee
  * confirmed the number in their own account (security review F3; until then the card says so). A manager may only turn the switch off.
+ * CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17): without tickets.configure a department MANAGER reads his departments' members through
+ * GET /tickets/dept-handlers (phones masked unless the installation setting allows); with the capability he adds a user as a plain member
+ * and removes plain members. Manager rows, groups, roles, alerts and mobiles stay the configurer's (the card shows them read-only).
  * Events: `notice` {ok | error}, `add-done` (the add panel did its work).
  */
 @customElement('tickets-handlers-members')
@@ -64,6 +78,8 @@ export class TicketsHandlersMembers extends LitElement {
   @state() private denied = false;
   @state() private open = new Set<string>();
   @state() private drafts: Record<string, { phone: string; lang: Lang }> = {};
+  /** CR-DEPT-MANAGER-HANDLERS: the department manager's view (not a configurer) */
+  @state() private manager = false;
 
   static styles = [bubbleChrome, ...automationsStyles, settingsStyles, ticketSettingsCss, handlersGlass, css`
     :host {
@@ -142,19 +158,39 @@ export class TicketsHandlersMembers extends LitElement {
 
   private async load(): Promise<void> {
     try {
+      if (this.manager) {
+        await this.loadManager();
+        return;
+      }
       const r = await ticketsApi().departments();
       this.depts = r.departments.filter((d) => d.active);
       if (!this.depts.some((d) => d.id === this.addDept)) this.addDept = this.depts.find((d) => d.can_edit_members)?.id ?? this.depts[0]?.id ?? '';
       if (!this.directory) this.directory = await ticketsApi().directory();
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
+      if (e instanceof ApiError && (e.status === 403 || e.status === 404) && !this.manager) {
+        // CR-DEPT-MANAGER-HANDLERS: not a configurer - a department manager reads (and, with the capability, edits) his own departments
+        this.manager = true;
+        try {
+          await this.loadManager();
+        } catch {
+          this.denied = true;
+          this.hidden = true; // neither a configurer nor a department manager: the section is not shown
+        }
+      } else if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
         this.denied = true;
-        this.hidden = true; // the section is not shown without tickets.configure
+        this.hidden = true;
       } else {
         this.depts = [];
         this.notice({ error: describeError(e) });
       }
     }
+  }
+
+  private async loadManager(): Promise<void> {
+    const r = await deptHandlersApi().overview();
+    this.depts = r.departments.filter((d) => d.active).map(fromManaged);
+    if (!this.depts.some((d) => d.id === this.addDept)) this.addDept = this.depts.find((d) => d.can_edit_members)?.id ?? '';
+    if (!this.directory && r.can_manage) this.directory = { users: (await deptHandlersApi().people()).users, groups: [] };
   }
 
   private async act(fn: () => Promise<AdminDepartment>, after?: () => void): Promise<void> {
@@ -228,7 +264,11 @@ export class TicketsHandlersMembers extends LitElement {
     const d = (this.depts ?? []).find((x) => x.id === this.addDept);
     const [kind, ...rest] = this.pick.split(':');
     if (!d || !this.pick) return;
-    void this.act(() => ticketsApi().putMember(d.id, kind as 'user' | 'group', rest.join(':'), this.newRole), () => {
+    const id = rest.join(':');
+    const call = this.manager
+      ? async () => fromManaged(await deptHandlersApi().addMember(d.id, id))
+      : () => ticketsApi().putMember(d.id, kind as 'user' | 'group', id, this.newRole);
+    void this.act(call, () => {
       this.pick = '';
       this.dispatchEvent(new CustomEvent('add-done', { bubbles: true, composed: true }));
     });
@@ -253,6 +293,7 @@ export class TicketsHandlersMembers extends LitElement {
 
   /** One department's membership of the person: the role, the new-request alert of a manager, "הסרה". */
   private membership(d: AdminDepartment, m: AdminMember, many: boolean): TemplateResult {
+    if (this.manager) return this.managerMembership(d, m, many);
     const edit = d.can_edit_members;
     return html`<div class="line" data-member-membership=${d.id}>
       <span class="lbl">${many ? bidi(d.name) : tt('u6MemberRole')}</span>
@@ -263,6 +304,24 @@ export class TicketsHandlersMembers extends LitElement {
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, m.role, e.detail.checked))}></sw-toggle>` : nothing}
       ${edit ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
     </div>`;
+  }
+
+  /** CR-DEPT-MANAGER-HANDLERS: a manager's line - the role as text, "הסרה" for a plain member with an account only. */
+  private managerMembership(d: AdminDepartment, m: AdminMember, many: boolean): TemplateResult {
+    return html`<div class="line" data-member-membership=${d.id}>
+      <span class="lbl">${many ? bidi(d.name) : tt('u6MemberRole')}</span>
+      <span class="chip" data-member-role-text>${m.role === 'manager' ? tt('hdRole_manager') : tt('hdRole_member')}</span>
+      ${m.role === 'manager' ? html`<span class="mut" data-member-manager-fixed>${tt('dmManagerFixed')}</span>` : nothing}
+      ${memberRemovable(m, d.can_edit_members) ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy}
+        @click=${() => void this.act(async () => fromManaged(await deptHandlersApi().removeMember(d.id, m.id)))}>${tt('dmMemberRemove')}</button>` : nothing}
+    </div>`;
+  }
+
+  /** CR-DEPT-MANAGER-HANDLERS: the mobile as the server gave it (masked unless allowed), read-only. */
+  private managerMobile(m: AdminMember): TemplateResult | typeof nothing {
+    if (!m.mobile) return nothing;
+    return html`<div class="line" data-member-mobile=${m.id}><span class="lbl">${tt('hdMobile')}</span>
+      <span dir="ltr" data-member-mobile-text>${m.mobile}</span>${m.mobile.startsWith('••') ? html`<span class="chip xs" data-member-mobile-masked>${tt('dmMasked')}</span>` : nothing}</div>`;
   }
 
   private card(p: Person): TemplateResult {
@@ -287,7 +346,7 @@ export class TicketsHandlersMembers extends LitElement {
       </footer>
       ${open ? html`<div class="manage" data-member-panel>
         ${p.ms.map((x) => this.membership(x.d, x.m, p.ms.length > 1))}
-        ${group ? nothing : this.mobileOf(first)}
+        ${group ? nothing : this.manager ? this.managerMobile(first) : this.mobileOf(first)}
       </div>` : nothing}
     </article>`;
   }
@@ -307,10 +366,10 @@ export class TicketsHandlersMembers extends LitElement {
         <option value="" ?selected=${!this.pick}>${tt('hdMemberPick')}</option>
         ${options.map((o) => html`<option value=${o.v} ?selected=${this.pick === o.v}>${o.label}</option>`)}
       </select>
-      <select class="in" data-member-new-role aria-label=${tt('depMembers')} @change=${(e: Event) => (this.newRole = (e.target as HTMLSelectElement).value as Role)}>
+      ${this.manager ? nothing : html`<select class="in" data-member-new-role aria-label=${tt('depMembers')} @change=${(e: Event) => (this.newRole = (e.target as HTMLSelectElement).value as Role)}>
         <option value="member" ?selected=${this.newRole === 'member'}>${tt('hdRole_member')}</option>
         <option value="manager" ?selected=${this.newRole === 'manager'}>${tt('hdRole_manager')}</option>
-      </select>
+      </select>`}
       <button type="button" class="btn primary" data-member-add ?disabled=${this.busy || !this.pick} @click=${() => this.add()}>${tIcon('plus')}${tt('depMemberAdd')}</button>
     </div>`;
   }

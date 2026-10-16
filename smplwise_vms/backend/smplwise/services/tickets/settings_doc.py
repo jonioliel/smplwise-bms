@@ -176,6 +176,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # TKNOTIFOTP (owner 2026-10-16): verify every WhatsApp number with a one-time code before links / notifications go to it.
     # OPTIONAL, OFF by default; a contact's own `phone_verify` raises it for that row only (services/tickets/phone_verify.py)
     ("phone_verify", "required"): (False, boolean),
+    # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17): department managers see FULL numbers of the handlers / vendors of their own
+    # departments on "מטפלים וספקים". OFF by default (masked: the last four digits); changed with system.configure (system_admin),
+    # audited by the settings route. Rows of other departments and rows shared with every department stay masked.
+    ("directory", "managers_full_phones"): (False, boolean),
     # slice 9: cost claims (11A.14, D31 / D32); department and vendor overrides live on their rows (11A.1)
     ("costs", "mode"): ("optional", _choice("required", "optional", "off")),
     ("costs", "currencies"): (["ILS"], _currencies),

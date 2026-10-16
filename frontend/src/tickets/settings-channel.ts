@@ -10,6 +10,7 @@ import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { messagesApi, type ChannelPatch, type ChannelView, type ChannelWarning } from '../api/tickets-messages';
+import { ticketsApi } from '../api/tickets';
 import { ticketSettingsCss } from './settings-styles';
 import { mtt, type MessageTextKey } from './messages-text';
 import { tt } from './text';
@@ -31,6 +32,8 @@ export class TicketsChannelSettings extends LitElement {
   @state() private busy = false;
   @state() private windowDraft = '';
   @state() private showDepts = false;
+  /** CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (null = not read / an older server) */
+  @state() private fullPhones: boolean | null = null;
 
   static styles = [settingsStyles, ticketSettingsCss, css`
     :host {
@@ -116,9 +119,27 @@ export class TicketsChannelSettings extends LitElement {
     try {
       this.view = await messagesApi().channel();
       this.windowDraft = String(this.view.whatsapp.reply_window_h);
+      void ticketsApi().settings().then((d) => (this.fullPhones = d.directory ? !!d.directory.managers_full_phones : null)).catch(() => undefined);
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) this.forbidden = true;
       else this.failed = describeError(e);
+    }
+  }
+
+  /** CR-DEPT-MANAGER-HANDLERS: the installation document's own revision (the channel view's revision moves with it - reloaded after). */
+  private async saveFullPhones(on: boolean): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const doc = await ticketsApi().settings();
+      const saved = await ticketsApi().saveInstallation(doc.revision, { directory: { managers_full_phones: on } });
+      this.fullPhones = !!saved.directory?.managers_full_phones;
+      this.notice({ ok: mtt('saved') });
+    } catch (e) {
+      this.notice({ error: describeError(e) });
+    } finally {
+      this.busy = false;
+      void this.load();
     }
   }
 
@@ -185,6 +206,9 @@ export class TicketsChannelSettings extends LitElement {
       <div class="row"><span class="lbl">${tt('otpSettingTitle')}<span class="muted">${tt('otpSettingHint')}</span></span>
         <sw-toggle label=${tt('otpSettingTitle')} labelHidden .checked=${!!v.phone_verify?.required} ?disabled=${this.busy} data-channel-phone-verify
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ phone_verify: { required: e.detail.checked } })}></sw-toggle></div>
+      ${this.fullPhones === null ? nothing : html`<div class="row"><span class="lbl">${tt('dmFullPhones')}<span class="muted">${tt('dmFullPhonesHint')}</span></span>
+        <sw-toggle label=${tt('dmFullPhones')} labelHidden .checked=${this.fullPhones} ?disabled=${this.busy} data-channel-managers-full-phones
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveFullPhones(e.detail.checked)}></sw-toggle></div>`}
     </sw-card>`;
   }
 

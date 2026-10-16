@@ -74,6 +74,7 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
     viewer = Viewer(conn, principal)
     _need_any(conn, viewer, access.VIEW, access.CREATE)
     all_depts = access.ALL_DEPARTMENTS in viewer.anywhere
+    can_handlers = access.MANAGE in viewer.anywhere and viewer.holds_installation(access.HANDLERS)
     out = []
     for d in store.departments(conn, include_inactive=False):
         role = viewer.role(d["id"])
@@ -84,6 +85,8 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
         out.append({
             "id": d["id"], "key": d["key"], "name": d["name"], "icon": d.get("icon"), "color": d.get("color"), "my_role": role,
             "can_create": can_create, "can_manage": can_manage, "open_to_all": bool(d["open_to_all"]),
+            # CR-DEPT-MANAGER-HANDLERS: the caller manages this department's handlers (services/tickets/dept_handlers.py, THE check)
+            "can_handlers": can_handlers and role == "manager",
             "categories": [{"id": c["id"], "name": c["name"], "parent_id": c.get("parent_id"), "default_priority_id": c.get("default_priority_id"),
                             "domains": _domains(c)}  # slice 3: the device domains a category is preselected for (section 14.2)
                            for c in store.categories(conn, d["id"], include_inactive=False)],
@@ -102,6 +105,7 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
             "all_departments": all_depts,
             "external": access.EXTERNAL in viewer.anywhere,
             "configure": viewer.holds_installation(access.CONFIGURE),
+            "handlers": any(d["can_handlers"] for d in out),  # CR-DEPT-MANAGER-HANDLERS
         },
     }
 

@@ -33,7 +33,8 @@ ICON = r"^[a-z][a-zA-Z0-9_-]{0,31}$"
 COLOR = r"^--sw-[a-z0-9-]{1,40}$"
 DOMAIN = r"^[a-z][a-z0-9_]{0,39}$"
 GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure",
-               "tickets_costs_view", "tickets_costs", "tickets_delete")  # + S9 (D31, 11A.8); + full deletion (owner 14.10)
+               "tickets_costs_view", "tickets_costs", "tickets_delete",  # + S9 (D31, 11A.8); + full deletion (owner 14.10)
+               "tickets_handlers")  # + department managers' handlers (owner 2026-10-17)
 
 
 def _rid(request: Request) -> str | None:
@@ -135,6 +136,12 @@ class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; depart
     allowed_line_kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)  # TKDETAILBE
 
 
+class DirectoryPatch(BaseModel):
+    """CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (settings_doc `directory.*`, default off)."""
+    model_config = ConfigDict(extra="forbid")
+    managers_full_phones: StrictBool | None = None
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -148,6 +155,7 @@ class SettingsBody(BaseModel):
     code: CodePatch | None = None  # slice 7
     costs: CostsPatch | None = None  # slice 9
     staff_links: StaffLinksPatch | None = None  # TKSTAFF1
+    directory: DirectoryPatch | None = None  # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17)
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -202,7 +210,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links"):  # slice 2 / slice 4 / slice 7 / slice 9 / TKSTAFF1
+    for block in ("links", "public", "code", "costs", "staff_links", "directory"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}

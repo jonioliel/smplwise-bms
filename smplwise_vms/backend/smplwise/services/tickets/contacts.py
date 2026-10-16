@@ -151,9 +151,23 @@ def readable(viewer: Viewer, contact_depts: list[str], managed: set[str] | None)
     return bool(managed & set(contact_depts))
 
 
-def full_phone_for(viewer: Viewer, contact_depts: list[str], managed: set[str] | None, configure: bool) -> bool:
+def managers_unmask(conn) -> bool:
+    """CR-DEPT-MANAGER-HANDLERS: the installation setting "מנהלי מחלקה רואים מספרים מלאים" (settings_doc, default off)."""
+    from . import settings_doc
+
+    return bool(settings_doc.read(conn)["directory"]["managers_full_phones"])
+
+
+def own_department_row(contact_depts: list[str], managed: set[str] | None) -> bool:
+    """A row attached to a department the caller manages (a row shared with every department - no department rows - is not)."""
+    return bool(contact_depts) and (managed is None or bool(managed & set(contact_depts)))
+
+
+def full_phone_for(viewer: Viewer, contact_depts: list[str], managed: set[str] | None, configure: bool, unmask: bool = False) -> bool:
     if configure:
         return True
+    if unmask and access.MANAGE in viewer.anywhere and own_department_row(contact_depts, managed):
+        return True  # CR-DEPT-MANAGER-HANDLERS: the installation setting - rows of the manager's own departments only
     if access.EXTERNAL not in viewer.anywhere:
         return False
     return readable(viewer, contact_depts, managed)
@@ -219,6 +233,10 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
     dmap = store_links.departments_map(conn, [r["id"] for r in rows])
     counts = store_links.open_ticket_counts(conn, [r["id"] for r in rows])
     vendors = {r["id"]: r["display_name"] for r in rows if r["kind"] == "vendor"}
+    unmask = not configure and managers_unmask(conn)
+    from . import dept_handlers  # CR-DEPT-MANAGER-HANDLERS: what a department manager may do with each row
+
+    scope = None if configure else dept_handlers.HandlerScope(viewer)
     out = []
     for r in rows:
         depts = dmap.get(r["id"], [])
@@ -226,9 +244,14 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
             continue
         if department_id and not allowed_in(depts, department_id):
             continue
-        out.append(present(conn, r, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure),
-                           open_count=counts.get(r["id"], 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere))
-    return {"contacts": out, "can_edit": configure}
+        item = present(conn, r, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure, unmask),
+                       open_count=counts.get(r["id"], 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere)
+        if scope is not None and scope.capable:
+            item["manager_editable"] = scope.editable(r, depts)
+        out.append(item)
+    return {"contacts": out, "can_edit": configure,
+            # CR-DEPT-MANAGER-HANDLERS: the departments in which this caller manages handlers (empty for a configurer: can_edit covers it)
+            "handler_departments": sorted(scope.departments) if scope is not None and scope.capable else []}
 
 
 def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any]]:
@@ -382,6 +405,14 @@ def create(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -
         depts = _departments(conn, body)
     except ContactInvalid as exc:
         raise invalid(conn, exc.field, exc.code) from None
+    cid = insert_checked(conn, viewer, fields, depts, rid)
+    return one(conn, viewer, cid)
+
+
+def insert_checked(conn, viewer: Viewer, fields: dict[str, Any], depts: list[str] | None, rid: str | None,
+                   extra_audit: dict[str, Any] | None = None) -> str:
+    """The write of a new directory row once the caller's authority and the values were checked (create() and the department
+    manager's route, services/tickets/dept_handlers.py)."""
     if fields.get("user_id") and store_links.contact_by_user(conn, fields["user_id"]):
         raise ApiError(409, "contact_user_taken", text(conn, "למשתמש הזה כבר יש רשומה בספר."))
     _keyed(conn, fields)
@@ -390,8 +421,8 @@ def create(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -
         store_links.set_contact_departments(conn, cid, depts)
     audit(conn, actor=viewer.principal, action="ticket.contact.create", decision="allowed", resource_type="ticket_contact", resource_id=cid,
           request_id=rid, details={"kind": api_kind(fields), "departments": len(depts or []), "has_phone": bool(fields.get("phone_e164")),
-                                   "has_email": bool(fields.get("email")), "require_code": bool(fields.get("require_code"))})
-    return one(conn, viewer, cid)
+                                   "has_email": bool(fields.get("email")), "require_code": bool(fields.get("require_code")), **(extra_audit or {})})
+    return cid
 
 
 def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
@@ -409,8 +440,15 @@ def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
         if v:
             vendors[v["id"]] = v["display_name"]
     counts = store_links.open_ticket_counts(conn, [contact_id])
-    out = present(conn, row, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure),
+    unmask = not configure and managers_unmask(conn)
+    out = present(conn, row, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure, unmask),
                   open_count=counts.get(contact_id, 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere)
+    if not configure:
+        from . import dept_handlers  # CR-DEPT-MANAGER-HANDLERS
+
+        scope = dept_handlers.HandlerScope(viewer)
+        if scope.capable:
+            out["manager_editable"] = scope.editable(row, depts)
     out["live_links"] = len(store_links.live_links_of_contact(conn, contact_id))
     if configure:  # TKNOTIFOTP: the verification card of a directory editor
         from . import phone_verify
@@ -429,6 +467,15 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
     row = store_links.contact(conn, contact_id)
     if row is None or row.get("erased_at"):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    update_checked(conn, viewer, row, body, revision, rid)
+    return one(conn, viewer, contact_id)
+
+
+def update_checked(conn, viewer: Viewer, row: dict[str, Any], body: dict[str, Any], revision: int, rid: str | None,
+                   extra_audit: dict[str, Any] | None = None) -> None:
+    """The edit of a directory row once the caller's authority over THIS row was checked (update() and the department manager's
+    route): the same validation, link revocation and audit."""
+    contact_id = row["id"]
     if row["revision"] != revision:
         raise ApiError(409, "contact_stale", text(conn, "הרשומה השתנתה בינתיים. טענו מחדש."), details={"revision": row["revision"]})
     try:
@@ -480,8 +527,7 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
         for uid in {u for u in (row.get("user_id"), fields.get("user_id") if user_changed else None) if u}:
             staff_links.tell_user(conn, uid)
     audit(conn, actor=viewer.principal, action="ticket.contact.update", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
-          request_id=rid, details={"fields": changed, "links_revoked": revoked})
-    return one(conn, viewer, contact_id)
+          request_id=rid, details={"fields": changed, "links_revoked": revoked, **(extra_audit or {})})
 
 
 def raise_code_requirement(conn, contact_id: str) -> None:
@@ -518,6 +564,13 @@ def erase(conn, viewer: Viewer, contact_id: str, *, history: bool, rid: str | No
     row = store_links.contact(conn, contact_id)
     if row is None or row.get("erased_at"):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    return erase_checked(conn, viewer, row, history=history, rid=rid)
+
+
+def erase_checked(conn, viewer: Viewer, row: dict[str, Any], *, history: bool, rid: str | None,
+                  extra_audit: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The erase of a directory row once the caller's authority over THIS row was checked (erase() and the department manager's route)."""
+    contact_id = row["id"]
     if row["kind"] == "vendor" and store_links.persons_of(conn, contact_id):
         raise ApiError(409, "contact_has_persons", text(conn, "לספק יש אנשי קשר. מחקו אותם קודם."))
     revoked = revoke_contact_links(conn, contact_id, "contact_erased", handler_links.now_utc(), rid=rid)
@@ -532,7 +585,7 @@ def erase(conn, viewer: Viewer, contact_id: str, *, history: bool, rid: str | No
 
     costs.on_contact_erased(conn, contact_id, TOMBSTONE)
     audit(conn, actor=viewer.principal, action="ticket.contact.erase", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
-          request_id=rid, details={"history": bool(history), "links_revoked": revoked})
+          request_id=rid, details={"history": bool(history), "links_revoked": revoked, **(extra_audit or {})})
     return {"id": contact_id, "erased": True, "links_revoked": revoked}
 
 

@@ -61,8 +61,13 @@ export interface Contact {
   /** one row only, for a directory editor: a code is waiting, and the token of the manager's mark (null = not offered) */
   phone_code_pending?: boolean;
   phone_confirm_token?: string | null;
+  /** CR-DEPT-MANAGER-HANDLERS: a department manager may edit / erase this row (he created it and no other department uses it) */
+  manager_editable?: boolean;
+  /** the department a manager created the row from (the create answer only) */
+  created_department?: string;
 }
-export interface ContactsPage { contacts: Contact[]; can_edit: boolean }
+/** `handler_departments`: the departments in which the caller manages handlers without tickets.configure (CR-DEPT-MANAGER-HANDLERS) */
+export interface ContactsPage { contacts: Contact[]; can_edit: boolean; handler_departments?: string[] }
 export interface ContactBody {
   kind?: ContactKind;
   display_name?: string;

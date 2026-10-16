@@ -19,6 +19,8 @@ export interface BoardRoute {
   /** the ticket open in the drawer */
   ticketId: string;
   creating: boolean;
+  /** CR-DEPT-MANAGER-HANDLERS: the requests ('cards', the default) or the "מטפלים וספקים" pane of a manager */
+  pane?: 'cards' | 'handlers';
 }
 
 const isId = (s: string) => /^[0-9a-f]{16}$/.test(s);
@@ -35,6 +37,7 @@ export function parseBoardRoute(params: URLSearchParams): BoardRoute {
     q: (params.get('q') ?? '').slice(0, 80),
     ticketId: isId(t) ? t : '',
     creating: params.get('new') === '1',
+    ...(params.get('pane') === 'handlers' ? { pane: 'handlers' as const } : {}), // CR-DEPT-MANAGER-HANDLERS: the board's handlers pane (absent = the requests)
   };
 }
 
@@ -45,6 +48,7 @@ export function boardHref(r: Partial<BoardRoute>, extra: { t?: string; create?: 
   if (r.dept) p.set('dept', r.dept);
   if (r.place) p.set('place', r.place);
   if (r.q?.trim()) p.set('q', r.q.trim());
+  if (r.pane === 'handlers') p.set('pane', 'handlers');
   if (extra.t) p.set('t', extra.t);
   if (extra.create) p.set('new', '1');
   const s = p.toString();
