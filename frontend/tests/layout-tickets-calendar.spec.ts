@@ -63,6 +63,17 @@ test.describe('tickets calendar layout guard', () => {
           if (s.prep) await s.prep(page);
           for (const w of WIDTHS) {
             await page.setViewportSize({ width: w, height: height(w) });
+            // the week / day switch follows a media query: measure only after the calendar re-rendered for this width
+            await page.waitForFunction((phone) => {
+              const deep = (root: Document | ShadowRoot, sel: string): Element | null => {
+                const hit = root.querySelector(sel);
+                if (hit) return hit;
+                for (const e of root.querySelectorAll('*')) if (e.shadowRoot) { const h = deep(e.shadowRoot, sel); if (h) return h; }
+                return null;
+              };
+              const cal = deep(document, 'tickets-calendar')?.shadowRoot?.querySelector('[data-cal]');
+              return !cal || cal.getAttribute('data-cal-mode') === (phone ? 'day' : 'week');
+            }, w < 768, { timeout: 10_000 });
             await settle(page);
             await page.waitForTimeout(60);
             runs++;

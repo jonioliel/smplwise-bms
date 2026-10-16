@@ -218,6 +218,11 @@ export class TicketsCalendar extends LitElement {
     a.ev:hover {
       transform: translateY(-1px);
     }
+    /* the bubble skin's xl radius (42 px) would put the time and the clock of a small card in its corners */
+    :host([data-skin='bubble']) a.ev {
+      border-radius: var(--sw-r-md);
+      padding: 10px 12px;
+    }
     a.ev[aria-current='true'] {
       box-shadow: 0 0 0 2px var(--dv-accent-soft);
       border-color: var(--dv-accent);
