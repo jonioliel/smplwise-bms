@@ -17,7 +17,7 @@ import time
 import pytest
 
 from fake_ha_whatsapp import FakeHaWhatsapp
-from smplwise.services.tickets import codes as codes_mod, handler_links, message_templates as mt, staff_links, store_links
+from smplwise.services.tickets import codes as codes_mod, handler_links, links, message_templates as mt, staff_links, store_links
 from smplwise.services.tickets.keyring import KEYS
 from smplwise.services.tickets.public_http import UNIFORM_404
 from test_tickets_s5b_channel import ENTRY_A, NIGHT, env  # noqa: F401 - the slice 5b environment (fake ha-whatsapp, mapped account)
@@ -127,7 +127,9 @@ def test_an_assignment_to_a_staff_member_with_a_mobile_queues_a_whatsapp_with_a_
     call = env.fake.calls[-1]
     assert call["data"]["target"] == TOM_E164
     text = call["data"]["message"]
-    assert text.count("https://") == 1 and "/t/#" in text, "test 20: exactly one URL, the fragment form"
+    doc = env.c.get(f"{API}/tickets/settings").json()  # 2.5.8 review F3: the URL follows the effective prefix (TK255 default `support`)
+    prefix = links.effective_prefix(doc["public"]["base_url"], doc["public"]["path_prefix"])
+    assert text.count("https://") == 1 and f"/{prefix}/#" in text, "test 20: exactly one URL, the fragment form"
     assert "1 = " not in text, "no quick-reply line when the link requires a code (R11 note / checklist)"
     mint = [json.loads(a["details_json"]) for a in audits(env, "ticket.link.mint")]
     assert mint and mint[-1]["kind"] == "staff"
