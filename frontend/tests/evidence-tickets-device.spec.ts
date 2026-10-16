@@ -283,6 +283,10 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
         await installTicketsDeviceMock(page, { mode: 'sheet' });
         await page.goto('about:blank'); // a fresh page: the device window of the step before must not cover the shot
         await page.goto(`/?design=a${q}#/tickets/0000000000000b01`);
+        // TKUI1: the device history is the Overview's fold ("היסטוריית ההתקן"), closed until asked for
+        const fold = page.locator('sw-app ticket-detail details[data-ov="device"] > summary').first();
+        await fold.waitFor({ timeout: 15_000 });
+        await fold.click();
         const hist = page.locator('sw-app [data-sect="device-history"]').first();
         await expect(hist).toBeVisible({ timeout: 15_000 });
         await expect(hist.locator('[data-history-line]')).toHaveCount(3);
