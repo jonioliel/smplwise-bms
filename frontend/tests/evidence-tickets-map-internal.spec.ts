@@ -20,6 +20,8 @@ import { installMapMock, ATTACHED, GONE, TEXT_ONLY, T_MAP, F0, F1, F2, AC, CAMER
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../test-results/evidence-tickets-map-internal');
 const D = 'sw-app tickets-list ticket-detail';
 const CHIP = `${D} ticket-map-element`;
+/** the new request opens on its own route (not necessarily inside the list): any detail on the page */
+const ANY = 'sw-app ticket-detail ticket-map-element';
 
 test.use({ timezoneId: 'Asia/Jerusalem', locale: 'he-IL' });
 test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
@@ -147,7 +149,7 @@ test.describe('TKMAP1 internal: the picker', () => {
   test('floor first, then a click on the plan: choose, switch floors (the choice is dropped), a floor without a plan, then attach', async ({ page }) => {
     const mm = await openDrawer(page);
     await chip(page).locator('[data-map-pick]').click();
-    await expect(picker(page)).toBeVisible();
+    await expect(pickerOf(page, '[data-map-floor]')).toBeVisible();
     // the floors: highest first, the one with a plan is the start
     const sel = pickerOf(page, '[data-map-floor]');
     await expect(sel.locator('option')).toHaveText(['קומה 2', 'קומה 1', 'גג']);
@@ -189,7 +191,7 @@ test.describe('TKMAP1 internal: the picker', () => {
   test('keyboard: the element chips are buttons - Tab to one, Enter chooses it, the save button attaches', async ({ page }) => {
     const mm = await openDrawer(page);
     await chip(page).locator('[data-map-pick]').click();
-    await expect(picker(page)).toBeVisible();
+    await expect(pickerOf(page, '[data-map-floor]')).toBeVisible();
     await expect(pickerOf(page, '[data-pick-item]')).toHaveCount(2);
     const items = pickerOf(page, '[data-pick-item]');
     await items.first().focus();
@@ -218,7 +220,7 @@ test.describe('TKMAP1 internal: the picker', () => {
   test('replace and cancel: the chip says "החלף רכיב"; cancel closes the picker and writes nothing', async ({ page }) => {
     const mm = await openDrawer(page, { state: { [T_MAP]: ATTACHED } });
     await chip(page).locator('[data-map-pick]').click();
-    await expect(picker(page)).toBeVisible();
+    await expect(pickerOf(page, '[data-map-floor]')).toBeVisible();
     await expect(pickerOf(page, '[data-map-save]')).toBeDisabled();
     await pickerOf(page, '.sheetfoot .btn:not(.primary)').click();
     await expect(picker(page)).toHaveCount(0);
@@ -265,8 +267,8 @@ test.describe('TKMAP1 internal: "פתח בקשת שירות" from the map', () =
     expect(mm.writes[0].method).toBe('PUT');
     expect(mm.writes[0].body).toEqual({ element: { floor_id: F2, kind: 'anchor', id: AC.anchor } });
     // the new request opens and carries the element
-    await expect(page.locator(`${D} [data-map-element="present"]`)).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator(`${CHIP} [data-map-line]`)).toContainText('מזגן משרד');
+    await expect(page.locator(`${ANY} [data-map-element="present"]`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(`${ANY} [data-map-line]`)).toContainText('מזגן משרד');
     await shot(page, 'create-from-live-map-device');
   });
 
@@ -336,8 +338,7 @@ test.describe('TKMAP1 internal: "פתח בקשת שירות" from the map', () =
     await page.locator('explore-floor-map [data-map-ticket]').click();
     await createFrom(page, /מזגן משרד/, 'בלי רכיב');
     await expect.poll(() => posts(tm.calls).length).toBe(1);
-    await expect(page.locator(`${D} [data-tab-panel="overview"]`)).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator(`${CHIP} [data-map-element="none"]`)).toBeVisible();
-    await expect(page.locator(`${CHIP} [data-map-pick]`)).toHaveText(/הוסף רכיב מהמפה/);
+    await expect(page.locator(`${ANY} [data-map-element="none"]`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(`${ANY} [data-map-pick]`)).toHaveText(/הוסף רכיב מהמפה/);
   });
 });
