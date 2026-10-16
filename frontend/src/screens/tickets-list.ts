@@ -5,11 +5,13 @@ import '../tickets/ticket-card';
 import { parseAssignParam, withAssign } from '../tickets/create-assign-model'; // TKUI1: the new-request sheet's vendor flow
 import '../tickets/ticket-detail';
 import '../tickets/ticket-create';
+import '../tickets/calendar-view'; // TKCAL: the weekly calendar mode
 import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (a chip only while the queue is not empty)
 import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
+import { calendarWanted, setCalendarWanted } from '../tickets/calendar-mode';
 import { BOARD_HREF } from '../tickets/board-model';
 import { boardApi } from '../api/tickets-board';
 import { foldCounts, NO_COUNTS, countText, type ListCounts } from '../tickets/list-counts';
@@ -75,6 +77,8 @@ export class TicketsList extends LitElement {
   @state() private now = new Date();
   @state() private q = '';
   @state() private view: BoardView = 'cards'; // CR-038 S6b (D24): cards | table, the user's tickets.board.view
+  /** TKCAL: the weekly calendar mode (per tab; the cards / table preference above is the server's) */
+  @state() private cal = calendarWanted();
   /** TKUI4: the page frame's counts (scope, state, department) and the filter row over the held cards */
   @state() private counts: ListCounts = NO_COUNTS;
   @state() private filterOpen = false;
@@ -94,7 +98,7 @@ export class TicketsList extends LitElement {
   private live = new LiveRefresh(() => this.refreshQuiet());
 
   private refreshQuiet(): void {
-    if (this.screen !== 'ready' || this.view !== 'cards' || this.extraPages > 0 || this.loadingMore) return;
+    if (this.screen !== 'ready' || (this.view !== 'cards' && !this.cal) || this.extraPages > 0 || this.loadingMore) return;
     void this.loadPage(false);
   }
   private clock = 0;
@@ -381,7 +385,14 @@ export class TicketsList extends LitElement {
 
   private pickMode = (m: ListMode): void => {
     if (m === 'board') window.location.hash = BOARD_HREF;
-    else this.setView(m);
+    else if (m === 'calendar') {
+      this.cal = true;
+      setCalendarWanted(true);
+    } else {
+      this.cal = false;
+      setCalendarWanted(false);
+      this.setView(m);
+    }
   };
 
   private header(): TemplateResult {
@@ -393,7 +404,7 @@ export class TicketsList extends LitElement {
     const c = this.counts;
     const withDept = (n: number | undefined) => (n === undefined ? nothing : html`<small>${countText(n)}</small>`);
     const total = Object.values(c.departments).reduce((a, x) => a + x, 0);
-    const cards = this.view !== 'table';
+    const cards = this.view !== 'table' || this.cal; // the card filters (priority, handler, flags) also narrow the calendar
     const active = activeCardFilters(this.filters);
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-tickets-header>
       <div class="dh-row">
@@ -415,7 +426,7 @@ export class TicketsList extends LitElement {
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : lt('lsSearchLong')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-        ${listViewSwitch(cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
+        ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
       </div>
       ${cards && this.filterOpen && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
     </header>`;
@@ -429,6 +440,7 @@ export class TicketsList extends LitElement {
     switch (this.screen) {
       case 'loading': {
         const card = html`<div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:12px;border-radius:var(--sw-r-2xl)"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:14px;inline-size:60%"></span></div>`;
+        if (this.cal) return html`<div data-tickets-state="loading" aria-busy="true" data-cal-loading><div class="cgrid">${Array.from({ length: this.phone ? 2 : 7 }, () => card)}</div></div>`;
         return html`<div data-tickets-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
       }
       case 'off':
@@ -440,7 +452,7 @@ export class TicketsList extends LitElement {
       default:
         break;
     }
-    if (this.view === 'table') {
+    if (this.view === 'table' && !this.cal) {
       // CR-038 S6b (D24): the table view - its own server-side sort / filters / pages over the same scope, state, department and text
       const f = this.r.filters;
       return html`<tickets-table .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
@@ -459,6 +471,11 @@ export class TicketsList extends LitElement {
     const shown = applyCardFilters(rows as CardItem[], this.filters);
     if (!shown.length) return html`${this.stateBox('search', lt('lfNoMatch'), 'no-match-filters', html`<button type="button" class="btn sm" data-clear-card-filters @click=${() => (this.filters = { ...NO_CARD_FILTERS })}>${tIcon('x')}${lt('lfClear')}</button>`)}
       ${this.next ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.loadPage(true)}>${tt('loadMore')}</button></div>` : nothing}`;
+    if (this.cal) {
+      // TKCAL: the weekly calendar over the same held list and the same card filters; "load more" brings the next page of the list
+      return html`<tickets-calendar .items=${shown} .now=${this.now} .hrefOf=${(id: string) => this.hrefOf(id)} .roleOf=${(t: TicketItem) => roleFor(t, this.meta)}
+        .hasMore=${!!this.next} .loadingMore=${this.loadingMore} .openId=${this.r.ticketId} @cal-load-more=${() => void this.loadPage(true)}></tickets-calendar>`;
+    }
     return html`<div class="cgrid" data-tickets-grid>${repeat(shown, (t) => t.id, (t) => html`<ticket-card .item=${t} .role=${roleFor(t, this.meta)} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}></ticket-card>`)}</div>
       ${this.next ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.loadPage(true)}>${tt('loadMore')}</button></div>` : nothing}`;
   }
