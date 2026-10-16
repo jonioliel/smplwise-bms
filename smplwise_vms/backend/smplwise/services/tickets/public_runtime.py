@@ -67,6 +67,12 @@ class Runtime:
                 return store_links.any_keyed_row(conn)
 
         KEYS.configure(self.data_dir, has_keyed_rows)
+        try:  # TK255 review F2: an installation already on /t keeps /t until its owner moves (once)
+            with db.connection(label="tickets.path_prefix.pin") as conn:
+                if settings_doc.pin_legacy_prefix(conn):
+                    log.info("tickets public path prefix pinned to /t (existing address without a path)")
+        except Exception:  # noqa: BLE001 - a database before the migrations: nothing to pin yet
+            pass
         try:  # the module is already on (an installation from before slice 4, a restart): its key exists or is minted now (W12)
             if _module_on(db) and KEYS.ensure() is None:
                 log.error("tickets module key is %s and rows depend on a key: restore secrets/ from the backup", KEYS.status().get("state"))

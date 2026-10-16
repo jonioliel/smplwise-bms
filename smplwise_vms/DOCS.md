@@ -1038,6 +1038,11 @@ in a build that contains them.
    `/support`, another letter case, `//`, `/../`, `%2e`, `%2f`, a backslash) gets the same uniform 404 and nothing is ever redirected.
    Links sent before (`/t/...`) keep working while `public.legacy_t_paths` is on (default on; needs the old `^/t(/.*)?$` route too).
    An address saved since 2.5.4 with its own prefix (`https://host/support`) keeps working: the address's path wins over the setting.
+   UPGRADE RULE: an installation already running with an address WITHOUT a path and no saved `public.path_prefix` is pinned to `t`
+   once, at the first start of this build, so its links do not change; fresh installations default to `support`. To move to
+   `/support`: first add the Cloudflare route `^/support(/.*)?$`, then change the page path. Changing the path while live links exist
+   needs `public.confirm_live_links=true` in the PUT (409 `confirm_live_links` otherwise); afterwards only the `/t/` spelling of
+   links already sent keeps working (and only while `public.legacy_t_paths` is on); links under the previous prefix stop.
    UNVERIFIED against a real Cloudflare tunnel until the address probe passes on the owner's setup.
 5. **Home Assistant recorder, required:** exclude the `whatsapp_message_*` events and the integration's "last message" sensor from
    the recorder (they carry message text and a recipient); see the Hebrew guide for the YAML. The exact entity id of that sensor is

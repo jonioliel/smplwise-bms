@@ -179,6 +179,10 @@ export class TicketsPublicCard extends LitElement {
     const org = this.org ?? this.doc?.organization_name ?? '';
     const address = this.address ?? p.base_url;
     const prefix = this.pathPrefix ?? p.path_prefix ?? 'support';
+    const addressHasPath = /^https:\/\/[^/]+\/[^/]/.test(address.trim());
+    const liveLinks = this.health?.links.live ?? 0;
+    const prefixClean = prefix.trim().replace(/^\//, '');
+    const prefixChanged = prefixClean !== (p.path_prefix ?? 'support');
     const prefixOk = /^\/?(?:t|[a-z0-9][a-z0-9_-]{1,31})$/.test(prefix.trim());
     const cidrs = this.cidrs ?? p.trusted_proxy_cidrs.join('\n');
     const cidrList = cidrs.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
@@ -205,11 +209,14 @@ export class TicketsPublicCard extends LitElement {
         ${this.saveError ? html`<div class="probe bad" role="alert" data-public-save-error>${this.saveError}</div>` : nothing}
         ${this.probe ? this.probeLine() : nothing}</div>
       <div class="row stack"><span class="lbl">${tt('pubPrefix')}</span>
-        <div class="line"><input class="in" dir="ltr" maxlength="33" autocomplete="off" data-public-prefix aria-label=${tt('pubPrefix')} ?readonly=${this.remote}
+        <div class="line"><input class="in" dir="ltr" maxlength="33" autocomplete="off" data-public-prefix aria-label=${tt('pubPrefix')} ?readonly=${this.remote || addressHasPath}
           .value=${prefix} @input=${(e: Event) => (this.pathPrefix = (e.target as HTMLInputElement).value)} />
-          <sw-button size="sm" variant="primary" data-public-prefix-save ?disabled=${this.busy || this.remote || !prefixOk || prefix.trim().replace(/^\//, '') === (p.path_prefix ?? 'support')}
-            @click=${() => this.save({ public: { path_prefix: prefix.trim().replace(/^\//, '') } })}>${tt('save')}</sw-button></div>
+          <sw-button size="sm" variant="primary" data-public-prefix-save ?disabled=${this.busy || this.remote || !prefixOk || addressHasPath || !prefixChanged}
+            @click=${() => this.save({ public: { path_prefix: prefixClean, ...(liveLinks > 0 ? { confirm_live_links: true } : {}) } })}>${tt('save')}</sw-button></div>
+        <div class="hint" data-public-prefix-step>${tt('pubPrefixStep')}</div>
         <div class="hint" data-public-prefix-note>${tt('pubPrefixNote', { p: prefixOk ? prefix.trim().replace(/^\//, '') : 'support' })}</div>
+        ${prefixChanged && prefixOk && liveLinks > 0 ? html`<div class="probe bad" role="alert" data-public-prefix-live>${tt('pubPrefixLive', { n: liveLinks })}</div>` : nothing}
+        ${addressHasPath ? html`<div class="hint" data-public-prefix-address>${tt('pubPrefixAddress')}</div>` : nothing}
         ${prefixOk ? nothing : html`<div class="probe bad" role="alert" data-public-prefix-bad>${tt('pubPrefixBad')}</div>`}</div>
       <div class="row"><button type="button" class="fold" aria-expanded=${String(this.advanced)} aria-controls="public-advanced" data-public-advanced
         @click=${() => (this.advanced = !this.advanced)}>${tt('pubAdvanced')}</button></div>

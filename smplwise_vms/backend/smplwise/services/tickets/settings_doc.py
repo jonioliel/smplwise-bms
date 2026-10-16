@@ -218,6 +218,36 @@ def read(conn: sqlite3.Connection) -> dict[str, Any]:
     return out
 
 
+PIN_MARKER = "tickets.path_prefix_pinned"
+
+
+def pin_legacy_prefix(conn: sqlite3.Connection) -> bool:
+    """TK255 review F2, ONCE per installation (the first start of a build that has this rule): an installation that already runs
+    with a public address WITHOUT a path (links `<host>/t/...`) and never saved `public.path_prefix` keeps `t` - the new default
+    `support` would silently re-point every new link at a Cloudflare route the owner has not added. The owner moves to `support`
+    from the settings card. A fresh installation (no address at that first start) and an address that carries its own path are
+    never pinned; the marker makes a later address entry follow the default. Returns whether `t` was pinned."""
+    from ...db import get_setting, set_setting
+    from .links import PublicUrlError, split_base, validate_public_base_url
+
+    if get_setting(conn, PIN_MARKER):
+        return False
+    pinned = False
+    stored = _stored(conn)
+    base = _get(stored, ("public", "base_url"))
+    if isinstance(base, str) and base and _get(stored, ("public", "path_prefix")) is None:
+        try:
+            has_path = bool(split_base(validate_public_base_url(base))[1])
+        except PublicUrlError:
+            has_path = True  # an address that no longer validates is not a running /t setup
+        if not has_path:
+            _set(stored, ("public", "path_prefix"), "t")
+            set_setting(conn, SETTING_KEY, json.dumps(stored, ensure_ascii=False, separators=(",", ":")))  # no revision bump: not an edit
+            pinned = True
+    set_setting(conn, PIN_MARKER, "1")
+    return pinned
+
+
 def apply_patch(conn: sqlite3.Connection, patch: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Validate a partial update (nested dicts of known keys) and write it. Returns (the new document, the changed key paths).
     Raises ValueError("unknown:<path>") / ValueError("<path>:<code>")."""

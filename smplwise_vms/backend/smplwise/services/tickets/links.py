@@ -198,6 +198,12 @@ def validate_public_base_url(url: object) -> str:
         candidate = parts.path[:-1] if parts.path.endswith("/") else parts.path
         if _PREFIX_RE.fullmatch(candidate) is None:
             raise PublicUrlError("path")
+        from .public_prefix import validate_prefix  # TK255 review F1: the listener would refuse a reserved word at start
+
+        try:
+            validate_prefix(candidate)
+        except ValueError:
+            raise PublicUrlError("path") from None
         prefix = candidate
     if port not in (None, 443):
         raise PublicUrlError("port")
