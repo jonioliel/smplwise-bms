@@ -22,11 +22,13 @@ export class SwCard extends LitElement {
   static styles = css`
     :host {
       display: block;
-      background: var(--sw-surface);
+      background: var(--sw-card-bg, var(--sw-surface));
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      box-shadow: var(--sw-shadow-1);
-      padding: 14px;
+      border-radius: var(--sw-card-radius, var(--sw-r-md));
+      box-shadow: var(--sw-card-shadow, var(--sw-shadow-1));
+      -webkit-backdrop-filter: var(--sw-card-blur, none);
+      backdrop-filter: var(--sw-card-blur, none);
+      padding: var(--sw-card-pad, 14px);
       min-inline-size: 0;
     }
     :host([flush]) {
@@ -50,8 +52,8 @@ export class SwCard extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-card-title-fs, var(--sw-fs-md));
+      font-weight: var(--sw-card-title-fw, var(--sw-fw-semibold));
     }
     .sub {
       font-size: var(--sw-fs-xs);
