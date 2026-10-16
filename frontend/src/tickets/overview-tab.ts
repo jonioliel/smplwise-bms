@@ -7,6 +7,7 @@ import { dwt, type DrawerTextKey } from './drawer-text';
 import type { DrawerTab } from './drawer-model';
 import { tIcon } from './icons';
 import { relTime, shortDateTime } from './model';
+import { canChangeOwner, ownerView } from './owner-model';
 import { initials } from './status-block';
 import { etaText, slaState } from './status-sentence';
 import { ticketsLang } from './text';
@@ -14,7 +15,8 @@ import { ticketsLang } from './text';
 /**
  * TKUI1 (release 2.6.0): the Overview tab (סקירה) of the request - IA §4.1 / wireframe §6.1, mock-up v5 `tabOverview()`:
  *   People  - the handler card (name, kind, since, the link line "קישור פעיל · נפתח N פעמים"; "החלף" for a manager), the requester line.
- *             The internal owner ("אחראי בארגון") is not in the backend yet: its card is not rendered (IA risk a - hidden, never "unknown").
+ *             The internal owner ("אחראי בארגון", TKUI3B, contract v1.4 §2): its line under the handler for the full view; "החלפה" / "קביעת
+ *             אחראי" for the manager of an open request. A limited viewer or an older server shows nothing (hidden, never "unknown").
  *   Now     - at most four rows, empty rows hidden: the ETA, the last message (→ שיחה), the cost line (→ עלויות), the SLA target while far.
  *   Facts   - place, device, department · category, priority, opened; the description folded after three lines ("עוד").
  *   Photos  - one row (the host renders it: add / remove keep their existing behaviour) and the device-history fold.
@@ -29,6 +31,8 @@ export interface OverviewCtx {
   onTab: (tab: DrawerTab) => void;
   onReassign: (() => void) | null;
   onEdit: (() => void) | null;
+  /** TKUI3B: the manager of an open request may change the internal owner ("אחראי בארגון"), else null */
+  onChangeOwner?: (() => void) | null;
   /** the address of the ticket this one duplicates (cancelled as a duplicate), or '' */
   duplicateHref: string;
   /** the photo row (the host's existing block, limited to one row) */
@@ -88,9 +92,22 @@ function people(t: TicketDetail & { link?: LinkBlock | null }, ctx: OverviewCtx)
       </div>
       ${ctx.onReassign ? html`<button type="button" class="btn sm quiet" data-ov-reassign data-assign ?disabled=${ctx.busy} @click=${ctx.onReassign}>${tIcon('refresh')}${dwt('a_reassign')}</button>` : nothing}
     </div>` : html`<div class="oline muted" data-person="none">${tIcon('user')}<span>${dwt('noHandler')}</span></div>`}
+    ${ownerLine(t, ctx)}
     <div class="oline" data-person="requester"><span class="av xs" aria-hidden="true">${initials(t.created_by.name)}</span>
       <span>${bidi(dwt('requesterLine', { who: t.created_by.name, when: shortDateTime(t.created_at) }))}</span></div>
   </section>`;
+}
+
+/** TKUI3B: the internal owner's line - the person responsible in the organisation (not the handler), with the manager's change button. */
+function ownerLine(t: TicketDetail, ctx: OverviewCtx): TemplateResult | typeof nothing {
+  const v = ownerView(t);
+  if (v === 'hidden') return nothing;
+  const o = t.internal_owner;
+  const change = ctx.onChangeOwner && canChangeOwner(t)
+    ? html`<button type="button" class="btn sm quiet" data-ov-owner-change ?disabled=${ctx.busy} @click=${ctx.onChangeOwner}>${tIcon('edit')}${dwt(o ? 'ownerChange' : 'ownerSet')}</button>` : nothing;
+  if (!o) return html`<div class="oline muted" data-person="owner" data-owner="none">${tIcon('user')}<span>${dwt('ownerNone')}</span>${change}</div>`;
+  return html`<div class="oline" data-person="owner" data-owner=${o.id}><span class="av xs" aria-hidden="true">${initials(o.name)}</span>
+    <span class="ownertx"><b>${bidi(o.name)}</b> <span class="muted">${dwt('ownerLabel')}${o.since ? ` · ${relTime(o.since, ctx.now)}` : ''}${o.active === false ? ` · ${dwt('ownerInactive')}` : ''}</span></span>${change}</div>`;
 }
 
 function nowRows(t: TicketDetail, ctx: OverviewCtx): TemplateResult | typeof nothing {
@@ -227,6 +244,15 @@ export const overviewStyles = css`
     font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
     min-inline-size: 0;
+  }
+  .oline .btn {
+    margin-inline-start: auto;
+    flex: none;
+  }
+  .ownertx {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
   }
   .av.xs {
     inline-size: 24px;

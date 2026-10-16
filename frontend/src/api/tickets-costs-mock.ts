@@ -368,6 +368,7 @@ export const mockQuotes: QuotesBackend = {
     if (!q) return refuse(404, 'quote_not_found', 'ההצעה לא נמצאה.');
     if (body.revision !== q.revision) return refuse(409, 'quote_stale', 'ההצעה השתנתה בינתיים. טענו מחדש.');
     if (t.assignments.find((a) => a.id === q.assignment_id)?.quote_capable === false) return refuse(409, 'quote_not_open', 'אין הצעת מחיר לשיוך הזה.');
+    if (action === 'approve' && q.source === 'manager' && q.created_by_name === ME) return refuse(409, 'self_approval', 'את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.');
     const reason = body.reason?.trim() ?? '';
     if (action !== 'approve' && !reason) return refuse(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'reason', code: 'required' }] });
     const open = action === 'reject' ? q.state === 'submitted' || q.state === 'fix_requested' : q.state === 'submitted';
@@ -398,7 +399,7 @@ export const mockQuotes: QuotesBackend = {
     const mine = t.quotes.filter((q) => q.assignment_id === a.id);
     if (mine.some((q) => APPROVED_Q.includes(q.state))) return refuse(409, 'quote_already_approved', 'כבר יש הצעה מאושרת.');
     for (const q of mine) if (q.state === 'submitted' || q.state === 'fix_requested') q.state = 'superseded';
-    t.quotes.push(quoteOf(a.id, mine.length + 1, 'submitted', body.lines.map(storedLine), Date.now(), { source: 'manager', note: body.note }));
+    t.quotes.push(quoteOf(a.id, mine.length + 1, 'submitted', body.lines.map(storedLine), Date.now(), { source: 'manager', note: body.note, ...(body.work_from && body.work_to ? { work: [Date.parse(body.work_from), Date.parse(body.work_to)] as [number, number] } : {}) }));
     return quotesAnswer(t);
   },
   async setMode(id, assignmentId, mode) {

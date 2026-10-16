@@ -139,6 +139,23 @@ const he = {
   notSent: 'נשמר · לא נשלחה הודעה לספק',
   sendFailed: 'ההודעה לא נשלחה',
   decided: 'נשמר',
+  // a quote entered on the vendor's behalf (TKUI3B): the entry points, the dialog, the self-approval rule
+  obEntry: 'הזנת הצעה בשם הספק',
+  obNewVersion: 'הזנת גרסה חדשה בשם הספק',
+  obTitle: 'הזנת הצעת מחיר בשם הספק',
+  obNotice: 'ההצעה תירשם כהצעה שהוזנה על ידך בשם {vendor}. את ההצעה שהזנת בעצמך אי אפשר לאשר: אדם אחר צריך לאשר אותה.',
+  obReplaces: 'גרסה חדשה מחליפה את ההצעה הממתינה של הספק.',
+  obWorkFrom: 'תחילת העבודה',
+  obWorkTo: 'סיום העבודה',
+  obWorkHint: 'התאריכים לא חובה. אפשר מיום אחד אחורה ועד שנה קדימה.',
+  obWorkFormat: 'התאריך אינו תקין',
+  obWorkRange: 'התאריך מחוץ לטווח המותר',
+  obWorkOrder: 'סיום העבודה לפני התחלתה',
+  obLinesRequired: 'צריך לפחות שורה אחת תקינה, מסוג מותר',
+  obSave: 'הזנת ההצעה',
+  obSaved: 'ההצעה הוזנה בשם הספק. אדם אחר צריך לאשר אותה.',
+  obOwn: 'את ההצעה הזנת בעצמך: אדם אחר צריך לאשר אותה.',
+  selfApproval: 'את ההצעה הזאת הזנת בעצמך: אדם אחר צריך לאשר אותה.',
 } as const;
 
 export type QuoteTextKey = keyof typeof he;
@@ -262,6 +279,22 @@ const en: Partial<Record<QuoteTextKey, string>> = {
   notSent: 'Saved · no message was sent to the vendor',
   sendFailed: 'The message was not sent',
   decided: 'Saved',
+  obEntry: 'Enter a quote for the vendor',
+  obNewVersion: 'Enter a new version for the vendor',
+  obTitle: 'Enter a quote on the vendor\'s behalf',
+  obNotice: 'The quote is recorded as entered by you on behalf of {vendor}. You cannot approve a quote you entered yourself: another person has to approve it.',
+  obReplaces: 'A new version replaces the vendor\'s pending quote.',
+  obWorkFrom: 'Work starts',
+  obWorkTo: 'Work ends',
+  obWorkHint: 'The dates are optional. From one day back up to a year ahead.',
+  obWorkFormat: 'The date is not valid',
+  obWorkRange: 'The date is outside the allowed range',
+  obWorkOrder: 'The work ends before it starts',
+  obLinesRequired: 'At least one valid line of an allowed kind is needed',
+  obSave: 'Enter the quote',
+  obSaved: 'The quote was entered for the vendor. Another person has to approve it.',
+  obOwn: 'You entered this quote yourself: another person has to approve it.',
+  selfApproval: 'You entered this quote yourself: another person has to approve it.',
 };
 
 export function quoteTemplate(key: QuoteTextKey, lang: 'he' | 'en' = ticketsLang()): string {

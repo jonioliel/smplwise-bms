@@ -30,6 +30,8 @@ interface Screen {
 }
 const conv = async (p: Page, tab: 'conv' | 'history') => { await installConvMock(p); return `/tickets/all?t=${VID}&tab=${tab}`; };
 const costs = (scenario: Scenario) => async (p: Page) => { await installCostsTabMock(p, scenario); return `/tickets/all?t=${CID}&tab=costs`; };
+const overview = (scenario: Scenario) => async (p: Page) => { await installCostsTabMock(p, scenario); return `/tickets/all?t=${CID}&tab=overview`; };
+const OWNER = `${L} [data-ov="people"] [data-person="owner"]`;
 const SCREENS: Screen[] = [
   { name: 'conv-vendor', open: (p) => conv(p, 'conv'), wait: `${L} [data-tab-panel="conv"]` },
   { name: 'conv-vendor-expanded', open: (p) => conv(p, 'conv'), wait: `${L} [data-tab-panel="conv"]`, prep: async (p) => p.locator(`${L} [data-conv-older]`).click() },
@@ -40,6 +42,13 @@ const SCREENS: Screen[] = [
   { name: 'costs-demand', open: costs('demand'), wait: COSTS_READY },
   { name: 'costs-staff', open: costs('staff'), wait: COSTS_READY },
   { name: 'costs-empty', open: costs('empty'), wait: COSTS_READY },
+  // TKUI3B: a quote on the vendor's behalf (the entry on the empty stage, the card's menu, the dialog, the viewer's own entry) and the internal owner
+  { name: 'costs-own', open: costs('own'), wait: COSTS_READY },
+  { name: 'costs-onbehalf-menu', open: costs('quote'), wait: COSTS_READY, prep: async (p) => p.locator(`${T} [data-quote-more]`).click() },
+  { name: 'costs-onbehalf-dialog', open: costs('empty'), wait: COSTS_READY, prep: async (p) => { await p.locator(`${T} [data-ob-entry]`).click(); await p.locator(`${T} ticket-quote-form [data-ob-notice]`).waitFor(); } },
+  { name: 'overview-owner', open: overview('quote'), wait: OWNER },
+  { name: 'overview-owner-none', open: overview('empty'), wait: `${L} [data-owner="none"]` },
+  { name: 'overview-owner-dialog', open: overview('quote'), wait: OWNER, prep: async (p) => { await p.locator(`${L} [data-ov-owner-change]`).click(); await p.locator(`${L} sw-dialog[data-dialog="owner"] [data-owner-choice]`).first().waitFor(); } },
 ];
 
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -48,7 +57,7 @@ test.use({ timezoneId: 'Asia/Jerusalem', locale: 'he-IL' });
 test.describe('tickets drawer tabs layout guard', () => {
   test.describe.configure({ timeout: 60 * 60_000 });
   for (const skin of SKIN_IDS) {
-    test(`conversation, history and costs at every width and theme [${skin}]`, async ({ page }, info) => {
+    test(`conversation, history, costs and the overview owner at every width and theme [${skin}]`, async ({ page }, info) => {
       test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
       await page.emulateMedia({ reducedMotion: 'reduce' });
       const errors: string[] = [];
