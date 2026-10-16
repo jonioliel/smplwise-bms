@@ -6,13 +6,15 @@ import { ticketsApi, type Meta, type NewTicketMode } from '../api/tickets';
 import type { MapElementDraft } from '../api/tickets-map';
 import { ticketsModuleOn } from '../shell/nav';
 import { ticketHref } from './model';
+import { tt } from './text';
 
-/** TKMAP1: whether "פתח בקשת שירות" is offered on a map element / camera page: the module is on and the caller may open requests. */
+/** TKMAP1: whether the open-a-request action is offered on a map element / camera page: the module is on and the caller may open requests. */
 export function mapTicketsOn(held: (p: string) => boolean = canAnywhere, moduleOn: boolean = ticketsModuleOn()): boolean {
   return moduleOn && held('tickets.create');
 }
 
-export const MAP_CREATE_LABEL = 'פתח בקשת שירות';
+/** The label of that action, written with the module-name tokens (D33): tt('mapCreate'). */
+export const mapCreateLabel = (): string => tt('mapCreate');
 
 /**
  * TKMAP1 `<ticket-map-create .open .element>`: the create form opened FROM a map element (the live map's card of a camera / device, a
