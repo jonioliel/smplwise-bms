@@ -826,3 +826,159 @@ def all_error_codes(fake: FakeWiskey) -> set[str]:
 
 
 Responder = Callable[[dict[str, Any]], list[Any]]
+
+
+# ---------------------------------------------------------------- LEASE-BUILD: the capture-lease host (stage 8 of wiskey-capture-lease-v1)
+
+class FakeLeaseHost:
+    """WisKey's side of the capture lease as CR-WISKEY-LEASE-REVOCATION-EVENT and docs/contracts/wiskey-capture-lease/SCHEMA.md
+    describe it (W? - WisKey's real consumer is not built yet). A MODEL: no reader, no station, no card. Receives the immutable
+    DTO from `FakeLeaseBridge` after stages 1-7.
+
+    State: the current stream (`stream_id`, `last_sequence`, `last_params_sha`), the live leases (`leases`: ref -> session),
+    `last_heard` (epoch of the last revoke / heartbeat / reset, for the 15 s silence rule). Switches: `start_outcome`
+    (`ok` | `refused` | `timeout` | `no_session`), `confirm_outcome` (`ok` | `sent_unknown` | `timeout`), `present_card()`."""
+
+    SILENCE_S = 15
+
+    def __init__(self, clock: Any) -> None:
+        self.clock = clock  # .now() -> epoch seconds (FakeClock)
+        self.stream_id: str | None = None
+        self.last_sequence = 0
+        self.last_params_sha: str | None = None
+        self.leases: dict[str, dict[str, Any]] = {}
+        self.destroyed: list[tuple[str, str]] = []  # (lease_ref, why)
+        self.last_heard: int | None = None
+        self.start_outcome = "ok"
+        self.confirm_outcome = "ok"
+        self.events: list[dict[str, Any]] = []  # every DTO applied (action, params)
+        self.requests: list[dict[str, Any]] = []
+        self._sid = 0
+
+    @staticmethod
+    def _sha(params: dict[str, Any]) -> str:
+        import hashlib as _h
+
+        return _h.sha256(json.dumps(params, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+    def _destroy_all(self, why: str) -> int:
+        n = len(self.leases)
+        for ref in list(self.leases):
+            self.destroyed.append((ref, why))
+        self.leases.clear()
+        return n
+
+    def check_silence(self) -> int:
+        """The host's own rule: no revoke / heartbeat for SILENCE_S -> every live lease destroyed."""
+        if self.leases and self.last_heard is not None and self.clock.now() - self.last_heard > self.SILENCE_S:
+            return self._destroy_all("silence")
+        return 0
+
+    def live(self) -> list[str]:
+        self.check_silence()
+        now = self.clock.now()
+        for ref, s in list(self.leases.items()):
+            if s["expires"] <= now:
+                self.destroyed.append((ref, "expired"))
+                del self.leases[ref]
+        return sorted(self.leases)
+
+    # -- lease_event
+    def handle_event(self, dto: Any) -> dict[str, Any]:
+        self.check_silence()
+        p, rid = dto.params, dto.request_id
+        self.events.append({"action": dto.action, "params": dict(p)})
+        if dto.action == "lease_stream_reset":
+            n = self._destroy_all("stream_reset")
+            self.stream_id, self.last_sequence, self.last_params_sha = p["stream_id"], 1, self._sha(p)
+            self.last_heard = self.clock.now()
+            return {"result": "acknowledged", "request_id": rid, "sequence": 1, "destroyed": n}
+        if p["stream_id"] != self.stream_id:
+            return {"result": "unknown_stream", "request_id": rid}
+        self.last_heard = self.clock.now()
+        seq = p["sequence"]
+        if dto.action == "lease_heartbeat":
+            return {"result": "acknowledged", "request_id": rid, "sequence": seq, "destroyed": 0, "live_leases": self.live()}
+        sha = self._sha({"actor": dto.actor_id, "station": dto.station, "params": p})  # the message's meaning, not its envelope
+        if seq == self.last_sequence:
+            if sha == self.last_params_sha:
+                return {"result": "duplicate", "request_id": rid, "sequence": seq}
+            return {"result": "conflict", "request_id": rid, "sequence": seq, "destroyed": self._destroy_all("conflict")}
+        if seq < self.last_sequence:
+            if p["scope"] == "lease" and p["lease_ref"] in self.leases:
+                self.leases.pop(p["lease_ref"])
+                self.destroyed.append((p["lease_ref"], "stale_revoke"))
+            return {"result": "stale", "request_id": rid, "sequence": seq, "last_sequence": self.last_sequence}
+        if seq > self.last_sequence + 1:
+            last = self.last_sequence
+            self.last_sequence, self.last_params_sha = seq, sha
+            return {"result": "gap", "request_id": rid, "sequence": seq, "last_sequence": last, "destroyed": self._destroy_all("gap")}
+        self.last_sequence, self.last_params_sha = seq, sha
+        victims = [ref for ref, s in self.leases.items() if p["scope"] == "all" or (p["scope"] == "lease" and ref == p["lease_ref"])
+                   or (p["scope"] == "actor" and s["actor"] == dto.actor_id) or (p["scope"] == "station" and s["station"] == dto.station)]
+        for ref in victims:
+            self.leases.pop(ref)
+            self.destroyed.append((ref, "revoke:" + p["reason"]))
+        return {"result": "acknowledged", "request_id": rid, "sequence": seq, "destroyed": len(victims)}
+
+    # -- lease_request
+    def present_card(self, lease_ref: str, masked: str = "•••• 4321") -> None:
+        s = self.leases[lease_ref]
+        s["state"] = "captured"
+        s["card"] = {"masked_number": masked, "technology": "mifare", "reader_id": 1}
+
+    def handle_request(self, dto: Any) -> dict[str, Any] | None:
+        """None = the host never answers (a timeout after a possible delivery)."""
+        import calendar as _cal
+        import time as _time
+
+        self.check_silence()
+        p, rid = dto.params, dto.request_id
+        self.requests.append({"action": dto.action, "params": dict(p)})
+        now = self.clock.now()
+        if dto.action == "capture_start":
+            lease = p["lease"]
+            if self.start_outcome == "refused":
+                return {"result": "refused", "request_id": rid, "code": "capture_station_busy"}
+            if lease["stream_id"] != self.stream_id:
+                return {"result": "refused", "request_id": rid, "code": "lease_gone"}
+            self._sid += 1
+            sid = f"{self._sid:016x}"
+            expires = _cal.timegm(_time.strptime(lease["lease_expires_at"], "%Y-%m-%dT%H:%M:%SZ"))
+            self.leases[lease["lease_ref"]] = {"session_id": sid, "actor": dto.actor_id, "station": dto.station, "state": "preparing", "card": None, "expires": expires}
+            if self.start_outcome == "timeout":
+                return None
+            if self.start_outcome == "no_session":
+                return {"result": "acknowledged", "request_id": rid, "session": {"state": "preparing"}}
+            return {"result": "acknowledged", "request_id": rid, "session": {"session_id": sid, "state": "preparing"}}
+        ref = p["lease_ref"]
+        s = self.leases.get(ref)
+        if s is None or s["expires"] <= now:
+            if dto.action == "capture_cancel":
+                return {"result": "acknowledged", "request_id": rid, "cancelled": True}
+            return {"result": "refused", "request_id": rid, "code": "lease_gone"}
+        if dto.action == "capture_status":
+            out = {"state": s["state"], "error": None, "card": s["card"] if s["state"] == "captured" else None}
+            if s["state"] == "preparing":
+                s["state"] = "waiting"
+            return {"result": "acknowledged", "request_id": rid, "capture": out}
+        if dto.action == "capture_cancel":
+            self.leases.pop(ref)
+            self.destroyed.append((ref, "cancelled"))
+            return {"result": "acknowledged", "request_id": rid, "cancelled": True}
+        if dto.action == "capture_confirm":
+            if s["state"] != "captured":
+                return {"result": "refused", "request_id": rid, "code": "capture_not_ready"}
+            self.leases.pop(ref)
+            self.destroyed.append((ref, "confirmed"))
+            if self.confirm_outcome == "sent_unknown":
+                return {"result": "sent_unknown", "request_id": rid}
+            if self.confirm_outcome == "timeout":
+                return None
+            return {"result": "acknowledged", "request_id": rid, "person": copy.deepcopy(LEASE_PERSON)}
+        return {"result": "refused", "request_id": rid, "code": "unknown_action"}
+
+
+LEASE_PERSON = {"id": "u1", "display_name": "LEASE-PERSON-SENTINEL", "revision": 5, "active": True, "archived": False, "valid_from": None, "valid_until": None,
+                "assignments": [{"station_id": "entry-a", "enabled": True, "doors": [1], "sync_state": "synced", "last_sync_at": None}],
+                "cards": [{"id": "c1", "masked_number": "•••• 4321", "label": "tag", "card_type": "normalCard", "enabled": True}]}

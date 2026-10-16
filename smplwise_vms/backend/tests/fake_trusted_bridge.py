@@ -142,3 +142,64 @@ class FakeWisKeyFeed:
         finally:
             if on_settled:
                 on_settled()
+
+
+# ---------------------------------------------------------------- LEASE-BUILD: smplwise_bridge.lease_event / lease_request (stages 1-7)
+
+class FakeLeaseBridge:
+    """The bridge side of `wiskey-capture-lease-v1` as a `services.lease_events.LeaseTransport`: stages 1-7 through the reference
+    validator (tests/lease_contract.py) with a persistent nonce journal (state/replay), then the host (tests/fake_wiskey.py
+    `FakeLeaseHost`, stage 8). Switches: `unreachable` (the call never reaches the bridge), `drop_answer` (the host applies the
+    message, the caller sees a transport error), `clock_invalid` (every message answered `rejected time/clock_invalid`),
+    `answer_override` (a callable(dto, answer) -> answer, to inject non-closed shapes)."""
+
+    def __init__(self, host: Any, clock: Any, secret: str = TEST_SECRET) -> None:
+        import lease_contract
+
+        self._lc = lease_contract
+        self.host = host
+        self.clock = clock
+        self.secret = secret
+        self.nonces: set[str] = set()
+        self.unreachable = False
+        self.drop_answer = False
+        self.clock_invalid = False
+        self.answer_override: Callable[[Any, Any], Any] | None = None
+        self.calls: list[dict[str, Any]] = []  # every call: service, text, answer (or the error code)
+
+    def _handle(self, service: str, text: str) -> Any:
+        if self.unreachable:
+            self.calls.append({"service": service, "text": text, "answer": "unreachable"})
+            raise ApiError(503, "ha_unavailable", "x", retryable=True, details={"error": "ConnectError"})
+        try:
+            dto = self._lc.validate(service, {"signed_message_json": text}, self.clock.now(), self.secret, self.nonces)
+        except self._lc.Reject as exc:
+            answer: Any = {"result": "rejected", "stage": exc.stage, "code": exc.code}
+            self.calls.append({"service": service, "text": text, "answer": answer})
+            return answer
+        if self.clock_invalid:
+            answer = {"result": "rejected", "stage": "time", "code": "clock_invalid"}
+            self.calls.append({"service": service, "text": text, "answer": answer, "dto": dto})
+            return answer
+        answer = self.host.handle_event(dto) if service == "lease_event" else self.host.handle_request(dto)
+        if self.answer_override is not None:
+            answer = self.answer_override(dto, answer)
+        self.calls.append({"service": service, "text": text, "answer": answer, "dto": dto})
+        if answer is None or self.drop_answer:
+            raise ApiError(503, "ha_unavailable", "x", retryable=True, details={"error": "ReadTimeout"})
+        return {"service_response": copy.deepcopy(answer)}
+
+    # LeaseTransport
+    def event(self, settings: Any, text: str) -> Any:
+        return self._handle("lease_event", text)
+
+    def request(self, settings: Any, action: str, text: str) -> Any:
+        return self._handle("lease_request", text)
+
+    def replay(self, index: int = -1) -> Any:
+        """N2: the SAME signed bytes again (stage state/replay must refuse them)."""
+        call = [c for c in self.calls if isinstance(c.get("text"), str)][index]
+        return self._handle(call["service"], call["text"])
+
+    def actions(self, service: str | None = None) -> list[str]:
+        return [c["dto"].action for c in self.calls if "dto" in c and (service is None or c["service"] == service)]

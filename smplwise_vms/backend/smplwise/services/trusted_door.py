@@ -23,23 +23,18 @@ Answers map to a closed outcome set: `acknowledged` -> `sent` (never "opened": d
 `door_open_status`, never by signing the open again (DR-11)."""
 from __future__ import annotations
 
-import hashlib
-import json
 import re
-import secrets
 import sqlite3
 import threading
 import time
-import unicodedata
 import uuid
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Any
 
 from ..config import Settings
 from ..db import get_setting
 from ..errors import ApiError
-from . import ha_bridge, ha_client
+from . import ha_client, trusted_caller
 
 FLAG_KEY = "doors.trusted_path"
 FLAG_VALUES = ("off", "on")
@@ -51,8 +46,7 @@ TRANSPORT = "trusted_door"
 # so the flag cannot be switched on in this release (fail closed).
 MIN_BRIDGE_FOR_TRUSTED_PATH: str | None = None
 ENTRY_POINTS = ("devices_tile", "map_card", "wiskey_screen", "notification", "run", "door_job")
-_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-_CTRL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+_UUID = trusted_caller.UUID_RE
 
 
 def mode(conn: sqlite3.Connection) -> str:
@@ -83,14 +77,15 @@ def new_request_id() -> str:
 # ---------------------------------------------------------------- the signed message (mode `on`)
 
 def _iso(at: datetime) -> str:
-    return at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return trusted_caller.iso(at)
 
 
 def _text_ok(value: str) -> bool:
     """1..128 characters, no C0 / C1 control and (SEC-WXD I8) no Unicode format character - the bidi embeddings, overrides
     and isolates (U+202A-E, U+2066-9), the marks U+200E / U+200F and every other category Cf character - so an actor name
-    signed into a door command cannot re-order or hide text in WisKey's audit display."""
-    return 1 <= len(value) <= 128 and not _CTRL.search(value) and not any(unicodedata.category(ch) == "Cf" for ch in value)
+    signed into a door command cannot re-order or hide text in WisKey's audit display. (The one rule lives in
+    services/trusted_caller.py since the capture-lease slice L3; this name stays for the door path and its tests.)"""
+    return trusted_caller.text_ok(value)
 
 
 def actor_name(principal: Any) -> str:
@@ -127,38 +122,22 @@ def reset_status_rate() -> None:
         _STATUS_HITS.clear()
 
 
-@dataclass(frozen=True)
-class Signed:
-    request_id: str
-    text: str  # signed_message_json, exactly as sent
-    body_sha256: str  # sha256 of the exact UTF-8 bytes of `text` (audit only)
+Signed = trusted_caller.Signed
 
 
 def sign_message(secret: str, action: str, actor_id: str, display_name: str, station: str, params: dict[str, Any], request_id: str, now: datetime | None = None) -> Signed:
     """Build and sign one DTO wire message (section 2/3 of the DTO): explicit 32-hex nonce, `ts = epoch(issued_at)`,
     lifetime LIFETIME_S, values sent exactly as stored (no trim, no case change). Refuses locally what the bridge would
-    refuse at the schema stage, so a malformed message is never sent."""
+    refuse at the schema stage, so a malformed message is never sent. The signer itself is services/trusted_caller.py
+    (capture-lease slice L3: the same bytes, the protocol and lifetime as parameters)."""
     if action not in ("door_open", "door_open_status"):
         raise ValueError("action")
-    if not (_text_ok(actor_id) and _text_ok(display_name) and _text_ok(station) and _UUID.fullmatch(request_id)):
-        raise ApiError(422, "door_message_invalid", "לא ניתן לבנות את פקודת הפתיחה.", details={"outcome": "not_sent"})
-    issued = (now or datetime.now(timezone.utc)).replace(microsecond=0)
-    body = {
-        "protocol": PROTOCOL,
-        "actor": {"id": actor_id, "display_name": display_name},
-        "action": action,
-        "station": station,
-        "params": params,
-        "request_id": request_id,
-        "issued_at": _iso(issued),
-        "expires_at": _iso(issued + timedelta(seconds=LIFETIME_S)),
-    }
-    wire = ha_bridge.sign(secret, body, ts=int(issued.timestamp()), nonce=secrets.token_hex(16))
-    text = json.dumps(wire, ensure_ascii=False, separators=(",", ":"))
-    data = text.encode("utf-8")
-    if len(data) > MAX_MESSAGE_BYTES:
-        raise ApiError(422, "door_message_invalid", "לא ניתן לבנות את פקודת הפתיחה.", details={"outcome": "not_sent"})
-    return Signed(request_id, text, hashlib.sha256(data).hexdigest())
+    try:
+        return trusted_caller.sign(secret, protocol=PROTOCOL, actions=("door_open", "door_open_status"), action=action, actor_id=actor_id,
+                                   display_name=display_name, station=station, params=params, request_id=request_id, lifetime_s=LIFETIME_S,
+                                   max_lifetime_s=LIFETIME_S, max_bytes=MAX_MESSAGE_BYTES, now=now)
+    except trusted_caller.MessageInvalid:
+        raise ApiError(422, "door_message_invalid", "לא ניתן לבנות את פקודת הפתיחה.", details={"outcome": "not_sent"}) from None
 
 
 def call_bridge(settings: Settings, service: str, text: str) -> Any:
@@ -168,9 +147,7 @@ def call_bridge(settings: Settings, service: str, text: str) -> Any:
 
 def _response_of(answer: Any) -> dict[str, Any] | None:
     """HA's return_response envelope -> the bridge's own answer object (None when it is not one)."""
-    if isinstance(answer, dict) and isinstance(answer.get("service_response"), dict):
-        answer = answer["service_response"]
-    return answer if isinstance(answer, dict) else None
+    return trusted_caller.response_of(answer)
 
 
 # The closed outcome set (CR-033 5.1 step 4, F1..F13). `code` is for audit and engineers; screens map it to Hebrew.

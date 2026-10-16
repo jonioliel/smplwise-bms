@@ -51,8 +51,9 @@ name on the revocation wire); the installation id for scope `station` / `all`, t
 | `capture_confirm` | `lease_ref`, `session_id`, `label` (0..64) | add the collected card; decided at the host's confirm barrier |
 
 Ordering (CR 1.3): one stream per installation, sequence monotonic, persisted by Arx, incremented in the same transaction that
-marks the ledger rows revoked. Host keeps `(stream_id, last_sequence, last_params_sha256)`:
-`sequence == last + 1` -> apply; `== last`, same params -> `duplicate`; `== last`, different params -> `conflict` (destroy all);
+marks the ledger rows revoked. Host keeps `(stream_id, last_sequence, last_meaning_sha256)` where the meaning is `(actor.id,
+station, params)` - never the envelope (request_id, nonce, times differ between retries):
+`sequence == last + 1` -> apply; `== last`, same meaning -> `duplicate`; `== last`, different meaning -> `conflict` (destroy all);
 `< last` -> `stale` (the named lease destroyed anyway); `> last + 1` -> `gap` (destroy all); unknown stream -> `unknown_stream`.
 Arx retries a revoke every 2 s with a NEW envelope and the SAME sequence and params until a closed answer or
 `lease_expires_at + 15 s`; after 5 s without one it also sends the lease's own `capture_cancel` once. While no lease is live
