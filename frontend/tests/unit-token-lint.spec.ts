@@ -16,6 +16,7 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 
 /** Files whose CSS may keep literal colours, with the reason (a new entry needs a reason too). */
 const ALLOW_HEX: Record<string, string> = {
+  'tickets/map-element.ts': 'TKMAP1: the plan drawing and the vendor picture sit on white in both schemes (plan ink is drawn for white, never re-themed)',
   'screens/system-diagnostics.ts': 'static style previews of the device styles (DEVICE_THEMES.md §3: swatches, not knobs)',
   'screens/system-notifications.ts': 'the phone mock of the push preview (a drawn phone, dark in both schemes)',
   'screens/investigate-playback.ts': 'timeline and scrubber HUD on video (LTR geometry, dark in both schemes)',

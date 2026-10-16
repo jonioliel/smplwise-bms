@@ -90,6 +90,11 @@ def summarize_config(cfg: dict[str, Any]) -> dict[str, Any]:
         objs = c.get("objects") if isinstance(c.get("objects"), dict) else {}
         zones = c.get("zones") if isinstance(c.get("zones"), dict) else {}
         onvif = c.get("onvif") if isinstance(c.get("onvif"), dict) else {}
+        live = c.get("live") if isinstance(c.get("live"), dict) else {}
+        # TKFRIGLIVE: the go2rtc stream NAMES the camera's own live view uses (0.16+: `live.streams` {label: name}; older:
+        # `live.stream_name`). Names only - a name is not a URL and carries no credential; anything that is not a plain name is dropped.
+        raw_live = live.get("streams") if isinstance(live.get("streams"), dict) else {}
+        live_names = [str(v) for v in raw_live.values() if isinstance(v, str)] or ([str(live["stream_name"])] if isinstance(live.get("stream_name"), str) else [])
         enabled = bool(c.get("enabled", True))
         cameras.append({
             "key": str(key),
@@ -103,6 +108,7 @@ def summarize_config(cfg: dict[str, Any]) -> dict[str, Any]:
             "ptz": bool(onvif.get("host")),
             "labels": [str(x) for x in (objs.get("track") or []) if isinstance(x, str)][:32],
             "zones": sorted(str(z) for z in zones)[:32],
+            "live_streams": [n for n in live_names if CAMERA_KEY.fullmatch(n)][:4],
         })
     detectors = [{"name": str(n), "type": str(d.get("type") or "")} for n, d in (cfg.get("detectors") or {}).items() if isinstance(d, dict)]
     alerts = g_record.get("alerts") if isinstance(g_record.get("alerts"), dict) else {}
@@ -267,8 +273,9 @@ class FrigateAdapter:
 
     def capabilities(self) -> RecorderCapabilities:
         """Declared from the last discovery (cached, no I/O): `features` are the discovered abilities that are on. Before a
-        discovery the set is empty. Live is "none" until a restream exists (stills only); playback is HLS; events arrive by
-        WebSocket with polling backfill ("push")."""
+        discovery the set is empty. Live is "rtsp" when Frigate's go2rtc lists streams (TKFRIGLIVE: Arx then pulls the cameras that
+        match one through its own `smplwise_` streams, frigate_restream.py), else "none" (stills only); playback is HLS; events arrive
+        by WebSocket with polling backfill ("push")."""
         doc = self.cached_discovery()
         feats = frozenset(k for k, v in ((doc or {}).get("features") or {}).items() if v)
         return RecorderCapabilities(
@@ -572,7 +579,13 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         VF("tls_mode", "תעודת HTTPS", "select", False, options=(("pin", "נעיצת תעודת המכשיר"), ("verify", "אימות רגיל"), ("trust", "לסמוך על כל תעודה")), advanced=False),
         VF("tls_pin", "טביעת אצבע של התעודה (SHA-256)", "text", False, advanced=True),
         VF("poll_interval_s", "מרווח דגימת אירועים (שניות)", "text", False, advanced=True),
+        # TKFRIGLIVE: live video through Frigate's own restream (frigate_restream.py); the port is an extra, not `rtsp_port`, because
+        # 8554 stays a refused probe port for every recorder connection - the restream source has its own policy check instead
+        VF("restream", "וידאו חי מהמקליט", "select", False, options=(("auto", "כשהמקליט מפרסם אותו"), ("off", "כבוי - תמונות מתעדכנות בלבד")), advanced=True),
+        VF("restream_port", "פורט הווידאו החי (RTSP, ברירת מחדל 8554)", "port", False, advanced=True),
+        VF("restream_auth", "התחברות לווידאו החי", "select", False, options=(("none", "ללא"), ("account", "עם שם המשתמש והסיסמה של החיבור")), advanced=True),
     )
-    # rtsp_port is unused in F1 (no restream); Frigate's own 8554 is a refused port on any host (it is go2rtc's), so the form default is 554
+    # rtsp_port is unused (the restream port is the `restream_port` extra); Frigate's own 8554 is a refused probe port on any host
+    # (it is go2rtc's), so the form default is 554
     spec = registry.VendorSpec(VENDOR, "Frigate", "available" if selectable else "planned", {"http_port": DEFAULT_PORT, "rtsp_port": 554}, fields)
     return registry.register_vendor(spec, FrigateAdapter)

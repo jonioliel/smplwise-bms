@@ -145,6 +145,8 @@ ROUTES: tuple[RouteRule, ...] = (
     _json("/t/api/return", "token_write"),
     RouteRule("POST", r"/t/api/photo", "/t/api/photo", "photo", "multipart", PHOTO_MAX, UPLOAD_DEADLINE_S),
     RouteRule("GET", rf"/t/api/photo/{_ID}", "/t/api/photo/{attachment_id}", "photo_read"),
+    # TKMAP1: the request's map element as a server-drawn picture (the photo read's own window; image/svg+xml, private, no-store)
+    RouteRule("GET", r"/t/api/map-image", "/t/api/map-image", "photo_read"),
     _json("/t/api/code/send", "code"),
     _json("/t/api/code/verify", "code"),
     RouteRule("GET", r"/t/api/claim", "/t/api/claim", "token_read"),

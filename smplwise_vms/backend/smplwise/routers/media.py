@@ -139,8 +139,23 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
     rs = camera_settings(settings, cam)  # CR-024: the camera's recorder
     from ..services.recorders import frigate_io
 
-    if frigate_io.handles(rs):  # NN5 F1: Frigate has no restream wired yet; the client falls back to the still tile (GET /frigate/.../snapshot)
-        raise ApiError(409, "live_not_available", "אין שידור חי למצלמת Frigate בשלב הזה; מוצגת תמונה עדכנית.", details={"fallback": "still", "recorder_id": cam["recorder_id"]})
+    if frigate_io.handles(rs):
+        # TKFRIGLIVE: live video only through Frigate's own restream (read-only toward Frigate, our `smplwise_` stream as the
+        # consumer); without one the client keeps the refreshing still (GET /cameras/{id}/snapshot.jpg)
+        from ..mode import ensure_recorder_enabled
+        from ..services.recorders import frigate_restream
+
+        ensure_recorder_enabled(rs)  # CR-024: a disabled recorder's stream is never (re)created
+        try:
+            found = frigate_io.restream_source(rs, cam["recorder_id"], cam["source_ref"] if "source_ref" in cam.keys() else None, profile, fetch=True)
+        except ApiError as exc:
+            if not exc.code.startswith("frigate_restream"):
+                raise
+            found = None
+        if found is None:
+            raise ApiError(409, "live_not_available", "למצלמה הזו אין כרגע וידאו חי; מוצגת תמונה מתעדכנת.", details={"fallback": "still", "recorder_id": cam["recorder_id"]})
+        client.ensure_stream(name, found[1], check=frigate_restream.refuse_foreign(found[0]))
+        return name
     src = vendor_io.LiveSources().url(rs, cam["recorder_id"], cam["channel"], profile) if vendor_io.handles(rs) else g2.hikvision_rtsp_url(rs, cam["channel"], profile)
     client.ensure_stream(name, src)
     return name
