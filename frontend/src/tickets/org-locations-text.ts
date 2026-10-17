@@ -2,12 +2,13 @@
  * CR-ORG-LOCATIONS: the words of the organisation-location screens (Settings > service management > "מיקומי הארגון") and of the
  * location picker in the request / RFQ creation forms. Hebrew is the source; English mirrors it key for key.
  */
+import { hasNameTokens, tn } from './naming';
 import { ticketsLang } from './text';
 
 const he = {
   tab: 'מיקומים',
   title: 'מיקומי הארגון',
-  sub: 'כתובות קבועות לבחירה בטופסי בקשות השירות ובקשות הצעת המחיר.',
+  sub: 'כתובות קבועות לבחירה בטופסי {the_tickets} ובקשות הצעת המחיר.',
   add: 'הוספת מיקום',
   edit: 'עריכה',
   save: 'שמירה',
@@ -122,5 +123,6 @@ export const LOC_TEXT_EN: Readonly<Record<LocTextKey, string>> = en;
 
 export function lt(key: LocTextKey, vars?: Record<string, string | number>): string {
   const s = (ticketsLang() === 'en' ? en[key] : he[key]) ?? he[key];
-  return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
+  const out = vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
+  return hasNameTokens(out) ? tn(out) : out; // D33: the module's name through the naming tokens (integ/264)
 }

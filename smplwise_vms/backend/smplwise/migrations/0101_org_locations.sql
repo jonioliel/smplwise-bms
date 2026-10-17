@@ -1,7 +1,7 @@
 -- CR-ORG-LOCATIONS (owner request 2026-10-17, docs/changes/CR-ORG-LOCATIONS.md): the organisation's locations - addresses defined once
 -- in Settings > service management, picked in the request-for-quotation and service-request creation forms instead of free text.
--- PROVISIONAL NUMBER 0101: the integrator renumbers it to the next free number at integration (the file's content does not depend on
--- the number). Additive only: one new table, nullable columns on existing tables, no row rewritten. Old free-text places stay valid.
+-- Migration 0101 (provisional 0101 on pilot/ORGLOC, confirmed at the integ/264 integration). Additive only: one new table,
+-- nullable columns on existing tables, no row rewritten. Old free-text places stay valid.
 --
 -- A request keeps a REFERENCE (`location_id`) AND a SNAPSHOT (`location_snapshot`, JSON: name, street, city, details, lat, lng) taken at
 -- creation, so a later edit of the location never rewrites history. A referenced location is never hard-deleted (deactivated instead);

@@ -73,9 +73,14 @@ test('the vendor page fetches the picture with the token header and shows it onl
   const api = src('api.ts');
   const fetcher = api.slice(api.indexOf('mapBlob:'), api.indexOf('codeSend:'));
   expect(fetcher).toContain("'/t/api/map-image'");
-  expect(fetcher).toContain("'X-Ticket-Token'");
-  expect(fetcher).toContain("credentials: 'omit'");
-  expect(fetcher).toContain("startsWith('image/svg+xml')");
+  // VPORTAL moved the fetch into the shared `blobOf(path, credentials, type)` (integ/264): the map passes its type, the helper sends
+  // the token header, omits cookies and checks the answer's type
+  expect(fetcher).toContain("blobOf('/t/api/map-image', c, 'image/svg+xml')");
+  const at0 = api.indexOf('async function blobOf(');
+  const blob = api.slice(at0, api.indexOf('\n}\n', at0));
+  expect(blob).toContain("'X-Ticket-Token'");
+  expect(blob).toContain("credentials: 'omit'");
+  expect(blob).toContain('.startsWith(type)');
   const main = src('main.ts');
   const at = main.indexOf('private mapCard(');
   const card = main.slice(at, main.indexOf('\n  private ', at + 10));

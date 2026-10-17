@@ -50,7 +50,7 @@ managed in an organised way.
 9. **Plan / map areas** (owner answer (a)). Not built. `ticket_org_locations.plan_zone_id` (nullable, unused) is reserved for a later
    OPTIONAL link from a location to a plan area / room (e.g. an air-conditioner RFQ referencing the room on the map).
 
-## 3. Data (migration `0101_org_locations.sql`, PROVISIONAL number - the integrator renumbers it)
+## 3. Data (migration `0101_org_locations.sql`; the provisional number was kept at the integ/264 integration)
 
 Additive only: `CREATE TABLE ticket_org_locations` (+ unique name index `COLLATE NOCASE`, a partial unique index for the single
 default, an order index); nullable `location_id` (REFERENCES `ticket_org_locations`) + `location_snapshot` on `tickets` and

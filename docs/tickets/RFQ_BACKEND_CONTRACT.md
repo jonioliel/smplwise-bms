@@ -1,8 +1,10 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.4 (section 19 = files and pictures on a request - BUILT on `pilot/RFQATT` from `integ/264`, 2026-10-17, migration 0104
-PROVISIONAL; section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = the earlier attachments design, superseded by 19;
-section 18 = the work order, stage C4)** - 2026-10-16 / 2026-10-17. v1.0 implemented on `pilot/TKRFQ1-core`; v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ5` (from `integ/263`); section 18 on `pilot/TKRFQ4` (from `integ/263`), combined as v1.3 at the integ/264 integration. Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
+Status: **v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
+section 20 = the payment schedule and the arrival confirmation, behind a switch that is OFF by default (RFQPAY, migration 0103); section
+21 = vendor questions (RFQQUESTIONS, migration 0104); the organisation location of a request (CR-ORG-LOCATIONS, migration 0101, change
+log only); section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = the earlier attachments design, superseded
+by 19; section 18 = the work order, stage C4)** - 2026-10-16 / 2026-10-17. v1.0 implemented on `pilot/TKRFQ1-core`; v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ5` (from `integ/263`); section 18 on `pilot/TKRFQ4` (from `integ/263`), combined as v1.3 at the integ/264 integration; sections 19-21 on `pilot/RFQATT`, `pilot/RFQPAY`, `pilot/RFQQUESTIONS` (each from `integ/264`), combined as v1.4. Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
 (final)"), `docs/tickets/DETAIL_BACKEND_CONTRACT.md` v1.2 (the quote entity, money, drafts), the approved mock-up v5
 (`private/planning/_mockups/ticket-module-v4/rfq.js`: new request, vendors board, comparison, order). Backend only. Changes after this
 version are listed in section 14.
@@ -731,24 +733,6 @@ counts only). The image pipeline's own rule (no metadata reaches Pillow) applies
 * The internal ticket drawer shows the referenced files only through `rfq_origin.attachments` (no new UI block there in this version).
 * Server-side antivirus (none exists in the add-on - 19.2's "refuse what cannot be proven simple" instead).
 
-## 14. Change log
-
-* v1.4 (2026-10-17, CR-ORG-LOCATIONS, `pilot/ORGLOC`; migration 0101, PROVISIONAL number): an RFQ may name an organisation location -
-  create / draft edit take `location_id` (an ACTIVE location; `place_text` stays the "other (free text)") and `location_nav`; the row
-  keeps `location_id` + `location_snapshot` (JSON taken at creation, never rewritten) + `location_nav` (default 0). `POST .../send`
-  takes an optional `location_nav` (the preview dialog's switch). The invitation's `{place}` is `place_text`, else the location's
-  "name · street, city" (+ " · <map link>" only when `location_nav`); the new placeholder `{location}` carries the same text and is
-  present in `params_json` only when the request names a location. The detail / summary carry `location` (`id`, `name`, `address`,
-  `details`, `text`, `message`, `map_url`, `has_coordinates`) and `location_nav`; the vendor page's `rfq.location` = `{text, map_url}`
-  after the code gate (`map_url` empty unless switched on). The work order copies the reference and the snapshot to its ticket. See
-  `docs/changes/CR-ORG-LOCATIONS.md`.
-* v1.4 (2026-10-17, RFQATT, `pilot/RFQATT` from `integ/264`): section 19 - files and pictures a manager attaches to a request (pictures
-  re-encoded through the image pipeline incl. still WebP for this signed-in route only, PDF / DOCX / XLSX by structural refusal checks and
-  served as downloads only), per-file caption and "visible to vendors", the vendor page's files (his own link, the uniform 404 otherwise),
-  removal rules (deleted before any quote, marked after), the work order's reference copy, the `{files}` placeholder (a count only), meta
-  `attachments` / `attachment_limits`, detail `attachments` / `can.attach`. Migration 0102 (provisional 0104). 15.3 / 15.5 updated (the
-  attachments are no longer always `[]`); section 17 marked superseded. Deviation from section 17 (owner request 17.10): Office documents
-  (DOCX / XLSX) and WebP are accepted (17 said "no Office types" and the pipeline refused WebP) - see CR-RFQ-ATTACHMENTS.md.
 ## 20. Payment schedule and arrival confirmation (v1.4, CR-RFQ-PAYMENT-SCHEDULE, `pilot/RFQPAY`)
 
 Owner request 2026-10-17; decisions and open questions in `docs/changes/CR-RFQ-PAYMENT-SCHEDULE.md`. Arx NEVER initiates or executes a
@@ -870,13 +854,6 @@ After the arrival is confirmed, a personal access code and the doors / time wind
 Extension point: `rfq_terms.on_arrival_confirmed(conn, row, terms)` - called after every confirmation (vendor or manager accept), does
 nothing in this version; it must stay a separate, explicitly approved action (physical access).
 
-## 14. Change log
-
-* v1.4 (2026-10-17, CR-RFQ-PAYMENT-SCHEDULE, `pilot/RFQPAY` from `integ/264`): section 20 - the vendor's proposed payment schedule on his
-  quote, the schedule approved with the award (percents -> exact amounts, floor + remainder to the final instalment), the arrival
-  confirmation on the vendor's RFQ link (`POST /t/api/rfq/arrival`), the manager's accept / reject (`POST .../awards/{id}/arrival`), the
-  reminder through existing purposes, the `rfq.arrival` notification, the demand's `schedule_check`, the work order's defaults / text.
-  Switch `rfq.schedule_arrival` default OFF; migration 0103 (provisional 0105; additive).
 ## 21. Vendor questions (v1.4, RFQQUESTIONS - owner report 2026-10-17)
 
 Owner report: a vendor's question was not obvious to the manager - it sat in the vendor's private thread (only a timeline row and the
@@ -951,11 +928,35 @@ hours - never the text or the vendor. The engine applies each recipient's channe
 
 ## 14. Change log
 
-* v1.4 (2026-10-17, RFQQUESTIONS, `pilot/RFQQUESTIONS` from `integ/264`): section 21 - vendor questions: migration 0104 (provisional 0106;
-  question state on `ticket_rfq_messages`), pending / unread counts on the list, the detail, the comparison and a navigation summary, the
-  pending items of the detail, read / answer (one vendor or every vendor, preview first, idempotent) / resolve, the quote form's own
-  `question` field, `messages[].answered` on the vendor page, the `rfq.question_unanswered` reminder and the `rfq` settings section on the
-  settings route. 15.3 / 15.4 amended in place.
+* v1.4 (2026-10-17, integration 2.6.4 - one version for four branches built in parallel from `integ/264` @ `75f41b19`; each wrote its
+  own "v1.4 section 19", renumbered here: RFQATT = section 19, RFQPAY = section 20, RFQQUESTIONS = section 21; CR-ORG-LOCATIONS adds no
+  section; final migrations 0101 org locations, 0102 attachments, 0103 payment schedule, 0104 questions):
+  * (2026-10-17, CR-ORG-LOCATIONS, `pilot/ORGLOC`; migration 0101): an RFQ may name an organisation location -
+    create / draft edit take `location_id` (an ACTIVE location; `place_text` stays the "other (free text)") and `location_nav`; the row
+    keeps `location_id` + `location_snapshot` (JSON taken at creation, never rewritten) + `location_nav` (default 0). `POST .../send`
+    takes an optional `location_nav` (the preview dialog's switch). The invitation's `{place}` is `place_text`, else the location's
+    "name · street, city" (+ " · <map link>" only when `location_nav`); the new placeholder `{location}` carries the same text and is
+    present in `params_json` only when the request names a location. The detail / summary carry `location` (`id`, `name`, `address`,
+    `details`, `text`, `message`, `map_url`, `has_coordinates`) and `location_nav`; the vendor page's `rfq.location` = `{text, map_url}`
+    after the code gate (`map_url` empty unless switched on). The work order copies the reference and the snapshot to its ticket. See
+    `docs/changes/CR-ORG-LOCATIONS.md`.
+  * (2026-10-17, RFQATT, `pilot/RFQATT` from `integ/264`): section 19 - files and pictures a manager attaches to a request (pictures
+    re-encoded through the image pipeline incl. still WebP for this signed-in route only, PDF / DOCX / XLSX by structural refusal checks and
+    served as downloads only), per-file caption and "visible to vendors", the vendor page's files (his own link, the uniform 404 otherwise),
+    removal rules (deleted before any quote, marked after), the work order's reference copy, the `{files}` placeholder (a count only), meta
+    `attachments` / `attachment_limits`, detail `attachments` / `can.attach`. Migration 0102 (provisional 0104). 15.3 / 15.5 updated (the
+    attachments are no longer always `[]`); section 17 marked superseded. Deviation from section 17 (owner request 17.10): Office documents
+    (DOCX / XLSX) and WebP are accepted (17 said "no Office types" and the pipeline refused WebP) - see CR-RFQ-ATTACHMENTS.md.
+  * (2026-10-17, CR-RFQ-PAYMENT-SCHEDULE, `pilot/RFQPAY` from `integ/264`): section 20 - the vendor's proposed payment schedule on his
+    quote, the schedule approved with the award (percents -> exact amounts, floor + remainder to the final instalment), the arrival
+    confirmation on the vendor's RFQ link (`POST /t/api/rfq/arrival`), the manager's accept / reject (`POST .../awards/{id}/arrival`), the
+    reminder through existing purposes, the `rfq.arrival` notification, the demand's `schedule_check`, the work order's defaults / text.
+    Switch `rfq.schedule_arrival` default OFF; migration 0103 (provisional 0105; additive).
+  * (2026-10-17, RFQQUESTIONS, `pilot/RFQQUESTIONS` from `integ/264`): section 21 - vendor questions: migration 0104 (provisional 0106;
+    question state on `ticket_rfq_messages`), pending / unread counts on the list, the detail, the comparison and a navigation summary, the
+    pending items of the detail, read / answer (one vendor or every vendor, preview first, idempotent) / resolve, the quote form's own
+    `question` field, `messages[].answered` on the vendor page, the `rfq.question_unanswered` reminder and the `rfq` settings section on the
+    settings route. 15.3 / 15.4 amended in place.
 
 * v1.3 (2026-10-16, integration 2.6.4; TKRFQ4 stage C4, built as "v1.2" on `pilot/TKRFQ4` in parallel with TKRFQ5): section 18 - the work order: create (opens one service request per awarded vendor through the
   existing create and external-assignment code, the assignment message suppressed; the awarded quote becomes its baseline with no
