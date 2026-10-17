@@ -43,7 +43,6 @@ class RestoreIn(BaseModel):
 SENSITIVE_MESSAGES = {
     "backup_password_required": "הגיבוי מכיל סיסמאות מוצפנות של חשבונות מקומיים. יש להקליד את סיסמת הגיבוי, או לבחור שחזור בלי הסיסמאות.",
     "backup_password_wrong": "סיסמת הגיבוי שגויה, או שהקובץ שונה. אפשר לנסות שוב, או לבחור שחזור בלי הסיסמאות.",
-    "backup_password_weak": f"סיסמת הגיבוי צריכה לפחות {sens.PASSWORD_MIN_CHARS} תווים.",
     "backup_password_too_long": "סיסמת הגיבוי ארוכה מדי.",
     "backup_sensitive_damaged": "החלק המוצפן של הגיבוי חסר או פגום. אפשר לבחור שחזור בלי הסיסמאות.",
     "backup_sensitive_invalid": "החלק המוצפן של הגיבוי לא עקבי (ייתכן שהקובץ שונה). השחזור נדחה.",
@@ -52,7 +51,10 @@ SENSITIVE_MESSAGES = {
 
 def _sensitive_error(exc: sens.SensitiveError) -> ApiError:
     can_skip = exc.code in ("backup_password_required", "backup_password_wrong", "backup_sensitive_damaged")
-    return ApiError(422 if exc.code in ("backup_password_weak", "backup_password_too_long") else 409, exc.code,
+    if exc.code == "backup_password_weak":  # the minimum in force (setting `backup.password_min`) is named in the message
+        n = exc.min_chars or sens.PASSWORD_MIN_CHARS
+        return ApiError(422, exc.code, f"סיסמת הגיבוי צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n})
+    return ApiError(422 if exc.code == "backup_password_too_long" else 409, exc.code,
                     SENSITIVE_MESSAGES.get(exc.code, "השחזור נדחה."), details={"can_skip": can_skip})
 
 

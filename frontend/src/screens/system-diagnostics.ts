@@ -155,6 +155,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private restorePassword = '';
   @state() private restoreSkip = false;
   @state() private restoreCanSkip = false;
+  @state() private backupMinBusy = false;
   @state() private backupMsg = '';
   @state() private meterBackup: MeterBackupSetting | null = null;
   @state() private meterBackupBusy = false;
@@ -1374,6 +1375,35 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
+  /** BACKUP-HASH-ENC: the minimum length in force (`backup.password_min`, 8-64, default 12). */
+  private backupMin(): number {
+    const n = Number(this.settings?.['backup.password_min'] ?? 12);
+    return Number.isFinite(n) ? Math.max(8, Math.min(64, Math.round(n))) : 12;
+  }
+
+  /** Saved at once (like the meter switch); the server refuses a value under 8 or over 64. */
+  private async saveBackupMin(input: HTMLInputElement) {
+    const n = Number(input.value);
+    if (!Number.isInteger(n) || n < 8 || n > 64) {
+      this.error = bpt('minRange');
+      input.value = String(this.backupMin());
+      return;
+    }
+    this.backupMinBusy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ 'backup.password_min': n });
+      this.settings = r.settings;
+      invalidateSettings();
+      this.backupMsg = bpt('minSaved');
+    } catch (err) {
+      this.error = describeError(err);
+      input.value = String(this.backupMin());
+    } finally {
+      this.backupMinBusy = false;
+    }
+  }
+
   private async onBackupFile(file: File | undefined) {
     if (!file) return;
     this.backupBusy = true;
@@ -1509,7 +1539,9 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">גיבוי ידני עכשיו<span class="muted">נשמר בתוך התוסף (/data/backups) ואפשר להוריד למחשב</span></span>
           <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder="הערה (אופציונלי)" .value=${this.backupNote} @input=${(e: Event) => (this.backupNote = (e.target as HTMLInputElement).value)} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy || !isApi()} data-backup-create @click=${() => this.createBackup()}>${this.backupBusy ? 'עובד…' : 'צור גיבוי'}</sw-button></span></div>
         <div class="row" data-backup-password-row><span class="lbl">${bpt('createLabel')}<span class="muted">${bpt('createHint')}</span></span>
-          <input class="note-in" type="password" autocomplete="new-password" data-backup-password placeholder=${bpt('createPlaceholder')} .value=${this.backupPassword} @input=${(e: Event) => (this.backupPassword = (e.target as HTMLInputElement).value)} /></div>
+          <input class="note-in" type="password" autocomplete="new-password" data-backup-password placeholder=${bpt('createPlaceholder', { n: this.backupMin() })} .value=${this.backupPassword} @input=${(e: Event) => (this.backupPassword = (e.target as HTMLInputElement).value)} /></div>
+        <div class="row" data-backup-min-row><span class="lbl">${bpt('minLabel')}<span class="muted">${bpt('minHint')}</span></span>
+          <input class="note-in" type="number" min="8" max="64" data-ltr data-backup-min ?disabled=${!isApi() || !this.canEdit || this.backupMinBusy} .value=${String(this.backupMin())} @change=${(e: Event) => void this.saveBackupMin(e.target as HTMLInputElement)} /></div>
         <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
         ${this.renderMeterBackup()}

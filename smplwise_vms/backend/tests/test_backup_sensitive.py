@@ -325,3 +325,64 @@ def test_automatic_backups_omit_the_section(bx):
         e = svc.create(bx.settings, conn, "auto-daily", "daily")
     assert e["sensitive"]["state"] == "omitted"
     assert b"$scrypt$" not in _zip_bytes(bx, e["name"])
+
+
+# ---------------------------------------------------------------- the minimum length setting (owner 2026-10-17)
+
+
+def _set_min(bx, value):
+    return bx.admin.patch("/api/v1/settings", json={"backup.password_min": value})
+
+
+@pytest.mark.parametrize("value", [7, 0, -1, 65, 1000])
+def test_minimum_setting_outside_8_to_64_is_refused(bx, value):
+    r = _set_min(bx, value)
+    assert r.status_code == 422, r.text
+    assert bx.rows("SELECT value FROM settings WHERE key = 'backup.password_min'") == []
+
+
+def test_seven_characters_are_always_refused_even_with_the_lowest_setting(bx):
+    assert _set_min(bx, 8).status_code == 200
+    r = _export(bx, "abcdefg")
+    assert r.status_code == 422 and r.json()["code"] == "backup_password_weak" and r.json()["details"]["min_chars"] == 8
+    assert "8" in r.json()["user_message"] and "abcdefg" not in r.text
+    # a stored value below the floor (written behind the API's back) is clamped to 8, never obeyed
+    with bx.db.connection() as conn:
+        conn.execute("UPDATE settings SET value = '3' WHERE key = 'backup.password_min'")
+    r = _export(bx, "abcdefg")
+    assert r.status_code == 422 and r.json()["details"]["min_chars"] == 8
+    with bx.db.connection() as conn:
+        conn.execute("UPDATE settings SET value = 'nonsense' WHERE key = 'backup.password_min'")
+    assert _export(bx, "abcdefgh").json()["details"]["min_chars"] == 12  # unreadable -> the default
+    assert sens.clamp_min("3") == 8 and sens.clamp_min("999") == 64 and sens.clamp_min(None) == 12
+
+
+def test_the_weak_message_names_the_current_minimum(bx):
+    r = _export(bx, "elevenchars")  # 11 < the default 12
+    assert r.status_code == 422 and r.json()["details"]["min_chars"] == 12 and "12" in r.json()["user_message"]
+    assert _set_min(bx, 20).status_code == 200
+    r = _export(bx, "sixteen chars ok")
+    assert r.status_code == 422 and r.json()["details"]["min_chars"] == 20 and "20" in r.json()["user_message"]
+    assert _export(bx, "twenty characters ok").status_code == 201
+
+
+def test_a_lowered_minimum_accepts_eight_characters_and_restores(bx):
+    assert _set_min(bx, 8).status_code == 200
+    real = _hash(bx)
+    name = _export(bx, "8charsok").json()["name"]
+    assert _set_min(bx, 30).status_code == 200  # a later, stricter minimum never blocks opening an older archive
+    _wipe_maria(bx)
+    r = _restore(bx, name, backup_password="8charsok")
+    assert r.status_code == 200, r.text
+    assert _hash(bx) == real
+
+
+def test_the_minimum_setting_is_never_exported_or_restored(bx):
+    assert "backup.password_min" in svc.SETTINGS_KEEP
+    assert _set_min(bx, 20).status_code == 200
+    name = _export(bx, None).json()["name"]
+    with zipfile.ZipFile(io.BytesIO(_zip_bytes(bx, name))) as z:
+        assert not [r for r in json.loads(z.read("data/settings.json")) if r["key"] == "backup.password_min"]
+    assert _set_min(bx, 9).status_code == 200
+    assert _restore(bx, name).status_code == 200
+    assert bx.rows("SELECT value FROM settings WHERE key = 'backup.password_min'") == [{"value": "9"}]

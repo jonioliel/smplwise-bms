@@ -73,7 +73,7 @@ the dependency is updated or the exposure is documented as not reachable.
   derivation (one derivation at a time, ciphertext size-capped). Archives from before the rule (no header) still import their
   plaintext hashes, with a warning in the answer and the log. The password and the derived key are never logged, audited, stored
   or returned. Residual risk: an attacker with the archive can run an offline guess against the backup password at the scrypt cost
-  (minimum 12 characters enforced); the rest of the archive stays unsigned and unencrypted as before. Tests:
+  (minimum length = setting `backup.password_min`, default 12, an administrator may set 8-64; values outside are refused, a stored value is clamped, so 8 is a hard floor; the setting is never exported or restored); the rest of the archive stays unsigned and unencrypted as before. Tests:
   `tests/test_backup_sensitive.py`.
 - Repository scan (`git grep` for `password=`, `token=`, lab address patterns; the pre-commit scan used by
   the segment loop refuses commits containing lab addresses or device identifiers): no hits apart from an

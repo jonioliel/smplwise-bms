@@ -41,7 +41,9 @@ HASH_TABLE, HASH_COLUMN = "auth_local_credentials", "password_hash"
 # the columns that describe the hash; a row restored without its hash takes them from the same source as the hash
 HASH_COMPANIONS = ("params_version", "set_at", "set_by", "must_change")
 SENSITIVE_SETTINGS = frozenset({"multimedia.item_secret", "multimedia.cast.secret"})
-PASSWORD_MIN_CHARS = 12
+PASSWORD_MIN_CHARS = 12  # the default of the `backup.password_min` setting
+PASSWORD_MIN_FLOOR, PASSWORD_MIN_CEILING = 8, 64  # the setting's range; 8 is the hard floor whatever is stored
+MIN_SETTING = "backup.password_min"
 PASSWORD_MAX_BYTES = 1024
 MAX_BLOB = 8 * 1024 * 1024  # the ciphertext member: a few thousand PHC strings are a few hundred KiB
 MAX_PHC = 512
@@ -68,9 +70,26 @@ _DERIVE = threading.BoundedSemaphore(1)  # one 128 MiB derivation at a time
 class SensitiveError(Exception):
     """A refusal about the sensitive section. `code` is the API code; the message never carries the password."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, min_chars: int | None = None):
         super().__init__(message)
         self.code = code
+        self.min_chars = min_chars  # set on `backup_password_weak`: the minimum in force, for the message
+
+
+def clamp_min(value: Any) -> int:
+    """The minimum length in force for a stored setting value: the default when unreadable, always within 8-64."""
+    try:
+        n = int(str(value).strip())
+    except (TypeError, ValueError):
+        n = PASSWORD_MIN_CHARS
+    return max(PASSWORD_MIN_FLOOR, min(PASSWORD_MIN_CEILING, n))
+
+
+def min_chars(conn: Any) -> int:
+    """The `backup.password_min` setting (default 12), clamped to 8-64."""
+    from ..db import get_setting
+
+    return clamp_min(get_setting(conn, MIN_SETTING) or PASSWORD_MIN_CHARS)
 
 
 def _b64e(b: bytes) -> str:
@@ -89,17 +108,19 @@ def _b64d(s: Any, n: int) -> bytes:
     return raw
 
 
-def password_bytes(password: str | None) -> bytes:
+def password_bytes(password: str | None, min_len: int = PASSWORD_MIN_CHARS) -> bytes:
     """The backup password as key-derivation input: NFKC like the account passwords, NOT stripped (every typed character
-    counts). Raises `backup_password_weak` / `backup_password_too_long`."""
+    counts). `min_len` is the `backup.password_min` setting; it is clamped again here, so nothing under 8 characters is ever
+    accepted. Raises `backup_password_weak` / `backup_password_too_long`."""
+    min_len = clamp_min(min_len)
     if not isinstance(password, str):
         raise SensitiveError("backup_password_required", "a backup password is required")
     norm = unicodedata.normalize("NFKC", password)
     raw = norm.encode("utf-8")
     if len(raw) > PASSWORD_MAX_BYTES:
         raise SensitiveError("backup_password_too_long", "the backup password is too long")
-    if len(norm) < PASSWORD_MIN_CHARS or not norm.strip():
-        raise SensitiveError("backup_password_weak", f"the backup password needs at least {PASSWORD_MIN_CHARS} characters")
+    if len(norm) < min_len or not norm.strip():
+        raise SensitiveError("backup_password_weak", f"the backup password needs at least {min_len} characters", min_chars=min_len)
     return raw
 
 
@@ -156,9 +177,9 @@ def omitted_header(payload: dict[str, Any]) -> dict[str, Any]:
     return {"v": VERSION, "state": "omitted", "counts": counts(payload)}
 
 
-def seal(payload: dict[str, Any], password: str, binding: dict[str, Any]) -> tuple[dict[str, Any], bytes]:
+def seal(payload: dict[str, Any], password: str, binding: dict[str, Any], min_len: int = PASSWORD_MIN_CHARS) -> tuple[dict[str, Any], bytes]:
     """Encrypt the payload. Returns (manifest header, ciphertext member bytes)."""
-    pw = password_bytes(password)
+    pw = password_bytes(password, min_len)
     kdf = _kdf_override or KDF
     salt, nonce = os.urandom(SALT_BYTES), os.urandom(NONCE_BYTES)
     header = {"v": VERSION, "state": "encrypted", "id": os.urandom(16).hex(), "aead": AEAD_NAME,

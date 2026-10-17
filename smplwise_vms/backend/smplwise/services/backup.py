@@ -105,7 +105,9 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "security.local_passkey_first", "security.local_passkey_android",
                  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: the capture-lease route switch, its lease length and the C03 lookup scope are
                  # this installation's security policy - never taken from an archive, so a restore can never loosen them
-                 "access.capture_lease", "access.capture_lease_seconds", "access.lookup_scope"}
+                 "access.capture_lease", "access.capture_lease_seconds", "access.lookup_scope",
+                 # BACKUP-HASH-ENC: the backup password's minimum length is this installation's policy - never loosened by an archive
+                 "backup.password_min"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
@@ -223,7 +225,7 @@ def restorable(rel: str | None) -> bool:
 
 
 def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "", energy_history: bool = False,
-              backup_password: str | None = None) -> Path:
+              backup_password: str | None = None, min_chars: int = sens.PASSWORD_MIN_CHARS) -> Path:
     """BACKUP-HASH-ENC: the sensitive values (local password hashes, SENSITIVE_SETTINGS) never enter the data files. With a backup
     password they are sealed into `secure/sensitive.bin` (AES-256-GCM, scrypt key; header in the manifest); without one they are
     left out and the manifest says so (`sensitive.state = omitted`)."""
@@ -232,7 +234,7 @@ def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: s
     data, payload = sens.split(data)
     sealed: tuple[dict[str, Any], bytes] | None = None
     if backup_password is not None:
-        sealed = sens.seal(payload, backup_password, {"format": FORMAT, "created_at": created_at, "schema_version": schema})
+        sealed = sens.seal(payload, backup_password, {"format": FORMAT, "created_at": created_at, "schema_version": schema}, min_chars)
     stamp = now.strftime("%Y%m%d-%H%M%S")
     out = backups_dir(settings) / f"{kind}-{stamp}.zip"
     n = 1
@@ -347,10 +349,12 @@ def create(settings: Settings, conn: sqlite3.Connection, kind: str = "manual", n
            backup_password: str | None = None) -> dict[str, Any]:
     from . import energy_backup
 
+    min_chars = sens.min_chars(conn)
     if backup_password is not None:
-        sens.password_bytes(backup_password)  # refuse a weak / oversized password before the snapshot is taken
+        sens.password_bytes(backup_password, min_chars)  # refuse a weak / oversized password before the snapshot is taken
     data = snapshot(conn, include_access, include_audit, include_events)
-    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn), backup_password=backup_password)
+    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn), backup_password=backup_password,
+                    min_chars=min_chars)
     return entry(out)
 
 

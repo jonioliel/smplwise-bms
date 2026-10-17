@@ -26,3 +26,12 @@ test('the screen clears the password after create and restore and sends it only 
   expect(src).not.toMatch(/backupMsg = [^;]*Password/);
   expect(src).not.toMatch(/localStorage[^;]*[pP]assword/);
 });
+
+test('the minimum-length setting: 8-64 on the screen, the placeholder names the minimum in force', () => {
+  const src = readFileSync(new URL('../src/screens/system-diagnostics.ts', import.meta.url), 'utf8');
+  expect(src).toContain('type="number" min="8" max="64" data-ltr data-backup-min');
+  expect(src).toContain('n < 8 || n > 64');
+  expect(src).toContain("patchSettings({ 'backup.password_min': n })");
+  expect(bpt('createPlaceholder', { n: 20 }, 'en')).toBe('At least 20 characters (optional)');
+  expect(bpt('createPlaceholder', { n: 8 }, 'he')).toContain('8');
+});
