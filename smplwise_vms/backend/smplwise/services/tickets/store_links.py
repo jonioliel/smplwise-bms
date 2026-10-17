@@ -35,7 +35,7 @@ CONTACT_FIELDS = ("kind", "vendor_id", "user_id", "display_name", "company", "ph
                   "notify_whatsapp",  # + TKSTAFF1 (0087): a user's own "WhatsApp for my assignments" switch on their directory row
                   "phone_confirmed_at",  # + TKSTAFF1 (0087, review F3): the user confirmed this number; cleared on every change
                   "phone_verify", "phone_confirmed_via",  # + TKNOTIFOTP (0091): the row's "verify with a code" switch; how it was confirmed
-                  "created_department_id")  # + CR-DEPT-MANAGER-HANDLERS (0113): the department a manager created the row in
+                  "created_department_id")  # + CR-DEPT-MANAGER-HANDLERS (0111): the department a manager created the row in
 
 
 def insert_contact(conn: sqlite3.Connection, fields: Mapping[str, Any], created_by: str) -> str:
@@ -300,7 +300,7 @@ def any_keyed_row(conn: sqlite3.Connection) -> bool:
         return True
     if (conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'intercom_consent_requests'").fetchone() is not None
             and conn.execute("SELECT 1 FROM intercom_consent_requests WHERE state IN ('sending', 'open') LIMIT 1").fetchone() is not None):
-        return True  # WA-CONSENT-LINK (0116): a live consent link depends on the key too
+        return True  # WA-CONSENT-LINK (0113): a live consent link depends on the key too
     return conn.execute("SELECT 1 FROM ticket_contacts WHERE phone_key IS NOT NULL LIMIT 1").fetchone() is not None
 
 
@@ -320,7 +320,7 @@ def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
     for table, live in (("ticket_portal_codes", "consumed_at IS NULL AND invalidated_at IS NULL"),
                         ("ticket_portal_sessions", "revoked_at IS NULL"),
                         ("ticket_phone_verifications", "consumed_at IS NULL AND invalidated_at IS NULL"),
-                        # WA-CONSENT-LINK (0116): a consent link that can still be answered derives its token under its key
+                        # WA-CONSENT-LINK (0113): a consent link that can still be answered derives its token under its key
                         ("intercom_consent_requests", "state IN ('sending', 'open')")):
         if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone() is None:
             continue  # a database before the table's migration

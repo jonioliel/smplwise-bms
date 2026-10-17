@@ -6,7 +6,7 @@
    masked in the answer, the number in the body (never the URL) and never in an audit row; attaching needs the same number again;
 4. a manager edits a PLAIN member's mobile and language - also of one who manages another department (second answer to 3) - never
    the all-departments ("super") manager's or a system administrator's, never the WhatsApp / verification switches;
-5. the creating department is stored on the row (`created_department_id`, migration 0113) and shown in the directory list - by name
+5. the creating department is stored on the row (`created_department_id`, migration 0111) and shown in the directory list - by name
    only to a configurer and to a manager of that department; anyone else reads "another department".
 
 Negative first in every group. Cast as in test_tickets_dept_handlers.py (mona manages maintenance, cleo cleaning, tom is a plain member
@@ -310,7 +310,7 @@ def test_a_changed_mobile_is_unconfirmed_again_for_the_person(s4):
     assert tom["mobile_confirmed"] is False
 
 
-# ---------------------------------------------------------------- 5. the creating department (0113)
+# ---------------------------------------------------------------- 5. the creating department (0111)
 
 
 def test_the_creating_department_is_stored_and_named_only_to_who_may_know_it(s4):
@@ -331,8 +331,8 @@ def test_the_creating_department_is_stored_and_named_only_to_who_may_know_it(s4)
     assert one.status_code == 200 and one.json()["created_department"]["other"] is True
 
 
-def test_migration_0113_backfills_the_rows_managers_created_from_their_audit_rows(s4):
-    sql = (dbmod.MIGRATIONS_DIR / "0113_ticket_contact_created_department.sql").read_text(encoding="utf-8")
+def test_migration_0111_backfills_the_rows_managers_created_from_their_audit_rows(s4):
+    sql = (dbmod.MIGRATIONS_DIR / "0111_ticket_contact_created_department.sql").read_text(encoding="utf-8")
     backfill = sql[sql.index("UPDATE ticket_contacts"):]
     at = "2026-10-17T08:00:00Z"
     with s4.db.connection() as conn:

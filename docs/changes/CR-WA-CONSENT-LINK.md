@@ -77,7 +77,7 @@ held rows dropped (`no_answer`), one audit row `intercom.person.consent_answer {
 **The person's tab:** `GET /access-control/people/{id}/messages` lists held (`outcome: "held"`) and dropped (`outcome: "dropped"`, `reason`)
 messages with the rest, and `consent_request: {state: "pending", since, until} | null`.
 
-## 4. Data (migration `0116_intercom_consent_link.sql`, additive)
+## 4. Data (migration `0113_intercom_consent_link.sql`, additive)
 
 - `intercom_consent_requests` - one request = one link: `id` (128-bit, the HMAC input), `person_id`, `key_id`, `token_hash` (SHA-256 of the
   token, unique - the public lookup key), times, `actor_user_id`, `message_id`, `lang`, `state` (sending | open | granted | declined | expired |
@@ -89,9 +89,8 @@ messages with the rest, and `consent_request: {state: "pending", since, until} |
 - Never stored: a phone number, a message text, the token, the person's name, a PIN. Rows older than 400 days are pruned.
 - `store_links.key_ids_in_use` / `any_keyed_row` count live consent requests (a key retirement never kills a live link; a lost key is never
   silently re-minted).
-- **Migration number 0116** was assigned by the lead (0107-0115 belong to parallel slices). On this branch alone the sequence 0107-0115 is
-  missing, so `scripts/release_check.py` ("migrations contiguous") fails here until the integration brings them - renumber at integration if
-  the target line differs.
+- **Migration number 0113** (provisional 0116 on the branch; renumbered at the integ/270 integration for 2.7.0, where the release set
+  0107..0114 is contiguous).
 
 ## 5. The public page
 

@@ -1,8 +1,8 @@
 # CR-DEPT-MANAGER-HANDLERS - a department manager manages his departments' handlers and vendors
 
 Status: implemented on `pilot/DEPTMGR` (from `integ/264` @ `75f41b19`), merged into integ/264. Owner decision 2026-10-17 (level ג).
-The owner's answers to section 8 (2026-10-17) on `pilot/DEPTMGR2` (from `integ/264` @ `5fa03e7a`) - section 9; migration 0113
-(provisional).
+The owner's answers to section 8 (2026-10-17) on `pilot/DEPTMGR2` (from `integ/264` @ `5fa03e7a`) - section 9; migration 0111
+(provisional 0113 on the branch; renumbered at integ/270, 2.7.0).
 
 ## 1. What changed
 
@@ -118,7 +118,7 @@ ids-only, idempotence, injection / length). Updated catalogue pins in `test_tick
 3. **Exact-phone lookup** - see section 9.1.
 4. **A member's mobile and language** - see section 9.2. Section 1's "may NOT edit a member's mobile" is superseded for plain members
    (including one who manages another department; never the super manager or a system administrator).
-5. **The creating department on the row** - see section 9.3 (migration **0113**, provisional number reserved for this branch).
+5. **The creating department on the row** - see section 9.3 (migration **0111**, provisional 0113 on the branch, renumbered at integ/270).
 
 ## 9. The answers' implementation (DEPTMGR2)
 
@@ -159,7 +159,7 @@ the confirmation (the person confirms again) and tells the person; audit rows ca
 names only. The answer is the department view (the number masked by the usual rule). The overview's members carry `lang` and
 `mobile_editable`.
 
-### 9.3 The creating department (migration 0113)
+### 9.3 The creating department (migration 0111)
 
 `ticket_contacts.created_department_id` (nullable, no foreign key). Set by the manager's create; NULL for rows created in Settings.
 The migration backfills it from the `ticket.contact.create` audit rows with `via: department_manager` (ids only). The directory list and
@@ -168,7 +168,7 @@ the one-row answer carry `created_department`: `{id, name, other: false}` for a 
 `null` for a Settings row. The UI shows "נוצר במחלקה: ..." on every vendor / employee card and in the read-only card. (The create
 answer's former plain-string `created_department` is now this object.)
 
-**Migration number:** 0113 is provisional (integ/264 ends at 0106; 0107-0112 are reserved for other branches).
+**Migration number:** 0111 (provisional 0113 on the branch; integ/270 renumbered the 2.7.0 set to 0107..0114).
 `test_migrations_263_upgrade.py::test_the_release_numbers_are_contiguous_and_final` fails on this branch alone until the gap is closed
 at integration (renumber to the next free number).
 

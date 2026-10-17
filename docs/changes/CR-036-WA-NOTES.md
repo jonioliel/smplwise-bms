@@ -131,9 +131,9 @@ counterexample is a test in `tests/test_intercom_messaging_review265.py` that fa
 | F11 | The preview's `validation` and `message_disabled` refusals are audited like every other refusal; the history returns the 50 newest (`HISTORY_MAX`). |
 | F7 | NOT fixed here: needs WisKey W11 (a send without a preview). F12 / F13: informational, unchanged. |
 
-Migration **0117** (`0117_intercom_message_caps.sql`, additive): `intercom_messages.phone_hash` + `station_ids` (JSON list) and
-`intercom_message_optout.phone_hash`, with indexes. 0107-0116 are allocated to the parallel 2.6.5 slices: until they land the sequence has a
-gap (`scripts/release_check.py` "migrations contiguous" fails on this branch alone) - renumber at merge if the allocation changes. A 2.6.4
+Migration **0114** (`0114_intercom_message_caps.sql`, additive): `intercom_messages.phone_hash` + `station_ids` (JSON list) and
+`intercom_message_optout.phone_hash`, with indexes. Provisional 0117 on `pilot/WA-SEND-FIX`; renumbered to 0114 at the integ/270 integration (2.7.0, contiguous
+0107..0114). A 2.6.4
 editor that does not send the new settings fields keeps the stored values (the fields are optional in the PUT).
 
 ## Tests - what ran, where, at which commit

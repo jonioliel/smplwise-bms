@@ -1,5 +1,5 @@
 -- VPORTALRFQ (owner 2026-10-17: "possible in future", approved to build, OFF by default): the vendor portal's "company technician
--- requests". Migration 0114 (provisional on pilot/VPORTALRFQ - the lead renumbers it at the integration). Additive only: one new
+-- requests". Migration 0112 (provisional 0114 on pilot/VPORTALRFQ; renumbered at the integ/270 integration, 2.7.0). Additive only: one new
 -- table, nothing existing is altered, nothing here is read or written while `tickets.settings.vendor_portal.technician_requests` (or
 -- the portal, or the module) is off.
 --

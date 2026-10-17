@@ -521,7 +521,7 @@ export class TicketsContacts extends LitElement {
     </div>`;
   }
 
-  /** The "creating department" line of a row (0113); nothing for a row created in Settings. */
+  /** The "creating department" line of a row (0111); nothing for a row created in Settings. */
   private createdText(c: Contact): string | null {
     return createdLabel(c.created_department, (id) => this.deptName(id), tt('dmCreatedOther'));
   }

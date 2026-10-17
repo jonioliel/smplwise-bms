@@ -1,6 +1,6 @@
 -- CR-036 WA, the 2.6.5 security review of the people-messaging surface (findings F3, F6): the per-recipient and per-station caps and
 -- the opt-out that follows the phone number. Additive only (rollback = run the previous version; it ignores the new columns).
--- Number 0117: 0107-0116 are allocated to the parallel 2.6.5 slices - RENUMBER AT MERGE if the sequence lands differently.
+-- Number 0114 (provisional 0117 on pilot/WA-SEND-FIX; renumbered at the integ/270 integration, 2.7.0).
 --
 -- `phone_hash` is an HMAC-SHA256 of the normalised number under a random per-installation key (setting `access.messaging.phone_key`,
 -- never served by GET /settings): it lets Arx say "the same number" without keeping one. Still NEVER stored here: a number, a text,

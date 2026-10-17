@@ -1,6 +1,6 @@
 -- CR-ARX-WISKEY-SHARED-IDENTITY (docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY.md sections 2.2 and 2.5; owner answers 2026-10-17):
 -- one person in Arx and in WisKey as a LINK, not a merge, and the time-bounded door grants of external people.
--- Final number 0108 (assigned by the lead for pilot/WISKEYID-BUILD on integ/264).
+-- Final number 0107 (provisional 0108 on pilot/WISKEYID-BUILD; renumbered at the integ/270 integration, 2.7.0).
 --
 -- Additive only. Nothing here is read while the switch `access.external_grants` is off (default), and the switch cannot be
 -- turned on in this build (services/access_grants.GO_LIVE_PERMITTED is False). Ids only in both tables: never a name, a phone

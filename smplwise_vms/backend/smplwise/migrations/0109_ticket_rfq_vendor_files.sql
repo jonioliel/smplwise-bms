@@ -1,6 +1,6 @@
 -- CR-038 requests for quotation: files and pictures a VENDOR attaches to his own quote or to his own question (RFQ-VENDOR-UPLOAD,
 -- owner decisions 2026-10-17; docs/changes/CR-RFQ-VENDOR-UPLOAD.md; docs/tickets/RFQ_BACKEND_CONTRACT.md section 19.10). Migration
--- 0110 (the number the lead reserved for this branch; 0107..0109 belong to other branches). Unreleased: edited in place on the branch.
+-- 0109 (provisional 0110 on pilot/RFQ-VENDOR-UPLOAD; renumbered at the integ/270 integration, 2.7.0). Unreleased: edited in place on the branch.
 --
 -- Two tables, additive (no rebuild, nothing existing changes):
 -- * ticket_rfq_vendor_files - one file a vendor uploaded through his own RFQ link (POST /t/api/rfq/upload, behind the installation

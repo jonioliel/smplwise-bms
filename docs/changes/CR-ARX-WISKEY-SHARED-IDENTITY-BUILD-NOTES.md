@@ -14,7 +14,7 @@ WhatsApp transport (`send_code` sends nothing). No real WisKey, Home Assistant, 
 
 | Piece | Files |
 |---|---|
-| Migrations 0108 (`access_person_links`, `access_grants`) and 0109 (`access_grant_notices`, `access_pending_contacts`, `access_station_entrance`, `access_code_sends`) | `smplwise/migrations/0108_*.sql`, `0109_*.sql` |
+| Migrations 0107 (`access_person_links`, `access_grants`) and 0108 (`access_grant_notices`, `access_pending_contacts`, `access_station_entrance`, `access_code_sends`) | `smplwise/migrations/0108_*.sql`, `0109_*.sql` |
 | The engine port + the live S11 adapter (refused without the permit) | `services/access_grant_engine.py` |
 | Links, grants, approval, re-decision, triggers R1-R10, worker (provisioning, revocation, unknown outcomes, code delivery, retention, managers' notices) | `services/access_grants.py` |
 | The arrival step on the RFQ work order's handler page (`GET|POST /t/api/arrival`) | `services/access_arrival.py`, `services/tickets/public_routes.py`, `services/tickets/public_http.py` |

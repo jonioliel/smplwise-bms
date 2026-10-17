@@ -1,7 +1,7 @@
 # CR-RFQ-PAYMENT-SCHEDULE - vendor payment schedule and arrival confirmation (RFQ awards)
 
 Status: **RFQPAY2 follow-up (section 8: a demand per instalment, the overdue notification, a moved instalment date) on `pilot/RFQPAY2`,
-migration 0112 provisional, not merged.** Base: **implemented on `pilot/RFQPAY`** (cut from `integ/264` @ `75f41b19`), merged into `integ/264` (2.6.4), not released. Contract:
+migration 0110 (provisional 0112 on the branch), merged at integ/270 (2.7.0).** Base: **implemented on `pilot/RFQPAY`** (cut from `integ/264` @ `75f41b19`), merged into `integ/264` (2.6.4), not released. Contract:
 `docs/tickets/RFQ_BACKEND_CONTRACT.md` v1.4 section 20. Migration **0103** (provisional 0105 on the branch,
 renumbered at the integ/264 integration; additive only). Switch `tickets.settings.rfq.schedule_arrival` - **OFF by default** (an upgrade changes nothing).
 
@@ -139,7 +139,7 @@ screens changed (`rfq-compare.ts`, `rfq-terms.ts`, `rfq-text.ts`, `rfq-model.ts`
 
 ## 8. RFQPAY2 - the three items approved after v1.4.1 (owner approval 2026-10-17, `pilot/RFQPAY2` from `integ/264`, contract v1.5)
 
-The owner approved answers 1, 2 and 4 of section 6 (previously "recorded, not built"). Contract 20.11 - 20.13; migration **0112**
+The owner approved answers 1, 2 and 4 of section 6 (previously "recorded, not built"). Contract 20.11 - 20.13; migration **0110**
 (provisional, additive: table `ticket_rfq_instalment_demands` + column `ticket_rfq_award_terms.overdue_key`).
 
 | # | Decision | Why |
@@ -164,7 +164,7 @@ Owner decisions on the RFQPAY2 open questions (2026-10-17, second commit on `pil
 
 Kept as built (owner): closed requests keep working until a cancel (Q3); no Costs-tab display (Q11); the separate demand record (Q1);
 no "waived" status (Q12); a confirmed arrival moved by the manager stays confirmed (E10); the settings field he / en only; no "paid"
-display for the vendor (Q10 - closed). Migration 0112 was edited in place (unreleased): + `arrival_changed_at`, `overdue_notified_at`.
+display for the vendor (Q10 - closed). Migration 0110 was edited in place (unreleased): + `arrival_changed_at`, `overdue_notified_at`.
 
 Bundle budgets (measured with the guard's method on a local build into the scratch directory, `www-public` NOT rebuilt): see the
 report of each commit - the vendor marker stays in the lazy `rfq-page-terms` chunk (3 KB cap).

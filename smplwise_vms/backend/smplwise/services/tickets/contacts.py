@@ -182,9 +182,9 @@ def full_phone_for(viewer: Viewer, contact_depts: list[str], managed: set[str] |
 
 def created_department(conn, row: dict[str, Any], configure: bool, managed: set[str] | None,
                        names: dict[str, str] | None = None) -> dict[str, Any] | None:
-    """CR-DEPT-MANAGER-HANDLERS (0113, owner 2026-10-17): the department a manager created the row in - its name for a directory editor
+    """CR-DEPT-MANAGER-HANDLERS (0111, owner 2026-10-17): the department a manager created the row in - its name for a directory editor
     and for a manager of THAT department (or of every department); every other reader learns only that another department created it
-    (no name, no id: the same rule as the rest of the manager's view). None = created in Settings (or before 0113)."""
+    (no name, no id: the same rule as the rest of the manager's view). None = created in Settings (or before 0111)."""
     dept_id = row.get("created_department_id")
     if not dept_id:
         return None

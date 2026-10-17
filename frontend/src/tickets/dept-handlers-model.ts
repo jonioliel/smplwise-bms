@@ -50,7 +50,7 @@ export function mayShare(kind: Contact['kind']): boolean {
 export const SHARED_BY_DEFAULT = false;
 
 /**
- * The "creating department" text of a row (0113): the department's name when the server named it, "another department" when it says
+ * The "creating department" text of a row (0111): the department's name when the server named it, "another department" when it says
  * only that, nothing for a row created in Settings (null / absent - an older server too).
  */
 export function createdLabel(cd: Contact['created_department'], nameOf: (id: string) => string, other: string): string | null {

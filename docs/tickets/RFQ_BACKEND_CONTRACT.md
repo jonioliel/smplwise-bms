@@ -1,7 +1,8 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.5 (RFQPAY2 on `pilot/RFQPAY2`: 20.11 - 20.13, a demand per instalment, the overdue notification, a moved instalment date;
-migration 0112 provisional) / v1.4.1 (the review fixes of RFQPAY (section 20) and RFQATT (section 19), no new migration) / v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
+Status: **v1.5 (combined at the integ/270 integration for 2.7.0: RFQPAY2, 20.11 - 20.15, a demand per instalment, the overdue
+notification, a moved instalment date / arrival window, the order re-send, migration 0110; v1.4.2 RFQ-VENDOR-UPLOAD, 19.10, a vendor's own
+files, migration 0109) / v1.4.1 (the review fixes of RFQPAY (section 20) and RFQATT (section 19), no new migration) / v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
 section 20 = the payment schedule and the arrival confirmation, behind a switch that is OFF by default (RFQPAY, migration 0103); section
 21 = vendor questions (RFQQUESTIONS, migration 0104); the organisation location of a request (CR-ORG-LOCATIONS, migration 0101, change
 log only); section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = the earlier attachments design, superseded
@@ -807,7 +808,7 @@ page's `uploads` is `null`, `meta.vendor_uploads` is `false`; files already uplo
 `rfq.attachments.allow_office` in addition (19.2; off: 422 `office_disabled` before any scan, and the managers' lists / reads leave office
 files out - fail closed).
 
-**Migration 0110** (additive, unreleased - edited in place on the branch): `ticket_rfq_vendor_files` (`id`, `rfq_id` / `rfq_vendor_id`
+**Migration 0109** (additive, unreleased - edited in place on the branch): `ticket_rfq_vendor_files` (`id`, `rfq_id` / `rfq_vendor_id`
 (FK SET NULL - set NULL by the purge when a work order references the file), EXACTLY ONE of `quote_id` (his quote at upload) / `message_id`
 (his question) - a CHECK, `folder` (the request's id - the orphan sweeps know it: `store.folder_in_use` / `stored_paths`), `kind`, `name`
 (cleaned), `mime`, `path` / `thumb_path` (`<folder>/rfq/<16 hex>.<ext>`, random), `sha256`, `bytes`, `stored_bytes` (file + thumbnail),
@@ -1043,7 +1044,7 @@ tickets.costs + view where the request lies (an audited 403 `costs_permission_mi
 `terms_not_found` (no terms / the award is not final), 409 `terms_closed` (the request is not `awarded` / `ordered` / `closed` - a closed
 request still owes its vendor, a cancelled one does not), 404 `instalment_not_found`.
 
-* Migration **0112** (provisional), table `ticket_rfq_instalment_demands`: one row per (quote, instalment index) - `UNIQUE (quote_id,
+* Migration **0110** (provisional 0112 on the branch, renumbered at integ/270), table `ticket_rfq_instalment_demands`: one row per (quote, instalment index) - `UNIQUE (quote_id,
   instalment_index)`; bound to the QUOTE (the baseline that keeps the approved schedule after a purge, 20.1); `award_id` / `rfq_id` are
   plain ids. Status `open | paid | cancelled`; the amount and the due day are copied from the approved schedule (never from the client).
   Not the 0083 cost claim: `ticket_cost_claims.assignment_id` is UNIQUE (one claim per assignment), so the instalment demand is its own
@@ -1072,14 +1073,14 @@ has no demand marked `paid` (a cancelled demand settles nothing). One row per aw
 `rfq:<id>:` so a later final award or the close of the request (`ended`) does not silence a payment that is still due. Text: the
 reference, the place and a COUNT (`{count} תשלומים שמועדם עבר ולא סומנו כשולמו`) - never an amount, a date, the vendor's name or a text.
 The janitor (`rfq.retention` -> `rfq_terms.overdue_tick`, result key `instalments_overdue`) raises the row only when an instalment that was
-not overdue at its last look is (the set is kept in `ticket_rfq_award_terms.overdue_key`, migration 0112, written without a revision bump);
+not overdue at its last look is (the set is kept in `ticket_rfq_award_terms.overdue_key`, migration 0110, written without a revision bump);
 a demand action or a moved date brings it up to date at once; it is resolved when nothing of the award is overdue, when the switch is
 turned off (the next janitor pass), and by a cancel / delete / purge of the request (`rfq_notify.payments_ended`).
 
 Repeat interval (owner decision 2026-10-17, "not annoying"): installation setting `rfq.instalment_reminder_hours` (0-168, default 24;
 `PUT /tickets/settings` `{rfq: {instalment_reminder_hours}}`, StrictInt - a string / float / bool is 422; out of range 422; Settings ->
 the RFQ card). While the SAME instalments stay overdue the row is raised again only once that many hours passed since it last notified
-(`ticket_rfq_award_terms.overdue_notified_at`, migration 0112, no revision bump); 0 = notify once only. A NEW overdue instalment always
+(`ticket_rfq_award_terms.overdue_notified_at`, migration 0110, no revision bump); 0 = notify once only. A NEW overdue instalment always
 notifies at once. A resolved award clears `overdue_key` and `overdue_notified_at`. The re-notification goes through the engine with the
 same dedupe key (folded on the open row; the engine's channels and quiet hours decide the delivery).
 
@@ -1120,7 +1121,7 @@ zone is today .. today + 366 (422 `{field: "work_from", code: range | format | r
 `order`). The same window again = nothing written. State: `awaiting` stays (the vendor confirms the new window, his reminders continue);
 a pending `proposed` date is superseded (-> `awaiting`, `proposed_*` cleared, his `rfq.arrival` row resolved); `confirmed` stays confirmed
 with `confirmed_by: "manager"`, `confirmed_at` now (and the order's ticket gets the `rfq_arrival_confirmed` timeline row with the new
-window). `ticket_rfq_award_terms.arrival_changed_at` (migration 0112) marks it: the managers' `terms.arrival.changed_at`, the vendor's
+window). `ticket_rfq_award_terms.arrival_changed_at` (migration 0110) marks it: the managers' `terms.arrival.changed_at`, the vendor's
 `terms.arrival.changed: true` (his page shows "date changed"). Timeline `arrival_rescheduled` (`{award_id, from, to, reason?}`), audit
 `ticket.rfq.arrival_reschedule` (`award_id`, `from_date`, `to_date`, `has_reason`, `vendor_notified` - never the reason text). The optional
 vendor notice: exactly as 20.13 (preview `terms.notice.arrival`). A work order already SENT is re-sent only when the manager ticks it
@@ -1221,7 +1222,7 @@ hours - never the text or the vendor. The engine applies each recipient's channe
 
 ## 14. Change log
 
-* v1.5 (2026-10-17, RFQPAY2, `pilot/RFQPAY2` from `integ/264`; migration 0112 provisional - the lead renumbers at integration): the
+* v1.5 (2026-10-17, RFQPAY2, `pilot/RFQPAY2` from `integ/264`; migration 0110 - provisional 0112, renumbered at integ/270): the
   three items the owner approved after v1.4.1 recorded them as not built - 20.11 a payment demand per approved instalment (manual,
   idempotent, paid / cancel; new table `ticket_rfq_instalment_demands`), 20.12 the overdue-instalment notification (new source
   `rfq.instalment_overdue`, audience costs, one row per award, a count only; column `ticket_rfq_award_terms.overdue_key`), 20.13 a manager
@@ -1231,7 +1232,7 @@ hours - never the text or the vendor. The engine applies each recipient's channe
   Second commit (owner decisions 2026-10-17): 20.13 the optional vendor notice of a moved date (`notify_vendor` default off + the edited
   `message`, the F7 path; preview `terms.notice`); 20.14 the arrival window moved after the award (new route, `arrival_changed_at`, public
   `terms.arrival.changed`); 20.12 the repeat interval `rfq.instalment_reminder_hours` (default 24, 0 = once; `overdue_notified_at`).
-  `terms.can` gains `reschedule_arrival`, `notify_vendor`; `terms.arrival` gains `changed_at`. Migration 0112 edited in place (unreleased).
+  `terms.can` gains `reschedule_arrival`, `notify_vendor`; `terms.arrival` gains `changed_at`. Migration 0110 edited in place (unreleased).
   Third commit (owner decision 2026-10-17): 20.15 re-send the already-sent work order after a date change (`resend_order` default off,
   the existing send path, `order_resent`, `awards[].can.resend_order`, the preview's `work_from` / `work_to`). No migration change.
 * v1.4.2 (2026-10-17, `pilot/RFQ-VENDOR-UPLOAD` from `integ/264` @ 5fa03e7a; owner decision 2026-10-17): 19.10 - a vendor's own files
@@ -1239,12 +1240,12 @@ hours - never the text or the vendor. The engine applies each recipient's channe
   /t/api/rfq/upload/remove`, behind `rfq.vendor_uploads.enabled` (OFF by default - the uniform 404); the same content checks as 19.2
   (WebP refused on the public side); quotas 5 live / 10 uploads / 8 MiB picture / 10 MiB document / 20 MiB per vendor per request; the
   page's `uploads` block; the comparison's `vendor_files` and the managers' download route `GET /tickets/rfqs/{id}/vendor-files/{fid}[/thumb]`
-  (visible + costs.view); meta `vendor_uploads`; migration 0110. **A Fable review of the public surface is required before release.**
+  (visible + costs.view); meta `vendor_uploads`; migration 0109. **A Fable review of the public surface is required before release.**
   Second commit, owner decisions 2026-10-17: the work order references the awarded vendor's files (`ticket_rfq_vendor_file_refs`,
   `rfq_origin.vendor_files`, `GET /tickets/{ticket_id}/rfq-vendor-files/{fid}[/thumb]`, costs.view on the ticket); the limits became
   settings `rfq.vendor_uploads.max_files` / `max_uploads` / `max_image_mb` / `max_doc_mb` / `max_total_mb` inside hard caps (10 / 30 /
   8 / 10 / 50); files with a QUESTION (`message_id`, no quote needed; the thread's read rule; `files` on the thread and pending
-  questions); no notification (as built). Migration 0110 edited in place (unreleased).
+  questions); no notification (as built). Migration 0109 edited in place (unreleased).
 
 * v1.4.1 (2026-10-17, the review fixes merged at integ/264; no new migration file):
   * (2026-10-17, `pilot/RFQPAY-FIX`, review `RELEASE_264_REVIEW_RFQPAY` F1-F11 + the lead's owner answers; merged at integ/264,

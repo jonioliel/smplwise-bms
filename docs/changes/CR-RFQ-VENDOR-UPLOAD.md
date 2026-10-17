@@ -2,7 +2,7 @@
 
 Status: built on `pilot/RFQ-VENDOR-UPLOAD` (two commits: the feature, then the owner's decisions on its questions) (from `integ/264` @ 5fa03e7a), 2026-10-17, not merged, not released.
 Contract: `docs/tickets/RFQ_BACKEND_CONTRACT.md` v1.4.2 section 19.10 (+ the 15.5 exposure row, 19.9, the change log).
-Migration: `0110_ticket_rfq_vendor_files.sql` (the number the lead reserved for this branch).
+Migration: `0109_ticket_rfq_vendor_files.sql` (provisional 0110 on the branch; renumbered at integ/270, 2.7.0).
 Security checklist: `docs/security/TICKETS_PUBLIC_SURFACE_REVIEW_CHECKLIST.md` row 5.12.
 
 > **Release gate: a Fable review of this NEW PUBLIC UPLOAD ROUTE is required before the switch `rfq.vendor_uploads.enabled` is turned
@@ -40,7 +40,7 @@ quote, readable by RFQ managers under the visibility rules and never by other ve
 
 ## Decisions
 
-1. **One table, migration 0110.** `ticket_rfq_attachments` is the manager's (visibility switch, captions, position, the work order's
+1. **One table, migration 0109.** `ticket_rfq_attachments` is the manager's (visibility switch, captions, position, the work order's
    reference copy) - a vendor's file has none of those and another owner, so it gets its own table; the files live in the SAME folder
    (`<data>/tickets/<rfq id>/rfq/`) under the same random names, the same 2 GiB cap and the same sweeps.
 2. **Attached to HIS current submitted quote.** The upload names `quote_id`; anything but his live submitted version is the withdraw

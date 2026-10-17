@@ -23,7 +23,7 @@ Owner decisions on the CR's open questions (2026-10-17, docs/changes/CR-DEPT-MAN
 department managers only, granted manually (no default role, not delegable); a vendor / contact a manager creates is HIS department's
 only by default (`shared: true` still opts in); an EXACT-phone lookup finds an existing vendor to attach (no enumeration, rate limited,
 the number masked in the answer, attaching needs the same number again); a manager edits a plain member's mobile and language; the
-creating department is stored on the row (`created_department_id`, migration 0113) and shown in the directory list."""
+creating department is stored on the row (`created_department_id`, migration 0111) and shown in the directory list."""
 from __future__ import annotations
 
 import hmac
@@ -378,10 +378,10 @@ def create_contact(viewer: Viewer, dept_id: str, body: dict[str, Any], rid: str 
         fields = contacts._fields(conn, body, creating=True, current=None)
     except contacts.ContactInvalid as exc:
         raise contacts.invalid(conn, exc.field, exc.code) from None
-    fields["created_department_id"] = dept_id  # 0113 (open question 5): the creating department is stored on the row
+    fields["created_department_id"] = dept_id  # 0111 (open question 5): the creating department is stored on the row
     cid = contacts.insert_checked(conn, viewer, fields, [] if shared else [dept_id], rid,
                                   extra_audit=_rid_details(dept_id, shared=bool(shared)))
-    return contacts.one(conn, viewer, cid)  # carries `created_department` {id, name, other} from the row (0113)
+    return contacts.one(conn, viewer, cid)  # carries `created_department` {id, name, other} from the row (0111)
 
 
 def update_contact(viewer: Viewer, dept_id: str, contact_id: str, body: dict[str, Any], revision: int, rid: str | None) -> dict[str, Any]:

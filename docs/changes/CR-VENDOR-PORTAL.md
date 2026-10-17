@@ -258,7 +258,7 @@ Internal API (`tickets.configure`, or `tickets.technician_requests` within its d
 `contact:<company>`, ids only), `.tech_approve`, `.tech_reject` (the editor), plus the directory's own `ticket.contact.create` /
 `.update`.
 
-### 12.4 Data - migration `0114_ticket_portal_tech_requests.sql` (provisional number; the lead renumbers at integration)
+### 12.4 Data - migration `0112_ticket_portal_tech_requests.sql` (provisional 0114 on the branch; renumbered at integ/270, 2.7.0)
 
 One additive table `ticket_portal_tech_requests` (company, sender row, action, the technician to replace, the cleaned name, the
 number as E.164 digits, state, decision, the created row, revision). The number is stored in clear because it is what the editor will
@@ -328,7 +328,7 @@ Owner answer to question 4: technician-request approval is NOT limited to `ticke
   `tickets.external` or with "managers see full numbers"; otherwise the last four digits.
 - `GET /tickets/meta` `can.technician_requests` decides whether the "מטפלים וספקים" card renders (no denied call for anyone else).
 - Contracts and docs: `smplwise_vms/backend/smplwise/roles.json`, `contracts/examples/role-catalog.design.json`, `routers/access.py`
-  `PERMISSION_LABELS`, the user guide's permission table (`docs/user-guide/he/46-tickets_HE.md`). No migration change (0114 unchanged).
+  `PERMISSION_LABELS`, the user guide's permission table (`docs/user-guide/he/46-tickets_HE.md`). No migration change (0112 unchanged).
 - Tests (`test_tickets_vendor_portal_more.py`, section 6, negative first): the catalogue (sensitive, not delegable, labelled,
   system_admin only); department managers / a member WITHOUT the permission refused (403, audited, nothing decided, `can` false); a
   holder sees and decides only his departments' vendors (another department's and a no-department vendor: not listed, 404), the created

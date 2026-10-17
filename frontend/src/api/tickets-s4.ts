@@ -63,7 +63,7 @@ export interface Contact {
   phone_confirm_token?: string | null;
   /** CR-DEPT-MANAGER-HANDLERS: a department manager may edit / erase this row (he created it and no other department uses it) */
   manager_editable?: boolean;
-  /** CR-DEPT-MANAGER-HANDLERS (0113): the department a manager created the row in - named only for a directory editor and a manager of
+  /** CR-DEPT-MANAGER-HANDLERS (0111): the department a manager created the row in - named only for a directory editor and a manager of
    *  that department; `other` = created by another department (no name, no id); null / absent = created in Settings */
   created_department?: CreatedDepartment | null;
 }

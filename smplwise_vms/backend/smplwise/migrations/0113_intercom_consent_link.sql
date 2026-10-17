@@ -1,8 +1,8 @@
 -- WA-CONSENT-LINK (docs/changes/CR-WA-CONSENT-LINK.md): opt-in consent by link for the people screen's WhatsApp messages. With the
 -- administrator's `consent_by_link` on (default OFF), the first message to a person whose consent is unknown is a fixed, code-owned
 -- consent request carrying a single-use signed link; the message the sender asked for waits here until the person answers.
--- Additive only (rollback = run the previous version; it ignores these tables). Number 0116 (assigned by the lead; 0107..0115 belong
--- to parallel slices) - RENUMBER AT INTEGRATION if the sequence on the target line is not contiguous.
+-- Additive only (rollback = run the previous version; it ignores these tables). Number 0113 (provisional 0116 on
+-- pilot/WA-CONSENT-LINK; renumbered at the integ/270 integration, 2.7.0 - the release set 0107..0114 is contiguous).
 --
 -- NEVER stored here: a phone number, a message text, the link's token (only its SHA-256), the person's name, a PIN.
 

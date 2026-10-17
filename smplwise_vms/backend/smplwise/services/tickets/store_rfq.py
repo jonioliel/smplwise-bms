@@ -880,10 +880,10 @@ def drop_orphan_attachments(conn: sqlite3.Connection) -> int:
                         "ticket_rfq_attachment_refs)").rowcount
 
 
-# ---------------------------------------------------------------- RFQ-VENDOR-UPLOAD: a vendor's own files on his quote (migration 0110)
+# ---------------------------------------------------------------- RFQ-VENDOR-UPLOAD: a vendor's own files on his quote (migration 0109)
 
 def has_vendor_files(conn: sqlite3.Connection) -> bool:
-    """Whether 0110 is applied (a database migrated only part of the way - some tests - has no vendor-file table)."""
+    """Whether 0109 is applied (a database migrated only part of the way - some tests - has no vendor-file table)."""
     return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_vendor_files'").fetchone() is not None
 
 

@@ -841,10 +841,10 @@ def consent_from(opted: bool, wiskey: str, link_granted: bool = False) -> str:
 
 
 def link_granted(conn: sqlite3.Connection, person_id: str) -> bool:
-    """WA-CONSENT-LINK: the person approved a consent link (intercom_consent; migration 0116)."""
+    """WA-CONSENT-LINK: the person approved a consent link (intercom_consent; migration 0113)."""
     try:
         return conn.execute("SELECT 1 FROM intercom_consent WHERE person_id = ? AND state = 'granted'", (person_id,)).fetchone() is not None
-    except sqlite3.OperationalError:  # a database before 0116
+    except sqlite3.OperationalError:  # a database before 0113
         return False
 
 

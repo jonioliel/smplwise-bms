@@ -1,6 +1,6 @@
 -- CR-ARX-WISKEY-SHARED-IDENTITY sections 2.6, 4.2 and 5 (owner answers 2026-10-17, questions 7 and 9): the privacy-notice
 -- acknowledgements, the technicians a vendor added on the arrival page (pending until a manager accepts them), the per-station
--- "entrance for external people" flag, and the send ledger of the access-code caps. Final number 0109 (pilot/WISKEYID-BUILD).
+-- "entrance for external people" flag, and the send ledger of the access-code caps. Final number 0108 (provisional 0109 on pilot/WISKEYID-BUILD; renumbered at integ/270).
 --
 -- Additive only; nothing is read while `access.external_grants` is off. No code, no message text, no phone number is stored here:
 -- the send ledger keys a number by the contact's existing keyed index (`ticket_contacts.phone_key`), never the digits.
