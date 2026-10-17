@@ -7,7 +7,8 @@ import { buildBundle, dropBundle, open, ORIGIN, quoteOf, RfqFake, rfqView, TOKEN
 //   npx playwright test -c playwright.public.config.ts tests/evidence-public-rfq-upload.spec.ts --workers=1
 // Status when written (2026-10-17): NOT_RUN (the runner was busy with a gate; written for the next runner slot).
 // 2.7.0 gate fix: the owner-decisions commit (files with a question) prefixed the picker ids with their target (quote-file /
-// quote-camera on the quote, q-file / q-camera on a question); the spec still looked for the bare ile and waited out its timeout.
+// quote-camera on the quote, q-file / q-camera on a question); the spec still looked for the bare "file" and waited out its timeout.
+// The 404 test also caught a page bug: after the uniform 404 the card reloaded the request and brought the forgotten page back.
 
 const SHOTS = '../docs/design/evidence/rfq-vendor-upload';
 

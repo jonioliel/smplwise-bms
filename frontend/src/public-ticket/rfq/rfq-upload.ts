@@ -112,12 +112,15 @@ function fits(u: RfqUploads, files: File[]): File[] {
   });
 }
 
-async function send(host: UploadHost, files: File[], target: Target): Promise<boolean> {
+/** true = all stored, false = a refusal (in `problem`), null = the uniform 404: the link is gone, the page already shows
+ * "unavailable" and must NOT load the request again (2.7.0 gate: the reload brought the forgotten request back on screen). */
+async function send(host: UploadHost, files: File[], target: Target): Promise<boolean | null> {
   for (const f of files) {
     const r = await rawCall(host.creds, 'POST', '/t/api/rfq/upload', undefined, uploadForm(f, target));
     if (r.status === 404) {
+      busy = false;
       host.dead();
-      return false;
+      return null;
     }
     if (r.status !== 200) {
       problem = refusalKey(String((r.body as { code?: unknown }).code ?? ''));
@@ -143,7 +146,7 @@ export function uploadCard(uploads: RfqUploads, creds: Credentials, lang: Lang, 
   };
   const toQuote = async (files: File[]): Promise<void> => {
     if (!files.length || !u.quote_id || !begin()) return;
-    await send(host, fits(u, files).slice(0, room), { quote_id: u.quote_id });
+    if ((await send(host, fits(u, files).slice(0, room), { quote_id: u.quote_id })) === null) return;
     busy = false;
     host.reload();
   };
@@ -156,13 +159,18 @@ export function uploadCard(uploads: RfqUploads, creds: Credentials, lang: Lang, 
     }
     if (!begin()) return;
     const r = await rawCall(host.creds, 'POST', '/t/api/rfq/message', { text, client_request_id: newRequestId() });
-    if (r.status === 404) return host.dead();
+    if (r.status === 404) {
+      busy = false;
+      return host.dead();
+    }
     const mid = (r.body as { message?: { id?: unknown } }).message?.id;
     if (r.status !== 200 || typeof mid !== 'string') problem = refusalKey(String((r.body as { code?: unknown }).code ?? ''));
-    else if (await send(host, qFiles.slice(0, room), { message_id: mid })) {
-      qText = '';
-      qFiles = [];
-    } else qText = ''; // the question itself is stored: only the files that failed are kept to try again
+    else {
+      const ok = await send(host, qFiles.slice(0, room), { message_id: mid });
+      if (ok === null) return;
+      qText = ''; // the question itself is stored: on a refusal only the files that failed are kept to try again
+      if (ok) qFiles = [];
+    }
     busy = false;
     host.reload();
   };
