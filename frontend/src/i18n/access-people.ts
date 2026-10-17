@@ -250,6 +250,16 @@ const he = {
   'msg.reason.refused': 'שירות ההודעות דחה את ההודעה',
   'msg.reason.stopped': 'הופסק לפני השליחה',
   'msg.reason.empty': 'ההודעה ריקה',
+  // WA-CONSENT-LINK: consent by link
+  'msg.held': 'ממתינה לאישור האדם · תישלח אחרי שיאשר בקישור',
+  'msg.consent_requested': 'נשלחה לאדם בקשת אישור · ההודעה תישלח אחרי שיאשר',
+  'msg.consent_requested_free': 'נשלחה לאדם בקשת אישור · הודעה חופשית לא נשמרת, שלחו אותה שוב אחרי האישור',
+  'msg.result_held': 'ממתין לאישור',
+  'msg.reason.consent_pending': 'ממתינה כבר בקשת אישור לאדם הזה',
+  'msg.reason.consent_recent': 'נשלחה לאדם בקשת אישור בחודש האחרון ולא אושרה',
+  'msg.reason.consent_unavailable': 'אי אפשר לשלוח בקשת אישור כרגע',
+  'hist.held': 'ממתין לאישור',
+  'hist.dropped': 'לא נשלח · אין אישור',
 
   // ---- the person's message history and the opt-out (the drawer's "הודעות" tab)
   'hist.loading': 'טוען הודעות…',

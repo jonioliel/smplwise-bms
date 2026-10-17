@@ -212,6 +212,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let rfqUpload = 0;
   let portal = 0;
   let portalMore = 0;
+  let consent = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
     if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
@@ -227,6 +228,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
       // section is on; its own 6 KB cap, so the portal page keeps its 12 KB and the ticket page its 61 KB
       else if (/^portal-more[-.]/.test(f)) portalMore += n;
       else if (/^portal-page[-.]/.test(f)) portal += n;
+      else if (/^consent-(page|text)[-.]/.test(f)) consent += n; // WA-CONSENT-LINK: the consent page's lazy chunk + stylesheet, its own cap
       else gz += n;
     }
     expect(f).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]*\.(js|css|svg|png|ico)$/); // the listener's asset name rule
@@ -237,6 +239,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
   expect(portal).toBeLessThanOrEqual(12 * 1024);
   expect(portalMore).toBeLessThanOrEqual(6 * 1024);
+  expect(consent).toBeLessThanOrEqual(5 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {

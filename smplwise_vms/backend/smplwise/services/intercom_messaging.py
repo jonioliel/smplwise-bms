@@ -77,6 +77,13 @@ RUN_WINDOW_S = 600  # a sender's "run" as the server sees it (review F4): bulk_m
 DAY_S = 86400
 DEFAULT_COUNTRY = "972"  # a local number with a leading 0, for the phone hash only
 PHONE_KEY_SETTING = "access.messaging.phone_key"  # the HMAC key of the phone hashes (not a routers/settings.py DEFAULT: never served)
+# WA-CONSENT-LINK (docs/changes/CR-WA-CONSENT-LINK.md): consent by link - the settings live in this same document
+CONSENT_WAIT_RANGE = (1, 30)  # days a consent request waits for an answer before the held message is dropped
+DEFAULT_CONSENT_WAIT_DAYS = 7
+CONSENT_LANGS = ("he", "en", "ar", "ru")
+WA_TEMPLATE_NAME = re.compile(r"^[a-z0-9_]{1,128}$")  # a WhatsApp Business template name (Meta: lowercase, digits, underscore)
+WA_TEMPLATE_LANG = re.compile(r"^[a-z]{2,3}(?:_[A-Z]{2})?$")  # a WhatsApp template language code: he, en, en_US, ar, ru
+CONSENT_KEYS = ("consent_by_link", "consent_wait_days", "consent_language", "consent_wa_template", "consent_wa_language")
 WINDOW_S = 3600
 PACE_MS = 2200  # the spacing the dialog keeps between the sends of one bulk run (the message lane refills 0.5 a second)
 RECIPIENT_READS = 6  # the preview of a selection looks at this many people (each lookup spends a read token of the sender: the burst is 10); the rest are decided as each message goes
@@ -221,7 +228,31 @@ def _defaults() -> dict[str, Any]:
     return {"revision": 0, "enabled": False, "free_text": True, "bulk_max": DEFAULT_BULK_MAX, "rate_per_hour": DEFAULT_RATE_PER_HOUR,
             "per_sender_per_hour": DEFAULT_PER_SENDER_PER_HOUR, "per_person_per_day": DEFAULT_PER_PERSON_PER_DAY,
             "per_station_per_hour": DEFAULT_PER_STATION_PER_HOUR, "send_hours": dict(DEFAULT_SEND_HOURS),
-            "organization": "", "account": "", "templates": [dict(t) for t in DEFAULT_TEMPLATES]}
+            "organization": "", "account": "", "templates": [dict(t) for t in DEFAULT_TEMPLATES], **_consent_defaults()}
+
+
+def _consent_defaults() -> dict[str, Any]:
+    """WA-CONSENT-LINK: OFF by default (the owner's decision: `unknown` may still be messaged until an administrator turns it on)."""
+    return {"consent_by_link": False, "consent_wait_days": DEFAULT_CONSENT_WAIT_DAYS, "consent_language": "he", "consent_wa_template": "",
+            "consent_wa_language": ""}
+
+
+def _consent_read(stored: dict[str, Any]) -> dict[str, Any]:
+    """The consent fields of a stored document, each checked again (a value out of shape reads as its default: fail closed = OFF)."""
+    out = _consent_defaults()
+    out["consent_by_link"] = stored.get("consent_by_link") is True
+    days = stored.get("consent_wait_days")
+    if _is_int(days) and CONSENT_WAIT_RANGE[0] <= days <= CONSENT_WAIT_RANGE[1]:
+        out["consent_wait_days"] = days
+    if stored.get("consent_language") in CONSENT_LANGS:
+        out["consent_language"] = stored["consent_language"]
+    name = stored.get("consent_wa_template")
+    if isinstance(name, str) and (name == "" or WA_TEMPLATE_NAME.fullmatch(name)):
+        out["consent_wa_template"] = name
+    lang = stored.get("consent_wa_language")
+    if isinstance(lang, str) and (lang == "" or WA_TEMPLATE_LANG.fullmatch(lang)):
+        out["consent_wa_language"] = lang
+    return out
 
 
 CAP_FIELDS: dict[str, tuple[tuple[int, int], int]] = {
@@ -280,6 +311,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         out["templates"] = [{"id": t["id"], "label": t["label"], "body": t["body"]} for t in templates]
         if template_errors(out["templates"], out["organization"]) or looks_like_credential(out["organization"]):
             raise ValueError("templates fail validation")
+        out.update(_consent_read(stored))
         return out
     except (ValueError, KeyError, TypeError):
         log.warning("intercom messaging: the stored settings could not be read; messaging reads as switched off")
@@ -431,10 +463,37 @@ def validate_settings(data: dict[str, Any], current: dict[str, Any]) -> dict[str
             label, body = t.get("label"), t.get("body")
             templates.append({"id": tid, "label": label.strip() if isinstance(label, str) else label, "body": clean_text(body) if isinstance(body, str) else body})
         errors.extend(template_errors(templates, organization if isinstance(organization, str) else ""))
+    consent = _consent_validate(data, current, errors)
     if errors:
         raise ApiError(422, "message_settings_invalid", "הגדרות ההודעות אינן תקינות.", details={"errors": errors[:60]})
     return {"revision": current["revision"] + 1, "enabled": enabled, "free_text": free_text, "bulk_max": bulk_max, "rate_per_hour": rate,
-            **caps, "send_hours": send_hours, "organization": organization, "account": account, "templates": templates}
+            **caps, "send_hours": send_hours, "organization": organization, "account": account, "templates": templates, **consent}
+
+
+def _consent_validate(data: dict[str, Any], current: dict[str, Any], errors: list[dict[str, str]]) -> dict[str, Any]:
+    """WA-CONSENT-LINK: the consent fields of a PUT. Each is OPTIONAL (a client that predates them keeps the stored value); a value that
+    is present must be valid. Turning consent by link on needs an `{organization}` (the request names who asks)."""
+    defaults = _consent_defaults()
+    out: dict[str, Any] = {key: data[key] if data.get(key) is not None else current.get(key, defaults[key]) for key in CONSENT_KEYS}
+    if not isinstance(out["consent_by_link"], bool):
+        errors.append({"path": "consent_by_link", "code": "type"})
+    days = out["consent_wait_days"]
+    if not _is_int(days):
+        errors.append({"path": "consent_wait_days", "code": "type"})
+    elif not CONSENT_WAIT_RANGE[0] <= days <= CONSENT_WAIT_RANGE[1]:
+        errors.append({"path": "consent_wait_days", "code": "range"})
+    if out["consent_language"] not in CONSENT_LANGS:
+        errors.append({"path": "consent_language", "code": "type"})
+    name = out["consent_wa_template"]
+    if not isinstance(name, str) or not (name == "" or WA_TEMPLATE_NAME.fullmatch(name)):
+        errors.append({"path": "consent_wa_template", "code": "bad_name"})
+    lang = out["consent_wa_language"]
+    if not isinstance(lang, str) or not (lang == "" or WA_TEMPLATE_LANG.fullmatch(lang)):
+        errors.append({"path": "consent_wa_language", "code": "bad_language"})
+    organization = data.get("organization") if isinstance(data.get("organization"), str) else current.get("organization", "")
+    if out["consent_by_link"] is True and not str(organization).strip():
+        errors.append({"path": "consent_by_link", "code": "organization_missing"})
+    return out
 
 
 def _fresh_id(taken: Iterable[Any]) -> str:
@@ -772,13 +831,23 @@ def set_opt_out(db: Database, *, principal: Any, person_id: str, declined: bool,
         return opted_out(w, person_id, phone)
 
 
-def consent_from(opted: bool, wiskey: str) -> str:
-    """The effective consent: `declined` if the person is on Arx's opt-out list or WisKey says so; `granted` if WisKey says so;
-    otherwise `unknown` (which is allowed - a message about the person's own access is service information)."""
+def consent_from(opted: bool, wiskey: str, link_granted: bool = False) -> str:
+    """The effective consent: `declined` if the person is on Arx's opt-out list (a "decline" pressed on a consent link is written there
+    too) or WisKey says so; `granted` if WisKey says so or the person approved a consent link (WA-CONSENT-LINK); otherwise `unknown`
+    (allowed unless the administrator turned consent by link on - then the first message is the consent request)."""
     if opted or wiskey == "declined":
         return "declined"
-    return "granted" if wiskey == "granted" else "unknown"
+    return "granted" if wiskey == "granted" or link_granted else "unknown"
+
+
+def link_granted(conn: sqlite3.Connection, person_id: str) -> bool:
+    """WA-CONSENT-LINK: the person approved a consent link (intercom_consent; migration 0116)."""
+    try:
+        return conn.execute("SELECT 1 FROM intercom_consent WHERE person_id = ? AND state = 'granted'", (person_id,)).fetchone() is not None
+    except sqlite3.OperationalError:  # a database before 0116
+        return False
 
 
 def consent_of(conn: sqlite3.Connection, person_id: str, wiskey: str, phone: str | None = None) -> str:
-    return consent_from(opted_out(conn, person_id, phone) is not None, wiskey)
+    # integ/270: WA-SEND-FIX's opt-out by number (review F6) AND WA-CONSENT-LINK's consent granted by link
+    return consent_from(opted_out(conn, person_id, phone) is not None, wiskey, link_granted(conn, person_id))

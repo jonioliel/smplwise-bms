@@ -50,6 +50,9 @@ export function sendFailureOf(err: unknown): Extract<SendResult, { ok: false }> 
     message_disabled: 'disabled',
     message_duplicate: 'duplicate',
     message_refused: 'refused',
+    message_consent_pending: 'consent_pending',
+    message_consent_recently_requested: 'consent_recent',
+    message_consent_unavailable: 'consent_unavailable',
   };
   let reason: SendFailure = map[err.code] ?? (err.status >= 500 && err.status !== 503 ? 'uncertain' : 'unknown');
   // review F3 / F4 / F5: the caps of one recipient or one station refuse that person only; the sender's own cap, the run window and the
@@ -92,8 +95,10 @@ export function createHttpTransport(): MessagingTransport {
         body.bulk_total = ctx.bulk.total;
       }
       try {
-        const r = await post<{ message: { sent_at: string }; quota?: MessagingConfig['quota'] }>(`access-control/people/${encodeURIComponent(personId)}/messages`, body);
-        return { ok: true, sent_at: r.message.sent_at, quota: r.quota ?? null };
+        const r = await post<{ message: { sent_at?: string; outcome?: string }; quota?: MessagingConfig['quota'] }>(`access-control/people/${encodeURIComponent(personId)}/messages`, body);
+        // WA-CONSENT-LINK: a 202 - the message waits for the person's consent (`held`), or the consent request went out first (`consent_requested`)
+        const held = r.message.outcome === 'held' || r.message.outcome === 'consent_requested' ? r.message.outcome : undefined;
+        return { ok: true, sent_at: r.message.sent_at ?? '', quota: r.quota ?? null, ...(held ? { held } : {}) };
       } catch (err) {
         return sendFailureOf(err);
       }
@@ -133,6 +138,24 @@ export interface MessagingSettingsDoc {
   /** The messaging account (when WisKey has several); '' = the only one. */
   account: string;
   templates: MessagingTemplateDoc[];
+  /** WA-CONSENT-LINK (absent from a server that predates it): the first message to a person whose consent is unknown is a consent request. */
+  consent_by_link?: boolean;
+  consent_wait_days?: number;
+  consent_language?: string;
+  consent_wa_template?: string;
+  consent_wa_language?: string;
+}
+
+/** WA-CONSENT-LINK: whether the public page can serve a consent link now, and the fixed rules the editor shows. */
+export interface MessagingConsentInfo {
+  /** null = it can; else module_off | public_page | key. */
+  page_problem: string | null;
+  notice_version: string;
+  resend_days: number;
+  held_per_person: number;
+  wait_days: [number, number];
+  languages: string[];
+  dev_marked_languages: string[];
 }
 
 export interface MessagingLimits {
@@ -165,6 +188,7 @@ export interface MessagingSettingsReply {
   settings: MessagingSettingsDoc;
   limits: MessagingLimits;
   service: MessagingService;
+  consent?: MessagingConsentInfo;
 }
 
 /** One problem of a save, as the server names it (`path` like `templates.1.body`, `code` like `credential`). */
@@ -189,6 +213,10 @@ export const putMessagingSettings = (doc: MessagingSettingsDoc) =>
     organization: doc.organization,
     account: doc.account,
     templates: doc.templates.map((t) => ({ ...(t.id ? { id: t.id } : {}), label: t.label, body: t.body })),
+    ...(doc.consent_by_link === undefined ? {} : {
+      consent_by_link: doc.consent_by_link, consent_wait_days: doc.consent_wait_days, consent_language: doc.consent_language,
+      consent_wa_template: doc.consent_wa_template, consent_wa_language: doc.consent_wa_language,
+    }),
   });
 
 /** The per-field problems of a refused save (422 `message_settings_invalid`), or null for any other error. */

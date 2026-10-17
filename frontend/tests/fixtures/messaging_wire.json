@@ -111,7 +111,8 @@
    "by": "מנהל מערכת"
   },
   "consent": "declined",
-  "can_clear_opt_out": true
+  "can_clear_opt_out": true,
+  "consent_request": null
  },
  "optout": {
   "opt_out": {
@@ -172,7 +173,12 @@
      "label": "הכניסה סגורה",
      "body": "שלום {name}, הכניסה סגורה זמנית. נעדכן כשתיפתח שוב."
     }
-   ]
+   ],
+   "consent_by_link": false,
+   "consent_wait_days": 7,
+   "consent_language": "he",
+   "consent_wa_template": "",
+   "consent_wa_language": ""
   },
   "limits": {
    "templates_max": 20,
@@ -217,6 +223,26 @@
    ],
    "problem": null,
    "last_error": null
+  },
+  "consent": {
+   "page_problem": "module_off",
+   "notice_version": "wa-consent-2026-10-17.1",
+   "resend_days": 30,
+   "held_per_person": 3,
+   "wait_days": [
+    1,
+    30
+   ],
+   "languages": [
+    "he",
+    "en",
+    "ar",
+    "ru"
+   ],
+   "dev_marked_languages": [
+    "ar",
+    "ru"
+   ]
   }
  },
  "errors": {

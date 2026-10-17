@@ -98,7 +98,11 @@ class Page {
     this.theme = resolveMode(storedChoice(), storedServerMode());
     applyMode(this.theme);
     this.draft = parseDraft(stored(STORE.draft));
-    if (boot.mode === 'rfq' && boot.token) {
+    if (boot.mode === 'consent' && boot.token) {
+      this.render(); // WA-CONSENT-LINK: the lazy consent chunk; the token stays in memory only
+      import('./consent/consent-page').then((m) => m.mountConsent({ root: this.root, token: boot.token as string, lang: this.lang,
+        setLang: (l) => store(STORE.lang, l), unavailable: () => { this.phase = 'unavailable'; this.render(); } })).catch(() => { this.phase = 'error'; this.render(); });
+    } else if (boot.mode === 'rfq' && boot.token) {
       this.startRfq(boot.token);
     } else if (boot.token) {
       if (boot.fromFragment) this.forgetRfq(); // only one link is kept per tab

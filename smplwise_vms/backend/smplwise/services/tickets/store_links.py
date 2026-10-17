@@ -298,6 +298,9 @@ def any_keyed_row(conn: sqlite3.Connection) -> bool:
         return True
     if _has_rfq_links(conn) and conn.execute("SELECT 1 FROM ticket_rfq_links LIMIT 1").fetchone() is not None:  # TKRFQ1 (0089)
         return True
+    if (conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'intercom_consent_requests'").fetchone() is not None
+            and conn.execute("SELECT 1 FROM intercom_consent_requests WHERE state IN ('sending', 'open') LIMIT 1").fetchone() is not None):
+        return True  # WA-CONSENT-LINK (0116): a live consent link depends on the key too
     return conn.execute("SELECT 1 FROM ticket_contacts WHERE phone_key IS NOT NULL LIMIT 1").fetchone() is not None
 
 
@@ -316,7 +319,9 @@ def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
     # verification codes likewise. Ended rows (spent / ended / revoked) need nothing; the janitor prunes them.
     for table, live in (("ticket_portal_codes", "consumed_at IS NULL AND invalidated_at IS NULL"),
                         ("ticket_portal_sessions", "revoked_at IS NULL"),
-                        ("ticket_phone_verifications", "consumed_at IS NULL AND invalidated_at IS NULL")):
+                        ("ticket_phone_verifications", "consumed_at IS NULL AND invalidated_at IS NULL"),
+                        # WA-CONSENT-LINK (0116): a consent link that can still be answered derives its token under its key
+                        ("intercom_consent_requests", "state IN ('sending', 'open')")):
         if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone() is None:
             continue  # a database before the table's migration
         ids |= {r[0] for r in conn.execute(f"SELECT DISTINCT key_id FROM {table} WHERE {live}").fetchall() if r[0]}  # noqa: S608 - fixed names

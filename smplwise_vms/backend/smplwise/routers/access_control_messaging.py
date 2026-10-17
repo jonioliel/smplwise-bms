@@ -33,6 +33,7 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError
 
 from ..audit import audit
@@ -41,6 +42,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import intercom_adapter, intercom_sync
 from ..services import intercom_authority as ia
+from ..services import intercom_consent as C
 from ..services import intercom_messaging as M
 from ..services.intercom_messaging_adapter import MESSAGING, SendResult
 
@@ -245,8 +247,13 @@ def person_messages(request: Request, auth: ia.Authority = Depends(_gate), perso
     act = _Act(request, auth, person_id)
     rec = act.person()
     phone = rec["person"].get("phone")
-    return {**_feed(act.settings), "messages": M.history(auth.conn, person_id, M.HISTORY_MAX), "opt_out": M.opted_out(auth.conn, person_id, phone),
-            "consent": M.consent_of(auth.conn, person_id, rec["wiskey_consent"], phone), "can_clear_opt_out": _may_clear_opt_out(auth)}
+    # WA-CONSENT-LINK: messages waiting for the person's consent (`held`) or dropped without it (`dropped`, with the reason word) are listed
+    # with the rest, and `consent_request` says whether a consent request is open (`{state: "pending", since, until}` or null).
+    # integ/270: the opt-out and the consent are read by record AND by number (WA-SEND-FIX, review F6).
+    listed = sorted(M.history(auth.conn, person_id, M.HISTORY_MAX) + C.held_history(auth.conn, person_id), key=lambda m: str(m["at"]), reverse=True)[: M.HISTORY_MAX]
+    return {**_feed(act.settings), "messages": listed, "opt_out": M.opted_out(auth.conn, person_id, phone),
+            "consent": M.consent_of(auth.conn, person_id, rec["wiskey_consent"], phone), "can_clear_opt_out": _may_clear_opt_out(auth),
+            "consent_request": C.person_state(auth.conn, person_id)}
 
 
 def _may_clear_opt_out(auth: ia.Authority) -> bool:
@@ -316,6 +323,98 @@ def _error_for(result: SendResult, quota: dict[str, Any] | None) -> ApiError:
     return ApiError(502, "message_refused", "שירות ההודעות דחה את ההודעה, והיא לא נשלחה.", details=details)
 
 
+def _fresh_quota(act: _Act, cfg: dict[str, Any], status: dict[str, Any] | None) -> dict[str, Any] | None:
+    try:  # a fresh read: this request's own snapshot predates the record it just wrote
+        with act.db.connection(mode="read", label="message allowance") as fresh:
+            return _quota(cfg, fresh, status)
+    except Exception:  # noqa: BLE001 - the allowance line is a courtesy
+        log.debug("intercom messaging: the allowance could not be read after a send")
+        return None
+
+
+def _consent_path(act: _Act, cfg: dict[str, Any], body: "SendBody", template: dict[str, str] | None, person: dict[str, Any], account: str,
+                  status: dict[str, Any]) -> JSONResponse:
+    """WA-CONSENT-LINK (services/intercom_consent.py): `consent_by_link` is on and the person's consent is unknown. Answers 202 with
+    `message.outcome`:
+    - `held` - a consent request is already open: the template message waits for the answer (`collapsed: true` when the same template
+      already waits); beyond HELD_PER_PERSON waiting messages -> 409 `message_consent_pending`; a free text is never held (409, too);
+    - `consent_requested` - the consent request went out now (the code-owned text with the single-use link); a template message waits
+      (`held: true`), a free text is not kept (`held: false` - the sender sends it again once the person approved).
+    Refusals (nothing sent, audited): 409 `message_consent_recently_requested` (one request per person per 30 days, `retry_after_days`),
+    409 `message_consent_unavailable` (the public page cannot serve the link: `reason`), and the normal send errors of the consent
+    message itself (its attempt is recorded before it is sent, like every message)."""
+    now = C.utc()
+    held_id: str | None = None
+    collapsed = False
+    refusal: ApiError | None = None
+    with act.db.write_aside() as w:
+        dropped = C.expire(w, now)  # a request past its end is closed first (it would otherwise read as open)
+        C.notify_dropped(w, dropped)
+        kind, req = C.plan(w, act.person_id, now)
+        if kind == "open" and template is None:
+            refusal = ApiError(409, "message_consent_pending", "האדם עדיין לא אישר קבלת הודעות. הודעה חופשית אינה נשמרת - שלחו אותה שוב אחרי האישור.",
+                               details={"held": False})
+        elif kind == "open":
+            got = C.hold(w, request=req, principal=act.principal, person_id=act.person_id, template=template, client_request_id=body.client_request_id,
+                         request_id=act.rid, now=now)
+            if got is None:
+                refusal = ApiError(409, "message_consent_pending", f"כבר ממתינות {C.HELD_PER_PERSON} הודעות לאישור של האדם הזה.", details={"held": False})
+            else:
+                held_id, collapsed = got
+    if refusal is not None:  # (raised after the transaction: the expiry above stays committed, the refusal's audit row has its own)
+        raise act.refuse(refusal)
+    if kind == "open":
+        return JSONResponse(status_code=202, content={**_feed(act.settings), "message": {"id": held_id, "outcome": "held", "collapsed": collapsed, "consent": "pending",
+                                                                                       "until": req["expires_at"]}, "quota": _fresh_quota(act, cfg, status)})
+    if kind == "recent":
+        raise act.refuse(ApiError(409, "message_consent_recently_requested", "כבר נשלחה לאדם הזה בקשת הסכמה בחודש האחרון, ולא התקבל אישור.",
+                                  details={"retry_after_days": C.retry_after_days(req, now)}))
+    with act.db.connection(mode="read", label="consent page") as conn:
+        problem = C.page_problem(conn)
+    if problem is not None:
+        raise act.refuse(ApiError(409, "message_consent_unavailable", "אי אפשר לשלוח בקשת הסכמה: הדף הציבורי אינו זמין.", details={"reason": problem}))
+    # the consent message: recorded (record + audit row) BEFORE anything is sent, like every message
+    details = {**act.details, "kind": "consent", "template_id": C.TEMPLATE_ID}
+    try:
+        message_id = M.begin_attempt(act.db, principal=act.principal, person_id=act.person_id, kind="template", template_id=C.TEMPLATE_ID, template_label=C.TEMPLATE_LABEL,
+                                     template_revision=None, chars=0, bulk_id=None, bulk_total=None, client_request_id=body.client_request_id, request_id=act.rid,
+                                     cfg=cfg, audit_details=details,
+                                     # integ/270: the consent request counts against the recipient's and the stations' caps (WA-SEND-FIX F3)
+                                     phone=person.get("phone"), station_ids=ia.person_station_ids(person))
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    try:
+        with act.db.write_aside() as w:
+            req = C.create_request(w, principal=act.principal, person_id=act.person_id, message_id=message_id, cfg=cfg, request_id=act.rid, now=now)
+            if template is not None:
+                got = C.hold(w, request=req, principal=act.principal, person_id=act.person_id, template=template, client_request_id=body.client_request_id,
+                             request_id=act.rid, now=now)
+                held_id = got[0] if got else None
+            link = C.link_url(w, C.token_of(req))
+    except Exception as exc:  # noqa: BLE001 - nothing was sent: the attempt record goes again
+        M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=act.person_id, outcome="not_sent", reason="consent_setup", request_id=act.rid,
+                         audit_details=details)
+        log.warning("intercom consent: the consent request could not be prepared (%s)", type(exc).__name__)
+        raise act.refuse(ApiError(409, "message_consent_unavailable", "אי אפשר לשלוח בקשת הסכמה: הדף הציבורי אינו זמין.", details={"reason": "setup"})) from None
+    text = C.render_request(cfg["consent_language"], name=person.get("display_name") or "", organization=cfg["organization"], link=link, days=cfg["consent_wait_days"])
+    link = ""
+    details["chars"] = len(text)
+    result = MESSAGING.send(act.settings, act.principal.user_id, act.person_id, account, text,
+                            wa_template=C.wa_template(cfg) if cfg["consent_wa_template"] else None)
+    text = ""  # neither the text nor the link is kept anywhere past the send
+    M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=act.person_id, outcome=result.outcome, reason=result.code or None, request_id=act.rid,
+                     audit_details={**details, **({"wiskey_code": result.wiskey_code} if result.wiskey_code else {})})
+    C.request_sent(act.db, req, result.outcome, result.code, principal=act.principal, request_id=act.rid)  # (a failed one drops its held message; the sender gets this answer)
+    quota = _fresh_quota(act, cfg, status)
+    if result.outcome != "sent":
+        err = _error_for(result, quota)
+        err.details["held"] = result.outcome == "unknown" and held_id is not None
+        err.details["consent"] = "requested" if result.outcome == "unknown" else "not_sent"
+        raise err
+    return JSONResponse(status_code=202, content={**_feed(act.settings), "message": {"id": held_id, "outcome": "consent_requested", "held": held_id is not None,
+                                                                                   "consent": "pending", "until": req["expires_at"]}, "quota": quota})
+
+
 @router.post("/access-control/people/{person_id}/messages")
 def send_message(request: Request, auth: ia.Authority = Depends(_gate), raw: bytes = Depends(_raw_body),
                  person_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
@@ -375,6 +474,9 @@ def send_message(request: Request, auth: ia.Authority = Depends(_gate), raw: byt
     account, problem = MESSAGING.account_for(status, cfg["account"])
     if status["available"] is not True or account is None:
         raise act.refuse(_service_unavailable(problem or status.get("last_error") or status.get("state")))
+    if cfg["consent_by_link"] and M.consent_of(auth.conn, person_id, rec["wiskey_consent"], person.get("phone")) == "unknown":
+        # WA-CONSENT-LINK: the first message to a person whose consent is unknown is the consent request; the message waits for the answer
+        return _consent_path(act, cfg, body, template, person, account, status)
     # the attempt is recorded (record + audit row, one transaction) BEFORE anything is sent: no record, no message
     try:
         message_id = M.begin_attempt(
@@ -420,9 +522,17 @@ class SettingsBody(BaseModel):
     organization: Any = None
     account: Any = None
     templates: Any = None
+    # WA-CONSENT-LINK: optional (a client that predates them keeps the stored values)
+    consent_by_link: Any = None
+    consent_wait_days: Any = None
+    consent_language: Any = None
+    consent_wa_template: Any = None
+    consent_wa_language: Any = None
 
 
 OPTIONAL_SETTINGS = ("per_sender_per_hour", "per_person_per_day", "per_station_per_hour", "send_hours")
+# integ/270: the audited field names of a save - WA-SEND-FIX's caps / send hours AND WA-CONSENT-LINK's consent keys
+SETTINGS_FIELDS = ("enabled", "free_text", "bulk_max", "rate_per_hour", *OPTIONAL_SETTINGS, "organization", "account", "templates") + M.CONSENT_KEYS
 
 
 def _settings_reply(request: Request, conn: sqlite3.Connection, user_id: str, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -431,7 +541,10 @@ def _settings_reply(request: Request, conn: sqlite3.Connection, user_id: str, cf
     status = MESSAGING.status(settings, user_id)
     _account, problem = MESSAGING.account_for(status, cfg["account"])
     service = {"state": status["state"], "connected": status["available"], "accounts": status["accounts"], "problem": problem, "last_error": status.get("last_error")}
-    return {**_feed(settings), "settings": cfg, "limits": M.limits(), "service": service}
+    # WA-CONSENT-LINK: whether the public page can serve a consent link now (null = it can; else module_off | public_page | key)
+    consent = {"page_problem": C.page_problem(conn), "notice_version": C.NOTICE_VERSION, "resend_days": C.RESEND_DAYS, "held_per_person": C.HELD_PER_PERSON,
+               "wait_days": list(M.CONSENT_WAIT_RANGE), "languages": list(M.CONSENT_LANGS), "dev_marked_languages": list(C.DEV_MARKED_LANGS)}
+    return {**_feed(settings), "settings": cfg, "limits": M.limits(), "service": service, "consent": consent}
 
 
 @router.get("/access-control/messaging/settings")
@@ -465,7 +578,7 @@ def put_messaging_settings(request: Request, principal: Principal = Depends(_con
             raise ApiError(409, "message_settings_conflict", "ההגדרות נשמרו בינתיים על ידי מישהו אחר - טענו מחדש.", details={"revision": current["revision"]})
         doc = M.validate_settings(data, current)
         M.save_settings(w, doc)
-        changed = sorted(k for k in ("enabled", "free_text", "bulk_max", "rate_per_hour", *OPTIONAL_SETTINGS, "organization", "account", "templates") if doc[k] != current[k])
+        changed = sorted(k for k in SETTINGS_FIELDS if doc[k] != current[k])
         audit(w, actor=principal, action=M.AUDIT_SETTINGS, decision="allowed", resource_type="installation", resource_id="messaging", request_id=_rid(request),
               details={"revision": doc["revision"], "changed": changed, "enabled": doc["enabled"], "templates": len(doc["templates"])})
     MESSAGING.forget()

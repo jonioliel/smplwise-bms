@@ -101,11 +101,15 @@ export type SendFailure =
   | 'disabled'
   | 'duplicate'
   | 'refused'
+  // WA-CONSENT-LINK: consent by link is on and the person has not answered yet / was asked within 30 days / the page cannot serve a link
+  | 'consent_pending'
+  | 'consent_recent'
+  | 'consent_unavailable'
   | 'stopped'
   | 'unknown';
 
 export type SendResult =
-  | { ok: true; sent_at: string; quota?: MessagingConfig['quota'] }
+  | { ok: true; sent_at: string; quota?: MessagingConfig['quota']; /** WA-CONSENT-LINK: not sent yet - waiting for the person's consent */ held?: 'held' | 'consent_requested' }
   | { ok: false; reason: SendFailure; retry_after_s?: number; /** a rate refusal that passes in moments (the feed's budget), not the hour's allowance */ transient?: boolean; templates_revision?: number };
 
 /** What one send is part of: the revision of the catalogue the sender saw, and - for a bulk run - the run's id and size. */
@@ -114,7 +118,7 @@ export interface SendContext {
   bulk?: { id: string; total: number };
 }
 
-export type OutcomeKind = 'sent' | 'refused' | 'unknown' | 'pending';
+export type OutcomeKind = 'sent' | 'refused' | 'unknown' | 'pending' | 'held' | 'dropped'; // held / dropped: WA-CONSENT-LINK
 
 export interface MessageHistoryItem {
   id: string;
@@ -329,7 +333,7 @@ export function bulkPlan(recipients: readonly RecipientInfo[], config: Messaging
  * handed on and the answer is unknown - never retried). */
 export interface BulkRow {
   id: string;
-  status: 'sent' | 'failed' | 'unknown';
+  status: 'sent' | 'failed' | 'unknown' | 'held'; // held: WA-CONSENT-LINK - waiting for the person's consent
   reason?: SendFailure;
   /** ISO time the service accepted it (sent rows). */
   at?: string;
@@ -356,7 +360,7 @@ export interface BulkOptions {
 
 const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 /** A refusal that would repeat for every later recipient: the run stops and the rest are reported as not sent for it. */
-const HALTS: ReadonlySet<SendFailure> = new Set(['rate', 'no_service', 'disabled', 'template_changed', 'outside_hours']);
+const HALTS: ReadonlySet<SendFailure> = new Set(['rate', 'no_service', 'disabled', 'template_changed', 'outside_hours', 'consent_unavailable']);
 
 /** Runs the sends one after another at the server's pace (the allowance is per sender, and WisKey's provider is not for floods). A failure
  * never stops the rest, except one that would repeat for everyone (`HALTS`); a burst refusal is waited out and the same person tried
@@ -398,7 +402,7 @@ export async function runBulk(
     }
     if (result.ok) {
       out.sent.push(id);
-      out.rows.push({ id, status: 'sent', at: result.sent_at });
+      out.rows.push(result.held ? { id, status: 'held' } : { id, status: 'sent', at: result.sent_at });
     } else {
       out.failed.push({ id, reason: result.reason });
       out.rows.push({ id, status: result.reason === 'uncertain' ? 'unknown' : 'failed', reason: result.reason });

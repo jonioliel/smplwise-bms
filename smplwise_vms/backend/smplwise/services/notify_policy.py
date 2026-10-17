@@ -89,6 +89,10 @@ SOURCES: tuple[Source, ...] = (
     _s("schedule.not_confirmed", "תזמון לא בוצע", "automations", "alert", "תזמון לא בוצע", "{name}: {detail}.", window_s=3600, who="managers", subject="schedule", resolve_text="הריצה הבאה אושרה"),
     _s("automation.failed", "אוטומציה נכשלה", "automations", "alert", "אוטומציה נכשלה", "{name}: {detail}.", window_s=600, who="managers", subject="automation", resolves=False),
     _s("automation.notify", "הודעה מאוטומציה", "automations", "alert", "הודעה מאוטומציה", "{name}.", window_s=600, subject="automation", resolves=False),
+    # WA-CONSENT-LINK (services/intercom_consent.py): a message held for a person's consent was not sent (declined / no answer / ...) - to the
+    # SENDER only, in the app; no person name, no text, no number
+    _s("intercom.message_dropped", "הודעת וואטסאפ שהוחזקה לא נשלחה", "automations", "info", "הודעה לא נשלחה", "{detail}", window_s=60, who="initiator",
+       push=False, subject="session", resolves=False),
     _s("bulk.partial", "תוצאת פעולה קבוצתית / סצנה", "automations", "info", "פעולה קבוצתית", "{name}: {detail}.", window_s=3600, who="initiator", push=False, subject="bulk_job", resolves=False),
     # ---- security
     _s("security.new_signin", "כניסה חדשה / גישה מרחוק", "security", "alert", "כניסה חדשה לחשבון", "כניסה ממכשיר חדש. אם זה לא אתה - נתק את הכניסה.", window_s=3600, who="initiator", subject="session", resolves=False),
