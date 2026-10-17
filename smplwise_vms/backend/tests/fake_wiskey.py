@@ -837,7 +837,7 @@ class FakeLeaseHost:
 
     State: the current stream (`stream_id`, `last_sequence`, `last_params_sha`), the live leases (`leases`: ref -> session),
     `last_heard` (epoch of the last revoke / heartbeat / reset, for the 15 s silence rule). Switches: `start_outcome`
-    (`ok` | `refused` | `timeout` | `no_session`), `confirm_outcome` (`ok` | `sent_unknown` | `timeout`), `present_card()`."""
+    (`ok` | `refused` | `timeout` | `no_session`), `confirm_outcome` (`ok` | `sent_unknown` | `timeout` | `busy`), `present_card()`."""
 
     SILENCE_S = 15
 
@@ -925,7 +925,7 @@ class FakeLeaseHost:
     def present_card(self, lease_ref: str, masked: str = "•••• 4321") -> None:
         s = self.leases[lease_ref]
         s["state"] = "captured"
-        s["card"] = {"masked_number": masked, "technology": "mifare", "reader_id": 1}
+        s["card"] = {"masked_number": masked, "technology": "TypeA_M1", "reader_id": 1}
 
     def handle_request(self, dto: Any) -> dict[str, Any] | None:
         """None = the host never answers (a timeout after a possible delivery)."""
@@ -954,6 +954,8 @@ class FakeLeaseHost:
         ref = p["lease_ref"]
         s = self.leases.get(ref)
         if s is None or s["expires"] <= now:
+            if dto.action == "capture_cancel" and s is None:  # no session held for this lease_ref: closed answer capture_not_found
+                return {"result": "refused", "request_id": rid, "code": "capture_not_found"}
             if dto.action == "capture_cancel":
                 return {"result": "acknowledged", "request_id": rid, "cancelled": True}
             return {"result": "refused", "request_id": rid, "code": "lease_gone"}
@@ -967,6 +969,8 @@ class FakeLeaseHost:
             self.destroyed.append((ref, "cancelled"))
             return {"result": "acknowledged", "request_id": rid, "cancelled": True}
         if dto.action == "capture_confirm":
+            if self.confirm_outcome == "busy":  # the session stays untouched (closed code table: capture_operation_busy)
+                return {"result": "refused", "request_id": rid, "code": "capture_operation_busy"}
             if s["state"] != "captured":
                 return {"result": "refused", "request_id": rid, "code": "capture_not_ready"}
             self.leases.pop(ref)
@@ -980,5 +984,5 @@ class FakeLeaseHost:
 
 
 LEASE_PERSON = {"id": "u1", "display_name": "LEASE-PERSON-SENTINEL", "revision": 5, "active": True, "archived": False, "valid_from": None, "valid_until": None,
-                "assignments": [{"station_id": "entry-a", "enabled": True, "doors": [1], "sync_state": "synced", "last_sync_at": None}],
+                "assignments": {"entry-a": {"config_entry_id": "entry-a", "enabled": True, "allowed_locks": [1], "sync_state": "synced", "last_sync_at": None}},
                 "cards": [{"id": "c1", "masked_number": "•••• 4321", "label": "tag", "card_type": "normalCard", "enabled": True}]}
