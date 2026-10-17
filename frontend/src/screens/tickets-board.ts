@@ -197,6 +197,20 @@ export class TicketsBoard extends LitElement {
         grid-template-areas: 't .' 'r r';
         grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px);
       }
+      /* the manager's "board / handlers" switch takes a whole row of its own: auto-placed, it fell into the float-reserve column (0 px
+         wide) and its buttons spilled out of the track; it folds away with the floor chips while the header is compact */
+      .dh-row > [data-board-pane] {
+        grid-column: 1 / -1;
+        justify-self: start;
+      }
+      .dh-row > .grow {
+        display: none;
+      }
+      .dh.compact .dh-row > [data-board-pane] {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
       .dh-det {
         gap: 10px;
       }

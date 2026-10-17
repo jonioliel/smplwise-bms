@@ -30,7 +30,7 @@ test('only a manager of the person\'s department sees the load (owner decision)'
   expect(seesLoad([], [])).toBe(false);
 });
 
-test('the seven tabs of the settings, in the mock-up\'s order; what a viewer is offered', () => {
+test('the eight tabs of the settings, in the mock-up\'s order; what a viewer is offered', () => {
   expect(SETTINGS_TABS).toEqual(['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'permissions']);
   expect(visibleTabs({ api: false, can: () => false })).toEqual([...SETTINGS_TABS]);
   expect(visibleTabs({ api: true, can: () => false })).toEqual(['general', 'departments', 'permissions']);

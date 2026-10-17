@@ -284,7 +284,7 @@ export class TicketsLocationsSettings extends LitElement {
     return html`<div class="loc" data-location=${l.id} ?data-inactive=${!l.active}>
       <span class="txt"><b>${bidi(l.name)} ${l.is_default ? html`<span class="chip" data-location-default>${lt('defaultChip')}</span>` : nothing}
         ${!l.active ? html`<span class="chip" data-location-inactive>${lt('inactiveChip')}</span>` : nothing}</b>
-        <small>${bidi([addressLine(l), l.details].filter(Boolean).join(' ֲ· '))}</small>
+        <small>${bidi([addressLine(l), l.details].filter(Boolean).join(' · '))}</small>
         ${l.references ? html`<small data-location-refs>${lt('inUse', { n: l.references })}</small>` : nothing}</span>
       ${l.nav_url ? html`<a class="nav" href=${l.nav_url} target="_blank" rel="noopener noreferrer" data-location-nav>${lt('navigate')}</a>` : nothing}
       <span class="acts">
@@ -301,7 +301,7 @@ export class TicketsLocationsSettings extends LitElement {
     if (!this.depts.length || !active.length) return nothing;
     return html`<sw-card heading=${lt('deptTitle')} subheading=${lt('deptSub')} data-card="locations-departments">
       ${this.depts.map((d) => html`<div class="row" data-location-dept=${d.id}><span class="lbl">${bidi(d.name)}</span>
-        <span class="end"><select class="in" aria-label=${`${lt('deptTitle')} ֲ· ${d.name}`} ?disabled=${this.busy} @change=${(e: Event) => void this.setDept(d.id, (e.target as HTMLSelectElement).value)}>
+        <span class="end"><select class="in" aria-label=${`${lt('deptTitle')} · ${d.name}`} ?disabled=${this.busy} @change=${(e: Event) => void this.setDept(d.id, (e.target as HTMLSelectElement).value)}>
           <option value="" ?selected=${!a.department_defaults[d.id]}>${lt('deptNone')}</option>
           ${active.map((l) => html`<option value=${l.id} ?selected=${a.department_defaults[d.id] === l.id}>${bidi(l.name)}</option>`)}
         </select></span></div>`)}

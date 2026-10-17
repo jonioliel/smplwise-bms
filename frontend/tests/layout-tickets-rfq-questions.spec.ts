@@ -55,7 +55,8 @@ test.describe('RFQ questions layout (RFQQUESTIONS)', () => {
     await expect(page.locator(`${S} [data-kpi="questions"]`)).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(1);
     // the navigation (the shell polls the summary once the module is on): the RFQ tab's badge and the area icon's count
-    await expect(page.locator('sw-app [data-tab-badge="rfqs"], sw-app [data-nav-badge="tickets"]').first()).toBeVisible({ timeout: 10_000 });
+    // (the rail and the bottom bar both carry the area count; only the one of the current layout is shown, so the first VISIBLE match counts)
+    await expect(page.locator('sw-app [data-tab-badge="rfqs"], sw-app [data-nav-badge="tickets"]').filter({ visible: true }).first()).toBeVisible({ timeout: 10_000 });
     await open(page, `/tickets/rfqs?rfq=${RFQ7}&view=compare`, `${S} tickets-rfq-compare [data-phase="ready"]`);
     await expect(page.locator(`${S} tickets-rfq-compare [data-cmp-q-badge]`).first()).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(1);
@@ -65,7 +66,8 @@ test.describe('RFQ questions layout (RFQQUESTIONS)', () => {
     await open(page, `/tickets/rfqs?rfq=${RFQ7}`, `${S} tickets-rfq-board [data-phase="ready"]`);
     await page.locator(`${S} tickets-rfq-board [data-rfq-q-answer]`).first().click();
     const dlg = page.locator(`${S} tickets-rfq-board tickets-rfq-question-dialog [data-rfq-question-dialog="form"]`);
-    await expect(dlg).toBeVisible();
+    // (the sw-dialog host itself has no box: its backdrop is fixed - the dialog is visible when its answer field is)
+    await expect(dlg.locator('[data-rfq-answer-text]')).toBeVisible();
     await expect(dlg.locator('[data-rfq-answer-scope="vendor"] input')).toBeChecked();
     await expect(dlg.locator('[data-rfq-answer-shown]')).toHaveCount(0);
     await dlg.locator('[data-rfq-answer-text]').fill('כן, אפשר לתאם.');
@@ -74,7 +76,7 @@ test.describe('RFQ questions layout (RFQQUESTIONS)', () => {
     await expect(dlg.locator('[data-rfq-answer-named]')).not.toBeChecked();
     await page.locator(`${S} tickets-rfq-board tickets-rfq-question-dialog [data-rfq-answer-preview]`).click();
     const confirm = page.locator(`${S} tickets-rfq-board tickets-rfq-question-dialog [data-rfq-question-dialog="confirm"]`);
-    await expect(confirm).toBeVisible();
+    await expect(confirm.locator('[data-rfq-answer-to]').first()).toBeVisible();
     expect(await confirm.locator('[data-rfq-answer-to]').count()).toBeGreaterThan(1);
     expect(await overflow(page)).toBeLessThanOrEqual(1);
     await page.locator(`${S} tickets-rfq-board tickets-rfq-question-dialog [data-rfq-answer-send]`).click();
