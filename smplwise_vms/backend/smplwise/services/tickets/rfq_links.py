@@ -120,6 +120,77 @@ def on_due_changed(conn, rfq: Mapping[str, Any], now: dt.datetime) -> None:
     store_rfq.set_live_link_expiry(conn, rfq["id"], expiry_for(conn, rfq.get("due_at"), now))
 
 
+# CR-AWARD-NOTICE (owner decision 2026-10-17, option A): the AWARDED vendor keeps his link until the end of the work + 14 days (he gives
+# the advance postponement notice and confirms the arrival there), instead of `link_keep_days` after the quote deadline. Only his link,
+# only while the request is awarded / ordered and his row awarded; after the work is done: done + 14 days; never past created + 400 days.
+# No new data: the existing `expires_at` / `cap_at` of his link are recomputed (award, work order, arrival move, the janitor). A close /
+# cancel keeps its read-only grace (which ends access whatever the expiry says); every other vendor's link is never touched.
+AWARD_KEEP_DAYS = 14
+AWARD_CAP_DAYS = 400
+
+
+def _base(conn, rfq: Mapping[str, Any], link: Mapping[str, Any]) -> tuple[dt.datetime, dt.datetime]:
+    """The ordinary lifetime of a link (the mint rule): max(deadline, minted) + `link_keep_days`, capped at minted + 180 days."""
+    created = parse(link["created_at"]) or parse(link["expires_at"])
+    assert created is not None
+    cap = created + dt.timedelta(days=CAP_DAYS)
+    due = parse(rfq.get("due_at")) or created
+    return min(max(due, created) + dt.timedelta(days=keep_days(conn)), cap), cap
+
+
+def award_until(conn, rfq: Mapping[str, Any], award: Mapping[str, Any]) -> dt.datetime | None:
+    """The end of the awarded vendor's work + 14 days: done + 14 days once the work is marked done, else the scheduled window's end (the
+    terms' planned arrival, the work order's window, the awarded quote's / the request's window) + 14 days; None = nothing scheduled."""
+    from . import rfq_postpone, store_costs, store_quotes
+
+    q = store_quotes.quote(conn, award["quote_id"]) or {}
+    done = parse((store_costs.ticket_row(conn, q["ticket_id"]) or {}).get("done_at")) if q.get("ticket_id") else None
+    if done is not None:
+        return done + dt.timedelta(days=AWARD_KEEP_DAYS)
+    wf, wt = rfq_postpone.scheduled(conn, rfq, award)
+    end = parse(wt) or parse(wf)
+    return end + dt.timedelta(days=AWARD_KEEP_DAYS) if end is not None else None
+
+
+def sync_awarded(conn, rfq_id: str) -> int:
+    """Recompute the awarded vendors' link lifetimes of one request (see AWARD_KEEP_DAYS). Returns the links changed."""
+    from . import rfq as rfq_mod  # the module itself reads the request (rfq.system_row - never an answer to a person)
+
+    rfq = rfq_mod.system_row(conn, rfq_id)
+    if rfq is None:
+        return 0
+    n = 0
+    for a in store_rfq.awards_of(conn, rfq_id):
+        if a["state"] != "approved":
+            continue
+        link = store_rfq.link_of_vendor(conn, a["rfq_vendor_id"])
+        v = store_rfq.vendor(conn, a["rfq_vendor_id"]) or {}
+        if link is None or link.get("revoked_at"):
+            continue
+        base_exp, base_cap = _base(conn, rfq, link)
+        stored_exp = parse(link["expires_at"]) or base_exp
+        until = award_until(conn, rfq, a) if rfq["state"] in ("awarded", "ordered") and v.get("state") == "awarded" else None
+        if until is not None:
+            hard = (parse(link["created_at"]) or base_exp) + dt.timedelta(days=AWARD_CAP_DAYS)
+            exp = min(max(base_exp, until), hard)
+            cap = min(max(base_cap, exp), hard)
+        elif rfq["state"] in ("closed", "cancelled"):
+            continue  # an ended request: its read-only grace ends the access whatever the expiry says (grace_until, fold / state)
+        elif stored_exp > base_exp:  # it was extended and no longer is (he is no longer awarded): back to the rule
+            exp, cap = base_exp, base_cap
+        else:
+            continue
+        if iso(exp) != link["expires_at"] or iso(cap) != link["cap_at"]:
+            store_rfq.update_link(conn, link["id"], {"expires_at": iso(exp), "cap_at": iso(cap)})
+            n += 1
+    return n
+
+
+def sync_all_awarded(conn) -> int:
+    """The janitor (rfq.retention): every awarded / ordered request - a work order's window, a moved arrival, a job marked done."""
+    return sum(sync_awarded(conn, rid) for rid in store_rfq.awarded_rfq_ids(conn))
+
+
 def on_end(conn, rfq_id: str, reason: str, at: dt.datetime) -> None:
     """Close / cancel: the live links turn read-only for `rfq.grace_hours` (0 = revoked at once)."""
     hours = grace_hours(conn)

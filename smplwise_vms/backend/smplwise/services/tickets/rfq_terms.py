@@ -1032,6 +1032,9 @@ def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: A
     fresh = store_rfq.terms(conn, a["id"]) or t
     if state == "confirmed":
         _on_confirmed(conn, seen.row, fresh, now)
+    from . import rfq_links  # CR-AWARD-NOTICE: the awarded vendor's link follows the moved work window
+
+    rfq_links.sync_awarded(conn, seen.row["id"])
     return fresh
 
 

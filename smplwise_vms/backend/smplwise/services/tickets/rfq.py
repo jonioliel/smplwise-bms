@@ -1052,6 +1052,7 @@ def _finalize(conn, viewer: Viewer, row: Mapping[str, Any], award: Mapping[str, 
                            rfq_vendor_id=award["rfq_vendor_id"], data={"award_id": award["id"], "quote_id": q.get("id"), "version": q.get("version"),
                                                                       "state": fresh["state"], "second": second, "not_awarded": not_awarded}, at=at)
     rfq_notify.ended(conn, row["id"])  # TKRFQ5: no more answers can arrive - the request's notifications are over
+    rfq_links.sync_awarded(conn, row["id"])  # CR-AWARD-NOTICE: the awarded vendor's link follows the work (+ 14 days)
     return fresh
 
 
@@ -1407,7 +1408,8 @@ def retention(conn, now: dt.datetime) -> dict[str, int]:
     from .rfq_questions import remind  # RFQQUESTIONS: the "still unanswered" reminder
 
     out = {"due_passed": tick(conn, now), "links": 0, "purged": 0, "arrival_reminders": rfq_terms.tick(conn, now),
-           "question_reminders": remind(conn, now), "instalments_overdue": rfq_terms.overdue_tick(conn, now)}  # + RFQPAY2
+           "question_reminders": remind(conn, now), "instalments_overdue": rfq_terms.overdue_tick(conn, now),  # + RFQPAY2
+           "award_links": rfq_links.sync_all_awarded(conn)}  # CR-AWARD-NOTICE: awarded vendors' links follow the work
     for row in store_rfq.ended_before(conn, iso(now - dt.timedelta(days=int(doc["link_keep_days"])))):
         out["links"] += store_rfq.drop_links_of_rfq(conn, row["id"])
     months = int(doc["retention_months"])

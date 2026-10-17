@@ -732,6 +732,11 @@ def outbox_count_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> int:
 
 # ---------------------------------------------------------------- retention and full deletion
 
+def awarded_rfq_ids(conn: sqlite3.Connection) -> list[str]:
+    """CR-AWARD-NOTICE: the requests whose awarded vendors' links follow the work (rfq_links.sync_all_awarded)."""
+    return [r[0] for r in conn.execute("SELECT id FROM ticket_rfqs WHERE state IN ('awarded', 'ordered')").fetchall()]
+
+
 def ended_before(conn: sqlite3.Connection, before: str) -> list[dict[str, Any]]:
     """Closed / cancelled requests that ended before `before`."""
     return [dict(r) for r in conn.execute(

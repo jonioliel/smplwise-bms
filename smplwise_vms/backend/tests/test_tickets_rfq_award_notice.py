@@ -486,3 +486,91 @@ def test_after_the_scheduled_start_is_late_even_with_zero(s4):
     late, body, ev_late, block_late = _late_flow(s4, 0, past_start=True)
     assert (late, ev_late, block_late) == (True, True, True) and "באיחור" in body
 
+
+# ================================================================ the awarded vendor's link follows the work (owner decision 2026-10-17, option A)
+
+DAY_S = 86400.0
+
+
+def _link(s4, rv: str) -> dict:
+    with s4.db.connection(mode="read") as conn:
+        return dict(store_rfq.link_of_vendor(conn, rv))
+
+
+def _long_job(s4, work_to_days: float = 60):
+    """Two vendors quote; the first one's work ends `work_to_days` from now (the request's deadline is +3 d: the ordinary link ends +33 d)."""
+    d = sent_rfq(s4)
+    v1, v2 = vid(d, s4.vendor["id"]), vid(d, s4.contact["id"])
+    t1, t2 = token(s4, v1), token(s4, v2)
+    c = pub(s4)
+    assert pquote(c, t1, work_from=_at(work_to_days - 2), work_to=_at(work_to_days)).status_code == 201
+    assert pquote(c, t2).status_code == 201
+    return d, v1, v2, t1, t2
+
+
+def _view_at(s4, tok: str, days: float) -> int:
+    import time
+
+    from tickets_s4_world import Clock
+
+    c = pub(s4, Clock(time.time() + days * DAY_S))
+    return c.get("/t/api/rfq", headers=hdr(tok)).status_code
+
+
+def test_a_vendor_that_was_not_awarded_keeps_the_ordinary_expiry(s4):
+    d, v1, v2, t1, t2 = _long_job(s4)
+    before = _link(s4, v2)
+    assert award(s4, d["id"], v1).status_code == 201
+    after = _link(s4, v2)
+    assert (after["expires_at"], after["cap_at"]) == (before["expires_at"], before["cap_at"])
+    assert _view_at(s4, t2, 40) == 404  # past deadline + 30 days: the uniform 404 as before
+
+
+def test_the_awarded_vendor_keeps_his_link_until_the_work_ends_plus_14_days(s4):
+    d, v1, v2, t1, t2 = _long_job(s4, 60)
+    base = _link(s4, v1)["expires_at"]
+    assert award(s4, d["id"], v1).status_code == 201
+    ext = _link(s4, v1)
+    assert ext["expires_at"] > base
+    end = dt.datetime.fromisoformat(_at(60).replace("Z", "+00:00"))
+    got = dt.datetime.fromisoformat(ext["expires_at"].replace("Z", "+00:00"))
+    assert abs((got - (end + dt.timedelta(days=14))).total_seconds()) < 120
+    assert _view_at(s4, t1, 40) == 200  # past deadline + 30 days, still before the work's end + 14
+    assert _view_at(s4, t1, 80) == 404  # after the work's end + 14 days
+
+
+def test_a_closed_request_does_not_extend(s4):
+    d, v1, v2, t1, t2 = _long_job(s4, 60)
+    assert award(s4, d["id"], v1).status_code == 201
+    rev = detail(s4, d["id"], "mona")["revision"]
+    assert s4.c.post(f"{API}/tickets/rfqs/{d['id']}/close", json={"revision": rev}, headers=s4.h("mona")).status_code == 200
+    assert _view_at(s4, t1, 2) == 404  # the read-only grace (24 h) ended: the extension never outlives a close
+    with s4.db.connection() as conn:
+        from smplwise.services.tickets import rfq_links
+
+        rfq_links.sync_awarded(conn, d["id"])  # the janitor leaves an ended request to its grace
+    assert _view_at(s4, t1, 2) == 404
+
+
+def test_the_hard_cap_and_a_done_job_shorten_it(s4, monkeypatch):
+    from smplwise.services.tickets import rfq_links
+
+    d, v1, v2, t1, t2 = _long_job(s4, 300)
+    monkeypatch.setattr(rfq_links, "AWARD_CAP_DAYS", 50)
+    assert award(s4, d["id"], v1).status_code == 201
+    ln = _link(s4, v1)
+    created = dt.datetime.fromisoformat(ln["created_at"].replace("Z", "+00:00"))
+    assert ln["expires_at"] == ln["cap_at"] == (created + dt.timedelta(days=50)).strftime("%Y-%m-%dT%H:%M:%SZ")  # never past the cap
+    monkeypatch.setattr(rfq_links, "AWARD_CAP_DAYS", 400)
+    with s4.db.connection() as conn:
+        assert rfq_links.sync_all_awarded(conn) == 1
+    assert _link(s4, v1)["expires_at"] > ln["expires_at"]
+    t, _tt = s4.sent()  # the order's service request, marked done yesterday: done + 14 days, back to the ordinary rule when shorter
+    a = detail(s4, d["id"], "kim")["awards"][0]
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_quotes SET ticket_id = ? WHERE id = ?", (t["id"], a["quote_id"]))
+        conn.execute("UPDATE tickets SET done_at = ? WHERE id = ?", (_at(-1), t["id"]))
+        rfq_links.sync_all_awarded(conn)
+    base = _link(s4, v2)["expires_at"]  # same deadline, same mint time (within the test): the ordinary expiry
+    assert abs((dt.datetime.fromisoformat(_link(s4, v1)["expires_at"].replace("Z", "+00:00"))
+                - dt.datetime.fromisoformat(base.replace("Z", "+00:00"))).total_seconds()) < 120
