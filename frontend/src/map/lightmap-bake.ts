@@ -20,7 +20,9 @@
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { levelExtent } from './scene-frame';
 
-export const LIGHTMAP_RECIPE = 'lightmap-1';
+/** lightmap-2 (STILLCAM): baked from still-bake.bakeSceneInput (no camera-bound body shades it); the backend withholds a
+ * lightmap-1 from a reader whose camera scope hides a camera a body of the floor is bound to. */
+export const LIGHTMAP_RECIPE = 'lightmap-2';
 export const SAMPLES = 64;
 export const AO_REACH_M = 2.5;
 export const DEFAULT_TEXEL_M = 0.1;

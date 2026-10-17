@@ -18,8 +18,10 @@
  * Determinism: the same description, level, preset and size give the same camera, the same masks (rounded to 0.1 px) and the
  * same palette on every machine. The pixels depend on the GPU that draws them (the notes, section 1).
  */
-import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
+import type { GeometryDoc } from './geometry';
+import type { SceneDescription, SceneInput, ScenePart, Vec3 } from './scene-builder';
 import { ISO_DIR, ISO_RIGHT, ISO_UP, isoFrame, sceneExtent, type IsoFrame } from './scene-frame';
+import { controlSceneInput } from './skin-control';
 import { TOKEN_GROUPS } from '../design/tokens';
 
 export type StillPreset = 'iso' | 'top' | 'persp';
@@ -31,8 +33,10 @@ export const PRESETS: readonly StillPreset[] = ['iso', 'top', 'persp'];
 export const STYLES: readonly StillStyle[] = ['light', 'dark'];
 export const BANDS: readonly StillBand[] = ['day', 'sunset', 'night'];
 export const VARIANTS: readonly StillVariant[] = ['off', 'on'];
-/** The recipe of the level-2 still renderer (still-render-scene.ts). The level-3 renderer will be `still-q3.*`. */
-export const STILL_RECIPE_Q2 = 'still-q2.1';
+/** The recipe of the level-2 still renderer (still-render-scene.ts). The level-3 renderer will be `still-q3.*`. q2.2 (STILLCAM):
+ * the bake input leaves camera-bound bodies out (`bakeSceneInput`); the backend withholds q2.1 stills from a reader whose
+ * camera scope hides a camera a body of the floor is bound to (services/plan_bakes.SAFE_STILL_RANK). */
+export const STILL_RECIPE_Q2 = 'still-q2.2';
 export const MASK_RECIPE = 'mask-1';
 /** Where the lifted mask outline sits: this share of the level's ceiling height (prototype stills.js). */
 export const MASK_TOP_SHARE = 0.55;
@@ -162,6 +166,28 @@ export function stillBackdrop(style: StillStyle, band: StillBand): string {
 }
 
 // ---- the still's description -----------------------------------------------------------------------------------------
+
+/**
+ * STILLCAM (a leftover of the Studio 6 security review): the document without the objects bound to a CAMERA anchor. A bake is
+ * drawn once, in one editor's browser, and every reader of the floor is served the same pixels - also a reader whose camera
+ * scope hides that camera. The store copies the anchor's position and heading onto its body (plan_geometry.apply_anchor_positions),
+ * so a body drawn in a still or shading the lightmap shows the hidden camera's place, which the normal plan read withholds from
+ * that reader (plan_anchor_scope.redact). Whoever bakes, such a body is left out: the same pixels are safe for every reader.
+ * Entity-bound and free objects stay (a reader who reaches the floor only through camera bindings - the one reader an entity
+ * reference is withheld from - is handed no bakes at all: routers/anchors.py, the bakes routes need map.read on the floor).
+ * A body the baker's own read already withheld arrives unbound at the plan centre (redact's rule) and is drawn there - it tells
+ * nothing. Returns `doc` itself when nothing is bound to a camera.
+ */
+export function withoutCameraBodies(doc: GeometryDoc): GeometryDoc {
+  if (!doc.objects.some((o) => o.anchor_ref?.resource_type === 'camera')) return doc;
+  return { ...doc, objects: doc.objects.filter((o) => o.anchor_ref?.resource_type !== 'camera') };
+}
+
+/** The builder input every still, mask and lightmap of a bake is drawn from: the synthetic all-off / all-on control input
+ * (skin-control.controlSceneInput) of the document without its camera-bound bodies (`withoutCameraBodies`). */
+export function bakeSceneInput(input: SceneInput, variant: StillVariant): SceneInput {
+  return controlSceneInput({ ...input, doc: withoutCameraBodies(input.doc) }, variant === 'on' ? 'all_on' : 'all_off');
+}
 
 const STILL_KINDS = new Set<ScenePart['kind']>(['floor', 'room', 'wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector']);
 

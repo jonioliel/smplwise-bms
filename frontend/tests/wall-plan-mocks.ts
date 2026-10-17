@@ -58,9 +58,9 @@ const MASK = {
   doors: [], cameras: [],
 };
 const bakesWire = () => {
-  const still = (id: string) => ({ url: `api/v1/floors/f1/bakes/${id}/file?v=${id}`, width: STILL_W, height: STILL_H, recipe: 'still-q2.1' }); // the wire form of services/plan_bakes.py
+  const still = (id: string) => ({ url: `api/v1/floors/f1/bakes/${id}/file?v=${id}`, width: STILL_W, height: STILL_H, recipe: 'still-q2.2' }); // the wire form of services/plan_bakes.py
   return {
-    bake_key: 'k1', complete: true, stale_count: 0, recipes: ['still-q2.1'],
+    bake_key: 'k1', complete: true, stale_count: 0, recipes: ['still-q2.2'],
     levels: { L0: { stills: { 'iso/light/day/off': still('ld0'), 'iso/light/day/on': still('ld1'), 'iso/dark/day/off': still('dd0'), 'iso/dark/day/on': still('dd1') }, masks: { iso: { url: 'api/v1/floors/f1/bakes/mask/file?v=mask' } }, lightmap: null } },
   };
 };

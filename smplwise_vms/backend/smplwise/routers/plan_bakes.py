@@ -80,6 +80,8 @@ def bake_file(floor_id: str, bake_id: str, request: Request, principal: Principa
         path = None
     if r is None or path is None or not path.exists():
         raise not_found("הקובץ המוכן לא נמצא.")
+    if pb.row_withheld(conn, r, anchor_scope.visibility(conn, principal, floor_id)):  # STILLCAM: an older picture with camera-bound bodies
+        raise not_found("הקובץ המוכן לא נמצא.")
     mime, sha, content = r["mime"], r["sha256"], None
     if r["kind"] == "mask":
         mv = pb.mask_view(settings, conn, r, anchor_scope.visibility(conn, principal, floor_id), body=True)

@@ -9,8 +9,7 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import type { MapBundle } from '../api/maps';
 import type { GeometryDoc } from '../map/geometry';
 import { buildScene, type Catalog3DLookup, type SceneDescription, type SceneInput } from '../map/scene-builder';
-import { controlSceneInput } from '../map/skin-control';
-import { bandAt, needsBake, type StillStyle, type StillVariant } from '../map/still-bake';
+import { bakeSceneInput, bandAt, needsBake, type StillStyle, type StillVariant } from '../map/still-bake';
 import type { RoomStateLayer } from '../map/room-state';
 import type { PlanViewDials } from '../api/plan-view';
 import { claimBake, finishBake, floorBakes, requestBake, uploadBake } from '../api/bakes';
@@ -81,7 +80,7 @@ export async function runFloorBake(ctx: BakeContext): Promise<string> {
     const describe = (v: StillVariant): SceneDescription => {
       let d = memo.get(v);
       if (!d) {
-        d = buildScene(controlSceneInput(base, v === 'on' ? 'all_on' : 'all_off'));
+        d = buildScene(bakeSceneInput(base, v)); // STILLCAM: never a camera-bound body in pixels every reader is served
         memo.set(v, d);
       }
       return d;

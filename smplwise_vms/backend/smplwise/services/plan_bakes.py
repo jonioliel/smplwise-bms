@@ -19,7 +19,8 @@ requests. Nothing here talks to a network or a device.
 - **Readers** (security review 2.4.7 M1 / L1) - a reader from whom a camera can be withheld gets each mask without the camera
   entries their camera scope denies (`mask_view`, derived on every read, so masks stored before the fix are covered too),
   and the bake / geometry keys and doc_hash built over the structure as redacted for them (`served_bake_key`); the stored
-  key stays the server's own (rows, jobs, stale checks).
+  key stays the server's own (rows, jobs, stale checks). STILLCAM: a still / lightmap of a recipe older than the one that bakes
+  without camera-bound bodies is withheld from a reader denied a camera a body is bound to (`pixels_withheld`).
 - **Jobs** - a regenerate request is a job row an editor session claims (10-minute lease) and finishes; one open job per floor.
 """
 from __future__ import annotations
@@ -759,6 +760,86 @@ def mask_view(settings: Settings | None, conn: sqlite3.Connection, row: sqlite3.
     return MaskView(sha, len(data), True, data if body else None)
 
 
+# ---------- STILLCAM: the pixels of a still / lightmap drawn with camera-bound bodies ----------
+#
+# A still or a lightmap is drawn once, in one editor's browser, and the same pixels go to every reader of the floor. An object
+# bound to a camera anchor stands at that camera's position (plan_geometry.apply_anchor_positions copies the pose onto the body),
+# so a picture that draws it shows the camera's place - which the geometry read withholds from a reader whose camera scope hides
+# that camera (plan_anchor_scope.redact, security review 2.4.2 M2). From `still-q2.2` / `lightmap-2` on, the client bakes from a
+# document without camera-bound bodies (map/still-bake.ts bakeSceneInput). A row of an OLDER recipe is withheld - from the bundle,
+# the listing and the file route - from a reader for whom the published structure binds an object to a camera they may not see,
+# and, fail closed, a stale one (drawn from a structure no longer read here) from every reader whose camera scope can withhold
+# something. A reader who reaches the floor only through camera bindings (the only one an entity reference is withheld from) is
+# handed no bakes at all (routers/anchors.py; the bakes routes need map.read on the floor). The stored files are unchanged.
+
+PIXEL_KINDS = ("still", "lightmap")
+SAFE_STILL_RANK = (2, 2)
+SAFE_LIGHTMAP_RANK = 2
+_STILL_RECIPE = re.compile(r"^still-q(\d{1,4})\.(\d{1,4})$")
+_LIGHTMAP_RECIPE = re.compile(r"^lightmap-(\d{1,4})$")
+_BODY_CAMS: "OrderedDict[str, tuple[str, ...]]" = OrderedDict()  # stored doc_hash -> camera ids objects are bound to
+
+
+def recipe_omits_camera_bodies(kind: str, recipe: Any) -> bool:
+    """Whether a still / lightmap of `recipe` was drawn without camera-bound bodies (an unknown recipe: no)."""
+    if not isinstance(recipe, str):
+        return False
+    if kind == "still":
+        m = _STILL_RECIPE.match(recipe)
+        return bool(m) and (int(m[1]), int(m[2])) >= SAFE_STILL_RANK
+    if kind == "lightmap":
+        m = _LIGHTMAP_RECIPE.match(recipe)
+        return bool(m) and int(m[1]) >= SAFE_LIGHTMAP_RANK
+    return True
+
+
+def _body_cameras(conn: sqlite3.Connection, floor_id: str) -> tuple[str, ...]:
+    """The camera ids the floor's published structure binds an object to (cached per stored doc_hash)."""
+    from . import geometry_store
+    from .skins import store as skins_store
+
+    g = skins_store.published_geometry(conn, floor_id)
+    if g is None:
+        return ()
+    hit = _mcache_get(_BODY_CAMS, g["doc_hash"])
+    if hit is not None:
+        return hit
+    try:
+        doc = geometry_store.load_doc(g)
+    except (TypeError, ValueError):
+        doc = {}
+    cams = tuple(sorted({str(ref.get("resource_id")) for o in (doc.get("objects") or []) if isinstance(o, dict)
+                         for ref in (o.get("anchor_ref"),) if isinstance(ref, dict) and ref.get("resource_type") == "camera"}))
+    _mcache_put(_BODY_CAMS, g["doc_hash"], cams)
+    return cams
+
+
+class PixelGate(NamedTuple):
+    scoped: bool        # the reader's camera scope can withhold something (stale older rows are withheld)
+    bodies_hidden: bool  # the published structure binds an object to a camera this reader may not see
+
+
+def pixel_gate(conn: sqlite3.Connection, floor_id: str, visible: Any) -> PixelGate:
+    if visible is None:
+        return PixelGate(False, False)
+    return PixelGate(True, any(not visible("camera", cid) for cid in _body_cameras(conn, floor_id)))
+
+
+def pixels_withheld(gate: PixelGate, kind: str, recipe: Any, stale: bool) -> bool:
+    """STILLCAM: whether this reader is not handed a still / lightmap row (see the section note)."""
+    if not gate.scoped or kind not in PIXEL_KINDS or recipe_omits_camera_bodies(kind, recipe):
+        return False
+    return gate.bodies_hidden or stale
+
+
+def row_withheld(conn: sqlite3.Connection, r: sqlite3.Row, visible: Any) -> bool:
+    """The file route's check for one row (the listing and the bundle use pixel_gate once per floor)."""
+    if visible is None or r["kind"] not in PIXEL_KINDS or recipe_omits_camera_bodies(r["kind"], r["recipe"]):
+        return False
+    key = bake_key(conn, r["floor_id"])
+    return pixels_withheld(pixel_gate(conn, r["floor_id"], visible), r["kind"], r["recipe"], key is None or r["bake_key"] != key[0])
+
+
 def shown_row(a: dict[str, Any], r: sqlite3.Row, settings: Settings | None, conn: sqlite3.Connection, sk: ServedKey | None, visible: Any) -> dict[str, Any]:
     """A row_api() answer as this reader is handed it: the bake key through shown_key (L1) and, for a mask, the sha256, size and
     `?v=` of the copy they get (M1). Unchanged for a reader from whom nothing can be withheld."""
@@ -846,8 +927,11 @@ def describe(conn: sqlite3.Connection, floor_id: str, *, settings: Settings | No
     current = sk.real if sk else None
     setting = read_setting(conn)
     levels = floor_levels(conn, floor_id)
-    raw = rows_of(conn, floor_id)
-    rows = [row_api(r, current) for r in raw]
+    gate = pixel_gate(conn, floor_id, visible)
+    pairs = [(row_api(r, current), r) for r in rows_of(conn, floor_id)]
+    pairs = [(a, r) for a, r in pairs if not pixels_withheld(gate, a["kind"], a["recipe"], a["stale"])]  # STILLCAM
+    rows = [a for a, _r in pairs]
+    raw = [r for _a, r in pairs]
     have = {r["slot"] for r in rows if not r["stale"]}
     expected = expected_slots(levels, setting)
     missing = [slot_id(s) for s in expected if slot_id(s) not in have]
@@ -873,8 +957,11 @@ def bundle_part(conn: sqlite3.Connection, floor_id: str, *, settings: Settings |
     levels: dict[str, Any] = {}
     stale = 0
     recipes: set[str] = set()
+    gate = pixel_gate(conn, floor_id, visible)
     for r in rows_of(conn, floor_id):
         a = row_api(r, current)
+        if pixels_withheld(gate, a["kind"], a["recipe"], a["stale"]):  # STILLCAM: as if the slot were empty
+            continue
         if a["stale"]:
             stale += 1
             continue

@@ -254,7 +254,8 @@ def test_f2_a_stale_rows_stored_key_is_not_handed_to_a_scoped_reader(settings):
     current structure)."""
     c, ids, vid, fid, lobby, vault, anchors = _floor_with_hidden_camera(settings)
     key = c.get(f"/api/v1/floors/{fid}/bakes").json()["bake_key"]
-    assert _upload(c, fid, key, _webp(), kind="still", recipe="still-q2.1", style="light", band="day", variant="off").status_code == 201
+    # still-q2.2: a stale still of an older recipe is withheld from ron altogether (STILLCAM, test_stillcam.py)
+    assert _upload(c, fid, key, _webp(), kind="still", recipe="still-q2.2", style="light", band="day", variant="off").status_code == 201
     assert c.post(f"/api/v1/floors/{fid}/zones", json={"name": "חדר", "polygon": [{"x": 0.1, "y": 0.1}, {"x": 0.4, "y": 0.1}, {"x": 0.4, "y": 0.4}]}).status_code == 201
     admin = c.get(f"/api/v1/floors/{fid}/bakes").json()
     assert admin["bakes"][0]["stale"] is True and admin["bakes"][0]["bake_key"] == key
