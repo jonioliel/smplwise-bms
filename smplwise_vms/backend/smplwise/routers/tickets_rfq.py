@@ -24,6 +24,8 @@
     POST   /tickets/rfqs/{id}/awards                                 tickets.costs + view (+ message_draft; nothing is sent)
     POST   /tickets/rfqs/{id}/awards/{award_id}/confirm | decline      the second approver
     POST   /tickets/rfqs/{id}/awards/{award_id}/arrival                CR-RFQ-PAYMENT-SCHEDULE: accept / reject the vendor's proposed date
+    POST   /tickets/rfqs/{id}/awards/{award_id}/instalments/{i}/date   RFQPAY2: move a dated instalment's day (tickets.costs + view)
+    POST   /tickets/rfqs/{id}/awards/{award_id}/instalments/{i}/demand RFQPAY2: the instalment's payment demand - create / paid / cancel
     POST   /tickets/rfqs/{id}/awards/{award_id}/order                  TKRFQ4: open the vendor's service request (idempotent; sends nothing)
     GET    /tickets/rfqs/{id}/awards/{award_id}/order/preview          TKRFQ4: the exact order message, its channel, the refusals
     POST   /tickets/rfqs/{id}/awards/{award_id}/order/send             TKRFQ4: the explicit send of the order message
@@ -508,7 +510,8 @@ def _award_answer(conn: sqlite3.Connection, viewer: Viewer, rfq_id: str, res: di
     seen = rfq.require_visible(viewer, rfq_id)
     a = res["award"]
     item = {**rfq.present_award(conn, a, rfq.sees_amounts(viewer, seen)),
-            "terms": rfq_terms.present(conn, a, amounts=rfq.sees_amounts(viewer, seen), manager=rfq.is_manager(viewer, seen))}
+            "terms": rfq_terms.present(conn, a, amounts=rfq.sees_amounts(viewer, seen), manager=rfq.is_manager(viewer, seen),
+                                       costs=rfq.can_decide(viewer, seen), rfq_state=seen.row["state"])}
     return {"rfq": rfq.detail(conn, viewer, seen), "award": item,
             "message_draft": rfq.award_draft(conn, seen.row, a) if a["state"] == "approved" else None}
 
@@ -562,6 +565,42 @@ def post_arrival_decision(body: ArrivalDecisionBody, request: Request, rfq_id: s
     seen = rfq.require_visible(viewer, rfq_id)
     rfq_terms.decide(conn, viewer, seen, award_id, body.action, body.revision, _rid(request))
     return _detail(conn, viewer, rfq_id)
+
+
+class InstalmentDateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    date: str = Field(min_length=1, max_length=10)
+    reason: str | None = Field(default=None, max_length=rfq_terms.REASON_MAX)
+    revision: int = Field(ge=1)
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/instalments/{index}/date")
+def post_instalment_date(body: InstalmentDateBody, request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                         index: int = Path(..., ge=0, le=5), principal: Principal = Depends(current_principal),
+                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """RFQPAY2 (contract 20.13): tickets.costs + view moves a dated instalment's planned day after the award (audited, reason optional).
+    Sends nothing; the vendor's page shows the new day with a "changed" marker."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    rfq_terms.reschedule(conn, viewer, seen, award_id, index, body.date, body.reason, body.revision, _rid(request))
+    return _detail(conn, viewer, rfq_id)
+
+
+class InstalmentDemandBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["create", "paid", "cancel"]
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/instalments/{index}/demand")
+def post_instalment_demand(body: InstalmentDemandBody, request: Request, rfq_id: str = Path(..., pattern=ID),
+                           award_id: str = Path(..., pattern=ID), index: int = Path(..., ge=0, le=5),
+                           principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """RFQPAY2 (contract 20.11): tickets.costs + view - the instalment's payment demand: create (idempotent), mark paid, cancel. Never
+    automatic, never a payment, nothing is sent."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    res = rfq_terms.instalment_demand(conn, viewer, seen, award_id, index, body.action, _rid(request))
+    return {"rfq": _detail(conn, viewer, rfq_id), **res}
 
 
 # ---------------------------------------------------------------- the work order (TKRFQ4, stage C4 - contract section 18)

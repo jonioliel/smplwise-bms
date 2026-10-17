@@ -34,7 +34,7 @@ import re
 from typing import Any, Mapping
 
 from . import money, rfq_notify, settings_doc, store, store_quotes, store_rfq
-from .costs import CostRefused, iso, parse
+from .costs import CostRefused, iso, now_utc, parse
 
 KINDS = ("advance", "progress", "final")
 DUE_RULES = ("date", "completion", "after_completion")
@@ -48,6 +48,11 @@ _PERCENT = re.compile(r"^(\d{1,3})(?:\.(\d{1,2}))?$")
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 OPEN_RFQ = ("awarded", "ordered")
 PAYMENT_SOURCES = ("vendor", "default")  # the award's explicit choice when it carries no edited plan (review F1)
+# RFQPAY2: the request states in which the approved instalments are still managed (a demand, a moved date, the overdue signal) - a
+# closed request still owes its vendor; a cancelled one does not
+PAYMENT_RFQ = ("awarded", "ordered", "closed")
+DEMAND_ACTIONS = ("create", "paid", "cancel")
+REASON_MAX = 500
 
 
 # ---------------------------------------------------------------- settings
@@ -348,9 +353,24 @@ def _final_award(conn, t: Mapping[str, Any]) -> dict[str, Any] | None:
     return a if a is not None and a["state"] == "approved" else None
 
 
+MOVE_KEYS = ("agreed_date", "date_changed_at")  # RFQPAY2: a manager moved an instalment's date after the award (20.13)
+
+
 def schedule_hash(t: Mapping[str, Any]) -> str:
-    """Review F10: the content hash of the approved schedule (sha256 of the stored canonical JSON) - an acknowledgement is bound to it."""
-    return hashlib.sha256(str(t["schedule_json"]).encode("utf-8")).hexdigest()
+    """Review F10: the content hash of the approved schedule (sha256 of the stored canonical JSON) - an acknowledgement is bound to it.
+    RFQPAY2 (contract 20.13): a date a manager MOVED after the award is hashed as the date that was agreed (`agreed_date`), so the vendor's
+    acknowledgement of the agreed terms stays valid and the hash of an unmoved schedule is byte-for-byte what it was before."""
+    raw = str(t["schedule_json"])
+    sched = loads(raw)
+    if sched and any(k in it for it in sched["items"] for k in MOVE_KEYS):
+        items = []
+        for it in sched["items"]:
+            base = {k: v for k, v in it.items() if k not in MOVE_KEYS}
+            if it.get("agreed_date"):
+                base["date"] = it["agreed_date"]
+            items.append(base)
+        raw = store_rfq.dumps({**sched, "items": items})
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def acknowledged_at(t: Mapping[str, Any]) -> str | None:
@@ -369,23 +389,48 @@ def _arrival(t: Mapping[str, Any]) -> dict[str, Any]:
             "requested_at": t.get("requested_at"), "reminders": int(t.get("reminders") or 0), "escalated_at": t.get("escalated_at")}
 
 
-def present(conn, award: Mapping[str, Any], *, amounts: bool, manager: bool) -> dict[str, Any] | None:
-    """The award's `terms` block for the managers' detail. Amounts only for tickets.costs.view (else the dates and kinds only)."""
+def present(conn, award: Mapping[str, Any], *, amounts: bool, manager: bool, costs: bool = False,
+            rfq_state: str | None = None) -> dict[str, Any] | None:
+    """The award's `terms` block for the managers' detail. Amounts only for tickets.costs.view (else the dates and kinds only).
+    RFQPAY2: each instalment also carries its moved-date marker (`agreed_date`, `date_changed_at`), its resolved `due_date`, whether it is
+    `overdue`, and its payment `demand` (status; the amount only with tickets.costs.view); `can.reschedule` / `can.demand` for a viewer
+    who may decide costs (tickets.costs + view) while the request is awarded / ordered / closed and the award final."""
     t = store_rfq.terms(conn, award["id"])
     if t is None:
         return None
     sched = schedule_of(t)
-    items = [{**it, "amount_minor": it["amount_minor"] if amounts else None, "percent_bp": it.get("percent_bp") if amounts else None}
-             for it in sched["items"]]
     q = store_quotes.quote(conn, award["quote_id"]) or {}
+    demands = store_rfq.demands_of_quote(conn, q.get("id"))
+    completed = _completed(conn, q)
+    today_ = today(conn, now_utc())
+    overdue = set(_overdue(sched, demands, completed, today_))
+    items = []
+    for it in sched["items"]:
+        day = _due_day(conn, it, completed)
+        d = demands.get(int(it["index"]))
+        items.append({**{k: v for k, v in it.items() if k not in MOVE_KEYS},
+                      "amount_minor": it["amount_minor"] if amounts else None, "percent_bp": it.get("percent_bp") if amounts else None,
+                      "agreed_date": it.get("agreed_date"), "date_changed_at": it.get("date_changed_at"),
+                      "due_date": day.isoformat() if day else None, "overdue": int(it["index"]) in overdue,
+                      "demand": _present_demand(d, amounts)})
+    payable = costs and award["state"] == "approved" and (rfq_state or "") in PAYMENT_RFQ
     out = {"schedule": {"currency": sched.get("currency"), "total_minor": sched.get("total_minor") if amounts else None,
                         "rounding": sched.get("rounding", ROUNDING), "items": items, "source": t["schedule_source"]},
            "proposal": present_plan(loads(q.get("payment_plan_json"))) if amounts else None,
            "arrival": _arrival(t), "revision": t["revision"],
            "draft": (rejection_draft(conn, award) if manager and award["state"] == "approved" and t["arrival_state"] == "awaiting"
                      and t.get("rejected_at") and not t.get("requested_at") else None),
-           "can": {"decide_arrival": manager and award["state"] == "approved" and t["arrival_state"] == "proposed"}}
+           "can": {"decide_arrival": manager and award["state"] == "approved" and t["arrival_state"] == "proposed",
+                   "reschedule": payable, "demand": payable}}
     return out
+
+
+def _present_demand(d: Mapping[str, Any] | None, amounts: bool) -> dict[str, Any] | None:
+    if d is None:
+        return None
+    return {"id": d["id"], "status": d["status"], "amount_minor": d["amount_minor"] if amounts else None, "currency": d["currency"],
+            "due_date": d.get("due_date"), "created_at": d["created_at"], "paid_at": d.get("paid_at"), "cancelled_at": d.get("cancelled_at"),
+            "revision": d["revision"]}
 
 
 REJECT_TEXT = {
@@ -423,7 +468,8 @@ def vendor_block(conn, row: Mapping[str, Any], v: Mapping[str, Any], *, read_onl
     open_ = not read_only and row["state"] in OPEN_RFQ and v["state"] == "awarded"
     return {"schedule": {"currency": sched.get("currency"), "total_minor": sched.get("total_minor"), "hash": schedule_hash(t),
                          "items": [{"kind": it["kind"], "amount_minor": it["amount_minor"], "due": it["due"], "date": it.get("date"),
-                                    "days": it.get("days")} for it in sched["items"]]},
+                                    "days": it.get("days"), "date_changed": bool(it.get("agreed_date"))}  # RFQPAY2: moved by a manager
+                                   for it in sched["items"]]},
             "arrival": {"state": t["arrival_state"], "planned_from": t.get("planned_from"), "planned_to": t.get("planned_to"),
                         "proposed_from": t.get("proposed_from"), "proposed_to": t.get("proposed_to"),
                         "rejected": bool(t.get("rejected_at")) and t["arrival_state"] == "awaiting",
@@ -694,6 +740,222 @@ def check_demand(conn, claim: Mapping[str, Any], base: Mapping[str, Any] | None,
     return {"status": "flagged" if flags else "ok", "flags": flags, "currency": sched.get("currency"), "schedule_total_minor": sched["total_minor"],
             "due_minor": due_minor, "demand_minor": total, "as_of": as_of.isoformat() if as_of else None,
             "completed_on": completed.isoformat() if completed else None, "items": items}
+
+
+# ---------------------------------------------------------------- RFQPAY2: after the award - moved dates, a demand per instalment, overdue
+#
+# Owner approval 2026-10-17 of three items v1.4.1 recorded as "not built" (contract 20.11 - 20.13):
+#   demand      a manager makes ONE payment demand per approved instalment from its schedule row (idempotent: the same row again
+#               returns the existing demand), then marks it paid (the payment happened outside Arx) or cancels it. Never automatic:
+#               no demand is created, paid or sent by itself, and nothing reaches the vendor.
+#   overdue     the janitor raises `rfq.instalment_overdue` (the existing engine: rules, channels, quiet hours; WhatsApp off by default)
+#               when an instalment's due day passed and it is not marked paid - one row per award, raised again only when a NEW
+#               instalment becomes overdue, resolved when none is (paid or moved later). Ids and a count only.
+#   move date   a manager with tickets.costs + view moves a DATED instalment's planned day (audited, reason optional). The vendor's page
+#               shows the new day with a "changed" marker; the acknowledgement of the agreed terms stays valid (the hash reads the agreed
+#               day, `schedule_hash`). An instalment marked paid is not moved.
+
+def _completed(conn, q: Mapping[str, Any] | None) -> dt.date | None:
+    """The job's completion day (the order's ticket `done_at`, review F2) - None while there is no ticket or it is not done."""
+    if not q or not q.get("ticket_id"):
+        return None
+    from . import store_costs
+
+    return local_day(conn, (store_costs.ticket_row(conn, q["ticket_id"]) or {}).get("done_at"))
+
+
+def _overdue(sched: Mapping[str, Any], demands: Mapping[int, Mapping[str, Any]], completed: dt.date | None, today_: dt.date) -> list[int]:
+    """The indexes of the instalments past their due day (strictly before today) that are not marked paid. A cancelled demand does not
+    settle the instalment (the demand was withdrawn; the money is still owed); an instalment of 0 is never overdue."""
+    out: list[int] = []
+    for it in sched.get("items") or []:
+        if int(it.get("amount_minor") or 0) <= 0:
+            continue
+        day = _due_day(None, it, completed)
+        if day is None or day >= today_:
+            continue
+        d = demands.get(int(it["index"]))
+        if d is not None and d["status"] == "paid":
+            continue
+        out.append(int(it["index"]))
+    return out
+
+
+def _payable(conn, viewer: Any, seen: Any, award_id: str, action: str, rid: str | None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """The award, its terms and its quote for a manager's payment act: tickets.costs + view (an audited 403), the award final with terms
+    (404 `terms_not_found`), the request awarded / ordered / closed (409 `terms_closed`)."""
+    from . import rfq
+
+    rfq.need_costs(conn, viewer, seen, action, rid)
+    a = rfq.award_of(conn, seen, award_id)
+    t = store_rfq.terms(conn, a["id"])
+    q = store_quotes.quote(conn, a["quote_id"])
+    if t is None or q is None or a["state"] != "approved":
+        raise rfq._err(conn, 404, "terms_not_found")
+    if seen.row["state"] not in PAYMENT_RFQ:
+        raise rfq._err(conn, 409, "terms_closed")
+    return a, t, q
+
+
+def _instalment(conn, t: Mapping[str, Any], index: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    from . import rfq
+
+    sched = schedule_of(t)
+    it = next((x for x in sched["items"] if int(x["index"]) == int(index)), None)
+    if it is None:
+        raise rfq._err(conn, 404, "instalment_not_found")
+    return sched, it
+
+
+def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: Any, reason: str | None, revision: int,
+               rid: str | None = None) -> dict[str, Any]:
+    """POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/date `{date, reason?, revision}` (contract 20.13). Only a dated
+    instalment (409 `instalment_not_dated`), not one marked paid (409 `instalment_paid`); the new day today .. today + 366 in the
+    installation zone and in order with the other dated instalments (422 `date` `range` / `format` / `order`); the terms' revision (409
+    `rfq_stale`). The first move keeps the agreed day (`agreed_date`); moving back to it clears the marker. The quote's copy of the schedule
+    (the demand check's basis) and an open demand's due day follow. Timeline `instalment_rescheduled`, audit
+    `ticket.rfq.instalment_reschedule` (ids and days - never an amount). Nothing is sent to the vendor; his page shows the new day."""
+    from . import rfq
+
+    now = rfq.now_utc()
+    a, t, q = _payable(conn, viewer, seen, award_id, "ticket.rfq.instalment_reschedule", rid)
+    if int(t["revision"]) != int(revision):
+        raise rfq._err(conn, 409, "rfq_stale", revision=t["revision"])
+    sched, it = _instalment(conn, t, index)
+    if it["due"] != "date":
+        raise rfq._err(conn, 409, "instalment_not_dated")
+    d = store_rfq.demand(conn, q["id"], index)
+    if d is not None and d["status"] == "paid":
+        raise rfq._err(conn, 409, "instalment_paid")
+    try:
+        new = _date(date, "date", today(conn, now))
+    except CostRefused as exc:
+        raise rfq.invalid(conn, "date", exc.code) from None
+    before = [x["date"] for x in sched["items"] if x["due"] == "date" and x.get("date") and int(x["index"]) < int(index)]
+    after = [x["date"] for x in sched["items"] if x["due"] == "date" and x.get("date") and int(x["index"]) > int(index)]
+    if (before and new < max(before)) or (after and new > min(after)):
+        raise rfq.invalid(conn, "date", "order")
+    old = it["date"]
+    if new == old:
+        return t  # nothing to move (a repeated click): no write, no audit
+    at = iso(now)
+    agreed = it.get("agreed_date") or old
+    it["date"] = new
+    if new == agreed:
+        for k in MOVE_KEYS:
+            it.pop(k, None)
+    else:
+        it["agreed_date"], it["date_changed_at"] = agreed, at
+    sj = store_rfq.dumps(sched)
+    if not store_rfq.update_terms(conn, a["id"], {"schedule_json": sj, "updated_at": at}, expect_revision=int(revision)):
+        raise rfq._err(conn, 409, "rfq_stale", revision=t["revision"])
+    store_quotes.update_quote(conn, q["id"], {"payment_schedule_json": sj}, now=at)
+    if d is not None and d["status"] == "open":
+        store_rfq.update_demand(conn, d["id"], {"due_date": new, "updated_at": at})
+    rfq._touch(conn, seen.row, {}, None, now)
+    why = (reason or "").strip()[:REASON_MAX]
+    data: dict[str, Any] = {"award_id": a["id"], "index": int(index), "kind": it["kind"], "from": old, "to": new}
+    if why:
+        data["reason"] = why  # the managers' timeline only (the vendor never reads the RFQ timeline)
+    store_rfq.insert_event(conn, seen.row["id"], "instalment_rescheduled", actor_kind="user", actor_user_id=viewer.uid,
+                           actor_name=rfq.actor_name(viewer), rfq_vendor_id=a["rfq_vendor_id"], data=data, at=at)
+    rfq._audit(conn, viewer, "ticket.rfq.instalment_reschedule", seen.row, rid, award_id=a["id"], instalment_index=int(index),
+               from_date=old, to_date=new, has_reason=bool(why))
+    fresh = store_rfq.terms(conn, a["id"]) or t
+    overdue_sync(conn, seen.row, fresh, now)
+    return fresh
+
+
+def instalment_demand(conn, viewer: Any, seen: Any, award_id: str, index: int, action: str, rid: str | None = None) -> dict[str, Any]:
+    """POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/demand `{action: create | paid | cancel}` (contract 20.11).
+    `create` makes the instalment's payment demand (its approved amount and due day) - idempotent: an open or paid demand is returned
+    as it is (`created: false`, no write); a cancelled one is reopened. 409 `demand_zero_amount` for an instalment of 0. `paid` records
+    that the payment was made outside Arx (404 `demand_not_found`, 409 `demand_cancelled`; again = no write); `cancel` withdraws an
+    open demand (409 `demand_paid`; again = no write). Timeline `instalment_demand_created` / `instalment_paid` /
+    `instalment_demand_cancelled`, audit `ticket.rfq.instalment_demand` (ids and the action - never an amount). Nothing is sent."""
+    from . import rfq
+
+    now = rfq.now_utc()
+    if action not in DEMAND_ACTIONS:
+        raise rfq.invalid(conn, "action", "invalid")
+    a, t, q = _payable(conn, viewer, seen, award_id, "ticket.rfq.instalment_demand", rid)
+    sched, it = _instalment(conn, t, index)
+    d = store_rfq.demand(conn, q["id"], index)
+    at = iso(now)
+    kind: str | None = None
+    if action == "create":
+        if d is None or d["status"] == "cancelled":
+            if int(it["amount_minor"]) <= 0:
+                raise rfq._err(conn, 409, "demand_zero_amount")
+            day = _due_day(conn, it, _completed(conn, q))
+            fields = {"amount_minor": int(it["amount_minor"]), "currency": sched.get("currency") or t["currency"],
+                      "due_date": day.isoformat() if day else None, "status": "open", "created_by": viewer.uid, "created_at": at,
+                      "paid_by": None, "paid_at": None, "cancelled_by": None, "cancelled_at": None, "updated_at": at}
+            if d is None:
+                store_rfq.insert_demand(conn, {**fields, "quote_id": q["id"], "award_id": a["id"], "rfq_id": seen.row["id"],
+                                               "instalment_index": int(index), "kind": it["kind"]})
+            else:
+                store_rfq.update_demand(conn, d["id"], fields)
+            kind = "instalment_demand_created"
+    elif d is None:
+        raise rfq._err(conn, 404, "demand_not_found")
+    elif action == "paid":
+        if d["status"] == "cancelled":
+            raise rfq._err(conn, 409, "demand_cancelled")
+        if d["status"] == "open":
+            store_rfq.update_demand(conn, d["id"], {"status": "paid", "paid_by": viewer.uid, "paid_at": at, "updated_at": at})
+            kind = "instalment_paid"
+    else:  # cancel
+        if d["status"] == "paid":
+            raise rfq._err(conn, 409, "demand_paid")
+        if d["status"] == "open":
+            store_rfq.update_demand(conn, d["id"], {"status": "cancelled", "cancelled_by": viewer.uid, "cancelled_at": at, "updated_at": at})
+            kind = "instalment_demand_cancelled"
+    if kind is not None:
+        rfq._touch(conn, seen.row, {}, None, now)
+        store_rfq.insert_event(conn, seen.row["id"], kind, actor_kind="user", actor_user_id=viewer.uid, actor_name=rfq.actor_name(viewer),
+                               rfq_vendor_id=a["rfq_vendor_id"], data={"award_id": a["id"], "index": int(index), "kind": it["kind"]}, at=at)
+        rfq._audit(conn, viewer, "ticket.rfq.instalment_demand", seen.row, rid, award_id=a["id"], instalment_index=int(index),
+                   demand_action=action)
+        overdue_sync(conn, seen.row, store_rfq.terms(conn, a["id"]) or t, now)
+    return {"demand": _present_demand(store_rfq.demand(conn, q["id"], index), True), "created": action == "create" and kind is not None}
+
+
+def overdue_sync(conn, row: Mapping[str, Any] | None, t: Mapping[str, Any], now: dt.datetime) -> bool:
+    """Bring one award's overdue signal up to date: raise `rfq.instalment_overdue` when an instalment that was not overdue at the last
+    look is now (returns True), resolve it when none is, otherwise only remember the set (`overdue_key`, no revision bump). Nothing is
+    overdue while the switch is off, the award is not final or the request is not awarded / ordered / closed."""
+    a = store_rfq.award(conn, t["award_id"])
+    idx: list[int] = []
+    if enabled(conn) and a is not None and a["state"] == "approved" and row is not None and row["state"] in PAYMENT_RFQ:
+        q = store_quotes.quote(conn, a["quote_id"]) or {}
+        idx = _overdue(schedule_of(t), store_rfq.demands_of_quote(conn, q.get("id")), _completed(conn, q), today(conn, now))
+    key = ",".join(str(i) for i in idx) or None
+    prev = {int(x) for x in (t.get("overdue_key") or "").split(",") if x.strip().isdigit()}
+    if not idx:
+        if t.get("overdue_key"):
+            rfq_notify.instalment_settled(conn, t["rfq_id"], t["award_id"])
+            store_rfq.set_overdue_key(conn, t["award_id"], None)
+        return False
+    if set(idx) - prev:
+        rfq_notify.instalment_overdue(conn, row, t["award_id"], t["rfq_vendor_id"], count=len(idx))  # type: ignore[arg-type]
+        store_rfq.set_overdue_key(conn, t["award_id"], key)
+        return True
+    if key != t.get("overdue_key"):
+        store_rfq.set_overdue_key(conn, t["award_id"], key)
+    return False
+
+
+def overdue_tick(conn, now: dt.datetime) -> int:
+    """The janitor (`rfq.retention`): every final award with terms on an awarded / ordered / closed request, and every row whose signal
+    is still open (to resolve it). Returns the number of signals raised."""
+    from . import rfq
+
+    n = 0
+    for t in store_rfq.terms_payable(conn, PAYMENT_RFQ):
+        if overdue_sync(conn, rfq.system_row(conn, t["rfq_id"]), t, now):
+            n += 1
+    return n
 
 
 def order_lines(conn, award_id: str, lang: str = "he") -> list[str]:

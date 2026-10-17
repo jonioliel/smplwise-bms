@@ -89,6 +89,15 @@ MESSAGES = {
     "terms_not_found": "לאישור הזה אין לוח תשלומים ומועד הגעה.",
     "arrival_not_proposed": "הספק לא הציע מועד אחר שממתין להחלטה.",
     "arrival_date_passed": "המועד שהספק הציע כבר עבר. דחו את ההצעה כדי שיציע מועד חדש.",
+    # RFQPAY2 (contract 20.11 - 20.13)
+    "terms_closed": "הבקשה בוטלה - אי אפשר לשנות את התשלומים שלה.",
+    "instalment_not_found": "התשלום הזה לא נמצא בלוח התשלומים.",
+    "instalment_not_dated": "מועד התשלום הזה תלוי בסיום העבודה ואין לו תאריך לשנות.",
+    "instalment_paid": "התשלום הזה כבר סומן כשולם.",
+    "demand_not_found": "עדיין לא נוצרה דרישת תשלום לתשלום הזה.",
+    "demand_paid": "דרישת התשלום כבר סומנה כשולמה.",
+    "demand_cancelled": "דרישת התשלום בוטלה. צרו אותה מחדש כדי לסמן תשלום.",
+    "demand_zero_amount": "סכום התשלום הזה הוא אפס - אין צורך בדרישת תשלום.",
 }
 
 
@@ -1177,6 +1186,7 @@ def cancel(conn, viewer: Viewer, seen: RfqSeen, revision: int, reason: Any, noti
     rfq_links.on_end(conn, row["id"], "cancelled", now)
     _touch(conn, row, {"state": "cancelled", "cancelled_at": at, "closed_at": at, "cancel_reason": why}, revision, now)
     rfq_notify.ended(conn, row["id"])
+    rfq_notify.payments_ended(conn, row["id"])  # RFQPAY2: a cancelled request owes no instalment signal
     store_rfq.insert_event(conn, row["id"], "cancelled", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            data={"notified": notified}, at=at)
     _audit(conn, viewer, "ticket.rfq.cancel", row, rid, notified=notified)
@@ -1349,6 +1359,7 @@ def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None, files_out
     if not viewer.holds_installation(DELETE):
         raise refuse(conn, viewer, "ticket.rfq.delete", seen.row, "delete_permission_missing", rid, permission=DELETE)
     rfq_notify.ended(conn, seen.row["id"])
+    rfq_notify.payments_ended(conn, seen.row["id"])  # RFQPAY2
     if files_out is not None and store_rfq.has_attachments(conn):
         files_out.extend(store_rfq.attachment_paths_of_rfq(conn, seen.row["id"]))
     counts = store_rfq.purge_rfq(conn, seen.row["id"])
@@ -1364,12 +1375,13 @@ def retention(conn, now: dt.datetime) -> dict[str, int]:
     from .rfq_questions import remind  # RFQQUESTIONS: the "still unanswered" reminder
 
     out = {"due_passed": tick(conn, now), "links": 0, "purged": 0, "arrival_reminders": rfq_terms.tick(conn, now),
-           "question_reminders": remind(conn, now)}
+           "question_reminders": remind(conn, now), "instalments_overdue": rfq_terms.overdue_tick(conn, now)}  # + RFQPAY2
     for row in store_rfq.ended_before(conn, iso(now - dt.timedelta(days=int(doc["link_keep_days"])))):
         out["links"] += store_rfq.drop_links_of_rfq(conn, row["id"])
     months = int(doc["retention_months"])
     for row in store_rfq.ended_before(conn, iso(now - dt.timedelta(days=30 * months))):
         rfq_notify.ended(conn, row["id"])
+        rfq_notify.payments_ended(conn, row["id"])  # RFQPAY2
         store_rfq.purge_rfq(conn, row["id"])
         out["purged"] += 1
     store_rfq.prune_redeems(conn, iso(now))
@@ -1574,7 +1586,8 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
     from .rfq_orders import award_extras  # TKRFQ4 (contract 18.4): the work order of each award
 
     extras = award_extras(conn, viewer, seen, awards, amounts)
-    out_awards = [{**present_award(conn, a, amounts), **extras.get(a["id"], {}), "terms": rfq_terms.present(conn, a, amounts=amounts, manager=manager)}
+    out_awards = [{**present_award(conn, a, amounts), **extras.get(a["id"], {}),
+                   "terms": rfq_terms.present(conn, a, amounts=amounts, manager=manager, costs=decide, rfq_state=row["state"])}
                   for a in awards]
     files = rfq_attach.detail_block(conn, viewer, seen, state)  # RFQATT (contract 19.3)
     return {

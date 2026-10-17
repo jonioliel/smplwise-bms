@@ -59,6 +59,10 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     # RFQQUESTIONS: a vendor question still unanswered after `rfq.question_reminder_hours` (default 24, 0 = off)
     {"key": "rfq.question_unanswered", "label": "שאלת ספק ממתינה לתשובה", "label_en": "Vendor question waiting for an answer",
      "severity": "alert", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # RFQPAY2: an approved instalment passed its due day and is not marked paid - the RFQ managers who see the costs (audience `costs`);
+    # resolved when nothing of that award is overdue any more. WhatsApp off by default (as every source)
+    {"key": "rfq.instalment_overdue", "label": "מועד תשלום לספק עבר", "label_en": "Vendor payment past its date", "severity": "alert",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}

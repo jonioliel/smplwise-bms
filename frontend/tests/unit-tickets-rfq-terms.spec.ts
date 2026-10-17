@@ -81,3 +81,20 @@ test('the new texts, refusals and timeline kinds exist in Hebrew and English; no
     expect(eventLine({ id: 1, kind, at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key).toBe(`ev_${kind}`);
   }
 });
+
+test('RFQPAY2: the demand / moved-date / overdue words, refusals and timeline kinds exist in Hebrew and English', () => {
+  for (const k of ['insDemand', 'insPaid', 'insCancel', 'insMove', 'insMoveSave', 'insMoveReason', 'insMoveDate', 'insMoveClose', 'insMoved', 'insOverdue',
+    'ds_open', 'ds_paid', 'ds_cancelled', 'insDemandMade', 'insDemandExists', 'insPaidDone', 'insCancelled', 'insMovedDone'] as const) {
+    expect(RFQ_TEXT_HE[k], k).toBeTruthy();
+    expect(RFQ_TEXT_EN_KEYS, k).toContain(k);
+  }
+  for (const code of ['terms_closed', 'instalment_not_found', 'instalment_not_dated', 'instalment_paid', 'demand_not_found', 'demand_paid', 'demand_cancelled',
+    'demand_zero_amount']) {
+    expect(refusalKey(code), code).toBe(`err_${code}`);
+    expect(RFQ_TEXT_EN_KEYS).toContain(`err_${code}` as never);
+  }
+  for (const kind of ['instalment_demand_created', 'instalment_paid', 'instalment_demand_cancelled', 'instalment_rescheduled']) {
+    expect(eventLine({ id: 1, kind, at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key).toBe(`ev_${kind}`);
+  }
+  expect(RFQ_TEXT_HE.insMoved).toContain('{date}');
+});

@@ -1,6 +1,7 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.4.1 (the review fixes of RFQPAY (section 20) and RFQATT (section 19), no new migration) / v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
+Status: **v1.5 (RFQPAY2 on `pilot/RFQPAY2`: 20.11 - 20.13, a demand per instalment, the overdue notification, a moved instalment date;
+migration 0112 provisional) / v1.4.1 (the review fixes of RFQPAY (section 20) and RFQATT (section 19), no new migration) / v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
 section 20 = the payment schedule and the arrival confirmation, behind a switch that is OFF by default (RFQPAY, migration 0103); section
 21 = vendor questions (RFQQUESTIONS, migration 0104); the organisation location of a request (CR-ORG-LOCATIONS, migration 0101, change
 log only); section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = the earlier attachments design, superseded
@@ -935,6 +936,61 @@ After the arrival is confirmed, a personal access code and the doors / time wind
 Extension point: `rfq_terms.on_arrival_confirmed(conn, row, terms)` - called after every confirmation (vendor or manager accept), does
 nothing in this version; it must stay a separate, explicitly approved action (physical access).
 
+### 20.11 A payment demand per instalment (v1.5, RFQPAY2 - owner approval 2026-10-17)
+
+`POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/demand` `{action: create | paid | cancel}` (strict body; `index` 0..5) -
+tickets.costs + view where the request lies (an audited 403 `costs_permission_missing`; an invisible request = the uniform 404). 404
+`terms_not_found` (no terms / the award is not final), 409 `terms_closed` (the request is not `awarded` / `ordered` / `closed` - a closed
+request still owes its vendor, a cancelled one does not), 404 `instalment_not_found`.
+
+* Migration **0112** (provisional), table `ticket_rfq_instalment_demands`: one row per (quote, instalment index) - `UNIQUE (quote_id,
+  instalment_index)`; bound to the QUOTE (the baseline that keeps the approved schedule after a purge, 20.1); `award_id` / `rfq_id` are
+  plain ids. Status `open | paid | cancelled`; the amount and the due day are copied from the approved schedule (never from the client).
+  Not the 0083 cost claim: `ticket_cost_claims.assignment_id` is UNIQUE (one claim per assignment), so the instalment demand is its own
+  record; the 20.8 claim check is unchanged.
+* `create` - made MANUALLY by the manager from the schedule row, never automatically. Idempotent: an open or paid demand is answered as
+  it is (`created: false`, nothing written, no audit row); a cancelled one is reopened. 409 `demand_zero_amount` for an instalment of 0.
+* `paid` - the manager records that the payment was made outside Arx (`paid_at`, `paid_by`); 404 `demand_not_found`, 409
+  `demand_cancelled`; again = nothing written. Arx never executes or schedules a payment; no payment reference or bank data is taken.
+* `cancel` - withdraws an open demand; 409 `demand_paid`; again = nothing written. A cancelled demand does NOT settle the instalment
+  (20.12).
+* Answer `{rfq: <detail>, demand, created}`. Timeline `instalment_demand_created` / `instalment_paid` / `instalment_demand_cancelled`
+  (`{award_id, index, kind}`), audit `ticket.rfq.instalment_demand` (`award_id`, `instalment_index`, `demand_action` - never an amount).
+  Nothing is sent to anyone. The vendor's page shows nothing of it.
+* Detail `awards[].terms.schedule.items[]` gains `demand: null | {id, status, amount_minor (null without tickets.costs.view), currency,
+  due_date, created_at, paid_at, cancelled_at, revision}`, `due_date` (the resolved due day; null while it depends on a completion that did
+  not happen), `overdue` (bool); `terms.can` gains `demand` and `reschedule` (tickets.costs + view, the award final, the request awarded /
+  ordered / closed).
+
+### 20.12 The overdue-instalment notification (v1.5, RFQPAY2)
+
+New source `rfq.instalment_overdue` ("מועד תשלום לספק עבר" / "Vendor payment past its date"; alert, subject `rfq`, rule `rfq_managers`
+filtered to the managers who hold tickets.costs.view where the request lies - origin `audience: "costs"`; inbox + push; WhatsApp OFF by
+default, as every source; the engine's rules, channels and quiet hours apply unchanged). An instalment is overdue when its due day (a date,
+completion = the ticket's `done_at`, or N days after it) is strictly before today in the installation zone, its amount is above 0 and it
+has no demand marked `paid` (a cancelled demand settles nothing). One row per award, dedupe `rfqpay:<rfq_id>:<award_id>` - keyed outside
+`rfq:<id>:` so a later final award or the close of the request (`ended`) does not silence a payment that is still due. Text: the
+reference, the place and a COUNT (`{count} תשלומים שמועדם עבר ולא סומנו כשולמו`) - never an amount, a date, the vendor's name or a text.
+The janitor (`rfq.retention` -> `rfq_terms.overdue_tick`, result key `instalments_overdue`) raises the row only when an instalment that was
+not overdue at its last look is (the set is kept in `ticket_rfq_award_terms.overdue_key`, migration 0112, written without a revision bump);
+a demand action or a moved date brings it up to date at once; it is resolved when nothing of the award is overdue, when the switch is
+turned off (the next janitor pass), and by a cancel / delete / purge of the request (`rfq_notify.payments_ended`).
+
+### 20.13 A manager moves an instalment's planned date (v1.5, RFQPAY2)
+
+`POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/date` `{date: "YYYY-MM-DD", reason?: <= 500, revision (of the terms)}` -
+tickets.costs + view (audited 403), the 20.11 states. Only a DATED instalment (409 `instalment_not_dated` for completion / after
+completion), never one whose demand is `paid` (409 `instalment_paid`); the day today .. today + 366 in the installation zone and in order
+with the other dated instalments (422 `{field: "date", code: format | range | order}`); 409 `rfq_stale` (`details.revision`). The same day
+again = nothing written. The schedule item keeps the AGREED day in `agreed_date` (set on the first move, kept on later moves) and
+`date_changed_at`; moving back to the agreed day removes both. The quote's copy (`payment_schedule_json`, the 20.8 basis) and an open
+demand's `due_date` follow. Timeline `instalment_rescheduled` (`{award_id, index, kind, from, to, reason?}` - the managers' timeline only),
+audit `ticket.rfq.instalment_reschedule` (`award_id`, `instalment_index`, `from_date`, `to_date`, `has_reason` - never an amount or the
+reason text). Answer: the detail. Nothing is sent to the vendor (no notice, no new purpose); his page (`GET /t/api/rfq` `terms.schedule.
+items[]`) shows the new day with `date_changed: true`, and never the agreed day or the reason. The acknowledgement is NOT reset: the
+schedule hash (F10) is computed with each moved item's `agreed_date` in place of its `date` (an unmoved schedule hashes exactly as before),
+so the vendor's acknowledgement of the agreed terms stays valid - a moved date is the manager's unilateral record, not new terms.
+
 ## 21. Vendor questions (v1.4, RFQQUESTIONS - owner report 2026-10-17)
 
 Owner report: a vendor's question was not obvious to the manager - it sat in the vendor's private thread (only a timeline row and the
@@ -1008,6 +1064,14 @@ question still pending after N hours on an open request, and the timeline row `q
 hours - never the text or the vendor. The engine applies each recipient's channels and quiet hours.
 
 ## 14. Change log
+
+* v1.5 (2026-10-17, RFQPAY2, `pilot/RFQPAY2` from `integ/264`; migration 0112 provisional - the lead renumbers at integration): the
+  three items the owner approved after v1.4.1 recorded them as not built - 20.11 a payment demand per approved instalment (manual,
+  idempotent, paid / cancel; new table `ticket_rfq_instalment_demands`), 20.12 the overdue-instalment notification (new source
+  `rfq.instalment_overdue`, audience costs, one row per award, a count only; column `ticket_rfq_award_terms.overdue_key`), 20.13 a manager
+  moves a dated instalment's planned day after the award (audited, reason optional, the vendor sees `date_changed`; the acknowledgement
+  stays bound to the agreed terms). Detail `terms.schedule.items[]` gains `demand`, `due_date`, `overdue`, `agreed_date`,
+  `date_changed_at`; `terms.can` gains `demand`, `reschedule`; the public `terms.schedule.items[]` gains `date_changed`.
 
 * v1.4.1 (2026-10-17, the review fixes merged at integ/264; no new migration file):
   * (2026-10-17, `pilot/RFQPAY-FIX`, review `RELEASE_264_REVIEW_RFQPAY` F1-F11 + the lead's owner answers; merged at integ/264,

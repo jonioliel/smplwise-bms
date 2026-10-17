@@ -5,7 +5,7 @@ import { applyAutomationsGlass } from '../api/automations-demo';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
-import { ticketsRfqApi, type RfqAward, type RfqAwardTerms, type RfqDetail } from '../api/tickets-rfq';
+import { ticketsRfqApi, type RfqAward, type RfqAwardTerms, type RfqDemandAction, type RfqDetail, type RfqInstalment } from '../api/tickets-rfq';
 import { formatMoney } from './cost-model';
 import { tIcon } from './icons';
 import { rIcon } from './rfq-icons';
@@ -21,7 +21,9 @@ import { ticketsLang } from './text';
  * schedule (amounts with tickets.costs.view, else the due rules only), where it came from (the vendor's proposal / edited at approval /
  * the default), the planned arrival, the vendor's confirmation or the date he proposed, and - for an RFQ manager - accept / reject of that
  * date. After a rejection the server offers an editable notice (`terms.draft`); it is sent only by the manager's click on "send"
- * (the thread + the templated `rfq_update` - review F7); nothing else here sends a message. Events:
+ * (the thread + the templated `rfq_update` - review F7); nothing else here sends a message. RFQPAY2 (20.11 - 20.13): per schedule row,
+ * for a viewer who may decide costs - make the instalment's payment demand, mark it paid (a payment made outside the system) or cancel
+ * it, and change a dated instalment's day (reason optional); the row shows "moved" (with the agreed day) and "past its date". Events:
  * `changed` (detail: RfqDetail), `notice` ({ok} | {error}).
  */
 @customElement('tickets-rfq-terms')
@@ -32,6 +34,8 @@ export class TicketsRfqTerms extends LitElement {
   @state() private errors: Record<string, string> = {};
   /** review F7: the manager's edits of each award's rejection notice */
   @state() private drafts: Record<string, string> = {};
+  /** RFQPAY2: the open "change date" editors, by `<award id>:<instalment index>` */
+  @state() private moving: Record<string, { date: string; reason: string }> = {};
 
   static styles = [bubbleChrome, ...automationsStyles, rfqStyles, css`
     .tcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--sw-s-4); }
@@ -41,7 +45,12 @@ export class TicketsRfqTerms extends LitElement {
     .thead .chip { margin-inline-start: auto; }
     .trow { display: flex; justify-content: space-between; gap: 10px; font-size: var(--sw-fs-sm); }
     .tlist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
-    .tacts { display: flex; flex-wrap: wrap; gap: 10px; }
+    .tacts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .tins { display: flex; flex-direction: column; gap: 6px; padding-block-end: 6px; border-block-end: 1px solid var(--dv-border); }
+    .tins:last-child { border-block-end: 0; padding-block-end: 0; }
+    .tins[data-overdue='yes'] .trow span:first-child { color: var(--dv-warn, inherit); }
+    .tmove { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; }
+    .tmove .tacts { grid-column: 1 / -1; }
   `];
 
   connectedCallback(): void {
@@ -99,6 +108,94 @@ export class TicketsRfqTerms extends LitElement {
     }
   }
 
+  private done(next: RfqDetail, ok: string): void {
+    this.rfq = next;
+    this.dispatchEvent(new CustomEvent('changed', { detail: next }));
+    this.dispatchEvent(new CustomEvent('notice', { detail: { ok }, bubbles: true, composed: true }));
+  }
+
+  /** RFQPAY2 (20.11): the instalment's payment demand from its schedule row - create (idempotent) / mark paid / cancel. Nothing is sent
+   * and nothing is paid: "paid" records a payment made outside the system. */
+  private async demand(a: RfqAward, it: RfqInstalment, action: RfqDemandAction): Promise<void> {
+    const d = this.rfq;
+    const api = ticketsRfqApi();
+    if (!d || this.busy || !api.instalmentDemand) return;
+    this.busy = a.id;
+    this.errors = { ...this.errors, [a.id]: '' };
+    try {
+      const res = await api.instalmentDemand(d.id, a.id, it.index, action);
+      this.done(res.rfq, rt(action === 'create' ? (res.created ? 'insDemandMade' : 'insDemandExists') : action === 'paid' ? 'insPaidDone' : 'insCancelled'));
+    } catch (e) {
+      this.errors = { ...this.errors, [a.id]: rfqError(e) };
+    } finally {
+      this.busy = '';
+    }
+  }
+
+  private closeMove(key: string): void {
+    const rest = { ...this.moving };
+    delete rest[key];
+    this.moving = rest;
+  }
+
+  /** RFQPAY2 (20.13): move a dated instalment's day (audited; the reason is optional; the vendor sees the new day marked as changed). */
+  private async move(a: RfqAward, t: RfqAwardTerms, it: RfqInstalment): Promise<void> {
+    const d = this.rfq;
+    const api = ticketsRfqApi();
+    const key = `${a.id}:${it.index}`;
+    const m = this.moving[key];
+    if (!d || !m?.date || this.busy || !api.moveInstalment) return;
+    this.busy = a.id;
+    this.errors = { ...this.errors, [a.id]: '' };
+    try {
+      const next = await api.moveInstalment(d.id, a.id, it.index, m.date, t.revision, m.reason);
+      this.closeMove(key);
+      this.done(next, rt('insMovedDone'));
+    } catch (e) {
+      this.errors = { ...this.errors, [a.id]: rfqError(e) };
+    } finally {
+      this.busy = '';
+    }
+  }
+
+  /** RFQPAY2: one schedule row - the due rule, the moved / overdue markers, the demand state and the actions of a costs decider. */
+  private instalment(a: RfqAward, t: RfqAwardTerms, it: RfqInstalment, currency: string, words: { done: string; after: string }): TemplateResult {
+    const dm = it.demand ?? null;
+    const key = `${a.id}:${it.index}`;
+    const m = this.moving[key];
+    const api = ticketsRfqApi();
+    const canDemand = !!t.can.demand && !!api.instalmentDemand;
+    const canMove = !!t.can.reschedule && !!api.moveInstalment && it.due === 'date' && dm?.status !== 'paid';
+    const offerCreate = canDemand && it.amount_minor !== 0 && (!dm || dm.status === 'cancelled');
+    const actions = it.overdue || dm || offerCreate || (canMove && !m);
+    const set = (patch: Partial<{ date: string; reason: string }>) => { this.moving = { ...this.moving, [key]: { ...(m ?? { date: '', reason: '' }), ...patch } }; };
+    return html`<li class="tins" data-instalment=${it.kind} data-index=${it.index} data-overdue=${it.overdue ? 'yes' : 'no'}>
+      <div class="trow"><span>${rt(`pk_${it.kind}` as RfqTextKey)} · ${dueWords(it, words)}
+        ${it.agreed_date ? html`<small class="mut" data-moved>${rt('insMoved', { date: dueWords({ due: 'date', date: it.agreed_date, days: null }, words) })}</small>` : nothing}</span>
+        ${it.amount_minor !== null ? html`<span class="num">${this.money(it.amount_minor, currency)}</span>` : nothing}</div>
+      ${actions ? html`<div class="tacts">
+        ${it.overdue ? html`<span class="chip warn" data-overdue-chip>${rt('insOverdue')}</span>` : nothing}
+        ${dm ? html`<span class=${`chip ${dm.status === 'paid' ? 'ok' : ''}`} data-demand=${dm.status}>${rt(`ds_${dm.status}` as RfqTextKey)}</span>` : nothing}
+        ${offerCreate ? html`<button type="button" class="btn sm" data-demand-create=${key} ?disabled=${!!this.busy}
+          @click=${() => void this.demand(a, it, 'create')}>${rt('insDemand')}</button>` : nothing}
+        ${canDemand && dm?.status === 'open' ? html`<button type="button" class="btn primary sm" data-demand-paid=${key} ?disabled=${!!this.busy}
+          @click=${() => void this.demand(a, it, 'paid')}>${tIcon('check')}${rt('insPaid')}</button>
+          <button type="button" class="btn sm" data-demand-cancel=${key} ?disabled=${!!this.busy} @click=${() => void this.demand(a, it, 'cancel')}>${rt('insCancel')}</button>` : nothing}
+        ${canMove && !m ? html`<button type="button" class="btn sm" data-move-open=${key} ?disabled=${!!this.busy}
+          @click=${() => set({ date: it.date ?? '', reason: '' })}>${rIcon('cal')}${rt('insMove')}</button>` : nothing}
+      </div>` : nothing}
+      ${canMove && m ? html`<div class="tmove" data-move=${key}>
+        <label class="fld">${rt('insMoveDate')}<input class="inp" type="date" dir="ltr" .value=${m.date}
+          @input=${(e: Event) => set({ date: (e.target as HTMLInputElement).value })}></label>
+        <label class="fld">${rt('insMoveReason')}<input class="inp" type="text" maxlength="500" .value=${m.reason}
+          @input=${(e: Event) => set({ reason: (e.target as HTMLInputElement).value })}></label>
+        <div class="tacts"><button type="button" class="btn primary sm" data-move-save=${key} ?disabled=${!!this.busy || !m.date || m.date === it.date}
+          @click=${() => void this.move(a, t, it)}>${rt('insMoveSave')}</button>
+          <button type="button" class="btn sm" data-move-close=${key} @click=${() => this.closeMove(key)}>${rt('insMoveClose')}</button></div>
+      </div>` : nothing}
+    </li>`;
+  }
+
   private card(a: RfqAward, t: RfqAwardTerms): TemplateResult {
     const name = this.vendorName(a.vendor_id);
     const key = arrivalKey(t);
@@ -114,9 +211,7 @@ export class TicketsRfqTerms extends LitElement {
       ${ar.state === 'proposed' ? html`<div class="trow" data-terms-proposed><span>${rt('trmProposed')}</span><b class="num">${windowText(ar.proposed_from, ar.proposed_to)}</b></div>` : nothing}
       ${ar.reminders ? html`<div class="note">${rt('trmReminders', { n: ar.reminders })}</div>` : nothing}
       <div class="trow"><b>${rt('trmSchedule')}</b><small class="mut">${rt(src)}</small></div>
-      <ul class="tlist" data-terms-schedule>${s.items.map((it) => html`<li class="trow" data-instalment=${it.kind}>
-        <span>${rt(`pk_${it.kind}` as RfqTextKey)} · ${dueWords(it, words)}</span>
-        ${it.amount_minor !== null ? html`<span class="num">${this.money(it.amount_minor, s.currency)}</span>` : nothing}</li>`)}</ul>
+      <ul class="tlist" data-terms-schedule>${s.items.map((it) => this.instalment(a, t, it, s.currency, words))}</ul>
       ${s.total_minor !== null ? html`<div class="trow"><span>${rt('rowTotal')}</span><b class="num">${this.money(s.total_minor, s.currency)}</b></div>` : nothing}
       ${scheduleExact(t) ? nothing : html`<div class="err" role="alert">${rt('trmInexact')}</div>`}
       ${t.can.decide_arrival && ticketsRfqApi().decideArrival ? html`<div class="tacts">

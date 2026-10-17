@@ -453,7 +453,8 @@ export const TICKET_SOURCES: readonly SourceInfo[] = [
 ];
 /** TKRFQ5: the request-for-quotation sources (services/tickets/notify_sources.py, the same Hebrew labels; English by the document
  * language). Listed by the server only while the module is on; recipients = the RFQ managers; never an amount or a vendor's name. */
-const R = (key: 'rfq.quote_received' | 'rfq.declined' | 'rfq.question' | 'rfq.due_passed' | 'rfq.arrival' | 'rfq.question_unanswered', severity: Severity, icon: string): SourceInfo => ({
+const R = (key: 'rfq.quote_received' | 'rfq.declined' | 'rfq.question' | 'rfq.due_passed' | 'rfq.arrival' | 'rfq.question_unanswered' | 'rfq.instalment_overdue',
+  severity: Severity, icon: string): SourceInfo => ({
   key, get label() { return rnt(key); }, category: 'tickets', severity, icon,
 });
 export const RFQ_SOURCES: readonly SourceInfo[] = [
@@ -463,6 +464,7 @@ export const RFQ_SOURCES: readonly SourceInfo[] = [
   R('rfq.due_passed', 'info', 'clock'),
   R('rfq.arrival', 'info', 'clock'), // CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor confirmed / proposed an arrival date
   R('rfq.question_unanswered', 'alert', 'chat'), // RFQQUESTIONS: a vendor question still unanswered after N hours
+  R('rfq.instalment_overdue', 'alert', 'clock'), // RFQPAY2: an approved instalment passed its date unpaid (managers who see costs)
 ];
 const CATALOG_BY_KEY = new Map(SOURCE_CATALOG.map((s) => [s.key, s]));
 export const sourceInfo = (key: string): SourceInfo | undefined => CATALOG_BY_KEY.get(key);

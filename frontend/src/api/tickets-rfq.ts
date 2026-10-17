@@ -169,7 +169,18 @@ export interface RfqAward {
 
 /** CR-RFQ-PAYMENT-SCHEDULE: one instalment (amounts null without tickets.costs.view; the final one is the remainder). */
 export interface RfqInstalment { index: number; kind: 'advance' | 'progress' | 'final'; amount_minor: number | null; percent_bp: number | null;
-  due: 'date' | 'completion' | 'after_completion'; date: string | null; days: number | null }
+  due: 'date' | 'completion' | 'after_completion'; date: string | null; days: number | null;
+  /** RFQPAY2 (20.13): the day agreed at the award when a manager moved it since (null = never moved) */
+  agreed_date?: string | null; date_changed_at?: string | null;
+  /** RFQPAY2: the resolved due day (null while it depends on a completion that did not happen) and whether it passed unpaid */
+  due_date?: string | null; overdue?: boolean;
+  /** RFQPAY2 (20.11): the instalment's payment demand (the amount null without tickets.costs.view) */
+  demand?: RfqInstalmentDemand | null }
+/** RFQPAY2: one payment demand per approved instalment - made by a manager from the schedule row; paid = recorded, never executed. */
+export interface RfqInstalmentDemand { id: string; status: 'open' | 'paid' | 'cancelled'; amount_minor: number | null; currency: string;
+  due_date: string | null; created_at: string; paid_at: string | null; cancelled_at: string | null; revision: number }
+export type RfqDemandAction = 'create' | 'paid' | 'cancel';
+export interface RfqDemandAnswer { rfq: RfqDetail; demand: RfqInstalmentDemand | null; created: boolean }
 /** CR-RFQ-PAYMENT-SCHEDULE: the vendor's proposal as he sent it (percent text or a fixed amount in minor units). */
 export interface RfqPaymentProposal { items: { kind: 'advance' | 'progress' | 'final'; due: string; date: string | null; days: number | null; percent: string | null;
   amount_minor: number | null }[] }
@@ -184,7 +195,7 @@ export interface RfqAwardTerms {
   revision: number;
   /** review F7: after a rejected date, the editable notice for the vendor (managers only; sent only by the manager's explicit click) */
   draft?: RfqMessageDraft | null;
-  can: { decide_arrival: boolean };
+  can: { decide_arrival: boolean; reschedule?: boolean; demand?: boolean };
 }
 
 export interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
@@ -486,6 +497,10 @@ export interface RfqBackend {
   attachmentUrl(id: string, attachmentId: string, thumb?: boolean): string;
   /** CR-RFQ-PAYMENT-SCHEDULE (20.6): accept / reject the arrival date the vendor proposed (the demo store has no terms) */
   decideArrival?(id: string, awardId: string, action: 'accept' | 'reject', revision: number): Promise<RfqDetail>;
+  /** RFQPAY2 (20.13): move a dated instalment's planned day (tickets.costs + view; reason optional; nothing is sent) */
+  moveInstalment?(id: string, awardId: string, index: number, date: string, revision: number, reason?: string): Promise<RfqDetail>;
+  /** RFQPAY2 (20.11): the instalment's payment demand - create (idempotent) / mark paid / cancel */
+  instalmentDemand?(id: string, awardId: string, index: number, action: RfqDemandAction): Promise<RfqDemandAnswer>;
   /** RFQQUESTIONS: the navigation badge (the open requests the caller manages) */
   questionsSummary(): Promise<RfqQuestionsSummary>;
   /** RFQQUESTIONS: an RFQ manager opened the vendor's thread (his questions are no longer new) */
@@ -565,6 +580,9 @@ const rest: RfqBackend = {
   removeAttachment: (id, attachmentId) => api<RfqDetail>(`${R}/${enc(id)}/attachments/${enc(attachmentId)}`, { method: 'DELETE' }),
   attachmentUrl: (id, attachmentId, thumb = false) => resourceUrl(`api/v1/${R}/${enc(id)}/attachments/${enc(attachmentId)}${thumb ? '/thumb' : ''}`),
   decideArrival: (id, awardId, action, revision) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival`, { action, revision }),
+  moveInstalment: (id, awardId, index, date, revision, reason) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/date`,
+    { date, revision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
+  instalmentDemand: (id, awardId, index, action) => post<RfqDemandAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/demand`, { action }),
   questionsSummary: () => get<RfqQuestionsSummary>(`${R}/questions/summary`),
   markRead: (id, vendorId) => post<{ read: number }>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages/read`),
   answerPreview: (id, qid, body) => post<RfqAnswerPreview>(`${R}/${enc(id)}/questions/${enc(qid)}/preview`, answerWire(body)),
