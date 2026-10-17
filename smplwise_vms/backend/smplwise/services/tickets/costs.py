@@ -422,9 +422,11 @@ def _available_files(conn, claim: Mapping[str, Any], *, link_id: str | None, use
 
 def _write_revision(conn, claim: Mapping[str, Any], d: Draft, *, source: str, kind: str, created_by_kind: str, created_by: str,
                     placed: Sequence[tuple[str, int, int]], at: dt.datetime, based_on: str | None = None, reason: str | None = None,
-                    exceptional: Sequence[Mapping[str, Any]] = ()) -> str:
+                    exceptional: Sequence[Mapping[str, Any]] = (), basis: Mapping[str, Any] | None = None) -> str:
     c = d.computed
+    extra = {"basis_json": json.dumps(dict(basis), ensure_ascii=False, separators=(",", ":"))} if basis else {}  # CR-CLAIM-PREFILL (0115)
     rid = store_costs.insert_revision(conn, {
+        **extra,
         "exceptional_json": json.dumps(list(exceptional), ensure_ascii=False, separators=(",", ":")),  # TKDETAILBE (5.1)
         "claim_id": claim["id"], "seq": store_costs.next_seq(conn, claim["id"]), "source": source, "kind": kind, "based_on": based_on,
         "no_charge": 1 if d.no_charge else 0, "lines_json": [ln.as_json() for ln in c.lines],
@@ -459,13 +461,17 @@ def submit(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by_kind: 
     from . import quotes  # TKDETAILBE (5.1): the demand against the approved quote; an exceptional line is flagged, never refused
 
     exceptional, base = quotes.analyse_demand(conn, claim, d.computed.lines)
+    from . import claim_prefill  # CR-CLAIM-PREFILL: what the demand is compared with (the approved total or one instalment)
+
+    basis = claim_prefill.basis(conn, claim, claim_prefill.baseline_for(conn, claim), total_minor=d.computed.total_minor, currency=d.currency,
+                                no_charge=d.no_charge, body=body, vendor=by_kind == "contact")
     placed = place_documents(body.get("documents"), _available_files(conn, claim, link_id=link_id, user_id=by_id if by_kind == "user" else None, now=at), at)
     if cost_settings(conn).require_invoice and not d.no_charge and not placed:
         raise CostRefused(422, "invoice_required", "documents")
     now = iso(at)
     previous = claim.get("current_revision_id") if claim["status"] == "submitted" else None
     rid = _write_revision(conn, claim, d, source="vendor" if by_kind == "contact" else "manager", kind=kind, created_by_kind=by_kind,
-                          created_by=by_id, placed=placed, at=at, exceptional=exceptional)
+                          created_by=by_id, placed=placed, at=at, exceptional=exceptional, basis=basis)
     if previous:
         store_costs.insert_decision(conn, {"claim_id": claim["id"], "revision_id": previous, "action": "superseded",
                                            "by_user": by_id if by_kind == "user" else f"contact:{by_id}", "at": now})
@@ -869,6 +875,8 @@ def _exceptional_view(claim: Mapping[str, Any] | None, rev: Mapping[str, Any], a
 
 def present_revision(conn, rev: Mapping[str, Any], *, for_vendor: bool = False, claim: Mapping[str, Any] | None = None,
                      approved_rev: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    from . import claim_prefill
+
     files = store_costs.revision_files(conn, rev["id"])
     docs: dict[int, list[dict[str, Any]]] = {}
     for f in files:
@@ -885,6 +893,7 @@ def present_revision(conn, rev: Mapping[str, Any], *, for_vendor: bool = False, 
         "notes": rev.get("notes"), "created_at": rev["created_at"],
         "documents": [{"no": k, "kind": v[0]["kind"], "pages": v} for k, v in sorted(docs.items())],
         "exceptional": _exceptional_view(claim, rev, approved_rev),  # TKDETAILBE (5.2)
+        "basis": claim_prefill.present(rev),  # CR-CLAIM-PREFILL: the approved total / instalment it was compared with, the vendor's reason
     }
     if rev["source"] == "manager":
         out["reason"] = rev.get("reason")
@@ -953,7 +962,10 @@ def public_claim(conn, link_assignment_id: str, now: dt.datetime) -> dict[str, A
     if rate is None and vendor is not None:
         rate = vendor.get("labor_rate_minor")
     rate_currency = contact.get("rate_currency") or (vendor or {}).get("rate_currency")
+    from . import claim_prefill  # CR-CLAIM-PREFILL: the link's own approved quote (null for an ordinary assignment)
+
     return {
+        "prefill": claim_prefill.prefill(conn, claim),
         "status": claim["status"], "required": bool(claim["required"]), "claim_until": claim.get("claim_until"), "writable": writable,
         "currency": claim["currency"], "no_charge": bool(claim["no_charge"]),
         "rejection_reason": last_reject["reason"] if (last_reject and claim["status"] == "rejected") else None,
@@ -966,7 +978,8 @@ def public_claim(conn, link_assignment_id: str, now: dt.datetime) -> dict[str, A
             "labor_rate_minor": rate if rate_currency in (None, claim["currency"]) else None,
             "require_invoice": s.require_invoice,
             "limits": {"lines": money.MAX_LINES, "description": money.DESC_MAX, "vendor_ref": VENDOR_REF_MAX, "notes": NOTES_MAX, "documents": 3,
-                       "pages": 10, "files": 25, "pdf_bytes": 10 * 1024 * 1024, "photo_bytes": 8 * 1024 * 1024, "max_total_minor": s.max_claim_total_minor},
+                       "pages": 10, "files": 25, "pdf_bytes": 10 * 1024 * 1024, "photo_bytes": 8 * 1024 * 1024, "max_total_minor": s.max_claim_total_minor,
+                       "above_reason": claim_prefill.ABOVE_REASON_MAX},
         },
     }
 

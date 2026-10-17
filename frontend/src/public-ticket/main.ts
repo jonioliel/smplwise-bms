@@ -55,7 +55,7 @@ class Page {
   private claimLoading = false;
   // TK257: the permanent quote / payment card (lazy chunk); it hosts the claim step in its payment part
   private costHandle: { element: HTMLElement; update(ctx: { status: string | null; claim: { status: string } | null }): void; refresh(): Promise<void>;
-    ready: Promise<void>; approved(): { total_minor: number; currency: string } | null; quoteState(): string | null; destroy(): void } | null = null;
+    ready: Promise<void>; quoteState(): string | null; destroy(): void } | null = null;
   private costLoading = false;
   private rid: string | null = null;
   private phase: Phase = 'loading';
@@ -697,7 +697,7 @@ class Page {
       const host = this.claimHost;
       void Promise.all([import('./claim/claim-step'), this.costHandle ? this.costHandle.ready : Promise.resolve()]).then(([m]) => {
         this.claimHandle = m.mountClaimStep(host, {
-          embedded: !v.claim_mode, quoteRef: () => this.costHandle?.approved() ?? null,
+          embedded: !v.claim_mode,
           fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body),
           uploadFile: (path, form) => rawCall(this.creds, 'POST', path, undefined, form),
           lang: this.lang, dir: v.dir, labels: v.labels, number: v.number, timeZone: v.time_zone,

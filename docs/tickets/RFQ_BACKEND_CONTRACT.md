@@ -1220,7 +1220,36 @@ whole `rfq` section, which had no route before): the cost janitor (`rfq.retentio
 question still pending after N hours on an open request, and the timeline row `question_reminder`. Texts: the reference, the place and the
 hours - never the text or the vendor. The engine applies each recipient's channels and quiet hours.
 
+## 22. The payment demand loaded from the approved quote (v1.6, CR-CLAIM-PREFILL - owner request 2026-10-17)
+
+Decisions and open questions: `docs/changes/CR-CLAIM-PREFILL.md`. The vendor's payment demand (the 0083 cost claim of the work order's
+assignment, DETAIL 4.2 baseline) is no longer typed again: the page loads it from the approved quote. No new route, no new rate kind, no
+bank data (strict models; the server never reads an amount from the client).
+
+* `GET /t/api/claim` adds `prefill`: `null` (no approved quote on the link's OWN assignment - an ordinary assignment changes nothing) or
+  `{version, partial, currency, vat_mode, vat_rate_bp, lines: [the approved lines, stored shape], subtotal_minor, vat_minor, total_minor
+  (the APPROVED figures - a partial approval's part), work_from, work_to, instalments: [{index, kind, amount_minor, due, date, days,
+  due_date}] (20.3 approved schedule; [] without one), instalment: index | null}` - `instalment` = the lowest-index instalment with an
+  OPEN manager demand (20.11; the page pre-selects it). The quote must be the baseline of the link's assignment AND name the link's contact;
+  no id, no vendor / contact field, nothing of another vendor. `form.limits.above_reason` = 500. Revisions add `basis` (below).
+* `POST /t/api/claim` adds `instalment_index?` (StrictInt 0..5) and `above_reason?` (text hygiene, <= 500 after cleaning). 422 (public
+  `{code: "invalid", fields}`): `instalment_index` `not_allowed` (no approved quote / a no-charge demand), `invalid` (not an instalment of
+  HIS approved schedule with an amount > 0); `above_reason` `required` (the vendor's demand total is above the approved total, or above
+  the named instalment, same currency), `not_allowed` (not above), `too_long`. Below / different lines are accepted as they are.
+* Migration **0115**: `ticket_cost_revisions.basis_json` (nullable) `{quote_id, basis: total | instalment, instalment_index, basis_minor
+  (copied from the stored quote / schedule), above_reason}`. Revisions (vendor and managers' views) add `basis: null | {basis,
+  instalment_index, basis_minor, above_reason}` (never the quote id).
+* The managers' claim view adds `quote_check`: `null` (no baseline) or `{status: same | differs, flags: [above_quote | below_quote |
+  lines_differ | currency], basis, instalment_index, basis_minor, demand_minor, delta_minor, currency, quote_version, above_reason}`.
+  `lines_differ` compares (kind, line total) of the approved lines on the same VAT basis, total basis only. It does NOT set `needs_review`
+  (that flag switches the approve buttons to the exceptional-line choice). The 20.8 `schedule_check` is unchanged.
+* Contract 20.11 said "the vendor's page shows nothing of [the instalment demand]": v1.6 shows ONLY which instalment has an open demand,
+  as the pre-selection (his own payment; never the status history, a paid mark or a manager name).
+
 ## 14. Change log
+
+* v1.6 (2026-10-17, CR-CLAIM-PREFILL, `pilot/CLAIM-PREFILL` from `integ/270`; migration 0115): section 22 - the payment demand loaded from
+  the approved quote (`prefill`, `instalment_index`, `above_reason`, `basis`, `quote_check`).
 
 * v1.5 (2026-10-17, RFQPAY2, `pilot/RFQPAY2` from `integ/264`; migration 0110 - provisional 0112, renumbered at integ/270): the
   three items the owner approved after v1.4.1 recorded them as not built - 20.11 a payment demand per approved instalment (manual,

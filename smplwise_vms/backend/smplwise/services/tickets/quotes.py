@@ -202,6 +202,11 @@ def demand_view(conn, claim: Mapping[str, Any], revs: Sequence[Mapping[str, Any]
 
     check = rfq_terms.check_demand(conn, claim, base, current)
     out["schedule_check"] = check
+    # CR-CLAIM-PREFILL: the demand against the approved quote (or the instalment it named) - `differs` flags it for the manager; it does
+    # not set needs_review (that switches the approve buttons to the exceptional-line choice, which is about lines outside the quote)
+    from . import claim_prefill
+
+    out["quote_check"] = claim_prefill.check(base, current)
     if check is not None and check["status"] == "flagged" and claim["status"] == "submitted":
         out["needs_review"] = True
     return out

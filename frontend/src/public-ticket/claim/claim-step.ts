@@ -59,6 +59,7 @@ import {
 import { type ClaimLang, type ClaimTextKey, type ItemLabels, claimDir, claimLang, ct, errorText, itemLabels } from './claim-text';
 import { type PickKind, fileKind, looksInApp, looksIos, pickFile } from './pick';
 import type { PageEditor } from './capture-editor';
+import type { PrefillExt } from './claim-prefill';
 
 export const CLAIM_PATH = '/t/api/claim';
 export const CLAIM_FILE_PATH = '/t/api/claim/file';
@@ -89,8 +90,6 @@ export interface ClaimStepOptions {
   userAgent?: string;
   /** TK257: mounted inside the permanent quote / payment card - the card has the heading, so the step shows none */
   embedded?: boolean;
-  /** TK257: the approved quote this demand is against (read when a figure is painted); the difference is shown to the vendor */
-  quoteRef?: () => { total_minor: number; currency: string } | null;
 }
 
 export interface ClaimStepHandle {
@@ -169,6 +168,7 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
   let destroyed = false;
   let editor: PageEditor | null = null;
   let editorBusy = false;
+  let ext: PrefillExt | null = null; // CR-CLAIM-PREFILL: the lazy chunk, only when the claim carries the approved quote
   const blobs = new Map<string, Blob>();
   const errorNodes = new Map<string, HTMLElement>();
 
@@ -256,7 +256,10 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     if (destroyed) return;
     const o = classify(res);
     if (o.kind === 'ok') {
-      applyInfo(o.body as unknown as ClaimInfo);
+      const b = o.body as unknown as ClaimInfo;
+      info ??= b;
+      if (b.prefill && !ext) ext = await import('./claim-prefill').then((m) => m.attach({ lang, info: () => info, settings, form: () => form, set: (f) => { form = f; persist(); render(); }, slot: errorSlot, changed: () => showErrors && revalidate() })).catch(() => null);
+      if (!destroyed) applyInfo(b);
       return;
     }
     // a reload that fails while the vendor is filling the form (bad reception, a camera round-trip) keeps the form on screen
@@ -315,7 +318,7 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
       form = formFromRevision(rev, s);
       docs = docsFromRevision(rev);
     } else if (!editing) {
-      form = newForm(s, info?.currency);
+      form = ext ? ext.form() : newForm(s, info?.currency);
       docs = { docs: [] };
     }
     editing = v === 'required' || v === 'rejected' || editing;
@@ -539,7 +542,7 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     }
     if (rev.lines?.length) card.appendChild(list);
     card.appendChild(totalsBlock(rev.net_minor ?? rev.total_minor - rev.vat_minor, rev.vat_minor, rev.total_minor, rev.vat_mode, rev.vat_rate_bp, rev.currency));
-    const delta = quoteDelta(rev.total_minor, rev.currency);
+    const delta = ext?.delta(rev);
     if (delta) card.appendChild(delta);
     if (rev.vendor_ref) {
       const p = el('p', 'swc-muted');
@@ -558,16 +561,6 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
       card.appendChild(p);
     }
     return card;
-  }
-
-  /** TK257: "against the approved quote (X): +Y" - null when no quote was approved or it is in another currency. */
-  function quoteDelta(totalMinor: number, currency: string): HTMLElement | null {
-    const ref = opts.quoteRef?.();
-    if (!ref || ref.currency !== currency) return null;
-    const d = totalMinor - ref.total_minor;
-    const p = el('p', d > 0 ? 'swc-muted swc-delta swc-up' : 'swc-muted swc-delta', t('vs_quote', { quote: money(ref.total_minor, currency), delta: `${d > 0 ? '+' : ''}${money(d, currency)}` }));
-    p.dataset.quoteDelta = String(d);
-    return p;
   }
 
   function totalsBlock(net: number, vat: number, total: number, mode: string, rateBp: number, currency: string): HTMLElement {
@@ -844,13 +837,18 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     }
     if (!figuresHost) return;
     figuresHost.replaceChildren(totalsBlock(fig.net, fig.vat, fig.total, fig.vatMode, fig.rateBp, form.currency));
-    const delta = fig.complete && !form.no_charge ? quoteDelta(fig.total, form.currency) : null;
-    if (delta) figuresHost.appendChild(delta);
+    ext?.paint(figuresHost);
     figuresHost.appendChild(el('p', 'swc-muted swc-small-text', t('estimate_note')));
   }
 
+  function validate(): FieldError[] {
+    const e = validateForm(form, { settings: settings(), docs });
+    ext?.check(e);
+    return e;
+  }
+
   function revalidate(): void {
-    errors = validateForm(form, { settings: settings(), docs });
+    errors = validate();
     paintErrors();
   }
 
@@ -1307,7 +1305,7 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     const open = openDocument(docs);
     if (open) dispatch({ type: 'finish_document', docKey: open.key });
     showErrors = true;
-    errors = validateForm(form, { settings: settings(), docs });
+    errors = validate();
     paintErrors();
     renderDocs();
     if (errors.length) {
@@ -1326,7 +1324,7 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
       }
       submitQueued = false;
       if (!docsReady(docs)) {
-        errors = validateForm(form, { settings: settings(), docs });
+        errors = validate();
         paintErrors();
         if (!errors.length) showBanner({ tone: 'error', text: errorText(lang, 'refused_page') });
         return;
@@ -1335,6 +1333,7 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
     submit = beginSubmit(submit);
     persist(); // the id is on the device BEFORE the request leaves (a reload mid-request retries with it)
     const body = buildPayload(form, docs, settings(), submit.crid);
+    ext?.payload(body);
     setSubmitting(true);
     let res: ApiResult;
     try {

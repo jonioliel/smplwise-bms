@@ -99,7 +99,6 @@ export interface CostCardHandle {
   refresh(): Promise<void>;
   /** resolves after the first load (success or not) */
   ready: Promise<void>;
-  approved(): { total_minor: number; currency: string } | null;
   /** TKUI5: the quote's state as the server last said it (null until the first answer) */
   quoteState(): QuoteState | null;
   destroy(): void;
@@ -687,7 +686,6 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
     },
     refresh,
     ready,
-    approved: approvedRef,
     quoteState: () => info?.state ?? null,
     destroy() {
       destroyed = true;

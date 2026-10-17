@@ -386,7 +386,11 @@ def test_a_demand_line_outside_the_approved_quote_is_exceptional_and_approve_can
                                                                          {"kind": "travel", "amount": "50"}], "client_request_id": crid()})
     assert r.status_code == 422 and r.json()["fields"][0] == {"field": "lines.1.description", "code": "exceptional_description_required"}
     lines = [{"kind": "labor", "hours": "2", "rate": "150"}, {"kind": "parts", "description": "מסנן", "quantity": "1", "unit_price": "100"}]
+    # CR-CLAIM-PREFILL: above the approved total the vendor gives a short reason (refused without it)
     r = client.post("/t/api/claim", headers=hdr(token), json={"lines": lines, "amounts_include_vat": False, "client_request_id": crid()})
+    assert r.status_code == 422 and r.json()["fields"] == [{"field": "above_reason", "code": "required"}], r.text
+    r = client.post("/t/api/claim", headers=hdr(token), json={"lines": lines, "amounts_include_vat": False, "above_reason": "הוחלף מסנן",
+                                                              "client_request_id": crid()})
     assert r.status_code == 201, r.text
     assert r.json()["revision"]["exceptional"][0]["kind"] == "parts" and r.json()["revision"]["exceptional"][0]["review"] == "pending"
     c = s4.c.get(f"{API}/tickets/{t['id']}/costs").json()

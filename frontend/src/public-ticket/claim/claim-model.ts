@@ -83,6 +83,44 @@ export interface Revision {
   notes?: string | null;
   created_at: string;
   documents: { no: number; kind: 'photo' | 'pdf'; pages: RevisionPage[] }[];
+  /** CR-CLAIM-PREFILL: what this revision was compared with (null: no approved quote) */
+  basis?: ClaimBasis | null;
+}
+
+export interface ClaimBasis {
+  basis: 'total' | 'instalment';
+  instalment_index: number | null;
+  basis_minor: number;
+  above_reason: string | null;
+}
+
+/** CR-CLAIM-PREFILL: one instalment of the approved payment schedule (amounts include VAT, RFQ contract 20.3). */
+export interface PrefillInstalment {
+  index: number;
+  kind: 'advance' | 'progress' | 'final';
+  amount_minor: number;
+  due: 'date' | 'completion' | 'after_completion';
+  date: string | null;
+  days: number | null;
+  due_date: string | null;
+}
+
+/** CR-CLAIM-PREFILL: the link's OWN approved quote (GET /t/api/claim `prefill`) - the shape `formFromRevision` reads. */
+export interface ClaimPrefill {
+  version: number;
+  partial: boolean;
+  currency: string;
+  vat_mode: VatMode;
+  vat_rate_bp: number;
+  lines: RevisionLine[];
+  subtotal_minor: number | null;
+  vat_minor: number | null;
+  total_minor: number;
+  work_from: string | null;
+  work_to: string | null;
+  instalments: PrefillInstalment[];
+  /** the instalment a manager opened a demand for (pre-selected), else null */
+  instalment: number | null;
 }
 
 export interface ClaimInfo {
@@ -97,6 +135,8 @@ export interface ClaimInfo {
   revisions?: Revision[];
   form?: ClaimFormSettings;
   claim_mode?: boolean;
+  /** CR-CLAIM-PREFILL: null for an ordinary assignment (nothing changes) */
+  prefill?: ClaimPrefill | null;
 }
 
 /** What the injected fetch helpers answer: `status` 0 = the request never got an answer (offline, dropped connection). */
@@ -314,7 +354,7 @@ export function newForm(settings: ClaimFormSettings | null | undefined, currency
 }
 
 /** The form prefilled from a revision (after a rejection, or to correct a pending submission). Files are not part of the form. */
-export function formFromRevision(rev: Revision, settings?: ClaimFormSettings | null): ClaimForm {
+export function formFromRevision(rev: Pick<Revision, 'lines' | 'currency' | 'vat_mode'> & Partial<Pick<Revision, 'no_charge' | 'vendor_ref' | 'notes'>>, settings?: ClaimFormSettings | null): ClaimForm {
   const lines = (rev.lines ?? []).map((ln) => {
     const d = newLine(ln.kind, null);
     d.description = ln.description ?? '';
@@ -741,6 +781,9 @@ export interface ClaimPayload {
   notes?: string;
   no_charge?: boolean;
   documents: { file_ids: string[] }[];
+  /** CR-CLAIM-PREFILL (added by the lazy prefill chunk) */
+  instalment_index?: number;
+  above_reason?: string;
   client_request_id: string;
 }
 

@@ -3,7 +3,9 @@
     GET  /t/api/claim        the claim of the link's assignment (status, the vendor's own revisions, the form settings)
     POST /t/api/claim/file   (public_app.claim_file) one photographed page or PDF -> a pending file id
     POST /t/api/claim        {lines[], currency, amounts_include_vat, vendor_ref?, notes?, no_charge?, documents: [{file_ids}],
-                              client_request_id} -> the server-computed revision
+                              instalment_index?, above_reason?, client_request_id} -> the server-computed revision
+    CR-CLAIM-PREFILL: GET adds `prefill` (the link's OWN approved quote - claim_prefill.prefill), POST validates `instalment_index` /
+    `above_reason` against it (claim_prefill.basis). No new route, no new rate kind.
 
 Wiring rules (code review section 3, as public_routes): the token through `link_context(allow_claim=True)` only - CLAIM MODE lets a
 link whose page no longer serves (closed past its grace, expired, a cannot-handle return) reach these routes and nothing else
@@ -144,6 +146,10 @@ class ClaimIn(_Strict):
     notes: str | None = Field(default=None, max_length=4000)
     no_charge: bool = False
     documents: list[DocumentIn] = Field(default_factory=list, max_length=3)
+    # CR-CLAIM-PREFILL: the instalment of the approved schedule this demand is for, and the short reason of a demand above the approved
+    # total / instalment (claim_prefill.basis validates both against the link's own approved quote; the amount is never the client's)
+    instalment_index: int | None = Field(default=None, ge=0, le=5)
+    above_reason: str | None = Field(default=None, max_length=1000)
     client_request_id: str = Field(max_length=64)
 
 

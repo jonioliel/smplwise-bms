@@ -146,6 +146,23 @@ export interface CostClaim {
   delta_minor?: number | null;
   kind_deltas?: Record<LineKind, number> | null;
   needs_review?: boolean;
+  /** CR-CLAIM-PREFILL (full view): the demand against the approved quote or the instalment it named - flags only, never a refusal */
+  quote_check?: QuoteCheck | null;
+}
+
+export type QuoteCheckFlag = 'above_quote' | 'below_quote' | 'lines_differ' | 'currency';
+export interface QuoteCheck {
+  status: 'same' | 'differs';
+  flags: QuoteCheckFlag[];
+  basis: 'total' | 'instalment';
+  instalment_index: number | null;
+  basis_minor: number;
+  demand_minor: number;
+  delta_minor: number | null;
+  currency: string;
+  quote_version: number;
+  /** the vendor's short reason for a demand above the approved amount */
+  above_reason: string | null;
 }
 
 export interface CostSettingsBrief { currencies: string[]; vat_rate_bp: number; review_flag_above_minor: number; max_claim_total_minor: number; require_invoice: boolean }
