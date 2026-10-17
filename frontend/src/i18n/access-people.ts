@@ -239,6 +239,9 @@ const he = {
   'msg.reason.expired': 'ההודעה פגה · נסו שוב',
   'msg.reason.free_text_off': 'הודעה חופשית אינה מופעלת',
   'msg.reason.rate': 'מכסת ההודעות מלאה',
+  'msg.reason.person_limit': 'האדם קיבל היום את מספר ההודעות המרבי',
+  'msg.reason.station_limit': 'אנשי העמדה קיבלו את מספר ההודעות המרבי לשעה',
+  'msg.reason.outside_hours': 'מחוץ לשעות השליחה',
   'msg.reason.forbidden': 'אין לכם הרשאה לשלוח לאדם הזה',
   'msg.reason.gone': 'האדם לא נמצא',
   'msg.reason.template_changed': 'התבניות עודכנו · בחרו תבנית שוב',
@@ -266,6 +269,7 @@ const he = {
   'optout.by': 'סומן ע״י {name} · {date}',
   'optout.at': 'סומן {date}',
   'optout.error': 'השינוי לא נשמר',
+  'optout.admin_only': 'רק מנהל מערכת יכול לבטל את הבקשה',
 } as const;
 
 export type PeopleKey = keyof typeof he;

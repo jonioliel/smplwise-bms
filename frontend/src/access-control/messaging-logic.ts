@@ -47,6 +47,10 @@ export interface MessagingConfig {
   templates_revision: number;
   /** Sends allowed in the current window; null = no limit. */
   quota: { limit: number; used: number; resets_in_s: number } | null;
+  /** This sender's own hourly allowance (review F3; refusals by the service count too); null / absent = none reported. */
+  sender_quota?: { limit: number; used: number; resets_in_s: number } | null;
+  /** The administrator's send hours (installation time); null / absent = no send hours. */
+  send_hours?: { from: string; to: string; open_now: boolean; next_opening: string | null } | null;
   /** The spacing the server wants between the sends of one bulk run, in milliseconds. */
   pace_ms: number;
 }
@@ -58,9 +62,11 @@ export interface RecipientInfo {
   name: string;
   /** Null in hidden-phone mode, or when there is no phone. A masked number never has more than its last two digits. */
   phone_masked: string | null;
-  /** True / false when the server looked the person up, null when it did not (a selection past the first few): decided as the message goes. */
+  /** True / false when the server looked the person up, null when it did not (a selection past the first few) or the caller may not see
+   * it (not messageable by them, or not at the sensitive level - review F2): decided as the message goes. */
   has_phone: boolean | null;
-  consent: Consent;
+  /** Null when the server does not tell this caller (the same cases as `has_phone`). */
+  consent: Consent | null;
   /** False = the caller sees the person but may not message them. Absent = not looked up. */
   allowed?: boolean;
 }
@@ -80,6 +86,12 @@ export type SendFailure =
   | 'expired'
   | 'free_text_off'
   | 'rate'
+  /** the recipient had the most messages a day (by record or by number) - the run goes on with the others */
+  | 'person_limit'
+  /** the people of a station of the recipient had the most messages this hour - the run goes on with the others */
+  | 'station_limit'
+  /** outside the administrator's send hours */
+  | 'outside_hours'
   | 'credential'
   | 'too_long'
   | 'empty'
@@ -121,6 +133,8 @@ export interface PersonMessages {
   /** Set when the person asked not to be messaged (Arx's own list); who marked it and when. */
   opt_out: { at: string; by: string | null } | null;
   consent: Consent;
+  /** The caller may CLEAR an opt-out (system.configure - review F6); any sender may set one. Absent = not said (treated as allowed). */
+  can_clear_opt_out?: boolean;
 }
 
 export interface MessagingTransport {
@@ -138,14 +152,59 @@ export interface MessagingTransport {
 
 /** A placeholder that would put a credential into a text: {pin}, {code}, {card}, {password}, {token}, {credential...}. */
 const CREDENTIAL_PLACEHOLDER = /\{\s*(?:pin|code|passcode|card|password|token|credential|secret)\w*\s*\}/i;
-/** The words that introduce a code, followed within a few characters by a run of 4-8 digits: "code 4821", "PIN: 123456", "קוד הגישה 4821". */
-const CREDENTIAL_WORDS = /(?:\bpin\b|\bcode\b|passcode|password|קוד|סיסמ[הא]|סיסמת|פין)[^\d\n]{0,14}\d{4,8}/i;
+/** The words that introduce a code (en / de / fr / he / ru / ar), followed within 30 characters - a line break included - by a run of 4-8
+ * digits; matched against the NORMALISED forms of `guardForms` (review F1, the server's `CREDENTIAL_WORDS`). */
+const CREDENTIAL_WORDS =
+  /(?:(?<![a-z])pin|code|pass(?![a-z])|password|passwort|kennwort|mot de passe|קוד|סיסמ|ססמ|פין|код|пин|пароль|رمز|كود|كلمة السر|كلمة المرور|رقم سري)[^0-9]{0,30}[0-9]{4,8}/u;
+const DIGIT_WORDS: Record<string, readonly string[]> = {
+  '0': ['zero', 'אפס', 'ноль', 'нуль', 'صفر'],
+  '1': ['one', 'אחת', 'אחד', 'один', 'одна', 'واحد'],
+  '2': ['two', 'שתיים', 'שתים', 'שניים', 'два', 'две', 'اثنان', 'اثنين'],
+  '3': ['three', 'שלוש', 'שלושה', 'שלש', 'три', 'ثلاثة', 'ثلاث'],
+  '4': ['four', 'ארבע', 'ארבעה', 'четыре', 'اربعة', 'اربع'],
+  '5': ['five', 'חמש', 'חמישה', 'חמשה', 'пять', 'خمسة', 'خمس'],
+  '6': ['six', 'שש', 'שישה', 'ששה', 'шесть', 'ستة', 'ست'],
+  '7': ['seven', 'שבע', 'שבעה', 'семь', 'سبعة', 'سبع'],
+  '8': ['eight', 'שמונה', 'восемь', 'ثمانية', 'ثمان'],
+  '9': ['nine', 'תשע', 'תשעה', 'девять', 'تسعة', 'تسع'],
+};
+const DIGIT_OF = new Map(Object.entries(DIGIT_WORDS).flatMap(([d, words]) => words.map((w) => [w, d] as const)));
+const DIGIT_WORD_RE = new RegExp(`(?<![\\p{L}\\p{N}_])ו?(${[...DIGIT_OF.keys()].sort((a, b) => b.length - a.length).join('|')})(?![\\p{L}\\p{N}_])`, 'gu');
+const DIGIT_GAP = /(?<=[0-9])[\s\-.,_/\\|·•*]{1,3}(?=[0-9])/gu;
+const SPELLED = /(?<!\p{L})((?:\p{L}[.\s]){2,}\p{L})\.?(?!\p{L})/gu;
+const HOMOGLYPHS = new Map(Object.entries({ а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', і: 'i', ӏ: 'l', ѕ: 's', ԁ: 'd', к: 'k', м: 'm', н: 'h', т: 't', у: 'y', х: 'x', α: 'a', ε: 'e', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', τ: 't', υ: 'u' }));
+const ARABIC_ALEF = /[أإآ]/gu;
+
+/** A decimal digit of any script as its ASCII digit (blocks of ten consecutive code points: count back to the block's zero). */
+function asciiDigit(ch: string): string {
+  const cp = ch.codePointAt(0)!;
+  let zero = cp;
+  while (zero > cp - 9 && /\p{Nd}/u.test(String.fromCodePoint(zero - 1))) zero--;
+  return String((cp - zero) % 10);
+}
+
+/** The forms of a text the guard looks at - the server's `_guard_forms`: NFKC, format characters and combining marks dropped, lower case,
+ * every digit as ASCII, digit words as digits, letters spelled apart joined, the separators between digits collapsed; and the same with
+ * look-alike letters mapped to Latin. */
+export function guardForms(text: string): [string, string] {
+  let t = text.normalize('NFKC').replace(/[\p{Cf}\p{Mn}]/gu, '').toLowerCase();
+  t = t.replace(/\p{Nd}/gu, (ch) => (/[0-9]/.test(ch) ? ch : asciiDigit(ch))).replace(ARABIC_ALEF, 'ا');
+  t = t.replace(DIGIT_WORD_RE, (_m, w: string) => DIGIT_OF.get(w) ?? w);
+  t = t.replace(SPELLED, (_m, letters: string) => letters.replace(/[.\s]/gu, ''));
+  for (let i = 0; i < 4; i++) {
+    const joined = t.replace(DIGIT_GAP, '');
+    if (joined === t) break;
+    t = joined;
+  }
+  return [t, [...t].map((c) => HOMOGLYPHS.get(c) ?? c).join('')];
+}
 
 export const hasCredentialPlaceholder = (text: string): boolean => CREDENTIAL_PLACEHOLDER.test(text);
 
 /** The text reads like a PIN or access code (a best-effort guard on what a sender TYPES; templates never carry one, and nothing in the
  * browser knows a PIN). The server runs the same check - services/intercom_messaging.py - and is the judge. */
-export const looksLikeCredential = (text: string): boolean => hasCredentialPlaceholder(text) || CREDENTIAL_WORDS.test(text);
+export const looksLikeCredential = (text: string): boolean =>
+  hasCredentialPlaceholder(text) || guardForms(text).some((form) => CREDENTIAL_WORDS.test(form) || hasCredentialPlaceholder(form));
 
 /** The templates the dialog may offer: an approved template that carries a credential placeholder is not one (the server refuses to save
  * one; this keeps a faulty catalogue from reaching the sender). */
@@ -161,6 +220,13 @@ export function renderTemplate(body: string, vars: Record<string, string>): stri
 // ---------------------------------------------------------------- quota and time
 
 export const quotaLeft = (q: MessagingConfig['quota']): number | null => (q ? Math.max(0, q.limit - q.used) : null);
+
+/** The tighter of the installation's and this sender's allowance (review F3). */
+export function allowance(config: MessagingConfig): MessagingConfig['quota'] {
+  const both = [config.quota, config.sender_quota ?? null].filter((q): q is NonNullable<MessagingConfig['quota']> => q !== null);
+  if (both.length === 0) return null;
+  return both.reduce((a, b) => (b.limit - b.used < a.limit - a.used ? b : a));
+}
 export const retryMinutes = (seconds: number | undefined): number => Math.max(1, Math.ceil((seconds ?? 60) / 60));
 
 // ---------------------------------------------------------------- the single composer
@@ -196,6 +262,7 @@ export interface ComposerView {
  * (`has_phone` null) is not blocked: it is decided as the message goes. */
 export function recipientBlock(config: MessagingConfig, recipient: RecipientInfo | null): SendFailure | null {
   if (!config.enabled) return 'no_service';
+  if (config.send_hours && config.send_hours.open_now === false) return 'outside_hours';
   if (!recipient || recipient.has_phone === false) return 'no_phone';
   if (recipient.allowed === false) return 'forbidden';
   if (recipient.consent === 'declined') return 'no_consent';
@@ -214,12 +281,13 @@ export function draftProblem(config: MessagingConfig, draft: MessageDraft): Send
 
 export function composerView(i: ComposerInputs): ComposerView {
   const blocked = recipientBlock(i.config, i.recipient);
-  const exhausted = i.config.quota !== null && quotaLeft(i.config.quota) === 0;
+  const quota = allowance(i.config);
+  const exhausted = quota !== null && quotaLeft(quota) === 0;
   if (i.phase === 'sending') return { blocked, canSend: false, textDisabled: true, line: { tone: 'wait', kind: 'sending' } };
   if (i.phase === 'sent') return { blocked, canSend: !blocked && !exhausted && draftProblem(i.config, i.draft) === null, textDisabled: false, line: { tone: 'ok', kind: 'sent' } };
   if (blocked) return { blocked, canSend: false, textDisabled: true, line: { tone: 'warn', kind: 'cant', reason: blocked } };
   if (exhausted || (i.phase === 'failed' && i.failure === 'rate')) {
-    return { blocked: 'rate', canSend: false, textDisabled: false, line: { tone: 'warn', kind: 'rate', minutes: retryMinutes(i.retryAfterS ?? i.config.quota?.resets_in_s) } };
+    return { blocked: 'rate', canSend: false, textDisabled: false, line: { tone: 'warn', kind: 'rate', minutes: retryMinutes(i.retryAfterS ?? quota?.resets_in_s) } };
   }
   const problem = draftProblem(i.config, i.draft);
   if (i.phase === 'failed' && i.failure) return { blocked: null, canSend: problem === null, textDisabled: false, line: { tone: 'err', kind: 'failed', reason: i.failure } };
@@ -252,7 +320,7 @@ export function bulkPlan(recipients: readonly RecipientInfo[], config: Messaging
     else send.push(r);
   }
   const tooMany = recipients.length > config.bulk_max;
-  const left = quotaLeft(config.quota);
+  const left = quotaLeft(allowance(config));
   const overQuota = left !== null && send.length > left ? left : null;
   return { send, skip, tooMany, overQuota, canSend: send.length > 0 && !tooMany && overQuota === null && draftProblem(config, draft) === null };
 }
@@ -288,7 +356,7 @@ export interface BulkOptions {
 
 const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 /** A refusal that would repeat for every later recipient: the run stops and the rest are reported as not sent for it. */
-const HALTS: ReadonlySet<SendFailure> = new Set(['rate', 'no_service', 'disabled', 'template_changed']);
+const HALTS: ReadonlySet<SendFailure> = new Set(['rate', 'no_service', 'disabled', 'template_changed', 'outside_hours']);
 
 /** Runs the sends one after another at the server's pace (the allowance is per sender, and WisKey's provider is not for floods). A failure
  * never stops the rest, except one that would repeat for everyone (`HALTS`); a burst refusal is waited out and the same person tried

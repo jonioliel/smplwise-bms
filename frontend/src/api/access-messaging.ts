@@ -14,7 +14,8 @@
  * A send's body: a template send carries `template_id` + the `templates_revision` the sender saw and NO text (the server renders its own);
  * a free send carries `text`. A bulk run is this call once per person, sequentially, under one `bulk_id`.
  * Errors: 403 message_forbidden | 409 message_no_consent | 422 message_no_phone | 422 message_forbidden_content | 422 message_too_long |
- *   422 message_empty | 403 message_free_text_disabled | 429 message_rate_limited {scope: hour|burst, retry_after_s} | 503
+ *   422 message_empty | 403 message_free_text_disabled | 429 message_rate_limited {scope: hour|sender|person|station|burst, retry_after_s} |
+ *   409 message_outside_hours {next_allowed_at} | 422 message_bulk_too_many | 403 message_optout_clear_forbidden (opt-out route) | 503
  *   message_service_unavailable | 502 message_not_registered | 504 message_uncertain | 410 message_expired | 409 message_template_changed |
  *   409 message_disabled | 409 message_duplicate | 404 intercom_person_not_found.
  */
@@ -50,7 +51,13 @@ export function sendFailureOf(err: unknown): Extract<SendResult, { ok: false }> 
     message_duplicate: 'duplicate',
     message_refused: 'refused',
   };
-  const reason = map[err.code] ?? (err.status >= 500 && err.status !== 503 ? 'uncertain' : 'unknown');
+  let reason: SendFailure = map[err.code] ?? (err.status >= 500 && err.status !== 503 ? 'uncertain' : 'unknown');
+  // review F3 / F4 / F5: the caps of one recipient or one station refuse that person only; the sender's own cap, the run window and the
+  // send hours would repeat for everyone (they halt a run)
+  if (err.code === 'message_rate_limited' && details.scope === 'person') reason = 'person_limit';
+  else if (err.code === 'message_rate_limited' && details.scope === 'station') reason = 'station_limit';
+  else if (err.code === 'message_outside_hours') reason = 'outside_hours';
+  else if (err.code === 'message_bulk_too_many') reason = 'rate';
   const out: Extract<SendResult, { ok: false }> = { ok: false, reason };
   if (retry !== undefined) out.retry_after_s = retry;
   if (reason === 'rate') out.transient = details.scope === 'burst' || err.code === 'intercom_rate_limited' || err.code === 'intercom_busy';
@@ -93,7 +100,7 @@ export function createHttpTransport(): MessagingTransport {
     },
     async history(personId) {
       const r = await get<PersonMessages>(`access-control/people/${encodeURIComponent(personId)}/messages`);
-      return { messages: r.messages, opt_out: r.opt_out, consent: r.consent };
+      return { messages: r.messages, opt_out: r.opt_out, consent: r.consent, can_clear_opt_out: r.can_clear_opt_out };
     },
     async setOptOut(personId, optedOut) {
       return put<{ opt_out: PersonMessages['opt_out']; consent: Consent }>(`access-control/people/${encodeURIComponent(personId)}/messages/optout`, { opted_out: optedOut });
@@ -116,6 +123,12 @@ export interface MessagingSettingsDoc {
   free_text: boolean;
   bulk_max: number;
   rate_per_hour: number;
+  /** Review F3 (2.6.5): one sender's messages an hour (refusals included), one recipient's a day, one station's people an hour. */
+  per_sender_per_hour: number;
+  per_person_per_day: number;
+  per_station_per_hour: number;
+  /** Review F5: messages leave only between these local times (from < to); null = no send hours. */
+  send_hours: { from: string; to: string } | null;
   organization: string;
   /** The messaging account (when WisKey has several); '' = the only one. */
   account: string;
@@ -130,6 +143,9 @@ export interface MessagingLimits {
   organization_max: number;
   bulk_max: [number, number];
   rate_per_hour: [number, number];
+  per_sender_per_hour?: [number, number];
+  per_person_per_day?: [number, number];
+  per_station_per_hour?: [number, number];
   placeholders: string[];
   placeholders_max: number;
 }
@@ -166,6 +182,10 @@ export const putMessagingSettings = (doc: MessagingSettingsDoc) =>
     free_text: doc.free_text,
     bulk_max: doc.bulk_max,
     rate_per_hour: doc.rate_per_hour,
+    per_sender_per_hour: doc.per_sender_per_hour,
+    per_person_per_day: doc.per_person_per_day,
+    per_station_per_hour: doc.per_station_per_hour,
+    send_hours: doc.send_hours,
     organization: doc.organization,
     account: doc.account,
     templates: doc.templates.map((t) => ({ ...(t.id ? { id: t.id } : {}), label: t.label, body: t.body })),

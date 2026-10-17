@@ -18,6 +18,9 @@ export const DEFAULT_LIMITS: MessagingLimits = {
   organization_max: 60,
   bulk_max: [1, 200],
   rate_per_hour: [1, 1000],
+  per_sender_per_hour: [1, 1000],
+  per_person_per_day: [1, 50],
+  per_station_per_hour: [1, 1000],
   placeholders: ['name', 'organization'],
   placeholders_max: 6,
 };
@@ -69,6 +72,8 @@ export function bodyProblems(body: string, path: string, organization: string, l
   if (looksLikeCredential(text)) return [{ path, code: 'credential' }];
   if (found.length > limits.placeholders_max) return [{ path, code: 'too_many_placeholders' }];
   if (found.includes('organization') && !organization.trim()) return [{ path, code: 'organization_missing' }];
+  // review F8: the text a person receives - "הקוד שלך {organization}" with an organization of "4821"
+  if (looksLikeCredential(text.replace(/\{(name|organization)\}/g, (_m, k: string) => (k === 'name' ? 'xxxxxxxx' : organization.trim())))) return [{ path, code: 'credential' }];
   const names = found.filter((n) => n === 'name').length;
   const orgs = found.filter((n) => n === 'organization').length;
   if (text.replace(/\{(?:name|organization)\}/g, '').length + names * NAME_MAX + orgs * limits.organization_max > RENDERED_MAX) return [{ path, code: 'too_long' }];
@@ -76,17 +81,44 @@ export function bodyProblems(body: string, path: string, organization: string, l
 }
 
 /** Every problem of the whole document, as the server would name them (`{path, code}`). */
-export function settingsProblems(doc: Pick<MessagingSettingsDoc, 'bulk_max' | 'rate_per_hour' | 'organization' | 'account' | 'templates'>, limits: MessagingLimits = DEFAULT_LIMITS): SettingsProblem[] {
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** The server's `send_hours_error`: null = a valid window (the tickets' send-hours rules: from < to, no window across midnight). */
+export function sendHoursProblem(v: { from: string; to: string } | null | undefined): string | null {
+  if (v === null || v === undefined) return null;
+  if (!HHMM.test(v.from) || !HHMM.test(v.to)) return 'window_invalid';
+  if (v.from === v.to) return 'window_empty';
+  if (v.from > v.to) return 'window_across_midnight';
+  return null;
+}
+
+type CapKey = 'per_sender_per_hour' | 'per_person_per_day' | 'per_station_per_hour';
+const CAP_DEFAULT_RANGES: Record<CapKey, [number, number]> = { per_sender_per_hour: [1, 1000], per_person_per_day: [1, 50], per_station_per_hour: [1, 1000] };
+
+export function settingsProblems(
+  doc: Pick<MessagingSettingsDoc, 'bulk_max' | 'rate_per_hour' | 'organization' | 'account' | 'templates'> & Partial<Pick<MessagingSettingsDoc, CapKey | 'send_hours'>>,
+  limits: MessagingLimits = DEFAULT_LIMITS,
+): SettingsProblem[] {
   const out: SettingsProblem[] = [];
   const int = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
   if (!int(doc.bulk_max)) out.push({ path: 'bulk_max', code: 'type' });
   else if (doc.bulk_max < limits.bulk_max[0] || doc.bulk_max > limits.bulk_max[1]) out.push({ path: 'bulk_max', code: 'range' });
   if (!int(doc.rate_per_hour)) out.push({ path: 'rate_per_hour', code: 'type' });
   else if (doc.rate_per_hour < limits.rate_per_hour[0] || doc.rate_per_hour > limits.rate_per_hour[1]) out.push({ path: 'rate_per_hour', code: 'range' });
+  for (const key of Object.keys(CAP_DEFAULT_RANGES) as CapKey[]) {
+    if (!(key in doc)) continue;
+    const v = doc[key];
+    const [lo, hi] = limits[key] ?? CAP_DEFAULT_RANGES[key];
+    if (!int(v)) out.push({ path: key, code: 'type' });
+    else if (v < lo || v > hi) out.push({ path: key, code: 'range' });
+  }
+  const hours = sendHoursProblem(doc.send_hours);
+  if (hours) out.push({ path: 'send_hours', code: hours });
   const organization = doc.organization.trim();
   if (organization.length > limits.organization_max) out.push({ path: 'organization', code: 'too_long' });
   else if (hasControl(organization, false)) out.push({ path: 'organization', code: 'control_chars' });
   else if (organization.includes('{') || organization.includes('}')) out.push({ path: 'organization', code: 'bad_braces' });
+  else if (looksLikeCredential(organization)) out.push({ path: 'organization', code: 'credential' });
   if (doc.templates.length > limits.templates_max) out.push({ path: 'templates', code: 'too_many' });
   const labels = new Set<string>();
   doc.templates.forEach((t, i) => {

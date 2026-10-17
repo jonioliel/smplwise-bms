@@ -47,6 +47,17 @@
     "used": 2,
     "resets_in_s": 1980
    },
+   "sender_quota": {
+    "limit": 50,
+    "used": 1,
+    "resets_in_s": 1980
+   },
+   "send_hours": {
+    "from": "08:00",
+    "to": "21:00",
+    "open_now": true,
+    "next_opening": null
+   },
    "pace_ms": 2200
   }
  },
@@ -59,7 +70,7 @@
    {
     "person_id": "p1",
     "name": "דנה כהן",
-    "phone_masked": "••••••••01",
+    "phone_masked": "••••••01",
     "has_phone": true,
     "consent": "unknown",
     "allowed": true
@@ -99,7 +110,8 @@
    "at": "2026-10-10T09:00:00Z",
    "by": "מנהל מערכת"
   },
-  "consent": "declined"
+  "consent": "declined",
+  "can_clear_opt_out": true
  },
  "optout": {
   "opt_out": {
@@ -135,6 +147,13 @@
    "free_text": true,
    "bulk_max": 50,
    "rate_per_hour": 60,
+   "per_sender_per_hour": 50,
+   "per_person_per_day": 3,
+   "per_station_per_hour": 50,
+   "send_hours": {
+    "from": "08:00",
+    "to": "21:00"
+   },
    "organization": "מגדל הדגמה",
    "account": "",
    "templates": [
@@ -166,6 +185,18 @@
     200
    ],
    "rate_per_hour": [
+    1,
+    1000
+   ],
+   "per_sender_per_hour": [
+    1,
+    1000
+   ],
+   "per_person_per_day": [
+    1,
+    50
+   ],
+   "per_station_per_hour": [
     1,
     1000
    ],
@@ -245,6 +276,46 @@
    "correlation_id": "c0ffee",
    "details": {
     "revision": 4
+   }
+  },
+  "outside_hours": {
+   "code": "message_outside_hours",
+   "user_message": "אפשר לשלוח הודעות בין 08:00 ל־21:00. ההודעה לא נשלחה.",
+   "retryable": false,
+   "correlation_id": "c0ffee",
+   "details": {
+    "outcome": "not_sent",
+    "next_allowed_at": "2026-10-15T05:00:00Z",
+    "send_hours": {
+     "from": "08:00",
+     "to": "21:00"
+    }
+   }
+  },
+  "rate_person": {
+   "code": "message_rate_limited",
+   "user_message": "האדם הזה קיבל היום את מספר ההודעות המרבי.",
+   "retryable": true,
+   "correlation_id": "c0ffee",
+   "details": {
+    "outcome": "not_sent",
+    "scope": "person",
+    "retry_after_s": 80000,
+    "quota": {
+     "limit": 3,
+     "used": 3,
+     "resets_in_s": 80000
+    }
+   }
+  },
+  "optout_clear_forbidden": {
+   "code": "message_optout_clear_forbidden",
+   "user_message": "רק מנהל מערכת יכול לבטל בקשה של אדם לא לקבל הודעות.",
+   "retryable": false,
+   "correlation_id": "c0ffee",
+   "details": {
+    "permission": "system.configure",
+    "outcome": "not_sent"
    }
   }
  }

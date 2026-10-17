@@ -315,4 +315,35 @@ test.describe('the routes\' error codes -> what the dialog says', () => {
     expect(sendFailureOf(err(422, 'something_new')).reason).toBe('unknown');
     expect(sendFailureOf(new TypeError('network')).reason).toBe('uncertain');
   });
+
+  test('the 2.6.5 caps: a recipient or a station refuses that person only; the sender cap, the run window and the send hours halt', () => {
+    expect(sendFailureOf(err(429, 'message_rate_limited', { scope: 'person', retry_after_s: 9000 })).reason).toBe('person_limit');
+    expect(sendFailureOf(err(429, 'message_rate_limited', { scope: 'station', retry_after_s: 900 })).reason).toBe('station_limit');
+    expect(sendFailureOf(err(429, 'message_rate_limited', { scope: 'sender', retry_after_s: 900 }))).toMatchObject({ reason: 'rate', transient: false });
+    expect(sendFailureOf(err(422, 'message_bulk_too_many', { scope: 'window' })).reason).toBe('rate');
+    expect(sendFailureOf(err(409, 'message_outside_hours', { next_allowed_at: '2026-10-15T05:00:00Z' })).reason).toBe('outside_hours');
+  });
+});
+
+// review F1 (2.6.5): the same counterexamples as tests/test_intercom_messaging_review265.py - the browser's guard is an early answer only
+test.describe('the credential guard after the 2.6.5 review', () => {
+  const evasions = [
+    'קוד:\n4821', 'קוד 4 8 2 1', 'קוד 48 21', 'code 48-21', 'pincode 4821', 'Zugangscode 4821', 'PIN code: 4 8 2 1', 'P.I.N. 4821',
+    'c​ode 4821', 'קו​ד 4821', 'рin 4821', 'код 4821', 'пароль 4821', 'رمز 4821', 'كلمة السر 4821', 'mot de passe 4821',
+    'pass 4821', 'your pin is four eight two one', 'הקוד: ארבע-שמונה-שתיים-אחת', 'קוד 48²¹', 'קוד ①②③④', 'סִיסְמָה 4821',
+    'קוד לכניסה הראשית בבניין 4821', 'PIN ٤٨٢١', 'קוד ۴۸۲۱', 'пин 4821', 'كود 4821',
+  ];
+  const ordinary = ['הכניסה סגורה בין 12:00 ל־14:00', 'שלום דנה, כרטיס הכניסה מוכן', 'נפגש ב־15.10.2026 בשעה 09:30', 'מספר העובד שלך 1001', 'קוד הלבוש: חליפה', 'Meeting room 3 at 14:00', 'שלום, אחת ושתיים ושלוש', 'one two three'];
+  test('every evasion of the review is caught', () => {
+    for (const t of evasions) expect(looksLikeCredential(t), t).toBe(true);
+  });
+  test('ordinary text still passes', () => {
+    for (const t of ordinary) expect(looksLikeCredential(t), t).toBe(false);
+  });
+  test('outside the send hours nobody can be messaged; the tighter allowance counts', () => {
+    const closed = config({ send_hours: { from: '08:00', to: '21:00', open_now: false, next_opening: '2026-10-15T05:00:00Z' } });
+    expect(recipientBlock(closed, rcpt('a'))).toBe('outside_hours');
+    const mine = config({ quota: { limit: 60, used: 1, resets_in_s: 900 }, sender_quota: { limit: 2, used: 2, resets_in_s: 600 } });
+    expect(composerView({ config: mine, recipient: rcpt('a'), draft: draft('שלום'), phase: 'idle' }).blocked).toBe('rate');
+  });
 });

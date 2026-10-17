@@ -36,10 +36,19 @@ interface Draft {
   free_text: boolean;
   bulk_max: string;
   rate_per_hour: string;
+  per_sender_per_hour: string;
+  per_person_per_day: string;
+  per_station_per_hour: string;
+  hours_on: boolean;
+  hours_from: string;
+  hours_to: string;
   organization: string;
   account: string;
   templates: Row[];
 }
+
+const DEFAULT_HOURS = { from: '08:00', to: '21:00' };
+const wholeOrNaN = (s: string): number => (/^\d+$/.test(s.trim()) ? Number(s) : Number.NaN);
 
 let rowKey = 0;
 const nextKey = () => `r${++rowKey}`;
@@ -56,6 +65,12 @@ const toDraft = (d: MessagingSettingsDoc): Draft => ({
   free_text: d.free_text,
   bulk_max: String(d.bulk_max),
   rate_per_hour: String(d.rate_per_hour),
+  per_sender_per_hour: String(d.per_sender_per_hour ?? 50),
+  per_person_per_day: String(d.per_person_per_day ?? 3),
+  per_station_per_hour: String(d.per_station_per_hour ?? 50),
+  hours_on: d.send_hours !== null,
+  hours_from: (d.send_hours ?? DEFAULT_HOURS).from,
+  hours_to: (d.send_hours ?? DEFAULT_HOURS).to,
   organization: d.organization,
   account: d.account,
   templates: d.templates.map((t) => ({ key: nextKey(), id: t.id, label: t.label, body: t.body })),
@@ -66,15 +81,22 @@ const toDoc = (d: Draft): MessagingSettingsDoc => ({
   revision: d.revision,
   enabled: d.enabled,
   free_text: d.free_text,
-  bulk_max: /^\d+$/.test(d.bulk_max.trim()) ? Number(d.bulk_max) : Number.NaN,
-  rate_per_hour: /^\d+$/.test(d.rate_per_hour.trim()) ? Number(d.rate_per_hour) : Number.NaN,
+  bulk_max: wholeOrNaN(d.bulk_max),
+  rate_per_hour: wholeOrNaN(d.rate_per_hour),
+  per_sender_per_hour: wholeOrNaN(d.per_sender_per_hour),
+  per_person_per_day: wholeOrNaN(d.per_person_per_day),
+  per_station_per_hour: wholeOrNaN(d.per_station_per_hour),
+  send_hours: d.hours_on ? { from: d.hours_from.trim(), to: d.hours_to.trim() } : null,
   organization: d.organization,
   account: d.account,
   templates: d.templates.map((t) => ({ ...(t.id ? { id: t.id } : {}), label: t.label, body: t.body })),
 });
 
 const snapshot = (d: Draft): string =>
-  JSON.stringify([d.enabled, d.free_text, d.bulk_max.trim(), d.rate_per_hour.trim(), d.organization.trim(), d.account, d.templates.map((t) => [t.id ?? '', t.label.trim(), t.body.trim()])]);
+  JSON.stringify([
+    d.enabled, d.free_text, d.bulk_max.trim(), d.rate_per_hour.trim(), d.per_sender_per_hour.trim(), d.per_person_per_day.trim(), d.per_station_per_hour.trim(),
+    d.hours_on, d.hours_from.trim(), d.hours_to.trim(), d.organization.trim(), d.account, d.templates.map((t) => [t.id ?? '', t.label.trim(), t.body.trim()]),
+  ]);
 
 /**
  * CR-036 WA: "הודעות" - the fifth segment of the Settings page "בקרת כניסה" (system.configure): the administrator's switch for sending
@@ -415,6 +437,17 @@ export class SystemAccessMessaging extends LitElement {
     return list.length ? html`<div class="problem" role="alert" data-msg-problem=${list[0].code} data-msg-problem-path=${path}><sw-icon name="warning" size=${14}></sw-icon><span>${withPlaceholders(problemText(list[0].code))}</span></div>` : nothing;
   }
 
+  /** One of the caps of the 2.6.5 review (per sender / per recipient / per station): a whole number within the server's range. */
+  private capField(key: 'per_sender_per_hour' | 'per_person_per_day' | 'per_station_per_hour', words: 'sender' | 'person' | 'station', range: [number, number]): TemplateResult {
+    const d = this.draft!;
+    return html`<div>
+      <sw-field label=${mt(`${words}.title`)} hint=${mt(`${words}.hint`, { min: range[0], max: range[1] })} ?data-bad=${this.shown(key).length > 0}>
+        <input type="text" inputmode="numeric" .value=${d[key]} data-msg-setting=${key} @input=${(e: Event) => this.set({ [key]: (e.target as HTMLInputElement).value } as Partial<Draft>, key)} />
+      </sw-field>
+      ${this.problemLine(key)}
+    </div>`;
+  }
+
   private serviceLine(r: MessagingSettingsReply): TemplateResult {
     const s = r.service;
     let tone = 'ok';
@@ -485,6 +518,7 @@ export class SystemAccessMessaging extends LitElement {
           <span class="txt"><span class="t">${mt('free.title')}</span><span class="x">${d.free_text ? mt('free.on') : mt('free.off')}</span></span>
           <span class="track" aria-hidden="true"></span>
         </button>
+        <div class="hint" data-msg-optout-note>${mt('optout.note')}</div>
         <div class="fields">
           <div>
             <sw-field label=${mt('bulk.title')} hint=${mt('bulk.hint', { min: limits.bulk_max[0], max: limits.bulk_max[1] })} ?data-bad=${this.shown('bulk_max').length > 0}>
@@ -497,6 +531,26 @@ export class SystemAccessMessaging extends LitElement {
               <input type="text" inputmode="numeric" .value=${d.rate_per_hour} data-msg-setting="rate_per_hour" @input=${(e: Event) => this.set({ rate_per_hour: (e.target as HTMLInputElement).value }, 'rate_per_hour')} />
             </sw-field>
             ${this.problemLine('rate_per_hour')}
+          </div>
+          ${this.capField('per_sender_per_hour', 'sender', limits.per_sender_per_hour ?? [1, 1000])}
+          ${this.capField('per_person_per_day', 'person', limits.per_person_per_day ?? [1, 50])}
+          ${this.capField('per_station_per_hour', 'station', limits.per_station_per_hour ?? [1, 1000])}
+          <div data-msg-send-hours>
+            <button type="button" class="sw" role="switch" aria-checked=${String(d.hours_on)} data-msg-setting="send_hours" @click=${() => this.set({ hours_on: !d.hours_on }, 'send_hours')}>
+              <span class="txt"><span class="t">${mt('hours.title')}</span><span class="x">${d.hours_on ? mt('hours.on') : mt('hours.off')}</span></span>
+              <span class="track" aria-hidden="true"></span>
+            </button>
+            ${d.hours_on
+              ? html`<div class="fields">
+                  <sw-field label=${mt('hours.from')} ?data-bad=${this.shown('send_hours').length > 0}>
+                    <input type="time" class="ltr" .value=${d.hours_from} data-msg-setting="send_hours_from" @input=${(e: Event) => this.set({ hours_from: (e.target as HTMLInputElement).value }, 'send_hours')} />
+                  </sw-field>
+                  <sw-field label=${mt('hours.to')} ?data-bad=${this.shown('send_hours').length > 0}>
+                    <input type="time" class="ltr" .value=${d.hours_to} data-msg-setting="send_hours_to" @input=${(e: Event) => this.set({ hours_to: (e.target as HTMLInputElement).value }, 'send_hours')} />
+                  </sw-field>
+                </div>`
+              : nothing}
+            ${this.problemLine('send_hours')}
           </div>
           <div>
             <sw-field label=${mt('org.title')} ?data-bad=${this.shown('organization').length > 0}>

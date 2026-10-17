@@ -38,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, Valida
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import intercom_adapter, intercom_sync
 from ..services import intercom_authority as ia
 from ..services import intercom_messaging as M
@@ -169,14 +169,17 @@ def messaging_config(request: Request, auth: ia.Authority = Depends(_gate)) -> d
     settings = settings_of(request)
     cfg = M.read_settings(auth.conn)
     base = {"feature": cfg["enabled"], "enabled": False, "can_send": False, "can_reveal_phone": auth.anywhere(ia.PEOPLE_SENSITIVE), "free_text": cfg["free_text"],
-            "bulk_max": cfg["bulk_max"], "text_max": M.TEXT_MAX, "templates": [], "templates_revision": cfg["revision"], "quota": None, "pace_ms": M.PACE_MS}
+            "bulk_max": cfg["bulk_max"], "text_max": M.TEXT_MAX, "templates": [], "templates_revision": cfg["revision"], "quota": None, "sender_quota": None,
+            "send_hours": None, "pace_ms": M.PACE_MS}
     head = _feed(settings)
     if not cfg["enabled"]:
         return {**head, "messaging": base}
     status = MESSAGING.status(settings, auth.principal.user_id)
     account, _problem = MESSAGING.account_for(status, cfg["account"])
     connected = status["available"] is True and account is not None
-    return {**head, "messaging": {**base, "enabled": connected, "can_send": True, "templates": M.public_templates(cfg), "quota": _quota(cfg, auth.conn, status)}}
+    return {**head, "messaging": {**base, "enabled": connected, "can_send": True, "templates": M.public_templates(cfg), "quota": _quota(cfg, auth.conn, status),
+                                  "sender_quota": M.sender_state(auth.conn, auth.principal.user_id, cfg["per_sender_per_hour"]),
+                                  "send_hours": M.send_hours_state(auth.conn, cfg)}}
 
 
 # ---------------------------------------------------------------- the preview of a selection
@@ -190,18 +193,19 @@ class RecipientsBody(BaseModel):
 def messaging_recipients(request: Request, auth: ia.Authority = Depends(_gate), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Who of the people the sender picked can be messaged, for the dialog's preview. At most RECIPIENT_READS (6) people are looked up
     in WisKey (each lookup spends a read token of the sender, whose burst is 10); for each: `{person_id, name, phone_masked, has_phone,
-    consent, allowed}` - `phone_masked` only for a caller at the sensitive level (everyone else: null, the dialog says "מספר מוסתר" and
-    the server still holds the number), `consent` = `granted` / `declined` (WisKey's or Arx's opt-out list) / `unknown`, `allowed` false =
-    visible but not messageable by this caller. A person the caller may not see, or WisKey does not know, is simply not in the list (no
-    existence oracle); the people past the first RECIPIENT_READS are not looked up - they are decided as each message goes. Reply:
-    `{state, ..., recipients}`."""
+    consent, allowed}` - `allowed` false = visible but not messageable by this caller. `phone_masked`, `has_phone` and `consent`
+    (`granted` / `declined` - WisKey's or Arx's opt-out list - / `unknown`) are served ONLY for a person the caller may message AND
+    only to a caller at the sensitive level there (review F2: `phone_set` is a sensitive field everywhere else, and the opt-out of a
+    person the caller may not message is none of their business); otherwise null - the dialog decides nothing from them and the send
+    answers for itself. A person the caller may not see, or WisKey does not know, is simply not in the list (no existence oracle); the
+    people past the first RECIPIENT_READS are not looked up - they are decided as each message goes. Reply: `{state, ..., recipients}`."""
     act = _Act(request, auth, "*")
     body: RecipientsBody = act.parse(RecipientsBody, raw)
     if any(not _ID.fullmatch(i) for i in body.person_ids):
-        raise ApiError(422, "validation", "מזהה אדם אינו תקין.", details={"fields": ["person_ids"]})
+        raise act.refuse(ApiError(422, "validation", "מזהה אדם אינו תקין.", details={"fields": ["person_ids"]}))
     cfg = M.read_settings(auth.conn)
     if not cfg["enabled"]:
-        raise ApiError(409, "message_disabled", "שליחת הודעות כבויה בהגדרות.", details={"outcome": "not_sent"})
+        raise act.refuse(ApiError(409, "message_disabled", "שליחת הודעות כבויה בהגדרות.", details={"outcome": "not_sent"}))
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     settings = settings_of(request)
@@ -220,10 +224,14 @@ def messaging_recipients(request: Request, auth: ia.Authority = Depends(_gate), 
         level = ia.person_level_of(auth, person)
         if person.get("id") != person_id or level == ia.NONE:
             continue
-        phone = person.get("phone") if level == ia.SENSITIVE else None
-        has_phone = person.get("phone_set") if person.get("phone_set") is not None else (bool(person.get("phone")) if person.get("phone") is not None else None)
-        out.append({"person_id": person_id, "name": person.get("display_name") or "", "phone_masked": M.mask_phone(phone), "has_phone": has_phone,
-                    "consent": M.consent_of(auth.conn, person_id, rec["wiskey_consent"]), "allowed": M.may_message(auth, person)})
+        allowed = M.may_message(auth, person)
+        row: dict[str, Any] = {"person_id": person_id, "name": person.get("display_name") or "", "phone_masked": None, "has_phone": None, "consent": None, "allowed": allowed}
+        if allowed and level == ia.SENSITIVE:
+            phone = person.get("phone")
+            row["phone_masked"] = M.mask_phone(phone)
+            row["has_phone"] = person.get("phone_set") if person.get("phone_set") is not None else (bool(phone) if phone is not None else None)
+            row["consent"] = M.consent_of(auth.conn, person_id, rec["wiskey_consent"], phone)
+        out.append(row)
     return {**_feed(settings), "recipients": out}
 
 
@@ -236,7 +244,15 @@ def person_messages(request: Request, auth: ia.Authority = Depends(_gate), perso
     may not see, 403 for one they see but may not message. Reply: `{state, ..., messages, opt_out, consent}`."""
     act = _Act(request, auth, person_id)
     rec = act.person()
-    return {**_feed(act.settings), "messages": M.history(auth.conn, person_id), "opt_out": M.opted_out(auth.conn, person_id), "consent": M.consent_of(auth.conn, person_id, rec["wiskey_consent"])}
+    phone = rec["person"].get("phone")
+    return {**_feed(act.settings), "messages": M.history(auth.conn, person_id, M.HISTORY_MAX), "opt_out": M.opted_out(auth.conn, person_id, phone),
+            "consent": M.consent_of(auth.conn, person_id, rec["wiskey_consent"], phone), "can_clear_opt_out": _may_clear_opt_out(auth)}
+
+
+def _may_clear_opt_out(auth: ia.Authority) -> bool:
+    """Review F6: clearing a person's "do not message me" is the administrator's (system.configure), not every sender's - the request
+    is meant to restrain exactly the role that sends."""
+    return authorize(auth.conn, auth.principal, CONFIGURE, INSTALLATION).allowed
 
 
 class OptOutBody(BaseModel):
@@ -247,12 +263,17 @@ class OptOutBody(BaseModel):
 @router.put("/access-control/people/{person_id}/messages/optout")
 def person_optout(request: Request, auth: ia.Authority = Depends(_gate), raw: bytes = Depends(_raw_body),
                   person_id: str = Path(min_length=1, max_length=MAX_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
-    """Mark a person as one who asked not to be messaged (`opted_out: true`) or clear it. Enforced on every send, whatever WisKey says;
-    audited (`intercom.person.message_optout`: the person id and the new state). Same person rule as a send. Reply: `{opt_out, consent}`."""
+    """Mark a person as one who asked not to be messaged (`opted_out: true`) or clear it. Enforced on every send, whatever WisKey says,
+    by the person's record AND their number (review F6). Marking: the same person rule as a send. CLEARING additionally needs
+    `system.configure` (403 `message_optout_clear_forbidden`, audited). Audited (`intercom.person.message_optout`: the person id, the
+    new state, on a clear how many rows went). Reply: `{opt_out, consent}`."""
     act = _Act(request, auth, person_id, M.AUDIT_OPTOUT)
     body: OptOutBody = act.parse(OptOutBody, raw)
+    act.details.update(opted_out=body.opted_out)
     rec = act.person()
-    state = M.set_opt_out(act.db, principal=act.principal, person_id=person_id, declined=body.opted_out, request_id=act.rid)
+    if not body.opted_out and not _may_clear_opt_out(auth):
+        raise act.refuse(ApiError(403, "message_optout_clear_forbidden", "רק מנהל מערכת יכול לבטל בקשה של אדם לא לקבל הודעות.", details={"permission": CONFIGURE}))
+    state = M.set_opt_out(act.db, principal=act.principal, person_id=person_id, declined=body.opted_out, request_id=act.rid, phone=rec["person"].get("phone"))
     return {"opt_out": state, "consent": M.consent_from(state is not None, rec["wiskey_consent"])}  # (the request's own read snapshot predates the change)
 
 
@@ -320,6 +341,10 @@ def send_message(request: Request, auth: ia.Authority = Depends(_gate), raw: byt
     cfg = M.read_settings(auth.conn)
     if not cfg["enabled"]:
         raise act.refuse(ApiError(409, "message_disabled", "שליחת הודעות כבויה בהגדרות."))
+    try:  # review F5: the administrator's send hours (installation zone) - before anything about the text or the person
+        M.check_send_hours(auth.conn, cfg)
+    except ApiError as exc:
+        raise act.refuse(exc) from None
     # the text, before anything is asked of WisKey (a refusal here says nothing about the person)
     template: dict[str, str] | None = None
     text = ""
@@ -339,11 +364,13 @@ def send_message(request: Request, auth: ia.Authority = Depends(_gate), raw: byt
     person = rec["person"]
     if person.get("phone_set") is False:
         raise act.refuse(ApiError(422, "message_no_phone", "לאדם הזה אין מספר טלפון בכרטיס."))
-    if M.consent_of(auth.conn, person_id, rec["wiskey_consent"]) == "declined":
+    if M.consent_of(auth.conn, person_id, rec["wiskey_consent"], person.get("phone")) == "declined":  # by record AND by number (review F6)
         raise act.refuse(ApiError(409, "message_no_consent", "האדם ביקש לא לקבל הודעות."))
     if template is not None:
         text = M.render(template["body"], name=person.get("display_name") or "", organization=cfg["organization"])
         act.details.update(chars=len(text))
+        if M.looks_like_credential(text):  # review F8: the TEXT the person receives (the person's name is WisKey's)
+            raise act.refuse(ApiError(422, "message_forbidden_content", "אי אפשר לשלוח קוד גישה או פרטי כניסה בהודעה."))
     status = MESSAGING.status(act.settings, act.principal.user_id)
     account, problem = MESSAGING.account_for(status, cfg["account"])
     if status["available"] is not True or account is None:
@@ -354,6 +381,7 @@ def send_message(request: Request, auth: ia.Authority = Depends(_gate), raw: byt
             act.db, principal=act.principal, person_id=person_id, kind="free" if template is None else "template", template_id=template["id"] if template else None,
             template_label=template["label"] if template else None, template_revision=cfg["revision"] if template else None, chars=len(text), bulk_id=body.bulk_id,
             bulk_total=body.bulk_total, client_request_id=body.client_request_id, request_id=act.rid, cfg=cfg, audit_details=dict(act.details),
+            phone=person.get("phone"), station_ids=ia.person_station_ids(person),
         )
     except ApiError as exc:
         raise act.refuse(exc) from None
@@ -384,9 +412,17 @@ class SettingsBody(BaseModel):
     free_text: Any = None
     bulk_max: Any = None
     rate_per_hour: Any = None
+    # review F3 / F5 (2.6.5): optional - an editor that does not send them keeps the stored values
+    per_sender_per_hour: Any = None
+    per_person_per_day: Any = None
+    per_station_per_hour: Any = None
+    send_hours: Any = None  # {"from": "HH:MM", "to": "HH:MM"} | null (= no send hours)
     organization: Any = None
     account: Any = None
     templates: Any = None
+
+
+OPTIONAL_SETTINGS = ("per_sender_per_hour", "per_person_per_day", "per_station_per_hour", "send_hours")
 
 
 def _settings_reply(request: Request, conn: sqlite3.Connection, user_id: str, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -421,7 +457,7 @@ def put_messaging_settings(request: Request, principal: Principal = Depends(_con
         body = SettingsBody.model_validate(json.loads(raw) if raw.strip() else {})
     except (ValueError, RecursionError, ValidationError):
         raise ApiError(422, "validation", "גוף הבקשה אינו תקין.", details={"fields": ["body"]}) from None
-    data = {k: v for k, v in body.model_dump().items() if k != "base_revision"}
+    data = {k: v for k, v in body.model_dump().items() if k != "base_revision" and (k in body.model_fields_set or k not in OPTIONAL_SETTINGS)}
     db = request.app.state.db
     with db.write_aside() as w:
         current = M.read_settings(w)
@@ -429,7 +465,7 @@ def put_messaging_settings(request: Request, principal: Principal = Depends(_con
             raise ApiError(409, "message_settings_conflict", "ההגדרות נשמרו בינתיים על ידי מישהו אחר - טענו מחדש.", details={"revision": current["revision"]})
         doc = M.validate_settings(data, current)
         M.save_settings(w, doc)
-        changed = sorted(k for k in ("enabled", "free_text", "bulk_max", "rate_per_hour", "organization", "account", "templates") if doc[k] != current[k])
+        changed = sorted(k for k in ("enabled", "free_text", "bulk_max", "rate_per_hour", *OPTIONAL_SETTINGS, "organization", "account", "templates") if doc[k] != current[k])
         audit(w, actor=principal, action=M.AUDIT_SETTINGS, decision="allowed", resource_type="installation", resource_id="messaging", request_id=_rid(request),
               details={"revision": doc["revision"], "changed": changed, "enabled": doc["enabled"], "templates": len(doc["templates"])})
     MESSAGING.forget()

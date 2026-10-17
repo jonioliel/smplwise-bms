@@ -227,6 +227,7 @@ export class WiskeyPersonMessages extends LitElement {
   private async toggleOptOut() {
     const transport = this.transport;
     if (!transport || !this.data || this.busy) return;
+    if (this.data.opt_out !== null && this.data.can_clear_opt_out === false) return;
     this.busy = true;
     this.failed = false;
     const id = this.personId;
@@ -264,9 +265,10 @@ export class WiskeyPersonMessages extends LitElement {
     }
     const d = this.data;
     const on = d.opt_out !== null;
+    const locked = on && d.can_clear_opt_out === false; // review F6: clearing is the administrator's
     return html`<section data-person-section="messages" data-msg-history-state="ready">
-      <button type="button" class="sw" role="switch" aria-checked=${String(on)} data-msg-optout ?disabled=${this.busy} @click=${() => void this.toggleOptOut()}>
-        <span class="txt"><span class="t">${pt('optout.label')}</span>${on ? html`<span class="x" data-msg-optout-by>${this.optOutText(d)}</span>` : nothing}</span>
+      <button type="button" class="sw" role="switch" aria-checked=${String(on)} data-msg-optout ?data-locked=${locked} ?disabled=${this.busy || locked} @click=${() => void this.toggleOptOut()}>
+        <span class="txt"><span class="t">${pt('optout.label')}</span>${on ? html`<span class="x" data-msg-optout-by>${this.optOutText(d)}${locked ? ` · ${pt('optout.admin_only')}` : ''}</span>` : nothing}</span>
         <span class="track" aria-hidden="true"></span>
       </button>
       ${this.failed ? html`<div class="err" role="alert" data-msg-optout-error><sw-icon name="warning" size=${16}></sw-icon><span>${pt('optout.error')}</span></div>` : nothing}
