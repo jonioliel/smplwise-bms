@@ -43,6 +43,13 @@ def draft(s4, vendors: list[dict] | None = None, **body) -> dict:
     return r.json()
 
 
+def allow_office(s4, on: bool = True) -> None:
+    """The installation switch `rfq.attachments.allow_office` (system.configure; the fixture's default caller is an administrator)."""
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"attachments": {"allow_office": on}}})
+    assert r.status_code == 200 and r.json()["rfq"]["attachments"]["allow_office"] is on, r.text
+
+
 def attach(s4, rid: str, data: bytes, name: str = "plan.pdf", mime: str = "application/pdf", user: str = "mona", **form):
     return s4.c.post(f"{API}/tickets/rfqs/{rid}/attachments", files={"file": (name, data, mime)}, data={k: str(v) for k, v in form.items()},
                      headers=s4.h(user))
@@ -103,7 +110,7 @@ def test_types_sizes_and_mismatched_declared_types(s4):
         (b"MZ\x90\x00" + b"\x00" * 100, "spec.pdf", "application/pdf", "unsupported_format", 415),
         (b"GIF89a" + b"\x00" * 100, "a.gif", "image/gif", "unsupported_format", 415),
         (pdf(b"1 0 obj << /OpenAction 2 0 R /JS (app.alert(1)) >> endobj"), "x.pdf", "application/pdf", "pdf_refused", 422),
-        (office(extra={"word/vbaProject.bin": b"\xd0\xcf"}), "macro.docx", "application/octet-stream", "office_refused", 422),
+        (office(), "spec.docx", "application/octet-stream", "office_disabled", 422),  # Word / Excel are OFF by default
         (b"%PDF-1.7\n" + b"\x00" * (rfq_files.DOCUMENT_MAX_BYTES + 10), "big.pdf", "application/pdf", "payload_too_large", 413),
         (b"\xff\xd8\xff" + b"\x00" * (rfq_files.IMAGE_MAX_BYTES + 10), "big.jpg", "image/jpeg", "payload_too_large", 413),
     ]:
@@ -111,6 +118,9 @@ def test_types_sizes_and_mismatched_declared_types(s4):
         assert (r.status_code, r.json()["code"]) == (status, code), (name, r.text)
         assert "alert" not in r.text and name not in r.text, "a refusal never echoes the content or the name"
     assert detail(s4, rid)["attachments"] == [] and files_on_disk(s4) == []
+    allow_office(s4)
+    r = attach(s4, rid, office(extra={"word/vbaProject.bin": b"\xd0\xcf"}), "macro.docx", "application/octet-stream")
+    assert (r.status_code, r.json()["code"]) == (422, "office_refused") and files_on_disk(s4) == []
     # a picture declared as a PDF is a picture: re-encoded and named .jpg
     a = attached(s4, rid, jpeg(), "drawing.pdf", "application/pdf")
     assert (a["kind"], a["name"], a["mime"], a["thumb"]) == ("image", "drawing.jpg", "image/jpeg", True)
@@ -322,7 +332,11 @@ def test_the_invitation_says_how_many_files_and_never_names_them(s4):
 def test_meta_and_detail_describe_the_attachments(s4):
     m = s4.c.get(f"{API}/tickets/rfqs/meta", headers=s4.h("mona")).json()
     assert m["attachments"] is True and m["attachment_limits"]["files"] == rfq_files.MAX_FILES
-    assert set(m["attachment_limits"]["types"]) == {"jpg", "png", "webp", "pdf", "docx", "xlsx"}
+    assert set(m["attachment_limits"]["types"]) == {"jpg", "png", "webp", "pdf"} and m["attachment_limits"]["office"] is False
+    assert m["settings"]["attachments"] == {"allow_office": False}
+    allow_office(s4)
+    m = s4.c.get(f"{API}/tickets/rfqs/meta", headers=s4.h("mona")).json()
+    assert set(m["attachment_limits"]["types"]) == {"jpg", "png", "webp", "pdf", "docx", "xlsx"} and m["attachment_limits"]["office"] is True
     d = draft(s4)
     assert d["can"]["attach"] is True and detail(s4, d["id"], "tom")["can"]["attach"] is False
 
@@ -366,3 +380,102 @@ def test_a_work_order_references_the_files_and_the_vendor_keeps_them(s4, setting
     with s4.db.connection(mode="read") as conn:
         left = [dict(x) for x in conn.execute("SELECT id, rfq_id FROM ticket_rfq_attachments")]
     assert left == [{"id": shared["id"], "rfq_id": None}]
+
+
+# ---------------------------------------------------------------- review 2.6.4: the office switch, the edge headers, the read budget,
+# the storage accounting and the refusal order
+
+def test_office_attachments_are_off_by_default_and_follow_the_installation_switch(s4):
+    d = draft(s4)
+    r = attach(s4, d["id"], office(), "spec.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    assert (r.status_code, r.json()["code"]) == (422, "office_disabled") and "spec" not in r.text
+    assert files_on_disk(s4) == [] and audits(s4)[-1]["reason"] == "office_disabled", "refused before the scan, audited"
+    # only system.configure turns it on (an RFQ manager cannot)
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"attachments": {"allow_office": True}}}, headers=s4.h("mona"))
+    assert r.status_code == 403
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"attachments": {"allow_office": "yes"}}})
+    assert r.status_code == 422
+    allow_office(s4)
+    with s4.db.connection(mode="read") as conn:
+        row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'tickets.settings.update' ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert "rfq.attachments.allow_office" in json.loads(row[0])["changed"], "the switch is audited"
+    doc = attached(s4, d["id"], office(), "spec.docx", "application/octet-stream")
+    pdf_file = attached(s4, d["id"], pdf(), "plan.pdf")
+    d = send(s4, d["id"])
+    tok = token(s4, vid(d, s4.vendor["id"]))
+    c = pub(s4)
+    assert [f["id"] for f in view(c, tok)["rfq"]["attachments"]] == [doc["id"], pdf_file["id"]]
+    assert c.get(f"/t/api/rfq/file/{doc['id']}", headers=hdr(tok)).status_code == 200
+    # switched off again: the office file already attached stops travelling too (fail closed); the manager still sees it
+    allow_office(s4, False)
+    assert [f["id"] for f in view(c, tok)["rfq"]["attachments"]] == [pdf_file["id"]]
+    assert c.get(f"/t/api/rfq/file/{doc['id']}", headers=hdr(tok)).content == UNIFORM_404
+    assert doc["id"] in [a["id"] for a in detail(s4, d["id"], "mona")["attachments"]]
+
+
+def test_document_headers_leaving_the_real_public_listener(s4):
+    """Review F7: the bytes that leave the EDGE (not rfq_files.headers in isolation) - a download, never sniffed, never cached by a
+    shared cache, no validators / ranges, and the listener's own CSP (the route's `sandbox` is internal-API only)."""
+    allow_office(s4)
+    d = draft(s4)
+    files = [attached(s4, d["id"], pdf(), "plan.pdf"), attached(s4, d["id"], office(), "spec.docx", "application/octet-stream"),
+             attached(s4, d["id"], office(kind="xlsx"), "boq.xlsx", "application/octet-stream")]
+    d = send(s4, d["id"])
+    tok = token(s4, vid(d, s4.vendor["id"]))
+    c = pub(s4)
+    for f, mime in zip(files, ("application/pdf", rfq_files.MIME["docx"], rfq_files.MIME["xlsx"])):
+        r = c.get(f"/t/api/rfq/file/{f['id']}", headers={**hdr(tok), "Range": "bytes=0-10", "If-None-Match": "*"})
+        h = {k.lower(): v for k, v in r.headers.items()}
+        assert r.status_code == 200 and h["content-type"] == mime, (r.status_code, h)
+        assert h["content-disposition"].startswith("attachment;") and "filename*=UTF-8''" in h["content-disposition"]
+        assert h["x-content-type-options"] == "nosniff" and h["cache-control"] == "private, no-store"
+        assert not {"etag", "last-modified", "accept-ranges", "content-range", "set-cookie", "server"} & set(h), sorted(h)
+        assert h["content-security-policy"].startswith("default-src 'none'") and "sandbox" not in h["content-security-policy"]
+        assert len(r.headers.get_list("content-security-policy")) == 1
+        assert h["x-frame-options"] == "DENY" and h["referrer-policy"] == "no-referrer"
+    # the internal API keeps the route's sandbox CSP
+    r = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/attachments/{files[0]['id']}", headers=s4.h("mona"))
+    assert r.status_code == 200 and "sandbox" in r.headers["content-security-policy"]
+
+
+def test_full_size_file_reads_have_a_budget_of_their_own(s4):
+    """Review F4: a document is up to 10 MiB and every read is the whole file - the full file routes count in `file_read` (20 a
+    minute, 60 an hour per link), the thumbnails stay in the photo window, the token's own request window is untouched."""
+    from smplwise.services.tickets import links
+
+    d = draft(s4)
+    a = attached(s4, d["id"], jpeg(), "site.jpg", "image/jpeg")
+    d = send(s4, d["id"])
+    tok = token(s4, vid(d, s4.vendor["id"]))
+    c, app = s4.public(Clock(time.time()))
+    statuses = [c.get(f"/t/api/rfq/file/{a['id']}", headers=hdr(tok)).status_code for _ in range(21)]
+    assert statuses == [200] * 20 + [429], statuses
+    assert c.get(f"/t/api/ticket/rfq-file/{a['id']}", headers=hdr(tok)).status_code == 429, "the same budget on the reference-copy route"
+    assert c.get(f"/t/api/rfq/file/{a['id']}/thumb", headers=hdr(tok)).status_code == 200, "thumbnails keep the photo window"
+    key = links.limiter_key(links.token_hash(tok))
+    assert app.gate.limiter.count(key, 60) <= 1, "the token's own request window untouched"
+    assert view(c, tok)["rfq"]["attachments"]
+
+
+def test_storage_accounting_follows_rfq_files(s4):
+    """Review F6: the 2 GiB cap's cached directory size learns a new RFQ file (and its thumbnail) at once and is credited on delete."""
+    from smplwise.services.tickets import attachments as att
+
+    data_dir = s4.w.settings.data_dir
+    att.forget_size_cache()
+    before = att.used_bytes(data_dir)  # primes the cache (a walk)
+    d = draft(s4)
+    a = attached(s4, d["id"], jpeg(), "site.jpg", "image/jpeg")
+    on_disk = sum(p.stat().st_size for p in files_on_disk(s4))
+    assert att.used_bytes(data_dir) == before + on_disk, "cached size includes the picture and its thumbnail without a new walk"
+    r = s4.c.delete(f"{API}/tickets/rfqs/{d['id']}/attachments/{a['id']}", headers=s4.h("mona"))
+    assert r.status_code == 200 and files_on_disk(s4) == []
+    assert att.used_bytes(data_dir) == before
+
+
+def test_the_role_refusal_comes_before_form_validation(s4):
+    """Review F9: a member who is not the request's manager gets the audited 403, whatever else is wrong with the form."""
+    d = draft(s4)
+    r = attach(s4, d["id"], pdf(), user="tom", visible_vendors="maybe")
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "not_manager", r.text

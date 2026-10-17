@@ -190,7 +190,7 @@ export interface RfqFile {
 }
 
 /** RFQATT: `meta.attachment_limits` - the form checks these before a byte leaves the browser; the server enforces them anyway. */
-export interface RfqAttachmentLimits { files: number; image_bytes: number; document_bytes: number; total_bytes: number; caption: number; types: string[] }
+export interface RfqAttachmentLimits { files: number; image_bytes: number; document_bytes: number; total_bytes: number; caption: number; types: string[]; office?: boolean }
 
 /** RFQATT: the per-file options sent with an upload or a change. */
 export interface RfqFileOptions { caption?: string; visible_vendors?: boolean }

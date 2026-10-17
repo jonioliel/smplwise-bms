@@ -401,8 +401,8 @@ def classify_client(peer: str | None, forwarded: Sequence[str], trusted: Sequenc
 
 # ---------------------------------------------------------------- the policy of the public listener
 
-ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "token_write", "photo", "claim_file", "code", "redeem")
-TOKEN_KINDS = frozenset({"token_read", "photo_read", "token_write", "photo", "claim_file", "code"})
+ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "code", "redeem")
+TOKEN_KINDS = frozenset({"token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "code"})
 UPLOAD_KINDS = frozenset({"photo", "claim_file"})  # their body phase is paid when it starts (RequestCost.body_phase)
 
 
@@ -417,6 +417,10 @@ class PublicLimits:
     redeem_global: Limits = ((60.0, 300),)  # failed redeem releases, installation-wide (its own: a token flood never blocks e-mail links)
     token_requests: Limits = ((60.0, 60),)
     token_photo_reads: Limits = ((60.0, 120),)  # GET /t/api/photo/<id>: its own window (V26)
+    # RFQATT review F4: the full-size request files (documents up to 10 MiB, the Range header is dropped at the edge, so every read is
+    # the whole file): 20 a minute and 60 an hour per link - at most ~600 MiB an hour from one link instead of ~20 MB/s; 10 files
+    # opened 6 times each in an hour still fit. Thumbnails stay on token_photo_reads.
+    token_file_reads: Limits = ((60.0, 20), (3600.0, 60))
     token_writes: Limits = ((3600.0, 20),)
     token_photos: Limits = ((3600.0, 10),)
     token_claim_files: Limits = ((3600.0, 40),)
@@ -425,7 +429,7 @@ class PublicLimits:
     known_good_ttl_s: float = 86400.0
 
     WINDOW_NAMES = ("static_per_network", "asset_per_network", "unknown_per_network", "unknown_global", "redeem_global",
-                    "token_requests", "token_photo_reads", "token_writes", "token_photos", "token_claim_files",
+                    "token_requests", "token_photo_reads", "token_file_reads", "token_writes", "token_photos", "token_claim_files",
                     "redeem_per_network", "code_per_recipient")
 
     @property
@@ -442,10 +446,10 @@ SPEND = {"token_write": ("w:", "token_writes", "write_rate"), "photo": ("p:", "t
          "claim_file": ("c:", "token_claim_files", "claim_file_rate")}
 # per-token request windows of their own (prefix of the token key, limits); every other token kind uses the token key itself
 # with token_requests
-WINDOWS = {"photo_read": ("pr:", "token_photo_reads")}
+WINDOWS = {"photo_read": ("pr:", "token_photo_reads"), "file_read": ("fr:", "token_file_reads")}
 # keys only valid tokens / links create: never evicted from the key table (only expired), so an address-rotating flood of
 # per-network keys cannot reset a vendor's budgets or a recipient's code count
-PROTECTED_PREFIXES = ("t:", "pr:", "w:", "p:", "c:", "cr:", "fail:*", "fail:redeem")
+PROTECTED_PREFIXES = ("t:", "pr:", "fr:", "w:", "p:", "c:", "cr:", "fail:*", "fail:redeem")
 
 
 @dataclass(frozen=True)

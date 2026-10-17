@@ -5,16 +5,30 @@
  */
 import type { RfqAttachmentLimits, RfqFile, RfqFileKind } from '../api/tickets-rfq';
 
+/** Until the server's meta arrives: Word / Excel OFF (the installation setting `rfq.attachments.allow_office` is off by default). */
 export const DEFAULT_LIMITS: RfqAttachmentLimits = {
   files: 10, image_bytes: 8 * 1024 * 1024, document_bytes: 10 * 1024 * 1024, total_bytes: 40 * 1024 * 1024, caption: 200,
-  types: ['jpg', 'png', 'webp', 'pdf', 'docx', 'xlsx'],
+  types: ['jpg', 'png', 'webp', 'pdf'], office: false,
 };
 
 const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-/** The file input's `accept` (a hint for the picker only - the server sniffs the content). */
-export const ACCEPT = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', MIME_DOCX, MIME_XLSX, '.jpg', '.jpeg', '.png', '.webp', '.pdf', '.docx', '.xlsx'].join(',');
+/** Word / Excel are offered only while the server lists them (`limits.types`, the installation switch). */
+export function officeAllowed(limits: RfqAttachmentLimits = DEFAULT_LIMITS): boolean {
+  return limits.types.includes('docx') || limits.types.includes('xlsx');
+}
+
+/** The file input's `accept` (a hint for the picker only - the server sniffs the content); Word / Excel only when allowed. */
+export function acceptFor(limits: RfqAttachmentLimits = DEFAULT_LIMITS): string {
+  const base = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', '.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+  return (officeAllowed(limits) ? [...base, MIME_DOCX, MIME_XLSX, '.docx', '.xlsx'] : base).join(',');
+}
+
+/** The kinds line under the drop zone ("JPG, PNG, WebP, PDF[, Word, Excel]"). */
+export function typesLabel(limits: RfqAttachmentLimits = DEFAULT_LIMITS): string {
+  return ['JPG', 'PNG', 'WebP', 'PDF', ...(officeAllowed(limits) ? ['Word', 'Excel'] : [])].join(', ');
+}
 
 /** What a picked file probably is, from its declared type or its extension (null = not offered). The server decides by content. */
 export function localKind(f: { name: string; type: string }): RfqFileKind | null {
@@ -27,11 +41,11 @@ export function localKind(f: { name: string; type: string }): RfqFileKind | null
   return null;
 }
 
-export type Refusal = 'type' | 'size' | 'count' | 'total';
+export type Refusal = 'type' | 'office' | 'size' | 'count' | 'total';
 export interface PickResult<F> { accepted: F[]; refused: { name: string; reason: Refusal }[] }
 
 /**
- * The files of one pick that may be sent: the allowed kinds, each within its size, never more than the request's count, and documents
+ * The files of one pick that may be sent: the allowed kinds (Word / Excel only while the server lists them), each within its size, never more than the request's count, and documents
  * (stored as uploaded) within the bytes still free. A picture is re-encoded - usually much smaller - so only the server judges it
  * against the total.
  */
@@ -44,6 +58,7 @@ export function precheck<F extends { name: string; type: string; size: number }>
   for (const f of picked) {
     const kind = localKind(f);
     if (!kind) out.refused.push({ name: f.name, reason: 'type' });
+    else if ((kind === 'docx' || kind === 'xlsx') && !limits.types.includes(kind)) out.refused.push({ name: f.name, reason: 'office' });
     else if (f.size <= 0 || f.size > (kind === 'image' ? limits.image_bytes : limits.document_bytes)) out.refused.push({ name: f.name, reason: 'size' });
     else if (count >= limits.files) out.refused.push({ name: f.name, reason: 'count' });
     else if (kind !== 'image' && used + f.size > limits.total_bytes) out.refused.push({ name: f.name, reason: 'total' });

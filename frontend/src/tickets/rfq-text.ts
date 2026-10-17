@@ -407,7 +407,7 @@ const he = {
   fDrop: 'גררו לכאן קבצים או',
   fPick: 'בחירת קבצים',
   fCamera: 'צילום',
-  fTypes: 'JPG, PNG, WebP, PDF, Word, Excel · עד {n} קבצים · תמונה עד {img}, מסמך עד {doc}, יחד עד {total}',
+  fTypes: '{types} · עד {n} קבצים · תמונה עד {img}, מסמך עד {doc}, יחד עד {total}',
   fCaption: 'כיתוב (לא חובה)',
   fVisible: 'גלוי לספקים',
   fInternal: 'פנימי בלבד',
@@ -418,6 +418,7 @@ const he = {
   fNone: 'אין קבצים מצורפים',
   fUploading: 'מעלה קבצים…',
   fErrType: '{name}: סוג הקובץ אינו נתמך',
+  fErrOffice: '{name}: צירוף Word ו-Excel כבוי בהגדרות. שמרו את המסמך כ-PDF.',
   fErrSize: '{name}: הקובץ גדול מדי',
   fErrCount: '{name}: אפשר לצרף עד {n} קבצים',
   fErrTotal: '{name}: חורג מהנפח הכולל של הבקשה',
@@ -444,7 +445,8 @@ const he = {
   err_pdf_invalid: 'קובץ ה-PDF פגום',
   err_pdf_refused: 'קובץ ה-PDF מכיל תוכן פעיל או הצפנה. שמרו אותו מחדש כ-PDF רגיל.',
   err_office_invalid: 'הקובץ אינו מסמך Word או Excel תקין',
-  err_office_refused: 'המסמך מכיל מאקרו, אובייקט מוטמע או קישור חיצוני. שמרו אותו כ-PDF.',
+  err_office_refused: 'המסמך מכיל מאקרו, אובייקט מוטמע, קישור חיצוני או רכיב שאינו נתמך. שמרו אותו כ-PDF.',
+  err_office_disabled: 'צירוף מסמכי Word ו-Excel כבוי בהגדרות המערכת. שמרו את המסמך כ-PDF.',
   err_storage_full: 'נפח הקבצים המותר מלא. פנו למנהל המערכת.',
 } as const;
 
@@ -825,7 +827,7 @@ const en: Partial<Record<RfqTextKey, string>> = {
   fDrop: 'Drop files here or',
   fPick: 'Choose files',
   fCamera: 'Take a photo',
-  fTypes: 'JPG, PNG, WebP, PDF, Word, Excel · up to {n} files · a picture up to {img}, a document up to {doc}, {total} together',
+  fTypes: '{types} · up to {n} files · a picture up to {img}, a document up to {doc}, {total} together',
   fCaption: 'Caption (optional)',
   fVisible: 'Visible to vendors',
   fInternal: 'Internal only',
@@ -836,6 +838,7 @@ const en: Partial<Record<RfqTextKey, string>> = {
   fNone: 'No attachments',
   fUploading: 'Uploading files…',
   fErrType: '{name}: this file type is not supported',
+  fErrOffice: '{name}: Word and Excel attachments are turned off in the settings. Save the document as a PDF.',
   fErrSize: '{name}: the file is too large',
   fErrCount: '{name}: at most {n} files can be attached',
   fErrTotal: '{name}: over the request\'s total size',
@@ -862,7 +865,8 @@ const en: Partial<Record<RfqTextKey, string>> = {
   err_pdf_invalid: 'The PDF is damaged',
   err_pdf_refused: 'The PDF holds active content or encryption. Save it again as a plain PDF.',
   err_office_invalid: 'The file is not a valid Word or Excel document',
-  err_office_refused: 'The document holds a macro, an embedded object or an external link. Save it as a PDF.',
+  err_office_refused: 'The document holds a macro, an embedded object, an external link or an unsupported part. Save it as a PDF.',
+  err_office_disabled: 'Word and Excel attachments are turned off in the system settings. Save the document as a PDF.',
   err_storage_full: 'The storage for files is full. Ask the system administrator.',
 };
 

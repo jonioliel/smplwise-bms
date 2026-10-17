@@ -135,6 +135,16 @@ class CostsPatch(BaseModel):  # slice 9 (11A.14, D31 / D32): cost claims; depart
     allowed_line_kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)  # TKDETAILBE
 
 
+class RfqAttachmentsPatch(BaseModel):  # RFQATT review 2.6.4: Word / Excel attachments on requests for quotation (OFF by default)
+    model_config = ConfigDict(extra="forbid")
+    allow_office: StrictBool | None = None
+
+
+class RfqPatch(BaseModel):  # only the attachments block is editable here (the other rfq.* keys keep their defaults)
+    model_config = ConfigDict(extra="forbid")
+    attachments: RfqAttachmentsPatch | None = None
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -148,6 +158,7 @@ class SettingsBody(BaseModel):
     code: CodePatch | None = None  # slice 7
     costs: CostsPatch | None = None  # slice 9
     staff_links: StaffLinksPatch | None = None  # TKSTAFF1
+    rfq: RfqPatch | None = None  # RFQATT review 2.6.4: rfq.attachments.allow_office
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -208,6 +219,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}
             if values:
                 patch[block] = values
+    if body.rfq is not None and body.rfq.attachments is not None and body.rfq.attachments.allow_office is not None:
+        patch["rfq"] = {"attachments": {"allow_office": body.rfq.attachments.allow_office}}
     if body.send_hours is not None:
         patch["send_hours"] = body.send_hours.window()
     if body.urgent_is_critical is not None:
