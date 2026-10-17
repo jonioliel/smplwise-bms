@@ -29,7 +29,7 @@ from typing import Any, Protocol
 
 from ...audit import audit
 from ...errors import ApiError
-from . import access, assignees, codes as codes_mod, handler_links, links, model, naming, notify_bridge, sla, store, store_links
+from . import access, assignees, codes as codes_mod, handler_links, links, model, naming, notify_bridge, org_locations, sla, store, store_links
 from .access import Seen, Viewer, text
 from .module_key import ModuleKeyError
 from .present import can_reopen
@@ -143,10 +143,11 @@ def history_option(conn, ticket: dict[str, Any], contact: dict[str, Any], vendor
     return {"available": available, "default": bool(default) and available}
 
 
-def render_message(conn, ticket: dict[str, Any], contact: dict[str, Any], link_text: str) -> str:
+def render_message(conn, ticket: dict[str, Any], contact: dict[str, Any], link_text: str, *, location_nav: bool = False) -> str:
     lang = contact.get("lang") if contact.get("lang") in STARTERS else "he"
     dept = store.department_any(conn, ticket["department_id"]) or {}
-    place = ticket.get("place_text") or ""
+    snap = org_locations.parse_snapshot(ticket.get("location_snapshot"))  # CR-ORG-LOCATIONS: the request's own location, the link only when switched on
+    place = ticket.get("place_text") or org_locations.message_text(snap, nav=bool(location_nav) and org_locations.has_coordinates(snap))
     device = ticket.get("device_name") or ""
     where = ", ".join(p for p in (device, place) if p)
     body = STARTERS[lang]
@@ -172,7 +173,18 @@ def _code_check(conn, contact: dict[str, Any], require: bool) -> None:
 # ---------------------------------------------------------------- preview and assignment
 
 
-def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: bool = False) -> dict[str, Any]:
+def _check_location_nav(conn, ticket: dict[str, Any], wanted: bool | None) -> bool:
+    """CR-ORG-LOCATIONS: the "add a navigation link to the message" switch of an assignment (default off). Asked for on a request whose
+    location has no coordinates (or that has no location) it is REFUSED with a 422 - never silently ignored - so the manager never
+    believes a link left that did not."""
+    if not wanted:
+        return False
+    if not org_locations.has_coordinates(org_locations.parse_snapshot(ticket.get("location_snapshot"))):
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "location_nav", "code": "no_coordinates"}]})
+    return True
+
+
+def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: bool = False, location_nav: bool | None = None) -> dict[str, Any]:
     """`POST /tickets/{id}/assign/preview`: the exact outgoing text (the link shown as a placeholder), the channel, what the link
     will do and every refusal the assignment would meet - no side effect (review T13-3)."""
     row = seen.row
@@ -181,6 +193,7 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     if not assignees.may_send(viewer, row, store_links.contact(conn, contact_id)):  # TKSTAFF2: a staff contact is assigned like a user
         raise _refuse(conn, viewer, "ticket.assign", row, "external_permission_missing", None, permission=access.EXTERNAL)
     contact, vendor = contact_for(conn, row, contact_id)
+    nav = _check_location_nav(conn, row, location_nav)
     refusals: list[str] = []
     if not access.public_ready(conn):
         refusals.append("public_link_unavailable")
@@ -197,7 +210,8 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     out = {
         "channel": DISPATCH.channel(conn, contact),
         "lang": lang,
-        "text": render_message(conn, row, contact, LINK_PLACEHOLDER[lang]),
+        "text": render_message(conn, row, contact, LINK_PLACEHOLDER[lang], location_nav=nav),
+        "location_nav": {"available": org_locations.has_coordinates(org_locations.parse_snapshot(row.get("location_snapshot"))), "on": nav},
         "require_code": req,
         "require_code_locked": contact_req,
         "code_to_contact_phone": req,
@@ -209,7 +223,7 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
     }
     extra = getattr(DISPATCH, "preview_extra", None)  # slice 5b: the template text, the account, the send-hours line, "send now"
     if extra is not None:
-        out.update(extra(conn, row, contact))
+        out.update(extra(conn, row, contact, location_nav=nav))
     return out
 
 
@@ -225,7 +239,7 @@ def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dic
 
 def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: str | None, note_external: bool, require_code: bool | None,
                    share_history: bool | None, send_now: bool, revision: int, rid: str | None = None, cost_claim: str | None = None,
-                   dispatch: bool = True) -> str:
+                   dispatch: bool = True, location_nav: bool | None = None) -> str:
     """`dispatch=False` (TKRFQ4, the RFQ work order): everything an assignment does EXCEPT queueing the assignment message - the order
     message leaves only on the manager's explicit click (owner rule: an approval never sends anything by itself)."""
     row = seen.row
@@ -253,6 +267,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     if share_history and not hist["available"]:
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "share_history", "code": "not_allowed"}]})
     share = hist["default"] if share_history is None else bool(share_history)
+    nav = _check_location_nav(conn, row, location_nav)  # CR-ORG-LOCATIONS: after the permission gates, before any write
     from . import costs  # S9 (D32): the cost claim requirement of THIS assignment, preselected vendor -> department -> installation
 
     if cost_claim is not None and cost_claim not in costs.MODES:
@@ -275,7 +290,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     aid = store.insert_assignment(conn, {"ticket_id": row["id"], "assignee_kind": "contact", "contact_id": contact_id, "assignee_name": name,
                                          "channel": channel, "assigned_by": viewer.uid, "assigned_at": now,
                                          "share_history": 1 if share else 0, "require_code": 1 if req else 0,
-                                         "cost_claim": claim_mode})
+                                         "cost_claim": claim_mode, "location_nav": 1 if nav else 0})
     try:
         link_row = handler_links.mint(conn, ticket=row, assignment_id=aid, contact_id=contact_id, require_code=req, now=now_dt)
     except ModuleKeyError:
@@ -309,7 +324,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     audit(conn, actor=viewer.principal, action="ticket.assign", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "assignee_kind": "contact", "contact_id": contact_id, "reassign": bool(current), "reopened": reopened,
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued")),
-                   "cost_claim": claim_mode})
+                   "cost_claim": claim_mode, "location_nav": nav})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "link": link_row["id"][:6], "generation": 1, "kind": "external"})
     sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)
@@ -362,7 +377,8 @@ def copy_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[
                        actor_name=store.display_name(conn, viewer.uid), assignment_id=link_row["assignment_id"])
     audit(conn, actor=viewer.principal, action="ticket.link.copy", decision="allowed", resource_type="ticket", resource_id=seen.row["id"], request_id=rid,
           details={"number": seen.row["number"], "link": link_row["id"][:6]})
-    return {"url": url, "text": render_message(conn, seen.row, contact, url)}
+    asg = store.assignment(conn, link_row["assignment_id"]) or {}
+    return {"url": url, "text": render_message(conn, seen.row, contact, url, location_nav=bool(asg.get("location_nav")))}
 
 
 def new_link(conn, viewer: Viewer, seen: Seen, rid: str | None = None) -> dict[str, Any]:

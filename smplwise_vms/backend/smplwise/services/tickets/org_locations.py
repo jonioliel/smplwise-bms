@@ -142,6 +142,11 @@ def display_text(snap: Mapping[str, Any] | None) -> str:
     return SEP.join(p for p in (snap.get("name"), address_line(snap), snap.get("details")) if p)
 
 
+def has_coordinates(snap: Mapping[str, Any] | None) -> bool:
+    """True when the snapshot carries both coordinates (the only case where a navigation link can exist)."""
+    return bool(snap) and snap.get("lat") is not None and snap.get("lng") is not None
+
+
 def message_text(snap: Mapping[str, Any] | None, *, nav: bool = False) -> str:
     """The `{location}` value of a vendor message: name · street, city (+ · map link when switched on). At most 40+3+60+2+30+3+50
     characters, inside the 200-character cap of `{place}` / `{location}`."""

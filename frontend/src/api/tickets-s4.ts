@@ -132,10 +132,14 @@ export interface AssignPreview {
   share_history: { available: boolean; default: boolean };
   link: { sliding_days: number; cap_days: number; grace_hours: number; expires_at: string; cap_at: string };
   refusals: Refusal[];
+  /** CR-ORG-LOCATIONS: the navigation-link switch - `available` = the request's location has coordinates; `on` = this text carries the link */
+  location_nav?: { available: boolean; on: boolean };
 }
 export interface AssignContactBody { contactId: string; note?: string | null; noteExternal?: boolean; requireCode?: boolean | null; shareHistory?: boolean | null; sendNow?: boolean | null;
   /** slice 9 (D32): the cost claim requirement of THIS assignment; null = the server's preselection */
-  costClaim?: 'required' | 'optional' | 'off' | null; revision: number }
+  costClaim?: 'required' | 'optional' | 'off' | null;
+  /** CR-ORG-LOCATIONS: add the map link to the message (default off; only where the preview says it is available) */
+  locationNav?: boolean | null; revision: number }
 
 export type LinkState = 'live' | 'grace' | 'expired' | 'revoked';
 export type LinkRevokedReason = 'closed' | 'cancelled' | 'reassigned' | 'returned' | 'not_mine' | 'manual' | 'resent' | 'module_key' | 'contact_changed' | 'contact_erased' | 'user_inactive';
@@ -192,7 +196,7 @@ export interface TicketsS4Backend {
   exportContact(id: string): Promise<ContactExport>;
   /** the assign dialog's outside contacts when the users' answer did not carry them (the demo store) */
   externalAssignees(departmentId: string, ticketId: string): Promise<AssigneesAnswer>;
-  preview(ticketId: string, contactId: string, requireCode: boolean): Promise<AssignPreview>;
+  preview(ticketId: string, contactId: string, requireCode: boolean, locationNav?: boolean): Promise<AssignPreview>;
   assignContact(ticketId: string, body: AssignContactBody): Promise<TicketWithLink>;
   copyLink(ticketId: string): Promise<CopyAnswer>;
   linkAction(ticketId: string, action: 'new' | 'revoke'): Promise<TicketWithLink>;
@@ -219,13 +223,14 @@ const rest: TicketsS4Backend = {
   eraseContact: (id, history) => post<{ id: string; erased: boolean; links_revoked: number }>(`${T}/contacts/${enc(id)}/erase`, { confirm: true, history }),
   exportContact: (id) => get<ContactExport>(`${T}/contacts/${enc(id)}/export`),
   externalAssignees: (departmentId, ticketId) => get<AssigneesAnswer>(`${T}/assignees${qs({ department_id: departmentId, ticket_id: ticketId })}`),
-  preview: (ticketId, contactId, requireCode) => post<AssignPreview>(`${T}/${enc(ticketId)}/assign/preview`, { contact_id: contactId, require_code: requireCode }),
+  preview: (ticketId, contactId, requireCode, locationNav) => post<AssignPreview>(`${T}/${enc(ticketId)}/assign/preview`, { contact_id: contactId, require_code: requireCode, ...(locationNav ? { location_nav: true } : {}) }),
   assignContact: (ticketId, b) => post<TicketWithLink>(`${T}/${enc(ticketId)}/assign`, {
     assignee: { kind: 'contact', id: b.contactId }, note: b.note ?? null, note_external: b.noteExternal ?? true, revision: b.revision,
     ...(b.requireCode !== undefined && b.requireCode !== null ? { require_code: b.requireCode } : {}),
     ...(b.shareHistory !== undefined && b.shareHistory !== null ? { share_history: b.shareHistory } : {}),
     ...(b.costClaim ? { cost_claim: b.costClaim } : {}),
     ...(b.sendNow ? { send_now: true } : {}), // slice 5b (D29): the message leaves outside the send hours
+    ...(b.locationNav ? { location_nav: true } : {}), // CR-ORG-LOCATIONS: default off
   }),
   copyLink: (ticketId) => post<CopyAnswer>(`${T}/${enc(ticketId)}/link/copy`, {}),
   linkAction: (ticketId, action) => post<TicketWithLink>(`${T}/${enc(ticketId)}/link/${action}`, {}),

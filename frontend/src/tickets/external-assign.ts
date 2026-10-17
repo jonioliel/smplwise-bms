@@ -11,6 +11,8 @@ import { assignLines } from './message-lines';
 import { mtt } from './messages-text';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { ct, type CostTextKey } from './cost-text'; // slice 9
+import { lt } from './org-locations-text';
+import { navForAssign, navForPreview, navSwitch, type NavAnswer } from './assign-nav-model';
 import { outsideBlock, staffBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
 
 type CostModeChoice = 'required' | 'optional' | 'off';
@@ -63,6 +65,10 @@ export class ExternalAssign implements ReactiveController {
   error = '';
   /** slice 5b (D29): the person's "send now" choice outside the send hours; null = the preview's default (critical priorities) */
   sendNow: boolean | null = null;
+  /** CR-ORG-LOCATIONS (owner 2026-10-17): "add a navigation link to the message" - off by default, shown only when the preview says the request's location has coordinates */
+  locationNav = false;
+  /** the last switch answer of the server for the chosen contact (kept while a new preview loads, so the switch does not flicker) */
+  private navKnown: NavAnswer | null = null;
   private seq = 0;
 
   constructor(private readonly host: ReactiveControllerHost, private readonly lend: ExternalAssignHost) {
@@ -87,6 +93,8 @@ export class ExternalAssign implements ReactiveController {
     this.showText = false;
     this.error = '';
     this.sendNow = null;
+    this.locationNav = false;
+    this.navKnown = null;
     this.pending = '';
     this.seq += 1;
   }
@@ -171,18 +179,22 @@ export class ExternalAssign implements ReactiveController {
     this.requireCode = c.require_code;
     this.shareHistory = false;
     this.sendNow = null;
+    this.locationNav = false;
+    this.navKnown = null;
     this.error = '';
     void this.loadPreview(t);
   }
 
   private async loadPreview(t: TicketDetail): Promise<void> {
     const mine = ++this.seq;
+    const nav = navForPreview(this.navKnown, this.locationNav); // the switch survives a re-ask (the code toggle, the switch itself)
     this.preview = null;
     this.host.requestUpdate();
     try {
-      const p = await ticketsS4Api().preview(t.id, this.pick, this.requireCode);
+      const p = await ticketsS4Api().preview(t.id, this.pick, this.requireCode, nav);
       if (mine !== this.seq) return;
       this.preview = p;
+      this.navKnown = p.location_nav ?? null;
       if (!this.shareHistory) this.shareHistory = p.share_history.default;
     } catch (e) {
       if (mine === this.seq) this.error = describeError(e);
@@ -247,6 +259,7 @@ export class ExternalAssign implements ReactiveController {
         ${p?.share_history.available ? html`<label class="chk"><input type="checkbox" data-share-history .checked=${this.shareHistory}
           @change=${(e: Event) => { this.shareHistory = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />${tt('asgShareHistory')}</label>` : nothing}
         ${this.costChoice()}
+        ${this.navChoice(t)}
       </div>` : nothing}
       ${p ? html`<div class="xinfo" data-assign-preview>
         <span class="muted">${tIcon('link')}${tt('asgLinkLine', { days: p.link.cap_days, grace: p.link.grace_hours })}</span>
@@ -287,6 +300,15 @@ export class ExternalAssign implements ReactiveController {
         data-cost-claim-mode=${m} ?disabled=${this.lend.busy()} @click=${() => { this.costClaim = m; this.host.requestUpdate(); }}>${ct(`m_${m}` as CostTextKey)}</button>`)}</span></div>`;
   }
 
+  /** CR-ORG-LOCATIONS: the switch (hidden without coordinates). Toggling asks the server for the exact text again, so the preview shows what is sent. */
+  private navChoice(t: TicketDetail): TemplateResult | typeof nothing {
+    const sw = navSwitch(this.navKnown, this.locationNav);
+    if (!sw.visible) return nothing;
+    return html`<label class="chk" data-nav-switch><input type="checkbox" data-location-nav .checked=${sw.checked} ?disabled=${this.lend.busy()}
+      @change=${(e: Event) => { this.locationNav = (e.target as HTMLInputElement).checked; void this.loadPreview(t); }} />
+      <span><b>${lt('navOn')}</b><small class="muted">${lt('navOnSub')}</small></span></label>`;
+  }
+
   /** TKASSIGNDLG: whether the chosen outside contact is a vendor (the message field says "vendor" or "handler"). */
   get pickedVendor(): boolean {
     return !!this.contacts?.find((c) => c.id === this.pick && c.contact_kind === 'vendor');
@@ -307,6 +329,7 @@ export class ExternalAssign implements ReactiveController {
       shareHistory: this.preview?.share_history.available ? this.shareHistory : null,
       sendNow: this.sendNowChoice() || null, // slice 5b (D29)
       costClaim: this.costClaim, // slice 9 (D32)
+      locationNav: navForAssign(this.preview?.location_nav, this.locationNav) ?? null, // CR-ORG-LOCATIONS: default off
     }) as Promise<TicketWithLink>, tt('saved'));
   }
 }

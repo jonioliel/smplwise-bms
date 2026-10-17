@@ -326,6 +326,7 @@ class AssignBody(BaseModel):
     share_history: bool | None = None  # slice 4 (D23): only where a device snapshot exists, never for security domains
     send_now: bool = False  # slice 5b (D29): release the message outside the send hours
     cost_claim: Literal["required", "optional", "off"] | None = None  # slice 9 (D32): an outside contact only; None = the preselection
+    location_nav: bool = False  # CR-ORG-LOCATIONS: add the map link to the outgoing message (default off; an outside contact with a located request only)
     revision: int = Field(ge=1)
 
 
@@ -339,8 +340,10 @@ def post_assign(body: AssignBody, request: Request, ticket_id: str = Path(..., p
 
         external.assign_contact(conn, viewer, seen, body.assignee.id, note=body.note, note_external=body.note_external,
                                 require_code=body.require_code, share_history=body.share_history, send_now=body.send_now,
-                                revision=body.revision, rid=_rid(request), cost_claim=body.cost_claim)
+                                revision=body.revision, rid=_rid(request), cost_claim=body.cost_claim, location_nav=body.location_nav)
     else:
+        if body.location_nav and seen.manager:  # the switch exists for an outside contact's message only: refused, not ignored
+            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "location_nav", "code": "not_allowed"}]})
         service.assign(conn, viewer, seen, body.assignee.kind, body.assignee.id, body.note, body.note_external, body.revision, _rid(request))
     return _detail(conn, viewer, ticket_id)
 
