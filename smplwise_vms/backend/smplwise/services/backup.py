@@ -1,7 +1,8 @@
 """Project backups (T026 / T036): one zip with the project tables as JSON and the plan files. Written before
 every version upgrade (rollback safety), once a day, on request, or uploaded by an administrator; restored in
-a single transaction. Never contains secrets (the NVR connection's table and every key file stay out, CR-022 section 9) and
-never video. A restore writes only the plan files its own rows reference (`restorable`): an archive member naming a key, the
+a single transaction. Never contains secrets in the clear (the NVR connection's table and every key file stay out, CR-022 section 9;
+the local accounts' password hashes and the HMAC keys in `backup_sensitive.SENSITIVE_SETTINGS` travel only in the section encrypted
+with the administrator's backup password, BACKUP-HASH-ENC) and never video. A restore writes only the plan files its own rows reference (`restorable`): an archive member naming a key, the
 database, the add-on options or any other path is ignored (CR-022 security review F1)."""
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from typing import Any
 from .. import __version__
 from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, set_setting
+from . import backup_sensitive as sens
 
 log = logging.getLogger("smplwise.backup")
 
@@ -49,7 +51,8 @@ PROJECT_TABLES = PROJECT_TABLES + ["plan_view_prefs"]
 # floors show their live view until an editor bakes again (a replace restore sweeps the files nobody names).
 PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
 # USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
-# new host keeps the users) - the rows hold PHC hashes only; sessions, links, the failure counters and the TOTP secrets
+# new host keeps the users) - the rows hold PHC hashes only, and since BACKUP-HASH-ENC (owner 2026-10-17) the hash column travels
+# ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
 # (auth_local_sessions, auth_local_links, auth_local_failures, auth_totp*) are never written to an archive. identity_links: the
 # manual "same person" link. Listed right after `users` (they reference it).
 # USR2 phase 4: the passkeys' PUBLIC keys (auth_webauthn_credentials) travel the same way; WebAuthn challenges exist in memory only.
@@ -219,8 +222,18 @@ def restorable(rel: str | None) -> bool:
     return _NEVER_RESTORED_NAME.search(parts[-1]) is None
 
 
-def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "", energy_history: bool = False) -> Path:
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
+def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "", energy_history: bool = False,
+              backup_password: str | None = None) -> Path:
+    """BACKUP-HASH-ENC: the sensitive values (local password hashes, SENSITIVE_SETTINGS) never enter the data files. With a backup
+    password they are sealed into `secure/sensitive.bin` (AES-256-GCM, scrypt key; header in the manifest); without one they are
+    left out and the manifest says so (`sensitive.state = omitted`)."""
+    now = dt.datetime.now(dt.timezone.utc)
+    created_at = now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    data, payload = sens.split(data)
+    sealed: tuple[dict[str, Any], bytes] | None = None
+    if backup_password is not None:
+        sealed = sens.seal(payload, backup_password, {"format": FORMAT, "created_at": created_at, "schema_version": schema})
+    stamp = now.strftime("%Y%m%d-%H%M%S")
     out = backups_dir(settings) / f"{kind}-{stamp}.zip"
     n = 1
     while out.exists():
@@ -243,17 +256,20 @@ def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: s
         from . import energy_backup  # CR-023: daily totals always, the energy.db copy only when the setting asks for it
 
         energy = energy_backup.add_to_zip(settings, z, with_history=energy_history)
+        if sealed is not None:
+            z.writestr(sens.MEMBER, sealed[1])
         manifest = {
             "format": FORMAT,
             "app_version": __version__,
             "schema_version": schema,
-            "created_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "created_at": created_at,
             "kind": kind,
             "note": note,
             "tables": {t: len(rows) for t, rows in data.items()},
             "files": files,
             "missing_files": missing[:50],
             "energy": energy,
+            "sensitive": sealed[0] if sealed is not None else sens.omitted_header(payload),
         }
         z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))
     tmp.replace(out)
@@ -288,7 +304,23 @@ def entry(path: Path) -> dict[str, Any]:
         "tables": m.get("tables", {}),
         "files": m.get("files", 0),
         "valid": bool(m),
+        "sensitive": _sensitive_summary(m),
     }
+
+
+def _sensitive_summary(m: dict[str, Any]) -> dict[str, Any] | None:
+    """What the list shows about the encrypted section: `encrypted` (a password is needed to bring it back), `omitted` (written
+    without a password: local account passwords are not in this archive), `legacy` (an archive from before BACKUP-HASH-ENC that
+    may hold the hashes in the clear). Counts only - never a value."""
+    if not m:
+        return None
+    h = m.get("sensitive")
+    if h is None:
+        return {"state": "legacy"}
+    if not isinstance(h, dict) or h.get("state") not in ("encrypted", "omitted"):
+        return {"state": "invalid"}
+    c = h.get("counts") if isinstance(h.get("counts"), dict) else {}
+    return {"state": h["state"], "counts": {k: int(c.get(k) or 0) for k in ("password_hashes", "settings") if isinstance(c.get(k, 0), int)}}
 
 
 def list_backups(settings: Settings) -> list[dict[str, Any]]:
@@ -311,11 +343,14 @@ def prune(settings: Settings) -> list[str]:
     return removed
 
 
-def create(settings: Settings, conn: sqlite3.Connection, kind: str = "manual", note: str = "", include_access: bool = True, include_audit: bool = False, include_events: bool = False) -> dict[str, Any]:
+def create(settings: Settings, conn: sqlite3.Connection, kind: str = "manual", note: str = "", include_access: bool = True, include_audit: bool = False, include_events: bool = False,
+           backup_password: str | None = None) -> dict[str, Any]:
     from . import energy_backup
 
+    if backup_password is not None:
+        sens.password_bytes(backup_password)  # refuse a weak / oversized password before the snapshot is taken
     data = snapshot(conn, include_access, include_audit, include_events)
-    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn))
+    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn), backup_password=backup_password)
     return entry(out)
 
 
@@ -334,6 +369,9 @@ def _actor_rows(conn: sqlite3.Connection, user_id: str | None) -> dict[str, list
         out["users"] = [dict(r) for r in conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchall()]
     if "bindings" in existing:
         out["bindings"] = [dict(r) for r in conn.execute("SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ?", (user_id,)).fetchall()]
+    if sens.HASH_TABLE in existing:  # BACKUP-HASH-ENC: a local administrator restoring access keeps their own password too
+        out[sens.HASH_TABLE] = [{k: v for k, v in dict(r).items() if k not in NEVER_EXPORTED_COLUMNS.get(sens.HASH_TABLE, frozenset())}
+                                for r in conn.execute(f"SELECT * FROM {sens.HASH_TABLE} WHERE user_id = ?", (user_id,)).fetchall()]
     if "group_members" in existing:
         col = next((c for c in _columns(conn, "group_members") if c in ("user_id", "member_id", "subject_id")), None)
         if col:
@@ -398,12 +436,66 @@ def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> d
     return skipped
 
 
-def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str = "replace", scope: str = "project", actor_user_id: str | None = None) -> dict[str, Any]:
+def _open_sensitive(manifest: dict[str, Any], z: zipfile.ZipFile, names: set[str], backup_password: str | None,
+                    skip_sensitive: bool) -> tuple[str, dict[str, Any] | None, str | None]:
+    """BACKUP-HASH-ENC: (state, decrypted payload or None, why it was skipped or None). Runs before anything is written.
+    An inconsistent archive (a section without its header, a malformed header, key-derivation settings out of range) is refused
+    whatever the operator chose. An encrypted section that cannot be opened (no / wrong password, changed or truncated archive)
+    is refused unless the operator explicitly chose to restore without it (`skip_sensitive`)."""
+    state = sens.state_of(manifest, names)
+    if state != "encrypted":
+        return state, None, None
+    sens.check_header(manifest["sensitive"])  # never a silent downgrade: a malformed header is refused even with skip
+    if skip_sensitive and not backup_password:
+        return state, None, "operator_skipped"
+    try:
+        payload = sens.unseal(manifest["sensitive"], sens.read_member(z), backup_password, sens.binding_of(manifest))
+    except sens.SensitiveError as exc:
+        if skip_sensitive and exc.code != "backup_password_too_long":
+            return state, None, exc.code
+        raise
+    return state, payload, None
+
+
+def _current_hashes(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+    if sens.HASH_TABLE not in _tables(conn):
+        return {}
+    cols = [c for c in (sens.HASH_COLUMN, *sens.HASH_COMPANIONS) if c in _columns(conn, sens.HASH_TABLE)]
+    sql = f"SELECT user_id, {', '.join(cols)} FROM {sens.HASH_TABLE} WHERE {sens.HASH_COLUMN} IS NOT NULL"
+    return {r["user_id"]: {c: r[c] for c in cols} for r in conn.execute(sql).fetchall()}
+
+
+def _fill_missing_hashes(data: dict[str, list[dict[str, Any]]], current: dict[str, dict[str, Any]], restored: int, legacy: bool) -> dict[str, Any]:
+    """A credential row of the archive that comes without its hash (section omitted or skipped) takes the CURRENT hash of the same
+    user id on this installation when there is one (whoever can sign in here today still can - including the acting administrator,
+    and a rollback on the same host loses nothing); otherwise its hash is NULL: that account needs an administrator's link
+    (the reset). Returns the restore answer's `passwords` block (user ids, never a hash)."""
+    kept, need = 0, []
+    for r in data.get(sens.HASH_TABLE) or []:
+        if not isinstance(r, dict) or r.get(sens.HASH_COLUMN):
+            continue
+        uid = r.get("user_id")
+        cur = current.get(uid) if isinstance(uid, str) else None
+        if cur:
+            r.update(cur)
+            kept += 1
+        else:
+            r.update({sens.HASH_COLUMN: None, "set_at": None, "set_by": None})
+            if isinstance(uid, str):
+                need.append(uid)
+    return {"restored": restored, "kept_current": kept, "need_reset": need[:500], "need_reset_count": len(need), "legacy_plaintext": legacy}
+
+
+def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str = "replace", scope: str = "project", actor_user_id: str | None = None,
+            backup_password: str | None = None, skip_sensitive: bool = False) -> dict[str, Any]:
     """Load a backup into the current database inside the caller's transaction. `replace` empties every table of
     the scope first, also one the archive does not have (a backup older than the table): the restored project equals
     the backup, and no row is left pointing at a parent row being replaced (R-T7-1) - except KEEP_WHEN_ABSENT (CR-019's
     switch protection): an archive without them keeps the current rows (`kept_current` in the answer). Identity rows of
-    the acting user are kept. `merge` only adds missing rows. Files are written before the commit; a failure rolls the rows back."""
+    the acting user are kept. `merge` only adds missing rows. Files are written before the commit; a failure rolls the rows back.
+    BACKUP-HASH-ENC: an encrypted sensitive section needs `backup_password` (sens.SensitiveError otherwise, raised before anything
+    is written) unless `skip_sensitive` - then the section is not restored (`_fill_missing_hashes`; the current values of
+    SENSITIVE_SETTINGS are kept)."""
     if mode not in ("replace", "merge"):
         raise ValueError("mode must be replace | merge")
     if scope not in ("project", "project+access"):
@@ -421,6 +513,19 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             member = f"data/{t}.json"
             if member in names:
                 data[t] = json.loads(z.read(member).decode("utf-8"))
+        # BACKUP-HASH-ENC: decided before any row is deleted
+        sens_state, payload, sens_skipped = _open_sensitive(manifest, z, names, backup_password, skip_sensitive)
+        plaintext_ignored = sens.strip_plaintext(data) if sens_state != "legacy" else 0
+        if plaintext_ignored:
+            log.warning("restore ignored %s plaintext sensitive value(s) in an archive with an encrypted-section header", plaintext_ignored)
+        legacy_hashes = sum(1 for r in data.get(sens.HASH_TABLE) or [] if isinstance(r, dict) and r.get(sens.HASH_COLUMN)) if sens_state == "legacy" else 0
+        if legacy_hashes:
+            log.warning("restore of an archive from before encrypted backups: %s local password hash(es) were stored in the clear", legacy_hashes)
+        restored_hashes = sens.merge_into(data, payload) if payload else legacy_hashes
+        passwords = _fill_missing_hashes(data, _current_hashes(conn), restored_hashes, legacy_hashes > 0) if sens.HASH_TABLE in data else None
+        # a sensitive setting the archive does not bring (omitted / skipped section) keeps its current value
+        brought = {r.get("key") for r in data.get("settings") or [] if isinstance(r, dict)}
+        keep_sensitive = sorted(sens.SENSITIVE_SETTINGS - brought)
         keep = _actor_rows(conn, actor_user_id) if scope == "project+access" else {}
         update_switch = _update_switch(conn, data)
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
@@ -429,9 +534,10 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 if t in kept_current:
                     continue  # CR-019: never emptied by an archive that does not have it
                 if t == "settings":
-                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})"
+                    kept_keys = [*SETTINGS_KEEP, *keep_sensitive]
+                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(kept_keys))})"
                                  + "".join(" AND substr(key, 1, ?) <> ?" for _ in SETTINGS_KEEP_PREFIXES),
-                                 [*SETTINGS_KEEP, *(v for p in SETTINGS_KEEP_PREFIXES for v in (len(p), p))])
+                                 [*kept_keys, *(v for p in SETTINGS_KEEP_PREFIXES for v in (len(p), p))])
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)
@@ -513,7 +619,10 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
             "kept_current": kept_current, "roles_pruned": roles_pruned, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
-            "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings}
+            "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings,
+            "sensitive": {"state": sens_state, "restored": payload is not None or legacy_hashes > 0, "skipped": sens_skipped,
+                          "plaintext_ignored": plaintext_ignored, "settings_kept_current": keep_sensitive},
+            "passwords": passwords}
 
 
 def _lease_settings_report(conn: sqlite3.Connection, data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:

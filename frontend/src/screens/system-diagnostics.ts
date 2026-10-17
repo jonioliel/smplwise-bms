@@ -18,13 +18,14 @@ import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
-import { describeError, get } from '../api/client';
+import { ApiError, describeError, get } from '../api/client';
 import { navigate, parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
 import { TabsModeController } from '../shell/tabs-mode';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
+import { bpt } from '../i18n/backup-password';
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, getMeterBackup, listBackups, restoreBackup, setMeterBackup, uploadBackup, type BackupEntry, type MeterBackupSetting } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
@@ -149,6 +150,11 @@ export class SystemDiagnostics extends LitElement {
   @state() private backupPolicy: Record<string, number> = {};
   @state() private backupBusy = false;
   @state() private backupNote = '';
+  /** BACKUP-HASH-ENC: typed at create / restore time, sent once, cleared right after; never stored or logged. */
+  @state() private backupPassword = '';
+  @state() private restorePassword = '';
+  @state() private restoreSkip = false;
+  @state() private restoreCanSkip = false;
   @state() private backupMsg = '';
   @state() private meterBackup: MeterBackupSetting | null = null;
   @state() private meterBackupBusy = false;
@@ -1354,9 +1360,12 @@ export class SystemDiagnostics extends LitElement {
     this.backupBusy = true;
     this.backupMsg = '';
     try {
-      const e = await createBackup({ note: this.backupNote.trim() });
+      const pw = this.backupPassword;
+      const e = await createBackup({ note: this.backupNote.trim(), ...(pw ? { backup_password: pw } : {}) });
       this.backupNote = '';
-      this.backupMsg = `הגיבוי ${e.name} נוצר (${fmtBytes(e.bytes)})`;
+      this.backupPassword = '';
+      const sens = e.sensitive?.state === 'encrypted' ? bpt('createdEncrypted') : (e.sensitive?.counts?.password_hashes ?? 0) > 0 ? bpt('createdOmitted') : '';
+      this.backupMsg = `הגיבוי ${e.name} נוצר (${fmtBytes(e.bytes)})${sens ? ` · ${sens}` : ''}`;
       await this.loadBackups();
     } catch (err) {
       this.error = describeError(err);
@@ -1407,6 +1416,9 @@ export class SystemDiagnostics extends LitElement {
     this.restoreMode = 'replace';
     this.restoreAccess = false;
     this.restoreConfirm = '';
+    this.restorePassword = '';
+    this.restoreSkip = false;
+    this.restoreCanSkip = false;
   }
 
   private async doRestore() {
@@ -1415,14 +1427,21 @@ export class SystemDiagnostics extends LitElement {
     this.backupBusy = true;
     this.error = '';
     try {
-      const r = await restoreBackup(b.name, { mode: this.restoreMode, scope: this.restoreAccess ? 'project+access' : 'project', confirm: this.restoreConfirm });
+      const pw = this.restorePassword;
+      const r = await restoreBackup(b.name, { mode: this.restoreMode, scope: this.restoreAccess ? 'project+access' : 'project', confirm: this.restoreConfirm,
+        ...(pw ? { backup_password: pw } : {}), ...(this.restoreSkip ? { skip_sensitive: true } : {}) });
+      this.restorePassword = '';
       const parts = Object.entries(r.tables).filter(([k]) => TABLE_LABEL[k]).map(([k, n]) => `${n} ${TABLE_LABEL[k]}`);
-      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים${r.files_skipped ? ` · ${r.files_skipped} קבצים לא שוחזרו` : ''}`;
+      const reset = r.passwords?.need_reset_count ? ` · ${bpt('resultNeedReset', { n: r.passwords.need_reset_count })}` : '';
+      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים${r.files_skipped ? ` · ${r.files_skipped} קבצים לא שוחזרו` : ''}${reset}`;
       this.restoreTarget = null;
       invalidateSettings();
       await this.loadBackups();
     } catch (err) {
       this.error = describeError(err);
+      // BACKUP-HASH-ENC: a missing / wrong password (or a damaged encrypted part) offers "restore without the passwords"
+      this.restoreCanSkip = err instanceof ApiError && err.body.details?.can_skip === true;
+      this.restorePassword = '';
     } finally {
       this.backupBusy = false;
     }
@@ -1436,7 +1455,7 @@ export class SystemDiagnostics extends LitElement {
     const counts = ['sites', 'floors', 'plan_versions', 'map_anchors', 'spatial_zones', 'cameras'].filter((k) => b.tables[k] !== undefined).map((k) => `${b.tables[k]} ${TABLE_LABEL[k]}`).join(' · ');
     return html`<div class="brow" data-backup-row>
       <div>
-        <div class="name"><span class="ltr">${b.name}</span><sw-badge kind=${b.kind.startsWith('auto') ? 'neutral' : b.kind === 'upload' ? 'stale' : 'live'} label=${KIND_LABEL[b.kind] ?? b.kind}></sw-badge>${!b.valid ? html`<sw-badge kind="error" label="קובץ לא תקין"></sw-badge>` : nothing}</div>
+        <div class="name"><span class="ltr">${b.name}</span><sw-badge kind=${b.kind.startsWith('auto') ? 'neutral' : b.kind === 'upload' ? 'stale' : 'live'} label=${KIND_LABEL[b.kind] ?? b.kind}></sw-badge>${this.renderSensitiveBadge(b)}${!b.valid ? html`<sw-badge kind="error" label="קובץ לא תקין"></sw-badge>` : nothing}</div>
         <div class="sub">${this.fmtWhen(b.created_at)} · ${fmtBytes(b.bytes)} · גרסה ${b.app_version ?? '?'}${b.note ? ` · ${b.note}` : ''}</div>
         ${counts ? html`<div class="sub">${counts} · ${b.files} קבצי תוכנית</div>` : nothing}
       </div>
@@ -1448,11 +1467,35 @@ export class SystemDiagnostics extends LitElement {
     </div>`;
   }
 
+  private renderSensitiveBadge(b: BackupEntry) {
+    const s = b.sensitive;
+    if (s?.state === 'encrypted') return html`<sw-badge kind="neutral" data-backup-sensitive="encrypted" label=${bpt('badgeEncrypted')}></sw-badge>`;
+    if (s?.state === 'legacy') return html`<sw-badge kind="stale" data-backup-sensitive="legacy" label=${bpt('badgeLegacy')}></sw-badge>`;
+    if (s?.state === 'omitted' && (s.counts?.password_hashes ?? 0) > 0) return html`<sw-badge kind="neutral" data-backup-sensitive="omitted" label=${bpt('badgeOmitted')}></sw-badge>`;
+    return nothing;
+  }
+
+  /** BACKUP-HASH-ENC: the backup password (encrypted archive), the explicit "without the passwords" choice, or a one-line note. */
+  private renderRestoreSensitive(b: BackupEntry) {
+    const s = b.sensitive;
+    if (s?.state === 'encrypted') {
+      return html`<div class="row" data-restore-sensitive><span class="lbl">${bpt('restoreLabel')}<span class="muted">${bpt('restoreHint', { n: s.counts?.password_hashes ?? 0 })}</span></span>
+          <input class="note-in" type="password" autocomplete="off" data-restore-password ?disabled=${this.restoreSkip} .value=${this.restorePassword} @input=${(e: Event) => (this.restorePassword = (e.target as HTMLInputElement).value)} /></div>
+        ${this.restoreCanSkip || this.restoreSkip
+          ? html`<div class="row" data-restore-skip-row><span class="lbl">${bpt('restoreSkip')}<span class="muted">${bpt('restoreSkipHint')}</span></span><sw-toggle data-restore-skip ?checked=${this.restoreSkip} label=${bpt('restoreSkip')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => { this.restoreSkip = e.detail.checked; if (this.restoreSkip) this.restorePassword = ''; }}></sw-toggle></div>`
+          : nothing}`;
+    }
+    if (s?.state === 'legacy') return html`<div class="msg err" role="note" data-restore-legacy>${bpt('restoreLegacy')}</div>`;
+    if (s?.state === 'omitted' && (s.counts?.password_hashes ?? 0) > 0) return html`<div class="muted" data-restore-omitted>${bpt('restoreOmitted')}</div>`;
+    return nothing;
+  }
+
   private renderRestoreDialog(b: BackupEntry) {
     return html`<sw-dialog open heading="שחזור גיבוי" subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
       <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode === 'replace' ? 'הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי' : 'רק פריטים שחסרים היום מתווספים; הקיימים נשארים'}</span></span>
         <select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></div>
       <div class="row"><span class="lbl">כולל משתמשים והרשאות<span class="muted">ברירת המחדל: רק נתוני הפרויקט. ההרשאות שלך נשמרות בכל מקרה.</span></span><sw-toggle ?checked=${this.restoreAccess} label="כולל הרשאות" labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
+      ${this.renderRestoreSensitive(b)}
       <div class="muted" style="margin-block-start:8px">הגיבוי מגרסה ${b.app_version ?? '?'} מ־${this.fmtWhen(b.created_at)}. השחזור נרשם באודיט. לאישור הקלד <code>RESTORE</code>:</div>
       <input class="confirm-in" data-restore-confirm placeholder="RESTORE" .value=${this.restoreConfirm} @input=${(e: Event) => (this.restoreConfirm = (e.target as HTMLInputElement).value)} />
       <div slot="footer"><sw-button variant="danger" icon="history" ?disabled=${this.restoreConfirm !== 'RESTORE' || this.backupBusy} data-restore-go @click=${() => this.doRestore()}>${this.backupBusy ? 'משחזר…' : 'שחזר עכשיו'}</sw-button><sw-button variant="ghost" @click=${() => (this.restoreTarget = null)}>ביטול</sw-button></div>
@@ -1462,9 +1505,11 @@ export class SystemDiagnostics extends LitElement {
   private renderBackup() {
     const list = this.backups ?? [];
     return html`<div class="sections">
-      <sw-card heading="גיבויים של הפרויקט" subheading="אתרים, קומות, תוכניות, עוגנים, אזורים, מצלמות והגדרות · בלי סודות ובלי וידאו">
+      <sw-card heading="גיבויים של הפרויקט" subheading="אתרים, קומות, תוכניות, עוגנים, אזורים, מצלמות והגדרות · בלי סודות גלויים ובלי וידאו">
         <div class="row"><span class="lbl">גיבוי ידני עכשיו<span class="muted">נשמר בתוך התוסף (/data/backups) ואפשר להוריד למחשב</span></span>
           <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder="הערה (אופציונלי)" .value=${this.backupNote} @input=${(e: Event) => (this.backupNote = (e.target as HTMLInputElement).value)} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy || !isApi()} data-backup-create @click=${() => this.createBackup()}>${this.backupBusy ? 'עובד…' : 'צור גיבוי'}</sw-button></span></div>
+        <div class="row" data-backup-password-row><span class="lbl">${bpt('createLabel')}<span class="muted">${bpt('createHint')}</span></span>
+          <input class="note-in" type="password" autocomplete="new-password" data-backup-password placeholder=${bpt('createPlaceholder')} .value=${this.backupPassword} @input=${(e: Event) => (this.backupPassword = (e.target as HTMLInputElement).value)} /></div>
         <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
         ${this.renderMeterBackup()}

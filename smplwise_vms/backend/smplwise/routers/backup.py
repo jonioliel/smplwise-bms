@@ -1,5 +1,7 @@
 """Backups API (T026 / T036): list, create, download, upload, delete and restore project backups. Requires
-`backup.manage` at installation scope; every write is audited."""
+`backup.manage` at installation scope; every write is audited. BACKUP-HASH-ENC: `backup_password` (create / restore) protects the
+encrypted section (local account password hashes, the media HMAC keys); it is a SecretStr, never echoed, logged or audited -
+the audit rows record only whether the section was encrypted / restored / skipped."""
 from __future__ import annotations
 
 import sqlite3
@@ -8,13 +10,14 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import backup as svc
+from ..services import backup_sensitive as sens
 
 router = APIRouter()
 
@@ -23,12 +26,38 @@ class CreateIn(BaseModel):
     note: str = Field(default="", max_length=200)
     include_audit: bool = False
     include_events: bool = False
+    # BACKUP-HASH-ENC: without it the archive leaves the sensitive section out (never plaintext). Length rules are checked in
+    # the service (backup_sensitive.password_bytes) so a refusal never echoes the value.
+    backup_password: SecretStr | None = None
 
 
 class RestoreIn(BaseModel):
     mode: str = Field(default="replace", pattern="^(replace|merge)$")
     scope: str = Field(default="project", pattern="^(project|project\\+access)$")
     confirm: str = ""
+    backup_password: SecretStr | None = None
+    # the operator's explicit choice to restore WITHOUT the encrypted section (local accounts then need an administrator's link)
+    skip_sensitive: bool = False
+
+
+SENSITIVE_MESSAGES = {
+    "backup_password_required": "הגיבוי מכיל סיסמאות מוצפנות של חשבונות מקומיים. יש להקליד את סיסמת הגיבוי, או לבחור שחזור בלי הסיסמאות.",
+    "backup_password_wrong": "סיסמת הגיבוי שגויה, או שהקובץ שונה. אפשר לנסות שוב, או לבחור שחזור בלי הסיסמאות.",
+    "backup_password_weak": f"סיסמת הגיבוי צריכה לפחות {sens.PASSWORD_MIN_CHARS} תווים.",
+    "backup_password_too_long": "סיסמת הגיבוי ארוכה מדי.",
+    "backup_sensitive_damaged": "החלק המוצפן של הגיבוי חסר או פגום. אפשר לבחור שחזור בלי הסיסמאות.",
+    "backup_sensitive_invalid": "החלק המוצפן של הגיבוי לא עקבי (ייתכן שהקובץ שונה). השחזור נדחה.",
+}
+
+
+def _sensitive_error(exc: sens.SensitiveError) -> ApiError:
+    can_skip = exc.code in ("backup_password_required", "backup_password_wrong", "backup_sensitive_damaged")
+    return ApiError(422 if exc.code in ("backup_password_weak", "backup_password_too_long") else 409, exc.code,
+                    SENSITIVE_MESSAGES.get(exc.code, "השחזור נדחה."), details={"can_skip": can_skip})
+
+
+def _secret(v: SecretStr | None) -> str | None:
+    return v.get_secret_value() if v is not None else None
 
 
 def _rid(request: Request) -> str | None:
@@ -54,8 +83,13 @@ def list_backups_api(request: Request, principal: Principal = Depends(current_pr
 @router.post("/backups", status_code=201)
 def create_backup(body: CreateIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
-    e = svc.create(settings_of(request), conn, "manual", body.note, include_audit=body.include_audit, include_events=body.include_events)
-    audit(conn, actor=principal, action="backup.create", decision="allowed", resource_type="backup", resource_id=e["name"], request_id=_rid(request), details={"bytes": e["bytes"], "tables": e["tables"], "files": e["files"]})
+    try:
+        e = svc.create(settings_of(request), conn, "manual", body.note, include_audit=body.include_audit, include_events=body.include_events,
+                       backup_password=_secret(body.backup_password))
+    except sens.SensitiveError as exc:
+        raise _sensitive_error(exc) from None
+    audit(conn, actor=principal, action="backup.create", decision="allowed", resource_type="backup", resource_id=e["name"], request_id=_rid(request),
+          details={"bytes": e["bytes"], "tables": e["tables"], "files": e["files"], "sensitive": (e.get("sensitive") or {}).get("state")})
     return e
 
 
@@ -107,11 +141,16 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
         raise ApiError(422, "confirm_required", "לאישור השחזור יש להקליד RESTORE.")
     p = _path(request, name)
     try:
-        result = svc.restore(settings_of(request), conn, p, body.mode, body.scope, actor_user_id=principal.user_id)
+        result = svc.restore(settings_of(request), conn, p, body.mode, body.scope, actor_user_id=principal.user_id,
+                             backup_password=_secret(body.backup_password), skip_sensitive=body.skip_sensitive)
+    except sens.SensitiveError as exc:
+        raise _sensitive_error(exc) from None
     except ValueError as exc:
         raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
     audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": body.scope, "tables": result["tables"], "files": result["files"],
-                   **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {})})
+                   **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {}),
+                   "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},
+                   **({"passwords": {k: result["passwords"][k] for k in ("restored", "kept_current", "need_reset_count", "legacy_plaintext")}} if result.get("passwords") else {})})
     switch = result.get("update_apply_enabled") or {}
     # SEC246 L4: the self-update switch is never taken from an archive; its own audit row records what was kept and what the archive held
     audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",

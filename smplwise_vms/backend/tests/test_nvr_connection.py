@@ -599,7 +599,9 @@ def test_the_password_appears_nowhere(world, fake, settings, caplog):
 
 SECRET_COLUMN = re.compile(r"password|secret|token|_enc$", re.I)
 NOT_SECRET = {("catalog_items", "color_token"),  # a design-token name, not a credential
-              ("auth_local_credentials", "password_hash")}  # USR2-P1: the scrypt hash travels in the admin export like the other access tables (owner question open, integ/264 notes)
+              # USR2-P1 + BACKUP-HASH-ENC (owner 2026-10-17): the hash column stays in the table list but never reaches the archive's data
+              # files - only the section encrypted with the backup password carries it (tests/test_backup_sensitive.py)
+              ("auth_local_credentials", "password_hash")}
 
 
 def test_no_backup_table_has_a_secret_like_column(settings, fake):

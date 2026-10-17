@@ -58,6 +58,23 @@ the dependency is updated or the exposure is documented as not reachable.
   the password is never returned by an API or written to a log or the audit trail. It protects against a leaked
   database file or Arx backup, not against a reader of the whole data folder. Scope, threat model and tests:
   `docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md` §3. Until that release the add-on options remain the source.
+- Project backups, encrypted sensitive section (BACKUP-HASH-ENC, owner decision 2026-10-17; `services/backup_sensitive.py`):
+  the Arx-only accounts' password hashes (`auth_local_credentials.password_hash`, scrypt PHC) and the media HMAC keys
+  (`multimedia.item_secret`, `multimedia.cast.secret`) never appear in an archive's data files. With a backup password typed at
+  export time they are sealed into `secure/sensitive.bin`: AES-256-GCM (`cryptography`), key = scrypt(password, 16-byte random salt,
+  N=2^17, r=8, p=1); the header (salt, nonce, KDF settings, counts) sits in the manifest and is authenticated as associated data
+  together with the archive's `created_at` / `schema_version` / `format`. Without a password the section is omitted (never
+  plaintext); automatic (daily / pre-upgrade) backups always omit it. Restore: the password is required, or the operator explicitly
+  chooses "restore without the passwords" - then an account keeps the current hash of the same user id on this installation, and
+  otherwise needs an administrator's reset link. A wrong password and a changed / truncated section are refused before anything is
+  written (the GCM tag is the only, constant-time, password check; no verifier is stored). Downgrade guards: a ciphertext member
+  without its header, or a header saying "omitted" next to one, is refused even with the skip choice; plaintext hashes / keys
+  injected into an archive that has a header are ignored; KDF settings above what the build writes are refused before any
+  derivation (one derivation at a time, ciphertext size-capped). Archives from before the rule (no header) still import their
+  plaintext hashes, with a warning in the answer and the log. The password and the derived key are never logged, audited, stored
+  or returned. Residual risk: an attacker with the archive can run an offline guess against the backup password at the scrypt cost
+  (minimum 12 characters enforced); the rest of the archive stays unsigned and unencrypted as before. Tests:
+  `tests/test_backup_sensitive.py`.
 - Repository scan (`git grep` for `password=`, `token=`, lab address patterns; the pre-commit scan used by
   the segment loop refuses commits containing lab addresses or device identifiers): no hits apart from an
   obviously fake fixture string in `tests/test_media.py`.
