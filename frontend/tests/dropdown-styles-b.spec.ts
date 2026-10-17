@@ -489,8 +489,8 @@ test.describe('the rooms chip of the multimedia pages on a wide screen (dropdown
 });
 
 test.describe('the alarm button and the floating corner at wide width (security, dropdown mode)', () => {
-  test('1280 px: the row reserves 84 px at its inline end, the pin is 32 px with a hit area larger than the box', async ({ page }) => {
-    await openShell(page, '/security/live/wall', 1280);
+  test('1099 px (below the header-placement breakpoint, the row stays above the title): the row reserves 84 px at its inline end, the pin is 32 px with a hit area larger than the box', async ({ page }) => {
+    await openShell(page, '/security/live/wall', 1099);
     await setMode(page, 'dropdown');
     const r = await page.locator('sw-app').evaluate((app) => {
       const root = app.shadowRoot!;

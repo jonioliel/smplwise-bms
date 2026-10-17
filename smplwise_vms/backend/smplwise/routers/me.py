@@ -135,6 +135,7 @@ class PrefsPatch(BaseModel):
     ui_dd_phone: str | None = Field(default=None, alias="ui.dd_phone")  # owner 2026-10-03: sheet | list, how a dropdown opens on a phone (services/dd_style.py); null = follow the installation
     ui_dd_search: str | None = Field(default=None, alias="ui.dd_search")  # 2.0.2: always | 4 | 8 | never, from how many cameras a multi-select picker searches (services/dd_style.py); null = follow the installation
     ui_dd_picker: str | None = Field(default=None, alias="ui.dd_picker")  # 2.0.2: dropdown | chips, how the camera comparison picker is shown (services/dd_style.py); null = follow the installation
+    ui_dd_place: str | None = Field(default=None, alias="ui.dd_place")  # 2026-10-17: 1 | 2 | 3 | 4, where the header dropdown sits on a wide screen (services/dd_style.py); null = follow the installation
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # the same per tab group
     ui_dd_size: str | None = Field(default=None, alias="ui.dd_size")  # Unreleased: sm | md | lg, the size of a dropdown (services/dd_style.py); null = follow the installation
     ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # the same per tab group

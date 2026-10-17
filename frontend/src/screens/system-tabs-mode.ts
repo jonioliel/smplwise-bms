@@ -1,3 +1,4 @@
+import { placeStrings } from './tabs-place-strings';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -7,9 +8,9 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
-  DD_PANELS, DD_PANEL_LABEL, DD_PHONES, DD_PHONE_LABEL, DD_PICKERS, DD_PICKER_LABEL, DD_RINGS, DD_RING_LABEL, DD_SEARCHES, DD_SEARCH_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPanel, asDdPhone, asDdPicker, asDdRing, asDdSearch, asDdSize, asDdStyle, asTabMode, installationDdPanel, installationDdPhone, installationDdPicker, installationDdRing, installationDdSearch, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPanel, ownDdPhone, ownDdPicker, ownDdRing, ownDdSearch, ownDdSize, ownDdStyle, ownTabsMode, resolveDdPanel, resolveDdRing, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPanel, saveOwnDdPhone, saveOwnDdPicker, saveOwnDdRing, saveOwnDdSearch, saveOwnDdSize, saveOwnDdStyle,
+  DD_PANELS, DD_PANEL_LABEL, DD_PHONES, DD_PHONE_LABEL, DD_PLACES, asDdPlace, installationDdPlace, ownDdPlace, saveOwnDdPlace, DD_PICKERS, DD_PICKER_LABEL, DD_RINGS, DD_RING_LABEL, DD_SEARCHES, DD_SEARCH_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPanel, asDdPhone, asDdPicker, asDdRing, asDdSearch, asDdSize, asDdStyle, asTabMode, installationDdPanel, installationDdPhone, installationDdPicker, installationDdRing, installationDdSearch, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPanel, ownDdPhone, ownDdPicker, ownDdRing, ownDdSearch, ownDdSize, ownDdStyle, ownTabsMode, resolveDdPanel, resolveDdRing, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPanel, saveOwnDdPhone, saveOwnDdPicker, saveOwnDdRing, saveOwnDdSearch, saveOwnDdSize, saveOwnDdStyle,
   saveOwnTabsMode, setInstallationTabsMode,
-  type DdPanel, type DdPanelGroups, type DdPhone, type DdPicker, type DdRing, type DdRingGroups, type DdSearch, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
+  type DdPlace, type DdPanel, type DdPanelGroups, type DdPhone, type DdPicker, type DdRing, type DdRingGroups, type DdSearch, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
 } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -58,11 +59,14 @@ export class SystemTabsMode extends LitElement {
   @state() private pkOwn: DdPicker | null = ownDdPicker();
   @state() private seInst: DdSearch = installationDdSearch();
   @state() private seOwn: DdSearch | null = ownDdSearch();
+  /** 2026-10-17: the header dropdown placement (one global value, installation + own). */
+  @state() private plInst: DdPlace = installationDdPlace();
+  @state() private plOwn: DdPlace | null = ownDdPlace();
   @state() private canEdit = false;
   @state() private busy = false;
   @state() private message = '';
   /** Which card the status line belongs to (the tabs / style cards, the phone card, or the camera picker card). */
-  @state() private scope: 'style' | 'phone' | 'picker' = 'style';
+  @state() private scope: 'style' | 'phone' | 'picker' | 'place' = 'style';
   @state() private error = '';
   private stop?: () => void;
 
@@ -220,6 +224,8 @@ export class SystemTabsMode extends LitElement {
       this.pkOwn = ownDdPicker();
       this.seInst = installationDdSearch();
       this.seOwn = ownDdSearch();
+      this.plInst = installationDdPlace();
+      this.plOwn = ownDdPlace();
     });
     void this.load();
   }
@@ -455,6 +461,58 @@ export class SystemTabsMode extends LitElement {
     }
   }
 
+  /** The placement card's installation default (`ui.dd_place`). */
+  private async savePlaceInstallation(v: DdPlace) {
+    this.scope = 'place';
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ 'ui.dd_place': v });
+      invalidateSettings();
+      setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
+      this.flash(placeStrings().saved);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async savePlaceOwn(v: DdPlace | null) {
+    this.scope = 'place';
+    this.busy = true;
+    this.error = '';
+    try {
+      await saveOwnDdPlace(v);
+      this.flash(placeStrings().savedOwn);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderPlaceCard(ddInstDisabled: boolean) {
+    const L = placeStrings();
+    return html`<sw-card heading=${L.title} subheading=${L.sub} data-dd-place-card>
+      <div class="grid">
+        <div data-dd-place-installation>
+          <fieldset><legend>${L.inst}</legend>
+            ${DD_PLACES.map((p) => html`<label class="opt"><input type="radio" name="dd-place-inst" value=${p} data-dd-place=${`inst:${p}`} .checked=${this.plInst === p} ?disabled=${ddInstDisabled} @change=${() => void this.savePlaceInstallation(p)} /><span class="t">${L.places[p]}</span></label>`)}
+          </fieldset>
+        </div>
+        <div data-dd-place-own>
+          <fieldset><legend>${L.own}</legend>
+            <label class="opt"><input type="radio" name="dd-place-own" value="" data-dd-place="own:follow" .checked=${this.plOwn === null} ?disabled=${this.busy} @change=${() => void this.savePlaceOwn(null)} /><span class="t">${L.follow.replace('{v}', L.places[this.plInst])}</span></label>
+            ${DD_PLACES.map((p) => html`<label class="opt"><input type="radio" name="dd-place-own" value=${p} data-dd-place=${`own:${p}`} .checked=${this.plOwn === p} ?disabled=${this.busy} @change=${() => void this.savePlaceOwn(asDdPlace(p))} /><span class="t">${L.places[p]}</span></label>`)}
+          </fieldset>
+        </div>
+      </div>
+      <div class="effective" data-dd-place-effective><span><strong>${L.active}</strong> ${L.places[this.plOwn ?? this.plInst]}</span></div>
+      <div aria-live="polite">${this.message && this.scope === 'place' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'place' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
+    </sw-card>`;
+  }
+
   /** 2.0.2: the user's own camera picker look / search threshold (null = follow the installation). */
   private async savePickerOwn(save: () => Promise<void>) {
     this.scope = 'picker';
@@ -673,7 +731,7 @@ export class SystemTabsMode extends LitElement {
       </div>
       <div class="effective" data-dd-picker-effective><span><strong>מה פעיל אצלי עכשיו:</strong> ${DD_PICKER_LABEL[this.pkOwn ?? this.pkInst]}, חיפוש ${DD_SEARCH_LABEL[this.seOwn ?? this.seInst]}</span></div>
       <div aria-live="polite">${this.message && this.scope === 'picker' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'picker' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
-    </sw-card>`;
+    </sw-card>${this.renderPlaceCard(ddInstDisabled)}`;
   }
 }
 

@@ -111,6 +111,9 @@ VALIDATORS["ui.dd_search"] = dd_style.normalize_search
 VALIDATORS["ui.dd_picker"] = dd_style.normalize_picker
 DEFAULTS["ui.dd_search"] = None
 DEFAULTS["ui.dd_picker"] = None
+# `ui.dd_place` (owner 2026-10-17): where the header dropdown sits on a wide screen (1 | 2 | 3 | 4); null = follow the installation.
+VALIDATORS["ui.dd_place"] = dd_style.normalize_place
+DEFAULTS["ui.dd_place"] = None
 
 # `generator.view_mode` (CR-031, owner 2026-10-05): the generator live screen shows ONE of dials (gauges) or charts, the user's choice; default gauges.
 VALIDATORS["generator.view_mode"] = _choice("generator.view_mode", ("gauges", "charts"))

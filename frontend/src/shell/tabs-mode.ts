@@ -87,6 +87,15 @@ export function asDdPhone(v: unknown): DdPhone | null {
 export type { DdSearch, DdPicker };
 export const DD_SEARCHES: readonly DdSearch[] = DD_SEARCH_IDS;
 export const DD_SEARCH_LABEL: Record<DdSearch, string> = { always: 'תמיד', '4': 'מ־4 מצלמות', '8': 'מ־8 מצלמות', never: 'אף פעם' };
+/** 2026-10-17: where a tab group's dropdown chip sits on a wide screen (>= 1100 px; narrower always uses its own row): 1 its own row above
+ * the page title, 2 the far end of the title row, 3 right after the title, 4 the start edge before the title (default). One global value,
+ * installation `ui.dd_place` and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
+export type DdPlace = '1' | '2' | '3' | '4';
+export const DD_PLACES: readonly DdPlace[] = ['1', '2', '3', '4'];
+export const DD_PLACE_DEFAULT: DdPlace = '4';
+export function asDdPlace(v: unknown): DdPlace | null {
+  return typeof v === 'string' && (DD_PLACES as readonly string[]).includes(v) ? (v as DdPlace) : null;
+}
 export const DD_PICKERS: readonly DdPicker[] = DD_PICKER_IDS;
 export const DD_PICKER_LABEL: Record<DdPicker, string> = { dropdown: 'תפריט נפתח', chips: 'כפתורים' };
 export function asDdSearch(v: unknown): DdSearch | null {
@@ -462,6 +471,14 @@ class Choice<T extends string> {
 }
 const searchChoice = new Choice<DdSearch>('search', asDdSearch, DD_SEARCH_DEFAULT, 'sw.dd.search');
 const pickerChoice = new Choice<DdPicker>('picker', asDdPicker, DD_PICKER_DEFAULT, 'sw.dd.picker');
+const placeChoice = new Choice<DdPlace>('place', asDdPlace, DD_PLACE_DEFAULT, 'sw.dd.place');
+
+/** The effective header-dropdown placement: the user's own over the installation's (an unreadable value is the default, 4). */
+export const ddPlaceOf = (): DdPlace => placeChoice.resolve().value;
+export const installationDdPlace = (): DdPlace => placeChoice.inst;
+/** The user's own placement; null = follows the installation. */
+export const ownDdPlace = (): DdPlace | null => placeChoice.own;
+export const saveOwnDdPlace = (place: DdPlace | null): Promise<void> => placeChoice.save(place);
 
 /** The effective multi-select search threshold: the user's own over the installation's. */
 export function resolveDdSearch(): { search: DdSearch; source: 'own' | 'installation' } {
@@ -573,6 +590,7 @@ export function setInstallationTabsMode(settings: Record<string, unknown> | null
   panelDial.setInstallation(settings);
   searchChoice.setInstallation(settings);
   pickerChoice.setInstallation(settings);
+  placeChoice.setInstallation(settings);
   ddPhoneInstallation = asDdPhone(settings?.['ui.dd_phone']) ?? DD_PHONE_DEFAULT;
   notify();
 }
@@ -675,6 +693,7 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
   panelDial.loadCache(userId);
   searchChoice.loadCache(userId);
   pickerChoice.loadCache(userId);
+  placeChoice.loadCache(userId);
   const phoneCached = readDdPhoneCache();
   ddPhoneOwn = phoneCached && phoneCached.u === userId ? phoneCached.mode : null;
   notify();
@@ -705,6 +724,7 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
     panelDial.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     searchChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     pickerChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
+    placeChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     ddPhoneOwn = stored.includes('ui.dd_phone') ? asDdPhone(p.prefs['ui.dd_phone']) : null;
     writeDdPhoneCache(userId, ddPhoneOwn);
     notify();
