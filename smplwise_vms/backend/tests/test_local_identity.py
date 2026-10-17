@@ -916,6 +916,9 @@ def test_backup_carries_hashes_but_no_sessions_links_or_counters(lx):
     with lx.db.connection(mode="read") as conn:
         snap = backup.snapshot(conn, include_access=True)
     assert snap["auth_local_credentials"] and snap["auth_local_credentials"][0]["password_hash"].startswith("$scrypt$")
+    # BACKUP-HASH-ENC: the in-memory snapshot has the hash; the archive's data files never do (encrypted section only)
+    clean, payload = backup.sens.split(snap)
+    assert all("password_hash" not in r for r in clean["auth_local_credentials"]) and list(payload["password_hashes"].values())[0].startswith("$scrypt$")
     for table in ("auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures"):
         assert table not in snap
     assert "security.local_identity" in backup.SETTINGS_KEEP

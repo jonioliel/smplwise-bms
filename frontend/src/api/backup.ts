@@ -1,6 +1,8 @@
 /**
  * Project backups (T026 / T036): zip files with the project tables and plan files, written before every
- * version upgrade, daily, on request or uploaded; restored in one transaction. Never secrets, never video.
+ * version upgrade, daily, on request or uploaded; restored in one transaction. Never secrets in the clear, never video.
+ * BACKUP-HASH-ENC: the local accounts' password hashes travel only encrypted with a backup password typed at create time
+ * (`backup_password`); without one they are left out (`sensitive.state = 'omitted'`).
  */
 import { apiUrl, del, get, patch, post, upload } from './client';
 
@@ -17,6 +19,8 @@ export interface BackupEntry {
   tables: Record<string, number>;
   files: number;
   valid: boolean;
+  /** BACKUP-HASH-ENC: `encrypted` (a password brings the local passwords back), `omitted`, `legacy` (older archive, may hold them unencrypted). */
+  sensitive?: { state: 'encrypted' | 'omitted' | 'legacy' | 'invalid'; counts?: { password_hashes?: number; settings?: number } } | null;
 }
 
 export interface RestoreResult {
@@ -29,6 +33,8 @@ export interface RestoreResult {
   files_skipped?: number;
   app_version: string | null;
   created_at: string | null;
+  sensitive?: { state: 'encrypted' | 'omitted' | 'legacy'; restored: boolean; skipped: string | null; plaintext_ignored: number };
+  passwords?: { restored: number; kept_current: number; need_reset: string[]; need_reset_count: number; legacy_plaintext: boolean } | null;
 }
 
 export const KIND_LABEL: Record<string, string> = {
@@ -54,9 +60,9 @@ export const TABLE_LABEL: Record<string, string> = {
 };
 
 export const listBackups = () => get<{ backups: BackupEntry[]; policy: Record<string, number>; bytes: number; schema_version: number }>('backups');
-export const createBackup = (body: { note?: string; include_audit?: boolean; include_events?: boolean } = {}) => post<BackupEntry>('backups', body);
+export const createBackup = (body: { note?: string; include_audit?: boolean; include_events?: boolean; backup_password?: string } = {}) => post<BackupEntry>('backups', body);
 export const deleteBackup = (name: string) => del(`backups/${encodeURIComponent(name)}`);
-export const restoreBackup = (name: string, body: { mode: 'replace' | 'merge'; scope: 'project' | 'project+access'; confirm: string }) =>
+export const restoreBackup = (name: string, body: { mode: 'replace' | 'merge'; scope: 'project' | 'project+access'; confirm: string; backup_password?: string; skip_sensitive?: boolean }) =>
   post<RestoreResult>(`backups/${encodeURIComponent(name)}/restore`, body);
 export const backupDownloadUrl = (name: string) => apiUrl(`backups/${encodeURIComponent(name)}/download`);
 export function uploadBackup(file: File) {

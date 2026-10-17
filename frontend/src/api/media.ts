@@ -99,6 +99,8 @@ export interface ProductSettings {
   /** CR-024: EXPERIMENTAL synchronized playback of cameras of different recorders ('true' | 'false', default 'false'). */
   'playback.cross_recorder_sync'?: string;
   'exports.max_mb'?: number;
+  /** BACKUP-HASH-ENC: the minimum length of the backup password (8-64, default 12; 8 is the server's hard floor). */
+  'backup.password_min'?: number;
   'exports.retention_days'?: number;
   'events.retention_days'?: number;
   /** DEVHIST (CR-032): how long the device activity rows (the long-press popup) are kept, 7-365 days, default 90. */

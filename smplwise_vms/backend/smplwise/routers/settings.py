@@ -296,6 +296,10 @@ DEFAULTS: dict[str, str] = {
     "security.local_session": "rolling_30d",  # rolling_30d | rolling_90d | browser_session
     "security.local_admin_session_days": "7",  # 1-7: the absolute lifetime of a session of a local user holding an administrative permission
     "security.local_password_min": "12",  # 10-64
+    # BACKUP-HASH-ENC (owner 2026-10-17): the minimum length of the backup password that encrypts the local account passwords in a
+    # project backup (services/backup_sensitive.py). 8-64; services clamp a stored value to that range (8 is the hard floor).
+    # Security policy of this installation: never exported or restored (backup.SETTINGS_KEEP).
+    "backup.password_min": "12",
     "security.local_link_ttl_h": "72",  # 1-168: first-login / reset link lifetime
     # USR2-FIX F2: the per-(account, network) delay and the per-account ceiling lock behave the same in both modes; the value only names
     # the network-tier refusal in the audit (account_delay | account_locked). See CR-USR2 §6 (brute-force semantics).
@@ -377,7 +381,7 @@ ALLOW_DISARM_WORD = "אפשר נטרול"
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("security.local_admin_session_days", "security.local_password_min", "security.local_link_ttl_h", "media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
+INT_KEYS = ("security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
 
 
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
@@ -732,6 +736,7 @@ class SettingsPatch(BaseModel):
     security_local_session: str | None = Field(default=None, pattern="^(rolling_30d|rolling_90d|browser_session)$", alias="security.local_session")
     security_local_admin_session_days: int | None = Field(default=None, ge=1, le=7, alias="security.local_admin_session_days")
     security_local_password_min: int | None = Field(default=None, ge=10, le=64, alias="security.local_password_min")
+    backup_password_min: int | None = Field(default=None, ge=8, le=64, alias="backup.password_min")  # BACKUP-HASH-ENC: hard floor 8
     security_local_link_ttl_h: int | None = Field(default=None, ge=1, le=168, alias="security.local_link_ttl_h")
     security_local_lock_mode: str | None = Field(default=None, pattern="^(delay|lock)$", alias="security.local_lock_mode")
     security_local_public_url: str | None = Field(default=None, max_length=300, alias="security.local_public_url")  # USR2 phase 2: system_admin only (checked below)
