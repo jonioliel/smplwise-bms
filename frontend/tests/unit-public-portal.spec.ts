@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { canonicalRoot, cleanCode, demandKeys, isView, money, plausiblePhone, quoteKey, refusal, split, type PortalItem } from '../src/public-ticket/portal/portal-model';
 import { PORTAL_TEXT, isPortalKey, pt } from '../src/public-ticket/portal/portal-text';
 import { LANGS } from '../src/public-ticket/strings';
+import { isRfqs, isTechs, plausibleName, techRefusal } from '../src/public-ticket/portal/portal-more-model';
+import { MORE_TEXT, mt } from '../src/public-ticket/portal/portal-more-text';
 
 // VPORTAL: the vendor portal's pure logic (node only) and the guards of its chunk.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-public-portal.spec.ts
@@ -36,6 +38,45 @@ test('the portal chunk builds DOM from text nodes only, never reads a cookie, ne
   expect(page).toContain("credentials: 'same-origin'"); // the cookie travels; nothing else does
   expect(page).toContain("redirect: 'error'");
   expect(page).not.toMatch(/token\s*:\s*this|store\(|setItem/); // the handed-over handler token is never kept by the portal
+});
+
+test('VPORTALRFQ: the extra sections are a lazy chunk that calls only through the portal page and never keeps a token', () => {
+  const more = code(path.join(PORTAL, 'portal-more.ts'));
+  expect(more).not.toMatch(/fetch\(|XMLHttpRequest|withBase/); // every call goes through the page's own `call` (same-origin, no redirect)
+  expect(more).not.toMatch(/token\s*:\s*this|this\.token|store\(|setItem/);
+  const page = code(path.join(PORTAL, 'portal-page.ts'));
+  expect(page).toMatch(/import\('\.\/portal-more'\)/); // never a static import: the chunk loads after sign-in, only with a section on
+  expect(page).not.toMatch(/from '\.\/portal-more'/);
+  expect(page).not.toMatch(/from '\.\/portal-more-(text|model)'/);
+});
+
+test('VPORTALRFQ: every language has every extra-section key, the same placeholders, and no word says whether a number is known', () => {
+  const keys = Object.keys(MORE_TEXT.he).sort();
+  for (const lang of LANGS) {
+    expect(Object.keys(MORE_TEXT[lang]).sort()).toEqual(keys);
+    for (const k of keys) {
+      const vars = (s: string) => (s.match(/\{[a-z_]+\}/g) ?? []).sort();
+      const v = MORE_TEXT[lang][k as keyof typeof MORE_TEXT.he];
+      expect(vars(v), `${lang}.${k}`).toEqual(vars(MORE_TEXT.he[k as keyof typeof MORE_TEXT.he]));
+      expect(v).not.toMatch(/already|כבר קיים|קיים במערכת|موجود|уже есть/i);
+    }
+  }
+  expect(mt('he', 'techH', { company: '{tickets}' })).toContain('{tickets}'); // a value is never read as a token
+});
+
+test('VPORTALRFQ: technician-request refusals map to fixed words; 404 hands back to the list; shapes are checked', () => {
+  expect(techRefusal(404, { code: 'link_unavailable' }, false)).toBe('gone');
+  expect(techRefusal(0, null, true)).toBe('offline');
+  expect(techRefusal(429, { code: 'rate_limited' }, false)).toBe('rate');
+  expect(techRefusal(409, { code: 'tech_limit' }, false)).toBe('limit');
+  expect(techRefusal(422, { code: 'invalid', fields: [{ field: 'phone', code: 'format' }] }, false)).toBe('badPhone');
+  expect(techRefusal(422, { code: 'invalid', fields: [{ field: 'replaces', code: 'unknown' }] }, false)).toBe('badReplace');
+  expect(techRefusal(422, { code: 'invalid', fields: [{ field: 'name', code: 'format' }] }, false)).toBe('badName');
+  expect(techRefusal(500, null, false)).toBe('error');
+  for (const ok of ['יוסי כהן', 'Yossi Cohen', 'Юрий', 'أحمد علي']) expect(plausibleName(ok), ok).toBe(true);
+  for (const bad of ['', 'x', '12345', ' a ', 'י'.repeat(81)]) expect(plausibleName(bad), bad).toBe(false);
+  expect(isRfqs({ items: [] }) && !isRfqs({ items: 'x' }) && !isRfqs(null)).toBe(true);
+  expect(isTechs({ companies: [], limits: { name: 80, pending: 5 } }) && !isTechs({})).toBe(true);
 });
 
 test('the logo is a same-origin file named by the server\'s exact shape - nothing else reaches an image address', () => {

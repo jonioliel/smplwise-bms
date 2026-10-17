@@ -174,6 +174,8 @@ class VendorPortalPatch(BaseModel):
     enabled: StrictBool | None = None
     closed_months: StrictInt | None = Field(default=None, ge=1, le=24)
     require_confirmed_number: StrictBool | None = None
+    rfqs: StrictBool | None = None  # VPORTALRFQ: the vendor's open requests for quotation in the portal (default OFF)
+    technician_requests: StrictBool | None = None  # VPORTALRFQ: "company technician requests" (default OFF)
 
 
 class SettingsBody(BaseModel):

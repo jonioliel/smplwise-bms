@@ -210,6 +210,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let rfq = 0;
   let rfqTerms = 0;
   let portal = 0;
+  let portalMore = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
     if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
@@ -219,6 +220,9 @@ test('a built bundle is outside www, script- and style-file only, and within the
       if (/^rfq-page-terms[-.]/.test(f)) rfqTerms += n;
       // RFQATT: `rfq-files-*` (the request's files) belongs to the RFQ page; a ticket link fetches it only when a work order referenced files
       else if (/^rfq-(page|files)[-.]/.test(f)) rfq += n;
+      // VPORTALRFQ: the portal's extra sections (open RFQs, technician requests) - a lazy chunk fetched after sign-in only while a
+      // section is on; its own 6 KB cap, so the portal page keeps its 12 KB and the ticket page its 61 KB
+      else if (/^portal-more[-.]/.test(f)) portalMore += n;
       else if (/^portal-page[-.]/.test(f)) portal += n;
       else gz += n;
     }
@@ -228,6 +232,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(rfq).toBeLessThanOrEqual(20 * 1024);
   expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
   expect(portal).toBeLessThanOrEqual(12 * 1024);
+  expect(portalMore).toBeLessThanOrEqual(6 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {

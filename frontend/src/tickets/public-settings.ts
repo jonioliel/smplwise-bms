@@ -181,14 +181,15 @@ export class TicketsPublicCard extends LitElement {
    * (default on). system.configure like the whole document, audited by the server; editable from a remote session too (owner
    * 2026-10-17), so these controls are never read-only on the tunnel. */
   private portalRows(): TemplateResult {
-    const vp = { enabled: false, closed_months: 2, require_confirmed_number: true, ...(this.doc?.vendor_portal ?? {}) };
+    const vp = { enabled: false, closed_months: 2, require_confirmed_number: true, rfqs: false, technician_requests: false, ...(this.doc?.vendor_portal ?? {}) };
     const months = this.months ?? String(vp.closed_months);
     const n = Number(months);
     const monthsOk = Number.isInteger(n) && n >= 1 && n <= 24;
-    const seg = (key: 'enabled' | 'require_confirmed_number', label: string, attr: string) => html`<div class="row"><span class="lbl">${label}</span>
+    type Flag = 'enabled' | 'require_confirmed_number' | 'rfqs' | 'technician_requests';
+    const seg = (key: Flag, label: string, attr: string) => html`<div class="row"><span class="lbl">${label}</span>
       <span class="seg" role="radiogroup" aria-label=${label}>${[true, false].map((on) => html`<button type="button" role="radio"
         aria-checked=${String(vp[key] === on)} aria-pressed=${String(vp[key] === on)} data-vp=${attr} data-on=${String(on)} ?disabled=${this.busy}
-        @click=${() => { if (vp[key] !== on) this.save({ vendor_portal: key === 'enabled' ? { enabled: on } : { require_confirmed_number: on } }); }}>${tt(on ? 'vpOn' : 'vpOff')}</button>`)}</span></div>`;
+        @click=${() => { if (vp[key] !== on) this.save({ vendor_portal: { [key]: on } }); }}>${tt(on ? 'vpOn' : 'vpOff')}</button>`)}</span></div>`;
     return html`${seg('enabled', tt('vpLabel'), 'enabled')}
       <div class="hint" data-vp-note>${tt('vpNote')}</div>
       <div class="row stack"><span class="lbl">${tt('vpMonths')}</span>
@@ -197,7 +198,11 @@ export class TicketsPublicCard extends LitElement {
           <sw-button size="sm" variant="primary" data-vp-months-save ?disabled=${this.busy || !monthsOk || n === vp.closed_months}
             @click=${() => this.save({ vendor_portal: { closed_months: n } })}>${tt('save')}</sw-button></div></div>
       ${seg('require_confirmed_number', tt('vpConfirmed'), 'confirmed')}
-      <div class="hint" data-vp-confirmed-note>${tt('vpConfirmedNote')}</div>`;
+      <div class="hint" data-vp-confirmed-note>${tt('vpConfirmedNote')}</div>
+      ${seg('rfqs', tt('vpRfqs'), 'rfqs')}
+      <div class="hint" data-vp-rfqs-note>${tt('vpRfqsNote')}</div>
+      ${seg('technician_requests', tt('vpTechs'), 'techs')}
+      <div class="hint" data-vp-techs-note>${tt('vpTechsNote')}</div>`;
   }
 
   render() {

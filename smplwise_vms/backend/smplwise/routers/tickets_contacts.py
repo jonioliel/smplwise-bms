@@ -112,6 +112,40 @@ def patch_contact(body: ContactBody, request: Request, contact_id: str = Path(..
     return contacts.update(conn, viewer, contact_id, _body(body), body.revision, _rid(request))
 
 
+# ---------------------------------------------------------------- VPORTALRFQ: the vendor portal's technician requests (the editors' side)
+
+
+class TechDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=1)
+
+
+@router.get("/tickets/portal-requests")
+def list_portal_requests(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+                         state: Literal["pending", "approved", "rejected", "cancelled", "all"] = Query("pending")) -> dict[str, Any]:
+    """The company technician requests vendors sent from the portal (services/tickets/portal_more.py) - the directory's editors only
+    (`tickets.configure`, audited 403 otherwise). The full number: they hold the directory's write permission."""
+    from ..services.tickets import portal_more
+
+    return portal_more.editor_list(conn, Viewer(conn, principal), None if state == "all" else state)
+
+
+@router.post("/tickets/portal-requests/{request_id}/approve")
+def approve_portal_request(body: TechDecision, request: Request, request_id: str = Path(..., pattern=ID),
+                           principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    from ..services.tickets import portal_more
+
+    return portal_more.approve(conn, Viewer(conn, principal), request_id, body.revision, _rid(request))
+
+
+@router.post("/tickets/portal-requests/{request_id}/reject")
+def reject_portal_request(body: TechDecision, request: Request, request_id: str = Path(..., pattern=ID),
+                          principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    from ..services.tickets import portal_more
+
+    return portal_more.reject(conn, Viewer(conn, principal), request_id, body.revision, _rid(request))
+
+
 class EraseBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirm: Literal[True]

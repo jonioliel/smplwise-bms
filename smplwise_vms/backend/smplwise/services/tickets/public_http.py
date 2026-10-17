@@ -183,6 +183,13 @@ ROUTES: tuple[RouteRule, ...] = (
     RouteRule("GET", r"/t/api/portal/items", "/t/api/portal/items", "portal_read"),
     _json("/t/api/portal/open", "portal_read", 1024),
     _json("/t/api/portal/logout", "portal_read", 1024),
+    # VPORTALRFQ (services/tickets/portal_more.py): the vendor's open requests for quotation (+ the hand-off to his RFQ page) and the
+    # company technician requests - the same session cookie, each section behind its own switch (the uniform 404 while off)
+    RouteRule("GET", r"/t/api/portal/rfqs", "/t/api/portal/rfqs", "portal_read"),
+    _json("/t/api/portal/rfqs/open", "portal_read", 1024),
+    RouteRule("GET", r"/t/api/portal/techs", "/t/api/portal/techs", "portal_read"),
+    _json("/t/api/portal/techs", "portal_write", 1024),
+    _json("/t/api/portal/techs/cancel", "portal_write", 1024),
     # VPORTAL: the organisation's logo (services/tickets/brand.py) - a separate image file, its name carries its stamp (immutable)
     RouteRule("GET", r"/t/brand/[0-9a-f]{16}\.jpg", "/t/brand/{name}", "asset"),
 )
@@ -191,7 +198,9 @@ ROUTES: tuple[RouteRule, ...] = (
 # prefix (no other route ever receives it). The edge passes ONLY this cookie, and only to these routes; any other cookie is dropped as
 # before, and a `Set-Cookie` leaves only from the routes in PORTAL_COOKIE_SETTERS and only for this name.
 PORTAL_COOKIE = "__Secure-arx_vp"
-PORTAL_SESSION_ROUTES = frozenset({"/t/api/portal/items", "/t/api/portal/open", "/t/api/portal/logout"})
+PORTAL_SESSION_ROUTES = frozenset({"/t/api/portal/items", "/t/api/portal/open", "/t/api/portal/logout",
+                                   # VPORTALRFQ: the same cookie (its Path already covers them); never a setter
+                                   "/t/api/portal/rfqs", "/t/api/portal/rfqs/open", "/t/api/portal/techs", "/t/api/portal/techs/cancel"})
 PORTAL_COOKIE_SETTERS = frozenset({"/t/api/portal/verify", "/t/api/portal/logout"})
 _PORTAL_VALUE = re.compile(r"[A-Za-z0-9_-]{43}")
 

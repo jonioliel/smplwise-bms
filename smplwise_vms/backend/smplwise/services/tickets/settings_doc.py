@@ -210,6 +210,12 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # signed-in person themself) - even while `phone_verify.required` is off. ON by default; only the owner (system.configure) may
     # switch it off; allowed from a remote session too (not a key of the public address)
     ("vendor_portal", "require_confirmed_number"): (True, boolean),
+    # VPORTALRFQ (owner 2026-10-17, "possible in future" -> approved, OFF by default): inside the signed-in portal, (1) the OPEN requests
+    # for quotation addressed to that vendor, each opening the vendor's EXISTING RFQ page, and (2) "company technician requests" - a
+    # vendor company asks to add / replace a technician (name + mobile), a directory editor approves (services/tickets/vendor_portal.py,
+    # portal_more.py). Both need `enabled`; system.configure, audited, remote allowed like the other portal keys
+    ("vendor_portal", "rfqs"): (False, boolean),
+    ("vendor_portal", "technician_requests"): (False, boolean),
     # VPORTAL: the stamp of the organisation's logo on the public pages ("" = none) - written ONLY by the logo routes
     # (services/tickets/brand.py), never by PUT /tickets/settings
     ("brand", "logo"): ("", _logo_stamp),

@@ -213,7 +213,13 @@ def _assignment_rows(conn, contact_ids: list[str], since: str, limit: int = ITEM
 
 
 def has_items(conn, contacts: list[dict[str, Any]], now: dt.datetime, months: int) -> bool:
-    return bool(_assignment_rows(conn, [c["id"] for c in contacts], _since(now, months), limit=1))
+    """Something to show: a service request in the window, or - VPORTALRFQ, only while `vendor_portal.rfqs` is on - an open request
+    for quotation addressed to one of these rows (portal_more.has_rfqs)."""
+    if _assignment_rows(conn, [c["id"] for c in contacts], _since(now, months), limit=1):
+        return True
+    from . import portal_more
+
+    return portal_more.has_rfqs(conn, contacts, now)
 
 
 def _quote(conn, assignment_id: str) -> dict[str, Any] | None:
@@ -284,11 +290,15 @@ def view(conn, sess: Session, now: dt.datetime) -> dict[str, Any]:
             "can_open": _live_link(conn, r["a_id"], now) is not None,
         })
     left = int((handler_links.parse(sess.expires_at) - now).total_seconds())
+    from . import portal_more  # VPORTALRFQ: which extra sections the page may fetch (each OFF by default)
+
+    features = {"rfqs": portal_more.rfqs_on(conn),
+                "techs": portal_more.techs_on(conn) and any(c.get("kind") == "vendor" for c in contacts)}
     return {**brand.public_brand(conn), "lang": lang, "dir": "rtl" if lang in ("he", "ar") else "ltr",
             "labels": {"one": names["one"], "many": names["many"], "gender": names["gender"]},
             "time_zone": get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem",
             "theme": settings_doc.read(conn)["public"].get("theme", "light"),
-            "closed_months": months, "expires_in_s": max(0, left), "items": items}
+            "closed_months": months, "expires_in_s": max(0, left), "items": items, "features": features}
 
 
 def config(conn) -> dict[str, Any]:
@@ -520,6 +530,9 @@ def prune(conn, now: dt.datetime) -> None:
         conn.execute("DELETE FROM ticket_portal_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL", (_iso(now),))
     except Exception:  # noqa: BLE001 - a database before 0105
         pass
+    from . import portal_more  # VPORTALRFQ: technician requests (180 days after the decision / 90 days pending)
+
+    portal_more.prune(conn, now)
 
 
 def forget_contact(conn, contact_id: str) -> None:
@@ -528,6 +541,9 @@ def forget_contact(conn, contact_id: str) -> None:
         conn.execute("DELETE FROM ticket_portal_codes WHERE contact_id = ?", (contact_id,))
     except Exception:  # noqa: BLE001 - a database before 0105
         pass
+    from . import portal_more  # VPORTALRFQ: the technician requests that name the row
+
+    portal_more.forget_contact(conn, contact_id)
 
 
 def sanitized(item: Mapping[str, Any]) -> bool:

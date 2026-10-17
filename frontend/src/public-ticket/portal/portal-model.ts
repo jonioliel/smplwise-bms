@@ -34,6 +34,8 @@ export interface PortalView {
   closed_months: number;
   expires_in_s: number;
   items: PortalItem[];
+  /** VPORTALRFQ: which extra sections the lazy `portal-more` chunk may show (both OFF by default; absent on an older server) */
+  features?: { rfqs: boolean; techs: boolean };
 }
 export interface PortalConfig { organization: string; logo: string | null; theme?: 'light' | 'dark' | 'auto'; code_ttl_s: number; session_ttl_s: number }
 

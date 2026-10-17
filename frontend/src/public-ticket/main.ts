@@ -185,6 +185,7 @@ class Page {
       root: this.root, chosenLang: this.chosenLang, fallbackLang: this.lang, unavailable: back,
       setLang: (lang) => { this.chosenLang = lang; store(STORE.lang, lang); },
       openTicket: (token) => this.openFromPortal(token),
+      openRfq: (token) => this.startRfq(token), // VPORTALRFQ: his own RFQ link - the existing RFQ page, its own code rules
     })).catch(back);
   }
 
