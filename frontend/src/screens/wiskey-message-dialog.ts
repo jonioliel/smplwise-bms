@@ -40,6 +40,9 @@ const REASON_KEY = {
   too_long: 'msg.too_long',
   empty: 'msg.reason.empty',
   rate: 'msg.reason.rate',
+  person_limit: 'msg.reason.person_limit',
+  station_limit: 'msg.reason.station_limit',
+  outside_hours: 'msg.reason.outside_hours',
   forbidden: 'msg.reason.forbidden',
   gone: 'msg.reason.gone',
   template_changed: 'msg.reason.template_changed',
@@ -488,7 +491,8 @@ export class WiskeyMessageDialog extends LitElement {
     const r = this.recipients[0];
     const view = composerView({ config, recipient: r ?? null, draft: this.draft, phase: this.phase, failure: this.failure, retryAfterS: this.retryAfterS });
     const phone = r?.has_phone === false ? '—' : r?.phone_masked ? html`<span class="ltr" data-msg-phone>${r.phone_masked}</span>` : html`<span data-msg-phone="hidden">${pt('msg.phone_hidden')}</span>`;
-    const consent = r?.consent === 'declined' ? html`<span class="pill warn" data-msg-consent="declined">${pt('msg.consent_declined')}</span>` : r?.consent === 'granted' ? html`<span class="pill ok" data-msg-consent="granted">${pt('msg.consent_granted')}</span>` : html`<span class="pill" data-msg-consent="unknown">${pt('msg.consent_unknown')}</span>`;
+    // (null: the server does not tell this caller - review F2 - so nothing is said; the send answers for itself)
+    const consent = r?.consent === 'declined' ? html`<span class="pill warn" data-msg-consent="declined">${pt('msg.consent_declined')}</span>` : r?.consent === 'granted' ? html`<span class="pill ok" data-msg-consent="granted">${pt('msg.consent_granted')}</span>` : r?.consent === null ? nothing : html`<span class="pill" data-msg-consent="unknown">${pt('msg.consent_unknown')}</span>`;
     const sending = this.phase === 'sending';
     const sendLabel = this.phase === 'sent' ? pt('msg.send_again') : this.phase === 'failed' && this.failure === 'uncertain' ? pt('msg.send_anyway') : pt('msg.send');
     return html`

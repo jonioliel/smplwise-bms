@@ -112,6 +112,30 @@ plus the person's `phone` / `whatsapp_consent`, `errors_once`, `slow`, `unlist`.
   DEFAULTS (so `GET /settings`, which every signed-in user may read, never carries the templates); a corrupt value reads as OFF with the starter
   templates (fail closed).
 
+## The 2.6.5 security review (branch `pilot/WA-SEND-FIX`, base `integ/264` @ 5fa03e7a)
+
+The review of the send surface (private planning file `RELEASE_265_REVIEW_WA_SEND.md`, not in the repository) found F1-F13. Every
+counterexample is a test in `tests/test_intercom_messaging_review265.py` that failed before its fix. Still OFF by default, still fakes only.
+
+| # | Fix |
+|---|-----|
+| F2 | `POST /messaging/recipients` serves `phone_masked`, `has_phone` and `consent` ONLY for a person the caller may message AND only to a caller at the sensitive level there; otherwise `null` (the dialog shows nothing; the send answers for itself). |
+| F3 | Three caps below the installation's hour, each an administrator setting (Settings > access control > messages): **per sender per hour** (default 50, range 1-1000; refusals by the service count - F9), **per recipient per day** (default 3, range 1-50; by WisKey id AND by phone number), **per station per hour** (default 50, range 1-1000; the people of each station the recipient is on). A refusal is 429 `message_rate_limited` with `scope` `sender` / `person` / `station` (`hour` stays the installation's). The dialog shows the tighter of the installation's and the sender's allowance (`sender_quota` in `GET /messaging`); a person / station refusal skips that person in a bulk run, a sender refusal halts it. |
+| F4 | `bulk_max` is enforced by the server whatever `bulk_id` says: more than `bulk_max` messages of one sender in 10 minutes (`RUN_WINDOW_S`) is 422 `message_bulk_too_many` (`scope: window`). The `bulk_id` checks (same template, same sender, declared total) stay. |
+| F5 | Send hours, with the tickets' send-hours rules (`services/tickets/hours.py`: `{from, to}` local time in the installation's zone, `from < to`, end exclusive, no window across midnight). Default **08:00-21:00**, an administrator may set another window or switch it off (`send_hours: null`). Outside: 409 `message_outside_hours` with `details.next_allowed_at`, before anything about the text or the person; `GET /messaging` carries `send_hours {from, to, open_now, next_opening}` and the dialog blocks the button. A stored window that cannot be read is the default window, never "always". |
+| F6 | The opt-out follows the NUMBER as well as the record: `intercom_message_optout.phone_hash` (HMAC-SHA256 of the normalised number under a random per-installation key, setting `access.messaging.phone_key`, never served) - a second record with the same phone is refused `message_no_consent`. Any sender may SET an opt-out; CLEARING it needs `system.configure` (403 `message_optout_clear_forbidden`, audited `denied`; an allowed clear is audited with how many rows went - the record's own and any of the same number). The person's tab locks the switch for a sender who may not clear it (`can_clear_opt_out`), and the Settings page says the list applies to messages sent from here only. Pushing the list to WisKey stays open (W11). |
+| F1 | The credential guard matches NORMALISED forms: NFKC, format characters (Cf: zero-width space, bidi marks, soft hyphen) and combining marks (Mn: Hebrew points) dropped, any script's digits as ASCII (Arabic-Indic, Extended Arabic-Indic, ...), digits written as words (en / he / ru / ar), letters spelled apart joined (`P.I.N.`), separators between digits collapsed (`4 8 2 1`, `48-21`, a line break), look-alike Cyrillic / Greek letters mapped to Latin. The word list gained `pass`, `passwort`, `kennwort`, `mot de passe`, `ססמ`, `код`, `пин`, `пароль`, `رمز`, `كود`, `كلمة السر`, `كلمة المرور`, `رقم سري`; no anchor after `pin` or around `code` (`pincode`, `Zugangscode`), the gap is 30 characters. Still best effort; the floor stays 4 digits. Mirrored in `messaging-logic.ts` (same counterexamples). |
+| F8 | `{organization}` is credential-checked on its own, and each template is checked as RENDERED (`{name}` as a placeholder name, the organization filled in) at save time; at send time the rendered text (with the person's real name) is checked again (422 `message_forbidden_content`). A stored document that fails these reads as OFF (fail closed). |
+| F9 | Refusals by the service count toward the sender's hourly cap (not toward the installation's allowance). |
+| F10 | The masked number has a fixed width (`••••••` + the last two digits). |
+| F11 | The preview's `validation` and `message_disabled` refusals are audited like every other refusal; the history returns the 50 newest (`HISTORY_MAX`). |
+| F7 | NOT fixed here: needs WisKey W11 (a send without a preview). F12 / F13: informational, unchanged. |
+
+Migration **0117** (`0117_intercom_message_caps.sql`, additive): `intercom_messages.phone_hash` + `station_ids` (JSON list) and
+`intercom_message_optout.phone_hash`, with indexes. 0107-0116 are allocated to the parallel 2.6.5 slices: until they land the sequence has a
+gap (`scripts/release_check.py` "migrations contiguous" fails on this branch alone) - renumber at merge if the allocation changes. A 2.6.4
+editor that does not send the new settings fields keeps the stored values (the fields are optional in the PUT).
+
 ## Tests - what ran, where, at which commit
 
 Everything ran against the fake WisKey and the mocked backends; nothing touched a real WisKey, phone, NVR or Home Assistant. Local runs: the

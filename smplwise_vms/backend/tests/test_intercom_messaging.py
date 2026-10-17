@@ -45,6 +45,8 @@ def mc(settings, monkeypatch, station_scope):  # noqa: F811
     monkeypatch.setattr(websockets, "connect", fake.connect)
     monkeypatch.setattr(intercom_sync, "RETRY_S", 0.05)
     monkeypatch.setattr(intercom_sync, "RETRY_MAX_S", 0.2)
+    # the send hours (review F5) are checked against this clock: midday in the installation's zone, whenever the suite runs
+    monkeypatch.setattr(M, "hours_now", lambda: datetime(2026, 10, 14, 9, 0, tzinfo=timezone.utc), raising=False)
     intercom_sync.SYNC.reset()
     A.MESSAGING.forget()
     s = replace(settings, ha_url="http://ha.local:8123", ha_token="t", ha_core_url="http://ha.local:8123")
@@ -168,7 +170,7 @@ def test_a_template_is_rendered_in_one_pass_and_a_name_cannot_inject_a_placehold
 
 
 def test_the_phone_is_masked_down_to_its_last_two_digits():
-    assert M.mask_phone("+972500000000") == "••••••••••00" and M.mask_phone("050-000-0001").endswith("01")
+    assert M.mask_phone("+972500000000") == "••••••00" and M.mask_phone("050-000-0001").endswith("01")  # fixed width (review F10)
     assert M.mask_phone("12") is None and M.mask_phone(None) is None and M.mask_phone("") is None
     assert "972" not in M.mask_phone("+972500000000")
 
@@ -470,16 +472,17 @@ def test_the_preview_of_a_selection_by_level(mc):
     out = req(c, "POST", "/messaging/recipients", "root", json={"person_ids": ids}).json()["recipients"]
     by = {r["person_id"]: r for r in out}
     assert list(by) == ["u1", "u2", "u3", "u4"], "an unknown person is not listed; a repeated one once"
-    assert by["u1"] == {"person_id": "u1", "name": "Dana", "phone_masked": "••••••••••00", "has_phone": True, "consent": "unknown", "allowed": True}
+    assert by["u1"] == {"person_id": "u1", "name": "Dana", "phone_masked": "••••••00", "has_phone": True, "consent": "unknown", "allowed": True}
     assert by["u2"]["consent"] == "declined" and by["u3"]["has_phone"] is False and by["u3"]["phone_masked"] is None and by["u4"]["consent"] == "granted"
     assert not any(p in json.dumps(out) for p in PHONES), "a number never leaves in full"
     # Arx's own opt-out list joins WisKey's
     assert req(c, "PUT", "/people/u5/messages/optout", json={"opted_out": True}).status_code == 200
     assert {r["person_id"]: r["consent"] for r in req(c, "POST", "/messaging/recipients", json={"person_ids": ["u5"]}).json()["recipients"]} == {"u5": "declined"}
-    # a names-level sender: no masked number, the same eligibility
+    # a names-level sender: the same eligibility, and no masked number, no "has a phone", no consent (review F2: `phone_set` is a
+    # sensitive field everywhere else; the send answers message_no_phone / message_no_consent for itself)
     mona(c, s)
     named = req(c, "POST", "/messaging/recipients", "mona", json={"person_ids": ["u1", "u3"]}).json()["recipients"]
-    assert [(r["person_id"], r["phone_masked"], r["has_phone"]) for r in named] == [("u1", None, True), ("u3", None, False)]
+    assert [(r["person_id"], r["phone_masked"], r["has_phone"], r["consent"], r["allowed"]) for r in named] == [("u1", None, None, None, True), ("u3", None, None, None, True)]
     assert req(c, "GET", "/messaging", "mona").json()["messaging"]["can_reveal_phone"] is False
 
 
@@ -631,7 +634,7 @@ def test_no_phone_no_consent_and_the_opt_out_list(mc):
     assert cleared.json() == {"opt_out": None, "consent": "unknown"}
     assert send(c, "u4", text="שלום שוב").status_code == 200
     optouts = audits(s, M.AUDIT_OPTOUT)
-    assert [details(r) for r in optouts] == [{"opted_out": True}, {"opted_out": False}] and all(r["resource_id"] == "u4" for r in optouts)
+    assert [details(r) for r in optouts] == [{"opted_out": True}, {"opted_out": False, "cleared": 1}] and all(r["resource_id"] == "u4" for r in optouts)
     assert req(c, "PUT", "/people/u4/messages/optout", json={"opted_out": "yes"}).status_code == 422
 
 
@@ -834,6 +837,10 @@ def test_a_bulk_run_is_one_message_to_many_people_one_at_a_time_and_a_failure_st
     assert third.status_code == 200
     again = send(c, "u5", template="closure", bulk_id=bulk, bulk_total=3)
     assert again.status_code == 422 and again.json()["code"] == "message_bulk_too_many"
+    # (the server's own run window - review F4 - counts this sender's last 10 minutes whatever bulk_id says: the next run starts later)
+    later = (datetime.now(timezone.utc) - timedelta(seconds=M.RUN_WINDOW_S + 5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with Database(s.db_path).connection() as conn:
+        conn.execute("UPDATE intercom_messages SET at = ?", (later,))
     other = send(c, "u5", template="card_ready", bulk_id="bulk-run-0002", bulk_total=3)
     assert other.status_code == 200
     mixed = send(c, "u3", template="validity_reminder", bulk_id="bulk-run-0002", bulk_total=3)
@@ -886,8 +893,9 @@ def test_the_migration_creates_the_record_and_the_opt_out_tables(mc):
     cols = {r["name"] for r in rows(s, "PRAGMA table_info(intercom_messages)")}
     assert {"id", "at", "actor_user_id", "person_id", "kind", "template_id", "chars", "bulk_id", "client_request_id", "outcome", "reason"} <= cols
     assert not {"text", "message", "body", "phone", "token", "pin"} & cols, "no column could hold a message, a number or a credential"
-    assert {r["name"] for r in rows(s, "PRAGMA table_info(intercom_message_optout)")} == {"person_id", "at", "by_user_id", "by_name"}
-    assert 76 in {r["version"] for r in rows(s, "SELECT version FROM schema_migrations")}
+    assert {r["name"] for r in rows(s, "PRAGMA table_info(intercom_message_optout)")} == {"person_id", "at", "by_user_id", "by_name", "phone_hash"}
+    assert {"phone_hash", "station_ids"} <= cols  # 0117 (review F3 / F6): a keyed hash of the number, never the number
+    assert {76, 117} <= {r["version"] for r in rows(s, "SELECT version FROM schema_migrations")}
 
 
 # ---------------------------------------------------------------- the mock of the Playwright specs cannot drift from the routes
@@ -895,7 +903,7 @@ def test_the_migration_creates_the_record_and_the_opt_out_tables(mc):
 WIRE = Path(__file__).resolve().parents[3] / "frontend" / "tests" / "fixtures" / "messaging_wire.json"
 
 
-def test_the_mock_replies_have_the_shape_of_the_real_routes(mc):
+def test_the_mock_replies_have_the_shape_of_the_real_routes(mc, monkeypatch):
     """The people screen and the Settings page are tested in Playwright against a MOCKED backend whose answers come from
     frontend/tests/fixtures/messaging_wire.json. A mock that quietly drifts from the server would prove nothing, so this asks the REAL
     routes (over the fake WisKey) and checks every reply in the fixture has exactly the keys and value types the server produces
@@ -934,6 +942,12 @@ def test_the_mock_replies_have_the_shape_of_the_real_routes(mc):
     assert r.status_code == 200
     real["sent"] = r.json()
     real["settings"] = req(c, "GET", "/messaging/settings").json()
+    # the 2.6.5 review's answers (F3 person cap, F6 clear permission, F5 send hours)
+    save(c, per_person_per_day=1)
+    errors["rate_person"] = send(c, "u2", text="שלום").json()
+    errors["optout_clear_forbidden"] = req(c, "PUT", "/people/u5/messages/optout", "sam", json={"opted_out": False}).json()
+    monkeypatch.setattr(M, "hours_now", lambda: datetime(2026, 10, 14, 23, 40, tzinfo=timezone.utc))
+    errors["outside_hours"] = send(c, "u4", text="שלום").json()
     for name, reply in real.items():
         mock = {**wire[name], "sync": wire["sync"]} if "sync" in reply else wire[name]
         problems = mismatches(shape(reply), shape(mock))

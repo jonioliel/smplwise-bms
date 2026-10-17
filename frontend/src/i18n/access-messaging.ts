@@ -36,6 +36,18 @@ const he = {
   'bulk.hint': 'בין {min} ל־{max}',
   'rate.title': 'מכסת הודעות לשעה',
   'rate.hint': 'לכל המערכת · בין {min} ל־{max}',
+  'optout.note': 'בקשת "לא לקבל הודעות" חלה על הודעות שנשלחות מכאן בלבד; רק מנהל מערכת יכול לבטל אותה.',
+  'sender.title': 'הודעות לשעה לכל שולח',
+  'sender.hint': 'כולל הודעות שנדחו · בין {min} ל־{max}',
+  'person.title': 'הודעות ביום לכל נמען',
+  'person.hint': 'לפי האדם ולפי מספר הטלפון · בין {min} ל־{max}',
+  'station.title': 'הודעות לשעה לאנשי עמדה',
+  'station.hint': 'לכל עמדה בנפרד · בין {min} ל־{max}',
+  'hours.title': 'שעות שליחה',
+  'hours.on': 'הודעות נשלחות רק בין השעות שנבחרו (שעון ההתקנה)',
+  'hours.off': 'ללא הגבלת שעות',
+  'hours.from': 'משעה',
+  'hours.to': 'עד שעה',
   'org.title': 'שם הארגון בהודעות',
   'org.hint': 'מחליף את {organization} בתבניות',
   'account.title': 'חשבון השליחה',
@@ -79,13 +91,42 @@ const he = {
   'err.range': 'מחוץ לטווח המותר',
   'err.type': 'יש להזין מספר שלם',
   'err.too_many': 'יותר מדי תבניות',
+  'err.window_invalid': 'יש להזין שעה בתבנית 08:00',
+  'err.window_across_midnight': 'שעת ההתחלה חייבת להיות לפני שעת הסיום',
+  'err.window_empty': 'שעת ההתחלה ושעת הסיום זהות',
   'err.other': 'ערך לא תקין',
 } as const;
 
 export type MessagingKey = keyof typeof he;
 
+/** English for the keys added with the 2.6.5 review (the rest of the page falls back to Hebrew until it is translated as a whole). */
+const en: Partial<Record<MessagingKey, string>> = {
+  'sender.title': 'Messages per sender per hour',
+  'sender.hint': 'Refused messages count too · {min} to {max}',
+  'person.title': 'Messages per recipient per day',
+  'person.hint': 'By person and by phone number · {min} to {max}',
+  'station.title': "Messages per hour to a station's people",
+  'station.hint': 'Each station separately · {min} to {max}',
+  'hours.title': 'Send hours',
+  'hours.on': 'Messages go out only between these times (installation time)',
+  'hours.off': 'No time restriction',
+  'hours.from': 'From',
+  'hours.to': 'Until',
+  'err.window_invalid': 'Enter a time like 08:00',
+  'err.window_across_midnight': 'The start must be earlier than the end',
+  'err.window_empty': 'The start and the end are the same',
+  'err.range': 'Out of the allowed range',
+  'err.type': 'Enter a whole number',
+  'err.credential': 'An access code or sign-in details cannot be included',
+  'optout.note': 'A "do not message me" request applies to messages sent from here only; only a system administrator can clear it.',
+};
+
+export function messagingLang(): 'he' | 'en' {
+  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+}
+
 export function mt(key: MessagingKey, vars?: Record<string, string | number>): string {
-  const text: string = he[key] ?? key;
+  const text: string = (messagingLang() === 'en' ? en[key] : undefined) ?? he[key] ?? key;
   return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
 }
 
