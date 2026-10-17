@@ -216,6 +216,7 @@ const he = {
   'msg.preview_bulk': 'יישלח ל־{send}{skip}',
   'msg.preview_skip': ' · לא יישלח ל־{n}: {names}',
   'msg.bulk_done': 'נשלח ל־{sent}{failed}',
+  'msg.bulk_held': ' · {n} ממתינות לאישור האדם',
   'msg.bulk_failed': ' · {n} לא נשלחו',
   'msg.bulk_unknown': ' · {n} לא ידוע',
   'msg.results': 'תוצאות השליחה',

@@ -391,6 +391,14 @@ def _consent_path(act: _Act, cfg: dict[str, Any], body: "SendBody", template: di
                              request_id=act.rid, now=now)
                 held_id = got[0] if got else None
             link = C.link_url(w, C.token_of(req))
+    except C.ConsentRaced as raced:  # HARDEN271: a parallel send created the request first - nothing is sent, no second request exists
+        M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=act.person_id, outcome="not_sent", reason="consent_race", request_id=act.rid,
+                         audit_details=details)
+        if raced.kind == "recent":
+            raise act.refuse(ApiError(409, "message_consent_recently_requested", "כבר נשלחה לאדם הזה בקשת הסכמה בחודש האחרון, ולא התקבל אישור.",
+                                      details={"retry_after_days": C.retry_after_days(raced.row, now) if raced.row else C.RESEND_DAYS})) from None
+        raise act.refuse(ApiError(409, "message_consent_pending", "בקשת אישור לאדם הזה נשלחה זה עתה. שלחו את ההודעה שוב בעוד רגע.",
+                                  details={"held": False})) from None
     except Exception as exc:  # noqa: BLE001 - nothing was sent: the attempt record goes again
         M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=act.person_id, outcome="not_sent", reason="consent_setup", request_id=act.rid,
                          audit_details=details)
