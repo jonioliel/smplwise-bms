@@ -215,8 +215,9 @@ either switch is turned on anywhere.**
    `vendor`; a person's or technician's own number never gets the section) sees, per company, its active technicians (names only)
    and the requests it sent in the last 90 days (action, name, the number's last four digits, state). It may ask to ADD a technician or
    REPLACE one of its own - a name and a mobile number - or withdraw a pending request. Nothing changes in the directory until a
-   directory editor (`tickets.configure`) approves on "מטפלים וספקים" › ספקים (the card "בקשות טכנאים מספקים"): the approval creates the
-   person row through `contacts.create` (kind person, `vendor_id` = the company, the company's language and departments, WhatsApp
+   directory editor (`tickets.configure`, every vendor) or a holder of the NEW permission `tickets.technician_requests` (owner
+   2026-10-17 - see 12.8; only the vendors of the departments he manages, every vendor with `tickets.all_departments`) approves on
+   "מטפלים וספקים" › ספקים (the card "בקשות טכנאים מספקים"): the approval creates the person row through the directory's create path (kind person, `vendor_id` = the company, the company's language and departments, WhatsApp
    preferred; its number NOT confirmed - the editor confirms it with the existing code flow) and, for a replacement, sets the old row
    inactive through `contacts.update` (its live links are revoked by that path). Reject changes nothing. **No door / access right of
    any kind** - that is the separate WisKey flow. The editors get a notification `ticket.portal_tech_request` (installation level,
@@ -251,7 +252,7 @@ own domain `vpr|` / `vpc|` / `vpt|` / `vpq|`, distinct from the items' `vpi|`). 
 per client network, 200 / h installation-wide (before any read); per company 5 pending and 10 requests / 24 h in the rows; a
 repeated identical pending request returns the existing one (nothing new stored).
 
-Internal API (`tickets.configure`, refusals audited by `rbac.require`): `GET /api/v1/tickets/portal-requests?state=pending|...|all`,
+Internal API (`tickets.configure`, or `tickets.technician_requests` within its department scope - 12.8; refusals audited by `rbac.require`): `GET /api/v1/tickets/portal-requests?state=pending|...|all`,
 `POST /api/v1/tickets/portal-requests/{id}/approve|reject {revision}` (409 `tech_request_decided` / `tech_request_stale` /
 `tech_request_vendor_gone` / `tech_request_replaced_gone`). Audit: `ticket.portal.rfq_open`, `.tech_request`, `.tech_cancel` (actor
 `contact:<company>`, ids only), `.tech_approve`, `.tech_reject` (the editor), plus the directory's own `ticket.contact.create` /
@@ -305,3 +306,32 @@ backup is an allow-list). No change to any RFQ table.
   / error / ready) of the two sections and of the editors' card, the evidence suites. `www-public` / `www` NOT rebuilt (release step).
 - Arabic and Russian strings of the new sections are developer-written (dev-marked), need a native review.
 - The Fable public-surface review (above). Open questions for the owner: see the branch report.
+
+### 12.8 The approval permission `tickets.technician_requests` (owner decision 2026-10-17, second commit)
+
+Owner answer to question 4: technician-request approval is NOT limited to `tickets.configure`.
+
+- New permission `tickets.technician_requests` ("{module}: אישור בקשות טכנאים מספקים (במחלקות שבאחריותי)"), **sensitive**
+  (`roles.json` `sensitive_permissions_not_implied`), **not delegable by default**, in the single-permission built-in role
+  `tickets_technician_requests` that the owner / system administrator grants to any user through the normal roles / permissions UI
+  (`POST /api/v1/access/bindings`; the "הרשאות" tab lists it). Among the built-in roles only `system_admin` holds it - it is NOT a
+  default of department managers, `site_admin` or `tickets_manage`. Effective only when held at the INSTALLATION scope (a site / floor
+  binding does not approve anything - departments are installation-wide configuration, like `tickets.configure` / `tickets.handlers`).
+- Scope (`portal_more.approver_scope`): `tickets.configure` -> every request (unchanged); else the permission is required (the audited
+  403 `{permission: "tickets.technician_requests"}` via `rbac.require`) and then `tickets.all_departments` -> every request; otherwise only
+  requests of vendors attached to a department the holder MANAGES (`tickets.manage` + a manager membership). A vendor of no department
+  (shared with all) is not in a department manager's scope (the CR-DEPT-MANAGER-HANDLERS reading). Out of scope: never listed; approve /
+  reject answer the 404 `tech_request_not_found`, exactly like an unknown id.
+- The approval writes through the directory's own validated path (`contacts._fields` / `_departments` + `insert_checked`, and
+  `update_checked` for a replacement) once the approver's authority was checked - the same validation, keyed number, link revocation and
+  `ticket.contact.create` / `.update` audit rows, naming the approver. The number in the list is full for `tickets.configure`,
+  `tickets.external` or with "managers see full numbers"; otherwise the last four digits.
+- `GET /tickets/meta` `can.technician_requests` decides whether the "מטפלים וספקים" card renders (no denied call for anyone else).
+- Contracts and docs: `smplwise_vms/backend/smplwise/roles.json`, `contracts/examples/role-catalog.design.json`, `routers/access.py`
+  `PERMISSION_LABELS`, the user guide's permission table (`docs/user-guide/he/46-tickets_HE.md`). No migration change (0114 unchanged).
+- Tests (`test_tickets_vendor_portal_more.py`, section 6, negative first): the catalogue (sensitive, not delegable, labelled,
+  system_admin only); department managers / a member WITHOUT the permission refused (403, audited, nothing decided, `can` false); a
+  holder sees and decides only his departments' vendors (another department's and a no-department vendor: not listed, 404), the created
+  row and its audit actor; another department's holder sees only his; an all-departments holder sees all; `tickets.configure` unchanged;
+  grant / revoke through the bindings API take effect at once; a floor-scoped binding grants nothing. The pinned catalogue tests
+  (`test_tickets_admin`, `test_tickets_s2`, `test_wiskey_door_path`) list the new role / permission.

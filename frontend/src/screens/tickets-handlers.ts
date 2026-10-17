@@ -343,8 +343,9 @@ export class TicketsHandlersPage extends LitElement {
   private body(): TemplateResult {
     const { loads, label } = this.shownLoads();
     if (this.seg === 'vendors') {
-      // VPORTALRFQ: the vendors' technician requests from the portal - directory editors only (never a denied call for anyone else)
-      return html`${this.meta?.can.configure ? html`<tickets-portal-requests @notice=${this.onNotice}></tickets-portal-requests>` : nothing}
+      // VPORTALRFQ: the vendors' technician requests from the portal - directory editors and tickets.technician_requests holders
+      // (their departments' vendors only, decided by the server); never a denied call for anyone else
+      return html`${this.meta?.can.configure || this.meta?.can.technician_requests ? html`<tickets-portal-requests @notice=${this.onNotice}></tickets-portal-requests>` : nothing}
         <tickets-contacts kind="vendor" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     }
     if (this.seg === 'contacts') return html`<tickets-contacts kind="person" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;

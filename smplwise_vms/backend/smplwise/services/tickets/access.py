@@ -37,8 +37,9 @@ VIEW, CREATE, MANAGE, EXTERNAL, ALL_DEPARTMENTS, CONFIGURE = (
 )
 DELETE = "tickets.delete"  # owner 14.10: full deletion (services/tickets/deletion.py)
 HANDLERS = "tickets.handlers"  # owner 2026-10-17: a department manager manages his departments' handlers (services/tickets/dept_handlers.py)
+TECH_REQUESTS = "tickets.technician_requests"  # VPORTALRFQ (owner 2026-10-17): approve the portal's technician requests (portal_more.py)
 TICKET_PERMISSIONS: tuple[str, ...] = (VIEW, CREATE, MANAGE, EXTERNAL, ALL_DEPARTMENTS, CONFIGURE, "tickets.costs.view", "tickets.costs",  # +S9 (D31)
-                                       DELETE, HANDLERS)
+                                       DELETE, HANDLERS, TECH_REQUESTS)
 PAGE_DEFAULT, PAGE_MAX = 50, 200
 SCAN_FACTOR = 5  # a page scans at most 5 x limit candidate rows, then returns short with a cursor (section 13.6)
 

@@ -123,8 +123,10 @@ class TechDecision(BaseModel):
 @router.get("/tickets/portal-requests")
 def list_portal_requests(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                          state: Literal["pending", "approved", "rejected", "cancelled", "all"] = Query("pending")) -> dict[str, Any]:
-    """The company technician requests vendors sent from the portal (services/tickets/portal_more.py) - the directory's editors only
-    (`tickets.configure`, audited 403 otherwise). The full number: they hold the directory's write permission."""
+    """The company technician requests vendors sent from the portal (services/tickets/portal_more.py): a directory editor
+    (`tickets.configure`) sees all of them; a holder of `tickets.technician_requests` those of the vendors of the departments he
+    manages (all with tickets.all_departments); anyone else the audited 403. A request out of scope is never listed (and is the
+    404 `tech_request_not_found` on approve / reject)."""
     from ..services.tickets import portal_more
 
     return portal_more.editor_list(conn, Viewer(conn, principal), None if state == "all" else state)

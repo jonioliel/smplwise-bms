@@ -212,7 +212,9 @@ export interface MetaDepartment {
 }
 export interface Meta {
   departments: MetaDepartment[];
-  can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean; handlers?: boolean };
+  can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean; handlers?: boolean;
+    /** VPORTALRFQ: may see / decide the vendors' technician requests (tickets.configure or tickets.technician_requests) */
+    technician_requests?: boolean };
 }
 
 export interface ListQuery { scope: ListScope; status: StatusFilter; department_id?: string; q?: string; limit?: number; cursor?: string | null }

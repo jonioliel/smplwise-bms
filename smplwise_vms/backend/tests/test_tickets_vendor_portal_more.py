@@ -475,3 +475,122 @@ def test_the_new_module_never_collects_bank_details(module):
 
     src = (pathlib.Path(portal_more.__file__)).read_text(encoding="utf-8")
     assert not re.search(r"\b(iban|bank_account|account_number|swift|routing_number|bank_branch)\b", src, re.I)
+
+
+# ---------------------------------------------------------------- 6. tickets.technician_requests (owner 2026-10-17): a grantable,
+# department-scoped approval permission; tickets.configure keeps approving every request
+
+
+TECH_PERM = "tickets.technician_requests"
+
+
+def raw_request(env, vendor_id: str, name: str = "יוסי כהן", phone: str = NEW_TECH_E164) -> str:
+    """A pending request of a vendor, written directly (the portal side is covered above): the approver's scope is under test."""
+    import uuid
+
+    rid = uuid.uuid4().hex
+    with env.s4.db.connection() as conn:
+        conn.execute("INSERT INTO ticket_portal_tech_requests(id, vendor_id, sender_contact_id, action, display_name, phone_e164, state, created_at) "
+                     "VALUES (?,?,?, 'add', ?,?, 'pending', '2026-10-17T08:00:00Z')", (rid, vendor_id, vendor_id, name, phone))
+    return rid
+
+
+def set_departments(env, contact_id: str, depts: list[str]) -> None:
+    r = env.c.patch(f"{API}/tickets/contacts/{contact_id}", json={"departments": depts, "revision": env.s4.contact_rev(contact_id)})
+    assert r.status_code == 200, r.text
+
+
+def grant(env, user: str, scope_type: str = "installation", scope_id: str = "*") -> str:
+    """Through the normal roles / permissions API (the system administrator grants the single-permission role)."""
+    env.c.get(f"{API}/me", headers=env.h(user))
+    r = env.c.post(f"{API}/access/bindings", json={"subject_kind": "user", "subject_id": f"dev-{user}", "role_id": "tickets_technician_requests",
+                                                   "scope_type": scope_type, "scope_id": scope_id})
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def decide(env, rid: str, user: str, verb: str = "approve"):
+    rows = requests_of(env, "all").json()["requests"]  # joni (system_admin) reads the revision
+    rev = next(x["revision"] for x in rows if x["id"] == rid)
+    return env.c.post(f"{API}/tickets/portal-requests/{rid}/{verb}", json={"revision": rev}, headers=env.h(user))
+
+
+def two_departments(env) -> tuple[str, str]:
+    """Vendor B in maintenance (mona manages it), vendor C in cleaning (cleo manages it); one pending request each."""
+    set_departments(env, env.s4.vendor["id"], ["dept-maintenance"])
+    c = env.s4.add_contact(kind="vendor", display_name="ניקיון-פרו", phone="050-000-0044", departments=[env.s4.w.cleaning])
+    assert c.status_code == 201, c.text
+    return raw_request(env, env.s4.vendor["id"]), raw_request(env, c.json()["id"], name="רון לוי", phone="972500000088")
+
+
+def test_the_permission_is_sensitive_not_delegable_labelled_and_held_only_by_system_admin_by_default():
+    from smplwise.rbac import ROLES
+    from smplwise.routers.access import DEFAULT_DELEGABLE, PERMISSION_LABELS, SENSITIVE
+
+    assert ROLES["tickets_technician_requests"] == [TECH_PERM]
+    assert TECH_PERM in SENSITIVE and "tickets_technician_requests" not in DEFAULT_DELEGABLE
+    assert "{module}" in PERMISSION_LABELS[TECH_PERM]
+    assert sorted(r for r, perms in ROLES.items() if TECH_PERM in perms) == ["system_admin", "tickets_technician_requests"], \
+        "not a built-in default of department managers (site_admin / tickets_manage do not hold it)"
+
+
+def test_a_department_manager_without_the_permission_is_refused_audited_and_sees_no_card(env):
+    b, _c = two_departments(env)
+    for user in ("mona", "cleo", "tom"):
+        r = requests_of(env, user=user)
+        assert r.status_code == 403 and r.json()["details"]["permission"] == TECH_PERM, (user, r.text)
+        assert decide(env, b, user).status_code == 403
+        assert decide(env, b, user, "reject").status_code == 403
+        assert env.c.get(f"{API}/tickets/meta", headers=env.h(user)).json()["can"]["technician_requests"] is False
+    with env.s4.db.connection(mode="read") as conn:
+        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE decision = 'denied' AND action = ?", (TECH_PERM,)).fetchone()[0]
+    assert denied >= 3
+    assert requests_of(env, "pending").json()["requests"][0]["state"] == "pending", "nothing was decided"
+
+
+def test_a_department_manager_with_the_permission_decides_only_his_departments_vendors(env):
+    b, c = two_departments(env)
+    no_dept = raw_request(env, env.s4.contact["id"], name="דנה כץ", phone="972500000066")  # a row shared with every department
+    grant(env, "mona")
+    assert env.c.get(f"{API}/tickets/meta", headers=env.h("mona")).json()["can"]["technician_requests"] is True
+    listed = requests_of(env, "pending", user="mona").json()["requests"]
+    assert [x["id"] for x in listed] == [b], "another department's vendor and a vendor of no department are never listed"
+    assert listed[0]["phone"] == "•••• 0077", "a manager without tickets.external sees the last four digits (the directory rule)"
+    for rid in (c, no_dept):
+        r = decide(env, rid, "mona")
+        assert r.status_code == 404 and r.json()["code"] == "tech_request_not_found", "out of scope reads like an unknown id"
+        assert decide(env, rid, "mona", "reject").status_code == 404
+    r = decide(env, b, "mona")
+    assert r.status_code == 200, r.text
+    new = env.c.get(f"{API}/tickets/contacts/{r.json()['contact_id']}").json()
+    assert (new["kind"], new["vendor_id"], new["departments"], new["phone_confirmed"]) == ("person", env.s4.vendor["id"], ["dept-maintenance"], False)
+    with env.s4.db.connection(mode="read") as conn:
+        actor = conn.execute("SELECT actor_user_id FROM audit_log WHERE action = 'ticket.contact.create' ORDER BY rowid DESC LIMIT 1").fetchone()[0]
+    assert actor == "dev-mona", "the directory's own create audit names the approver"
+    grant(env, "cleo")
+    assert [x["id"] for x in requests_of(env, "pending", user="cleo").json()["requests"]] == [c]
+    assert decide(env, c, "cleo", "reject").status_code == 200
+
+
+def test_an_all_departments_holder_decides_every_vendor_and_configure_keeps_working(env):
+    b, c = two_departments(env)
+    no_dept = raw_request(env, env.s4.contact["id"], name="דנה כץ", phone="972500000066")
+    grant(env, "alda")  # tickets_view + tickets_all_departments, no membership
+    assert {x["id"] for x in requests_of(env, "pending", user="alda").json()["requests"]} == {b, c, no_dept}
+    assert decide(env, c, "alda", "reject").status_code == 200
+    assert {x["id"] for x in requests_of(env, "pending").json()["requests"]} == {b, no_dept}, "joni (tickets.configure) sees every one"
+    assert decide(env, no_dept, "joni", "reject").status_code == 200
+
+
+def test_grant_and_revoke_take_effect_at_once(env):
+    b, _c = two_departments(env)
+    assert requests_of(env, user="mona").status_code == 403
+    binding = grant(env, "mona")
+    assert requests_of(env, user="mona").status_code == 200
+    r = env.c.delete(f"{API}/access/bindings/{binding}")
+    assert r.status_code == 200, r.text
+    assert requests_of(env, user="mona").status_code == 403
+    assert decide(env, b, "mona").status_code == 403
+    # a binding scoped to a site is not the installation-wide grant the approval needs
+    floor_binding = grant(env, "mona", "floor", env.s4.w.floors["floor2"])
+    assert floor_binding and requests_of(env, user="mona").status_code == 403

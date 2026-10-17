@@ -297,7 +297,8 @@ def cancel_tech(conn, sess: vendor_portal.Session, wanted: Any, now: dt.datetime
     return False
 
 
-# ---------------------------------------------------------------- the editor's side (internal API, tickets.configure)
+# ---------------------------------------------------------------- the approver's side (internal API: tickets.configure, or
+# tickets.technician_requests within the departments the holder manages)
 
 
 T_TECH = ("בקשה מספק לעדכון טכנאי", "לאישור במטפלים וספקים › ספקים")
@@ -325,11 +326,28 @@ def _resolve(conn, request_id: str) -> None:
         log.warning("portal technician notification resolve failed", exc_info=True)
 
 
-def _require_editor(conn, viewer) -> None:
+def approver_scope(conn, viewer) -> set[str] | None:
+    """Who may see and decide technician requests (owner 2026-10-17):
+    - a directory editor (`tickets.configure` at the installation): every request (None = all), as before;
+    - else a holder of `tickets.technician_requests` (installation): with `tickets.all_departments` every request; otherwise only the
+      requests of vendors attached to a department he MANAGES (`tickets.manage` + a manager membership). A vendor shared with every
+      department (no department rows) is not "his department's" vendor (the stricter reading, like CR-DEPT-MANAGER-HANDLERS);
+    - anyone else: the audited 403 `{permission: tickets.technician_requests}` (rbac.require)."""
     from ...rbac import INSTALLATION, require
     from . import access
 
-    require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
+    if viewer.holds_installation(access.CONFIGURE):
+        return None
+    require(conn, viewer.principal, access.TECH_REQUESTS, INSTALLATION)
+    if access.ALL_DEPARTMENTS in viewer.anywhere:
+        return None
+    if access.MANAGE not in viewer.anywhere:
+        return set()
+    return {d for d, role in viewer.roles.items() if role == "manager"}
+
+
+def _in_scope(conn, scope: set[str] | None, vendor_id: str) -> bool:
+    return scope is None or bool(scope & set(store_links.contact_departments(conn, vendor_id)))
 
 
 def _known_elsewhere(conn, phone: str) -> bool:
@@ -344,17 +362,23 @@ def _known_elsewhere(conn, phone: str) -> bool:
 
 def editor_list(conn, viewer, state: str | None = "pending") -> dict[str, Any]:
     """GET /api/v1/tickets/portal-requests: the requests for the directory's editors (full number: they hold tickets.configure)."""
-    from .contacts import display_phone
+    from . import access
+    from .contacts import display_phone, managers_unmask, mask_phone
 
-    _require_editor(conn, viewer)
+    scope = approver_scope(conn, viewer)
+    configure = viewer.holds_installation(access.CONFIGURE)
+    unmask = configure or managers_unmask(conn) or access.EXTERNAL in viewer.anywhere
     if state:
         rows = conn.execute("SELECT * FROM ticket_portal_tech_requests WHERE state = ? ORDER BY created_at DESC LIMIT 200", (state,)).fetchall()
     else:
         rows = conn.execute("SELECT * FROM ticket_portal_tech_requests ORDER BY created_at DESC LIMIT 200").fetchall()
     out = []
     for r in rows:
+        if not _in_scope(conn, scope, r["vendor_id"]):
+            continue  # another department's vendor: not listed (never counted, never named)
         out.append({"id": r["id"], "vendor": {"id": r["vendor_id"], "name": _name_of(conn, r["vendor_id"]) or ""}, "action": r["action"],
-                    "display_name": r["display_name"], "phone": display_phone(r["phone_e164"]),
+                    # the full number for an editor, a tickets.external holder, or with "managers see full numbers"; else the last four
+                    "display_name": r["display_name"], "phone": display_phone(r["phone_e164"]) if unmask else mask_phone(r["phone_e164"]),
                     "replaces": ({"id": r["replaces_contact_id"], "name": _name_of(conn, r["replaces_contact_id"]) or ""}
                                  if r["replaces_contact_id"] else None),
                     "phone_known": _known_elsewhere(conn, r["phone_e164"]), "state": r["state"], "created_at": r["created_at"],
@@ -362,12 +386,12 @@ def editor_list(conn, viewer, state: str | None = "pending") -> dict[str, Any]:
     return {"requests": out, "enabled": techs_on(conn)}
 
 
-def _editor_row(conn, request_id: str, revision: int) -> dict[str, Any]:
+def _editor_row(conn, request_id: str, revision: int, scope: set[str] | None) -> dict[str, Any]:
     from ...errors import ApiError
     from .access import text
 
     r = conn.execute("SELECT * FROM ticket_portal_tech_requests WHERE id = ?", (request_id,)).fetchone()
-    if r is None:
+    if r is None or not _in_scope(conn, scope, r["vendor_id"]):  # out of scope reads exactly like an unknown id
         raise ApiError(404, "tech_request_not_found", text(conn, "הבקשה לא נמצאה."))
     if r["state"] != "pending":
         raise ApiError(409, "tech_request_decided", text(conn, "הבקשה כבר טופלה."), details={"state": r["state"]})
@@ -384,8 +408,8 @@ def approve(conn, viewer, request_id: str, revision: int, rid: str | None = None
     from . import contacts
     from .access import text
 
-    _require_editor(conn, viewer)
-    r = _editor_row(conn, request_id, revision)
+    scope = approver_scope(conn, viewer)
+    r = _editor_row(conn, request_id, revision, scope)
     vendor = store_links.contact(conn, r["vendor_id"])
     if vendor is None or vendor.get("erased_at") or not vendor["active"] or vendor["kind"] != "vendor":
         raise ApiError(409, "tech_request_vendor_gone", text(conn, "הספק כבר לא פעיל בספר."))
@@ -399,9 +423,16 @@ def approve(conn, viewer, request_id: str, revision: int, rid: str | None = None
     depts = store_links.contact_departments(conn, vendor["id"])
     if depts:
         body["departments"] = depts
-    created = contacts.create(conn, viewer, body, rid)
+    # the directory's own write path once THIS approver's authority was checked above (contacts.create / update demand
+    # tickets.configure; a tickets.technician_requests holder writes through the same validation, keying, revocation and audit)
+    try:
+        fields = contacts._fields(conn, body, creating=True, current=None)  # noqa: SLF001 - the directory module's own validation
+        dept_ids = contacts._departments(conn, body)  # noqa: SLF001
+    except contacts.ContactInvalid as exc:
+        raise contacts.invalid(conn, exc.field, exc.code) from None
+    created = {"id": contacts.insert_checked(conn, viewer, fields, dept_ids, rid, extra_audit={"source": "portal_tech_request"})}
     if old is not None:
-        contacts.update(conn, viewer, old["id"], {"active": False}, int(old["revision"]), rid)
+        contacts.update_checked(conn, viewer, old, {"active": False}, int(old["revision"]), rid, extra_audit={"source": "portal_tech_request"})
     conn.execute("UPDATE ticket_portal_tech_requests SET state = 'approved', decided_at = ?, decided_by = ?, result_contact_id = ?, "
                  "revision = revision + 1 WHERE id = ?", (vendor_portal._iso(dt.datetime.now(dt.timezone.utc).replace(microsecond=0)),
                                                           viewer.uid, created["id"], request_id))
@@ -413,8 +444,7 @@ def approve(conn, viewer, request_id: str, revision: int, rid: str | None = None
 
 
 def reject(conn, viewer, request_id: str, revision: int, rid: str | None = None) -> dict[str, Any]:
-    _require_editor(conn, viewer)
-    r = _editor_row(conn, request_id, revision)
+    r = _editor_row(conn, request_id, revision, approver_scope(conn, viewer))
     conn.execute("UPDATE ticket_portal_tech_requests SET state = 'rejected', decided_at = ?, decided_by = ?, revision = revision + 1 WHERE id = ?",
                  (vendor_portal._iso(dt.datetime.now(dt.timezone.utc).replace(microsecond=0)), viewer.uid, request_id))
     audit(conn, actor=viewer.principal, action="ticket.portal.tech_reject", decision="allowed", resource_type="ticket_contact",

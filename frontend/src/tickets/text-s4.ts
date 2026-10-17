@@ -128,6 +128,7 @@ export const S4_HE = {
   vpTechs: 'בקשות טכנאים מחברת ספק',
   vpTechsNote: 'חברת ספק מבקשת להוסיף או להחליף טכנאי (שם ומספר). שום דבר לא משתנה עד שמנהל מאשר ב"מטפלים וספקים". ללא הרשאות כניסה.',
   ptrTitle: 'בקשות טכנאים מספקים',
+  p_technician_requests: 'אישור בקשות טכנאים מספקים (במחלקות שלי)', // the "הרשאות" tab's words (tickets/perm-label.ts)
   ptrAdd: 'הוספת טכנאי',
   ptrReplace: 'החלפה של {name}',
   ptrKnown: 'המספר כבר רשום בספר',
@@ -394,6 +395,7 @@ export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
   vpTechs: 'Technician requests from a vendor company',
   vpTechsNote: 'A vendor company asks to add or replace a technician (name and number). Nothing changes until a manager approves in "Handlers and vendors". No entry rights.',
   ptrTitle: 'Technician requests from vendors',
+  p_technician_requests: 'Approve technician requests from vendors (my departments)',
   ptrAdd: 'Add a technician',
   ptrReplace: 'Replace {name}',
   ptrKnown: 'The number is already in the directory',

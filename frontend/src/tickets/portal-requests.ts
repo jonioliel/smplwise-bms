@@ -8,7 +8,8 @@ import { tt } from './text';
 
 /**
  * VPORTALRFQ: "בקשות טכנאים מספקים" - the pending company technician requests vendors sent from the portal, on "מטפלים וספקים" ›
- * ספקים, for the directory's editors only (`tickets.configure`). Nothing is shown to anyone else, and nothing when no request waits
+ * ספקים, for the directory's editors (`tickets.configure`: every vendor) and holders of `tickets.technician_requests` (the vendors of the
+ * departments they manage; every vendor with tickets.all_departments - the server decides). Nothing is shown to anyone else, and nothing when no request waits
  * (clean operator screens). Approve creates the technician row (its number unconfirmed - confirmed by code from the contact card)
  * and, for a replacement, sets the old row inactive; reject changes nothing. Events: `notice` {ok | error}.
  */
