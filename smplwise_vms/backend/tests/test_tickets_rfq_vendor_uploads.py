@@ -280,12 +280,20 @@ def test_lower_limits_are_enforced_and_a_stored_value_beyond_a_cap_never_widens(
 
 
 def test_the_edge_windows_per_link_and_per_client_network():
-    """The `rfq_upload` kind: a network's window is counted at admission for EVERY attempt (valid token or not); a link's budget is
-    spent when an upload's body phase starts (RequestCost.body_phase) and checked at admission."""
+    """The `rfq_upload` kind: a link's budget is spent when an upload's body phase starts (RequestCost.body_phase) and checked at
+    admission. HARDEN271 (review F2): the network's window is CHECKED at admission for a well-formed token and SPENT only by a real
+    upload body - tokenless or invalid attempts from a shared address never lock the vendors behind it out."""
     limits = ratelimit.PublicLimits(token_rfq_uploads=((3600.0, 2),), rfq_upload_per_network=((600.0, 3),))
     clock = Clock(1_000_000.0)
     gate = ratelimit.PublicRateGate(ratelimit.new_public_limiter(clock, limits), limits)
     net, other = "203.0.113.0/24", "198.51.100.0/24"
+    # negative first (F2): a shared NAT sends tokenless and never-valid uploads - nothing of the network's upload window is used
+    for i in range(12):
+        gate.open("rfq_upload", net, None)
+        bad = gate.open("rfq_upload", net, f"tok-bad-{i % 2}")
+        bad.unknown()  # the lookup refused it (the edge records the failure)
+        clock.t += 31  # under the network failure budget's pace (20 / min)
+    assert gate.open("rfq_upload", net, "tok-a").decision.ok, "the vendor behind the same address still uploads"
     for _ in range(2):
         cost = gate.open("rfq_upload", net, "tok-a")
         assert cost.decision.ok
@@ -293,14 +301,18 @@ def test_the_edge_windows_per_link_and_per_client_network():
         cost.body_phase()
     d = gate.open("rfq_upload", other, "tok-a")
     assert (d.decision.ok, d.decision.reason) == (False, "rfq_upload_rate"), "the link's own budget, whatever the network"
-    assert gate.open("rfq_upload", net, "tok-b").decision.ok, "the third attempt of the network (another link)"
+    cost = gate.open("rfq_upload", net, "tok-b")
+    assert cost.decision.ok, "the network's third upload (another link)"
+    cost.proved("link-b")
+    cost.body_phase()
     d = gate.open("rfq_upload", net, "tok-c")
-    assert (d.decision.ok, d.decision.reason) == (False, "rfq_upload_net_rate"), "one network cannot spread uploads over many links"
+    assert (d.decision.ok, d.decision.reason) == (False, "rfq_upload_net_rate"), "one network cannot spread real uploads over many links"
     assert gate.open("rfq_upload", other, "tok-c").decision.ok
     assert gate.open("token_write", net, "tok-c").decision.ok, "other kinds are untouched"
     clock.t += 601
     assert gate.open("rfq_upload", net, "tok-d").decision.ok, "the network window slides"
     assert "rfq_upload" in ratelimit.UPLOAD_KINDS and "u:" in ratelimit.PROTECTED_PREFIXES
+    assert ratelimit.PublicLimits().rfq_upload_per_network == ((600.0, 30), (3600.0, 90)), "widened: a carrier /24 shared by a few vendors"
 
 
 def test_the_real_listener_applies_the_upload_window(s4):
@@ -473,19 +485,26 @@ def test_question_files_without_a_quote_shared_quota_and_who_sees_them(s4):
     assert (f["on"], f["message_id"]) == ("question", mid)
     rv_b = vid(d, s4.vendor["id"]), vid(d, s4.contact["id"])
     # managers: next to the question (the thread and the pending questions), NOT in the comparison's quote files
+    items = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/vendors/{rv_b[1]}/messages", headers=s4.h("joni")).json()["items"]
+    q = next(i for i in items if i["id"] == mid)
+    assert [x["id"] for x in q["files"]] == [f["id"]] and q["files_hidden"] == 0
+    # HARDEN271 (review F1): ONE rule - a member without costs.view sees that a file is attached, never which (no id, no name)
     items = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/vendors/{rv_b[1]}/messages", headers=s4.h("tom")).json()["items"]
     q = next(i for i in items if i["id"] == mid)
-    assert [x["id"] for x in q["files"]] == [f["id"]]
-    pend = detail(s4, d["id"], "mona")["questions"]["items"]
+    assert q["files"] == [] and q["files_hidden"] == 1 and f["id"] not in json.dumps(items) and "leak" not in json.dumps(items)
+    pend = detail(s4, d["id"], "joni")["questions"]["items"]
     assert [x["id"] for x in next(p for p in pend if p["id"] == mid)["files"]] == [f["id"]]
     cmp = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/comparison", headers=s4.h("joni")).json()
     assert all(f["id"] not in json.dumps(x["vendor_files"]) for x in cmp["quotes"])
-    # the thread's rule: a member who sees the request (no costs.view) reads a QUESTION file, never a QUOTE file
+    # HARDEN271 (review F1, owner-accepted): ONE rule - a member who sees the request without costs.view reads NO vendor file, a question's
+    # file included (a vendor may write prices in it); the 403 is the same for an existing and an unknown id (decided before the row)
     qf = up(c, ta, qid, pdf()).json()["file"]
     base = f"{API}/tickets/rfqs/{d['id']}/vendor-files"
-    got = s4.c.get(f"{base}/{f['id']}", headers=s4.h("tom"))
+    got = s4.c.get(f"{base}/{f['id']}", headers=s4.h("joni"))
     assert got.status_code == 200 and got.headers["content-disposition"].startswith("attachment;") and "sandbox" in got.headers["content-security-policy"]
+    assert s4.c.get(f"{base}/{f['id']}", headers=s4.h("tom")).status_code == 403
     assert s4.c.get(f"{base}/{qf['id']}", headers=s4.h("tom")).status_code == 403
+    assert s4.c.get(f"{base}/0123456789abcdef0123456789abcdef", headers=s4.h("tom")).status_code == 403
     assert s4.c.get(f"{base}/{f['id']}", headers=s4.h("nora")).status_code == 404
     # another vendor never sees it
     va = view(c, ta)

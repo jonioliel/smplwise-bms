@@ -400,13 +400,15 @@ def get_messages(rfq_id: str = Path(..., pattern=ID), vendor_id: str = Path(...,
     seen = rfq.require_visible(viewer, rfq_id)
     v = rfq.vendor_of(conn, seen, vendor_id)
     msgs = store_rfq.messages_of_vendor(conn, v["id"])
-    # RFQ-VENDOR-UPLOAD (contract 19.10): a question's own files, next to it (the thread's rule: whoever sees the request)
-    files = rfq_vendor_files.by_message(conn, seen.row["id"], [m["id"] for m in msgs if m["direction"] == "in"])
+    # RFQ-VENDOR-UPLOAD (contract 19.10): a question's own files, next to it. HARDEN271 (review F1): every vendor file needs
+    # tickets.costs.view - without it `files: []` and only the neutral count `files_hidden`
+    files, hidden = rfq_vendor_files.by_message_for(conn, viewer, seen, [m["id"] for m in msgs if m["direction"] == "in"])
     items = []
     for m in msgs:
         item = rfq.present_message(conn, m)
         if m["direction"] == "in":
             item["files"] = files.get(m["id"], [])
+            item["files_hidden"] = hidden.get(m["id"], 0)
         items.append(item)
     return {"items": items}
 
@@ -843,15 +845,15 @@ def get_attachment_thumb(request: Request, rfq_id: str = Path(..., pattern=ID), 
 
 def _vendor_file(request: Request, rfq_id: str, file_id: str, thumb: bool, principal: Principal, conn: sqlite3.Connection) -> FileResponse:
     """RFQ-VENDOR-UPLOAD (contract 19.10): a file a VENDOR uploaded. The request visible first (the uniform 404 `rfq_not_found`);
-    then a QUOTE file needs tickets.costs.view (the comparison's rule; the audited 403 - it may carry prices), a QUESTION file the
-    thread's rule (whoever sees the request sees its threads). Always a download (rfq_files.vendor_headers: attachment, nosniff, CSP
-    sandbox, private no-store). Another request's id, a document's thumbnail, an office file while `rfq.attachments.allow_office` is
-    off: 404 `attachment_not_found`."""
+    then EVERY vendor file - quote or question - needs tickets.costs.view (HARDEN271, review F1: one rule; a vendor may write prices in a
+    question file), decided BEFORE the row is read, so the audited 403 is the same for every id (no existence oracle). Always a download
+    (rfq_files.vendor_headers: attachment, nosniff, CSP sandbox, private no-store). Another request's id, a document's thumbnail, an
+    office file while `rfq.attachments.allow_office` is off: 404 `attachment_not_found`."""
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
-    f = rfq_vendor_files.for_manager(conn, seen.row["id"], file_id)
-    if f is not None and not f.get("message_id") and not rfq.sees_amounts(viewer, seen):
+    if not rfq_vendor_files.sees_request_files(viewer, seen):
         raise rfq.refuse(conn, viewer, "ticket.rfq.vendor_file", seen.row, "costs_permission_missing", _rid(request), permission=rfq.COSTS_VIEW)
+    f = rfq_vendor_files.for_manager(conn, seen.row["id"], file_id)
     path = rfq_vendor_files.file_path(_root(request), f, thumb) if f is not None else None
     if f is None or path is None:
         raise rfq_attach.not_found(conn)

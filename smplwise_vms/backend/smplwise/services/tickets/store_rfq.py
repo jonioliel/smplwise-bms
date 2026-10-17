@@ -598,6 +598,14 @@ def mark_questions_read(conn: sqlite3.Connection, rfq_vendor_id: str, by: str, a
     return int(cur.rowcount or 0)
 
 
+def reopen_question_for_file(conn: sqlite3.Connection, message_id: str) -> int:
+    """HARDEN271 (vendor-upload review F3): a vendor file landed on this question - it is pending and unread again, so the badge, the
+    pending card and the thread show it (an earlier answer stays in the thread as the message it is)."""
+    cur = conn.execute("UPDATE ticket_rfq_messages SET read_at = NULL, read_by = NULL, answered_at = NULL, answered_by = NULL, answer_id = NULL "
+                       "WHERE id = ? AND direction = 'in'", (message_id,))
+    return int(cur.rowcount or 0)
+
+
 def answer_questions(conn: sqlite3.Connection, ids: Iterable[str], *, by: str, at: str, answer_id: str | None) -> int:
     """Mark these pending questions answered (by `answer_id`, or handled without a reply when None); read with it."""
     n = 0

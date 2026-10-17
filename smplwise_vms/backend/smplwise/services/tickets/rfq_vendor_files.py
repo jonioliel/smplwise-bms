@@ -226,6 +226,8 @@ def record(conn, link: Any, stored: rfq_files.StoredFile, *, name: Any, target: 
         "sha256": stored.sha256, "bytes": stored.bytes, "stored_bytes": stored.stored_bytes, "width": stored.width, "height": stored.height,
         "created_at": at})
     store_rfq.update_rfq(conn, row["id"], {"updated_at": at}, bump=False)  # a file never makes a manager's open form stale
+    if mid:  # HARDEN271 (review F3): a late file on an answered (or already read) question is not missed - pending and unread again
+        store_rfq.reopen_question_for_file(conn, mid)
     ref = {"quote_id": qid} if qid else {"message_id": mid}
     store_rfq.insert_event(conn, row["id"], "vendor_file_added", actor_kind="contact", actor_name=rfq_vendor._name(conn, v), rfq_vendor_id=v["id"],
                            data={"file_id": fid, "kind": stored.kind, **ref}, at=at)
@@ -284,6 +286,23 @@ def by_message(conn, rfq_id: str, message_ids: list[str]) -> dict[str, list[dict
         return {}
     ok = _office_ok(conn)
     return {mid: [present_manager(f) for f in fs if ok(f)] for mid, fs in store_rfq.vendor_files_of_message(conn, rfq_id, message_ids).items()}
+
+
+def sees_request_files(viewer: Any, seen: Any) -> bool:
+    """HARDEN271 (vendor-upload review F1, owner-accepted): ONE rule for every vendor file of a request - quote files AND question files -
+    `tickets.costs.view` on the request (the comparison's rule). A vendor may write prices in a question file."""
+    from . import rfq
+
+    return bool(rfq.sees_amounts(viewer, seen))
+
+
+def by_message_for(conn, viewer: Any, seen: Any, message_ids: list[str]) -> tuple[dict[str, list[dict[str, Any]]], dict[str, int]]:
+    """(files by question, hidden counts by question). A viewer without costs.view gets no file at all - no id, no name, no size - only
+    the neutral count of files attached (`files_hidden`), so the thread still shows that something was attached."""
+    files = by_message(conn, seen.row["id"], message_ids)
+    if sees_request_files(viewer, seen):
+        return files, {}
+    return {}, {mid: len(fs) for mid, fs in files.items() if fs}
 
 
 def for_manager(conn, rfq_id: str, file_id: str) -> dict[str, Any] | None:
