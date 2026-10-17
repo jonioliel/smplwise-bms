@@ -427,7 +427,7 @@ def update_award(conn: sqlite3.Connection, award_id: str, fields: Mapping[str, A
 
 TERMS_COLUMNS = ("currency", "total_minor", "schedule_json", "schedule_source", "arrival_state", "planned_from", "planned_to", "proposed_from",
                  "proposed_to", "rejected_at", "requested_at", "reminded_at", "reminders", "confirmed_at", "confirmed_by", "acknowledged_at",
-                 "decided_by", "decided_at", "updated_at")
+                 "acknowledged_hash", "escalated_at", "decided_by", "decided_at", "updated_at")
 
 
 def insert_terms(conn: sqlite3.Connection, row: Mapping[str, Any]) -> None:
@@ -454,11 +454,32 @@ def delete_terms(conn: sqlite3.Connection, award_id: str) -> int:
     return conn.execute("DELETE FROM ticket_rfq_award_terms WHERE award_id = ?", (award_id,)).rowcount
 
 
-def terms_waiting(conn: sqlite3.Connection, requested_before: str) -> list[dict[str, Any]]:
-    """The janitor's reminder candidates: arrival not confirmed (nor proposed), the vendor messaged before `requested_before`."""
+def terms_waiting(conn: sqlite3.Connection, requested_before: str, max_reminders: int = 2) -> list[dict[str, Any]]:
+    """The janitor's reminder candidates: arrival not confirmed (nor proposed), the vendor told before `requested_before`, fewer than
+    `max_reminders` reminders, the last one (if any) also before `requested_before`, the award final, the request still awarded /
+    ordered and the vendor still awarded. Review F5: every row returned is actionable - exhausted, recently reminded, pending or ended
+    rows never fill the batch - and the longest-waiting go first, so LIMIT 200 cannot starve a newer vendor."""
     return [dict(r) for r in conn.execute(
-        "SELECT * FROM ticket_rfq_award_terms WHERE arrival_state = 'awaiting' AND requested_at IS NOT NULL AND requested_at <= ? "
-        "ORDER BY requested_at LIMIT 200", (requested_before,)).fetchall()]
+        "SELECT t.* FROM ticket_rfq_award_terms t "
+        "JOIN ticket_rfq_awards a ON a.id = t.award_id AND a.state = 'approved' "
+        "JOIN ticket_rfqs r ON r.id = t.rfq_id AND r.state IN ('awarded', 'ordered') "
+        "JOIN ticket_rfq_vendors v ON v.id = t.rfq_vendor_id AND v.state = 'awarded' "
+        "WHERE t.arrival_state = 'awaiting' AND t.requested_at IS NOT NULL AND t.requested_at <= ? AND t.reminders < ? "
+        "AND (t.reminded_at IS NULL OR t.reminded_at <= ?) "
+        "ORDER BY COALESCE(t.reminded_at, t.requested_at), t.award_id LIMIT 200",
+        (requested_before, int(max_reminders), requested_before)).fetchall()]
+
+
+def terms_unconfirmed(conn: sqlite3.Connection, reminded_before: str, max_reminders: int = 2) -> list[dict[str, Any]]:
+    """Owner decision (lead, 2026-10-17): still not confirmed one delay after the LAST reminder -> escalate to the RFQ managers once
+    (`escalated_at`). The same actionable filters as `terms_waiting`; the work order is never blocked by this."""
+    return [dict(r) for r in conn.execute(
+        "SELECT t.* FROM ticket_rfq_award_terms t "
+        "JOIN ticket_rfq_awards a ON a.id = t.award_id AND a.state = 'approved' "
+        "JOIN ticket_rfqs r ON r.id = t.rfq_id AND r.state IN ('awarded', 'ordered') "
+        "JOIN ticket_rfq_vendors v ON v.id = t.rfq_vendor_id AND v.state = 'awarded' "
+        "WHERE t.arrival_state = 'awaiting' AND t.reminders >= ? AND t.escalated_at IS NULL AND t.reminded_at IS NOT NULL "
+        "AND t.reminded_at <= ? ORDER BY t.reminded_at, t.award_id LIMIT 200", (int(max_reminders), reminded_before)).fetchall()]
 
 
 # ---------------------------------------------------------------- the private thread with each vendor

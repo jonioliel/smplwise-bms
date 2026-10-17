@@ -381,7 +381,7 @@ export function refusalKey(code: string | undefined): string | null {
     // TKRFQ4: the work order
     'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable',
     // CR-RFQ-PAYMENT-SCHEDULE
-    'terms_not_found', 'arrival_not_proposed'];
+    'terms_not_found', 'arrival_not_proposed', 'arrival_date_passed'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 

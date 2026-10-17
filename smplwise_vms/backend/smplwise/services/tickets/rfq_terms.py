@@ -8,14 +8,16 @@ runs, no answer changes, an upgrade changes no behaviour).
     approval   the award (the existing flow, incl. partial / split approval) approves the schedule: the vendor's proposal as is, or the
                manager's edited one. Percents become exact amounts of the APPROVED total (VAT included) at that moment:
                floor(total x percent_bp / 10000) each, and the final instalment takes the remainder - so the instalments always sum to
-               the approved total exactly (rounding rule `floor_final`). No proposal and no edit = one final instalment on completion.
+               the approved total exactly (rounding rule `floor_final`). No proposal and no edit = one final instalment on completion;
+               over a proposal the award must say which (`payment` or `payment_source`, review F1 - silence approves nothing).
                The approved schedule is stored with the award (`ticket_rfq_award_terms`) and, once the award is final, on the quote
                (`payment_schedule_json`, the ticket's baseline after the work order - it survives a purge of the request).
     arrival    after the award is final the vendor confirms on his personal RFQ link that he will come on the planned date/window
                (the awarded quote's dates, else the request's wanted window, else the manager's date at the award), or proposes another
                date that an RFQ manager accepts or rejects. Either act also records his acknowledgement of the approved schedule. A
                reminder (an `rfq_update` notice + a thread message - existing purposes, existing send-hours rules) goes when he has not
-               confirmed `arrival_reminder_hours` after he was messaged (the award notice or the work order), at most twice.
+               confirmed `arrival_reminder_hours` after he was told (a queued award notice or the sent work order), at most twice;
+               one delay after the second one the RFQ managers are notified once (the work order is never blocked).
     demand     the cost claim of the order's assignment is CHECKED against the approved schedule (a demand above the schedule's total,
                or above what is due by its submission date, is FLAGGED for the manager - never refused).
     later (C)  `on_arrival_confirmed` is the extension point for the personal access code / door windows of the work (WisKey) - it does
@@ -26,6 +28,7 @@ Timeline and audit rows carry ids, states, counts (and the dates of a confirmati
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import re
 from typing import Any, Mapping
@@ -44,6 +47,7 @@ DEFAULT_PLAN: dict[str, Any] = {"items": [{"kind": "final", "due": "completion"}
 _PERCENT = re.compile(r"^(\d{1,3})(?:\.(\d{1,2}))?$")
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 OPEN_RFQ = ("awarded", "ordered")
+PAYMENT_SOURCES = ("vendor", "default")  # the award's explicit choice when it carries no edited plan (review F1)
 
 
 # ---------------------------------------------------------------- settings
@@ -236,24 +240,56 @@ def _arrival_window(conn, row: Mapping[str, Any], q: Mapping[str, Any], arrival:
     return row.get("work_from"), row.get("work_to")
 
 
+def _proposal_still_valid(plan: Mapping[str, Any], first_day: dt.date) -> None:
+    """Review F3: the vendor's stored proposal was range-checked when he quoted; at the award its dates must still be today or later -
+    the rule an edited plan meets (`_date`), so "accept as proposed" and "edit" never differ. Refused as `proposal_date_passed` on the
+    instalment's date field (the dialog opens the editor)."""
+    for i, it in enumerate(plan.get("items") or []):
+        day = it.get("date")
+        if day and dt.date.fromisoformat(day) < first_day:
+            raise CostRefused(422, "proposal_date_passed", f"payment.items.{i}.date")
+
+
 def prepare(conn, row: Mapping[str, Any], q: Mapping[str, Any], *, total_minor: int, currency: str, payment: Any, arrival: Any,
-            now: dt.datetime) -> dict[str, Any] | None:
-    """At the award, BEFORE the award writes anything: the approved schedule (the manager's edit, else the vendor's proposal, else one
-    final instalment on completion) converted to exact amounts of the approved total, and the planned arrival window. Every refusal
-    (CostRefused 422) happens here. None while the switch is off - and a schedule / arrival in the body is then refused (422
-    `disabled`), so a client never believes it agreed terms the server ignored."""
+            now: dt.datetime, payment_source: str | None = None) -> dict[str, Any] | None:
+    """At the award, BEFORE the award writes anything: the approved schedule converted to exact amounts of the approved total, and the
+    planned arrival window. Every refusal (CostRefused 422) happens here. None while the switch is off - and a schedule / choice /
+    arrival in the body is then refused (422 `disabled`), so a client never believes it agreed terms the server ignored.
+
+    The schedule is an EXPLICIT choice whenever the vendor proposed one (review F1 - silence never approves the counter-party's
+    figures, so a stale tab or an old client cannot approve his advance): `payment` = the manager's plan (source `manager`);
+    `payment_source: "vendor"` = his proposal as is (source `vendor`, re-validated: F3 dates, F4 `proposal_*` codes);
+    `payment_source: "default"` = one final instalment on completion. A proposal and neither -> 422 `payment` `required`. Without a
+    proposal, omission = the default (D7) and `vendor` is 422 `payment_source` `no_proposal`; both fields -> `payment_source` `conflict`."""
     if not enabled(conn):
-        if payment is not None or arrival is not None:
-            raise CostRefused(422, "disabled", "payment" if payment is not None else "arrival")
+        if payment is not None or arrival is not None or payment_source is not None:
+            raise CostRefused(422, "disabled", "payment" if payment is not None else "arrival" if arrival is not None else "payment_source")
         return None
     if arrival is not None and not isinstance(arrival, Mapping):
         raise CostRefused(422, "invalid", "arrival")
+    if payment_source is not None and payment_source not in PAYMENT_SOURCES:
+        raise CostRefused(422, "invalid", "payment_source")
+    if payment is not None and payment_source is not None:
+        raise CostRefused(422, "conflict", "payment_source")
+    proposal = loads(q.get("payment_plan_json"))
+    first_day = today(conn, now)
     if payment is not None:
-        plan, source = parse_plan(payment, first_day=today(conn, now)), "manager"
+        plan, source = parse_plan(payment, first_day=first_day), "manager"
+    elif payment_source == "vendor":
+        if not proposal:
+            raise CostRefused(422, "no_proposal", "payment_source")
+        _proposal_still_valid(proposal, first_day)
+        plan, source = proposal, "vendor"
+    elif payment_source == "default" or not proposal:
+        plan, source = None, "default"
     else:
-        plan = loads(q.get("payment_plan_json"))
-        source = "vendor" if plan else "default"
-    schedule = convert(plan, int(total_minor), currency)
+        raise CostRefused(422, "required", "payment")
+    try:
+        schedule = convert(plan, int(total_minor), currency)
+    except CostRefused as exc:
+        if source != "vendor":
+            raise
+        raise CostRefused(422, f"proposal_{exc.code}", exc.field) from None  # F4: a specific code - the dialog opens the editor
     wf, wt = _arrival_window(conn, row, q, arrival, now)
     return {"rfq_id": row["id"], "currency": currency, "total_minor": int(total_minor), "schedule_json": store_rfq.dumps(schedule),
             "schedule_source": source, "arrival_state": "awaiting", "planned_from": wf, "planned_to": wt}
@@ -295,10 +331,11 @@ def drop(conn, award_id: str) -> None:
 
 
 def requested(conn, award_id: str | None, *, via: str, now: dt.datetime) -> bool:
-    """The vendor was messaged (`award` notice through the thread, or the work `order`): the reminder clock starts (once)."""
+    """The vendor was TOLD (an `award`-sourced thread message whose `rfq_update` notice was queued, or the work `order` that was sent)
+    and the award is final: the reminder clock starts (once; a rejected proposal clears it so the next notice restarts it)."""
     t = store_rfq.terms(conn, award_id) if award_id else None
-    if t is None or t.get("requested_at") or t["arrival_state"] == "confirmed":
-        return False
+    if t is None or t.get("requested_at") or t["arrival_state"] == "confirmed" or _final_award(conn, t) is None:
+        return False  # review F6: never while the award waits for the second approval (the callers pass only a queued notice)
     at = iso(now)
     store_rfq.update_terms(conn, t["award_id"], {"requested_at": at, "updated_at": at})
     store_rfq.insert_event(conn, t["rfq_id"], "arrival_requested", rfq_vendor_id=t["rfq_vendor_id"], data={"award_id": t["award_id"], "via": via},
@@ -311,6 +348,16 @@ def _final_award(conn, t: Mapping[str, Any]) -> dict[str, Any] | None:
     return a if a is not None and a["state"] == "approved" else None
 
 
+def schedule_hash(t: Mapping[str, Any]) -> str:
+    """Review F10: the content hash of the approved schedule (sha256 of the stored canonical JSON) - an acknowledgement is bound to it."""
+    return hashlib.sha256(str(t["schedule_json"]).encode("utf-8")).hexdigest()
+
+
+def acknowledged_at(t: Mapping[str, Any]) -> str | None:
+    """The acknowledgement counts only for the schedule it was given for (a changed schedule reads as unacknowledged)."""
+    return t.get("acknowledged_at") if t.get("acknowledged_at") and t.get("acknowledged_hash") == schedule_hash(t) else None
+
+
 def schedule_of(t: Mapping[str, Any]) -> dict[str, Any]:
     return loads(t["schedule_json"]) or {"currency": t["currency"], "total_minor": t["total_minor"], "items": []}
 
@@ -318,8 +365,8 @@ def schedule_of(t: Mapping[str, Any]) -> dict[str, Any]:
 def _arrival(t: Mapping[str, Any]) -> dict[str, Any]:
     return {"state": t["arrival_state"], "planned_from": t.get("planned_from"), "planned_to": t.get("planned_to"),
             "proposed_from": t.get("proposed_from"), "proposed_to": t.get("proposed_to"), "rejected_at": t.get("rejected_at"),
-            "confirmed_at": t.get("confirmed_at"), "confirmed_by": t.get("confirmed_by"), "acknowledged_at": t.get("acknowledged_at"),
-            "requested_at": t.get("requested_at"), "reminders": int(t.get("reminders") or 0)}
+            "confirmed_at": t.get("confirmed_at"), "confirmed_by": t.get("confirmed_by"), "acknowledged_at": acknowledged_at(t),
+            "requested_at": t.get("requested_at"), "reminders": int(t.get("reminders") or 0), "escalated_at": t.get("escalated_at")}
 
 
 def present(conn, award: Mapping[str, Any], *, amounts: bool, manager: bool) -> dict[str, Any] | None:
@@ -335,8 +382,32 @@ def present(conn, award: Mapping[str, Any], *, amounts: bool, manager: bool) -> 
                         "rounding": sched.get("rounding", ROUNDING), "items": items, "source": t["schedule_source"]},
            "proposal": present_plan(loads(q.get("payment_plan_json"))) if amounts else None,
            "arrival": _arrival(t), "revision": t["revision"],
+           "draft": (rejection_draft(conn, award) if manager and award["state"] == "approved" and t["arrival_state"] == "awaiting"
+                     and t.get("rejected_at") and not t.get("requested_at") else None),
            "can": {"decide_arrival": manager and award["state"] == "approved" and t["arrival_state"] == "proposed"}}
     return out
+
+
+REJECT_TEXT = {
+    "he": "המועד שהצעתם להגעה לביצוע העבודה לא אושר. נא לאשר בדף ההצעה את המועד המתוכנן או להציע מועד אחר.",
+    "en": "The arrival date you proposed for the work was not approved. Please confirm the planned date on the quote page or propose another date.",
+    "ar": "لم تتم الموافقة على موعد الوصول الذي اقترحتموه لتنفيذ العمل. يرجى تأكيد الموعد المخطط في صفحة العرض أو اقتراح موعد آخر.",
+    "ru": "Предложенная вами дата прибытия для выполнения работ не утверждена. Подтвердите запланированную дату на странице предложения или предложите другую.",
+}
+
+
+def rejection_draft(conn, award: Mapping[str, Any]) -> dict[str, Any]:
+    """Review F7: after a manager rejected the vendor's proposed date, the editable notice in his language (no amount, no date) - the
+    award-draft pattern: the reject itself sends nothing; the manager sends this with the vendor-message route (`source` = the award),
+    which queues the existing templated `rfq_update` and restarts the reminder clock. Offered until a notice was queued."""
+    from . import store_links
+
+    v = store_rfq.vendor(conn, award["rfq_vendor_id"]) or {}
+    contact = store_links.contact(conn, v.get("contact_id")) or {}
+    lang = contact.get("lang") if contact.get("lang") in REJECT_TEXT else "he"
+    return {"text": REJECT_TEXT[lang], "lang": lang, "notify_default": True,
+            "send": {"route": f"POST /tickets/rfqs/{award['rfq_id']}/vendors/{v.get('id')}/messages",
+                     "source": {"kind": "award", "id": award["id"]}}}
 
 
 # ---------------------------------------------------------------- the vendor's side (his own award only; the link is the authority)
@@ -350,13 +421,13 @@ def vendor_block(conn, row: Mapping[str, Any], v: Mapping[str, Any], *, read_onl
         return None
     sched = schedule_of(t)
     open_ = not read_only and row["state"] in OPEN_RFQ and v["state"] == "awarded"
-    return {"schedule": {"currency": sched.get("currency"), "total_minor": sched.get("total_minor"),
+    return {"schedule": {"currency": sched.get("currency"), "total_minor": sched.get("total_minor"), "hash": schedule_hash(t),
                          "items": [{"kind": it["kind"], "amount_minor": it["amount_minor"], "due": it["due"], "date": it.get("date"),
                                     "days": it.get("days")} for it in sched["items"]]},
             "arrival": {"state": t["arrival_state"], "planned_from": t.get("planned_from"), "planned_to": t.get("planned_to"),
                         "proposed_from": t.get("proposed_from"), "proposed_to": t.get("proposed_to"),
                         "rejected": bool(t.get("rejected_at")) and t["arrival_state"] == "awaiting",
-                        "confirmed_at": t.get("confirmed_at"), "acknowledged_at": t.get("acknowledged_at")},
+                        "confirmed_at": t.get("confirmed_at"), "acknowledged_at": acknowledged_at(t)},
             "can": {"confirm": open_ and t["arrival_state"] == "awaiting" and bool(t.get("planned_from")),
                     "propose": open_ and t["arrival_state"] in ("awaiting", "proposed")}}
 
@@ -384,8 +455,11 @@ def vendor_act(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> di
     action = body.get("action")
     if body.get("acknowledge_schedule") is not True:
         raise VendorRefused(422, "invalid", fields=[{"field": "acknowledge_schedule", "code": "required"}])
+    digest = schedule_hash(t)
+    if body.get("schedule_hash") is not None and body.get("schedule_hash") != digest:
+        raise VendorRefused(409, "terms_changed")  # review F10: he acknowledges only the terms he was shown (his own terms - no oracle)
     at = iso(now)
-    fields: dict[str, Any] = {"acknowledged_at": t.get("acknowledged_at") or at, "updated_at": at}
+    fields: dict[str, Any] = {"acknowledged_at": acknowledged_at(t) or at, "acknowledged_hash": digest, "updated_at": at}
     if action == "confirm":
         if body.get("work_from") is not None or body.get("work_to") is not None:
             raise VendorRefused(422, "invalid", fields=[{"field": "work_from", "code": "not_allowed"}])
@@ -417,6 +491,8 @@ def vendor_act(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> di
     store_rfq.insert_event(conn, row["id"], kind, actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"], data=data, at=at)
     _audit(conn, link, "ticket.rfq.vendor_arrival", row, vendor_id=v["id"], award_id=t["award_id"], arrival_action=action)  # ids only
     rfq_notify.arrival(conn, row, v["id"], "confirmed" if action == "confirm" else "proposed")
+    if action == "confirm":
+        rfq_notify.arrival_done(conn, row["id"], v["id"])  # review F8: the managers are told; nothing waits on them, so nothing stays open
     fresh = store_rfq.terms(conn, t["award_id"]) or t
     if action == "confirm":
         _on_confirmed(conn, row, fresh, now)
@@ -427,8 +503,9 @@ def vendor_act(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> di
 
 def decide(conn, viewer: Any, seen: Any, award_id: str, action: str, revision: int, rid: str | None = None) -> dict[str, Any]:
     """POST /tickets/rfqs/{id}/awards/{award_id}/arrival `{action: accept | reject, revision}` - an RFQ manager (contract section 6,
-    no new permission). Accept: the proposed window becomes the planned one, confirmed. Reject: back to `awaiting` (he confirms the
-    planned window or proposes again); nothing is sent by itself - the manager may write to him in the thread."""
+    no new permission). Accept: the proposed window becomes the planned one, confirmed (409 `arrival_date_passed` when it starts
+    before today - review F9). Reject: back to `awaiting` (he confirms the planned window or proposes again), the reminder count and
+    clock reset (F7); nothing is sent by itself - the terms block then offers the editable rejection `draft` the manager may send."""
     from . import rfq
 
     now = rfq.now_utc()
@@ -442,13 +519,16 @@ def decide(conn, viewer: Any, seen: Any, award_id: str, action: str, revision: i
     if t["arrival_state"] != "proposed" or seen.row["state"] not in OPEN_RFQ:
         raise rfq._err(conn, 409, "arrival_not_proposed")
     at = iso(now)
+    if action == "accept" and (local_day(conn, t.get("proposed_from")) or today(conn, now)) < today(conn, now):
+        raise rfq._err(conn, 409, "arrival_date_passed")  # review F9: never confirm a window already past (reject; he proposes again)
     if action == "accept":
         fields = {"arrival_state": "confirmed", "planned_from": t["proposed_from"], "planned_to": t.get("proposed_to"), "confirmed_at": at,
                   "confirmed_by": "manager", "decided_by": viewer.uid, "decided_at": at, "updated_at": at}
         kind, data = "arrival_confirmed", {"award_id": a["id"], "by": "manager", "work_from": t["proposed_from"], "work_to": t.get("proposed_to")}
     elif action == "reject":
+        # review F7: the reminders start over and the clock waits for the notice the manager actually sends (the block's `draft`)
         fields = {"arrival_state": "awaiting", "proposed_from": None, "proposed_to": None, "rejected_at": at, "decided_by": viewer.uid,
-                  "decided_at": at, "updated_at": at}
+                  "decided_at": at, "updated_at": at, "reminders": 0, "reminded_at": None, "requested_at": None, "escalated_at": None}
         kind, data = "arrival_rejected", {"award_id": a["id"]}
     else:
         raise rfq.invalid(conn, "action", "invalid")
@@ -498,7 +578,7 @@ def tick(conn, now: dt.datetime) -> int:
         return 0
     before = iso(now - dt.timedelta(hours=hours))
     n = 0
-    for t in store_rfq.terms_waiting(conn, before):
+    for t in store_rfq.terms_waiting(conn, before, MAX_REMINDERS):
         if int(t.get("reminders") or 0) >= MAX_REMINDERS or (t.get("reminded_at") and t["reminded_at"] > before):
             continue
         if _final_award(conn, t) is None:
@@ -510,6 +590,24 @@ def tick(conn, now: dt.datetime) -> int:
         if row is None or v is None or row["state"] not in OPEN_RFQ or v["state"] != "awarded":
             continue
         _remind(conn, row, v, t, now)
+        n += 1
+    _escalate(conn, before, iso(now))
+    return n
+
+
+def _escalate(conn, before: str, at: str) -> int:
+    """Owner decision (lead, 2026-10-17): a vendor who has not confirmed one delay after his LAST reminder is escalated ONCE to the RFQ
+    managers (an `rfq.arrival` row, kind `unconfirmed`; resolved when he confirms or a manager decides). The work order is NOT
+    blocked - the manager may order and send it anyway."""
+    from . import rfq
+
+    n = 0
+    for t in store_rfq.terms_unconfirmed(conn, before, MAX_REMINDERS):
+        row = rfq.system_row(conn, t["rfq_id"])
+        if row is None:
+            continue
+        rfq_notify.arrival(conn, row, t["rfq_vendor_id"], "unconfirmed")
+        store_rfq.update_terms(conn, t["award_id"], {"escalated_at": at, "updated_at": at})
         n += 1
     return n
 
@@ -560,8 +658,10 @@ def check_demand(conn, claim: Mapping[str, Any], base: Mapping[str, Any] | None,
     approved schedule of the baseline quote. FLAGS, never refuses:
         currency          the demand is in another currency than the schedule
         above_total       the demand is above the schedule's total
-        ahead_of_schedule the demand is above what is due by the day it was submitted (instalments due on a date, on completion =
-                          the request's `done_at`, N days after completion)
+        ahead_of_schedule the job is done and the demand is above what is due by the day it was submitted (instalments due on a
+                          date, on completion = the request's `done_at`, N days after completion)
+        before_completion the job is NOT marked done (`done_at` NULL) and the demand is above the instalments due on a date by then:
+                          what is due on / after completion is not due yet (review F2)
     `due_minor` = the sum of the instalments due by that day. Null when the baseline has no approved schedule."""
     sched = loads((base or {}).get("payment_schedule_json"))
     if not sched or current is None:
@@ -569,8 +669,10 @@ def check_demand(conn, claim: Mapping[str, Any], base: Mapping[str, Any] | None,
     from . import store_costs
 
     ticket = store_costs.ticket_row(conn, claim.get("ticket_id"))  # the claim's own ticket (the caller passed its visibility)
-    completed = local_day(conn, (ticket or {}).get("done_at") or claim.get("created_at"))
-    as_of = local_day(conn, current.get("created_at")) or completed
+    # review F2: only the ticket's `done_at` completes the job - while it is NULL nothing due on / after completion is due (the claim's
+    # creation is NOT a stand-in for the completion)
+    completed = local_day(conn, (ticket or {}).get("done_at"))
+    as_of = local_day(conn, current.get("created_at")) or local_day(conn, claim.get("created_at"))
     items = []
     due_minor = 0
     for it in sched["items"]:
@@ -588,9 +690,10 @@ def check_demand(conn, claim: Mapping[str, Any], base: Mapping[str, Any] | None,
         if total > int(sched["total_minor"]):
             flags.append("above_total")
         if total > due_minor:
-            flags.append("ahead_of_schedule")
+            flags.append("ahead_of_schedule" if completed is not None else "before_completion")
     return {"status": "flagged" if flags else "ok", "flags": flags, "currency": sched.get("currency"), "schedule_total_minor": sched["total_minor"],
-            "due_minor": due_minor, "demand_minor": total, "as_of": as_of.isoformat() if as_of else None, "items": items}
+            "due_minor": due_minor, "demand_minor": total, "as_of": as_of.isoformat() if as_of else None,
+            "completed_on": completed.isoformat() if completed else None, "items": items}
 
 
 def order_lines(conn, award_id: str, lang: str = "he") -> list[str]:

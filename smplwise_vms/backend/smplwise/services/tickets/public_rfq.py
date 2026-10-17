@@ -305,6 +305,7 @@ class ArrivalIn(_Strict):
     work_from: str | None = Field(default=None, max_length=40)
     work_to: str | None = Field(default=None, max_length=40)
     acknowledge_schedule: bool
+    schedule_hash: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")  # review F10 (optional echo)
     client_request_id: str = Field(max_length=64)
 
 

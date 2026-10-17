@@ -23,12 +23,12 @@ renumbers at integration; additive only). Switch `tickets.settings.rfq.schedule_
 | # | Decision | Why |
 |---|----------|-----|
 | D1 | The vendor confirms on his **RFQ quote link** (the same page where he quoted and where "your quote was selected" shows), not on the work order's handler page. | The RFQ link exists right after the award (the work order is a later, separate manager act); the page already shows his approved part. It also keeps the code out of the ticket page bundle (61 KB gzip budget, ~0.7 KB headroom). |
-| D2 | The reminder clock starts when the vendor is **messaged**: the award notice sent through the thread (`source: award`) or the work order's send. Nothing is sent by the award itself (owner rule kept). | "after ... the vendor is messaged". A manager who never messages the vendor gets no automatic messages either. |
+| D2 | The reminder clock starts when the vendor is **told**: the award notice sent through the thread (`source: award`) whose `rfq_update` notice was actually queued, on a final award, or the work order's send. Nothing is sent by the award itself (owner rule kept). (Narrowed in v1.4.1, review F6: not with `notify: false`, a manual channel, no live link, or a pending second approval.) | "after ... the vendor is messaged". A manager who never messages the vendor gets no automatic messages either; the first thing the vendor hears is never the reminder. |
 | D3 | Reminders reuse the existing `rfq_update` purpose ("there is a new message about your quote" + link) plus a fixed thread message in the vendor's language; at most **two**, spaced by `arrival_reminder_hours`; the send-hours rules apply unchanged. | No outbox rebuild (a new purpose would need the CHECK rebuild of `ticket_outbox`); no free text leaves the system. |
 | D4 | The final instalment is always the **remainder** - the vendor and the manager give shares only for the advance / progress instalments. | The exact-sum rule then holds by construction, also after a partial approval. |
 | D5 | Rounding `floor_final`: each percent instalment = floor(T x bp / 10000) in agorot, the final takes the remainder (T = approved total incl. VAT). A fixed amount stays fixed; fixed + percents above T is refused (`exceeds_total`); an instalment that rounds to 0 is refused (`zero_amount`); a final of 0 is allowed (100 % advance). | Integers only (money.py); deterministic; documented in contract 19.3. |
 | D6 | Percents apply to the **approved** total (after a partial approval), not the quoted total. | The owner: "converted to exact amounts at approval". |
-| D7 | No proposal and no edit = **one final instalment on completion** (source `default`), so every award made with the switch on has a schedule to check demands against. | A demand check needs a basis; "on completion" is today's implicit practice. |
+| D7 | No proposal and no edit = **one final instalment on completion** (source `default`), so every award made with the switch on has a schedule to check demands against. When the vendor DID propose, the award must carry an explicit choice (D17). | A demand check needs a basis; "on completion" is today's implicit practice. |
 | D8 | A pending second approval keeps the schedule in the terms row; the second approver sees it and cannot edit it; a declined award deletes it. The schedule reaches the quote (`payment_schedule_json`) only when the award is final. | One approval path; nothing visible to the vendor before the decision is final (as for the award itself). |
 | D9 | The approved schedule is stored on the quote too, so it survives a purge of the request with the ticket's cost baseline (contract 18.5). | The demand check must keep working on an ordered ticket. |
 | D10 | Both vendor actions (confirm / propose) require `acknowledge_schedule: true` and record the acknowledgement. | "the vendor acknowledges it together with the arrival date". |
@@ -37,6 +37,11 @@ renumbers at integration; additive only). Switch `tickets.settings.rfq.schedule_
 | D13 | The demand check is a view-time flag (`schedule_check` + `needs_review`) on the manager's claim card; no notification, no refusal, no payment. One claim per assignment (today's model) is compared with the instalments due by the day it was submitted. | "flagged for the manager, not silently refused"; Arx never pays. |
 | D14 | Permissions: the schedule edit is part of the award (`tickets.costs` + view); the arrival decision is an RFQ manager act (section 6); the vendor acts only through his signed link. No new permission. | Owner: reuse the existing checks. |
 | D15 | A new notification source `rfq.arrival` (info, inbox + push, WhatsApp off) tells the RFQ managers that a vendor confirmed or proposed a date; one row per vendor, resolved by the decision. | A proposed date needs a decision; the 16.1 pattern. |
+| D17 | (v1.4.1, review F1, lead's design decision) Over a vendor proposal the award body MUST carry `payment` (the manager's plan) or `payment_source` (`vendor` = accept the proposal as is, `default` = one final instalment); omission is 422 `{field: "payment", code: "required"}`. The award dialog always sends the explicit choice. Accepting the proposal re-validates it (F3: a past date -> `proposal_date_passed`; F4: not convertible on the approved total -> `proposal_exceeds_total` / `proposal_zero_amount`), and any `payment*` refusal opens the editor prefilled. | A stale tab, a script or an old client must never approve the counter-party's advance by silence. |
+| D18 | (v1.4.1, F2) The job is complete only when the ticket's `done_at` is set. Before that, instalments due on / after completion are not due, and a demand above the dated instalments is flagged `before_completion` (sets `needs_review`). | The claim's creation day is not the completion; with the default schedule every early demand was `ok`. |
+| D19 | (v1.4.1, F7) A rejected proposal resets the reminder count and clock, and the terms block offers an editable notice (`draft`, the award-draft pattern). The manager sends it explicitly (thread + the existing `rfq_update`), which restarts the clock; nothing is auto-sent. | The vendor learns of the rejection without a new purpose; his reminders may already have been spent before he proposed. |
+| D20 | (v1.4.1, F8 / F9 / F10) A confirmation's `rfq.arrival` row is resolved at once; a manager cannot accept a proposed window that starts before today (409 `arrival_date_passed`); the acknowledgement is bound to the sha256 of the approved schedule (`acknowledged_hash`; optional `schedule_hash` echo -> 409 `terms_changed`; a changed schedule reads as unacknowledged). | No stale inbox rows; no past dates in the order; an acknowledgement means "these terms". |
+| D21 | (v1.4.1, F11 - recorded, not fixed) The reminder's thread message stays `author_kind: "user"`, `author_id: "system"`: the 0089 CHECK allows only `user | contact`, and adding `system` needs a rebuild of `ticket_rfq_messages` - deferred to the next rebuild of that table. `present_message` shows the author as "system"; no lookup fails. | A table rebuild for one label is not worth a migration now. |
 | D16 | The switch and the reminder delay are installation settings (`rfq.schedule_arrival`, `rfq.arrival_reminder_hours`), editable in Settings › ניהול השירות › כללי and through `PUT /tickets/settings` (the route had no `rfq` block before - it was added with only these two keys). | Owner: per-installation switch, default OFF. |
 
 ## 3. What was built
@@ -75,23 +80,59 @@ build into the scratch directory; `smplwise_vms/www-public` was NOT rebuilt or c
 * No bank data: the plan parser and the strict models refuse unknown keys (a test sends an `iban` key and is refused).
 * Physical access (item C) is NOT wired: the extension point does nothing.
 
-## 6. Open questions for the owner
+## 6. Owner questions - answered by the lead (2026-10-17) and still open
 
-1. **Several demands per job?** Today one payment demand exists per assignment (after the work). An advance before the work cannot be
-   demanded through the system yet - the check compares the single demand with what is due. Should each instalment become its own demand
-   (milestones), with its own approval and "paid" mark?
-2. **Late payment / overdue instalments:** should Arx remind the managers (notification) when an approved instalment's date passes
-   without a "paid" mark? Today nothing happens.
-3. **Missed arrival date:** should a vendor who did not confirm (after the two reminders) or did not arrive on the confirmed date
-   escalate (a managers' notification, a "stuck" state), and should the work order be blocked until the arrival is confirmed?
-4. **Manager changes the planned date after the award** (today: only at the award, or by accepting the vendor's proposal) - needed?
-5. **Second approver edits the schedule?** Today the second approver approves or declines it as the first approver set it.
+Answered (lead, on the owner's behalf, 2026-10-17):
+
+1. **Several demands per job** -> instalments as separate demands: YES, **LATER** (a future change; today one demand per assignment is
+   checked against what is due, with `before_completion` / `ahead_of_schedule` flags).
+2. **Overdue instalments** -> notify the managers when an approved instalment's date passes unpaid: **YES - recorded, NOT built in
+   v1.4.1.** Why not small: "paid" exists only on the single claim per assignment (`ticket_cost_claims.status = paid`), so "this
+   instalment is unpaid" has no data until instalments become separate demands (answer 1); a correct version needs a new notification
+   source (the settings matrix, labels, the `costs` audience), a janitor scan over `ticket_quotes.payment_schedule_json` with one
+   dedupe key per instalment, and a rule for partial payment. Proposed design for the follow-up: source `rfq.instalment_overdue` (alert,
+   audience `costs`, resolves), emitted by the costs janitor for each dated instalment whose date passed while the assignment's claim is
+   not `paid`; resolved by mark-paid; built together with answer 1.
+3. **Unconfirmed arrival after the two reminders** -> escalate to the managers, do NOT block the work order: **built in v1.4.1** (one
+   `rfq.arrival` row `arrival_unconfirmed`, `escalated_at`, contract 19.7). A missed arrival on the confirmed date is not detected (no
+   arrival signal exists yet; item C / the handler page would give one).
+4. **Manager changes the planned date after the award (with a timeline row)** -> YES if small: **recorded, NOT built in v1.4.1.** Why:
+   it reopens the confirmation state machine (a confirmed arrival goes back to `awaiting`, the reminders and the escalation restart, the
+   order's ticket needs its own timeline row, the vendor needs a notice with its own draft text, and an order already sent carries the
+   old window), plus a manager UI on the terms card - not small enough to add safely beside the review fixes. Proposed design: `action:
+   "reschedule"` with `{work_from, work_to?}` on the 19.6 route, timeline `arrival_rescheduled`, the 19.6 `draft` pattern for the notice,
+   the schedule hash unchanged (the acknowledgement of the payment terms stays valid; the date needs a new confirmation).
+5. **Second approver edits the schedule** -> **NO**: he confirms or declines it as the first approver set it (unchanged behaviour).
+
+Still open:
+
 6. **Arrival on the handler page:** after the work order the vendor also has the request's handler link; should the confirmation move
    there (one link) once the ticket page budget allows?
 7. **Ticket quotes (a vendor already assigned):** the schedule exists for RFQ awards only. Extend it to the quote on an assigned ticket
    (the ticket page's quote card)?
 8. **Access code (item C):** confirm the scope for the WisKey stage - which doors, which time window around the confirmed arrival, who
    approves each code.
+
+## 6a. Review fixes (v1.4.1, `pilot/RFQPAY-FIX`, review `private/planning/RELEASE_264_REVIEW_RFQPAY.md`)
+
+| Finding | Fix |
+|---------|-----|
+| F1 (P2) silence approved the vendor's proposal | D17: explicit `payment` / `payment_source`; 422 `payment` `required`; the dialog always sends the choice |
+| F2 (P2) an unfinished job counted as completed | D18: `done_at` only; `before_completion` + `completed_on` |
+| F3 stored proposal dates not re-checked | `proposal_date_passed` on `payment.items.<i>.date`; the editor opens |
+| F4 non-convertible proposal = generic error | `proposal_exceeds_total` / `proposal_zero_amount`; the editor opens on any `payment*` 422 |
+| F5 reminder query could starve newer vendors | only actionable rows in SQL (reminders < 2, spacing, award / request / vendor state), oldest wait first |
+| F6 clock started on an untold vendor | only a queued `rfq_update` on a final award (or the order's send) |
+| F7 silent rejection, spent reminders | reminders and clock reset; the `draft` notice, sent only by the manager |
+| F8 a confirmation's row stayed open | resolved at once on confirmation (and on a decision, as before) |
+| F9 accepting a past window | 409 `arrival_date_passed` |
+| F10 acknowledgement bound to nothing | `acknowledged_hash` (sha256 of the schedule), optional `schedule_hash`, 409 `terms_changed` |
+| F11 system message as `author_kind: user` | recorded (D21) - needs a table rebuild |
+
+Migration: 0105 (still PROVISIONAL, unreleased) is edited in place - two nullable columns `acknowledged_hash`, `escalated_at` on
+`ticket_rfq_award_terms`; no new migration file. A database that already ran the previous 0105 text (a developer's scratch database
+only - the branch was never released) must be recreated. No public bundle file was touched (server-side fixes only); the managers'
+screens changed (`rfq-compare.ts`, `rfq-terms.ts`, `rfq-text.ts`, `rfq-model.ts`, `api/tickets-rfq.ts`).
 
 ## 7. Rollback
 
