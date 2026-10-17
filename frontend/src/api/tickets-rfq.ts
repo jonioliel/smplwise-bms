@@ -178,8 +178,12 @@ export interface RfqAwardTerms {
   proposal: RfqPaymentProposal | null;
   arrival: { state: 'awaiting' | 'proposed' | 'confirmed'; planned_from: string | null; planned_to: string | null; proposed_from: string | null;
     proposed_to: string | null; rejected_at: string | null; confirmed_at: string | null; confirmed_by: 'vendor' | 'manager' | null;
-    acknowledged_at: string | null; requested_at: string | null; reminders: number };
+    acknowledged_at: string | null; requested_at: string | null; reminders: number;
+    /** not confirmed after the last reminder: the RFQ managers were notified (the work order is not blocked) */
+    escalated_at?: string | null };
   revision: number;
+  /** review F7: after a rejected date, the editable notice for the vendor (managers only; sent only by the manager's explicit click) */
+  draft?: RfqMessageDraft | null;
   can: { decide_arrival: boolean };
 }
 
@@ -398,8 +402,9 @@ export interface RfqQuoteBody {
 export interface RfqVendorOptionsBody { revision: number; require_code?: boolean; channel?: 'auto' | RfqChannel }
 
 export interface RfqAwardBody { quote_id: string; revision: number; line_indexes?: number[]; kinds?: LineKind[]; finalize: boolean;
-  /** CR-RFQ-PAYMENT-SCHEDULE (20.3): the manager's edit of the schedule (omitted = the vendor's proposal) and the planned arrival */
-  payment?: { items: Record<string, unknown>[] }; arrival?: { work_from: string; work_to?: string } }
+  /** CR-RFQ-PAYMENT-SCHEDULE (20.3): the manager's plan, or the explicit choice (`vendor` = the proposal as is, `default` = one final
+   * instalment) - one of the two is REQUIRED when the vendor proposed a schedule (review F1) - and the planned arrival */
+  payment?: { items: Record<string, unknown>[] }; payment_source?: 'vendor' | 'default'; arrival?: { work_from: string; work_to?: string } }
 
 /** The editable notice of an award (rfq.award_draft) - never sent by the system. */
 export interface RfqMessageDraft {

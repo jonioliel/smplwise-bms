@@ -33,9 +33,11 @@ CREATE TABLE ticket_rfq_award_terms (
   requested_at     TEXT,           -- the vendor was messaged (award notice or work order): the reminder clock starts
   reminded_at      TEXT,
   reminders        INTEGER NOT NULL DEFAULT 0 CHECK (reminders >= 0),
+  escalated_at     TEXT,           -- not confirmed after the last reminder: the RFQ managers were notified (once per clock)
   confirmed_at     TEXT,
   confirmed_by     TEXT CHECK (confirmed_by IN ('vendor', 'manager')),
   acknowledged_at  TEXT,           -- the vendor acknowledged the approved payment schedule (with the arrival date)
+  acknowledged_hash TEXT,          -- sha256 of the schedule_json he acknowledged: the acknowledgement counts only for that content
   decided_by       TEXT,
   decided_at       TEXT,
   created_at       TEXT NOT NULL,

@@ -10,7 +10,7 @@ import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
 import { ApiError } from '../api/client';
 import type { LineKind } from '../api/tickets-costs';
-import { ticketsRfqApi, type RfqAwardAnswer, type RfqCompareQuote, type RfqComparison, type RfqDetail, type RfqMessageDraft, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
+import { ticketsRfqApi, type RfqAwardAnswer, type RfqAwardBody, type RfqCompareQuote, type RfqComparison, type RfqDetail, type RfqMessageDraft, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
 import { formatMoney } from './cost-model';
 import { ct, type CostTextKey } from './cost-text';
 import { tIcon } from './icons';
@@ -146,8 +146,10 @@ export class TicketsRfqCompare extends LitElement {
     this.busy = true;
     this.error = '';
     const answers: RfqAwardAnswer[] = [];
+    let current = '';
     try {
       for (const body of splitPlan(sel)) {
+        current = body.quote_id;
         const a = await ticketsRfqApi().award(d.id, { ...body, ...this.termsBody(body.quote_id) });
         answers.push(a);
         this.d = a.rfq;
@@ -163,10 +165,20 @@ export class TicketsRfqCompare extends LitElement {
       await this.load();
     } catch (e) {
       this.error = rfqError(e);
+      this.openEditorOn(e, sel.find((s) => s.quote.quote_id === current)?.quote);
       if (answers.length) await this.load();
     } finally {
       this.busy = false;
     }
+  }
+
+  /** Review F3/F4: a refusal on the schedule (`payment*` field - a proposal that no longer fits the approved total or has a past date)
+   * opens that quote's editor prefilled with the proposal, so the manager fixes it instead of guessing. */
+  private openEditorOn(e: unknown, q: RfqCompareQuote | undefined): void {
+    const fields = e instanceof ApiError ? (e.body.details?.fields as { field?: string }[] | undefined) : undefined;
+    if (!q || !this.termsOn() || this.pays.has(q.quote_id) || !fields?.some((f) => String(f.field ?? '').startsWith('payment'))) return;
+    this.setPay(q.quote_id, payFromProposal(q.payment_proposal));
+    this.error = rt('pyInvalid');
   }
 
   // ---------------------------------------------------------------- CR-RFQ-PAYMENT-SCHEDULE: the schedule and the arrival at the award
@@ -175,12 +187,14 @@ export class TicketsRfqCompare extends LitElement {
     return !!this.meta?.schedule_arrival;
   }
 
-  /** The award body's extras: the edited schedule (only when the manager opened the editor) and the planned arrival day. */
-  private termsBody(quoteId: string): { payment?: { items: Record<string, unknown>[] }; arrival?: { work_from: string } } {
+  /** The award body's extras: the schedule as an EXPLICIT choice (review F1: the edited plan, else `payment_source: 'vendor'` when the
+   * vendor proposed one - the server refuses silence over a proposal) and the planned arrival day. */
+  private termsBody(quoteId: string): Pick<RfqAwardBody, 'payment' | 'payment_source' | 'arrival'> {
     if (!this.termsOn()) return {};
-    const out: { payment?: { items: Record<string, unknown>[] }; arrival?: { work_from: string } } = {};
+    const out: Pick<RfqAwardBody, 'payment' | 'payment_source' | 'arrival'> = {};
     const p = this.pays.get(quoteId);
     if (p) out.payment = payWire(p);
+    else if (this.c?.quotes.find((q) => q.quote_id === quoteId)?.payment_proposal) out.payment_source = 'vendor';
     const day = this.arrivals.get(quoteId);
     if (day) out.arrival = { work_from: dayToIso(day) };
     return out;

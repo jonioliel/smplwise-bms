@@ -50,6 +50,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "due_passed": ("{ref}: המועד להגשת הצעות עבר", "{place} · {quoted} מתוך {invited} הגישו הצעה"),
         "arrival_confirmed": ("{ref}: ספק אישר את מועד ההגעה ואת לוח התשלומים", "{place}"),
         "arrival_proposed": ("{ref}: ספק הציע מועד הגעה אחר", "{place} · ממתין להחלטה"),
+        "arrival_unconfirmed": ("{ref}: ספק לא אישר את מועד ההגעה", "{place} · נשלחו שתי תזכורות · הזמנת העבודה אינה נחסמת"),
     },
     "en": {
         "quote_new": ("{ref}: quote received", "{place}"),
@@ -62,6 +63,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "due_passed": ("{ref}: the quote deadline passed", "{place} · {quoted} of {invited} quoted"),
         "arrival_confirmed": ("{ref}: a vendor confirmed the arrival date and the payment schedule", "{place}"),
         "arrival_proposed": ("{ref}: a vendor proposed another arrival date", "{place} · waiting for a decision"),
+        "arrival_unconfirmed": ("{ref}: a vendor did not confirm the arrival date", "{place} · two reminders sent · the work order is not blocked"),
     },
 }
 PART_SOURCE = {"quote": "rfq.quote_received", "declined": "rfq.declined", "question": "rfq.question", "due": "rfq.due_passed",
@@ -232,11 +234,12 @@ def ended(conn: sqlite3.Connection, rfq_id: str) -> None:
 
 def arrival(conn: sqlite3.Connection, row: Mapping[str, Any], rfq_vendor_id: str, kind: str) -> str | None:
     """CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor confirmed the arrival date (and acknowledged the schedule) or proposed another date
-    (`kind` = confirmed | proposed; one row per vendor - never a date, an amount or his name)."""
+    (`kind` = confirmed | proposed), or - the janitor - did not confirm after both reminders (`unconfirmed`: escalated to the RFQ
+    managers, the work order is not blocked). One row per vendor - never a date, an amount or his name."""
     return _emit(conn, "rfq.arrival", row, f"arrival_{kind}", dedupe=f"rfq:{row['id']}:arrival:{rfq_vendor_id}",
                  origin={"rfq_vendor_id": rfq_vendor_id})
 
 
 def arrival_done(conn: sqlite3.Connection, rfq_id: str, rfq_vendor_id: str) -> None:
-    """A manager accepted / rejected the proposed date: that vendor's arrival row is over."""
+    """A manager accepted / rejected the proposed date, or the vendor confirmed (review F8): that vendor's arrival row is over."""
     resolve(conn, "rfq.arrival", f"rfq:{rfq_id}:arrival:{rfq_vendor_id}")

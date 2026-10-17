@@ -20,7 +20,8 @@ import { ticketsLang } from './text';
  * CR-RFQ-PAYMENT-SCHEDULE `<tickets-rfq-terms .rfq>` (RFQ contract section 20): per approved award with terms - the approved payment
  * schedule (amounts with tickets.costs.view, else the due rules only), where it came from (the vendor's proposal / edited at approval /
  * the default), the planned arrival, the vendor's confirmation or the date he proposed, and - for an RFQ manager - accept / reject of that
- * date. Nothing here sends a message (a manager writes to the vendor in the thread when he wants to explain a rejection). Events:
+ * date. After a rejection the server offers an editable notice (`terms.draft`); it is sent only by the manager's click on "send"
+ * (the thread + the templated `rfq_update` - review F7); nothing else here sends a message. Events:
  * `changed` (detail: RfqDetail), `notice` ({ok} | {error}).
  */
 @customElement('tickets-rfq-terms')
@@ -29,6 +30,8 @@ export class TicketsRfqTerms extends LitElement {
   @property({ attribute: false }) rfq: RfqDetail | null = null;
   @state() private busy = '';
   @state() private errors: Record<string, string> = {};
+  /** review F7: the manager's edits of each award's rejection notice */
+  @state() private drafts: Record<string, string> = {};
 
   static styles = [bubbleChrome, ...automationsStyles, rfqStyles, css`
     .tcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--sw-s-4); }
@@ -73,6 +76,29 @@ export class TicketsRfqTerms extends LitElement {
     }
   }
 
+  /** Review F7: the manager's explicit send of the rejection notice (the award-draft pattern: the thread + the templated `rfq_update`;
+   * the server restarts the reminder clock only when the notice was queued). */
+  private async sendDraft(a: RfqAward, t: RfqAwardTerms): Promise<void> {
+    const d = this.rfq;
+    const draft = t.draft;
+    if (!d || !draft || this.busy) return;
+    const text = (this.drafts[a.id] ?? draft.text).trim();
+    if (!text) return;
+    this.busy = a.id;
+    this.errors = { ...this.errors, [a.id]: '' };
+    try {
+      await ticketsRfqApi().writeMessage(d.id, a.vendor_id, text, true, draft.send.source);
+      const next = await ticketsRfqApi().get(d.id);
+      this.rfq = next;
+      this.dispatchEvent(new CustomEvent('changed', { detail: next }));
+      this.dispatchEvent(new CustomEvent('notice', { detail: { ok: rt('trmDraftSent') }, bubbles: true, composed: true }));
+    } catch (e) {
+      this.errors = { ...this.errors, [a.id]: rfqError(e) };
+    } finally {
+      this.busy = '';
+    }
+  }
+
   private card(a: RfqAward, t: RfqAwardTerms): TemplateResult {
     const name = this.vendorName(a.vendor_id);
     const key = arrivalKey(t);
@@ -96,6 +122,10 @@ export class TicketsRfqTerms extends LitElement {
       ${t.can.decide_arrival && ticketsRfqApi().decideArrival ? html`<div class="tacts">
         <button type="button" class="btn primary sm" data-arrival-accept=${a.id} ?disabled=${!!this.busy} @click=${() => void this.decide(a, t, 'accept')}>${tIcon('check')}${rt('trmAccept')}</button>
         <button type="button" class="btn sm" data-arrival-reject=${a.id} ?disabled=${!!this.busy} @click=${() => void this.decide(a, t, 'reject')}>${rt('trmReject')}</button></div>` : nothing}
+      ${t.draft ? html`<label class="fld" data-terms-draft=${a.id}>${rt('trmDraft')}
+        <textarea class="inp" rows="3" maxlength="2000" .value=${this.drafts[a.id] ?? t.draft.text}
+          @input=${(e: Event) => { this.drafts = { ...this.drafts, [a.id]: (e.target as HTMLTextAreaElement).value }; }}></textarea></label>
+        <div class="tacts"><button type="button" class="btn sm" data-terms-draft-send=${a.id} ?disabled=${!!this.busy} @click=${() => void this.sendDraft(a, t)}>${rt('trmDraftSend')}</button></div>` : nothing}
       ${err ? html`<div class="err" role="alert" data-terms-error>${err}</div>` : nothing}
     </article>`;
   }

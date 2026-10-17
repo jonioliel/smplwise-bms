@@ -392,7 +392,7 @@ export function refusalKey(code: string | undefined): string | null {
     'attachment_limit', 'attachment_total', 'attachment_locked', 'attachment_not_found', 'unsupported_format', 'heic_refused', 'payload_too_large',
     'image_invalid', 'too_many_pixels', 'pdf_invalid', 'pdf_refused', 'office_invalid', 'office_refused', 'storage_full',
     // CR-RFQ-PAYMENT-SCHEDULE
-    'terms_not_found', 'arrival_not_proposed',
+    'terms_not_found', 'arrival_not_proposed', 'arrival_date_passed',
     // RFQQUESTIONS
     'question_answered', 'message_not_found'];
   return code && known.includes(code) ? `err_${code}` : null;

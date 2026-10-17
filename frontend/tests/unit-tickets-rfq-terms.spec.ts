@@ -70,11 +70,13 @@ test('words: the proposal row, the due rules, the arrival chip, the exact sum', 
 
 test('the new texts, refusals and timeline kinds exist in Hebrew and English; no amount word leaks into the vendor-side words', () => {
   for (const k of ['trmSection', 'trm_confirmed', 'trm_proposed', 'trm_rejected', 'trm_waiting', 'trm_not_asked', 'pyRow', 'pyEdit', 'stRfqCard', 'stScheduleArrival',
-    'ev_arrival_confirmed', 'ev_terms_set', 'err_terms_not_found', 'err_arrival_not_proposed'] as const) {
+    'ev_arrival_confirmed', 'ev_terms_set', 'err_terms_not_found', 'err_arrival_not_proposed', 'err_arrival_date_passed', 'trmDraft', 'trmDraftSend',
+    'trmDraftSent'] as const) {
     expect(RFQ_TEXT_HE[k], k).toBeTruthy();
     expect(RFQ_TEXT_EN_KEYS, k).toContain(k);
   }
   expect(refusalKey('arrival_not_proposed')).toBe('err_arrival_not_proposed');
+  expect(refusalKey('arrival_date_passed')).toBe('err_arrival_date_passed'); // review F9
   for (const kind of ['terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected']) {
     expect(eventLine({ id: 1, kind, at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key).toBe(`ev_${kind}`);
   }

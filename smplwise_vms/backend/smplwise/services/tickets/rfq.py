@@ -88,6 +88,7 @@ MESSAGES = {
     # CR-RFQ-PAYMENT-SCHEDULE (contract section 20)
     "terms_not_found": "לאישור הזה אין לוח תשלומים ומועד הגעה.",
     "arrival_not_proposed": "הספק לא הציע מועד אחר שממתין להחלטה.",
+    "arrival_date_passed": "המועד שהספק הציע כבר עבר. דחו את ההצעה כדי שיציע מועד חדש.",
 }
 
 
@@ -1039,9 +1040,11 @@ def _finalize(conn, viewer: Viewer, row: Mapping[str, Any], award: Mapping[str, 
 
 
 def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, line_indexes: Sequence[int] | None,
-          kinds: Sequence[str] | None, finalize: bool, rid: str | None = None, payment: Any = None, arrival: Any = None) -> dict[str, Any]:
-    """`payment` / `arrival` (CR-RFQ-PAYMENT-SCHEDULE, switch on): the manager's edit of the vendor's proposed schedule and the planned
-    arrival window; omitted = the vendor's proposal (else one final instalment on completion) and the quote's / request's window."""
+          kinds: Sequence[str] | None, finalize: bool, rid: str | None = None, payment: Any = None, arrival: Any = None,
+          payment_source: str | None = None) -> dict[str, Any]:
+    """`payment` / `payment_source` / `arrival` (CR-RFQ-PAYMENT-SCHEDULE, switch on): the manager's plan, or his explicit choice of the
+    vendor's proposal (`vendor`) or the default single final instalment (`default`) - REQUIRED when the vendor proposed instalments
+    (review F1, `rfq_terms.prepare`) - and the planned arrival window (omitted = the quote's / request's window)."""
     now = now_utc()
     need_costs(conn, viewer, seen, "ticket.rfq.award", rid)
     row = apply_due(conn, dict(seen.row), now)
@@ -1066,7 +1069,8 @@ def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, 
     threshold = store_rfq.department_threshold(conn, row["department_id"])
     second = bool(threshold is not None and c.total_minor > threshold and second_approvers(conn, row, viewer.uid, q))
     try:  # every refusal of the schedule / arrival before the first write
-        terms = rfq_terms.prepare(conn, row, q, total_minor=c.total_minor, currency=q["currency"], payment=payment, arrival=arrival, now=now)
+        terms = rfq_terms.prepare(conn, row, q, total_minor=c.total_minor, currency=q["currency"], payment=payment, arrival=arrival, now=now,
+                                  payment_source=payment_source)
     except CostRefused as exc:
         raise invalid(conn, exc.field or "payment", exc.code) from None
     at = iso(now)
@@ -1221,8 +1225,10 @@ def write_message(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body:
             raise invalid(conn, "source.id", "not_found")
     kind = (source or {}).get("kind") or "clarify"
     mid, notified = store_out_message(conn, viewer, seen, v, msg, notify, now, source_kind=kind, source_id=(source or {}).get("id"))
-    if kind == "award":
-        rfq_terms.requested(conn, (source or {}).get("id"), via="award", now=now)  # CR-RFQ-PAYMENT-SCHEDULE: the confirmation clock starts
+    if kind == "award" and notified["queued"]:
+        # CR-RFQ-PAYMENT-SCHEDULE: the confirmation clock starts only when the vendor was actually told (review F6: not with notify=false,
+        # no live link or a manual channel; `requested` also refuses a pending second approval)
+        rfq_terms.requested(conn, (source or {}).get("id"), via="award", now=now)
     if kind == "clarify":  # RFQQUESTIONS: a clarification to the vendor answers his open questions (the TKRFQ5 rule, now stored)
         store_rfq.answer_questions(conn, [q["id"] for q in store_rfq.pending_questions(conn, seen.row["id"]) if q["rfq_vendor_id"] == v["id"]],
                                    by=viewer.uid, at=iso(now), answer_id=mid)

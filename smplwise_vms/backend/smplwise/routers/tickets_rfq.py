@@ -497,7 +497,10 @@ class AwardBody(BaseModel):
     line_indexes: list[int] | None = Field(default=None, max_length=30)
     kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)
     finalize: bool = True
-    payment: PaymentBody | None = None  # CR-RFQ-PAYMENT-SCHEDULE: the manager's edit of the schedule (omitted = the vendor's proposal)
+    payment: PaymentBody | None = None  # CR-RFQ-PAYMENT-SCHEDULE: the manager's plan (contract 20.3)
+    # review F1: the explicit choice when no plan is sent - "vendor" = the proposal as is, "default" = one final instalment; with a
+    # vendor proposal one of payment / payment_source is REQUIRED (422 `payment` `required`)
+    payment_source: Literal["vendor", "default"] | None = None
     arrival: ArrivalWindow | None = None  # the planned arrival window (omitted = the quote's / request's window)
 
 
@@ -517,7 +520,7 @@ def post_award(body: AwardBody, request: Request, rfq_id: str = Path(..., patter
     seen = rfq.require_visible(viewer, rfq_id)
     res = rfq.award(conn, viewer, seen, quote_id=body.quote_id, revision=body.revision, line_indexes=body.line_indexes, kinds=body.kinds,
                     finalize=body.finalize, rid=_rid(request), payment=body.payment.model_dump() if body.payment else None,
-                    arrival=body.arrival.model_dump() if body.arrival else None)
+                    arrival=body.arrival.model_dump() if body.arrival else None, payment_source=body.payment_source)
     return _award_answer(conn, viewer, rfq_id, res)
 
 
