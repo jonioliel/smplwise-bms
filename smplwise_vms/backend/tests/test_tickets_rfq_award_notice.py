@@ -420,3 +420,69 @@ def test_close_ends_the_notice_and_the_purge_removes_it(s4):
     assert postpone(c, tok).status_code == 409  # the read-only grace: no write (409 read_only)
     assert s4.c.delete(f"{API}/tickets/rfqs/{d['id']}", headers=s4.h("joni")).status_code in (200, 204)
     assert rows(s4, "SELECT id FROM ticket_rfq_postponements") == []
+
+
+# ================================================================ the "late" tag (owner decision 2026-10-17: a visible tag only, never a block)
+
+def late_hours(s4, value) -> int:
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    return s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"postpone_late_hours": value}}).status_code
+
+
+@pytest.mark.parametrize("lead, hours, late", [
+    (None, 24, False),             # nothing was scheduled: never late
+    (-1, 0, True),                 # after the start, even with 0
+    (0, 0, False),                 # exactly at the start with 0: not after it
+    (0, 24, True),
+    (24 * 3600 - 1, 24, True),     # one second short of the threshold
+    (24 * 3600, 24, False),        # exactly the threshold: in time
+    (10 * 24 * 3600, 720, True),
+])
+def test_the_late_rule_edges(lead, hours, late):
+    assert rfq_postpone.is_late(lead, hours) is late
+
+
+def test_the_late_setting_is_validated(s4):
+    assert s4.c.get(f"{API}/tickets/settings").json()["rfq"]["postpone_late_hours"] == 24
+    for bad in (-1, 721, "24", 2.5, True):
+        assert late_hours(s4, bad) == 422, bad
+    assert late_hours(s4, 0) == 200 and late_hours(s4, 720) == 200
+
+
+def _late_flow(s4, hours: int, *, past_start: bool = False):
+    switch(s4)
+    assert late_hours(s4, hours) == 200
+    d, v1, tok, c, b = awarded(s4)  # the planned arrival = the quote's work_from, 6 days ahead (144 h)
+    if past_start:
+        with s4.db.connection() as conn:
+            store_rfq.update_terms(conn, b["award"]["id"], {"planned_from": _at(-0.5)})
+    r = postpone(c, tok)
+    assert r.status_code == 200, r.text  # never a block
+    assert "late" not in json.dumps(r.json()) and "late" not in json.dumps(view(c, tok)["binding"])  # the vendor never sees the tag
+    p = rows(s4, "SELECT late FROM ticket_rfq_postponements")[0]
+    n = rows(s4, "SELECT body FROM notifications WHERE source = 'rfq.vendor_postponement'")[0]
+    ev = events(s4, d["id"], "vendor_postponement")[0]
+    block = detail(s4, d["id"], "kim")["awards"][0]["postponement"]["open"]
+    return bool(p["late"]), n["body"], ev["data"]["late"], block["late"]
+
+
+def test_in_time_notice_is_not_tagged(s4):
+    late, body, ev_late, block_late = _late_flow(s4, 24)
+    assert (late, ev_late, block_late) == (False, False, False) and "באיחור" not in body
+
+
+def test_a_notice_inside_the_threshold_is_tagged_everywhere_as_a_plain_word(s4):
+    late, body, ev_late, block_late = _late_flow(s4, 200)
+    assert (late, ev_late, block_late) == (True, True, True)
+    assert body.endswith(" · באיחור") and not any(ch.isdigit() for ch in body.replace("קומה 3", ""))  # content-free otherwise
+
+
+def test_zero_tags_only_a_notice_after_the_start(s4):
+    late, body, *_ = _late_flow(s4, 0)
+    assert late is False and "באיחור" not in body
+
+
+def test_after_the_scheduled_start_is_late_even_with_zero(s4):
+    late, body, ev_late, block_late = _late_flow(s4, 0, past_start=True)
+    assert (late, ev_late, block_late) == (True, True, True) and "באיחור" in body
+

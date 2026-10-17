@@ -184,6 +184,7 @@ class RfqPatch(BaseModel):
     arrival_reminder_hours: StrictInt | None = None  # settings_doc validates the range (0-168)
     instalment_reminder_hours: StrictInt | None = None  # RFQPAY2: hours between overdue-instalment reminders (0 = once; settings_doc: 0-168)
     award_notice: Literal["confirm", "auto", "off"] | None = None  # CR-AWARD-NOTICE: the award notice to the vendor (default confirm)
+    postpone_late_hours: StrictInt | None = None  # CR-AWARD-NOTICE: the "late" tag of a postponement notice (settings_doc: 0-720)
     attachments: RfqAttachmentsPatch | None = None  # RFQATT review 2.6.4: rfq.attachments.allow_office
     vendor_uploads: RfqVendorUploadsPatch | None = None  # RFQ-VENDOR-UPLOAD: rfq.vendor_uploads.enabled
 

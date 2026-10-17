@@ -53,6 +53,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_unconfirmed": ("{ref}: ספק לא אישר את מועד ההגעה", "{place} · נשלחו שתי תזכורות · הזמנת העבודה אינה נחסמת"),
         "instalment_overdue": ("{ref}: מועד תשלום לספק עבר", "{place} · {count} תשלומים שמועדם עבר ולא סומנו כשולמו"),
         "vendor_postponement": ("{ref}: ספק הודיע על דחיית העבודה", "{place}"),
+        "vendor_postponement_late": ("{ref}: ספק הודיע על דחיית העבודה", "{place} · באיחור"),
     },
     "en": {
         "quote_new": ("{ref}: quote received", "{place}"),
@@ -68,6 +69,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_unconfirmed": ("{ref}: a vendor did not confirm the arrival date", "{place} · two reminders sent · the work order is not blocked"),
         "instalment_overdue": ("{ref}: a vendor payment is past its date", "{place} · {count} instalments past their date and not marked paid"),
         "vendor_postponement": ("{ref}: a vendor gave notice of postponing the work", "{place}"),
+        "vendor_postponement_late": ("{ref}: a vendor gave notice of postponing the work", "{place} · late"),
     },
 }
 # RFQPAY2: the overdue-instalment rows are keyed OUTSIDE `rfq:<id>:` (`rfqpay:<rfq_id>:<award_id>`) - a later final award or the close of
@@ -283,10 +285,11 @@ def payments_ended(conn: sqlite3.Connection, rfq_id: str) -> None:
         resolve(conn, "rfq.instalment_overdue", key)
 
 
-def postponement(conn: sqlite3.Connection, row: Mapping[str, Any], award_id: str, rfq_vendor_id: str) -> str | None:
+def postponement(conn: sqlite3.Connection, row: Mapping[str, Any], award_id: str, rfq_vendor_id: str, *, late: bool = False) -> str | None:
     """CR-AWARD-NOTICE (contract 20.17): the awarded vendor gave notice, through his link, that he postpones the work. One row per award;
-    the text is the reference and the place only - never the proposed date, the reason, the lead time or his name."""
-    return _emit(conn, "rfq.vendor_postponement", row, "vendor_postponement", dedupe=f"{POST_PREFIX}:{row['id']}:{award_id}",
+    the text is the reference and the place only (+ the plain word "late" when it was given late - owner decision 2026-10-17) - never the
+    proposed date, the reason, the lead time or his name."""
+    return _emit(conn, "rfq.vendor_postponement", row, "vendor_postponement_late" if late else "vendor_postponement", dedupe=f"{POST_PREFIX}:{row['id']}:{award_id}",
                  origin={"rfq_vendor_id": rfq_vendor_id, "award_id": award_id})
 
 

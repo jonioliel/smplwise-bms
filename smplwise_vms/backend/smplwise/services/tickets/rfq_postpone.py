@@ -34,6 +34,20 @@ OPEN_RFQ = ("awarded", "ordered")
 SHOWN = 10  # the managers' detail lists the latest notices of an award
 
 
+def late_hours(conn) -> int:
+    from . import settings_doc
+
+    return int(settings_doc.read(conn)["rfq"].get("postpone_late_hours", 24))
+
+
+def is_late(lead_seconds: int | None, hours: int) -> bool:
+    """Owner decision 2026-10-17: late = given after the scheduled start, or less than `hours` before it (0 = only after the start).
+    No scheduled date = never late. A visible tag for the managers only - never a block, never shown to the vendor."""
+    if lead_seconds is None:
+        return False
+    return lead_seconds < 0 or lead_seconds < int(hours) * 3600
+
+
 def _approved(conn, row: Mapping[str, Any], v: Mapping[str, Any]) -> dict[str, Any] | None:
     return next((a for a in store_rfq.awards_of(conn, row["id"]) if a["rfq_vendor_id"] == v["id"] and a["state"] == "approved"), None)
 
@@ -119,16 +133,17 @@ def vendor_postpone(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) 
     sf, _st = scheduled(conn, row, a)
     start = parse(sf) if sf else None
     lead = int((start - now).total_seconds()) if start is not None else None
+    late = is_late(lead, late_hours(conn))
     pid = store_rfq.insert_postponement(conn, {
         "rfq_id": row["id"], "award_id": a["id"], "rfq_vendor_id": v["id"], "link_id": link.link_id, "proposed_from": wf, "proposed_to": wt,
-        "reason": reason, "scheduled_from": sf, "lead_seconds": lead, "created_at": at, "state": "open"})
+        "reason": reason, "scheduled_from": sf, "lead_seconds": lead, "late": 1 if late else 0, "created_at": at, "state": "open"})
     store_rfq.update_rfq(conn, row["id"], {"updated_at": at})  # the managers' copies go stale
     store_rfq.insert_event(conn, row["id"], "vendor_postponement", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
                            data={"award_id": a["id"], "postponement_id": pid, "proposed_from": wf, "proposed_to": wt, "scheduled_from": sf,
-                                 "lead_seconds": lead}, at=at)
+                                 "lead_seconds": lead, "late": late}, at=at)
     _audit(conn, link, "ticket.rfq.vendor_postponement", row, vendor_id=v["id"], award_id=a["id"], postponement_id=pid,
-           lead_seconds=lead, has_scheduled=sf is not None)  # ids and numbers only - never the reason
-    rfq_notify.postponement(conn, row, a["id"], v["id"])
+           lead_seconds=lead, late=late, has_scheduled=sf is not None)  # ids and numbers only - never the reason
+    rfq_notify.postponement(conn, row, a["id"], v["id"], late=late)
     return vendor_block(conn, row, store_rfq.vendor(conn, v["id"]) or v, read_only=False) or {}
 
 
@@ -182,7 +197,7 @@ def present(conn, viewer: Any, seen: Any, award: Mapping[str, Any]) -> dict[str,
         return None
     manager = rfq.is_manager(viewer, seen)
     items = [{"id": p["id"], "proposed_from": p["proposed_from"], "proposed_to": p.get("proposed_to"), "reason": p["reason"],
-              "scheduled_from": p.get("scheduled_from"), "lead_seconds": p.get("lead_seconds"), "at": p["created_at"], "state": p["state"],
+              "scheduled_from": p.get("scheduled_from"), "lead_seconds": p.get("lead_seconds"), "late": bool(p.get("late")), "at": p["created_at"], "state": p["state"],
               "resolved_at": p.get("resolved_at"), "resolved_by": store.display_name(conn, p.get("resolved_by")) if p.get("resolved_by") else None}
              for p in rows[-SHOWN:]]
     open_ = next((x for x in items if x["state"] == "open"), None)

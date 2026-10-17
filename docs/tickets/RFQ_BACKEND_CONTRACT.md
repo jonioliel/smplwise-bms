@@ -80,7 +80,15 @@ Why a table of its own: `ticket_links.ticket_id` and `assignment_id` are NOT NUL
 rebuild of `ticket_links` would cascade into its five child tables. One link per invited vendor (`rfq_vendor_id` UNIQUE).
 
 Life of a link: minted at the first send (not before); `expires_at = max(due_at, now) + rfq.link_keep_days` (default 30), `cap_at =
-now + 180 days`; a later `due_at` moves `expires_at` with it. Revoked at once: vendor removed (`removed`), manager revoke (`manual`),
+now + 180 days`; a later `due_at` moves `expires_at` with it. **The awarded vendor (v1.6, CR-AWARD-NOTICE, owner decision 2026-10-17 -
+option A):** while the request is `awarded` / `ordered` and his row `awarded`, HIS link lives until the end of the work + 14 days (the
+end of the scheduled window - the terms' planned arrival, else the work order's window, else the awarded quote's / the request's window -
+or, once the order's request is marked done, `done_at` + 14 days), never shorter than the ordinary rule and never past `created_at` +
+400 days (`rfq_links.AWARD_CAP_DAYS`; `cap_at` is raised with it, up to that hard cap). No new data: his link's `expires_at` / `cap_at` are
+recomputed at the final award, the work order's creation, an arrival move and by the janitor (`rfq.retention` -> `sync_all_awarded`, every
+10 min - a re-sent order's window or a job marked done is followed within one pass). Every other vendor's link is never touched; a close /
+cancel keeps its read-only grace, which ends the access whatever the expiry says; the uniform 404 rules are unchanged; nothing is audited
+(no actor - a lifetime rule). Revoked at once: vendor removed (`removed`), manager revoke (`manual`),
 a new generation (`resent`), key rotation (`module_key`), a phone / e-mail change of the contact (`contact_changed`), erase
 (`contact_erased`). On close / cancel: read-only grace (`grace_until = now + rfq.grace_hours`, default 24). Key rotation and the
 "does any row depend on a key" check include RFQ links. Link rows are deleted 30 days after the RFQ closed (spec section 6).
@@ -259,7 +267,7 @@ arithmetic only (money.py); a quote in another currency is shown and never ranke
 ## 13. Settings (`tickets.settings`, section `rfq`)
 
 `default_due_days` (1-60, default 3), `grace_hours` (0-168, 24), `link_keep_days` (1-365, 30), `retention_months` (6-120, 24),
-`reminder_hours` (0-168, 24 - C2's automatic reminder; 0 = off), `award_notice` (`confirm` | `auto` | `off`, default `confirm` - 20.16), `instalment_reminder_hours` (0-168, 24 - RFQPAY2 20.12: hours between
+`reminder_hours` (0-168, 24 - C2's automatic reminder; 0 = off), `award_notice` (`confirm` | `auto` | `off`, default `confirm` - 20.16), `postpone_late_hours` (0-720, 24 - 20.17), `instalment_reminder_hours` (0-168, 24 - RFQPAY2 20.12: hours between
 two overdue-instalment reminders of one award; 0 = once only). Department: `rfq_second_approval_minor` (section 7). The allowed line
 kinds default is DETAIL's (`costs.allowed_line_kinds` <- department <- the RFQ).
 
@@ -1200,7 +1208,7 @@ itself.**
 
 * **Migration 0115** (provisional; the lead renumbers at integration), additive: `ticket_rfq_postponements` (`id, rfq_id, award_id,
   rfq_vendor_id, link_id, proposed_from, proposed_to, reason, scheduled_from, lead_seconds, created_at, state open | acknowledged |
-  rescheduled | ended, resolved_at, resolved_by`), a partial UNIQUE index = one OPEN notice per award. Purged with the request
+  rescheduled | ended, resolved_at, resolved_by, late`), a partial UNIQUE index = one OPEN notice per award. Purged with the request
   (`store_rfq.purge_rfq` deletes it explicitly).
 * **The vendor's write** - `POST /t/api/rfq/arrival` `{action: "postpone", work_from, work_to?, reason, client_request_id}` (the arrival
   route of 20.5, i.e. the vendor's work-order / arrival page; edge kind `token_write`: the per-token write budget, spent only by a stored
@@ -1215,10 +1223,16 @@ itself.**
   Answer `200 {ok, binding}` (below).
 * **What is recorded**: the notice time, the proposed window, the reason, the date that was scheduled then (`scheduled_from`: the terms'
   planned arrival, else the work order's window incl. a re-send, else the awarded quote's / the request's window) and how far in advance
-  it was given: `lead_seconds = scheduled_from - created_at` (negative = after the scheduled start; NULL when nothing was scheduled). A
-  fact, no judgement - nothing is flagged as late (open owner question).
+  it was given: `lead_seconds = scheduled_from - created_at` (negative = after the scheduled start; NULL when nothing was scheduled).
+* **The "late" tag** (owner decision 2026-10-17 - a visible tag only, never a block): installation setting `rfq.postpone_late_hours`
+  (StrictInt 0-720, default 24; `PUT /tickets/settings {rfq: {postpone_late_hours}}`; out of range / not an integer 422). A notice is
+  `late` when `lead_seconds < 0` (given after the scheduled start) or `lead_seconds < hours x 3600`; 0 = tagged only after the start; no
+  scheduled date = never late. Frozen at notice time (`ticket_rfq_postponements.late`, migration 0115 edited in place - unreleased): a later
+  settings change does not re-tag old notices. Shown to the managers only: `awards[].postponement.items[].late` (the banner's "באיחור" chip),
+  the timeline row's `data.late`, the audit row's `late` and the notification body's plain word (`{place} · באיחור` / `late`) - the
+  notification stays content-free otherwise. The vendor's answers never carry it.
 * **Effects**: the RFQ timeline row `vendor_postponement` (`{award_id, postponement_id, proposed_from, proposed_to, scheduled_from,
-  lead_seconds}` - never the reason); audit `ticket.rfq.vendor_postponement` (actor `contact:<id>`, ids, `lead_seconds`, `has_scheduled` -
+  lead_seconds, late}` - never the reason); audit `ticket.rfq.vendor_postponement` (actor `contact:<id>`, ids, `lead_seconds`, `late`, `has_scheduled` -
   never the reason); the notification source **`rfq.vendor_postponement`** ("ספק הודיע על דחיית העבודה" / "Vendor gave notice of
   postponing the work"; alert, subject `rfq`, rule `rfq_managers`, inbox + push, WhatsApp off by default like every source; one row per
   award, dedupe `rfqpost:<rfq_id>:<award_id>` - outside `rfq:<id>:` so a later award of a split request does not silence it); text: the
@@ -1321,7 +1335,9 @@ hours - never the text or the vendor. The engine applies each recipient's channe
   `rfq.award_notice` (confirm default / auto / off), the preview route, `award_notice` on the award / confirm bodies and answers, the later
   send route, `awards[].notice`, `meta.award_notice`; 20.17 the vendor's postponement notice (`POST /t/api/rfq/arrival` `action: postpone`),
   table `ticket_rfq_postponements`, the notification source `rfq.vendor_postponement`, `awards[].postponement`, the acknowledge route, the
-  20.14 move closes the notice; 15.3 / 15.5 `binding`. Sections 7 / 8 / 18 "an award never sends a message by itself" is kept: in `confirm`
+  20.14 move closes the notice; 15.3 / 15.5 `binding`. Third commit (owner decision 2026-10-17, option A): section 4 - the awarded
+  vendor's link lives until the work's end + 14 days (hard cap 400 days from the mint; no new data). Second commit (owner decision 2026-10-17): the "late" tag of a postponement
+  notice (`rfq.postpone_late_hours`, `late` on the row / timeline / audit / detail, the notification's plain word). Sections 7 / 8 / 18 "an award never sends a message by itself" is kept: in `confirm`
   the manager's tick IS the explicit act; `auto` is an administrator's explicit installation choice. **A Fable review of the public surface
   is required before release.**
 

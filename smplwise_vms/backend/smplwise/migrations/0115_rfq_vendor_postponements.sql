@@ -18,7 +18,9 @@ CREATE TABLE ticket_rfq_postponements (
   reason          TEXT NOT NULL,                       -- <= 500 characters after text hygiene; never in a log, audit row or notification
   scheduled_from  TEXT,                                -- the date that was scheduled when he gave notice (NULL: none was known)
   lead_seconds    INTEGER,                             -- scheduled_from - created_at (negative = given after the scheduled start);
-                                                       -- recorded as a fact, no judgement (NULL when no date was scheduled)
+                                                       -- recorded as a fact (NULL when no date was scheduled)
+  late            INTEGER NOT NULL DEFAULT 0 CHECK (late IN (0, 1)),  -- owner decision 2026-10-17: given after the scheduled start or
+                                                       -- less than `rfq.postpone_late_hours` before it (frozen at notice time); a tag, never a block
   created_at      TEXT NOT NULL,                       -- when the notice was given
   state           TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'acknowledged', 'rescheduled', 'ended')),
   resolved_at     TEXT,

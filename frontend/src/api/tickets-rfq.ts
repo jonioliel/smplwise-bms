@@ -427,6 +427,8 @@ export interface RfqAwardNoticeResult { queued: boolean; already: boolean; chann
 /** One postponement notice of the awarded vendor (contract 20.17) - the lead time is stored as given, no judgement. */
 export interface RfqPostponement {
   id: string; proposed_from: string; proposed_to: string | null; reason: string; scheduled_from: string | null; lead_seconds: number | null;
+  /** owner decision 2026-10-17: given after the scheduled start or less than `rfq.postpone_late_hours` before it - a tag, never a block */
+  late: boolean;
   at: string; state: 'open' | 'acknowledged' | 'rescheduled' | 'ended'; resolved_at: string | null; resolved_by: string | null;
 }
 export interface RfqPostponementBlock { open: RfqPostponement | null; items: RfqPostponement[]; count: number; can: { acknowledge: boolean } }

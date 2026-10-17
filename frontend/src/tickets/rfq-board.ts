@@ -303,7 +303,7 @@ export class TicketsRfqBoard extends LitElement {
     const h = lead === null ? 0 : Math.round(Math.abs(lead) / 3600);
     const api = ticketsRfqApi();
     return html`<div class="banner warn" role="status" data-rfq-postponement=${p.id}>${tIcon('clock')}
-      <div><b>${rt('ppTitle')} · ${this.vendorName(a.vendor_id)}</b>
+      <div><b>${rt('ppTitle')} · ${this.vendorName(a.vendor_id)}</b>${p.late ? html` <span class="chip warn" title=${rt('ppLateTitle')} data-rfq-postponement-late>${rt('ppLate')}</span>` : nothing}
         <small>${rt('ppProposed', { date: windowText(p.proposed_from, p.proposed_to) })}</small>
         ${p.scheduled_from ? html`<small>${rt('ppScheduled', { date: windowText(p.scheduled_from, null) })}</small>` : nothing}
         ${lead !== null ? html`<small data-rfq-postponement-lead=${lead}>${rt(lead >= 0 ? 'ppLeadBefore' : 'ppLeadAfter', { h })}</small>` : nothing}

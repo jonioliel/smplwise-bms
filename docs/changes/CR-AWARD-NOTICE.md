@@ -44,8 +44,11 @@ responsibility to notify IN ADVANCE, through the link, if he postpones the work.
    `rfq.vendor_postponement`, content-free: the reference and the place only) and the timeline records it. A manager moves the date through
    the existing route 20.14 (which can notify the vendor and re-send the work order) - that closes the notice - or acknowledges it without a
    date change (needed when the payment-schedule switch is off, where 20.14 does not exist).
-9. **Lead time recorded as a fact**: `lead_seconds` = the scheduled start - the notice time (negative = given after the start). No
-   judgement, no "late" flag (open question 1).
+9. **Lead time recorded as a fact** - `lead_seconds` = the scheduled start - the notice time (negative = given after the start) - and,
+   **owner decision 2026-10-17 (question 1)**, a notice is tagged **"late"** for the managers (a visible tag only, never a block) when it
+   was given after the scheduled start or less than `rfq.postpone_late_hours` (default 24, 0-720; 0 = only after the start) before it. The
+   tag is frozen at notice time and shown on the postponement banner, the timeline row and as a plain word in the notification body
+   (content-free otherwise); the vendor never sees it. Setting field in Settings (he / en).
 10. **Limits on the public write**: only HIS approved award, after the award is final and before the work is done (the order's request has
    no `done_at`); one OPEN notice per award (DB partial unique index + 409 `postponement_open`); at most 10 per award in its life; the edge's
    per-token write budget (`token_write`, spent only by a stored effect); the link re-read inside the transaction; the uniform 404 for a bad
@@ -75,18 +78,19 @@ invalid input, foreign fields, replay, second open notice, the write budget, the
 the frontend `tsc` and node-only unit specs. Not run here: Playwright evidence / screenshots, the add-on build and its bundle-budget test
 (the runner was busy with a release gate) - the chunk deltas above are esbuild measurements, not the built bundle.
 
-## Open questions for the owner
+## Owner answers (2026-10-17, through the coordinator)
 
-1. **Late notices**: should a notice given less than N hours before the scheduled start (or after it) be flagged to the managers (a
-   stronger notification, a chip, a report)? Built: the lead time is stored and shown, nothing is judged.
-2. **Default mode**: `confirm` (the tick, ON by default) keeps "an award never sends silently". Should new installations default to `auto`?
-3. **auto and the opt-out**: in `auto` an explicit `award_notice: false` skips one award (the dialog shows "do not send this time"). Keep it,
-   or make `auto` absolute?
-4. **Link lifetime**: the vendor's RFQ link expires `rfq.link_keep_days` (default 30) after the quote deadline; a job scheduled later than
-   that leaves him without the page to give notice (the same limit applies to the arrival confirmation of 20.5). Extend the awarded
-   vendor's link to the work window, or move the notice to the work order's handler page?
-5. **Second approval**: should the second approver always be shown the notice block (built: his confirm uses the first approver's tick
-   unless he sends `award_notice`), or should the notice wait for an explicit tick from him?
-6. **Native review** of the ar / ru texts (the WhatsApp variant and the page sentence).
-7. **The postponement while the payment-schedule switch is off**: the manager can only acknowledge (there is no arrival date route); should
-   an acknowledged notice also move the work order's window / offer a re-send of the order?
+1. Late notices: YES - flagged as a visible tag only (decision 9, second commit).
+2. Default mode: keep `confirm`.
+3. auto: keep the per-award opt-out.
+5. The second approver does not need an explicit tick (the first approver's tick is carried).
+6. ar / ru stay developer-marked.
+7. Acknowledge-only while the payment-schedule switch is off: fine.
+
+4. Link lifetime: **option A** - the awarded vendor's RFQ link lives until the end of the work + 14 days (third commit; contract
+   section 4): the scheduled window's end (terms / work order / quote / request), or `done_at` + 14 days once the work is marked done;
+   never shorter than the ordinary rule, never past 400 days from the link's mint (hard cap chosen here: above the 366-day work horizon +
+   14 days, so a legitimate window always fits); only his link, only while the request is awarded / ordered; a close / cancel keeps its
+   read-only grace; no new data, no audit (recomputed at the award, the order, an arrival move and by the janitor every 10 minutes).
+
+No open owner question remains on this CR.

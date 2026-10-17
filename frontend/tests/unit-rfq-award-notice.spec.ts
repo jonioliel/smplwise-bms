@@ -55,3 +55,13 @@ test('the vendor page shows the server\'s sentence (no copy in the page bundle) 
   expect(terms).not.toMatch(/innerHTML|insertAdjacentHTML/);
   expect(terms).not.toMatch(/מחייבת|and binding/); // the sentence lives on the server (rfq_award_notice.PAGE_TEXT)
 });
+
+test('owner 2026-10-17: a late postponement notice reads as a tag on the timeline; the words exist in Hebrew and English', () => {
+  for (const k of ['ev_vendor_postponement_late', 'ppLate', 'ppLateTitle']) {
+    expect(Object.keys(RFQ_TEXT_HE)).toContain(k);
+    expect(RFQ_TEXT_EN_KEYS).toContain(k);
+  }
+  const ev = (data: Record<string, unknown>): RfqEvent => ({ id: 2, kind: 'vendor_postponement', at: '2026-11-01T08:00:00Z', vendor_id: 'v1', actor: { kind: 'contact', name: '' }, data } as RfqEvent);
+  expect(eventLine(ev({ late: true }), () => 'x', () => '').key).toBe('ev_vendor_postponement_late');
+  expect(eventLine(ev({ late: false }), () => 'x', () => '').key).toBe('ev_vendor_postponement');
+});

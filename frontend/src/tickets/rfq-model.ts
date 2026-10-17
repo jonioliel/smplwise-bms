@@ -272,6 +272,7 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
   const vars = { vendor, actor, amount };
   if (e.kind === 'quote_submitted' && amount) return { key: 'ev_quote_submitted_amount', vars };
   if (e.kind === 'awarded' && amount) return { key: 'ev_awarded_amount', vars };
+  if (e.kind === 'vendor_postponement' && e.data.late === true) return { key: 'ev_vendor_postponement_late', vars }; // owner 2026-10-17: the late tag
   if (e.kind === 'award_notice' && e.data.queued !== true) return { key: 'ev_award_notice_failed', vars }; // CR-AWARD-NOTICE: the vendor could not be reached
   const known = ['created', 'edited', 'vendor_added', 'vendor_removed', 'sent', 'reminder', 'quote_submitted', 'quote_withdrawn', 'declined', 'link_revoked', 'message',
     'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',

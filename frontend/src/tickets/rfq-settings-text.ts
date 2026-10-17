@@ -16,6 +16,8 @@ const he = {
   anMode_confirm: 'באישור המנהל (ברירת מחדל)',
   anMode_auto: 'אוטומטית עם כל אישור',
   anMode_off: 'לא לשלוח',
+  ppLateHours: 'הודעת דחייה "באיחור"',
+  ppLateHoursSub: 'הודעה שנמסרה פחות משעות אלה לפני המועד המתוכנן (או אחריו) מסומנת "באיחור" למנהלים. 0 = רק אחרי תחילת המועד. סימון בלבד, לא חסימה',
 } as const;
 
 const en: Record<keyof typeof he, string> = {
@@ -28,6 +30,8 @@ const en: Record<keyof typeof he, string> = {
   anMode_confirm: 'When the manager confirms (default)',
   anMode_auto: 'Automatically with every approval',
   anMode_off: 'Do not send',
+  ppLateHours: '"Late" postponement notice',
+  ppLateHoursSub: 'A notice given less than this many hours before the scheduled date (or after it) is tagged "late" for the managers. 0 = only after the start. A tag only, never a block',
 };
 
 export function qst(key: keyof typeof he): string {
