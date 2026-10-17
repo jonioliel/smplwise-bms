@@ -44,6 +44,10 @@ class FakeStore:
         return self.items.get((kind, item_id))
 
 
+COVER_CLASSES = {"cover.blinds": "blind", "cover.garage": "garage", "cover.gate": "gate", "cover.front_door": "door", "cover.shutter": "shutter",
+                 "cover.unknown_class": None}
+
+
 def _deps(items: dict[str, tuple[str, object]], *, platform_override: dict[str, str] | None = None, broken: bool = False, policy=POLICY):
     """items: entity id -> (unique id, config). The registry platform follows the domain (script / automation / scene=homeassistant)."""
     plat = {"script": "script", "automation": "automation", "scene": "homeassistant"}
@@ -54,7 +58,12 @@ def _deps(items: dict[str, tuple[str, object]], *, platform_override: dict[str, 
     async def run_io(_hass, fn):
         return fn()
 
-    return SimpleNamespace(registry=lambda _h: registry, store=lambda _h: store, run_io=run_io, POLICY_CONTROL=policy)
+    def attributes(entity_id):  # Home Assistant's state attributes (only covers matter); an entity without a state answers None
+        if entity_id not in COVER_CLASSES:
+            return None
+        return {"device_class": COVER_CLASSES[entity_id]} if COVER_CLASSES[entity_id] else {}
+
+    return SimpleNamespace(registry=lambda _h: registry, store=lambda _h: store, run_io=run_io, POLICY_CONTROL=policy, attributes=attributes)
 
 
 def _user(denied: set[str] = frozenset(), *, admin=False, raises=False, no_api=False):
@@ -79,8 +88,10 @@ def _svc(action: str, *targets: str, **extra) -> dict:
     return step
 
 
-def _impact(entity_id: str, items: dict, user=None, **deps_kw) -> str | None:
-    return asyncio.run(rn.impact_refusal(None, _deps(items, **deps_kw), user or _user(), entity_id))
+def _impact(entity_id: str, items: dict, user=None, runnable=None, **deps_kw) -> str | None:
+    """`runnable`: the allowlist; by default every item of the test is on it (so a nested call is judged on its steps)."""
+    listed = frozenset(items) if runnable is None else frozenset(runnable)
+    return asyncio.run(rn.impact_refusal(None, _deps(items, **deps_kw), user or _user(), entity_id, runnable=listed))
 
 
 SAFE = _script(_svc("light.turn_on", "light.hall"), {"delay": "00:00:05"}, _svc("switch.turn_off", "switch.fan"))
@@ -142,13 +153,32 @@ def test_a_second_nesting_level_is_refused():
 
 
 @pytest.mark.parametrize("step,code", [
-    (_svc("notify.mobile_app_phone", message="hi"), "impact_service_not_allowed"),
+    # owner 2026-10-18: notify only with literal content - a template anywhere refuses the step
+    ({"action": "notify.mobile_app_phone", "data": {"message": "{{ states('lock.front') }}"}}, "impact_template"),
+    ({"action": "notify.mobile_app_phone", "data": {"message": "hi", "title": "{% if x %}a{% endif %}"}}, "impact_template"),
+    ({"action": "notify.mobile_app_phone", "data": {"message": "hi", "data": {"url": "{{ x }}"}}}, "impact_template"),
+    ({"action": "notify.mobile_app_phone", "data": {"message": "hi"}, "response_variable": "r"}, "impact_step_unknown"),
+    # owner 2026-10-18: toggle only for the non-physical-access domains
+    (_svc("cover.toggle", "cover.blinds"), "impact_service_not_allowed"),
+    (_svc("lock.toggle", "lock.front"), "impact_service_not_allowed"),
+    (_svc("climate.toggle", "climate.hall"), "impact_service_not_allowed"),
+    (_svc("siren.toggle", "siren.yard"), "impact_service_not_allowed"),
+    (_svc("alarm_control_panel.toggle", "alarm_control_panel.h"), "impact_service_not_allowed"),
+    (_svc("valve.toggle", "valve.main"), "impact_service_not_allowed"),
+    (_svc("homeassistant.toggle", "light.a"), "impact_service_not_allowed"),
+    (_svc("input_boolean.toggle", "light.a"), "impact_target_unresolved"),  # a toggle of another domain's entity
+    # a cover that is not plainly a window covering (owner 2026-10-18: when unsure, refuse)
+    (_svc("cover.open_cover", "cover.garage"), "impact_physical_access"),
+    (_svc("cover.close_cover", "cover.gate"), "impact_physical_access"),
+    (_svc("cover.set_cover_position", "cover.front_door", data={"position": 50}), "impact_physical_access"),
+    (_svc("cover.open_cover", "cover.shutter"), "impact_physical_access"),
+    (_svc("cover.open_cover", "cover.unknown_class"), "impact_physical_access"),
+    (_svc("cover.stop_cover", "cover.not_in_ha"), "impact_physical_access"),
     (_svc("homeassistant.turn_on", "lock.front"), "impact_service_not_allowed"),
     (_svc("homeassistant.turn_off", "light.a"), "impact_service_not_allowed"),
     (_svc("mqtt.publish", topic="door/open", payload="1"), "impact_service_not_allowed"),
     (_svc("shell_command.open_gate"), "impact_service_not_allowed"),
     (_svc("rest_command.open_gate"), "impact_service_not_allowed"),
-    (_svc("light.toggle", "light.a"), "impact_service_not_allowed"),
     (_svc("alarm_control_panel.alarm_trigger", "alarm_control_panel.h"), "impact_service_not_allowed"),
     (_svc("automation.turn_off", "automation.guard"), "impact_service_not_allowed"),
     (_svc("script.turn_off", "script.x"), "impact_service_not_allowed"),
@@ -175,6 +205,51 @@ def test_closed_refusal_codes(step, code):
     assert _impact("script.x", {"script.x": ("x", _script(step))}) == code
 
 
+def test_a_scene_setting_a_garage_or_unknown_cover_is_refused():
+    for cover in ("cover.garage", "cover.gate", "cover.front_door", "cover.unknown_class", "cover.not_in_ha"):
+        scene = {"id": "s1", "entities": {"light.a": "on", cover: "open"}}
+        assert _impact("scene.x", {"scene.x": ("s1", scene)}) == "impact_physical_access", cover
+    assert _impact("scene.x", {"scene.x": ("s1", {"id": "s1", "entities": {"cover.blinds": "open"}})}) is None
+
+
+def test_a_nested_item_must_be_on_the_allowlist_too():
+    items = {"script.evening": ("evening", _script(_svc("script.turn_on", "script.music"))), "script.music": ("music", SAFE),
+             "scene.movie": ("s9", {"id": "s9", "entities": {"light.hall": "on"}}),
+             "script.lights": ("lights", _script({"scene": "scene.movie"})),
+             "automation.night": ("a1", {"id": "a1", "actions": [_svc("automation.trigger", "automation.other")]}),
+             "automation.other": ("a2", {"id": "a2", "actions": [_svc("light.turn_off", "light.hall")]})}
+    assert _impact("script.evening", items, runnable={"script.evening"}) == "impact_nested_not_runnable"
+    assert _impact("script.lights", items, runnable={"script.lights"}) == "impact_nested_not_runnable"
+    assert _impact("automation.night", items, runnable={"automation.night"}) == "impact_nested_not_runnable"
+    assert _impact("script.evening", items, runnable=set()) == "impact_nested_not_runnable"
+    one = _script({"action": "script.music"})  # `script.<object id>` too
+    assert _impact("script.one", {**items, "script.one": ("one", one)}, runnable={"script.one"}) == "impact_nested_not_runnable"
+    assert _impact("script.evening", items, runnable={"script.evening", "script.music"}) is None
+    assert _impact("script.lights", items, runnable={"script.lights", "scene.movie"}) is None
+    assert _impact("automation.night", items, runnable={"automation.night", "automation.other"}) is None
+    # a listed nested item is still judged on its own steps
+    items["script.music"] = ("music", _script(_svc("lock.unlock", "lock.front")))
+    assert _impact("script.evening", items, runnable={"script.evening", "script.music"}) == "impact_never_local"
+
+
+def test_each_owner_addition_passes_with_literal_content():
+    for step in (
+        {"action": "notify.mobile_app_phone", "data": {"message": "The evening scene ran", "title": "Arx"}},
+        {"action": "notify.notify", "data": {"message": "hi", "target": ["phone_a"]}},
+        {"action": "notify.send_message", "target": {"entity_id": "notify.kitchen_display"}, "data": {"message": "hi"}},
+        _svc("light.toggle", "light.hall"), _svc("switch.toggle", "switch.fan"), _svc("fan.toggle", "fan.bedroom"),
+        _svc("input_boolean.toggle", "input_boolean.guest_mode"), _svc("media_player.toggle", "media_player.tv"),
+        _svc("cover.open_cover", "cover.blinds"), _svc("cover.close_cover", "cover.blinds"),  # a plain window covering
+    ):
+        assert _impact("script.x", {"script.x": ("x", _script(step))}) is None, step
+    assert _impact("script.x", {"script.x": ("x", _script({"action": "notify.send_message", "target": {"entity_id": "notify.kitchen_display"},
+                                                           "data": {"message": "hi"}}))}, user=_user({"notify.kitchen_display"})) == "impact_entity_policy"
+    assert set(rn.STEP_ADDITIONS) == {"notify.*", "light.toggle", "switch.toggle", "fan.toggle", "input_boolean.toggle", "media_player.toggle"}
+    assert all(reason for reason in rn.STEP_ADDITIONS.values())  # each addition carries its reason
+    assert not {"cover", "lock", "alarm_control_panel", "climate", "siren", "valve"} & rn.TOGGLE_DOMAINS
+    assert rn.COVER_SAFE_CLASSES == frozenset({"blind", "curtain", "shade", "awning"})
+
+
 def test_too_deep_or_too_many_steps_are_refused():
     deep: dict = _svc("light.turn_on", "light.a")
     for _ in range(rn.MAX_DEPTH + 2):
@@ -191,7 +266,7 @@ def test_an_item_that_cannot_be_read_is_refused():
     assert _impact("script.x", {"script.x": ("x", SAFE)}, broken=True) == "impact_unknown_item"  # the file is unreadable
     assert _impact("script.x", {"script.x": ("x", ["not", "a", "dict"])}) == "impact_unknown_item"
     items = {"script.a": ("a", _script(_svc("script.turn_on", "script.gone")))}
-    assert _impact("script.a", items) == "impact_unknown_item"  # a nested item that cannot be read
+    assert _impact("script.a", items, runnable={"script.a", "script.gone"}) == "impact_unknown_item"  # a listed nested item that cannot be read
     assert _impact("light.kitchen", {}) == "impact_unknown_item"
 
 
@@ -250,6 +325,7 @@ def test_execute_refuses_non_literal_targets_and_applies_the_entity_policy_to_ev
 
 def test_execute_runs_a_script_or_scene_only_from_the_allowlist_and_after_the_impact_check():
     items = {"script.evening": ("evening", SAFE), "script.night": ("night", _script(_svc("lock.unlock", "lock.front"))),
+             "script.calls": ("calls", _script(_svc("script.turn_on", "script.evening"))),
              "scene.movie": ("s9", {"id": "s9", "entities": {"light.hall": "on"}})}
     assert _exec("script", "turn_on", {"entity_id": "script.evening"}, items=items) == "service_identity_not_runnable"  # empty by default
     assert _exec("script", "turn_on", {"entity_id": "script.evening"}, runnable={"script.other"}, items=items) == "service_identity_not_runnable"
@@ -257,6 +333,8 @@ def test_execute_runs_a_script_or_scene_only_from_the_allowlist_and_after_the_im
     assert _exec("scene", "turn_on", {"entity_id": "script.evening"}, runnable={"script.evening"}, items=items) == "service_identity_not_runnable"  # wrong domain
     assert _exec("script", "turn_on", {"entity_id": "script.night"}, runnable={"script.night"}, items=items) == "impact_never_local"  # listed is not enough
     assert _exec("script", "turn_on", {"entity_id": "script.evening"}, runnable={"script.evening"}, items=items) is None
+    assert _exec("script", "turn_on", {"entity_id": "script.calls"}, runnable={"script.calls"}, items=items) == "impact_nested_not_runnable"
+    assert _exec("script", "turn_on", {"entity_id": "script.calls"}, runnable={"script.calls", "script.evening"}, items=items) is None
     assert _exec("scene", "turn_on", {"entity_id": "scene.movie"}, runnable={"scene.movie"}, items=items) is None
 
 

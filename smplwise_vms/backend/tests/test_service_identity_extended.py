@@ -328,6 +328,12 @@ def test_doors_and_scripts_through_device_control_need_the_switch_and_the_users_
     with lx.db.connection() as conn:
         set_setting(conn, si.BRIDGE_EXTENDED, "true")
     # SVCIDENT3 (review S1 a): a script / scene outside the runnable allowlist (empty by default) is refused with both switches on, nothing sent
+    # owner answer 2026-10-18: a script from device control also needs script.run / script.manage - an operator holds neither (audited 403)
+    r = _action(p, entity="script.open_front", action="script.turn_on", crid="sr-0", confirmation_grant="confirmed")
+    assert r.status_code == 403 and r.json()["code"] == "forbidden", r.text
+    denied = lx.rows("SELECT reason FROM audit_log WHERE action = 'script.run' AND decision = 'denied' ORDER BY rowid")
+    assert denied, "the script.run refusal is audited"
+    _bind_role(lx, plain_user["user"]["id"], ["script.run"], [])
     for i, (entity, action) in enumerate((("script.open_front", "script.turn_on"), ("scene.evening", "scene.turn_on"))):
         r = _action(p, entity=entity, action=action, crid=f"nr-{i}", confirmation_grant="confirmed")
         assert r.status_code == 403 and r.json()["code"] == "service_identity_not_runnable", r.text

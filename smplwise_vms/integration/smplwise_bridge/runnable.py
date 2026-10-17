@@ -13,7 +13,11 @@ message is never judged here):
    refused (fail closed) when a step:
    - reaches a NEVER-LOCAL target (`lock.unlock`, `lock.open`, `alarm_control_panel.alarm_disarm`, `alarm_control_panel.alarm_arm_custom_bypass`,
      a scene that sets a lock to anything but `locked` or sets an alarm panel at all): `impact_never_local`;
-   - calls a service outside the closed step allow-list (the everyday device pairs and plain arming - IMPACT_STEP_PAIRS): `impact_service_not_allowed`;
+   - calls a service outside the closed step allow-list (the everyday device pairs, plain arming and the owner's additions of 2026-10-18 -
+     IMPACT_STEP_PAIRS, STEP_ADDITIONS): `impact_service_not_allowed`;
+   - drives a cover (any cover service, or a scene setting a cover) whose `device_class` is not plainly a window covering - a door, a gate, a
+     garage, a shutter, an unknown or missing class: `impact_physical_access` (owner 2026-10-18: when unsure, refuse);
+   - calls a nested script / scene / automation that is not itself on the allowlist: `impact_nested_not_runnable` (owner 2026-10-18);
    - names its service or target by a template: `impact_template`;
    - targets anything but literal entity ids (an area, a device, a floor, a label, `all`, nothing): `impact_target_unresolved`;
    - is a device action (opaque: its `entity_id` is a registry id): `impact_device_action`; fires an event: `impact_event`;
@@ -57,6 +61,7 @@ POLICY_UNAVAILABLE = "service_identity_policy_unavailable"
 IMPACT_CODES = frozenset({
     "impact_unknown_item", "impact_never_local", "impact_service_not_allowed", "impact_template", "impact_target_unresolved",
     "impact_device_action", "impact_event", "impact_step_unknown", "impact_nesting_too_deep", "impact_too_large", "impact_entity_policy",
+    "impact_physical_access", "impact_nested_not_runnable",
 })
 REFUSAL_CODES = IMPACT_CODES | {NOT_RUNNABLE, TARGET_REFUSED, POLICY_REFUSED, POLICY_UNAVAILABLE}
 
@@ -68,6 +73,24 @@ IMPACT_NEVER = frozenset({
 # door, a script or a scene) plus plain arming. Anything else - notify, homeassistant.*, mqtt, shell / rest commands, input_* helpers outside
 # the pairs, `*.toggle`, `automation.turn_on` - is refused (fail closed; the owner widens it by a change request, not by configuration).
 IMPACT_STEP_PAIRS = frozenset(DEVICE_PAIRS | (ALARM_PAIRS - IMPACT_NEVER))
+# The owner's additions to the closed step list (2026-10-18), each with its reason. Everything not named here stays refused.
+STEP_ADDITIONS: dict[str, str] = {
+    "notify.*": "a notification only informs a person; allowed with LITERAL message / title / data / target only - any template refuses the step",
+    "light.toggle": "light: no physical-access effect",
+    "switch.toggle": "switch.turn_on / turn_off are already in the step list; toggle reaches nothing more (a relay wired to a gate is the same "
+                     "residual risk as turn_on: bounded by the allowlist and the service user's entity policy)",
+    "fan.toggle": "fan: no physical-access effect",
+    "input_boolean.toggle": "a helper flag: no device of its own",
+    "media_player.toggle": "media power: no physical-access effect",
+}
+# Never toggled from a runnable item (owner 2026-10-18): cover (doors, gates, garages), lock, alarm panel, climate (a mode change can harm),
+# siren, and anything else that can open or close a door or gate. They stay outside STEP_ADDITIONS on purpose.
+TOGGLE_DOMAINS = frozenset({"light", "switch", "fan", "input_boolean", "media_player"})
+TOGGLE_PAIRS = frozenset((d, "toggle") for d in TOGGLE_DOMAINS)
+NOTIFY_KEYS = frozenset({"action", "service", "data", "target", "entity_id", "alias", "enabled", "continue_on_error"})
+# A cover is driven by a runnable item only when its class is PLAINLY a window covering; a door / gate / garage / shutter / damper, an unknown
+# or missing class is physical access or unsure - refused (owner 2026-10-18: "when unsure refuse").
+COVER_SAFE_CLASSES = frozenset({"blind", "curtain", "shade", "awning"})
 # The domains a runnable SCENE may set (a lock only to `locked`; an alarm panel never)
 SCENE_DOMAINS = frozenset({"light", "switch", "fan", "cover", "climate", "media_player", "input_boolean", "input_number", "input_select", "select", "number",
                            "humidifier", "water_heater", "valve", "lock"})
@@ -117,6 +140,7 @@ def allowlist(value: Any) -> frozenset[str]:
 class Facts:
     targets: list[str] = field(default_factory=list)
     nested: list[str] = field(default_factory=list)
+    covers: list[str] = field(default_factory=list)  # covers the item drives: their device class is judged against Home Assistant's state
     steps: int = 0
 
 
@@ -186,6 +210,8 @@ def _scene_entities(entities: Any, facts: Facts) -> None:
             raise Impact("impact_never_local")
         if domain not in SCENE_DOMAINS:
             raise Impact("impact_service_not_allowed")
+        if domain == "cover":
+            facts.covers.append(eid)
         facts.targets.append(eid)
 
 
@@ -225,10 +251,18 @@ def _service_step(step: dict[str, Any], level: int, facts: Facts) -> None:
         return _nested([svc], "script", level, facts)  # `script.<object id>`: the script itself
     if (domain, service) in (("automation", "trigger"), ("scene", "turn_on")):
         return _nested(targets, domain, level, facts)
-    if (domain, service) not in IMPACT_STEP_PAIRS:
+    if domain == "notify":
+        # owner 2026-10-18: a notification with literal content only (a template could reach anything a template reaches)
+        if set(step) - NOTIFY_KEYS or has_template({k: v for k, v in step.items() if k not in ("alias",)}):
+            raise Impact("impact_template" if has_template(step) else "impact_step_unknown")
+        facts.targets.extend(targets)  # notify.send_message names notify entities: still under the entity policy
+        return None
+    if (domain, service) not in IMPACT_STEP_PAIRS and (domain, service) not in TOGGLE_PAIRS:
         raise Impact("impact_service_not_allowed")
     if not targets or any(t.split(".", 1)[0] != domain for t in targets):
         raise Impact("impact_target_unresolved")
+    if domain == "cover":
+        facts.covers.extend(targets)
     facts.targets.extend(targets)
 
 
@@ -333,9 +367,30 @@ async def _load_item(hass: Any, deps: Any, entity_id: str) -> tuple[str, Any]:
     return kind, config
 
 
-async def impact_refusal(hass: Any, deps: Any, user: Any, entity_id: str, level: int = 0) -> str | None:
+def _attributes(hass: Any, deps: Any, entity_id: str) -> Any:
+    getter = getattr(deps, "attributes", None)
+    if callable(getter):
+        return getter(entity_id)
+    state = hass.states.get(entity_id) if hass is not None else None
+    return dict(state.attributes) if state is not None else None
+
+
+def cover_refusal(hass: Any, deps: Any, covers: Iterable[str]) -> str | None:
+    """A cover driven by a runnable item must report a device class that is plainly a window covering (COVER_SAFE_CLASSES)."""
+    for entity_id in covers:
+        try:
+            attrs = _attributes(hass, deps, entity_id)
+        except Exception:  # noqa: BLE001 - unsure: refused
+            return "impact_physical_access"
+        if not isinstance(attrs, dict) or attrs.get("device_class") not in COVER_SAFE_CLASSES:
+            return "impact_physical_access"
+    return None
+
+
+async def impact_refusal(hass: Any, deps: Any, user: Any, entity_id: str, level: int = 0, runnable: frozenset[str] | None = None) -> str | None:
     """S1 (b): None when the item - and every item it calls, one level - reaches no NEVER-LOCAL target and only allowed services on literal
-    entities the service user may control; else the impact code."""
+    entities the service user may control; else the impact code. `runnable` (owner 2026-10-18): a nested item must be on the allowlist too
+    (None = an empty list: every nested call refused)."""
     try:
         kind, config = await _load_item(hass, deps, entity_id)
         facts = analyse(kind, config, level)
@@ -345,9 +400,14 @@ async def impact_refusal(hass: Any, deps: Any, user: Any, entity_id: str, level:
         _LOGGER.warning("smplwise_bridge impact check failed: %s", type(exc).__name__)
         return "impact_unknown_item"
     for nested in facts.nested:
-        why = await impact_refusal(hass, deps, user, nested, level + 1)
+        if nested not in (runnable or frozenset()):
+            return "impact_nested_not_runnable"
+        why = await impact_refusal(hass, deps, user, nested, level + 1, runnable)
         if why:
             return why
+    why = cover_refusal(hass, deps, facts.covers)
+    if why:
+        return why
     why = policy_refusal(user, deps.POLICY_CONTROL, list(facts.targets) + list(facts.nested), refused="impact_entity_policy")
     return why
 
@@ -376,7 +436,7 @@ async def execute_refusal(hass: Any, user: Any, domain: str, service: str, data:
         for entity_id in targets:
             if entity_id.split(".", 1)[0] != domain or entity_id not in runnable:
                 return NOT_RUNNABLE
-            why = await impact_refusal(hass, deps, user, entity_id)
+            why = await impact_refusal(hass, deps, user, entity_id, runnable=runnable)
             if why:
                 return why
     return None
@@ -399,4 +459,4 @@ async def config_item_refusal(hass: Any, user: Any, msg: dict[str, Any], runnabl
         return "impact_unknown_item"
     if entity_id not in runnable:
         return NOT_RUNNABLE
-    return await impact_refusal(hass, deps, user, entity_id)
+    return await impact_refusal(hass, deps, user, entity_id, runnable=runnable)

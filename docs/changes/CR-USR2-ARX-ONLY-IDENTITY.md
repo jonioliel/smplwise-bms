@@ -730,14 +730,14 @@ route, no new permission, no migration.
    (an HA administrator's act). Items outside the UI files (YAML packages, integration scenes) are refused (`impact_unknown_item`).
 3. The entity policy protects only when the HA administrator restricted the service user (a group with an entity policy); the default policy
    of a non-administrator user is broad. The ops guide / card must say so (follow-up).
-4. A nested item is fully analysed but need not be on the allowlist itself (open question 3).
+4. (Resolved in 12.7: a nested item must be on the allowlist too.)
 5. Arx-only users holding `schedules` (2.6.4, not the extended mode) can schedule scripts / scenes; that path is governed by the existing
    "script allowed in schedules" administrator mark for disarm / unlock scripts (`schedule_ops.mark_script`) and the bridge's schedule handler
    checks the service user's entity policy - not by the runnable allowlist. Recorded, not changed (out of this branch's scope).
 6. A live viewing session that is already open when the mode goes off is not cut by S5 (new opens are refused at once; reconcile deletes the
    stream within its 300 s throttle).
 
-### 12.4 Open questions (recorded, not silently resolved)
+### 12.4 Open questions (recorded, not silently resolved) - all four answered by the owner on 2026-10-18, see 12.7
 
 1. Device-control runs (`script.turn_on` / `scene.turn_on`) need `ha.entity.control` on the item + the allowlist + the impact check; the
    review's proposed amendment names "the action's own dedicated permission" (`script.run`). Should device-control runs also need `script.run`?
@@ -761,3 +761,35 @@ directory push, S4, S5 with the real bridge screen); `tests/test_service_identit
 device-control and automations-screen route tests now first prove the allowlist refusal); version pins in the `test_bridge_*` /
 `test_lovelace_card` files; `frontend/tests/unit-service-identity.spec.ts` (the runnable section and the doors line, screenshots
 `docs/evidence/USR2/service-identity-runnable-{desktop,mobile}.png`). A mutation check (each fence disabled in turn) turned its tests red.
+
+### 12.7 Owner answers of 2026-10-18 to the open questions of 12.4 (second commit on `pilot/SVCIDENT3`; bridge stays 0.9.2)
+
+1. **Device-control script runs need `script.run` too - built.** In the extended mode, `POST /ha/entities/script.<x>/actions` `script.turn_on`
+   for an Arx-only person additionally requires `script.run` or `script.manage` held anywhere (the automations screen's run rule); otherwise the
+   audited 403 `forbidden` (`require(..., "script.run")`), before anything is recorded or sent. Scenes unchanged (`ha.entity.control`). With
+   the switch off nothing changes (the 2.6.4 refusal comes first).
+2. **The closed step list is widened - built, each addition with its reason in `runnable.STEP_ADDITIONS`:**
+   - `notify.*` - only with literal content: a template anywhere in the step (message, title, data, target) refuses it (`impact_template`); an
+     unknown key refuses it (`impact_step_unknown`); `notify.send_message` entity targets still pass the service user's entity policy.
+   - `light.toggle`, `switch.toggle`, `fan.toggle`, `input_boolean.toggle`, `media_player.toggle` (`TOGGLE_DOMAINS`) - no physical-access effect
+     (a switch wired to a gate relay is the same residual risk as `switch.turn_on`, already in the list).
+   - **Never toggled:** `cover`, `lock`, `alarm_control_panel`, `climate`, `siren`, `valve` and every other domain (`impact_service_not_allowed`).
+   - **Covers, decided in this commit (fail closed):** the owner's rule for `cover.toggle` - "physical access unless the device class is plainly
+     not a door / gate / garage; when unsure refuse" - is applied to EVERY cover a runnable item drives, because `cover.open_cover` /
+     `close_cover` / `set_cover_position` on a garage door are the same physical access as a toggle. A cover service step, or a scene that sets a
+     cover, passes only when Home Assistant reports the cover's `device_class` in `COVER_SAFE_CLASSES` = `blind`, `curtain`, `shade`, `awning`;
+     `door`, `gate`, `garage`, `shutter`, `damper`, `window`, any other or a missing class, or a cover without a state: `impact_physical_access`.
+     `cover.toggle` itself stays OUTSIDE the step list (refused even on a blind), as the owner listed cover among the never-toggled domains.
+     **Recorded for the owner:** this tightens the 12.1 behaviour for open / close / position steps on non-window covers.
+3. **A nested item must be on the allowlist too - built.** A runnable item that calls a script / scene / automation (any of the nested forms)
+   is refused `impact_nested_not_runnable` unless the nested entity id is on the bridge's allowlist as well; a listed nested item is still
+   judged on its own steps.
+4. **A picker for the bridge's list** (a multi-entity selector in the options flow instead of free text) is a later UI task - recorded here,
+   not built.
+
+New closed codes: `impact_physical_access`, `impact_nested_not_runnable` (both mapped by the add-on to 403 `run_impact_refused`). Tests:
+`tests/test_bridge_runnable.py` (negative first: notify with a template in message / title / data, an unknown notify key, each never-toggled
+domain, `cover.toggle` even on a blind, open / close / position on a garage / gate / door / shutter / unknown-class / stateless cover, a scene
+setting such a cover, each nested form not on the list; then each addition passing with literal content), `tests/test_service_identity_extended.py`
+(an operator without `script.run` is refused `forbidden` with the switch on and the refusal is audited, then with `script.run` the allowlist
+decides).

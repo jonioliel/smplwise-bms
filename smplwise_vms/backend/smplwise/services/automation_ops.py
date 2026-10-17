@@ -76,6 +76,7 @@ BRIDGE_ERRORS = {
                                          details={"reason": c}))(code)
        for code in ("impact_unknown_item", "impact_never_local", "impact_service_not_allowed", "impact_template", "impact_target_unresolved", "impact_device_action",
                     "impact_event", "impact_step_unknown", "impact_nesting_too_deep", "impact_too_large", "impact_entity_policy",
+                    "impact_physical_access", "impact_nested_not_runnable",
                     "service_identity_policy_unavailable")},
 }
 
