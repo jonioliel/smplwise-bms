@@ -731,7 +731,7 @@ class MessagingRuntime:
         if channel == "manual":
             return False
         self.enqueue(conn, purpose="reminder", contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=asg["id"], link_id=link["id"],
-                     department_id=ticket["department_id"], params=message_params(conn, ticket, contact), channel=channel, requested_by="system",
+                     department_id=ticket["department_id"], params=message_params(conn, ticket, contact, assignment_id=asg["id"]), channel=channel, requested_by="system",
                      idempotency_key=f"reminder:{asg['id']}:{int(number)}")
         return True
 
@@ -752,7 +752,8 @@ class MessagingRuntime:
             return
         try:
             self.enqueue(conn, purpose=purpose, contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=link_row.get("assignment_id"),
-                         link_id=link_row["id"], department_id=ticket["department_id"], params=message_params(conn, ticket, contact),
+                         link_id=link_row["id"], department_id=ticket["department_id"],
+                         params=message_params(conn, ticket, contact, assignment_id=link_row.get("assignment_id")),
                          channel=channel, requested_by="system", idempotency_key=f"{purpose}:{link_row['id']}:{int(link_row.get('generation') or 1)}")
         except OutboxError:
             log.warning("ticket notice not queued purpose=%s", purpose)
@@ -904,7 +905,15 @@ def _verified_for_whatsapp(conn, contact: Mapping[str, Any]) -> bool:
     return phone_verify.whatsapp_allowed(conn, contact)
 
 
-def message_params(conn, ticket: Mapping[str, Any], contact: Mapping[str, Any]) -> dict[str, str]:
+def assignment_location_nav(conn, ticket: Mapping[str, Any], assignment_id: str | None = None) -> bool:
+    """CR-ORG-LOCATIONS: the navigation-link choice stored on the assignment (the named one, else the ticket's current one). It
+    counts only while the ticket's location still has coordinates in its snapshot."""
+    asg = store.assignment(conn, assignment_id or ticket.get("current_assignment_id"))
+    return bool(asg and asg.get("location_nav") and org_locations.has_coordinates(org_locations.parse_snapshot(ticket.get("location_snapshot"))))
+
+
+def message_params(conn, ticket: Mapping[str, Any], contact: Mapping[str, Any], *, assignment_id: str | None = None,
+                   location_nav: bool | None = None) -> dict[str, str]:
     """The placeholders of 9.7 (never {link} / {code}, never a phone or an address): the contact's name, the number with the
     department next to it, the title, the place line (device, place - "air conditioner, floor 1, room 102" reaches the handler),
     the priority, the organisation, the assigning manager and the ETA in the installation's zone."""
@@ -912,7 +921,10 @@ def message_params(conn, ticket: Mapping[str, Any], contact: Mapping[str, Any]) 
     prio = store.priority(conn, ticket["priority_id"]) if ticket.get("priority_id") else None
     device = ticket.get("device_name") or ""
     # CR-ORG-LOCATIONS: the request's own location (its snapshot) - only in a message of the request that names it
-    location = org_locations.message_text(org_locations.parse_snapshot(ticket.get("location_snapshot")))
+    # the map link only when the assignment's manager switched it on (default off): `location_nav` is the preview's choice, else the stored one
+    nav = assignment_location_nav(conn, ticket, assignment_id) if location_nav is None else bool(location_nav)
+    snap = org_locations.parse_snapshot(ticket.get("location_snapshot"))
+    location = org_locations.message_text(snap, nav=nav and org_locations.has_coordinates(snap))
     place = ", ".join(p for p in (device, ticket.get("place_text") or location) if p)
     eta = ""
     if ticket.get("eta_at"):
@@ -927,7 +939,7 @@ def message_params(conn, ticket: Mapping[str, Any], contact: Mapping[str, Any]) 
 
 
 def render_preview(conn, *, purpose: str, contact: Mapping[str, Any], ticket: Mapping[str, Any], template_id: str | None = None,
-                   link_text: str | None = None) -> dict[str, Any]:
+                   link_text: str | None = None, location_nav: bool | None = None) -> dict[str, Any]:
     """The EXACT text the outbox will render for this contact (template per language D26, the module's name D33), with the link
     shown as a placeholder (review T13-3) - or with `link_text` (the manager's "copy link" message)."""
     lang = contact.get("lang") if contact.get("lang") in LANGS else "he"
@@ -937,7 +949,7 @@ def render_preview(conn, *, purpose: str, contact: Mapping[str, Any], ticket: Ma
     if tpl is None:
         return {"text": "", "lang": lang, "template_id": None}
     try:
-        text = mt.render(tpl.body, message_params(conn, ticket, contact), lang=tpl.lang, display_name=display_names(conn),
+        text = mt.render(tpl.body, message_params(conn, ticket, contact, location_nav=location_nav), lang=tpl.lang, display_name=display_names(conn),
                          secrets={"link": link_text or LINK_PLACEHOLDER.get(tpl.lang, "[link]")}, check_length=False)
     except mt.TemplateError:
         text = ""
@@ -970,7 +982,7 @@ class OutboxDispatch:
                 return {"queued": False, "channel": "manual"}  # a staff link leaves by WhatsApp only
             template_id = mt.staff_template_id(bool(link.get("require_code")), contact.get("lang") or "he")
         row = self.rt.enqueue(conn, purpose=purpose, contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=assignment_id,
-                              link_id=link["id"], department_id=ticket["department_id"], params=message_params(conn, ticket, contact),
+                              link_id=link["id"], department_id=ticket["department_id"], params=message_params(conn, ticket, contact, assignment_id=assignment_id),
                               channel=ch, send_now=send_now, requested_by=requested_by, template_id=template_id)
         held = hours.decide(row.purpose, self.rt.clock(), send_window(conn, ticket["department_id"]), time_zone(conn), send_now=row.send_now)
         return {"queued": True, "channel": ch, "outbox_id": row.id, "held_until": None if held.send else obs.iso_s(held.not_before)}
@@ -993,12 +1005,13 @@ class OutboxDispatch:
         store_links.set_code_outbox(conn, code_id, row.id)
         return {"queued": True, "outbox_id": row.id, "channel": channel}
 
-    def preview_extra(self, conn, ticket: dict[str, Any], contact: dict[str, Any]) -> dict[str, Any]:
+    def preview_extra(self, conn, ticket: dict[str, Any], contact: dict[str, Any], *, location_nav: bool = False) -> dict[str, Any]:
         """The assign dialog's lines (review T13-3): the exact text, the channel, the account it would leave from, the send-hours
         line ("יישלח ב-07:00") and the "send now" default (preselected for critical priorities, D29)."""
         ch = self.channel(conn, contact)
         out: dict[str, Any] = {"channel": ch}
-        rendered = render_preview(conn, purpose="reopened" if ticket.get("status") == "closed" else "assign", contact=contact, ticket=ticket)
+        rendered = render_preview(conn, purpose="reopened" if ticket.get("status") == "closed" else "assign", contact=contact, ticket=ticket,
+                                  location_nav=location_nav)
         if ch != "manual":
             out["text"] = rendered["text"]
             out["lang"] = rendered["lang"]

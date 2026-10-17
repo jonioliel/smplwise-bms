@@ -14,7 +14,7 @@ import time
 import pytest
 from conftest import bind
 
-from smplwise.services.tickets import org_locations, rfq as rfq_mod, rfq_links, store_rfq
+from smplwise.services.tickets import messaging, org_locations, rfq as rfq_mod, rfq_links, store, store_links, store_rfq
 from smplwise.services.tickets.public_http import UNIFORM_404
 from tickets_s4_world import API, Clock, build_s4, crid
 
@@ -323,6 +323,114 @@ def test_the_assign_message_carries_the_location_as_the_place(s4):
     assert rows, "the assignment queued its message"
     params = json.loads(rows[0]["params_json"])
     assert params["place"] == params["location"] == "מטה ראשי · הרצל 5, תל אביב"
+
+
+# ---------------------------------------------------------------- the ticket assign dialog's navigation-link switch (owner 2026-10-17)
+
+MAP = "https://maps.google.com/?q=32.08530,34.78180"
+
+
+def preview(s4, tid: str, user: str = "joni", **extra):
+    return s4.c.post(f"{API}/tickets/{tid}/assign/preview", json={"contact_id": s4.contact["id"], **extra}, headers=s4.h(user))
+
+
+def assign_params(s4, tid: str) -> list[dict]:
+    with s4.db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT params_json FROM ticket_outbox WHERE ticket_id = ? AND purpose = 'assign' ORDER BY rowid", (tid,)).fetchall()
+    return [json.loads(r["params_json"]) for r in rows]
+
+
+def test_nav_flag_on_a_request_without_coordinates_is_refused_with_422_and_nothing_is_written(s4):
+    no_loc = s4.ticket()
+    no_coords = s4.ticket(location_id=loc_id(s4))
+    for t in (no_loc, no_coords):
+        r = s4.assign_contact(t["id"], location_nav=True)
+        assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "location_nav", "code": "no_coordinates"}], r.text
+        p = preview(s4, t["id"], location_nav=True)
+        assert p.status_code == 422 and p.json()["details"]["fields"] == [{"field": "location_nav", "code": "no_coordinates"}]
+        assert s4.w.detail(t["id"])["status"] == "new", "the refused assignment changed nothing"
+        assert assign_params(s4, t["id"]) == []
+        assert preview(s4, t["id"]).json()["location_nav"] == {"available": False, "on": False}
+    # a located request with the flag off keeps working
+    assert s4.assign_contact(no_coords["id"]).status_code == 200
+
+
+def test_nav_flag_for_an_inside_assignee_is_refused_and_a_non_manager_gets_the_permission_refusal(s4):
+    t = s4.ticket(location_id=loc_id(s4, lat=32.0853, lng=34.7818))
+    rev = s4.w.detail(t["id"])["revision"]
+    body = {"assignee": {"kind": "user", "id": "tom"}, "revision": rev, "location_nav": True}
+    r = s4.c.post(f"{API}/tickets/{t['id']}/assign", json=body, headers=s4.h("joni"))
+    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "location_nav", "code": "not_allowed"}], r.text
+    r2 = s4.c.post(f"{API}/tickets/{t['id']}/assign", json=body, headers=s4.h("tom"))
+    assert r2.status_code in (403, 404), "an unauthorised caller gets the permission refusal, not a validation hint"
+
+
+def test_nav_flag_by_a_caller_who_may_not_manage_the_request_is_refused_before_the_flag_is_looked_at(s4):
+    t = s4.ticket(location_id=loc_id(s4, lat=32.0853, lng=34.7818))
+    for user in ("tom", "vic"):  # a department member without manage; a viewer
+        for r in (s4.assign_contact(t["id"], user=user, location_nav=True), preview(s4, t["id"], user, location_nav=True)):
+            assert r.status_code in (403, 404), (user, r.status_code, r.text)
+    assert assign_params(s4, t["id"]) == [] and s4.w.detail(t["id"])["status"] == "new"
+
+
+def test_default_off_the_message_has_no_link_and_the_preview_equals_what_is_sent(s4):
+    t = s4.ticket(location_id=loc_id(s4, lat=32.0853, lng=34.7818))
+    p = preview(s4, t["id"])
+    assert p.status_code == 200 and p.json()["location_nav"] == {"available": True, "on": False}
+    assert "maps.google" not in p.json()["text"] and "32.08" not in p.json()["text"]
+    assert "מטה ראשי · הרצל 5, תל אביב" in p.json()["text"]
+    assert s4.assign_contact(t["id"]).status_code == 200
+    [params] = assign_params(s4, t["id"])
+    assert params["place"] == params["location"] == "מטה ראשי · הרצל 5, תל אביב"
+    with s4.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT location_nav FROM ticket_assignments WHERE ticket_id = ?", (t["id"],)).fetchone()[0] == 0
+
+
+def test_switched_on_the_link_is_in_the_preview_the_sent_params_and_stays_for_reminders_and_resend(s4):
+    t = s4.ticket(location_id=loc_id(s4, lat=32.0853, lng=34.7818))
+    p = preview(s4, t["id"], location_nav=True).json()
+    assert p["location_nav"] == {"available": True, "on": True} and MAP in p["text"]
+    off = preview(s4, t["id"], location_nav=False).json()["text"]
+    assert p["text"].replace(" · " + MAP, "") == off, "the switch changes the location line only"
+    assert s4.assign_contact(t["id"], location_nav=True).status_code == 200
+    [params] = assign_params(s4, t["id"])
+    assert params["place"] == params["location"] == f"מטה ראשי · הרצל 5, תל אביב · {MAP}"
+    assert params["location"] in p["text"], "the preview shows exactly the location text that is sent"
+    with s4.db.connection(mode="read") as conn:
+        row = store.ticket_row_system(conn, t["id"])
+        contact = store_links.contact(conn, s4.contact["id"])
+        asg = row["current_assignment_id"]
+        assert conn.execute("SELECT location_nav FROM ticket_assignments WHERE id = ?", (asg,)).fetchone()[0] == 1
+        # a reminder / a notice of THIS assignment render the same text; the access details stay out
+        assert messaging.message_params(conn, row, contact)["location"] == params["location"]
+        assert messaging.message_params(conn, row, contact, assignment_id=asg)["place"] == params["place"]
+        assert "קומה 3" not in messaging.message_params(conn, row, contact)["location"]
+    assert MAP in s4.copy(t["id"]).json()["text"], "the manual copy-link text carries the same choice"
+    assert s4.c.post(f"{API}/tickets/{t['id']}/link/new", headers=s4.h("joni")).status_code == 200
+    assert all(MAP in q["location"] for q in assign_params(s4, t["id"])), "a new link keeps the assignment's choice"
+
+
+def test_the_choice_belongs_to_one_assignment_and_never_leaks_to_other_requests_or_public_routes(s4):
+    lid = loc_id(s4, lat=32.0853, lng=34.7818)
+    on = s4.ticket(location_id=lid)
+    other = s4.ticket(location_id=lid, title="אחר")
+    assert s4.assign_contact(on["id"], location_nav=True).status_code == 200
+    assert s4.assign_contact(other["id"]).status_code == 200
+    [p_other] = assign_params(s4, other["id"])
+    assert MAP not in json.dumps(p_other, ensure_ascii=False), "another request of the same location carries no link"
+    with s4.db.connection(mode="read") as conn:
+        row = store.ticket_row_system(conn, other["id"])
+        assert MAP not in messaging.message_params(conn, row, store_links.contact(conn, s4.contact["id"]))["location"]
+    c, _app = s4.public(Clock(time.time()))
+    page = c.get("/t/api/ticket", headers={"x-ticket-token": s4.token_of(on["id"])})
+    assert page.status_code == 200 and "32.08" not in page.text and "maps.google" not in page.text
+
+
+def test_a_located_request_manual_copy_text_carries_the_location_and_no_link_by_default(s4):
+    t = s4.ticket(location_id=loc_id(s4, lat=32.0853, lng=34.7818))
+    assert s4.assign_contact(t["id"]).status_code == 200
+    text = s4.copy(t["id"]).json()["text"]
+    assert "מטה ראשי · הרצל 5, תל אביב" in text and "maps.google" not in text
 
 
 # ---------------------------------------------------------------- pure helpers

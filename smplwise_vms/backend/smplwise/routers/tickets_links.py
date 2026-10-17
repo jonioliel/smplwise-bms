@@ -39,6 +39,7 @@ class PreviewBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     contact_id: str = Field(min_length=1, max_length=64, pattern=ID)
     require_code: bool = False
+    location_nav: bool = False  # CR-ORG-LOCATIONS: preview the message with the navigation link (default off)
 
 
 @router.post("/tickets/{ticket_id}/assign/preview")
@@ -46,7 +47,7 @@ def assign_preview(body: PreviewBody, ticket_id: str = Path(..., pattern=ID), pr
                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     seen = access.require_visible(viewer, ticket_id)
-    return external.preview(conn, viewer, seen, body.contact_id, require_code=body.require_code)
+    return external.preview(conn, viewer, seen, body.contact_id, require_code=body.require_code, location_nav=body.location_nav)
 
 
 @router.post("/tickets/{ticket_id}/link/{action}")

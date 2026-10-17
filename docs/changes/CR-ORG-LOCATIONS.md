@@ -77,8 +77,6 @@ change-log entry in `docs/tickets/RFQ_BACKEND_CONTRACT.md`.
 
 ## 5. Not built / limits
 
-- The service-request (ticket) external-assign dialog has no navigation-link switch: the switch exists for RFQ messages only, so a
-  ticket's assignment message carries the location without the link. Follow-up if the owner wants it there too.
 - The RFQ board's draft editor still edits only the free-text place (the location is chosen in the new-RFQ sheet).
 - Changing a ticket's location after creation is not offered (the snapshot is the creation-time record).
 - The locations do not feed the plan / map (section 2.9).
@@ -91,4 +89,33 @@ change-log entry in `docs/tickets/RFQ_BACKEND_CONTRACT.md`.
 both optional; the department's wins -> built. (c) Include coordinates / navigation link in vendor messages by default? **Answer:** no;
 a per-message option in the preview dialog, default off -> built for RFQ messages (section 5 for tickets).
 
-Open: should the ticket assign dialog get the same navigation-link switch (section 5)?
+(d) Should the service-request external-assign dialog get the same navigation-link switch? **Answer (owner 2026-10-17):** yes, same
+mechanism, default off -> built on `pilot/ORGLOC-NAV` (section 7).
+
+## 7. Navigation-link switch in the service-request external assign dialog (owner answer (d), 2026-10-17)
+
+Branch `pilot/ORGLOC-NAV` (from `origin/pilot/ORGLOC` @ `dec0130c`). Not integrated, not released.
+
+- **UI.** The "שליחה לגורם חיצוני" dialog (`frontend/src/tickets/external-assign.ts`) shows the same switch as the RFQ send dialog
+  ("לצרף קישור ניווט להודעה", off by default) under the chosen contact's options, **only** when the preview says the request's location
+  has coordinates (`location_nav.available`). Toggling asks the server for the preview again, so the preview text is the text that will
+  be sent. Pure logic: `frontend/src/tickets/assign-nav-model.ts`; strings reuse `navOn` / `navOnSub` (he / en).
+- **API.** `POST /tickets/{id}/assign/preview` and `POST /tickets/{id}/assign` take `location_nav` (bool, default false). Preview answers
+  `location_nav: {available, on}` (booleans only - never coordinates).
+- **Refusals (choice: explicit 422, never silently ignored).** `location_nav: true` on a request with no location or a location without
+  coordinates -> `422 validation` field `location_nav` code `no_coordinates` (preview and assign; nothing written). With an inside assignee
+  (user) -> 422 `not_allowed`. The permission gates run first: a caller who may not manage the request / may not send outside gets the
+  usual 403 / 404, never a hint about the flag.
+- **Storage.** `ticket_assignments.location_nav` (migration **`0106_assignment_location_nav.sql`** - provisional 0107, renumbered at the integ/264
+  integration; one `ALTER TABLE ... ADD COLUMN ... DEFAULT 0`, additive). Unavoidable: an assignment has no spare column, and a
+  reminder / new link / resend renders its text later from the ticket. `messaging.message_params(..., assignment_id=...)` reads the stored
+  choice, so the assign message, the SLA reminders, the closed / reassigned notices and a new link all keep the same text. The choice
+  belongs to that one assignment (a reassignment starts at off) and counts only while the snapshot still has coordinates.
+- **Where the link appears.** The `{place}` / `{location}` value of the outgoing message (the short `https://maps.google.com/?q=lat,lng`
+  form, within the 200-character cap) and the manager's manual "copy link" text. The public handler page is unchanged: it shows the
+  location text only after its code gate and builds no map link; no public route lists locations or coordinates.
+- **Side effect (note).** The manual "copy link" text (`external.render_message`) now carries the request's location (it used the free-text
+  place only before); the map link is added only with the switch.
+- **Tests.** `backend/tests/test_tickets_org_locations.py` (flag without coordinates, with an inside assignee, by a non-manager, default
+  off, preview equals sent text, reminders / copy / new link keep the choice, no leak to other requests or the public page) and
+  `frontend/tests/unit-tickets-assign-nav.spec.ts`.
