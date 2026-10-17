@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { ApiFailure, RfqQuote } from '../src/public-ticket/api';
 import { invalidKey, newPay, newPayItem, payFromQuote, payProblems, payWire, parsePay, percentBp, rfqFailure } from '../src/public-ticket/rfq/rfq-state';
-import { arrivalWire } from '../src/public-ticket/rfq/rfq-page-terms';
+import { arrivalWire, movedLabel } from '../src/public-ticket/rfq/rfq-page-terms';
 import { RFQ_TEXT } from '../src/public-ticket/rfq/rfq-text';
 
 // CR-RFQ-PAYMENT-SCHEDULE (RFQ contract section 20): the vendor page's proposed payment schedule and the arrival confirmation - pure
@@ -87,6 +87,18 @@ test('the arrival refusals read as one "not now" and reload; schedule / acknowle
   expect(invalidKey('invalid', [{ field: 'payment.items.1.date', code: 'range' }])).toBe('r_e_pay');
   expect(invalidKey('invalid', [{ field: 'payment', code: 'disabled' }])).toBe('r_e_pay');
   expect(invalidKey('invalid', [{ field: 'acknowledge_schedule', code: 'required' }])).toBe('r_e_ack');
+});
+
+test('RFQPAY2: a date the manager moved carries a "changed" marker in every page language (Hebrew for an unknown one)', () => {
+  const seen = new Set<string>();
+  for (const lang of ['he', 'en', 'ar', 'ru']) {
+    const label = movedLabel(lang);
+    expect(label, lang).toBeTruthy();
+    expect(label).not.toMatch(/[0-9₪$]/); // never an amount or a date in the marker
+    seen.add(label);
+  }
+  expect(seen.size).toBe(4);
+  expect(movedLabel('xx')).toBe(movedLabel('he'));
 });
 
 test('every language carries the new words; the Hebrew never uses the retired cost word', () => {

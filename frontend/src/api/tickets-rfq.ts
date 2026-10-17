@@ -162,14 +162,26 @@ export interface RfqAward {
   scope?: RfqScope | null;
   /** TKRFQ4: the order form's dates (the quote's work window, else the request's) - while no order exists, for a viewer who may order */
   order_defaults?: { work_from: string | null; work_to: string | null } | null;
-  can?: { order: boolean; send_order: boolean };
+  /** RFQPAY2 (20.15): `resend_order` - the date-change editor may offer "send the updated work order" */
+  can?: { order: boolean; send_order: boolean; resend_order?: boolean };
   /** CR-RFQ-PAYMENT-SCHEDULE (contract 20.7): the approved schedule and the vendor's arrival confirmation (null while the switch is off) */
   terms?: RfqAwardTerms | null;
 }
 
 /** CR-RFQ-PAYMENT-SCHEDULE: one instalment (amounts null without tickets.costs.view; the final one is the remainder). */
 export interface RfqInstalment { index: number; kind: 'advance' | 'progress' | 'final'; amount_minor: number | null; percent_bp: number | null;
-  due: 'date' | 'completion' | 'after_completion'; date: string | null; days: number | null }
+  due: 'date' | 'completion' | 'after_completion'; date: string | null; days: number | null;
+  /** RFQPAY2 (20.13): the day agreed at the award when a manager moved it since (null = never moved) */
+  agreed_date?: string | null; date_changed_at?: string | null;
+  /** RFQPAY2: the resolved due day (null while it depends on a completion that did not happen) and whether it passed unpaid */
+  due_date?: string | null; overdue?: boolean;
+  /** RFQPAY2 (20.11): the instalment's payment demand (the amount null without tickets.costs.view) */
+  demand?: RfqInstalmentDemand | null }
+/** RFQPAY2: one payment demand per approved instalment - made by a manager from the schedule row; paid = recorded, never executed. */
+export interface RfqInstalmentDemand { id: string; status: 'open' | 'paid' | 'cancelled'; amount_minor: number | null; currency: string;
+  due_date: string | null; created_at: string; paid_at: string | null; cancelled_at: string | null; revision: number }
+export type RfqDemandAction = 'create' | 'paid' | 'cancel';
+export interface RfqDemandAnswer { rfq: RfqDetail; demand: RfqInstalmentDemand | null; created: boolean }
 /** CR-RFQ-PAYMENT-SCHEDULE: the vendor's proposal as he sent it (percent text or a fixed amount in minor units). */
 export interface RfqPaymentProposal { items: { kind: 'advance' | 'progress' | 'final'; due: string; date: string | null; days: number | null; percent: string | null;
   amount_minor: number | null }[] }
@@ -180,12 +192,19 @@ export interface RfqAwardTerms {
     proposed_to: string | null; rejected_at: string | null; confirmed_at: string | null; confirmed_by: 'vendor' | 'manager' | null;
     acknowledged_at: string | null; requested_at: string | null; reminders: number;
     /** not confirmed after the last reminder: the RFQ managers were notified (the work order is not blocked) */
-    escalated_at?: string | null };
+    escalated_at?: string | null;
+    /** RFQPAY2 (20.14): a manager moved the window after the award */
+    changed_at?: string | null };
   revision: number;
   /** review F7: after a rejected date, the editable notice for the vendor (managers only; sent only by the manager's explicit click) */
   draft?: RfqMessageDraft | null;
-  can: { decide_arrival: boolean };
+  /** RFQPAY2 (20.13 / 20.14): the preview texts of the optional vendor notice of a moved date (the vendor's language; default off) */
+  notice?: RfqChangeNotice | null;
+  can: { decide_arrival: boolean; reschedule?: boolean; demand?: boolean; reschedule_arrival?: boolean; notify_vendor?: boolean };
 }
+export interface RfqChangeNotice { lang: string; instalment: string; arrival: string; notify_default: boolean }
+/** RFQPAY2: the optional vendor notice sent with a moved date (the thread + the templated notice; never free text outside). */
+export interface RfqMoveNotice { notify: boolean; message?: string; reason?: string; resendOrder?: boolean }
 
 export interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
 export interface RfqScope { kind: 'all' | 'kinds' | 'lines'; kinds: LineKind[]; lines: number }
@@ -473,7 +492,8 @@ export interface RfqBackend {
   /** TKRFQ4 (contract 18.2): open the awarded vendor's service request (idempotent by request_key; nothing is sent) */
   createOrder(id: string, awardId: string, body: RfqOrderBody): Promise<RfqOrderAnswer>;
   /** TKRFQ4: the exact order message before the explicit send */
-  orderPreview(id: string, awardId: string): Promise<RfqOrderPreview>;
+  /** RFQPAY2 (20.15): `window` renders the text with dates about to be saved (no side effect) */
+  orderPreview(id: string, awardId: string, window?: { work_from: string; work_to?: string | null }): Promise<RfqOrderPreview>;
   /** TKRFQ4: the manager's explicit send of the order message (a repeat answers the first send) */
   sendOrder(id: string, awardId: string): Promise<RfqOrderAnswer>;
   /** RFQATT (contract 19.3): one file onto a draft / open request (multipart); answers the detail + the new row */
@@ -486,6 +506,12 @@ export interface RfqBackend {
   attachmentUrl(id: string, attachmentId: string, thumb?: boolean): string;
   /** CR-RFQ-PAYMENT-SCHEDULE (20.6): accept / reject the arrival date the vendor proposed (the demo store has no terms) */
   decideArrival?(id: string, awardId: string, action: 'accept' | 'reject', revision: number): Promise<RfqDetail>;
+  /** RFQPAY2 (20.13): move a dated instalment's planned day (tickets.costs + view; reason optional; nothing is sent) */
+  moveInstalment?(id: string, awardId: string, index: number, date: string, revision: number, opts?: RfqMoveNotice): Promise<RfqDetail>;
+  /** RFQPAY2 (20.14): move the planned arrival window after the award (tickets.costs + view; optional vendor notice) */
+  moveArrival?(id: string, awardId: string, workFrom: string, workTo: string | null, revision: number, opts?: RfqMoveNotice): Promise<RfqDetail>;
+  /** RFQPAY2 (20.11): the instalment's payment demand - create (idempotent) / mark paid / cancel */
+  instalmentDemand?(id: string, awardId: string, index: number, action: RfqDemandAction): Promise<RfqDemandAnswer>;
   /** RFQQUESTIONS: the navigation badge (the open requests the caller manages) */
   questionsSummary(): Promise<RfqQuestionsSummary>;
   /** RFQQUESTIONS: an RFQ manager opened the vendor's thread (his questions are no longer new) */
@@ -523,6 +549,18 @@ export function createWireBody(body: RfqCreateBody, meta: Pick<RfqMeta, 'vendor_
   return out;
 }
 
+/** RFQPAY2: the optional fields of a date move - the reason, and the vendor notice only when ticked (never a text without the tick). */
+export function moveExtras(opts?: RfqMoveNotice): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (opts?.reason?.trim()) out.reason = opts.reason.trim();
+  if (opts?.resendOrder) out.resend_order = true; // RFQPAY2 20.15: re-send the already-sent work order (default off)
+  if (opts?.notify) {
+    out.notify_vendor = true;
+    out.message = (opts.message ?? '').trim();
+  }
+  return out;
+}
+
 let restMeta: RfqMeta | null = null;
 
 const rest: RfqBackend = {
@@ -552,7 +590,8 @@ const rest: RfqBackend = {
   writeMessage: (id, vendorId, text, notify, source) => post<RfqMessageAnswer>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages`, { text, notify, ...(source ? { source } : {}) }),
   setThreshold: (departmentId, minor) => put(`${R}/departments/${enc(departmentId)}`, { second_approval_minor: minor }),
   createOrder: (id, awardId, body) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order`, body),
-  orderPreview: (id, awardId) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview`),
+  orderPreview: (id, awardId, window) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview${window?.work_from
+    ? `?${new URLSearchParams({ work_from: window.work_from, ...(window.work_to ? { work_to: window.work_to } : {}) }).toString()}` : ''}`),
   sendOrder: (id, awardId) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/send`),
   uploadAttachment: (id, file, options = {}) => {
     const form = new FormData();
@@ -565,6 +604,11 @@ const rest: RfqBackend = {
   removeAttachment: (id, attachmentId) => api<RfqDetail>(`${R}/${enc(id)}/attachments/${enc(attachmentId)}`, { method: 'DELETE' }),
   attachmentUrl: (id, attachmentId, thumb = false) => resourceUrl(`api/v1/${R}/${enc(id)}/attachments/${enc(attachmentId)}${thumb ? '/thumb' : ''}`),
   decideArrival: (id, awardId, action, revision) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival`, { action, revision }),
+  moveInstalment: (id, awardId, index, date, revision, opts) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/date`,
+    { date, revision, ...moveExtras(opts) }),
+  moveArrival: (id, awardId, workFrom, workTo, revision, opts) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival/date`,
+    { work_from: workFrom, ...(workTo ? { work_to: workTo } : {}), revision, ...moveExtras(opts) }),
+  instalmentDemand: (id, awardId, index, action) => post<RfqDemandAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/demand`, { action }),
   questionsSummary: () => get<RfqQuestionsSummary>(`${R}/questions/summary`),
   markRead: (id, vendorId) => post<{ read: number }>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages/read`),
   answerPreview: (id, qid, body) => post<RfqAnswerPreview>(`${R}/${enc(id)}/questions/${enc(qid)}/preview`, answerWire(body)),

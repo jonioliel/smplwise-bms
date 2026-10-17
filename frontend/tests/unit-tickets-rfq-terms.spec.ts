@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import type { RfqAwardTerms } from '../src/api/tickets-rfq';
-import { arrivalKey, dueWords, payFromProposal, payProblems, payWire, proposalLines, scheduleExact } from '../src/tickets/rfq-terms-model';
+import { moveExtras, type RfqAwardTerms } from '../src/api/tickets-rfq';
+import { arrivalKey, dueWords, isoLocalDay, payFromProposal, payProblems, payWire, proposalLines, scheduleExact } from '../src/tickets/rfq-terms-model';
 import { RFQ_TEXT_HE, RFQ_TEXT_EN_KEYS } from '../src/tickets/rfq-text';
 import { refusalKey, eventLine } from '../src/tickets/rfq-model';
 
@@ -80,4 +80,43 @@ test('the new texts, refusals and timeline kinds exist in Hebrew and English; no
   for (const kind of ['terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected']) {
     expect(eventLine({ id: 1, kind, at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key).toBe(`ev_${kind}`);
   }
+});
+
+test('RFQPAY2: the demand / moved-date / overdue words, refusals and timeline kinds exist in Hebrew and English', () => {
+  for (const k of ['insDemand', 'insPaid', 'insCancel', 'insMove', 'insMoveSave', 'insMoveReason', 'insMoveDate', 'insMoveClose', 'insMoved', 'insOverdue',
+    'ds_open', 'ds_paid', 'ds_cancelled', 'insDemandMade', 'insDemandExists', 'insPaidDone', 'insCancelled', 'insMovedDone'] as const) {
+    expect(RFQ_TEXT_HE[k], k).toBeTruthy();
+    expect(RFQ_TEXT_EN_KEYS, k).toContain(k);
+  }
+  for (const code of ['terms_closed', 'instalment_not_found', 'instalment_not_dated', 'instalment_paid', 'demand_not_found', 'demand_paid', 'demand_cancelled',
+    'demand_zero_amount']) {
+    expect(refusalKey(code), code).toBe(`err_${code}`);
+    expect(RFQ_TEXT_EN_KEYS).toContain(`err_${code}` as never);
+  }
+  for (const kind of ['instalment_demand_created', 'instalment_paid', 'instalment_demand_cancelled', 'instalment_rescheduled']) {
+    expect(eventLine({ id: 1, kind, at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key).toBe(`ev_${kind}`);
+  }
+  expect(RFQ_TEXT_HE.insMoved).toContain('{date}');
+});
+
+test('RFQPAY2 owner decisions: a move sends the vendor notice only when ticked; the arrival move and the reminder interval have words', () => {
+  expect(moveExtras()).toEqual({});
+  expect(moveExtras({ notify: false, message: 'שלום', reason: '  ' })).toEqual({}); // never a text without the tick
+  expect(moveExtras({ notify: false, reason: ' דחייה ' })).toEqual({ reason: 'דחייה' });
+  expect(moveExtras({ notify: true, message: ' עודכן ' })).toEqual({ notify_vendor: true, message: 'עודכן' });
+  expect(isoLocalDay(null)).toBe('');
+  expect(isoLocalDay('nonsense')).toBe('');
+  expect(isoLocalDay('2026-11-03T12:00:00Z')).toMatch(/^2026-11-0[34]$/);
+  for (const k of ['mvNotify', 'mvMessage', 'mvMessageNote', 'mvSaveSend', 'insMovedSent', 'arrMove', 'arrMoveFrom', 'arrMoveTo', 'arrMoved', 'arrMovedDone',
+    'stInstalmentHours', 'stInstalmentHoursSub', 'mvResend', 'mvResendNote', 'mvOrderLoading', 'mvOrderUnavailable', 'mvOrderResent'] as const) {
+    expect(RFQ_TEXT_HE[k], k).toBeTruthy();
+    expect(RFQ_TEXT_EN_KEYS, k).toContain(k);
+  }
+  for (const code of ['work_done', 'vendor_unreachable', 'order_not_sent']) expect(refusalKey(code)).toBe(`err_${code}`);
+  expect(moveExtras({ notify: false, resendOrder: true })).toEqual({ resend_order: true }); // 20.15: only when ticked
+  expect(moveExtras({ notify: false, resendOrder: false })).toEqual({});
+  expect(eventLine({ id: 1, kind: 'order_resent', at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key)
+    .toBe('ev_order_resent');
+  expect(eventLine({ id: 1, kind: 'arrival_rescheduled', at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key)
+    .toBe('ev_arrival_rescheduled');
 });

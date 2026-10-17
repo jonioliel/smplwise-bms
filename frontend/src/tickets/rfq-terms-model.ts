@@ -88,6 +88,14 @@ export function arrivalKey(t: RfqAwardTerms): 'trm_confirmed' | 'trm_proposed' |
   return a.requested_at ? 'trm_waiting' : 'trm_not_asked';
 }
 
+/** RFQPAY2: an instant as the browser-local plain day (`YYYY-MM-DD`) for a date field; '' for none or an unreadable value. */
+export function isoLocalDay(iso: string | null | undefined): string {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** Whether a schedule's amounts add up to its total (the server guarantees it; the card shows a warning if a stale copy did not). */
 export function scheduleExact(t: RfqAwardTerms): boolean {
   const s = t.schedule;

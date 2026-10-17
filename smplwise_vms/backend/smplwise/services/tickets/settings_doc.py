@@ -266,6 +266,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # upgrade changes nothing; `arrival_reminder_hours` = the reminder when he has not confirmed after being messaged (0 = no reminder)
     ("rfq", "schedule_arrival"): (False, boolean),
     ("rfq", "arrival_reminder_hours"): (24, int_range(0, 168)),
+    # RFQPAY2 (owner decision 2026-10-17): hours between two reminders of the same award's overdue instalments while something is still
+    # overdue (0 = notify once only; a NEW overdue instalment always notifies)
+    ("rfq", "instalment_reminder_hours"): (24, int_range(0, 168)),
     ("rfq", "question_reminder_hours"): (24, int_range(0, 168)),  # RFQQUESTIONS: remind the RFQ managers of a vendor question still unanswered after N hours; 0 = off
     # RFQQSET: off by default - a viewer of all departments who is not a manager of the request also gets the pending-questions count in the navigation
     ("rfq", "question_badge_all_viewers"): (False, boolean),

@@ -1,6 +1,7 @@
 # CR-RFQ-PAYMENT-SCHEDULE - vendor payment schedule and arrival confirmation (RFQ awards)
 
-Status: **implemented on `pilot/RFQPAY`** (cut from `integ/264` @ `75f41b19`), merged into `integ/264` (2.6.4), not released. Contract:
+Status: **RFQPAY2 follow-up (section 8: a demand per instalment, the overdue notification, a moved instalment date) on `pilot/RFQPAY2`,
+migration 0112 provisional, not merged.** Base: **implemented on `pilot/RFQPAY`** (cut from `integ/264` @ `75f41b19`), merged into `integ/264` (2.6.4), not released. Contract:
 `docs/tickets/RFQ_BACKEND_CONTRACT.md` v1.4 section 20. Migration **0103** (provisional 0105 on the branch,
 renumbered at the integ/264 integration; additive only). Switch `tickets.settings.rfq.schedule_arrival` - **OFF by default** (an upgrade changes nothing).
 
@@ -84,10 +85,10 @@ build into the scratch directory; `smplwise_vms/www-public` was NOT rebuilt or c
 
 Answered (lead, on the owner's behalf, 2026-10-17):
 
-1. **Several demands per job** -> instalments as separate demands: YES, **LATER** (a future change; today one demand per assignment is
+1. **Several demands per job** -> instalments as separate demands: **BUILT in RFQPAY2 (section 8, contract 20.11)**; originally YES, **LATER** (a future change; today one demand per assignment is
    checked against what is due, with `before_completion` / `ahead_of_schedule` flags).
-2. **Overdue instalments** -> notify the managers when an approved instalment's date passes unpaid: **YES - recorded, NOT built in
-   v1.4.1.** Why not small: "paid" exists only on the single claim per assignment (`ticket_cost_claims.status = paid`), so "this
+2. **Overdue instalments** -> notify the managers when an approved instalment's date passes unpaid: **BUILT in RFQPAY2 (section 8,
+   contract 20.12)**; originally **YES - recorded, NOT built in v1.4.1.** Why not small: "paid" exists only on the single claim per assignment (`ticket_cost_claims.status = paid`), so "this
    instalment is unpaid" has no data until instalments become separate demands (answer 1); a correct version needs a new notification
    source (the settings matrix, labels, the `costs` audience), a janitor scan over `ticket_quotes.payment_schedule_json` with one
    dedupe key per instalment, and a rule for partial payment. Proposed design for the follow-up: source `rfq.instalment_overdue` (alert,
@@ -96,7 +97,9 @@ Answered (lead, on the owner's behalf, 2026-10-17):
 3. **Unconfirmed arrival after the two reminders** -> escalate to the managers, do NOT block the work order: **built in v1.4.1** (one
    `rfq.arrival` row `arrival_unconfirmed`, `escalated_at`, contract 20.7). A missed arrival on the confirmed date is not detected (no
    arrival signal exists yet; item C / the handler page would give one).
-4. **Manager changes the planned date after the award (with a timeline row)** -> YES if small: **recorded, NOT built in v1.4.1.** Why:
+4. **Manager changes the planned date after the award (with a timeline row)** -> the owner's approval (2026-10-17) is for the planned
+   date of an INSTALMENT: **BUILT in RFQPAY2 (section 8, contract 20.13)**. Moving the ARRIVAL date after the award is still not built
+   (the analysis below stays valid for it). Originally: YES if small: **recorded, NOT built in v1.4.1.** Why:
    it reopens the confirmation state machine (a confirmed arrival goes back to `awaiting`, the reminders and the escalation restart, the
    order's ticket needs its own timeline row, the vendor needs a notice with its own draft text, and an order already sent carries the
    old window), plus a manager UI on the terms card - not small enough to add safely beside the review fixes. Proposed design: `action:
@@ -133,6 +136,41 @@ Migration: 0103 (provisional 0105 on the branch; unreleased) is edited in place 
 `ticket_rfq_award_terms`; no new migration file. A database that already ran the previous 0103 / 0105 text (a developer's scratch database
 only - the branch was never released) must be recreated. No public bundle file was touched (server-side fixes only); the managers'
 screens changed (`rfq-compare.ts`, `rfq-terms.ts`, `rfq-text.ts`, `rfq-model.ts`, `api/tickets-rfq.ts`).
+
+## 8. RFQPAY2 - the three items approved after v1.4.1 (owner approval 2026-10-17, `pilot/RFQPAY2` from `integ/264`, contract v1.5)
+
+The owner approved answers 1, 2 and 4 of section 6 (previously "recorded, not built"). Contract 20.11 - 20.13; migration **0112**
+(provisional, additive: table `ticket_rfq_instalment_demands` + column `ticket_rfq_award_terms.overdue_key`).
+
+| # | Decision | Why |
+|---|----------|-----|
+| E1 | A separate payment demand per instalment is its OWN record (`ticket_rfq_instalment_demands`, one per quote + instalment index), not a second 0083 cost claim. | `ticket_cost_claims.assignment_id` is UNIQUE; allowing several claims per assignment means rebuilding that table and every "one claim per assignment" read (vendor portal, cost status, claim window). The 20.8 check of the vendor's claim is unchanged. |
+| E2 | The demand is created only by a manager's click on the schedule row; `create` is idempotent (an open / paid demand is returned unchanged, a cancelled one is reopened); `paid` records a payment made outside Arx; `cancel` withdraws it. Amount and due day are copied from the approved schedule, never from the client. | Owner: manual, idempotent, never automatic. Arx never pays. |
+| E3 | Permission: tickets.costs + view (the award's own rule) for demand actions and the date move; the request awarded / ordered / closed (a closed request still owes its vendor; a cancelled one does not). | "requires costs-manage permission"; payments outlive the quote collection. |
+| E4 | Overdue = due day strictly before today (installation zone), amount above 0, no demand marked paid. A cancelled demand does NOT settle the instalment; moving the date later or marking it paid does. | A withdrawn demand does not mean the money is no longer owed. |
+| E5 | One `rfq.instalment_overdue` row per award, raised again only when a NEW instalment becomes overdue (the set lives in `overdue_key`, written without a revision bump), keyed `rfqpay:<rfq>:<award>` outside `rfq:<id>:`; audience costs (RFQ managers with tickets.costs.view); text = reference + place + a count. | No inbox spam on every janitor pass; the close of the request or a later award must not silence a payment that is due; ids / counts only. |
+| E6 | A moved date is stored inside the schedule JSON (`agreed_date` on the first move, `date_changed_at`); the schedule hash reads the agreed day, so the vendor's acknowledgement stays valid; the vendor sees `date_changed: true` (never the agreed day or the reason); nothing is sent to him. | The manager's unilateral record must not silently "un-acknowledge" the terms (the vendor cannot re-acknowledge once his arrival is confirmed); the owner asked for a visible marker, not a message. |
+| E7 | Only dated instalments move, in order with the others, today .. today + 366; never one marked paid; the quote's copy and an open demand's due day follow. | The same rules as the plan (20.2); the demand check and the overdue scan read the moved day. |
+| E8 | The vendor-page marker text lives in `rfq-page-terms.ts` (its own lazy chunk), not in `rfq-text.ts`. | The `rfq-page` chunk has ~120 B of its 20 KB budget left; the terms chunk has its own 3 KB cap. |
+
+Owner decisions on the RFQPAY2 open questions (2026-10-17, second commit on `pilot/RFQPAY2`; contract 20.12 - 20.14):
+
+| # | Decision | Why |
+|---|----------|-----|
+| E9 | A moved instalment date: the MANAGER chooses whether the vendor is told - "notify the vendor" tick (default OFF) with the editable preview (`terms.notice`, his language); sent in the same act through the F7 / vendor-message path (thread + the templated `rfq_update`, send hours, `rfqmsg:<id>` idempotency). A text without the tick is refused, never dropped. The tick also needs the RFQ manager rule (who may message the vendor). | Owner answer to Q9 (was "nothing is sent"); no free text outside; the vendor-message permission is not widened by the costs permission. |
+| E10 | The ARRIVAL window can be moved after the award (tickets.costs + view, audited, reason optional, revision, today .. today + 366, refused once the work is marked done), same notice mechanism. `awaiting` stays, a pending proposal is superseded, `confirmed` stays confirmed by the manager. The vendor page shows "date changed". | Owner answer to Q5 (previously "not built"); re-opening the confirmation state machine for a confirmed date was not asked for - the vendor can still message / the manager can notify him. |
+| E11 | The overdue reminder repeats only every `rfq.instalment_reminder_hours` (default 24, 0 = once; 0-168) while the same instalments stay overdue; a NEW overdue instalment always notifies. `overdue_notified_at` per award. | Owner: the reminder must not be annoying. |
+| E12 | (third commit) After a date change the manager may re-send the ALREADY-SENT work order - tick "send the updated work order" (default OFF), preview = the existing order preview rendered with the new window; checked before any write (the order rule, sent, not done / closed, link + channel); the existing `rfq_order` send path (`_enqueue_order`, shared with the first send), one message per change (`...:re<terms revision>`); the request's description lines are updated where they still stand verbatim. | Owner answer to Q13; reuse the send path; never a second copy of its logic; the first send stays the order card's. |
+
+Kept as built (owner): closed requests keep working until a cancel (Q3); no Costs-tab display (Q11); the separate demand record (Q1);
+no "waived" status (Q12); a confirmed arrival moved by the manager stays confirmed (E10); the settings field he / en only; no "paid"
+display for the vendor (Q10 - closed). Migration 0112 was edited in place (unreleased): + `arrival_changed_at`, `overdue_notified_at`.
+
+Bundle budgets (measured with the guard's method on a local build into the scratch directory, `www-public` NOT rebuilt): see the
+report of each commit - the vendor marker stays in the lazy `rfq-page-terms` chunk (3 KB cap).
+
+Still open after RFQPAY2: none from this CR's owner questions (Q10 no, Q13 built as E12). Known limit: a manager-edited line of the
+order's description is not rewritten by a re-send (only the message carries the new window).
 
 ## 7. Rollback
 

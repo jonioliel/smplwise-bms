@@ -23,7 +23,8 @@ from smplwise.rbac import Principal
 from test_tickets_rfq_public import QUOTE, detail, hdr, pub, quote, sent_rfq, token, vid, view
 from tickets_s4_world import API, build_s4, crid
 
-RFQ_SOURCES = ("rfq.quote_received", "rfq.declined", "rfq.question", "rfq.due_passed", "rfq.arrival", "rfq.question_unanswered")  # + CR-RFQ-PAYMENT-SCHEDULE, RFQQUESTIONS
+RFQ_SOURCES = ("rfq.quote_received", "rfq.declined", "rfq.question", "rfq.due_passed", "rfq.arrival", "rfq.question_unanswered",
+               "rfq.instalment_overdue")  # + CR-RFQ-PAYMENT-SCHEDULE, RFQQUESTIONS, RFQPAY2
 
 
 @pytest.fixture()
@@ -244,7 +245,7 @@ def test_texts_exist_in_hebrew_and_english_and_carry_only_ref_place_and_counts()
     for lang in ("he", "en"):
         assert set(rfq_notify.TEXTS[lang]) == set(rfq_notify.TEXTS["he"])
         for kind in rfq_notify.TEXTS[lang]:
-            title, body = rfq_notify.render(kind, lang, ref="RFQ-07", place="קומה 3", invited=5, quoted=2, hours=24)
+            title, body = rfq_notify.render(kind, lang, ref="RFQ-07", place="קומה 3", invited=5, quoted=2, hours=24, count=2)  # + RFQPAY2
             assert "RFQ-07" in title and "{" not in title + body
     assert rfq_notify.render("due_passed", "en", ref="RFQ-07", place="Floor 3", invited=5, quoted=2) == (
         "RFQ-07: the quote deadline passed", "Floor 3 · 2 of 5 quoted")

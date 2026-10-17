@@ -394,7 +394,7 @@ def ordered_quotes_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[st
 
 def order_events(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
     """TKRFQ4: the order rows of a request's timeline (every one - not the presentation window of events_of)."""
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_events WHERE rfq_id = ? AND kind IN ('order_created', 'order_sent') ORDER BY id",
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_events WHERE rfq_id = ? AND kind IN ('order_created', 'order_sent', 'order_resent') ORDER BY id",
                                           (rfq_id,)).fetchall()]
 
 
@@ -428,7 +428,8 @@ def update_award(conn: sqlite3.Connection, award_id: str, fields: Mapping[str, A
 
 TERMS_COLUMNS = ("currency", "total_minor", "schedule_json", "schedule_source", "arrival_state", "planned_from", "planned_to", "proposed_from",
                  "proposed_to", "rejected_at", "requested_at", "reminded_at", "reminders", "confirmed_at", "confirmed_by", "acknowledged_at",
-                 "acknowledged_hash", "escalated_at", "decided_by", "decided_at", "updated_at")
+                 "acknowledged_hash", "escalated_at", "decided_by", "decided_at", "updated_at",
+                 "arrival_changed_at")  # + RFQPAY2 20.14; overdue_key: set_overdue_key (no bump)
 
 
 def insert_terms(conn: sqlite3.Connection, row: Mapping[str, Any]) -> None:
@@ -481,6 +482,60 @@ def terms_unconfirmed(conn: sqlite3.Connection, reminded_before: str, max_remind
         "JOIN ticket_rfq_vendors v ON v.id = t.rfq_vendor_id AND v.state = 'awarded' "
         "WHERE t.arrival_state = 'awaiting' AND t.reminders >= ? AND t.escalated_at IS NULL AND t.reminded_at IS NOT NULL "
         "AND t.reminded_at <= ? ORDER BY t.reminded_at, t.award_id LIMIT 200", (int(max_reminders), reminded_before)).fetchall()]
+
+
+_KEEP = object()
+
+
+def set_overdue_key(conn: sqlite3.Connection, award_id: str, key: str | None, notified_at: Any = _KEEP) -> None:
+    """RFQPAY2: the janitor's memory of the overdue instalments it signalled (and when it last notified) - NOT a revision bump (a
+    manager's open page never goes stale because the janitor looked)."""
+    if notified_at is _KEEP:
+        conn.execute("UPDATE ticket_rfq_award_terms SET overdue_key = ? WHERE award_id = ?", (key, award_id))
+    else:
+        conn.execute("UPDATE ticket_rfq_award_terms SET overdue_key = ?, overdue_notified_at = ? WHERE award_id = ?", (key, notified_at, award_id))
+
+
+def terms_payable(conn: sqlite3.Connection, states: Iterable[str]) -> list[dict[str, Any]]:
+    """RFQPAY2: the overdue scan's candidates - every final award with terms on a request in `states`, plus every row that still has an
+    open overdue signal (so a cancelled request / declined award gets its signal resolved). Oldest award first."""
+    st = tuple(states)
+    marks = ", ".join("?" * len(st))
+    return [dict(r) for r in conn.execute(
+        "SELECT t.*, a.state AS award_state, a.quote_id AS quote_id, r.state AS rfq_state FROM ticket_rfq_award_terms t "
+        "JOIN ticket_rfq_awards a ON a.id = t.award_id JOIN ticket_rfqs r ON r.id = t.rfq_id "
+        f"WHERE (a.state = 'approved' AND r.state IN ({marks})) OR t.overdue_key IS NOT NULL ORDER BY t.created_at, t.award_id",
+        st).fetchall()]
+
+
+# ---------------------------------------------------------------- RFQPAY2: one payment demand per approved instalment
+
+DEMAND_COLUMNS = ("amount_minor", "currency", "due_date", "status", "created_by", "created_at", "paid_by", "paid_at", "cancelled_by",
+                  "cancelled_at", "updated_at")
+
+
+def insert_demand(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
+    did = row.get("id") or new_id()
+    _insert(conn, "ticket_rfq_instalment_demands", {**row, "id": did})
+    return did
+
+
+def demand(conn: sqlite3.Connection, quote_id: str | None, index: int) -> dict[str, Any] | None:
+    if not quote_id:
+        return None
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_instalment_demands WHERE quote_id = ? AND instalment_index = ?",
+                              (quote_id, int(index))).fetchone())
+
+
+def demands_of_quote(conn: sqlite3.Connection, quote_id: str | None) -> dict[int, dict[str, Any]]:
+    if not quote_id:
+        return {}
+    return {int(r["instalment_index"]): dict(r) for r in conn.execute(
+        "SELECT * FROM ticket_rfq_instalment_demands WHERE quote_id = ? ORDER BY instalment_index", (quote_id,)).fetchall()}
+
+
+def update_demand(conn: sqlite3.Connection, demand_id: str, fields: Mapping[str, Any], *, expect_revision: int | None = None) -> bool:
+    return _update(conn, "ticket_rfq_instalment_demands", DEMAND_COLUMNS, demand_id, fields, expect_revision=expect_revision)
 
 
 # ---------------------------------------------------------------- the private thread with each vendor
@@ -681,6 +736,10 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
     run("ticket_rfq_award_terms", "DELETE FROM ticket_rfq_award_terms WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_awards", "DELETE FROM ticket_rfq_awards WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_events", "DELETE FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,))
+    # RFQPAY2: the instalment demands of the quotes deleted below (an ordered quote keeps its demands - they belong to its baseline)
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_instalment_demands'").fetchone():
+        run("ticket_rfq_instalment_demands", f"DELETE FROM ticket_rfq_instalment_demands WHERE quote_id IN (SELECT id FROM ticket_quotes "
+            f"WHERE ticket_id IS NULL AND rfq_vendor_id IN {vendors})", (rfq_id,))
     run("ticket_quote_decisions", f"DELETE FROM ticket_quote_decisions WHERE quote_id IN (SELECT id FROM ticket_quotes WHERE "
         f"ticket_id IS NULL AND rfq_vendor_id IN {vendors})", (rfq_id,))
     run("ticket_quotes", f"DELETE FROM ticket_quotes WHERE ticket_id IS NULL AND rfq_vendor_id IN {vendors}", (rfq_id,))

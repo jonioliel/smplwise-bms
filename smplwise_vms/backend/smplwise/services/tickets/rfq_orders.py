@@ -79,6 +79,11 @@ def _events(conn, rfq_id: str) -> dict[str, dict[str, Any]]:
         if not aid:
             continue
         slot = out.setdefault(aid, {})
+        if e["kind"] == "order_resent":  # RFQPAY2 (contract 20.15): the order was re-sent with a moved window - it is the order's window now
+            slot["resent"] = {**data, "at": e["at"], "by": e.get("actor_name") or ""}
+            if "created" in slot and data.get("work_from"):
+                slot["created"] = {**slot["created"], "work_from": data["work_from"], "work_to": data.get("work_to") or data["work_from"]}
+            continue
         key = "created" if e["kind"] == "order_created" else "sent"
         slot[key] = {**data, "at": e["at"], "by": e.get("actor_name") or ""}
     return out
@@ -323,23 +328,102 @@ def _render(conn, row: Mapping[str, Any], params: Mapping[str, str], contact: Ma
     return {"text": body, "lang": tpl.lang}
 
 
-def preview(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, rid: str | None = None) -> dict[str, Any]:
+def preview(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, rid: str | None = None, *, work_from: str | None = None,
+            work_to: str | None = None) -> dict[str, Any]:
     """`GET .../awards/{award_id}/order/preview`: the exact outgoing text, the channel and every refusal the send would meet - no side
-    effect."""
+    effect. RFQPAY2 (contract 20.15): `work_from` / `work_to` render the text with a window about to be saved (the re-send preview of the
+    date-change editor); they change nothing."""
     now = now_utc()
     need_order(conn, viewer, seen, "ticket.rfq.order_send", rid)
     _a, order, _v, contact, ticket, link = _order_context(conn, viewer, seen, award_id)
     refusals, planned = _refusals(conn, order, contact, ticket, link, now)
-    rendered = _render(conn, seen.row, order_params(conn, seen.row, order, contact), contact)
+    shown = order
+    if work_from:
+        wf = rfq._instant(conn, work_from, "work_from", now)
+        wt = rfq._instant(conn, work_to, "work_to", now) if work_to else wf
+        shown = {**order, "work_from": wf, "work_to": wt or wf}
+    rendered = _render(conn, seen.row, order_params(conn, seen.row, shown, contact), contact)
     return {"award_id": award_id, "text": rendered["text"], "lang": rendered["lang"], "channel": planned, "refusals": refusals,
             "sent": order.get("sent") is not None, "sent_at": (order.get("sent") or {}).get("at")}
+
+
+def _enqueue_order(conn, viewer: Viewer, row: Mapping[str, Any], a: Mapping[str, Any], order: Mapping[str, Any], contact: Mapping[str, Any],
+                   ticket: Mapping[str, Any], link: Mapping[str, Any], planned: str, key: str) -> str | None:
+    """The one place an `rfq_order` message is queued (the first send and a re-send after a moved date): the template, the handler link
+    of the order's request, the outbox's send-hours rules and idempotency key."""
+    from .messaging import RUNTIME
+
+    queued = RUNTIME.enqueue(conn, purpose="rfq_order", contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=order["assignment_id"],
+                             link_id=link["id"], department_id=row["department_id"], params=order_params(conn, row, order, contact),
+                             channel=planned, requested_by=viewer.uid, idempotency_key=key, rfq_id=row["id"])
+    return getattr(queued, "id", None)
+
+
+def _raise_refusals(conn, refusals: list[str]) -> None:
+    for code in ("order_ticket_closed", "order_link_unavailable", "vendor_not_allowed", "order_channel_unavailable"):
+        if code in refusals:
+            raise _err(conn, 409, code)
+
+
+def resend_check(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, now: dt.datetime, rid: str | None) -> dict[str, Any]:
+    """RFQPAY2 (contract 20.15) - BEFORE a date change writes anything: may this manager re-send the work order? The order rule
+    (need_order - an audited 403), the order exists AND was already sent (409 `order_not_sent`), its request is not done / closed
+    (409 `order_ticket_closed`), the link live and a channel (the send's own refusals). Returns the context for `resend`."""
+    need_order(conn, viewer, seen, "ticket.rfq.order_resend", rid)
+    a, order, v, contact, ticket, link = _order_context(conn, viewer, seen, award_id)
+    if not order.get("sent"):
+        raise _err(conn, 409, "order_not_sent")
+    refusals, planned = _refusals(conn, order, contact, ticket, link, now)
+    if ticket.get("done_at") and "order_ticket_closed" not in refusals:
+        refusals.insert(0, "order_ticket_closed")
+    _raise_refusals(conn, refusals)
+    return {"a": a, "order": order, "v": v, "contact": contact, "ticket": ticket, "link": link, "planned": planned}
+
+
+def resend(conn, viewer: Viewer, seen: rfq.RfqSeen, ctx: Mapping[str, Any], now: dt.datetime, rid: str | None, *, change: str,
+           token: str, old_lines: list[str]) -> str | None:
+    """RFQPAY2 (contract 20.15): the manager ticked "send the updated work order" on a date change. The request's description gets the
+    updated order lines (the work window and the terms lines - replaced line by line where they still stand as written; never an amount),
+    then the SAME `rfq_order` message is queued again with the current window (idempotency `rfqorder:<award>:<generation>:re<token>` -
+    one per change). Timeline `order_resent` (RFQ) / `rfq_order_resent` (the request), audit `ticket.rfq.order_resend`."""
+    from . import rfq_terms
+
+    a, order, contact, ticket, link = ctx["a"], ctx["order"], ctx["contact"], ctx["ticket"], ctx["link"]
+    row = seen.row
+    t = store_rfq.terms(conn, a["id"]) or {}
+    wf = t.get("planned_from") or order.get("work_from")
+    wt = t.get("planned_to") or (wf if t.get("planned_from") else order.get("work_to")) or wf
+    fresh = {**order, "work_from": wf, "work_to": wt}
+    # the request's text: the order block's lines as they were written -> as they are now (a line the manager edited stays his)
+    def work_line(f: str | None, to: str | None) -> str:
+        x, y = _local_day(conn, f), _local_day(conn, to)
+        return f"מועד עבודה: {x if x == y or not y else f'{x} - {y}'}"
+    desc = str(ticket.get("description") or "")
+    pairs = [(work_line(order.get("work_from"), order.get("work_to")), work_line(wf, wt)), *zip(old_lines, rfq_terms.order_lines(conn, a["id"]))]
+    new_desc = desc
+    for old, new in pairs:
+        if old and old != new and old in new_desc:
+            new_desc = new_desc.replace(old, new, 1)
+    if new_desc != desc:
+        store.update_ticket(conn, ticket["id"], {"description": new_desc[:model.DESCRIPTION_MAX]}, bump=False)
+    oid = _enqueue_order(conn, viewer, row, a, fresh, contact, ticket, link, ctx["planned"],
+                         f"rfqorder:{a['id']}:{int(link.get('generation') or 1)}:re{token}")
+    at = iso(now)
+    who = rfq.actor_name(viewer)
+    store_rfq.insert_event(conn, row["id"], "order_resent", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, rfq_vendor_id=ctx["v"]["id"],
+                           data={"award_id": a["id"], "ticket_id": ticket["id"], "outbox_id": oid, "channel": ctx["planned"], "change": change,
+                                 "work_from": wf, "work_to": wt}, at=at)
+    store.insert_event(conn, ticket["id"], "rfq_order_resent", actor_kind="user", actor_user_id=viewer.uid, actor_name=who,
+                       assignment_id=order["assignment_id"], data={"rfq_id": row["id"], "outbox_id": oid, "channel": ctx["planned"],
+                                                                   "change": change, "work_from": wf, "work_to": wt}, at=at)
+    rfq._audit(conn, viewer, "ticket.rfq.order_resend", row, rid, award_id=a["id"], ticket_id=ticket["id"], outbox_id=oid,
+               channel=ctx["planned"], change=change)
+    return oid
 
 
 def send_order(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, rid: str | None = None) -> dict[str, Any]:
     """The manager's explicit click: queues ONE `rfq_order` message (the template, the handler link of the new request) to the awarded
     vendor. A repeat answers the first send (no second message). Refusals: the request closed, the link not live, no channel."""
-    from .messaging import RUNTIME
-
     now = now_utc()
     need_order(conn, viewer, seen, "ticket.rfq.order_send", rid)
     a, order, v, contact, ticket, link = _order_context(conn, viewer, seen, award_id)
@@ -347,16 +431,10 @@ def send_order(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, rid: str 
         s = order["sent"]
         return {"queued": True, "channel": s.get("channel"), "outbox_id": s.get("outbox_id"), "already": True}
     refusals, planned = _refusals(conn, order, contact, ticket, link, now)
-    for code in ("order_ticket_closed", "order_link_unavailable", "vendor_not_allowed", "order_channel_unavailable"):
-        if code in refusals:
-            raise _err(conn, 409, code)
+    _raise_refusals(conn, refusals)
     assert link is not None
     row = seen.row
-    queued = RUNTIME.enqueue(conn, purpose="rfq_order", contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=order["assignment_id"],
-                             link_id=link["id"], department_id=row["department_id"], params=order_params(conn, row, order, contact),
-                             channel=planned, requested_by=viewer.uid,
-                             idempotency_key=f"rfqorder:{a['id']}:{int(link.get('generation') or 1)}", rfq_id=row["id"])
-    oid = getattr(queued, "id", None)
+    oid = _enqueue_order(conn, viewer, row, a, order, contact, ticket, link, planned, f"rfqorder:{a['id']}:{int(link.get('generation') or 1)}")
     at = iso(now)
     who = rfq.actor_name(viewer)
     store_rfq.insert_event(conn, row["id"], "order_sent", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, rfq_vendor_id=v["id"],
@@ -386,7 +464,7 @@ def award_extras(conn, viewer: Viewer, seen: rfq.RfqSeen, awards: list[dict[str,
         q = store_quotes.quote(conn, a["quote_id"]) or {}
         o = order_of(conn, a, events) if a["state"] == "approved" else None
         extra: dict[str, Any] = {"order": None, "ticket": None, "scope": scope_of(q, json.loads(a["line_indexes_json"])) if q else None,
-                                 "order_defaults": None, "can": {"order": False, "send_order": False}}
+                                 "order_defaults": None, "can": {"order": False, "send_order": False, "resend_order": False}}
         if o is not None:
             st = access.visible_by_id(viewer, o["ticket_id"])
             t = st.row if st is not None else {}
@@ -398,6 +476,9 @@ def award_extras(conn, viewer: Viewer, seen: rfq.RfqSeen, awards: list[dict[str,
                                     "created_by": o["created_by"],
                                     "sent": {"at": sent["at"], "channel": sent.get("channel"), "by": sent.get("by")} if sent else None}})
             extra["can"]["send_order"] = bool(ok and not sent and t and t.get("status") not in model.FINAL)
+            # RFQPAY2 (contract 20.15): the date-change editor may offer "send the updated work order" (the server re-checks it)
+            extra["can"]["resend_order"] = bool(ok and sent and t and t.get("status") not in model.FINAL and not t.get("done_at")
+                                                and state not in rfq.ENDED)
         elif a["state"] == "approved":
             extra["order_defaults"] = defaults(conn, row, a) if ok else None
             extra["can"]["order"] = bool(ok and state in ORDER_STATES_OPEN)

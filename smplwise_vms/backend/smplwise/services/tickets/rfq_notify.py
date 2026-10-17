@@ -51,6 +51,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_confirmed": ("{ref}: ספק אישר את מועד ההגעה ואת לוח התשלומים", "{place}"),
         "arrival_proposed": ("{ref}: ספק הציע מועד הגעה אחר", "{place} · ממתין להחלטה"),
         "arrival_unconfirmed": ("{ref}: ספק לא אישר את מועד ההגעה", "{place} · נשלחו שתי תזכורות · הזמנת העבודה אינה נחסמת"),
+        "instalment_overdue": ("{ref}: מועד תשלום לספק עבר", "{place} · {count} תשלומים שמועדם עבר ולא סומנו כשולמו"),
     },
     "en": {
         "quote_new": ("{ref}: quote received", "{place}"),
@@ -64,8 +65,13 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_confirmed": ("{ref}: a vendor confirmed the arrival date and the payment schedule", "{place}"),
         "arrival_proposed": ("{ref}: a vendor proposed another arrival date", "{place} · waiting for a decision"),
         "arrival_unconfirmed": ("{ref}: a vendor did not confirm the arrival date", "{place} · two reminders sent · the work order is not blocked"),
+        "instalment_overdue": ("{ref}: a vendor payment is past its date", "{place} · {count} instalments past their date and not marked paid"),
     },
 }
+# RFQPAY2: the overdue-instalment rows are keyed OUTSIDE `rfq:<id>:` (`rfqpay:<rfq_id>:<award_id>`) - a later final award or the close of
+# the request (`ended`) must not silence a payment that is still due; they end with a cancel / delete / purge (`payments_ended`) or when
+# nothing is overdue any more (paid, cancelled, moved).
+PAY_PREFIX = "rfqpay"
 PART_SOURCE = {"quote": "rfq.quote_received", "declined": "rfq.declined", "question": "rfq.question", "due": "rfq.due_passed",
                "arrival": "rfq.arrival", "qremind": "rfq.question_unanswered"}
 
@@ -117,7 +123,15 @@ def recipient_users(conn: sqlite3.Connection, n: Mapping[str, Any]) -> list[str]
     """notify.recipients_for (rule `rfq_managers`): the candidates of an RFQ notification (the engine then keeps those who may see it)."""
     origin = n.get("origin") or {}
     row = _row(conn, origin.get("rfq_id") or n.get("subject_id"))
-    return managers_of(conn, row) if row is not None else []
+    if row is None:
+        return []
+    managers = managers_of(conn, row)
+    if origin.get("audience") == "costs":  # RFQPAY2: a payment signal - only the RFQ managers who may see the costs where it lies
+        from .costs import COSTS_VIEW
+        from .rfq import _user_viewer
+
+        managers = [uid for uid in managers if _user_viewer(conn, uid).holds(COSTS_VIEW, dict(row))]
+    return managers
 
 
 # ---------------------------------------------------------------- texts
@@ -243,3 +257,22 @@ def arrival(conn: sqlite3.Connection, row: Mapping[str, Any], rfq_vendor_id: str
 def arrival_done(conn: sqlite3.Connection, rfq_id: str, rfq_vendor_id: str) -> None:
     """A manager accepted / rejected the proposed date, or the vendor confirmed (review F8): that vendor's arrival row is over."""
     resolve(conn, "rfq.arrival", f"rfq:{rfq_id}:arrival:{rfq_vendor_id}")
+
+
+def instalment_overdue(conn: sqlite3.Connection, row: Mapping[str, Any], award_id: str, rfq_vendor_id: str, *, count: int) -> str | None:
+    """RFQPAY2: approved instalments of one award are past their due day and not marked paid (the janitor; raised again only when a NEW
+    instalment becomes overdue). One row per award, audience `costs` (the RFQ managers with tickets.costs.view). The text carries the
+    request's reference, its place and a COUNT - never an amount, a date, the vendor's name or a text."""
+    return _emit(conn, "rfq.instalment_overdue", row, "instalment_overdue", dedupe=f"{PAY_PREFIX}:{row['id']}:{award_id}",
+                 origin={"rfq_vendor_id": rfq_vendor_id, "award_id": award_id, "audience": "costs"}, count=int(count))
+
+
+def instalment_settled(conn: sqlite3.Connection, rfq_id: str, award_id: str) -> None:
+    """Nothing of that award is overdue any more (paid, cancelled or moved later): its row is over."""
+    resolve(conn, "rfq.instalment_overdue", f"{PAY_PREFIX}:{rfq_id}:{award_id}")
+
+
+def payments_ended(conn: sqlite3.Connection, rfq_id: str) -> None:
+    """The request was cancelled, deleted or purged: every overdue-instalment row of it is over."""
+    for key in store.open_notification_keys(conn, f"{PAY_PREFIX}:{rfq_id}:"):
+        resolve(conn, "rfq.instalment_overdue", key)

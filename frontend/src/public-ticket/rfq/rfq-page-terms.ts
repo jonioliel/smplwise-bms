@@ -31,6 +31,10 @@ function dueText(host: TermsHost, due: string, date: string | null | undefined, 
 }
 
 const KIND_KEY = { advance: 'payAdvance', progress: 'payProgress', final: 'payFinal' } as const;
+// RFQPAY2 (contract 20.13 / 20.14): the marker of an instalment date or the arrival window a manager moved after the award. Kept in THIS lazy chunk (own 3 KB budget), not in
+// rfq-text.ts: the rfq-page chunk has almost no budget left. ar / ru: developer translations, pending a native review like the page.
+const MOVED: Record<string, string> = { he: 'המועד עודכן', en: 'date changed', ar: 'تم تغيير الموعد', ru: 'дата изменена' };
+export const movedLabel = (lang: string): string => MOVED[lang] ?? MOVED.he;
 
 // ---------------------------------------------------------------- the proposal inside the quote form
 
@@ -103,7 +107,8 @@ export function termsCard(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (acti
   const list = h('ul', { class: 'swc-rev-lines' });
   for (const it of s.items) {
     list.appendChild(h('li', { class: 'swc-rev-line', attrs: { 'data-rfq-terms-item': it.kind } },
-      h('span', { class: 'swc-rev-what' }, `${host.t(KIND_KEY[it.kind])} - ${dueText(host, it.due, it.date, it.days)}`),
+      h('span', { class: 'swc-rev-what' }, `${host.t(KIND_KEY[it.kind])} - ${dueText(host, it.due, it.date, it.days)}`,
+        it.date_changed ? h('small', { class: 'swc-muted', attrs: { 'data-rfq-terms-moved': true } }, ` (${movedLabel(v.lang)})`) : null),
       h('span', { class: 'swc-amount', attrs: { dir: 'ltr' } }, host.money(it.amount_minor, s.currency))));
   }
   const planned = a.planned_from ? [host.day(a.planned_from), a.planned_to && a.planned_to !== a.planned_from ? host.day(a.planned_to) : ''].filter(Boolean).join(' – ') : host.t('termsNone');
@@ -112,7 +117,8 @@ export function termsCard(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (acti
   const card = h('section', { class: 'swc swq', attrs: { 'data-rfq-terms': a.state } },
     h('header', { class: 'swc-head' }, h('h2', { class: 'swc-title' }, host.t('termsTitle'))),
     banner ? h('div', { class: `banner ${banner[0]}`, attrs: { role: 'status', 'data-rfq-terms-state': banner[1] } }, host.t(banner[1])) : null,
-    h('div', { class: 'rfq-fact', attrs: { 'data-rfq-terms-planned': true } }, h('span', { class: 'lbl' }, host.t('termsArrival')), h('span', { class: 'val' }, planned)),
+    h('div', { class: 'rfq-fact', attrs: { 'data-rfq-terms-planned': true } }, h('span', { class: 'lbl' }, host.t('termsArrival')), h('span', { class: 'val' }, planned,
+      a.changed ? h('small', { class: 'swc-muted', attrs: { 'data-rfq-terms-arrival-moved': true } }, ` (${movedLabel(v.lang)})`) : null)),
     proposed ? h('div', { class: 'rfq-fact' }, h('span', { class: 'lbl' }, host.t('termsPropose')), h('span', { class: 'val' }, proposed)) : null,
     h('h3', { class: 'swc-sub' }, host.t('termsSchedule')), list,
     h('div', { class: 'swc-total-row swc-grand' }, h('span', null, host.totalLabel()), h('span', { class: 'swc-amount', attrs: { dir: 'ltr' } }, host.money(s.total_minor, s.currency))));

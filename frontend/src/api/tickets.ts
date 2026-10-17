@@ -352,7 +352,9 @@ export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles
 /** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
 export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for'; theme: 'light' | 'dark' | 'auto'; /* TK255 */ path_prefix?: string; legacy_t_paths?: boolean; /* a request field only */ confirm_live_links?: boolean }
 /** CR-RFQ-PAYMENT-SCHEDULE: the requests-for-quotation keys the settings screen edits (the rest of the `rfq` block is read-only here). */
-export interface RfqSettings { schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean; [key: string]: unknown }
+export interface RfqSettings { schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean;
+  /** RFQPAY2: hours between two reminders of the same overdue instalments (0 = once only) */
+  instalment_reminder_hours?: number; [key: string]: unknown }
 /** VPORTAL: the vendor portal on the public page (OFF by default), how far back closed requests are listed and (2.6.4 review F1,
  * default ON) whether only a number confirmed by code may sign in */
 export interface VendorPortalSettings { enabled: boolean; closed_months: number; require_confirmed_number?: boolean }
@@ -361,7 +363,7 @@ export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDur
   directory?: { managers_full_phones: boolean }; rfq?: RfqSettings;
   vendor_portal?: VendorPortalSettings; brand?: { logo: string } /* VPORTAL: the logo's stamp ("" = none), set only by the logo routes */ }
 export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones: boolean };
-  rfq?: { schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean }; vendor_portal?: Partial<VendorPortalSettings> }
+  rfq?: { schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean; instalment_reminder_hours?: number }; vendor_portal?: Partial<VendorPortalSettings> }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;
