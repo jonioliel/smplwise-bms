@@ -1115,7 +1115,7 @@ export class SecurityAlarm extends LitElement {
       </div>
       <div class="actions">
         ${p.can.arm
-          ? p.arm_modes.map((m) => html`<sw-button variant=${m === 'arm_away' ? 'primary' : 'secondary'} icon="shield" data-arm=${m} ?disabled=${this.busy || !p.available || p.state === m.replace('arm_', 'armed_')}
+          ? p.arm_modes.filter((m) => m !== 'arm_custom_bypass' || p.can.bypass).map((m) => html`<sw-button variant=${m === 'arm_away' ? 'primary' : 'secondary'} icon="shield" data-arm=${m} ?disabled=${this.busy || !p.available || p.state === m.replace('arm_', 'armed_')}
               @click=${() => this.start({ kind: 'panel', action: m, panel: p, prompt: p.code.arm, needsConfirm: false })}>${ARM_LABEL[m]}</sw-button>`)
           : nothing}
         ${p.can.disarm

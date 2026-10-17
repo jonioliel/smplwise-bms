@@ -638,3 +638,32 @@ from automations_fixture import autos_app, rid  # noqa: E402,F401
 from test_camera_card import cam_app  # noqa: E402,F401
 from test_devices import dev_app  # noqa: E402,F401
 from test_ha_camera_live import _no_real_dns, live  # noqa: E402,F401
+
+
+def test_arm_modes_offer_custom_bypass_only_with_alarm_bypass(alarm_app):
+    """The panel list offers `arm_custom_bypass` only to a caller who holds alarm.bypass; the server refusal stays."""
+    from test_alarm import _act, _no_code, _panel, _panels
+    from smplwise.services import ha_sync as hs
+
+    app, s, c, calls, _ = alarm_app
+    eid = "alarm_control_panel.risco_house"
+    with app.state.db.connection() as conn:
+        now = now_iso()
+        hs.upsert_state(conn, {"entity_id": eid, "state": "disarmed", "last_changed": now, "last_updated": now,
+                               "attributes": {"friendly_name": "x", "code_format": "number", "code_arm_required": False, "supported_features": 1 | 2 | 4 | 16}})
+        conn.execute("INSERT OR IGNORE INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at) VALUES ('u-arm', 'armer', 'Armer', 'remote', 1, ?, ?)", (now, now))
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) "
+                     "VALUES (?, 'user', 'u-arm', 'operator', 'installation', '*', 'allow', ?, 'test', ?)", (new_id(), permission_revision(conn), now))
+        bump_permission_revision(conn)
+    _no_code(c, "u-arm")
+    _no_code(c)
+    armer = Principal(user_id="u-arm", username="armer", display_name="Armer", source="remote", via="cookie")  # alarm.arm only
+    try:
+        _as(app, armer)
+        p = _panel(_panels(c), eid)
+        assert p["can"]["arm"] is True and p["can"]["bypass"] is False
+        assert "arm_custom_bypass" not in p["arm_modes"] and "arm_away" in p["arm_modes"]  # negative first
+        assert _act(c, eid, "arm_custom_bypass").status_code == 403  # the server refusal stays
+    finally:
+        app.dependency_overrides.clear()
+    assert "arm_custom_bypass" in _panel(_panels(c), eid)["arm_modes"]  # the bootstrap administrator holds alarm.bypass

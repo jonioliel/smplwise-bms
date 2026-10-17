@@ -142,6 +142,9 @@ def panels(request: Request, principal: Principal = Depends(current_principal), 
             "restore": scope.allowed(BYPASS, eid) and _remote_block(principal, cfg, "bypass_off") is None,
         }
         p["can"] = can
+        if not scope.allowed(BYPASS, eid):
+            # arming with the bypass set is a zone bypass: panel_action asks alarm.bypass for it, so a caller without it is not offered the mode
+            p["arm_modes"] = [m for m in p["arm_modes"] if m != "arm_custom_bypass"]
         p["panel_code_set"] = eid in stored
         p["code"] = {k: codes.code_plan(action=k, panel=p, user_policy=pol, mode=cfg["code_mode"], stored=eid in stored, remote=remote, remote_codeless=cfg["remote_codeless"])["prompt"]
                      for k in ("arm", "disarm", "bypass")}
