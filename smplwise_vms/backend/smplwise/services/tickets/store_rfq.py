@@ -563,6 +563,10 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
         f"ticket_id IS NULL AND rfq_vendor_id IN {vendors})", (rfq_id,))
     run("ticket_quotes", f"DELETE FROM ticket_quotes WHERE ticket_id IS NULL AND rfq_vendor_id IN {vendors}", (rfq_id,))
     conn.execute(f"UPDATE ticket_quotes SET rfq_vendor_id = NULL WHERE ticket_id IS NOT NULL AND rfq_vendor_id IN {vendors}", (rfq_id,))
+    if has_attachments(conn):  # RFQATT: a file a work order referenced stays with its service request(s), without the request's id
+        conn.execute("UPDATE ticket_rfq_attachments SET rfq_id = NULL WHERE rfq_id = ? AND id IN (SELECT attachment_id FROM "
+                     "ticket_rfq_attachment_refs)", (rfq_id,))
+        run("ticket_rfq_attachments", "DELETE FROM ticket_rfq_attachments WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_vendors", "DELETE FROM ticket_rfq_vendors WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfqs", "DELETE FROM ticket_rfqs WHERE id = ?", (rfq_id,))
     return {k: v for k, v in out.items() if v}
@@ -578,6 +582,8 @@ def rfq_rows_left(conn: sqlite3.Connection, rfq_id: str, vendor_ids: list[str], 
               ("ticket_rfq_messages", "SELECT COUNT(*) FROM ticket_rfq_messages WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_rfq_events", "SELECT COUNT(*) FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_outbox", "SELECT COUNT(*) FROM ticket_outbox WHERE rfq_id = ?", (rfq_id,))]
+    if has_attachments(conn):
+        checks.append(("ticket_rfq_attachments", "SELECT COUNT(*) FROM ticket_rfq_attachments WHERE rfq_id = ?", (rfq_id,)))
     for vid in vendor_ids:
         checks.append(("ticket_quotes", "SELECT COUNT(*) FROM ticket_quotes WHERE rfq_vendor_id = ?", (vid,)))
     for lid in link_ids:
@@ -589,3 +595,98 @@ def rfq_rows_left(conn: sqlite3.Connection, rfq_id: str, vendor_ids: list[str], 
         if n:
             left[table] = left.get(table, 0) + n
     return left
+
+
+# ---------------------------------------------------------------- RFQATT: files on a request (migration 0102)
+
+ATTACHMENT_COLUMNS = ("id", "rfq_id", "folder", "kind", "name", "caption", "mime", "path", "thumb_path", "sha256", "bytes", "width", "height",
+                      "visible_vendors", "position", "created_by", "created_at", "updated_at", "removed_at", "removed_by")
+
+
+def has_attachments(conn: sqlite3.Connection) -> bool:
+    """Whether 0102 is applied (a database migrated only part of the way - some tests - has no attachment tables)."""
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_attachments'").fetchone() is not None
+
+
+def insert_attachment(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
+    row = {"id": new_id(), **row}
+    _insert(conn, "ticket_rfq_attachments", row)
+    return row["id"]
+
+
+def attachment(conn: sqlite3.Connection, rfq_id: str, attachment_id: str | None) -> dict[str, Any] | None:
+    """One file OF THIS REQUEST (another request's id reads as unknown)."""
+    if not attachment_id:
+        return None
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_attachments WHERE id = ? AND rfq_id = ?", (attachment_id, rfq_id)).fetchone())
+
+
+def attachments_of(conn: sqlite3.Connection, rfq_id: str, *, include_removed: bool = False) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM ticket_rfq_attachments WHERE rfq_id = ?" + ("" if include_removed else " AND removed_at IS NULL")
+    return [dict(r) for r in conn.execute(sql + " ORDER BY position, created_at, id", (rfq_id,)).fetchall()]
+
+
+def attachment_usage(conn: sqlite3.Connection, rfq_id: str) -> tuple[int, int]:
+    """(live files, their stored bytes) of a request - the quota."""
+    row = conn.execute("SELECT COUNT(*), COALESCE(SUM(bytes), 0) FROM ticket_rfq_attachments WHERE rfq_id = ? AND removed_at IS NULL",
+                       (rfq_id,)).fetchone()
+    return int(row[0]), int(row[1])
+
+
+def next_attachment_position(conn: sqlite3.Connection, rfq_id: str) -> int:
+    row = conn.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM ticket_rfq_attachments WHERE rfq_id = ?", (rfq_id,)).fetchone()
+    return int(row[0])
+
+
+def update_attachment(conn: sqlite3.Connection, attachment_id: str, fields: Mapping[str, Any]) -> bool:
+    return _update(conn, "ticket_rfq_attachments", ("caption", "visible_vendors", "position", "updated_at", "removed_at", "removed_by"),
+                   attachment_id, fields, bump=False)
+
+
+def delete_attachment(conn: sqlite3.Connection, attachment_id: str) -> bool:
+    conn.execute("DELETE FROM ticket_rfq_attachment_refs WHERE attachment_id = ?", (attachment_id,))
+    return conn.execute("DELETE FROM ticket_rfq_attachments WHERE id = ?", (attachment_id,)).rowcount == 1
+
+
+def quotes_arrived(conn: sqlite3.Connection, rfq_id: str) -> bool:
+    """Whether any quote (any state, any source) was ever recorded on the request - after that a file is only marked removed."""
+    return conn.execute("SELECT 1 FROM ticket_quotes WHERE rfq_vendor_id IN (SELECT id FROM ticket_rfq_vendors WHERE rfq_id = ?) LIMIT 1",
+                        (rfq_id,)).fetchone() is not None
+
+
+def attachment_paths_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[str]:
+    """The stored paths a purge of the request removes (the files no service request references)."""
+    out: list[str] = []
+    for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_attachments WHERE rfq_id = ? AND id NOT IN (SELECT attachment_id FROM "
+                          "ticket_rfq_attachment_refs)", (rfq_id,)).fetchall():
+        out.extend(p for p in (r[0], r[1]) if p)
+    return out
+
+
+def add_attachment_refs(conn: sqlite3.Connection, rfq_id: str, ticket_id: str, award_id: str | None, at: str) -> int:
+    """The reference copy at a work order (TKRFQ4): every live, vendor-visible file of the request is referenced by the ticket."""
+    return conn.execute("INSERT OR IGNORE INTO ticket_rfq_attachment_refs(ticket_id, attachment_id, award_id, created_at) "
+                        "SELECT ?, id, ?, ? FROM ticket_rfq_attachments WHERE rfq_id = ? AND removed_at IS NULL AND visible_vendors = 1",
+                        (ticket_id, award_id, at, rfq_id)).rowcount
+
+
+def attachments_of_ticket(conn: sqlite3.Connection, ticket_id: str) -> list[dict[str, Any]]:
+    """The request files a ticket references (still live and vendor-visible)."""
+    return [dict(r) for r in conn.execute(
+        "SELECT a.* FROM ticket_rfq_attachments a JOIN ticket_rfq_attachment_refs r ON r.attachment_id = a.id WHERE r.ticket_id = ? "
+        "AND a.removed_at IS NULL AND a.visible_vendors = 1 ORDER BY a.position, a.created_at, a.id", (ticket_id,)).fetchall()]
+
+
+def attachment_of_ticket(conn: sqlite3.Connection, ticket_id: str, attachment_id: str | None) -> dict[str, Any] | None:
+    if not attachment_id:
+        return None
+    return _dict(conn.execute(
+        "SELECT a.* FROM ticket_rfq_attachments a JOIN ticket_rfq_attachment_refs r ON r.attachment_id = a.id WHERE r.ticket_id = ? "
+        "AND a.id = ? AND a.removed_at IS NULL AND a.visible_vendors = 1", (ticket_id, attachment_id)).fetchone())
+
+
+def drop_orphan_attachments(conn: sqlite3.Connection) -> int:
+    """The janitor: a file no request and no service request names any more (its request was purged, then its last referencing
+    ticket). The file on disk goes with the orphan sweep (deletion.sweep_orphan_files / sweep_orphans)."""
+    return conn.execute("DELETE FROM ticket_rfq_attachments WHERE rfq_id IS NULL AND id NOT IN (SELECT attachment_id FROM "
+                        "ticket_rfq_attachment_refs)").rowcount

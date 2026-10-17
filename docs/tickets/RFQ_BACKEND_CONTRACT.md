@@ -1,7 +1,8 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.3 (section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = attachments, DESIGN ONLY; section 18 = the work order, stage C4)** -
-2026-10-16. v1.0 implemented on `pilot/TKRFQ1-core`; v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ5` (from `integ/263`); section 18 on `pilot/TKRFQ4` (from `integ/263`), combined as v1.3 at the integ/264 integration. Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
+Status: **v1.4 (section 19 = files and pictures on a request - BUILT on `pilot/RFQATT` from `integ/264`, 2026-10-17, migration 0104
+PROVISIONAL; section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = the earlier attachments design, superseded by 19;
+section 18 = the work order, stage C4)** - 2026-10-16 / 2026-10-17. v1.0 implemented on `pilot/TKRFQ1-core`; v1.1 on `pilot/TKRFQVP` (from `integ/260`); v1.2 on `pilot/TKRFQ5` (from `integ/263`); section 18 on `pilot/TKRFQ4` (from `integ/263`), combined as v1.3 at the integ/264 integration. Release target 2.6.0. Sources: `private/planning/_mockups/ticket-detail-v3/RFQ_SPEC_DRAFT.md` (sections 1-6 and 9 "Owner decisions 2026-10-16
 (final)"), `docs/tickets/DETAIL_BACKEND_CONTRACT.md` v1.2 (the quote entity, money, drafts), the approved mock-up v5
 (`private/planning/_mockups/ticket-module-v4/rfq.js`: new request, vendors board, comparison, order). Backend only. Changes after this
 version are listed in section 14.
@@ -343,7 +344,8 @@ vendor opened it"); the first read after `code/verify` is the open. Answer:
   award on this vendor is pending a second approval (2.6.3 review F2: the page and the write path agree - the form simply closes,
   `page_state` stays `open`, nothing names the pending decision) (`withdraw` needs a `submitted` quote, `decline` needs no live
   quote, `ask` needs fewer than 30 questions).
-* `attachments` is always `[]` in this version (requests carry no files yet); the page shows no upload either (design: section 17).
+* `attachments` (v1.4, section 19.4): the request's live, vendor-visible files `[{id, name, caption, kind, bytes, width, height, thumb}]`;
+  `[]` on a `closed` / `cancelled` page. The vendor uploads nothing (a vendor's own files on his quote are not built - 19.9).
 * `messages` never includes a message that came by a WhatsApp reply (16.2 - an unverified sender; managers only).
 
 ### 15.4 Writes (JSON, strict models, `client_request_id` mandatory, replayed per link generation; the write budget is spent only
@@ -391,7 +393,8 @@ the uniform 404, a read-only grace 409 `read_only`, a code switched on meanwhile
 | `form.currencies`, `form.currency`, `form.allowed_kinds` | settings (currency allow-list), his rate currency / his quote, the request's allowed kinds | after the code |
 | `form.limits.*` (`lines`, `description`, `note`, `vendor_ref`, `message`, `decline_reason`, `max_total_minor`) | code constants; `max_total_minor` is the installation's `max_claim_total_minor` setting | after the code |
 | `quote.approved.*` (`line_indexes`, `subtotal_minor`, `vat_minor`, `total_minor`) | his own APPROVED award on his own quote | after the code, when awarded |
-| `rfq.attachments` | always `[]` in this version | after the code |
+| `rfq.attachments[]` (`id`, `name`, `caption`, `kind`, `bytes`, `width`, `height`, `thumb`) | `ticket_rfq_attachments` of THIS request, live (`removed_at` NULL) and `visible_vendors = 1` (v1.4, 19.4); `name` = the cleaned display name, never a path | after the code, not on a closed / cancelled page |
+| the files themselves (`GET /t/api/rfq/file/<id>[/thumb]`) | the stored re-encoded JPEG / its thumbnail, or the stored PDF / DOCX / XLSX as a download | the same rule, re-checked per request (19.4) |
 | `messages[].id` | his own thread's message ids | after the code |
 | `can.*` | derived (15.3) | after the code |
 | `page_state` | derived (15.3) | after the code |
@@ -485,7 +488,7 @@ nonce path is not involved) is matched by the sender's keyed number (`ticket_con
   ambiguous list (claim-before-reveal), which can be a different department's managers than the request's.
 * No migration: `ticket_inbound` keeps its result CHECK (`note`), `ticket_rfq_messages.source_id` is free text.
 
-## 17. Attachments - DESIGN ONLY (v1.2, not built; `rfq.attachments` stays `[]`)
+## 17. Attachments - DESIGN ONLY (v1.2; SUPERSEDED by section 19, which is what was built - kept for the record)
 
 What files on a request would need, so a later version can build it without re-deciding. Nothing here exists in code.
 
@@ -609,6 +612,122 @@ purge removes its quotes (DETAIL section 1) - the request then shows the award w
   confirms through the request's handler page as for any request (acknowledge, notes, ETA); no separate order state is stored.
 * Files: requests and orders carry no files yet - the agreed documents are text in the request's description.
 
+## 19. Files and pictures on a request (v1.4, RFQATT - owner request 2026-10-17)
+
+The owner (17.10): "in a request for quotation the manager must be able to attach files and images so that as much detail as possible
+reaches the vendors we want quotes from (photos of the site, plans, specs, PDFs)". Direction (a) of section 17 is built - manager ->
+vendors; direction (b) (a vendor's own files on his quote) is not (19.9). Decisions and open questions: `docs/changes/CR-RFQ-ATTACHMENTS.md`.
+
+### 19.1 Migration 0104 (PROVISIONAL number - the lead renumbers at integration; 0101..0103 are free on integ/264)
+
+Additive, no rebuild. `ticket_rfq_attachments`: `id`, `rfq_id` (FK SET NULL - a purged request leaves a file a work order references),
+`folder` (the request's id at upload, never changes; the orphan sweep reads it), `kind` (`image` | `pdf` | `docx` | `xlsx`), `name` (the
+cleaned display name), `caption` (<= 200), `mime`, `path` / `thumb_path` (relative, `<folder>/rfq/<16 hex>.<ext>`), `sha256`, `bytes`,
+`width`, `height`, `visible_vendors` (0 / 1, default 1), `position`, `created_by`, `created_at`, `updated_at`, `removed_at`, `removed_by`.
+`ticket_rfq_attachment_refs` (`ticket_id` FK cascade, `attachment_id` FK cascade, `award_id`, `created_at`; PK (ticket, attachment)) - the
+reference copy of a work order (19.6). Rollback: drop both tables.
+
+### 19.2 What a file may be (services/tickets/rfq_files.py) - by CONTENT, never the name or the declared type
+
+| Kind | Accepted when | Stored | Served |
+|---|---|---|---|
+| picture | JPEG / PNG / WebP magic; the ONE image pipeline (`image_intake.reencode`, here with `allow_webp=True` - the public routes keep refusing WebP): structure walk, pixel budget (16 MP; 8 MP for PNG, progressive JPEG and WebP), a metadata-free copy for the decoder, still WebP only (animation refused), at most 8 MiB | a FRESH JPEG (q82, <= 2048 px, no EXIF / GPS / ICC / XMP / comments / appended bytes) + a 480 px re-encoded thumbnail; the original bytes never | inline, `image/jpeg`, nosniff, `private, no-store` |
+| PDF | `cost_files.check_pdf` (magic, trailer in the last KiB, active-content names incl. inflated streams, encryption refused), at most 10 MiB | byte for byte, never parsed / rendered / thumbnailed | download only: `application/pdf`, `Content-Disposition: attachment` (ASCII fallback name + RFC 5987 `filename*`), nosniff, `Content-Security-Policy: sandbox`, `private, no-store` |
+| DOCX / XLSX | `check_office`: a ZIP that starts at byte 0 and ends with its EOCD record (no prepended / appended bytes, no comment, no ZIP64); <= 2000 entries; unique plain names (no absolute, `..`, backslash, drive, NUL; case-folded duplicates refused); no encryption; stored / deflate only; <= 100 MiB uncompressed and <= 100:1 per entry over 1 MiB (a bomb is refused from the directory); exactly one main part (`word/document.xml` / `xl/workbook.xml`) with the macro-FREE content type; at most 10 MiB | byte for byte | download only (as PDF, the exact OOXML type) |
+| anything else | - | - | 415 `unsupported_format` (HEIC: `heic_refused`) |
+
+Office refusals (422 `office_refused`): `vbaProject` / `vbaData` / any `macroEnabled` type, ActiveX, `embeddings/` and OLE objects (any
+`.bin` except `printerSettings/*.bin`), macro sheets, `externalLinks/` (external workbooks, DDE links), an executable-looking entry name, a
+DOCTYPE / ENTITY in any XML part, an EXTERNAL relationship other than a hyperlink (remote templates, frames, OLE / image links), a refused
+relationship type (attachedTemplate, oleObject, activeX, vbaProject, frame, subDocument, externalLink, package, control), a DDE field
+(`DDEAUTO`, `instrText DDE`, `w:instr="DDE`) and a `|` inside a spreadsheet formula. Inflating for the scans is bounded (100 MiB in all, 32
+MiB per part). 422 `office_invalid`: not a well-formed package. As for invoice PDFs, the scans are a FILTER, not a guarantee; the controls
+are "never rendered by Arx" and "a download only" (+ the listener's CSP on the public side).
+
+Names: the display name is the last path segment only, NFC, without control / bidi / zero-width / private characters or characters a file
+system refuses, <= 100 characters before the extension, Windows device names prefixed, and ALWAYS the extension of what the content is (a
+picture called `plan.pdf` becomes `plan.jpg`). Storage uses random names only. Captions: one line, control characters removed, <= 200.
+
+Limits per request (live files): **10 files**, a picture 8 MiB / a document 10 MiB as uploaded, **40 MiB stored in total** (checked
+before the decode - the role, the state, a full request - and again inside the write transaction with the stored size), plus the
+installation's 2 GiB cap of the tickets file store (507 `storage_full`). The manager route's body cap: `body_limit` row `rfq_attachment`
+(10 MiB + the multipart framing). The decode runs outside the database write lock, in a decode slot of its own.
+
+### 19.3 Manager routes (internal, `/api/v1`, RFQ visibility first - the uniform 404 `rfq_not_found`)
+
+| Route | Who | Body / answer |
+|---|---|---|
+| `POST /tickets/rfqs/{id}/attachments` | RFQ manager (section 6), the request `draft` / `sent` / `collecting` / `due_passed` | multipart `file`, `caption?`, `visible_vendors?` (`true` / `false`, default true) -> 201 the detail + `attachment` |
+| `PATCH /tickets/rfqs/{id}/attachments/{aid}` | the same | `{caption?, visible_vendors?}` -> the detail + `changed` |
+| `DELETE /tickets/rfqs/{id}/attachments/{aid}` | the same | -> the detail (19.5) |
+| `GET /tickets/rfqs/{id}/attachments/{aid}` and `.../thumb` | everyone who sees the request (internal-only and removed files included) | the file (19.2) |
+| `GET /tickets/{ticket_id}/rfq-attachments/{aid}` and `.../thumb` | the ticket's viewers (`access.py`) | a request file THAT ticket references (19.6) |
+
+Refusals: audited 403 `forbidden` (`not_manager`, `external_permission_missing`); 404 `attachment_not_found` (another request's id, a
+removed file on a write); 409 `attachment_locked` (awarded / ordered / closed / cancelled), `attachment_limit` (`max_files`); 413
+`attachment_total` (`max_bytes`), `payload_too_large` (`max_bytes`); 415 `unsupported_format`, `heic_refused`; 422 `image_invalid`,
+`too_many_pixels`, `pdf_invalid`, `pdf_refused`, `office_invalid`, `office_refused`, `validation` (`caption`, `visible_vendors`); 429
+`busy`; 507 `storage_full`. A refusal never echoes the file's content or name; a pipeline refusal is audited (`decision: denied`, the code).
+A write never bumps the request's `revision` (an open form never goes stale for a file) and never sends anything.
+
+Detail (section 10) adds `attachments: [{id, name, caption, kind, mime, bytes, width, height, thumb, visible_vendors, created_at, removed
+(+ removed_at for managers)}]` (live files; an RFQ manager also sees the removed ones) and `can.attach`. Meta adds `attachments: true` and
+`attachment_limits: {files, image_bytes, document_bytes, total_bytes, caption, types}`. Timeline kinds `attachment_added` (`{attachment_id,
+kind, visible_vendors}`), `attachment_changed` (`{attachment_id, fields, visible_vendors?}`), `attachment_removed` (`{attachment_id, kept}`).
+Audit `ticket.rfq.attachment_add` / `.attachment_edit` / `.attachment_remove` - ids (and the kind / changed field names / `kept`) only:
+never a name, a caption, a hash or a size.
+
+### 19.4 The vendor (public listener)
+
+`GET /t/api/rfq` `rfq.attachments` (15.3 / 15.5). `GET /t/api/rfq/file/<id>` and `GET /t/api/rfq/file/<id>/thumb` (edge kind `photo_read`,
+its 120 / min window): the token through `rfq_context()` (one indexed lookup; a ticket token, an unknown / revoked / expired token, a removed
+vendor or a contact that became staff -> the uniform 404); a code-protected link without its session -> 403 `code_required`; then, re-read
+per request: the link row as it is now, the page not `closed` / `cancelled`, the file of THIS request, live and `visible_vendors`. Anything
+else - another request's file, an internal-only or removed file, a thumbnail of a document - is the uniform 404 (same bytes). There is NO
+list or index route; a file id alone is worth nothing without a live link of that request. Every invited vendor of the request receives
+the same set of files (per-vendor selection is not built - 19.9). The page shows pictures as thumbnails with a lightbox and documents as
+download buttons (fetched with the token header, handed to the browser as `application/octet-stream` - never rendered by the page).
+
+### 19.5 Removal and retention
+
+* Before any quote arrived on the request (any vendor, any state, also entered on a vendor's behalf): the row and its file(s) are deleted.
+* After a quote arrived: the row is MARKED removed (`removed_at`, `removed_by`), the file stays (what the vendors priced against is kept),
+  vendors stop seeing it at once, managers see it marked and may still download it.
+* Both: one transaction with the timeline row `attachment_removed` and the audit row - no audit row, no removal. A file is removed from
+  disk only after the commit; the janitor's orphan sweeps (`deletion.sweep_orphans` / `sweep_orphan_files`, which now know the `rfq`
+  sub-folder and the request folders) retry what could not be removed.
+* Full deletion / retention purge of the request (section 12): every file no service request references is deleted (rows in
+  `store_rfq.purge_rfq`, files after the commit by the delete route, or by the orphan sweep after a janitor purge); a referenced file stays
+  with `rfq_id` NULL. The janitor deletes a file row that neither a request nor a reference names any more (`rfq.retention`).
+
+### 19.6 The work order's reference copy (TKRFQ4)
+
+`POST .../awards/{award_id}/order` inserts one `ticket_rfq_attachment_refs` row per live, vendor-visible file of the request for the new
+service request - no copy of the bytes. `order_created` data adds `files` (the count). The ticket's `rfq_origin` (18.4) adds `attachments`
+(the referenced files, `present_public` shape). The service request's handler page (`GET /t/api/ticket`) adds `rfq_files` (same shape,
+only past its code gate, absent when none) and serves them through `GET /t/api/ticket/rfq-file/<id>[/thumb]` (the ticket link's
+`link_context`; a file that ticket does not reference -> the uniform 404). A ticket purge deletes its references.
+
+### 19.7 Messages (owner: "N attachments", never a name or a URL)
+
+New placeholder `{files}` (allowed in every template, cap 60): "מצורפים לבקשה N קבצים (בקישור)." / "N files are attached to the request
+(see the link)." (ar / ru too, pending a native review), from the COUNT of live vendor-visible files; empty -> the line is dropped. The
+`rfq_invite` starters carry a `{files}` line after the work window; the order message's params never carry it. No message ever carries a
+file name, a caption or an address other than the personal `{link}`.
+
+### 19.8 Not in logs
+
+File names, captions and contents never reach a log record, an audit row, a timeline row, a notification or an outbox row (ids, the kind,
+counts only). The image pipeline's own rule (no metadata reaches Pillow) applies unchanged.
+
+### 19.9 Not built in v1.4 (recorded)
+
+* A vendor's own files on his quote (section 17 direction (b)) and any public upload route.
+* Per-vendor file selection (every invited vendor gets the same vendor-visible files; "internal only" is the one switch).
+* Re-ordering files; an automatic "new file" notice to vendors when a file is added after the send (the manager may write to them).
+* The internal ticket drawer shows the referenced files only through `rfq_origin.attachments` (no new UI block there in this version).
+* Server-side antivirus (none exists in the add-on - 19.2's "refuse what cannot be proven simple" instead).
+
 ## 14. Change log
 
 * v1.4 (2026-10-17, CR-ORG-LOCATIONS, `pilot/ORGLOC`; migration 0101, PROVISIONAL number): an RFQ may name an organisation location -
@@ -620,6 +739,13 @@ purge removes its quotes (DETAIL section 1) - the request then shows the award w
   `details`, `text`, `message`, `map_url`, `has_coordinates`) and `location_nav`; the vendor page's `rfq.location` = `{text, map_url}`
   after the code gate (`map_url` empty unless switched on). The work order copies the reference and the snapshot to its ticket. See
   `docs/changes/CR-ORG-LOCATIONS.md`.
+* v1.4 (2026-10-17, RFQATT, `pilot/RFQATT` from `integ/264`): section 19 - files and pictures a manager attaches to a request (pictures
+  re-encoded through the image pipeline incl. still WebP for this signed-in route only, PDF / DOCX / XLSX by structural refusal checks and
+  served as downloads only), per-file caption and "visible to vendors", the vendor page's files (his own link, the uniform 404 otherwise),
+  removal rules (deleted before any quote, marked after), the work order's reference copy, the `{files}` placeholder (a count only), meta
+  `attachments` / `attachment_limits`, detail `attachments` / `can.attach`. Migration 0104 (PROVISIONAL). 15.3 / 15.5 updated (the
+  attachments are no longer always `[]`); section 17 marked superseded. Deviation from section 17 (owner request 17.10): Office documents
+  (DOCX / XLSX) and WebP are accepted (17 said "no Office types" and the pipeline refused WebP) - see CR-RFQ-ATTACHMENTS.md.
 
 * v1.3 (2026-10-16, integration 2.6.4; TKRFQ4 stage C4, built as "v1.2" on `pilot/TKRFQ4` in parallel with TKRFQ5): section 18 - the work order: create (opens one service request per awarded vendor through the
   existing create and external-assignment code, the assignment message suppressed; the awarded quote becomes its baseline with no

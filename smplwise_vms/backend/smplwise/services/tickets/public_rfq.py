@@ -9,6 +9,9 @@ deadlines), rate gate, security headers and uniform 404.
     POST /t/api/rfq/message       a clarification question (stored in his thread; nothing is sent anywhere)
     POST /t/api/rfq/code/send     the OPTIONAL verification code (owner decision 16.10: off by default, per vendor)
     POST /t/api/rfq/code/verify
+    GET  /t/api/rfq/file/<id>[/thumb]  RFQATT (contract 19.4): one of the request's live vendor-visible files (a picture inline, its
+                                  thumbnail, or a document as a download) - his own link, past the code gate, not on a closed /
+                                  cancelled page; anything else is the uniform 404
 
 The wiring rules of the ticket routes (code review section 3) apply unchanged: the token is resolved by `rfq_context()` ONLY - ONE
 indexed read of `ticket_rfq_links.token_hash` (joined with the vendor, the request and the contact) after the rate gate; an unknown,
@@ -25,13 +28,13 @@ import logging
 from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
 from . import codes as codes_mod
-from . import links, rfq_vendor, store_rfq
+from . import links, rfq_attach, rfq_files, rfq_vendor, store_rfq
 from .codes import CodeEngine, CodePolicy, CodeRefused
 from .handler_actions import ActionRefused, _finish as finish_request, claim as claim_request
 from .keyring import KEYS
@@ -52,6 +55,8 @@ DECLINE_ROUTE = "/t/api/rfq/decline"
 MESSAGE_ROUTE = "/t/api/rfq/message"
 CODE_SEND_ROUTE = "/t/api/rfq/code/send"
 CODE_VERIFY_ROUTE = "/t/api/rfq/code/verify"
+FILE_ROUTE = "/t/api/rfq/file/{attachment_id}"
+THUMB_ROUTE = "/t/api/rfq/file/{attachment_id}/thumb"
 
 
 # ---------------------------------------------------------------- the link record (the fields the listener and the code engine read)
@@ -262,6 +267,12 @@ class SqlRfqCodeSender:
         except Exception:  # noqa: BLE001 - the route answers 503 code_unavailable; nothing about the code is logged
             log.warning("rfq verification code not queued")
             return False
+
+
+def _plain_id(value: str) -> bool:
+    import re
+
+    return re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", value) is not None
 
 
 def _code_event(db: Database, link: RfqLink, kind: str, *, clock: Callable[[], float], **data: Any) -> None:
@@ -478,6 +489,49 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
             return 201, {"ok": True, "message": rfq_vendor.ask(conn, ctx.link, body.text, when)}
 
         return await write(request, ctx, MESSAGE_ROUTE, crid, fn)
+
+    # ------------------------------------------------------------ RFQATT: the request's files (contract 19.4)
+
+    async def serve_file(request: Request, attachment_id: str, ctx: LinkContext, thumb: bool) -> FileResponse:
+        if not ctx.code_ok:
+            raise PublicError(403, "code_required")  # like the ticket photos: nothing of the request before the code (15.3)
+        root = getattr(request.app.state.deps, "attachments_root", None)
+        link: RfqLink = ctx.link  # type: ignore[assignment]
+        if root is None or not isinstance(attachment_id, str) or not _plain_id(attachment_id):
+            raise PublicError(404, "link_unavailable")
+
+        def read() -> tuple[dict[str, Any], int] | None:
+            when = now()
+            with db.connection(mode="read", label="tickets.public.rfq.file") as conn:
+                fresh = fold(store_rfq.link_by_id_joined(conn, link.link_id))  # the link as it is now (a revoke meanwhile -> 404)
+                if fresh is None or fresh.generation != link.generation or not fresh.available(float(epoch_now())):
+                    return None
+                if not rfq_vendor.shows_files(conn, link, when):
+                    return None
+                a = rfq_attach.for_vendor(conn, link.rfq_id, attachment_id)
+                return (a, int(fresh.rfq_number or 0)) if a is not None else None
+
+        try:
+            got = await run_in_threadpool(read)
+        except VendorLinkGone:
+            got = None
+        if got is None:
+            raise PublicError(404, "link_unavailable")
+        a, number = got
+        path = rfq_attach.file_path(root, a, thumb)
+        if path is None:
+            raise PublicError(404, "link_unavailable")
+        h = rfq_files.headers("image" if thumb else a["kind"], ref_number=number, file_id=a["id"], name=a["name"])
+        media = h.pop("Content-Type")
+        return FileResponse(path, media_type=media, headers=h)
+
+    @r.get(FILE_ROUTE)
+    async def get_file(request: Request, attachment_id: str, ctx: LinkContext = Depends(rfq_context())) -> FileResponse:
+        return await serve_file(request, attachment_id, ctx, False)
+
+    @r.get(THUMB_ROUTE)
+    async def get_thumb(request: Request, attachment_id: str, ctx: LinkContext = Depends(rfq_context())) -> FileResponse:
+        return await serve_file(request, attachment_id, ctx, True)
 
     # ------------------------------------------------------------ the optional verification code (15.2), as /t/api/code/*
 

@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
+import './rfq-files';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../api/automations-demo';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -11,7 +12,7 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { ticketsS4Api, type Contact } from '../api/tickets-s4';
 import type { LineKind } from '../api/tickets-costs';
-import { ticketsRfqApi, type RfqChannel, type RfqDetail, type RfqFile, type RfqMeta } from '../api/tickets-rfq';
+import { ticketsRfqApi, type RfqChannel, type RfqDetail, type RfqMeta } from '../api/tickets-rfq';
 import { rememberDemoContact } from '../api/tickets-rfq-mock';
 import { tIcon } from './icons';
 import { rIcon } from './rfq-icons';
@@ -27,6 +28,17 @@ import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locati
 import { locationPicker } from './location-picker';
 import { OTHER, defaultPick, locationBody, navAvailable, pickPreview } from './org-locations-model';
 import { lt } from './org-locations-text';
+import type { FileRow } from './rfq-files';
+import { DEFAULT_LIMITS, displayName, formatBytes, localKind } from './rfq-files-model';
+
+/** RFQATT: a file picked in the sheet, uploaded onto the draft right after it is created (never part of the create body). */
+interface LocalFile { key: string; file: File; caption: string; visible: boolean; url: string }
+let localSeq = 0;
+
+/** The `{files}` line of the invitation preview ("N files are attached (see the link)"); empty when no vendor gets a file. */
+export function filesLine(n: number): string {
+  return n <= 0 ? '' : n === 1 ? rt('previewFile1') : rt('previewFiles', { n });
+}
 
 const CHANNELS: readonly RfqChannel[] = ['whatsapp', 'email', 'manual'];
 const ERR: Record<DraftField, RfqTextKey> = { title: 'err_title', description: 'err_description', department: 'err_department', due: 'err_due', window: 'err_window', vendors: 'err_vendors', place: 'err_place' };
@@ -55,7 +67,7 @@ export class TicketsRfqNew extends LitElement {
   @state() private d: RfqDraft = this.blank();
   @state() private contacts: Contact[] | null = null;
   @state() private query = '';
-  @state() private files: RfqFile[] = [];
+  @state() private files: LocalFile[] = [];
   @state() private attempt: '' | 'draft' | 'send' = '';
   @state() private confirm = false;
   @state() private mode: 'auto' | 'manual' = 'auto';
@@ -78,6 +90,16 @@ export class TicketsRfqNew extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     applyAutomationsGlass(this);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.dropFiles();
+  }
+
+  private dropFiles(): void {
+    for (const f of this.files) if (f.url) URL.revokeObjectURL(f.url);
+    this.files = [];
   }
 
   protected willUpdate(changed: PropertyValues<this>): void {
@@ -111,7 +133,7 @@ export class TicketsRfqNew extends LitElement {
   private reset(): void {
     this.d = { ...this.blank(), department_id: this.firstDept(), source_ticket_id: this.sourceTicket };
     this.query = '';
-    this.files = [];
+    this.dropFiles();
     this.attempt = '';
     this.confirm = false;
     this.mode = this.meta?.vendor_page === false ? 'manual' : 'auto';
@@ -195,19 +217,49 @@ export class TicketsRfqNew extends LitElement {
     return ch === 'whatsapp' ? rIcon('chat') : ch === 'email' ? rIcon('mail') : tIcon('copy');
   }
 
-  // ---------------------------------------------------------------- files (C2 gap: only when the server takes them)
+  // ---------------------------------------------------------------- files (RFQATT: kept here, uploaded onto the draft once it exists)
 
-  private async addFiles(list: FileList | null): Promise<void> {
-    const up = ticketsRfqApi().uploadFile;
-    if (!list?.length || !up) return;
-    this.busy = true;
-    try {
-      for (const f of Array.from(list).slice(0, 10)) this.files = [...this.files, await up.call(ticketsRfqApi(), f)];
-    } catch (e) {
-      this.error = rfqError(e);
-    } finally {
-      this.busy = false;
+  private onPicked(files: File[]): void {
+    const add = files.map((file) => ({ key: `lf${++localSeq}`, file, caption: '', visible: true, url: localKind(file) === 'image' ? URL.createObjectURL(file) : '' }));
+    this.files = [...this.files, ...add];
+  }
+
+  private setFile(key: string, patch: Partial<LocalFile>): void {
+    this.files = this.files.map((f) => (f.key === key ? { ...f, ...patch } : f));
+  }
+
+  private removeFile(key: string): void {
+    const f = this.files.find((x) => x.key === key);
+    if (f?.url) URL.revokeObjectURL(f.url);
+    this.files = this.files.filter((x) => x.key !== key);
+  }
+
+  private fileRows(): FileRow[] {
+    return this.files.map((f) => {
+      const kind = localKind(f.file) ?? 'pdf';
+      return { key: f.key, name: displayName(f.file.name, kind), kind, bytes: f.file.size, caption: f.caption, visible: f.visible, thumb: f.url, href: '', pending: true };
+    });
+  }
+
+  private vendorFileCount(): number {
+    return this.files.filter((f) => f.visible).length;
+  }
+
+  /** Upload the picked files onto the created draft, in order. A file that went is taken off the list, so a retry sends only the rest;
+   * any refusal stops here (nothing is sent to the vendors with a file missing). */
+  private async uploadPending(r: RfqDetail): Promise<RfqDetail> {
+    let d = r;
+    for (const f of [...this.files]) {
+      try {
+        const a = await ticketsRfqApi().uploadAttachment(r.id, f.file, { caption: f.caption || undefined, visible_vendors: f.visible });
+        d = a;
+      } catch (e) {
+        throw new Error(rt('fUploadFailed', { error: `${f.file.name}: ${rfqError(e)}` }));
+      }
+      this.removeFile(f.key);
     }
+    this.created = d;
+    return d;
   }
 
   // ---------------------------------------------------------------- submit
@@ -223,7 +275,6 @@ export class TicketsRfqNew extends LitElement {
       ...locationBody(d.location_pick ?? OTHER, d.place_text), // CR-ORG-LOCATIONS: a location reference, or "other" as the free-text place
       source_ticket_id: d.source_ticket_id || undefined, due_at: localToIso(d.due_date, d.due_time || '12:00'), work_from: dayToIso(d.work_from) || undefined,
       work_to: dayToIso(d.work_to) || undefined, allowed_line_kinds: normalizeKinds(d.kinds), vendors: d.vendors.map((v) => ({ ...v })), client_request_id: this.crid,
-      file_ids: this.files.map((f) => f.id),
     };
   }
 
@@ -239,7 +290,7 @@ export class TicketsRfqNew extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const r = await this.ensureCreated();
+      const r = await this.uploadPending(await this.ensureCreated());
       this.dispatchEvent(new CustomEvent('rfq-saved', { detail: { id: r.id, sent: false } }));
     } catch (e) {
       this.error = rfqError(e);
@@ -259,7 +310,7 @@ export class TicketsRfqNew extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const r = await this.ensureCreated();
+      const r = await this.uploadPending(await this.ensureCreated());
       const nav = navAvailable(this.locs, this.d.location_pick ?? '') ? !!this.d.location_nav : undefined;
       await ticketsRfqApi().send(r.id, r.revision, this.mode, clientRequestId(), nav);
       this.confirm = false;
@@ -282,8 +333,25 @@ export class TicketsRfqNew extends LitElement {
       name: c?.display_name ?? rt('previewName'), number: rt('previewNumber'), title: this.d.title.trim() || rt('fTitle'),
       place: pickPreview(this.locs, this.d.location_pick ?? OTHER, this.d.place_text, !!this.d.location_nav && navAvailable(this.locs, this.d.location_pick ?? '')),
       due: dateTime(localToIso(this.d.due_date, this.d.due_time || '12:00')), window: windowText(dayToIso(this.d.work_from), dayToIso(this.d.work_to)) || rt('previewFlexible'),
-      link: rt('previewLink'), organization: '',
+      link: rt('previewLink'), organization: '', files: filesLine(this.vendorFileCount()),
     }, lang);
+  }
+
+  /** RFQATT: the send preview's list - exactly what each invited vendor receives through his link (names, sizes, thumbnails). */
+  private sendFiles(): TemplateResult | typeof nothing {
+    if (!this.meta?.attachments) return nothing;
+    const out = this.files.filter((f) => f.visible);
+    const internal = this.files.length - out.length;
+    const lang = ticketsLang() === 'en' ? 'en' : 'he';
+    return html`<div class="stack" data-rfq-send-files>
+      <b>${rt('sendFiles')}</b>
+      ${out.length ? html`<ul class="sendfiles">${out.map((f) => {
+        const kind = localKind(f.file) ?? 'pdf';
+        return html`<li data-rfq-send-file><span class="th">${f.url ? html`<img src=${f.url} alt="" />` : rIcon(kind === 'xlsx' ? 'sheet' : 'file')}</span>
+          <span>${bidi(displayName(f.file.name, kind))}</span><small>${formatBytes(f.file.size, lang)}</small></li>`;
+      })}</ul>` : html`<span class="note">${rt('sendFilesNone')}</span>`}
+      ${internal ? html`<span class="note" data-rfq-send-internal>${rt('sendFilesInternal', { n: internal })}</span>` : nothing}
+    </div>`;
   }
 
   private err(f: DraftField, p: Partial<Record<DraftField, true>>): TemplateResult | typeof nothing {
@@ -334,12 +402,13 @@ export class TicketsRfqNew extends LitElement {
               ${kinds.map((k) => html`<button type="button" class="rc" aria-pressed=${String(d.kinds.includes(k) || k === 'labor')} ?disabled=${k === 'labor' || this.busy} data-kind=${k}
                 @click=${() => this.set('kinds', toggleKind(d.kinds, k))}>${tIcon(d.kinds.includes(k) || k === 'labor' ? 'check' : 'plus')}${ct(`k_${k}` as CostTextKey)}</button>`)}
             </div></div>
-          ${this.meta?.attachments ? html`<div class="fld wide"><span>${rt('fFiles')}</span><div class="files" data-rfq-files>
-            ${this.files.map((f) => html`<span class="file">${f.kind === 'pdf' ? rIcon('file') : tIcon('image')}${bidi(f.name)}
-              <button type="button" class="ibtn" aria-label=${`${rt('cancel')} ${f.name}`} @click=${() => (this.files = this.files.filter((x) => x.id !== f.id))}>${tIcon('x')}</button></span>`)}
-            <label class="btn sm quiet">${tIcon('plus')}${rt('fAttach')}<input class="vh" type="file" multiple accept="image/*,application/pdf" data-rfq-file-input
-              @change=${(e: Event) => void this.addFiles((e.target as HTMLInputElement).files)} /></label>
-          </div></div>` : nothing}
+          ${this.meta?.attachments ? html`<div class="fld wide" data-rfq-files><span>${rt('fFiles')} <span class="mut">(${rt('fFilesSub')})</span></span>
+            <tickets-rfq-files editable ?busy=${this.busy} .rows=${this.fileRows()} .limits=${this.meta.attachment_limits ?? DEFAULT_LIMITS}
+              @files-picked=${(e: CustomEvent<{ files: File[] }>) => this.onPicked(e.detail.files)}
+              @file-caption=${(e: CustomEvent<{ key: string; caption: string }>) => this.setFile(e.detail.key, { caption: e.detail.caption })}
+              @file-visible=${(e: CustomEvent<{ key: string; visible: boolean }>) => this.setFile(e.detail.key, { visible: e.detail.visible })}
+              @file-remove=${(e: CustomEvent<{ key: string }>) => this.removeFile(e.detail.key)}></tickets-rfq-files>
+          </div>` : nothing}
         </div>
       </section>
       <section aria-labelledby="h-vendors">
@@ -388,6 +457,7 @@ export class TicketsRfqNew extends LitElement {
               @change=${(e: Event) => this.set('location_nav', (e.target as HTMLInputElement).checked)} />
             <span><b>${lt('navOn')}</b><small>${navAvailable(this.locs, this.d.location_pick) ? lt('navOnSub') : lt('navNoCoords')}</small></span></label>` : nothing}
         ${this.mode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${this.preview()}</pre>` : nothing}
+        ${this.sendFiles()}
         ${this.error ? html`<div class="err" role="alert" data-rfq-send-error>${this.error}</div>` : nothing}
       </div>
       <button slot="footer" type="button" class="btn quiet" ?disabled=${this.busy} @click=${() => (this.confirm = false)}>${rt('back')}</button>

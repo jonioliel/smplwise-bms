@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, Principal
-from . import access, model, money, org_locations, quotes, rfq_links, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
+from . import access, model, money, org_locations, quotes, rfq_files, rfq_links, rfq_notify, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
@@ -667,7 +667,8 @@ def message_params(conn, row: Mapping[str, Any], contact: Mapping[str, Any]) -> 
     return {"name": "" if contact.get("erased_at") else (contact.get("display_name") or ""), "number": str(row["number"]),
             "title": row.get("title") or "", "place": row.get("place_text") or location_value(row), "department": dept.get("name") or "",
             "organization": settings_doc.read(conn).get("organization_name") or "", "due": _local(conn, row.get("due_at"), "%d.%m %H:%M"),
-            "window": window, **({"location": location_value(row)} if row.get("location_snapshot") else {})}
+            "window": window, "files": rfq_attach.files_param(conn, row["id"], lang),  # RFQATT: "N files attached" - a count only
+            **({"location": location_value(row)} if row.get("location_snapshot") else {})}
 
 
 def _enqueue(conn, *, purpose: str, row: Mapping[str, Any], vendor: Mapping[str, Any], contact: Mapping[str, Any], channel: str,
@@ -1285,10 +1286,14 @@ def set_threshold(conn, viewer: Viewer, department_id: str, value: Any, rid: str
     return value
 
 
-def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None) -> dict[str, int]:
+def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None, files_out: list[str] | None = None) -> dict[str, int]:
+    """Full deletion. `files_out` (RFQATT) receives the stored paths of the request's files that no service request references - the
+    caller deletes them after the commit (the orphan sweep retries what it could not)."""
     if not viewer.holds_installation(DELETE):
         raise refuse(conn, viewer, "ticket.rfq.delete", seen.row, "delete_permission_missing", rid, permission=DELETE)
     rfq_notify.ended(conn, seen.row["id"])
+    if files_out is not None and store_rfq.has_attachments(conn):
+        files_out.extend(store_rfq.attachment_paths_of_rfq(conn, seen.row["id"]))
     counts = store_rfq.purge_rfq(conn, seen.row["id"])
     audit(conn, actor=viewer.principal, action="ticket.rfq.delete", decision="allowed", resource_type="ticket_rfq", resource_id=seen.row["id"],
           request_id=rid, details={"number": seen.row["number"], "rows": counts})
@@ -1308,6 +1313,7 @@ def retention(conn, now: dt.datetime) -> dict[str, int]:
         store_rfq.purge_rfq(conn, row["id"])
         out["purged"] += 1
     store_rfq.prune_redeems(conn, iso(now))
+    out["attachments"] = rfq_attach.janitor(conn)  # RFQATT: files neither a request nor a service request names (files: the orphan sweep)
     return out
 
 
@@ -1500,6 +1506,7 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
 
     extras = award_extras(conn, viewer, seen, awards, amounts)
     out_awards = [{**present_award(conn, a, amounts), **extras.get(a["id"], {})} for a in awards]
+    files = rfq_attach.detail_block(conn, viewer, seen, state)  # RFQATT (contract 19.3)
     return {
         "id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": state, "title": row["title"], "description": row["description"],
         "department": {"id": row["department_id"], "name": dept.get("name") or ""},
@@ -1515,14 +1522,15 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
         "kpis": kpis(conn, row, vendors, live, now, amounts), "vendors": out_vendors,
         "awards": out_awards,
         "second_approval": {"threshold_minor": threshold if amounts else None, "enabled": threshold is not None},
-        "timeline": present_events(conn, row, amounts), "vendor_page": vendor_page_ready(conn),
+        "timeline": present_events(conn, row, amounts), "vendor_page": vendor_page_ready(conn), "attachments": files["attachments"],
         "can": {"edit": manager and state not in ENDED, "add_vendor": manager and (state == "draft" or open_),
                 "send": manager and state in ("draft", "sent", "collecting") and any(v["state"] == "draft" for v in vendors),
                 "remind": manager and state in ("sent", "collecting"), "cancel": manager and (state == "draft" or open_) and not has_award,
                 "close": manager and (open_ or state in ("awarded", "ordered")) and not pending,
                 "award": decide and (open_ or state == "awarded") and not pending, "see_amounts": amounts,
                 "delete": viewer.holds_installation(DELETE),
-                "order": any(a["can"]["order"] for a in out_awards), "send_order": any(a["can"]["send_order"] for a in out_awards)},
+                "order": any(a["can"]["order"] for a in out_awards), "send_order": any(a["can"]["send_order"] for a in out_awards),
+                "attach": files["attach"]},
     }
 
 
@@ -1576,8 +1584,13 @@ def meta(conn, viewer: Viewer) -> dict[str, Any]:
         depts.append({"id": d["id"], "name": d["name"], "can_create": viewer.can_create_in(d) and EXTERNAL in viewer.anywhere,
                       "second_approval_minor": t if COSTS_VIEW in viewer.anywhere else None, "second_approval_enabled": t is not None})
     return {"vendor_page": vendor_page_ready(conn), "settings": dict(doc["rfq"]), "departments": depts, "line_kinds": list(money.LINE_KINDS),
-            "currencies": list(cost_settings(conn).currencies), "vendor_options": True}
+            "currencies": list(cost_settings(conn).currencies), "vendor_options": True,
+            # RFQATT (contract 19): files and pictures on a request - the form's limits (the server enforces them anyway)
+            "attachments": store_rfq.has_attachments(conn), "attachment_limits": rfq_files.limits()}
 
 
 def principal_of(viewer: Viewer) -> Principal:
     return viewer.principal
+
+
+from . import rfq_attach  # noqa: E402 - RFQATT; at the end: rfq_attach imports this module (circular, resolved at call time)

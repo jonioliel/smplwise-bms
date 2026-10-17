@@ -17,13 +17,13 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any, Callable, Literal
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Depends, Path, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
-from . import handler_actions, links, map_element, store_links
+from . import handler_actions, links, map_element, rfq_attach, rfq_files, store_links
 from .handler_actions import ActionRefused, LinkGone
 from .keyring import KEYS
 from .module_key import ModuleKeyError
@@ -32,6 +32,7 @@ from .public_app import (Idempotency, LinkContext, PublicError, idempotency_scop
 from .text_hygiene import clean_str
 
 UTC = dt.timezone.utc
+_ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 
 
 class _Strict(BaseModel):
@@ -130,6 +131,9 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                     block = map_element.public_block(conn, ctx.link.ticket_id)
                     if block is not None:
                         data["map_element"] = block
+                    files = rfq_attach.ticket_list(conn, ctx.link.ticket_id)  # RFQATT (contract 19.6): the order's request files
+                    if files:
+                        data["rfq_files"] = files
                 return data
 
         try:
@@ -164,6 +168,45 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
             raise PublicError(404, "link_unavailable")
         return Response(svg.encode("utf-8"), media_type="image/svg+xml; charset=utf-8",
                         headers={"Cache-Control": "private, no-store", "Content-Disposition": 'inline; filename="map.svg"'})
+
+    async def rfq_file(request: Request, attachment_id: str, ctx: LinkContext, thumb: bool) -> FileResponse:
+        """RFQATT (contract 19.6): a request file the work order's service request REFERENCES - this link's ticket only, past the code
+        gate; unknown / another ticket's / removed / internal-only -> the uniform 404."""
+        if not ctx.code_ok:
+            raise PublicError(403, "code_required")
+        root = getattr(request.app.state.deps, "attachments_root", None)
+        if root is None:
+            raise PublicError(404, "link_unavailable")
+
+        def read() -> tuple[dict[str, Any], int] | None:
+            with db.connection(mode="read", label="tickets.public.rfq_file") as conn:
+                t = store_links.ticket_of_link(conn, ctx.link.link_id)
+                if t is None:
+                    raise LinkGone()
+                a = rfq_attach.for_ticket(conn, ctx.link.ticket_id, attachment_id)
+                return (a, int(t.get("number") or 0)) if a is not None else None
+
+        try:
+            got = await run_in_threadpool(read)
+        except LinkGone:
+            raise PublicError(404, "link_unavailable") from None
+        if got is None:
+            raise PublicError(404, "link_unavailable")
+        a, number = got
+        path = rfq_attach.file_path(root, a, thumb)
+        if path is None:
+            raise PublicError(404, "link_unavailable")
+        h = rfq_files.headers("image" if thumb else a["kind"], ref_number=number, file_id=a["id"], name=a["name"])
+        media = h.pop("Content-Type")
+        return FileResponse(path, media_type=media, headers=h)
+
+    @r.get("/t/api/ticket/rfq-file/{attachment_id}")
+    async def ticket_rfq_file(request: Request, attachment_id: str = Path(..., pattern=_ID), ctx: LinkContext = Depends(link_context())) -> FileResponse:
+        return await rfq_file(request, attachment_id, ctx, False)
+
+    @r.get("/t/api/ticket/rfq-file/{attachment_id}/thumb")
+    async def ticket_rfq_thumb(request: Request, attachment_id: str = Path(..., pattern=_ID), ctx: LinkContext = Depends(link_context())) -> FileResponse:
+        return await rfq_file(request, attachment_id, ctx, True)
 
     @r.post("/t/api/status")
     async def status(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:

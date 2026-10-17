@@ -54,7 +54,7 @@ ORPHAN_MIN_AGE_S = 3600.0
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 # deep review A4 (TK251): the only names the module writes inside a ticket folder - a stored picture / invoice (16 hex + .jpg / .pdf,
 # image_intake.store_image / cost_storage.store_pdf) and the temporary file of an atomic write (image_intake.write_atomic)
-_STORED_NAME = re.compile(r"^(?:[0-9a-f]{16}\.(?:jpg|pdf)|\.up\.[A-Za-z0-9_-]{1,32}\.tmp)$")
+_STORED_NAME = re.compile(r"^(?:[0-9a-f]{16}\.(?:jpg|pdf|docx|xlsx)|\.up\.[A-Za-z0-9_-]{1,32}\.tmp)$")  # RFQATT: + docx / xlsx
 ORPHAN_FILES_MAX = 2000  # per sweep: a huge backlog is worked off over several janitor ticks
 _RATE: dict[str, collections.deque[float]] = {}
 _RATE_LOCK = threading.Lock()
@@ -280,7 +280,8 @@ def sweep_orphan_files(db: Database, root: Path, *, min_age_s: float = ORPHAN_MI
                 if folder.is_symlink() or not folder.is_dir():
                     continue
                 old: list[tuple[str, Path, os.stat_result]] = []
-                for sub, rel_dir in ((folder, folder.name), (folder / "costs", f"{folder.name}/costs")):
+                for sub, rel_dir in ((folder, folder.name), (folder / "costs", f"{folder.name}/costs"),
+                                     (folder / "rfq", f"{folder.name}/rfq")):  # RFQATT: a request's files
                     if sub.is_symlink() or not sub.is_dir():
                         continue
                     for f in sub.iterdir():

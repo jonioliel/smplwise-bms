@@ -208,7 +208,9 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
                 # CR-ORG-LOCATIONS: THIS request's location (its snapshot), after the code gate; the map link only when switched on
                 "location": _vendor_location(row),
                 "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"),
-                "allowed_line_kinds": rfq.allowed_kinds(row), "attachments": []},
+                "allowed_line_kinds": rfq.allowed_kinds(row),
+                # RFQATT (contract 19.4): the request's live vendor-visible files - never on a closed / cancelled page
+                "attachments": [] if terminal else _attachments(conn, row["id"])},
         "quote": None if (terminal or cur is None) else present_quote(row, cur),
         "declined": ({"at": v.get("declined_at"), "reason": v.get("decline_reason")} if (v["state"] == "declined" and not terminal) else None),
         "messages": [] if terminal else present_messages(conn, v),
@@ -218,6 +220,19 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
                 "ask": writable and store_rfq.inbound_message_count(conn, v["id"]) < MESSAGES_PER_VENDOR},
     })
     return out
+
+
+def _attachments(conn, rfq_id: str) -> list[dict[str, Any]]:
+    from . import rfq_attach
+
+    return rfq_attach.vendor_list(conn, rfq_id)
+
+
+def shows_files(conn, link: Any, now: dt.datetime) -> bool:
+    """RFQATT: whether the vendor's page lists (and so may fetch) the request's files right now - the same rule as `view`: not on a
+    closed / cancelled page."""
+    row, v = _fresh(conn, link)
+    return page_state(conn, row, v, now) not in ("closed", "cancelled")
 
 
 def record_open(conn, link: Any, now: dt.datetime) -> None:

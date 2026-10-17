@@ -154,6 +154,14 @@ def _ticket_cost_file(_s: Settings) -> int:
     return cost_files.PDF_MAX_BYTES + MULTIPART_SLACK
 
 
+def _rfq_attachment(_s: Settings) -> int:
+    """RFQATT: one file of a request for quotation - at most 10 MiB (services/tickets/rfq_files.DOCUMENT_MAX_BYTES; a picture 8 MiB) +
+    the framing. The route checks and re-encodes outside the write lock."""
+    from .services.tickets import rfq_files
+
+    return rfq_files.DOCUMENT_MAX_BYTES + MULTIPART_SLACK
+
+
 def _const(n: int) -> Callable[[Settings], int]:
     return lambda _s: n
 
@@ -177,6 +185,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(r"/api/v1/csp-report"), _csp_report, "csp_report"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/attachments"), _ticket_attachment, "ticket_attachment"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/costs/files"), _ticket_cost_file, "ticket_cost_file"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/rfqs/{_ID}/attachments"), _rfq_attachment, "rfq_attachment"),
 ]
 
 # the remote channel's paths that need no sign-in (routers/remote.py, the static /.well-known files)

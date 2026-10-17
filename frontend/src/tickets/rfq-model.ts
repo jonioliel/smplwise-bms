@@ -227,7 +227,9 @@ export function initials(name: string): string {
   return `${first}${second}`;
 }
 
-export interface PreviewParts { name: string; number: string; title: string; place: string; due: string; window: string; link: string; organization: string }
+export interface PreviewParts { name: string; number: string; title: string; place: string; due: string; window: string; link: string; organization: string;
+  /** RFQATT: the `{files}` line - "N files are attached (see the link)", empty when no vendor-visible file (the line is dropped) */
+  files?: string }
 
 /**
  * The invitation as the vendor will read it: the Hebrew / English starter template `rfq_invite` of services/tickets/message_templates.py
@@ -235,8 +237,8 @@ export interface PreviewParts { name: string; number: string; title: string; pla
  * the starter here). Empty lines (no place, no organization) are dropped like the server's renderer does.
  */
 export function invitePreview(p: PreviewParts, lang: 'he' | 'en' = 'he'): string {
-  const he = `שלום ${p.name},\nבקשה להצעת מחיר מס' ${p.number}: ${p.title}\n${p.place}\nמועד אחרון להצעה: ${p.due}\nחלון עבודה רצוי: ${p.window}\nפרטים וטופס ההצעה: ${p.link}\nאפשר גם לסמן בקישור שאינכם מעוניינים.\n${p.organization}`;
-  const en = `Hello ${p.name},\nRequest for quotation no. ${p.number}: ${p.title}\n${p.place}\nQuote deadline: ${p.due}\nWanted work window: ${p.window}\nDetails and the quote form: ${p.link}\nYou can also mark in the link that you are not interested.\n${p.organization}`;
+  const he = `שלום ${p.name},\nבקשה להצעת מחיר מס' ${p.number}: ${p.title}\n${p.place}\nמועד אחרון להצעה: ${p.due}\nחלון עבודה רצוי: ${p.window}\n${p.files ?? ''}\nפרטים וטופס ההצעה: ${p.link}\nאפשר גם לסמן בקישור שאינכם מעוניינים.\n${p.organization}`;
+  const en = `Hello ${p.name},\nRequest for quotation no. ${p.number}: ${p.title}\n${p.place}\nQuote deadline: ${p.due}\nWanted work window: ${p.window}\n${p.files ?? ''}\nDetails and the quote form: ${p.link}\nYou can also mark in the link that you are not interested.\n${p.organization}`;
   return (lang === 'en' ? en : he).split('\n').filter((l) => l.trim()).join('\n');
 }
 
@@ -272,7 +274,7 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
   if (e.kind === 'awarded' && amount) return { key: 'ev_awarded_amount', vars };
   const known = ['created', 'edited', 'vendor_added', 'vendor_removed', 'sent', 'reminder', 'quote_submitted', 'quote_withdrawn', 'declined', 'link_revoked', 'message',
     'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',
-    'order_created', 'order_sent'];
+    'order_created', 'order_sent', 'attachment_added', 'attachment_changed', 'attachment_removed'];
   return { key: known.includes(e.kind) ? `ev_${e.kind}` : 'ev_other', vars };
 }
 
@@ -381,7 +383,10 @@ export function refusalKey(code: string | undefined): string | null {
   const known = ['rfq_stale', 'quote_stale', 'rfq_vendor_page_unavailable', 'self_approval', 'second_approver_required', 'award_pending', 'rfq_has_award',
     'vendor_not_allowed', 'vendor_duplicate', 'rfq_no_vendors', 'rfq_due_passed', 'rfq_field_locked', 'rfq_invalid_transition', 'vendor_code_locked',
     // TKRFQ4: the work order
-    'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable'];
+    'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable',
+    // RFQATT: the request's files
+    'attachment_limit', 'attachment_total', 'attachment_locked', 'attachment_not_found', 'unsupported_format', 'heic_refused', 'payload_too_large',
+    'image_invalid', 'too_many_pixels', 'pdf_invalid', 'pdf_refused', 'office_invalid', 'office_refused', 'storage_full'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 

@@ -93,7 +93,7 @@ export async function installRfqMock(page: Page, o: RfqMockOptions = {}): Promis
       if (seg[0] === 'departments') return json(route, await api.setThreshold(seg[1], body.second_approval_minor));
       const id = seg[0];
       const out = (d: RfqDetail) => (o.noAmounts ? strip(d) : d);
-      const contractDetail = (d: RfqDetail) => out(o.contract ? { ...d, vendor_page: false, files: undefined } : d);
+      const contractDetail = (d: RfqDetail) => out(o.contract ? { ...d, vendor_page: false, attachments: undefined } : d);
       if (seg.length === 1) {
         if (method === 'GET') return json(route, contractDetail(await api.get(id)));
         if (method === 'PATCH') return json(route, contractDetail(await api.edit(id, body)));

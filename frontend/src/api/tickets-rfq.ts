@@ -14,7 +14,7 @@
  * Optional fields marked "C2 gap" are NOT in contract v0.9: the screens read them when present and otherwise hide the part they drive
  * (attachments, per-vendor channel / code choice at invite time, the invitation preview, the created order's link).
  */
-import { ApiError, del, get, patch, post, put } from './client';
+import { ApiError, api, del, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
 import type { LineInput, LineKind, StoredLine, VatMode } from './tickets-costs';
 import { mockRfq } from './tickets-rfq-mock';
@@ -169,7 +169,32 @@ export interface RfqEvent {
   data: Record<string, unknown>;
 }
 
-export interface RfqFile { id: string; name: string; kind: 'photo' | 'pdf'; bytes: number }
+/** RFQATT (contract 19): what a file on a request is - by its CONTENT (a picture is always a re-encoded JPEG). */
+export type RfqFileKind = 'image' | 'pdf' | 'docx' | 'xlsx';
+
+/** RFQATT: one file of a request (`detail.attachments[]`). `thumb` = a 480 px picture exists; `removed` (managers only) = removed after
+ * a quote arrived - kept for the record, no vendor sees it. */
+export interface RfqFile {
+  id: string;
+  name: string;
+  caption: string;
+  kind: RfqFileKind;
+  mime?: string;
+  bytes: number;
+  width?: number | null;
+  height?: number | null;
+  thumb: boolean;
+  visible_vendors: boolean;
+  created_at?: string;
+  removed?: boolean;
+  removed_at?: string;
+}
+
+/** RFQATT: `meta.attachment_limits` - the form checks these before a byte leaves the browser; the server enforces them anyway. */
+export interface RfqAttachmentLimits { files: number; image_bytes: number; document_bytes: number; total_bytes: number; caption: number; types: string[] }
+
+/** RFQATT: the per-file options sent with an upload or a change. */
+export interface RfqFileOptions { caption?: string; visible_vendors?: boolean }
 
 /** `GET tickets/rfqs/{id}` (rfq.detail). */
 export interface RfqDetail {
@@ -205,11 +230,13 @@ export interface RfqDetail {
   second_approval: { threshold_minor: number | null; enabled: boolean };
   timeline: RfqEvent[];
   vendor_page: boolean;
-  /** C2 gap: the request's files */
-  files?: RfqFile[];
+  /** RFQATT (contract 19.3): the request's files (managers also see the removed ones, marked) */
+  attachments?: RfqFile[];
   can: { edit: boolean; add_vendor: boolean; send: boolean; remind: boolean; cancel: boolean; close: boolean; award: boolean; see_amounts: boolean; delete: boolean;
     /** TKRFQ4: an award waits for its work order / an order waits for its message (absent from older servers) */
-    order?: boolean; send_order?: boolean };
+    order?: boolean; send_order?: boolean;
+    /** RFQATT: an RFQ manager while the request is a draft or open */
+    attach?: boolean };
 }
 
 export interface RfqLine extends StoredLine { index: number }
@@ -268,8 +295,9 @@ export interface RfqMeta {
   departments: RfqMetaDepartment[];
   line_kinds: LineKind[];
   currencies: string[];
-  /** C2 gap: files on a request (absent = the attachments field is hidden) */
+  /** RFQATT: files on a request (absent / false = the attachments field is hidden) */
   attachments?: boolean;
+  attachment_limits?: RfqAttachmentLimits;
   /** C2 gap: a channel and a code choice per invited vendor (absent = the directory's values, read-only) */
   vendor_options?: boolean;
 }
@@ -291,8 +319,6 @@ export interface RfqCreateBody {
   allowed_line_kinds?: LineKind[];
   vendors: RfqVendorRef[];
   client_request_id: string;
-  /** C2 gap: ids of files uploaded for the request */
-  file_ids?: string[];
 }
 
 export interface RfqEditBody {
@@ -371,8 +397,14 @@ export interface RfqBackend {
   orderPreview(id: string, awardId: string): Promise<RfqOrderPreview>;
   /** TKRFQ4: the manager's explicit send of the order message (a repeat answers the first send) */
   sendOrder(id: string, awardId: string): Promise<RfqOrderAnswer>;
-  /** C2 gap: upload one file for a request that is being created (returns its id) */
-  uploadFile?(file: File): Promise<RfqFile>;
+  /** RFQATT (contract 19.3): one file onto a draft / open request (multipart); answers the detail + the new row */
+  uploadAttachment(id: string, file: File, options?: RfqFileOptions): Promise<RfqDetail & { attachment: RfqFile | null }>;
+  /** RFQATT: the caption / "visible to vendors" of one file */
+  editAttachment(id: string, attachmentId: string, options: RfqFileOptions): Promise<RfqDetail>;
+  /** RFQATT: remove one file (only marked once a quote arrived) */
+  removeAttachment(id: string, attachmentId: string): Promise<RfqDetail>;
+  /** RFQATT: where the file (or its thumbnail) is read - same-origin, the session's own authorisation */
+  attachmentUrl(id: string, attachmentId: string, thumb?: boolean): string;
 }
 
 const R = 'tickets/rfqs';
@@ -391,12 +423,12 @@ function qs(q: RfqListQuery): string {
 
 /**
  * The body the REAL create route accepts (extra="forbid"): only the contract's fields - a per-vendor channel / code choice or files are
- * sent only when the server's meta says it takes them (C2 gaps), never silently dropped by the server with a 422.
+ * sent only when the server's meta says it takes them, never silently dropped by the server with a 422. Files are uploaded one by one
+ * onto the created draft (RFQATT: `uploadAttachment`), never part of this body.
  */
 export function createWireBody(body: RfqCreateBody, meta: Pick<RfqMeta, 'vendor_options' | 'attachments'> | null): Record<string, unknown> {
   const out: Record<string, unknown> = { ...body };
   out.vendors = body.vendors.map((v) => (meta?.vendor_options ? { ...v } : { contact_id: v.contact_id }));
-  if (!meta?.attachments || !body.file_ids?.length) delete out.file_ids;
   for (const k of Object.keys(out)) if (out[k] === undefined || out[k] === '') delete out[k];
   return out;
 }
@@ -432,6 +464,16 @@ const rest: RfqBackend = {
   createOrder: (id, awardId, body) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order`, body),
   orderPreview: (id, awardId) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview`),
   sendOrder: (id, awardId) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/send`),
+  uploadAttachment: (id, file, options = {}) => {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    if (options.caption) form.append('caption', options.caption);
+    if (options.visible_vendors !== undefined) form.append('visible_vendors', String(options.visible_vendors));
+    return upload<RfqDetail & { attachment: RfqFile | null }>(`${R}/${enc(id)}/attachments`, form);
+  },
+  editAttachment: (id, attachmentId, options) => patch<RfqDetail>(`${R}/${enc(id)}/attachments/${enc(attachmentId)}`, options),
+  removeAttachment: (id, attachmentId) => api<RfqDetail>(`${R}/${enc(id)}/attachments/${enc(attachmentId)}`, { method: 'DELETE' }),
+  attachmentUrl: (id, attachmentId, thumb = false) => resourceUrl(`api/v1/${R}/${enc(id)}/attachments/${enc(attachmentId)}${thumb ? '/thumb' : ''}`),
 };
 
 /** The backend in force: REST with a server, the demo store without one. */

@@ -238,10 +238,10 @@ test('the route: list filters, one request, its comparison, the new sheet from a
 
 test('the create body sent to the real route carries only the contract\'s fields unless the server says it takes more', () => {
   const body = { department_id: 'd1', title: 'T', description: '', vendors: [{ contact_id: 'c1', channel: 'email' as const, require_code: true }], client_request_id: 'rfq-12345678',
-    file_ids: ['f1'], due_at: '2026-10-20T09:00:00Z' };
+    due_at: '2026-10-20T09:00:00Z' };
   expect(createWireBody(body, null)).toEqual({ department_id: 'd1', title: 'T', vendors: [{ contact_id: 'c1' }], client_request_id: 'rfq-12345678', due_at: '2026-10-20T09:00:00Z' });
   expect(createWireBody(body, { vendor_options: true, attachments: true })).toEqual({ department_id: 'd1', title: 'T', vendors: [{ contact_id: 'c1', channel: 'email', require_code: true }],
-    client_request_id: 'rfq-12345678', file_ids: ['f1'], due_at: '2026-10-20T09:00:00Z' });
+    client_request_id: 'rfq-12345678', due_at: '2026-10-20T09:00:00Z' }); // RFQATT: files go one by one onto the draft, never in this body
 });
 
 test('the words: every English key exists in Hebrew; no retired word; the RFQ vocabulary is kept apart', () => {

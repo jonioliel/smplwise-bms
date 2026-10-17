@@ -45,6 +45,8 @@ interface ReturnForm { open: boolean; kind: 'not_mine' | 'cannot_handle'; reason
 class Page {
   private root: HTMLElement;
   private creds: Credentials = { token: null, session: null };
+  private filesEl: HTMLElement | null = null;
+  private filesKey = '';
   // slice 9 (11A.2): the cost-claim step - a persistent host (the page re-renders its DOM; the step keeps its own state) and the
   // lazily loaded module (its chunk is fetched only when a claim exists)
   private claimHost: HTMLElement | null = null;
@@ -540,6 +542,7 @@ class Page {
         v.read_only_until ? h('p', { class: 'msg-body' }, this.t('closedBody', { when: this.when(v.read_only_until) })) : null) : null,
       this.hero(v, kind),
       v.claim_mode ? null : this.mapCard(v),
+      v.claim_mode ? null : this.rfqFiles(v),
       v.claim_mode ? this.costBlock(v) : null,
       writable ? this.statusCard(v) : null,
       writable ? this.etaCard(v) : null,
@@ -550,6 +553,23 @@ class Page {
       writable && v.actions?.return ? this.returnBlock() : null),
     this.primaryBar(v, kind),
     this.footer());
+  }
+
+  /** RFQATT: the request files a work order referenced - the lazy `rfq-files` chunk renders them (fetched only when there are some). */
+  private rfqFiles(v: TicketView): HTMLElement | null {
+    const files = v.rfq_files ?? [];
+    const key = files.map((f) => f.id).join() + this.lang;
+    if (!files.length) return null;
+    if (this.filesEl && this.filesKey === key) return this.filesEl; // kept across renders: the thumbnails are fetched once
+    const slot = h('div', { attrs: { 'data-rfq-files-slot': true } });
+    this.filesEl = slot;
+    this.filesKey = key;
+    void import('./rfq/rfq-files').then((m) => {
+      const card = m.filesCard(files, this.creds, 'ticket', this.lang);
+      if (this.filesEl === slot) this.filesEl = card;
+      slot.replaceWith(card);
+    }).catch(() => slot.remove());
+    return slot;
   }
 
   /** The ONE status line, in the vendor's words (state.ts statusLine); `data-status` carries the ticket's status for tests and tooling. */

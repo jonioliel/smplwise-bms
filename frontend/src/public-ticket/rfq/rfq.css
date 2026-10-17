@@ -17,8 +17,7 @@
   font-size: var(--sw-fs-sm);
 }
 
-.rfq .rfq-fact .lbl,
-.rfq .rfq-files .lbl {
+.rfq .rfq-fact .lbl {
   color: var(--sw-text-3);
 }
 
@@ -32,10 +31,42 @@
   color: var(--sw-warning);
 }
 
-.rfq .rfq-files ul {
-  margin: 4px 0 0;
+/* RFQATT: the request's files (also on the handler page of a work order - not scoped to .rfq) */
+.rfq-files ul {
+  margin: 0;
   padding-inline-start: 18px;
   font-size: var(--sw-fs-sm);
+}
+
+button.thumb {
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.rfq-doc {
+  justify-content: flex-start;
+  text-align: start;
+}
+
+.rfq-doc small {
+  margin-inline-start: auto;
+  color: var(--sw-text-3);
+}
+
+.lightbox {
+  max-inline-size: min(94vw, 900px);
+}
+
+.lightbox::backdrop {
+  background: rgb(0 0 0 / 0.7);
+}
+
+.lb-img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 75vh;
+  margin: 0 auto 10px;
 }
 
 .rfq .rfq-state.mut .msg-icon {

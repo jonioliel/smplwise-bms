@@ -233,11 +233,16 @@ def create_order(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, body: M
                                       revision=seen_t.row["revision"], rid=rid, cost_claim="required", dispatch=False)
         # the awarded quote IS the baseline of this assignment (DETAIL 4.2) - no copy
         store_quotes.update_quote(conn, q["id"], {"ticket_id": tid, "assignment_id": aid}, now=at)
+        # RFQATT (contract 19.6): the request's vendor-visible files are REFERENCED by the new request (no copy) - the vendor keeps
+        # them on its handler page after the RFQ link ends
+        from . import rfq_attach
+
+        files = rfq_attach.reference_for_order(conn, row["id"], tid, a["id"], at)
         store.insert_event(conn, tid, "rfq_order", actor_kind="user", actor_user_id=viewer.uid, actor_name=who,
                            data={"rfq_id": row["id"], "number": row["number"], "award_id": a["id"], "quote_id": q["id"], "version": q["version"]}, at=at)
         store_rfq.insert_event(conn, row["id"], "order_created", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, rfq_vendor_id=v["id"],
                                data={"award_id": a["id"], "ticket_id": tid, "ticket_number": res.number, "assignment_id": aid, "quote_id": q["id"],
-                                     "work_from": wf, "work_to": wt, "documents": bool(documents)}, at=at)
+                                     "work_from": wf, "work_to": wt, "documents": bool(documents), "files": files}, at=at)
         fields: dict[str, Any] = {"state": "ordered"} if row["state"] == "awarded" and _all_ordered(conn, row) else {}
         rfq._touch(conn, row, fields, None, now)
         rfq._audit(conn, viewer, "ticket.rfq.order", row, rid, award_id=a["id"], vendor_id=v["id"], quote_id=q["id"], ticket_id=tid,
@@ -287,7 +292,9 @@ def _refusals(conn, order: Mapping[str, Any], contact: Mapping[str, Any], ticket
 
 def order_params(conn, row: Mapping[str, Any], order: Mapping[str, Any], contact: Mapping[str, Any]) -> dict[str, str]:
     """The placeholders of `rfq_order` (rfq.message_params with the order's dates as the window): never {link}, a phone, an amount."""
-    return rfq.message_params(conn, {**row, "work_from": order.get("work_from"), "work_to": order.get("work_to")}, contact)
+    params = rfq.message_params(conn, {**row, "work_from": order.get("work_from"), "work_to": order.get("work_to")}, contact)
+    params.pop("files", None)  # RFQATT: the order message names no files (the vendor finds them on the request's handler page)
+    return params
 
 
 def _render(conn, row: Mapping[str, Any], params: Mapping[str, str], contact: Mapping[str, Any]) -> dict[str, Any]:
@@ -409,5 +416,8 @@ def origin_block(conn, viewer: Viewer, ticket_row: Mapping[str, Any]) -> dict[st
         s = access.visible_by_id(viewer, other["ticket_id"])
         if s is not None:
             siblings.append({"id": s.row["id"], "number": s.row["number"]})
+    from . import rfq_attach
+
     return {"id": rfq_id if seen else None, "number": number, "ref": rfq.ref(number), "work_from": (o or {}).get("work_from"),
-            "work_to": (o or {}).get("work_to"), "siblings": siblings}
+            "work_to": (o or {}).get("work_to"), "siblings": siblings,
+            "attachments": rfq_attach.ticket_list(conn, ticket_row["id"])}  # RFQATT: the request files this ticket references

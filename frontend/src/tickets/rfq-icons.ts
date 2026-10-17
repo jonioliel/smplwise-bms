@@ -15,6 +15,10 @@ const ICONS = {
   bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   hand: '<path d="M6 12V7a2 2 0 0 1 4 0v4M10 11V5a2 2 0 0 1 4 0v6M14 11V7a2 2 0 0 1 4 0v6a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a2 2 0 0 1 3.4-2L8 13"/>',
   ban: '<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',
+  // RFQATT: the request's files
+  clip: '<path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  sheet: '<path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 14h7M9 17h7M12 11v6"/>',
 } as const;
 
 export type RfqIconName = keyof typeof ICONS;
