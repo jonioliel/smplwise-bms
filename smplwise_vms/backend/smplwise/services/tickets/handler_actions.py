@@ -166,6 +166,10 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     sla.refresh(conn, f.ticket["id"])  # slice 2: the dues follow every change of a ticket
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
     notify_bridge.ticket_status(conn, f.ticket["id"], frm, to)
+    if to == "done":  # CR-ARX-WISKEY-SHARED-IDENTITY R5 (owner answer 6): the handler marked the job done - door access ends at once
+        from .. import access_grants
+
+        access_grants.on_ticket_ended(conn, f.ticket["id"], "ticket_ended")
     if to == "done" and not f.link.no_money:  # S9 (11A.1): the vendor's cost claim is asked from here on; TKSTAFF1 (R2): never staff
         from . import costs
 
@@ -231,6 +235,9 @@ def give_back(conn, link: LinkRecord, *, kind: str, reason: str, crid: str, now:
     store.update_ticket(conn, f.ticket["id"], fields)
     _event(conn, f, "returned", now, from_status=frm, to_status="returned", body=reason, data={"kind": kind})
     handler_links.revoke(conn, f.row, "not_mine" if kind == "not_mine" else "returned", now)
+    from .. import access_grants  # CR-ARX-WISKEY-SHARED-IDENTITY R5: a returned assignment ends the door access of its request
+
+    access_grants.on_ticket_ended(conn, f.ticket["id"], "ticket_reassigned")
     store_links.note_update(conn, f.link.link_id)
     store_links.insert_access(conn, f.link.link_id, at, "update", client_key)
     sla.refresh(conn, f.ticket["id"])  # unassigned again: the first-response clock restarts

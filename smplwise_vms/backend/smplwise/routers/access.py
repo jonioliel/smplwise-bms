@@ -269,6 +269,10 @@ PERMISSION_LABELS: dict[str, str] = {
     # session only (an HA frontend or Arx browser session, never a bearer-token client); sensitive (never implied); default
     # site_admin and system_admin, like access.cards.capture. Scoped by the access-control station chain like the people writes.
     "access.pin.generate": "בקרת כניסה: יצירת קוד PIN לאדם (מוצג פעם אחת למבקש; דורש גם ניהול אנשים)",
+    # CR-ARX-WISKEY-SHARED-IDENTITY D5 (owner answer 2, 2026-10-17): approving a time-bounded door grant for an EXTERNAL person (a vendor,
+    # a technician) - per station (the access-control station chain), together with people.manage + people.sensitive (+ pin.generate for
+    # a code). Sensitive, never implied; built-in holder system_admin only; the owner hands it to a user through a custom role.
+    "access.external.grant": "בקרת כניסה: אישור גישה זמנית לאדם חיצוני (ספק או טכנאי)",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,

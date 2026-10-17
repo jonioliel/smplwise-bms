@@ -640,6 +640,14 @@ def bump_permission_revision(conn: sqlite3.Connection) -> int:
         capture_lease.on_authority_change("permission_revision", all=True)
     except Exception:  # noqa: BLE001 - a permission change never fails because of the lease hook
         log.exception("capture lease hook (permission_revision) failed")
+    # CR-ARX-WISKEY-SHARED-IDENTITY 3.5 (owner answer 5): every decided external grant is RE-DECIDED against its approver's current
+    # permissions (revoked only when the approver is no longer authorised) - a flag for the grant worker, no database work here.
+    try:
+        from .services import access_grants
+
+        access_grants.on_permission_change()
+    except Exception:  # noqa: BLE001 - a permission change never fails because of the grant hook
+        log.exception("access grants hook (permission_revision) failed")
     return rev
 
 @contextmanager

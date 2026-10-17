@@ -34,6 +34,8 @@ STATION_PERMISSIONS = frozenset({
     # 2.4.9 (owner decision 2026-10-13): the other station-chain permissions - PIN generation (S11), WhatsApp to the people of
     # the station (WA) and calls / announcements / talk (S18 + the 2.4.9 call re-gating) - may be carried by a station role
     "access.pin.generate", "access.people.message", "access.call",
+    # CR-ARX-WISKEY-SHARED-IDENTITY D5 (owner answer 2): approving an external person's temporary door grant, per station
+    "access.external.grant",
 })
 
 # WXPERM (owner decision 2026-10-13): legacy permission names and the permission each one now stands for. A role that lists

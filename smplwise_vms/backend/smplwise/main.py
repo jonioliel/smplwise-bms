@@ -468,6 +468,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import capture_lease as capture_lease_router
 
     app.include_router(capture_lease_router.router, prefix=api, tags=["access"])  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: lease route switch (off), lease length, C03 lookup scope
+    from .routers import access_grants as access_grants_router
+
+    app.include_router(access_grants_router.router, prefix=api, tags=["access"])  # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants (off; go-live not permitted)
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
     from .routers import local_identity as local_identity_router
 
@@ -627,6 +630,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # CR-WISKEY-LEASE-REVOCATION-EVENT T11 / F4: Arx holds no capture lease after a restart (every live row -> revoked(startup));
         # a new revocation stream is announced only when there were live rows or the route is on - otherwise nothing is sent
         await run_in_threadpool(lease_events.WORKER.on_startup, app.state.db, settings)
+        from .services import access_grants as access_grants_svc
+
+        # CR-ARX-WISKEY-SHARED-IDENTITY: the external-grant worker (a queued code lost by the restart -> not_delivered; the janitor
+        # resumes ends and revokes). SW_ACCESS_GRANTS_WORKER=0 keeps the thread off (tests call WORKER.run_once explicitly).
+        if os.environ.get("SW_ACCESS_GRANTS_WORKER", "1") != "0":
+            await run_in_threadpool(access_grants_svc.WORKER.start, app.state.db, settings)
         from .services import intercom_sync
 
         intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
@@ -724,6 +733,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         # CR-WISKEY-LEASE-REVOCATION-EVENT T11: before the WisKey feed stops, any live capture lease is revoked (scope all) within 2 s
         await _stop_in_thread(lease_events.WORKER.on_shutdown)
+        from .services import access_grants as access_grants_svc
+
+        access_grants_svc.WORKER.stop()
         from .services import intercom_sync
 
         intercom_sync.SYNC.shutdown()

@@ -232,4 +232,56 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         crid = parse_client_request_id(body.client_request_id)
         return await write(request, ctx, "/t/api/return", crid, handler_actions.give_back, kind=body.kind, reason=body.reason)
 
+    @r.get("/t/api/arrival")
+    async def arrival_view(request: Request, ctx: LinkContext = Depends(link_context())) -> JSONResponse:
+        """CR-ARX-WISKEY-SHARED-IDENTITY 5: the arrival step's data (his persons by first name + ····NN, the order window, the fixed
+        hours, the privacy notice). A code-protected link needs its code session; switched off / not an RFQ order -> the uniform 404."""
+        from .. import access_arrival
+
+        if ctx.link.require_code and not ctx.code_ok:
+            raise PublicError(403, "code_required")
+
+        def read() -> dict[str, Any]:
+            with db.connection(mode="read", label="tickets.public.arrival") as conn:
+                return access_arrival.view(conn, ctx.link, now=now())
+
+        try:
+            data = await run_in_threadpool(read)
+        except access_arrival.Refused as exc:
+            raise PublicError(exc.status, exc.code, **exc.extra) from None
+        return JSONResponse(data, headers={"Cache-Control": "private, no-store"})
+
+    @r.post("/t/api/arrival")
+    async def arrival(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:
+        from .. import access_arrival
+
+        body: ArrivalIn = await read_json(request, ArrivalIn)
+        crid = parse_client_request_id(body.client_request_id)
+
+        def effect(conn, link, *, now: dt.datetime, crid: str, client_key: str) -> tuple[int, dict[str, Any]]:
+            try:
+                return access_arrival.request(conn, link, body=body.model_dump(), crid=crid, now=now, client_key=client_key)
+            except access_arrival.Refused as exc:
+                raise ActionRefused(exc.status, exc.code, **exc.extra) from None
+
+        return await write(request, ctx, "/t/api/arrival", crid, effect)
+
     return r
+
+
+class NewPersonIn(_Strict):
+    name: clean_str(60) = Field()  # type: ignore[valid-type]
+    phone: str = Field(max_length=32)
+
+
+class ArrivalIn(_Strict):
+    """CR-ARX-WISKEY-SHARED-IDENTITY 5: exactly one of `person_id` / `new_person`; dates in the installation's zone; hours from the
+    fixed list; the notice acknowledged with its version."""
+    person_id: str | None = Field(default=None, max_length=64, pattern=_ID)
+    new_person: NewPersonIn | None = None
+    date_from: str = Field(max_length=10, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+    date_to: str = Field(max_length=10, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+    hours: str = Field(max_length=11)
+    notice_ack: bool
+    notice_version: str = Field(max_length=16)
+    client_request_id: str = Field(max_length=64)

@@ -10160,5 +10160,46 @@
     "expected": "The allowed actions work, the refused ones are refused on both sides, attribution names the person.",
     "status": "NOT_RUN",
     "notes": "Needs the owner's Home Assistant; not run by the agent."
+  },
+  {
+    "id": "AT-WISKEYID-1",
+    "requirement_ids": [
+      "R-WISKEYID-1"
+    ],
+    "task_ids": [
+      "WISKEYID-BUILD"
+    ],
+    "title": "External-person grants and the arrival step on fakes",
+    "kind": "automated",
+    "preconditions": [
+      "tests/fake_wiskey.FakeAccessEngine and FakeCodeTransport; GO_LIVE_PERMITTED patched inside the tests only"
+    ],
+    "procedure": [
+      "python -X utf8 -m pytest tests/test_access_grants.py tests/test_access_arrival.py"
+    ],
+    "expected": "All pass; negative cases refuse and send nothing.",
+    "status": "NOT_RUN",
+    "notes": "Run locally by the agent on pilot/WISKEYID-BUILD (see the branch report); not yet run in a gate on the runner."
+  },
+  {
+    "id": "AT-WISKEYID-2",
+    "requirement_ids": [
+      "R-WISKEYID-2"
+    ],
+    "task_ids": [
+      "WISKEYID-BUILD"
+    ],
+    "title": "External-person grant on the owner's WisKey and a real phone",
+    "kind": "hardware/manual",
+    "preconditions": [
+      "Owner's separate go-live permit committed (GO_LIVE_PERMITTED=True)",
+      "Answers from WisKey to W-a..W-d"
+    ],
+    "procedure": [
+      "Approve a grant for a test contact, observe provisioning in WisKey, receive the code, enter at the keypad, revoke, verify the PIN is removed"
+    ],
+    "expected": "Works end to end; revoke removes access.",
+    "status": "NOT_RUN",
+    "notes": "Needs the owner's installation and permit; not run by the agent."
   }
 ]

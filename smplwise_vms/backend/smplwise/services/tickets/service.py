@@ -209,6 +209,10 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
         store.update_assignment(conn, asg, {"last_update_at": now})
     if not store.update_ticket(conn, row["id"], fields, expect_revision=revision):
         raise stale(conn, row)
+    if to in ("done", "closed", "cancelled"):  # CR-ARX-WISKEY-SHARED-IDENTITY R5 (owner answer 6): done ends door access at once
+        from .. import access_grants
+
+        access_grants.on_ticket_ended(conn, row["id"], "ticket_ended")
     kind = "closed" if to == "closed" else "cancelled" if to == "cancelled" else "reopened" if reopen else "status"
     on_behalf = actor == "manager" and model.may_move("assignee", frm, to) and bool(asg)
     data: dict[str, Any] = {"on_behalf": True} if on_behalf else {}

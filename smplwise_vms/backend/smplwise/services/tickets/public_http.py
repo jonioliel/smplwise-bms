@@ -145,6 +145,10 @@ ROUTES: tuple[RouteRule, ...] = (
     _json("/t/api/note", "token_write"),
     _json("/t/api/eta", "token_write"),
     _json("/t/api/return", "token_write"),
+    # CR-ARX-WISKEY-SHARED-IDENTITY section 5: "who arrives, when" on an RFQ work order's handler page - a door-access REQUEST only
+    # (services/access_arrival.py; the uniform 404 while `access.external_grants` is off)
+    RouteRule("GET", r"/t/api/arrival", "/t/api/arrival", "token_read"),
+    _json("/t/api/arrival", "token_write"),
     RouteRule("POST", r"/t/api/photo", "/t/api/photo", "photo", "multipart", PHOTO_MAX, UPLOAD_DEADLINE_S),
     RouteRule("GET", rf"/t/api/photo/{_ID}", "/t/api/photo/{attachment_id}", "photo_read"),
     # TKMAP1: the request's map element as a server-drawn picture (the photo read's own window; image/svg+xml, private, no-store)
