@@ -244,8 +244,13 @@ def bridge_call(w: W, op: str, op_id: str, *, kind: str | None = None, item_id: 
                 config: dict[str, Any] | None = None, preserved: list[str] | None = None, sensitive: bool = False, variables: dict[str, Any] | None = None,
                 skip_condition: bool | None = None, entity_id: str | None = None) -> dict[str, Any]:
     """One signed `smplwise_bridge.config_item` call, made with the request's write lock released. Never retried. A transport failure or `ok: false` settles the op
-    and raises (504 `config_timeout` leaves it `unknown`)."""
-    secret = ha_bridge.signing_key(w.conn)
+    and raises (504 `config_timeout` leaves it `unknown`). CR-040: refused before signing while a bridge key rotation is open - the op is
+    settled `failed` (nothing was sent) and the refusal stands; never retried."""
+    try:
+        secret = ha_bridge.signing_key(w.conn)
+    except ApiError as exc:
+        store_finish(w.conn, op_id, "failed", error=exc.code)
+        raise
     body = bridge_body(w, op, op_id, kind=kind, item_id=item_id, base_revision=base_revision, profile=profile, config=config, preserved=preserved, sensitive=sensitive,
                        variables=variables, skip_condition=skip_condition, entity_id=entity_id)
     signed = ha_bridge.sign(secret or "", body)

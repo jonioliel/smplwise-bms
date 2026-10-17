@@ -9,6 +9,7 @@ import './system-access-audit';
 import './system-access-groups';
 import './system-access-policy';
 import './system-access-messaging';
+import './system-access-trust';
 import type { TabItem } from '../components/sw-tabs';
 import type { SyncMeta } from '../api/access-status';
 import type { DisplayZone } from '../api/intercom';
@@ -21,8 +22,9 @@ import { UTC_ZONE } from './wiskey-format';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { st } from '../i18n/access-status';
 import { mt } from '../i18n/access-messaging';
+import { tt } from '../i18n/bridge-trust';
 
-export type AccessSegment = 'status' | 'audit' | 'groups' | 'policy' | 'messaging';
+export type AccessSegment = 'status' | 'audit' | 'groups' | 'policy' | 'messaging' | 'trust';
 
 /**
  * CR-036 S10: the Settings page "בקרת כניסה" (#/system/access-control[/audit|/groups]) - the technical truth of the access-control
@@ -34,6 +36,9 @@ export type AccessSegment = 'status' | 'audit' | 'groups' | 'policy' | 'messagin
  * the refresh button reads every card again - nothing here asks a device. The page writes the four administrator settings of the
  * policy segment and the message settings and templates of the "הודעות" segment (CR-036 WA) - both `system.configure`; the display
  * switch of the access-control screens (CR-036 S12) joins as another segment later.
+ * CR-040 (WXROT): "מפתח הגשר" - the bridge trust-key rotation - is the segment of a holder of `access.trust.rotate` (installation scope); the page
+ * opens for that permission too, and then shows only what the caller has (a key holder who is no access-control administrator sees that one
+ * segment and nothing of the status, log, groups or policy).
  */
 @customElement('system-access-control')
 export class SystemAccessControl extends LitElement {
@@ -46,6 +51,7 @@ export class SystemAccessControl extends LitElement {
   @state() private wide = true;
   @state() private people = true;
   @state() private configure = false;
+  @state() private trust = false;
   private stop: (() => void) | null = null;
 
   static styles = [
@@ -91,20 +97,25 @@ export class SystemAccessControl extends LitElement {
     this.people = a.people;
     this.wide = !isApi() || can('access.admin.read');
     this.configure = isApi() && can('system.configure');
+    this.trust = !isApi() || can('access.trust.rotate');
   }
 
   /** The segments this caller has, in order. */
   private segments(): Array<{ id: AccessSegment; label: string }> {
-    const out: Array<{ id: AccessSegment; label: string }> = [{ id: 'status', label: st('segStatus') }];
-    if (this.wide) out.push({ id: 'audit', label: st('segAudit') });
-    if (this.people || this.wide) out.push({ id: 'groups', label: st('segGroups') });
-    if (this.configure) out.push({ id: 'policy', label: st('segPolicy') });
-    if (this.configure) out.push({ id: 'messaging', label: mt('segment') }); // CR-036 WA: the message settings and templates (system.configure)
+    const out: Array<{ id: AccessSegment; label: string }> = [];
+    if (this.admin) {
+      out.push({ id: 'status', label: st('segStatus') });
+      if (this.wide) out.push({ id: 'audit', label: st('segAudit') });
+      if (this.people || this.wide) out.push({ id: 'groups', label: st('segGroups') });
+      if (this.configure) out.push({ id: 'policy', label: st('segPolicy') });
+      if (this.configure) out.push({ id: 'messaging', label: mt('segment') }); // CR-036 WA: the message settings and templates (system.configure)
+    }
+    if (this.trust) out.push({ id: 'trust', label: tt('segment') }); // CR-040: the bridge trust-key rotation (access.trust.rotate)
     return out;
   }
 
   private active(segments: Array<{ id: AccessSegment }>): AccessSegment {
-    return segments.find((s) => s.id === this.view)?.id ?? 'status';
+    return segments.find((s) => s.id === this.view)?.id ?? segments[0]?.id ?? 'status';
   }
 
   private subtitle(): string {
@@ -122,7 +133,7 @@ export class SystemAccessControl extends LitElement {
   };
 
   render() {
-    if (isApi() && !this.admin) {
+    if (isApi() && !this.admin && !this.trust) {
       return html`<sw-page heading=${st('title')}><sw-state-panel quiet data-access-state="no_permission" state="forbidden" heading=${st('noPermission')}></sw-state-panel></sw-page>`;
     }
     const segments = this.segments();
@@ -140,7 +151,9 @@ export class SystemAccessControl extends LitElement {
               ? html`<system-access-policy .rev=${this.rev}></system-access-policy>`
               : active === 'messaging'
                 ? html`<system-access-messaging .rev=${this.rev}></system-access-messaging>`
-                : html`<system-access-status .rev=${this.rev} @access-meta=${this.onMeta}></system-access-status>`}
+                : active === 'trust'
+                  ? html`<system-access-trust .rev=${this.rev}></system-access-trust>`
+                  : html`<system-access-status .rev=${this.rev} @access-meta=${this.onMeta}></system-access-status>`}
       </div>
     </sw-page>`;
   }

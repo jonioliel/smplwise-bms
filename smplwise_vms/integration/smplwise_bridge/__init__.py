@@ -40,6 +40,11 @@ It does two things and nothing else:
    a message carrying `on_behalf_of` (an Arx-only person) runs as the ONE non-administrator HA user an HA administrator configured in the options flow,
    only for the features / items of service_identity.SERVICE_FEATURES (devices, alarm, media, cast, schedules); automations, the area write and the
    stream source never. The person's id is attribution only. The configured id travels to the add-on with the directory push (its health check).
+12. `smplwise_bridge.trust_rotate` / `trust_status` (0.9.1, CR-040): this bridge owns the trust epoch. One signed request moves it, in ONE atomic
+   switch, to the next pairing key (derived here from the current key and the request's salt - no key travels) and the next epoch; the key is stored
+   durably before it replaces the current one in the one Verifier every service shares, so there is never an instant with two valid keys
+   (trust.py, trust_service.py). The trust services are NOT screened by service_identity (their closed schema refuses `on_behalf_of`). The status read resolves a rotation the add-on did not hear back from and fences a request it never received. The
+   directory push carries `trust_epoch` and `trust_rotation`, signed with the current key. Nothing about a capability or a mapping depends on the key.
 """
 from __future__ import annotations
 
@@ -67,6 +72,7 @@ from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .signing import Verifier, sign
 from .stream_source_service import async_handle_stream_source
+from .trust_service import async_setup_trust, async_unload_trust
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -294,8 +300,10 @@ async def _async_register_card(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_card(hass)
     url = entry.data[CONF_ADDON_URL].rstrip("/")
-    secret = entry.data[CONF_PAIRING_CODE]
-    verifier = Verifier(secret)
+    verifier = Verifier(entry.data[CONF_PAIRING_CODE])
+    # 0.9.1 (CR-040): the trust store decides the ONE current key (a rotated one wins over the config entry's code of the same pairing);
+    # every service below verifies with this one Verifier, and the push signs with `verifier.secret` - never a copy taken at setup
+    trust_runtime = await async_setup_trust(hass, entry, verifier)
     session = async_get_clientsession(hass)
 
     def service_user_id() -> Any:
@@ -453,8 +461,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     break
             users.append({"id": u.id, "name": u.name, "username": username, "is_active": u.is_active, "is_admin": u.is_admin, "group_ids": [g.id for g in u.groups]})
         try:
-            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
-                                                                                "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id())}), timeout=10) as resp:
+            body = {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
+                    "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
+                    "trust_epoch": trust_runtime.epoch, "trust_rotation": 1}  # 0.9.1 (CR-040): the epoch this bridge holds, and that it can rotate
+            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(verifier.secret, body), timeout=10) as resp:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
                     return 0
@@ -493,4 +503,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_CONFIG_ITEM)
     hass.services.async_remove(DOMAIN, SERVICE_CAST_STREAM)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
+    async_unload_trust(hass, entry)
     return True

@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from ..db import Database, get_setting, is_busy
+from ..errors import ApiError
 from . import capture_lease as cl
 from . import ha_bridge, trusted_caller
 from .wiskey_channels import LEASE_SIGNED
@@ -110,7 +111,10 @@ class NotSendable(Exception):
 
 
 def _secret(conn: sqlite3.Connection) -> str:
-    secret = ha_bridge.signing_key(conn)
+    try:
+        secret = ha_bridge.signing_key(conn)
+    except ApiError as exc:  # CR-040: refused while a bridge key rotation is open - nothing is signed or sent with a key in doubt
+        raise NotSendable(exc.code) from None
     if not secret or not get_setting(conn, "bridge.paired_at"):
         raise NotSendable("bridge_not_paired")
     return secret

@@ -269,6 +269,12 @@ PERMISSION_LABELS: dict[str, str] = {
     # session only (an HA frontend or Arx browser session, never a bearer-token client); sensitive (never implied); default
     # site_admin and system_admin, like access.cards.capture. Scoped by the access-control station chain like the people writes.
     "access.pin.generate": "בקרת כניסה: יצירת קוד PIN לאדם (מוצג פעם אחת למבקש; דורש גם ניהול אנשים)",
+    # CR-040 (WXROT, owner / lead decision 2026-10-13): starting a rotation of the bridge's trust key - the HMAC key of the signed channel
+    # between Arx and the bridge (the door path's included) - in ONE atomic switch the bridge owns. Its own permission in the access.* style:
+    # sensitive (never implied; a custom role names it explicitly - the per-person path is a custom role and a binding), not a system
+    # permission (any role may carry it), never delegable (a role with a sensitive grant never is), installation scope only, default
+    # system_admin. The routes add an interactive session, the local channel and an explicit confirmation (routers/bridge_trust.py).
+    "access.trust.rotate": "בקרת כניסה: החלפת מפתח האמון של הגשר",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,

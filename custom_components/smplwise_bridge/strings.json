@@ -59,6 +59,14 @@
     "cast_stream": {
       "name": "Cast a camera to a screen (SMPLWISE add-on only)",
       "description": "Signed: plays the SMPLWISE add-on's cast-relay address on one Google Cast media player, stops it or switches it off. Not meant to be called from automations."
+    },
+    "trust_rotate": {
+      "name": "Rotate the trust key (SMPLWISE add-on only)",
+      "description": "Signed: atomic switch of the bridge to the next key and the next trust epoch. The new key is derived here and never travels. Not meant to be called from automations."
+    },
+    "trust_status": {
+      "name": "Trust rotation status (SMPLWISE add-on only)",
+      "description": "Signed: whether a rotation request was applied; a request never seen is fenced for good before the answer. Not meant to be called from automations."
     }
   }
 }

@@ -1,11 +1,20 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.9.0"
+VERSION = "0.9.1"
 # 0.9.0 (USR2 phase 3): the service identity - an Arx-only (local) user acts through ONE configured non-administrator HA user (options flow),
 # named with `on_behalf_of` and judged by service_identity.py (per-feature allow-list; automations never; admin ids refused).
 # 0.8.0: no new service; the allow-list gained valve.open_valve, valve.close_valve, vacuum.pause, water_heater.turn_on / turn_off (equipment cards, add-on 2.4.0).
+# 0.9.1 (CR-040): the trust epoch and the ATOMIC rotation of the pairing key (trust.py, trust_service.py): `trust_rotate` and `trust_status`,
+# `trust_epoch` and `trust_rotation` in the signed directory push, `pairing_id` / `trust_epoch` in the config entry (written by the config flow).
 CONF_ADDON_URL = "addon_url"
 CONF_PAIRING_CODE = "pairing_code"
+# 0.9.1: a random id the config flow writes whenever it accepts a DIFFERENT pairing code (a re-pair); a rotation never changes it. The
+# trust store belongs to one (entry, pairing_id): a new one starts the pairing again at epoch 1 (trust.reconcile).
+CONF_PAIRING_ID = "pairing_id"
+# 0.9.1: the trust epoch, mirrored here after every rotation (best effort; the trust store is the record)
+CONF_TRUST_EPOCH = "trust_epoch"
+SERVICE_TRUST_ROTATE = "trust_rotate"
+SERVICE_TRUST_STATUS = "trust_status"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
 SERVICE_EXECUTE = "execute"
 SERVICE_SYNC = "sync_directory"

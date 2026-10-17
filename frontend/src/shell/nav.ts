@@ -923,7 +923,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
   [WALL_SETTINGS_HREF]: ['system.configure'],
   // CR-036 S10: access.admin.read at ANY scope (a station-scoped administrator sees the status of their stations; the server narrows every read)
-  [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read'],
+  [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read', 'access.trust.rotate'], // CR-040: the bridge trust-key segment opens the page too
   // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation
   // (scene.manage or the control of a device) at any scope - the server narrows the lists to the caller's floors and leaves automations out for a caller
   // without automation.manage; the settings page is system.configure at installation scope.

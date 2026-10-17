@@ -85,6 +85,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_billing.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy billing janitor failed", exc_info=True)
+    try:  # CR-040: an open bridge trust rotation is resolved by the bridge's status read (first after the message's lifetime, then at most once a minute)
+        from .services import bridge_trust
+
+        bridge_trust.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("bridge trust janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 
@@ -390,6 +396,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
     app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
+    from .routers import bridge_trust as bridge_trust_router
+
+    app.include_router(bridge_trust_router.router, prefix=api, tags=["access-control"])  # CR-040: the bridge trust-key rotation (access.trust.rotate, local only)
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
@@ -660,6 +669,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import recorder_health
 
             recorder_health.POLLER.start(app.state.db, settings)  # CR-026: read-only health reads of every recorder (default once a minute)
+        from .services import bridge_trust as bridge_trust_svc
+
+        # CR-040: a rotation the previous process left `dispatching` becomes `unknown` (the gate stays closed until a status check), BEFORE
+        # the bridge start-up below - whose discovery announcement is skipped while a rotation is open
+        await run_in_threadpool(bridge_trust_svc.recover, app.state.db)
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
         if settings.cast_relay:  # CR-028: the cast relay listens only when the add-on option is on (the host port mapping is the owner's)
             from .services import cast_relay

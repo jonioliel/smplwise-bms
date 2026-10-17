@@ -138,6 +138,9 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/key/rotate",)
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/secrets",)
 # USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) is configured and inspected from local sessions only
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/identity/service-identity",)
+# CR-040: the bridge trust-key rotation (its view, the rotation, the status read) is infrastructure management: local only, like the
+# connection routes above
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/ha/bridge/trust",)
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
 # What a client must send, machine-readable (the phone apps read `details` to pick the right message): the session cookie is only
 # accepted on a state-changing request that proves its origin. `reason` is one of csrf_reasons() below.

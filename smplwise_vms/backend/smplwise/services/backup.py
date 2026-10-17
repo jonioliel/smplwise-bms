@@ -123,7 +123,10 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # CR-033 section 9: the door settings (`doors.trusted_path`, default `off`) are never exported and never restored - a restore
 # can never loosen them (the installation keeps its own, fail-closed value). Simplification recorded in the wave-1 report: the
 # CR's "apply the stricter one" also never tightens from an archive.
-SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
+# CR-040: the bridge trust state (`bridge.trust.*`: the epoch mirror, the pending key of an open rotation, what the bridge last reported)
+# is this installation's own trust relationship - never exported (the pending key is key material) and never restored (an archive must
+# never move the epoch or bring back a pending key). `bridge.secret` itself is in SETTINGS_KEEP above.
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "bridge.trust.")
 
 
 def _kept_setting(key: Any) -> bool:

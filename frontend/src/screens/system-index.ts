@@ -21,6 +21,11 @@ export interface SettingsEntry {
   keywords?: string;
   /** A sub-entry (a tab of the screen): drawn indented under its parent. */
   sub?: boolean;
+  /** CR-040: offered only while the caller also holds one of these (after the tab's own rule) - for a screen whose segments follow
+   * different permissions (Settings › בקרת כניסה opens for an access-control administrator OR a holder of the bridge-key permission). */
+  need?: string[];
+  /** With `need`: the permission must be held at installation scope. */
+  needInstallation?: boolean;
 }
 
 export interface SettingsGroup {
@@ -98,10 +103,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'setup', label: 'חיבורים', href: '#/system/setup', keywords: 'nvr go2rtc wiskey חשבון סיסמה ntp דיסקים הפעלה מחדש חסימות פתיחת דלתות שחרור התקן וירטואלי תבנית template universal פריטים שפותחים דלתות שיוך דלתות' },
       // CR-036 S10: the access-control status page and its segments (docs/changes/CR-036-S8-S10-NOTES.md, "Merging ... with main")
       { tab: 'access-control', label: 'בקרת כניסה', href: '#/system/access-control', keywords: 'wiskey אינטרקום תחנות בריאות סנכרון התרעות התנגשויות' },
-      { tab: 'access-control', label: 'יומן האינטרקום', href: '#/system/access-control/audit', sub: true, keywords: 'פעולות audit מי עשה מה' },
-      { tab: 'access-control', label: 'קבוצות ושדות', href: '#/system/access-control/groups', sub: true, keywords: 'קבוצה שדות פרופיל גרסאות מדיניות' },
-      { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה' },
-      { tab: 'access-control', label: 'הודעות', href: '#/system/access-control/messaging', sub: true, keywords: 'וואטסאפ whatsapp תבניות שליחת הודעה הודעה חופשית מכסה נמענים' },
+      { tab: 'access-control', label: 'יומן האינטרקום', href: '#/system/access-control/audit', sub: true, keywords: 'פעולות audit מי עשה מה', need: ['access.admin.read'] },
+      { tab: 'access-control', label: 'קבוצות ושדות', href: '#/system/access-control/groups', sub: true, keywords: 'קבוצה שדות פרופיל גרסאות מדיניות', need: ['access.admin.read'] },
+      { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה', need: ['access.admin.read'] },
+      { tab: 'access-control', label: 'הודעות', href: '#/system/access-control/messaging', sub: true, keywords: 'וואטסאפ whatsapp תבניות שליחת הודעה הודעה חופשית מכסה נמענים', need: ['access.admin.read'] },
+      // CR-040: the bridge trust-key rotation - offered to holders of access.trust.rotate (installation scope) only; the screen checks again
+      { tab: 'access-control', label: 'מפתח הגשר', href: '#/system/access-control/trust', sub: true, keywords: 'מפתח אמון החלפת מפתח גשר חתימה דור עידן צימוד key rotation trust epoch hmac', need: ['access.trust.rotate'], needInstallation: true },
       { tab: 'general', label: 'גשר Home Assistant', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor' },
       { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
@@ -128,7 +135,8 @@ export function visibleGroups(api: boolean, can?: (permission: string, installat
   const security = tabs.has('security') ? new Set(visibleTabs(SECURITY_SETTINGS_TABS, api, can).map((t) => t.id)) : new Set<string>();
   return SETTINGS_GROUPS.map((g) => ({
     ...g,
-    entries: g.entries.filter((e) => tabs.has(e.tab) && (e.tab !== 'security' || !e.sub || security.has(e.href.split('/').pop() ?? ''))),
+    entries: g.entries.filter((e) => tabs.has(e.tab) && (e.tab !== 'security' || !e.sub || security.has(e.href.split('/').pop() ?? ''))
+      && (!e.need || !api || !can || e.need.some((p) => can(p, e.needInstallation)))),
   })).filter((g) => g.entries.length);
 }
 

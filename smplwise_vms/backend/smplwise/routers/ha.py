@@ -621,6 +621,10 @@ def _lease_repair(reason: str) -> None:
 @router.get("/ha/bridge/pairing")
 def pairing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), regenerate: bool = False) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
+    if regenerate:  # CR-040: a re-pair replaces the trust relationship - an open rotation is superseded, the epoch starts again at 1
+        from ..services import bridge_trust
+
+        bridge_trust.on_repair(conn, principal)
     secret = ha_bridge.ensure_pairing(conn, regenerate=regenerate)
     if regenerate:
         _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: a new pairing key - every capture lease goes, a new stream
@@ -681,6 +685,10 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
             audit(conn, actor=None, action="bridge.delegation_seen", decision="allowed", resource_type="installation", resource_id="*", details={"delegated_authoring": new == "true", "changed_at": changed})
     # USR2 P3 (bridge 0.9.0): the bridge's own copy of the service identity - state for the settings self-check, never a request
     service_identity.note_directory_push(conn, message)
+    # CR-040 (bridge 0.9.1): the trust epoch the bridge holds and whether it can rotate - read only from this verified push
+    from ..services import bridge_trust
+
+    bridge_trust.note_push(conn, message)
     # CR-028 (bridge 0.7.0): the cast origin the bridge may let a TV fetch from - signed with the pairing secret under its own purpose (a
     # captured call of another kind can never pass for it); null while casting is not ready. Older bridges ignore the key.
     from ..services import cast_sessions

@@ -55,10 +55,11 @@ DEFAULT_GRANTS: dict[str, set[str]] = {
     "access.schedules.manage": {"system_admin"},
     "access.stations.manage": {"system_admin"},
     "access.groups.manage": {"system_admin"},
+    "access.trust.rotate": {"system_admin"},  # CR-040 (owner / lead 2026-10-13): the bridge trust-key rotation - sensitive, any role may carry it
 }
 SENSITIVE_ACCESS = {"access.doors.open", "access.release", "access.call", "access.events.export", "access.people.sensitive", "access.people.manage",
                     "access.people.message", "access.pin.generate", "access.cards.capture", "access.schedules.manage", "access.stations.manage",
-                    "access.groups.manage"}
+                    "access.groups.manage", "access.trust.rotate"}
 
 
 # ---------------------------------------------------------------- the default grant sets

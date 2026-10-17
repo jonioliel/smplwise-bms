@@ -333,8 +333,13 @@ def _safe(text: Any) -> str:
 def bridge_call(w: W, op: str, op_id: str, *, schedule_id: str | None = None, schedule_entity_id: str | None = None, payload: dict[str, Any] | None = None, name: str | None = None,
                 time_: str | None = None, skip_conditions: bool = False, sensitive: bool = False) -> dict[str, Any]:
     """One signed `smplwise_bridge.schedule` call, made with the request's write lock released. Never retried. A transport
-    failure or an `ok: false` answer settles the op and raises (504 `scheduler_timeout` leaves it `unknown`)."""
-    secret = ha_bridge.signing_key(w.conn)
+    failure or an `ok: false` answer settles the op and raises (504 `scheduler_timeout` leaves it `unknown`). CR-040: refused before
+    signing while a bridge key rotation is open - the op is settled `failed` (nothing was sent) and the refusal stands; never retried."""
+    try:
+        secret = ha_bridge.signing_key(w.conn)
+    except ApiError as exc:
+        store.finish_op(w.conn, op_id, "failed", error=exc.code)
+        raise
     # USR2 P3: a local (Arx-only) principal acts through the service identity (`schedules` feature); refused = ApiError before the call
     subj = service_identity.subject(w.conn, w.principal, "schedules", bridge_service="schedule", item=op, request_id=w.request_id)
     body = {**subj, "op": op, "request_id": op_id, "schedule_id": schedule_id, "schedule_entity_id": schedule_entity_id, "payload": payload or {},

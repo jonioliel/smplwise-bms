@@ -243,3 +243,24 @@ cast_stream:
       description: Random nonce.
     sig:
       description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+trust_rotate:
+  name: Rotate the trust key (SMPLWISE add-on only)
+  description: >-
+    0.9.1 (CR-040): moves the bridge, in ONE atomic switch, from the current pairing key to the next one and from trust epoch
+    e to e + 1. The add-on signs the request with the current key; the next key is derived here from the current key and the
+    request's random salt (it never travels), stored durably first, then it replaces the current key for every signed service.
+    There is never an instant with two valid keys. Called by the add-on only; not meant to be called from automations.
+  fields:
+    signed_message_json:
+      description: The signed request (protocol smplwise-bridge-trust-v1) as one JSON string.
+
+trust_status:
+  name: Trust rotation status (SMPLWISE add-on only)
+  description: >-
+    0.9.1 (CR-040): signed, read-only except for one fence - whether a rotation request was applied. A request id this bridge has
+    never seen is recorded as fenced before the answer, so that request can never be applied later. Called by the add-on only;
+    not meant to be called from automations.
+  fields:
+    signed_message_json:
+      description: The signed status query (protocol smplwise-bridge-trust-v1) as one JSON string.
