@@ -442,6 +442,18 @@ def _present_demand(d: Mapping[str, Any] | None, amounts: bool) -> dict[str, Any
             "revision": d["revision"]}
 
 
+def ticket_demands(conn, ticket_row: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """HARDEN271 (owner 2026-10-17, RFQPAY2 follow-up): the instalment payment demands of the award a work order came from, for the
+    ticket's Costs tab - read-only (status, amount, due date). The caller decides who may see it: the Costs tab's own rule
+    (routers/tickets_costs `full`: the ticket's full view + tickets.costs.view on it). [] for a ticket that is not an RFQ work order."""
+    q = store_rfq.rfq_quote_of_ticket(conn, ticket_row["id"])
+    if q is None:
+        return []
+    return [{"id": d["id"], "index": i, "kind": d["kind"], "status": d["status"], "amount_minor": d["amount_minor"], "currency": d["currency"],
+             "due_date": d.get("due_date"), "created_at": d["created_at"], "paid_at": d.get("paid_at"), "cancelled_at": d.get("cancelled_at")}
+            for i, d in sorted(store_rfq.demands_of_quote(conn, q["id"]).items())]
+
+
 REJECT_TEXT = {
     "he": "המועד שהצעתם להגעה לביצוע העבודה לא אושר. נא לאשר בדף ההצעה את המועד המתוכנן או להציע מועד אחר.",
     "en": "The arrival date you proposed for the work was not approved. Please confirm the planned date on the quote page or propose another date.",

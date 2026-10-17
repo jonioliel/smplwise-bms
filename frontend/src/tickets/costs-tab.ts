@@ -579,6 +579,18 @@ export class TicketCostsTab extends LitElement {
     void this.load();
   };
 
+  /** HARDEN271: the RFQ instalment demands of a work order, read-only, in a lazy chunk fetched only when the server sent any (it sends them
+   * only to a caller who may see the amounts) - nothing of it is in the tab's own bundle. */
+  private instalmentDemands(d: TicketCostsFull) {
+    const items = d.instalment_demands ?? [];
+    if (!items.length) return nothing;
+    if (!customElements.get('ticket-costs-demands')) {
+      void import('./costs-demands').then(() => this.requestUpdate());
+      return nothing;
+    }
+    return html`<ticket-costs-demands .items=${items}></ticket-costs-demands>`;
+  }
+
   render() {
     const t = this.ticket;
     if (!t?.cost) return html`<p class="slot-note" data-costs-empty>${qt('emptyCosts')}</p>`;
@@ -620,6 +632,7 @@ export class TicketCostsTab extends LitElement {
       ${demandLater ? html`<section class="cstage dim" data-demand-later><div class="csh"><span class="ic">${cIcon('coins')}</span><b>${qt('demandTitle')}</b><span class="muted">${qt('demandLater')}</span></div></section>` : nothing}
       ${showCard ? html`<ticket-cost-card embedded .ticket=${t} .costs=${{ ...d, claims }}
         @cost-changed=${this.onCardChanged} @cost-draft=${this.onCardDraft} @cost-reload=${this.onCardReload}></ticket-cost-card>` : nothing}
+      ${this.instalmentDemands(d)}
       ${this.kindsFold(d)}
       ${this.requirementFold(d)}
       ${this.quoteDialog(d)}

@@ -169,6 +169,22 @@ export interface TicketCosts {
   claims: CostClaim[];
   settings?: CostSettingsBrief;
   external_assignments?: ExternalAssignment[];
+  /** HARDEN271: the RFQ instalment payment demands of a work order, read-only ([] without tickets.costs.view; absent on older servers) */
+  instalment_demands?: InstalmentDemandRow[];
+}
+
+/** HARDEN271 (RFQPAY2 follow-up): one instalment demand as the work order's Costs tab lists it. */
+export interface InstalmentDemandRow {
+  id: string;
+  index: number;
+  kind: 'advance' | 'progress' | 'final';
+  status: 'open' | 'paid' | 'cancelled';
+  amount_minor: number;
+  currency: string;
+  due_date: string | null;
+  created_at: string;
+  paid_at: string | null;
+  cancelled_at: string | null;
 }
 
 /** TKDETAILBE (contract 4.4): `GET tickets/{id}/costs` also carries the quotes block (amounts only with tickets.costs.view). */
