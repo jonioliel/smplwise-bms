@@ -18,8 +18,9 @@
  * Determinism: the same description, level, preset and size give the same camera, the same masks (rounded to 0.1 px) and the
  * same palette on every machine. The pixels depend on the GPU that draws them (the notes, section 1).
  */
-import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
+import type { SceneDescription, SceneInput, ScenePart, Vec3 } from './scene-builder';
 import { ISO_DIR, ISO_RIGHT, ISO_UP, isoFrame, sceneExtent, type IsoFrame } from './scene-frame';
+import { controlSceneInput, withoutCameraBodies } from './skin-control';
 import { TOKEN_GROUPS } from '../design/tokens';
 
 export type StillPreset = 'iso' | 'top' | 'persp';
@@ -31,8 +32,10 @@ export const PRESETS: readonly StillPreset[] = ['iso', 'top', 'persp'];
 export const STYLES: readonly StillStyle[] = ['light', 'dark'];
 export const BANDS: readonly StillBand[] = ['day', 'sunset', 'night'];
 export const VARIANTS: readonly StillVariant[] = ['off', 'on'];
-/** The recipe of the level-2 still renderer (still-render-scene.ts). The level-3 renderer will be `still-q3.*`. */
-export const STILL_RECIPE_Q2 = 'still-q2.1';
+/** The recipe of the level-2 still renderer (still-render-scene.ts). The level-3 renderer will be `still-q3.*`. q2.2 (STILLCAM):
+ * the bake input leaves camera-bound bodies out (`bakeSceneInput`); the backend withholds q2.1 stills from a reader whose
+ * camera scope hides a camera a body of the floor is bound to (services/plan_bakes.SAFE_STILL_RANK). */
+export const STILL_RECIPE_Q2 = 'still-q2.2';
 export const MASK_RECIPE = 'mask-1';
 /** Where the lifted mask outline sits: this share of the level's ceiling height (prototype stills.js). */
 export const MASK_TOP_SHARE = 0.55;
@@ -162,6 +165,23 @@ export function stillBackdrop(style: StillStyle, band: StillBand): string {
 }
 
 // ---- the still's description -----------------------------------------------------------------------------------------
+
+/**
+ * STILLCAM (a leftover of the Studio 6 security review): `withoutCameraBodies` - the document without the objects bound to a
+ * CAMERA anchor - lives in skin-control.ts since STILLCAM-SKIN (the skin control image had the same leak) and is applied inside
+ * controlSceneInput, so every still, mask, lightmap and control image leaves those bodies out. Re-exported here for the bake's
+ * callers and tests. Entity-bound and free objects stay (a reader who reaches the floor only through camera bindings - the one
+ * reader an entity reference is withheld from - is handed no bakes at all: routers/anchors.py, the bakes routes need map.read
+ * on the floor).
+ */
+export { withoutCameraBodies };
+
+/** The builder input every still, mask and lightmap of a bake is drawn from: the synthetic all-off / all-on control input
+ * (skin-control.controlSceneInput) of the document without its camera-bound bodies (`withoutCameraBodies`; controlSceneInput
+ * applies it as well - the call here keeps the bake's own guarantee explicit). */
+export function bakeSceneInput(input: SceneInput, variant: StillVariant): SceneInput {
+  return controlSceneInput({ ...input, doc: withoutCameraBodies(input.doc) }, variant === 'on' ? 'all_on' : 'all_off');
+}
 
 const STILL_KINDS = new Set<ScenePart['kind']>(['floor', 'room', 'wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector']);
 

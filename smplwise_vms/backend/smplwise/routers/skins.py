@@ -143,17 +143,20 @@ def floor_skins(floor_id: str, principal: Principal = Depends(current_principal)
     """The floor's geometry key (what a control image must be made from), its stored control images and its budget."""
     get_floor(conn, floor_id)
     require(conn, principal, P_EDIT, ("floor", floor_id))
-    gk = store.served_geometry_key(conn, floor_id, anchor_scope.visibility(conn, principal, floor_id))
+    visible = anchor_scope.visibility(conn, principal, floor_id)
+    gk = store.served_geometry_key(conn, floor_id, visible)
     key, doc_hash, real = gk if gk else (None, None, None)
     # security review 2.4.2 L1: a reader from whom a reference is withheld is handed keys built over the redacted
-    # document; a stored control's key (built over the stored hash) is shown to them only as the current key, else null
+    # document; a stored control's key (built over the stored hash) is shown to them only as the current key, else null.
+    # STILLCAM-SKIN: a control of an older recipe (drawn with camera-bound bodies) is never current and is withheld from
+    # every camera-scoped reader.
     return {"floor_id": floor_id, "geometry_key": key, "doc_hash": doc_hash, "states": list(store.STATES), "size": list(store.CONTROL_SIZE),
-            "controls": [_control_out(c, key, real) for c in store.controls_of(conn, floor_id)],
+            "controls": [_control_out(c, key, real) for c in store.controls_of(conn, floor_id) if not store.control_withheld(c, visible)],
             "budget": store.budget(conn, floor_id, real).describe()}
 
 
 def _control_out(c: dict[str, Any], key: str | None, real: str | None) -> dict[str, Any]:
-    current = c.get("geometry_key") == real
+    current = store.control_current(c, real)
     if key == real:
         return dict(c, current=current)
     return dict(c, current=current, geometry_key=key if current else None)
@@ -161,9 +164,11 @@ def _control_out(c: dict[str, Any], key: str | None, real: str | None) -> dict[s
 
 @router.post("/floors/{floor_id}/skins/control-image", status_code=201)
 async def upload_control_image(floor_id: str, request: Request, state: str = Form(...), geometry_key: str = Form(...), file: UploadFile = File(...),
+                               recipe: str | None = Form(None),
                                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The browser's level-2 isometric capture of the floor for a synthetic state, labels stripped. Stored locally only,
-    keyed by floor + state + geometry key; refused when the structure changed since the capture."""
+    keyed by floor + state + geometry key; refused when the structure changed since the capture, and (STILLCAM-SKIN) when
+    the capture's recipe still draws camera-bound bodies (no recipe: a client from before the fix)."""
     settings = settings_of(request)
     get_floor(conn, floor_id)
     require(conn, principal, P_EDIT, ("floor", floor_id))
@@ -177,9 +182,12 @@ async def upload_control_image(floor_id: str, request: Request, state: str = For
     served_key, _served_doc, real_key = gk
     if served_key != geometry_key:  # L1: the key this person was handed (the floor_skins answer); stored under the real key
         raise ApiError(409, "geometry_changed", "המבנה או החדרים של הקומה השתנו מאז הצילום; צלמו שוב.", details={"geometry_key": served_key})
+    if not store.recipe_omits_camera_bodies(recipe):
+        raise ApiError(409, "control_recipe_outdated", "גרסת היישום ישנה: רעננו את הדף וצלמו שוב.", details={"recipe": store.CONTROL_RECIPE})
+    assert recipe is not None
     data = await file.read(store.CONTROL_MAX_BYTES + 1)
     try:
-        row, identical = store.store_control(settings, conn, floor_id, state, real_key, data, principal.user_id)
+        row, identical = store.store_control(settings, conn, floor_id, state, real_key, data, principal.user_id, recipe=recipe)
         if served_key != real_key:
             row = dict(row, geometry_key=served_key)
     except store.SkinStoreError:
@@ -187,5 +195,5 @@ async def upload_control_image(floor_id: str, request: Request, state: str = For
     except store.ControlImageError as exc:
         raise ApiError(413 if exc.code == "payload_too_large" else 415 if exc.code == "unsupported_format" else 422, exc.code, exc.message, details=exc.details or None)
     audit(conn, actor=principal, action="skins.control.upload", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
-          details={"state": state, "geometry_key": geometry_key, "sha256": row["sha256"], "bytes": row["bytes"], "identical": identical})
+          details={"state": state, "geometry_key": geometry_key, "recipe": recipe, "sha256": row["sha256"], "bytes": row["bytes"], "identical": identical})
     return {**row, "identical": identical}

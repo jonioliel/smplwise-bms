@@ -281,7 +281,7 @@ test.describe('the bake job', () => {
     expect([mask.width, mask.height, mask.preset]).toEqual([1280, 800, 'iso']);
     expect(uploads[1].recipe).toBe('mask-1');
     expect(uploads[0].meta).toEqual({ renderer: 'fake', ms: 1, quality: 2 });
-    expect(uploads[5].recipe).toBe('lightmap-1');
+    expect(uploads[5].recipe).toBe('lightmap-2');
     expect((uploads[5].meta as { surfaces: unknown[] }).surfaces.length).toBe(1);
     expect((d.renderer as FakeRenderer).disposed).toBe(1);
   });

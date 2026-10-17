@@ -250,14 +250,14 @@ def test_control_image_upload_validation_permission_keying_and_deletion_with_the
     assert len(key) == 64 and info["controls"] == [] and info["size"] == [1536, 1024] and info["states"] == ["all_off", "all_on"]
 
     def up(data: bytes, state: str = "all_off", k: str | None = None, headers=None):
-        return c.post(f"/api/v1/floors/{fid}/skins/control-image", data={"state": state, "geometry_key": k or key}, files={"file": ("c.png", data, "image/png")}, headers=headers)
+        return c.post(f"/api/v1/floors/{fid}/skins/control-image", data={"state": state, "geometry_key": k or key, "recipe": store.CONTROL_RECIPE}, files={"file": ("c.png", data, "image/png")}, headers=headers)
 
     png = control_png()
     r = up(png)
     assert r.status_code == 201, r.text
     row = r.json()
     assert row["state"] == "all_off" and row["geometry_key"] == key and row["width"] == 1536 and row["identical"] is False
-    path = settings.data_dir / "skins" / fid / f"control-all_off-{key[:16]}.png"
+    path = settings.data_dir / "skins" / fid / f"{store.CONTROL_RECIPE}-all_off-{key[:16]}.png"
     assert path.read_bytes() == png
     assert up(png).json()["identical"] is True  # the same bytes for the same key: the capture was deterministic
     assert up(control_png(color=(1, 2, 3))).json()["identical"] is False
@@ -424,7 +424,7 @@ def test_restore_in_replace_mode_sweeps_control_images_of_floors_that_are_gone(s
     fid = ids["floor2"]
     key = c.get(f"/api/v1/floors/{fid}/skins").json()["geometry_key"]
     for state in ("all_off", "all_on"):
-        assert c.post(f"/api/v1/floors/{fid}/skins/control-image", data={"state": state, "geometry_key": key}, files={"file": ("c.png", control_png(), "image/png")}).status_code == 201
+        assert c.post(f"/api/v1/floors/{fid}/skins/control-image", data={"state": state, "geometry_key": key, "recipe": store.CONTROL_RECIPE}, files={"file": ("c.png", control_png(), "image/png")}).status_code == 201
     (settings.data_dir / "skins" / "stray-folder").mkdir(parents=True)
     with app.state.db.connection() as conn:
         result = backup_svc.restore(settings, conn, backup_svc.backups_dir(settings) / before["name"], mode="replace")

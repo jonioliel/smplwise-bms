@@ -73,8 +73,8 @@ test.describe('stills in the browser', () => {
           { id: 'z1', floor: [[400, 300], [600, 300], [600, 420]], top: [[400, 200], [600, 200], [600, 320]], centre: [520, 300] }],
         doors: [{ id: 'do0', points: [[310, 300], [330, 300], [330, 340]] }], cameras: [{ id: 'cam1', p: [700, 100] }] };
       const maskUrl = URL.createObjectURL(new Blob([JSON.stringify(mask)], { type: 'application/json' }));
-      const bakes = { bake_key: 'k', complete: true, stale_count: 0, recipes: ['still-q2.1'], levels: { L0: {
-        stills: { 'iso/light/day/off': { url: await pic('#dde3ea'), width: 800, height: 500, recipe: 'still-q2.1' }, 'iso/light/day/on': { url: await pic('#ffd27a'), width: 800, height: 500, recipe: 'still-q2.1' } },
+      const bakes = { bake_key: 'k', complete: true, stale_count: 0, recipes: ['still-q2.2'], levels: { L0: {
+        stills: { 'iso/light/day/off': { url: await pic('#dde3ea'), width: 800, height: 500, recipe: 'still-q2.2' }, 'iso/light/day/on': { url: await pic('#ffd27a'), width: 800, height: 500, recipe: 'still-q2.2' } },
         masks: { iso: { url: maskUrl } }, lightmap: null } } };
       const el = document.createElement('sw-plan-stills') as unknown as HTMLElement & Record<string, unknown>;
       el.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:99999';
