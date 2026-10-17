@@ -402,7 +402,8 @@ def classify_client(peer: str | None, forwarded: Sequence[str], trusted: Sequenc
 # ---------------------------------------------------------------- the policy of the public listener
 
 ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "rfq_upload", "code",
-               "redeem", "portal_start", "portal_verify", "portal_read")  # + VPORTAL: the vendor portal's routes (per client network, no token)
+               "redeem", "portal_start", "portal_verify", "portal_read",  # + VPORTAL: the vendor portal's routes (per client network, no token)
+               "portal_write")  # + VPORTALRFQ: the portal's one write (a technician request / its withdrawal), after the session check
 TOKEN_KINDS = frozenset({"token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "rfq_upload", "code"})
 # their body phase is paid when it starts (RequestCost.body_phase); RFQ-VENDOR-UPLOAD: a vendor's file on his quote (`rfq_upload`)
 UPLOAD_KINDS = frozenset({"photo", "claim_file", "rfq_upload"})
@@ -439,12 +440,15 @@ class PublicLimits:
     portal_start_global: Limits = ((3600.0, 300),)
     portal_verify_per_network: Limits = ((600.0, 30),)
     portal_read_per_network: Limits = ((60.0, 120),)
+    # VPORTALRFQ: the technician requests - a write of a signed-in session (per company: 5 pending / 10 a day, in the rows themselves)
+    portal_write_per_network: Limits = ((600.0, 10), (3600.0, 20))
+    portal_write_global: Limits = ((3600.0, 200),)
     known_good_ttl_s: float = 86400.0
 
     WINDOW_NAMES = ("static_per_network", "asset_per_network", "unknown_per_network", "unknown_global", "redeem_global",
                     "token_requests", "token_photo_reads", "token_file_reads", "token_writes", "token_photos", "token_claim_files",
                     "token_rfq_uploads", "rfq_upload_per_network", "redeem_per_network", "code_per_recipient", "portal_start_per_network", "portal_start_global",
-                    "portal_verify_per_network", "portal_read_per_network")
+                    "portal_verify_per_network", "portal_read_per_network", "portal_write_per_network", "portal_write_global")
 
     @property
     def horizon_s(self) -> float:
@@ -611,6 +615,9 @@ class PublicRateGate:
             return self._locks(net, None, ()) or self._hit(f"pv:{net}", self.limits.portal_verify_per_network, "portal_rate") or Decision(True)
         if kind == "portal_read":
             return self._locks(net, None, ()) or self._hit(f"pp:{net}", self.limits.portal_read_per_network, "portal_rate") or Decision(True)
+        if kind == "portal_write":  # VPORTALRFQ: its network, then the installation
+            return (self._locks(net, None, ()) or self._hit(f"pw:{net}", self.limits.portal_write_per_network, "portal_rate")
+                    or self._hit("pw:*", self.limits.portal_write_global, "flood") or Decision(True))
         if kind not in TOKEN_KINDS:
             raise ValueError(f"unknown route kind {kind!r}")
         if kind == "rfq_upload":

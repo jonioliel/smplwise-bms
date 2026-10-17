@@ -220,7 +220,9 @@ export interface MetaDepartment {
 }
 export interface Meta {
   departments: MetaDepartment[];
-  can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean; handlers?: boolean };
+  can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean; handlers?: boolean;
+    /** VPORTALRFQ: may see / decide the vendors' technician requests (tickets.configure or tickets.technician_requests) */
+    technician_requests?: boolean };
 }
 
 export interface ListQuery { scope: ListScope; status: StatusFilter; department_id?: string; q?: string; limit?: number; cursor?: string | null }
@@ -367,7 +369,9 @@ export interface RfqSettings { schedule_arrival?: boolean; arrival_reminder_hour
 export interface RfqVendorUploadSettings { enabled: boolean; max_files: number; max_uploads: number; max_image_mb: number; max_doc_mb: number; max_total_mb: number }
 /** VPORTAL: the vendor portal on the public page (OFF by default), how far back closed requests are listed and (2.6.4 review F1,
  * default ON) whether only a number confirmed by code may sign in */
-export interface VendorPortalSettings { enabled: boolean; closed_months: number; require_confirmed_number?: boolean }
+export interface VendorPortalSettings { enabled: boolean; closed_months: number; require_confirmed_number?: boolean;
+  /** VPORTALRFQ (default OFF): open requests for quotation / company technician requests inside the portal */
+  rfqs?: boolean; technician_requests?: boolean }
 export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */;
   /** CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (system.configure, default off) */
   directory?: { managers_full_phones: boolean }; rfq?: RfqSettings;

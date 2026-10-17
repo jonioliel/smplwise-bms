@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, state } from 'lit/decorators.js';
 import '../tickets/contacts-directory';
 import '../tickets/handlers-members';
+import '../tickets/portal-requests';
 import type { TicketsContacts } from '../tickets/contacts-directory';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
@@ -341,7 +342,12 @@ export class TicketsHandlersPage extends LitElement {
 
   private body(): TemplateResult {
     const { loads, label } = this.shownLoads();
-    if (this.seg === 'vendors') return html`<tickets-contacts kind="vendor" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
+    if (this.seg === 'vendors') {
+      // VPORTALRFQ: the vendors' technician requests from the portal - directory editors and tickets.technician_requests holders
+      // (their departments' vendors only, decided by the server); never a denied call for anyone else
+      return html`${this.meta?.can.configure || this.meta?.can.technician_requests ? html`<tickets-portal-requests @notice=${this.onNotice}></tickets-portal-requests>` : nothing}
+        <tickets-contacts kind="vendor" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
+    }
     if (this.seg === 'contacts') return html`<tickets-contacts kind="person" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     return html`<div class="body" data-handlers-segment>
       <tickets-handlers-members .dept=${this.dept} .query=${this.q} .loads=${loads} .handledLabel=${label} .managed=${this.managed()}

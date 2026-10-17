@@ -84,3 +84,7 @@ test('the components use the manager routes and never send a configurer-only fie
   const board = readFileSync(path.join(here, '../src/screens/tickets-board.ts'), 'utf8');
   expect(board).toContain('<tickets-handlers embedded');
 });
+
+test('VPORTALRFQ: the technician-request approval permission has its words in the "הרשאות" tab', () => {
+  expect(ticketPermLabel('tickets.technician_requests')).toBe('אישור בקשות טכנאים מספקים (במחלקות שלי)');
+});

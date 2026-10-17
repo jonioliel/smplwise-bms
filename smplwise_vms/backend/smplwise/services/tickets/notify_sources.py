@@ -44,6 +44,10 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     # only (subject `session` = the user), never the number
     {"key": "ticket.staff_mobile", "label": "הנייד שלי לקישורי עבודה השתנה", "severity": "info", "who": "initiator", "resolves": False,
      "subject": "session"},
+    # VPORTALRFQ: a vendor company asked in the portal to add / replace a technician - to the managers (installation level, subject
+    # `system`), resolved when an editor decides or the vendor withdraws it; no name, no number in the text
+    {"key": "ticket.portal_tech_request", "label": "בקשת ספק לעדכון טכנאי",  # no label_en, like the other ticket sources
+     "severity": "info", "who": "managers", "resolves": True, "subject": "system", "push": False},
     # TKRFQ5: what a vendor did on his quote page (or by a WhatsApp reply) and the deadline - to the RFQ managers only
     {"key": "rfq.quote_received", "label": "הצעת מחיר התקבלה או עודכנה", "label_en": "Quote received or updated", "severity": "info",
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},

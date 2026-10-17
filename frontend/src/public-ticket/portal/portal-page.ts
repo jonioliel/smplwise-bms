@@ -26,6 +26,8 @@ export interface PortalHost {
   fallbackLang: Lang;
   setLang(lang: Lang): void;
   openTicket(token: string): void;
+  /** VPORTALRFQ: one open request for quotation - his own RFQ link's token; the existing RFQ page takes it (its own code rules) */
+  openRfq(token: string): void;
   /** the portal is off (the server's uniform 404) or unreachable: the page's own unavailable screen, as before the portal existed */
   unavailable(): void;
 }
@@ -65,6 +67,8 @@ class Portal {
   private timer: number | null = null;
   private countdown: HTMLElement | null = null;
   private dead = false;
+  private more: { render(): void; destroy(): void } | null = null; // VPORTALRFQ: the lazy extra sections
+  private moreSlot: HTMLElement | null = null;
   private cfg: PortalConfig = { organization: '', logo: null, code_ttl_s: 600, session_ttl_s: 1800 };
 
   constructor(private host: PortalHost) {
@@ -108,6 +112,28 @@ class Portal {
     this.dead = true;
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
+    this.dropMore();
+  }
+
+  private dropMore(): void {
+    this.more?.destroy();
+    this.more = this.moreSlot = null;
+  }
+
+  /** VPORTALRFQ: the slot of the extra sections - one element kept across renders, its chunk fetched once (only when a section is on). */
+  private moreEl(f: { rfqs: boolean; techs: boolean }): HTMLElement {
+    if (this.moreSlot) return this.moreSlot;
+    const slot = (this.moreSlot = h('div', { attrs: { 'data-portal-more': true } }));
+    void import('./portal-more').then((m) => {
+      if (this.moreSlot !== slot) return;
+      this.more = m.mountMore(slot, {
+        lang: () => this.lang, when: (iso) => this.when(iso), call,
+        openRfq: (token) => { this.destroy(); this.host.openRfq(token); },
+        gone: () => { this.dropMore(); void this.loadList(); }, // the sections load afresh with the list
+
+      }, f);
+    }).catch(() => undefined);
+    return slot;
   }
 
   private tick(): void {
@@ -150,6 +176,7 @@ class Portal {
   }
 
   private toPhone(message: Portal['message']): void {
+    this.dropMore();
     this.view = null;
     this.expiresAt = 0;
     this.code = '';
@@ -341,11 +368,15 @@ class Portal {
     const v = this.view as PortalView;
     const { open, closed } = split(v.items);
     const until = new Date(this.expiresAt).toISOString();
+    const f = v.features;
+    if (!f?.rfqs && !f?.techs) this.dropMore();
+    else this.more?.render(); // the language may have changed
     return h('main', { class: 'col' },
       this.banner(),
       h('p', { class: 'muted small', attrs: { 'data-portal-until': true } }, this.t('until', { when: this.when(until) })),
       h('h2', { class: 'portal-h' }, this.t('openNow'), ` (${open.length})`),
       ...(open.length ? open.map((i) => this.card(i)) : [h('p', { class: 'muted' }, this.t('none'))]),
+      f && (f.rfqs || f.techs) ? this.moreEl(f) : null,
       h('h2', { class: 'portal-h' }, this.t('closedIn', { n: v.closed_months }), ` (${closed.length})`),
       ...(closed.length ? closed.map((i) => this.card(i)) : [h('p', { class: 'muted' }, this.t('none'))]));
   }

@@ -106,6 +106,8 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
             "external": access.EXTERNAL in viewer.anywhere,
             "configure": viewer.holds_installation(access.CONFIGURE),
             "handlers": any(d["can_handlers"] for d in out),  # CR-DEPT-MANAGER-HANDLERS
+            # VPORTALRFQ: the vendors' technician requests card (directory editors, or holders of tickets.technician_requests)
+            "technician_requests": viewer.holds_installation(access.CONFIGURE) or viewer.holds_installation(access.TECH_REQUESTS),
         },
     }
 

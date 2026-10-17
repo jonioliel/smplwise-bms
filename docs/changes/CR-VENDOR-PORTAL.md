@@ -3,6 +3,8 @@
 **Status:** implemented on `pilot/VPORTAL` (base `origin/integ/263` @ `984b6c94`), OFF by default. Owner-approved design (2026-10-16).
 **This is a NEW PUBLIC AUTHENTICATION SURFACE.** It needs the security review of `docs/security/TICKETS_PUBLIC_SURFACE_REVIEW_CHECKLIST.md`
 (sections 1, 2, 6) plus section 6 below before it is switched on anywhere.
+**VPORTALRFQ addition (section 12, `pilot/VPORTALRFQ`, OFF by default):** open requests for quotation and company technician requests
+inside the portal. **A Fable public-surface review of section 12 is required before release.**
 
 ## 1. What it does
 
@@ -156,9 +158,11 @@ ended). No number, code or session value is stored in clear. Neither table is a 
    setting `vendor_portal.require_confirmed_number` (default ON, system.configure, audited, in the settings card) lets the owner
    switch it off. Built (2.6.4 review F1).
 2. Open requests for quotation in the portal: **a LATER version** (noted, not built). It is a cross-vendor surface that needs its
-   own review (keyed by invitation, never by RFQ id).
+   own review (keyed by invitation, never by RFQ id). **Update 2026-10-17: approved and built OFF by default on `pilot/VPORTALRFQ`
+   (section 12), keyed by invitation; Fable review required before release.**
 3. A vendor company's number seeing its technicians' requests (`vendor_id`): **a possible LATER feature** (noted, not built). Today
-   only rows whose own number matches.
+   only rows whose own number matches. (Section 12's "company technician requests" is a different feature: a company asks a manager
+   to add / replace a technician; it does not show the technicians' service requests.)
 4. Switching the portal on from a remote (tunnel) session: **allowed** - remote as well as local, `system.configure` required; NOT
    local-only (the reviewer recommended local-only; the owner decided otherwise). Tested.
 5. Cloudflare case-insensitive route: not needed; vendors get the lowercase address (user guide part 7 item 4).
@@ -188,3 +192,146 @@ Migration 0105 (provisional `0110`, renumbered at integ/264); the new `net_hash`
   (desktop / mobile / RTL, loading / empty / error / ready) and the evidence suites are NOT_RUN. The public bundle in
   `smplwise_vms/www-public/` was NOT rebuilt (release step); the budget was measured on a local build in the scratchpad.
 - No live WhatsApp, tunnel or phone; Arabic and Russian strings need a native review.
+
+## 12. VPORTALRFQ - open requests for quotation and company technician requests (branch `pilot/VPORTALRFQ`, base `integ/264`)
+
+**Status:** implemented on `pilot/VPORTALRFQ`, OFF by default (two switches, both need `vendor_portal.enabled`). Owner 2026-10-17:
+section 9 items 2 and 3 ("a LATER version" / "possible in future") approved to build now. **A Fable public-surface review
+(`docs/security/TICKETS_PUBLIC_SURFACE_REVIEW_CHECKLIST.md` sections 1, 2, 6 + 12.5 below) is REQUIRED before release and before
+either switch is turned on anywhere.**
+
+### 12.1 What it does
+
+1. **Open requests for quotation** (`vendor_portal.rfqs`). After sign-in the portal lists the requests for quotation addressed to
+   the session's own directory rows, keyed by the INVITATION (`ticket_rfq_vendors` of that contact), never by an RFQ id, and only
+   while open for HIS quote: the request `sent` / `collecting` and not past its deadline, his page state `open` / `declined`, his
+   personal RFQ link live (not revoked, not expired, not in read-only grace). Per item: the reference (`RFQ-07`), the department, the
+   deadline, his state (open / he said "not interested"), and - unless his link asks for a code first - the title and HIS OWN latest
+   quote (state + amount + currency). For a code-protected link the list shows no title and no quote (`code_first: true`): the portal
+   never shows more than the link shows before its code (contract 15.3). "Open" returns HIS OWN RFQ link's token (the one already sent
+   to him) and the page opens the EXISTING RFQ page with it - its own code gate, deadline, read-only and write rules, nothing widened.
+   With the switch on, an open invitation counts as "something to show" for the sign-in (a vendor with only RFQs gets a code).
+2. **Company technician requests** (`vendor_portal.technician_requests`). A session whose rows include a vendor COMPANY row (kind
+   `vendor`; a person's or technician's own number never gets the section) sees, per company, its active technicians (names only)
+   and the requests it sent in the last 90 days (action, name, the number's last four digits, state). It may ask to ADD a technician or
+   REPLACE one of its own - a name and a mobile number - or withdraw a pending request. Nothing changes in the directory until a
+   directory editor (`tickets.configure`, every vendor) or a holder of the NEW permission `tickets.technician_requests` (owner
+   2026-10-17 - see 12.8; only the vendors of the departments he manages, every vendor with `tickets.all_departments`) approves on
+   "מטפלים וספקים" › ספקים (the card "בקשות טכנאים מספקים"): the approval creates the person row through the directory's create path (kind person, `vendor_id` = the company, the company's language and departments, WhatsApp
+   preferred; its number NOT confirmed - the editor confirms it with the existing code flow) and, for a replacement, sets the old row
+   inactive through `contacts.update` (its live links are revoked by that path). Reject changes nothing. **No door / access right of
+   any kind** - that is the separate WisKey flow. The editors get a notification `ticket.portal_tech_request` (installation level,
+   subject `system`, no name / number in the text; resolved on decision or withdrawal).
+
+Never bank data; amounts + status only, as the portal does today.
+
+### 12.2 Switches (`tickets.settings`, `system.configure`, audited, remote allowed like the other portal keys)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `vendor_portal.rfqs` | `false` | Section 1. Off: its routes are the uniform 404 and an invitation is not "something to show". |
+| `vendor_portal.technician_requests` | `false` | Section 2. Off: its routes are the uniform 404 (pending requests stay for the editors to decide). |
+
+The items answer carries `features: {rfqs, techs}` (`techs` only for a session with a company row); the page fetches the lazy
+`portal-more` chunk only when one is true. Settings UI: the handler-page card, under the existing portal controls.
+
+### 12.3 Routes (public listener; the same session cookie - its Path already covers them; `PORTAL_SESSION_ROUTES` extended, the
+setters unchanged)
+
+| Route | Kind | Answer |
+|---|---|---|
+| `GET /t/api/portal/rfqs` | `portal_read` | `{items: [{id, ref, title, department, due_at, state, quote, code_first}]}` (allow-list `RFQ_ITEM_KEYS`) |
+| `POST /t/api/portal/rfqs/open` `{item}` | `portal_read` | `{token, kind: "rfq", ref}` - his own RFQ link; the uniform 404 for anything else |
+| `GET /t/api/portal/techs` | `portal_read` | `{companies: [{id, name, techs: [{id, name}], requests: [...]}], limits}` |
+| `POST /t/api/portal/techs` `{company, action, name, phone, replaces?}` | `portal_write` (new) | 201 `{ok, request}`; 422 `invalid` + `fields` (name / phone / replaces / action); 409 `tech_limit`; foreign company -> the uniform 404 |
+| `POST /t/api/portal/techs/cancel` `{item}` | `portal_write` | `{ok}`; the uniform 404 for anything not a pending request of this session |
+
+Order on every route: the live session first (no / dead / doubled / malformed cookie -> the uniform 404 before the body is read),
+then the section's switch (the same 404), then the strict body. Ids are opaque PER SESSION (HMAC of the session hash, each kind its
+own domain `vpr|` / `vpc|` / `vpt|` / `vpq|`, distinct from the items' `vpi|`). New rate kind `portal_write`: 10 / 10 min and 20 / h
+per client network, 200 / h installation-wide (before any read); per company 5 pending and 10 requests / 24 h in the rows; a
+repeated identical pending request returns the existing one (nothing new stored).
+
+Internal API (`tickets.configure`, or `tickets.technician_requests` within its department scope - 12.8; refusals audited by `rbac.require`): `GET /api/v1/tickets/portal-requests?state=pending|...|all`,
+`POST /api/v1/tickets/portal-requests/{id}/approve|reject {revision}` (409 `tech_request_decided` / `tech_request_stale` /
+`tech_request_vendor_gone` / `tech_request_replaced_gone`). Audit: `ticket.portal.rfq_open`, `.tech_request`, `.tech_cancel` (actor
+`contact:<company>`, ids only), `.tech_approve`, `.tech_reject` (the editor), plus the directory's own `ticket.contact.create` /
+`.update`.
+
+### 12.4 Data - migration `0114_ticket_portal_tech_requests.sql` (provisional number; the lead renumbers at integration)
+
+One additive table `ticket_portal_tech_requests` (company, sender row, action, the technician to replace, the cleaned name, the
+number as E.164 digits, state, decision, the created row, revision). The number is stored in clear because it is what the editor will
+put on the row; it never leaves to the vendor again in full (last four digits), never reaches a log or an audit row. Retention:
+decided rows 180 days after the decision, pending rows 90 days after they were sent (the janitor, `vendor_portal.prune`); erase of a
+row deletes every request that names it (`phone_verify.forget` -> `vendor_portal.forget_contact`). Not a project-backup table (the
+backup is an allow-list). No change to any RFQ table.
+
+### 12.5 Threat model (additions)
+
+| Threat | Control | Residual |
+|---|---|---|
+| Another vendor's RFQ (IDOR, enumeration of requests) | Invitations of the CURRENT number's rows only, re-read per request; per-session item ids; the uniform 404; never an RFQ id in the API | Rows sharing one number (a person and a company) see each other's invitations - the existing "scoped to that phone" rule |
+| The list leaking past an RFQ link's code gate | A code-protected link lists only ref / department / deadline; open hands the link's own token; the RFQ page keeps its code gate | The reference, department and deadline of such a request (the RFQ page shows the same before its code) |
+| Token exposure | The token only in the `open` JSON answer (as the item hand-off); never in a log or audit row (tested); the page keeps it in its existing per-tab RFQ slot | As the WhatsApp link itself |
+| Directory enumeration through technician requests | The same answer for a known and an unknown number (masked, no "already exists"); only the editor sees `phone_known` | None found |
+| Spam / text injection through the name | `model.text_field` (controls, bidi, zero-width stripped) + at least two letters, no `://`, `www.`, `@`, `<>{}`, at most four digits, 80 chars; rendered as text only (DOM text nodes, Lit escaping) | A rude but well-formed name reaches the editor, who rejects it |
+| Request floods | `portal_write` per network + installation; 5 pending / 10 a day per company; idempotent repeat | An attacker with a company's session (a proved number) can fill that company's queue for a day |
+| A technician request becoming a door right | None is created; the approval writes a directory row only (no access, no link, number unconfirmed) | - |
+| A person's number acting for the company | The section exists only for vendor-kind rows | A company number shared by several employees: each can send requests (by design: "the company's number") |
+
+### 12.6 Tests
+
+- Backend `smplwise_vms/backend/tests/test_tickets_vendor_portal_more.py` (23, negative cases first): off by default (uniform 404 on
+  every new route, nothing written), the portal off opens nothing, switch validation / `system.configure`; no / tampered / doubled /
+  foreign-named cookie and an expired session are the uniform 404 even with a malformed body; a switch off ends a live session; the
+  edge's cookie routes and setters; the `portal_write` per-network limit (429 after 10, unauthenticated); another vendor's invitation
+  never listed, a foreign / guessed / truncated id never opens; an invitation alone signs in only with the section on; a code-protected
+  link lists no title and no quote and its page keeps its code gate; cancelled / removed / past-deadline invitations not listed; the
+  allow-list and no other vendor's amount; the hand-off token works on the RFQ page and is absent from logs and audit; a person session
+  has no company; foreign company / technician ids, name hygiene (empty, URL, address, markup, digits, too long), bad numbers, extra /
+  wrong fields; bidi / zero-width stripped; known and unknown numbers answer the same masked shape; no number or name in logs or audit;
+  idempotent repeat and the 5-pending cap; withdrawal only of its own pending request; editors only (403 for tom / mona / vic); approve
+  creates the row (unconfirmed) and deactivates the replaced one; stale / decided refusals; reject changes nothing; erase deletes the
+  requests; no bank field names in the module. The existing `test_tickets_vendor_portal.py` pins the two new keys and `features`.
+- Frontend `frontend/tests/unit-public-portal.spec.ts` (+3): the `portal-more` chunk calls only through the page's `call`, keeps no
+  token, is imported only dynamically; four languages complete with the same placeholders and no "already exists" wording; refusal
+  mapping and shape checks. `unit-public-ticket.spec.ts`: `portal-more-*` gets its own 6 KB gzip cap.
+- Bundle (local build in the scratchpad, gzip): ticket page 62,352 / 62,464 B (+16: the `openRfq` hand-off in `main.ts`); portal page
+  8,385 / 12,288 B (+311); `portal-more` 5,065 / 6,144 B (new, lazy); RFQ page unchanged.
+
+### 12.7 NOT_RUN / open
+
+- No runner job (runner busy): the full backend suite, the Linux image, Playwright screenshots (desktop / mobile / RTL; loading / empty
+  / error / ready) of the two sections and of the editors' card, the evidence suites. `www-public` / `www` NOT rebuilt (release step).
+- Arabic and Russian strings of the new sections are developer-written (dev-marked), need a native review.
+- The Fable public-surface review (above). Open questions for the owner: see the branch report.
+
+### 12.8 The approval permission `tickets.technician_requests` (owner decision 2026-10-17, second commit)
+
+Owner answer to question 4: technician-request approval is NOT limited to `tickets.configure`.
+
+- New permission `tickets.technician_requests` ("{module}: אישור בקשות טכנאים מספקים (במחלקות שבאחריותי)"), **sensitive**
+  (`roles.json` `sensitive_permissions_not_implied`), **not delegable by default**, in the single-permission built-in role
+  `tickets_technician_requests` that the owner / system administrator grants to any user through the normal roles / permissions UI
+  (`POST /api/v1/access/bindings`; the "הרשאות" tab lists it). Among the built-in roles only `system_admin` holds it - it is NOT a
+  default of department managers, `site_admin` or `tickets_manage`. Effective only when held at the INSTALLATION scope (a site / floor
+  binding does not approve anything - departments are installation-wide configuration, like `tickets.configure` / `tickets.handlers`).
+- Scope (`portal_more.approver_scope`): `tickets.configure` -> every request (unchanged); else the permission is required (the audited
+  403 `{permission: "tickets.technician_requests"}` via `rbac.require`) and then `tickets.all_departments` -> every request; otherwise only
+  requests of vendors attached to a department the holder MANAGES (`tickets.manage` + a manager membership). A vendor of no department
+  (shared with all) is not in a department manager's scope (the CR-DEPT-MANAGER-HANDLERS reading). Out of scope: never listed; approve /
+  reject answer the 404 `tech_request_not_found`, exactly like an unknown id.
+- The approval writes through the directory's own validated path (`contacts._fields` / `_departments` + `insert_checked`, and
+  `update_checked` for a replacement) once the approver's authority was checked - the same validation, keyed number, link revocation and
+  `ticket.contact.create` / `.update` audit rows, naming the approver. The number in the list is full for `tickets.configure`,
+  `tickets.external` or with "managers see full numbers"; otherwise the last four digits.
+- `GET /tickets/meta` `can.technician_requests` decides whether the "מטפלים וספקים" card renders (no denied call for anyone else).
+- Contracts and docs: `smplwise_vms/backend/smplwise/roles.json`, `contracts/examples/role-catalog.design.json`, `routers/access.py`
+  `PERMISSION_LABELS`, the user guide's permission table (`docs/user-guide/he/46-tickets_HE.md`). No migration change (0114 unchanged).
+- Tests (`test_tickets_vendor_portal_more.py`, section 6, negative first): the catalogue (sensitive, not delegable, labelled,
+  system_admin only); department managers / a member WITHOUT the permission refused (403, audited, nothing decided, `can` false); a
+  holder sees and decides only his departments' vendors (another department's and a no-department vendor: not listed, 404), the created
+  row and its audit actor; another department's holder sees only his; an all-departments holder sees all; `tickets.configure` unchanged;
+  grant / revoke through the bindings API take effect at once; a floor-scoped binding grants nothing. The pinned catalogue tests
+  (`test_tickets_admin`, `test_tickets_s2`, `test_wiskey_door_path`) list the new role / permission.

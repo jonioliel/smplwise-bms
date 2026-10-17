@@ -289,6 +289,10 @@ by the system from these routes (no WhatsApp / e-mail text, no free text); the o
   not erased, still active, names no internal user (`user_id`) and is not an employee (`employee = 1`) - a contact that became staff
   after the invitation is the uniform 404 (fail closed); a request that is `closed` / `cancelled` serves read-only until
   `grace_until` and is the uniform 404 when no grace was recorded.
+* VPORTALRFQ (CR-VENDOR-PORTAL section 12, OFF by default - `vendor_portal.rfqs`): a vendor signed in to the vendor portal sees his
+  invitations that are open for his quote (keyed by `ticket_rfq_vendors`, never by an RFQ id) and the portal hands his OWN link's
+  token (`POST /t/api/portal/rfqs/open`) to this page - nothing on the RFQ routes changes (the code gate, the deadline, read-only and
+  writes stay as above). For a code-protected link the portal list shows only the reference, the department and the deadline.
 
 ### 15.2 Verification code (owner decision 16.10: OPTIONAL per vendor, OFF by default)
 
