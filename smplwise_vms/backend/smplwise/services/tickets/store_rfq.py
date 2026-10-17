@@ -689,6 +689,8 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
         conn.execute("UPDATE ticket_rfq_attachments SET rfq_id = NULL WHERE rfq_id = ? AND id IN (SELECT attachment_id FROM "
                      "ticket_rfq_attachment_refs)", (rfq_id,))
         run("ticket_rfq_attachments", "DELETE FROM ticket_rfq_attachments WHERE rfq_id = ?", (rfq_id,))
+    if has_vendor_files(conn):  # RFQ-VENDOR-UPLOAD: the vendors' own files go with the request (no reference copy exists for them)
+        run("ticket_rfq_vendor_files", "DELETE FROM ticket_rfq_vendor_files WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_vendors", "DELETE FROM ticket_rfq_vendors WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfqs", "DELETE FROM ticket_rfqs WHERE id = ?", (rfq_id,))
     return {k: v for k, v in out.items() if v}
@@ -707,6 +709,8 @@ def rfq_rows_left(conn: sqlite3.Connection, rfq_id: str, vendor_ids: list[str], 
               ("ticket_outbox", "SELECT COUNT(*) FROM ticket_outbox WHERE rfq_id = ?", (rfq_id,))]
     if has_attachments(conn):
         checks.append(("ticket_rfq_attachments", "SELECT COUNT(*) FROM ticket_rfq_attachments WHERE rfq_id = ?", (rfq_id,)))
+    if has_vendor_files(conn):
+        checks.append(("ticket_rfq_vendor_files", "SELECT COUNT(*) FROM ticket_rfq_vendor_files WHERE rfq_id = ?", (rfq_id,)))
     for vid in vendor_ids:
         checks.append(("ticket_quotes", "SELECT COUNT(*) FROM ticket_quotes WHERE rfq_vendor_id = ?", (vid,)))
     for lid in link_ids:
@@ -813,3 +817,53 @@ def drop_orphan_attachments(conn: sqlite3.Connection) -> int:
     ticket). The file on disk goes with the orphan sweep (deletion.sweep_orphan_files / sweep_orphans)."""
     return conn.execute("DELETE FROM ticket_rfq_attachments WHERE rfq_id IS NULL AND id NOT IN (SELECT attachment_id FROM "
                         "ticket_rfq_attachment_refs)").rowcount
+
+
+# ---------------------------------------------------------------- RFQ-VENDOR-UPLOAD: a vendor's own files on his quote (migration 0110)
+
+def has_vendor_files(conn: sqlite3.Connection) -> bool:
+    """Whether 0110 is applied (a database migrated only part of the way - some tests - has no vendor-file table)."""
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_vendor_files'").fetchone() is not None
+
+
+def insert_vendor_file(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
+    row = {"id": new_id(), **row}
+    _insert(conn, "ticket_rfq_vendor_files", row)
+    return row["id"]
+
+
+def vendor_file(conn: sqlite3.Connection, rfq_id: str, file_id: str | None) -> dict[str, Any] | None:
+    """One vendor file OF THIS REQUEST (another request's id reads as unknown)."""
+    if not file_id:
+        return None
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_vendor_files WHERE id = ? AND rfq_id = ?", (file_id, rfq_id)).fetchone())
+
+
+def vendor_files_of(conn: sqlite3.Connection, rfq_vendor_id: str, *, include_removed: bool = False) -> list[dict[str, Any]]:
+    """The files of ONE vendor row (his own request only - the row id is the link's)."""
+    sql = "SELECT * FROM ticket_rfq_vendor_files WHERE rfq_vendor_id = ?" + ("" if include_removed else " AND removed_at IS NULL")
+    return [dict(r) for r in conn.execute(sql + " ORDER BY created_at, rowid", (rfq_vendor_id,)).fetchall()]  # upload order
+
+
+def vendor_files_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_vendor_files WHERE rfq_id = ? ORDER BY created_at, rowid", (rfq_id,)).fetchall()]
+
+
+def vendor_file_usage(conn: sqlite3.Connection, rfq_vendor_id: str) -> tuple[int, int, int]:
+    """(live files, every file ever stored, stored bytes of every file incl. removed ones and thumbnails) of one vendor row - the
+    quota: a removal hides a file from the managers' lists but keeps it on disk, so it never gives bytes or uploads back."""
+    row = conn.execute("SELECT COALESCE(SUM(CASE WHEN removed_at IS NULL THEN 1 ELSE 0 END), 0), COUNT(*), COALESCE(SUM(stored_bytes), 0) "
+                       "FROM ticket_rfq_vendor_files WHERE rfq_vendor_id = ?", (rfq_vendor_id,)).fetchone()
+    return int(row[0]), int(row[1]), int(row[2])
+
+
+def mark_vendor_file_removed(conn: sqlite3.Connection, file_id: str, at: str) -> bool:
+    return conn.execute("UPDATE ticket_rfq_vendor_files SET removed_at = ? WHERE id = ? AND removed_at IS NULL", (at, file_id)).rowcount == 1
+
+
+def vendor_file_paths_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[str]:
+    """The stored paths a purge of the request removes."""
+    out: list[str] = []
+    for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_vendor_files WHERE rfq_id = ?", (rfq_id,)).fetchall():
+        out.extend(p for p in (r[0], r[1]) if p)
+    return out

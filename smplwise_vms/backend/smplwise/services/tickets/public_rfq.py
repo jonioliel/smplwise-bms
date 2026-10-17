@@ -12,6 +12,9 @@ deadlines), rate gate, security headers and uniform 404.
     GET  /t/api/rfq/file/<id>[/thumb]  RFQATT (contract 19.4): one of the request's live vendor-visible files (a picture inline, its
                                   thumbnail, or a document as a download) - his own link, past the code gate, not on a closed /
                                   cancelled page; anything else is the uniform 404
+    POST /t/api/rfq/upload        RFQ-VENDOR-UPLOAD (contract 19.10): one file / picture onto HIS submitted quote (multipart) -
+                                  behind `rfq.vendor_uploads.enabled` (OFF by default: the uniform 404); rfq_vendor_files.py
+    POST /t/api/rfq/upload/remove one of his own files marked removed
 
 The wiring rules of the ticket routes (code review section 3) apply unchanged: the token is resolved by `rfq_context()` ONLY - ONE
 indexed read of `ticket_rfq_links.token_hash` (joined with the vendor, the request and the contact) after the rate gate; an unknown,
@@ -24,6 +27,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import json
 import logging
 from typing import Any, Callable, Literal
 
@@ -34,12 +38,15 @@ from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
 from . import codes as codes_mod
-from . import links, rfq_attach, rfq_files, rfq_terms, rfq_vendor, store_rfq
+from . import image_intake, links, rfq_attach, rfq_files, rfq_terms, rfq_vendor, rfq_vendor_files, store_rfq
 from .codes import CodeEngine, CodePolicy, CodeRefused
 from .handler_actions import ActionRefused, _finish as finish_request, claim as claim_request
+from .image_intake import IntakeError, StorePathError
 from .keyring import KEYS
 from .module_key import ModuleKeyError
-from .public_app import Idempotency, LinkContext, PublicError, idempotency_scope, parse_client_request_id, public_request, read_json, spend_budget
+from .public_app import (Idempotency, LinkContext, PublicError, begin_body, idempotency_scope, parse_client_request_id, public_request, read_json,
+                         spend_budget)
+from .public_multipart import FieldRule, MultipartError, boundary_of, parse_form
 from .public_claims import LineIn
 from .public_ports import CodeRecord, FailureRecord, SessionRecord
 from .public_store import epoch, iso, make_code_record
@@ -58,6 +65,13 @@ CODE_SEND_ROUTE = "/t/api/rfq/code/send"
 CODE_VERIFY_ROUTE = "/t/api/rfq/code/verify"
 FILE_ROUTE = "/t/api/rfq/file/{attachment_id}"
 THUMB_ROUTE = "/t/api/rfq/file/{attachment_id}/thumb"
+UPLOAD_ROUTE = "/t/api/rfq/upload"  # RFQ-VENDOR-UPLOAD (contract 19.10)
+UPLOAD_REMOVE_ROUTE = "/t/api/rfq/upload/remove"
+# the vendor's upload form: exactly these fields (public_multipart refuses any other, a duplicate, a file without a filename); the
+# file's own filename is never used - `name` (optional text) is only a display name after rfq_files.display_name, never the kind
+UPLOAD_FIELDS = {"file": FieldRule(file=True, max_bytes=rfq_files.DOCUMENT_MAX_BYTES), "quote_id": FieldRule(file=False, max_bytes=64),
+                 "client_request_id": FieldRule(file=False, max_bytes=64),
+                 "name": FieldRule(file=False, max_bytes=rfq_vendor_files.NAME_FIELD_MAX, required=False)}
 
 
 # ---------------------------------------------------------------- the link record (the fields the listener and the code engine read)
@@ -358,7 +372,13 @@ class CodeVerifyIn(_Strict):
     code: str = Field(max_length=32)
 
 
-def _refused(exc: VendorRefused | ActionRefused) -> PublicError:
+class UploadRemoveIn(_Strict):
+    """RFQ-VENDOR-UPLOAD: remove one of HIS files (contract 19.10)."""
+    file_id: str = Field(max_length=64)
+    client_request_id: str = Field(max_length=64)
+
+
+def _refused(exc: VendorRefused | ActionRefused | rfq_vendor_files.Refused) -> PublicError:
     if exc.status == 404:
         return PublicError(404, "link_unavailable")
     return PublicError(exc.status, exc.code, **exc.extra)
@@ -445,7 +465,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
                 status, answer, new = await run_in_threadpool(tx)
             except VendorLinkGone:
                 raise PublicError(404, "link_unavailable") from None
-            except (VendorRefused, ActionRefused) as exc:
+            except (VendorRefused, ActionRefused, rfq_vendor_files.Refused) as exc:
                 raise _refused(exc) from None
             if new:
                 spend_budget(request)  # W18: only a stored effect spends the token's write budget
@@ -558,6 +578,154 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
     @r.get(THUMB_ROUTE)
     async def get_thumb(request: Request, attachment_id: str, ctx: LinkContext = Depends(rfq_context())) -> FileResponse:
         return await serve_file(request, attachment_id, ctx, True)
+
+    # ------------------------------------------------------------ RFQ-VENDOR-UPLOAD: his own files on his quote (contract 19.10)
+
+    def uploads_on() -> bool:
+        with db.connection(mode="read", label="tickets.public.rfq.upload_switch") as conn:
+            return rfq_vendor_files.available(conn)
+
+    async def upload_gate(ctx: LinkContext) -> None:
+        """The switch FIRST (off: the uniform 404 - the route reads as absent, before the read-only / code answers), then the write rules
+        of every token write: read-only grace 409, a code-protected link without its session 403."""
+        if not await run_in_threadpool(uploads_on):
+            raise PublicError(404, "link_unavailable")
+        if ctx.read_only:
+            raise PublicError(409, "read_only")
+        if not ctx.code_ok:
+            raise PublicError(403, "code_required")
+
+    def _field(form: dict[str, Any], key: str) -> str | None:
+        part = form.get(key)
+        if part is None:
+            return None
+        try:
+            return part.text()
+        except MultipartError:
+            raise PublicError(422, "invalid", fields=[{"field": key, "code": "encoding"}]) from None
+
+    @r.post(UPLOAD_ROUTE)
+    async def post_upload(request: Request, ctx: LinkContext = Depends(rfq_context())) -> JSONResponse:
+        """One file onto HIS submitted quote. The photo route's protections, through the public app's own handles (UploadGuards): one
+        upload in flight per link, the upload memory budget and the installation cap BEFORE the body is read, the body phase paid when it
+        starts (the edge's `rfq_upload` windows: per link and per client network), the processing and decoder admission; the request /
+        quote / quota checks before the decode, the SAME content checks as a manager's file (rfq_files.store: pictures re-encoded, WebP
+        refused, PDF / office structure, office only with allow_office), everything re-checked in the write transaction; idempotent by
+        `client_request_id` (a retry of a stored upload is its replay, before any decode)."""
+        await upload_gate(ctx)
+        deps = request.app.state.deps
+        guards = getattr(request.app.state, "uploads", None)
+        root = getattr(deps, "attachments_root", None)
+        if guards is None or root is None:
+            raise PublicError(404, "link_unavailable")
+        link: RfqLink = ctx.link  # type: ignore[assignment]
+        storage = getattr(deps, "storage", None)
+        with guards.in_flight.claim(link.link_id):
+            need = ctx.request.content_length or ctx.request.rule.max_body
+            async with guards.memory(need, link.link_id):
+                if storage is not None:
+                    await run_in_threadpool(storage.admit, need)
+                begin_body(request)  # from here on this upload costs one unit of the link's `rfq_upload` budget, whatever follows
+                raw = bytearray()
+                async for chunk in request.stream():
+                    raw += chunk
+                try:
+                    form = parse_form(raw, boundary_of(ctx.request.content_type), UPLOAD_FIELDS)
+                except MultipartError as exc:
+                    raise PublicError(422, "invalid", fields=[{"field": "form", "code": exc.code}]) from None
+                finally:
+                    del raw
+                crid = parse_client_request_id(_field(form, "client_request_id"))
+                quote_id = _field(form, "quote_id") or ""
+                name = _field(form, "name") or ""
+                data = form["file"].data
+                del form
+                scope = idempotency_scope(link)  # type: ignore[arg-type]
+
+                def precheck() -> tuple[int, dict[str, Any]] | None:
+                    from . import store_links
+
+                    with db.connection(label="tickets.public.rfq.upload_check") as conn:
+                        _still_serving(conn, ctx, float(epoch_now()))
+                        prior = store_links.request_row(conn, scope, crid)
+                        if prior is not None:
+                            if prior["route"] != UPLOAD_ROUTE:
+                                raise ActionRefused(409, "request_id_reused")
+                            if not prior["status_code"]:
+                                raise ActionRefused(409, "request_in_progress", retry_after_s=2)
+                            body = json.loads(prior["response_json"] or "{}")
+                            return int(prior["status_code"]), body if isinstance(body, dict) else {}
+                        rfq_vendor_files.check_add(conn, link, quote_id, len(data), now())
+                        return None
+
+                def office_on() -> bool:
+                    with db.connection(mode="read", label="tickets.public.rfq.upload_office") as conn:
+                        return rfq_files.office_allowed(conn)
+
+                def tx(stored: rfq_files.StoredFile) -> tuple[int, dict[str, Any], bool]:
+                    when = now()
+                    with db.connection(label="tickets.public.rfq.upload") as conn:
+                        _still_serving(conn, ctx, float(epoch_now()))
+                        replay = claim_request(conn, link, crid, UPLOAD_ROUTE, when)  # type: ignore[arg-type]
+                        if replay is not None:
+                            return replay[0], replay[1], False
+                        f = rfq_vendor_files.record(conn, link, stored, name=name, quote_id=quote_id, now=when)
+                        return (*finish_request(conn, link, crid, 201, {"ok": True, "file": f}), True)  # type: ignore[arg-type]
+
+                async def work() -> tuple[int, dict[str, Any]]:
+                    async with guards.processing():
+                        try:
+                            prior = await run_in_threadpool(precheck)
+                        except VendorLinkGone:
+                            raise PublicError(404, "link_unavailable") from None
+                        except (VendorRefused, ActionRefused, rfq_vendor_files.Refused) as exc:
+                            raise _refused(exc) from None
+                        if prior is not None:
+                            return prior
+                        allow_office = await run_in_threadpool(office_on)
+                        try:
+                            async with guards.decode():
+                                stored = await run_in_threadpool(lambda: rfq_files.store(
+                                    root, link.rfq_id, data, wait_s=getattr(deps, "decode_wait_s", image_intake.DECODE_WAIT_S),
+                                    allow_office=allow_office, allow_webp=False, semaphore=image_intake._DECODE))
+                        except StorePathError:
+                            raise PublicError(404, "link_unavailable") from None
+                        except IntakeError as exc:
+                            raise PublicError(exc.status, "unsupported_format" if exc.code == "webp_refused" else exc.code,
+                                              **{k: v for k, v in (exc.details or {}).items() if isinstance(v, int)}) from None
+                        if storage is not None:
+                            storage.note(stored.stored_bytes)
+                        try:
+                            status, answer, new = await run_in_threadpool(tx, stored)
+                        except BaseException as exc:
+                            rfq_files.remove(root, stored.rel_path, stored.thumb_rel)
+                            if storage is not None:
+                                storage.note(-stored.stored_bytes)
+                            if isinstance(exc, VendorLinkGone):
+                                raise PublicError(404, "link_unavailable") from None
+                            if isinstance(exc, (VendorRefused, ActionRefused, rfq_vendor_files.Refused)):
+                                raise _refused(exc) from None
+                            raise
+                        if not new:  # a replay that raced past the precheck: the bytes just stored are nobody's
+                            rfq_files.remove(root, stored.rel_path, stored.thumb_rel)
+                            if storage is not None:
+                                storage.note(-stored.stored_bytes)
+                        return status, answer
+
+                return await idem.run(scope, crid, UPLOAD_ROUTE, work)
+
+    @r.post(UPLOAD_REMOVE_ROUTE)
+    async def post_upload_remove(request: Request, ctx: LinkContext = Depends(rfq_context())) -> JSONResponse:
+        """One of HIS live files marked removed (kept for the record; the managers see it marked). Any other id: 409 `upload_not_found`."""
+        await upload_gate(ctx)
+        body: UploadRemoveIn = await read_json(request, UploadRemoveIn)
+        crid = parse_client_request_id(body.client_request_id)
+
+        def fn(conn, when: dt.datetime) -> tuple[int, dict[str, Any]]:
+            rfq_vendor_files.remove(conn, ctx.link, body.file_id, when)
+            return 200, {"ok": True}
+
+        return await write(request, ctx, UPLOAD_REMOVE_ROUTE, crid, fn)
 
     @r.post(ARRIVAL_ROUTE)
     async def post_arrival(request: Request, ctx: LinkContext = Depends(rfq_context(write=True))) -> JSONResponse:

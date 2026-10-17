@@ -579,15 +579,20 @@ def check_pdf(data: bytes) -> cost_files.PdfInfo:
     return info
 
 
-def store(root: Path, folder: str, data: bytes, *, wait_s: float = DECODE_WAIT_S, allow_office: bool = True) -> StoredFile:
+def store(root: Path, folder: str, data: bytes, *, wait_s: float = DECODE_WAIT_S, allow_office: bool = True, allow_webp: bool = True,
+          semaphore: threading.BoundedSemaphore | None = None) -> StoredFile:
     """Check and write one file of a request. Raises IntakeError (the refusal) or StorePathError. Blocking: run it in a worker
     thread, OUTSIDE the database write lock. `allow_office` is the installation setting `rfq.attachments.allow_office` (OFF by
-    default; the route passes it): without it a Word / Excel package is refused (422 `office_disabled`) before it is scanned."""
+    default; the route passes it): without it a Word / Excel package is refused (422 `office_disabled`) before it is scanned.
+    RFQ-VENDOR-UPLOAD (contract 19.10): the vendor's PUBLIC upload calls this same function - the same checks, the same stored
+    shapes - with `allow_webp=False` (the public routes keep refusing WebP, decision 6) and `semaphore` = the public listener's
+    decode slot (image_intake's own, shared with the anonymous photo uploads), so a vendor never takes the managers' slot."""
+    sem = semaphore or _DECODE
     coarse = check_size(data)
     if coarse == "office" and not allow_office:
         raise IntakeError("office_disabled", 422)
     if coarse == "image":
-        image = image_intake.reencode(data, wait_s=wait_s, semaphore=_DECODE, allow_webp=True)
+        image = image_intake.reencode(data, wait_s=wait_s, semaphore=sem, allow_webp=allow_webp)
         try:
             thumb = thumbnail(image.data)
         except Exception:  # noqa: BLE001 - our own JPEG; a failure here is a server fault, answered as an invalid picture
@@ -603,7 +608,7 @@ def store(root: Path, folder: str, data: bytes, *, wait_s: float = DECODE_WAIT_S
         info = check_pdf(data)
         rel = _write(root, folder, "pdf", bytes(data))
         return StoredFile("pdf", MIME["pdf"], rel, None, info.sha256, info.bytes)
-    with image_intake.decode_slot(wait_s, _DECODE):  # F9: the inflate + parse takes this route's slot (a burst never fills the pool)
+    with image_intake.decode_slot(wait_s, sem):  # F9: the inflate + parse takes this route's slot (a burst never fills the pool)
         office = check_office(data)
     rel = _write(root, folder, EXT[office.kind], bytes(data))
     return StoredFile(office.kind, MIME[office.kind], rel, None, office.sha256, office.bytes)
@@ -654,6 +659,18 @@ def headers(kind: str, *, ref_number: int, file_id: str, name: str, thumb: bool 
                 "Cache-Control": "private, no-store"}
     encoded = urllib.parse.quote(name if isinstance(name, str) else fallback, safe="")
     return {"Content-Type": MIME[kind], "Content-Disposition": f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}",
+            "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox", "Cache-Control": "private, no-store"}
+
+
+def vendor_headers(kind: str, *, ref_number: int, file_id: str, name: str, thumb: bool = False) -> dict[str, str]:
+    """RFQ-VENDOR-UPLOAD (contract 19.10): a file a VENDOR uploaded, as the managers receive it - ALWAYS a download (`attachment`,
+    a picture and its thumbnail too: an `<img>` still shows it, a click never opens it inside the app's origin), the exact type,
+    `nosniff`, `Content-Security-Policy: sandbox` (the internal API keeps a route CSP) and `private, no-store`."""
+    shown = "image" if thumb else kind
+    fallback = _ascii_name(ref_number, file_id, shown)
+    shown_name = (f"thumb-{fallback}" if thumb else name) if isinstance(name, str) else fallback
+    encoded = urllib.parse.quote(shown_name, safe="")
+    return {"Content-Type": MIME[shown], "Content-Disposition": f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}",
             "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox", "Cache-Control": "private, no-store"}
 
 

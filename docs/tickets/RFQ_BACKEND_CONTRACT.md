@@ -396,6 +396,7 @@ the uniform 404, a read-only grace 409 `read_only`, a code switched on meanwhile
 | `form.limits.*` (`lines`, `description`, `note`, `vendor_ref`, `message`, `decline_reason`, `max_total_minor`) | code constants; `max_total_minor` is the installation's `max_claim_total_minor` setting | after the code |
 | `quote.approved.*` (`line_indexes`, `subtotal_minor`, `vat_minor`, `total_minor`) | his own APPROVED award on his own quote | after the code, when awarded |
 | `rfq.attachments[]` (`id`, `name`, `caption`, `kind`, `bytes`, `width`, `height`, `thumb`) | `ticket_rfq_attachments` of THIS request, live (`removed_at` NULL) and `visible_vendors = 1` (v1.4, 19.4); `name` = the cleaned display name, never a path | after the code, not on a closed / cancelled page |
+| `uploads` (`files[]` `{id, name, kind, bytes, at}`, `limits`, `quote_id`, `used_bytes`, `uploads_left`, `can`) | v1.4.2, 19.10: HIS OWN `ticket_rfq_vendor_files` rows (live), `null` while `rfq.vendor_uploads.enabled` is off; no other vendor's file, no path, no hash, no read route | after the code, not on a closed / cancelled page |
 | the files themselves (`GET /t/api/rfq/file/<id>[/thumb]`) | the stored re-encoded JPEG / its thumbnail, or the stored PDF / DOCX / XLSX as a download | the same rule, re-checked per request (19.4) |
 | `quote.payment` (v1.4) | his OWN proposed instalments on his own quote | after the code |
 | `form.payment` (v1.4) | the installation switch + code constants (`null` while off) | after the code |
@@ -763,11 +764,78 @@ counts only). The image pipeline's own rule (no metadata reaches Pillow) applies
 
 ### 19.9 Not built in v1.4 (recorded)
 
-* A vendor's own files on his quote (section 17 direction (b)) and any public upload route.
+* A vendor's own files on his quote (section 17 direction (b)) and any public upload route. **Built in v1.4.2 as 19.10 (owner decision
+  2026-10-17), behind a switch that is OFF by default.**
 * Per-vendor file selection (every invited vendor gets the same vendor-visible files; "internal only" is the one switch).
 * Re-ordering files; an automatic "new file" notice to vendors when a file is added after the send (the manager may write to them).
 * The internal ticket drawer shows the referenced files only through `rfq_origin.attachments` (no new UI block there in this version).
 * Server-side antivirus (none exists in the add-on - 19.2's "refuse what cannot be proven simple" instead).
+
+### 19.10 A vendor's own files on his quote (v1.4.2, RFQ-VENDOR-UPLOAD - owner decision 2026-10-17)
+
+> **Release gate: a Fable review of this public upload surface is REQUIRED before the switch `rfq.vendor_uploads.enabled` may be turned
+> on in a release** (security checklist row 5.12; `private/planning/REVIEW_POLICY_2026-10-16.md`: Fable for a new public surface). The
+> branch ships it OFF; while it is off nothing on the public surface changes except two more paths that answer the uniform 404.
+
+The owner (17.10, reversing the earlier "not now" of 19.9 / CR-RFQ-ATTACHMENTS question 4): a vendor may attach files and pictures to
+his quote; the request opener and the RFQ managers see them. Decisions and open questions: `docs/changes/CR-RFQ-VENDOR-UPLOAD.md`.
+
+**Switch.** `tickets.settings.rfq.vendor_uploads.enabled` (bool, default **false**; `PUT /tickets/settings` `{revision, rfq:
+{vendor_uploads: {enabled: true}}}`, `system.configure`, audited `tickets.settings.update` with the changed key `rfq.vendor_uploads.enabled`).
+Off: both routes below answer the uniform 404 (checked FIRST - before the read-only / code answers, so the route reads as absent), the
+page's `uploads` is `null`, `meta.vendor_uploads` is `false`; files already uploaded stay readable by the managers. Word / Excel need
+`rfq.attachments.allow_office` in addition (19.2; off: 422 `office_disabled` before any scan, and the managers' list / read leave office
+files out - fail closed).
+
+**Migration 0110** (additive): `ticket_rfq_vendor_files` (`id`, `rfq_id` FK cascade, `rfq_vendor_id` FK cascade, `quote_id` (his quote at
+upload), `folder` (the request's id - the orphan sweeps know it: `store.folder_in_use` / `stored_paths`), `kind`, `name` (cleaned), `mime`,
+`path` / `thumb_path` (`<folder>/rfq/<16 hex>.<ext>`, random), `sha256`, `bytes`, `stored_bytes` (file + thumbnail), `width`, `height`,
+`created_at`, `removed_at`). Purged with the request (`store_rfq.purge_rfq`; the delete route removes the files after the commit).
+
+| Route (public listener) | Edge | Body / answer |
+|---|---|---|
+| `POST /t/api/rfq/upload` | kind `rfq_upload` (multipart, 10 MiB + 64 KiB, the 60 s upload deadline and 5 s idle limit; per LINK `token_rfq_uploads` 12 / h - spent when the body phase starts, whatever follows; per CLIENT NETWORK `rfq_upload_per_network` 12 / 10 min + 30 / h - counted at admission for every attempt, valid token or not) | multipart `file` (its own filename is never used), `quote_id`, `client_request_id` (UUID), `name?` (text <= 240 bytes: a display name only, cleaned by `rfq_files.display_name`, the extension is ALWAYS the content's) -> `201 {ok, file: {id, name, kind, bytes, at}}` |
+| `POST /t/api/rfq/upload/remove` | kind `token_write` (JSON <= 1 KiB) | `{file_id, client_request_id}` -> `200 {ok}` |
+
+Order on the upload: the switch (404) -> read-only grace (409 `read_only`) -> a code-protected link without its session (403
+`code_required`) -> one upload in flight per link (429 `busy`) -> the upload memory budget (429 `busy`) -> the installation's 2 GiB cap
+(507 `storage_full`) -> the body (strict multipart: unknown / duplicate fields, a file without a filename -> 422 `invalid`) -> the
+processing slot -> a replay of the same `client_request_id` answers the stored result (before any decode) -> the link row re-read, the
+request still takes quotes from him (`rfq_vendor._open_for_writes`: 409 `rfq_due_passed` / `quote_closed` `{reason: ended | vendor}`)
+-> `quote_id` = HIS current submitted quote (any other id - another vendor's, a superseded / withdrawn version, unknown: ONE answer, 409
+`quote_closed` `{reason: "vendor"}`) -> the quota with the raw size -> the decode / scan in the public listener's decode slot with
+`rfq_files.store(..., allow_webp=False)` (the SAME checks as a manager's file, 19.2: 413 `too_large`, 415 `unsupported_format` (WebP
+included) / `heic_refused`, 422 `image_invalid` / `too_many_pixels` / `pdf_invalid` / `pdf_refused` / `office_disabled` / `office_invalid`
+/ `office_refused`, 429 `busy`) -> the write transaction re-checks everything (switch, link, request, quote, quota with the STORED size)
+before the row; any failure there deletes the stored file and credits the cap.
+
+Limits per vendor per request: **5 live files**, **10 uploads in all** (a removal gives none back), a picture **8 MiB** / a document
+**10 MiB** as uploaded, **20 MiB stored in all** (removed files and thumbnails included - they stay on disk until the purge). Refusals:
+409 `upload_limit` (`max_files` | `max_uploads`), 413 `upload_total` (`max_bytes`). Pictures are stored as our fresh JPEG + a 480 px
+thumbnail (never the upload's bytes); PDF / DOCX / XLSX byte for byte after the structural checks.
+
+Removal: one of HIS live files is MARKED removed (the row and the file stay for the record until the purge; managers see it marked);
+any other id - another vendor's, a removed or an unknown file - is 409 `upload_not_found` (never the uniform 404: the page forgets a
+link on 404). Same request-state rules as the upload.
+
+**What the vendor sees** (`GET /t/api/rfq`, after the code gate, never on a closed / cancelled page): `uploads: null` (switch off) or
+`{files: [{id, name, kind, bytes, at}] (his own live files, text only), limits: {files, uploads, image_bytes, document_bytes, total_bytes,
+types (["jpg", "png", "pdf"] + docx / xlsx only while allow_office)}, quote_id (his submitted quote or null), used_bytes, uploads_left,
+can: {upload, remove}}`. There is **no public read route** of a vendor file (he has the originals): the vendor never receives one of
+these files back, and no vendor ever sees another vendor's file.
+
+**What the managers see** (internal API): the comparison's `quotes[].vendor_files: [{id, name, kind, mime, bytes, width, height, thumb,
+quote_id, quote_version, created_at, removed}]` (THAT vendor's files; office files only while allow_office is on); `GET
+/tickets/rfqs/{id}/vendor-files/{fid}` and `.../thumb` - the comparison's rule: the request visible (uniform 404 `rfq_not_found`), then
+`tickets.costs.view` (audited 403 `costs_permission_missing`, action `ticket.rfq.vendor_file` - a vendor's file is part of his quote and
+may carry prices); another request's id, a document's thumbnail, an office file while allow_office is off -> 404 `attachment_not_found`.
+Served ALWAYS as a download, a picture too: `Content-Disposition: attachment` (ASCII fallback + RFC 5987 name), the exact type,
+`X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`, `Cache-Control: private, no-store`. `meta.vendor_uploads` (bool).
+Nothing travels to the work order's reference copy (not built).
+
+Timeline `vendor_file_added` (`{file_id, kind, quote_id}`) / `vendor_file_removed` (`{file_id}`); audit `ticket.rfq.vendor_file_add` /
+`.vendor_file_remove` (actor `contact:<id>`, source `rfq_link`; ids + kind only - never a name, a size, a hash). No notification (the
+quote's own notification already told the managers); no message to anyone.
 
 ## 20. Payment schedule and arrival confirmation (v1.4, CR-RFQ-PAYMENT-SCHEDULE, `pilot/RFQPAY`)
 
@@ -1008,6 +1076,13 @@ question still pending after N hours on an open request, and the timeline row `q
 hours - never the text or the vendor. The engine applies each recipient's channels and quiet hours.
 
 ## 14. Change log
+
+* v1.4.2 (2026-10-17, `pilot/RFQ-VENDOR-UPLOAD` from `integ/264` @ 5fa03e7a; owner decision 2026-10-17): 19.10 - a vendor's own files
+  and pictures on his quote: `POST /t/api/rfq/upload` (edge kind `rfq_upload`, per link and per client network) and `POST
+  /t/api/rfq/upload/remove`, behind `rfq.vendor_uploads.enabled` (OFF by default - the uniform 404); the same content checks as 19.2
+  (WebP refused on the public side); quotas 5 live / 10 uploads / 8 MiB picture / 10 MiB document / 20 MiB per vendor per request; the
+  page's `uploads` block; the comparison's `vendor_files` and the managers' download route `GET /tickets/rfqs/{id}/vendor-files/{fid}[/thumb]`
+  (visible + costs.view); meta `vendor_uploads`; migration 0110. **A Fable review of the public surface is required before release.**
 
 * v1.4.1 (2026-10-17, the review fixes merged at integ/264; no new migration file):
   * (2026-10-17, `pilot/RFQPAY-FIX`, review `RELEASE_264_REVIEW_RFQPAY` F1-F11 + the lead's owner answers; merged at integ/264,

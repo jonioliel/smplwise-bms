@@ -401,10 +401,11 @@ def classify_client(peer: str | None, forwarded: Sequence[str], trusted: Sequenc
 
 # ---------------------------------------------------------------- the policy of the public listener
 
-ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "code", "redeem",
-               "portal_start", "portal_verify", "portal_read")  # + VPORTAL: the vendor portal's routes (per client network, no token)
-TOKEN_KINDS = frozenset({"token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "code"})
-UPLOAD_KINDS = frozenset({"photo", "claim_file"})  # their body phase is paid when it starts (RequestCost.body_phase)
+ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "rfq_upload", "code",
+               "redeem", "portal_start", "portal_verify", "portal_read")  # + VPORTAL: the vendor portal's routes (per client network, no token)
+TOKEN_KINDS = frozenset({"token_read", "photo_read", "file_read", "token_write", "photo", "claim_file", "rfq_upload", "code"})
+# their body phase is paid when it starts (RequestCost.body_phase); RFQ-VENDOR-UPLOAD: a vendor's file on his quote (`rfq_upload`)
+UPLOAD_KINDS = frozenset({"photo", "claim_file", "rfq_upload"})
 
 
 @dataclass(frozen=True)
@@ -425,6 +426,11 @@ class PublicLimits:
     token_writes: Limits = ((3600.0, 20),)
     token_photos: Limits = ((3600.0, 10),)
     token_claim_files: Limits = ((3600.0, 40),)
+    # RFQ-VENDOR-UPLOAD (contract 19.10): a vendor's files on his quote - per LINK (an upload's body phase spends one, whatever
+    # follows: 5 live files + a few retries / replacements an hour) and per CLIENT NETWORK (/24 or /64, checked and counted at
+    # admission before any lookup: one network cannot spread uploads over many stolen / forwarded links)
+    token_rfq_uploads: Limits = ((3600.0, 12),)
+    rfq_upload_per_network: Limits = ((600.0, 12), (3600.0, 30))
     redeem_per_network: Limits = ((60.0, 10),)
     code_per_recipient: Limits = ((3600.0, 6),)
     # VPORTAL (the vendor portal, services/tickets/vendor_portal.py): per client network (/24 or /64) and installation-wide. The
@@ -437,7 +443,7 @@ class PublicLimits:
 
     WINDOW_NAMES = ("static_per_network", "asset_per_network", "unknown_per_network", "unknown_global", "redeem_global",
                     "token_requests", "token_photo_reads", "token_file_reads", "token_writes", "token_photos", "token_claim_files",
-                    "redeem_per_network", "code_per_recipient", "portal_start_per_network", "portal_start_global",
+                    "token_rfq_uploads", "rfq_upload_per_network", "redeem_per_network", "code_per_recipient", "portal_start_per_network", "portal_start_global",
                     "portal_verify_per_network", "portal_read_per_network")
 
     @property
@@ -451,13 +457,13 @@ class PublicLimits:
 
 # the per-token budgets a route SPENDS once its effect happened (PublicRateGate.spend): checked before the lookup, recorded after
 SPEND = {"token_write": ("w:", "token_writes", "write_rate"), "photo": ("p:", "token_photos", "photo_rate"),
-         "claim_file": ("c:", "token_claim_files", "claim_file_rate")}
+         "claim_file": ("c:", "token_claim_files", "claim_file_rate"), "rfq_upload": ("u:", "token_rfq_uploads", "rfq_upload_rate")}
 # per-token request windows of their own (prefix of the token key, limits); every other token kind uses the token key itself
 # with token_requests
 WINDOWS = {"photo_read": ("pr:", "token_photo_reads"), "file_read": ("fr:", "token_file_reads")}
 # keys only valid tokens / links create: never evicted from the key table (only expired), so an address-rotating flood of
 # per-network keys cannot reset a vendor's budgets or a recipient's code count
-PROTECTED_PREFIXES = ("t:", "pr:", "fr:", "w:", "p:", "c:", "cr:", "fail:*", "fail:redeem")
+PROTECTED_PREFIXES = ("t:", "pr:", "fr:", "w:", "p:", "c:", "u:", "cr:", "fail:*", "fail:redeem")
 
 
 @dataclass(frozen=True)
@@ -607,6 +613,15 @@ class PublicRateGate:
             return self._locks(net, None, ()) or self._hit(f"pp:{net}", self.limits.portal_read_per_network, "portal_rate") or Decision(True)
         if kind not in TOKEN_KINDS:
             raise ValueError(f"unknown route kind {kind!r}")
+        if kind == "rfq_upload":
+            # RFQ-VENDOR-UPLOAD: the client network's own upload window first (a locked network learns that first), counted for every
+            # attempt that reaches here - a valid token or not - so one network cannot spread uploads over many links
+            locked = self._locks(net, None, ())
+            if locked is not None:
+                return locked
+            refused_net = self._hit(f"un:{net}", self.limits.rfq_upload_per_network, "rfq_upload_net_rate")
+            if refused_net is not None:
+                return refused_net
         if not token_key:
             # nothing to look up: the caller records a network-only failure and answers the uniform 404 - unless the network is
             # already locked, which it learns first

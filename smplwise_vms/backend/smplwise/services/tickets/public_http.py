@@ -64,6 +64,7 @@ JSON_MAX = 16 * KiB
 CLAIM_JSON_MAX = 32 * KiB
 PHOTO_MAX = image_intake.MAX_BYTES + MULTIPART_SLACK
 CLAIM_FILE_MAX = PDF_MAX_BYTES + MULTIPART_SLACK
+RFQ_UPLOAD_MAX = 10 * 1024 * KiB + MULTIPART_SLACK  # RFQ-VENDOR-UPLOAD: a document's 10 MiB (rfq_files.DOCUMENT_MAX_BYTES) + framing
 JSON_DEADLINE_S = 10.0
 UPLOAD_DEADLINE_S = 60.0
 BODY_IDLE_S = 5.0  # the longest pause between two body chunks (code review V2)
@@ -174,6 +175,12 @@ ROUTES: tuple[RouteRule, ...] = (
     RouteRule("GET", rf"/t/api/rfq/file/{_ID}/thumb", "/t/api/rfq/file/{attachment_id}/thumb", "photo_read"),
     RouteRule("GET", rf"/t/api/ticket/rfq-file/{_ID}", "/t/api/ticket/rfq-file/{attachment_id}", "file_read"),
     RouteRule("GET", rf"/t/api/ticket/rfq-file/{_ID}/thumb", "/t/api/ticket/rfq-file/{attachment_id}/thumb", "photo_read"),
+    # RFQ-VENDOR-UPLOAD (RFQ contract 19.10): the vendor's OWN files on his quote - the one public upload of the RFQ page (kind
+    # `rfq_upload`: per link and per client network, its body phase paid when it starts; a document's cap + the multipart framing; the
+    # upload deadline), and his removal of one of them (a plain token write). Both answer the uniform 404 while the installation
+    # setting `rfq.vendor_uploads.enabled` is off. There is NO public read of a vendor file (the managers read them on the internal API)
+    RouteRule("POST", r"/t/api/rfq/upload", "/t/api/rfq/upload", "rfq_upload", "multipart", RFQ_UPLOAD_MAX, UPLOAD_DEADLINE_S),
+    _json("/t/api/rfq/upload/remove", "token_write", 1024),
     # VPORTAL (services/tickets/vendor_portal.py, public_portal.py): the vendor portal - no token; per client network in the rate gate;
     # the session is the one cookie PORTAL_COOKIE, passed to the app on PORTAL_SESSION_ROUTES only. While the portal switch is off
     # every one of them answers the uniform 404 (the app's check)

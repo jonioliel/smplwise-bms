@@ -25,6 +25,7 @@ import { rfqError } from './rfq-new';
 import { awardQuestionWarning, questionBadge } from './rfq-questions';
 import { tt, ticketsLang } from './text';
 import { payFromProposal, payProblems, payWire, proposalLines, type MgrDue, type MgrPay } from './rfq-terms-model';
+import type { FileRow } from './rfq-files';
 
 interface DraftOut { vendorId: string; name: string; text: string; send: boolean; notify: boolean; source?: { kind: 'award'; id: string } }
 
@@ -370,6 +371,7 @@ export class TicketsRfqCompare extends LitElement {
             ${open ? html`<ul class="lines">${q.lines.map((l) => html`<li><span>${ct(`k_${l.kind}` as CostTextKey)}${l.description ? ` · ${bidi(l.description)}` : ''}</span><span class="num">${this.money(l.total_minor, q.currency)}</span></li>`)}</ul>` : nothing}</td>`;
         }, 'lines')}
         ${row(rt('rowNote'), (q) => html`<td class=${cls(q)}>${q.note ? bidi(q.note) : html`<span class="mut">—</span>`}</td>`, 'note')}
+        ${quotes.some((q) => q.vendor_files?.length) ? row(rt('rowVendorFiles'), (q) => html`<td class=${cls(q)} data-cmp-vendor-files=${q.quote_id}>${this.vendorFiles(q)}</td>`, 'vendor-files') : nothing}
         ${anyRef ? row(rt('rowRef'), (q) => html`<td class=${cls(q)}><span class="ltr">${q.vendor_ref ?? '—'}</span></td>`, 'ref') : nothing}
         ${quotes.some((q) => q.payment_proposal) ? row(rt('pyRow'), (q) => {
           const lines = this.proposalWords(q);
@@ -382,6 +384,21 @@ export class TicketsRfqCompare extends LitElement {
         }, 'messages')}
         ${anyPicked ? row(rt('rowScope'), (q) => this.scopeCell(q), 'scope') : nothing}
       </tbody></table></div>`;
+  }
+
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): the files this vendor attached to his quote, read-only through `<tickets-rfq-files>` - a lazy
+   * module fetched only when a quote carries files (the switch is OFF by default); every file is a download (the server says so too). */
+  private vendorFiles(q: RfqCompareQuote): TemplateResult {
+    const files = q.vendor_files ?? [];
+    const url = ticketsRfqApi().vendorFileUrl;
+    if (!files.length || !url) return html`<span class="mut">—</span>`;
+    if (!customElements.get('tickets-rfq-files')) void import('./rfq-files').then(() => this.requestUpdate());
+    const rows: FileRow[] = files.map((f) => ({
+      key: f.id, name: f.name, kind: f.kind, bytes: f.bytes, visible: true, removed: false,
+      caption: [f.removed ? rt('vfRemoved') : '', f.quote_version ? rt('vfVersion', { n: f.quote_version }) : ''].filter(Boolean).join(' · '),
+      thumb: f.thumb && !f.removed ? url(this.rfqId, f.id, true) : '', href: url(this.rfqId, f.id),
+    }));
+    return html`<tickets-rfq-files .rows=${rows}></tickets-rfq-files>`;
   }
 
   private bar(): TemplateResult | typeof nothing {

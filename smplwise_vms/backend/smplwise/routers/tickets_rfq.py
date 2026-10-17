@@ -32,6 +32,7 @@
     DELETE /tickets/rfqs/{id}/attachments/{aid}                        RFQATT: RFQ manager - remove (marked only once a quote arrived)
     GET    /tickets/rfqs/{id}/attachments/{aid}[/thumb]                RFQATT: visible - the file (a picture inline, a document as a download)
     GET    /tickets/{ticket_id}/rfq-attachments/{aid}[/thumb]          RFQATT: the ticket's viewers - a request file a work order referenced
+    GET    /tickets/rfqs/{id}/vendor-files/{fid}[/thumb]               RFQ-VENDOR-UPLOAD: visible + tickets.costs.view - a vendor's own file (a download)
 
 Order of every route: signed in -> the module switch (router dependency) -> the request's visibility (the uniform 404) -> the role /
 permission (an audited 403). Every write is one transaction with its RFQ timeline row and an audit row (ids, states, totals). Registered
@@ -50,7 +51,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import commit_now, unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_files, rfq_orders, rfq_questions, rfq_terms, store, store_rfq
+from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_files, rfq_orders, rfq_questions, rfq_terms, rfq_vendor_files, store, store_rfq
 from ..services.tickets.image_intake import IntakeError, StorePathError
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
@@ -761,6 +762,36 @@ def get_attachment_thumb(request: Request, rfq_id: str = Path(..., pattern=ID), 
                          principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     seen = rfq.require_visible(Viewer(conn, principal), rfq_id)
     return _file_response(request, rfq_attach.for_manager(conn, seen, attachment_id), int(seen.row["number"]), True, conn)
+
+
+def _vendor_file(request: Request, rfq_id: str, file_id: str, thumb: bool, principal: Principal, conn: sqlite3.Connection) -> FileResponse:
+    """RFQ-VENDOR-UPLOAD (contract 19.10): a file a VENDOR uploaded to his quote - the comparison's rule (the request visible: the
+    uniform 404 `rfq_not_found`; then tickets.costs.view: the audited 403 - a vendor's file is part of his quote and may carry
+    prices). Always a download (rfq_files.vendor_headers: attachment, nosniff, CSP sandbox, private no-store). Another request's id, a
+    document's thumbnail, an office file while `rfq.attachments.allow_office` is off: 404 `attachment_not_found`."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    if not rfq.sees_amounts(viewer, seen):
+        raise rfq.refuse(conn, viewer, "ticket.rfq.vendor_file", seen.row, "costs_permission_missing", _rid(request), permission=rfq.COSTS_VIEW)
+    f = rfq_vendor_files.for_manager(conn, seen.row["id"], file_id)
+    path = rfq_vendor_files.file_path(_root(request), f, thumb) if f is not None else None
+    if f is None or path is None:
+        raise rfq_attach.not_found(conn)
+    h = rfq_files.vendor_headers(f["kind"], ref_number=int(seen.row["number"]), file_id=f["id"], name=f["name"], thumb=thumb)
+    media = h.pop("Content-Type")
+    return FileResponse(path, media_type=media, headers=h)
+
+
+@router.get("/tickets/rfqs/{rfq_id}/vendor-files/{file_id}")
+def get_vendor_file(request: Request, rfq_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID),
+                    principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    return _vendor_file(request, rfq_id, file_id, False, principal, conn)
+
+
+@router.get("/tickets/rfqs/{rfq_id}/vendor-files/{file_id}/thumb")
+def get_vendor_file_thumb(request: Request, rfq_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID),
+                          principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    return _vendor_file(request, rfq_id, file_id, True, principal, conn)
 
 
 def _ticket_file(request: Request, ticket_id: str, attachment_id: str, thumb: bool, principal: Principal, conn: sqlite3.Connection) -> FileResponse:

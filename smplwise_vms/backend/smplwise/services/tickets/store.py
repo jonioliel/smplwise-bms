@@ -1145,7 +1145,10 @@ def folder_in_use(conn: sqlite3.Connection, ticket_id: str) -> bool:
         "SELECT 1 FROM ticket_cost_files WHERE ticket_id = ? LIMIT 1")) or (
         # RFQATT: `<data>/tickets/<rfq id>/rfq/` - a request's files live in a folder named after the request (never a ticket id)
         _has_table(conn, "ticket_rfq_attachments")
-        and conn.execute("SELECT 1 FROM ticket_rfq_attachments WHERE folder = ? LIMIT 1", (ticket_id,)).fetchone() is not None)
+        and conn.execute("SELECT 1 FROM ticket_rfq_attachments WHERE folder = ? LIMIT 1", (ticket_id,)).fetchone() is not None) or (
+        # RFQ-VENDOR-UPLOAD: a vendor's own files of a request live in the same `<rfq id>/rfq/` folder
+        _has_table(conn, "ticket_rfq_vendor_files")
+        and conn.execute("SELECT 1 FROM ticket_rfq_vendor_files WHERE folder = ? LIMIT 1", (ticket_id,)).fetchone() is not None)
 
 
 def stored_paths(conn: sqlite3.Connection, ticket_id: str) -> set[str]:
@@ -1154,6 +1157,9 @@ def stored_paths(conn: sqlite3.Connection, ticket_id: str) -> set[str]:
     out |= {r[0] for r in conn.execute("SELECT path FROM ticket_cost_files WHERE ticket_id = ?", (ticket_id,)).fetchall()}
     if _has_table(conn, "ticket_rfq_attachments"):  # RFQATT: a request's files and thumbnails (`<rfq id>/rfq/...`)
         for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_attachments WHERE folder = ?", (ticket_id,)).fetchall():
+            out |= {p for p in (r[0], r[1]) if p}
+    if _has_table(conn, "ticket_rfq_vendor_files"):  # RFQ-VENDOR-UPLOAD: the vendors' files and thumbnails (same `<rfq id>/rfq/...`)
+        for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_vendor_files WHERE folder = ?", (ticket_id,)).fetchall():
             out |= {p for p in (r[0], r[1]) if p}
     return out
 

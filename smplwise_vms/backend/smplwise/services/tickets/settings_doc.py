@@ -239,6 +239,11 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # RFQATT review 2.6.4 (owner question 1, decided by the lead 17.10): Word / Excel attachments on a request for quotation - OFF by
     # default until the hardened office checks are verified; PDF and pictures are always allowed (RFQ contract 19.2)
     ("rfq", "attachments", "allow_office"): (False, boolean),
+    # RFQ-VENDOR-UPLOAD (owner decision 2026-10-17): a vendor may attach files / pictures to HIS quote through his RFQ link (a PUBLIC
+    # upload route, contract 19.10). OFF by default: while off the upload / remove routes answer the uniform 404 and the page shows no
+    # upload block. Word / Excel additionally need `rfq.attachments.allow_office`. A Fable review of the public surface is required
+    # before this is switched on in a release.
+    ("rfq", "vendor_uploads", "enabled"): (False, boolean),
 }
 
 

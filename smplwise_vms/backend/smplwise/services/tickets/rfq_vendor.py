@@ -238,8 +238,16 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
                 "ask": writable and store_rfq.inbound_message_count(conn, v["id"]) < MESSAGES_PER_VENDOR},
         # CR-RFQ-PAYMENT-SCHEDULE (20.4): HIS approved schedule and arrival - only on his own approved award, else absent
         "terms": rfq_terms.vendor_block(conn, row, v, read_only=read_only) if state == "awarded" else None,
+        # RFQ-VENDOR-UPLOAD (contract 19.10): HIS files on his quote - null while the installation switch is off or the page ended
+        "uploads": None if terminal else _uploads(conn, v, writable=writable, quote=cur),
     })
     return out
+
+
+def _uploads(conn, v: Mapping[str, Any], *, writable: bool, quote: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    from . import rfq_vendor_files
+
+    return rfq_vendor_files.page_block(conn, v, writable=writable, quote=quote)
 
 
 def _attachments(conn, rfq_id: str) -> list[dict[str, Any]]:

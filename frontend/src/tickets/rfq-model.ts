@@ -274,7 +274,7 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
   if (e.kind === 'awarded' && amount) return { key: 'ev_awarded_amount', vars };
   const known = ['created', 'edited', 'vendor_added', 'vendor_removed', 'sent', 'reminder', 'quote_submitted', 'quote_withdrawn', 'declined', 'link_revoked', 'message',
     'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',
-    'order_created', 'order_sent', 'attachment_added', 'attachment_changed', 'attachment_removed',
+    'order_created', 'order_sent', 'attachment_added', 'attachment_changed', 'attachment_removed', 'vendor_file_added', 'vendor_file_removed',
     // CR-RFQ-PAYMENT-SCHEDULE (contract 20.7)
     'terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected',
     // RFQQUESTIONS

@@ -251,6 +251,18 @@ export interface RfqView {
     payment?: null | { max_items: number; days_max: number; horizon_days: number } };
   can?: { quote: boolean; withdraw: boolean; decline: boolean; ask: boolean };
   terms?: RfqTerms | null;
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): HIS files on his quote; null = the installation switch is off (the page shows nothing) */
+  uploads?: RfqUploads | null;
+}
+
+/** RFQ-VENDOR-UPLOAD: `GET /t/api/rfq` `uploads` - his own files (text only: there is no public read of a vendor file) and the limits. */
+export interface RfqUploads {
+  files: { id: string; name: string; kind: 'image' | 'pdf' | 'docx' | 'xlsx'; bytes: number; at: string }[];
+  limits: { files: number; uploads: number; image_bytes: number; document_bytes: number; total_bytes: number; types: string[] };
+  quote_id: string | null;
+  used_bytes: number;
+  uploads_left: number;
+  can: { upload: boolean; remove: boolean };
 }
 
 export const rfqApi = {
