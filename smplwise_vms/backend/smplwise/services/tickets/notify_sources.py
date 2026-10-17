@@ -67,6 +67,10 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     # resolved when nothing of that award is overdue any more. WhatsApp off by default (as every source)
     {"key": "rfq.instalment_overdue", "label": "מועד תשלום לספק עבר", "label_en": "Vendor payment past its date", "severity": "alert",
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # CR-AWARD-NOTICE: the awarded vendor gave notice through his link that he postpones the work (the reference and the place only);
+    # resolved when a manager moves the arrival window or acknowledges it, or the request ends
+    {"key": "rfq.vendor_postponement", "label": "ספק הודיע על דחיית העבודה", "label_en": "Vendor gave notice of postponing the work",
+     "severity": "alert", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}

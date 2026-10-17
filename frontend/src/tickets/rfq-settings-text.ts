@@ -10,6 +10,12 @@ const he = {
   qReminderSub: 'כמה שעות אחרי השאלה (0 = בלי תזכורת; פעם אחת לכל שאלה)',
   qBadgeAll: 'מספר השאלות הממתינות גם לצופה בכל המחלקות',
   qBadgeAllSub: 'כבוי - רק מי שמנהל את הבקשה רואה את המספר בניווט. הטקסט של השאלות אינו מוצג.',
+  // CR-AWARD-NOTICE: the award notice to the vendor ("approved and binding; give notice in advance if you postpone")
+  anSetting: 'הודעת אישור לספק שזכה',
+  anSettingSub: 'נוסח קבוע: ההצעה אושרה ומחייבת, ועל הספק להודיע מראש דרך הקישור אם הוא דוחה את העבודה',
+  anMode_confirm: 'באישור המנהל (ברירת מחדל)',
+  anMode_auto: 'אוטומטית עם כל אישור',
+  anMode_off: 'לא לשלוח',
 } as const;
 
 const en: Record<keyof typeof he, string> = {
@@ -17,6 +23,11 @@ const en: Record<keyof typeof he, string> = {
   qReminderSub: 'Hours after the question (0 = no reminder; once per question)',
   qBadgeAll: 'Pending-questions count for viewers of all departments',
   qBadgeAllSub: 'Off - only a manager of the request sees the count in the navigation. The questions text is never shown.',
+  anSetting: 'Approval notice to the selected vendor',
+  anSettingSub: 'A fixed text: the quote is approved and binding, and the vendor must notify in advance through the link if he postpones the work',
+  anMode_confirm: 'When the manager confirms (default)',
+  anMode_auto: 'Automatically with every approval',
+  anMode_off: 'Do not send',
 };
 
 export function qst(key: keyof typeof he): string {

@@ -1,6 +1,6 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.5 (combined at the integ/270 integration for 2.7.0: RFQPAY2, 20.11 - 20.15, a demand per instalment, the overdue
+Status: **v1.6 (CR-AWARD-NOTICE: 20.16 the award notice, 20.17 the vendor's postponement notice, migration 0115 provisional) / v1.5 (combined at the integ/270 integration for 2.7.0: RFQPAY2, 20.11 - 20.15, a demand per instalment, the overdue
 notification, a moved instalment date / arrival window, the order re-send, migration 0110; v1.4.2 RFQ-VENDOR-UPLOAD, 19.10, a vendor's own
 files, migration 0109) / v1.4.1 (the review fixes of RFQPAY (section 20) and RFQATT (section 19), no new migration) / v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
 section 20 = the payment schedule and the arrival confirmation, behind a switch that is OFF by default (RFQPAY, migration 0103); section
@@ -172,7 +172,8 @@ Which act sends what: **send** queues `rfq_invite` per vendor (WhatsApp / e-mail
 **remind** queues `rfq_reminder` (manual, per vendor or "everyone who did not answer"); **cancel** queues `rfq_cancelled` to vendors
 with a live quote (`notify: false` skips it); a **vendor message** is stored in the private thread (`ticket_rfq_messages`, shown on the
 vendor page in C2) and, with `notify`, queues `rfq_update`. **Award, second approval, decline-on-behalf, close, not_awarded: never a
-message.** Outbox rows carry `rfq_id` and the link id; the outcome hooks write `message_sent` / `message_failed` RFQ events and the
+message** - except the award notice of 20.16 (v1.6), which leaves only on the manager's explicit tick (`confirm`, the default) or by the
+administrator's installation choice (`auto`). Outbox rows carry `rfq_id` and the link id; the outcome hooks write `message_sent` / `message_failed` RFQ events and the
 `ticket.message.send` audit row like ticket rows.
 
 ## 9. Routes (internal, `/api/v1`, all behind the module gate, registered before `/tickets/{ticket_id}`)
@@ -258,14 +259,14 @@ arithmetic only (money.py); a quote in another currency is shown and never ranke
 ## 13. Settings (`tickets.settings`, section `rfq`)
 
 `default_due_days` (1-60, default 3), `grace_hours` (0-168, 24), `link_keep_days` (1-365, 30), `retention_months` (6-120, 24),
-`reminder_hours` (0-168, 24 - C2's automatic reminder; 0 = off), `instalment_reminder_hours` (0-168, 24 - RFQPAY2 20.12: hours between
+`reminder_hours` (0-168, 24 - C2's automatic reminder; 0 = off), `award_notice` (`confirm` | `auto` | `off`, default `confirm` - 20.16), `instalment_reminder_hours` (0-168, 24 - RFQPAY2 20.12: hours between
 two overdue-instalment reminders of one award; 0 = once only). Department: `rfq_second_approval_minor` (section 7). The allowed line
 kinds default is DETAIL's (`costs.allowed_line_kinds` <- department <- the RFQ).
 
 Audit actions (ids, states, totals, counts - never a text; the PUBLIC vendor rows of 15.4 carry ids / versions / states / counts only, never an amount): `ticket.rfq.create`, `.edit`, `.vendor_add`, `.vendor_remove`, `.send`,
 `.remind`, `.link_revoke`, `.quote_on_behalf`, `.quote_withdraw`, `.decline_on_behalf`, `.award`, `.award_confirm`, `.award_decline`,
 `.cancel`, `.close`, `.message`, `.delete`, `.department` (+ v1.4 / v1.5: `.vendor_arrival`, `.arrival_decide`, `.instalment_demand`,
-`.instalment_reschedule`, `.arrival_reschedule`).
+`.instalment_reschedule`, `.arrival_reschedule`; + v1.6: `.award_notice`, `.vendor_postponement`, `.postponement_ack`).
 
 ## 15. Public vendor page (stage C2, TKRFQVP)
 
@@ -409,6 +410,7 @@ the uniform 404, a read-only grace 409 `read_only`, a code switched on meanwhile
 | `quote.payment` (v1.4) | his OWN proposed instalments on his own quote | after the code |
 | `form.payment` (v1.4) | the installation switch + code constants (`null` while off) | after the code |
 | `terms.*` (v1.4, section 20.4) | his OWN approved award's schedule (amounts of his award only) and arrival confirmation | after the code, only when page_state is `awarded` |
+| `binding.*` (v1.6, section 20.17) | `text` = a code constant in his language; `scheduled_from/to` = his OWN award's scheduled window (terms / work order / his quote / the request); `postponement` = his OWN latest notice (dates, time, state - not the reason, not who handled it); `can.postpone` derived | after the code, only when page_state is `awarded` |
 | `messages[].id` | his own thread's message ids | after the code |
 | `can.*` | derived (15.3) | after the code |
 | `page_state` | derived (15.3) | after the code |
@@ -1148,6 +1150,98 @@ is not done (`done_at`) / closed (409 `order_ticket_closed`), and the send's own
 Preview: `GET .../awards/{award_id}/order/preview?work_from=&work_to=` renders the exact order text with a window about to be saved (no
 side effect; the existing route and its refusals). The vendor-facing text is the existing `rfq_order` template - no new vendor string.
 
+### 20.16 The award notice - "approved and binding" (v1.6, CR-AWARD-NOTICE - owner request 2026-10-17)
+
+Owner request: after a quote is approved the vendor must be told that it is APPROVED and BINDING, and that it is his duty to notify IN
+ADVANCE, through his link, if he postpones the work. Decisions and open questions: `docs/changes/CR-AWARD-NOTICE.md`. This section does NOT
+depend on the payment-schedule switch (20.1).
+
+* **The text** is fixed and code-owned (`message_templates.CODE_VARIANTS["rfq_award_notice"]`, he / en / ar / ru - ar / ru developer
+  translations pending a native review). Hebrew: "ההצעה שלכם ל"{title}" (מס' {number}) אושרה, והיא מחייבת מעכשיו." / "אם תצטרכו לדחות את
+  העבודה, חובה להודיע על כך מראש דרך הקישור: {link}" / "{organization}". It is a VARIANT of the existing `rfq_update` purpose chosen by the
+  outbox row's `template_id` (`starter:rfq_award_notice:<lang>`, the TKSTAFF1 / VPORTAL pattern): the outbox's link handling (the vendor's
+  live RFQ link, the e-mail redeem form), send-hours rules and fallbacks apply unchanged; it is never a stored template and never editable
+  in Settings. No amount, no date, no phone, no free text. No new outbox purpose, no outbox rebuild.
+* **The setting** `tickets.settings.rfq.award_notice` = `confirm` (DEFAULT) | `auto` | `off` (`PUT /tickets/settings {rfq: {award_notice}}`,
+  `system.configure`; any other value 422). `meta.award_notice` tells the award dialog which block to show.
+  * `confirm`: the award dialog fetches `GET /tickets/rfqs/{id}/vendors/{rv_id}/award-notice` (below) and shows the exact text with a send
+    tick that is ON by default (the UI default); the award request carries `award_notice: true | false`. **Nothing is stored or sent unless
+    the request says `true`** - an older client that omits the field sends nothing (an award never sends silently). A ticked notice that
+    cannot go now (`refusals` not empty) is refused BEFORE the award writes anything: 409 `award_notice_unavailable` (`details.reason`:
+    `vendor` | `page` | `link` | `channel`) - the preview already showed why, so the manager unticks or fixes the channel.
+  * `auto`: the notice is queued in the award's transaction whenever the award becomes final; an explicit `award_notice: false` opts that
+    one award out. `auto` never refuses an award: an unreachable vendor is recorded (`award_notice` timeline row with `queued: false`,
+    `reason`).
+  * `off`: never; `award_notice: true` is 422 `{field: "award_notice", code: "disabled"}` (never silently dropped).
+* **Second approval** (section 7): an award waiting for the second approval sends nothing; the first approver's tick is remembered on the
+  `award_pending` timeline row (`notice_requested`) and is the default of `POST .../awards/{award_id}/confirm` `{revision, award_notice?}`
+  (the second approver may change it - `false` sends nothing). The notice is queued when the award becomes final there (`via: confirm`).
+* **Once per award**: outbox idempotency key `rfqaward:<award_id>`; the RFQ timeline row `award_notice` (`{award_id, queued, channel,
+  outbox_id, mode, via: award | confirm | later, reason?}`) and the audit row `ticket.rfq.award_notice` (ids, `queued`, `channel`,
+  `notice_mode`, `via`, `reason?` - never a text) are written once; a later send answers `already: true` and writes nothing.
+* **The clock**: a queued notice tells the vendor, so it starts the arrival-confirmation clock of the terms (20.7, `requested_at`,
+  `via: award`) exactly like an award-sourced thread message.
+* The award's editable `message_draft` (section 7) is unchanged and independent (a free-text thread message the manager may still send).
+
+| Route | Who | Body / answer |
+|---|---|---|
+| `GET /tickets/rfqs/{id}/vendors/{rv_id}/award-notice` | an approver (tickets.costs + view) or an RFQ manager (audited 403 `not_manager` otherwise; invisible = uniform 404) | `{mode, text (the exact text, the link as a placeholder), lang, channel, refusals: [vendor, page, link, channel], notify_default, sent}` - no side effect |
+| `POST /tickets/rfqs/{id}/awards` | award | section 7 + `award_notice?: bool`; the answer adds `award_notice: null` or `{queued, already, channel, outbox_id, reason}` |
+| `POST /tickets/rfqs/{id}/awards/{award_id}/confirm` | second approver | `{revision, award_notice?: bool}`; the answer adds `award_notice` |
+| `POST /tickets/rfqs/{id}/awards/{award_id}/notice` | an approver or an RFQ manager | no body -> `{rfq: detail, award_notice}`: the notice of a FINAL award that did not go with it (409 `award_notice_off`; 409 `award_notice_unavailable` - nothing written; `rfq_invalid_transition` for a non-final award / an ended request; a notice already queued answers `already: true`) |
+
+Detail `awards[].notice` (approved / pending awards): `{mode, state: queued | not_sent | pending | none, at, by, channel, reason, requested
+(pending only: the first approver's tick), can: {send}}`.
+
+### 20.17 The vendor's postponement notice through his link (v1.6, CR-AWARD-NOTICE)
+
+The other half of the owner's rule: the awarded vendor gives the advance notice on his own RFQ page. **It never changes the agreed date by
+itself.**
+
+* **Migration 0115** (provisional; the lead renumbers at integration), additive: `ticket_rfq_postponements` (`id, rfq_id, award_id,
+  rfq_vendor_id, link_id, proposed_from, proposed_to, reason, scheduled_from, lead_seconds, created_at, state open | acknowledged |
+  rescheduled | ended, resolved_at, resolved_by`), a partial UNIQUE index = one OPEN notice per award. Purged with the request
+  (`store_rfq.purge_rfq` deletes it explicitly).
+* **The vendor's write** - `POST /t/api/rfq/arrival` `{action: "postpone", work_from, work_to?, reason, client_request_id}` (the arrival
+  route of 20.5, i.e. the vendor's work-order / arrival page; edge kind `token_write`: the per-token write budget, spent only by a stored
+  effect; strict model; replay per link generation; the link re-read inside the transaction; read-only grace 409 `read_only`; no code
+  session 403 `code_required`; a bad token the uniform 404). Checks, all before the first write: HIS approved award, the request `awarded` /
+  `ordered`, his vendor row `awarded`, the work not done (the order's request has no `done_at`) - every other case is ONE answer 409
+  `postpone_closed` (nothing tells a vendor about anyone else's award, a pending second approval or why); `acknowledge_schedule` /
+  `schedule_hash` are 422 `not_allowed`; `work_from` required, an instant whose day in the installation zone is today .. today + 366 (422
+  `work_from` `required | format | range`), `work_to >= work_from` (422 `work_to` `order`); `reason` required, <= 500 after text hygiene
+  (control / bidi / zero-width characters removed; 422 `reason` `required | too_long`); an open notice exists -> 409 `postponement_open`;
+  more than 10 notices in the award's life -> 409 `postponement_limit`. A `reason` on `confirm` / `propose` is 422 `reason` `not_allowed`.
+  Answer `200 {ok, binding}` (below).
+* **What is recorded**: the notice time, the proposed window, the reason, the date that was scheduled then (`scheduled_from`: the terms'
+  planned arrival, else the work order's window incl. a re-send, else the awarded quote's / the request's window) and how far in advance
+  it was given: `lead_seconds = scheduled_from - created_at` (negative = after the scheduled start; NULL when nothing was scheduled). A
+  fact, no judgement - nothing is flagged as late (open owner question).
+* **Effects**: the RFQ timeline row `vendor_postponement` (`{award_id, postponement_id, proposed_from, proposed_to, scheduled_from,
+  lead_seconds}` - never the reason); audit `ticket.rfq.vendor_postponement` (actor `contact:<id>`, ids, `lead_seconds`, `has_scheduled` -
+  never the reason); the notification source **`rfq.vendor_postponement`** ("ספק הודיע על דחיית העבודה" / "Vendor gave notice of
+  postponing the work"; alert, subject `rfq`, rule `rfq_managers`, inbox + push, WhatsApp off by default like every source; one row per
+  award, dedupe `rfqpost:<rfq_id>:<award_id>` - outside `rfq:<id>:` so a later award of a split request does not silence it); text: the
+  reference and the place only - never the proposed date, the reason, the lead time or the vendor's name. Nothing is sent to the vendor.
+* **The managers**: detail `awards[].postponement` = `null` or `{open, items (the latest 10: id, proposed_from, proposed_to, reason,
+  scheduled_from, lead_seconds, at, state, resolved_at, resolved_by), count, can: {acknowledge}}` (every viewer of the request - the reason
+  is the vendor's own words to the organisation, like his thread). Two ways to act:
+  * move the date through the existing route 20.14 (`POST .../awards/{award_id}/arrival/date`, which can notify the vendor and re-send the
+    order) - it closes the open notice as `rescheduled` (the `arrival_rescheduled` row adds `postponement_id`) and resolves the
+    notification;
+  * `POST /tickets/rfqs/{id}/awards/{award_id}/postponement/ack` `{postponement_id}` (an RFQ manager - section 6; audited 403 otherwise;
+    404 `postponement_not_found` for any id that is not the award's open notice) - handled without moving the date (agreed by phone, or the
+    installation does not use the arrival terms, where 20.14 does not exist): `acknowledged`, timeline `postponement_acknowledged`, audit
+    `ticket.rfq.postponement_ack`, the notification resolved. Sends nothing.
+  * A close / cancel ends an open notice (`ended`) and resolves its notification; a delete / purge removes it.
+
+`GET /t/api/rfq` adds `binding` (15.3 / 15.5): `null`, except for the vendor whose APPROVED award it is (page_state `awarded`): `{text (the
+binding / advance-notice sentence, code-owned, his language - `rfq_award_notice.PAGE_TEXT`), scheduled_from, scheduled_to, postponement: null
+or {proposed_from, proposed_to, at, state} (his latest notice - never its reason back, never who handled it), can: {postpone}}`. The page
+loads its lazy `rfq-page-terms` chunk when `binding` is present and shows the sentence, his open notice (the page's own "you proposed
+another date; the organisation will decide" words) and the notice form while `can.postpone`. The sentence comes from the server (not the
+page bundle) so the WhatsApp text and the page say the same words and the page chunk stays inside its budget.
+
 ## 21. Vendor questions (v1.4, RFQQUESTIONS - owner report 2026-10-17)
 
 Owner report: a vendor's question was not obvious to the manager - it sat in the vendor's private thread (only a timeline row and the
@@ -1221,6 +1315,15 @@ question still pending after N hours on an open request, and the timeline row `q
 hours - never the text or the vendor. The engine applies each recipient's channels and quiet hours.
 
 ## 14. Change log
+
+* v1.6 (2026-10-17, CR-AWARD-NOTICE, `pilot/AWARD-NOTICE` from `integ/270`; migration 0115, provisional): 20.16 the award notice
+  ("approved and binding; give notice in advance through the link if you postpone") - a code-owned variant of `rfq_update`, setting
+  `rfq.award_notice` (confirm default / auto / off), the preview route, `award_notice` on the award / confirm bodies and answers, the later
+  send route, `awards[].notice`, `meta.award_notice`; 20.17 the vendor's postponement notice (`POST /t/api/rfq/arrival` `action: postpone`),
+  table `ticket_rfq_postponements`, the notification source `rfq.vendor_postponement`, `awards[].postponement`, the acknowledge route, the
+  20.14 move closes the notice; 15.3 / 15.5 `binding`. Sections 7 / 8 / 18 "an award never sends a message by itself" is kept: in `confirm`
+  the manager's tick IS the explicit act; `auto` is an administrator's explicit installation choice. **A Fable review of the public surface
+  is required before release.**
 
 * v1.5 (2026-10-17, RFQPAY2, `pilot/RFQPAY2` from `integ/264`; migration 0110 - provisional 0112, renumbered at integ/270): the
   three items the owner approved after v1.4.1 recorded them as not built - 20.11 a payment demand per approved instalment (manual,

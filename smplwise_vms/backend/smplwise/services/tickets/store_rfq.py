@@ -538,6 +538,44 @@ def update_demand(conn: sqlite3.Connection, demand_id: str, fields: Mapping[str,
     return _update(conn, "ticket_rfq_instalment_demands", DEMAND_COLUMNS, demand_id, fields, expect_revision=expect_revision)
 
 
+# ---------------------------------------------------------------- CR-AWARD-NOTICE: the vendor's postponement notices (migration 0115)
+
+def has_postponements(conn: sqlite3.Connection) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_postponements'").fetchone() is not None
+
+
+def insert_postponement(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
+    pid = row.get("id") or new_id()
+    _insert(conn, "ticket_rfq_postponements", {**row, "id": pid})
+    return pid
+
+
+def open_postponement(conn: sqlite3.Connection, award_id: str | None) -> dict[str, Any] | None:
+    if not award_id or not has_postponements(conn):
+        return None
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_postponements WHERE award_id = ? AND state = 'open'", (award_id,)).fetchone())
+
+
+def postponements_of_award(conn: sqlite3.Connection, award_id: str) -> list[dict[str, Any]]:
+    if not has_postponements(conn):
+        return []
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_postponements WHERE award_id = ? ORDER BY created_at, id",
+                                          (award_id,)).fetchall()]
+
+
+def resolve_postponements(conn: sqlite3.Connection, *, award_id: str | None = None, rfq_id: str | None = None, state: str, by: str | None,
+                          at: str) -> list[dict[str, Any]]:
+    """Close the OPEN notice(s) of one award (or of every award of a request). Returns the rows that were open."""
+    if not has_postponements(conn) or (award_id is None and rfq_id is None):
+        return []
+    where, arg = ("award_id = ?", award_id) if award_id is not None else ("rfq_id = ?", rfq_id)
+    rows = [dict(r) for r in conn.execute(f"SELECT * FROM ticket_rfq_postponements WHERE {where} AND state = 'open'", (arg,)).fetchall()]
+    if rows:
+        conn.execute(f"UPDATE ticket_rfq_postponements SET state = ?, resolved_at = ?, resolved_by = ? WHERE {where} AND state = 'open'",
+                     (state, at, by, arg))
+    return rows
+
+
 # ---------------------------------------------------------------- the private thread with each vendor
 
 def insert_message(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
@@ -734,6 +772,8 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
     run("ticket_rfq_messages", "DELETE FROM ticket_rfq_messages WHERE rfq_id = ?", (rfq_id,))
     # CR-RFQ-PAYMENT-SCHEDULE: the awards' terms (an ordered quote keeps its approved schedule in ticket_quotes.payment_schedule_json)
     run("ticket_rfq_award_terms", "DELETE FROM ticket_rfq_award_terms WHERE rfq_id = ?", (rfq_id,))
+    if has_postponements(conn):  # CR-AWARD-NOTICE: the vendor's postponement notices go with the request
+        run("ticket_rfq_postponements", "DELETE FROM ticket_rfq_postponements WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_awards", "DELETE FROM ticket_rfq_awards WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_events", "DELETE FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,))
     # RFQPAY2: the instalment demands of the quotes deleted below (an ordered quote keeps its demands - they belong to its baseline)
@@ -768,6 +808,8 @@ def rfq_rows_left(conn: sqlite3.Connection, rfq_id: str, vendor_ids: list[str], 
               ("ticket_rfq_messages", "SELECT COUNT(*) FROM ticket_rfq_messages WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_rfq_events", "SELECT COUNT(*) FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,)),
               ("ticket_outbox", "SELECT COUNT(*) FROM ticket_outbox WHERE rfq_id = ?", (rfq_id,))]
+    if has_postponements(conn):
+        checks.append(("ticket_rfq_postponements", "SELECT COUNT(*) FROM ticket_rfq_postponements WHERE rfq_id = ?", (rfq_id,)))
     if has_attachments(conn):
         checks.append(("ticket_rfq_attachments", "SELECT COUNT(*) FROM ticket_rfq_attachments WHERE rfq_id = ?", (rfq_id,)))
     if has_vendor_files(conn):

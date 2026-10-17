@@ -272,6 +272,7 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
   const vars = { vendor, actor, amount };
   if (e.kind === 'quote_submitted' && amount) return { key: 'ev_quote_submitted_amount', vars };
   if (e.kind === 'awarded' && amount) return { key: 'ev_awarded_amount', vars };
+  if (e.kind === 'award_notice' && e.data.queued !== true) return { key: 'ev_award_notice_failed', vars }; // CR-AWARD-NOTICE: the vendor could not be reached
   const known = ['created', 'edited', 'vendor_added', 'vendor_removed', 'sent', 'reminder', 'quote_submitted', 'quote_withdrawn', 'declined', 'link_revoked', 'message',
     'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',
     'order_created', 'order_sent', 'attachment_added', 'attachment_changed', 'attachment_removed', 'vendor_file_added', 'vendor_file_removed',
@@ -280,7 +281,9 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
     // RFQPAY2 (contract 20.11 / 20.13)
     'instalment_demand_created', 'instalment_paid', 'instalment_demand_cancelled', 'instalment_rescheduled', 'arrival_rescheduled', 'order_resent',
     // RFQQUESTIONS
-    'vendor_message', 'question_answered', 'question_resolved', 'question_reminder'];
+    'vendor_message', 'question_answered', 'question_resolved', 'question_reminder',
+    // CR-AWARD-NOTICE (contract 20.16 / 20.17)
+    'award_notice', 'vendor_postponement', 'postponement_acknowledged'];
   return { key: known.includes(e.kind) ? `ev_${e.kind}` : 'ev_other', vars };
 }
 
@@ -399,7 +402,9 @@ export function refusalKey(code: string | undefined): string | null {
     'terms_closed', 'instalment_not_found', 'instalment_not_dated', 'instalment_paid', 'demand_not_found', 'demand_paid', 'demand_cancelled',
     'demand_zero_amount', 'work_done', 'vendor_unreachable', 'order_not_sent',
     // RFQQUESTIONS
-    'question_answered', 'message_not_found'];
+    'question_answered', 'message_not_found',
+    // CR-AWARD-NOTICE
+    'award_notice_unavailable', 'award_notice_off', 'postponement_not_found'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 

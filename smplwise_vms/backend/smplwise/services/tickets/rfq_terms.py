@@ -1016,6 +1016,11 @@ def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: A
     data: dict[str, Any] = {"award_id": a["id"], "from": t.get("planned_from"), "to": wf}
     if why:
         data["reason"] = why
+    from .rfq_postpone import on_rescheduled  # CR-AWARD-NOTICE (20.17): the move answers the vendor's open postponement notice
+
+    answered = on_rescheduled(conn, viewer, seen.row, a["id"], at)
+    if answered:
+        data["postponement_id"] = answered
     store_rfq.insert_event(conn, seen.row["id"], "arrival_rescheduled", actor_kind="user", actor_user_id=viewer.uid,
                            actor_name=rfq.actor_name(viewer), rfq_vendor_id=a["rfq_vendor_id"], data=data, at=at)
     if state == "proposed":

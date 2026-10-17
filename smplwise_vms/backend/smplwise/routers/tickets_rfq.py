@@ -23,6 +23,9 @@
     GET    /tickets/rfqs/{id}/comparison                               + tickets.costs.view
     POST   /tickets/rfqs/{id}/awards                                 tickets.costs + view (+ message_draft; nothing is sent)
     POST   /tickets/rfqs/{id}/awards/{award_id}/confirm | decline      the second approver
+    GET    /tickets/rfqs/{id}/vendors/{rv}/award-notice                CR-AWARD-NOTICE: the exact award notice, its channel, the setting
+    POST   /tickets/rfqs/{id}/awards/{award_id}/notice                 CR-AWARD-NOTICE: send the notice of a final award later (once)
+    POST   /tickets/rfqs/{id}/awards/{award_id}/postponement/ack       CR-AWARD-NOTICE: an RFQ manager acknowledges the vendor's notice
     POST   /tickets/rfqs/{id}/awards/{award_id}/arrival                CR-RFQ-PAYMENT-SCHEDULE: accept / reject the vendor's proposed date
     POST   /tickets/rfqs/{id}/awards/{award_id}/instalments/{i}/date   RFQPAY2: move a dated instalment's day (tickets.costs + view)
     POST   /tickets/rfqs/{id}/awards/{award_id}/instalments/{i}/demand RFQPAY2: the instalment's payment demand - create / paid / cancel
@@ -54,7 +57,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import commit_now, unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_files, rfq_orders, rfq_questions, rfq_terms, rfq_vendor_files, store, store_rfq
+from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_award_notice, rfq_files, rfq_orders, rfq_postpone, rfq_questions, rfq_terms, rfq_vendor_files, store, store_rfq
 from ..services.tickets.image_intake import IntakeError, StorePathError
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
@@ -515,6 +518,15 @@ class AwardBody(BaseModel):
     # vendor proposal one of payment / payment_source is REQUIRED (422 `payment` `required`)
     payment_source: Literal["vendor", "default"] | None = None
     arrival: ArrivalWindow | None = None  # the planned arrival window (omitted = the quote's / request's window)
+    # CR-AWARD-NOTICE (contract 20.16): the dialog's "send the approval notice" tick; omitted = nothing in `confirm` mode, the notice in
+    # `auto` mode; `true` while the setting is `off` is 422 `disabled`
+    award_notice: bool | None = None
+
+
+class AwardConfirmBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=1)
+    award_notice: bool | None = None  # CR-AWARD-NOTICE: the second approver's tick (omitted = the first approver's)
 
 
 def _award_answer(conn: sqlite3.Connection, viewer: Viewer, rfq_id: str, res: dict[str, Any]) -> dict[str, Any]:
@@ -524,7 +536,8 @@ def _award_answer(conn: sqlite3.Connection, viewer: Viewer, rfq_id: str, res: di
             "terms": rfq_terms.present(conn, a, amounts=rfq.sees_amounts(viewer, seen), manager=rfq.is_manager(viewer, seen),
                                        costs=rfq.can_decide(viewer, seen), rfq_state=seen.row["state"])}
     return {"rfq": rfq.detail(conn, viewer, seen), "award": item,
-            "message_draft": rfq.award_draft(conn, seen.row, a) if a["state"] == "approved" else None}
+            "message_draft": rfq.award_draft(conn, seen.row, a) if a["state"] == "approved" else None,
+            "award_notice": res.get("award_notice")}
 
 
 @router.post("/tickets/rfqs/{rfq_id}/awards", status_code=201)
@@ -534,17 +547,54 @@ def post_award(body: AwardBody, request: Request, rfq_id: str = Path(..., patter
     seen = rfq.require_visible(viewer, rfq_id)
     res = rfq.award(conn, viewer, seen, quote_id=body.quote_id, revision=body.revision, line_indexes=body.line_indexes, kinds=body.kinds,
                     finalize=body.finalize, rid=_rid(request), payment=body.payment.model_dump() if body.payment else None,
-                    arrival=body.arrival.model_dump() if body.arrival else None, payment_source=body.payment_source)
+                    arrival=body.arrival.model_dump() if body.arrival else None, payment_source=body.payment_source,
+                    award_notice=body.award_notice)
     return _award_answer(conn, viewer, rfq_id, res)
 
 
 @router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/confirm")
-def post_award_confirm(body: RevisionBody, request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+def post_award_confirm(body: AwardConfirmBody, request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
                        principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
-    res = rfq.confirm(conn, viewer, seen, award_id, body.revision, _rid(request))
+    res = rfq.confirm(conn, viewer, seen, award_id, body.revision, _rid(request), award_notice=body.award_notice)
     return _award_answer(conn, viewer, rfq_id, res)
+
+
+@router.get("/tickets/rfqs/{rfq_id}/vendors/{vendor_id}/award-notice")
+def get_award_notice(request: Request, rfq_id: str = Path(..., pattern=ID), vendor_id: str = Path(..., pattern=ID),
+                     principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-AWARD-NOTICE (contract 20.16): the award dialog's notice block - the setting, the EXACT text the vendor would get (the link as a
+    placeholder), the channel and why it cannot go now. No side effect (a refusal of the role is audited)."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    return rfq_award_notice.preview(conn, viewer, seen, vendor_id, rfq.now_utc(), _rid(request))
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/notice")
+def post_award_notice(request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                      principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-AWARD-NOTICE: the notice of a final award that did not go with it - ONE per award (a repeat answers `already: true`)."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    res = rfq_award_notice.send_later(conn, viewer, seen, award_id, rfq.now_utc(), _rid(request))
+    return {"rfq": _detail(conn, viewer, rfq_id), "award_notice": res}
+
+
+class PostponementAckBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    postponement_id: str = Field(min_length=1, max_length=64, pattern=ID)
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/postponement/ack")
+def post_postponement_ack(body: PostponementAckBody, request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                          principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-AWARD-NOTICE (contract 20.17): an RFQ manager acknowledges the vendor's open postponement notice without moving the date (the
+    date moves through POST .../arrival/date, which closes the notice by itself). Sends nothing."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    rfq_postpone.acknowledge(conn, viewer, seen, award_id, body.postponement_id, _rid(request))
+    return _detail(conn, viewer, rfq_id)
 
 
 class AwardDeclineBody(BaseModel):

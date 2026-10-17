@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, Principal
-from . import access, model, money, org_locations, quotes, rfq_files, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
+from . import access, model, money, org_locations, quotes, rfq_award_notice, rfq_files, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
@@ -101,6 +101,10 @@ MESSAGES = {
     "demand_zero_amount": "סכום התשלום הזה הוא אפס - אין צורך בדרישת תשלום.",
     "work_done": "העבודה כבר סומנה כהסתיימה - אי אפשר לשנות את מועד ההגעה.",
     "vendor_unreachable": "אי אפשר לשלוח הודעה לספק הזה.",
+    # CR-AWARD-NOTICE (contract 20.16 / 20.17)
+    "award_notice_unavailable": "אי אפשר לשלוח כרגע לספק את הודעת האישור (אין קישור פעיל או ערוץ). בטלו את הסימון או בדקו את פרטי הספק.",
+    "award_notice_off": "שליחת הודעת אישור לספק כבויה בהגדרות.",
+    "postponement_not_found": "אין הודעת דחייה פתוחה מהספק.",
 }
 
 
@@ -688,14 +692,14 @@ def message_params(conn, row: Mapping[str, Any], contact: Mapping[str, Any]) -> 
 
 
 def _enqueue(conn, *, purpose: str, row: Mapping[str, Any], vendor: Mapping[str, Any], contact: Mapping[str, Any], channel: str,
-             link_id: str | None, requested_by: str, idempotency_key: str) -> str | None:
+             link_id: str | None, requested_by: str, idempotency_key: str, template_id: str | None = None) -> str | None:
     from .messaging import RUNTIME
 
     if RUNTIME.outbox is None:
         return None
     queued = RUNTIME.enqueue(conn, purpose=purpose, contact_id=contact["id"], link_id=link_id, department_id=row["department_id"],
                              params=message_params(conn, row, contact), channel=channel, requested_by=requested_by,
-                             idempotency_key=idempotency_key, rfq_id=row["id"])
+                             idempotency_key=idempotency_key, rfq_id=row["id"], template_id=template_id)
     return getattr(queued, "id", None)
 
 
@@ -1053,10 +1057,12 @@ def _finalize(conn, viewer: Viewer, row: Mapping[str, Any], award: Mapping[str, 
 
 def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, line_indexes: Sequence[int] | None,
           kinds: Sequence[str] | None, finalize: bool, rid: str | None = None, payment: Any = None, arrival: Any = None,
-          payment_source: str | None = None) -> dict[str, Any]:
+          payment_source: str | None = None, award_notice: bool | None = None) -> dict[str, Any]:
     """`payment` / `payment_source` / `arrival` (CR-RFQ-PAYMENT-SCHEDULE, switch on): the manager's plan, or his explicit choice of the
     vendor's proposal (`vendor`) or the default single final instalment (`default`) - REQUIRED when the vendor proposed instalments
-    (review F1, `rfq_terms.prepare`) - and the planned arrival window (omitted = the quote's / request's window)."""
+    (review F1, `rfq_terms.prepare`) - and the planned arrival window (omitted = the quote's / request's window).
+    `award_notice` (CR-AWARD-NOTICE, contract 20.16): the dialog's send tick - checked against `rfq.award_notice` before anything is
+    written; a final award then queues THE notice in this transaction (a pending second approval remembers the tick)."""
     now = now_utc()
     need_costs(conn, viewer, seen, "ticket.rfq.award", rid)
     row = apply_due(conn, dict(seen.row), now)
@@ -1085,6 +1091,9 @@ def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, 
                                   payment_source=payment_source)
     except CostRefused as exc:
         raise invalid(conn, exc.field or "payment", exc.code) from None
+    wanted = rfq_award_notice.want(conn, award_notice)  # CR-AWARD-NOTICE: 422 `disabled` while the setting is off
+    if not second:
+        rfq_award_notice.check(conn, row, v, bool(wanted), now)  # confirm mode: a ticked notice that cannot go now refuses first
     at = iso(now)
     aid = store_rfq.insert_award(conn, {
         "rfq_id": row["id"], "rfq_vendor_id": v["id"], "quote_id": q["id"], "state": "pending_second" if second else "approved",
@@ -1097,7 +1106,8 @@ def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, 
     if second:
         _touch(conn, row, {}, None, now)
         store_rfq.insert_event(conn, row["id"], "award_pending", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
-                               rfq_vendor_id=v["id"], data={"award_id": aid, "quote_id": q["id"], "version": q["version"]}, at=at)
+                               rfq_vendor_id=v["id"], data={"award_id": aid, "quote_id": q["id"], "version": q["version"],
+                                                            "notice_requested": bool(wanted)}, at=at)
         fresh = q
     else:
         a = {**a, "state": "pending_second"}  # _finalize moves it to approved (one code path)
@@ -1105,7 +1115,10 @@ def award(conn, viewer: Viewer, seen: RfqSeen, *, quote_id: str, revision: int, 
     _audit(conn, viewer, "ticket.rfq.award", row, rid, award_id=aid, vendor_id=v["id"], quote_id=q["id"], version=q["version"],
            state="pending_second" if second else fresh["state"], approved_total_minor=c.total_minor, second_required=second,
            **({"schedule_source": terms["schedule_source"]} if terms else {}))
-    return {"award": store_rfq.award(conn, aid), "quote": store_quotes.quote(conn, q["id"]), "vendor_id": v["id"]}
+    notice = None
+    if wanted and not second:
+        notice = rfq_award_notice.send(conn, viewer, system_row(conn, row["id"]) or row, store_rfq.award(conn, aid) or a, now, rid, via="award")
+    return {"award": store_rfq.award(conn, aid), "quote": store_quotes.quote(conn, q["id"]), "vendor_id": v["id"], "award_notice": notice}
 
 
 def award_of(conn, seen: RfqSeen, award_id: str) -> dict[str, Any]:
@@ -1115,7 +1128,10 @@ def award_of(conn, seen: RfqSeen, award_id: str) -> dict[str, Any]:
     return a
 
 
-def confirm(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: int, rid: str | None = None) -> dict[str, Any]:
+def confirm(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: int, rid: str | None = None,
+            award_notice: bool | None = None) -> dict[str, Any]:
+    """The second approval. CR-AWARD-NOTICE: the award becomes final HERE, so this is where its notice goes - `award_notice` is the
+    second approver's tick; omitted = the first approver's tick (confirm mode) or the setting (auto)."""
     now = now_utc()
     need_costs(conn, viewer, seen, "ticket.rfq.award_confirm", rid)
     a = award_of(conn, seen, award_id)
@@ -1126,10 +1142,17 @@ def confirm(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: int, r
     if viewer.uid not in second_approvers(conn, seen.row, a["first_by"], store_quotes.quote(conn, a["quote_id"])):
         raise _err(conn, 409, "second_approver_required")
     row = dict(seen.row)
+    if award_notice is None and rfq_award_notice.mode(conn) == "confirm":
+        award_notice = rfq_award_notice.requested_on_pending(conn, row["id"], a["id"])
+    wanted = rfq_award_notice.want(conn, award_notice)
+    rfq_award_notice.check(conn, row, store_rfq.vendor(conn, a["rfq_vendor_id"]) or {}, bool(wanted), now)
     fresh = _finalize(conn, viewer, row, a, now)
     _audit(conn, viewer, "ticket.rfq.award_confirm", row, rid, award_id=a["id"], quote_id=a["quote_id"], state=fresh["state"],
            approved_total_minor=a["approved_total_minor"])
-    return {"award": store_rfq.award(conn, a["id"]), "quote": store_quotes.quote(conn, a["quote_id"]), "vendor_id": a["rfq_vendor_id"]}
+    notice = rfq_award_notice.send(conn, viewer, system_row(conn, row["id"]) or row, store_rfq.award(conn, a["id"]) or a, now, rid,
+                                   via="confirm") if wanted else None
+    return {"award": store_rfq.award(conn, a["id"]), "quote": store_quotes.quote(conn, a["quote_id"]), "vendor_id": a["rfq_vendor_id"],
+            "award_notice": notice}
 
 
 def decline_award(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: int, reason: Any, rid: str | None = None) -> None:
@@ -1214,6 +1237,9 @@ def close(conn, viewer: Viewer, seen: RfqSeen, revision: int, rid: str | None = 
     rfq_links.on_end(conn, row["id"], "closed", now)
     _touch(conn, row, {"state": "closed", "closed_at": at}, revision, now)
     rfq_notify.ended(conn, row["id"])
+    from .rfq_postpone import on_ended  # CR-AWARD-NOTICE: an open postponement notice ends with the request
+
+    on_ended(conn, row["id"], at)
     store_rfq.insert_event(conn, row["id"], "closed", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                            data={"not_awarded": n, "awarded": len(awarded)}, at=at)
     _audit(conn, viewer, "ticket.rfq.close", row, rid, not_awarded=n, awarded=len(awarded))
@@ -1363,6 +1389,7 @@ def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None, files_out
         raise refuse(conn, viewer, "ticket.rfq.delete", seen.row, "delete_permission_missing", rid, permission=DELETE)
     rfq_notify.ended(conn, seen.row["id"])
     rfq_notify.payments_ended(conn, seen.row["id"])  # RFQPAY2
+    rfq_notify.postponements_ended(conn, seen.row["id"])  # CR-AWARD-NOTICE
     if files_out is not None and store_rfq.has_attachments(conn):
         files_out.extend(store_rfq.attachment_paths_of_rfq(conn, seen.row["id"]))
     if files_out is not None and store_rfq.has_vendor_files(conn):  # RFQ-VENDOR-UPLOAD: the vendors' own files go with the request
@@ -1387,6 +1414,7 @@ def retention(conn, now: dt.datetime) -> dict[str, int]:
     for row in store_rfq.ended_before(conn, iso(now - dt.timedelta(days=30 * months))):
         rfq_notify.ended(conn, row["id"])
         rfq_notify.payments_ended(conn, row["id"])  # RFQPAY2
+        rfq_notify.postponements_ended(conn, row["id"])  # CR-AWARD-NOTICE
         store_rfq.purge_rfq(conn, row["id"])
         out["purged"] += 1
     store_rfq.prune_redeems(conn, iso(now))
@@ -1593,8 +1621,13 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
     from .rfq_orders import award_extras  # TKRFQ4 (contract 18.4): the work order of each award
 
     extras = award_extras(conn, viewer, seen, awards, amounts)
+    from .rfq_postpone import present as postponement_block  # CR-AWARD-NOTICE (contract 20.17)
+
     out_awards = [{**present_award(conn, a, amounts), **extras.get(a["id"], {}),
-                   "terms": rfq_terms.present(conn, a, amounts=amounts, manager=manager, costs=decide, rfq_state=row["state"])}
+                   "terms": rfq_terms.present(conn, a, amounts=amounts, manager=manager, costs=decide, rfq_state=row["state"]),
+                   # CR-AWARD-NOTICE (contract 20.16 / 20.17): the award notice to the vendor and his postponement notices
+                   "notice": rfq_award_notice.present(conn, viewer, seen, a) if a["state"] in ("approved", "pending_second") else None,
+                   "postponement": postponement_block(conn, viewer, seen, a)}
                   for a in awards]
     files = rfq_attach.detail_block(conn, viewer, seen, state)  # RFQATT (contract 19.3)
     return {
@@ -1685,6 +1718,7 @@ def meta(conn, viewer: Viewer) -> dict[str, Any]:
             # RFQATT (contract 19): files and pictures on a request - the form's limits (the server enforces them anyway)
             "attachments": store_rfq.has_attachments(conn), "attachment_limits": rfq_files.limits(bool(doc["rfq"]["attachments"]["allow_office"])),
             "schedule_arrival": rfq_terms.enabled(conn),  # CR-RFQ-PAYMENT-SCHEDULE: the award dialog offers the schedule / arrival fields
+            "award_notice": rfq_award_notice.mode(conn),  # CR-AWARD-NOTICE: confirm | auto | off - the award dialog's notice block
             "vendor_uploads": _vendor_uploads_on(conn)}  # RFQ-VENDOR-UPLOAD: vendors may attach files to their quotes (switch, OFF by default)
 
 

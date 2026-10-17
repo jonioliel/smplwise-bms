@@ -38,7 +38,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
 from . import codes as codes_mod
-from . import image_intake, links, rfq_attach, rfq_files, rfq_terms, rfq_vendor, rfq_vendor_files, store_rfq
+from . import image_intake, links, rfq_attach, rfq_files, rfq_postpone, rfq_terms, rfq_vendor, rfq_vendor_files, store_rfq
 from .codes import CodeEngine, CodePolicy, CodeRefused
 from .handler_actions import ActionRefused, _finish as finish_request, claim as claim_request
 from .image_intake import IntakeError, StorePathError
@@ -328,10 +328,11 @@ class PaymentIn(_Strict):
 
 
 class ArrivalIn(_Strict):
-    action: Literal["confirm", "propose"]
+    action: Literal["confirm", "propose", "postpone"]  # CR-AWARD-NOTICE (20.17): `postpone` = his notice that he postpones the work
     work_from: str | None = Field(default=None, max_length=40)
     work_to: str | None = Field(default=None, max_length=40)
-    acknowledge_schedule: bool
+    acknowledge_schedule: bool | None = None  # confirm / propose: must be true (rfq_terms.vendor_act); postpone: not allowed
+    reason: str | None = Field(default=None, max_length=2000)  # postpone only (<= 500 after text hygiene; rfq_postpone)
     schedule_hash: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")  # review F10 (optional echo)
     client_request_id: str = Field(max_length=64)
 
@@ -738,6 +739,10 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
         payload = body.model_dump(exclude={"client_request_id"})
 
         def fn(conn, when: dt.datetime) -> tuple[int, dict[str, Any]]:
+            if payload.get("action") == "postpone":  # CR-AWARD-NOTICE (contract 20.17): the vendor's postponement notice
+                return 200, {"ok": True, "binding": rfq_postpone.vendor_postpone(conn, ctx.link, payload, when)}
+            if payload.get("reason") is not None:
+                raise VendorRefused(422, "invalid", fields=[{"field": "reason", "code": "not_allowed"}])  # never silently dropped
             return 200, {"ok": True, "terms": rfq_terms.vendor_act(conn, ctx.link, payload, when)}
 
         return await write(request, ctx, ARRIVAL_ROUTE, crid, fn)

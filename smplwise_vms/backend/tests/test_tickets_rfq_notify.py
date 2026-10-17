@@ -24,7 +24,7 @@ from test_tickets_rfq_public import QUOTE, detail, hdr, pub, quote, sent_rfq, to
 from tickets_s4_world import API, build_s4, crid
 
 RFQ_SOURCES = ("rfq.quote_received", "rfq.declined", "rfq.question", "rfq.due_passed", "rfq.arrival", "rfq.question_unanswered",
-               "rfq.instalment_overdue")  # + CR-RFQ-PAYMENT-SCHEDULE, RFQQUESTIONS, RFQPAY2
+               "rfq.instalment_overdue", "rfq.vendor_postponement")  # + CR-RFQ-PAYMENT-SCHEDULE, RFQQUESTIONS, RFQPAY2, CR-AWARD-NOTICE
 
 
 @pytest.fixture()

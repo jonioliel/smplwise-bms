@@ -226,6 +226,16 @@ export interface RfqTerms {
   can: { confirm: boolean; propose: boolean };
 }
 
+/** CR-AWARD-NOTICE (contract 20.17): HIS award is binding - the scheduled window, his latest postponement notice, whether he may give one. */
+export interface RfqBinding {
+  /** the binding / advance-notice sentence in his language (server-owned, the same words as the WhatsApp award notice) */
+  text: string;
+  scheduled_from: string | null;
+  scheduled_to: string | null;
+  postponement: { proposed_from: string; proposed_to: string | null; at: string; state: 'open' | 'acknowledged' | 'rescheduled' | 'ended' } | null;
+  can: { postpone: boolean };
+}
+
 /** `GET /t/api/rfq` (15.3). Before the code (a code-protected link without a session) only the first block is present. */
 export interface RfqView {
   kind: 'rfq';
@@ -255,6 +265,8 @@ export interface RfqView {
     payment?: null | { max_items: number; days_max: number; horizon_days: number } };
   can?: { quote: boolean; withdraw: boolean; decline: boolean; ask: boolean };
   terms?: RfqTerms | null;
+  /** CR-AWARD-NOTICE: only on his own approved award (page_state `awarded`) */
+  binding?: RfqBinding | null;
   /** RFQ-VENDOR-UPLOAD (contract 19.10): HIS files on his quote; null = the installation switch is off (the page shows nothing) */
   uploads?: RfqUploads | null;
 }

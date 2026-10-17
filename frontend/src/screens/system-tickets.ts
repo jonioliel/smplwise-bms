@@ -631,7 +631,18 @@ export class SystemTickets extends LitElement {
         <sw-toggle label=${qst('qBadgeAll')} labelHidden .checked=${qAll} ?disabled=${this.busy} data-inst-question-badge-all
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { question_badge_all_viewers: e.detail.checked } })}></sw-toggle></div>
       ${this.instalmentHoursRow(doc)}
+      ${this.awardNoticeRow(doc)}
     </sw-card>`;
+  }
+
+  /** CR-AWARD-NOTICE (contract 20.16): how the "approved and binding" notice reaches the selected vendor - confirm (default) | auto | off. */
+  private awardNoticeRow(doc: SettingsDoc): TemplateResult {
+    const mode = doc.rfq?.award_notice ?? 'confirm';
+    return html`<div class="row"><span class="lbl">${qst('anSetting')}<span class="muted">${qst('anSettingSub')}</span></span>
+      <select class="in" data-inst-award-notice aria-label=${qst('anSetting')} ?disabled=${this.busy}
+        @change=${(e: Event) => void this.saveDoc({ rfq: { award_notice: (e.target as HTMLSelectElement).value as 'confirm' | 'auto' | 'off' } })}>
+        ${(['confirm', 'auto', 'off'] as const).map((m) => html`<option value=${m} ?selected=${mode === m}>${qst(`anMode_${m}`)}</option>`)}
+      </select></div>`;
   }
 
   /** RFQPAY2 (owner 2026-10-17): hours between two reminders of the same overdue instalments (default 24; 0 = once only). */

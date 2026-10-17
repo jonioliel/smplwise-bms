@@ -19,8 +19,36 @@ export interface TermsHost {
   render(): void;
 }
 
-/** The arrival part of the page's state (kept by the page between renders). */
-export interface ArrivalUi { ack: boolean; open: boolean; from: string; to: string }
+/** The arrival part of the page's state (kept by the page between renders). CR-AWARD-NOTICE: `pp` = the postponement form is open,
+ * `pf` its new day, `why` its reason (the page resets the object after a write). */
+export interface ArrivalUi { ack: boolean; open: boolean; from: string; to: string; pp?: boolean; pf?: string; why?: string }
+export type ArrivalAct = 'confirm' | 'propose' | 'postpone';
+
+// CR-AWARD-NOTICE (contract 20.17): his award is BINDING and he must give notice IN ADVANCE here if he postpones the work. The sentence
+// itself is the SERVER's (`binding.text`, code-owned, his language - the same words as the WhatsApp notice), so this chunk carries only
+// the reason label; the button / state reuse the page's "another date" words (the rfq-page chunk has no budget left; this one ~650 B).
+// ar / ru: developer translations, pending a native review like the page.
+const REASON: Record<string, string> = { he: 'סיבה', en: 'Reason', ar: 'السبب', ru: 'Причина' };
+
+/** The binding sentence, his open postponement notice and - while he may - the notice form (a new day + a short reason). */
+function bindCard(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (a: ArrivalAct) => void): HTMLElement | null {
+  const b = v.binding;
+  if (!b) return null;
+  // his open notice: the page's own "you proposed another date; the organisation will decide" words
+  const card = h('section', { class: 'swc swq', attrs: { 'data-rfq-binding': true } },
+    h('div', { class: 'banner info' }, b.postponement?.state === 'open' ? `${b.text} ${host.t('termsProposed')}` : b.text));
+  const field = (tag: 'input' | 'textarea', attrs: Record<string, string>, key: 'pf' | 'why') => {
+    const el = h(tag, { class: 'swc-input', attrs, on: { change: (e) => { ui[key] = (e.target as HTMLInputElement).value; host.render(); } } });
+    el.value = ui[key] ?? '';
+    return el;
+  };
+  if (b.can.postpone) {
+    card.append(h('button', { class: 'swc-btn', attrs: { type: 'button' }, on: { click: () => { ui.pp = !ui.pp; host.render(); } } }, host.t('termsPropose')));
+    if (ui.pp) card.append(field('input', { type: 'date', dir: 'ltr', 'aria-label': host.t('from') }, 'pf'), field('textarea', { maxlength: '500', placeholder: REASON[v.lang] ?? REASON.he }, 'why'),
+      h('button', { class: 'swc-btn swc-primary', attrs: { type: 'button', disabled: host.busy || !ui.pf }, on: { click: () => act('postpone') } }, host.t('termsSend')));
+  }
+  return card;
+}
 
 const plainDay = (d: string | null | undefined): string => (d ? d.split('-').reverse().join('.') : '');
 
@@ -99,7 +127,13 @@ export function payEditor(host: TermsHost, d: RfqDraft, v: RfqView): HTMLElement
 
 // ---------------------------------------------------------------- the approved terms and the arrival confirmation
 
-export function termsCard(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (action: 'confirm' | 'propose') => void): HTMLElement | null {
+export function termsCard(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (action: ArrivalAct) => void): HTMLElement | null {
+  const b = bindCard(host, v, ui, act);
+  const t = termsOnly(host, v, ui, act);
+  return b && t ? h('div', null, b, t) : b || t;
+}
+
+function termsOnly(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (action: ArrivalAct) => void): HTMLElement | null {
   const terms: RfqTerms | null | undefined = v.terms;
   if (!terms) return null;
   const s = terms.schedule;
@@ -148,8 +182,10 @@ export function termsCard(host: TermsHost, v: RfqView, ui: ArrivalUi, act: (acti
   return card;
 }
 
-/** The body of POST /t/api/rfq/arrival (contract 20.5): the action, the dates as the start of the day in the building's zone. */
-export function arrivalWire(action: 'confirm' | 'propose', ui: ArrivalUi, zone: string): Record<string, unknown> {
+/** The body of POST /t/api/rfq/arrival (contract 20.5): the action, the dates as the start of the day in the building's zone.
+ * CR-AWARD-NOTICE (20.17): `postpone` carries the new day and the reason only (no schedule acknowledgement). */
+export function arrivalWire(action: ArrivalAct, ui: ArrivalUi, zone: string): Record<string, unknown> {
+  if (action === 'postpone') return { action, work_from: dayStartIso(ui.pf ?? '', zone), reason: (ui.why ?? '').trim() };
   const body: Record<string, unknown> = { action, acknowledge_schedule: ui.ack };
   if (action === 'propose') {
     body.work_from = dayStartIso(ui.from, zone);

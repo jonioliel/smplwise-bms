@@ -238,11 +238,19 @@ def view(conn, link: Any, *, code_ok: bool, read_only: bool, read_only_until: st
                 "ask": writable and store_rfq.inbound_message_count(conn, v["id"]) < MESSAGES_PER_VENDOR},
         # CR-RFQ-PAYMENT-SCHEDULE (20.4): HIS approved schedule and arrival - only on his own approved award, else absent
         "terms": rfq_terms.vendor_block(conn, row, v, read_only=read_only) if state == "awarded" else None,
+        # CR-AWARD-NOTICE (20.17): HIS award is binding - the advance-notice duty, the scheduled window, his postponement notice
+        "binding": _binding(conn, row, v, read_only=read_only) if state == "awarded" else None,
         # RFQ-VENDOR-UPLOAD (contract 19.10): HIS files on his quote - null while the installation switch is off or the page ended
         "uploads": None if terminal else _uploads(conn, v, writable=writable, quote=cur,
                                                   can_ask=writable and store_rfq.inbound_message_count(conn, v["id"]) < MESSAGES_PER_VENDOR),
     })
     return out
+
+
+def _binding(conn, row: Mapping[str, Any], v: Mapping[str, Any], *, read_only: bool) -> dict[str, Any] | None:
+    from . import rfq_postpone
+
+    return rfq_postpone.vendor_block(conn, row, v, read_only=read_only)
 
 
 def _uploads(conn, v: Mapping[str, Any], *, writable: bool, quote: Mapping[str, Any] | None, can_ask: bool) -> dict[str, Any] | None:
