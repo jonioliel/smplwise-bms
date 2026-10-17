@@ -62,7 +62,11 @@ def prefill(conn, claim: Mapping[str, Any]) -> dict[str, Any] | None:
     items = _schedule(conn, q)
     picked = None
     if items:
-        payable = {it["index"] for it in items if it["amount_minor"] > 0}
+        from . import store_costs
+
+        # 0116: an instalment that already has its own claim is not offered again as the pre-selection
+        taken = {c["instalment_index"] for c in store_costs.claims_of_assignment(conn, claim.get("assignment_id")) if c.get("instalment_index") is not None}
+        payable = {it["index"] for it in items if it["amount_minor"] > 0} - taken
         opened = sorted(i for i, d in store_rfq.demands_of_quote(conn, q["id"]).items() if d.get("status") == "open" and i in payable)
         picked = opened[0] if opened else None
     lines = [{k: ln[k] for k in _LINE_KEYS if k in ln} for ln in quotes.approved_lines(q) if isinstance(ln, Mapping)]

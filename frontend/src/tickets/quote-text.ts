@@ -92,6 +92,7 @@ const he = {
   delta: 'הפרש מההצעה המאושרת',
   // CR-CLAIM-PREFILL: the demand against the approved quote (or one instalment of its schedule)
   qcDiffers: 'שונה מההצעה המאושרת',
+  qcPaymentN: 'תשלום {n}',
   qcInstalment: 'מול תשלום {n} מלוח התשלומים · {total}',
   qcReason: 'הסבר הספק לסכום הגבוה',
   qc_above_quote: 'מעל המאושר',
@@ -252,6 +253,7 @@ const en: Partial<Record<QuoteTextKey, string>> = {
   againstQuote: 'Against quote version {n} · {total}',
   delta: 'Difference from the approved quote',
   qcDiffers: 'Differs from the approved quote',
+  qcPaymentN: 'Payment {n}',
   qcInstalment: 'Against payment {n} of the schedule · {total}',
   qcReason: "The vendor's reason for the higher amount",
   qc_above_quote: 'Above the approved amount',

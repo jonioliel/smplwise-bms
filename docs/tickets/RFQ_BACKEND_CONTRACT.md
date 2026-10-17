@@ -1245,11 +1245,24 @@ bank data (strict models; the server never reads an amount from the client).
   (that flag switches the approve buttons to the exceptional-line choice). The 20.8 `schedule_check` is unchanged.
 * Contract 20.11 said "the vendor's page shows nothing of [the instalment demand]": v1.6 shows ONLY which instalment has an open demand,
   as the pre-selection (his own payment; never the status history, a paid mark or a manager name).
+* **Several demands per assignment (migration 0116, owner decision 2026-10-17).** `ticket_cost_claims.instalment_index` (NULL = the
+  ordinary claim; 0..5) with `UNIQUE (assignment_id, IFNULL(instalment_index, -1))` instead of 0083's `assignment_id UNIQUE`. The vendor's
+  first demand naming an instalment takes that index on the ordinary claim; a NEW claim for instalment N opens only when a manager opened
+  an RFQPAY2 demand for N (`open`) and N has no claim (else 409 `instalment_not_open`); the same instalment again goes to its own claim
+  (settled: 409 `claim_closed`); after a settled whole-quote demand no instalment demand opens (409 `claim_closed`); once his demands are
+  per instalment a demand without an index is 422 `{field: "instalment_index", code: "required"}`. A new claim row is written only after
+  the submission validated, `required = 0`. `GET /t/api/claim` answers the FOCUS claim (the latest open one; else the next instalment's
+  virtual claim when its manager demand is open; else the latest) and adds `instalment_index`, `instalment_fixed`, `claims: [{instalment_index,
+  status, total_minor, currency}]` (his other demands of the assignment). Claim mode: open while any claim's window is open, else for the
+  department's claim window from the opening of the next instalment's manager demand. The managers' claims add `instalment_index`; the
+  quote-approval lock (`demand_pending`) looks at every claim of the assignment, the cost-flow stage at the latest. An RFQPAY2 demand stays
+  the manager's record (`paid` is still marked by the manager - a claim approval does not mark it).
 
 ## 14. Change log
 
-* v1.6 (2026-10-17, CR-CLAIM-PREFILL, `pilot/CLAIM-PREFILL` from `integ/270`; migration 0115): section 22 - the payment demand loaded from
-  the approved quote (`prefill`, `instalment_index`, `above_reason`, `basis`, `quote_check`).
+* v1.6 (2026-10-17, CR-CLAIM-PREFILL, `pilot/CLAIM-PREFILL` from `integ/270`; migrations 0115 + 0116): section 22 - the payment demand
+  loaded from the approved quote (`prefill`, `instalment_index`, `above_reason`, `basis`, `quote_check`); one claim per approved instalment
+  (`instalment_index`, `instalment_fixed`, `claims`, 409 `instalment_not_open`); the approved (partial) total on the quote card.
 
 * v1.5 (2026-10-17, RFQPAY2, `pilot/RFQPAY2` from `integ/264`; migration 0110 - provisional 0112, renumbered at integ/270): the
   three items the owner approved after v1.4.1 recorded them as not built - 20.11 a payment demand per approved instalment (manual,

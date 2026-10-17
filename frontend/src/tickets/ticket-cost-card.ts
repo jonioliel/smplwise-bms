@@ -430,6 +430,7 @@ export class TicketCostCard extends LitElement {
       <div class="ch">
         ${name ? html`<span class="who">${bidi(name)}</span>` : nothing}
         ${many ? this.statusChip(c.status) : nothing}
+        ${c.instalment_index !== null && c.instalment_index !== undefined ? html`<span class="chip" data-claim-instalment-n=${c.instalment_index}>${qt('qcPaymentN', { n: c.instalment_index + 1 })}</span>` : nothing}
         ${c.high_amount ? html`<span class="chip warn" data-high-amount>${cIcon('warning')}${ct('highAmount')}</span>` : nothing}
         ${c.no_charge ? html`<span class="chip" data-no-charge>${ct('noCharge')}</span>` : nothing}
         <span class="sp"></span>

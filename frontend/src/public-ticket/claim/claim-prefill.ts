@@ -28,7 +28,7 @@ import {
   textLength,
 } from './claim-model';
 
-type Key = 'inst' | 'whole' | 'advance' | 'progress' | 'final' | 'approved' | 'approved_inst' | 'vs' | 'reason';
+type Key = 'inst' | 'whole' | 'advance' | 'progress' | 'final' | 'approved' | 'approved_inst' | 'vs' | 'reason' | 'earlier' | 'done' | 'sent';
 
 // ar / ru: developer translations, pending a native review like the rest of the page
 const TEXT: Record<'he' | 'en' | 'ar' | 'ru', Record<Key, string>> = {
@@ -42,6 +42,9 @@ const TEXT: Record<'he' | 'en' | 'ar' | 'ru', Record<Key, string>> = {
     approved_inst: 'התשלום המאושר: {amount}',
     vs: 'הפרש מהמאושר: {delta}',
     reason: 'סיבה לסכום גבוה מהמאושר',
+    earlier: '{what}: {amount} ({state})',
+    done: 'אושר',
+    sent: 'הוגש',
   },
   en: {
     inst: 'Which payment',
@@ -53,6 +56,9 @@ const TEXT: Record<'he' | 'en' | 'ar' | 'ru', Record<Key, string>> = {
     approved_inst: 'Approved payment: {amount}',
     vs: 'Difference from the approved amount: {delta}',
     reason: 'Reason for an amount above the approved one',
+    earlier: '{what}: {amount} ({state})',
+    done: 'approved',
+    sent: 'submitted',
   },
   ar: {
     inst: 'عن أي دفعة',
@@ -64,6 +70,9 @@ const TEXT: Record<'he' | 'en' | 'ar' | 'ru', Record<Key, string>> = {
     approved_inst: 'الدفعة المعتمدة: {amount}',
     vs: 'الفرق عن المبلغ المعتمد: {delta}',
     reason: 'سبب مبلغ أعلى من المعتمد',
+    earlier: '{what}: {amount} ({state})',
+    done: 'تمت الموافقة',
+    sent: 'قُدّمت',
   },
   ru: {
     inst: 'За какой платёж',
@@ -75,6 +84,9 @@ const TEXT: Record<'he' | 'en' | 'ar' | 'ru', Record<Key, string>> = {
     approved_inst: 'Одобренный платёж: {amount}',
     vs: 'Разница с одобренной суммой: {delta}',
     reason: 'Причина суммы выше одобренной',
+    earlier: '{what}: {amount} ({state})',
+    done: 'одобрено',
+    sent: 'подано',
   },
 };
 
@@ -124,7 +136,12 @@ export function attach(h: PrefillHost): PrefillExt {
   let inst: number | null = last()?.basis?.instalment_index ?? pre()?.instalment ?? null;
   let reason = last()?.basis?.above_reason ?? '';
 
-  const item = () => (inst === null ? null : pre()?.instalments.find((i) => i.index === inst) ?? null);
+  // 0116: a claim bound to an instalment keeps it, whatever the page chose before
+  const cur = (): number | null => (h.info()?.instalment_fixed ? h.info()?.instalment_index ?? inst : inst);
+  const item = () => {
+    const i = cur();
+    return i === null ? null : pre()?.instalments.find((x) => x.index === i) ?? null;
+  };
   const basis = (): number | null => item()?.amount_minor ?? pre()?.total_minor ?? null;
 
   /** ONE line of the approved amount, of a kind the quote has (so it is never an exceptional line); schedule amounts include VAT. */
@@ -168,13 +185,24 @@ export function attach(h: PrefillHost): PrefillExt {
   }
 
   return {
-    form: fresh,
+    form() {
+      // a new form (0116: possibly the NEXT instalment's claim): the choice and the reason come from the claim now on the page
+      inst = last()?.basis?.instalment_index ?? pre()?.instalment ?? null;
+      reason = last()?.basis?.above_reason ?? '';
+      return fresh();
+    },
     paint(host) {
       const p = pre();
       const b = basis();
       if (!p || b === null) return;
       const f = h.form();
-      if (p.instalments.length) {
+      const info = h.info();
+      // 0116: his other demands of this assignment (one per instalment) - what was already asked, and its state
+      for (const c of info?.claims ?? []) {
+        const it = p.instalments.find((x) => x.index === c.instalment_index);
+        if (c.total_minor !== null) host.prepend(el('p', 'swc-muted', t('earlier', { what: it ? tx[it.kind] : t('whole'), amount: money(c.total_minor, c.currency), state: t(c.status === 'approved' || c.status === 'paid' ? 'done' : 'sent') })));
+      }
+      if (p.instalments.length && !info?.instalment_fixed) {
         const lab = el('label', 'swc-field');
         lab.appendChild(el('span', 'swc-label', t('inst')));
         const sel = el('select', 'swc-input');
@@ -234,7 +262,8 @@ export function attach(h: PrefillHost): PrefillExt {
     },
     payload(body) {
       const f = h.form();
-      if (inst !== null && !f.no_charge) body.instalment_index = inst;
+      const i = cur();
+      if (i !== null && !f.no_charge) body.instalment_index = i;
       const r = cleanText(reason);
       if (r && above()) body.above_reason = r;
     },

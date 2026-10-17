@@ -57,6 +57,8 @@ export interface QuoteView {
   valid_until?: string | null;
   work_from?: string | null;
   work_to?: string | null;
+  /** the approved part (GET /t/api/quote `approved`; a partial approval approves some lines only) */
+  approved?: { total_minor: number | null; partial?: boolean } | null;
 }
 
 export interface QuoteInfo {
@@ -243,7 +245,8 @@ export function mountCostCard(opts: CostCardOptions): CostCardHandle {
 
   function approvedRef(): { total_minor: number; currency: string } | null {
     const q = info?.quote;
-    return q && q.state === 'approved' ? { total_minor: q.total_minor, currency: q.currency } : null;
+    // CR-CLAIM-PREFILL (Q6): the APPROVED total - a partial approval's part, not the quoted total
+    return q && q.state === 'approved' ? { total_minor: q.approved?.total_minor ?? q.total_minor, currency: q.currency } : null;
   }
 
   function beforeDone(): boolean {

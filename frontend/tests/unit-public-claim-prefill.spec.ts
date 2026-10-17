@@ -87,6 +87,30 @@ test('a correction keeps the instalment and the reason of the last revision', ()
   expect(b.instalment_index).toBe(0); // his own choice wins over the manager's open demand
 });
 
+test('0116: the NEXT instalment claim is bound to its instalment - the page cannot send another one', () => {
+  const info: ClaimInfo = { status: 'awaiting', prefill: { ...PREFILL, instalment: 1 }, instalment_index: 1, instalment_fixed: true, revisions: [],
+    claims: [{ instalment_index: 0, status: 'approved', total_minor: 38940, currency: 'ILS' }] };
+  const { ext, state } = host(info);
+  expect(computeForm(state.form!, SETTINGS).total).toBe(90860);
+  expect(state.form!.lines[0].description).toBe('תשלום סופי');
+  const b = body();
+  ext.payload(b);
+  expect(b.instalment_index).toBe(1);
+  // even when a stale choice is in memory (a page attached during the previous claim), the bound index wins
+  const stale = host({ ...info, instalment_index: 0, instalment_fixed: false, prefill: { ...PREFILL, instalment: 0 } });
+  info.instalment_index = 1;
+  const b2 = body();
+  attach({ lang: 'he', info: () => info, settings: () => SETTINGS, form: () => stale.state.form!, set: () => undefined, slot: () => { throw new Error('x'); }, changed: () => undefined }).payload(b2);
+  expect(b2.instalment_index).toBe(1);
+});
+
+test('Q6: "according to the approved quote" on the quote card reads the APPROVED total (a partial approval), never the quoted one', () => {
+  const card = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/public-ticket/claim/quote-card.ts'), 'utf8');
+  const fn = /function approvedRef\(\)[\s\S]*?\n  \}/.exec(card)?.[0] ?? '';
+  expect(fn).toMatch(/q\.approved\?\.total_minor \?\? q\.total_minor/);
+  expect(fn).not.toMatch(/\{ total_minor: q\.total_minor,/);
+});
+
 test('the chunk is lazy, its text is complete in he / en / ar / ru, and it carries no bank field', () => {
   const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/public-ticket/claim');
   const step = readFileSync(path.join(dir, 'claim-step.ts'), 'utf8');
@@ -94,7 +118,7 @@ test('the chunk is lazy, its text is complete in he / en / ar / ru, and it carri
   expect(step).not.toMatch(/^import \{[^}]*\} from '\.\/claim-prefill'/m);
   expect(step).toMatch(/import\('\.\/claim-prefill'\)/);
   const src = readFileSync(path.join(dir, 'claim-prefill.ts'), 'utf8');
-  for (const lang of ['he', 'en', 'ar', 'ru']) expect(src).toMatch(new RegExp(`\\n  ${lang}: \\{\\n(    [a-z_]+: '[^']+',\\n){9}  \\}`));
+  for (const lang of ['he', 'en', 'ar', 'ru']) expect(src).toMatch(new RegExp(`\\n  ${lang}: \\{\\n(    [a-z_]+: '[^']+',\\n){12}  \\}`));
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''); // the doc comment says "no bank data" - the code holds none
   expect(code).not.toMatch(/iban|bank|account|swift|branch/i);
 });

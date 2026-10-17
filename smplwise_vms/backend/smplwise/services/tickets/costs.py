@@ -307,10 +307,106 @@ def claim_mode_ok(conn, link_id: str, generation: int, now: dt.datetime) -> dt.d
         return None
     if asg.get("end_reason") == "reassigned":
         return None
-    claim = store_costs.claim_for_assignment(conn, lk["assignment_id"])
-    if claim is None or not window_open(claim, now):
+    rows = store_costs.claims_of_assignment(conn, lk["assignment_id"])
+    ends = [parse(c["claim_until"]) for c in rows if window_open(c, now)]
+    if ends:
+        return max(e for e in ends if e is not None)
+    # CR-CLAIM-PREFILL (0116): a manager opened a demand for the NEXT instalment - the claim step opens for the window from that day
+    nxt = next_instalment(conn, rows)
+    if nxt is not None:
+        until = nxt[1] + dt.timedelta(days=window_days(conn, store.department_any(conn, rows[0]["department_id"])))
+        if now < until:
+            return until
+    return None
+
+
+# ---------------------------------------------------------------- several claims per assignment (CR-CLAIM-PREFILL, migration 0116)
+#
+# An assignment without an approved payment schedule has ONE claim (`instalment_index` NULL), exactly as before. With a schedule, the
+# vendor's first demand that names an instalment takes that index on the ordinary claim ("adopts" it, so the required claim is the one
+# he answers); after that, a NEW claim per instalment is opened only when a manager opened a demand for that instalment (RFQPAY2, contract
+# 20.11), never twice for one instalment (the unique index), and never after a whole-quote demand was settled.
+
+def next_instalment(conn, rows: Sequence[Mapping[str, Any]]) -> tuple[int, dt.datetime] | None:
+    """(index, the day its manager demand was opened) of the lowest instalment a NEW claim may be opened for, or None."""
+    if not rows or any(r.get("instalment_index") is None for r in rows):
         return None
-    return parse(claim["claim_until"])
+    from . import claim_prefill, store_rfq
+
+    q = claim_prefill.baseline_for(conn, rows[0])
+    if q is None:
+        return None
+    payable = {it["index"] for it in claim_prefill._schedule(conn, q) if it["amount_minor"] > 0}
+    taken = {int(r["instalment_index"]) for r in rows}
+    opened = sorted((i, d) for i, d in store_rfq.demands_of_quote(conn, q["id"]).items()
+                    if d.get("status") == "open" and i in payable and i not in taken)
+    if not opened:
+        return None
+    i, d = opened[0]
+    return i, parse(d.get("created_at")) or now_utc()
+
+
+def _virtual(conn, primary: Mapping[str, Any], index: int, at: dt.datetime) -> dict[str, Any]:
+    """The claim a submission for a NEW instalment will create (written only after the submission validated - `_materialise`)."""
+    dept = store.department_any(conn, primary["department_id"])
+    return {**primary, "id": None, "required": 0, "status": "awaiting", "no_charge": 0, "current_revision_id": None, "approved_revision_id": None,
+            "approved_total_minor": None, "approved_by": None, "approved_at": None, "paid_at": None, "paid_by": None, "payment_ref": None,
+            "payment_date": None, "claim_until": iso(at + dt.timedelta(days=window_days(conn, dept))), "missing_at": None, "purge_after": None,
+            "revision": 1, "instalment_index": index, "_new": True}
+
+
+def focus_claim(conn, assignment_id: str, now: dt.datetime) -> dict[str, Any] | None:
+    """The claim the vendor's page works on: the latest one still open; else a NEW instalment's (virtual) claim when a manager opened
+    a demand for it; else the latest one (settled)."""
+    rows = store_costs.claims_of_assignment(conn, assignment_id)
+    if not rows:
+        return None
+    open_rows = [r for r in rows if r["status"] not in SETTLED]
+    if open_rows:
+        return open_rows[-1]
+    nxt = next_instalment(conn, rows)
+    if nxt is not None:
+        return _virtual(conn, store_costs.claim_for_assignment(conn, assignment_id) or rows[0], nxt[0], now)
+    return rows[-1]
+
+
+def claim_for_submission(conn, assignment_id: str, index: Any, at: dt.datetime) -> dict[str, Any] | None:
+    """The claim a vendor's submission goes to (nothing is written here). Refusals: 422 `instalment_index` `required` (his demands are
+    per instalment now), 409 `claim_closed` (a whole-quote demand was settled), 409 `instalment_not_open` (no manager demand for it)."""
+    primary = store_costs.claim_for_assignment(conn, assignment_id)
+    if primary is None:
+        return None
+    if index is None or isinstance(index, bool) or not isinstance(index, int):
+        if primary.get("instalment_index") is not None and index is None:
+            raise CostRefused(422, "required", "instalment_index")
+        return primary  # a malformed index is refused by claim_prefill.basis with its field
+    row = store_costs.claim_for_instalment(conn, assignment_id, index)
+    if row is not None:
+        return row
+    if primary.get("instalment_index") is None:
+        if primary["status"] in SETTLED:
+            raise CostRefused(409, "claim_closed")
+        return {**primary, "_adopt": index}
+    from . import claim_prefill, store_rfq
+
+    q = claim_prefill.baseline_for(conn, primary)
+    d = store_rfq.demands_of_quote(conn, q["id"]).get(index) if q else None
+    if d is None or d.get("status") != "open":
+        raise CostRefused(409, "instalment_not_open")
+    return _virtual(conn, primary, index, at)
+
+
+def _materialise(conn, claim: Mapping[str, Any], at: dt.datetime) -> dict[str, Any]:
+    """Write the claim a validated submission needs: a NEW instalment claim, or the index taken by the ordinary claim."""
+    if claim.get("_new"):
+        row = {k: v for k, v in claim.items() if not k.startswith("_") and k != "id"}
+        row["created_at"] = row["updated_at"] = iso(at)
+        cid = store_costs.insert_claim(conn, row)
+        return store_costs.claim(conn, cid) or {}
+    if claim.get("_adopt") is not None:
+        store_costs.update_claim(conn, claim["id"], {"instalment_index": int(claim["_adopt"])}, now=iso(at))
+        return store_costs.claim(conn, claim["id"]) or {}
+    return dict(claim)
 
 
 # ---------------------------------------------------------------- building a revision (vendor submission, adjustment, on behalf)
@@ -468,8 +564,9 @@ def submit(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by_kind: 
     placed = place_documents(body.get("documents"), _available_files(conn, claim, link_id=link_id, user_id=by_id if by_kind == "user" else None, now=at), at)
     if cost_settings(conn).require_invoice and not d.no_charge and not placed:
         raise CostRefused(422, "invoice_required", "documents")
+    claim = _materialise(conn, claim, at)  # CR-CLAIM-PREFILL (0116): only now, after every refusal - a refused demand writes nothing
     now = iso(at)
-    previous = claim.get("current_revision_id") if claim["status"] == "submitted" else None
+    previous =claim.get("current_revision_id") if claim["status"] == "submitted" else None
     rid = _write_revision(conn, claim, d, source="vendor" if by_kind == "contact" else "manager", kind=kind, created_by_kind=by_kind,
                           created_by=by_id, placed=placed, at=at, exceptional=exceptional, basis=basis)
     if previous:
@@ -926,6 +1023,7 @@ def present_claim(conn, claim: Mapping[str, Any], *, full: bool, now: dt.datetim
                   "at": d["at"]} for d in store_costs.decisions(conn, claim["id"])]
     contact, vendor = _contact_pair(conn, claim["contact_id"])
     base.update({
+        "instalment_index": claim.get("instalment_index"),  # CR-CLAIM-PREFILL (0116): the instalment it demands (full view), else null
         "revision": claim["revision"], "currency": claim["currency"], "no_charge": bool(claim["no_charge"]),
         "current_revision_id": claim.get("current_revision_id"), "approved_revision_id": claim.get("approved_revision_id"),
         "approved_total_minor": claim.get("approved_total_minor"), "approved_at": claim.get("approved_at"),
@@ -947,7 +1045,7 @@ def present_claim(conn, claim: Mapping[str, Any], *, full: bool, now: dt.datetim
 def public_claim(conn, link_assignment_id: str, now: dt.datetime) -> dict[str, Any]:
     """GET /t/api/claim: what the vendor sees - its own claim only: status, its revisions (totals, lines, the reasons of rejections
     and adjustments), the form settings. Never internal notes, other assignments' claims, other vendors' costs or who decided."""
-    claim = store_costs.claim_for_assignment(conn, link_assignment_id)
+    claim = focus_claim(conn, link_assignment_id, now)  # CR-CLAIM-PREFILL (0116): the claim his page works on now
     if claim is None:
         return {"status": "none"}
     s = cost_settings(conn)
@@ -964,8 +1062,15 @@ def public_claim(conn, link_assignment_id: str, now: dt.datetime) -> dict[str, A
     rate_currency = contact.get("rate_currency") or (vendor or {}).get("rate_currency")
     from . import claim_prefill  # CR-CLAIM-PREFILL: the link's own approved quote (null for an ordinary assignment)
 
+    pre = claim_prefill.prefill(conn, claim)
+    idx = claim.get("instalment_index")
+    if pre is not None and idx is not None:
+        pre["instalment"] = idx
     return {
-        "prefill": claim_prefill.prefill(conn, claim),
+        "prefill": pre,
+        # 0116: the instalment this claim is bound to (then the page does not offer another), and his earlier demands of the assignment
+        "instalment_index": idx, "instalment_fixed": idx is not None,
+        "claims": [_claim_line(conn, c) for c in store_costs.claims_of_assignment(conn, link_assignment_id) if c["id"] != claim.get("id")],
         "status": claim["status"], "required": bool(claim["required"]), "claim_until": claim.get("claim_until"), "writable": writable,
         "currency": claim["currency"], "no_charge": bool(claim["no_charge"]),
         "rejection_reason": last_reject["reason"] if (last_reject and claim["status"] == "rejected") else None,
@@ -984,9 +1089,15 @@ def public_claim(conn, link_assignment_id: str, now: dt.datetime) -> dict[str, A
     }
 
 
+def _claim_line(conn, c: Mapping[str, Any]) -> dict[str, Any]:
+    """One earlier demand of the vendor's assignment on his page: the instalment, the status and the counted amount - nothing else."""
+    total = c.get("approved_total_minor") if c["status"] in SETTLED else (store_costs.revision(conn, c.get("current_revision_id")) or {}).get("total_minor")
+    return {"instalment_index": c.get("instalment_index"), "status": c["status"], "total_minor": total, "currency": c["currency"]}
+
+
 def public_summary(conn, assignment_id: str, now: dt.datetime) -> dict[str, Any] | None:
     """The `claim` block of GET /t/api/ticket: whether the page shows the claim step (and whether it is required)."""
-    claim = store_costs.claim_for_assignment(conn, assignment_id)
+    claim = focus_claim(conn, assignment_id, now)
     if claim is None:
         return None
     return {"status": claim["status"], "required": bool(claim["required"]), "writable": claim["status"] in OPEN_STATUSES and window_open(claim, now),

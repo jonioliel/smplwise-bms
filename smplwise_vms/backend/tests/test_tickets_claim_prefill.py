@@ -236,6 +236,38 @@ def test_basis_refuses_a_zero_or_missing_instalment_and_no_charge(s4, monkeypatc
     assert claim_prefill.basis(None, {}, base, total_minor=6000, currency="ILS", no_charge=False, body={}, vendor=False)["basis"] == "total"
 
 
+def test_q6_a_partial_award_prefills_and_references_the_approved_part_only(s4):
+    from test_tickets_rfq_public import pub, sent_rfq, token, vid
+    from test_tickets_rfq_terms import PLAN, award, pquote, switch
+
+    switch(s4)
+    d = sent_rfq(s4)
+    v1 = vid(d, s4.vendor["id"])
+    q = pquote(pub(s4), token(s4, v1), payment=PLAN)
+    assert q.status_code == 201, q.text
+    quoted_total = q.json()["quote"]["total_minor"]
+    r = award(s4, d["id"], v1, kinds=["labor"], payment_source="vendor")  # labour only: a partial approval
+    assert r.status_code == 201, r.text
+    a = r.json()["award"]
+    assert a["total_minor"] < quoted_total
+    o = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/order", json={"request_key": f"ord-{uuid.uuid4().hex[:16]}"}, headers=s4.h("mona"))
+    assert o.status_code == 201, o.text
+    tid = o.json()["ticket"]["id"]
+    tok = s4.token_of(tid)
+    client, _ = s4.public(Clock(time.time()))
+    for st in ("acknowledged", "done"):
+        assert client.post("/t/api/status", headers=hdr(tok), json={"status": st, "client_request_id": crid()}).status_code == 200
+    p = _claim_page(client, tok)["prefill"]
+    assert p["partial"] is True and p["total_minor"] == a["total_minor"] and [ln["kind"] for ln in p["lines"]] == ["labor"]
+    # what the quote card's "according to the approved quote" reads (quote.approved.total_minor) is the approved part too
+    card = client.get("/t/api/quote", headers=hdr(tok)).json()["quote"]
+    assert card["approved"]["total_minor"] == a["total_minor"] != card["total_minor"]
+    # and the manager's "against quote version N" line
+    assert _post(client, tok, _lines_from(p), p).status_code == 201
+    claim = _manager_claim(s4, tid)
+    assert claim["baseline"]["total_minor"] == a["total_minor"] and claim["quote_check"]["status"] == "same"
+
+
 def test_an_ordinary_assignment_changes_nothing(s4):
     t, tok = s4.sent(cost_claim="required")
     client, _ = s4.public(Clock(time.time()))

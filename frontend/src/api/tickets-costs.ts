@@ -148,6 +148,8 @@ export interface CostClaim {
   needs_review?: boolean;
   /** CR-CLAIM-PREFILL (full view): the demand against the approved quote or the instalment it named - flags only, never a refusal */
   quote_check?: QuoteCheck | null;
+  /** CR-CLAIM-PREFILL (0116): the instalment this claim demands (one claim per instalment), else null */
+  instalment_index?: number | null;
 }
 
 export type QuoteCheckFlag = 'above_quote' | 'below_quote' | 'lines_differ' | 'currency';

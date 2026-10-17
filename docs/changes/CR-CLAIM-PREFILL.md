@@ -1,7 +1,8 @@
 # CR-CLAIM-PREFILL - the payment demand is loaded from the approved quote
 
 Status: **implemented on `pilot/CLAIM-PREFILL`** (cut from `integ/270`), not merged, not released. Contract: `docs/tickets/RFQ_BACKEND_CONTRACT.md`
-v1.6 section 22. Migration **0115** (additive, one nullable column). **A Fable public-surface review is required before it ships**
+v1.6 section 22. Migrations **0115** (additive, one nullable column) and **0116** (rebuild of `ticket_cost_claims`: one claim per
+instalment, section 8). **A Fable public-surface review is required before it ships**
 (it changes `GET /t/api/claim` and `POST /t/api/claim` on the public listener).
 
 ## 1. Owner request (2026-10-17, Hebrew intent, summarised)
@@ -58,19 +59,44 @@ must LOAD the information from the approved quote. Never any bank data - the sys
 * Accepted: `instalment_index` (validated against HIS schedule only - a foreign index is `invalid`, no oracle) and `above_reason` (text
   hygiene, length). The basis amount is the server's.
 
-## 6. Open questions
+## 6. Open questions - owner decisions 2026-10-17
 
-1. Q1 - Should a quote approved on the handler page (not through an RFQ award) also prefill and require the "above" reason? Built: yes
-   (same baseline, D3). Alternative: RFQ awards only.
-2. Q2 - One claim per assignment (0083 `UNIQUE (assignment_id)`): once the vendor's first instalment demand is approved, the claim is
-   settled and he cannot demand the next instalment through the page. A per-instalment demand on the vendor side needs a model change
-   (one claim per instalment, or claim "rounds"). Not built.
-3. Q3 - Contract 20.11 said the vendor's page shows nothing of a manager's instalment demand. The pre-selection reveals which instalment
-   has an OPEN demand (his own payment, nothing else). Keep it, or pre-select only by due date?
-4. Q4 - Should a demand BELOW the approved amount or with other lines also ask the vendor for a note? Built: no (accepted, flagged).
-5. Q5 - Should `quote_check` `differs` raise a manager notification, or stay a flag on the card? Built: a flag only.
-6. Q6 - The quote card's "according to the approved quote" line still shows the quote's full total after a PARTIAL approval (pre-existing,
-   `quote-card.ts` `approvedRef`); fixing it costs bytes in the 61 KB set - fold into the next budget round?
+1. Q1 - handler-page approved quotes prefill and require the reason too: **keep as built**.
+2. Q2 - several demands per assignment: **build it** - done, section 8 (migration 0116).
+3. Q3 - the pre-selection shows which instalment has an open manager demand: **keep**.
+4. Q4 - no note for a demand below / with other lines: **keep**.
+5. Q5 - `differs` stays a flag on the card (no notification): **keep**.
+6. Q6 - "according to the approved quote" showed the full quote total after a partial approval: **fix it** - done, section 9.
+
+Still open (new, from section 8):
+
+7. Q7 - A manager's on-behalf demand ("הזנת דרישה בשם הספק") still goes to the PRIMARY claim only; on-behalf demands for later
+   instalments are not built (the vendor's page covers them).
+8. Q8 - The public step shows the generic error text for the new 409 `instalment_not_open` (a new catalogue string would grow the 61 KB set;
+   the page never offers a closed instalment, so only a stale tab meets it).
+
+## 8. Several demands per assignment (owner decision on Q2; migration 0116)
+
+| # | Decision | Why |
+|---|----------|-----|
+| D14 | `ticket_cost_claims` is rebuilt with `instalment_index` (NULL = the ordinary claim) and the uniqueness moves to `UNIQUE (assignment_id, IFNULL(instalment_index, -1))` (an expression index: two NULLs would not collide in a plain pair). CHECK 0..5. Every existing row is copied with NULL; the children (revisions, decisions, files, revision files) are kept in temp tables across the DROP (foreign keys are ON during migrations) and written back unchanged - the 0087 pattern. | Minimal model change; an assignment without a schedule keeps exactly one claim. |
+| D15 | The vendor's FIRST demand that names an instalment takes that index on the ordinary claim ("adopts" it) - no manager demand needed (the existing rules: the claim opened at "done"). The required claim is therefore the one he answers, and no empty ordinary claim lingers in the close gate or the missing-claim janitor. | Keeps the close gate and `claim_missing` meaning unchanged. |
+| D16 | After that, a NEW claim for instalment N is opened only when a manager opened an RFQPAY2 demand for N (`open`), N is an instalment of HIS approved schedule with an amount, and N has no claim yet; otherwise 409 `instalment_not_open`. The same instalment again goes to ITS claim (a correction supersedes; settled = 409 `claim_closed`) - never a second row (unique index). | "only if the manager opened a demand for it ... never twice for the same instalment". |
+| D17 | Once a WHOLE-quote demand (no index) was approved / paid, no instalment demand opens (409 `claim_closed`); once his demands are per instalment, a demand without an index is 422 `{field: "instalment_index", code: "required"}`. | No double payment of the same money. |
+| D18 | The new claim row is written only AFTER the submission validated (`costs._materialise` inside `submit`): a refused demand (no reason above the instalment, a bad line) writes no row. New instalment claims are `required = 0` (the vendor asks; nothing is missing if he does not). | Expected API errors commit the transaction (audit rows), so nothing may be written before the last refusal. |
+| D19 | The page works on the FOCUS claim (`costs.focus_claim`): the latest open one; else the NEXT instalment's virtual claim when a manager opened its demand; else the latest. `GET /t/api/claim` adds `instalment_index`, `instalment_fixed` (the page then hides the payment picker) and `claims` (his other demands: instalment, status, counted amount). `claim_mode_ok` opens the claim step while ANY claim's window is open, or - after every window closed - for the department's claim window counted from the manager's demand. | The vendor reaches the next instalment after the job is closed; the link still dies when nothing is open. |
+| D20 | Readers: `claim_for_assignment` = the PRIMARY claim (ordinary, else the earliest) for the requirement switch, the claim at "done" and on-behalf; `claims_of_assignment` for the quote-approval lock (any demand locks) and the cost-flow stage (the latest); the vendor portal reads the latest; ticket-level aggregates, the board total, the report, retention, purge and the contact export already iterate claims by ticket / contact. The managers' claim answer adds `instalment_index` (card chip "תשלום N"). | One claim per assignment was assumed only in these places. |
+
+Rollback note: see the header of `0116_ticket_cost_claims_instalments.sql` - possible only while no assignment holds two claims (a
+`GROUP BY assignment_id HAVING COUNT(*) > 1` check), by the same rebuild with `assignment_id ... UNIQUE` and without the column.
+
+## 9. Q6 - the approved total everywhere
+
+The quote card's "according to the approved quote" line (`quote-card.ts` `approvedRef`) now reads `quote.approved.total_minor` (the
+approved part of a partial approval) instead of the quoted total (+3 B in the ticket set, 62,374 / 62,464). The claim form's approved line
+and the read-only revisions' difference already read the server's approved figures (`prefill.total_minor`, the revision `basis`); the
+managers' "against quote version N" line reads `baseline.total_minor` = `approved_total_minor` (server, unchanged) - both covered by a
+partial-award test. `claim-prefill-*` after section 8: 2,377 B (cap 3,072).
 
 ## 7. Tests run
 

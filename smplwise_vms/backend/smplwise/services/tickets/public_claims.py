@@ -73,7 +73,7 @@ class SqlClaimFileSink(ClaimFileSink):
         self._clock = clock or (lambda: dt.datetime.now(UTC).timestamp())
 
     def _open_claim(self, conn, link: LinkRecord, now: dt.datetime) -> dict[str, Any]:
-        claim = store_costs.claim_for_assignment(conn, link.assignment_id)
+        claim = costs.focus_claim(conn, link.assignment_id, now)  # CR-CLAIM-PREFILL (0116): a NEW instalment's claim takes files too
         if claim is None:
             raise PublicError(409, "claim_not_open")
         if claim["status"] in costs.SETTLED:
@@ -201,7 +201,10 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 replay = claim_request(conn, link, crid, CLAIM_ROUTE, when)
                 if replay is not None:
                     return replay[0], replay[1], False
-                claim = store_costs.claim_for_assignment(conn, link.assignment_id)
+                try:  # CR-CLAIM-PREFILL (0116): the claim of the named instalment (a NEW one is written only after the submission validated)
+                    claim = costs.claim_for_submission(conn, link.assignment_id, payload.get("instalment_index"), when)
+                except costs.CostRefused as exc:
+                    raise _error(exc) from None
                 if claim is None:
                     raise PublicError(409, "claim_not_open")
                 asg = store_links.contact(conn, link.contact_id) or {}
