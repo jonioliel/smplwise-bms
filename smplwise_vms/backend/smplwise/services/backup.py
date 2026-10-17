@@ -109,7 +109,19 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # this installation's security policy - never taken from an archive, so a restore can never loosen them
                  "access.capture_lease", "access.capture_lease_seconds", "access.lookup_scope",
                  # BACKUP-HASH-ENC: the backup password's minimum length is this installation's policy - never loosened by an archive
-                 "backup.password_min"}
+                 "backup.password_min",
+                 # HARDEN271 item 1 (2.7.0 integration notes, open risk 9): what 2.7.0 added that describes THIS installation.
+                 # WA-SEND-FIX: the HMAC key of the phone hashes - restored, every number-based opt-out stops matching; exported,
+                 # the key sits in the archive in the clear.
+                 "access.messaging.phone_key",
+                 # people messaging (its `enabled` switch, WA-SEND-FIX caps / send hours, WA-CONSENT-LINK `consent_by_link`): an
+                 # archive never switches messaging or consent by link on and never loosens a cap (the notify.whatsapp precedent)
+                 "access.messaging",
+                 # WISKEYID: the external-grant switch and its limits are security policy - never loosened by an archive
+                 "access.external_grants", "access.external.max_days", "access.external.max_doors",
+                 "access.external.phone_fresh_days", "access.external.code_hour", "access.external.local_approvers",
+                 # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
+                 "bridge.local_identity_extended"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
