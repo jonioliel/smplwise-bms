@@ -7,7 +7,10 @@ account and directory rows, without `tickets.configure`. The rules and THE check
 | GET    | /tickets/dept-handlers/people | active users to add as members (names only) |
 | PUT    | /tickets/dept-handlers/{dept_id}/members/{user_id} | add a user as a plain member (idempotent) |
 | DELETE | /tickets/dept-handlers/{dept_id}/members/{user_id} | remove a plain member |
-| POST   | /tickets/dept-handlers/{dept_id}/contacts | create a directory row (attached, or shared with every department) |
+| PUT    | /tickets/dept-handlers/{dept_id}/members/{user_id}/mobile | a plain member's mobile and language |
+| POST   | /tickets/dept-handlers/{dept_id}/contacts | create a directory row (his department by default, or shared with every department) |
+| POST   | /tickets/dept-handlers/{dept_id}/contacts/lookup | the live vendors with EXACTLY this number (rate limited, masked) |
+| POST   | /tickets/dept-handlers/{dept_id}/contacts/attach-by-phone | attach such a vendor (the same number again) |
 | PUT    | /tickets/dept-handlers/{dept_id}/contacts/{contact_id} | attach a row to the department (idempotent) |
 | DELETE | /tickets/dept-handlers/{dept_id}/contacts/{contact_id} | detach a row (never its last department) |
 | PATCH  | /tickets/dept-handlers/{dept_id}/contacts/{contact_id} | edit a row he created that no other department uses |
@@ -54,7 +57,7 @@ class _Details(BaseModel):
 
 class CreateBody(_Details):
     kind: Literal["person", "vendor", "employee"]
-    shared: bool | None = None  # vendors / contacts: None = shared with every department (owner 2026-10-17); employees: never
+    shared: bool | None = None  # vendors / contacts: None = his department only (owner 2026-10-17, question 2); employees: never
 
 
 class PatchBody(_Details):
@@ -91,6 +94,44 @@ def add_member(request: Request, dept_id: str = Path(..., pattern=ID), user_id: 
 def remove_member(request: Request, dept_id: str = Path(..., pattern=ID), user_id: str = USER, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return dept_handlers.remove_member(Viewer(conn, principal), dept_id, user_id, _rid(request))
+
+
+class MobileBody(BaseModel):
+    """A plain member's mobile line (owner 2026-10-17, question 4): the number and the language only."""
+    model_config = ConfigDict(extra="forbid")
+    phone: str | None = Field(default=None, max_length=40)
+    lang: Literal["he", "en", "ar", "ru"] | None = None
+
+
+@router.put("/tickets/dept-handlers/{dept_id}/members/{user_id}/mobile")
+def member_mobile(body: MobileBody, request: Request, dept_id: str = Path(..., pattern=ID), user_id: str = USER,
+                  principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    sent = {k: getattr(body, k) for k in body.model_fields_set}
+    if sent.get("lang", "x") is None:
+        sent.pop("lang")
+    return dept_handlers.set_member_mobile(Viewer(conn, principal), dept_id, user_id, sent, _rid(request))
+
+
+class LookupBody(BaseModel):
+    """The number travels in the body (never in the URL / the access log)."""
+    model_config = ConfigDict(extra="forbid")
+    phone: str = Field(min_length=1, max_length=40)
+
+
+class AttachByPhoneBody(LookupBody):
+    contact_id: str = Field(min_length=1, max_length=64, pattern=ID)
+
+
+@router.post("/tickets/dept-handlers/{dept_id}/contacts/lookup")
+def lookup_vendor(body: LookupBody, request: Request, dept_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    return dept_handlers.lookup_vendor(Viewer(conn, principal), dept_id, body.phone, _rid(request))
+
+
+@router.post("/tickets/dept-handlers/{dept_id}/contacts/attach-by-phone")
+def attach_by_phone(body: AttachByPhoneBody, request: Request, dept_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    return dept_handlers.attach_by_phone(Viewer(conn, principal), dept_id, body.contact_id, body.phone, _rid(request))
 
 
 @router.post("/tickets/dept-handlers/{dept_id}/contacts", status_code=201)

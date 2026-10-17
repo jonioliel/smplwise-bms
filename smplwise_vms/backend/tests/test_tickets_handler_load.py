@@ -256,3 +256,17 @@ def test_period_start_follows_local_dates_across_a_dst_change():
     assert handler_load.period_start(now, 7, tz).astimezone(tz).strftime("%Y-%m-%d %H:%M") == "2026-10-21 00:00"
     assert handler_load.period_start(now, 1, tz).astimezone(tz).strftime("%Y-%m-%d %H:%M") == "2026-10-27 00:00"
     assert handler_load.period_start(now, 7, tz) == dt.datetime(2026, 10, 20, 21, 0, tzinfo=dt.timezone.utc)  # +03:00 before the change
+
+
+def test_owner_decisions_today_is_local_midnight_and_the_scan_limit_stays_2000():
+    """Owner 2026-10-17 (HANDLERLOAD answers): "today" = since the installation's local midnight; the 2000-request scan limit is kept
+    (the board's cap, `truncated` reported). The "closed without done is not handled" rule is test_cancelled_and_closed_without_done_are_not_handled."""
+    import inspect
+
+    from smplwise.services.tickets import board
+
+    tz = ZoneInfo("Asia/Jerusalem")
+    now = dt.datetime(2026, 10, 17, 21, 30, tzinfo=dt.timezone.utc)  # 00:30 local on the 18th
+    assert handler_load.period_start(now, 1, tz) == dt.datetime(2026, 10, 17, 21, 0, tzinfo=dt.timezone.utc)
+    assert board.SCAN_CAP == 2000 and inspect.signature(board.scan).parameters["cap"].default == 2000
+    assert "cap=" not in inspect.getsource(handler_load.handled_counts), "the load uses the board's cap as is"

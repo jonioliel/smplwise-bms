@@ -20,7 +20,13 @@ export interface ManagedMember {
   mobile_full?: boolean;
   mobile_confirmed?: boolean;
   notify_whatsapp?: boolean;
+  /** the language of the person's messages */
+  lang?: ContactLang;
+  /** owner 2026-10-17: the caller may set this plain member's mobile and language (PUT .../members/{user}/mobile) */
+  mobile_editable?: boolean;
 }
+/** One vendor of the exact-phone lookup: the number masked, nothing about its other departments. */
+export interface VendorMatch { id: string; kind: ContactKind; display_name: string; company: string; phone: string | null; active: boolean; shared: boolean; attached: boolean }
 export interface ManagedDepartment { id: string; name: string; active: boolean; can_manage: boolean; members: ManagedMember[] }
 export interface ManagerOverview { departments: ManagedDepartment[]; can_manage: boolean; full_phones: boolean }
 export interface ManagerContactBody {
@@ -35,7 +41,7 @@ export interface ManagerContactBody {
   share_history?: boolean | null;
   lang?: ContactLang;
   active?: boolean;
-  /** create only, vendors / contacts: shared with every department (the server's default) or attached to this department */
+  /** create only, vendors / contacts: attached to this department (the server's default, owner 2026-10-17) or shared with every one */
   shared?: boolean;
   revision?: number;
 }
@@ -50,6 +56,12 @@ export interface DeptHandlersBackend {
   attach(deptId: string, contactId: string): Promise<Contact>;
   detach(deptId: string, contactId: string): Promise<{ id: string; department_id: string; detached: true }>;
   erase(deptId: string, contactId: string): Promise<{ id: string; erased: boolean; links_revoked: number }>;
+  /** a plain member's mobile and language */
+  memberMobile(deptId: string, userId: string, body: { phone?: string | null; lang?: ContactLang }): Promise<ManagedDepartment>;
+  /** the live vendors with EXACTLY this number (the number in the body, never the URL) */
+  lookup(deptId: string, phone: string): Promise<{ matches: VendorMatch[] }>;
+  /** attach a vendor the lookup found (the same number again) */
+  attachByPhone(deptId: string, contactId: string, phone: string): Promise<Contact>;
 }
 
 const B = 'tickets/dept-handlers';
@@ -65,6 +77,9 @@ const rest: DeptHandlersBackend = {
   attach: (d, c) => put<Contact>(`${B}/${enc(d)}/contacts/${enc(c)}`, {}),
   detach: (d, c) => api<{ id: string; department_id: string; detached: true }>(`${B}/${enc(d)}/contacts/${enc(c)}`, { method: 'DELETE' }),
   erase: (d, c) => post<{ id: string; erased: boolean; links_revoked: number }>(`${B}/${enc(d)}/contacts/${enc(c)}/erase`, { confirm: true }),
+  memberMobile: (d, u, body) => put<ManagedDepartment>(`${B}/${enc(d)}/members/${enc(u)}/mobile`, body),
+  lookup: (d, phone) => post<{ matches: VendorMatch[] }>(`${B}/${enc(d)}/contacts/lookup`, { phone }),
+  attachByPhone: (d, c, phone) => post<Contact>(`${B}/${enc(d)}/contacts/attach-by-phone`, { contact_id: c, phone }),
 };
 
 const denied = (): Promise<never> =>
@@ -80,6 +95,9 @@ const demo: DeptHandlersBackend = {
   attach: denied,
   detach: denied,
   erase: denied,
+  memberMobile: denied,
+  lookup: denied,
+  attachByPhone: denied,
 };
 
 export function deptHandlersApi(): DeptHandlersBackend {

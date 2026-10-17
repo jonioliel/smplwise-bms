@@ -45,3 +45,28 @@ export function rowActions(c: Pick<Contact, 'departments' | 'manager_editable' |
 export function mayShare(kind: Contact['kind']): boolean {
   return kind !== 'employee';
 }
+
+/** The default of the "available to every department" switch of a manager's new row: off (owner 2026-10-17 - his department only). */
+export const SHARED_BY_DEFAULT = false;
+
+/**
+ * The "creating department" text of a row (0113): the department's name when the server named it, "another department" when it says
+ * only that, nothing for a row created in Settings (null / absent - an older server too).
+ */
+export function createdLabel(cd: Contact['created_department'], nameOf: (id: string) => string, other: string): string | null {
+  if (!cd) return null;
+  if (cd.other) return other;
+  return cd.name || (cd.id ? nameOf(cd.id) : null);
+}
+
+/** A number worth sending to the exact lookup: 9-15 digits once spaces, dashes, dots, parentheses and a leading + are dropped. */
+export function lookupReady(raw: string): boolean {
+  const s = raw.trim().replace(/[\s\-().]/g, '').replace(/^\+/, '');
+  return /^\d{9,15}$/.test(s);
+}
+
+/** A member whose mobile and language the manager may edit (the server's `mobile_editable`: a plain member of the department - also one who
+ *  manages another department - never the all-departments manager or a system administrator). */
+export function mobileEditable(m: Pick<ManagedMember, 'kind' | 'role' | 'mobile_editable'>): boolean {
+  return m.kind === 'user' && m.role === 'member' && m.mobile_editable === true;
+}

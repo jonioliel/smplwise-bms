@@ -166,7 +166,7 @@ def test_the_last_department_is_never_detached(s4):
 
 def test_his_own_row_used_by_another_department_is_attachment_only(s4):
     grant(s4)
-    cid = mk(s4, display_name="אינסטלציה").json()["id"]  # shared with every department
+    cid = mk(s4, display_name="אינסטלציה", shared=True).json()["id"]  # shared with every department (opted in)
     # another department uses it: cleo's ticket is sent to it
     t = s4.w.create("joni", "נזילה", dept=s4.w.cleaning)
     assert s4.assign_contact(t["id"], cid).status_code == 200
@@ -263,12 +263,12 @@ def test_add_and_remove_a_plain_member_idempotent_and_audited_with_ids_only(s4):
 
 def test_create_a_vendor_shared_and_an_employee_attached_recording_creator_and_department(s4):
     grant(s4)
-    r = mk(s4, display_name="גנרטורים בע\"מ", email="g@gen.example.test")
+    r = mk(s4, display_name="גנרטורים בע\"מ", email="g@gen.example.test", shared=True)
     assert r.status_code == 201, r.text
     v = r.json()
-    assert v["departments"] == [] and v["created_department"] == MAINT and v["manager_editable"] is True
+    assert v["departments"] == [] and v["created_department"]["id"] == MAINT and v["manager_editable"] is True
     assert v["id"] in {c["id"] for c in s4.c.get(f"{API}/tickets/contacts", headers=s4.h("cleo")).json()["contacts"]}, \
-        "a shared vendor is in the other departments' directory (existing rule: no department rows = every department)"
+        "a vendor shared on purpose is in the other departments' directory (existing rule: no department rows = every department)"
     e = mk(s4, kind="employee", display_name="יוסי").json()
     assert e["departments"] == [MAINT]
     assert e["id"] not in {c["id"] for c in s4.c.get(f"{API}/tickets/contacts", headers=s4.h("cleo")).json()["contacts"]}
@@ -298,7 +298,7 @@ def test_edit_and_erase_his_own_unused_row(s4):
 def test_cleo_cannot_touch_monas_row_even_when_shared(s4):
     grant(s4)
     grant(s4, "cleo")
-    cid = mk(s4, display_name="שליחויות").json()["id"]
+    cid = mk(s4, display_name="שליחויות", shared=True).json()["id"]
     r = s4.c.patch(f"{H}/{s4.w.cleaning}/contacts/{cid}", json={"display_name": "x", "revision": rev(s4, cid)}, headers=s4.h("cleo"))
     assert r.status_code == 403 and r.json()["code"] == "attachment_only"
     assert s4.c.post(f"{H}/{s4.w.cleaning}/contacts/{cid}/erase", json={"confirm": True}, headers=s4.h("cleo")).status_code == 403
