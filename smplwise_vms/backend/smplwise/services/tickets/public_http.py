@@ -185,6 +185,11 @@ ROUTES: tuple[RouteRule, ...] = (
     _json("/t/api/portal/logout", "portal_read", 1024),
     # VPORTAL: the organisation's logo (services/tickets/brand.py) - a separate image file, its name carries its stamp (immutable)
     RouteRule("GET", r"/t/brand/[0-9a-f]{16}\.jpg", "/t/brand/{name}", "asset"),
+    # WA-CONSENT-LINK (services/intercom_consent.py, public_consent.py): the WhatsApp consent page - the token (`#c.<token>` in the
+    # fragment) travels in X-Ticket-Token like every link; the token kinds give it the per-token windows (60 reads / minute, 20 answers /
+    # hour, spent only once an answer is stored) and the failure caps (20 unknown tokens / minute per network, 300 installation-wide)
+    RouteRule("GET", r"/t/api/consent", "/t/api/consent", "token_read"),
+    _json("/t/api/consent", "token_write", 1024),
 )
 # VPORTAL: the portal session cookie. `__Secure-` (the browser keeps it only from an HTTPS answer and sends it only over HTTPS),
 # HttpOnly (no script reads it), SameSite=Strict (no cross-site request carries it), Path = the portal's API path under the public

@@ -53,6 +53,7 @@ LANGUAGE = "he"  # `preview` requires a language; the text it would build is nev
 STATUS_TTL_S = 20.0  # the service's state is person-free and principal-independent: cached briefly (a dialog opens often)
 SEND_WITHIN_S = 15.0  # a send that reaches the feed's loop later than this is not sent (`expired`)
 TOKEN = re.compile(r"^\S{8,512}$")
+TEMPLATE_SEND_SUPPORTED = False  # WA-CONSENT-LINK: rc.37 has no WhatsApp-template send; the configured template name is not forwarded (W11)
 
 # A refusal of `whatsapp/send` that provably comes BEFORE the provider call (rc.37 whatsapp_api.py: the handler checks `confirmed` /
 # the text / the token first, then calls the provider, whose every exception it turns into `whatsapp_send_uncertain`). Everything else
@@ -265,8 +266,14 @@ class MessagingAdapter:
         {person, wiskey_consent}}`. A person WisKey does not know is ApiError 404 `intercom_person_not_found` (from the feed)."""
         return intercom_sync.SYNC.command(settings, "recipient", lambda call: intercom_adapter.users_get(call, person_id), project_recipient, who=who, channel="read")
 
-    def send(self, settings: Settings, who: str, person_id: str, account: str, text: str) -> SendResult:
-        """Hand ONE text to WisKey for ONE person. Never retried, never queued; the text is passed on and not kept."""
+    def send(self, settings: Settings, who: str, person_id: str, account: str, text: str, *, wa_template: dict[str, Any] | None = None) -> SendResult:
+        """Hand ONE text to WisKey for ONE person. Never retried, never queued; the text is passed on and not kept.
+
+        `wa_template` (WA-CONSENT-LINK): the WhatsApp Business template a FIRST contact outside the 24-hour window must use - `{name,
+        language, params}` as the administrator configured it (approval by Meta is the owner's action). PART OF THE CONTRACT, NOT YET
+        FORWARDED: rc.37's `whatsapp/send` takes a text only (ask W11: a template send). Until WisKey has one, the text goes out as today and
+        WhatsApp itself decides whether a business-initiated text reaches a person outside the window (TEMPLATE_SEND_SUPPORTED)."""
+        del wa_template  # rc.37: no template send (see TEMPLATE_SEND_SUPPORTED)
         trace = {"phase": "preview"}
         reply, outcome = intercom_sync.SYNC.message_send(
             settings, "message", lambda call: _preview_and_send(call, account, person_id, text, trace), lambda _raw: {"accepted": True}, who,

@@ -48,6 +48,9 @@ const REASON_KEY = {
   refused: 'msg.reason.refused',
   stopped: 'msg.reason.stopped',
   unknown: 'msg.reason.unknown',
+  consent_pending: 'msg.reason.consent_pending',
+  consent_recent: 'msg.reason.consent_recent',
+  consent_unavailable: 'msg.reason.consent_unavailable',
 } as const satisfies Record<SendFailure, Parameters<typeof pt>[0]>;
 export const reasonText = (r: SendFailure): string => pt(REASON_KEY[r]);
 
@@ -85,6 +88,8 @@ export class WiskeyMessageDialog extends LitElement {
   @state() private failure: SendFailure | undefined;
   @state() private retryAfterS: number | undefined;
   @state() private sentAt = '';
+  /** WA-CONSENT-LINK: the message waits for the person's consent (the line says so instead of "sent"). */
+  @state() private held: '' | 'msg.held' | 'msg.consent_requested' | 'msg.consent_requested_free' = '';
   @state() private progress: [number, number] | null = null;
   @state() private outcome: BulkOutcome | null = null;
   @state() private confirming = false;
@@ -323,6 +328,7 @@ export class WiskeyMessageDialog extends LitElement {
     this.progress = null;
     this.outcome = null;
     this.sentAt = '';
+    this.held = '';
     this.confirming = false;
     this.stopping = false;
     this.stopRequested = false;
@@ -395,6 +401,7 @@ export class WiskeyMessageDialog extends LitElement {
       if (result.ok) {
         this.phase = 'sent';
         this.sentAt = result.sent_at;
+        this.held = !result.held ? '' : result.held === 'held' ? 'msg.held' : this.draft.template_id === null ? 'msg.consent_requested_free' : 'msg.consent_requested';
         if (result.quota !== undefined) this.config = { ...this.config, quota: result.quota };
         else await this.refreshConfig();
       } else {
@@ -450,7 +457,7 @@ export class WiskeyMessageDialog extends LitElement {
     const icon = l.tone === 'ok' ? 'check' : l.tone === 'wait' ? 'refresh' : l.tone === 'warn' ? 'clock' : 'warning';
     let text = '';
     if (l.kind === 'sending') text = pt('msg.sending');
-    else if (l.kind === 'sent') text = pt('msg.sent', { time: clock(this.sentAt) });
+    else if (l.kind === 'sent') text = this.held ? pt(this.held) : pt('msg.sent', { time: clock(this.sentAt) });
     else if (l.kind === 'rate') text = pt('msg.rate', { minutes: l.minutes ?? 1 });
     else if (l.kind === 'cant') text = pt('msg.cant', { reason: reasonText(l.reason!) });
     else text = l.reason === 'uncertain' ? pt('msg.uncertain') : pt('msg.failed', { reason: reasonText(l.reason!) });
@@ -513,9 +520,9 @@ export class WiskeyMessageDialog extends LitElement {
       <thead><tr><th scope="col" class="c-name">${pt('msg.result_name')}</th><th scope="col" class="c-outcome">${pt('msg.result_outcome')}</th><th scope="col" class="c-detail">${pt('msg.result_detail')}</th></tr></thead>
       <tbody>
         ${rows.map((r) => {
-          const tone = r.status === 'sent' ? 'ok' : r.status === 'unknown' ? 'warn' : 'err';
-          const label = r.status === 'sent' ? pt('msg.result_sent') : r.status === 'unknown' ? pt('msg.result_unknown') : pt('msg.result_failed');
-          const detail = r.status === 'sent' ? clock(r.at ?? '') : r.status === 'unknown' ? pt('msg.uncertain') : reasonText(r.reason ?? 'unknown');
+          const tone = r.status === 'sent' ? 'ok' : r.status === 'unknown' || r.status === 'held' ? 'warn' : 'err';
+          const label = r.status === 'sent' ? pt('msg.result_sent') : r.status === 'held' ? pt('msg.result_held') : r.status === 'unknown' ? pt('msg.result_unknown') : pt('msg.result_failed');
+          const detail = r.status === 'sent' ? clock(r.at ?? '') : r.status === 'held' ? pt('msg.held') : r.status === 'unknown' ? pt('msg.uncertain') : reasonText(r.reason ?? 'unknown');
           return html`<tr data-msg-result=${r.id} data-msg-outcome=${r.status}><td class="c-name">${nameOf(r.id)}</td><td class="c-outcome"><span class="pill ${tone}">${label}</span></td><td class="c-detail">${detail}</td></tr>`;
         })}
       </tbody>

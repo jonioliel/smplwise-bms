@@ -17,6 +17,8 @@ export function outcomeBadge(outcome: MessageHistoryItem['outcome']): { kind: St
     case 'sent': return { kind: 'recorded', label: pt('hist.sent') };
     case 'refused': return { kind: 'error', label: pt('hist.refused') };
     case 'pending': return { kind: 'stale', label: pt('hist.pending') };
+    case 'held': return { kind: 'stale', label: pt('hist.held') }; // WA-CONSENT-LINK: waiting for the person's consent
+    case 'dropped': return { kind: 'error', label: pt('hist.dropped') }; // WA-CONSENT-LINK: declined / no answer in time
     default: return { kind: 'unknown', label: pt('hist.unknown') };
   }
 }

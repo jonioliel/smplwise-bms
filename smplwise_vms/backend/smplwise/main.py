@@ -177,6 +177,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         messaging_runtime.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("messaging ledger janitor failed", exc_info=True)
+    try:  # WA-CONSENT-LINK: unanswered consent requests expire (held messages dropped, senders told), approved ones are released
+        from .services import intercom_consent
+
+        intercom_consent.tick(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("intercom consent janitor failed", exc_info=True)
     try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
         from .services.tickets.messaging import RUNTIME as tickets_messaging
 
@@ -724,8 +730,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         # CR-WISKEY-LEASE-REVOCATION-EVENT T11: before the WisKey feed stops, any live capture lease is revoked (scope all) within 2 s
         await _stop_in_thread(lease_events.WORKER.on_shutdown)
-        from .services import intercom_sync
+        from .services import intercom_consent, intercom_sync
 
+        intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
         intercom_sync.SYNC.shutdown()
         from .services import energy_sampler
 

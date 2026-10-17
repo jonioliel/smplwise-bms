@@ -19,7 +19,12 @@ import { insertAt, problemsAt, settingsProblems, DEFAULT_LIMITS } from '../acces
 import { statusStyles } from '../access-control/status-css';
 import { failurePanel, skeletonRows } from '../access-control/status-panel';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { mt, problemText } from '../i18n/access-messaging';
+import { mt, problemText, type MessagingKey } from '../i18n/access-messaging';
+
+/** WA-CONSENT-LINK: the consent request's languages (the server's CONSENT_LANGS) and the words of "the page cannot serve a link". */
+const CONSENT_LANGS = ['he', 'en', 'ar', 'ru'] as const;
+const consentProblemKey = (problem: string): MessagingKey =>
+  problem === 'module_off' ? 'consent.problem.module_off' : problem === 'key' ? 'consent.problem.key' : 'consent.problem.public_page';
 
 /** One template as the editor holds it: the saved id (none for a new one) and a key that keeps the row stable while it is edited. */
 interface Row {
@@ -39,6 +44,12 @@ interface Draft {
   organization: string;
   account: string;
   templates: Row[];
+  // WA-CONSENT-LINK
+  consent_by_link: boolean;
+  consent_wait_days: string;
+  consent_language: string;
+  consent_wa_template: string;
+  consent_wa_language: string;
 }
 
 let rowKey = 0;
@@ -59,6 +70,11 @@ const toDraft = (d: MessagingSettingsDoc): Draft => ({
   organization: d.organization,
   account: d.account,
   templates: d.templates.map((t) => ({ key: nextKey(), id: t.id, label: t.label, body: t.body })),
+  consent_by_link: d.consent_by_link === true,
+  consent_wait_days: String(d.consent_wait_days ?? 7),
+  consent_language: d.consent_language ?? 'he',
+  consent_wa_template: d.consent_wa_template ?? '',
+  consent_wa_language: d.consent_wa_language ?? '',
 });
 
 /** The document the form means (a field that is not a whole number stays NaN: a `type` problem, not a silent 0). */
@@ -71,10 +87,16 @@ const toDoc = (d: Draft): MessagingSettingsDoc => ({
   organization: d.organization,
   account: d.account,
   templates: d.templates.map((t) => ({ ...(t.id ? { id: t.id } : {}), label: t.label, body: t.body })),
+  consent_by_link: d.consent_by_link,
+  consent_wait_days: /^\d+$/.test(d.consent_wait_days.trim()) ? Number(d.consent_wait_days) : Number.NaN,
+  consent_language: d.consent_language,
+  consent_wa_template: d.consent_wa_template.trim(),
+  consent_wa_language: d.consent_wa_language.trim(),
 });
 
 const snapshot = (d: Draft): string =>
-  JSON.stringify([d.enabled, d.free_text, d.bulk_max.trim(), d.rate_per_hour.trim(), d.organization.trim(), d.account, d.templates.map((t) => [t.id ?? '', t.label.trim(), t.body.trim()])]);
+  JSON.stringify([d.enabled, d.free_text, d.bulk_max.trim(), d.rate_per_hour.trim(), d.organization.trim(), d.account, d.templates.map((t) => [t.id ?? '', t.label.trim(), t.body.trim()]),
+    d.consent_by_link, d.consent_wait_days.trim(), d.consent_language, d.consent_wa_template.trim(), d.consent_wa_language.trim()]);
 
 /**
  * CR-036 WA: "הודעות" - the fifth segment of the Settings page "בקרת כניסה" (system.configure): the administrator's switch for sending
@@ -464,6 +486,51 @@ export class SystemAccessMessaging extends LitElement {
     return (e.currentTarget as HTMLElement).closest('.tpl')?.querySelector('textarea') ?? null;
   }
 
+  /** WA-CONSENT-LINK: consent by link (off by default) - the switch, how long a request waits, its language, the WhatsApp Business
+   * template the request must use outside the 24-hour window (approved by Meta: the owner's action), and whether the public page can serve
+   * the link now. */
+  private renderConsent(d: Draft, r: MessagingSettingsReply) {
+    const c = r.consent;
+    const problem = c?.page_problem ?? null;
+    return html`<sw-card flush data-msg-settings-card="consent">
+      <div class="ch"><div><h3>${mt('consent.title')}</h3><div class="sub">${mt('consent.sub')}</div></div></div>
+      <button type="button" class="sw" role="switch" aria-checked=${String(d.consent_by_link)} data-msg-setting="consent_by_link" @click=${() => this.set({ consent_by_link: !d.consent_by_link }, 'consent_by_link')}>
+        <span class="txt"><span class="t">${mt('consent.switch')}</span><span class="x">${d.consent_by_link ? mt('consent.on') : mt('consent.off')}</span></span>
+        <span class="track" aria-hidden="true"></span>
+      </button>
+      ${this.problemLine('consent_by_link')}
+      ${d.consent_by_link && problem ? html`<div class="note err" role="alert" data-msg-consent-problem=${problem}><sw-icon name="warning" size=${16}></sw-icon><span>${mt(consentProblemKey(problem))}</span></div>` : nothing}
+      <div class="fields">
+        <div>
+          <sw-field label=${mt('consent.wait')} hint=${mt('consent.wait_hint', { min: c?.wait_days[0] ?? 1, max: c?.wait_days[1] ?? 30 })} ?data-bad=${this.shown('consent_wait_days').length > 0}>
+            <input type="text" inputmode="numeric" .value=${d.consent_wait_days} data-msg-setting="consent_wait_days" @input=${(e: Event) => this.set({ consent_wait_days: (e.target as HTMLInputElement).value }, 'consent_wait_days')} />
+          </sw-field>
+          ${this.problemLine('consent_wait_days')}
+        </div>
+        <div>
+          <sw-field label=${mt('consent.language')}>
+            <select data-msg-setting="consent_language" @change=${(e: Event) => this.set({ consent_language: (e.target as HTMLSelectElement).value })}>
+              ${CONSENT_LANGS.map((l) => html`<option value=${l} ?selected=${d.consent_language === l}>${mt(`consent.lang.${l}` as MessagingKey)}</option>`)}
+            </select>
+          </sw-field>
+        </div>
+        <div>
+          <sw-field label=${mt('consent.wa_template')} hint=${mt('consent.wa_template_hint')} ?data-bad=${this.shown('consent_wa_template').length > 0}>
+            <input type="text" dir="ltr" .value=${d.consent_wa_template} data-msg-setting="consent_wa_template" @input=${(e: Event) => this.set({ consent_wa_template: (e.target as HTMLInputElement).value }, 'consent_wa_template')} />
+          </sw-field>
+          ${this.problemLine('consent_wa_template')}
+        </div>
+        <div>
+          <sw-field label=${mt('consent.wa_language')} ?data-bad=${this.shown('consent_wa_language').length > 0}>
+            <input type="text" dir="ltr" .value=${d.consent_wa_language} data-msg-setting="consent_wa_language" @input=${(e: Event) => this.set({ consent_wa_language: (e.target as HTMLInputElement).value }, 'consent_wa_language')} />
+          </sw-field>
+          ${this.problemLine('consent_wa_language')}
+        </div>
+      </div>
+      <div class="hint" data-msg-consent-rules>${mt('consent.rules', { days: c?.resend_days ?? 30, held: c?.held_per_person ?? 3 })}</div>
+    </sw-card>`;
+  }
+
   render() {
     if (this.loading) return html`<div class="stack" data-access-status="loading"><sw-card flush>${skeletonRows(4)}</sw-card></div>`;
     if (!this.draft || !this.reply) return html`<div class="stack" data-access-status="error">${failurePanel('error', this.failed, () => void this.load())}</div>`;
@@ -517,6 +584,8 @@ export class SystemAccessMessaging extends LitElement {
             : nothing}
         </div>
       </sw-card>
+
+      ${this.renderConsent(d, r)}
 
       <sw-card flush data-msg-settings-card="templates">
         <div class="ch">

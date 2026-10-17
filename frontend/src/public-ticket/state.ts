@@ -32,12 +32,12 @@ export function bootFrom(hash: string, path: string, stored: string | null): Boo
 }
 
 /** TKRFQVP (contract 15.1): `#q.<token>` is an RFQ link (`.` is not a base64url character, so it is never a ticket token). */
-export function rfqFragment(hash: string): string | null {
+export function rfqFragment(hash: string, mark = 'q.'): string | null {
   const f = hash.startsWith('#') ? hash.slice(1) : hash;
-  return f.startsWith('q.') && TOKEN_RE.test(f.slice(2)) ? f.slice(2) : null;
+  return f.startsWith(mark) && TOKEN_RE.test(f.slice(2)) ? f.slice(2) : null;
 }
 
-export type Mode = 'rfq' | 'ticket';
+export type Mode = 'rfq' | 'ticket' | 'consent';
 
 /**
  * TKRFQVP: which link the tab opens. A fragment wins and decides the mode (`#q.<token>` = RFQ, `#<token>` = ticket), then an e-mail
@@ -47,6 +47,9 @@ export type Mode = 'rfq' | 'ticket';
 export function pickMode(hash: string, path: string, storedTicket: string | null, storedRfq: string | null): { mode: Mode; token: string | null; rid: string | null; fromFragment: boolean } {
   const q = rfqFragment(hash);
   if (q) return { mode: 'rfq', token: q, rid: null, fromFragment: true };
+  // WA-CONSENT-LINK: `#c.<token>` is a WhatsApp consent link (single use; never kept in this tab's storage)
+  const c = rfqFragment(hash, 'c.');
+  if (c) return { mode: 'consent', token: c, rid: null, fromFragment: true };
   const boot = bootFrom(hash, path, storedTicket);
   if (boot.fromFragment || boot.rid) return { mode: 'ticket', ...boot };
   if (storedRfq && TOKEN_RE.test(storedRfq)) return { mode: 'rfq', token: storedRfq, rid: null, fromFragment: false };

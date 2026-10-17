@@ -86,7 +86,7 @@ class Runtime:
 
     def build_app(self, db: Database, *, clock=None) -> PublicApp:
         """The public app over the real store (the public-core notes, wiring item 2)."""
-        from . import public_claims, public_portal, public_quotes, public_rfq  # slice 9: claims (11A); TK257: quote; TKRFQVP: RFQ; VPORTAL
+        from . import public_claims, public_consent, public_portal, public_quotes, public_rfq  # slice 9: claims (11A); TK257: quote; TKRFQVP: RFQ; VPORTAL; WA-CONSENT-LINK
         from .public_routes import build_router
 
         switch = CachedSwitch(lambda: _module_on(db))
@@ -118,7 +118,8 @@ class Runtime:
             extra_routers=(build_router(db, clock=clock), public_claims.build_router(db, clock=clock),
                            public_quotes.build_router(db, clock=clock),
                            public_rfq.build_router(db, clock=clock, limiter=limiter, policy=engine_kw["policy"]),
-                           public_portal.build_router(db, clock=clock, data_dir=self.data_dir)),  # VPORTAL: the vendor portal + the logo
+                           public_portal.build_router(db, clock=clock, data_dir=self.data_dir),  # VPORTAL: the vendor portal + the logo
+                           public_consent.build_router(db, clock=clock)),  # WA-CONSENT-LINK: the WhatsApp consent page
             rfq_redeem=public_rfq.redeem_releaser(db),
             client_ip_header=doc["public"]["client_ip_header"],
             path_prefix=links.effective_prefix(doc["public"]["base_url"], doc["public"]["path_prefix"]),  # TK255
