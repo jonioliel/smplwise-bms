@@ -982,3 +982,153 @@ class FakeLeaseHost:
 LEASE_PERSON = {"id": "u1", "display_name": "LEASE-PERSON-SENTINEL", "revision": 5, "active": True, "archived": False, "valid_from": None, "valid_until": None,
                 "assignments": [{"station_id": "entry-a", "enabled": True, "doors": [1], "sync_state": "synced", "last_sync_at": None}],
                 "cards": [{"id": "c1", "masked_number": "•••• 4321", "label": "tag", "card_type": "normalCard", "enabled": True}]}
+
+
+# ---------------------------------------------------------------- CR-ARX-WISKEY-SHARED-IDENTITY: the access-engine fake
+
+class FakeAccessEngine:
+    """The WisKey person store as the external-grant service sees it (services/access_grant_engine.Engine): people with a revision
+    compare-and-set, a PIN generator that answers SENTINEL values (never a real PIN) with injectable conflicts, validity, door maps,
+    a WisKey-side edit (drift), a person deleted elsewhere, an unreachable engine and unknown outcomes. Nothing here contacts anything.
+
+    Switches: `offline` (every call -> not_sent), `pin_conflicts` (the next N PIN writes -> pin_conflict), `fail` ({method: kind},
+    one-shot), `unknown_after_apply` (the next apply LANDS and then answers unknown), `unknown_before_apply` (the next apply does
+    NOT land and answers unknown). `calls` records method names only (never a PIN)."""
+
+    PIN_SENTINELS = ("913377", "913378", "913379", "913380", "913381", "913382", "913383", "913384")
+
+    def __init__(self) -> None:
+        from smplwise.services.access_grant_engine import EnginePerson  # noqa: F401 - shape reference
+
+        self.people: dict[str, dict[str, Any]] = {}
+        self.offline = False
+        self.pin_conflicts = 0
+        self.fail: dict[str, str] = {}
+        self.unknown_after_apply = False
+        self.unknown_before_apply = False
+        self.calls: list[str] = []
+        self.deleted: list[str] = []
+        self._pins = list(self.PIN_SENTINELS)
+        self._seq = 0
+
+    # -- helpers
+    def _err(self, kind: str):
+        from smplwise.services.access_grant_engine import EngineError
+
+        return EngineError(kind, f"fake_{kind}")
+
+    def _gate(self, method: str) -> None:
+        self.calls.append(method)
+        if self.offline:
+            raise self._err("not_sent")
+        if method in self.fail:
+            raise self._err(self.fail.pop(method))
+
+    def _view(self, p: dict[str, Any]):
+        from smplwise.services.access_grant_engine import EnginePerson
+
+        return EnginePerson(id=p["id"], revision=p["revision"], display_name=p["display_name"], active=p["active"], valid_from=p["valid_from"],
+                            valid_until=p["valid_until"], doors={k: list(v) for k, v in p["doors"].items()},
+                            stations=tuple(sorted(set(p["doors"]) | set(p.get("other_stations", ())))), pin_configured=p["pin"] is not None,
+                            timing=copy.deepcopy(p["timing"]), category=p["category"])
+
+    def _get(self, person_id: str) -> dict[str, Any]:
+        p = self.people.get(person_id)
+        if p is None:
+            raise self._err("not_found")
+        return p
+
+    # -- test seams
+    def add_person(self, person_id: str, *, stations: Iterable[str] = (), doors: dict[str, list[int]] | None = None, category: str = "contractor") -> None:
+        self.people[person_id] = {"id": person_id, "revision": 1, "display_name": person_id, "employee_no": "e-" + person_id, "active": True,
+                                  "valid_from": None, "valid_until": None, "doors": dict(doors or {}), "other_stations": tuple(stations), "pin": None,
+                                  "timing": None, "category": category}
+
+    def edit_elsewhere(self, person_id: str) -> None:
+        """Someone edited the person in WisKey's own panel: the revision moves (T12)."""
+        self._get(person_id)["revision"] += 1
+
+    def pin_of(self, person_id: str) -> str | None:
+        """Only for assertions inside a test (the sentinel the fake holds)."""
+        return self._get(person_id)["pin"]
+
+    # -- the port
+    def create_person(self, *, display_name: str, employee_no: str, category: str, responsible_person: str, access_purpose: str):
+        self._gate("create_person")
+        self._seq += 1
+        pid = f"wk-{self._seq:04d}"
+        self.people[pid] = {"id": pid, "revision": 1, "display_name": display_name[:32], "employee_no": employee_no, "active": False, "valid_from": None,
+                            "valid_until": None, "doors": {}, "other_stations": (), "pin": None, "timing": None, "category": category,
+                            "responsible_person": responsible_person, "access_purpose": access_purpose}
+        return self._view(self.people[pid])
+
+    def get_person(self, person_id: str):
+        self._gate("get_person")
+        return self._view(self._get(person_id))
+
+    def apply(self, person_id: str, revision: int, *, doors, valid_from, valid_until, timing, active, pin=None):
+        from smplwise.services.access_grant_engine import KEEP
+
+        self._gate("apply")
+        p = self._get(person_id)
+        if self.unknown_before_apply:
+            self.unknown_before_apply = False
+            raise self._err("unknown")
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        if pin is not KEEP and pin is not None and self.pin_conflicts > 0:
+            self.pin_conflicts -= 1
+            raise self._err("pin_conflict")
+        p.update({"doors": {k: list(v) for k, v in doors.items()}, "valid_from": valid_from, "valid_until": valid_until, "timing": copy.deepcopy(timing),
+                  "active": bool(active)})
+        if pin is not KEEP:
+            p["pin"] = pin
+        p["revision"] += 1
+        if self.unknown_after_apply:
+            self.unknown_after_apply = False
+            raise self._err("unknown")
+        return self._view(p)
+
+    def strip(self, person_id: str, revision: int):
+        self._gate("strip")
+        p = self._get(person_id)
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        p.update({"doors": {}, "active": False, "pin": None, "timing": None})
+        p["revision"] += 1
+        return self._view(p)
+
+    def pin_generate(self, person_id: str) -> str:
+        self._gate("pin_generate")
+        self._get(person_id)
+        return self._pins.pop(0) if self._pins else "913399"
+
+    def rename(self, person_id: str, revision: int, display_name: str):
+        self._gate("rename")
+        p = self._get(person_id)
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        p["display_name"] = display_name[:32]
+        p["revision"] += 1
+        return self._view(p)
+
+    def delete(self, person_id: str, revision: int) -> None:
+        self._gate("delete")
+        p = self._get(person_id)
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        del self.people[person_id]
+        self.deleted.append(person_id)
+
+
+class FakeCodeTransport:
+    """A fake WhatsApp transport for the access-code message: records what WOULD have left (number + text, for assertions inside
+    the test only) and answers `outcome` (sent | not_sent | unknown)."""
+
+    def __init__(self, outcome: str = "sent") -> None:
+        self.outcome = outcome
+        self.sent: list[tuple[str, str]] = []
+
+    def __call__(self, msg: Any) -> str:
+        self.sent.append((msg.digits, msg.text))
+        return self.outcome

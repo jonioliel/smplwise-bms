@@ -11845,5 +11845,40 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEYID-BUILD",
+    "title": "CR-ARX-WISKEY-SHARED-IDENTITY X1-X4 (backend): Arx <-> WisKey person links and time-bounded door grants for external people with a WhatsApp code; OFF, go-live not permitted in code",
+    "epic": "IDENTITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "On fakes only: migrations 0108/0109; access.external.grant (system_admin, station-scoped); request/approve/refuse/revoke/rotate with the owner answers of 2026-10-17 (14 days, one live grant, widening needs approval, code the evening before by WhatsApp to a self-confirmed number, re-decision on permission change, done ends access, vendor/contact/phone triggers, delete-now); the arrival step creates requests only; leak scan clean; the switch cannot be turned on while GO_LIVE_PERMITTED is False.",
+      "On the owner's installation with a separate go-live permit: a grant provisioned on a real WisKey station, the code delivered to a real phone and used at a keypad, revoked and removed; offline-device expiry observed."
+    ],
+    "requirement_ids": [
+      "R-WISKEYID-1",
+      "R-WISKEYID-2"
+    ],
+    "test_ids": [
+      "AT-WISKEYID-1",
+      "AT-WISKEYID-2"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Second security review (Opus/Fable) of the grant, code and public arrival paths before any switch-on. No live WisKey, door or phone."
+    },
+    "deliverables": [
+      "smplwise/migrations/0108_access_person_links_grants.sql, 0109_access_grant_notices.sql, services/access_grants.py, services/access_grant_engine.py, services/access_arrival.py, routers/access_grants.py, hooks in db.py / tickets service / handler_actions, tests/test_access_grants.py, tests/test_access_arrival.py, docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md on pilot/WISKEYID-BUILD"
+    ]
   }
 ]

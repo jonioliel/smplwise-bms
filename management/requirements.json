@@ -6803,5 +6803,37 @@
     "test_ids": [
       "AT-USR2-4"
     ]
+  },
+  {
+    "id": "R-WISKEYID-1",
+    "title": "External-person door grants on fakes (CR-ARX-WISKEY-SHARED-IDENTITY X1-X4)",
+    "statement": "Arx links a contact to a WisKey person manually and issues time-bounded, approved, revocable door grants with a personal code by WhatsApp, under Arx RBAC; everything off and go-live not permitted in code.",
+    "task_ids": [
+      "WISKEYID-BUILD"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEYID-1"
+    ]
+  },
+  {
+    "id": "R-WISKEYID-2",
+    "title": "External-person door grants on the owner's installation",
+    "statement": "With the owner's separate go-live permit, a real grant works end to end on a WisKey station and a real phone, and is removed on revoke.",
+    "task_ids": [
+      "WISKEYID-BUILD"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEYID-2"
+    ]
   }
 ]

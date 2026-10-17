@@ -115,6 +115,13 @@ SOURCES: tuple[Source, ...] = (
     _s("security.local_account_locked", "חשבון Arx ננעל", "security", "alert", "חשבון Arx ננעל זמנית",
        "חשבון של משתמש Arx ננעל ל־15 דקות אחרי ניסיונות שגויים רבים מכמה רשתות. אפשר לשחרר בהגדרות › משתמשי Arx.", window_s=3600, who="managers",
        subject="system", resolves=False),
+    # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants, to the managers (a `system` subject). Content-free - never a name, a
+    # number, a door or a code; the grant screen and the audit carry the ids.
+    _s("access.grant_request", "בקשת גישה זמנית לאדם חיצוני", "security", "info", "בקשת גישה זמנית",
+       "ספק ביקש גישת כניסה לטכנאי. האישור נעשה במסך הגישות הזמניות.", window_s=600, who="managers", push=False, subject="system", resolves=False),
+    _s("access.grant_attention", "גישה זמנית דורשת טיפול", "security", "alert", "גישה זמנית דורשת טיפול",
+       "קוד לא נמסר, ביטול ממתין לאישור מערכת הכניסה או הפעלה שנכשלה. פרטים במסך הגישות הזמניות.", window_s=600, who="managers", subject="system",
+       resolves=False),
     # ---- alerts (rules, and the NVR smart events that only rules turn into notifications)
     _s("rule.alert", "התראות מחוקים", "alerts", "alert", "{name}", "{message}", window_s=300, subject="camera", resolve_text="טופל", resolves=False),
     _s("camera.motion", "תנועה (רק דרך חוקים)", "alerts", "info", "תנועה", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),
