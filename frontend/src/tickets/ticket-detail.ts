@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { leadReserveStyles } from '../styles/lead-reserve';
 import './costs-tab'; // TKUI3: the Costs tab (its payment demand is slice 9's cost card, embedded)
 import { ct } from './cost-text';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -144,7 +145,7 @@ export class TicketDetailView extends LitElement {
   });
   private readonly history = new HistoryTab(this);
 
-  static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, deviceBlockStyles,
+  static styles = [bubbleChrome, leadReserveStyles, ...automationsStyles, ticketDetailStyles, ticketFormStyles, externalAssignStyles, linkPanelStyles, deviceBlockStyles,
     statusBlockStyles, drawerTabsStyles, overviewStyles, conversationStyles, historyStyles, css`
     sw-drawer {
       --sw-drawer-modal-w: 640px;
@@ -1161,10 +1162,10 @@ export class TicketDetailView extends LitElement {
 
   private page(): TemplateResult {
     const t = this.t;
-    if (!t) return html`<div class="page"><div class="phead"><a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a></div>${this.stateBox()}</div>`;
+    if (!t) return html`<div class="page"><div class="phead lead-head"><a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a></div>${this.stateBox()}</div>`;
     const m = this.actions(t);
     return html`<div class="page" data-ticket-page=${t.id}>
-      <div class="phead">
+      <div class="phead lead-head">
         <a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a>
         <div class="tt"><h1 data-ticket-title>${t.title}</h1><div class="hsub">${this.subLine(t)}</div></div>
         <div class="acts">

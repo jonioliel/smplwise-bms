@@ -1,10 +1,29 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// 2026-10-17: header dropdown placement at the shell (sw-app), over the mocked backend like the other layout specs. NOT RUN when written
-// (the runner was busy with a release gate): run with `npx playwright test tests/layout-dd-place.spec.ts --project=desktop --workers=1`.
-// What each placement must do on a wide screen: place 1 keeps the chips in their own row above the title; 2 puts them at the end edge
-// (RTL: left), 3 after the title, 4 at the start edge (RTL: right) with the title shifted past them; a narrow screen is place 1 whatever
-// the dial says; no placement lets a title and a chip overlap.
+// 2026-10-17: header dropdown placement (ui.dd_place 1..4) swept over the main screens x the four placements x widths 1280 / 1024 / 390.
+// NOT RUN when written (the runner was busy with a release gate): run with
+//   npx playwright test tests/layout-dd-place.spec.ts --project=desktop --workers=1
+// Asserted per combination: no horizontal page overflow; the chip(s), the first heading and the floating search/status corner never overlap
+// each other; below 1100 px (1024, 390) the placement is always the own row (data-dd-place may read the dial but the row keeps its height);
+// at 1280 a placement 2/3/4 is honoured (zero-height row) or the screen fell back to 1 on its own (never an overlap either way).
+
+const SCREENS = [
+  '/security/live/wall',
+  '/multimedia/screens',
+  '/multimedia/players',
+  '/multimedia/groups',
+  '/devices/automations',
+  '/devices/schedules',
+  '/tickets',
+  '/tickets/list',
+  '/tickets/overview',
+  '/tickets/rfqs',
+  '/explore/sites',
+  '/system/notifications',
+  '/system/tickets',
+] as const;
+const PLACES = ['1', '2', '3', '4'] as const;
+const WIDTHS = [1280, 1024, 390] as const;
 
 async function open(page: Page, hash: string, width: number, place: string) {
   await page.setViewportSize({ width, height: 800 });
@@ -12,57 +31,72 @@ async function open(page: Page, hash: string, width: number, place: string) {
     try {
       localStorage.setItem('sw.dd.place', JSON.stringify({ u: 'anon', value: p }));
     } catch {
-      /* storage unavailable */
+      /* storage unavailable: the installation default (4) applies */
     }
   }, place);
   await page.goto(`/#${hash}`);
   await page.waitForSelector('sw-app[data-shell-ready]');
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1800); // the collision check re-runs every 1.2 s while a screen loads
 }
 
-const facts = (page: Page) =>
+interface Facts {
+  place: string | null;
+  rowH: number;
+  chips: DOMRect[];
+  title: DOMRect | null;
+  corner: DOMRect | null;
+  overflow: boolean;
+}
+
+const facts = (page: Page): Promise<Facts> =>
   page.locator('sw-app').evaluate((app) => {
     const root = app.shadowRoot!;
-    const chip = root.querySelector<HTMLElement>('.tabpair:not(.single) > *, .subnav[data-tabstyle=dropdown] > sw-tabs');
-    const row = chip?.parentElement ?? null;
+    const chips = [...root.querySelectorAll<HTMLElement>('.tabpair:not(.single) > *, .subnav[data-tabstyle=dropdown] > sw-tabs')].map((e) => e.getBoundingClientRect().toJSON() as DOMRect).filter((r) => r.width > 0);
+    const row = root.querySelector<HTMLElement>('.tabpair:not(.single), .subnav[data-tabstyle=dropdown]');
+    const find = (r: ParentNode): HTMLElement | null => {
+      for (const el of r.querySelectorAll<HTMLElement>('*')) {
+        if (el.localName === 'h1' && el.getBoundingClientRect().width > 0) return el;
+        const inner = el.shadowRoot ? find(el.shadowRoot) : null;
+        if (inner) return inner;
+      }
+      return null;
+    };
+    const h1 = find(root.querySelector('.screen') ?? root);
+    let title: DOMRect | null = null;
+    if (h1) {
+      const range = document.createRange();
+      range.selectNodeContents(h1);
+      title = range.getBoundingClientRect().toJSON() as DOMRect;
+    }
+    const corner = root.querySelector<HTMLElement>('.float');
     return {
       place: app.getAttribute('data-dd-place'),
       rowH: row ? Math.round(row.getBoundingClientRect().height) : -1,
-      chip: chip ? chip.getBoundingClientRect().toJSON() : null,
-      dir: getComputedStyle(app).direction,
-      vw: window.innerWidth,
+      chips,
+      title,
+      corner: corner ? (corner.getBoundingClientRect().toJSON() as DOMRect) : null,
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
     };
   });
 
-for (const hash of ['/security/live/wall', '/multimedia/screens']) {
-  test.describe(hash, () => {
-    test('place 1 keeps its own row; 2, 3, 4 collapse the row to zero height', async ({ page }) => {
-      await open(page, hash, 1280, '1');
-      expect((await facts(page)).rowH).toBeGreaterThan(0);
-      for (const p of ['2', '3', '4']) {
-        await open(page, hash, 1280, p);
-        const f = await facts(page);
-        // a screen whose title would collide falls back to place 1 on its own
-        expect(['1', p]).toContain(f.place);
-        if (f.place === p) expect(f.rowH).toBe(0);
-      }
-    });
+const overlap = (a: DOMRect, b: DOMRect) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
-    test('4: the chip sits at the start edge (RTL right), 2: at the end edge (RTL left, clear of the 84 px corner)', async ({ page }) => {
-      await open(page, hash, 1280, '4');
-      const f4 = await facts(page);
-      if (f4.place === '4') expect(f4.dir === 'rtl' ? f4.vw - f4.chip!.right : f4.chip!.left).toBeLessThan(400);
-      await open(page, hash, 1280, '2');
-      const f2 = await facts(page);
-      if (f2.place === '2') expect(f2.dir === 'rtl' ? f2.chip!.left : f2.vw - f2.chip!.right).toBeGreaterThanOrEqual(83);
-    });
-
-    test('a narrow screen is place 1 whatever the dial says', async ({ page }) => {
-      for (const w of [1099, 768, 390]) {
-        await open(page, hash, w, '4');
+for (const hash of SCREENS) {
+  for (const w of WIDTHS) {
+    for (const p of PLACES) {
+      test(`${hash} at ${w}px, placement ${p}: no overlap, no horizontal overflow`, async ({ page }) => {
+        await open(page, hash, w, p);
         const f = await facts(page);
-        expect(f.rowH === -1 || f.rowH > 0).toBe(true);
-      }
-    });
-  });
+        expect(f.overflow, 'horizontal overflow').toBe(false);
+        if (f.chips.length === 0) return; // this screen's group is not in dropdown mode: nothing hangs on the header
+        for (const c of f.chips) {
+          if (f.title) expect(overlap(c, f.title), 'chip over the title').toBe(false);
+          if (f.corner) expect(overlap(c, f.corner), 'chip over the floating search/status corner').toBe(false);
+        }
+        if (f.title && f.corner) expect(overlap(f.title, f.corner), 'title under the corner').toBe(false);
+        if (w < 1100) expect(f.rowH, 'a narrow screen keeps the own row').toBeGreaterThan(0);
+        else if (f.place !== '1') expect(f.rowH, `placement ${f.place} collapses the row`).toBe(0);
+      });
+    }
+  }
 }
