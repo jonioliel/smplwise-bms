@@ -10178,8 +10178,12 @@
       "python -X utf8 -m pytest tests/test_access_grants.py tests/test_access_arrival.py"
     ],
     "expected": "All pass; negative cases refuse and send nothing.",
-    "status": "NOT_RUN",
-    "notes": "Run locally by the agent on pilot/WISKEYID-BUILD (see the branch report); not yet run in a gate on the runner."
+    "status": "PASS",
+    "notes": "Local targeted run only; not yet in a gate on the runner.",
+    "commit": "f067086f",
+    "environment": "Local Windows workstation, Python 3.12.10 (project .venv), fakes only (FakeAccessEngine, FakeCodeTransport); runner not used",
+    "evidence": "pytest tests/test_access_grants.py (39 passed) + tests/test_access_arrival.py (10 passed); regression: wxperm, migrations, notify_core, notify_sources, tickets_public_app, tickets_public_server, tickets_s4_public, capture_lease_ledger, intercom_authority, rbac_matrix - all passed",
+    "executed_at": "2026-10-17"
   },
   {
     "id": "AT-WISKEYID-2",
