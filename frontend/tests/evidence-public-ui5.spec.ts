@@ -229,21 +229,27 @@ test.describe('TKUI5: the public page in the approved look', () => {
     let rfqTerms = 0;
     let rfqUpload = 0;
     let portal = 0;
+    let portalMore = 0;
+    let consent = 0;
     for (const f of fs.readdirSync(path.join(BUNDLE, 'assets'))) {
       if (!/\.(js|css)$/.test(f)) continue;
       const n = zlib.gzipSync(fs.readFileSync(path.join(BUNDLE, 'assets', f))).length;
       if (/^rfq-page-terms[-.]/.test(f)) rfqTerms += n; // integ/264 (decision a): the lazy payment-terms chunk, own 3 KB cap, before the rfq rule
       else if (/^rfq-upload[-.]/.test(f)) rfqUpload += n; // RFQ-VENDOR-UPLOAD: the vendor's own files (lazy, switch on only), own 5 KB cap (quote + question-with-files UI)
       else if (/^rfq-(page|files)[-.]/.test(f)) rfq += n; // RFQATT: the request files' chunk is the RFQ page's (lazy on a ticket link, only with an order's files)
+      else if (/^portal-more[-.]/.test(f)) portalMore += n; // VPORTALRFQ (integ/270, as the unit guard): the portal's extra sections, own 6 KB cap
       else if (/^portal-page[-.]/.test(f)) portal += n; // VPORTAL: the vendor portal's lazy chunk + stylesheet has its own budget (as the unit guard)
+      else if (/^consent-(page|text)[-.]/.test(f)) consent += n; // WA-CONSENT-LINK (integ/270, as the unit guard): the consent page, own 5 KB cap
       else gz += n;
     }
-    test.info().annotations.push({ type: 'gzip-bytes', description: `${gz} (rfq-page ${rfq}, rfq-terms ${rfqTerms}, rfq-upload ${rfqUpload}, portal ${portal})` });
+    test.info().annotations.push({ type: 'gzip-bytes', description: `${gz} (rfq-page ${rfq}, rfq-terms ${rfqTerms}, rfq-upload ${rfqUpload}, portal ${portal}, portal-more ${portalMore}, consent ${consent})` });
     expect(gz).toBeLessThanOrEqual(61 * 1024);
     expect(rfq).toBeLessThanOrEqual(20 * 1024);
     expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
     expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
     expect(portal).toBeLessThanOrEqual(12 * 1024);
+    expect(portalMore).toBeLessThanOrEqual(6 * 1024);
+    expect(consent).toBeLessThanOrEqual(5 * 1024);
     const html = fs.readFileSync(path.join(BUNDLE, 'index.html'), 'utf8');
     expect(html).not.toMatch(/<style|\sstyle=|\son[a-z]+=|<script>(?!<\/script>)/i);
   });
