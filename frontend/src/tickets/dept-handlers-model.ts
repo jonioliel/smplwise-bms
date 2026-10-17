@@ -65,7 +65,8 @@ export function lookupReady(raw: string): boolean {
   return /^\d{9,15}$/.test(s);
 }
 
-/** A member whose mobile and language the manager may edit (the server's `mobile_editable`: a plain member, never a manager). */
+/** A member whose mobile and language the manager may edit (the server's `mobile_editable`: a plain member of the department - also one who
+ *  manages another department - never the all-departments manager or a system administrator). */
 export function mobileEditable(m: Pick<ManagedMember, 'kind' | 'role' | 'mobile_editable'>): boolean {
   return m.kind === 'user' && m.role === 'member' && m.mobile_editable === true;
 }

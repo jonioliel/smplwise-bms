@@ -116,7 +116,8 @@ ids-only, idempotence, injection / length). Updated catalogue pins in `test_tick
 2. **Vendors default to "my department only"** - a vendor / contact a manager creates is attached to the department in the path unless
    he sends `shared: true` (the UI switch "זמין לכל המחלקות" starts off). Section 1 and the route table are superseded on this point.
 3. **Exact-phone lookup** - see section 9.1.
-4. **A member's mobile and language** - see section 9.2. Section 1's "may NOT edit a member's mobile" is superseded for plain members.
+4. **A member's mobile and language** - see section 9.2. Section 1's "may NOT edit a member's mobile" is superseded for plain members
+   (including one who manages another department; never the super manager or a system administrator).
 5. **The creating department on the row** - see section 9.3 (migration **0113**, provisional number reserved for this branch).
 
 ## 9. The answers' implementation (DEPTMGR2)
@@ -149,8 +150,10 @@ ids-only, idempotence, injection / length). Updated catalogue pins in `test_tick
 ### 9.2 A plain member's mobile and language
 
 `PUT /tickets/dept-handlers/{dept}/members/{user}/mobile` `{phone?, lang?}` (nothing else: `notify_whatsapp`, `phone_verify`, `user_id`
-are 422). THE check, then: the user is an active PLAIN member of the department (else 404), and holds no DIRECT manager row in ANY
-department (403 `manager_row`, audited) - a manager's staff link is never redirected by a peer. The write is the configurer's own
+are 422). THE check, then: the user is an active PLAIN member of the department (else 404). **Owner's second answer (2026-10-17):** a
+member who manages ANOTHER department is allowed; refused with 403 `manager_row` (audited `denied`) are only a manager row of THIS
+department, the all-departments ("super") manager (holds `tickets.all_departments`) and a system administrator - for both the number
+and the language (`dept_handlers._protected_person`). A department outside his own is the uniform 404 as always. The write is the configurer's own
 (`staff_links.set_mobile_checked`): a changed number revokes the person's live links in every department, kills pending codes, clears
 the confirmation (the person confirms again) and tells the person; audit rows carry `department_id`, `subject_id`, `via` and field
 names only. The answer is the department view (the number masked by the usual rule). The overview's members carry `lang` and

@@ -4,7 +4,8 @@
 2. a vendor / contact a manager creates is HIS department's only by default (`shared: true` opts in);
 3. an EXACT-phone lookup to attach an existing vendor: exact match only (no prefix / partial match, no listing), rate limited, the number
    masked in the answer, the number in the body (never the URL) and never in an audit row; attaching needs the same number again;
-4. a manager edits a PLAIN member's mobile and language (never a manager's, never the WhatsApp / verification switches);
+4. a manager edits a PLAIN member's mobile and language - also of one who manages another department (second answer to 3) - never
+   the all-departments ("super") manager's or a system administrator's, never the WhatsApp / verification switches;
 5. the creating department is stored on the row (`created_department_id`, migration 0113) and shown in the directory list - by name
    only to a configurer and to a manager of that department; anyone else reads "another department".
 
@@ -238,15 +239,41 @@ def test_member_mobile_in_a_foreign_department_or_of_a_non_member_is_refused(s4)
     assert staff_row(s4, "dev-cleo") is None and staff_row(s4, "dev-nora") is None
 
 
-def test_a_managers_mobile_is_never_a_peers(s4):
+def test_the_super_manager_and_a_system_administrator_are_refused(s4):
+    """Owner 2026-10-17, second answer to question 3: only the all-departments ("super") manager and system administrators stay
+    refused (403 manager_row), even as plain members of his department; and a manager row of THIS department is never his."""
     grant(s4)
+    s4.w.member(MAINT, "alda", "member")  # alda holds tickets.all_departments
+    s4.w.member(MAINT, "joni", "member")  # joni is a system administrator
+    for uid in ("dev-alda", "dev-joni"):
+        r = mobile(s4, uid, {"phone": "050-000-0075"})
+        assert r.status_code == 403 and r.json()["code"] == "manager_row", (uid, r.text)
+        assert mobile(s4, uid, {"lang": "en"}).status_code == 403, "the language too"
+        assert staff_row(s4, uid) is None
+    flags = {m["id"]: m["mobile_editable"] for m in s4.c.get(H, headers=s4.h("mona")).json()["departments"][0]["members"] if m["kind"] == "user"}
+    assert flags["dev-alda"] is False and flags["dev-joni"] is False
     s4.w.member(MAINT, "nora", "manager")
-    assert mobile(s4, "dev-nora", {"phone": "050-000-0075"}).json()["code"] == "manager_row"
+    assert mobile(s4, "dev-nora", {"phone": "050-000-0075"}).json()["code"] == "manager_row", "a manager row of this department"
     assert mobile(s4, "dev-mona", {"phone": "050-000-0075"}).json()["code"] == "manager_row", "not even his own here"
-    s4.w.member(s4.w.cleaning, "tom", "manager")  # tom: a plain member here, a manager elsewhere
-    assert mobile(s4, "dev-tom", {"phone": "050-000-0075"}).status_code == 403
-    assert staff_row(s4, "dev-tom") is None and staff_row(s4, "dev-nora") is None
-    assert any(a["reason"] == "manager_row" for a in audits(s4, "ticket.contact.update") if a["decision"] == "denied")
+    assert staff_row(s4, "dev-nora") is None
+    denied = [a for a in audits(s4, "ticket.contact.update") if a["decision"] == "denied" and a["reason"] == "manager_row"]
+    assert len(denied) >= 6 and all("0075" not in (a["details_json"] or "") for a in denied)
+
+
+def test_a_member_who_manages_another_department_is_allowed(s4):
+    grant(s4)
+    s4.w.member(MAINT, "cleo", "member")  # cleo manages cleaning, and is a plain member of maintenance
+    flags = {m["id"]: m["mobile_editable"] for m in s4.c.get(H, headers=s4.h("mona")).json()["departments"][0]["members"] if m["kind"] == "user"}
+    assert flags["dev-cleo"] is True and flags["dev-tom"] is True
+    r = mobile(s4, "dev-cleo", {"phone": "050-000-0077", "lang": "en"})
+    assert r.status_code == 200, r.text
+    assert staff_row(s4, "dev-cleo") == {"phone_e164": "972500000077", "lang": "en"}
+    s4.w.member(s4.w.cleaning, "tom", "manager")  # tom: a plain member here, now a manager elsewhere
+    assert mobile(s4, "dev-tom", {"phone": "050-000-0078"}).status_code == 200
+    assert staff_row(s4, "dev-tom")["phone_e164"] == "972500000078"
+    # outside his own department: still the uniform 404 (cleo's own department is not mona's)
+    assert mobile(s4, "dev-cleo", {"phone": "050-000-0079"}, dept=s4.w.cleaning).json()["code"] == "not_found"
+    assert staff_row(s4, "dev-cleo")["phone_e164"] == "972500000077"
 
 
 @pytest.mark.parametrize("body", [{"notify_whatsapp": True}, {"phone_verify": False}, {"phone": "050-000-0076", "user_id": "dev-nora"},

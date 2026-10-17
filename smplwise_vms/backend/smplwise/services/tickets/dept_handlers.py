@@ -123,11 +123,16 @@ def reader(viewer: Viewer) -> HandlerScope:
 # ---------------------------------------------------------------- the read
 
 
-def _manages_somewhere(conn, user_id: str) -> bool:
-    """A DIRECT manager row of the user in any department (his mobile is never a department manager's to change: a manager role is
-    set in Settings, and a manager's staff link must not be redirected by a peer)."""
-    return conn.execute("SELECT 1 FROM ticket_department_members WHERE subject_kind = 'user' AND subject_id = ? AND member_role = 'manager' LIMIT 1",
-                        (user_id,)).fetchone() is not None
+def _protected_person(conn, user_id: str) -> bool:
+    """Owner 2026-10-17 (DEPTMGR2, second answer to question 3): a department manager may set the mobile / language of a plain member
+    of his department EVEN when that person manages another department - EXCEPT the all-departments ("super") manager (holds
+    tickets.all_departments anywhere) and a system administrator, whose numbers stay a configurer's."""
+    from ...rbac import is_system_admin
+    from .service import _user_viewer
+
+    if is_system_admin(conn, user_id):
+        return True
+    return access.ALL_DEPARTMENTS in _user_viewer(conn, user_id).anywhere
 
 
 def _member_view(conn, m: dict[str, Any], full: bool, editable: bool = False) -> dict[str, Any]:
@@ -142,8 +147,9 @@ def _member_view(conn, m: dict[str, Any], full: bool, editable: bool = False) ->
             "has_mobile": bool(phone), "mobile": contacts.display_phone(phone) if full else contacts.mask_phone(phone),
             "mobile_full": bool(phone) and full, "mobile_confirmed": sv["confirmed"], "notify_whatsapp": sv["notify_whatsapp"],
             "lang": sv["lang"],
-            # owner 2026-10-17 (open question 4): a capable manager edits a PLAIN member's mobile and language (never a manager's)
-            "mobile_editable": editable and m["member_role"] == "member" and not _manages_somewhere(conn, m["subject_id"])}
+            # owner 2026-10-17 (question 4 + the second answer to 3): a capable manager edits a PLAIN member's mobile and language - also
+            # of one who manages another department - never the super manager's or a system administrator's
+            "mobile_editable": editable and m["member_role"] == "member" and not _protected_person(conn, m["subject_id"])}
 
 
 def department_view(scope: HandlerScope, dept_id: str) -> dict[str, Any]:
@@ -221,8 +227,9 @@ MOBILE_FIELDS = ("phone", "lang")
 def set_member_mobile(viewer: Viewer, dept_id: str, user_id: str, body: dict[str, Any], rid: str | None) -> dict[str, Any]:
     """Owner 2026-10-17 (open question 4): a capable manager sets the mobile and the language of a PLAIN member (with an account) of HIS
     department - the same write as Settings (staff_links.set_mobile_checked: a changed number revokes the person's live links in every
-    department and the person confirms the new number again). Never a manager's mobile (a manager row anywhere: 403 `manager_row`),
-    never the person's WhatsApp switch or number-verification switch (those stay the person's / a configurer's). The answer is the
+    department and the person confirms the new number again). A person who manages ANOTHER department is allowed (owner, second answer
+    to question 3); a manager row of THIS department, the all-departments ("super") manager and a system administrator are 403
+    `manager_row`; never the person's WhatsApp switch or number-verification switch (those stay the person's / a configurer's). The answer is the
     department view (the number masked by the usual rule)."""
     from . import staff_links
 
@@ -233,9 +240,9 @@ def set_member_mobile(viewer: Viewer, dept_id: str, user_id: str, body: dict[str
     before = store.member_row(conn, dept_id, "user", user_id)
     if before is None or user_id not in store.active_user_ids(conn):
         raise ApiError(404, "not_found", text(conn, "החבר לא נמצא במחלקה."))
-    if before["member_role"] == "manager" or _manages_somewhere(conn, user_id):
+    if before["member_role"] == "manager" or _protected_person(conn, user_id):
         _deny(conn, viewer, "ticket.contact.update", "ticket_department", dept_id, "manager_row", rid, {"subject_kind": "user", "subject_id": user_id})
-        raise ApiError(403, "manager_row", text(conn, "את הנייד של מנהל מחלקה משנים בהגדרות המערכת בלבד."))
+        raise ApiError(403, "manager_row", text(conn, "את הנייד של האדם הזה משנים בהגדרות המערכת בלבד."))
     staff_links.set_mobile_checked(conn, viewer, user_id, body, rid, extra_audit=_rid_details(dept_id, subject_id=user_id))
     return department_view(scope, dept_id)
 

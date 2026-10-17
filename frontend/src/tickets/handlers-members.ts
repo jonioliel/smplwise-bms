@@ -55,7 +55,8 @@ function fromManaged(d: ManagedDepartment): AdminDepartment {
  * CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17): without tickets.configure a department MANAGER reads his departments' members through
  * GET /tickets/dept-handlers (phones masked unless the installation setting allows); with the capability he adds a user as a plain member
  * and removes plain members. Manager rows, groups, roles and alerts stay the configurer's (the card shows them read-only). Owner answer
- * 2026-10-17 (DEPTMGR2): he also sets a PLAIN member's mobile and language (the server's `mobile_editable`; never a manager's mobile,
+ * 2026-10-17 (DEPTMGR2): he also sets a PLAIN member's mobile and language (the server's `mobile_editable`; also of one who manages another department, never the
+ * all-departments manager's or a system administrator's,
  * never the WhatsApp / verification switches) - the shown number stays masked, a new one is typed.
  * Events: `notice` {ok | error}, `add-done` (the add panel did its work).
  */
