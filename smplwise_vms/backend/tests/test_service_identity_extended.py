@@ -30,6 +30,9 @@ EXT_ITEMS = [  # (feature, bridge service, item) admitted only by the extended m
     ("alarm.bypass", "execute", ("switch", "turn_on")),
     ("alarm.bypass", "execute", ("select", "select_option")),
     ("cameras.live", "stream_source", "read"),  # 3: the camera stream source
+    ("automations.run", "config_item", "trigger"),  # second round: running from the automations screen
+    ("automations.run", "config_item", "run_script"),
+    ("automations.run", "config_item", "apply_scene"),
 ]
 
 
@@ -124,6 +127,11 @@ def test_area_write_stays_refused_even_when_a_table_lists_it(db, monkeypatch):
     ("alarm", "execute", ("alarm_control_panel", "alarm_trigger")),
     ("automations", "config_item", "upsert"),
     ("automations", "config_item", "run"),
+    ("automations.run", "config_item", "upsert"),  # second round: a write never, even under the run feature
+    ("automations.run", "config_item", "delete"),
+    ("automations.run", "config_item", "enable"),
+    ("automations.run", "config_item", "stop_script"),
+    ("devices.control", "config_item", "trigger"),  # a run only under its own feature
     ("system", "execute", ("homeassistant", "restart")),
     ("devices.control", "execute", ["lock", "unlock"]),  # an unhashable item
 ])
@@ -452,7 +460,181 @@ def test_a_local_user_enables_a_live_camera_only_with_the_switch_on(live):
         assert hls.enabled(conn)[ENTITY]["enabled_by"] == LID
 
 
+# ---------------------------------------------------------------- 8. second round (owner 2026-10-17): RUNNING from the automations screen
+
+RUN_PERMS = ["script.run", "devices.control", "devices.read", "entity.state.read"]
+
+
+def _local_runner(app, c, *, sensitive: list[str]) -> Principal:
+    """A local person bound to a custom role at the installation (the role is created by the bootstrap administrator)."""
+    db = app.state.db
+    _seed(db, role=None)
+    r = c.post("/api/v1/access/roles", json={"name": f"runner-{len(sensitive)}-{new_id()[:6]}", "permissions": RUN_PERMS if sensitive is not None else [], "sensitive": sensitive})
+    assert r.status_code in (200, 201), r.text
+    with db.connection() as conn:
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) "
+                     "VALUES (?, 'user', ?, ?, 'installation', '*', 'allow', ?, 'test', ?)", (new_id(), LID, r.json()["id"], permission_revision(conn), now_iso()))
+        bump_permission_revision(conn)
+    return _local()
+
+
+def _screened_transport(tr, *, bridge_extended: list[bool]) -> list[dict]:
+    """The bridge as __init__ runs it: service_identity.screen with the bridge's own copy of the switch, then the real config_item handler (the message
+    without `on_behalf_of`, re-signed for the fake). Returns every payload the add-on signed, `on_behalf_of` included."""
+    from smplwise.services import ha_bridge
+
+    bsi, signing = load("service_identity"), load("signing")
+    seen: list[dict] = []
+    original = tr.bridge
+
+    class _Auth:
+        async def async_get_user(self, uid):
+            return SimpleNamespace(id=uid, is_active=True, is_admin=False, system_generated=False) if uid == SID else None
+
+    def bridge(payload):
+        seen.append({k: v for k, v in payload.items() if k not in ("sig", "nonce", "ts")})
+        msg, refused = asyncio.run(bsi.screen(SimpleNamespace(auth=_Auth()), signing.Verifier(tr.secret), dict(payload), "config_item", SID, bridge_extended[0]))
+        if refused is not None:
+            return refused
+        return original(ha_bridge.sign(tr.secret, {k: v for k, v in msg.items() if k not in ("sig", "nonce", "ts")}))
+
+    tr.bridge = bridge
+    return seen
+
+
+def _runs(c, ids):
+    return {
+        "automation": c.post(f"/api/v1/automations/automation/{ids['automation']}/run", json={"client_request_id": rid(), "confirm": True, "skip_condition": False}),
+        "script": c.post(f"/api/v1/automations/script/{ids['script']}/run", json={"client_request_id": rid(), "fields": {"temp": 22}, "confirm": True}),
+        "scene": c.post(f"/api/v1/automations/scene/{ids['scene']}/apply", json={"client_request_id": rid(), "confirm": True}),
+    }
+
+
+def _items(c):
+    from automations_fixture import create_item, draft_of, item_by_name
+
+    created = create_item(c, "automation", draft_of("ריצה מקומית"))
+    assert created.status_code == 201, created.text
+    return {"automation": created.json()["item"]["id"], "script": item_by_name(c, "קירור עם פרמטרים")["id"], "scene": item_by_name(c, "wall scene 03", "scene")["id"]}
+
+
+def test_runs_from_the_automations_screen_need_the_switch_on_both_sides_and_the_users_permission(autos_app):
+    app, s, c, fake, tr = autos_app
+    ids = _items(c)  # by the bootstrap administrator, before any override
+    local = _local_runner(app, c, sensitive=["automation.manage", "scene.manage", "ha.entity.control"])  # a scene needs the control of its entity
+    with app.state.db.connection() as conn:
+        set_setting(conn, "bridge.integration_version", "0.9.1")
+    bridge_extended = [False]
+    seen = _screened_transport(tr, bridge_extended=bridge_extended)
+    _as(app, local)
+    try:
+        # switch off: refused exactly as in 2.6.4, before any op is recorded, nothing sent
+        for kind, r in _runs(c, ids).items():
+            assert r.status_code == 403 and r.json()["code"] == "automation_write_requires_ha_identity", (kind, r.text)
+        assert seen == []
+        # the add-on's switch on, the bridge's copy not reported: nothing sent
+        _ext(app.state.db, bridge_on=False)
+        for kind, r in _runs(c, ids).items():
+            assert r.status_code == 503 and r.json()["code"] == "service_identity_extended_bridge_off", (kind, r.text)
+        assert seen == []
+        # the add-on believes the bridge is on, the bridge's own copy is off: the bridge refuses (fail closed)
+        _ext(app.state.db, bridge_on=True)
+        r = _runs(c, ids)["script"]
+        assert r.status_code != 202 and seen[-1]["on_behalf_of"]["feature"] == "automations.run"
+        # both sides on: each run goes as the service identity, attributed to the person, `automations.run`
+        bridge_extended[0] = True
+        n = len(seen)
+        for kind, r in _runs(c, ids).items():
+            assert r.status_code == 202, (kind, r.text)
+        ops = [(p["op"], p["user_id"], p["on_behalf_of"]) for p in seen[n:]]
+        assert [o[0] for o in ops] == ["trigger", "run_script", "apply_scene"]
+        assert all(o[1] == SID and o[2] == {"kind": "local", "user_id": LID, "feature": "automations.run"} for o in ops)
+        rows = _audit(app.state.db, "identity.service_identity.extended")
+        assert [json.loads(r["details_json"])["item"] for r in rows][-3:] == ["trigger", "run_script", "apply_scene"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_writes_enable_disable_and_stop_stay_refused_with_the_switch_on(autos_app):
+    from automations_fixture import create_item, draft_of, get_item
+
+    app, s, c, fake, tr = autos_app
+    ids = _items(c)
+    rev = get_item(c, "automation", ids["automation"]).json()["revision"]
+    local = _local_runner(app, c, sensitive=["automation.manage", "scene.manage", "script.manage"])
+    _ext(app.state.db)
+    seen = _screened_transport(tr, bridge_extended=[True])
+    _as(app, local)
+    try:
+        attempts = {
+            "create": create_item(c, "automation", draft_of("לא מקומי")),
+            "delete": c.post(f"/api/v1/automations/automation/{ids['automation']}/delete", json={"base_revision": rev, "confirm": True, "client_request_id": rid()}),
+            "enable": c.post(f"/api/v1/automations/automation/{ids['automation']}/enable", json={"client_request_id": rid()}),
+            "disable": c.post(f"/api/v1/automations/automation/{ids['automation']}/disable", json={"client_request_id": rid()}),
+            "stop": c.post(f"/api/v1/automations/script/{ids['script']}/stop", json={"client_request_id": rid()}),
+        }
+        for what, r in attempts.items():
+            assert r.status_code == 403 and r.json()["code"] == "automation_write_requires_ha_identity", (what, r.text)
+        assert seen == []
+    finally:
+        app.dependency_overrides.clear()
+    # the tables agree: only the three run ops, never a write, on either side
+    bsi = load("service_identity")
+    assert si.AUTOMATION_RUN_OPS == bsi.AUTOMATION_RUN_OPS == frozenset({"trigger", "run_script", "apply_scene"})
+    with app.state.db.connection() as conn:
+        for op in ("upsert", "delete", "enable", "disable", "stop_script"):
+            assert si.feature_refusal("automations.run", "config_item", op, True) == "service_identity_refused", op
+
+
+def test_without_the_run_permission_a_local_user_is_refused_even_with_the_switch_on(autos_app):
+    app, s, c, fake, tr = autos_app
+    ids = _items(c)
+    _seed(app.state.db, role="viewer")  # no script.run, no automation.manage, no scene rights
+    _ext(app.state.db)
+    seen = _screened_transport(tr, bridge_extended=[True])
+    _as(app, _local())
+    try:
+        for kind, r in _runs(c, ids).items():
+            assert r.status_code in (403, 404) and r.json()["code"] != "automation_write_requires_ha_identity", (kind, r.text)
+        assert seen == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------- 9. second round: arm_custom_bypass needs alarm.bypass for a Home Assistant user too
+
+def test_a_home_assistant_user_needs_alarm_bypass_for_arm_custom_bypass(alarm_app, monkeypatch):
+    from test_alarm import _act, _no_code
+    from smplwise.services import ha_sync as hs
+
+    app, s, c, calls, _ = alarm_app
+    db = app.state.db
+    with db.connection() as conn:
+        now = now_iso()
+        hs.upsert_state(conn, {"entity_id": "alarm_control_panel.risco_house", "state": "disarmed", "last_changed": now, "last_updated": now,
+                               "attributes": {"friendly_name": "x", "code_format": "number", "code_arm_required": False, "supported_features": 1 | 2 | 4 | 16}})
+        conn.execute("INSERT OR IGNORE INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at) VALUES ('u-arm', 'armer', 'Armer', 'remote', 1, ?, ?)", (now, now))
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) "
+                     "VALUES (?, 'user', 'u-arm', 'operator', 'installation', '*', 'allow', ?, 'test', ?)", (new_id(), permission_revision(conn), now))
+        bump_permission_revision(conn)
+    _no_code(c, "u-arm")
+    _no_code(c)
+    armer = Principal(user_id="u-arm", username="armer", display_name="Armer", source="remote", via="cookie")  # operator: alarm.arm only
+    try:
+        _as(app, armer)
+        n = len(calls)
+        r = _act(c, "alarm_control_panel.risco_house", "arm_custom_bypass")
+        assert r.status_code == 403 and r.json()["code"] == "forbidden", r.text
+        assert len(calls) == n
+        assert _act(c, "alarm_control_panel.risco_house", "arm_away").status_code == 202  # plain arming is unchanged
+    finally:
+        app.dependency_overrides.clear()
+    r = _act(c, "alarm_control_panel.risco_house", "arm_custom_bypass")  # the bootstrap administrator holds alarm.bypass
+    assert r.status_code == 202, r.text
+    assert calls[-1]["service"] == "alarm_arm_custom_bypass" and "on_behalf_of" not in calls[-1]
+
 from test_alarm import _fresh_limits, alarm_app  # noqa: E402,F401  (fixtures)
+from automations_fixture import autos_app, rid  # noqa: E402,F401
 from test_camera_card import cam_app  # noqa: E402,F401
 from test_devices import dev_app  # noqa: E402,F401
 from test_ha_camera_live import _no_real_dns, live  # noqa: E402,F401

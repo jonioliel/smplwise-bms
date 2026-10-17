@@ -41,7 +41,8 @@ It does two things and nothing else:
    only for the features / items of service_identity.SERVICE_FEATURES (devices, alarm, media, cast, schedules); automations, the area write and the
    stream source never. The person's id is attribution only. The configured id travels to the add-on with the directory push (its health check).
 12. The extended mode (0.9.1, SVCIDENT2): the options-flow switch `local_identity_extended` (off by default). With it on, an Arx-only person may also
-   open doors (`lock.unlock`), run `script.turn_on` / `scene.turn_on`, arm with the bypass set, operate a zone's bypass control and read a camera's
+   open doors (`lock.unlock`), run `script.turn_on` / `scene.turn_on`, run / trigger / apply from the automations screen (`config_item` run ops
+   only, never a write), arm with the bypass set, operate a zone's bypass control and read a camera's
    stream source (the administrator rule of that handler is waived for such a screened message only); the area write never. The add-on has its
    own copy of the switch - both must be on. The switch travels to the add-on with the directory push.
 """

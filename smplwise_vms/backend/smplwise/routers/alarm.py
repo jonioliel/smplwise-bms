@@ -473,10 +473,11 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
     if not scope.allowed(perm, entity_id):
         require(conn, principal, perm, INSTALLATION)  # the audited 403
     note_grant(scope.decision(perm, entity_id), perm)
-    if (body.action == "arm_custom_bypass" and service_identity.is_local(principal) and service_identity.extended_on(conn)
-            and not scope.allowed(BYPASS, entity_id)):
-        # SVCIDENT2 (owner decision 2): arming with the bypass set is a zone bypass - in the extended mode an Arx-only user needs alarm.bypass
-        # on the panel for it (with the mode off the service identity refuses it exactly as in 2.6.4)
+    if (body.action == "arm_custom_bypass" and not scope.allowed(BYPASS, entity_id)
+            and (not service_identity.is_local(principal) or service_identity.extended_on(conn))):
+        # SVCIDENT2 (owner decisions 2 and, second round, 4 - 2026-10-17): arming with the bypass set is a zone bypass, so it needs alarm.bypass on
+        # the panel in addition to alarm.arm - for a Home Assistant user always, for an Arx-only user in the extended mode (with the mode off the
+        # service identity refuses an Arx-only user exactly as in 2.6.4)
         require(conn, principal, BYPASS, INSTALLATION)
     cfg = _settings(conn)
     blocked = _remote_block(principal, cfg, "disarm" if disarm else "arm")

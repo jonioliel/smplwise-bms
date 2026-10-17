@@ -251,6 +251,10 @@ EXTENDED_ITEMS = [  # (bridge service, feature, body) that only the extended swi
     ("execute", "alarm.bypass", {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.kitchen_bypass"}}),
     ("execute", "alarm.bypass", {"domain": "select", "service": "select_option", "data": {"entity_id": "select.zone_3", "option": "bypassed"}}),
     ("stream_source", "cameras.live", {"entity_id": "camera.garden"}),
+    # second round (owner 2026-10-17): running from the automations screen - run ops only
+    ("config_item", "automations.run", {"op": "trigger", "kind": "automation", "item_id": "a1"}),
+    ("config_item", "automations.run", {"op": "run_script", "kind": "script", "item_id": "s1"}),
+    ("config_item", "automations.run", {"op": "apply_scene", "entity_id": "scene.x"}),
 ]
 
 
@@ -261,9 +265,10 @@ def _screen_x(msg: dict, service: str = "execute", extended=True):
 @pytest.mark.parametrize("service,feature,body", EXTENDED_ITEMS)
 def test_switch_off_refuses_every_extended_item_exactly_as_090(service, feature, body):
     msg = _signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body})
-    assert _error(_screen_x(dict(msg), service, extended=False)) == "service_identity_refused"
+    before = "automation_write_requires_ha_identity" if service == "config_item" else "service_identity_refused"  # exactly the 0.9.0 answer
+    assert _error(_screen_x(dict(msg), service, extended=False)) == before
     for not_true in ("true", 1, "on", None):  # only a real boolean True switches it on
-        assert _error(_screen_x(_signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body}), service, extended=not_true)) == "service_identity_refused"
+        assert _error(_screen_x(_signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body}), service, extended=not_true)) == before
 
 
 @pytest.mark.parametrize("service,feature,body", EXTENDED_ITEMS)
@@ -298,8 +303,11 @@ def test_switch_on_never_admits_the_area_write_or_automations(monkeypatch):
     monkeypatch.setattr(si, "EXTENDED_FEATURES", widened)
     assert _error(_screen_x(_signed({**base, "entity_id": "light.x", "area_id": "k", "on_behalf_of": _obo("devices.area")}), "set_entity_area")) == "service_identity_refused"
     assert si.never_list(True) == {si.AREA_WRITE} and si.NEVER_LOCAL_EXTENDED == frozenset({("smplwise_bridge", "set_entity_area")})
-    for op in ("upsert", "run", "trigger"):  # the automations screen stays HA users only
-        assert _error(_screen_x(_signed({**base, "op": op, "kind": "script", "on_behalf_of": _obo("devices.control")}), "config_item")) == "automation_write_requires_ha_identity"
+    for op in ("upsert", "delete", "enable", "disable", "stop_script", "snapshot_scene", ["trigger"]):  # writes and the other runtime ops: HA users only
+        for feature in ("automations.run", "devices.control"):
+            assert _error(_screen_x(_signed({**base, "op": op, "kind": "script", "on_behalf_of": _obo(feature)}), "config_item")) == "automation_write_requires_ha_identity", (op, feature)
+    for feature in ("devices.control", "schedules", "automations"):  # a run op only under its own feature
+        assert _error(_screen_x(_signed({**base, "op": "trigger", "kind": "automation", "on_behalf_of": _obo(feature)}), "config_item")) == "service_identity_refused", feature
 
 
 def test_switch_on_keeps_every_identity_rule():
@@ -323,6 +331,7 @@ def test_extended_tables_match_the_addon_and_extend_only_what_the_owner_named():
         "alarm": {"execute": frozenset({("alarm_control_panel", "alarm_arm_custom_bypass")})},
         "alarm.bypass": {"execute": frozenset({("switch", "turn_on"), ("switch", "turn_off"), ("select", "select_option")})},
         "cameras.live": {"stream_source": frozenset({"read"})},
+        "automations.run": {"config_item": frozenset({"trigger", "run_script", "apply_scene"})},
     }
     addon = importlib.import_module("smplwise.services.service_identity")
     assert addon.NEVER_LOCAL_EXTENDED == si.NEVER_LOCAL_EXTENDED and addon.AREA_WRITE == si.AREA_WRITE

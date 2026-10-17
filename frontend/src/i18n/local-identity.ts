@@ -145,8 +145,8 @@ const he = {
   siRemote: 'זהות השירות מוגדרת רק מכניסה מקומית (דרך Home Assistant).',
   siPlaceholder: '0123456789abcdef0123456789abcdef',
   // SVCIDENT2: the extended mode (security.local_identity_extended + the bridge's own switch)
-  siExtendedOn: 'מצב מורחב פעיל: משתמשי Arx יכולים גם לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו ב־Arx. שיוך התקן לאזור נשאר אסור. נדרשת סקירת אבטחה לפני הפעלה.',
-  siExtendedOff: 'מצב מורחב (פתיחת דלתות, עקיפת אזורים, סקריפטים וסצנות, מצלמות בזרם חי) כבוי. הפעלתו דורשת סקירת אבטחה, מנהל מערכת בכניסה מקומית (security.local_identity_extended) וגם הפעלה ברכיב החיבור.',
+  siExtendedOn: 'מצב מורחב פעיל: משתמשי Arx יכולים גם לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות, להריץ אוטומציות, סקריפטים וסצנות ממסך האוטומציות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו ב־Arx. כתיבה של אוטומציות, הפעלה / כיבוי שלהן ושיוך התקן לאזור נשארים אסורים. נדרשת סקירת אבטחה לפני הפעלה.',
+  siExtendedOff: 'מצב מורחב (פתיחת דלתות, עקיפת אזורים, סקריפטים וסצנות, הרצה ממסך האוטומציות, מצלמות בזרם חי) כבוי. הפעלתו דורשת סקירת אבטחה, מנהל מערכת בכניסה מקומית (security.local_identity_extended) וגם הפעלה ברכיב החיבור.',
   // USR2 phase 4: passkeys
   passkeys: 'מפתחות גישה',
   passkeySignIn: 'כניסה עם מפתח גישה',
@@ -272,8 +272,8 @@ const en: Partial<Record<Key, string>> = {
   siAdmin: 'administrator - not allowed',
   siRemote: 'The service identity is configured from a local (Home Assistant) session only.',
   siPlaceholder: '0123456789abcdef0123456789abcdef',
-  siExtendedOn: 'Extended mode is on: Arx users may also open doors, bypass alarm zones, run scripts and scenes and show live cameras - each only under their own Arx permission. Assigning a device to an area stays refused. A security review is required before enabling it.',
-  siExtendedOff: "Extended mode (doors, zone bypass, scripts and scenes, live cameras) is off. Turning it on needs a security review, a system administrator on the local channel (security.local_identity_extended) and the bridge's own switch.",
+  siExtendedOn: 'Extended mode is on: Arx users may also open doors, bypass alarm zones, run scripts and scenes, run automations, scripts and scenes from the automations screen and show live cameras - each only under their own Arx permission. Writing automations, enabling / disabling them and assigning a device to an area stay refused. A security review is required before enabling it.',
+  siExtendedOff: "Extended mode (doors, zone bypass, scripts and scenes, running from the automations screen, live cameras) is off. Turning it on needs a security review, a system administrator on the local channel (security.local_identity_extended) and the bridge's own switch.",
   passkeys: 'Passkeys',
   passkeySignIn: 'Sign in with a passkey',
   passkeyUse: 'Verify with a passkey',

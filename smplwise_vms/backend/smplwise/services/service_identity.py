@@ -108,12 +108,16 @@ FEATURES: dict[str, dict[str, frozenset[Any]]] = {
 DOOR_PAIRS = frozenset({("lock", "unlock"), ("lock", "open")})  # `lock.open` is in neither execute allow-list today: listed for parity, still refused there
 SCRIPT_SCENE_PAIRS = frozenset({("script", "turn_on"), ("scene", "turn_on")})
 BYPASS_PAIRS = frozenset({("switch", "turn_on"), ("switch", "turn_off"), ("select", "select_option")})  # a zone's bypass control (the zone-bypass route only)
+# SVCIDENT2 second round (owner 2026-10-17): RUNNING from the automations screen - an automation's "run now" (`trigger`), a script's run
+# (`run_script`), a scene's apply (`apply_scene`). Never the writes (`upsert`, `delete`), never `enable` / `disable` / `stop_script`.
+AUTOMATION_RUN_OPS = frozenset({"trigger", "run_script", "apply_scene"})
 EXTENDED_FEATURES: dict[str, dict[str, frozenset[Any]]] = {
     **FEATURES,
     "devices.control": {"execute": DEVICE_PAIRS | DOOR_PAIRS | SCRIPT_SCENE_PAIRS},
     "alarm": {"execute": ALARM_PAIRS | {("alarm_control_panel", "alarm_arm_custom_bypass")}},
     "alarm.bypass": {"execute": BYPASS_PAIRS},
     "cameras.live": {"stream_source": frozenset({"read"})},
+    "automations.run": {"config_item": AUTOMATION_RUN_OPS},
 }
 FEATURE_LABELS = {"devices.control": ("שליטה בהתקנים (בלי סקריפטים וסצנות)", "Device control (scripts and scenes excluded)"),
                   "alarm": ("אזעקה (דריכה / נטרול לפי כללי הקוד, בלי עקיפת אזורים)", "Alarm (arm / disarm under the PIN rules, no zone bypass)"),
@@ -129,10 +133,12 @@ EXTENDED_FEATURE_LABELS = {
     "alarm": ("אזעקה (דריכה / נטרול לפי כללי הקוד; דריכה עם עקיפה דורשת הרשאת עקיפה)", "Alarm (arm / disarm under the PIN rules; arming with bypass needs the bypass permission)"),
     "alarm.bypass": ("עקיפת אזורי אזעקה (לפי הרשאת עקיפה)", "Alarm zone bypass (under the bypass permission)"),
     "cameras.live": ("מצלמות בזרם חי דרך תשתית המערכת (לפי הרשאת הגדרת מקורות)", "Live cameras through the infrastructure (under the sources permission)"),
+    "automations.run": ("הרצת אוטומציות וסקריפטים והפעלת סצנות ממסך האוטומציות (לפי הרשאות ההרצה)", "Running automations and scripts and applying scenes on the automations screen (under the run permissions)"),
     "media": FEATURE_LABELS["media"], "cast": FEATURE_LABELS["cast"], "schedules": FEATURE_LABELS["schedules"],
 }
 EXTENDED_REFUSED_LABELS = [("שיוך התקן לאזור", "Assigning a device to an area"),
-                           ("אוטומציות, סצנות וסקריפטים במסך האוטומציות (כתיבה והרצה)", "Automations, scenes and scripts on the automations screen (writing and running)")]
+                           ("כתיבה של אוטומציות, סצנות וסקריפטים (יצירה, עריכה, מחיקה, שחזור), הפעלה / כיבוי של אוטומציה ועצירת סקריפט",
+                            "Writing automations, scenes and scripts (create, edit, delete, restore), enabling / disabling an automation and stopping a script")]
 
 MESSAGES = {
     "service_identity_refused": "הפעולה הזו אינה זמינה למשתמשי Arx.",
@@ -373,6 +379,15 @@ def refuse_automation_write(conn: sqlite3.Connection, principal: Principal, requ
     raise ApiError(403, "automation_write_requires_ha_identity", MESSAGES["automation_write_requires_ha_identity"])
 
 
+def refuse_automation_run(conn: sqlite3.Connection, principal: Principal, request_id: str | None) -> None:
+    """SVCIDENT2 second round: the automations screen's RUN routes (an automation's run, a script's run, a scene's apply). Switch off: exactly
+    refuse_automation_write (2.6.4). Extended mode on: the route goes on - its own Arx run permission decides - and the bridge call is judged
+    by the `automations.run` feature (AUTOMATION_RUN_OPS only) through the service identity."""
+    if not is_local(principal) or extended_on(conn):
+        return
+    refuse_automation_write(conn, principal, request_id)
+
+
 def refuse_zone_bypass(conn: sqlite3.Connection, principal: Principal, request_id: str | None, *, zone: str) -> None:
     """Alarm zone bypass (and its restore): never for a local identity - an explicit rule of the route (security review F1), independent of
     whether the bypass control's (domain, service) happens to be in the `alarm` table. Called after the route's own permission checks.
@@ -531,8 +546,8 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
     bridge_ext = (get_setting(conn, BRIDGE_EXTENDED) or "") == "true"
     bridge_ext_ok = _version_tuple(bridge_version) >= _version_tuple(BRIDGE_EXTENDED_REQUIRED)
     if ext_requested:
-        step("extended_on", "המצב המורחב פעיל: משתמשי Arx יכולים לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו. נדרשת סקירת אבטחה לפני הפעלה.",
-             "Extended mode is on: Arx users may open doors, bypass alarm zones, run scripts and scenes and show live cameras - each only under their own permission. A security review is required before enabling it.")
+        step("extended_on", "המצב המורחב פעיל: משתמשי Arx יכולים לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות, להריץ אוטומציות ממסך האוטומציות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו. נדרשת סקירת אבטחה לפני הפעלה.",
+             "Extended mode is on: Arx users may open doors, bypass alarm zones, run scripts and scenes, run automations from the automations screen and show live cameras - each only under their own permission. A security review is required before enabling it.")
         if paired and not bridge_ext_ok:
             step("extended_bridge_outdated", f"המצב המורחב דורש רכיב חיבור {BRIDGE_EXTENDED_REQUIRED} ומעלה (כעת {bridge_version or '?'}).",
                  f"Extended mode needs the bridge {BRIDGE_EXTENDED_REQUIRED} or newer (now {bridge_version or '?'}).")

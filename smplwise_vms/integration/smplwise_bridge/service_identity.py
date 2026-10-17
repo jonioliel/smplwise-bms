@@ -24,7 +24,9 @@ compared by a drift test):
 - 0.9.1 (SVCIDENT2, owner decisions 2026-10-17): the options-flow switch `local_identity_extended` (off by default; only an HA administrator
   opens the options flow). With it ON the never-list shrinks to the area write (NEVER_LOCAL_EXTENDED) and EXTENDED_FEATURES applies: doors
   (`lock.unlock`), `script.turn_on` / `scene.turn_on`, `alarm_arm_custom_bypass`, a zone's bypass control (`alarm.bypass`) and the camera
-  stream source (`cameras.live`; the stream-source handler then waives its administrator rule for that screened message only). The add-on
+  stream source (`cameras.live`; the stream-source handler then waives its administrator rule for that screened message only), and running
+  from the automations screen (`automations.run`: the `config_item` ops `trigger`, `run_script`, `apply_scene` only - every write,
+  `enable` / `disable` and `stop_script` stay `automation_write_requires_ha_identity` in both modes). The add-on
   has its own copy of the switch: both must be on. Residual risks (CR-USR2 section 11): `execute` has no per-entity check, and a script /
   scene can do anything the service user can. A security review is required before the switch is turned on.
 
@@ -105,12 +107,16 @@ SERVICE_FEATURES: dict[str, dict[str, frozenset[Any]]] = {
 DOOR_PAIRS = frozenset({("lock", "unlock"), ("lock", "open")})  # `lock.open` is not in ALLOWED_SERVICES: listed for parity, still refused there
 SCRIPT_SCENE_PAIRS = frozenset({("script", "turn_on"), ("scene", "turn_on")})
 BYPASS_PAIRS = frozenset({("switch", "turn_on"), ("switch", "turn_off"), ("select", "select_option")})
+# 0.9.1 (SVCIDENT2 second round): RUNNING from the automations screen only - `trigger`, `run_script`, `apply_scene`; never `upsert` / `delete`,
+# never `enable` / `disable` / `stop_script` (automation_write_requires_ha_identity, in both modes).
+AUTOMATION_RUN_OPS = frozenset({"trigger", "run_script", "apply_scene"})
 EXTENDED_FEATURES: dict[str, dict[str, frozenset[Any]]] = {
     **SERVICE_FEATURES,
     "devices.control": {"execute": DEVICE_PAIRS | DOOR_PAIRS | SCRIPT_SCENE_PAIRS},
     "alarm": {"execute": ALARM_PAIRS | {("alarm_control_panel", "alarm_arm_custom_bypass")}},
     "alarm.bypass": {"execute": BYPASS_PAIRS},
     "cameras.live": {"stream_source": frozenset({"read"})},
+    "automations.run": {"config_item": AUTOMATION_RUN_OPS},
 }
 
 
@@ -164,7 +170,13 @@ def obo_refusal(obo: Any, bridge_service: str, item: Any, extended: bool = False
     if obo.get("kind") != "local" or not isinstance(obo.get("user_id"), str) or not LOCAL_ID_RE.fullmatch(obo["user_id"]):
         return "service_identity_refused"
     if bridge_service == "config_item":
-        return "automation_write_requires_ha_identity"
+        # automations / scripts / scenes: writes never; RUNNING (AUTOMATION_RUN_OPS) only in the extended mode, under `automations.run` below
+        try:
+            runnable = extended and item in features(True).get("automations.run", {}).get("config_item", frozenset())
+        except TypeError:
+            runnable = False
+        if not runnable:
+            return "automation_write_requires_ha_identity"
     if never_local(bridge_service, item, extended):
         return "service_identity_refused"
     feature = obo.get("feature")
