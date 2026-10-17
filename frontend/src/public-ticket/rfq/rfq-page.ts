@@ -26,7 +26,10 @@ import { computeForm, formatMoney, formatRate, newLine, type LineDraft, type Lin
 import { claimLang, ct, errorText, type ClaimTextKey } from '../claim/claim-text';
 import { rfqText, isRfqKey, type RfqKey } from './rfq-text';
 import { filesCard } from './rfq-files';
-import { arrivalWire, payEditor, termsCard, type ArrivalUi, type TermsHost } from './rfq-page-terms';
+// CR-RFQ-PAYMENT-SCHEDULE: the terms module is its own lazy chunk (`rfq-page-terms-*`), fetched only when the answer carries
+// `form.payment` or `terms` (the installation switch is OFF by default) - integ/264 RFQ budget decision (a)
+import type { ArrivalUi, TermsHost } from './rfq-page-terms';
+type TermsModule = typeof import('./rfq-page-terms');
 import {
   bodySig, cridFor, draftFromQuote, draftProblems, freshDraft, isoToDay, kindList, outsideWindow, parseRfqDraft, quoteWire, quoting, rfqFailure, rfqKinds, rfqScreen,
   rfqSettings, safeMapUrl, timeLeft, type RfqDraft, type RfqScreen,
@@ -71,6 +74,9 @@ class RfqPage {
   private ask = '';
   /** CR-RFQ-PAYMENT-SCHEDULE: the acknowledgement box and the "another date" fields of the arrival confirmation */
   private arrivalUi: ArrivalUi = { ack: false, open: false, from: '', to: '' };
+  /** the lazy terms module once fetched; `termsAsked` = the fetch was started (a failed fetch may be asked again) */
+  private terms: TermsModule | null = null;
+  private termsAsked = false;
   /** a draft kept in this tab from before a reload: an update of a live quote reopens the form */
   private restored = false;
   /** a kept draft of a FIRST quote: dropped when a live quote exists meanwhile (it was sent, perhaps from another device) */
@@ -307,12 +313,21 @@ class RfqPage {
   private async arrival(action: 'confirm' | 'propose'): Promise<void> {
     const v = this.view;
     if (!v) return;
-    const body = arrivalWire(action, this.arrivalUi, v.time_zone);
+    if (!this.terms) return; // the confirm / propose buttons exist only once the terms module rendered them
+    const body = this.terms.arrivalWire(action, this.arrivalUi, v.time_zone);
     const out = await this.write('arrival', body, (crid) => rfqApi.arrival(this.creds, { ...body, client_request_id: crid }));
     if (!out) return;
     this.arrivalUi = { ack: false, open: false, from: '', to: '' };
     this.banner = { key: 'saved', tone: 'ok' };
     await this.load(false);
+  }
+
+  /** Fetch the terms module when this answer needs it (a payment form or approved terms); renders again once it is here. */
+  private needTerms(): void {
+    const v = this.view;
+    if (this.terms || this.termsAsked || !v || !(v.form?.payment || v.terms)) return;
+    this.termsAsked = true;
+    import('./rfq-page-terms').then((m) => { this.terms = m; this.render(); }, () => { this.termsAsked = false; });
   }
 
   /** The page as the terms module sees it (words, money, dates, the busy flag, keep / render). */
@@ -374,6 +389,7 @@ class RfqPage {
   // ---------------------------------------------------------------- rendering
 
   private render(): void {
+    this.needTerms();
     document.documentElement.lang = this.lang;
     document.documentElement.dir = RTL.has(this.lang) ? 'rtl' : 'ltr';
     document.title = this.view?.organization || this.t('pageTitle');
@@ -484,7 +500,7 @@ class RfqPage {
       this.bannerEl(),
       v.read_only && v.read_only_until ? h('div', { class: 'banner info', attrs: { role: 'status', 'data-rfq-readonly': true } }, this.t('readOnly', { when: this.when(v.read_only_until) })) : null,
       this.stateCard(v, screen),
-      screen === 'awarded' ? termsCard(this.termsHost(), v, this.arrivalUi, (a) => void this.arrival(a)) : null,
+      screen === 'awarded' && this.terms ? this.terms.termsCard(this.termsHost(), v, this.arrivalUi, (a) => void this.arrival(a)) : null,
       ended ? null : this.requestCard(v),
       // RFQATT (contract 19.4): the request's files - pictures in a lightbox, documents only as downloads; never on an ended page
       !ended && v.rfq?.attachments?.length ? filesCard(v.rfq.attachments, this.creds, 'rfq', this.lang) : null,
@@ -683,7 +699,7 @@ class RfqPage {
       on: { input: (e) => { d.form.notes = (e.target as HTMLTextAreaElement).value; this.keep(); if (this.showErrors) this.paintErrors(); } } });
     notes.value = d.form.notes;
     f.appendChild(h('label', { class: 'swc-field' }, h('span', { class: 'swc-label' }, `${this.c('notes')} ${this.c('optional')}`), notes));
-    const pay = payEditor(this.termsHost(), d, v); // CR-RFQ-PAYMENT-SCHEDULE: only when the installation offers it (`form.payment`)
+    const pay = this.terms ? this.terms.payEditor(this.termsHost(), d, v) : null; // CR-RFQ-PAYMENT-SCHEDULE: only when the installation offers it (`form.payment`)
     if (pay) f.appendChild(pay);
     // RFQQUESTIONS: a question has its own field (the manager sees it as a question waiting for him, not hidden in the notes)
     const qa = h('textarea', { class: 'swc-input swc-area', attrs: { dir: 'auto', maxlength: v.form?.limits.message ?? 2000, 'data-rfq-question': true },

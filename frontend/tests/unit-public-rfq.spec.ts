@@ -245,7 +245,7 @@ function code(file: string): string {
 
 test('the RFQ chunk builds DOM from text nodes only, never imports the app, builds no link, keeps nothing in localStorage', () => {
   const files = readdirSync(SRC).filter((x) => x.endsWith('.ts'));
-  expect(files.sort()).toEqual(['rfq-files.ts', 'rfq-page-terms.ts', 'rfq-page.ts', 'rfq-state.ts', 'rfq-text.ts']); // RFQATT rfq-files.ts + CR-RFQ-PAYMENT-SCHEDULE rfq-page-terms.ts (same chunk, same guards)
+  expect(files.sort()).toEqual(['rfq-files.ts', 'rfq-page-terms.ts', 'rfq-page.ts', 'rfq-state.ts', 'rfq-text.ts']); // RFQATT rfq-files.ts + CR-RFQ-PAYMENT-SCHEDULE rfq-page-terms.ts (own lazy chunks, same guards: both match rfq-(page|files)*)
   for (const f of files) {
     // RFQATT: the ONE reviewed W20 exception - rfq-files.ts `save()` hands a blob of OUR fetch to the browser's save dialog through an
     // anchor that is never attached to the page; the rest of that file (and every other file) builds no link
