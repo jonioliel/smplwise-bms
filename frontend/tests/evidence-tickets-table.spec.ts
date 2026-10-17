@@ -236,14 +236,18 @@ test.describe('tickets table evidence', () => {
         const r = el.getBoundingClientRect();
         const tw = (el.getRootNode() as ShadowRoot).querySelector('[data-table-wrap]')!.getBoundingClientRect();
         const bg = getComputedStyle(el).backgroundColor;
-        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vw: window.innerWidth, vh: window.innerHeight, twBottom: tw.bottom, popover: el.matches(':popover-open'), scrolls: el.scrollHeight > el.clientHeight + 1, bg };
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vw: window.innerWidth, vh: window.innerHeight, twTop: tw.top, twBottom: tw.bottom, popover: el.matches(':popover-open'), flipped: el.hasAttribute('data-flipped'), scrolls: el.scrollHeight > el.clientHeight + 1, bg };
       });
       expect(m.popover, 'top layer').toBe(true);
       expect(m.top).toBeGreaterThanOrEqual(0);
       expect(m.bottom).toBeLessThanOrEqual(m.vh);
       expect(m.left).toBeGreaterThanOrEqual(0);
       expect(m.right).toBeLessThanOrEqual(m.vw);
-      expect(m.bottom, 'it extends below the one-row table (not clipped by it)').toBeGreaterThan(m.twBottom);
+      // 2.7.0: MGRDASH put the handler's own numbers above the "mine" table, so the one row now sits below the middle of the
+      // screen and placeOverlay opens the menu on the roomier side - above the row (its documented rule). Either way the menu
+      // must reach past the one-row table's box on the side it opens to: proof it is not clipped by it.
+      if (m.flipped) expect(m.top, 'it extends above the one-row table (not clipped by it)').toBeLessThan(m.twTop);
+      else expect(m.bottom, 'it extends below the one-row table (not clipped by it)').toBeGreaterThan(m.twBottom);
       expect(m.scrolls, 'taller than the room: its own scroll').toBe(true);
       expect(m.bg, 'opaque').not.toMatch(/rgba\(.*, 0(\.\d+)?\)$/);
       await shot(page, 'one-row-assignee-menu', scheme);

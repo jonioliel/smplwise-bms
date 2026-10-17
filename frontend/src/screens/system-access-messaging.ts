@@ -278,6 +278,12 @@ export class SystemAccessMessaging extends LitElement {
         color: var(--sw-text-3);
         font-size: var(--sw-fs-xs);
       }
+      /* a hint that is a direct line of a flush card (the opt-out note, the consent rules) takes the card's 14 px gutter: with none
+         it sat on the card's edge and, as the consent card's last line, inside the rounded corner of the round skins (2.7.0 gate) */
+      sw-card > .hint {
+        padding-inline: 14px;
+        padding-block-end: 12px;
+      }
       .ltr {
         direction: ltr;
         unicode-bidi: isolate;

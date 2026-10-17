@@ -441,8 +441,11 @@ export class SystemDiagnostics extends LitElement {
       direction: ltr;
     }
     @media (max-width: 767px) {
+      /* border-box: the full-width field keeps its padding and border inside the row (BACKUP-HASH-ENC's password / minimum
+         fields stand alone in a stacked row and ran 7 px past the card at 390 - 2.7.0 gate) */
       .note-in {
         inline-size: 100%;
+        box-sizing: border-box;
       }
     }
   `, bubbleChrome];

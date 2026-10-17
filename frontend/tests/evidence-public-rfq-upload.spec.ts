@@ -6,6 +6,8 @@ import { buildBundle, dropBundle, open, ORIGIN, quoteOf, RfqFake, rfqView, TOKEN
 // states, removal, the 404 that forgets the link, desktop / phone / RTL / dark. Screens into docs/design/evidence/rfq-vendor-upload/.
 //   npx playwright test -c playwright.public.config.ts tests/evidence-public-rfq-upload.spec.ts --workers=1
 // Status when written (2026-10-17): NOT_RUN (the runner was busy with a gate; written for the next runner slot).
+// 2.7.0 gate fix: the owner-decisions commit (files with a question) prefixed the picker ids with their target (quote-file /
+// quote-camera on the quote, q-file / q-camera on a question); the spec still looked for the bare ile and waited out its timeout.
 
 const SHOTS = '../docs/design/evidence/rfq-vendor-upload';
 
@@ -74,7 +76,7 @@ test.describe('RFQ-VENDOR-UPLOAD: the vendor attaches files to his quote', () =>
     await expect(card).toHaveAttribute('data-rfq-uploads', '0');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await page.screenshot({ path: `${SHOTS}/empty-${info.project.name}-light.png`, fullPage: true });
-    await page.locator('[data-rfq-upload-input="file"]').setInputFiles(PDF);
+    await page.locator('[data-rfq-upload-input="quote-file"]').setInputFiles(PDF);
     await expect(card).toHaveAttribute('data-rfq-uploads', '1');
     expect(routes.posts).toEqual(['/t/api/rfq/upload']);
     await page.screenshot({ path: `${SHOTS}/ready-${info.project.name}-light.png`, fullPage: true });
@@ -86,7 +88,7 @@ test.describe('RFQ-VENDOR-UPLOAD: the vendor attaches files to his quote', () =>
     const fake = new RfqFake(sentView());
     await open(page, fake);
     await uploadRoutes(page, fake, { refuse: { status: 415, body: { code: 'unsupported_format' } } });
-    await page.locator('[data-rfq-upload-input="file"]').setInputFiles(PDF);
+    await page.locator('[data-rfq-upload-input="quote-file"]').setInputFiles(PDF);
     await expect(page.locator('[data-rfq-upload-error="type"]')).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/error-${info.project.name}-light.png`, fullPage: true });
     await open(page, new RfqFake(sentView({ uploads: uploads({ can: { upload: false, remove: true } }) })));
@@ -94,7 +96,7 @@ test.describe('RFQ-VENDOR-UPLOAD: the vendor attaches files to his quote', () =>
     const slow = new RfqFake(sentView());
     await open(page, slow);
     await uploadRoutes(page, slow, { slow: true });
-    await page.locator('[data-rfq-upload-input="file"]').setInputFiles(PDF);
+    await page.locator('[data-rfq-upload-input="quote-file"]').setInputFiles(PDF);
     await expect(page.locator('.rfq-upload [role="status"]')).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/loading-${info.project.name}-light.png`, fullPage: true });
   });
@@ -104,7 +106,7 @@ test.describe('RFQ-VENDOR-UPLOAD: the vendor attaches files to his quote', () =>
     await open(page, fake, { scheme: 'dark' });
     await page.screenshot({ path: `${SHOTS}/empty-${info.project.name}-dark.png`, fullPage: true });
     await uploadRoutes(page, fake, { refuse: { status: 404, body: { code: 'link_unavailable' } } });
-    await page.locator('[data-rfq-upload-input="file"]').setInputFiles(PDF);
+    await page.locator('[data-rfq-upload-input="quote-file"]').setInputFiles(PDF);
     await expect(page.locator('[data-rfq-screen]')).toHaveCount(0);
   });
 });

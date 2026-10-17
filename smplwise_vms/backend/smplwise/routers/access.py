@@ -1160,9 +1160,13 @@ def list_audit(
 # ---------------------------------------------------------------- custom roles and delegation (T082)
 
 # body-size guards only (the catalogue decides what is valid): wide enough for "select all" of the regular and of the
-# sensitive lists, which the 20 / 40 of T082 no longer were (28 sensitive grants by 0.1.148 - owner hit the limit)
-ROLE_PERMISSIONS_MAX = 120
-ROLE_SENSITIVE_MAX = 60
+# sensitive lists, which the 20 / 40 of T082 no longer were (28 sensitive grants by 0.1.148 - owner hit the limit).
+# 2.7.0 gate: the fixed 60 broke again at 61 sensitive grants (access.external.grant, tickets.technician_requests and
+# tickets.external all sit in `sensitive_permissions_not_implied` - correctly: no role implies them, and a custom role that
+# carries any of them is never delegable). The caps now follow the catalogue with headroom, so a new permission cannot make
+# "select all" fail again; they stay bounded (a body cannot grow beyond the catalogue plus the margin).
+ROLE_PERMISSIONS_MAX = max(120, len(PERMISSION_LABELS) + 40)
+ROLE_SENSITIVE_MAX = max(60, len(SENSITIVE) + 20)
 
 
 class CustomRoleBody(BaseModel):
