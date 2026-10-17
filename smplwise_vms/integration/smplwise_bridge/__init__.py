@@ -40,6 +40,10 @@ It does two things and nothing else:
    a message carrying `on_behalf_of` (an Arx-only person) runs as the ONE non-administrator HA user an HA administrator configured in the options flow,
    only for the features / items of service_identity.SERVICE_FEATURES (devices, alarm, media, cast, schedules); automations, the area write and the
    stream source never. The person's id is attribution only. The configured id travels to the add-on with the directory push (its health check).
+12. The extended mode (0.9.1, SVCIDENT2): the options-flow switch `local_identity_extended` (off by default). With it on, an Arx-only person may also
+   open doors (`lock.unlock`), run `script.turn_on` / `scene.turn_on`, arm with the bypass set, operate a zone's bypass control and read a camera's
+   stream source (the administrator rule of that handler is waived for such a screened message only); the area write never. The add-on has its
+   own copy of the switch - both must be on. The switch travels to the add-on with the directory push.
 """
 from __future__ import annotations
 
@@ -60,7 +64,7 @@ from homeassistant.helpers.event import async_track_time_interval
 
 from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
-from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
+from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
                     SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
 from . import media_policy, service_identity
 from .media_query_service import async_handle_media_query
@@ -302,9 +306,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """0.9.0 (USR2 P3): the service identity, read live from the options (an HA administrator sets it inside Home Assistant)."""
         return entry.options.get(CONF_SERVICE_USER_ID)
 
+    def local_extended() -> bool:
+        """0.9.1 (SVCIDENT2): the extended mode of the service identity, read live from the options (an HA administrator sets it; off by default)."""
+        return entry.options.get(CONF_LOCAL_IDENTITY_EXTENDED, False) is True
+
     async def screened(name: str, call: ServiceCall) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Verify the signature once and judge the service-identity rules (service_identity.screen)."""
-        return await service_identity.screen(hass, verifier, dict(call.data), name, service_user_id())
+        return await service_identity.screen(hass, verifier, dict(call.data), name, service_user_id(), local_extended())
 
     async def execute(call: ServiceCall) -> ServiceResponse:
         msg, refused = await screened(SERVICE_EXECUTE, call)
@@ -398,10 +406,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def stream_source(call: ServiceCall) -> ServiceResponse:
         """0.3.1: a signed READ-ONLY answer - the stream source Home Assistant reports for one camera entity (see
         stream_source_service.py). The URL leaves only in this response; it is never logged."""
+        on_behalf = "on_behalf_of" in call.data
         msg, refused = await screened(SERVICE_STREAM_SOURCE, call)
         if refused is not None or msg is None:
             return refused
-        return await async_handle_stream_source(hass, service_identity.PREVERIFIED, msg)
+        # 0.9.1 (SVCIDENT2): a message screened on behalf of an Arx-only person (the extended mode on, the configured non-administrator service
+        # user) is read without the administrator rule - only then; every other caller still needs an active HA administrator
+        return await async_handle_stream_source(hass, service_identity.PREVERIFIED, msg, admin_waived=on_behalf and local_extended())
 
     hass.services.async_register(DOMAIN, SERVICE_STREAM_SOURCE, stream_source, schema=STREAM_SOURCE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
@@ -454,7 +465,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             users.append({"id": u.id, "name": u.name, "username": username, "is_active": u.is_active, "is_admin": u.is_admin, "group_ids": [g.id for g in u.groups]})
         try:
             async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
-                                                                                "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id())}), timeout=10) as resp:
+                                                                                "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
+                                                                                "local_identity_extended": local_extended()}), timeout=10) as resp:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
                     return 0

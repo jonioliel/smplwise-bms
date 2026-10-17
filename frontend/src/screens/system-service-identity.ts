@@ -12,6 +12,8 @@ export interface ServiceIdentityStatus {
   user: { id: string; name: string | null; is_active: boolean; is_admin: boolean } | null;
   bridge: { paired: boolean; version: string | null; required: string; version_ok: boolean; capable: boolean; reported_user_id: string | null; agrees: boolean };
   feature_on: boolean;
+  /** SVCIDENT2: the extended mode - the add-on's switch, whether it is in force, and the bridge's own copy (absent from an older add-on). */
+  extended?: { requested: boolean; on: boolean; bridge_on: boolean; bridge_version_ok: boolean; agrees: boolean; required: string };
   ready: boolean;
   steps: { code: string; he: string; en: string }[];
   allowed: { key: string; he: string; en: string }[];
@@ -198,6 +200,11 @@ export class SystemServiceIdentity extends LitElement {
                 ? html`<div class="facts" data-si-user>
                     <span>${lit('siUser')}: <bdi>${d.user.name ?? ''}</bdi> · <bdi class="id">${d.user.id}</bdi>${d.user.is_admin ? html` · <strong>${lit('siAdmin')}</strong>` : nothing}</span>
                     <span>${lit('siBridge')}: <bdi>${d.bridge.version ?? '?'}</bdi> · ${d.bridge.agrees ? lit('siAgrees') : lit('siDiffers')}</span>
+                  </div>`
+                : nothing}
+              ${d.extended
+                ? html`<div class="note ${d.extended.requested ? 'warn' : ''}" data-si-extended=${d.extended.on ? 'on' : d.extended.requested ? 'requested' : 'off'}>
+                    ${d.extended.requested ? lit('siExtendedOn') : lit('siExtendedOff')}
                   </div>`
                 : nothing}
               ${d.steps.length

@@ -216,8 +216,10 @@ def _rate_limited(now: float, entity_id: str) -> bool:
     return False
 
 
-async def async_handle_stream_source(hass: Any, verifier: Any, msg: dict[str, Any]) -> dict[str, Any]:
-    """Run one signed `stream_source` request. Always answers a dict, never raises for a refusal."""
+async def async_handle_stream_source(hass: Any, verifier: Any, msg: dict[str, Any], *, admin_waived: bool = False) -> dict[str, Any]:
+    """Run one signed `stream_source` request. Always answers a dict, never raises for a refusal. `admin_waived` (0.9.1, SVCIDENT2): set by
+    `__init__` only for a message service_identity.screen accepted on behalf of an Arx-only person with the extended switch on - the service
+    user (configured, active, never an administrator) then reads the source instead of an HA administrator."""
     reason = verifier.verify(msg)
     if reason:
         _LOGGER.warning("smplwise_bridge.stream_source refused: %s", reason)
@@ -231,7 +233,7 @@ async def async_handle_stream_source(hass: Any, verifier: Any, msg: dict[str, An
     user = await hass.auth.async_get_user(msg["user_id"])
     if user is None or not user.is_active:
         return _refuse(msg, "unknown_user")
-    if not getattr(user, "is_admin", False):
+    if not getattr(user, "is_admin", False) and admin_waived is not True:
         _LOGGER.warning("smplwise_bridge.stream_source refused: admin_required")
         return _refuse(msg, "admin_required")
     if hass.states.get(entity_id) is None:

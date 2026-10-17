@@ -331,7 +331,8 @@ answer arrives. Audit rows: actor = the local principal; `details.service_identi
 **Open questions for the owner (all kept refused until answered - owner default 2026-10-16):** (1) doors / `lock.unlock` for Arx-only users;
 (2) alarm zone bypass, including `arm_custom_bypass`; (3) HA camera entities' live stream source; (4) the area write (`devices.area`);
 (5) running scripts / scenes - from the automations screen AND from device control (`script.turn_on` / `scene.turn_on` refused since the
-review fix, section 9.1, F2).
+review fix, section 9.1, F2). **Answered 2026-10-17 - see section 11 (a reversal, behind the off-by-default switch
+`security.local_identity_extended`; security review required before it is turned on).**
 
 ### 9.1 USR2-P3-FIX - the P3 security review (2026-10-16)
 
@@ -540,3 +541,105 @@ Contract / documentation mismatches the review listed (item 3), recorded rather 
 6. §10.1 "the session counts as having shown the factor" had no converse rule for the last factor leaving (F2); `routers/second_factor.disable`
    and `local_passkeys.remove_own` cleared nothing. The converse rule now exists (§10.1 Removal) for local users; for HA identities the
    TOTP `disable` still leaves their remote sign-in as it was (pre-existing, outside CR-USR2).
+
+## 11. SVCIDENT2 - the extended mode of the service identity (owner decisions 2026-10-17)
+
+**This section REVERSES the posture of section 9 ("open questions 1-5 stay refused until answered", owner default 2026-10-16).** The owner
+answered on 2026-10-17. Everything new is behind ONE new switch, `security.local_identity_extended`, **OFF by default**; with it off the
+behaviour is exactly that of 2.6.4 (sections 9 and 9.1 hold unchanged, every refusal stays). Branch `pilot/SVCIDENT2` (from `integ/264` @
+5fa03e7a). No migration. Bridge **0.9.1**.
+
+> **A security review (Fable) is REQUIRED before the switch is ever turned on**, on any installation. Until that review is done and
+> recorded here, the switch stays off. The settings card and the bridge's options-flow label both say so.
+
+### 11.1 Owner decisions (2026-10-17) and where each is implemented
+
+| # | Decision | With the extended mode on | Where |
+|---|---|---|---|
+| 1 | Doors / `lock.unlock` / `lock.open` for an Arx-only user | Allowed under the user's EXISTING Arx door permission and the door rules - no extra per-action approval step. A non-WisKey lock: `devices.control` admits `lock.unlock`; the route still requires `ha.entity.control` AND the `door.unlock` grant (`grant_required` otherwise) and the confirmation. A WisKey door: `door_authority.identity_ok` admits an active local user (`service_identity.local_door_ok`), then the one door rule decides exactly as for everyone (access.doors.open / door.unlock, deny wins, wall accounts refused); the door transport opens it, never the bridge. | `services/service_identity.py` (EXTENDED_FEATURES, local_door_ok), `services/door_authority.py` |
+| 2 | Alarm zone bypass, including `arm_custom_bypass` | Allowed for an Arx-only user holding `alarm.bypass`. The zone-bypass route (which already requires `alarm.bypass` on every panel of the zone) goes on instead of refusing, and sends under the new feature `alarm.bypass` (the bypass controls `switch.turn_on/off`, `select.select_option` only). `arm_custom_bypass` goes under `alarm`; the panel route additionally requires `alarm.bypass` for a local user in this mode (an HA user still needs `alarm.arm` only - unchanged). PIN / remote rules unchanged. | `routers/alarm.py`, `services/service_identity.refuse_zone_bypass` |
+| 3 | Live video of HA camera entities (the stream source) | Allowed: enabling a standalone HA camera (`sources.configure`, as before) reads the stream source through the service identity, feature `cameras.live` (item `read`); the viewer re-read of a camera a local user enabled goes the same way. The bridge's `stream_source` handler requires an HA administrator; for a message screened on behalf of a local person with the bridge's own switch on, that rule is waived (`admin_waived`) - only then. Viewing an already enabled camera never used the viewer's identity (it runs as whoever enabled it) and is unchanged. | `services/ha_camera_streams.py`, bridge `stream_source_service.py`, `__init__.py` |
+| 4 | `devices.area` (`set_entity_area`) | STILL refused - in both modes. It is the only entry left on the never-list in the extended mode (`NEVER_LOCAL_EXTENDED = {("smplwise_bridge", "set_entity_area")}`), checked before the tables. The add-on routes also keep refusing a local principal (`identity_unmapped`, after `system.configure`). | both `service_identity.py` |
+| 5 | `script.turn_on` / `scene.turn_on` | Allowed from device control (`devices.control`), under the route's `ha.entity.control`. **Not** extended to the automations screen: `config_item` (writes AND its run / trigger / apply ops) stays HA-users-only (`automation_write_requires_ha_identity`) - see open question 11.6-1. | both `service_identity.py` |
+
+### 11.2 The switch (both sides must agree)
+
+- **Add-on:** `security.local_identity_extended` (`on|off`, default `off`). Changed only by a system administrator, only from the local
+  channel (`_local_only_identity_key`), audited `identity.service_identity.extended_switch` (allowed / denied, `from` / `to`); never
+  restored from a backup (`SETTINGS_KEEP`). In force only while `security.local_identity` is also on (`service_identity.extended_on`).
+- **Bridge 0.9.1:** the options-flow boolean `local_identity_extended` (default off; only an HA administrator opens the options flow), read
+  live on every call (`entry.options.get(...) is True`), sent to the add-on with every directory push (`local_identity_extended`), stored
+  as `bridge.local_identity_extended` and shown on the settings card (`extended.bridge_on`, steps `extended_bridge_off`,
+  `extended_bridge_outdated`, `extended_bridge_only`).
+- An item only the extended mode admits is not sent unless the bridge is >= 0.9.1 AND reported its copy on: 503
+  `service_identity_extended_bridge_off` (audited `identity.service_identity.refused`). The bridge decides again with its own copy
+  (fail closed if the add-on's view is stale). A WisKey door does not go through the bridge: only the add-on's switch applies there.
+
+### 11.3 NEVER_LOCAL (identical on both sides, drift-tested)
+
+| Switch | Never-list | Tables |
+|---|---|---|
+| off | `NEVER_LOCAL` = `alarm_arm_custom_bypass`, `lock.unlock`, `lock.open`, `script.turn_on`, `scene.turn_on` (unchanged) | `FEATURES` / `SERVICE_FEATURES` (unchanged) |
+| on | `NEVER_LOCAL_EXTENDED` = `smplwise_bridge.set_entity_area` only | `EXTENDED_FEATURES`: `devices.control` + `lock.unlock`, `lock.open`, `script.turn_on`, `scene.turn_on`; `alarm` + `alarm_arm_custom_bypass`; new `alarm.bypass` (`switch.turn_on/off`, `select.select_option`); new `cameras.live` (`stream_source`: `read`); media / cast / schedules unchanged |
+
+A non-execute bridge service is named as the HA service it is (`("smplwise_bridge", "<service>")`), so one list of pairs covers both
+kinds. `lock.open` is listed for parity with the owner's wording; it is in neither execute allow-list (`ha_bridge.ACTIONS`,
+`ALLOWED_SERVICES`), so it still cannot be sent - recorded, not widened.
+
+### 11.4 Audit
+
+Kept: every `identity.service_identity.*` row of sections 9 / 9.1. Added: `identity.service_identity.extended` (allowed) for every item only
+the extended mode admits - details `feature`, `bridge_service`, `item` (a (domain, service) pair or an op name: ids only, never data, codes or
+URLs); `identity.service_identity.extended_switch` for the switch; `bridge.service_identity_seen` now also carries `extended`. The route
+rows (`ha.action`, `alarm.*`, the door rows, `camera_card.ha_live.*`) name the local person as before.
+
+### 11.5 Residual risks (for the security review)
+
+1. **The bridge `execute` handler performs no per-entity check** (section 9.1, F5, unchanged). With the switch on, a door, a script, a scene
+   or a bypass control reached through the service identity is bounded by Arx's own scope (`ha_scope`, the door rule, the alarm scope) alone;
+   Home Assistant does not apply the service user's entity policy to an in-process call. A defect in an Arx route's scope check would let a
+   local user act on any entity of an allowed (domain, service) pair. Optional defence in depth (not done): `check_entity` in `execute`.
+2. **A script or a scene can do anything the service user can** - unlock a door, disarm, press an intercom button, call any service - so
+   `script.turn_on` / `scene.turn_on` effectively widen an Arx-only user's reach to everything the referenced script does, independent of the
+   permissions Arx would require for each of those actions directly (`door.unlock`, `alarm.disarm`, ...). Only `ha.entity.control` on the
+   script entity is checked. The CR-033 door-run guard (`door_run_guard`) judges scripts that reach a WisKey door; nothing else does.
+3. **The stream source is a credential** (`rtsp://user:pass@...`). With the switch on, the bridge returns it for the non-administrator service
+   user when the add-on asks on behalf of a local person who holds `sources.configure` (a LOCAL_ADMIN_PERMISSION: second factor required).
+   The URL still goes only to the add-on and go2rtc (never to a browser, log or the database).
+4. **Alarm zone bypass** lowers protection; the bypass control entity is reached through `switch` / `select` pairs that the bridge cannot
+   tell from any other switch / select (no per-entity check, item 1).
+5. The add-on's view of the bridge's switch is at most one directory push (60 s) old; the bridge decides with its live copy, so a stale view
+   can only cause a refusal, never an extra action.
+6. Section 9.1 F4 residuals are unchanged (the service user must have no password a person knows; the add-on cannot see an HA sign-in as it).
+7. **Contradiction with the binding security document, recorded:** `docs/security/HA_IDENTITY_RBAC_HE.md` section 7 (a generic control ability
+   does not include unlock / disarm or uncontrolled scripts), section 8 paragraph 2 (the bridge checks the user's own HA permission explicitly)
+   and section 8 paragraph 3 (scripts / scenes are blocked by default until an allowlist and an impact check) are further from the as-built
+   behaviour in the extended mode: scripts / scenes are admitted by `ha.entity.control` on the script entity, with no per-script allowlist or
+   impact check. With the switch off the document holds as before. The security document is NOT edited here (it outranks this CR); turning the
+   switch on needs either its amendment or an approved change request, decided together with the security review.
+
+### 11.6 Open questions / deviations (recorded, not silently resolved)
+
+1. Decision 5 says "script.turn_on / scene.turn_on: allowed". Built for device control only; running scripts / scenes / automations from the
+   automations screen (`config_item` ops `run`, `trigger`, `apply`) stays HA users only, as do all writes. Owner to confirm.
+2. The task called for ONE switch; the bridge, which decides independently of the add-on (section 9), needs its own copy - it is the
+   bridge's options-flow mirror of the same switch (the `service_user_id` pattern), so turning the mode on also needs an HA administrator.
+3. Decision 3 is built as "enable / re-read a standalone HA camera's stream source through the service identity". Viewing an enabled camera
+   was already possible for a local user holding `video.live` + `devices.read` in 2.6.4 (it never used the viewer's identity) and is unchanged.
+4. Decision 2: `arm_custom_bypass` for a local user in the extended mode needs `alarm.bypass` in addition to `alarm.arm`; an HA user still needs
+   `alarm.arm` only. The stricter rule for local users follows the decision's wording ("holding alarm.bypass").
+5. Bridge version bumped to 0.9.1 (0.9.0 is in the unreleased 2.6.4 line); the add-on requires 0.9.1 for extended items only.
+
+### 11.7 Rollback
+
+Switch `security.local_identity_extended` off (or the bridge's option off): the 2.6.4 refusals apply at once (both read live). Code
+rollback: revert the branch; no migration, no stored data depends on it (the two settings rows are ignored by older code).
+
+### 11.8 Tests
+
+`tests/test_service_identity_extended.py` (add-on, negative first: switch off = refused exactly as before for each new item; the bridge copy
+off or a 0.9.0 bridge = 503; each item works only with the switch on AND the user's own permission, through the routes for doors / scripts /
+scenes, zone bypass / `arm_custom_bypass`, the WisKey door rule and camera enable (both sides together); the area write always refused; the
+switch is system-admin / local-channel only and audited; the drift of the never-lists and tables), `tests/test_bridge_service_identity.py`
+(bridge: the same negative-first matrix through `screen`), `tests/test_bridge_stream_source.py` (the administrator waiver only when
+`__init__` passes it), `frontend/tests/unit-service-identity.spec.ts` (the card's extended line).

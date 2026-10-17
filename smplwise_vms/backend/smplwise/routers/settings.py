@@ -293,6 +293,11 @@ DEFAULTS: dict[str, str] = {
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,
     # the password policy, the link lifetime and the brute-force mode (services/local_identity.py). Never restored from a backup.
     "security.local_identity": "off",
+    # SVCIDENT2 (owner decisions 2026-10-17, CR-USR2 section 11): the extended mode of the service identity - off (default): exactly the 2.6.4
+    # refusals (doors, zone bypass, scripts / scenes, the camera stream source). On (AND the bridge's own options-flow copy on): those are
+    # allowed to an Arx-only user under the user's own Arx permission; the area write never. A system administrator, the local channel
+    # only, audited, never restored from a backup. A security review is required before it is ever turned on.
+    "security.local_identity_extended": "off",
     "security.local_session": "rolling_30d",  # rolling_30d | rolling_90d | browser_session
     "security.local_admin_session_days": "7",  # 1-7: the absolute lifetime of a session of a local user holding an administrative permission
     "security.local_password_min": "12",  # 10-64
@@ -729,6 +734,7 @@ class SettingsPatch(BaseModel):
     security_second_factor_bearer: str | None = Field(default=None, pattern="^(enforce|off)$", alias="security.second_factor_bearer")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     security_local_identity: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity")  # USR2: system_admin only (checked below)
+    security_local_identity_extended: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity_extended")  # SVCIDENT2: system_admin, local channel only
     security_local_session: str | None = Field(default=None, pattern="^(rolling_30d|rolling_90d|browser_session)$", alias="security.local_session")
     security_local_admin_session_days: int | None = Field(default=None, ge=1, le=7, alias="security.local_admin_session_days")
     security_local_password_min: int | None = Field(default=None, ge=10, le=64, alias="security.local_password_min")
@@ -968,6 +974,22 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
                       reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את משתמשי Arx.")
             local_switch = changes["security.local_identity"]
+    if "security.local_identity_extended" in changes:
+        # SVCIDENT2: the extended mode of the service identity widens what every Arx-only user may do in Home Assistant - like the switch
+        # itself, a system administrator only; like the sign-in shaping keys, the local channel only; audited `identity.service_identity.*`
+        current_ext = "on" if (get_setting(conn, "security.local_identity_extended", "off") or "off") == "on" else "off"
+        if changes["security.local_identity_extended"] == current_ext:
+            changes.pop("security.local_identity_extended")
+        else:
+            from ..rbac import is_system_admin
+
+            _local_only_identity_key(conn, request, principal, "security.local_identity_extended")
+            if not is_system_admin(conn, principal.user_id):
+                audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="denied", resource_type="installation", resource_id="service_identity",
+                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity_extended"]})
+                raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את המצב המורחב של משתמשי Arx.")
+            audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="allowed", resource_type="installation", resource_id="service_identity",
+                  request_id=getattr(request.state, "correlation_id", None), details={"from": current_ext, "to": changes["security.local_identity_extended"]})
     if "security.local_public_url" in changes:
         # USR2 phase 2: where a link sent by WhatsApp points. Whoever sets it decides where reset tokens go, so - like the switch - only a
         # system administrator changes it (system.configure alone could aim every reset link at a host of its choice); https + a DNS

@@ -145,6 +145,21 @@ def test_only_an_active_home_assistant_administrator_may_ask(cam):
     assert ask(hass, body(user="u1"))["ok"] is True
 
 
+def test_the_administrator_rule_is_waived_only_when_init_says_so(cam):
+    """0.9.1 (SVCIDENT2): `admin_waived` is set by __init__ only for a message service_identity.screen accepted on behalf of an Arx-only person
+    with the extended switch on. Without it a regular user is refused exactly as before; with it the inactive / unknown rules still hold."""
+    hass = FakeHass({"svc": FakeUser("svc", admin=False), "off": FakeUser("off", admin=False, active=False)})
+    verifier = signing.Verifier(SECRET)
+    assert asyncio.run(svc.async_handle_stream_source(hass, verifier, signing.sign(SECRET, body(user="svc"))))["error"] == "admin_required"
+    for not_true in ("true", 1):
+        assert asyncio.run(svc.async_handle_stream_source(hass, verifier, signing.sign(SECRET, body(user="svc")), admin_waived=not_true))["error"] == "admin_required"
+    assert asyncio.run(svc.async_handle_stream_source(hass, verifier, signing.sign(SECRET, body(user="off")), admin_waived=True))["error"] == "unknown_user"
+    assert cam.asked == []
+    svc._calls.clear()
+    svc._calls_by_entity.clear()  # the per-camera budget (4 a minute) was used by the refusals above
+    out = asyncio.run(svc.async_handle_stream_source(hass, verifier, signing.sign(SECRET, body(user="svc")), admin_waived=True))
+    assert out == {"ok": True, "request_id": "r1", "stream_source": URL}
+
 def test_an_entity_that_does_not_exist_is_refused(cam):
     assert ask(FakeHass(entities=()))["error"] == "entity_not_found"
     assert cam.asked == []
@@ -335,7 +350,7 @@ def test_the_service_is_registered_read_only_with_a_closed_schema_and_removed_on
     # which verifies the signature once and refuses any `on_behalf_of` (the stream source is in no feature of a local identity)
     handler = next(n for n in ast.walk(init_tree()) if isinstance(n, ast.AsyncFunctionDef) and n.name == "stream_source")
     assert "await screened(SERVICE_STREAM_SOURCE, call)" in ast.unparse(handler)
-    assert "async_handle_stream_source(hass, service_identity.PREVERIFIED, msg)" in ast.unparse(handler)
+    assert "async_handle_stream_source(hass, service_identity.PREVERIFIED, msg, admin_waived=on_behalf and local_extended())" in ast.unparse(handler)  # 0.9.1
     assert "_LOGGER" not in ast.unparse(handler)
 
 
@@ -355,7 +370,7 @@ def test_description_translations_version_and_mirror():
     for rel in ("strings.json", "translations/en.json", "translations/he.json"):
         data = json.loads((SRC / rel).read_text(encoding="utf-8"))
         assert data["services"]["stream_source"]["name"] and data["services"]["stream_source"]["description"], rel
-    assert const.VERSION == "0.9.0" and json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.0"
+    assert const.VERSION == "0.9.1" and json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.1"
     import sync_integration
 
     assert sync_integration.differences() == [], "run python scripts/sync_integration.py"

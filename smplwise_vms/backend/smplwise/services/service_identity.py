@@ -21,6 +21,13 @@ Rules (both sides enforce; the bridge has the same table in custom_components/sm
   Arx role, and the self-check flags a sign-in recorded before it was configured.
 - Entity reach: Home Assistant does not bound what the service user's in-process service call may touch (the bridge `execute` handler has
   no per-entity check), so Arx's scope (`ha_scope`) is the sole entity guard for an Arx-only person (security review F5).
+- SVCIDENT2 (owner decisions 2026-10-17, CR-USR2 section 11): the switch `security.local_identity_extended` (off by default; with it off
+  everything above holds exactly as in 2.6.4). With it on - AND `security.local_identity` on AND the bridge's own options-flow copy reported
+  on (bridge >= 0.9.1) - NEVER_LOCAL shrinks to NEVER_LOCAL_EXTENDED (the area write only) and EXTENDED_FEATURES applies: doors and
+  scripts / scenes under `devices.control`, `arm_custom_bypass` under `alarm`, a zone's bypass control under `alarm.bypass`, the camera
+  stream source under `cameras.live`. Each still needs the route's own Arx permission first; allowed extended items are audited
+  `identity.service_identity.extended` (ids only). A WisKey door is judged by door_authority for a local user in this mode (local_door_ok).
+  A security review is required before the switch is ever turned on.
 """
 from __future__ import annotations
 
@@ -46,9 +53,18 @@ LOCAL_ID_RE = re.compile(r"l_[0-9A-HJKMNP-TV-Z]{26}")
 # Never for a local identity, whatever a feature table says - an explicit rule checked before the tables (security review F1 / F2,
 # 2026-10-16; owner default: every open question stays refused until answered). Identical to the bridge's NEVER_LOCAL (drift-tested):
 # zone-bypass arming (open question 2), doors (1), scripts and scenes - which may unlock a door or disarm under the service user (5).
+# This is the list while `security.local_identity_extended` is OFF (the default): exactly the 2.6.4 behaviour.
 NEVER_LOCAL = frozenset({
     ("alarm_control_panel", "alarm_arm_custom_bypass"), ("lock", "unlock"), ("lock", "open"), ("script", "turn_on"), ("scene", "turn_on"),
 })
+# SVCIDENT2 (owner decisions 2026-10-17, CR-USR2 section 11): with `security.local_identity_extended` ON (add-on) AND the bridge's own
+# options-flow copy ON, only the area write (the spec's `devices.area`, owner decision 4) stays on the never-list. A non-execute bridge
+# service is named as the Home Assistant service it is (`smplwise_bridge.<service>`), so one list of (domain, service) pairs covers both.
+AREA_WRITE = ("smplwise_bridge", "set_entity_area")
+NEVER_LOCAL_EXTENDED = frozenset({AREA_WRITE})
+EXTENDED_SETTING = "security.local_identity_extended"
+BRIDGE_EXTENDED = "bridge.local_identity_extended"  # what the bridge reported in its last directory push (its options-flow copy)
+BRIDGE_EXTENDED_REQUIRED = "0.9.1"
 ALARM_PAIRS = frozenset({
     ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_arm_night"),
     ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_disarm"),
@@ -85,6 +101,20 @@ FEATURES: dict[str, dict[str, frozenset[Any]]] = {
     "cast": {"cast_stream": frozenset({"play", "stop", "off"})},
     "schedules": {"schedule": frozenset({"add", "edit", "remove", "copy", "run", "enable", "disable"})},
 }
+
+# SVCIDENT2: what the extended switch adds (owner decisions 1, 2, 3, 5 of 2026-10-17). Every item still needs the route's own Arx permission
+# first (door.unlock / the door rule, alarm.bypass, sources.configure, ha.entity.control) - the tables only decide whether the bridge call
+# may be made at all. Identical to the bridge's EXTENDED_FEATURES (drift-tested).
+DOOR_PAIRS = frozenset({("lock", "unlock"), ("lock", "open")})  # `lock.open` is in neither execute allow-list today: listed for parity, still refused there
+SCRIPT_SCENE_PAIRS = frozenset({("script", "turn_on"), ("scene", "turn_on")})
+BYPASS_PAIRS = frozenset({("switch", "turn_on"), ("switch", "turn_off"), ("select", "select_option")})  # a zone's bypass control (the zone-bypass route only)
+EXTENDED_FEATURES: dict[str, dict[str, frozenset[Any]]] = {
+    **FEATURES,
+    "devices.control": {"execute": DEVICE_PAIRS | DOOR_PAIRS | SCRIPT_SCENE_PAIRS},
+    "alarm": {"execute": ALARM_PAIRS | {("alarm_control_panel", "alarm_arm_custom_bypass")}},
+    "alarm.bypass": {"execute": BYPASS_PAIRS},
+    "cameras.live": {"stream_source": frozenset({"read"})},
+}
 FEATURE_LABELS = {"devices.control": ("שליטה בהתקנים (בלי סקריפטים וסצנות)", "Device control (scripts and scenes excluded)"),
                   "alarm": ("אזעקה (דריכה / נטרול לפי כללי הקוד, בלי עקיפת אזורים)", "Alarm (arm / disarm under the PIN rules, no zone bypass)"),
                   "media": ("מדיה ומוזיקה", "Media and music"), "cast": ("שידור למסך", "Cast to a screen"), "schedules": ("תזמונים", "Schedules")}
@@ -92,12 +122,24 @@ REFUSED_LABELS = [("אוטומציות, סצנות וסקריפטים (כתיב�
                   ("עקיפת אזורי אזעקה ודריכה עם עקיפה", "Alarm zone bypass and arming with bypass"),
                   ("שיוך התקן לאזור", "Assigning a device to an area"), ("מצלמות בזרם חי דרך תשתית המערכת", "Live cameras through the infrastructure"),
                   ("פתיחת דלתות ומנעולים", "Opening doors and locks")]
+# SVCIDENT2: the card's lists while the extended mode is on (both switches); each item still only under the person's own Arx permission
+EXTENDED_FEATURE_LABELS = {
+    "devices.control": ("שליטה בהתקנים, כולל סקריפטים וסצנות (לפי הרשאת שליטה)", "Device control, scripts and scenes included (under the control permission)"),
+    "doors": ("פתיחת דלתות ומנעולים (לפי הרשאת הדלתות של המשתמש)", "Opening doors and locks (under the user's door permission)"),
+    "alarm": ("אזעקה (דריכה / נטרול לפי כללי הקוד; דריכה עם עקיפה דורשת הרשאת עקיפה)", "Alarm (arm / disarm under the PIN rules; arming with bypass needs the bypass permission)"),
+    "alarm.bypass": ("עקיפת אזורי אזעקה (לפי הרשאת עקיפה)", "Alarm zone bypass (under the bypass permission)"),
+    "cameras.live": ("מצלמות בזרם חי דרך תשתית המערכת (לפי הרשאת הגדרת מקורות)", "Live cameras through the infrastructure (under the sources permission)"),
+    "media": FEATURE_LABELS["media"], "cast": FEATURE_LABELS["cast"], "schedules": FEATURE_LABELS["schedules"],
+}
+EXTENDED_REFUSED_LABELS = [("שיוך התקן לאזור", "Assigning a device to an area"),
+                           ("אוטומציות, סצנות וסקריפטים במסך האוטומציות (כתיבה והרצה)", "Automations, scenes and scripts on the automations screen (writing and running)")]
 
 MESSAGES = {
     "service_identity_refused": "הפעולה הזו אינה זמינה למשתמשי Arx.",
     "service_identity_unconfigured": "פעולות בתשתית המערכת למשתמשי Arx דורשות זהות שירות. מנהל המערכת מגדיר אותה בהגדרות › משתמשי Arx.",
     "service_identity_admin": "זהות השירות שהוגדרה היא משתמש עם הרשאות ניהול, ולכן הפעולה נחסמה. מנהל המערכת יבחר משתמש רגיל.",
     "service_identity_bridge_outdated": "נדרש עדכון של רכיב החיבור (0.9.0 ומעלה) כדי שמשתמשי Arx יוכלו לפעול בתשתית המערכת.",
+    "service_identity_extended_bridge_off": "הפעולה דורשת שהמצב המורחב של משתמשי Arx יופעל גם ברכיב החיבור (0.9.1 ומעלה) - מנהל בתשתית המערכת מפעיל אותו שם.",
     "automation_write_requires_ha_identity": "שמירה והפעלה של אוטומציות, סצנות וסקריפטים זמינות רק למשתמשי תשתית המערכת.",
     "local_identity_off": "משתמשי Arx כבויים בהגדרות המערכת.",
     "user_inactive": "המשתמש אינו פעיל.",
@@ -149,8 +191,33 @@ def candidate_refusal(conn: sqlite3.Connection, user_id: str) -> str | None:
     return None
 
 
-def feature_refusal(feature: str, bridge_service: str, item: Any) -> str | None:
-    services = FEATURES.get(feature)
+def extended_requested(conn: sqlite3.Connection) -> bool:
+    """The add-on's switch `security.local_identity_extended` (off by default; a system administrator, local channel only, audited)."""
+    try:
+        return (get_setting(conn, EXTENDED_SETTING) or "off") == "on"
+    except sqlite3.OperationalError:
+        return False
+
+
+def extended_on(conn: sqlite3.Connection) -> bool:
+    """SVCIDENT2: the extended mode is in force only while BOTH Arx-only identities (`security.local_identity`) and the extended switch are
+    on. The bridge decides again with its own options-flow copy (both must agree, else the bridge refuses: fail closed)."""
+    from . import local_identity
+
+    return extended_requested(conn) and local_identity.enabled(conn)
+
+
+def features(extended: bool) -> dict[str, dict[str, frozenset[Any]]]:
+    return EXTENDED_FEATURES if extended else FEATURES
+
+
+def never_list(extended: bool) -> frozenset[Any]:
+    """NEVER_LOCAL with the extended switch off (the 2.6.4 list), NEVER_LOCAL_EXTENDED (the area write only) with it on."""
+    return NEVER_LOCAL_EXTENDED if extended else NEVER_LOCAL
+
+
+def feature_refusal(feature: str, bridge_service: str, item: Any, extended: bool = False) -> str | None:
+    services = features(extended).get(feature)
     if not services or bridge_service not in services:
         return "service_identity_refused"
     try:
@@ -171,7 +238,7 @@ def _refuse(conn: sqlite3.Connection, principal: Principal | None, user_id: str,
     try:
         audit(conn, actor=principal, action="identity.service_identity.refused", decision="denied", resource_type="user", resource_id=user_id,
               reason=reason or code, request_id=request_id,
-              details={"feature": feature, "bridge_service": bridge_service, "item": list(item) if isinstance(item, tuple) else (item if isinstance(item, str) else None)})
+              details={"feature": feature, "bridge_service": bridge_service, "item": _audit_item(item)})
     except Exception:  # noqa: BLE001 - the refusal itself must never fail because its audit row could not be written
         log.warning("service identity refusal not audited (%s)", code)
     return ApiError(status, code, MESSAGES.get(code, MESSAGES["service_identity_refused"]), details={"feature": feature})
@@ -232,12 +299,13 @@ def subject_for_cleanup(conn: sqlite3.Connection, owner_id: str, feature: str, *
     return subj
 
 
-def never_local(bridge_service: str, item: Any) -> bool:
-    """The explicit never-list (NEVER_LOCAL): zone-bypass arming, doors, scripts, scenes - whatever the feature tables say."""
-    if bridge_service != "execute":
-        return False
+def never_local(bridge_service: str, item: Any, extended: bool = False) -> bool:
+    """The explicit never-list - whatever the feature tables say. Switch off: NEVER_LOCAL (zone-bypass arming, doors, scripts, scenes);
+    switch on: NEVER_LOCAL_EXTENDED (the area write). An `execute` item is its (domain, service) pair; any other bridge service is
+    `("smplwise_bridge", <service>)`."""
+    pair = item if bridge_service == "execute" else ("smplwise_bridge", bridge_service)
     try:
-        return item in NEVER_LOCAL
+        return pair in never_list(extended)
     except TypeError:
         return True
 
@@ -254,9 +322,10 @@ def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, brid
     row = conn.execute("SELECT active, deleted_at, source FROM users WHERE id = ?", (user_id,)).fetchone()
     if row is None or row["source"] != "local" or (require_active and (not row["active"] or row["deleted_at"])):
         raise _refuse(conn, actor, user_id, "user_inactive", 403, **args)
-    if never_local(bridge_service, item):
+    extended = extended_on(conn)
+    if never_local(bridge_service, item, extended):
         raise _refuse(conn, actor, user_id, "service_identity_refused", 403, reason="never_local", **args)
-    why = feature_refusal(feature, bridge_service, item)
+    why = feature_refusal(feature, bridge_service, item, extended)
     if why:
         raise _refuse(conn, actor, user_id, why, 403, **args)
     sid = configured_id(conn)
@@ -269,7 +338,30 @@ def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, brid
         raise _refuse(conn, actor, user_id, "service_identity_unconfigured", 503, reason=cand, **args)
     if _version_tuple(get_setting(conn, "bridge.integration_version")) < _version_tuple(BRIDGE_SERVICE_IDENTITY_REQUIRED):
         raise _refuse(conn, actor, user_id, "service_identity_bridge_outdated", 503, **args)
+    if extended and feature_refusal(feature, bridge_service, item, False) is not None:
+        # SVCIDENT2: an item only the extended mode admits. The bridge judges it with its own options-flow copy of the switch, so it is not
+        # sent unless the bridge (>= 0.9.1) reported that copy on - otherwise it would be refused there anyway (both sides must agree)
+        if (_version_tuple(get_setting(conn, "bridge.integration_version")) < _version_tuple(BRIDGE_EXTENDED_REQUIRED)
+                or (get_setting(conn, BRIDGE_EXTENDED) or "") != "true"):
+            raise _refuse(conn, actor, user_id, "service_identity_extended_bridge_off", 503, **args)
+        audit(conn, actor=actor, action="identity.service_identity.extended", decision="allowed", resource_type="user", resource_id=user_id, request_id=request_id,
+              details={"feature": feature, "bridge_service": bridge_service, "item": _audit_item(item)})
     return {"user_id": sid, "on_behalf_of": {"kind": "local", "user_id": user_id, "feature": feature}}
+
+
+def _audit_item(item: Any) -> Any:
+    """What an audit row may say about an item: a (domain, service) pair or an op / query name - ids only, never data."""
+    return list(item) if isinstance(item, tuple) else (item if isinstance(item, str) else None)
+
+
+def local_door_ok(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """SVCIDENT2 (owner decision 1): may the WisKey door rule (door_authority.identity_ok) judge a local principal at all - only in the
+    extended mode, and only for an active, not deleted local user. The door rule itself (access.doors.open / door.unlock, deny wins,
+    wall accounts) then decides exactly as for everyone; a WisKey door is opened by the door transport, never through the bridge."""
+    if not is_local(principal) or not LOCAL_ID_RE.fullmatch(principal.user_id or "") or not extended_on(conn):
+        return False
+    row = conn.execute("SELECT active, deleted_at, source FROM users WHERE id = ?", (principal.user_id,)).fetchone()
+    return row is not None and row["source"] == "local" and bool(row["active"]) and not row["deleted_at"]
 
 
 def refuse_automation_write(conn: sqlite3.Connection, principal: Principal, request_id: str | None) -> None:
@@ -283,8 +375,12 @@ def refuse_automation_write(conn: sqlite3.Connection, principal: Principal, requ
 
 def refuse_zone_bypass(conn: sqlite3.Connection, principal: Principal, request_id: str | None, *, zone: str) -> None:
     """Alarm zone bypass (and its restore): never for a local identity - an explicit rule of the route (security review F1), independent of
-    whether the bypass control's (domain, service) happens to be in the `alarm` table. Called after the route's own permission checks."""
+    whether the bypass control's (domain, service) happens to be in the `alarm` table. Called after the route's own permission checks.
+    SVCIDENT2 (owner decision 2, 2026-10-17): with the extended mode on the route goes on - it has already required alarm.bypass on every
+    panel of the zone - and the call is judged by the `alarm.bypass` feature."""
     if not is_local(principal):
+        return
+    if extended_on(conn):
         return
     raise _refuse(conn, principal, principal.user_id, "service_identity_refused", 403, reason="zone_bypass", feature="alarm", bridge_service="execute",
                   item=zone, request_id=request_id)
@@ -429,16 +525,41 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
             step("mismatch", "המזהה שהוגדר כאן שונה מזה שהוגדר ברכיב החיבור. עדכנו את אחד הצדדים כך ששניהם יהיו זהים.",
                  "The id here differs from the one set in the bridge. Make both sides the same.")
     ready = bool(sid) and cand is None and paired and bridge_ok and bridge_capable and bridge_reported == sid
+    # SVCIDENT2: the extended mode (both copies must be on; it needs a security review before it is ever turned on - CR-USR2 section 11)
+    ext_requested = extended_requested(conn)
+    ext_on = extended_on(conn)
+    bridge_ext = (get_setting(conn, BRIDGE_EXTENDED) or "") == "true"
+    bridge_ext_ok = _version_tuple(bridge_version) >= _version_tuple(BRIDGE_EXTENDED_REQUIRED)
+    if ext_requested:
+        step("extended_on", "המצב המורחב פעיל: משתמשי Arx יכולים לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו. נדרשת סקירת אבטחה לפני הפעלה.",
+             "Extended mode is on: Arx users may open doors, bypass alarm zones, run scripts and scenes and show live cameras - each only under their own permission. A security review is required before enabling it.")
+        if paired and not bridge_ext_ok:
+            step("extended_bridge_outdated", f"המצב המורחב דורש רכיב חיבור {BRIDGE_EXTENDED_REQUIRED} ומעלה (כעת {bridge_version or '?'}).",
+                 f"Extended mode needs the bridge {BRIDGE_EXTENDED_REQUIRED} or newer (now {bridge_version or '?'}).")
+        elif paired and not bridge_ext:
+            step("extended_bridge_off", "בתשתית המערכת: הגדרות › התקנים ושירותים › SMPLWISE Bridge › הגדרות - הפעילו גם שם את המצב המורחב של משתמשי Arx. עד אז הפעולות המורחבות נחסמות.",
+                 "In the infrastructure: Settings > Devices & services > SMPLWISE Bridge > Configure - turn the Arx users' extended mode on there too. Until then the extended actions are refused.")
+    elif bridge_ext:
+        step("extended_bridge_only", "המצב המורחב פעיל ברכיב החיבור בלבד. כל עוד הוא כבוי כאן, הפעולות המורחבות נחסמות.",
+             "Extended mode is on in the bridge only. While it is off here, the extended actions are refused.")
+    if ext_on:
+        allowed = [{"key": k, "he": v[0], "en": v[1]} for k, v in EXTENDED_FEATURE_LABELS.items()]
+        refused = [{"he": he, "en": en} for he, en in EXTENDED_REFUSED_LABELS]
+    else:
+        allowed = [{"key": k, "he": v[0], "en": v[1]} for k, v in FEATURE_LABELS.items()]
+        refused = [{"he": he, "en": en} for he, en in REFUSED_LABELS]
     return {
         "configured_user_id": raw or None,
         "user": {"id": row["id"], "name": row["name"] or row["username"], "is_active": bool(row["is_active"]), "is_admin": bool(row["is_admin"])} if row is not None else None,
         "bridge": {"paired": paired, "version": bridge_version, "required": BRIDGE_SERVICE_IDENTITY_REQUIRED, "version_ok": bridge_ok,
                    "capable": bridge_capable, "reported_user_id": bridge_reported, "agrees": bool(sid) and bridge_reported == sid},
         "feature_on": local_identity.enabled(conn),
+        "extended": {"requested": ext_requested, "on": ext_on, "bridge_on": bridge_ext, "bridge_version_ok": bridge_ext_ok,
+                     "agrees": ext_requested == bridge_ext, "required": BRIDGE_EXTENDED_REQUIRED},
         "ready": ready,
         "steps": steps,
-        "allowed": [{"key": k, "he": v[0], "en": v[1]} for k, v in FEATURE_LABELS.items()],
-        "refused": [{"he": he, "en": en} for he, en in REFUSED_LABELS],
+        "allowed": allowed,
+        "refused": refused,
     }
 
 
@@ -449,8 +570,11 @@ def note_directory_push(conn: sqlite3.Connection, message: dict[str, Any]) -> No
     capable = "true" if message.get("service_identity") is True else "false"
     reported = message.get("service_user_id")
     reported = reported if isinstance(reported, str) and HA_USER_ID_RE.fullmatch(reported) else ""
-    if capable != (get_setting(conn, BRIDGE_CAPABLE) or "") or reported != (get_setting(conn, BRIDGE_SETTING) or ""):
+    # SVCIDENT2 (bridge >= 0.9.1): the bridge's options-flow copy of the extended switch; an older bridge sends no key = off
+    ext = "true" if message.get("local_identity_extended") is True else "false"
+    if capable != (get_setting(conn, BRIDGE_CAPABLE) or "") or reported != (get_setting(conn, BRIDGE_SETTING) or "") or ext != (get_setting(conn, BRIDGE_EXTENDED) or "false"):
         set_setting(conn, BRIDGE_CAPABLE, capable)
         set_setting(conn, BRIDGE_SETTING, reported)
+        set_setting(conn, BRIDGE_EXTENDED, ext)
         audit(conn, actor=None, action="bridge.service_identity_seen", decision="allowed", resource_type="installation", resource_id="service_identity",
-              details={"capable": capable == "true", "user_id": reported or None})
+              details={"capable": capable == "true", "user_id": reported or None, "extended": ext == "true"})
