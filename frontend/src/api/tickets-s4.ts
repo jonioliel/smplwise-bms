@@ -63,9 +63,11 @@ export interface Contact {
   phone_confirm_token?: string | null;
   /** CR-DEPT-MANAGER-HANDLERS: a department manager may edit / erase this row (he created it and no other department uses it) */
   manager_editable?: boolean;
-  /** the department a manager created the row from (the create answer only) */
-  created_department?: string;
+  /** CR-DEPT-MANAGER-HANDLERS (0113): the department a manager created the row in - named only for a directory editor and a manager of
+   *  that department; `other` = created by another department (no name, no id); null / absent = created in Settings */
+  created_department?: CreatedDepartment | null;
 }
+export interface CreatedDepartment { id: string | null; name: string | null; other: boolean }
 /** `handler_departments`: the departments in which the caller manages handlers without tickets.configure (CR-DEPT-MANAGER-HANDLERS) */
 export interface ContactsPage { contacts: Contact[]; can_edit: boolean; handler_departments?: string[] }
 export interface ContactBody {

@@ -1,7 +1,8 @@
 # CR-DEPT-MANAGER-HANDLERS - a department manager manages his departments' handlers and vendors
 
-Status: implemented on `pilot/DEPTMGR` (from `integ/264` @ `75f41b19`), not merged. Owner decision 2026-10-17 (level ג).
-No migration.
+Status: implemented on `pilot/DEPTMGR` (from `integ/264` @ `75f41b19`), merged into integ/264. Owner decision 2026-10-17 (level ג).
+The owner's answers to section 8 (2026-10-17) on `pilot/DEPTMGR2` (from `integ/264` @ `5fa03e7a`) - section 9; migration 0113
+(provisional).
 
 ## 1. What changed
 
@@ -107,15 +108,73 @@ attachment-only rows, the last department, a row used elsewhere, no leak in the 
 ids-only, idempotence, injection / length). Updated catalogue pins in `test_tickets_admin.py`, `test_tickets_s2.py`,
 `test_wiskey_door_path.py`. Frontend unit spec `tests/unit-tickets-dept-handlers.spec.ts`.
 
-## 8. Open owner questions
+## 8. Owner questions - answered 2026-10-17 (all approved), implemented on `pilot/DEPTMGR2`
 
-1. Default grant: today nobody but a system administrator holds `tickets.handlers`; each manager needs the `tickets_handlers` role.
-   Should site administrators get it by default, or should it become delegable by a delegated administrator?
-2. A vendor / contact created by a manager is shared with every department by default (per the decision text); an employee is attached
-   to the department. Keep, or default vendors to "my department only"?
-3. A manager cannot find a vendor that is attached only to another department (no leak), so he creates a duplicate. Allow an exact
-   phone-number lookup to attach an existing vendor instead?
-4. Should the manager also edit a member's mobile / language (today: tickets.configure only, because it is a person-level value that
-   revokes links across departments)?
-5. Should the creating department be stored on the row (a column - would need migration 0102, provisional) rather than only in the
-   audit row?
+1. **Default grant** - `tickets.handlers` is for department managers only and is granted **manually by the owner** (the
+   `tickets_handlers` role per person). No default for site administrators, not delegable. Unchanged code; pinned by
+   `test_the_capability_is_granted_manually_only`.
+2. **Vendors default to "my department only"** - a vendor / contact a manager creates is attached to the department in the path unless
+   he sends `shared: true` (the UI switch "זמין לכל המחלקות" starts off). Section 1 and the route table are superseded on this point.
+3. **Exact-phone lookup** - see section 9.1.
+4. **A member's mobile and language** - see section 9.2. Section 1's "may NOT edit a member's mobile" is superseded for plain members.
+5. **The creating department on the row** - see section 9.3 (migration **0113**, provisional number reserved for this branch).
+
+## 9. The answers' implementation (DEPTMGR2)
+
+### 9.1 Exact-phone lookup of an existing vendor
+
+| Method | Path | Body | What |
+|--------|------|------|------|
+| POST | `/tickets/dept-handlers/{dept}/contacts/lookup` | `{phone}` | the live vendors whose number is EXACTLY this one |
+| POST | `/tickets/dept-handlers/{dept}/contacts/attach-by-phone` | `{contact_id, phone}` | attach such a vendor to the department |
+
+- THE check (`gate`) first: no capability = 403 `forbidden`; a department he does not manage = the uniform 404.
+- Exact only: the typed number is normalised the usual way (spaces, dashes, dots, parentheses, `+`, `00`, a leading `0` = +972) and
+  compared for equality with `phone_e164` (`store_links.vendors_by_phone`) - no prefix, `LIKE`, wildcard or partial match; a fragment
+  shorter than 8 digits is a 422. At most 5 rows. Vendors only (kind `vendor`), never a row that names a user, never an erased row.
+- The phone travels in the JSON body, never in the URL (so never in an access log); it never reaches an audit row
+  (`ticket.contact.lookup` `{department_id, via, matches}`).
+- The answer per vendor: `id, kind, display_name, company, phone` (masked, last four digits), `active, shared, attached` - no department
+  name, id or count of its other departments.
+- Rate limit per caller (and per database): 5 a minute, 30 an hour, lookups and attaches together; a miss counts like a hit. Over the
+  limit: 429 `rate_limited`, audited `denied` with reason `rate_limited`. In-process (resets on restart) - acceptable for a manager-only
+  route behind sign-in.
+- Attaching needs the SAME number again: an unknown id, a non-vendor, a user's row, an erased row and a number that does not match are
+  the same 404 `contact_not_found` (audited `phone_mismatch`). The plain attach route still refuses a row of another department by id
+  alone. A vendor shared with every department: 409 `shared_entry`. Idempotent; audited `ticket.contact.attach` with `by: "phone"`.
+  An attached row stays `manager_editable: false` (not his) - only the attachment is his.
+- Accepted residual signal: a manager who knows a vendor's exact number learns that the vendor exists and its name (that is the
+  feature); he cannot list numbers or names.
+
+### 9.2 A plain member's mobile and language
+
+`PUT /tickets/dept-handlers/{dept}/members/{user}/mobile` `{phone?, lang?}` (nothing else: `notify_whatsapp`, `phone_verify`, `user_id`
+are 422). THE check, then: the user is an active PLAIN member of the department (else 404), and holds no DIRECT manager row in ANY
+department (403 `manager_row`, audited) - a manager's staff link is never redirected by a peer. The write is the configurer's own
+(`staff_links.set_mobile_checked`): a changed number revokes the person's live links in every department, kills pending codes, clears
+the confirmation (the person confirms again) and tells the person; audit rows carry `department_id`, `subject_id`, `via` and field
+names only. The answer is the department view (the number masked by the usual rule). The overview's members carry `lang` and
+`mobile_editable`.
+
+### 9.3 The creating department (migration 0113)
+
+`ticket_contacts.created_department_id` (nullable, no foreign key). Set by the manager's create; NULL for rows created in Settings.
+The migration backfills it from the `ticket.contact.create` audit rows with `via: department_manager` (ids only). The directory list and
+the one-row answer carry `created_department`: `{id, name, other: false}` for a directory editor and for a manager of that department
+(or of every department); `{id: null, name: null, other: true}` for anyone else (a shared row created by another department);
+`null` for a Settings row. The UI shows "נוצר במחלקה: ..." on every vendor / employee card and in the read-only card. (The create
+answer's former plain-string `created_department` is now this object.)
+
+**Migration number:** 0113 is provisional (integ/264 ends at 0106; 0107-0112 are reserved for other branches).
+`test_migrations_263_upgrade.py::test_the_release_numbers_are_contiguous_and_final` fails on this branch alone until the gap is closed
+at integration (renumber to the next free number).
+
+### 9.4 Texts
+
+Hebrew and English in `frontend/src/tickets/text-deptmgr.ts`; Arabic and Russian drafts of the new words are exported as
+`DM_AR_DEV` / `DM_RU_DEV` (dev-marked, need a native review; the tickets screens read Hebrew / English only, so nothing reads them yet).
+
+### 9.5 Tests
+
+Backend `tests/test_tickets_dept_handlers_decisions.py` (negative first per answer); updated `tests/test_tickets_dept_handlers.py`
+(shared rows now opt in). Frontend unit `tests/unit-tickets-dept-handlers-decisions.spec.ts`.

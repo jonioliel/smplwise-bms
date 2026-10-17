@@ -43,6 +43,12 @@ Visibility: only through the manager board's scan (`access.visible_page`) and on
 (`Seen.manager`): a department manager gets counts for his departments' requests, never another department's; a holder of
 `tickets.all_departments` + `tickets.manage` sees all. Scan cap 2000 rows, newest activity first (`truncated` is reported).
 
+## Owner answers (2026-10-17)
+- "Today" (period 1) = since the installation's local midnight - as built (`period_start`).
+- A request a manager closed without "done" is NOT counted as handled - as built (no `done_at`).
+- The 2000-request scan limit is kept (`board.SCAN_CAP`, `truncated` reported).
+Pinned by `test_owner_decisions_today_is_local_midnight_and_the_scan_limit_stays_2000` (pilot/DEPTMGR2). No code change.
+
 ## Tests
 Backend `tests/test_tickets_handler_load.py` (allow-list, gate, module off, counts-only answer, department isolation, cancelled / closed
 without done, reopened and reassigned requests, the assignee at the time of `done`, contact keys, period boundaries and time zones,

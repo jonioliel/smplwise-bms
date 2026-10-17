@@ -15,7 +15,7 @@ import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type AdminDepartment, type AdminMember } from '../api/tickets';
 import { deptHandlersApi, type ManagedDepartment } from '../api/tickets-dept-handlers';
-import { memberRemovable } from './dept-handlers-model';
+import { memberRemovable, mobileEditable } from './dept-handlers-model';
 import { ticketSettingsCss } from './settings-styles';
 import { handlersGlass } from './handlers-glass';
 import { seesLoad, type MemberLoad } from './handler-load';
@@ -35,7 +35,7 @@ function fromManaged(d: ManagedDepartment): AdminDepartment {
   return {
     id: d.id, name: d.name, active: d.active, can_edit_members: d.can_manage,
     members: d.members.map((m) => ({ kind: m.kind, id: m.id, name: m.name, role: m.role, notify_new: false, added_at: '', mobile: m.mobile ?? null,
-      mobile_confirmed: m.mobile_confirmed, notify_whatsapp: m.notify_whatsapp })),
+      mobile_confirmed: m.mobile_confirmed, notify_whatsapp: m.notify_whatsapp, lang: m.lang, mobile_full: m.mobile_full, mobile_editable: m.mobile_editable })),
   } as unknown as AdminDepartment;
 }
 
@@ -54,7 +54,9 @@ function fromManaged(d: ManagedDepartment): AdminDepartment {
  * confirmed the number in their own account (security review F3; until then the card says so). A manager may only turn the switch off.
  * CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17): without tickets.configure a department MANAGER reads his departments' members through
  * GET /tickets/dept-handlers (phones masked unless the installation setting allows); with the capability he adds a user as a plain member
- * and removes plain members. Manager rows, groups, roles, alerts and mobiles stay the configurer's (the card shows them read-only).
+ * and removes plain members. Manager rows, groups, roles and alerts stay the configurer's (the card shows them read-only). Owner answer
+ * 2026-10-17 (DEPTMGR2): he also sets a PLAIN member's mobile and language (the server's `mobile_editable`; never a manager's mobile,
+ * never the WhatsApp / verification switches) - the shown number stays masked, a new one is typed.
  * Events: `notice` {ok | error}, `add-done` (the add panel did its work).
  */
 @customElement('tickets-handlers-members')
@@ -320,8 +322,35 @@ export class TicketsHandlersMembers extends LitElement {
     </div>`;
   }
 
-  /** CR-DEPT-MANAGER-HANDLERS: the mobile as the server gave it (masked unless allowed), read-only. */
-  private managerMobile(m: AdminMember): TemplateResult | typeof nothing {
+  /** Owner 2026-10-17: a plain member's mobile and language, set by a capable manager (the number is typed anew - the shown one is masked). */
+  private async saveManagerMobile(d: AdminDepartment, m: AdminMember, body: { phone?: string | null; lang?: Lang }): Promise<void> {
+    await this.act(async () => fromManaged(await deptHandlersApi().memberMobile(d.id, m.id, body)), () => {
+      const { [m.id]: _gone, ...rest } = this.drafts;
+      this.drafts = rest;
+    });
+  }
+
+  /** CR-DEPT-MANAGER-HANDLERS: the mobile as the server gave it (masked unless allowed); editable for a plain member (server's flag). */
+  private managerMobile(m: AdminMember, d: AdminDepartment | undefined): TemplateResult | typeof nothing {
+    const mm = m as AdminMember & { mobile_editable?: boolean; mobile_full?: boolean };
+    if (d && mobileEditable({ kind: m.kind, role: m.role, mobile_editable: mm.mobile_editable })) {
+      const dr = this.drafts[m.id] ?? { phone: mm.mobile_full ? m.mobile ?? '' : '', lang: m.lang ?? 'he' };
+      const dirty = dr.phone.trim() !== (mm.mobile_full ? m.mobile ?? '' : '') || dr.lang !== (m.lang ?? 'he');
+      return html`<div class="line" data-member-mobile=${m.id} data-member-mobile-editable>
+        <span class="lbl">${tt('hdMobile')}</span>
+        <input class="in tel" type="tel" dir="ltr" inputmode="tel" autocomplete="off" maxlength="40" aria-label=${`${tt('hdMobile')} · ${m.name}`}
+          placeholder=${m.mobile ?? tt('hdMobile')} .value=${dr.phone} ?disabled=${this.busy} data-member-mobile-input
+          @input=${(e: Event) => (this.drafts = { ...this.drafts, [m.id]: { ...dr, phone: (e.target as HTMLInputElement).value } })}>
+        <select class="in" aria-label=${tt('hdMobileLang')} ?disabled=${this.busy} data-member-mobile-lang
+          @change=${(e: Event) => (this.drafts = { ...this.drafts, [m.id]: { ...dr, lang: (e.target as HTMLSelectElement).value as Lang } })}>
+          ${LANGS.map((l) => html`<option value=${l} ?selected=${dr.lang === l}>${tt(`lang_${l}`)}</option>`)}
+        </select>
+        <sw-button size="sm" ?disabled=${this.busy || !dirty} data-member-mobile-save
+          @click=${() => void this.saveManagerMobile(d, m, { ...(dr.phone.trim() !== (mm.mobile_full ? m.mobile ?? '' : '') ? { phone: dr.phone.trim() || null } : {}), lang: dr.lang })}>${tt('hdMobileSave')}</sw-button>
+        ${m.mobile && !mm.mobile_full ? html`<span class="chip xs" data-member-mobile-masked>${tt('dmMasked')}</span>` : nothing}
+        ${m.mobile && m.mobile_confirmed === false ? html`<span class="chip warn" data-member-mobile-pending>${tt('hdMobilePending')}</span>` : nothing}
+      </div>`;
+    }
     if (!m.mobile) return nothing;
     return html`<div class="line" data-member-mobile=${m.id}><span class="lbl">${tt('hdMobile')}</span>
       <span dir="ltr" data-member-mobile-text>${m.mobile}</span>${m.mobile.startsWith('••') ? html`<span class="chip xs" data-member-mobile-masked>${tt('dmMasked')}</span>` : nothing}</div>`;
@@ -333,6 +362,8 @@ export class TicketsHandlersMembers extends LitElement {
     const first = p.ms[0].m;
     const manager = p.ms.some((x) => x.m.role === 'manager');
     const pending = !group && !!first.mobile && first.mobile_confirmed === false;
+    // owner 2026-10-17: the membership through which a manager may edit the person's mobile (a plain member of one of his departments)
+    const editableIn = this.manager && !group ? p.ms.find((x) => mobileEditable(x.m as Parameters<typeof mobileEditable>[0])) : undefined;
     return html`<article class=${`glass hcard ${open ? 'open' : ''}`} data-member=${p.key}>
       <header>
         <span class=${`tile ${group ? 'grp' : 'int'}`} aria-hidden="true">${group ? tIcon('users') : initials(p.name)}</span>
@@ -349,7 +380,7 @@ export class TicketsHandlersMembers extends LitElement {
       </footer>
       ${open ? html`<div class="manage" data-member-panel>
         ${p.ms.map((x) => this.membership(x.d, x.m, p.ms.length > 1))}
-        ${group ? nothing : this.manager ? this.managerMobile(first) : this.mobileOf(first)}
+        ${group ? nothing : this.manager ? this.managerMobile(editableIn?.m ?? first, editableIn?.d) : this.mobileOf(first)}
       </div>` : nothing}
     </article>`;
   }

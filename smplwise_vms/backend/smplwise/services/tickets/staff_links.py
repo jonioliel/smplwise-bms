@@ -219,11 +219,18 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
     and the user's WhatsApp switch, on the user's directory row (created on first use). `tickets.configure` at the installation -
     the same authority that edits every directory phone (contacts.py, spec 8; review T19-4). A changed number revokes the row's live
     links at once and cancels their queued messages (R7 d); the audit names the fields and the count, never the number."""
-    from . import contacts
-
     require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
     if user_id not in store.active_user_ids(conn):
         raise ApiError(404, "user_unknown", text(conn, "המשתמש לא נמצא או אינו פעיל."))
+    return set_mobile_checked(conn, viewer, user_id, body, rid)
+
+
+def set_mobile_checked(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: str | None = None,
+                       extra_audit: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The write of `set_mobile` once the caller's authority over this user was checked (set_mobile: tickets.configure; the department
+    manager's route, services/tickets/dept_handlers.py: a plain member of his department, the phone and the language only)."""
+    from . import contacts
+
     fields: dict[str, Any] = {}
     try:
         if "phone" in body:
@@ -253,7 +260,8 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
         contacts._keyed(conn, new)
         cid = store_links.insert_contact(conn, new, viewer.uid)
         audit(conn, actor=viewer.principal, action="ticket.contact.create", decision="allowed", resource_type="ticket_contact", resource_id=cid,
-              request_id=rid, details={"kind": "person", "user_linked": True, "has_phone": True, "fields": sorted(k if k != "phone_e164" else "phone" for k in fields)})
+              request_id=rid, details={"kind": "person", "user_linked": True, "has_phone": True, "fields": sorted(k if k != "phone_e164" else "phone" for k in fields),
+                                       **(extra_audit or {})})
         if user_id != viewer.uid:
             tell_user(conn, user_id)
         return view(conn, user_id)
@@ -274,7 +282,7 @@ def set_mobile(conn, viewer: Viewer, user_id: str, body: dict[str, Any], rid: st
         revoked = contacts.revoke_contact_links(conn, row["id"], "contact_changed", handler_links.now_utc(), rid=rid)
         phone_verify.kill_codes(conn, row["id"])  # TKNOTIFOTP: a code sent to the old number can confirm nothing
     audit(conn, actor=viewer.principal, action="ticket.contact.update", decision="allowed", resource_type="ticket_contact", resource_id=row["id"],
-          request_id=rid, details={"fields": changed, "links_revoked": revoked, "user_linked": True})
+          request_id=rid, details={"fields": changed, "links_revoked": revoked, "user_linked": True, **(extra_audit or {})})
     if user_id != viewer.uid and ("phone" in changed or "notify_whatsapp" in changed):
         tell_user(conn, user_id)
     return view(conn, user_id)

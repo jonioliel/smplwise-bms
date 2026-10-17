@@ -17,8 +17,8 @@ import { ApiError, describeError } from '../api/client';
 import { ticketsApi } from '../api/tickets';
 import { CONTACT_CHANNELS, CONTACT_LANGS, ticketsS4Api, type Contact, type ContactBody, type ContactChannel, type ContactKind, type ContactLang } from '../api/tickets-s4';
 import { canAnywhere, isApi } from '../api/session';
-import { deptHandlersApi, type ManagerContactBody } from '../api/tickets-dept-handlers';
-import { mayShare, rowActions } from './dept-handlers-model';
+import { deptHandlersApi, type ManagerContactBody, type VendorMatch } from '../api/tickets-dept-handlers';
+import { SHARED_BY_DEFAULT, createdLabel, lookupReady, mayShare, rowActions } from './dept-handlers-model';
 import { CURRENCIES, type CostMode } from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
 import { handlersGlass } from './handlers-glass';
@@ -65,6 +65,9 @@ function draftOf(c: Contact | null, kind: ContactKind = 'person'): Draft {
  * (in one of his departments, or - vendors / contacts - shared with every department), attaches / detaches the rows of his departments
  * and edits / erases the rows the server marks `manager_editable`; no notes, cost defaults, number verification, export or department
  * list for him. The server's dept-handlers routes decide every write.
+ * Owner answers 2026-10-17 (DEPTMGR2): a manager's new vendor / contact is his department's only unless he turns "available to every
+ * department" on; a new vendor starts with "already listed?" - the EXACT number finds the existing vendor (masked) to attach instead of
+ * a duplicate; every card and the read-only card show the creating department (its name only where the server gives it).
  */
 @customElement('tickets-contacts')
 export class TicketsContacts extends LitElement {
@@ -102,7 +105,10 @@ export class TicketsContacts extends LitElement {
   /** CR-DEPT-MANAGER-HANDLERS: the departments in which the caller manages handlers without tickets.configure */
   @state() private mine: string[] = [];
   @state() private mgrDept = '';
-  @state() private mgrShared = true;
+  @state() private mgrShared = SHARED_BY_DEFAULT;
+  /** owner 2026-10-17: the exact-phone lookup of an existing vendor (a manager's new vendor) */
+  @state() private lkPhone = '';
+  @state() private lkMatches: VendorMatch[] | null = null;
   private searchTimer = 0;
   private loadedKind: ContactKind | '' = '';
 
@@ -203,6 +209,11 @@ export class TicketsContacts extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
+    [data-vendor-lookup] .chipsrow .in {
+      flex: 1 1 12em;
+      inline-size: auto;
+      min-inline-size: 0;
+    }
   `, bubbleChrome];
 
   /** 2.5.5: the list is re-read quietly while nothing is open (no editor, no create form). */
@@ -285,7 +296,9 @@ export class TicketsContacts extends LitElement {
     this.draft = this.canEdit || mgrEdit ? draftOf(c, this.kind || 'person') : null;
     if (this.mgr && !c) {
       this.mgrDept = this.dept && this.mine.includes(this.dept) ? this.dept : this.mine[0];
-      this.mgrShared = mayShare(this.kind || 'person');
+      this.mgrShared = SHARED_BY_DEFAULT && mayShare(this.kind || 'person');
+      this.lkPhone = '';
+      this.lkMatches = null;
     }
     this.erasing = false;
     this.eraseHistory = false;
@@ -459,6 +472,60 @@ export class TicketsContacts extends LitElement {
         <sw-toggle label=${tt('dmShared')} labelHidden .checked=${this.mgrShared} data-field="mgr_shared" @change=${(e: CustomEvent<{ checked: boolean }>) => (this.mgrShared = e.detail.checked)}></sw-toggle></div>` : nothing}`;
   }
 
+  /** Owner 2026-10-17: the exact-phone lookup (the number in the request body; the answer masks it). */
+  private async lookup(): Promise<void> {
+    if (this.busy || !lookupReady(this.lkPhone)) return;
+    this.busy = true;
+    try {
+      this.lkMatches = (await deptHandlersApi().lookup(this.mgrDept, this.lkPhone.trim())).matches;
+    } catch (e) {
+      this.lkMatches = null;
+      this.notice({ error: describeError(e) });
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async attachFound(m: VendorMatch): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const saved = await deptHandlersApi().attachByPhone(this.mgrDept, m.id, this.lkPhone.trim());
+      this.notice({ ok: tt('setSaved') });
+      this.creating = false;
+      this.draft = null;
+      this.lkMatches = null;
+      await this.load();
+      this.open(saved);
+    } catch (e) {
+      this.notice({ error: describeError(e) });
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** A manager's new vendor: first, "already listed?" - the exact number finds the existing vendor to attach instead of a duplicate. */
+  private lookupBlock(): TemplateResult {
+    const found = this.lkMatches;
+    return html`<div class="fld wide" data-vendor-lookup><span>${tt('dmLookupTitle')}</span>
+      <span class="chipsrow"><input class="in tel" type="tel" dir="ltr" inputmode="tel" maxlength="40" autocomplete="off" data-vendor-lookup-phone
+        aria-label=${tt('dmLookupTitle')} .value=${this.lkPhone} @input=${(e: Event) => { this.lkPhone = (e.target as HTMLInputElement).value; this.lkMatches = null; }}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.lookup(); }} />
+        <sw-button size="sm" data-vendor-lookup-find ?disabled=${this.busy || !lookupReady(this.lkPhone)} @click=${() => void this.lookup()}>${tt('dmLookupFind')}</sw-button></span>
+      <span class="hint">${tt('dmLookupHint')}</span>
+      ${found === null ? nothing : found.length ? html`<span class="chipsrow" data-vendor-lookup-results>${found.map((m) => html`<span class="chip" data-vendor-match=${m.id}>
+          ${bidi(m.display_name)} <span dir="ltr">${m.phone ?? ''}</span>
+          ${m.shared ? html`<span class="mut">${tt('dmShared')}</span>` : m.attached ? html`<span class="mut">${tt('dmLookupAttached')}</span>`
+            : html`<button type="button" class="rm" data-vendor-match-attach ?disabled=${this.busy} @click=${() => void this.attachFound(m)}>${tt('dmLookupAttach')}</button>`}</span>`)}</span>`
+        : html`<span class="hint" role="status" data-vendor-lookup-none>${tt('dmLookupNone')}</span>`}
+    </div>`;
+  }
+
+  /** The "creating department" line of a row (0113); nothing for a row created in Settings. */
+  private createdText(c: Contact): string | null {
+    return createdLabel(c.created_department, (id) => this.deptName(id), tt('dmCreatedOther'));
+  }
+
   // ---------------------------------------------------------------- render
 
   /** The rows the page's department chip leaves: a contact of no department belongs to all of them. */
@@ -506,6 +573,7 @@ export class TicketsContacts extends LitElement {
   private card(c: Contact): TemplateResult {
     const employee = c.kind === 'employee';
     const load = employee ? this.loadOf(c) : null;
+    const created = this.createdText(c);
     const sub = employee ? [tt('u6NoAccount'), c.phone].filter(Boolean).join(' · ') : [c.phone, LANG_NAMES[c.lang]].filter(Boolean).join(' · ');
     return html`<article class=${`glass hcard ${c.active ? '' : 'off'}`} data-contact-card=${c.id}>
       <header>
@@ -523,7 +591,8 @@ export class TicketsContacts extends LitElement {
             ${this.handledLabel === null ? nothing : html`<div data-stat-cell="handled"><b data-stat="handled">${load.handled ?? 0}</b>${tt('u6Handled')}<small data-stat-period>${this.handledLabel}</small></div>`}</div>` : nothing)
         : html`<div class="stats" data-contact-stats><div><b data-stat="open">${c.open_tickets}</b>${tt('u6Open')}</div></div>`}
       <footer>
-        <span class="fchips">${c.departments.map((id) => html`<span class="chip">${bidi(this.deptName(id))}</span>`)}</span>
+        <span class="fchips">${c.departments.map((id) => html`<span class="chip">${bidi(this.deptName(id))}</span>`)}
+          ${created ? html`<span class="chip xs" title=${tt('dmCreatedIn')} data-contact-created>${tt('dmCreatedIn')}: ${bidi(created)}</span>` : nothing}</span>
         ${employee
           ? (c.preferred_channel === 'whatsapp' && c.has_phone ? html`<span class="chip wa">${tIcon('send')}${tt('ch_whatsapp')}</span>` : nothing)
           : html`<span class="push"></span>${this.channelSel(c)}<span class=${`chip ${c.require_code ? 'info' : ''}`} title=${tt('u6CodeTitle')} data-contact-code>${tIcon('lock')}${c.require_code ? tt('u6CodeOn') : tt('u6CodeOff')}</span>`}
@@ -571,6 +640,7 @@ export class TicketsContacts extends LitElement {
         <dt>${tt('ctLang')}</dt><dd>${LANG_NAMES[c.lang]}</dd>
         <dt>${tt('ctRequireCode')}</dt><dd>${c.require_code ? tt('ctYes') : tt('ctNo')}</dd>
         <dt>${tt('ctDepartments')}</dt><dd>${deptNames}</dd>
+        ${this.createdText(c) ? html`<dt>${tt('dmCreatedIn')}</dt><dd data-contact-created-ro>${bidi(this.createdText(c) ?? '')}</dd>` : nothing}
       </dl>
       ${this.mgr ? this.attachments(c) : nothing}
     </div>`;
@@ -607,6 +677,7 @@ export class TicketsContacts extends LitElement {
         aria-checked=${String(current === v)} aria-pressed=${String(current === v)} data-field=${`${attr}:${v}`} @click=${() => on(v)}>${text(v)}</button>`)}</span></div>`;
     return html`<div class="drawer-body" data-card="contact-editor" data-contact=${c?.id ?? 'new'} data-contact-kind=${d.kind}>
       <div class="form">
+        ${this.mgr && !c && d.kind === 'vendor' ? this.lookupBlock() : nothing}
         ${kinds.length ? seg(tt('ctColKind'), kinds, d.kind, (v) => tt(`ctKind_${v}` as TicketTextKey), (v) => this.set({ kind: v, vendor_id: v === 'person' ? d.vendor_id : '' }), 'kind') : nothing}
         <label class="fld"><span>${tt('ctName')} *</span><input class="in" maxlength="80" data-field="display_name" aria-invalid=${String(!!this.problem && !d.display_name.trim())}
           .value=${d.display_name} @input=${(e: Event) => this.set({ display_name: (e.target as HTMLInputElement).value })} /></label>

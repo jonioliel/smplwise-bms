@@ -17,9 +17,18 @@ What a capable manager may do, for the department in the path only:
   reads: the attachment only. A row that names a user (an employee's mobile row) is never his to touch.
 Answers: 403 `forbidden` without the capability (audited, says nothing about departments); the same 404 `not_found` for an unknown
 department and for one he does not manage (audited `denied`); the same 404 `contact_not_found` for an unknown row and for a row of
-another department; 403 `attachment_only` for a row he may only attach / detach. Audit rows carry ids, field names and counts only."""
+another department; 403 `attachment_only` for a row he may only attach / detach. Audit rows carry ids, field names and counts only.
+
+Owner decisions on the CR's open questions (2026-10-17, docs/changes/CR-DEPT-MANAGER-HANDLERS.md section 8): `tickets.handlers` stays
+department managers only, granted manually (no default role, not delegable); a vendor / contact a manager creates is HIS department's
+only by default (`shared: true` still opts in); an EXACT-phone lookup finds an existing vendor to attach (no enumeration, rate limited,
+the number masked in the answer, attaching needs the same number again); a manager edits a plain member's mobile and language; the
+creating department is stored on the row (`created_department_id`, migration 0113) and shown in the directory list."""
 from __future__ import annotations
 
+import hmac
+import threading
+import time
 from typing import Any
 
 from ...audit import audit
@@ -114,7 +123,14 @@ def reader(viewer: Viewer) -> HandlerScope:
 # ---------------------------------------------------------------- the read
 
 
-def _member_view(conn, m: dict[str, Any], full: bool) -> dict[str, Any]:
+def _manages_somewhere(conn, user_id: str) -> bool:
+    """A DIRECT manager row of the user in any department (his mobile is never a department manager's to change: a manager role is
+    set in Settings, and a manager's staff link must not be redirected by a peer)."""
+    return conn.execute("SELECT 1 FROM ticket_department_members WHERE subject_kind = 'user' AND subject_id = ? AND member_role = 'manager' LIMIT 1",
+                        (user_id,)).fetchone() is not None
+
+
+def _member_view(conn, m: dict[str, Any], full: bool, editable: bool = False) -> dict[str, Any]:
     from . import staff_links
 
     if m["subject_kind"] == "group":
@@ -124,15 +140,19 @@ def _member_view(conn, m: dict[str, Any], full: bool) -> dict[str, Any]:
     phone = (row or {}).get("phone_e164")
     return {"kind": "user", "id": m["subject_id"], "name": store.display_name(conn, m["subject_id"]), "role": m["member_role"],
             "has_mobile": bool(phone), "mobile": contacts.display_phone(phone) if full else contacts.mask_phone(phone),
-            "mobile_full": bool(phone) and full, "mobile_confirmed": sv["confirmed"], "notify_whatsapp": sv["notify_whatsapp"]}
+            "mobile_full": bool(phone) and full, "mobile_confirmed": sv["confirmed"], "notify_whatsapp": sv["notify_whatsapp"],
+            "lang": sv["lang"],
+            # owner 2026-10-17 (open question 4): a capable manager edits a PLAIN member's mobile and language (never a manager's)
+            "mobile_editable": editable and m["member_role"] == "member" and not _manages_somewhere(conn, m["subject_id"])}
 
 
 def department_view(scope: HandlerScope, dept_id: str) -> dict[str, Any]:
     conn, viewer = scope.conn, scope.viewer
     d = store.department(conn, dept_id) or {}
     full = viewer.holds_installation(access.CONFIGURE) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(conn)
-    return {"id": dept_id, "name": d.get("name", ""), "active": bool(d.get("active")), "can_manage": dept_id in scope.departments,
-            "members": [_member_view(conn, m, full) for m in store.members(conn, dept_id)]}
+    can = dept_id in scope.departments
+    return {"id": dept_id, "name": d.get("name", ""), "active": bool(d.get("active")), "can_manage": can,
+            "members": [_member_view(conn, m, full, can) for m in store.members(conn, dept_id)]}
 
 
 def overview(viewer: Viewer) -> dict[str, Any]:
@@ -195,6 +215,115 @@ def remove_member(viewer: Viewer, dept_id: str, user_id: str, rid: str | None) -
     return department_view(scope, dept_id)
 
 
+MOBILE_FIELDS = ("phone", "lang")
+
+
+def set_member_mobile(viewer: Viewer, dept_id: str, user_id: str, body: dict[str, Any], rid: str | None) -> dict[str, Any]:
+    """Owner 2026-10-17 (open question 4): a capable manager sets the mobile and the language of a PLAIN member (with an account) of HIS
+    department - the same write as Settings (staff_links.set_mobile_checked: a changed number revokes the person's live links in every
+    department and the person confirms the new number again). Never a manager's mobile (a manager row anywhere: 403 `manager_row`),
+    never the person's WhatsApp switch or number-verification switch (those stay the person's / a configurer's). The answer is the
+    department view (the number masked by the usual rule)."""
+    from . import staff_links
+
+    conn = viewer.conn
+    scope = gate(viewer, dept_id, "ticket.contact.update", rid)
+    if set(body) - set(MOBILE_FIELDS) or not body:
+        raise contacts.invalid(conn, "body", "fields")
+    before = store.member_row(conn, dept_id, "user", user_id)
+    if before is None or user_id not in store.active_user_ids(conn):
+        raise ApiError(404, "not_found", text(conn, "החבר לא נמצא במחלקה."))
+    if before["member_role"] == "manager" or _manages_somewhere(conn, user_id):
+        _deny(conn, viewer, "ticket.contact.update", "ticket_department", dept_id, "manager_row", rid, {"subject_kind": "user", "subject_id": user_id})
+        raise ApiError(403, "manager_row", text(conn, "את הנייד של מנהל מחלקה משנים בהגדרות המערכת בלבד."))
+    staff_links.set_mobile_checked(conn, viewer, user_id, body, rid, extra_audit=_rid_details(dept_id, subject_id=user_id))
+    return department_view(scope, dept_id)
+
+
+# ---------------------------------------------------------------- the exact-phone lookup of an existing vendor (open question 3)
+
+LOOKUP_LIMITS: tuple[tuple[float, int], ...] = ((60.0, 5), (3600.0, 30))  # per caller: 5 a minute, 30 an hour (lookups + attaches)
+LOOKUP_MAX = 5
+_LOOKUP_HITS: dict[tuple[str, str], list[float]] = {}
+_LOOKUP_LOCK = threading.Lock()
+
+
+def _lookup_rate(viewer: Viewer, dept_id: str, action: str, rid: str | None) -> None:
+    """Per caller (and per database, so test databases never share a bucket): over the limit = 429 `rate_limited`, audited once per
+    refusal (`denied`, reason `rate_limited`). A miss counts like a hit: the limit is what bounds guessing."""
+    db_file = next((r[2] for r in viewer.conn.execute("PRAGMA database_list").fetchall() if r[1] == "main"), "") or ""
+    key = (str(db_file), viewer.uid or "")
+    now = time.monotonic()
+    longest = max(w for w, _ in LOOKUP_LIMITS)
+    with _LOOKUP_LOCK:
+        hits = [t for t in _LOOKUP_HITS.get(key, []) if now - t < longest]
+        over = any(sum(1 for t in hits if now - t < window) >= n for window, n in LOOKUP_LIMITS)
+        if not over:
+            hits.append(now)
+        _LOOKUP_HITS[key] = hits
+    if over:
+        _deny(viewer.conn, viewer, action, "ticket_department", dept_id, "rate_limited", rid)
+        raise ApiError(429, "rate_limited", text(viewer.conn, "יותר מדי חיפושים ברצף. נסו שוב בעוד כמה דקות."), retryable=True)
+
+
+def _phone_digits(conn, raw: Any) -> str:
+    try:
+        digits = contacts.normalize_phone(raw)
+    except contacts.ContactInvalid:
+        raise contacts.invalid(conn, "phone", "format") from None
+    if not digits:
+        raise contacts.invalid(conn, "phone", "required")
+    return digits
+
+
+def lookup_vendor(viewer: Viewer, dept_id: str, phone: Any, rid: str | None) -> dict[str, Any]:
+    """`POST /tickets/dept-handlers/{dept}/contacts/lookup {phone}`: the live vendors whose number is EXACTLY this one (after the usual
+    normalisation - spaces, dashes, a leading 0 or +972 - never a prefix or a partial match), so a manager attaches the existing vendor
+    instead of creating a duplicate. Rate limited per caller; the number in the answer is masked (he typed it; nothing more is shown);
+    no department name, id or count of the vendor's other departments. The phone travels in the body, never in the URL, and never
+    reaches the audit row (ids and a count only)."""
+    conn = viewer.conn
+    gate(viewer, dept_id, "ticket.contact.lookup", rid)
+    digits = _phone_digits(conn, phone)
+    _lookup_rate(viewer, dept_id, "ticket.contact.lookup", rid)
+    rows = store_links.vendors_by_phone(conn, digits, LOOKUP_MAX)
+    dmap = store_links.departments_map(conn, [r["id"] for r in rows])
+    out = []
+    for r in rows:
+        depts = dmap.get(r["id"], [])
+        out.append({"id": r["id"], "kind": contacts.api_kind(r), "display_name": r["display_name"], "company": r.get("company") or "",
+                    "phone": contacts.mask_phone(r.get("phone_e164")), "active": bool(r["active"]),
+                    "shared": not depts, "attached": dept_id in depts})
+    audit(conn, actor=viewer.principal, action="ticket.contact.lookup", decision="allowed", resource_type="ticket_department", resource_id=dept_id,
+          request_id=rid, details={"department_id": dept_id, "via": VIA, "matches": len(out)})
+    return {"matches": out}
+
+
+def attach_by_phone(viewer: Viewer, dept_id: str, contact_id: str, phone: Any, rid: str | None) -> dict[str, Any]:
+    """`POST /tickets/dept-handlers/{dept}/contacts/attach-by-phone {contact_id, phone}`: attach a vendor the lookup found - the caller
+    must present the same exact number again (the id alone attaches nothing: a vendor of another department is reachable only by its
+    number). An unknown id, a row that is not a live vendor, a row naming a user and a number that does not match are the same 404
+    `contact_not_found`. Shared with every department already: 409 `shared_entry`. Idempotent; audited `ticket.contact.attach` with
+    `by: phone`."""
+    conn = viewer.conn
+    gate(viewer, dept_id, "ticket.contact.attach", rid)
+    digits = _phone_digits(conn, phone)
+    _lookup_rate(viewer, dept_id, "ticket.contact.attach", rid)
+    row = store_links.contact(conn, contact_id)
+    if (row is None or row.get("erased_at") or row.get("user_id") or row.get("kind") != "vendor" or not row.get("phone_e164")
+            or not hmac.compare_digest(str(row["phone_e164"]), digits)):
+        _deny(conn, viewer, "ticket.contact.attach", "ticket_contact", contact_id, "phone_mismatch", rid, {"department_id": dept_id})
+        raise ApiError(404, "contact_not_found", text(conn, CONTACT_NOT_FOUND))
+    depts = store_links.contact_departments(conn, contact_id)
+    if not depts:
+        raise ApiError(409, "shared_entry", text(conn, "הרשומה כבר זמינה לכל המחלקות."))
+    if dept_id not in depts:
+        store_links.set_contact_departments(conn, contact_id, [*depts, dept_id])
+        audit(conn, actor=viewer.principal, action="ticket.contact.attach", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
+              request_id=rid, details=_rid_details(dept_id, by="phone"))
+    return contacts.one(conn, viewer, contact_id)
+
+
 # ---------------------------------------------------------------- directory rows
 
 
@@ -236,17 +365,16 @@ def create_contact(viewer: Viewer, dept_id: str, body: dict[str, Any], rid: str 
             raise contacts.invalid(conn, "shared", "employee")  # an employee without an account belongs to the department
         shared = False
     elif shared is None:
-        shared = True  # owner 2026-10-17: a vendor / contact created by a manager is in the general directory for every department
+        shared = False  # owner 2026-10-17 (open question 2): a vendor / contact a manager creates is his department's only, by default
     _check_vendor(scope, body)
     try:
         fields = contacts._fields(conn, body, creating=True, current=None)
     except contacts.ContactInvalid as exc:
         raise contacts.invalid(conn, exc.field, exc.code) from None
+    fields["created_department_id"] = dept_id  # 0113 (open question 5): the creating department is stored on the row
     cid = contacts.insert_checked(conn, viewer, fields, [] if shared else [dept_id], rid,
                                   extra_audit=_rid_details(dept_id, shared=bool(shared)))
-    out = contacts.one(conn, viewer, cid)
-    out["created_department"] = dept_id
-    return out
+    return contacts.one(conn, viewer, cid)  # carries `created_department` {id, name, other} from the row (0113)
 
 
 def update_contact(viewer: Viewer, dept_id: str, contact_id: str, body: dict[str, Any], revision: int, rid: str | None) -> dict[str, Any]:

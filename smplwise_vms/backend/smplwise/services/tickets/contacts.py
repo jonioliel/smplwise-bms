@@ -180,6 +180,23 @@ def full_phone_for(viewer: Viewer, contact_depts: list[str], managed: set[str] |
 # ---------------------------------------------------------------- presentation
 
 
+def created_department(conn, row: dict[str, Any], configure: bool, managed: set[str] | None,
+                       names: dict[str, str] | None = None) -> dict[str, Any] | None:
+    """CR-DEPT-MANAGER-HANDLERS (0113, owner 2026-10-17): the department a manager created the row in - its name for a directory editor
+    and for a manager of THAT department (or of every department); every other reader learns only that another department created it
+    (no name, no id: the same rule as the rest of the manager's view). None = created in Settings (or before 0113)."""
+    dept_id = row.get("created_department_id")
+    if not dept_id:
+        return None
+    if configure or managed is None or dept_id in managed:
+        name = (names or {}).get(dept_id)
+        if name is None:
+            d = store.department(conn, dept_id)
+            name = d.get("name", "") if d else ""
+        return {"id": dept_id, "name": name, "other": False}
+    return {"id": None, "name": None, "other": True}
+
+
 def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, open_count: int = 0,
             vendors: dict[str, str] | None = None, configure: bool = False, rates: bool = False) -> dict[str, Any]:
     """One directory row for the caller: the full phone / e-mail only when `full_phone`; the internal notes only for the
@@ -241,6 +258,7 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
     from . import dept_handlers  # CR-DEPT-MANAGER-HANDLERS: what a department manager may do with each row
 
     scope = None if configure else dept_handlers.HandlerScope(viewer)
+    dnames = {d["id"]: d.get("name", "") for d in store.departments(conn)}
     out = []
     for r in rows:
         depts = dmap.get(r["id"], [])
@@ -250,6 +268,7 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
             continue
         item = present(conn, r, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure, unmask),
                        open_count=counts.get(r["id"], 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere)
+        item["created_department"] = created_department(conn, r, configure, managed, dnames)
         if scope is not None and scope.capable:
             item["manager_editable"] = scope.editable(r, depts)
         out.append(item)
@@ -447,6 +466,7 @@ def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
     unmask = not configure and managers_unmask(conn)
     out = present(conn, row, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure, unmask),
                   open_count=counts.get(contact_id, 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere)
+    out["created_department"] = created_department(conn, row, configure, managed)
     if not configure:
         from . import dept_handlers  # CR-DEPT-MANAGER-HANDLERS
 

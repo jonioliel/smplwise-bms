@@ -34,7 +34,8 @@ CONTACT_FIELDS = ("kind", "vendor_id", "user_id", "display_name", "company", "ph
                   "employee",  # + 0084: an employee without an account (API kind "employee" = kind 'person' with employee = 1)
                   "notify_whatsapp",  # + TKSTAFF1 (0087): a user's own "WhatsApp for my assignments" switch on their directory row
                   "phone_confirmed_at",  # + TKSTAFF1 (0087, review F3): the user confirmed this number; cleared on every change
-                  "phone_verify", "phone_confirmed_via")  # + TKNOTIFOTP (0091): the row's "verify with a code" switch; how it was confirmed
+                  "phone_verify", "phone_confirmed_via",  # + TKNOTIFOTP (0091): the row's "verify with a code" switch; how it was confirmed
+                  "created_department_id")  # + CR-DEPT-MANAGER-HANDLERS (0113): the department a manager created the row in
 
 
 def insert_contact(conn: sqlite3.Connection, fields: Mapping[str, Any], created_by: str) -> str:
@@ -79,6 +80,14 @@ def contacts(conn: sqlite3.Connection, *, query: str = "", kind: str | None = No
     sql = "SELECT * FROM ticket_contacts" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY kind DESC, display_name LIMIT ?"
     args.append(int(limit))
     return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def vendors_by_phone(conn: sqlite3.Connection, digits: str, limit: int = 5) -> list[dict[str, Any]]:
+    """CR-DEPT-MANAGER-HANDLERS: the live vendor rows whose number is EXACTLY these E.164 digits (no prefix / LIKE match - no
+    enumeration), never a row that names a user."""
+    return [dict(r) for r in conn.execute(
+        "SELECT * FROM ticket_contacts WHERE phone_e164 = ? AND kind = 'vendor' AND erased_at IS NULL AND user_id IS NULL "
+        "ORDER BY created_at, id LIMIT ?", (digits, int(limit))).fetchall()]
 
 
 def contact_by_user(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:

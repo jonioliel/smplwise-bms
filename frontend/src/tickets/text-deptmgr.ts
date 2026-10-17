@@ -7,7 +7,15 @@ export const DM_HE = {
   dmPaneGroup: 'תצוגת הלוח',
   dmManagerFixed: 'מנהל מחלקה נקבע בהגדרות',
   dmShared: 'זמין לכל המחלקות',
-  dmSharedHint: 'ספק או איש קשר שתיצרו יופיע גם בספרייה של שאר המחלקות. כבוי: רק במחלקה שבחרתם.',
+  dmSharedHint: 'דלוק: ספק או איש קשר שתיצרו יופיע גם בספרייה של שאר המחלקות. כבוי (ברירת המחדל): רק במחלקה שבחרתם.',
+  dmCreatedIn: 'נוצר במחלקה',
+  dmCreatedOther: 'מחלקה אחרת',
+  dmLookupTitle: 'הספק כבר קיים? חיפוש לפי מספר טלפון',
+  dmLookupHint: 'מספר מלא ומדויק בלבד. המספר בתוצאה מוסתר.',
+  dmLookupFind: 'חיפוש',
+  dmLookupNone: 'לא נמצא ספק עם המספר הזה.',
+  dmLookupAttach: 'שיוך למחלקה',
+  dmLookupAttached: 'כבר משויך',
   dmCreateIn: 'מחלקה',
   dmMyDepartments: 'המחלקות שלי',
   dmAttach: 'שיוך',
@@ -24,7 +32,15 @@ export const DM_EN: Record<keyof typeof DM_HE, string> = {
   dmPaneGroup: 'Board view',
   dmManagerFixed: 'Department managers are set in Settings',
   dmShared: 'Available to every department',
-  dmSharedHint: 'A vendor or contact you create also appears in the other departments\' directory. Off: only in the department you chose.',
+  dmSharedHint: 'On: a vendor or contact you create also appears in the other departments\' directory. Off (the default): only in the department you chose.',
+  dmCreatedIn: 'Created in',
+  dmCreatedOther: 'Another department',
+  dmLookupTitle: 'Vendor already listed? Find it by phone number',
+  dmLookupHint: 'The full, exact number only. The number in the result is hidden.',
+  dmLookupFind: 'Find',
+  dmLookupNone: 'No vendor with this number.',
+  dmLookupAttach: 'Attach to the department',
+  dmLookupAttached: 'Already attached',
   dmCreateIn: 'Department',
   dmMyDepartments: 'My departments',
   dmAttach: 'Attach',
@@ -35,4 +51,30 @@ export const DM_EN: Record<keyof typeof DM_HE, string> = {
   dmFullPhonesHint: 'Only in the entries of the departments they manage. Off: the last four digits only.',
   dmMasked: 'Hidden',
   p_handlers: 'Handlers in my departments',
+};
+
+/**
+ * DEV-MARKED (DEPTMGR2, 2026-10-17): an INITIAL Arabic and Russian translation of the words added for the owner's answers (the creating
+ * department, the exact-phone lookup). The tickets screens read Hebrew / English only today (tickets/text.ts `ticketsLang`), so nothing
+ * reads these yet and the bundle drops them; they wait for a native review before an Arabic / Russian column is wired.
+ */
+export const DM_AR_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
+  dmCreatedIn: 'أُنشئ في القسم',
+  dmCreatedOther: 'قسم آخر',
+  dmLookupTitle: 'المورّد مسجّل بالفعل؟ ابحث برقم الهاتف',
+  dmLookupHint: 'الرقم الكامل والدقيق فقط. الرقم في النتيجة مخفي.',
+  dmLookupFind: 'بحث',
+  dmLookupNone: 'لا يوجد مورّد بهذا الرقم.',
+  dmLookupAttach: 'ربط بالقسم',
+  dmLookupAttached: 'مرتبط بالفعل',
+};
+export const DM_RU_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
+  dmCreatedIn: 'Создано в отделе',
+  dmCreatedOther: 'Другой отдел',
+  dmLookupTitle: 'Поставщик уже есть? Найти по номеру телефона',
+  dmLookupHint: 'Только полный и точный номер. Номер в результате скрыт.',
+  dmLookupFind: 'Найти',
+  dmLookupNone: 'Поставщик с этим номером не найден.',
+  dmLookupAttach: 'Привязать к отделу',
+  dmLookupAttached: 'Уже привязан',
 };
