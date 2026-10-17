@@ -255,6 +255,21 @@ export interface RfqView {
     payment?: null | { max_items: number; days_max: number; horizon_days: number } };
   can?: { quote: boolean; withdraw: boolean; decline: boolean; ask: boolean };
   terms?: RfqTerms | null;
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): HIS files on his quote; null = the installation switch is off (the page shows nothing) */
+  uploads?: RfqUploads | null;
+}
+
+/** RFQ-VENDOR-UPLOAD: `GET /t/api/rfq` `uploads` - his own files (text only: there is no public read of a vendor file) and the limits. */
+export interface RfqUploads {
+  /** `on`: bound to his quote or to one of his questions (`message_id`) */
+  files: { id: string; name: string; kind: 'image' | 'pdf' | 'docx' | 'xlsx'; bytes: number; at: string; on?: 'quote' | 'question'; message_id?: string | null }[];
+  /** the administrator's limits (rfq.vendor_uploads.max_*), already clamped by the server's hard caps */
+  limits: { files: number; uploads: number; image_bytes: number; document_bytes: number; total_bytes: number; types: string[] };
+  quote_id: string | null;
+  used_bytes: number;
+  uploads_left: number;
+  /** upload = onto his submitted quote; question = a question with files (no quote needed); remove = one of his files */
+  can: { upload: boolean; question?: boolean; remove: boolean };
 }
 
 export const rfqApi = {

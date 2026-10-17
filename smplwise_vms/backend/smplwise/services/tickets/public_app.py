@@ -174,6 +174,18 @@ class PublicDeps:
 
 
 @dataclass(frozen=True)
+class UploadGuards:
+    """The upload protections of one public app (create_public_app's own objects), for an extra router's upload route:
+    `in_flight.claim(link_id)` (one upload per link, 429 `busy`), `memory(need, link_id)` (the upload memory budget),
+    `processing()` (the worker-thread slots) and `decode()` (one upload waiting for the decoder)."""
+
+    in_flight: InFlight
+    memory: Callable[[int, str], Any]
+    processing: Callable[[], Any]
+    decode: Callable[[], Any]
+
+
+@dataclass(frozen=True)
 class LinkContext:
     link: LinkRecord
     request: PublicRequest
@@ -672,6 +684,11 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
 
     def decode_admission():
         return loop_slot("decode", 1, deps.decode_wait_s)
+
+    # RFQ-VENDOR-UPLOAD (RFQ contract 19.10): the RFQ router's upload route (public_rfq, an extra router) takes the SAME protections
+    # as the photo / invoice-file uploads - one upload in flight per link, the upload memory budget, the processing and decoder
+    # admission - through this handle, never a copy of them
+    api.state.uploads = UploadGuards(in_flight=in_flight, memory=upload_memory, processing=processing, decode=decode_admission)
 
     @api.post("/t/api/photo")
     async def photo_upload(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> Response:

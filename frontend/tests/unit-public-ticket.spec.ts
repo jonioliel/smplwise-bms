@@ -209,6 +209,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let gz = 0;
   let rfq = 0;
   let rfqTerms = 0;
+  let rfqUpload = 0;
   let portal = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
@@ -217,6 +218,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
       // integ/264 (budget decision a): the payment-terms module is a lazy chunk the vendor page fetches only with the switch on -
       // its own 3 KB cap, booked BEFORE the rfq rule so that rule measures the common path (page + files) only
       if (/^rfq-page-terms[-.]/.test(f)) rfqTerms += n;
+      // RFQ-VENDOR-UPLOAD: the vendor's own files on his quote - a lazy chunk fetched only with the installation switch on; its own 5 KB cap (quote + question-with-files UI)
+      else if (/^rfq-upload[-.]/.test(f)) rfqUpload += n;
       // RFQATT: `rfq-files-*` (the request's files) belongs to the RFQ page; a ticket link fetches it only when a work order referenced files
       else if (/^rfq-(page|files)[-.]/.test(f)) rfq += n;
       else if (/^portal-page[-.]/.test(f)) portal += n;
@@ -227,6 +230,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(gz).toBeLessThanOrEqual(61 * 1024);
   expect(rfq).toBeLessThanOrEqual(20 * 1024);
   expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
+  expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
   expect(portal).toBeLessThanOrEqual(12 * 1024);
 });
 

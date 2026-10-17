@@ -155,6 +155,17 @@ class RfqAttachmentsPatch(BaseModel):  # RFQATT review 2.6.4: Word / Excel attac
     allow_office: StrictBool | None = None
 
 
+class RfqVendorUploadsPatch(BaseModel):  # RFQ-VENDOR-UPLOAD: a vendor's own files on his quote (a public upload route; OFF by default)
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool | None = None
+    # the limits (owner 2026-10-17: administrator settings); settings_doc validates each against its hard cap (contract 19.10)
+    max_files: StrictInt | None = None
+    max_uploads: StrictInt | None = None
+    max_image_mb: StrictInt | None = None
+    max_doc_mb: StrictInt | None = None
+    max_total_mb: StrictInt | None = None
+
+
 class RfqPatch(BaseModel):
     """The requests-for-quotation section (settings_doc validates every range again). One model for the branches that added it at
     integ/264: RFQQUESTIONS (the existing `rfq` keys + `question_reminder_hours`; before this the section had no route),
@@ -172,6 +183,7 @@ class RfqPatch(BaseModel):
     arrival_reminder_hours: StrictInt | None = None  # settings_doc validates the range (0-168)
     instalment_reminder_hours: StrictInt | None = None  # RFQPAY2: hours between overdue-instalment reminders (0 = once; settings_doc: 0-168)
     attachments: RfqAttachmentsPatch | None = None  # RFQATT review 2.6.4: rfq.attachments.allow_office
+    vendor_uploads: RfqVendorUploadsPatch | None = None  # RFQ-VENDOR-UPLOAD: rfq.vendor_uploads.enabled
 
 
 class VendorPortalPatch(BaseModel):
@@ -258,12 +270,18 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value
-            values = {k: v for k, v in sent.model_dump().items() if v is not None and k not in ("confirm_live_links", "attachments")}
+            values = {k: v for k, v in sent.model_dump().items()
+                      if v is not None and k not in ("confirm_live_links", "attachments", "vendor_uploads")}
             if values:
                 patch[block] = values
     if body.rfq is not None and body.rfq.attachments is not None and body.rfq.attachments.allow_office is not None:
         # merged next to the other rfq keys of the same request (integ/264: one RfqPatch for RFQQUESTIONS / RFQPAY / RFQATT-FIX)
         patch.setdefault("rfq", {})["attachments"] = {"allow_office": body.rfq.attachments.allow_office}
+    if body.rfq is not None and body.rfq.vendor_uploads is not None:
+        # RFQ-VENDOR-UPLOAD: the second nested rfq block, merged the same way (audited as tickets.settings.update with the changed keys)
+        vu = {k: v for k, v in body.rfq.vendor_uploads.model_dump().items() if v is not None}
+        if vu:
+            patch.setdefault("rfq", {})["vendor_uploads"] = vu
     if body.send_hours is not None:
         patch["send_hours"] = body.send_hours.window()
     if body.urgent_is_critical is not None:

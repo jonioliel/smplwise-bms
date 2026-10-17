@@ -250,6 +250,9 @@ def create_order(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, body: M
         from . import rfq_attach
 
         files = rfq_attach.reference_for_order(conn, row["id"], tid, a["id"], at)
+        # RFQ-VENDOR-UPLOAD (owner 2026-10-17, contract 19.10): the awarded vendor's own files are referenced too (no copy)
+        if store_rfq.has_vendor_files(conn):
+            store_rfq.add_vendor_file_refs(conn, v["id"], tid, a["id"], at)
         store.insert_event(conn, tid, "rfq_order", actor_kind="user", actor_user_id=viewer.uid, actor_name=who,
                            data={"rfq_id": row["id"], "number": row["number"], "award_id": a["id"], "quote_id": q["id"], "version": q["version"]}, at=at)
         store_rfq.insert_event(conn, row["id"], "order_created", actor_kind="user", actor_user_id=viewer.uid, actor_name=who, rfq_vendor_id=v["id"],
@@ -507,8 +510,10 @@ def origin_block(conn, viewer: Viewer, ticket_row: Mapping[str, Any]) -> dict[st
         s = access.visible_by_id(viewer, other["ticket_id"])
         if s is not None:
             siblings.append({"id": s.row["id"], "number": s.row["number"]})
-    from . import rfq_attach
+    from . import rfq_attach, rfq_vendor_files
 
     return {"id": rfq_id if seen else None, "number": number, "ref": rfq.ref(number), "work_from": (o or {}).get("work_from"),
             "work_to": (o or {}).get("work_to"), "siblings": siblings,
-            "attachments": rfq_attach.ticket_list(conn, ticket_row["id"])}  # RFQATT: the request files this ticket references
+            "attachments": rfq_attach.ticket_list(conn, ticket_row["id"]),  # RFQATT: the request files this ticket references
+            # RFQ-VENDOR-UPLOAD: the awarded vendor's own files - only for a caller who may see the costs of this ticket, else []
+            "vendor_files": rfq_vendor_files.ticket_list(conn, viewer, ticket_row)}

@@ -30,6 +30,8 @@ import { filesCard } from './rfq-files';
 // `form.payment` or `terms` (the installation switch is OFF by default) - integ/264 RFQ budget decision (a)
 import type { ArrivalUi, TermsHost } from './rfq-page-terms';
 type TermsModule = typeof import('./rfq-page-terms');
+// RFQ-VENDOR-UPLOAD: his files on his quote - its own lazy chunk (`rfq-upload-*`), fetched only when the answer carries `uploads`
+type UpModule = typeof import('./rfq-upload');
 import {
   bodySig, cridFor, draftFromQuote, draftProblems, freshDraft, isoToDay, kindList, outsideWindow, parseRfqDraft, quoteWire, quoting, rfqFailure, rfqKinds, rfqScreen,
   rfqSettings, safeMapUrl, timeLeft, type RfqDraft, type RfqScreen,
@@ -77,6 +79,7 @@ class RfqPage {
   /** the lazy terms module once fetched; `termsAsked` = the fetch was started (a failed fetch may be asked again) */
   private terms: TermsModule | null = null;
   private termsAsked = false;
+  private up: UpModule | null = null;
   /** a draft kept in this tab from before a reload: an update of a live quote reopens the form */
   private restored = false;
   /** a kept draft of a FIRST quote: dropped when a live quote exists meanwhile (it was sent, perhaps from another device) */
@@ -390,6 +393,7 @@ class RfqPage {
 
   private render(): void {
     this.needTerms();
+    if (!this.up && this.view?.uploads) import('./rfq-upload').then((m) => { this.up = m; this.render(); });
     document.documentElement.lang = this.lang;
     document.documentElement.dir = RTL.has(this.lang) ? 'rtl' : 'ltr';
     document.title = this.view?.organization || this.t('pageTitle');
@@ -505,6 +509,7 @@ class RfqPage {
       // RFQATT (contract 19.4): the request's files - pictures in a lightbox, documents only as downloads; never on an ended page
       !ended && v.rfq?.attachments?.length ? filesCard(v.rfq.attachments, this.creds, 'rfq', this.lang) : null,
       ended ? null : this.quoteBlock(v, screen),
+      this.up && v.uploads ? this.up.uploadCard(v.uploads, this.creds, this.lang, () => void this.load(false), () => this.dead(), () => this.render()) : null,
       !ended && can.decline && screen === 'open' ? this.declineBlock(v) : null,
       ended ? null : this.threadCard(v)),
     this.footer());

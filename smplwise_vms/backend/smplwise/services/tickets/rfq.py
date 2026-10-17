@@ -1365,6 +1365,8 @@ def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None, files_out
     rfq_notify.payments_ended(conn, seen.row["id"])  # RFQPAY2
     if files_out is not None and store_rfq.has_attachments(conn):
         files_out.extend(store_rfq.attachment_paths_of_rfq(conn, seen.row["id"]))
+    if files_out is not None and store_rfq.has_vendor_files(conn):  # RFQ-VENDOR-UPLOAD: the vendors' own files go with the request
+        files_out.extend(store_rfq.vendor_file_paths_of_rfq(conn, seen.row["id"]))
     counts = store_rfq.purge_rfq(conn, seen.row["id"])
     audit(conn, actor=viewer.principal, action="ticket.rfq.delete", decision="allowed", resource_type="ticket_rfq", resource_id=seen.row["id"],
           request_id=rid, details={"number": seen.row["number"], "rows": counts})
@@ -1389,6 +1391,8 @@ def retention(conn, now: dt.datetime) -> dict[str, int]:
         out["purged"] += 1
     store_rfq.prune_redeems(conn, iso(now))
     out["attachments"] = rfq_attach.janitor(conn)  # RFQATT: files neither a request nor a service request names (files: the orphan sweep)
+    if store_rfq.has_vendor_files(conn):  # RFQ-VENDOR-UPLOAD: the same for the vendors' own files
+        out["vendor_files"] = store_rfq.drop_orphan_vendor_files(conn)
     return out
 
 
@@ -1634,6 +1638,9 @@ def comparison(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
     due = parse(row["due_at"])
     wf, wt = row.get("work_from"), row.get("work_to")
     decide = can_decide(viewer, seen)
+    from . import rfq_vendor_files  # RFQ-VENDOR-UPLOAD (contract 19.10): each vendor's own files (the comparison's costs.view rule)
+
+    vfiles = rfq_vendor_files.by_vendor(conn, row["id"])
     items = []
     for q in qs:
         in_window = None
@@ -1653,6 +1660,7 @@ def comparison(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
             "lowest": q["id"] == low_id, "earliest": q["id"] == early_id,
             "award": {"id": a["id"], "state": a["state"], "line_indexes": json.loads(a["line_indexes_json"])} if a else None,
             "revision": q["revision"], "payment_proposal": rfq_terms.present_plan(rfq_terms.loads(q.get("payment_plan_json"))),
+            "vendor_files": vfiles.get(q["rfq_vendor_id"], []),
             "can": {"award": decide and q["state"] == "submitted" and not (q["created_by_kind"] == "user" and q["created_by"] == viewer.uid)},
         })
     return {"rfq_id": row["id"], "ref": ref(row["number"]), "state": effective_state(row, now), "currency": currency, "quotes": items,
@@ -1676,7 +1684,14 @@ def meta(conn, viewer: Viewer) -> dict[str, Any]:
             "currencies": list(cost_settings(conn).currencies), "vendor_options": True,
             # RFQATT (contract 19): files and pictures on a request - the form's limits (the server enforces them anyway)
             "attachments": store_rfq.has_attachments(conn), "attachment_limits": rfq_files.limits(bool(doc["rfq"]["attachments"]["allow_office"])),
-            "schedule_arrival": rfq_terms.enabled(conn)}  # CR-RFQ-PAYMENT-SCHEDULE: the award dialog offers the schedule / arrival fields
+            "schedule_arrival": rfq_terms.enabled(conn),  # CR-RFQ-PAYMENT-SCHEDULE: the award dialog offers the schedule / arrival fields
+            "vendor_uploads": _vendor_uploads_on(conn)}  # RFQ-VENDOR-UPLOAD: vendors may attach files to their quotes (switch, OFF by default)
+
+
+def _vendor_uploads_on(conn) -> bool:
+    from . import rfq_vendor_files
+
+    return rfq_vendor_files.available(conn)
 
 
 def principal_of(viewer: Viewer) -> Principal:

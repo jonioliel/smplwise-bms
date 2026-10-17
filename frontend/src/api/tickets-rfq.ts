@@ -345,7 +345,27 @@ export interface RfqCompareQuote {
   valid_until?: string | null;
   /** CR-RFQ-PAYMENT-SCHEDULE: the vendor's proposed instalments (null = none) */
   payment_proposal?: RfqPaymentProposal | null;
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): the files THIS vendor attached to his quote (removed ones marked); absent on older servers */
+  vendor_files?: RfqVendorFile[];
   can: { award: boolean };
+}
+
+/** RFQ-VENDOR-UPLOAD: one file a vendor uploaded - read through `vendorFileUrl` (always a download; costs.view, like the comparison). */
+export interface RfqVendorFile {
+  id: string;
+  name: string;
+  kind: RfqFileKind;
+  mime: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  thumb: boolean;
+  quote_id: string | null;
+  /** the question it was attached to (null for a quote file) */
+  message_id?: string | null;
+  quote_version: number | null;
+  created_at: string;
+  removed: boolean;
 }
 
 export interface RfqComparison {
@@ -375,6 +395,8 @@ export interface RfqMeta {
   vendor_options?: boolean;
   /** CR-RFQ-PAYMENT-SCHEDULE: the installation offers the payment schedule + arrival confirmation (the award dialog's fields) */
   schedule_arrival?: boolean;
+  /** RFQ-VENDOR-UPLOAD: vendors may attach files to their quotes (installation switch, OFF by default) */
+  vendor_uploads?: boolean;
 }
 
 export interface RfqVendorRef { contact_id: string; channel?: RfqChannel; require_code?: boolean }
@@ -441,7 +463,9 @@ export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string;
   /** RFQQUESTIONS: an inbound message is a question with a state */
   question?: { state: 'pending' | 'answered'; read: boolean; answered_at: string | null; answer_id: string | null; quote_id: string | null };
   /** RFQQUESTIONS: an outbound message that answers a question / one copy of an answer to every vendor */
-  answers_id?: string | null; to_all?: boolean }
+  answers_id?: string | null; to_all?: boolean;
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): the files the vendor attached to this question (inbound only; absent on older servers) */
+  files?: RfqVendorFile[] }
 export interface RfqMessageAnswer { item: RfqMessage; notified: { queued: boolean; channel: string | null } }
 
 export interface RfqSendAnswer extends RfqDetail { sent?: Record<string, unknown> }
@@ -504,6 +528,8 @@ export interface RfqBackend {
   removeAttachment(id: string, attachmentId: string): Promise<RfqDetail>;
   /** RFQATT: where the file (or its thumbnail) is read - same-origin, the session's own authorisation */
   attachmentUrl(id: string, attachmentId: string, thumb?: boolean): string;
+  /** RFQ-VENDOR-UPLOAD: where a vendor's own file (or its thumbnail) is read - same-origin, always a download (the demo store has none) */
+  vendorFileUrl?(id: string, fileId: string, thumb?: boolean): string;
   /** CR-RFQ-PAYMENT-SCHEDULE (20.6): accept / reject the arrival date the vendor proposed (the demo store has no terms) */
   decideArrival?(id: string, awardId: string, action: 'accept' | 'reject', revision: number): Promise<RfqDetail>;
   /** RFQPAY2 (20.13): move a dated instalment's planned day (tickets.costs + view; reason optional; nothing is sent) */
@@ -603,6 +629,7 @@ const rest: RfqBackend = {
   editAttachment: (id, attachmentId, options) => patch<RfqDetail>(`${R}/${enc(id)}/attachments/${enc(attachmentId)}`, options),
   removeAttachment: (id, attachmentId) => api<RfqDetail>(`${R}/${enc(id)}/attachments/${enc(attachmentId)}`, { method: 'DELETE' }),
   attachmentUrl: (id, attachmentId, thumb = false) => resourceUrl(`api/v1/${R}/${enc(id)}/attachments/${enc(attachmentId)}${thumb ? '/thumb' : ''}`),
+  vendorFileUrl: (id, fileId, thumb = false) => resourceUrl(`api/v1/${R}/${enc(id)}/vendor-files/${enc(fileId)}${thumb ? '/thumb' : ''}`),
   decideArrival: (id, awardId, action, revision) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival`, { action, revision }),
   moveInstalment: (id, awardId, index, date, revision, opts) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/date`,
     { date, revision, ...moveExtras(opts) }),

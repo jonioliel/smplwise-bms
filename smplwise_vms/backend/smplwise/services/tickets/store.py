@@ -1126,6 +1126,8 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     run("ticket_attachments", "DELETE FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,))
     if _has_table(conn, "ticket_rfq_attachment_refs"):  # RFQATT: the ticket's references to request files (the files stay with the request)
         run("ticket_rfq_attachment_refs", "DELETE FROM ticket_rfq_attachment_refs WHERE ticket_id = ?", (ticket_id,))
+    if _has_table(conn, "ticket_rfq_vendor_file_refs"):  # RFQ-VENDOR-UPLOAD: the work order's references to the vendor's files
+        run("ticket_rfq_vendor_file_refs", "DELETE FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?", (ticket_id,))
     run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
     conn.execute("UPDATE tickets SET current_assignment_id = NULL WHERE id = ?", (ticket_id,))
@@ -1145,7 +1147,10 @@ def folder_in_use(conn: sqlite3.Connection, ticket_id: str) -> bool:
         "SELECT 1 FROM ticket_cost_files WHERE ticket_id = ? LIMIT 1")) or (
         # RFQATT: `<data>/tickets/<rfq id>/rfq/` - a request's files live in a folder named after the request (never a ticket id)
         _has_table(conn, "ticket_rfq_attachments")
-        and conn.execute("SELECT 1 FROM ticket_rfq_attachments WHERE folder = ? LIMIT 1", (ticket_id,)).fetchone() is not None)
+        and conn.execute("SELECT 1 FROM ticket_rfq_attachments WHERE folder = ? LIMIT 1", (ticket_id,)).fetchone() is not None) or (
+        # RFQ-VENDOR-UPLOAD: a vendor's own files of a request live in the same `<rfq id>/rfq/` folder
+        _has_table(conn, "ticket_rfq_vendor_files")
+        and conn.execute("SELECT 1 FROM ticket_rfq_vendor_files WHERE folder = ? LIMIT 1", (ticket_id,)).fetchone() is not None)
 
 
 def stored_paths(conn: sqlite3.Connection, ticket_id: str) -> set[str]:
@@ -1154,6 +1159,9 @@ def stored_paths(conn: sqlite3.Connection, ticket_id: str) -> set[str]:
     out |= {r[0] for r in conn.execute("SELECT path FROM ticket_cost_files WHERE ticket_id = ?", (ticket_id,)).fetchall()}
     if _has_table(conn, "ticket_rfq_attachments"):  # RFQATT: a request's files and thumbnails (`<rfq id>/rfq/...`)
         for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_attachments WHERE folder = ?", (ticket_id,)).fetchall():
+            out |= {p for p in (r[0], r[1]) if p}
+    if _has_table(conn, "ticket_rfq_vendor_files"):  # RFQ-VENDOR-UPLOAD: the vendors' files and thumbnails (same `<rfq id>/rfq/...`)
+        for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_vendor_files WHERE folder = ?", (ticket_id,)).fetchall():
             out |= {p for p in (r[0], r[1]) if p}
     return out
 
@@ -1177,5 +1185,7 @@ def ticket_rows_left(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]
         checks["ticket_owner_changes"] = "SELECT COUNT(*) FROM ticket_owner_changes WHERE ticket_id = ?"
     if _has_table(conn, "ticket_rfq_attachment_refs"):  # RFQATT
         checks["ticket_rfq_attachment_refs"] = "SELECT COUNT(*) FROM ticket_rfq_attachment_refs WHERE ticket_id = ?"
+    if _has_table(conn, "ticket_rfq_vendor_file_refs"):  # RFQ-VENDOR-UPLOAD
+        checks["ticket_rfq_vendor_file_refs"] = "SELECT COUNT(*) FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?"
     left = {t: int(conn.execute(sql, (ticket_id,)).fetchone()[0]) for t, sql in checks.items()}
     return {t: n for t, n in left.items() if n}
