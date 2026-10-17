@@ -237,8 +237,17 @@ def _consent_defaults() -> dict[str, Any]:
             "consent_wa_language": ""}
 
 
+def template_send_supported() -> bool:
+    """integ/270 (2.7.0 security review C1): whether the messaging adapter forwards a WhatsApp Business template (rc.37: no - WisKey W11)."""
+    from .intercom_messaging_adapter import TEMPLATE_SEND_SUPPORTED
+
+    return TEMPLATE_SEND_SUPPORTED is True
+
+
 def _consent_read(stored: dict[str, Any]) -> dict[str, Any]:
-    """The consent fields of a stored document, each checked again (a value out of shape reads as its default: fail closed = OFF)."""
+    """The consent fields of a stored document, each checked again (a value out of shape reads as its default: fail closed = OFF).
+    integ/270 (review C1): while the adapter cannot forward a template, a stored template name / language reads as "" - nothing ever
+    claims a template that is not sent."""
     out = _consent_defaults()
     out["consent_by_link"] = stored.get("consent_by_link") is True
     days = stored.get("consent_wait_days")
@@ -252,6 +261,8 @@ def _consent_read(stored: dict[str, Any]) -> dict[str, Any]:
     lang = stored.get("consent_wa_language")
     if isinstance(lang, str) and (lang == "" or WA_TEMPLATE_LANG.fullmatch(lang)):
         out["consent_wa_language"] = lang
+    if not template_send_supported():
+        out["consent_wa_template"] = out["consent_wa_language"] = ""
     return out
 
 
@@ -490,6 +501,12 @@ def _consent_validate(data: dict[str, Any], current: dict[str, Any], errors: lis
     lang = out["consent_wa_language"]
     if not isinstance(lang, str) or not (lang == "" or WA_TEMPLATE_LANG.fullmatch(lang)):
         errors.append({"path": "consent_wa_language", "code": "bad_language"})
+    if not template_send_supported():
+        # integ/270 (2.7.0 security review C1): the adapter cannot forward a WhatsApp Business template yet (TEMPLATE_SEND_SUPPORTED False,
+        # WisKey W11) - a non-empty template name / language is refused instead of being stored and silently not used
+        for key in ("consent_wa_template", "consent_wa_language"):
+            if isinstance(out[key], str) and out[key] != "":
+                errors.append({"path": key, "code": "template_send_unsupported"})
     organization = data.get("organization") if isinstance(data.get("organization"), str) else current.get("organization", "")
     if out["consent_by_link"] is True and not str(organization).strip():
         errors.append({"path": "consent_by_link", "code": "organization_missing"})

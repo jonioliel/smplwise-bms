@@ -895,7 +895,7 @@ def test_the_migration_creates_the_record_and_the_opt_out_tables(mc):
     assert not {"text", "message", "body", "phone", "token", "pin"} & cols, "no column could hold a message, a number or a credential"
     assert {r["name"] for r in rows(s, "PRAGMA table_info(intercom_message_optout)")} == {"person_id", "at", "by_user_id", "by_name", "phone_hash"}
     assert {"phone_hash", "station_ids"} <= cols  # 0114 (review F3 / F6): a keyed hash of the number, never the number
-    assert {76, 117} <= {r["version"] for r in rows(s, "SELECT version FROM schema_migrations")}
+    assert {76, 114} <= {r["version"] for r in rows(s, "SELECT version FROM schema_migrations")}  # 0114 = WA-SEND-FIX (provisional 0117)
 
 
 # ---------------------------------------------------------------- the mock of the Playwright specs cannot drift from the routes

@@ -164,3 +164,24 @@ template / free-text rules) is untouched - the consent text is code-owned and ne
 - `contracts/API_INVENTORY.md` not regenerated (release-prep artifact): two public routes added; the people send route gained 202 answers.
 - Arabic and Russian (request text and page) need a native review.
 - **Fable public-surface review required before release.**
+
+## 10. Integration at integ/270 (2.7.0)
+
+- **Review C1 (fail closed, owner informed).** The messaging adapter cannot forward a WhatsApp Business template yet
+  (`intercom_messaging_adapter.TEMPLATE_SEND_SUPPORTED = False`; WisKey rc.37 `whatsapp/send` takes a text only - ask W11). While that is so:
+  a non-empty `consent_wa_template` or `consent_wa_language` in `PUT /access-control/messaging/settings` is refused (422
+  `message_settings_invalid`, `{path, code: "template_send_unsupported"}`); a value stored by any earlier build reads as "" (so no template is
+  ever handed to the adapter and nothing records a template as sent); the settings reply carries `consent.template_send_supported: false`
+  and the Settings card hides the two template fields and shows one line saying that the consent request goes out as plain text and may not
+  reach a person outside WhatsApp's 24-hour window. Tests: `tests/test_intercom_consent_link.py::test_a_template_is_refused_while_the_adapter_cannot_forward_it`
+  (both fields), `::test_a_stored_template_name_is_never_claimed_or_passed_on_while_unsupported` (red before the change). When W11 lands,
+  flipping the adapter constant re-enables both fields with their existing validation. **Still NOT_RUN:** a real WhatsApp delivery of the
+  consent request outside the 24-hour window.
+- **Merged with WA-SEND-FIX (review 2.6.5 F3-F6) in the same release:** the consent request and each released held message now pass the
+  person's number and stations to `begin_attempt`, so they count against the per-recipient day cap, the per-station hour cap and the sender's
+  hour like any message (a consent request + two released messages fill the default 3-per-day cap); the opt-out and the consent are read by
+  record AND by number (`consent_of(..., phone)`); the releaser keeps a held message waiting (retry) outside the administrator's send hours
+  and drops it only once it is stale (reason `outside_hours` / `message_rate_limited`, a sender notification word for each). A "decline" on
+  the page writes the opt-out row by record only (the public listener does not have the number); the number-based match applies once a staff
+  opt-out of the same number exists.
+- Migration renumbered: provisional 0116 -> **0113** (WA-SEND-FIX's 0117 -> 0114).

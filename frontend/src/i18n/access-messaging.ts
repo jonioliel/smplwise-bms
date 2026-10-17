@@ -89,6 +89,8 @@ const he = {
   'consent.problem.key': 'מפתח הקישורים חסר · אי אפשר לשלוח בקשת אישור',
   'err.bad_name': 'אותיות לטיניות קטנות, ספרות וקו תחתון בלבד',
   'err.bad_language': 'קוד שפה לא תקין (למשל he או en_US)',
+  'err.template_send_unsupported': 'שליחת תבנית וואטסאפ מאושרת עדיין אינה נתמכת - השאירו ריק',
+  'consent.no_template': 'בקשת האישור נשלחת כהודעת טקסט רגילה. שליחה בתבנית וואטסאפ מאושרת עדיין אינה נתמכת, ולכן אדם שלא כתב לחשבון ב־24 השעות האחרונות עלול לא לקבל אותה',
 
   // ---- saving
   'save': 'שמירה',
@@ -141,6 +143,8 @@ const en: Partial<Record<MessagingKey, string>> = {
   'err.range': 'Out of the allowed range',
   'err.type': 'Enter a whole number',
   'err.credential': 'An access code or sign-in details cannot be included',
+  'err.template_send_unsupported': 'Sending an approved WhatsApp template is not supported yet - leave it empty',
+  'consent.no_template': 'The consent request goes out as a plain text message. An approved WhatsApp template cannot be sent yet, so a person who has not written to the account in the last 24 hours may not receive it',
   'optout.note': 'A "do not message me" request applies to messages sent from here only; only a system administrator can clear it.',
 };
 

@@ -543,7 +543,9 @@ def _settings_reply(request: Request, conn: sqlite3.Connection, user_id: str, cf
     service = {"state": status["state"], "connected": status["available"], "accounts": status["accounts"], "problem": problem, "last_error": status.get("last_error")}
     # WA-CONSENT-LINK: whether the public page can serve a consent link now (null = it can; else module_off | public_page | key)
     consent = {"page_problem": C.page_problem(conn), "notice_version": C.NOTICE_VERSION, "resend_days": C.RESEND_DAYS, "held_per_person": C.HELD_PER_PERSON,
-               "wait_days": list(M.CONSENT_WAIT_RANGE), "languages": list(M.CONSENT_LANGS), "dev_marked_languages": list(C.DEV_MARKED_LANGS)}
+               "wait_days": list(M.CONSENT_WAIT_RANGE), "languages": list(M.CONSENT_LANGS), "dev_marked_languages": list(C.DEV_MARKED_LANGS),
+               # integ/270 (review C1): false while the adapter cannot forward a WhatsApp Business template (the editor hides the two fields)
+               "template_send_supported": M.template_send_supported()}
     return {**_feed(settings), "settings": cfg, "limits": M.limits(), "service": service, "consent": consent}
 
 

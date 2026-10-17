@@ -144,11 +144,48 @@ def test_only_system_configure_edits_the_consent_settings_and_the_audit_names_th
     cur = settings_doc(w.c)
     r = req(w.c, "PUT", "/messaging/settings", "otto", json={"base_revision": cur["revision"], "consent_by_link": True})
     assert r.status_code == 403
-    w.on(consent_wa_template="arx_consent_v1", consent_wa_language="he")
+    w.on(consent_wait_days=10)  # integ/270 (review C1): a template name is refused while it cannot be forwarded - see the C1 tests below
     row = audits(w.s, M.AUDIT_SETTINGS)[-1]
-    assert "consent_by_link" in details(row)["changed"] and "consent_wa_template" in details(row)["changed"]
+    assert "consent_by_link" in details(row)["changed"] and "consent_wait_days" in details(row)["changed"]
     reply = req(w.c, "GET", "/messaging/settings").json()
     assert reply["consent"]["page_problem"] is None and reply["consent"]["notice_version"] == C.NOTICE_VERSION
+
+
+# ---------------------------------------------------------------- integ/270, review C1: the WhatsApp template that cannot be forwarded
+
+@pytest.mark.parametrize(("over", "path"), [({"consent_wa_template": "arx_consent_v1"}, "consent_wa_template"),
+                                            ({"consent_wa_language": "he"}, "consent_wa_language")])
+def test_a_template_is_refused_while_the_adapter_cannot_forward_it(cw, over, path):
+    w = cw
+    from smplwise.services.intercom_messaging_adapter import TEMPLATE_SEND_SUPPORTED
+
+    assert TEMPLATE_SEND_SUPPORTED is False and M.template_send_supported() is False
+    r = save(w.c, consent_by_link=True, organization=ORG, **over)
+    assert r.status_code == 422 and r.json()["code"] == "message_settings_invalid", r.text
+    assert {"path": path, "code": "template_send_unsupported"} in r.json()["details"]["errors"]
+    reply = req(w.c, "GET", "/messaging/settings").json()
+    assert reply["consent"]["template_send_supported"] is False
+    assert reply["settings"]["consent_wa_template"] == "" and reply["settings"]["consent_wa_language"] == ""  # nothing stored
+
+
+def test_a_stored_template_name_is_never_claimed_or_passed_on_while_unsupported(cw, monkeypatch):
+    w = cw
+    w.on()
+    with w.db.connection() as conn:  # as if an earlier build had stored one: the read drops it (fail closed)
+        doc = json.loads(conn.execute("SELECT value FROM settings WHERE key = ?", (M.SETTING_KEY,)).fetchone()[0])
+        doc.update(consent_wa_template="arx_consent_v1", consent_wa_language="he")
+        M.save_settings(conn, doc)
+    with w.db.connection(mode="read") as conn:
+        cfg = M.read_settings(conn)
+    assert cfg["consent_wa_template"] == "" and cfg["consent_wa_language"] == ""
+    from smplwise.services.intercom_messaging_adapter import MESSAGING
+
+    seen: list[Any] = []
+    real = MESSAGING.send
+    monkeypatch.setattr(MESSAGING, "send", lambda *a, **k: (seen.append(k.get("wa_template")), real(*a, **k))[1])
+    r = send(w.c, "u1", template="card_ready")
+    assert r.status_code == 202 and r.json()["message"]["outcome"] == "consent_requested", r.text
+    assert seen == [None]  # no template handed to the adapter, so none is claimed as sent
 
 
 def test_consent_on_but_the_public_page_cannot_serve_a_link_nothing_is_sent(cw, monkeypatch):
@@ -319,7 +356,9 @@ def test_used_expired_and_unknown_tokens_get_byte_identical_answers(cw):
 
 def test_approve_stores_the_consent_with_its_notice_version_and_releases_the_held_message_once(cw):
     w = cw
-    w.on()
+    # integ/270: WA-SEND-FIX's per-recipient day cap (default 3) counts the consent request and both released messages - a fourth message
+    # to the same person the same day is refused 429 (scope person), which is the cap working; this test sends a fourth, so it raises the cap
+    w.on(per_person_per_day=5)
     send(w.c, "u1", template="card_ready")
     send(w.c, "u1", template="closure")
     token = w.token()

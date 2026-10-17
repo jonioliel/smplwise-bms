@@ -547,7 +547,7 @@ export class SystemAccessMessaging extends LitElement {
             </select>
           </sw-field>
         </div>
-        <div>
+        ${c?.template_send_supported === false ? nothing : html`<div>
           <sw-field label=${mt('consent.wa_template')} hint=${mt('consent.wa_template_hint')} ?data-bad=${this.shown('consent_wa_template').length > 0}>
             <input type="text" dir="ltr" .value=${d.consent_wa_template} data-msg-setting="consent_wa_template" @input=${(e: Event) => this.set({ consent_wa_template: (e.target as HTMLInputElement).value }, 'consent_wa_template')} />
           </sw-field>
@@ -558,8 +558,9 @@ export class SystemAccessMessaging extends LitElement {
             <input type="text" dir="ltr" .value=${d.consent_wa_language} data-msg-setting="consent_wa_language" @input=${(e: Event) => this.set({ consent_wa_language: (e.target as HTMLInputElement).value }, 'consent_wa_language')} />
           </sw-field>
           ${this.problemLine('consent_wa_language')}
-        </div>
+        </div>`}
       </div>
+      ${c?.template_send_supported === false ? html`<div class="hint" data-msg-consent-no-template>${mt('consent.no_template')}</div>` : nothing}
       <div class="hint" data-msg-consent-rules>${mt('consent.rules', { days: c?.resend_days ?? 30, held: c?.held_per_person ?? 3 })}</div>
     </sw-card>`;
   }

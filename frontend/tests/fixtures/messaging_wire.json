@@ -242,7 +242,8 @@
    "dev_marked_languages": [
     "ar",
     "ru"
-   ]
+   ],
+   "template_send_supported": false
   }
  },
  "errors": {

@@ -156,6 +156,8 @@ export interface MessagingConsentInfo {
   wait_days: [number, number];
   languages: string[];
   dev_marked_languages: string[];
+  /** integ/270 (review C1): false while a WhatsApp Business template cannot be forwarded - the template fields are hidden, a value is refused */
+  template_send_supported?: boolean;
 }
 
 export interface MessagingLimits {
