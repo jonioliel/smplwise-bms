@@ -1376,6 +1376,8 @@ def retention(conn, now: dt.datetime) -> dict[str, int]:
         out["purged"] += 1
     store_rfq.prune_redeems(conn, iso(now))
     out["attachments"] = rfq_attach.janitor(conn)  # RFQATT: files neither a request nor a service request names (files: the orphan sweep)
+    if store_rfq.has_vendor_files(conn):  # RFQ-VENDOR-UPLOAD: the same for the vendors' own files
+        out["vendor_files"] = store_rfq.drop_orphan_vendor_files(conn)
     return out
 
 

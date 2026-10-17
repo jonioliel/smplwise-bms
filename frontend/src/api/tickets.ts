@@ -6,7 +6,7 @@
  * Every route but `GET tickets/module` answers 404 `feature_disabled` while the module is off; an invisible ticket is the same 404
  * `ticket_not_found` as an unknown id (the server's single visibility check decides - the screens never filter for security).
  */
-import { api, apiUrl, get, patch, post, put, upload } from './client';
+import { api, apiUrl, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
 import { mockBackend } from './tickets-mock';
 import type { TicketLang, TicketName } from '../tickets/naming';
@@ -180,7 +180,14 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   rfq_origin?: RfqOrigin | null;
 }
 
-export interface RfqOrigin { id: string | null; number: number; ref: string; work_from: string | null; work_to: string | null; siblings: { id: string; number: number }[] }
+export interface RfqOrigin { id: string | null; number: number; ref: string; work_from: string | null; work_to: string | null; siblings: { id: string; number: number }[];
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): the awarded vendor's files the work order references - [] without tickets.costs.view */
+  vendor_files?: { id: string; name: string; kind: string; bytes: number }[] }
+
+/** RFQ-VENDOR-UPLOAD: where a referenced vendor file is read (same-origin; always a download, costs.view on the ticket). */
+export function rfqVendorFileUrl(ticketId: string, fileId: string): string {
+  return resourceUrl(`api/v1/tickets/${encodeURIComponent(ticketId)}/rfq-vendor-files/${encodeURIComponent(fileId)}`);
+}
 
 /** TKUI1 (2.6.0): the request drawer's defaults - the tab it opens on, its desktop size (a viewer's own switch wins) and the phone sheet. */
 export type DetailTab = 'overview' | 'conv' | 'costs' | 'history';
@@ -351,7 +358,10 @@ export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles
 /** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
 export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for'; theme: 'light' | 'dark' | 'auto'; /* TK255 */ path_prefix?: string; legacy_t_paths?: boolean; /* a request field only */ confirm_live_links?: boolean }
 /** CR-RFQ-PAYMENT-SCHEDULE: the requests-for-quotation keys the settings screen edits (the rest of the `rfq` block is read-only here). */
-export interface RfqSettings { schedule_arrival?: boolean; arrival_reminder_hours?: number; [key: string]: unknown }
+export interface RfqSettings { schedule_arrival?: boolean; arrival_reminder_hours?: number; vendor_uploads?: RfqVendorUploadSettings; [key: string]: unknown }
+/** RFQ-VENDOR-UPLOAD (contract 19.10): a vendor's files on his quote / question - the switch (OFF by default) and the limits per vendor
+ * per request, each inside a hard cap the server enforces (files 1-10, uploads 1-30, picture 1-8 MB, document 1-10 MB, total 1-50 MB). */
+export interface RfqVendorUploadSettings { enabled: boolean; max_files: number; max_uploads: number; max_image_mb: number; max_doc_mb: number; max_total_mb: number }
 /** VPORTAL: the vendor portal on the public page (OFF by default), how far back closed requests are listed and (2.6.4 review F1,
  * default ON) whether only a number confirmed by code may sign in */
 export interface VendorPortalSettings { enabled: boolean; closed_months: number; require_confirmed_number?: boolean }
@@ -360,7 +370,7 @@ export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDur
   directory?: { managers_full_phones: boolean }; rfq?: RfqSettings;
   vendor_portal?: VendorPortalSettings; brand?: { logo: string } /* VPORTAL: the logo's stamp ("" = none), set only by the logo routes */ }
 export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones: boolean };
-  rfq?: { schedule_arrival?: boolean; arrival_reminder_hours?: number }; vendor_portal?: Partial<VendorPortalSettings> }
+  rfq?: { schedule_arrival?: boolean; arrival_reminder_hours?: number; vendor_uploads?: Partial<RfqVendorUploadSettings> }; vendor_portal?: Partial<VendorPortalSettings> }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;

@@ -689,7 +689,9 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
         conn.execute("UPDATE ticket_rfq_attachments SET rfq_id = NULL WHERE rfq_id = ? AND id IN (SELECT attachment_id FROM "
                      "ticket_rfq_attachment_refs)", (rfq_id,))
         run("ticket_rfq_attachments", "DELETE FROM ticket_rfq_attachments WHERE rfq_id = ?", (rfq_id,))
-    if has_vendor_files(conn):  # RFQ-VENDOR-UPLOAD: the vendors' own files go with the request (no reference copy exists for them)
+    if has_vendor_files(conn):  # RFQ-VENDOR-UPLOAD: a vendor file a work order references stays with that service request
+        conn.execute("UPDATE ticket_rfq_vendor_files SET rfq_id = NULL, rfq_vendor_id = NULL WHERE rfq_id = ? AND id IN (SELECT file_id FROM "
+                     "ticket_rfq_vendor_file_refs)", (rfq_id,))
         run("ticket_rfq_vendor_files", "DELETE FROM ticket_rfq_vendor_files WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_vendors", "DELETE FROM ticket_rfq_vendors WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfqs", "DELETE FROM ticket_rfqs WHERE id = ?", (rfq_id,))
@@ -862,8 +864,50 @@ def mark_vendor_file_removed(conn: sqlite3.Connection, file_id: str, at: str) ->
 
 
 def vendor_file_paths_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[str]:
-    """The stored paths a purge of the request removes."""
+    """The stored paths a purge of the request removes (the files no work order references)."""
     out: list[str] = []
-    for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_vendor_files WHERE rfq_id = ?", (rfq_id,)).fetchall():
+    for r in conn.execute("SELECT path, thumb_path FROM ticket_rfq_vendor_files WHERE rfq_id = ? AND id NOT IN (SELECT file_id FROM "
+                          "ticket_rfq_vendor_file_refs)", (rfq_id,)).fetchall():
         out.extend(p for p in (r[0], r[1]) if p)
     return out
+
+
+def vendor_files_of_message(conn: sqlite3.Connection, rfq_id: str, message_ids: Iterable[str]) -> dict[str, list[dict[str, Any]]]:
+    """The files bound to these questions of THIS request (live and removed), per message id."""
+    ids = [m for m in message_ids if m]
+    out: dict[str, list[dict[str, Any]]] = {}
+    if not ids:
+        return out
+    marks = ",".join("?" * len(ids))
+    for r in conn.execute(f"SELECT * FROM ticket_rfq_vendor_files WHERE rfq_id = ? AND message_id IN ({marks}) ORDER BY created_at, rowid",
+                          (rfq_id, *ids)).fetchall():
+        out.setdefault(r["message_id"], []).append(dict(r))
+    return out
+
+
+def add_vendor_file_refs(conn: sqlite3.Connection, rfq_vendor_id: str, ticket_id: str, award_id: str | None, at: str) -> int:
+    """The work order's reference (owner 2026-10-17): every live file of the awarded vendor row is referenced by the new ticket."""
+    return conn.execute("INSERT OR IGNORE INTO ticket_rfq_vendor_file_refs(ticket_id, file_id, award_id, created_at) "
+                        "SELECT ?, id, ?, ? FROM ticket_rfq_vendor_files WHERE rfq_vendor_id = ? AND removed_at IS NULL",
+                        (ticket_id, award_id, at, rfq_vendor_id)).rowcount
+
+
+def vendor_files_of_ticket(conn: sqlite3.Connection, ticket_id: str) -> list[dict[str, Any]]:
+    """The vendor files a ticket references (still live)."""
+    return [dict(r) for r in conn.execute(
+        "SELECT f.* FROM ticket_rfq_vendor_files f JOIN ticket_rfq_vendor_file_refs r ON r.file_id = f.id WHERE r.ticket_id = ? "
+        "AND f.removed_at IS NULL ORDER BY f.created_at, f.rowid", (ticket_id,)).fetchall()]
+
+
+def vendor_file_of_ticket(conn: sqlite3.Connection, ticket_id: str, file_id: str | None) -> dict[str, Any] | None:
+    if not file_id:
+        return None
+    return _dict(conn.execute(
+        "SELECT f.* FROM ticket_rfq_vendor_files f JOIN ticket_rfq_vendor_file_refs r ON r.file_id = f.id WHERE r.ticket_id = ? "
+        "AND f.id = ? AND f.removed_at IS NULL", (ticket_id, file_id)).fetchone())
+
+
+def drop_orphan_vendor_files(conn: sqlite3.Connection) -> int:
+    """The janitor: a vendor file no request and no work order names any more (the file on disk goes with the orphan sweeps)."""
+    return conn.execute("DELETE FROM ticket_rfq_vendor_files WHERE rfq_id IS NULL AND id NOT IN (SELECT file_id FROM "
+                        "ticket_rfq_vendor_file_refs)").rowcount

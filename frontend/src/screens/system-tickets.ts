@@ -33,8 +33,17 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import {
   ticketsApi, type AdminDepartment, type DeletedDepartment, type DetailMode, type HoldersResponse, type InstallationDefaults, type NameEntries, type NewTicketMode, type SettingsDoc,
-  type SettingsPatch,
+  type SettingsPatch, type RfqVendorUploadSettings,
 } from '../api/tickets';
+import type { RfqTextKey } from '../tickets/rfq-text';
+
+// RFQ-VENDOR-UPLOAD (contract 19.10): the limit fields and the server's hard caps (the settings document validates them again)
+type VuKey = 'max_files' | 'max_uploads' | 'max_image_mb' | 'max_doc_mb' | 'max_total_mb';
+const VENDOR_UPLOAD_FIELDS: { key: VuKey; label: RfqTextKey; max: number; mb: boolean }[] = [
+  { key: 'max_files', label: 'stVuFiles', max: 10, mb: false }, { key: 'max_uploads', label: 'stVuUploads', max: 30, mb: false },
+  { key: 'max_image_mb', label: 'stVuImage', max: 8, mb: true }, { key: 'max_doc_mb', label: 'stVuDoc', max: 10, mb: true },
+  { key: 'max_total_mb', label: 'stVuTotal', max: 50, mb: true },
+];
 import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, nameProblem, onTicketNames, renderName, setTicketNames, type TicketLang, type TicketName } from '../tickets/naming';
 import { intIn, windowProblem } from '../tickets/durations';
 import { rt } from '../tickets/rfq-text'; // CR-RFQ-PAYMENT-SCHEDULE: the RFQ terms card
@@ -101,6 +110,7 @@ export class SystemTickets extends LitElement {
   @state() private ok = '';
   @state() private newDept = { name: '', key: '' };
   @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string } = {};
+  @state() private vuDraft: Partial<Record<VuKey, string>> = {}; // RFQ-VENDOR-UPLOAD: the limit fields being edited
   private okTimer = 0;
   private offNames: (() => void) | null = null;
 
@@ -618,8 +628,35 @@ export class SystemTickets extends LitElement {
         ${this.linksCard(this.doc)}
         ${this.hoursCard(this.doc)}
         ${this.rfqTermsCard(this.doc)}
+        ${this.vendorUploadsCard(this.doc)}
       </div>
     </div>`;
+  }
+
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): the vendors' files switch (OFF by default) and the limits per vendor per request - each field
+   * is bounded by the server's hard cap (the server validates again and enforces the caps whatever is stored). */
+  private vendorUploadsCard(doc: SettingsDoc): TemplateResult {
+    const vu = doc.rfq?.vendor_uploads;
+    const cur = { max_files: vu?.max_files ?? 5, max_uploads: vu?.max_uploads ?? 10, max_image_mb: vu?.max_image_mb ?? 8, max_doc_mb: vu?.max_doc_mb ?? 10,
+      max_total_mb: vu?.max_total_mb ?? 20 };
+    const fields = VENDOR_UPLOAD_FIELDS.map((f) => {
+      const raw = this.vuDraft[f.key] ?? String(cur[f.key]);
+      return { ...f, raw, n: intIn(raw, 1, f.max) };
+    });
+    const bad = fields.some((f) => Number.isNaN(f.n)) || (fields[1].n < fields[0].n);
+    const dirty = fields.some((f) => f.n !== cur[f.key]);
+    const patch = Object.fromEntries(fields.map((f) => [f.key, f.n])) as Partial<RfqVendorUploadSettings>;
+    return html`<sw-card heading=${rt('stVendorUploads')} data-card="rfq-vendor-uploads">
+      <div class="row"><span class="lbl">${rt('stVendorUploadsOn')}<span class="muted">${rt('stVendorUploadsOnSub')}</span></span>
+        <sw-toggle label=${rt('stVendorUploadsOn')} labelHidden .checked=${vu?.enabled === true} ?disabled=${this.busy} data-inst-vendor-uploads
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { vendor_uploads: { enabled: e.detail.checked } } })}></sw-toggle></div>
+      ${fields.map((f) => html`<div class="row"><span class="lbl">${rt(f.label)}<span class="muted">${rt('stVuMax', { n: f.max })}</span></span>
+        <span class="unit"><input class="in num" type="number" min="1" max=${f.max} data-inst-vu=${f.key} aria-label=${rt(f.label)} aria-invalid=${String(Number.isNaN(f.n))}
+          .value=${f.raw} @input=${(e: Event) => (this.vuDraft = { ...this.vuDraft, [f.key]: (e.target as HTMLInputElement).value })} />${f.mb ? html`<span class="muted">MB</span>` : nothing}</span></div>`)}
+      ${fields[1].n < fields[0].n ? html`<div class="row"><span class="field-error">${rt('stVuUploadsBelow')}</span></div>` : nothing}
+      <div class="row"><span class="end"><sw-button size="sm" variant="primary" data-inst-vu-save ?disabled=${bad || !dirty || this.busy}
+        @click=${() => void this.saveDoc({ rfq: { vendor_uploads: patch } }, () => (this.vuDraft = {}))}>${tt('save')}</sw-button></span></div>
+    </sw-card>`;
   }
 
   /**

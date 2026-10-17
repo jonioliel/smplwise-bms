@@ -396,7 +396,16 @@ def get_messages(rfq_id: str = Path(..., pattern=ID), vendor_id: str = Path(...,
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
     v = rfq.vendor_of(conn, seen, vendor_id)
-    return {"items": [rfq.present_message(conn, m) for m in store_rfq.messages_of_vendor(conn, v["id"])]}
+    msgs = store_rfq.messages_of_vendor(conn, v["id"])
+    # RFQ-VENDOR-UPLOAD (contract 19.10): a question's own files, next to it (the thread's rule: whoever sees the request)
+    files = rfq_vendor_files.by_message(conn, seen.row["id"], [m["id"] for m in msgs if m["direction"] == "in"])
+    items = []
+    for m in msgs:
+        item = rfq.present_message(conn, m)
+        if m["direction"] == "in":
+            item["files"] = files.get(m["id"], [])
+        items.append(item)
+    return {"items": items}
 
 
 class SourceRef(BaseModel):
@@ -765,15 +774,16 @@ def get_attachment_thumb(request: Request, rfq_id: str = Path(..., pattern=ID), 
 
 
 def _vendor_file(request: Request, rfq_id: str, file_id: str, thumb: bool, principal: Principal, conn: sqlite3.Connection) -> FileResponse:
-    """RFQ-VENDOR-UPLOAD (contract 19.10): a file a VENDOR uploaded to his quote - the comparison's rule (the request visible: the
-    uniform 404 `rfq_not_found`; then tickets.costs.view: the audited 403 - a vendor's file is part of his quote and may carry
-    prices). Always a download (rfq_files.vendor_headers: attachment, nosniff, CSP sandbox, private no-store). Another request's id, a
-    document's thumbnail, an office file while `rfq.attachments.allow_office` is off: 404 `attachment_not_found`."""
+    """RFQ-VENDOR-UPLOAD (contract 19.10): a file a VENDOR uploaded. The request visible first (the uniform 404 `rfq_not_found`);
+    then a QUOTE file needs tickets.costs.view (the comparison's rule; the audited 403 - it may carry prices), a QUESTION file the
+    thread's rule (whoever sees the request sees its threads). Always a download (rfq_files.vendor_headers: attachment, nosniff, CSP
+    sandbox, private no-store). Another request's id, a document's thumbnail, an office file while `rfq.attachments.allow_office` is
+    off: 404 `attachment_not_found`."""
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
-    if not rfq.sees_amounts(viewer, seen):
-        raise rfq.refuse(conn, viewer, "ticket.rfq.vendor_file", seen.row, "costs_permission_missing", _rid(request), permission=rfq.COSTS_VIEW)
     f = rfq_vendor_files.for_manager(conn, seen.row["id"], file_id)
+    if f is not None and not f.get("message_id") and not rfq.sees_amounts(viewer, seen):
+        raise rfq.refuse(conn, viewer, "ticket.rfq.vendor_file", seen.row, "costs_permission_missing", _rid(request), permission=rfq.COSTS_VIEW)
     path = rfq_vendor_files.file_path(_root(request), f, thumb) if f is not None else None
     if f is None or path is None:
         raise rfq_attach.not_found(conn)
@@ -792,6 +802,39 @@ def get_vendor_file(request: Request, rfq_id: str = Path(..., pattern=ID), file_
 def get_vendor_file_thumb(request: Request, rfq_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID),
                           principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     return _vendor_file(request, rfq_id, file_id, True, principal, conn)
+
+
+def _ticket_vendor_file(request: Request, ticket_id: str, file_id: str, thumb: bool, principal: Principal, conn: sqlite3.Connection) -> FileResponse:
+    """RFQ-VENDOR-UPLOAD (owner decision 2026-10-17): the awarded vendor's file a work order references - the ticket's own visibility
+    (the uniform 404), then tickets.costs.view on THAT ticket (audited 403); a file the ticket does not reference: 404. Same serving
+    rules (always a download)."""
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    if not rfq_vendor_files.sees_ticket_files(viewer, seen.row):
+        audit(conn, actor=principal, action="ticket.rfq.vendor_file", decision="denied", resource_type="ticket", resource_id=seen.row["id"],
+              reason="costs_permission_missing", request_id=_rid(request), details={"number": seen.row["number"]})
+        raise ApiError(403, "forbidden", text(conn, "אין הרשאה לצפות בקבצי הספק של בקשה זו."), details={"reason": "costs_permission_missing"})
+    f = rfq_vendor_files.for_ticket(conn, seen.row["id"], file_id)
+    path = rfq_vendor_files.file_path(_root(request), f, thumb) if f is not None else None
+    if f is None or path is None:
+        raise rfq_attach.not_found(conn)
+    q = store_rfq.rfq_quote_of_ticket(conn, seen.row["id"])
+    v = store_rfq.vendor(conn, (q or {}).get("rfq_vendor_id")) or {}
+    h = rfq_files.vendor_headers(f["kind"], ref_number=rfq.number_of(conn, v.get("rfq_id")) or 0, file_id=f["id"], name=f["name"], thumb=thumb)
+    media = h.pop("Content-Type")
+    return FileResponse(path, media_type=media, headers=h)
+
+
+@router.get("/tickets/{ticket_id}/rfq-vendor-files/{file_id}")
+def get_ticket_vendor_file(request: Request, ticket_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID),
+                           principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    return _ticket_vendor_file(request, ticket_id, file_id, False, principal, conn)
+
+
+@router.get("/tickets/{ticket_id}/rfq-vendor-files/{file_id}/thumb")
+def get_ticket_vendor_thumb(request: Request, ticket_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID),
+                            principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    return _ticket_vendor_file(request, ticket_id, file_id, True, principal, conn)
 
 
 def _ticket_file(request: Request, ticket_id: str, attachment_id: str, thumb: bool, principal: Principal, conn: sqlite3.Connection) -> FileResponse:

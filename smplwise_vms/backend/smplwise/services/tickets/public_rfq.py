@@ -69,7 +69,9 @@ UPLOAD_ROUTE = "/t/api/rfq/upload"  # RFQ-VENDOR-UPLOAD (contract 19.10)
 UPLOAD_REMOVE_ROUTE = "/t/api/rfq/upload/remove"
 # the vendor's upload form: exactly these fields (public_multipart refuses any other, a duplicate, a file without a filename); the
 # file's own filename is never used - `name` (optional text) is only a display name after rfq_files.display_name, never the kind
-UPLOAD_FIELDS = {"file": FieldRule(file=True, max_bytes=rfq_files.DOCUMENT_MAX_BYTES), "quote_id": FieldRule(file=False, max_bytes=64),
+UPLOAD_FIELDS = {"file": FieldRule(file=True, max_bytes=rfq_files.DOCUMENT_MAX_BYTES),
+                 # exactly ONE target: his submitted quote, or (owner decision 2026-10-17) one of his own questions - no quote needed
+                 "quote_id": FieldRule(file=False, max_bytes=64, required=False), "message_id": FieldRule(file=False, max_bytes=64, required=False),
                  "client_request_id": FieldRule(file=False, max_bytes=64),
                  "name": FieldRule(file=False, max_bytes=rfq_vendor_files.NAME_FIELD_MAX, required=False)}
 
@@ -606,7 +608,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
 
     @r.post(UPLOAD_ROUTE)
     async def post_upload(request: Request, ctx: LinkContext = Depends(rfq_context())) -> JSONResponse:
-        """One file onto HIS submitted quote. The photo route's protections, through the public app's own handles (UploadGuards): one
+        """One file onto HIS submitted quote (`quote_id`) or one of HIS own questions (`message_id`, no quote needed). The photo route's protections, through the public app's own handles (UploadGuards): one
         upload in flight per link, the upload memory budget and the installation cap BEFORE the body is read, the body phase paid when it
         starts (the edge's `rfq_upload` windows: per link and per client network), the processing and decoder admission; the request /
         quote / quota checks before the decode, the SAME content checks as a manager's file (rfq_files.store: pictures re-encoded, WebP
@@ -636,7 +638,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
                 finally:
                     del raw
                 crid = parse_client_request_id(_field(form, "client_request_id"))
-                quote_id = _field(form, "quote_id") or ""
+                target = {"quote_id": _field(form, "quote_id") or None, "message_id": _field(form, "message_id") or None}
                 name = _field(form, "name") or ""
                 data = form["file"].data
                 del form
@@ -655,7 +657,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
                                 raise ActionRefused(409, "request_in_progress", retry_after_s=2)
                             body = json.loads(prior["response_json"] or "{}")
                             return int(prior["status_code"]), body if isinstance(body, dict) else {}
-                        rfq_vendor_files.check_add(conn, link, quote_id, len(data), now())
+                        rfq_vendor_files.check_add(conn, link, target, data, now())
                         return None
 
                 def office_on() -> bool:
@@ -669,7 +671,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
                         replay = claim_request(conn, link, crid, UPLOAD_ROUTE, when)  # type: ignore[arg-type]
                         if replay is not None:
                             return replay[0], replay[1], False
-                        f = rfq_vendor_files.record(conn, link, stored, name=name, quote_id=quote_id, now=when)
+                        f = rfq_vendor_files.record(conn, link, stored, name=name, target=target, now=when)
                         return (*finish_request(conn, link, crid, 201, {"ok": True, "file": f}), True)  # type: ignore[arg-type]
 
                 async def work() -> tuple[int, dict[str, Any]]:

@@ -1126,6 +1126,8 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     run("ticket_attachments", "DELETE FROM ticket_attachments WHERE ticket_id = ?", (ticket_id,))
     if _has_table(conn, "ticket_rfq_attachment_refs"):  # RFQATT: the ticket's references to request files (the files stay with the request)
         run("ticket_rfq_attachment_refs", "DELETE FROM ticket_rfq_attachment_refs WHERE ticket_id = ?", (ticket_id,))
+    if _has_table(conn, "ticket_rfq_vendor_file_refs"):  # RFQ-VENDOR-UPLOAD: the work order's references to the vendor's files
+        run("ticket_rfq_vendor_file_refs", "DELETE FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?", (ticket_id,))
     run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
     conn.execute("UPDATE tickets SET current_assignment_id = NULL WHERE id = ?", (ticket_id,))
@@ -1183,5 +1185,7 @@ def ticket_rows_left(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]
         checks["ticket_owner_changes"] = "SELECT COUNT(*) FROM ticket_owner_changes WHERE ticket_id = ?"
     if _has_table(conn, "ticket_rfq_attachment_refs"):  # RFQATT
         checks["ticket_rfq_attachment_refs"] = "SELECT COUNT(*) FROM ticket_rfq_attachment_refs WHERE ticket_id = ?"
+    if _has_table(conn, "ticket_rfq_vendor_file_refs"):  # RFQ-VENDOR-UPLOAD
+        checks["ticket_rfq_vendor_file_refs"] = "SELECT COUNT(*) FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?"
     left = {t: int(conn.execute(sql, (ticket_id,)).fetchone()[0]) for t, sql in checks.items()}
     return {t: n for t, n in left.items() if n}

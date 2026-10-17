@@ -95,6 +95,11 @@ def pending_items(conn, viewer: Viewer, seen: rfq.RfqSeen, now: dt.datetime) -> 
                     "read": bool(m.get("read_at")), "via": "whatsapp" if whatsapp else "page", "unverified": whatsapp,
                     "quote": {"id": q["id"], "version": q["version"]} if q else None,
                     "age_h": max(0, int((now - (rfq.parse(m["created_at"]) or now)).total_seconds() // 3600))})
+    from . import rfq_vendor_files  # RFQ-VENDOR-UPLOAD (contract 19.10): the files a vendor attached to his question, next to it
+
+    files = rfq_vendor_files.by_message(conn, row["id"], [x["id"] for x in out])
+    for x in out:
+        x["files"] = files.get(x["id"], [])
     return out
 
 

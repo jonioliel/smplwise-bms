@@ -233,7 +233,7 @@ test.describe('TKUI5: the public page in the approved look', () => {
       if (!/\.(js|css)$/.test(f)) continue;
       const n = zlib.gzipSync(fs.readFileSync(path.join(BUNDLE, 'assets', f))).length;
       if (/^rfq-page-terms[-.]/.test(f)) rfqTerms += n; // integ/264 (decision a): the lazy payment-terms chunk, own 3 KB cap, before the rfq rule
-      else if (/^rfq-upload[-.]/.test(f)) rfqUpload += n; // RFQ-VENDOR-UPLOAD: the vendor's own files (lazy, switch on only), own 4 KB cap
+      else if (/^rfq-upload[-.]/.test(f)) rfqUpload += n; // RFQ-VENDOR-UPLOAD: the vendor's own files (lazy, switch on only), own 5 KB cap (quote + question-with-files UI)
       else if (/^rfq-(page|files)[-.]/.test(f)) rfq += n; // RFQATT: the request files' chunk is the RFQ page's (lazy on a ticket link, only with an order's files)
       else if (/^portal-page[-.]/.test(f)) portal += n; // VPORTAL: the vendor portal's lazy chunk + stylesheet has its own budget (as the unit guard)
       else gz += n;
@@ -242,7 +242,7 @@ test.describe('TKUI5: the public page in the approved look', () => {
     expect(gz).toBeLessThanOrEqual(61 * 1024);
     expect(rfq).toBeLessThanOrEqual(20 * 1024);
     expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
-    expect(rfqUpload).toBeLessThanOrEqual(4 * 1024);
+    expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
     expect(portal).toBeLessThanOrEqual(12 * 1024);
     const html = fs.readFileSync(path.join(BUNDLE, 'index.html'), 'utf8');
     expect(html).not.toMatch(/<style|\sstyle=|\son[a-z]+=|<script>(?!<\/script>)/i);

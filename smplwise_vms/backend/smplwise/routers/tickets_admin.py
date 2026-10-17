@@ -152,6 +152,12 @@ class RfqAttachmentsPatch(BaseModel):  # RFQATT review 2.6.4: Word / Excel attac
 class RfqVendorUploadsPatch(BaseModel):  # RFQ-VENDOR-UPLOAD: a vendor's own files on his quote (a public upload route; OFF by default)
     model_config = ConfigDict(extra="forbid")
     enabled: StrictBool | None = None
+    # the limits (owner 2026-10-17: administrator settings); settings_doc validates each against its hard cap (contract 19.10)
+    max_files: StrictInt | None = None
+    max_uploads: StrictInt | None = None
+    max_image_mb: StrictInt | None = None
+    max_doc_mb: StrictInt | None = None
+    max_total_mb: StrictInt | None = None
 
 
 class RfqPatch(BaseModel):
@@ -263,9 +269,11 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
     if body.rfq is not None and body.rfq.attachments is not None and body.rfq.attachments.allow_office is not None:
         # merged next to the other rfq keys of the same request (integ/264: one RfqPatch for RFQQUESTIONS / RFQPAY / RFQATT-FIX)
         patch.setdefault("rfq", {})["attachments"] = {"allow_office": body.rfq.attachments.allow_office}
-    if body.rfq is not None and body.rfq.vendor_uploads is not None and body.rfq.vendor_uploads.enabled is not None:
-        # RFQ-VENDOR-UPLOAD: the second nested rfq block, merged the same way (audited as tickets.settings.update with the changed key)
-        patch.setdefault("rfq", {})["vendor_uploads"] = {"enabled": body.rfq.vendor_uploads.enabled}
+    if body.rfq is not None and body.rfq.vendor_uploads is not None:
+        # RFQ-VENDOR-UPLOAD: the second nested rfq block, merged the same way (audited as tickets.settings.update with the changed keys)
+        vu = {k: v for k, v in body.rfq.vendor_uploads.model_dump().items() if v is not None}
+        if vu:
+            patch.setdefault("rfq", {})["vendor_uploads"] = vu
     if body.send_hours is not None:
         patch["send_hours"] = body.send_hours.window()
     if body.urgent_is_critical is not None:

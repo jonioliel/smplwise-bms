@@ -342,6 +342,8 @@ export interface RfqVendorFile {
   height: number | null;
   thumb: boolean;
   quote_id: string | null;
+  /** the question it was attached to (null for a quote file) */
+  message_id?: string | null;
   quote_version: number | null;
   created_at: string;
   removed: boolean;
@@ -442,7 +444,9 @@ export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string;
   /** RFQQUESTIONS: an inbound message is a question with a state */
   question?: { state: 'pending' | 'answered'; read: boolean; answered_at: string | null; answer_id: string | null; quote_id: string | null };
   /** RFQQUESTIONS: an outbound message that answers a question / one copy of an answer to every vendor */
-  answers_id?: string | null; to_all?: boolean }
+  answers_id?: string | null; to_all?: boolean;
+  /** RFQ-VENDOR-UPLOAD (contract 19.10): the files the vendor attached to this question (inbound only; absent on older servers) */
+  files?: RfqVendorFile[] }
 export interface RfqMessageAnswer { item: RfqMessage; notified: { queued: boolean; channel: string | null } }
 
 export interface RfqSendAnswer extends RfqDetail { sent?: Record<string, unknown> }

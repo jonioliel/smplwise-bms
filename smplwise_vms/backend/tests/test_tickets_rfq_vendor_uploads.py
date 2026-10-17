@@ -17,7 +17,7 @@ import zipfile
 import pytest
 from PIL import Image
 
-from smplwise.services.tickets import public_http, ratelimit, rfq_vendor_files, store, store_rfq
+from smplwise.services.tickets import public_http, ratelimit, rfq_vendor_files, settings_doc, store, store_rfq
 from smplwise.services.tickets.public_http import UNIFORM_404
 from test_tickets_cost_files import pdf
 from test_tickets_rfq_attachments import allow_office, attached, draft, files_on_disk, jpeg, send
@@ -26,6 +26,15 @@ from test_tickets_rfq_public import _at, add_vendor, detail, hdr, pub, quote, s4
 from tickets_s4_world import API, Clock, crid
 
 SECRET = "secret-offer-of-the-roof-4417"
+MiB = 1024 * 1024
+
+
+def limits(s4, **values) -> None:
+    """The administrator's limits `rfq.vendor_uploads.max_*` (system.configure)."""
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"vendor_uploads": values}})
+    assert r.status_code == 200, r.text
+    assert all(r.json()["rfq"]["vendor_uploads"][k] == v for k, v in values.items())
 
 
 def uploads(s4, on: bool = True) -> None:
@@ -35,10 +44,20 @@ def uploads(s4, on: bool = True) -> None:
     assert r.status_code == 200 and r.json()["rfq"]["vendor_uploads"]["enabled"] is on, r.text
 
 
-def up(c, tok: str, quote_id: str, data: bytes, *, name: str = f"{SECRET}.pdf", rid: str | None = None, mime: str = "application/pdf",
-       headers: dict | None = None):
-    return c.post("/t/api/rfq/upload", files={"file": ("upload.bin", data, mime)},
-                  data={"quote_id": quote_id, "client_request_id": rid or crid(), "name": name}, headers=headers if headers is not None else hdr(tok))
+def up(c, tok: str, quote_id: str | None, data: bytes, *, name: str = f"{SECRET}.pdf", rid: str | None = None, mime: str = "application/pdf",
+       headers: dict | None = None, message_id: str | None = None):
+    form = {"client_request_id": rid or crid(), "name": name}
+    if quote_id is not None:
+        form["quote_id"] = quote_id
+    if message_id is not None:
+        form["message_id"] = message_id
+    return c.post("/t/api/rfq/upload", files={"file": ("upload.bin", data, mime)}, data=form, headers=headers if headers is not None else hdr(tok))
+
+
+def ask(c, tok: str, text: str = "האם אפשר לקבל תוכנית קומה?") -> str:
+    r = c.post("/t/api/rfq/message", json={"text": text, "client_request_id": crid()}, headers=hdr(tok))
+    assert r.status_code == 201, r.text
+    return r.json()["message"]["id"]
 
 
 def rm(c, tok: str, file_id: str, rid: str | None = None):
@@ -88,7 +107,7 @@ def test_the_switch_is_off_by_default_and_both_routes_are_the_uniform_404(s4):
         assert (r.status_code, r.content) == (404, UNIFORM_404), "byte-identical to an unknown route"
     assert vendor_rows(s4) == [] and files_on_disk(s4) == []
     meta = s4.c.get(f"{API}/tickets/rfqs/meta", headers=s4.h("mona")).json()
-    assert meta["vendor_uploads"] is False and meta["settings"]["vendor_uploads"] == {"enabled": False}
+    assert meta["vendor_uploads"] is False and meta["settings"]["vendor_uploads"]["enabled"] is False
     # only system.configure turns it on; a non-boolean is refused
     rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
     assert s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"vendor_uploads": {"enabled": True}}},
@@ -116,8 +135,11 @@ def test_wrong_foreign_and_missing_tokens_are_the_uniform_404(s4):
 def test_only_his_own_current_submitted_quote(s4):
     d, c, ta, qid, tb = world(s4)
     # vendor B has no quote: nothing to attach to; and he cannot use vendor A's quote id
-    for r in (up(c, tb, qid, pdf()), up(c, tb, "", pdf()), up(c, ta, "no-such-quote", pdf())):
+    for r in (up(c, tb, qid, pdf()), up(c, ta, "no-such-quote", pdf())):
         assert (r.status_code, r.json()) == (409, {"code": "quote_closed", "reason": "vendor"}), r.text
+    # no target, or both targets: exactly one is required
+    for r in (up(c, ta, None, pdf()), up(c, ta, "", pdf()), up(c, ta, qid, pdf(), message_id="m-1")):
+        assert (r.status_code, r.json()["code"], r.json()["fields"][0]["code"]) == (422, "invalid", "one_of"), r.text
     # a superseded version of his own quote is refused the same way
     r2 = quote(c, ta, base=1)
     assert r2.status_code == 201, r2.text
@@ -167,11 +189,11 @@ def test_polyglots_disguises_webp_and_office_are_refused_by_content(s4, monkeypa
 
 def test_oversize_bodies_are_refused_at_the_edge_or_by_the_kind_cap(s4):
     _d, c, ta, qid, _tb = world(s4)
-    r = up(c, ta, qid, b"\xff\xd8\xff" + b"\x00" * (rfq_vendor_files.IMAGE_MAX_BYTES + 10), mime="image/jpeg")
-    assert (r.status_code, r.json()["code"]) == (413, "too_large") and r.json()["max_bytes"] == rfq_vendor_files.IMAGE_MAX_BYTES
+    r = up(c, ta, qid, b"\xff\xd8\xff" + b"\x00" * (8 * MiB + 10), mime="image/jpeg")
+    assert (r.status_code, r.json()["code"]) == (413, "too_large") and r.json()["max_bytes"] == 8 * MiB
     r = up(c, ta, qid, b"%PDF-1.7\n" + b"\x00" * (public_http.RFQ_UPLOAD_MAX + 10))
     assert r.status_code == 413, "a body over the route's cap is refused before it is read"
-    r = up(c, ta, qid, b"%PDF-1.7\n" + b"\x00" * (rfq_vendor_files.DOCUMENT_MAX_BYTES + 10))
+    r = up(c, ta, qid, b"%PDF-1.7\n" + b"\x00" * (10 * MiB + 10))
     assert r.status_code in (413, 422) and r.status_code != 201
     assert vendor_rows(s4) == [] and files_on_disk(s4) == []
 
@@ -190,25 +212,71 @@ def test_unknown_or_duplicate_form_fields_and_a_missing_request_id(s4):
 
 # ---------------------------------------------------------------- quotas and rate limits
 
-def test_live_file_upload_and_byte_quotas(s4, monkeypatch):
+def test_live_file_upload_and_byte_quotas(s4):
     _d, c, ta, qid, _tb = world(s4)
-    ids = [up(c, ta, qid, pdf(b"%d 0 obj << >> endobj" % i)).json()["file"]["id"] for i in range(rfq_vendor_files.MAX_LIVE)]
+    ids = [up(c, ta, qid, pdf(b"%d 0 obj << >> endobj" % i)).json()["file"]["id"] for i in range(5)]  # the default: 5 live files
     r = up(c, ta, qid, pdf())
     assert (r.status_code, r.json()["code"], r.json()["max_files"]) == (409, "upload_limit", 5), r.text
     assert view(c, ta)["uploads"]["can"]["upload"] is False
     assert rm(c, ta, ids[0]).status_code == 200
     assert up(c, ta, qid, pdf()).status_code == 201, "a removal frees a live place"
-    monkeypatch.setattr(rfq_vendor_files, "MAX_UPLOADS", 6)
+    limits(s4, max_uploads=6)
     assert rm(c, ta, ids[1]).status_code == 200
     r = up(c, ta, qid, pdf())
     assert (r.status_code, r.json()["code"], r.json()["max_uploads"]) == (409, "upload_limit", 6), "a removal gives no upload back"
-    monkeypatch.setattr(rfq_vendor_files, "MAX_UPLOADS", 10)
-    with s4.db.connection(mode="read") as conn:
-        _live, _every, used = store_rfq.vendor_file_usage(conn, vid(_d, s4.vendor["id"]))
-    monkeypatch.setattr(rfq_vendor_files, "TOTAL_MAX_BYTES", used + 10)
-    r = up(c, ta, qid, pdf(b"3 0 obj << /Big (" + b"x" * 200 + b") >> endobj"))
-    assert (r.status_code, r.json()["code"]) == (413, "upload_total"), "removed files keep counting: they stay on disk"
     assert len(vendor_rows(s4)) == 6
+
+
+def test_the_byte_quota_counts_removed_files(s4):
+    _d, c, ta, qid, _tb = world(s4)
+    limits(s4, max_total_mb=1)
+    big = pdf(b"3 0 obj << /Pad (" + b"x" * 600_000 + b") >> endobj")
+    first = up(c, ta, qid, big)
+    assert first.status_code == 201, first.text
+    assert rm(c, ta, first.json()["file"]["id"]).status_code == 200
+    r = up(c, ta, qid, big)
+    assert (r.status_code, r.json()["code"], r.json()["max_bytes"]) == (413, "upload_total", MiB), "removed files keep counting: on disk"
+    assert len(vendor_rows(s4)) == 1 and len(files_on_disk(s4)) == 1, "the refused file was deleted after the check"
+
+
+# ---------------------------------------------------------------- the limits are administrator settings, inside hard caps
+
+def test_limit_settings_are_validated_against_the_hard_caps(s4):
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    for bad in ({"max_files": 0}, {"max_files": 11}, {"max_uploads": 31}, {"max_image_mb": 9}, {"max_doc_mb": 11}, {"max_total_mb": 51},
+                {"max_files": "5"}, {"max_files": True}, {"max_files": 8, "max_uploads": 7}, {"unknown": 1}):
+        r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"vendor_uploads": bad}})
+        assert r.status_code == 422, (bad, r.text)
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": {"vendor_uploads": {"max_files": 3}}}, headers=s4.h("mona"))
+    assert r.status_code == 403, "only system.configure"
+    got = s4.c.get(f"{API}/tickets/settings").json()["rfq"]["vendor_uploads"]
+    assert got == {"enabled": False, "max_files": 5, "max_uploads": 10, "max_image_mb": 8, "max_doc_mb": 10, "max_total_mb": 20}
+    limits(s4, max_files=10, max_uploads=30, max_image_mb=8, max_doc_mb=10, max_total_mb=50)  # the caps themselves are allowed
+
+
+def test_lower_limits_are_enforced_and_a_stored_value_beyond_a_cap_never_widens(s4):
+    _d, c, ta, qid, _tb = world(s4)
+    limits(s4, max_files=2, max_doc_mb=1, max_image_mb=1)
+    r = up(c, ta, qid, pdf(b"3 0 obj << /Pad (" + b"x" * (MiB + 10) + b") >> endobj"))
+    assert (r.status_code, r.json()["code"], r.json()["max_bytes"]) == (413, "too_large", MiB), r.text
+    r = up(c, ta, qid, b"\xff\xd8\xff" + b"\x00" * (MiB + 10), mime="image/jpeg")
+    assert (r.status_code, r.json()["max_bytes"]) == (413, MiB)
+    assert up(c, ta, qid, pdf()).status_code == 201 and up(c, ta, qid, pdf(b"3 0 obj << >> endobj")).status_code == 201
+    r = up(c, ta, qid, pdf(b"4 0 obj << >> endobj"))
+    assert (r.status_code, r.json()["max_files"]) == (409, 2)
+    v = view(c, ta)["uploads"]["limits"]
+    assert (v["files"], v["document_bytes"], v["image_bytes"]) == (2, MiB, MiB)
+    # a hand-edited document beyond the hard caps is clamped (never wider than 10 files / 10 MiB)
+    with s4.db.connection() as conn:
+        raw = conn.execute("SELECT value FROM settings WHERE key = ?", (settings_doc.SETTING_KEY,)).fetchone()[0]
+        doc = json.loads(raw)
+        doc["rfq"]["vendor_uploads"].update({"max_files": 999, "max_doc_mb": 999, "max_uploads": 999})
+        conn.execute("UPDATE settings SET value = ? WHERE key = ?", (json.dumps(doc), settings_doc.SETTING_KEY))
+    with s4.db.connection(mode="read") as conn:
+        lim = rfq_vendor_files.limits_of(conn)
+    assert lim.files <= 10 and lim.document_bytes <= 10 * MiB and lim.uploads <= 30, "never wider than the hard caps"
+    assert rfq_vendor_files.Limits({"max_files": 999, "max_doc_mb": 999, "max_uploads": 999, "max_total_mb": -5}).__dict__ == {
+        "files": 10, "uploads": 30, "image_bytes": 8 * MiB, "document_bytes": 10 * MiB, "total_bytes": MiB}
 
 
 def test_the_edge_windows_per_link_and_per_client_network():
@@ -289,7 +357,7 @@ def test_managers_read_vendor_files_as_downloads_with_the_comparison_rule(s4):
     cmp = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/comparison", headers=s4.h("joni")).json()
     col = next(q for q in cmp["quotes"] if q["vendor_id"] == vid(d, s4.vendor["id"]))
     assert [f["id"] for f in col["vendor_files"]] == [doc["id"], pic["id"]] and col["vendor_files"][0]["quote_version"] == 1
-    assert set(col["vendor_files"][0]) == {"id", "name", "kind", "mime", "bytes", "width", "height", "thumb", "quote_id", "quote_version",
+    assert set(col["vendor_files"][0]) == {"id", "name", "kind", "mime", "bytes", "width", "height", "thumb", "quote_id", "message_id", "quote_version",
                                            "created_at", "removed"}
     base = f"{API}/tickets/rfqs/{d['id']}/vendor-files"
     for path, mime in ((f"{base}/{doc['id']}", "application/pdf"), (f"{base}/{pic['id']}", "image/jpeg"), (f"{base}/{pic['id']}/thumb", "image/jpeg")):
@@ -363,3 +431,139 @@ def test_the_purge_removes_rows_and_files_and_the_orphan_sweep_keeps_live_ones(s
     r = s4.c.delete(f"{API}/tickets/rfqs/{d['id']}", headers=s4.h("joni"))
     assert r.status_code == 200 and r.json()["rows"].get("ticket_rfq_vendor_files") == 1, r.text
     assert files_on_disk(s4) == [] and vendor_rows(s4) == []
+
+
+# ---------------------------------------------------------------- owner decision 2026-10-17 (4): files with a QUESTION, no quote needed
+
+def test_question_files_refusals_first(s4):
+    d, c, ta, _qid, tb = world(s4)
+    mine = ask(c, tb)  # vendor B asks (he has no quote)
+    other = ask(c, ta)  # vendor A's question
+    rv_b = vid(d, s4.contact["id"])
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{rv_b}/messages", json={"text": "התוכנית מצורפת לבקשה", "notify": False},
+                  headers=s4.h("mona"))
+    assert r.status_code in (200, 201), r.text
+    with s4.db.connection(mode="read") as conn:
+        answer = conn.execute("SELECT id FROM ticket_rfq_messages WHERE rfq_vendor_id = ? AND direction = 'out'", (rv_b,)).fetchone()[0]
+    for target in (other, answer, "no-such-message"):  # another vendor's question, the organisation's answer, unknown
+        r = up(c, tb, None, pdf(), message_id=target)
+        assert (r.status_code, r.json()["code"]) == (409, "question_not_found"), (target, r.text)
+    assert vendor_rows(s4) == [] and files_on_disk(s4) == []
+    # the switch off: the uniform 404 for the question path too
+    uploads(s4, False)
+    assert up(c, tb, None, pdf(), message_id=mine).content == UNIFORM_404
+    uploads(s4, True)
+    # the same scanners: a polyglot is refused on the question path as well
+    assert up(c, tb, None, pdf() + zip_bytes() + b"%%EOF\n", message_id=mine).json()["code"] == "pdf_refused"
+    assert up(c, tb, None, webp(), message_id=mine, mime="image/webp").status_code == 415
+    # an ended request takes no question files
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/cancel", json={"revision": detail(s4, d["id"])["revision"], "notify": False}, headers=s4.h("mona"))
+    assert r.status_code == 200
+    assert up(c, tb, None, pdf(), message_id=mine).json()["code"] == "read_only"
+    assert vendor_rows(s4) == []
+
+
+def test_question_files_without_a_quote_shared_quota_and_who_sees_them(s4):
+    d, c, ta, qid, tb = world(s4)
+    assert view(c, tb)["uploads"]["can"] == {"upload": False, "question": True, "remove": True}, "no quote: only the question path"
+    mid = ask(c, tb)
+    f = up(c, tb, None, jpeg(), message_id=mid, name="leak.jpg", mime="image/jpeg")
+    assert f.status_code == 201, f.text
+    f = f.json()["file"]
+    assert (f["on"], f["message_id"]) == ("question", mid)
+    rv_b = vid(d, s4.vendor["id"]), vid(d, s4.contact["id"])
+    # managers: next to the question (the thread and the pending questions), NOT in the comparison's quote files
+    items = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/vendors/{rv_b[1]}/messages", headers=s4.h("tom")).json()["items"]
+    q = next(i for i in items if i["id"] == mid)
+    assert [x["id"] for x in q["files"]] == [f["id"]]
+    pend = detail(s4, d["id"], "mona")["questions"]["items"]
+    assert [x["id"] for x in next(p for p in pend if p["id"] == mid)["files"]] == [f["id"]]
+    cmp = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/comparison", headers=s4.h("joni")).json()
+    assert all(f["id"] not in json.dumps(x["vendor_files"]) for x in cmp["quotes"])
+    # the thread's rule: a member who sees the request (no costs.view) reads a QUESTION file, never a QUOTE file
+    qf = up(c, ta, qid, pdf()).json()["file"]
+    base = f"{API}/tickets/rfqs/{d['id']}/vendor-files"
+    got = s4.c.get(f"{base}/{f['id']}", headers=s4.h("tom"))
+    assert got.status_code == 200 and got.headers["content-disposition"].startswith("attachment;") and "sandbox" in got.headers["content-security-policy"]
+    assert s4.c.get(f"{base}/{qf['id']}", headers=s4.h("tom")).status_code == 403
+    assert s4.c.get(f"{base}/{f['id']}", headers=s4.h("nora")).status_code == 404
+    # another vendor never sees it
+    va = view(c, ta)
+    assert f["id"] not in json.dumps(va) and "leak" not in json.dumps(va)
+    # ONE quota per vendor: question files and quote files count together
+    limits(s4, max_files=2)
+    rq = quote(c, tb)
+    assert rq.status_code == 201
+    assert up(c, tb, rq.json()["quote"]["id"], pdf()).status_code == 201
+    r = up(c, tb, None, pdf(), message_id=mid)
+    assert (r.status_code, r.json()["max_files"]) == (409, 2)
+    assert view(c, tb)["uploads"]["can"] == {"upload": False, "question": False, "remove": True}
+    with s4.db.connection(mode="read") as conn:
+        ev = [json.loads(r[0]) for r in conn.execute("SELECT data_json FROM ticket_rfq_events WHERE kind = 'vendor_file_added' ORDER BY rowid")]
+    assert ev[0] == {"file_id": f["id"], "kind": "image", "message_id": mid}
+
+
+# ---------------------------------------------------------------- owner decision 2026-10-17 (1): visible on the work order
+
+def _award_and_order(s4, d: dict, rv: str) -> str:
+    cmp = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/comparison", headers=s4.h("joni")).json()
+    q = next(x for x in cmp["quotes"] if x["vendor_id"] == rv)
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards", json={"quote_id": q["quote_id"], "revision": q["revision"]}, headers=s4.h("kim"))
+    assert r.status_code == 201, r.text
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{r.json()['award']['id']}/order", json={"request_key": f"ord-{crid()[:12]}"},
+                  headers=s4.h("mona"))
+    assert r.status_code == 201, r.text
+    return r.json()["ticket"]["id"]
+
+
+def test_the_work_order_references_the_awarded_vendors_files_for_cost_viewers_only(s4, settings):
+    from conftest import bind
+
+    bind(s4.c, settings, "kim", "system_admin", "installation", "*")
+    d, c, ta, qid, tb = world(s4)
+    rv_a = vid(d, s4.vendor["id"])
+    keep = up(c, ta, qid, pdf()).json()["file"]
+    gone = up(c, ta, qid, jpeg(), name="old.jpg", mime="image/jpeg").json()["file"]
+    assert rm(c, ta, gone["id"]).status_code == 200
+    qmid = ask(c, ta)
+    qfile = up(c, ta, None, pdf(b"3 0 obj << >> endobj"), message_id=qmid).json()["file"]
+    rb = quote(c, tb)
+    other = up(c, tb, rb.json()["quote"]["id"], pdf()).json()["file"]
+    tid = _award_and_order(s4, d, rv_a)
+    with s4.db.connection(mode="read") as conn:
+        refs = sorted(x[0] for x in conn.execute("SELECT file_id FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?", (tid,)))
+        assert conn.execute("SELECT COUNT(*) FROM ticket_rfq_vendor_files").fetchone()[0] == 4, "referenced, never copied"
+    assert refs == sorted([keep["id"], qfile["id"]]), "the awarded vendor's LIVE files only - not a removed one, not another vendor's"
+    t = s4.c.get(f"{API}/tickets/{tid}", headers=s4.h("joni")).json()
+    assert sorted(f["id"] for f in t["rfq_origin"]["vendor_files"]) == refs
+    base = f"{API}/tickets/{tid}/rfq-vendor-files"
+    got = s4.c.get(f"{base}/{keep['id']}", headers=s4.h("joni"))
+    h = {k.lower(): v for k, v in got.headers.items()}
+    assert got.status_code == 200 and h["content-disposition"].startswith("attachment;") and h["x-content-type-options"] == "nosniff"
+    assert "sandbox" in h["content-security-policy"] and h["cache-control"] == "private, no-store"
+    for fid in (gone["id"], other["id"], "no-such-file"):
+        assert s4.c.get(f"{base}/{fid}", headers=s4.h("joni")).status_code == 404, fid
+    assert s4.c.get(f"{base}/{keep['id']}/thumb", headers=s4.h("joni")).status_code == 404, "a document has no thumbnail"
+    # a viewer of the ticket without costs.view: an empty list and an audited 403
+    tt = s4.c.get(f"{API}/tickets/{tid}", headers=s4.h("tom"))
+    if tt.status_code == 200 and tt.json().get("rfq_origin"):
+        assert tt.json()["rfq_origin"]["vendor_files"] == []
+        assert s4.c.get(f"{base}/{keep['id']}", headers=s4.h("tom")).status_code == 403
+    assert s4.c.get(f"{base}/{keep['id']}", headers=s4.h("nora")).status_code == 404
+    # the vendor's handler page of the work order shows NO vendor files (he has the originals) and no public route reads them
+    ticket_tok = s4.token_of(tid)
+    tv = c.get("/t/api/ticket", headers=hdr(ticket_tok)).json()
+    assert keep["id"] not in json.dumps(tv)
+    assert c.get(f"/t/api/ticket/rfq-file/{keep['id']}", headers=hdr(ticket_tok)).content == UNIFORM_404
+    # the request is purged: the referenced files stay with the work order, the rest goes
+    r = s4.c.delete(f"{API}/tickets/rfqs/{d['id']}", headers=s4.h("joni"))
+    assert r.status_code == 200, r.text
+    assert s4.c.get(f"{base}/{keep['id']}", headers=s4.h("joni")).status_code == 200
+    with s4.db.connection(mode="read") as conn:
+        left = sorted((x[0], x[1]) for x in conn.execute("SELECT id, rfq_id FROM ticket_rfq_vendor_files"))
+    assert left == sorted([(keep["id"], None), (qfile["id"], None)])
+    assert len(files_on_disk(s4)) == 2
+    # the work order's references gone (its purge), the janitor drops the rows; the orphan sweeps then remove the files
+    with s4.db.connection() as conn:
+        conn.execute("DELETE FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?", (tid,))
+        assert store_rfq.drop_orphan_vendor_files(conn) == 2

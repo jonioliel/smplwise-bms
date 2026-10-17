@@ -244,6 +244,14 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # upload block. Word / Excel additionally need `rfq.attachments.allow_office`. A Fable review of the public surface is required
     # before this is switched on in a release.
     ("rfq", "vendor_uploads", "enabled"): (False, boolean),
+    # the per-vendor-per-request limits (owner decision 2026-10-17: administrator settings), each inside a HARD cap that the server
+    # and the edge enforce whatever is stored (rfq_vendor_files.HARD_*): files 1-10, uploads in all 1-30 (never below max_files),
+    # a picture 1-8 MiB (the image pipeline's cap), a document 1-10 MiB (the route's body cap), stored in all 1-50 MiB
+    ("rfq", "vendor_uploads", "max_files"): (5, int_range(1, 10)),
+    ("rfq", "vendor_uploads", "max_uploads"): (10, int_range(1, 30)),
+    ("rfq", "vendor_uploads", "max_image_mb"): (8, int_range(1, 8)),
+    ("rfq", "vendor_uploads", "max_doc_mb"): (10, int_range(1, 10)),
+    ("rfq", "vendor_uploads", "max_total_mb"): (20, int_range(1, 50)),
 }
 
 
@@ -255,6 +263,9 @@ def _cross_problem(doc: dict[str, Any]) -> str | None:
     staff = doc.get("staff_links") if isinstance(doc.get("staff_links"), dict) else {}
     if staff.get("cap_days", 0) < staff.get("sliding_days", 0):
         return "staff_links.cap_days:below_sliding"
+    vu = (doc.get("rfq") or {}).get("vendor_uploads") if isinstance(doc.get("rfq"), dict) else None
+    if isinstance(vu, dict) and vu.get("max_uploads", 0) < vu.get("max_files", 0):
+        return "rfq.vendor_uploads.max_uploads:below_max_files"  # RFQ-VENDOR-UPLOAD: uploads in all never fewer than live files
     return None
 
 

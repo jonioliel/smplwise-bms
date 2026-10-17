@@ -1,6 +1,6 @@
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { bidi } from '../i18n/bidi';
-import type { TicketDetail, TicketEvent } from '../api/tickets';
+import { rfqVendorFileUrl, type TicketDetail, type TicketEvent } from '../api/tickets';
 import type { LinkBlock } from '../api/tickets-s4';
 import { formatMoney } from './cost-model';
 import { dwt, type DrawerTextKey } from './drawer-text';
@@ -166,8 +166,13 @@ function rfqOriginFact(t: TicketDetail, ctx: OverviewCtx): TemplateResult | type
   if (!o) return nothing;
   const label = dwt('rfqOrigin', { ref: o.ref });
   const sib = o.siblings.length ? html`<small class="muted" data-rfq-siblings>${dwt('rfqSiblings', { list: '' })}${o.siblings.map((s, i) => html`${i ? ', ' : ''}<a href=${ctx.hrefOf ? ctx.hrefOf(s.id) : `#/tickets/${s.id}`} data-rfq-sibling=${s.id}>#${s.number}</a>`)}</small>` : nothing;
+  // RFQ-VENDOR-UPLOAD (owner 2026-10-17): the awarded vendor's own files - read-only, each a download (the server sends attachment +
+  // nosniff + a sandbox CSP); the server lists them only for a viewer who may see this request's costs
+  const files = o.vendor_files ?? [];
+  const vf = files.length ? html`<small class="muted" data-rfq-vendor-files>${dwt('rfqVendorFiles')}: ${files.map((x, i) => html`${i ? ', ' : ''}<a
+    href=${rfqVendorFileUrl(t.id, x.id)} download rel="noopener noreferrer" data-rfq-vendor-file=${x.id}>${bidi(x.name)}</a>`)}</small>` : nothing;
   return html`<div class="f wide" data-fact="rfq-origin"><small>${dwt('fRfqOrigin')}</small>
-    <span>${o.id ? html`<a href=${`#/tickets/rfqs?rfq=${encodeURIComponent(o.id)}`} data-rfq-origin=${o.id}>${label}</a>` : html`<span data-rfq-origin>${label}</span>`}</span>${sib}</div>`;
+    <span>${o.id ? html`<a href=${`#/tickets/rfqs?rfq=${encodeURIComponent(o.id)}`} data-rfq-origin=${o.id}>${label}</a>` : html`<span data-rfq-origin>${label}</span>`}</span>${sib}${vf}</div>`;
 }
 
 export function overviewTab(t: TicketDetail & { link?: LinkBlock | null }, ctx: OverviewCtx): TemplateResult {
