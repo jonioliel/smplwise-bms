@@ -197,6 +197,13 @@ def demand_view(conn, claim: Mapping[str, Any], revs: Sequence[Mapping[str, Any]
             base_sums = kind_sums(approved_lines(base))
             cur = {"labor": current["labor_minor"], "parts": current["parts_minor"], "travel": current["travel_minor"], "other": current["other_minor"]}
             out["kind_deltas"] = {k: int(cur[k]) - base_sums[k] for k in money.LINE_KINDS}
+    # CR-RFQ-PAYMENT-SCHEDULE (contract 20.8): the demand against the APPROVED payment schedule of the baseline - flagged, never refused
+    from . import rfq_terms
+
+    check = rfq_terms.check_demand(conn, claim, base, current)
+    out["schedule_check"] = check
+    if check is not None and check["status"] == "flagged" and claim["status"] == "submitted":
+        out["needs_review"] = True
     return out
 
 

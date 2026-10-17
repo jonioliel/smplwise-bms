@@ -53,6 +53,9 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
     {"key": "rfq.due_passed", "label": "המועד להגשת הצעות עבר", "label_en": "Quote deadline passed", "severity": "info",
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor confirmed his arrival date (+ the payment schedule) or proposed another date
+    {"key": "rfq.arrival", "label": "ספק אישר מועד הגעה או הציע מועד אחר", "label_en": "Vendor confirmed or proposed an arrival date",
+     "severity": "info", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}

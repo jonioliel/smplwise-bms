@@ -274,7 +274,9 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
   if (e.kind === 'awarded' && amount) return { key: 'ev_awarded_amount', vars };
   const known = ['created', 'edited', 'vendor_added', 'vendor_removed', 'sent', 'reminder', 'quote_submitted', 'quote_withdrawn', 'declined', 'link_revoked', 'message',
     'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',
-    'order_created', 'order_sent', 'attachment_added', 'attachment_changed', 'attachment_removed'];
+    'order_created', 'order_sent', 'attachment_added', 'attachment_changed', 'attachment_removed',
+    // CR-RFQ-PAYMENT-SCHEDULE (contract 20.7)
+    'terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected'];
   return { key: known.includes(e.kind) ? `ev_${e.kind}` : 'ev_other', vars };
 }
 
@@ -386,7 +388,9 @@ export function refusalKey(code: string | undefined): string | null {
     'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable',
     // RFQATT: the request's files
     'attachment_limit', 'attachment_total', 'attachment_locked', 'attachment_not_found', 'unsupported_format', 'heic_refused', 'payload_too_large',
-    'image_invalid', 'too_many_pixels', 'pdf_invalid', 'pdf_refused', 'office_invalid', 'office_refused', 'storage_full'];
+    'image_invalid', 'too_many_pixels', 'pdf_invalid', 'pdf_refused', 'office_invalid', 'office_refused', 'storage_full',
+    // CR-RFQ-PAYMENT-SCHEDULE
+    'terms_not_found', 'arrival_not_proposed'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 

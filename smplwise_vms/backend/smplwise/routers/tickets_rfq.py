@@ -20,6 +20,7 @@
     GET    /tickets/rfqs/{id}/comparison                               + tickets.costs.view
     POST   /tickets/rfqs/{id}/awards                                   tickets.costs + view (+ message_draft; nothing is sent)
     POST   /tickets/rfqs/{id}/awards/{award_id}/confirm | decline      the second approver
+    POST   /tickets/rfqs/{id}/awards/{award_id}/arrival                CR-RFQ-PAYMENT-SCHEDULE: accept / reject the vendor's proposed date
     POST   /tickets/rfqs/{id}/awards/{award_id}/order                  TKRFQ4: open the vendor's service request (idempotent; sends nothing)
     GET    /tickets/rfqs/{id}/awards/{award_id}/order/preview          TKRFQ4: the exact order message, its channel, the refusals
     POST   /tickets/rfqs/{id}/awards/{award_id}/order/send             TKRFQ4: the explicit send of the order message
@@ -46,7 +47,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import commit_now, unlocked
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_files, rfq_orders, store, store_rfq
+from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_files, rfq_orders, rfq_terms, store, store_rfq
 from ..services.tickets.image_intake import IntakeError, StorePathError
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
@@ -308,8 +309,31 @@ def post_remind(body: RemindBody, request: Request, rfq_id: str = Path(..., patt
     return out
 
 
+class PaymentItem(BaseModel):
+    """CR-RFQ-PAYMENT-SCHEDULE (contract 20.2): one instalment - amounts and dates only (never bank data)."""
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["advance", "progress", "final"]
+    percent: str | None = Field(default=None, max_length=8)
+    amount: str | None = Field(default=None, max_length=16)
+    due: Literal["date", "completion", "after_completion"]
+    date: str | None = Field(default=None, max_length=10)
+    days: int | None = Field(default=None, ge=0, le=180)
+
+
+class PaymentBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    items: list[PaymentItem] = Field(min_length=1, max_length=6)
+
+
+class ArrivalWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    work_from: str = Field(max_length=40)
+    work_to: str | None = Field(default=None, max_length=40)
+
+
 class QuoteBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    payment: PaymentBody | None = None
     lines: list[QuoteLine] = Field(default_factory=list, max_length=30)
     currency: str | None = Field(default=None, max_length=3)
     amounts_include_vat: bool | None = None
@@ -401,12 +425,16 @@ class AwardBody(BaseModel):
     line_indexes: list[int] | None = Field(default=None, max_length=30)
     kinds: list[Literal["labor", "parts", "travel", "other"]] | None = Field(default=None, max_length=4)
     finalize: bool = True
+    payment: PaymentBody | None = None  # CR-RFQ-PAYMENT-SCHEDULE: the manager's edit of the schedule (omitted = the vendor's proposal)
+    arrival: ArrivalWindow | None = None  # the planned arrival window (omitted = the quote's / request's window)
 
 
 def _award_answer(conn: sqlite3.Connection, viewer: Viewer, rfq_id: str, res: dict[str, Any]) -> dict[str, Any]:
     seen = rfq.require_visible(viewer, rfq_id)
     a = res["award"]
-    return {"rfq": rfq.detail(conn, viewer, seen), "award": rfq.present_award(conn, a, rfq.sees_amounts(viewer, seen)),
+    item = {**rfq.present_award(conn, a, rfq.sees_amounts(viewer, seen)),
+            "terms": rfq_terms.present(conn, a, amounts=rfq.sees_amounts(viewer, seen), manager=rfq.is_manager(viewer, seen))}
+    return {"rfq": rfq.detail(conn, viewer, seen), "award": item,
             "message_draft": rfq.award_draft(conn, seen.row, a) if a["state"] == "approved" else None}
 
 
@@ -416,7 +444,8 @@ def post_award(body: AwardBody, request: Request, rfq_id: str = Path(..., patter
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
     res = rfq.award(conn, viewer, seen, quote_id=body.quote_id, revision=body.revision, line_indexes=body.line_indexes, kinds=body.kinds,
-                    finalize=body.finalize, rid=_rid(request))
+                    finalize=body.finalize, rid=_rid(request), payment=body.payment.model_dump() if body.payment else None,
+                    arrival=body.arrival.model_dump() if body.arrival else None)
     return _award_answer(conn, viewer, rfq_id, res)
 
 
@@ -441,6 +470,22 @@ def post_award_decline(body: AwardDeclineBody, request: Request, rfq_id: str = P
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
     rfq.decline_award(conn, viewer, seen, award_id, body.revision, body.reason, _rid(request))
+    return _detail(conn, viewer, rfq_id)
+
+
+class ArrivalDecisionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["accept", "reject"]
+    revision: int = Field(ge=1)
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/arrival")
+def post_arrival_decision(body: ArrivalDecisionBody, request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                          principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-RFQ-PAYMENT-SCHEDULE (contract 20.6): an RFQ manager accepts or rejects the arrival date the vendor proposed. Sends nothing."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    rfq_terms.decide(conn, viewer, seen, award_id, body.action, body.revision, _rid(request))
     return _detail(conn, viewer, rfq_id)
 
 

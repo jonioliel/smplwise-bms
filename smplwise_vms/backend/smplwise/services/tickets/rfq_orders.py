@@ -122,7 +122,11 @@ def _scope_text(q: Mapping[str, Any], line_indexes: list[int]) -> str:
 
 
 def defaults(conn, row: Mapping[str, Any], award: Mapping[str, Any]) -> dict[str, Any]:
-    """The order form's dates: the awarded quote's work window, else the request's wanted window."""
+    """The order form's dates: CR-RFQ-PAYMENT-SCHEDULE - the arrival window the vendor confirmed (or the planned one); else the
+    awarded quote's work window, else the request's wanted window."""
+    t = store_rfq.terms(conn, award["id"])
+    if t is not None and t.get("planned_from"):
+        return {"work_from": t["planned_from"], "work_to": t.get("planned_to") or t["planned_from"]}
     q = store_quotes.quote(conn, award["quote_id"]) or {}
     wf = q.get("work_from") or row.get("work_from")
     wt = q.get("work_to") or q.get("work_from") or row.get("work_to") or wf
@@ -144,6 +148,9 @@ def _description(conn, row: Mapping[str, Any], q: Mapping[str, Any], award: Mapp
     block = [f"הזמנת עבודה מבקשת הצעת מחיר {rfq.ref(row['number'])}",
              f"היקף: {_scope_text(q, json.loads(award['line_indexes_json']))}",
              f"מועד עבודה: {a if a == b else f'{a} - {b}'}"]
+    from . import rfq_terms
+
+    block += rfq_terms.order_lines(conn, award["id"])  # CR-RFQ-PAYMENT-SCHEDULE: the arrival confirmation and the due rules (no amount)
     if documents:
         block.append(f"מסמכים שסוכמו: {documents}")
     head = (row.get("description") or "").strip()
@@ -356,6 +363,9 @@ def send_order(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, rid: str 
                            data={"award_id": a["id"], "ticket_id": ticket["id"], "outbox_id": oid, "channel": planned}, at=at)
     store.insert_event(conn, ticket["id"], "rfq_order_sent", actor_kind="user", actor_user_id=viewer.uid, actor_name=who,
                        assignment_id=order["assignment_id"], data={"rfq_id": row["id"], "outbox_id": oid, "channel": planned}, at=at)
+    from . import rfq_terms
+
+    rfq_terms.requested(conn, a["id"], via="order", now=now)  # CR-RFQ-PAYMENT-SCHEDULE: the confirmation clock starts (once)
     rfq._touch(conn, row, {}, None, now)
     rfq._audit(conn, viewer, "ticket.rfq.order_send", row, rid, award_id=a["id"], vendor_id=v["id"], ticket_id=ticket["id"], outbox_id=oid,
                channel=planned)

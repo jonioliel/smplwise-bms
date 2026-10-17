@@ -25,7 +25,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -34,7 +34,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
 from . import codes as codes_mod
-from . import links, rfq_attach, rfq_files, rfq_vendor, store_rfq
+from . import links, rfq_attach, rfq_files, rfq_terms, rfq_vendor, store_rfq
 from .codes import CodeEngine, CodePolicy, CodeRefused
 from .handler_actions import ActionRefused, _finish as finish_request, claim as claim_request
 from .keyring import KEYS
@@ -53,6 +53,7 @@ QUOTE_ROUTE = "/t/api/rfq/quote"
 WITHDRAW_ROUTE = "/t/api/rfq/withdraw"
 DECLINE_ROUTE = "/t/api/rfq/decline"
 MESSAGE_ROUTE = "/t/api/rfq/message"
+ARRIVAL_ROUTE = "/t/api/rfq/arrival"  # CR-RFQ-PAYMENT-SCHEDULE (contract 20.5)
 CODE_SEND_ROUTE = "/t/api/rfq/code/send"
 CODE_VERIFY_ROUTE = "/t/api/rfq/code/verify"
 FILE_ROUTE = "/t/api/rfq/file/{attachment_id}"
@@ -296,7 +297,30 @@ class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
+class PaymentItemIn(_Strict):
+    """CR-RFQ-PAYMENT-SCHEDULE: one proposed instalment - amounts and dates only (never bank data)."""
+    kind: Literal["advance", "progress", "final"]
+    percent: str | None = Field(default=None, max_length=8)
+    amount: str | None = Field(default=None, max_length=16)
+    due: Literal["date", "completion", "after_completion"]
+    date: str | None = Field(default=None, max_length=10)
+    days: int | None = Field(default=None, ge=0, le=180)
+
+
+class PaymentIn(_Strict):
+    items: list[PaymentItemIn] = Field(min_length=1, max_length=6)
+
+
+class ArrivalIn(_Strict):
+    action: Literal["confirm", "propose"]
+    work_from: str | None = Field(default=None, max_length=40)
+    work_to: str | None = Field(default=None, max_length=40)
+    acknowledge_schedule: bool
+    client_request_id: str = Field(max_length=64)
+
+
 class QuoteIn(_Strict):
+    payment: PaymentIn | None = None
     lines: list[LineIn] = Field(default_factory=list, max_length=30)
     currency: str | None = Field(default=None, max_length=3)
     amounts_include_vat: bool | None = None
@@ -532,6 +556,19 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
     @r.get(THUMB_ROUTE)
     async def get_thumb(request: Request, attachment_id: str, ctx: LinkContext = Depends(rfq_context())) -> FileResponse:
         return await serve_file(request, attachment_id, ctx, True)
+
+    @r.post(ARRIVAL_ROUTE)
+    async def post_arrival(request: Request, ctx: LinkContext = Depends(rfq_context(write=True))) -> JSONResponse:
+        """CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor confirms the planned arrival window or proposes another one, and acknowledges
+        the approved payment schedule (his own award only; every other case is 409 `arrival_closed`)."""
+        body: ArrivalIn = await read_json(request, ArrivalIn)
+        crid = parse_client_request_id(body.client_request_id)
+        payload = body.model_dump(exclude={"client_request_id"})
+
+        def fn(conn, when: dt.datetime) -> tuple[int, dict[str, Any]]:
+            return 200, {"ok": True, "terms": rfq_terms.vendor_act(conn, ctx.link, payload, when)}
+
+        return await write(request, ctx, ARRIVAL_ROUTE, crid, fn)
 
     # ------------------------------------------------------------ the optional verification code (15.2), as /t/api/code/*
 

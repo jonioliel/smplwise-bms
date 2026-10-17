@@ -6,6 +6,7 @@ import './rfq-quote-dialog';
 import './rfq-message-dialog';
 import './rfq-order';
 import './rfq-files';
+import './rfq-terms'; // CR-RFQ-PAYMENT-SCHEDULE: the approved schedule + the vendor's arrival confirmation
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -558,6 +559,7 @@ export class TicketsRfqBoard extends LitElement {
       ${this.header(d)}
       ${this.banners(d)}
       ${d.awards.some((a) => a.state === 'approved') ? html`<tickets-rfq-order .rfq=${d} @changed=${(e: CustomEvent<RfqDetail>) => (this.d = e.detail)}></tickets-rfq-order>` : nothing}
+      ${d.awards.some((a) => a.state === 'approved' && a.terms) ? html`<tickets-rfq-terms .rfq=${d} @changed=${(e: CustomEvent<RfqDetail>) => (this.d = e.detail)}></tickets-rfq-terms>` : nothing}
       ${this.kpis(d)}
       <div class="grid2">${this.vendorsCard(d)}${this.timeline(d)}</div>
       ${this.filesCard(d)}

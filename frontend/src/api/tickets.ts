@@ -350,10 +350,13 @@ export interface Holder {
 export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles?: RoleRow[] }
 /** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
 export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for'; theme: 'light' | 'dark' | 'auto'; /* TK255 */ path_prefix?: string; legacy_t_paths?: boolean; /* a request field only */ confirm_live_links?: boolean }
+/** CR-RFQ-PAYMENT-SCHEDULE: the requests-for-quotation keys the settings screen edits (the rest of the `rfq` block is read-only here). */
+export interface RfqSettings { schedule_arrival?: boolean; arrival_reminder_hours?: number; [key: string]: unknown }
 export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */;
   /** CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (system.configure, default off) */
-  directory?: { managers_full_phones: boolean } }
-export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones: boolean } }
+  directory?: { managers_full_phones: boolean }; rfq?: RfqSettings }
+export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones: boolean };
+  rfq?: { schedule_arrival?: boolean; arrival_reminder_hours?: number } }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;

@@ -395,6 +395,9 @@ the uniform 404, a read-only grace 409 `read_only`, a code switched on meanwhile
 | `quote.approved.*` (`line_indexes`, `subtotal_minor`, `vat_minor`, `total_minor`) | his own APPROVED award on his own quote | after the code, when awarded |
 | `rfq.attachments[]` (`id`, `name`, `caption`, `kind`, `bytes`, `width`, `height`, `thumb`) | `ticket_rfq_attachments` of THIS request, live (`removed_at` NULL) and `visible_vendors = 1` (v1.4, 19.4); `name` = the cleaned display name, never a path | after the code, not on a closed / cancelled page |
 | the files themselves (`GET /t/api/rfq/file/<id>[/thumb]`) | the stored re-encoded JPEG / its thumbnail, or the stored PDF / DOCX / XLSX as a download | the same rule, re-checked per request (19.4) |
+| `quote.payment` (v1.4) | his OWN proposed instalments on his own quote | after the code |
+| `form.payment` (v1.4) | the installation switch + code constants (`null` while off) | after the code |
+| `terms.*` (v1.4, section 20.4) | his OWN approved award's schedule (amounts of his award only) and arrival confirmation | after the code, only when page_state is `awarded` |
 | `messages[].id` | his own thread's message ids | after the code |
 | `can.*` | derived (15.3) | after the code |
 | `page_state` | derived (15.3) | after the code |
@@ -618,7 +621,7 @@ The owner (17.10): "in a request for quotation the manager must be able to attac
 reaches the vendors we want quotes from (photos of the site, plans, specs, PDFs)". Direction (a) of section 17 is built - manager ->
 vendors; direction (b) (a vendor's own files on his quote) is not (19.9). Decisions and open questions: `docs/changes/CR-RFQ-ATTACHMENTS.md`.
 
-### 19.1 Migration 0104 (PROVISIONAL number - the lead renumbers at integration; 0101..0103 are free on integ/264)
+### 19.1 Migration 0102 (provisional 0104 on `pilot/RFQATT`, renumbered at the integ/264 integration)
 
 Additive, no rebuild. `ticket_rfq_attachments`: `id`, `rfq_id` (FK SET NULL - a purged request leaves a file a work order references),
 `folder` (the request's id at upload, never changes; the orphan sweep reads it), `kind` (`image` | `pdf` | `docx` | `xlsx`), `name` (the
@@ -743,9 +746,137 @@ counts only). The image pipeline's own rule (no metadata reaches Pillow) applies
   re-encoded through the image pipeline incl. still WebP for this signed-in route only, PDF / DOCX / XLSX by structural refusal checks and
   served as downloads only), per-file caption and "visible to vendors", the vendor page's files (his own link, the uniform 404 otherwise),
   removal rules (deleted before any quote, marked after), the work order's reference copy, the `{files}` placeholder (a count only), meta
-  `attachments` / `attachment_limits`, detail `attachments` / `can.attach`. Migration 0104 (PROVISIONAL). 15.3 / 15.5 updated (the
+  `attachments` / `attachment_limits`, detail `attachments` / `can.attach`. Migration 0102 (provisional 0104). 15.3 / 15.5 updated (the
   attachments are no longer always `[]`); section 17 marked superseded. Deviation from section 17 (owner request 17.10): Office documents
   (DOCX / XLSX) and WebP are accepted (17 said "no Office types" and the pipeline refused WebP) - see CR-RFQ-ATTACHMENTS.md.
+## 20. Payment schedule and arrival confirmation (v1.4, CR-RFQ-PAYMENT-SCHEDULE, `pilot/RFQPAY`)
+
+Owner request 2026-10-17; decisions and open questions in `docs/changes/CR-RFQ-PAYMENT-SCHEDULE.md`. Arx NEVER initiates or executes a
+payment: it records agreed amounts and dates and checks a payment demand against them. No bank data is accepted or stored anywhere
+(unknown keys are refused by `extra = forbid` and by the plan parser).
+
+### 20.1 Switch, settings, migration
+
+* `tickets.settings.rfq.schedule_arrival` (bool, default **false**) and `rfq.arrival_reminder_hours` (0-168, default 24; 0 = no
+  reminder), settable through `PUT /tickets/settings` `{revision, rfq: {...}}` (`system.configure`, as every installation key). While the
+  switch is off no terms are created, no reminder runs and no answer changes shape except the always-present `null` fields below (terms
+  agreed while it was on stay readable and confirmable - a settings change does not withdraw an agreement); every new input
+  field is refused with 422 `validation` `{field: "payment" | "arrival", code: "disabled"}` (public: `{code: "invalid", fields: [...]}`), so
+  a client never believes it agreed terms the server ignored.
+* Migration **0103** (provisional 0105 on `pilot/RFQPAY`, renumbered at the integ/264 integration),, additive only: `ticket_quotes.payment_plan_json` (the vendor's
+  proposal), `ticket_quotes.payment_schedule_json` (the APPROVED schedule, copied when the award becomes final - it stays with the quote,
+  i.e. with the ticket's cost baseline after the work order, even when the request is purged), and `ticket_rfq_award_terms` (one row per
+  award created while the switch is on: the schedule while a second approval is pending, the arrival confirmation for the award's life;
+  deleted with the award / request - `store_rfq.purge_rfq` deletes it explicitly).
+
+### 20.2 The plan (vendor's proposal, manager's edit) - one wire shape
+
+`payment: {items: [{kind: advance|progress|final, percent?: "30" | "12.5", amount?: "1500.00", due: date|completion|after_completion,
+date?: "YYYY-MM-DD", days?: 0..180}]}` - 1..6 items: at most one `advance` and only first; 0..4 `progress`; exactly one `final`, last.
+Non-final items: exactly one of `percent` (1-100, at most 2 decimals) / `amount` (money.py decimal string, > 0), `due: "date"` with a
+plain day in the installation zone, today .. today + 366, non-decreasing. The final item carries NO share (it is the remainder - the sum
+is exact by construction): `completion`, `date` (not before the last instalment's day) or `after_completion` with `days`. The percents
+together are <= 100. Refusals name the field: `payment.items`, `payment.items.<i>[.<field>]` with `count`, `final_last`,
+`advance_first`, `share_required`, `final_is_remainder`, `range`, `format`, `order`, `exceeds_total`, `invalid`.
+
+Accepted on: `POST /t/api/rfq/quote` (`payment?`), `POST /tickets/rfqs/{id}/vendors/{rv_id}/quotes` (on behalf, `payment?`). Stored
+normalised on the quote (`percent_bp` or `amount_minor`). Shown back: the vendor's own `quote.payment` (15.3) and the comparison's
+`payment_proposal` (costs.view only) as `{items: [{kind, due, date, days, percent (text) | null, amount_minor | null}]}`.
+
+### 20.3 Approval with the award (the existing flow, incl. partial and split approval)
+
+`POST /tickets/rfqs/{id}/awards` adds `payment?` (20.2: the manager's edit; omitted = the vendor's proposal, else ONE final instalment
+on completion) and `arrival?: {work_from, work_to?}` (the planned window; omitted = the awarded quote's work dates, else the request's
+wanted window, else none - the vendor then proposes). Every refusal happens BEFORE the award writes anything (422 `validation`).
+
+Conversion (integers only, `rounding: "floor_final"`): with T = the award's approved total (minor units, VAT included - the same
+`money.compute` figure as `approved_total_minor`), each percent instalment = floor(T x percent_bp / 10000), each fixed amount as given,
+the final = T - the others. Refused: the non-final instalments above T (`exceeds_total`, e.g. a fixed advance above a partial
+approval), or one that rounds to zero (`zero_amount`). A final of 0 is allowed (100 % in advance). The approved schedule:
+`{currency, total_minor, rounding, items: [{index, kind, amount_minor, percent_bp | null, due, date | null, days | null}]}` - the sum of
+`amount_minor` is always `total_minor`. A pending second approval keeps it in `ticket_rfq_award_terms` (the second approver sees it, the
+vendor sees nothing); a declined award deletes it; the final award copies it to the quote and writes the RFQ timeline row `terms_set`
+(`{award_id, items, source: vendor|manager|default}`). Audit `ticket.rfq.award` adds `schedule_source`.
+
+The award's `message_draft` (section 7) gains one sentence asking the vendor to confirm the arrival date and the schedule on the page
+(he / en / ar / ru; no amount).
+
+### 20.4 What the vendor sees (`GET /t/api/rfq`, after the code gate)
+
+* `form.payment`: `null` (switch off) or `{max_items: 6, days_max: 180, horizon_days: 366}` - the page then offers the optional block.
+* `terms`: `null`, except for the vendor whose APPROVED award has terms (page_state `awarded`): `{schedule: {currency, total_minor, items:
+  [{kind, amount_minor, due, date, days}]}, arrival: {state: awaiting|proposed|confirmed, planned_from, planned_to, proposed_from,
+  proposed_to, rejected (bool), confirmed_at, acknowledged_at}, can: {confirm, propose}}`. Amounts are HIS award's only. A vendor that was
+  not selected, a pending second approval, a closed request: `terms: null` (nothing tells him an award exists elsewhere).
+* `can.confirm` = not read-only, request `awarded` / `ordered`, vendor `awarded`, arrival `awaiting` and a planned date exists;
+  `can.propose` = the same with arrival `awaiting` or `proposed`.
+
+### 20.5 The vendor's write - `POST /t/api/rfq/arrival`
+
+`{action: confirm|propose, work_from?, work_to?, acknowledge_schedule: true, client_request_id}` - a `token_write` route of the edge,
+the 15.4 rules (strict model, replay per link generation, the link re-read inside the transaction, read-only grace 409 `read_only`, no
+code session 403 `code_required`, uniform 404). `confirm` takes no dates (422) and needs a planned date (409 `arrival_date_missing`);
+`propose` needs `work_from` (`quotes._instant` range rules; `work_to >= work_from`). `acknowledge_schedule` must be `true` (422
+`{field: "acknowledge_schedule", code: "required"}`) - both actions record `acknowledged_at` (the first time). Every other case - no
+approved award with terms for THIS vendor, a pending second approval, a request that ended, an arrival already confirmed - is ONE answer:
+409 `arrival_closed`. Answer `200 {ok, terms}` (20.4 shape). Timeline `arrival_confirmed` (`{award_id, by: "vendor", work_from, work_to}`)
+or `arrival_proposed` (`{award_id}`); audit `ticket.rfq.vendor_arrival` (actor `contact:<id>`, ids + `arrival_action` - never an amount);
+the managers' notification `rfq.arrival` (20.7). A confirmation, when the work order's ticket exists, also writes the ticket timeline row
+`rfq_arrival_confirmed` (`{rfq_id, award_id, work_from, work_to}`).
+
+### 20.6 The manager's decision - `POST /tickets/rfqs/{id}/awards/{award_id}/arrival`
+
+`{action: accept|reject, revision (of the terms)}` - an RFQ manager (section 6; audited 403 otherwise; invisible request = uniform 404).
+404 `terms_not_found` (no terms or the award is not final), 409 `rfq_stale` (`details.revision`), 409 `arrival_not_proposed`. Accept: the
+proposed window becomes the planned one, `confirmed` (`confirmed_by: "manager"`). Reject: back to `awaiting` (`rejected_at`; the vendor
+confirms the planned window or proposes again). Nothing is sent (the manager may write in the thread). Timeline `arrival_confirmed` /
+`arrival_rejected`; audit `ticket.rfq.arrival_decide`; the vendor's `rfq.arrival` notification row is resolved. Answer: the detail.
+
+### 20.7 Detail, timeline, notifications, reminders
+
+* Detail `awards[].terms` (and the award answers' `award.terms`): `null` or `{schedule: {currency, total_minor, rounding, items, source},
+  proposal (the vendor's, costs.view only), arrival: {state, planned_from, planned_to, proposed_from, proposed_to, rejected_at,
+  confirmed_at, confirmed_by, acknowledged_at, requested_at, reminders}, revision, can: {decide_arrival}}` - amounts / percents `null`
+  without `tickets.costs.view`. `meta.schedule_arrival` (bool) tells the award dialog to offer the fields.
+* Timeline kinds: `terms_set`, `arrival_requested` (`{award_id, via: award|order}`), `arrival_reminder`, `arrival_proposed`,
+  `arrival_confirmed`, `arrival_rejected` (ids, states, the confirmed dates - never an amount).
+* Notification source `rfq.arrival` ("ספק אישר מועד הגעה או הציע מועד אחר" / "Vendor confirmed or proposed an arrival date"), the 16.1
+  rules (subject `rfq`, rule `rfq_managers`, info, inbox + push, WhatsApp off), one row per vendor (`rfq:<id>:arrival:<rv_id>`), resolved
+  by the decision and by close / cancel / delete. Text: the reference + place only.
+* The reminder clock starts when the vendor is MESSAGED: a thread message with `source: {kind: "award"}` (the award notice) or the work
+  order's send (`requested_at`, once). The janitor (`costs_retention` -> `rfq.retention` -> `rfq_terms.tick`) reminds a vendor whose
+  arrival is still `awaiting` `arrival_reminder_hours` after that, at most twice, spaced by the same delay: a thread message (fixed text,
+  vendor's language) + the existing `rfq_update` notice over his live link (existing purpose, existing send-hours rules, idempotency key
+  `rfqarr:<award_id>:<n>`). No new outbox purpose.
+
+### 20.8 The payment demand against the schedule (flag, never refuse)
+
+The cost claim of the order's assignment (the quote is its baseline, DETAIL 4.2) gains `schedule_check` in the managers' full claim
+view: `null` without an approved schedule, else `{status: ok|flagged, flags: [currency | above_total | ahead_of_schedule], currency,
+schedule_total_minor, due_minor, demand_minor, as_of, items: [{index, kind, amount_minor, due, due_date, is_due}]}`. `as_of` = the day the
+current revision was submitted; an instalment is due on its date, on completion (= the ticket's `done_at`, else the claim's creation),
+or N days after completion. `ahead_of_schedule` = the demand is above the instalments due by `as_of`. A flagged submitted demand also
+sets `needs_review`. Nothing is refused, nothing is sent, no payment is made or scheduled.
+
+### 20.9 Work order
+
+`order_defaults` (18.4) = the confirmed / planned arrival window first, then the 18.2 rule. The order's description block adds
+"מועד הגעה: <window> (<state>)" and "לוח תשלומים מאושר: <kind> - <due rule>; ..." - NEVER an amount. Sending the order starts the
+reminder clock (20.7). The arrival confirmation does not block the order (open question in the CR).
+
+### 20.10 Not built (owner item C)
+
+After the arrival is confirmed, a personal access code and the doors / time windows of the work (depends on the WisKey absorption).
+Extension point: `rfq_terms.on_arrival_confirmed(conn, row, terms)` - called after every confirmation (vendor or manager accept), does
+nothing in this version; it must stay a separate, explicitly approved action (physical access).
+
+## 14. Change log
+
+* v1.4 (2026-10-17, CR-RFQ-PAYMENT-SCHEDULE, `pilot/RFQPAY` from `integ/264`): section 20 - the vendor's proposed payment schedule on his
+  quote, the schedule approved with the award (percents -> exact amounts, floor + remainder to the final instalment), the arrival
+  confirmation on the vendor's RFQ link (`POST /t/api/rfq/arrival`), the manager's accept / reject (`POST .../awards/{id}/arrival`), the
+  reminder through existing purposes, the `rfq.arrival` notification, the demand's `schedule_check`, the work order's defaults / text.
+  Switch `rfq.schedule_arrival` default OFF; migration 0103 (provisional 0105; additive).
 
 * v1.3 (2026-10-16, integration 2.6.4; TKRFQ4 stage C4, built as "v1.2" on `pilot/TKRFQ4` in parallel with TKRFQ5): section 18 - the work order: create (opens one service request per awarded vendor through the
   existing create and external-assignment code, the assignment message suppressed; the awarded quote becomes its baseline with no

@@ -215,6 +215,16 @@ export interface RfqQuote {
   vendor_ref: string | null;
   submitted_at: string;
   approved: null | { line_indexes: number[]; subtotal_minor: number; vat_minor: number; total_minor: number };
+  /** CR-RFQ-PAYMENT-SCHEDULE: his own proposed instalments (percent text or a fixed amount; the final one is the remainder) */
+  payment?: null | { items: { kind: 'advance' | 'progress' | 'final'; due: string; date: string | null; days: number | null; percent: string | null; amount_minor: number | null }[] };
+}
+
+/** CR-RFQ-PAYMENT-SCHEDULE (contract 20.4): HIS approved schedule and arrival confirmation - only on his own approved award. */
+export interface RfqTerms {
+  schedule: { currency: string; total_minor: number; items: { kind: 'advance' | 'progress' | 'final'; amount_minor: number; due: 'date' | 'completion' | 'after_completion'; date: string | null; days: number | null }[] };
+  arrival: { state: 'awaiting' | 'proposed' | 'confirmed'; planned_from: string | null; planned_to: string | null; proposed_from: string | null; proposed_to: string | null;
+    rejected: boolean; confirmed_at: string | null; acknowledged_at: string | null };
+  can: { confirm: boolean; propose: boolean };
 }
 
 /** `GET /t/api/rfq` (15.3). Before the code (a code-protected link without a session) only the first block is present. */
@@ -241,8 +251,10 @@ export interface RfqView {
   declined?: { at: string; reason: string | null } | null;
   messages?: { id: string; mine: boolean; text: string; at: string }[];
   form?: { currencies: string[]; allowed_kinds: RfqKind[]; vat: { exempt: boolean; rate_bp: number; default: 'excluded' | 'included' | 'none' }; labor_rate_minor: number | null;
-    limits: { lines: number; description: number; note: number; vendor_ref: number; message: number; decline_reason: number; max_total_minor: number } };
+    limits: { lines: number; description: number; note: number; vendor_ref: number; message: number; decline_reason: number; max_total_minor: number };
+    payment?: null | { max_items: number; days_max: number; horizon_days: number } };
   can?: { quote: boolean; withdraw: boolean; decline: boolean; ask: boolean };
+  terms?: RfqTerms | null;
 }
 
 export const rfqApi = {
@@ -254,6 +266,7 @@ export const rfqApi = {
   message: (c: Credentials, text: string, crid: string) => call<{ ok: boolean; message: { id: string; mine: boolean; text: string; at: string } }>(c, 'POST', '/t/api/rfq/message', { text, client_request_id: crid }),
   codeSend: (c: Credentials) => call<{ sent: boolean; channel: string; expires_in_s: number }>(c, 'POST', '/t/api/rfq/code/send', {}),
   codeVerify: (c: Credentials, code: string) => call<{ session: string; expires_in_s: number }>(c, 'POST', '/t/api/rfq/code/verify', { code }),
+  arrival: (c: Credentials, body: Record<string, unknown>) => call<{ ok: boolean; terms: RfqTerms }>(c, 'POST', '/t/api/rfq/arrival', body),
 };
 
 /** Slice 9: the claim step's own I/O (claim/claim-step.ts gets these injected) - the same headers and fetch options as `call`. */
