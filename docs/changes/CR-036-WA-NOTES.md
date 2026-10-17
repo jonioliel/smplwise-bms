@@ -209,3 +209,9 @@ addition; the resolution is to keep both sides:
   `screens/wiskey-people.ts` (state fields `messagesRev` + S11's `acting` / `result` / `pendingDelete`; the drawer's property list gets both
   groups) and `screens/wiskey-person-drawer.ts` (imports `MessagingTransport` + S11's `wt`; properties `transport` / `messagesTab` /
   `messagesRev` + S11's `canAct` / `resultLine`). The drawer's footer has "שלח הודעה" and S11's "פעולות" side by side after the merge.
+
+## HARDEN271 (2.7.1) - the phone-hash key in backups
+
+`access.messaging.phone_key` (the HMAC key of the phone hashes) and the `access.messaging` settings document are in `backup.SETTINGS_KEEP`:
+never exported in a project backup, and a `replace` or `merge` restore never overwrites them (number-based opt-outs keep matching; an
+archive cannot switch messaging or consent by link on or loosen a cap). Test: `tests/test_harden271_backup_keys.py` (red before, green after).

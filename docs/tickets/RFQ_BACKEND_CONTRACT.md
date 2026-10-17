@@ -817,7 +817,7 @@ files out - fail closed).
 
 | Route (public listener) | Edge | Body / answer |
 |---|---|---|
-| `POST /t/api/rfq/upload` | kind `rfq_upload` (multipart, 10 MiB + 64 KiB, the 60 s upload deadline and 5 s idle limit; per LINK `token_rfq_uploads` 12 / h - spent when the body phase starts, whatever follows; per CLIENT NETWORK `rfq_upload_per_network` 12 / 10 min + 30 / h - counted at admission for every attempt, valid token or not) | multipart `file` (its own filename is never used), EXACTLY ONE of `quote_id` / `message_id` (none or both: 422 `invalid` `{field: "quote_id", code: "one_of"}`), `client_request_id` (UUID), `name?` (text <= 240 bytes: a display name only, cleaned by `rfq_files.display_name`, the extension is ALWAYS the content's) -> `201 {ok, file: {id, name, kind, bytes, at, on: quote / question, message_id}}` |
+| `POST /t/api/rfq/upload` | kind `rfq_upload` (multipart, 10 MiB + 64 KiB, the 60 s upload deadline and 5 s idle limit; per LINK `token_rfq_uploads` 12 / h - spent when the body phase starts, whatever follows; per CLIENT NETWORK `rfq_upload_per_network` 30 / 10 min + 90 / h - v1.5.1 (HARDEN271, review F2): CHECKED at admission for a well-formed token only and SPENT when an upload body starts (the token proved valid and the upload gate passed), so tokenless / invalid attempts from a shared address never lock its vendors out; tokenless floods stay on the network failure budget) | multipart `file` (its own filename is never used), EXACTLY ONE of `quote_id` / `message_id` (none or both: 422 `invalid` `{field: "quote_id", code: "one_of"}`), `client_request_id` (UUID), `name?` (text <= 240 bytes: a display name only, cleaned by `rfq_files.display_name`, the extension is ALWAYS the content's) -> `201 {ok, file: {id, name, kind, bytes, at, on: quote / question, message_id}}` |
 | `POST /t/api/rfq/upload/remove` | kind `token_write` (JSON <= 1 KiB) | `{file_id, client_request_id}` -> `200 {ok}` |
 
 Order on the upload: the switch (404) -> read-only grace (409 `read_only`) -> a code-protected link without its session (403
@@ -857,8 +857,8 @@ office files only while allow_office is on (else left out of lists, 404 on read)
 
 | Where | Who | Reads |
 |---|---|---|
-| comparison `quotes[].vendor_files: [{id, name, kind, mime, bytes, width, height, thumb, quote_id, message_id, quote_version, created_at, removed}]` - that vendor's QUOTE files | the comparison's rule (visible + `tickets.costs.view`) | `GET /tickets/rfqs/{id}/vendor-files/{fid}[/thumb]`: the request visible (uniform 404 `rfq_not_found`), then a QUOTE file needs `tickets.costs.view` (audited 403 `costs_permission_missing`, action `ticket.rfq.vendor_file`); a QUESTION file the thread's rule (whoever sees the request sees its threads, 21.2) |
-| `GET .../vendors/{rv}/messages` inbound items and the detail's `questions.items[]` add `files` (same shape) - next to the question | whoever sees the request | the same route |
+| comparison `quotes[].vendor_files: [{id, name, kind, mime, bytes, width, height, thumb, quote_id, message_id, quote_version, created_at, removed}]` - that vendor's QUOTE files | the comparison's rule (visible + `tickets.costs.view`) | `GET /tickets/rfqs/{id}/vendor-files/{fid}[/thumb]`: the request visible (uniform 404 `rfq_not_found`), then EVERY vendor file - quote or question - needs `tickets.costs.view` (v1.5.1, HARDEN271 / review F1, owner-accepted: one rule; a vendor may write prices in a question file), decided before the row is read (audited 403 `costs_permission_missing`, action `ticket.rfq.vendor_file`, the same for an existing and an unknown id) |
+| `GET .../vendors/{rv}/messages` inbound items and the detail's `questions.items[]` add `files` (same shape) and `files_hidden` (int) - next to the question | `files` only for `tickets.costs.view` on the request; everyone else who sees the request gets `files: []` and the neutral count `files_hidden` (no id, no name, no size) - v1.5.1 | the same route |
 | the work order (TKRFQ4): `POST .../awards/{award_id}/order` writes one `ticket_rfq_vendor_file_refs` row per LIVE file (quote and question files) of the awarded vendor row - no copy of the bytes; the ticket's `rfq_origin.vendor_files` (same shape) | a caller who holds `tickets.costs.view` on THAT ticket (others get `[]`) | `GET /tickets/{ticket_id}/rfq-vendor-files/{fid}[/thumb]`: the ticket's own visibility (uniform 404), then `tickets.costs.view` on the ticket (audited 403 `forbidden` `{reason: costs_permission_missing}`); a file the ticket does not reference -> 404 `attachment_not_found` |
 
 Another request's id, a document's thumbnail -> 404 `attachment_not_found`. `meta.vendor_uploads` (bool). Purge of the request: a file a
@@ -1222,6 +1222,14 @@ hours - never the text or the vendor. The engine applies each recipient's channe
 
 ## 14. Change log
 
+* v1.5.1 (2026-10-17, HARDEN271 for 2.7.1, `pilot/HARDEN271` from `integ/270`; no migration): 19.10 - every vendor file needs `tickets.costs.view`
+  (quote AND question files; the thread / pending questions carry `files: []` + `files_hidden` without it; the 403 is decided before the row is read);
+  the per-network `rfq_upload` window is checked for well-formed tokens only and spent by real upload bodies, widened to 30 / 10 min + 90 / h;
+  a file bound to a question makes that question pending and unread again (`answered_at` / `read_at` cleared - a late file is not missed);
+  erasing a vendor contact "also from the history" rewrites `ticket_rfq_events.actor_name` of his vendor rows and his files' names to
+  `file.<ext>`. 20.11 - `GET /tickets/{id}/costs` adds `instalment_demands: [{id, index, kind, status, amount_minor, currency, due_date,
+  created_at, paid_at, cancelled_at}]` for the work order an award opened, read-only, under the Costs tab's rule (full view + `tickets.costs.view`;
+  `[]` otherwise).
 * v1.5 (2026-10-17, RFQPAY2, `pilot/RFQPAY2` from `integ/264`; migration 0110 - provisional 0112, renumbered at integ/270): the
   three items the owner approved after v1.4.1 recorded them as not built - 20.11 a payment demand per approved instalment (manual,
   idempotent, paid / cancel; new table `ticket_rfq_instalment_demands`), 20.12 the overdue-instalment notification (new source

@@ -95,3 +95,23 @@ provisioned PINs are removed; WisKey's own validity is the backstop.
    only persons without other doors, or keep the approver's dialog warning?
 4. Who may "delete now" a person: today the grant permission somewhere + `access.people.manage` unrestricted.
 5. The arrival step for a regular (non-RFQ) external assignment ("access needed" tick on the assignment) - not built; wanted?
+
+## HARDEN271 (2.7.1, `pilot/HARDEN271` from `integ/270`) - review K1-K4, K6 fixed; still `GO_LIVE_PERMITTED = False`
+
+Review: `private/planning/RELEASE_270_REVIEW_CONSOLIDATED.md` section 2. Negative-first tests: `tests/test_harden271_access_grants.py`
+(7 cases; 6 red on integ/270 before the change, all green after).
+
+- **K1** - a vendor-page arrival whose ticket has no station placement and no "entrance for external people" station is refused at request
+  time: `POST /t/api/arrival` 409 `no_doors_suggested`, and `access_grants.request_grant` refuses an empty door map for every caller
+  (409 `no_doors_suggested`). Nothing is written (the public transaction rolls back: no grant, no pending technician, no notice row).
+- **K2** - `approve`, `refuse`, `revoke`, `rotate`, `provision_now` answer the uniform 404 `access_grant_not_found` for a grant the caller
+  cannot see (`visible()`; revoke also admits `access.people.manage` on one of the grant's stations, R2) before any authority, state or
+  revision answer. Two existing "cannot" tests now expect 404 instead of 403 (`g2`, a viewer).
+- **K3** - `approve()` checks the switch, the session kind, the local-approver rule, visibility and the approve permissions on the stations
+  being approved BEFORE `engine.get_person()`; an unauthorised caller gets an audited 403 and Arx issues no WisKey read.
+- **K4** - a widening approved while the grant is `provisioning` sets `needs_push`, and `Worker.provision` marks `needs_push` whenever the
+  row's scope moved while its write was out; the next pass pushes the row's scope.
+- **K6** - `access_arrival._order()` reads only the RFQ's own `order_created` rows (`ticket_rfq_events WHERE rfq_id = ?`, index
+  `idx_ticket_rfq_events_rfq`), found through the quote's `rfq_vendor_id`.
+- Not changed: K5 (wording, counsel), K7 (optional). Backups: `access.external_grants` and every `access.external.*` limit are in
+  `backup.SETTINGS_KEEP` (never exported, never restored).

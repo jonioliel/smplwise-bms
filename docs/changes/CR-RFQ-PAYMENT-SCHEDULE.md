@@ -177,3 +177,13 @@ order's description is not rewritten by a re-send (only the message carries the 
 Turn the switch off: new quotes / awards carry no schedule again and reminders stop at once; terms already agreed stay readable and
 their vendors may still confirm (an agreement is not withdrawn by a settings change). Code rollback: revert the branch's commit;
 migration 0103 is additive (two NULL columns and one table; leaving them in place is harmless).
+
+## 9. HARDEN271 (2.7.1) - the instalment demands in the work order's Costs tab (owner kept this task)
+
+`GET /tickets/{id}/costs` adds `instalment_demands` (`rfq_terms.ticket_demands`): the demands of the quote the work order came from, each
+`{id, index, kind, status, amount_minor, currency, due_date, created_at, paid_at, cancelled_at}`, read-only, only under the Costs tab's own
+rule (full view + `tickets.costs.view`; `[]` otherwise). The tab renders it in a lazy chunk (`tickets/costs-demands.ts`, imported only when
+the list is non-empty; measured 1,418 B gzip on a scratch build of the add-on UI; its own 3 KB cap in `unit-costs-demands.spec.ts`, which
+skips until `smplwise_vms/www` is rebuilt). No public code changed: the public ticket page and RFQ page budgets are untouched. Marking
+paid / cancelling stays on the RFQ screen. Tests: `tests/test_harden271_ticket_demands.py` (red before, green after),
+`frontend/tests/unit-costs-demands.spec.ts`.
