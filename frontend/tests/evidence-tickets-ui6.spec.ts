@@ -29,7 +29,7 @@ const ACCOUNT = 'entry:01JDEMOACCOUNT';
 const ACCOUNT_LABEL = 'שירות ····0191';
 const at = (h: number) => new Date(Date.parse('2026-10-13T10:42:00Z') - h * 3_600_000).toISOString().replace(/\.\d+Z$/, 'Z');
 
-/** The channel, templates and costs screens' routes (fake data) - the tabs of the settings that the base mock layers do not answer. */
+/** The channel, templates, costs and locations screens' routes (fake data) - the tabs of the settings that the base mock layers do not answer. */
 async function installTabsMock(page: Page): Promise<void> {
   await page.route('**/api/v1/tickets/**', async (route) => {
     const req = route.request();
@@ -62,6 +62,15 @@ async function installTabsMock(page: Page): Promise<void> {
     }
     if (p === 'tickets/admin/message-templates/preview') {
       return json(route, { text: 'שלום דני,\nבקשת שירות 1042 (אחזקה): מזגן לא מקרר\nקומה 1 · חדר 102\nלעדכון הטיפול: [קישור]', problems: [], length: 90, max: 1000 });
+    }
+    if (p === 'tickets/admin/locations' && method === 'GET') {
+      const loc = (id: string, name: string, street: string, city: string, is_default: boolean, sort_order: number, lat: number | null, lng: number | null, references: number) => ({
+        id, name, street, city, details: '', is_default, sort_order, has_coordinates: lat !== null, map_url: '', lat, lng, active: true,
+        nav_url: lat !== null ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}` : '', references, revision: 1, updated_at: at(48) });
+      return json(route, {
+        locations: [loc('loc-main', 'הבניין הראשי', 'הרצל 1', 'תל אביב', true, 0, 32.0853, 34.7818, 4), loc('loc-store', 'המחסן', 'התעשייה 7', 'חולון', false, 1, null, null, 0)],
+        default_id: 'loc-main', department_defaults: { 'dept-maintenance': 'loc-main' }, max: 50,
+      });
     }
     if (p === 'tickets/costs/departments' && method === 'GET') {
       return json(route, {
@@ -213,16 +222,16 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
     await shot(page, 'handlers-readiness', 'light', 'classic', false);
   });
 
-  test('settings: the seven tabs, every tab renders; light / dark, desktop and phone', async ({ page }) => {
+  test('settings: the eight tabs, every tab renders; light / dark, desktop and phone', async ({ page }) => {
     const tabs = ['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'permissions'];
     const waits: Record<string, string> = {
-      general: `${S} [data-name-editor]`, departments: `${S} tickets-dept-editor`, display: `${S} ticket-board-settings [data-ui-board]`, channel: `${S} tickets-channel-settings [data-channel-settings]`,
+      general: `${S} [data-name-editor]`, departments: `${S} tickets-dept-editor`, locations: `${S} tickets-locations-settings [data-card="locations"]`, display: `${S} ticket-board-settings [data-ui-board]`, channel: `${S} tickets-channel-settings [data-channel-settings]`,
       messages: `${S} tickets-message-templates [data-message-templates]`, costs: `${S} tickets-costs-settings [data-costs-settings]`, permissions: `${S} [data-holder]`,
     };
     for (const scheme of ['light', 'dark'] as const) {
       await go(page, '/system/tickets', {}, scheme);
       await page.waitForSelector(waits.general);
-      await expect(page.locator(`${S} [data-tickets-settings-tabs] [role="tab"]`)).toHaveCount(7);
+      await expect(page.locator(`${S} [data-tickets-settings-tabs] [role="tab"]`)).toHaveCount(tabs.length);
       for (const t of tabs) {
         await page.locator(`${S} [data-settings-tab="${t}"]`).click();
         await page.waitForSelector(waits[t], { timeout: 15_000 });

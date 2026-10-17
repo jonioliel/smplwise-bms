@@ -123,6 +123,12 @@ export class TicketsRfqFiles extends LitElement {
       justify-content: flex-end;
       gap: 6px;
     }
+    /* a phone: the caption field is a 44 px touch target like every other control of the sheet */
+    @media (max-width: 767px) {
+      .meta .inp {
+        min-block-size: 44px;
+      }
+    }
     @media (max-width: 560px) {
       li {
         grid-template-columns: 48px minmax(0, 1fr);
