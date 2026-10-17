@@ -74,6 +74,10 @@ def normalize_phone(raw: Any) -> str | None:
         s = s[2:]
     elif s.startswith("0"):
         s = DEFAULT_COUNTRY + s[1:]
+    if s.startswith(DEFAULT_COUNTRY + "0") and len(s) in (12, 13):
+        # VPORTAL 2.6.4 review F7: the common slip `+972 050 ...` / `+972 03 ...` (the trunk 0 kept after the country code) - an
+        # Israeli number never starts with 0 after 972, so the one canonical key drops it (the directory and the portal share it)
+        s = DEFAULT_COUNTRY + s[len(DEFAULT_COUNTRY) + 1:]
     if not s.isascii() or not s.isdigit() or not 8 <= len(s) <= 15 or s.startswith("0"):
         raise ContactInvalid("phone", "format")
     return s

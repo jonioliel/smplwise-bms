@@ -78,9 +78,26 @@ def test_every_starter_is_valid_in_every_language():
             assert tp.problems(purpose, body) == [], (purpose, lang)
 
 
+def test_the_fixed_code_variants_are_pinned_valid_and_name_the_organisation():
+    """VPORTAL review F2 (2.6.4): the portal sign-in code is a code-owned variant of the fixed `phone_verify` message, chosen by the
+    outbox row's template id; it names the organisation and the purpose and says the code is never asked for."""
+    assert set(tp.FIXED_STARTERS) == {"portal_code"}
+    for name, texts in tp.FIXED_STARTERS.items():
+        assert set(texts) == set(channel.LANGS), name
+        for lang, body in texts.items():
+            assert tp.problems("phone_verify", body) == [], (name, lang)
+            assert "{code}" in body and "{organization}" in body and "10" in body, (name, lang)
+    assert tp.fixed_starter("phone_verify", "starter:portal_code", "ar").body == tp.FIXED_STARTERS["portal_code"]["ar"]
+    assert tp.fixed_starter("phone_verify", "starter:portal_code", "xx").lang == "he"
+    assert tp.fixed_starter("phone_verify", None, "en").body == tp.STARTERS["phone_verify"]["en"]
+    assert tp.fixed_starter("phone_verify", "starter:assign:he", "en").body == tp.STARTERS["phone_verify"]["en"], "no other text"
+    he = tp.render(tp.FIXED_STARTERS["portal_code"]["he"], {"organization": ""}, lang="he", secrets={"code": "123456"})
+    assert he.startswith("קוד הכניסה") and "\n\n" not in he, "without an organisation name the line is dropped"
+
+
 def test_starters_never_hard_code_the_module_noun():
     """14.3 lint: the default nouns of the four languages appear nowhere in the starter texts (they use {module_name})."""
-    for purpose, texts in tp.STARTERS.items():
+    for purpose, texts in [*tp.STARTERS.items(), *tp.FIXED_STARTERS.items()]:
         for lang, body in texts.items():
             for noun in tp.DEFAULT_NOUNS:
                 assert noun not in body, (purpose, lang, noun)

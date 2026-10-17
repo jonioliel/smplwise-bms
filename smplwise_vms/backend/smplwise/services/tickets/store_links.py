@@ -302,6 +302,15 @@ def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
     if _has_rfq_links(conn):  # TKRFQ1: the live RFQ vendor links need their key too
         ids |= {r[0] for r in conn.execute("SELECT DISTINCT key_id FROM ticket_rfq_links WHERE revoked_at IS NULL").fetchall() if r[0]}
     ids |= {r[0] for r in conn.execute("SELECT DISTINCT phone_key_id FROM ticket_contacts WHERE phone_key_id IS NOT NULL").fetchall() if r[0]}
+    # VPORTAL 2.6.4 review F4: a live portal sign-in code and a live portal session still need the key they were issued under (a
+    # key retirement right after a rotation must never kill a vendor's sign-in in the middle silently); TKNOTIFOTP's live number
+    # verification codes likewise. Ended rows (spent / ended / revoked) need nothing; the janitor prunes them.
+    for table, live in (("ticket_portal_codes", "consumed_at IS NULL AND invalidated_at IS NULL"),
+                        ("ticket_portal_sessions", "revoked_at IS NULL"),
+                        ("ticket_phone_verifications", "consumed_at IS NULL AND invalidated_at IS NULL")):
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone() is None:
+            continue  # a database before the table's migration
+        ids |= {r[0] for r in conn.execute(f"SELECT DISTINCT key_id FROM {table} WHERE {live}").fetchall() if r[0]}  # noqa: S608 - fixed names
     return ids
 
 

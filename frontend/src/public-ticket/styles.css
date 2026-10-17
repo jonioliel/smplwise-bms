@@ -193,6 +193,12 @@ body {
   font-size: 17px;
 }
 
+/* VPORTAL: the organisation's logo in place of the initial (brand.ts) */
+.brand-logo {
+  object-fit: contain;
+  background: #fff;
+}
+
 .who {
   min-inline-size: 0;
 }

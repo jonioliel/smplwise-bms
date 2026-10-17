@@ -38,6 +38,7 @@ export class TicketsPublicCard extends LitElement {
   @state() private address: string | null = null;
   @state() private cidrs: string | null = null;
   @state() private pathPrefix: string | null = null;
+  @state() private months: string | null = null;
   @state() private probe: ProbeAnswer | null = null;
   @state() private probing = false;
   @state() private advanced = false;
@@ -117,6 +118,7 @@ export class TicketsPublicCard extends LitElement {
         this.address = null;
         this.cidrs = null;
         this.pathPrefix = null;
+        this.months = null;
         void this.loadHealth();
       }
     }
@@ -175,6 +177,29 @@ export class TicketsPublicCard extends LitElement {
       </span></div>`;
   }
 
+  /** VPORTAL: the vendor area (on / off, months back) and - 2.6.4 review F1 - "the portal requires a number confirmed by code"
+   * (default on). system.configure like the whole document, audited by the server; editable from a remote session too (owner
+   * 2026-10-17), so these controls are never read-only on the tunnel. */
+  private portalRows(): TemplateResult {
+    const vp = { enabled: false, closed_months: 2, require_confirmed_number: true, ...(this.doc?.vendor_portal ?? {}) };
+    const months = this.months ?? String(vp.closed_months);
+    const n = Number(months);
+    const monthsOk = Number.isInteger(n) && n >= 1 && n <= 24;
+    const seg = (key: 'enabled' | 'require_confirmed_number', label: string, attr: string) => html`<div class="row"><span class="lbl">${label}</span>
+      <span class="seg" role="radiogroup" aria-label=${label}>${[true, false].map((on) => html`<button type="button" role="radio"
+        aria-checked=${String(vp[key] === on)} aria-pressed=${String(vp[key] === on)} data-vp=${attr} data-on=${String(on)} ?disabled=${this.busy}
+        @click=${() => { if (vp[key] !== on) this.save({ vendor_portal: key === 'enabled' ? { enabled: on } : { require_confirmed_number: on } }); }}>${tt(on ? 'vpOn' : 'vpOff')}</button>`)}</span></div>`;
+    return html`${seg('enabled', tt('vpLabel'), 'enabled')}
+      <div class="hint" data-vp-note>${tt('vpNote')}</div>
+      <div class="row stack"><span class="lbl">${tt('vpMonths')}</span>
+        <div class="line"><input class="in" type="number" min="1" max="24" step="1" inputmode="numeric" data-vp-months aria-label=${tt('vpMonths')}
+          .value=${months} @input=${(e: Event) => (this.months = (e.target as HTMLInputElement).value)} />
+          <sw-button size="sm" variant="primary" data-vp-months-save ?disabled=${this.busy || !monthsOk || n === vp.closed_months}
+            @click=${() => this.save({ vendor_portal: { closed_months: n } })}>${tt('save')}</sw-button></div></div>
+      ${seg('require_confirmed_number', tt('vpConfirmed'), 'confirmed')}
+      <div class="hint" data-vp-confirmed-note>${tt('vpConfirmedNote')}</div>`;
+  }
+
   render() {
     const p = this.pub;
     const org = this.org ?? this.doc?.organization_name ?? '';
@@ -198,6 +223,7 @@ export class TicketsPublicCard extends LitElement {
           aria-checked=${String(p.theme === m)} aria-pressed=${String(p.theme === m)} data-public-theme=${m} ?disabled=${this.busy}
           @click=${() => { if (p.theme !== m) this.save({ public: { theme: m } }); }}>${tt(m === 'light' ? 'pubThemeLight' : m === 'dark' ? 'pubThemeDark' : 'pubThemeAuto')}</button>`)}</span></div>
       <div class="hint" data-public-theme-note>${tt('pubThemeNote')}</div>
+      ${this.portalRows()}
       <div class="row stack"><span class="lbl">${tt('pubAddress')}</span>
         <div class="line"><input class="in" type="url" dir="ltr" maxlength="300" inputmode="url" autocomplete="off" data-public-address aria-label=${tt('pubAddress')}
           placeholder=${tt('pubAddressHint')} ?readonly=${this.remote} .value=${address} @input=${(e: Event) => { this.address = (e.target as HTMLInputElement).value; this.probe = null; }} />

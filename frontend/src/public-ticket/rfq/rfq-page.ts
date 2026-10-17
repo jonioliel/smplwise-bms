@@ -16,6 +16,7 @@
  */
 import './rfq.css';
 import { newRequestId, rfqApi, type ApiFailure, type Credentials, type RfqQuote, type RfqView } from '../api';
+import { brandMark } from '../brand';
 import { h, icon } from '../dom';
 import { codeMessage, validSession } from '../state';
 import { CATALOGUES, isLang, LANGS, RTL, text, type Key, type Lang } from '../strings';
@@ -418,7 +419,7 @@ class RfqPage {
     const org = v.organization || '';
     return h('header', { class: 'top' },
       h('div', { class: 'brand' },
-        h('div', { class: 'avatar', attrs: { 'aria-hidden': 'true' } }, (org.trim()[0] ?? '#').toUpperCase()),
+        brandMark(org, v.logo), // VPORTAL: the logo when one is set, else the initial
         h('div', { class: 'who' },
           org ? h('div', { class: 'org', attrs: { dir: 'auto' } }, org) : null,
           h('div', { class: 'sub', attrs: { 'data-rfq-ref': v.ref } }, h('span', { attrs: { dir: 'ltr' } }, v.ref), v.department ? ` · ${v.department}` : ''))),

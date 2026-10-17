@@ -80,6 +80,15 @@ def _org_name(v: Any) -> str:
     return text
 
 
+def _logo_stamp(v: Any) -> str:
+    """VPORTAL: the logo's stamp (16 lowercase hex characters of its SHA-256) or "" for none (services/tickets/brand.py)."""
+    if v == "":
+        return ""
+    if not isinstance(v, str) or re.fullmatch(r"[0-9a-f]{16}", v) is None:
+        raise ValueError("invalid")
+    return v
+
+
 def _base_url(v: Any) -> str:
     """Slice 4: the public address of the handler page (`https://<host>` with an optional single path prefix such as `/support`, spec 14.1); empty = not configured."""
     from .links import PublicUrlError, validate_public_base_url
@@ -192,6 +201,18 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # departments on "מטפלים וספקים". OFF by default (masked: the last four digits); changed with system.configure (system_admin),
     # audited by the settings route. Rows of other departments and rows shared with every department stay masked.
     ("directory", "managers_full_phones"): (False, boolean),
+    # VPORTAL (owner-approved 2026-10-16): the vendor portal on the public page (`/support` without a link): a vendor signs in with a
+    # one-time WhatsApp code to the number on file and sees their requests read-only (services/tickets/vendor_portal.py). OFF by
+    # default (nothing changes on upgrade); `closed_months`: how far back closed requests are listed (default 2)
+    ("vendor_portal", "enabled"): (False, boolean),
+    ("vendor_portal", "closed_months"): (2, int_range(1, 24)),
+    # 2.6.4 review F1 (owner decision 2026-10-17): the portal serves only a number its owner PROVED (confirmed by code, or by the
+    # signed-in person themself) - even while `phone_verify.required` is off. ON by default; only the owner (system.configure) may
+    # switch it off; allowed from a remote session too (not a key of the public address)
+    ("vendor_portal", "require_confirmed_number"): (True, boolean),
+    # VPORTAL: the stamp of the organisation's logo on the public pages ("" = none) - written ONLY by the logo routes
+    # (services/tickets/brand.py), never by PUT /tickets/settings
+    ("brand", "logo"): ("", _logo_stamp),
     # slice 9: cost claims (11A.14, D31 / D32); department and vendor overrides live on their rows (11A.1)
     ("costs", "mode"): ("optional", _choice("required", "optional", "off")),
     ("costs", "currencies"): (["ILS"], _currencies),

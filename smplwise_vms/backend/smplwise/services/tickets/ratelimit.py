@@ -401,7 +401,8 @@ def classify_client(peer: str | None, forwarded: Sequence[str], trusted: Sequenc
 
 # ---------------------------------------------------------------- the policy of the public listener
 
-ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "token_write", "photo", "claim_file", "code", "redeem")
+ROUTE_KINDS = ("static", "asset", "health", "token_read", "photo_read", "token_write", "photo", "claim_file", "code", "redeem",
+               "portal_start", "portal_verify", "portal_read")  # + VPORTAL: the vendor portal's routes (per client network, no token)
 TOKEN_KINDS = frozenset({"token_read", "photo_read", "token_write", "photo", "claim_file", "code"})
 UPLOAD_KINDS = frozenset({"photo", "claim_file"})  # their body phase is paid when it starts (RequestCost.body_phase)
 
@@ -422,11 +423,18 @@ class PublicLimits:
     token_claim_files: Limits = ((3600.0, 40),)
     redeem_per_network: Limits = ((60.0, 10),)
     code_per_recipient: Limits = ((3600.0, 6),)
+    # VPORTAL (the vendor portal, services/tickets/vendor_portal.py): per client network (/24 or /64) and installation-wide. The
+    # per-NUMBER caps live in the code rows (1 / 60 s, 3 / h, 6 / day) and never answer differently (no enumeration).
+    portal_start_per_network: Limits = ((600.0, 10), (3600.0, 30))  # within the limiter's 1 h horizon (no longer window here)
+    portal_start_global: Limits = ((3600.0, 300),)
+    portal_verify_per_network: Limits = ((600.0, 30),)
+    portal_read_per_network: Limits = ((60.0, 120),)
     known_good_ttl_s: float = 86400.0
 
     WINDOW_NAMES = ("static_per_network", "asset_per_network", "unknown_per_network", "unknown_global", "redeem_global",
                     "token_requests", "token_photo_reads", "token_writes", "token_photos", "token_claim_files",
-                    "redeem_per_network", "code_per_recipient")
+                    "redeem_per_network", "code_per_recipient", "portal_start_per_network", "portal_start_global",
+                    "portal_verify_per_network", "portal_read_per_network")
 
     @property
     def horizon_s(self) -> float:
@@ -586,6 +594,13 @@ class PublicRateGate:
         if kind == "redeem":
             return (self._locks(net, "fail:redeem", self.limits.redeem_global)
                     or self._hit(f"r:{net}", self.limits.redeem_per_network, "redeem_rate") or Decision(True))
+        if kind == "portal_start":  # VPORTAL: a code request - its network, then the installation (cost of the WhatsApp account)
+            return (self._locks(net, None, ()) or self._hit(f"ps:{net}", self.limits.portal_start_per_network, "portal_rate")
+                    or self._hit("ps:*", self.limits.portal_start_global, "flood") or Decision(True))
+        if kind == "portal_verify":
+            return self._locks(net, None, ()) or self._hit(f"pv:{net}", self.limits.portal_verify_per_network, "portal_rate") or Decision(True)
+        if kind == "portal_read":
+            return self._locks(net, None, ()) or self._hit(f"pp:{net}", self.limits.portal_read_per_network, "portal_rate") or Decision(True)
         if kind not in TOKEN_KINDS:
             raise ValueError(f"unknown route kind {kind!r}")
         if not token_key:

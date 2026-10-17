@@ -71,6 +71,20 @@ async function call<T>(creds: Credentials, method: 'GET' | 'POST', path: string,
   return { ok: true, data: data as T };
 }
 
+/** A picture of the link as a blob (shown through a blob: URL): the link's credentials, never a cookie, never cached; `type` - the
+ * answer's content type must start with it. Null on any failure. */
+async function blobOf(path: string, c: Credentials, type?: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(withBase(path), {
+      headers: { 'X-Ticket-Token': c.token ?? '', ...(c.session ? { 'X-Ticket-Session': c.session } : {}) },
+      credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
+    });
+    return res.ok && (!type || (res.headers.get('content-type') ?? '').startsWith(type)) ? await res.blob() : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface TimelineItem {
   id: number;
   at: string;
@@ -92,6 +106,8 @@ export interface TicketView {
   number: number;
   department: string;
   organization: string;
+  /** VPORTAL: the organisation's logo file (`<stamp>.jpg`), or null - brand.ts */
+  logo?: string | null;
   lang: string;
   dir: 'rtl' | 'ltr';
   labels: { one: string; many: string; gender: string };
@@ -148,30 +164,9 @@ export const api = {
     return call<{ id: string; width: number; height: number }>(c, 'POST', '/t/api/photo', undefined, form);
   },
   /** a photo of the ticket as a blob (shown through a blob: URL - the CSP allows `img-src 'self' blob:` only) */
-  photoBlob: async (c: Credentials, id: string): Promise<Blob | null> => {
-    try {
-      const res = await fetch(withBase(`/t/api/photo/${encodeURIComponent(id)}`), {
-        headers: { 'X-Ticket-Token': c.token ?? '', ...(c.session ? { 'X-Ticket-Session': c.session } : {}) },
-        credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
-      });
-      return res.ok ? await res.blob() : null;
-    } catch {
-      return null;
-    }
-  },
+  photoBlob: (c: Credentials, id: string): Promise<Blob | null> => blobOf(`/t/api/photo/${encodeURIComponent(id)}`, c),
   /** TKMAP1: the server-drawn 2D picture of the map element (image/svg+xml), shown through a blob: URL like the photos */
-  mapBlob: async (c: Credentials): Promise<Blob | null> => {
-    try {
-      const res = await fetch(withBase('/t/api/map-image'), {
-        headers: { 'X-Ticket-Token': c.token ?? '', ...(c.session ? { 'X-Ticket-Session': c.session } : {}) },
-        credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
-      });
-      if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('image/svg+xml')) return null;
-      return await res.blob();
-    } catch {
-      return null;
-    }
-  },
+  mapBlob: (c: Credentials): Promise<Blob | null> => blobOf('/t/api/map-image', c, 'image/svg+xml'),
   codeSend: (c: Credentials) => call<{ sent: boolean; channel: string; expires_in_s: number }>(c, 'POST', '/t/api/code/send', {}),
   codeVerify: (c: Credentials, code: string) => call<{ session: string; expires_in_s: number }>(c, 'POST', '/t/api/code/verify', { code }),
   /** TKRFQVP (contract 15.1): an RFQ link's e-mail form answers `{token, kind: "rfq"}`; a ticket's stays `{token}` */
@@ -232,6 +227,7 @@ export interface RfqView {
   kind: 'rfq';
   ref: string;
   organization: string;
+  logo?: string | null; // VPORTAL: brand.ts
   department: string;
   lang: string;
   dir: 'rtl' | 'ltr';

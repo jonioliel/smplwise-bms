@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ...db import get_setting, new_id
-from . import handler_links, model, naming, notify_bridge, org_locations, settings_doc, sla, store, store_links
+from . import brand, handler_links, model, naming, notify_bridge, org_locations, settings_doc, sla, store, store_links
 from .public_ports import LinkRecord, StoredImage
 from .public_store import audit_link, fold
 
@@ -353,6 +353,7 @@ def view(conn, link: LinkRecord, *, code_ok: bool, read_only: bool, now: dt.date
         "number": ticket["number"],
         "department": dept.get("name") or "",
         "organization": doc["organization_name"],
+        "logo": brand.logo_name(conn),  # VPORTAL: the organisation's logo file (`<stamp>.jpg` under `<prefix>/brand/`) or None
         "lang": lang,
         "dir": "rtl" if lang in RTL else "ltr",
         "labels": {"one": names["one"], "many": names["many"], "gender": names["gender"]},
