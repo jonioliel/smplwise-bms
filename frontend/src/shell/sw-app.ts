@@ -1109,6 +1109,43 @@ export class SwApp extends LitElement {
         inset: -6px;
       }
     }
+    /* Header dropdown, one row with the page title (owner 2026-10-17): on a wide screen the dropdown form of a tab group (the single chip
+       of an area, or the two chips + alarm button of the pair) takes NO row of its own. The chrome row collapses to zero height and its
+       chips hang at the end side of the page's first row (RTL: the left, beside the title; LTR mirrors), clear of the floating
+       corner. The pages already keep that end side free through --sw-float-reserve, so the reserve grows by the chips' width
+       (data-dd-head = how many chips, set in updated()). Below 1100 px (and on the phone) the chips keep their own row above the
+       title, which is the "does not fit: wrap below" case. */
+    @media (min-width: 1100px) {
+      :host([data-design='a'][data-dd-head]) .subnav[data-tabstyle='dropdown'],
+      :host([data-design='a'][data-dd-head]) .tabpair:not(.single) {
+        position: relative;
+        z-index: 4;
+        flex: none;
+        align-items: flex-start;
+        justify-content: flex-end;
+        block-size: 0;
+        min-block-size: 0;
+        padding-block: 0;
+        padding-inline-start: 30px;
+        padding-inline-end: 84px;
+        overflow: visible;
+      }
+      :host([data-design='a'][data-dd-head]) .subnav[data-tabstyle='dropdown'] sw-tabs,
+      :host([data-design='a'][data-dd-head]) .tabpair > sw-tabs,
+      :host([data-design='a'][data-dd-head]) .tabpair > sw-dropdown,
+      :host([data-design='a'][data-dd-head]) .tabpair > a.alarmpin {
+        flex: 0 0 auto;
+        position: relative;
+        inset-block-start: 14px;
+        align-self: flex-start;
+      }
+      :host([data-design='a'][data-dd-head='1']) {
+        --sw-float-reserve: 276px;
+      }
+      :host([data-design='a'][data-dd-head='2']) {
+        --sw-float-reserve: 500px;
+      }
+    }
     @media (max-width: 767px) {
       :host([data-design='a']) {
         grid-template-rows: minmax(0, 1fr) auto;
@@ -1684,6 +1721,13 @@ export class SwApp extends LitElement {
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
     const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone, .tabpair') ? 'secrow' :this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
     if (this.getAttribute('data-top') !== top) this.setAttribute('data-top', top);
+    // the dropdown form's chips share the page title's row on a wide screen (CSS, min-width 1100): how many chips hang there
+    const chips = this.renderRoot.querySelectorAll('.subnav[data-tabstyle="dropdown"] > sw-tabs, .tabpair:not(.single) > sw-tabs, .tabpair:not(.single) > sw-dropdown').length;
+    const dd = chips ? String(Math.min(chips, 2)) : null;
+    if (this.getAttribute('data-dd-head') !== dd) {
+      if (dd === null) this.removeAttribute('data-dd-head');
+      else this.setAttribute('data-dd-head', dd);
+    }
     const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');
     if (banner === this.observedBanner) return;
     this.bannerObs?.disconnect();
