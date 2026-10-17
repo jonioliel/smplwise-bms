@@ -40,13 +40,17 @@ class Refused(Exception):
 def _order(conn, assignment_id: str) -> dict[str, Any] | None:
     """The RFQ work order behind an assignment: the awarded quote names it; the dates are on the order's timeline row."""
     try:
-        q = conn.execute("SELECT id, ticket_id FROM ticket_quotes WHERE assignment_id = ? AND ticket_id IS NOT NULL", (assignment_id,)).fetchone()
+        q = conn.execute("SELECT id, ticket_id, rfq_vendor_id FROM ticket_quotes WHERE assignment_id = ? AND ticket_id IS NOT NULL", (assignment_id,)).fetchone()
     except Exception:  # noqa: BLE001 - an installation without the RFQ tables
         return None
     if q is None:
         return None
     window = {"work_from": None, "work_to": None}
-    for r in conn.execute("SELECT data_json FROM ticket_rfq_events WHERE kind = 'order_created' ORDER BY id DESC").fetchall():
+    # HARDEN271 K6: only this RFQ's own timeline (idx_ticket_rfq_events_rfq), never every order of the installation per public request
+    rv = conn.execute("SELECT rfq_id FROM ticket_rfq_vendors WHERE id = ?", (q["rfq_vendor_id"],)).fetchone() if q["rfq_vendor_id"] else None
+    rows = conn.execute("SELECT data_json FROM ticket_rfq_events WHERE rfq_id = ? AND kind = 'order_created' ORDER BY id DESC",
+                        (rv["rfq_id"],)).fetchall() if rv is not None else []
+    for r in rows:
         try:
             data = json.loads(r["data_json"] or "{}")
         except ValueError:
@@ -241,6 +245,8 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
         raise Refused(409, "arrival_other_person")
     live = ag.live_grant_of(conn, "contact", person_id)
     doors = json.loads(live["doors_json"]) if live is not None and live["state"] in ag.DECIDED else suggested_doors(conn, ticket)
+    if not doors:  # HARDEN271 K1: nothing to suggest = a request no approver could approve; the transaction rolls back
+        raise Refused(409, "no_doors_suggested")
     try:
         scope, outside = _scope(conn, body, order, doors, now)  # the page never changes approved doors: only the person, dates and hours
     except ag.ApiError as exc:
