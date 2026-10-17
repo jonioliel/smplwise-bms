@@ -144,10 +144,16 @@ class DirectoryPatch(BaseModel):
     managers_full_phones: StrictBool | None = None
 
 
+class RfqAttachmentsPatch(BaseModel):  # RFQATT review 2.6.4: Word / Excel attachments on requests for quotation (OFF by default)
+    model_config = ConfigDict(extra="forbid")
+    allow_office: StrictBool | None = None
+
+
 class RfqPatch(BaseModel):
-    """The requests-for-quotation section (settings_doc validates every range again). One model for the two branches that added it at
-    integ/264: RFQQUESTIONS (the existing `rfq` keys + `question_reminder_hours`; before this the section had no route) and
-    CR-RFQ-PAYMENT-SCHEDULE (`schedule_arrival`, `arrival_reminder_hours`; RFQ contract sections 13 / 20.9)."""
+    """The requests-for-quotation section (settings_doc validates every range again). One model for the branches that added it at
+    integ/264: RFQQUESTIONS (the existing `rfq` keys + `question_reminder_hours`; before this the section had no route),
+    CR-RFQ-PAYMENT-SCHEDULE (`schedule_arrival`, `arrival_reminder_hours`; RFQ contract sections 13 / 20.9) and the RFQATT review
+    (`attachments.allow_office`, nested, default OFF; contract 19.2)."""
     model_config = ConfigDict(extra="forbid")
     default_due_days: int | None = Field(default=None, ge=1, le=60)
     grace_hours: int | None = Field(default=None, ge=0, le=168)
@@ -157,6 +163,7 @@ class RfqPatch(BaseModel):
     question_reminder_hours: int | None = Field(default=None, ge=0, le=168)
     schedule_arrival: StrictBool | None = None  # the payment schedule + arrival confirmation (default OFF)
     arrival_reminder_hours: StrictInt | None = None  # settings_doc validates the range (0-168)
+    attachments: RfqAttachmentsPatch | None = None  # RFQATT review 2.6.4: rfq.attachments.allow_office
 
 
 class VendorPortalPatch(BaseModel):
@@ -183,7 +190,7 @@ class SettingsBody(BaseModel):
     costs: CostsPatch | None = None  # slice 9
     staff_links: StaffLinksPatch | None = None  # TKSTAFF1
     directory: DirectoryPatch | None = None  # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17)
-    rfq: RfqPatch | None = None  # RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE
+    rfq: RfqPatch | None = None  # RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE + RFQATT review (attachments.allow_office)
     vendor_portal: VendorPortalPatch | None = None  # VPORTAL
 
 
@@ -242,9 +249,13 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
     for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
         sent = getattr(body, block)
         if sent is not None:
-            values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}
+            # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value
+            values = {k: v for k, v in sent.model_dump().items() if v is not None and k not in ("confirm_live_links", "attachments")}
             if values:
                 patch[block] = values
+    if body.rfq is not None and body.rfq.attachments is not None and body.rfq.attachments.allow_office is not None:
+        # merged next to the other rfq keys of the same request (integ/264: one RfqPatch for RFQQUESTIONS / RFQPAY / RFQATT-FIX)
+        patch.setdefault("rfq", {})["attachments"] = {"allow_office": body.rfq.attachments.allow_office}
     if body.send_hours is not None:
         patch["send_hours"] = body.send_hours.window()
     if body.urgent_is_critical is not None:

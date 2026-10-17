@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createWireBody } from '../src/api/tickets-rfq';
 import { mockRfq, resetDemoRfq } from '../src/api/tickets-rfq-mock';
 import { ApiError } from '../src/api/client';
-import { DEFAULT_LIMITS, displayName, formatBytes, localKind, precheck, vendorFiles } from '../src/tickets/rfq-files-model';
+import { DEFAULT_LIMITS, acceptFor, displayName, formatBytes, localKind, officeAllowed, precheck, typesLabel, vendorFiles } from '../src/tickets/rfq-files-model';
 import { invitePreview, refusalKey } from '../src/tickets/rfq-model';
 import { RFQ_TEXT_EN_KEYS, RFQ_TEXT_KEYS } from '../src/tickets/rfq-text';
 import { fileRoute, sizeText } from '../src/public-ticket/rfq/rfq-files';
@@ -42,6 +42,20 @@ test('precheck: type, per-file size, count and the documents\' total - in order,
   expect(t.accepted.map((f) => f.name)).toEqual(['pic.jpg']);
   expect(precheck([file('empty.pdf', 'application/pdf', 0)], []).refused[0].reason).toBe('size');
   expect(DEFAULT_LIMITS).toMatchObject({ files: 10, image_bytes: 8 * MB, document_bytes: 10 * MB, total_bytes: 40 * MB });
+});
+
+test('Word / Excel follow the installation switch (rfq.attachments.allow_office, OFF by default): hidden from the picker, refused by name', () => {
+  expect(officeAllowed(DEFAULT_LIMITS)).toBe(false);
+  expect(acceptFor(DEFAULT_LIMITS)).not.toMatch(/docx|xlsx|officedocument/);
+  expect(typesLabel(DEFAULT_LIMITS)).toBe('JPG, PNG, WebP, PDF');
+  const off = precheck([file('spec.docx', '', 10), file('boq.xlsx', '', 10), file('plan.pdf', 'application/pdf', 10)], []);
+  expect(off.refused).toEqual([{ name: 'spec.docx', reason: 'office' }, { name: 'boq.xlsx', reason: 'office' }]);
+  expect(off.accepted.map((f) => f.name)).toEqual(['plan.pdf']);
+  const on = { ...DEFAULT_LIMITS, types: ['jpg', 'png', 'webp', 'pdf', 'docx', 'xlsx'], office: true };
+  expect(officeAllowed(on) && acceptFor(on).includes('.docx') && acceptFor(on).includes('.xlsx')).toBe(true);
+  expect(typesLabel(on)).toBe('JPG, PNG, WebP, PDF, Word, Excel');
+  expect(precheck([file('spec.docx', '', 10)], [], on).accepted).toHaveLength(1);
+  expect(refusalKey('office_disabled')).toBe('err_office_disabled');
 });
 
 test('what each vendor receives: live, visible files only; names as the server will give them; sizes in words', () => {

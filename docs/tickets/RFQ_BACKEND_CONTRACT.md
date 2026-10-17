@@ -1,6 +1,6 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
+Status: **v1.4.1 (the review fixes of RFQPAY (section 20) and RFQATT (section 19), no new migration) / v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
 section 20 = the payment schedule and the arrival confirmation, behind a switch that is OFF by default (RFQPAY, migration 0103); section
 21 = vendor questions (RFQQUESTIONS, migration 0104); the organisation location of a request (CR-ORG-LOCATIONS, migration 0101, change
 log only); section 16 = the managers' notifications and inbound WhatsApp replies; section 17 = the earlier attachments design, superseded
@@ -637,17 +637,49 @@ reference copy of a work order (19.6). Rollback: drop both tables.
 | Kind | Accepted when | Stored | Served |
 |---|---|---|---|
 | picture | JPEG / PNG / WebP magic; the ONE image pipeline (`image_intake.reencode`, here with `allow_webp=True` - the public routes keep refusing WebP): structure walk, pixel budget (16 MP; 8 MP for PNG, progressive JPEG and WebP), a metadata-free copy for the decoder, still WebP only (animation refused), at most 8 MiB | a FRESH JPEG (q82, <= 2048 px, no EXIF / GPS / ICC / XMP / comments / appended bytes) + a 480 px re-encoded thumbnail; the original bytes never | inline, `image/jpeg`, nosniff, `private, no-store` |
-| PDF | `cost_files.check_pdf` (magic, trailer in the last KiB, active-content names incl. inflated streams, encryption refused), at most 10 MiB | byte for byte, never parsed / rendered / thumbnailed | download only: `application/pdf`, `Content-Disposition: attachment` (ASCII fallback name + RFC 5987 `filename*`), nosniff, `Content-Security-Policy: sandbox`, `private, no-store` |
-| DOCX / XLSX | `check_office`: a ZIP that starts at byte 0 and ends with its EOCD record (no prepended / appended bytes, no comment, no ZIP64); <= 2000 entries; unique plain names (no absolute, `..`, backslash, drive, NUL; case-folded duplicates refused); no encryption; stored / deflate only; <= 100 MiB uncompressed and <= 100:1 per entry over 1 MiB (a bomb is refused from the directory); exactly one main part (`word/document.xml` / `xl/workbook.xml`) with the macro-FREE content type; at most 10 MiB | byte for byte | download only (as PDF, the exact OOXML type) |
+| PDF | `rfq_files.check_pdf`: `cost_files.check_pdf` (magic at 0, active-content names incl. inflated streams, encryption refused) plus (v1.4.1, review F3) nothing but whitespace after the LAST `%%EOF` (`pdf_invalid`) and no ZIP central directory + end record anywhere in the bytes (`pdf_refused` - the PDF/ZIP polyglot), at most 10 MiB | byte for byte, never parsed / rendered / thumbnailed | download only: `application/pdf`, `Content-Disposition: attachment` (ASCII fallback name + RFC 5987 `filename*`), nosniff, `private, no-store`; CSP: `sandbox` on the internal API, the listener's `default-src 'none'; ...` on the public edge (v1.4.1, review F7: the edge replaces every route CSP) |
+| DOCX / XLSX - **only while the installation setting `rfq.attachments.allow_office` is on (OFF by default; otherwise 422 `office_disabled` before any scan)** | `check_office`: a ZIP that starts at byte 0 and ends with its classic EOCD record (no prepended / appended bytes, no comment; a ZIP64 archive also ends with that record and is read by `zipfile` - its counts and sizes are judged from the directory like any other), no `%PDF-` in the first KiB and no other format's magic in the first entry's name / extra field; <= 2000 entries; unique plain names (no absolute, `..`, backslash, drive, NUL; case-folded duplicates refused); no encryption; stored / deflate only; <= 100 MiB uncompressed and <= 100:1 per entry over 1 MiB (a bomb is refused from the directory); exactly one main part (`word/document.xml` / `xl/workbook.xml`) with the macro-FREE content type; at most 10 MiB | byte for byte | download only (as PDF, the exact OOXML type) |
 | anything else | - | - | 415 `unsupported_format` (HEIC: `heic_refused`) |
 
-Office refusals (422 `office_refused`): `vbaProject` / `vbaData` / any `macroEnabled` type, ActiveX, `embeddings/` and OLE objects (any
-`.bin` except `printerSettings/*.bin`), macro sheets, `externalLinks/` (external workbooks, DDE links), an executable-looking entry name, a
-DOCTYPE / ENTITY in any XML part, an EXTERNAL relationship other than a hyperlink (remote templates, frames, OLE / image links), a refused
-relationship type (attachedTemplate, oleObject, activeX, vbaProject, frame, subDocument, externalLink, package, control), a DDE field
-(`DDEAUTO`, `instrText DDE`, `w:instr="DDE`) and a `|` inside a spreadsheet formula. Inflating for the scans is bounded (100 MiB in all, 32
-MiB per part). 422 `office_invalid`: not a well-formed package. As for invoice PDFs, the scans are a FILTER, not a guarantee; the controls
-are "never rendered by Arx" and "a download only" (+ the listener's CSP on the public side).
+Office refusals (422 `office_refused`; v1.4.1 after the 2.6.4 review F1 / F2 - the checks PARSE, they do not grep):
+* **Content-type allow-list** (`[Content_Types].xml`): every declared Default / Override type and every part's resolved type must be on
+  the list - the OOXML `wordprocessingml` / `spreadsheetml` / `drawingml` / theme / properties `+xml` types (minus connections, query
+  tables, external links, OLE, ActiveX, controls, macros, templates, mail merge, shared-workbook revision parts), package relationships and
+  core properties, `application/xml` (customXml), printer settings, VML drawings, JPEG / PNG / GIF / BMP / TIFF and a short list of
+  `vnd.ms-*` chart / comment / people types. Refused, never cleaned: altChunk carriers (MHT `message/rfc822`, HTML, XHTML, RTF, plain text),
+  data connections, query tables, external links, OLE / ActiveX, macros, embedded fonts (`obfuscatedFont`), EMF / WMF / SVG, signatures,
+  web extensions, any unknown type, a part with no declared type. The main part's own Override must be EXACTLY the macro-free main type.
+* **Names** (defence in depth, before anything is read): `vbaProject` / `vbaData`, `activeX/`, `embeddings/`, OLE objects, macro sheets,
+  `externalLinks/`, `xl/connections.xml`, `queryTables/`, `word/fonts/`, `afchunk`, any `.bin` except `printerSettings/*.bin`, and
+  executable / HTML / MHT / RTF / text / metafile / font / SVG extensions.
+* **Every XML part is parsed** with expat: character references are decoded, attribute whitespace and tag length are irrelevant, a
+  DOCTYPE / ENTITY anywhere in a part is refused (raw scan of the WHOLE part, and the parser's own DOCTYPE handler - also in UTF-16), so no
+  entity is ever defined or expanded (an undefined entity -> `office_invalid`); at most 2 million elements per part.
+* **Relationships** (every one, decoded): a refused type in any mode (attachedTemplate, oleObject, activeX, vbaProject, frame,
+  subDocument, externalLink(Path), package, control, aFChunk, connections, queryTable, font, mail-merge sources, web extensions, macro /
+  dialog sheets, ...); an EXTERNAL target only for a hyperlink; an internal target never a URL or a UNC path.
+* **Word field codes**: the text of all `instrText` / `delInstrText` runs of one field (begin .. separate) is joined before it is judged,
+  `fldSimple@instr` likewise, in EVERY Word part (headers, footers, notes ...): DDE, DDEAUTO, INCLUDETEXT, INCLUDEPICTURE, LINK, EMBED,
+  IMPORT, DATABASE, PRINT, MACROBUTTON, RD, AUTOTEXTLIST, and a field whose type would come from a nested field (the QUOTE obfuscation).
+* **Spreadsheets**: a `|` in ANY formula location (cell `f`, `definedName`, table formulas, data-validation `formula1` / `formula2`,
+  conditional-format `formula`, `xm:f` in extension lists); pivot caches over anything but a worksheet (or with a `connectionId`).
+* **Elements** refused anywhere: `altChunk`, `subDoc`, OLE objects, ActiveX controls, `ddeLink`, `oleLink`, `externalReference(s)`,
+  Power Query `DataMashup`, VML `FmlaMacro`, `webPublishItems`.
+
+Inflating for the scans is bounded (100 MiB in all, 32 MiB per part) and runs in the route's decode slot (429 `busy` when it is taken).
+422 `office_invalid`: not a well-formed package / XML. As for invoice PDFs, the scans are a FILTER, not a guarantee (a false refusal of an
+unusual but harmless document is accepted - save it as PDF); the controls are "never rendered by Arx" and "a download only" (+ the
+listener's CSP on the public side). Residual (recorded, not filtered): parser bugs in Office itself on allowed parts (PNG / JPEG / XML),
+and hyperlinks (a click by the vendor).
+
+**Installation setting `rfq.attachments.allow_office`** (v1.4.1; tickets.settings, `PUT /tickets/settings` body `{"rfq": {"attachments":
+{"allow_office": true}}}`, `system.configure`, audited as `tickets.settings.update` with the changed key; OFF by default - owner question
+1, decided by the lead 2026-10-17: Word / Excel stay available but off until the hardened checks are verified). Off: the upload answers
+422 `office_disabled` (audited `denied`) before the scan; `meta.attachment_limits.types` drops `docx` / `xlsx` and `office` is `false`
+(the form hides them); and office files ALREADY attached stop travelling - they leave the vendor page, its file route (the uniform 404),
+the work order's reference copy, the `{files}` count and the ticket's `rfq_origin` until the switch is on again (fail closed); managers
+still see and download them on the request. PDF and pictures never depend on the switch. There is no settings card for it yet (the RFQ
+settings have no UI card); it is set through the API.
 
 Names: the display name is the last path segment only, NFC, without control / bidi / zero-width / private characters or characters a file
 system refuses, <= 100 characters before the extension, Windows device names prefixed, and ALWAYS the extension of what the content is (a
@@ -655,7 +687,8 @@ picture called `plan.pdf` becomes `plan.jpg`). Storage uses random names only. C
 
 Limits per request (live files): **10 files**, a picture 8 MiB / a document 10 MiB as uploaded, **40 MiB stored in total** (checked
 before the decode - the role, the state, a full request - and again inside the write transaction with the stored size), plus the
-installation's 2 GiB cap of the tickets file store (507 `storage_full`). The manager route's body cap: `body_limit` row `rfq_attachment`
+installation's 2 GiB cap of the tickets file store (507 `storage_full`; v1.4.1, review F6: the cap's cached size is told about every stored
+RFQ file and thumbnail and credited on delete / purge, as the ticket photos are). The manager route's body cap: `body_limit` row `rfq_attachment`
 (10 MiB + the multipart framing). The decode runs outside the database write lock, in a decode slot of its own.
 
 ### 19.3 Manager routes (internal, `/api/v1`, RFQ visibility first - the uniform 404 `rfq_not_found`)
@@ -668,24 +701,27 @@ installation's 2 GiB cap of the tickets file store (507 `storage_full`). The man
 | `GET /tickets/rfqs/{id}/attachments/{aid}` and `.../thumb` | everyone who sees the request (internal-only and removed files included) | the file (19.2) |
 | `GET /tickets/{ticket_id}/rfq-attachments/{aid}` and `.../thumb` | the ticket's viewers (`access.py`) | a request file THAT ticket references (19.6) |
 
-Refusals: audited 403 `forbidden` (`not_manager`, `external_permission_missing`); 404 `attachment_not_found` (another request's id, a
+Refusals (the role / state / quota first - v1.4.1, review F9: before the `visible_vendors` form check): audited 403 `forbidden`
+(`not_manager`, `external_permission_missing`); 404 `attachment_not_found` (another request's id, a
 removed file on a write); 409 `attachment_locked` (awarded / ordered / closed / cancelled), `attachment_limit` (`max_files`); 413
 `attachment_total` (`max_bytes`), `payload_too_large` (`max_bytes`); 415 `unsupported_format`, `heic_refused`; 422 `image_invalid`,
-`too_many_pixels`, `pdf_invalid`, `pdf_refused`, `office_invalid`, `office_refused`, `validation` (`caption`, `visible_vendors`); 429
+`too_many_pixels`, `pdf_invalid`, `pdf_refused`, `office_invalid`, `office_refused`, `office_disabled`, `validation` (`caption`, `visible_vendors`); 429
 `busy`; 507 `storage_full`. A refusal never echoes the file's content or name; a pipeline refusal is audited (`decision: denied`, the code).
 A write never bumps the request's `revision` (an open form never goes stale for a file) and never sends anything.
 
 Detail (section 10) adds `attachments: [{id, name, caption, kind, mime, bytes, width, height, thumb, visible_vendors, created_at, removed
 (+ removed_at for managers)}]` (live files; an RFQ manager also sees the removed ones) and `can.attach`. Meta adds `attachments: true` and
-`attachment_limits: {files, image_bytes, document_bytes, total_bytes, caption, types}`. Timeline kinds `attachment_added` (`{attachment_id,
+`attachment_limits: {files, image_bytes, document_bytes, total_bytes, caption, types, office}` (`types` holds `docx` / `xlsx` and `office`
+is true only while `rfq.attachments.allow_office` is on); `settings.attachments.allow_office`. Timeline kinds `attachment_added` (`{attachment_id,
 kind, visible_vendors}`), `attachment_changed` (`{attachment_id, fields, visible_vendors?}`), `attachment_removed` (`{attachment_id, kept}`).
 Audit `ticket.rfq.attachment_add` / `.attachment_edit` / `.attachment_remove` - ids (and the kind / changed field names / `kept`) only:
 never a name, a caption, a hash or a size.
 
 ### 19.4 The vendor (public listener)
 
-`GET /t/api/rfq` `rfq.attachments` (15.3 / 15.5). `GET /t/api/rfq/file/<id>` and `GET /t/api/rfq/file/<id>/thumb` (edge kind `photo_read`,
-its 120 / min window): the token through `rfq_context()` (one indexed lookup; a ticket token, an unknown / revoked / expired token, a removed
+`GET /t/api/rfq` `rfq.attachments` (15.3 / 15.5). `GET /t/api/rfq/file/<id>` (edge kind `file_read` - v1.4.1, review F4: a window of its
+own, 20 / min and 60 / h per link, because a document is up to 10 MiB and the edge drops `Range`, so every read is the whole file) and
+`GET /t/api/rfq/file/<id>/thumb` (edge kind `photo_read`, its 120 / min window): the token through `rfq_context()` (one indexed lookup; a ticket token, an unknown / revoked / expired token, a removed
 vendor or a contact that became staff -> the uniform 404); a code-protected link without its session -> 403 `code_required`; then, re-read
 per request: the link row as it is now, the page not `closed` / `cancelled`, the file of THIS request, live and `visible_vendors`. Anything
 else - another request's file, an internal-only or removed file, a thumbnail of a document - is the uniform 404 (same bytes). There is NO
@@ -710,7 +746,7 @@ download buttons (fetched with the token header, handed to the browser as `appli
 `POST .../awards/{award_id}/order` inserts one `ticket_rfq_attachment_refs` row per live, vendor-visible file of the request for the new
 service request - no copy of the bytes. `order_created` data adds `files` (the count). The ticket's `rfq_origin` (18.4) adds `attachments`
 (the referenced files, `present_public` shape). The service request's handler page (`GET /t/api/ticket`) adds `rfq_files` (same shape,
-only past its code gate, absent when none) and serves them through `GET /t/api/ticket/rfq-file/<id>[/thumb]` (the ticket link's
+only past its code gate, absent when none) and serves them through `GET /t/api/ticket/rfq-file/<id>[/thumb]` (`file_read` / `photo_read` as in 19.4; the ticket link's
 `link_context`; a file that ticket does not reference -> the uniform 404). A ticket purge deletes its references.
 
 ### 19.7 Messages (owner: "N attachments", never a name or a URL)
@@ -973,14 +1009,25 @@ hours - never the text or the vendor. The engine applies each recipient's channe
 
 ## 14. Change log
 
-* v1.4.1 (2026-10-17, `pilot/RFQPAY-FIX`, review `RELEASE_264_REVIEW_RFQPAY` F1-F11 + the lead's owner answers; merged at integ/264,
-  section numbers as renumbered there): 20.3 the explicit schedule choice (`payment_source`, 422 `payment` `required` over a proposal),
-  the proposal re-validated at the award (`proposal_date_passed`, `proposal_exceeds_total`, `proposal_zero_amount`); 20.4 / 20.5
-  `schedule.hash`, `schedule_hash?`, 409 `terms_changed`, the acknowledgement bound to the content; 20.5 a confirmation's notification
-  resolved at once; 20.6 409 `arrival_date_passed`, the reject resets the reminders and offers the `draft` notice; 20.7 the clock only on
-  a queued notice and a final award, the actionable candidate query, the escalation after the second reminder (`arrival_unconfirmed`,
-  `escalated_at`); 20.8 `before_completion` / `completed_on` (no completion without `done_at`). Migration 0103 (unreleased) gains
-  `acknowledged_hash` and `escalated_at` - edited in place, no new migration file. RFQATT-FIX: see the v1.4.1 RFQATT entry below.
+* v1.4.1 (2026-10-17, the review fixes merged at integ/264; no new migration file):
+  * (2026-10-17, `pilot/RFQPAY-FIX`, review `RELEASE_264_REVIEW_RFQPAY` F1-F11 + the lead's owner answers; merged at integ/264,
+    section numbers as renumbered there): 20.3 the explicit schedule choice (`payment_source`, 422 `payment` `required` over a proposal),
+    the proposal re-validated at the award (`proposal_date_passed`, `proposal_exceeds_total`, `proposal_zero_amount`); 20.4 / 20.5
+    `schedule.hash`, `schedule_hash?`, 409 `terms_changed`, the acknowledgement bound to the content; 20.5 a confirmation's notification
+    resolved at once; 20.6 409 `arrival_date_passed`, the reject resets the reminders and offers the `draft` notice; 20.7 the clock only on
+    a queued notice and a final award, the actionable candidate query, the escalation after the second reminder (`arrival_unconfirmed`,
+    `escalated_at`); 20.8 `before_completion` / `completed_on` (no completion without `done_at`). Migration 0103 (unreleased) gains
+    `acknowledged_hash` and `escalated_at` - edited in place, no new migration file.
+  * (2026-10-17, RFQATT-FIX, `pilot/RFQATT-FIX` from `pilot/RFQATT`; the Fable review `RELEASE_264_REVIEW_RFQATT.md`): 19.2 - the
+    office checks PARSE every XML part (expat, character references decoded, DTDs refused anywhere, every relationship, Word field codes
+    joined across runs, every spreadsheet formula location) and allow-list parts by `[Content_Types].xml` (altChunk / MHT / HTML,
+    connections, query tables, external pivot caches, Power Query, EMF / WMF / SVG, embedded fonts refused); PDF structure rules (nothing
+    after the last `%%EOF`, no ZIP inside) and the office head polyglot rule; the ZIP64 wording; the new installation setting
+    `rfq.attachments.allow_office` (OFF by default, 422 `office_disabled`, office files stop travelling while off); the office scan in the
+    decode slot; the storage cap's accounting. 19.3 - the role refusal before the form check; meta `attachment_limits.office`. 19.4 / 19.6 -
+    edge kind `file_read` for the full files. 19.2 - the `sandbox` CSP is internal-API only (the public edge serves the listener's CSP). No
+    migration. The branch named this v1.5; merged as part of v1.4.1. Owner decision (lead, 17.10): `allow_office` default OFF,
+    fail-closed (422 `office_disabled`; existing office files stop travelling while off).
 
 * v1.4 (2026-10-17, integration 2.6.4 - one version for four branches built in parallel from `integ/264` @ `75f41b19`; each wrote its
   own "v1.4 section 19", renumbered here: RFQATT = section 19, RFQPAY = section 20, RFQQUESTIONS = section 21; CR-ORG-LOCATIONS adds no

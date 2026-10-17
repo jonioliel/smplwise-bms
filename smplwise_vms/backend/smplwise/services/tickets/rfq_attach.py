@@ -17,6 +17,8 @@ The file side (what a file is, the checks, the stored copy, the headers) is rfq_
     see        everyone who sees the request (rfq.visible) sees its live files, internal ones included (a manager also the removed);
                vendors: ONLY through their own live RFQ link past the code gate (public_rfq), ONLY live vendor-visible files of THEIR
                request, never on a closed / cancelled page; anything else is the uniform 404. Never on a public index or list.
+               Word / Excel files travel (vendor page, its file route, the work order's reference copy, `{files}`) only while the
+               installation setting `rfq.attachments.allow_office` is on (OFF by default; review 2.6.4) - managers always see them.
     order      a work order (TKRFQ4) REFERENCES every live vendor-visible file of the request from the new service request (no copy):
                the vendor keeps them on that request's handler page after the RFQ link ends, the request's viewers see them in its
                "opened from RFQ" block.
@@ -48,12 +50,13 @@ MESSAGES = {
     "pdf_invalid": "קובץ ה-PDF פגום.",
     "pdf_refused": "קובץ ה-PDF מכיל תוכן פעיל או הצפנה ולכן לא צורף. אפשר לשמור אותו מחדש כ-PDF רגיל.",
     "office_invalid": "הקובץ אינו מסמך Word או Excel תקין.",
-    "office_refused": "המסמך מכיל מאקרו, אובייקט מוטמע או קישור חיצוני ולכן לא צורף. אפשר לשמור אותו כ-PDF.",
-    "busy": "העלאת תמונה אחרת מתבצעת כעת. נסו שוב בעוד רגע.",
+    "office_refused": "המסמך מכיל מאקרו, אובייקט מוטמע, קישור חיצוני או רכיב שאינו נתמך ולכן לא צורף. אפשר לשמור אותו כ-PDF.",
+    "office_disabled": "צירוף מסמכי Word ו-Excel כבוי בהגדרות המערכת. שמרו את המסמך כ-PDF וצרפו אותו.",
+    "busy": "העלאת קובץ אחר מתבצעת כעת. נסו שוב בעוד רגע.",
     "storage_full": "נפח הקבצים המותר מלא. פנו למנהל המערכת.",
 }
 _STATUS = {"payload_too_large": 413, "too_large": 413, "unsupported_format": 415, "heic_refused": 415, "webp_refused": 415, "image_invalid": 422,
-           "too_many_pixels": 422, "pdf_invalid": 422, "pdf_refused": 422, "office_invalid": 422, "office_refused": 422, "busy": 429,
+           "too_many_pixels": 422, "pdf_invalid": 422, "pdf_refused": 422, "office_invalid": 422, "office_refused": 422, "office_disabled": 422, "busy": 429,
            "storage_full": 507}
 
 
@@ -101,11 +104,19 @@ def detail_block(conn, viewer: Viewer, seen: rfq.RfqSeen, state: str) -> dict[st
     return {"attachments": [present(a, manager=manager) for a in rows], "attach": manager and state in EDITABLE_STATES}
 
 
+def _travels(conn) -> Any:
+    """Which stored kinds may leave towards a vendor (and a work order's viewers): Word / Excel only while the installation setting
+    `rfq.attachments.allow_office` is on - turning it off also stops the office files already attached (fail closed)."""
+    office = rfq_files.office_allowed(conn)
+    return lambda a: office or not rfq_files.is_office(a["kind"])
+
+
 def vendor_list(conn, rfq_id: str) -> list[dict[str, Any]]:
     """The request's live, vendor-visible files (the vendor page's `rfq.attachments`)."""
     if not store_rfq.has_attachments(conn):
         return []
-    return [present_public(a) for a in store_rfq.attachments_of(conn, rfq_id) if a["visible_vendors"]]
+    ok = _travels(conn)
+    return [present_public(a) for a in store_rfq.attachments_of(conn, rfq_id) if a["visible_vendors"] and ok(a)]
 
 
 def vendor_count(conn, rfq_id: str) -> int:
@@ -116,7 +127,8 @@ def ticket_list(conn, ticket_id: str) -> list[dict[str, Any]]:
     """The request files a service request references (its handler page and its "opened from RFQ" block)."""
     if not store_rfq.has_attachments(conn):
         return []
-    return [present_public(a) for a in store_rfq.attachments_of_ticket(conn, ticket_id)]
+    ok = _travels(conn)
+    return [present_public(a) for a in store_rfq.attachments_of_ticket(conn, ticket_id) if ok(a)]
 
 
 # ---------------------------------------------------------------- manager writes
@@ -236,7 +248,7 @@ def for_vendor(conn, rfq_id: str, attachment_id: str) -> dict[str, Any] | None:
     if not store_rfq.has_attachments(conn):
         return None
     a = store_rfq.attachment(conn, rfq_id, attachment_id)
-    if a is None or a.get("removed_at") or not a["visible_vendors"]:
+    if a is None or a.get("removed_at") or not a["visible_vendors"] or not _travels(conn)(a):
         return None
     return a
 
@@ -244,7 +256,8 @@ def for_vendor(conn, rfq_id: str, attachment_id: str) -> dict[str, Any] | None:
 def for_ticket(conn, ticket_id: str, attachment_id: str) -> dict[str, Any] | None:
     if not store_rfq.has_attachments(conn):
         return None
-    return store_rfq.attachment_of_ticket(conn, ticket_id, attachment_id)
+    a = store_rfq.attachment_of_ticket(conn, ticket_id, attachment_id)
+    return a if a is not None and _travels(conn)(a) else None
 
 
 def file_path(root: Path, a: Mapping[str, Any], thumb: bool = False) -> Path | None:

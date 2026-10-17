@@ -390,7 +390,7 @@ export function refusalKey(code: string | undefined): string | null {
     'order_exists', 'order_not_found', 'order_channel_unavailable', 'order_link_unavailable', 'order_ticket_closed', 'public_link_unavailable',
     // RFQATT: the request's files
     'attachment_limit', 'attachment_total', 'attachment_locked', 'attachment_not_found', 'unsupported_format', 'heic_refused', 'payload_too_large',
-    'image_invalid', 'too_many_pixels', 'pdf_invalid', 'pdf_refused', 'office_invalid', 'office_refused', 'storage_full',
+    'image_invalid', 'too_many_pixels', 'pdf_invalid', 'pdf_refused', 'office_invalid', 'office_refused', 'office_disabled', 'storage_full',
     // CR-RFQ-PAYMENT-SCHEDULE
     'terms_not_found', 'arrival_not_proposed', 'arrival_date_passed',
     // RFQQUESTIONS

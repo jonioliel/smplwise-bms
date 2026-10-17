@@ -10,7 +10,7 @@ import { tIcon } from './icons';
 import { rIcon } from './rfq-icons';
 import { rt, type RfqTextKey } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
-import { ACCEPT, DEFAULT_LIMITS, formatBytes, precheck } from './rfq-files-model';
+import { DEFAULT_LIMITS, acceptFor, formatBytes, precheck, typesLabel } from './rfq-files-model';
 import { ticketsLang } from './text';
 
 /** One row of the list: a file picked in the form (`pending`, a local preview) or one the server stores (`href` = its address). */
@@ -27,7 +27,7 @@ export interface FileRow {
   pending?: boolean;
 }
 
-const REFUSAL: Record<string, RfqTextKey> = { type: 'fErrType', size: 'fErrSize', count: 'fErrCount', total: 'fErrTotal' };
+const REFUSAL: Record<string, RfqTextKey> = { type: 'fErrType', office: 'fErrOffice', size: 'fErrSize', count: 'fErrCount', total: 'fErrTotal' };
 
 /**
  * RFQATT `<tickets-rfq-files .rows .limits ?editable ?busy>`: the files and pictures of a request for quotation, in the new-request
@@ -190,11 +190,11 @@ export class TicketsRfqFiles extends LitElement {
       ${this.editable ? html`<div class=${`drop${this.over ? ' over' : ''}`} data-rfq-drop
           @dragover=${(e: DragEvent) => { e.preventDefault(); this.over = true; }} @dragleave=${() => (this.over = false)} @drop=${(e: DragEvent) => this.onDrop(e)}>
         <span>${rt('fDrop')}</span>
-        <label class="btn sm quiet">${rIcon('clip')}${rt('fPick')}<input class="vh" type="file" multiple accept=${ACCEPT} ?disabled=${this.busy} data-rfq-file-input
+        <label class="btn sm quiet">${rIcon('clip')}${rt('fPick')}<input class="vh" type="file" multiple accept=${acceptFor(l)} ?disabled=${this.busy} data-rfq-file-input
           @change=${(e: Event) => { const i = e.target as HTMLInputElement; this.pick(i.files); i.value = ''; }} /></label>
         <label class="btn sm quiet">${tIcon('camera')}${rt('fCamera')}<input class="vh" type="file" accept="image/*" capture="environment" ?disabled=${this.busy} data-rfq-camera-input
           @change=${(e: Event) => { const i = e.target as HTMLInputElement; this.pick(i.files); i.value = ''; }} /></label>
-        <small>${rt('fTypes', { n: l.files, img: formatBytes(l.image_bytes, lang), doc: formatBytes(l.document_bytes, lang), total: formatBytes(l.total_bytes, lang) })}</small>
+        <small>${rt('fTypes', { types: typesLabel(l), n: l.files, img: formatBytes(l.image_bytes, lang), doc: formatBytes(l.document_bytes, lang), total: formatBytes(l.total_bytes, lang) })}</small>
       </div>` : nothing}
       ${this.notes.length ? html`<div class="err" role="alert" data-rfq-file-refused>${this.notes.map((n) => html`<div>${bidi(n)}</div>`)}</div>` : nothing}
       ${this.rows.length ? html`<ul aria-label=${rt('secFiles')}>${repeat(this.rows, (r) => r.key, (r) => this.row(r))}</ul>`

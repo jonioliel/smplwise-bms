@@ -1659,7 +1659,7 @@ def meta(conn, viewer: Viewer) -> dict[str, Any]:
     return {"vendor_page": vendor_page_ready(conn), "settings": dict(doc["rfq"]), "departments": depts, "line_kinds": list(money.LINE_KINDS),
             "currencies": list(cost_settings(conn).currencies), "vendor_options": True,
             # RFQATT (contract 19): files and pictures on a request - the form's limits (the server enforces them anyway)
-            "attachments": store_rfq.has_attachments(conn), "attachment_limits": rfq_files.limits(),
+            "attachments": store_rfq.has_attachments(conn), "attachment_limits": rfq_files.limits(bool(doc["rfq"]["attachments"]["allow_office"])),
             "schedule_arrival": rfq_terms.enabled(conn)}  # CR-RFQ-PAYMENT-SCHEDULE: the award dialog offers the schedule / arrival fields
 
 

@@ -207,7 +207,7 @@ def delete_rfq(request: Request, rfq_id: str = Path(..., pattern=ID), principal:
     rows = rfq.purge(conn, viewer, seen, _rid(request), files_out=doomed)
     if doomed:  # RFQATT: the files go only after the rows are gone for good (the orphan sweep retries a failure)
         commit_now(conn, keep_reading=False)
-        rfq_files.remove(attachments.root(settings_of(request).data_dir), *doomed)
+        _remove_files(request, doomed)
     return {"deleted": True, "rows": rows}
 
 
@@ -665,18 +665,20 @@ def post_attachment(request: Request, rfq_id: str = Path(..., pattern=ID), file:
     viewer = Viewer(conn, principal)
     rid = _rid(request)
     seen = rfq.require_visible(viewer, rfq_id)
-    visible = _bool_form(conn, visible_vendors, True)
     data = file.file.read(rfq_files.DOCUMENT_MAX_BYTES + 1)
     name = file.filename or ""
     rfq_attach.check_add(conn, viewer, seen, len(data), rid)
+    visible = _bool_form(conn, visible_vendors, True)  # review F9: the role / state / quota refusal comes first, as on every write
+    allow_office = rfq_files.office_allowed(conn)  # rfq.attachments.allow_office (OFF by default): 422 office_disabled otherwise
+    data_dir = settings_of(request).data_dir
     root = _root(request)
     try:
-        attachments.check_capacity(settings_of(request).data_dir, len(data))
+        attachments.check_capacity(data_dir, len(data))
     except attachments.Refused as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=dict(exc.details)) from None
     try:
         with unlocked(conn):  # the decode / the scan never hold the database write lock
-            stored = rfq_files.store(root, seen.row["id"], data)
+            stored = rfq_files.store(root, seen.row["id"], data, allow_office=allow_office)
     except IntakeError as exc:
         audit(conn, actor=principal, action="ticket.rfq.attachment_add", decision="denied", resource_type="ticket_rfq", resource_id=seen.row["id"],
               reason=exc.code, request_id=rid, details={"number": seen.row["number"]})
@@ -691,6 +693,7 @@ def post_attachment(request: Request, rfq_id: str = Path(..., pattern=ID), file:
     except BaseException:
         rfq_files.remove(root, stored.rel_path, stored.thumb_rel)
         raise
+    attachments._account(data_dir, stored.stored_bytes)  # review F6: the storage cap's cached size knows the new file at once
     out = _detail(conn, viewer, rfq_id)
     out["attachment"] = next((a for a in out.get("attachments", []) if a["id"] == aid), None)
     return out
@@ -724,8 +727,17 @@ def delete_attachment(request: Request, rfq_id: str = Path(..., pattern=ID), att
     out = _detail(conn, viewer, rfq_id)
     if doomed:
         commit_now(conn, keep_reading=False)  # the row is gone for good before the file is touched
-        rfq_files.remove(_root(request), *doomed)
+        _remove_files(request, doomed)
     return out
+
+
+def _remove_files(request: Request, paths: list[str]) -> None:
+    """Delete stored files and credit the storage cap's cached size (review F6), as attachments.remove does."""
+    data_dir = settings_of(request).data_dir
+    root = attachments.root(data_dir)
+    freed = rfq_files.size_of(root, *paths)
+    rfq_files.remove(root, *paths)
+    attachments._account(data_dir, -freed)
 
 
 def _file_response(request: Request, a: dict[str, Any], number: int, thumb: bool, conn: sqlite3.Connection) -> FileResponse:
